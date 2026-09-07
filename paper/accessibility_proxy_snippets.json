@@ -27,19 +27,19 @@
       "snippets": {
         "built_in_run": {
           "source_label": "examples/basics/quickstart.py",
-          "source_url": "local://examples/basics/quickstart.py",
+          "source_url": "https://github.com/vamos-optimization/VAMOS/blob/main/examples/basics/quickstart.py",
           "entry_shape": "optimize(...)",
           "code": "from vamos import optimize\n\nresult = optimize(\"zdt1\", algorithm=\"nsgaii\")\n"
         },
         "custom_problem": {
-          "source_label": "Canonical make_problem snippet",
-          "source_url": "local://paper/manuscript/main.tex",
+          "source_label": "Canonical custom problem snippet",
+          "source_url": "https://github.com/vamos-optimization/VAMOS/blob/main/paper/manuscript/main.tex",
           "entry_shape": "optimize(...)",
           "code": "from vamos import make_problem, optimize\n\n\ndef my_objectives(x):\n    return [x[0] ** 2 + x[1] ** 2, (x[0] - 1) ** 2 + (x[1] - 1) ** 2]\n\n\nproblem = make_problem(\n    my_objectives,\n    n_var=2,\n    n_obj=2,\n    bounds=[(0, 2), (0, 2)],\n    encoding=\"real\",\n)\nresult = optimize(problem, algorithm=\"nsgaii\", max_evaluations=50000, seed=42)\n"
         },
         "expert_config": {
           "source_label": "Canonical Builder API snippet",
-          "source_url": "local://paper/manuscript/main.tex",
+          "source_url": "https://github.com/vamos-optimization/VAMOS/blob/main/paper/manuscript/main.tex",
           "entry_shape": "optimize(...)",
           "code": "from vamos import optimize\nfrom vamos.algorithms import NSGAIIConfig\n\n\ncfg = (NSGAIIConfig.builder()\n       .pop_size(100)\n       .crossover(\"sbx\", prob=1.0, eta=20)\n       .mutation(\"pm\", prob=\"1/n\", eta=20)\n       .selection(\"tournament\", size=4)\n       .external_archive()\n       .build())\n\nresult = optimize(\n    \"dtlz1\",\n    algorithm=\"nsgaii\",\n    algorithm_config=cfg,\n    max_evaluations=50000,\n    seed=42,\n)\n"
         }

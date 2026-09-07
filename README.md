@@ -362,6 +362,10 @@ All tools are available as `vamos <subcommand>`. Run `vamos help` for the full l
 
 ## Citation
 
+Reviewing the Neurocomputing manuscript? The [paper reviewer guide](paper/README.md)
+links the retained CSV data, a small executable check, isolated analysis/PDF
+rebuilds and the relevant documentation.
+
 If you use VAMOS in published work, cite it directly:
 
 ```bibtex

@@ -1,4 +1,4 @@
-## Graphical abstract (SwEvo / Elsevier)
+## Graphical abstract (Neurocomputing / Elsevier)
 
 Elsevier journals may request a separate graphical abstract file during submission.
 
