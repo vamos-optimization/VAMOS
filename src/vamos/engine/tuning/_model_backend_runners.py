@@ -241,6 +241,13 @@ def run_bohb_native(tuner: BackendTunerLike, eval_fn: ScoreEvalFn) -> tuple[dict
     lock = threading.Lock()
     trial_counter = 0
 
+    class _BOHB(BOHB):  # type: ignore[misc]
+        def _submit_job(inner_self, config_id: Any, config: Mapping[str, Any], budget: float) -> None:
+            # ConfigSpace returns NumPy scalars for categorical/boolean parents;
+            # HpBandSter's Pyro transport requires plain Python values.
+            cfg = {name: value.item() if isinstance(value, np.generic) else value for name, value in config.items()}
+            super()._submit_job(config_id, cfg, float(budget))
+
     class _Worker(Worker):  # type: ignore[misc]
         def compute(inner_self, config: Mapping[str, Any], budget: float | None, **kwargs: Any) -> dict[str, Any]:
             nonlocal trial_counter
@@ -294,7 +301,7 @@ def run_bohb_native(tuner: BackendTunerLike, eval_fn: ScoreEvalFn) -> tuple[dict
             worker.run(background=True)
             workers.append(worker)
 
-        optimizer = BOHB(
+        optimizer = _BOHB(
             configspace=cs,
             run_id=run_id,
             nameserver=ns_host,
@@ -302,7 +309,6 @@ def run_bohb_native(tuner: BackendTunerLike, eval_fn: ScoreEvalFn) -> tuple[dict
             min_budget=float(min_budget_i),
             max_budget=float(max_budget_i),
             eta=int(eta),
-            random_state=int(tuner.seed),
         )
         evals_per_iter = _estimate_hyperband_evals_per_iteration(max_budget=int(max_budget_i), eta=int(eta))
         n_iterations = max(1, int(math.ceil(max(1, int(tuner.max_trials)) / evals_per_iter)))

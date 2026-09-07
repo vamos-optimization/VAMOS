@@ -10,6 +10,7 @@ from vamos.engine.tuning.racing.bridge import (
     build_ibea_integer_config_space,
     build_ibea_permutation_config_space,
     build_moead_binary_config_space,
+    build_moead_config_space,
     build_moead_integer_config_space,
     build_moead_permutation_config_space,
     build_nsgaii_binary_config_space,
@@ -80,6 +81,26 @@ def test_algorithm_config_space_round_trip():
     decoded = space.from_unit_vector(vec)
     assert decoded["a"] in ["x", "y"]
     assert 1 <= decoded["b"] <= 3
+
+
+@pytest.mark.parametrize("builder", [build_nsgaii_config_space, build_moead_config_space, build_agemoea_config_space])
+def test_mutation_eta_is_active_only_for_polynomial_mutations(builder):
+    space = builder()
+    param_space = space.to_param_space()
+    rng = np.random.default_rng(11)
+    seen = set()
+    for _ in range(80):
+        config = space.sample(rng)
+        active = config["mutation"] in {"pm", "polynomial", "linked_polynomial"}
+        assert ("mutation_eta" in config) == active
+        assert {param.name for param in space.flatten(config)} == set(config)
+        param_space.validate(config)
+        vector = space.to_unit_vector(config)
+        decoded = space.from_unit_vector(vector)
+        assert set(decoded) == set(config)
+        np.testing.assert_allclose(space.to_unit_vector(decoded), vector)
+        seen.add(active)
+    assert seen == {False, True}
 
 
 def test_nsgaii_config_space_builds_and_constructs_config():

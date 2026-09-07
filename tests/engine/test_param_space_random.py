@@ -1,6 +1,16 @@
 import numpy as np
+import pytest
 
-from vamos.engine.tuning.racing.param_space import Categorical, Condition, Int, ParamSpace, Real
+from vamos.engine.tuning.racing.param_space import Boolean, Categorical, Condition, Int, ParamSpace, Real
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+def test_condition_accepts_numpy_boolean_parent(enabled):
+    space = ParamSpace(
+        params={"enabled": Boolean("enabled"), "value": Real("value", 0.0, 1.0)},
+        conditions=[Condition("value", "cfg['enabled']")],
+    )
+    assert space.is_active("value", {"enabled": np.bool_(enabled)}) is enabled
 
 
 def test_param_space_sample_and_validate_with_conditions():

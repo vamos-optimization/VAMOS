@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 from .param_space import PARAM_ROLES, Condition, ParamSpace, ParamType
 from .parameters import ConditionalBlock
@@ -55,8 +56,8 @@ class AlgorithmConfigSpace:
         """
         if assignment is None:
             return list(self.params)
-        active = list(self.params)
         param_space = self.to_param_space()
+        active = [p for p in self.params if param_space.is_active(p.name, assignment)]
         for p in self._conditional_params():
             if param_space.is_active(p.name, assignment):
                 active.append(p)
@@ -67,37 +68,40 @@ class AlgorithmConfigSpace:
         Sample a concrete assignment dict for all active params.
         """
         assignment: dict[str, Any] = {}
-        for p in self.params:
-            assignment[p.name] = p.sample(rng)
         param_space = self.to_param_space()
+        for p in self.params:
+            if param_space.is_active(p.name, assignment):
+                assignment[p.name] = p.sample(rng)
         for p in self._conditional_params():
             if param_space.is_active(p.name, assignment):
                 assignment[p.name] = p.sample(rng)
         return assignment
 
-    def to_unit_vector(self, assignment: dict[str, Any]) -> np.ndarray:
+    def to_unit_vector(self, assignment: dict[str, Any]) -> NDArray[np.float64]:
         """
         Encode an assignment into a unit vector [0,1]^D following param order.
         """
         values: list[float] = []
-        for p in self.params:
-            values.append(float(p.to_unit(assignment[p.name])))
         param_space = self.to_param_space()
+        for p in self.params:
+            if param_space.is_active(p.name, assignment):
+                values.append(float(p.to_unit(assignment[p.name])))
         for p in self._conditional_params():
             if param_space.is_active(p.name, assignment):
                 values.append(float(p.to_unit(assignment[p.name])))
         return np.asarray(values, dtype=float)
 
-    def from_unit_vector(self, u: np.ndarray) -> dict[str, Any]:
+    def from_unit_vector(self, u: NDArray[np.float64]) -> dict[str, Any]:
         """
         Decode a unit vector into an assignment dict, respecting conditionals.
         """
         assignment: dict[str, Any] = {}
         idx = 0
-        for p in self.params:
-            assignment[p.name] = p.from_unit(float(u[idx]))
-            idx += 1
         param_space = self.to_param_space()
+        for p in self.params:
+            if param_space.is_active(p.name, assignment):
+                assignment[p.name] = p.from_unit(float(u[idx]))
+                idx += 1
         for p in self._conditional_params():
             if param_space.is_active(p.name, assignment):
                 assignment[p.name] = p.from_unit(float(u[idx]))

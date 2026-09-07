@@ -30,6 +30,22 @@ experiments. Unconstrained regression and replay checks are retained. Exact
 replay requires a matching material environment; keep the original environment
 when reproducing historical artifacts.
 
+## Tuning conditional parameters
+
+The experimental model-based tuning backends `optuna`, `bohb_optuna`, `smac3`
+and `bohb` now honor the conditions of the tuning space, as `random` and
+`racing` already did. Trials contain only active parameters, Optuna suggests
+parents first, and SMAC3 and BOHB receive native ConfigSpace conditions.
+Unsupported conditions, unknown parents and dependency cycles fail before
+sampling. `mutation_eta` is active only for polynomial mutations in real-valued
+operator spaces, and native BOHB no longer passes an unsupported seed argument.
+
+**Reproducibility:** inactive parameters never changed the candidate
+algorithm, so scores of persisted Optuna studies stay comparable and keep their
+namespace. Seeded `random` and `racing` searches propose the same candidates as
+1.0.2, except for MOEA/D, whose `mutation_eta` moved into the
+polynomial-mutation block. See [conditional parameters](../topics/tuning.md#conditional-parameters).
+
 ## Studio
 
 - The launcher serves the Panel application and honors `--study-dir`.

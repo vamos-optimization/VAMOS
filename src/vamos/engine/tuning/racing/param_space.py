@@ -312,9 +312,9 @@ def _safe_eval_condition(expr: str, cfg: dict[str, Any]) -> bool:
         result = _eval(tree)
     except _MissingKeyError:
         return False
-    if not isinstance(result, bool):
+    if not isinstance(result, (bool, np.bool_)):
         raise ValueError(f"Condition must evaluate to bool, got {result!r} for: {expr}")
-    return result
+    return bool(result)
 
 
 __all__ = [

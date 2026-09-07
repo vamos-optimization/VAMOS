@@ -76,6 +76,17 @@ All notable public changes to VAMOS are documented here.
   like `"feasibility"` in every algorithm.
 - SPEA2 runs with `constraint_mode="none"` on constrained problems instead of
   failing with an `IndexError` after the first generation.
+- The model-based tuning backends `optuna`, `bohb_optuna`, `smac3` and `bohb`
+  honor conditional parameters, as `random` and `racing` already did. They
+  suggested every parameter, so trials recorded values that had no effect and
+  SMAC3 and BOHB modelled inactive dimensions. They now sample a parameter
+  only when its conditions hold, resolve parents first, and give SMAC3 and BOHB
+  native ConfigSpace conditions; unsupported conditions, unknown parents and
+  dependency cycles fail before sampling. In real-valued operator spaces
+  `mutation_eta` is active only for polynomial mutations, so a seeded MOEA/D
+  `random` or `racing` search proposes different candidates than 1.0.2.
+- Native BOHB tuning starts without an unsupported `random_state` argument and
+  sends plain Python values to its workers.
 - Refresh the reviewed dependency set, the canonical mypy 2.4.0 environment,
   and its exact diagnostic baseline. Pair PyMdown 12.3 with mkdocstrings 1.0.8
   on Python 3.11+, retaining the compatible documentation pair on Python 3.10.
