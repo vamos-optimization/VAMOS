@@ -71,7 +71,7 @@ def real_operator_part_medium(
                 [Categorical("scatter_base_size_factor", [0.1, 0.2, 0.3, 0.5, 0.75, 1.0], role="structural")],
             ),
         )
-    return params, conditionals, []
+    return params, conditionals, [Condition("mutation_eta", "cfg['mutation'] == 'pm' or cfg['mutation'] == 'linked_polynomial'")]
 
 
 def permutation_operator_part_full(

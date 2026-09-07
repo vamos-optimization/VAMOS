@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "80b8e81b55dbabd1535101c7671ae632157f4931",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 80b8e81b55dbabd1535101c7671ae632157f4931",
+  "generation_commit": "2aa37a06c909f48cdb6d7ff59cb9d413b13b6f44",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 2aa37a06c909f48cdb6d7ff59cb9d413b13b6f44",
   "environment": {
     "python": "3.12",
     "mypy": "1.15.0",
@@ -18,19 +18,19 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 1424,
-  "files_with_diagnostics": 151,
-  "fingerprint_count": 177,
+  "diagnostic_count": 1422,
+  "files_with_diagnostics": 150,
+  "fingerprint_count": 176,
   "error_code_summary": {
     "arg-type": 3,
     "misc": 5,
     "no-any-return": 7,
-    "type-arg": 1401,
+    "type-arg": 1399,
     "union-attr": 3,
     "unused-ignore": 5
   },
   "layer_summary": {
-    "engine": 812,
+    "engine": 810,
     "experiment": 22,
     "foundation": 522,
     "package-root": 1,
@@ -4852,24 +4852,6 @@
         },
         {
           "line": 234,
-          "column": null
-        }
-      ]
-    },
-    {
-      "fingerprint": "927D7EBB5EDE43412868B46DC8CDEF3276B1E3140F7232ECA9645A4BE4877ACE",
-      "path": "src/vamos/engine/tuning/racing/config_space.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 2,
-      "locations": [
-        {
-          "line": 78,
-          "column": null
-        },
-        {
-          "line": 91,
           "column": null
         }
       ]

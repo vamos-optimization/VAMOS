@@ -62,6 +62,28 @@ tuner = RandomSearchTuner(task=task, max_trials=50, seed=0)
 best_config, history = tuner.run(evaluate_config)
 ```
 
+### Conditional parameters in model-based backends
+
+`optuna`, `bohb_optuna`, `smac3`, and `bohb` honor the conditions declared
+in the tuning parameter space. A trial contains only active parameters:
+for example, `crossover_eta` is sampled only for SBX, and
+`archive_prune_policy` only when the external archive is enabled and bounded.
+In real-valued operator spaces, `mutation_eta` is active only for polynomial
+and linked polynomial mutation.
+The evaluation callback, trial history, and returned best configuration use
+that active assignment.
+
+Optuna suggests parents before their dependent parameters, regardless of
+declaration order, and records only active suggestions in `trial.params`.
+SMAC3 and native BOHB receive ConfigSpace conditions so their optimizers also
+see the dependencies. Multiple conditions on one parameter are combined with
+AND; descendants of inactive parameters stay inactive.
+
+The ConfigSpace adapter supports comparisons of `cfg['parent']` with scalar
+literals (`==`, `!=`, `<`, `<=`, `>`, `>=`), boolean parents, and `and`/`or`/`not`
+expressions. Conditions that cannot be represented fail with a descriptive
+error. Unknown parents and dependency cycles also fail explicitly.
+
 ### Racing Tuner
 
 The `RacingTuner` is more efficient for stochastic algorithms. It evaluates configurations on multiple problem instances (or seeds) and discards poor performers early (statistical racing).
