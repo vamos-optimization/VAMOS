@@ -60,4 +60,7 @@ python paper/manuscript/scripts/pareto_front_plots/plot_fronts.py
 
 ## LaTeX inclusion
 
-The four plots are included in `main.tex` as a single `figure*` environment (label: `fig:pareto_fronts_variants`) at the end of section VI.B (Cross-Framework Comparison), each at `0.24\textwidth`.
+The four-plot block in `main.tex` is currently commented out. These retained data
+and the plotting script remain available as illustrative material; they are not
+required to compile the current article or supplement. Start with the
+[reviewer guide](../../../README.md) for the active paper reproduction path.

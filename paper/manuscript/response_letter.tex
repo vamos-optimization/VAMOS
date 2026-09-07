@@ -1,0 +1,121 @@
+% Response letter for Neurocomputing submission NEUCOM-D-26-13650.
+% Compile independently from the manuscript and supplementary material.
+\documentclass[11pt,letterpaper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{mathptmx}
+\usepackage{xcolor}
+\usepackage{xurl}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\definecolor{response}{HTML}{C00000}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+\renewcommand{\baselinestretch}{1.10}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\fancyfoot[R]{\small NEUCOM-D-26-13650 | \thepage}
+\newcommand{\response}[1]{{\color{response}#1}\par}
+\newcommand{\reviewercomment}[1]{{\itshape #1}\par}
+\begin{document}
+{\Large\bfseries Response to the Editor and Reviewers}\par
+
+\textbf{Journal: Neurocomputing}\par
+
+\textbf{Manuscript ID: NEUCOM-D-26-13650}\par
+
+\textbf{Title: VAMOS: A Framework for Fast, Configurable and Accessible Multiobjective Optimization in Python}\par
+
+Dear Editor and Reviewers,\par
+
+\response{Thank you for evaluating our manuscript and for identifying the access and presentation issues that prevented a complete assessment. We have revised the manuscript and its supporting materials to make the source code, retained experimental data and supplementary analyses easier to locate and examine.}
+
+\response{The revisions clarify the official repository link, provide a separate supplementary document, improve the reviewer instructions and correct typographical and numerical reporting errors. We have also expanded the related-work discussion of VecMetaPy and PlatEMO. Detailed responses follow below.}
+
+Reviewer comments are reproduced in italic black text; our responses are in red. Editorial changes in the revised main manuscript and supplementary material are also marked in red.\par
+
+\section*{Reviewer 1 - Initial submission, July 30}
+
+\subsection*{Comment: access to the source code}
+
+\reviewercomment{This paper presents VAMOS, a framework for python which address the issue of low efficiency in computing multiobjective problems. This address a real issue of existing python library. However, further review is possible only with access to the source code.}
+
+\response{Response. We agree that source-code access is essential for evaluating a software contribution. The official VAMOS repository is publicly accessible at:}
+
+\response{\url{https://github.com/vamos-optimization/VAMOS}}
+\response{It provides the framework implementation, examples, tests, documentation and retained benchmark CSVs. We have updated the main manuscript section entitled "Data and Code Availability" and the supplementary section "Code and Data Availability" to point to this repository. The revised paper materials also include reviewer-oriented instructions for locating observations, running a small example and rebuilding supplementary analyses.}
+
+\response{The availability statements now distinguish the experimental development build used for the reported measurements from the public 1.0.0 release. This clarification avoids attributing historical benchmark timings to a different software revision.}
+
+\newpage
+\section*{Reviewer 2 - Initial submission, August 26}
+
+\subsection*{General assessment}
+
+\response{We thank the reviewer for the detailed assessment and positive comments on vectorization, configurability and accessibility. We address all three weaknesses below and clarify the equivalence count cited in the review under "Additional corrections".}
+
+\subsection*{Comment 1: missing supplementary material}
+
+\reviewercomment{The manuscript repeatedly mentions the inclusion of 'Supplementary Material', which it states contains detailed experimental results. However, no supplementary material is found with the manuscript. According to the paper, the Supplementary Material contains the detailed results of the primary claim of the paper, that the framework is faster without sacrificing quality (convergence traces, per-family HV distributions, and all statistical tests).}
+
+\response{Response. We apologize that the supplementary material was not available to the reviewer. The revision package now contains a separate, compiled 11-page PDF bearing the manuscript title and clearly labelled "Supplementary Material".}
+
+\response{The supplement provides convergence trajectories (S1), family-level hypervolume medians and interquartile ranges (S2), the statistical protocol (S3), detailed NSGA-II tests and equivalence results (S5), and SMS-EMOA and MOEA/D analyses (S7). Further sections cover runtime, memory, reference fronts, accessibility and parameter spaces.}
+
+\response{We checked the separation between the main article and the supplement. The main article retains the essential experimental protocol, primary runtime comparisons and summary quality evidence. The supplement uses independent S-prefixed numbering. We corrected broken cross-references, removed duplicated runtime details and aligned descriptions of the supplementary contents with the material actually provided.}
+
+\subsection*{Comment 2: availability and independent assessment}
+
+\reviewercomment{The primary contribution of the paper is a software framework. However, neither the code nor the final product is provided in the manuscript. As a result, none of the runtime or quality claims can be independently reproduced.}
+
+\response{Response. The public repository identified in our response to Reviewer 1 provides access to the implementation and retained measurements. We have revised the availability statements accordingly. To make independent assessment more practical, we have also added a reviewer guide in paper/README.md, a data inventory in experiments/REFERENCE\_RESULTS.md, and the helper paper/review.py.}
+
+\begin{minipage}{\linewidth}
+\response{The reviewer guide explains environment setup and three workflows, executed from the repository root:}
+\begingroup\color{response}\small
+\begin{verbatim}
+python paper/review.py data
+python paper/review.py smoke
+python paper/review.py rebuild --pdf
+\end{verbatim}
+\endgroup
+\end{minipage}\par
+
+\response{The first command inspects the retained CSVs without external packages. The second runs a 200-evaluation example and checks saving, loading, verification and exact replay. The third recomputes supplementary analyses from the retained measurements and compiles the documents in an isolated output directory.}
+
+\response{Validation covers rebuilding all four document variants in a pinned environment, the software and documentation test suites, and the reviewer example. No new publication-scale optimization campaign was run.}
+
+\response{The inventory specifies the experimental field conventions. In scaling\_vectorization.csv, runtime is recorded for all 220 observations. Hypervolume calculation is explicitly disabled for the 40 DTLZ2 objective-count observations: 2, 3, 5 and 8 objectives, NumPy and Numba, and five seeds per combination. The timing\_policy field is empty for the 95 NumPy observations because it labels Numba JIT warm-up conditions and is inapplicable to NumPy.}
+
+\response{The steady-state CSV also includes one additional jMetalPy observation on ZCAT1, seed 0, with 200 evaluations. The reviewer summary keeps it separate from the 50,000-evaluation campaign. Metric summaries count recorded numerical values and calculate medians from those values only.}
+
+\response{The historical CSV format supports statistical reanalysis. Current run artifacts additionally store population arrays, environment information and a resolved specification for supported exact replay. The small example checks the current software and its replay workflow; repeating optimization experiments is a separate operation.}
+
+\subsection*{Comment 3: typographical errors}
+
+\reviewercomment{Some typos are present in the manuscript such as 'SSuch', and 'bionformatics'.}
+
+\response{Response. We corrected "SSuch" to "Such" and "bionformatics" to "bioinformatics", and proofread the main manuscript, supplementary material, anonymous version and title page for additional spelling, grammar, terminology and hyphenation inconsistencies. We also corrected figure-file references and checked that the documents compile without unresolved citations or cross-references. The editorial changes are marked in red.}
+
+\newpage
+\section*{Additional corrections and related work}
+
+\response{Equivalence count. The previous conclusion reported equivalence to pymoo on 36 of 41 NSGA-II problems, as reproduced in Reviewer 2's summary. We corrected this to 37 of 41, consistent with the statistical results in the supplement (Table S6). The non-inferiority count remains 38 of 41. This is a correction of the reported count, not a new experimental result.}
+
+\response{Related work. We added the VecMetaPy reference and an explicit discussion of its vectorization approach. We also expanded the discussion of PlatEMO, reusing its existing bibliographic entry rather than duplicating it. Both references and the new related-work text are marked in red in the revised article:}
+
+\response{Hemmasian, A., Meidani, K., Mirjalili, S., and Barati Farimani, A. (2022). VecMetaPy: A Vectorized Framework for Metaheuristic Optimization in Python. Advances in Engineering Software, 166, 103092.}
+
+\response{\url{https://doi.org/10.1016/j.advengsoft.2022.103092}}
+\response{Tian, Y., Cheng, R., Zhang, X., and Jin, Y. (2017). PlatEMO: A MATLAB Platform for Evolutionary Multi-Objective Optimization. IEEE Computational Intelligence Magazine, 12(4), 73-87.}
+
+\response{\url{https://doi.org/10.1109/MCI.2017.2742868}}
+\response{We hope that these changes make the manuscript and its supporting evidence accessible for a complete evaluation. Thank you again for your time and constructive comments.}
+
+Kind regards,\par
+
+The authors\par
+
+\end{document}

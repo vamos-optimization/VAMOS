@@ -1,6 +1,6 @@
 % VAMOS — Title Page (with author identifiers)
-% Submitted to: Advances in Engineering Software (Elsevier)
-% Upload as a SEPARATE file from the anonymous manuscript.
+% Submitted to: Neurocomputing (Elsevier)
+% Separate title-page source; main.tex is the complete manuscript with author details.
 % =============================================================================
 \documentclass[final,5p,times,twocolumn]{elsarticle}
 
@@ -10,9 +10,10 @@
 \usepackage{xcolor}
 \usepackage[hidelinks]{hyperref}
 \hypersetup{hypertexnames=false}
+\input{revision_marks}
 
 \newcommand{\VAMOS}{VAMOS}
-\journal{Advances in Engineering Software}
+\journal{\revision{Neurocomputing}}
 \biboptions{sort&compress}
 
 \begin{document}
@@ -80,8 +81,8 @@ paradigms, and exposes rich component-level configurability, including
 interchangeable operators, external archives, and fine-grained parameter
 settings. VAMOS also integrates an automated algorithm-configuration module and
 provides a browser-based graphical interface to simplify use by non-experts. The
-results show that VAMOS achieves statistically equivalent levels of solution
-quality than those elicited by MOEAs implemented in state-of-the-art libraries,
+results show that VAMOS achieves \revision{levels} of solution quality \revision{statistically equivalent to} those \revision{obtained} by
+MOEAs implemented in state-of-the-art libraries,
 while reducing wall-clock time by large margins across all tested algorithms.
 These gains confirm that vectorized population models and backend-agnostic
 kernels at the core of VAMOS can deliver high performance in Python without

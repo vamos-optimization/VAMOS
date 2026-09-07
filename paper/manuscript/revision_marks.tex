@@ -1,0 +1,24 @@
+% Editorial changes relative to repository commit 2aa37a0.
+% Keep revision markup separate from the scientific content and BibTeX records.
+\usepackage{etoolbox}
+\DeclareRobustCommand{\revision}[1]{\textcolor{red}{#1}}
+\pdfstringdefDisableCommands{\def\revision#1{#1}\def\corref#1{}}
+
+% Mark the two references requested for this revision without editing a .bbl.
+\newcommand{\markrevisionreferences}{%
+  \let\revisionoriginalbibitem\bibitem
+  \renewcommand{\bibitem}[2][]{%
+    \par
+    \ifstrequal{##2}{HMM+22}{\color{red}}{%
+      \ifstrequal{##2}{TCZ+17}{\color{red}}{\color{black}}}%
+    \ifstrempty{##1}{\revisionoriginalbibitem{##2}}{%
+      \revisionoriginalbibitem[##1]{##2}}}}
+
+% The regenerated source table has revised repository links and source labels.
+\makeatletter
+\newenvironment{revisiontable}{%
+  \begingroup
+  \let\revisionoriginalfloatboxreset\@floatboxreset
+  \def\@floatboxreset{\revisionoriginalfloatboxreset\color{red}}%
+}{\endgroup}
+\makeatother
