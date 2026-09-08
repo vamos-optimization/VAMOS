@@ -1,0 +1,169 @@
+name: Publish Cloudflare documentation preview
+
+on:
+  workflow_run:
+    workflows: ["Documentation portal preview"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: cloudflare-docs-preview
+  cancel-in-progress: false
+
+env:
+  DOC_BASE_URL: https://vamos-optimization.github.io/VAMOS/
+  WRANGLER_VERSION: "4.129.1"
+
+jobs:
+  deploy:
+    if: >-
+      github.repository == 'vamos-optimization/VAMOS' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    name: Publish isolated PR preview
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout trusted hosting code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+      - name: Download unprivileged preview artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: ${{ runner.temp }}/docs-preview-artifacts
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Validate preview handoff metadata
+        id: metadata
+        env:
+          ARTIFACT_ROOT: ${{ runner.temp }}/docs-preview-artifacts
+        run: |
+          meta_dir=$(find "$ARTIFACT_ROOT" -maxdepth 1 -type d -name 'docs-preview-meta-*' -print -quit)
+          test -n "$meta_dir"
+          pr_number=$(cat "$meta_dir/pr-number.txt")
+          head_sha=$(cat "$meta_dir/head-sha.txt")
+          head_repository=$(cat "$meta_dir/head-repository.txt")
+          case "$pr_number" in (*[!0-9]*|'') exit 1 ;; esac
+          case "$head_sha" in (*[!0-9a-f]*|'') exit 1 ;; esac
+          test "${#head_sha}" -eq 40
+          test "$head_repository" = "$GITHUB_REPOSITORY"
+          test "$head_sha" = '${{ github.event.workflow_run.head_sha }}'
+          portal_dir="$ARTIFACT_ROOT/docs-preview-$pr_number"
+          test -d "$portal_dir/docs"
+          version=$(python - "$portal_dir" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          payload = json.loads((root / "docs" / "versions.json").read_text(encoding="utf-8"))
+          print(payload["stable"])
+          PY
+          )
+          echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
+          echo "portal_dir=$portal_dir" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Revalidate generated portal as untrusted data
+        run: |
+          python tools/check_docs_portal.py \
+            --root '${{ steps.metadata.outputs.portal_dir }}' \
+            --version '${{ steps.metadata.outputs.version }}' \
+            --base-url "$DOC_BASE_URL"
+      - name: Check Cloudflare credentials
+        id: cloudflare
+        env:
+          ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if test -n "$ACCOUNT_ID" && test -n "$API_TOKEN"; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Stage static assets for Wrangler
+        if: steps.cloudflare.outputs.configured == 'true'
+        run: |
+          rm -rf preview
+          cp -R '${{ steps.metadata.outputs.portal_dir }}' preview
+      - name: Publish stable PR alias on workers.dev
+        id: deploy
+        if: steps.cloudflare.outputs.configured == 'true'
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          PR_NUMBER: ${{ steps.metadata.outputs.pr_number }}
+        run: |
+          if ! npx --yes "wrangler@${WRANGLER_VERSION}" versions list --config wrangler.preview.jsonc >/dev/null 2>&1; then
+            npx --yes "wrangler@${WRANGLER_VERSION}" deploy --config wrangler.preview.jsonc
+          fi
+          alias="pr-${PR_NUMBER}"
+          output=$(npx --yes "wrangler@${WRANGLER_VERSION}" versions upload \
+            --config wrangler.preview.jsonc \
+            --preview-alias "$alias" 2>&1)
+          printf '%s\n' "$output"
+          preview_url=$(printf '%s\n' "$output" | grep -Eo "https://${alias}-vamos-docs-preview\.[A-Za-z0-9.-]+\.workers\.dev" | tail -n 1)
+          test -n "$preview_url"
+          echo "preview_url=$preview_url" >> "$GITHUB_OUTPUT"
+      - name: Publish or update PR preview comment
+        if: steps.deploy.outputs.preview_url != ''
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          PR_NUMBER: ${{ steps.metadata.outputs.pr_number }}
+          PREVIEW_URL: ${{ steps.deploy.outputs.preview_url }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        with:
+          script: |
+            const marker = '<!-- vamos-cloudflare-docs-preview -->';
+            const issue_number = Number(process.env.PR_NUMBER);
+            const body = `${marker}\n### VAMOS documentation preview\n\n${process.env.PREVIEW_URL}\n\nBuilt from \`${process.env.HEAD_SHA.slice(0, 7)}\`. The preview is isolated from the stable/version archive.`;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number,
+              per_page: 100,
+            });
+            const previous = comments.find((comment) => comment.body?.includes(marker));
+            if (previous) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: previous.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number,
+                body,
+              });
+            }
+      - name: Summarize Cloudflare preview status
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.preview_url }}
+          CONFIGURED: ${{ steps.cloudflare.outputs.configured }}
+        run: |
+          {
+            echo "### Cloudflare documentation preview"
+            echo
+            if test "$CONFIGURED" = "true"; then
+              echo "Published: ${PREVIEW_URL}"
+            else
+              echo "Not published because CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN are not configured."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
