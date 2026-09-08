@@ -138,4 +138,42 @@ resolved = result.explain_defaults()["resolved_spec"]
 assert resolved["backend"]["kernel"]["resolution"]["name"] == "numpy"
 """,
     ),
+    DocSmokeCase(
+        name="journey_try_vamos",
+        source_path="examples/journeys/try_vamos.py",
+        code="""
+import subprocess
+import sys
+
+subprocess.run([sys.executable, "examples/journeys/try_vamos.py"], check=True)
+""",
+    ),
+    DocSmokeCase(
+        name="journey_solve_my_problem",
+        source_path="examples/journeys/solve_my_problem.py",
+        code="""
+import subprocess
+import sys
+
+subprocess.run([sys.executable, "examples/journeys/solve_my_problem.py"], check=True)
+""",
+    ),
+    DocSmokeCase(
+        name="journey_reproducible_study",
+        source_path="examples/journeys/reproducible_study.py",
+        code="""
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+with tempfile.TemporaryDirectory() as tmp:
+    output = Path(tmp) / "study"
+    subprocess.run(
+        [sys.executable, "examples/journeys/reproducible_study.py", "--output", str(output)],
+        check=True,
+    )
+    assert (output / "study-manifest.json").is_file()
+""",
+    ),
 ]

@@ -3,6 +3,8 @@
 This guide uses only the stable VAMOS 1.0.0 facades. Install the core package
 as described in the [installation guide](installation.md).
 
+For a repository-checkout version that you can run unchanged, use the [Try VAMOS executable journey](../examples.md#try-vamos).
+
 ## Run one optimization
 
 ```python

@@ -4,6 +4,8 @@ A durable study freezes a problem-by-algorithm-by-seed matrix before any task
 runs. It preserves task identity, attempts, state transitions, and verified
 references to each canonical run.
 
+For a bounded repository-checkout example that you can run unchanged, use the [Run a reproducible study executable journey](../examples.md#run-a-reproducible-study).
+
 ## Python lifecycle
 
 ```python

@@ -2,7 +2,7 @@
 
 `make_problem(...)` turns a plain Python function into a VAMOS-compatible optimization problem. Use this route when you want to optimize your own objective functions without implementing a framework class.
 
-All examples on this page use the public `vamos` facade.
+All examples on this page use the public `vamos` facade. For a repository-checkout version that you can run unchanged, use the [Solve my problem executable journey](../examples.md#solve-my-problem).
 
 ## Start with a scalar objective function
 
