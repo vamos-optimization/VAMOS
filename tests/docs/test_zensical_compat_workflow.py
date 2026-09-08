@@ -9,6 +9,7 @@ def test_zensical_probe_is_pinned_and_strict() -> None:
     workflow = (ROOT / ".github" / "workflows" / "zensical-compat.yml").read_text(encoding="utf-8")
 
     assert "zensical==0.0.59" in workflow
+    assert 'mkdocstrings[python]==1.0.6' in workflow
     assert "zensical build --config-file mkdocs.yml --strict --clean" in workflow
     assert "website/mkdocs.yml" not in workflow
 
