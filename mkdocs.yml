@@ -83,6 +83,7 @@ nav:
     - Stopping & Archive: experiment/stopping_and_archive.md
   - Project:
     - Stability and Versioning: project/stability-and-versioning.md
+    - Documentation Versions: project/documentation-versioning.md
     - Known Limitations: project/known-limitations.md
     - VAMOS 1.0.0 Release Notes: project/release-notes-1.0.0.md
     - Roadmap: roadmap.md

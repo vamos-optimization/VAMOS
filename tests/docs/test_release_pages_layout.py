@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 import sys
@@ -13,9 +14,24 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def test_versioned_pages_canonical_urls_resolve_to_deployed_files(tmp_path: Path) -> None:
     pytest.importorskip("mkdocs")
+    archive = tmp_path / "previous"
+    frozen = archive / "docs" / "1.0.0" / "guide" / "frozen"
+    frozen.mkdir(parents=True)
+    (frozen / "index.html").write_text("frozen release", encoding="utf-8")
+    (archive / "docs" / "1.0.0" / "asset.txt").write_text("frozen asset", encoding="utf-8")
+
     output = tmp_path / "public"
     result = subprocess.run(
-        [sys.executable, "tools/build_release_docs.py", "--version", "1.0.0", "--output", str(output)],
+        [
+            sys.executable,
+            "tools/build_release_docs.py",
+            "--version",
+            "1.1.0",
+            "--output",
+            str(output),
+            "--archive-from",
+            str(archive),
+        ],
         cwd=ROOT,
         capture_output=True,
         text=True,
@@ -24,20 +40,38 @@ def test_versioned_pages_canonical_urls_resolve_to_deployed_files(tmp_path: Path
         check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
     count = 0
     for page in output.rglob("*.html"):
         for canonical in re.findall(r'<link\s+rel="canonical"\s+href="([^"]+)"', page.read_text(encoding="utf-8")):
             url = urlsplit(canonical)
             assert url.scheme == "https" and url.netloc == "vamos-optimization.github.io"
-            assert url.path.startswith("/VAMOS/1.0.0/") or url.path.startswith("/VAMOS/website/")
+            assert (
+                url.path.startswith("/VAMOS/docs/1.1.0/")
+                or url.path.startswith("/VAMOS/docs/stable/")
+                or url.path.startswith("/VAMOS/website/")
+                or url.path.startswith("/VAMOS/docs/1.0.0/")
+            )
             target = output / unquote(url.path.removeprefix("/VAMOS/"))
             if url.path.endswith("/"):
                 target /= "index.html"
             assert target.is_file(), canonical
             count += 1
     assert count > 80
-    assert "url=latest/" in (output / "index.html").read_text(encoding="utf-8")
-    assert (output / "latest/index.html").read_bytes() == (output / "1.0.0/index.html").read_bytes()
-    homepage = (output / "1.0.0/index.html").read_text(encoding="utf-8")
+
+    manifest = json.loads((output / "docs" / "versions.json").read_text(encoding="utf-8"))
+    assert manifest == {"stable": "1.1.0", "versions": ["1.0.0", "1.1.0"]}
+
+    assert (output / "docs" / "1.0.0" / "guide" / "frozen" / "index.html").read_text(encoding="utf-8") == "frozen release"
+    assert (output / "docs" / "1.0.0" / "asset.txt").read_text(encoding="utf-8") == "frozen asset"
+    assert "docs/1.0.0/guide/frozen/" in (output / "1.0.0" / "guide" / "frozen" / "index.html").read_text(encoding="utf-8")
+
+    assert "docs/stable/" in (output / "index.html").read_text(encoding="utf-8")
+    assert "docs/stable/" in (output / "docs" / "index.html").read_text(encoding="utf-8")
+    assert "docs/stable/" in (output / "latest" / "index.html").read_text(encoding="utf-8")
+    assert "docs/1.1.0/" in (output / "1.1.0" / "index.html").read_text(encoding="utf-8")
+    assert (output / "docs" / "stable" / "index.html").read_bytes() == (output / "docs" / "1.1.0" / "index.html").read_bytes()
+
+    homepage = (output / "docs" / "1.1.0" / "index.html").read_text(encoding="utf-8")
     assert "https://github.com/vamos-optimization/VAMOS/blob/main/CITATION.cff" in homepage
     assert "https://github.com/vamos-optimization/VAMOS/blob/main/SECURITY.md" in homepage
