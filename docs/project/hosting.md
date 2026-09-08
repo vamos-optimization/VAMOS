@@ -46,8 +46,26 @@ The repository expects two GitHub secrets:
 
 Use a scoped Cloudflare token suitable for Workers deployment. The Cloudflare `Edit Cloudflare Workers` token template includes Workers Scripts write access at account scope and Workers Routes write access at zone scope; restrict resources to the VAMOS account and the `vamos-optimization.org` / `vamos-optimization.dev` zones where possible.
 
+The production workflow does not report success immediately after Wrangler returns. It runs `tools/check_docs_live.py` against the real public hosts, retrying while Custom Domains, certificates, and DNS settle. The live gate verifies the stable manifest, immutable canonical URL, root and legacy redirects, all three alias hosts, and query preservation.
+
+A separate read-only `Verify Cloudflare documentation host` workflow can repeat the same live verification later without redeploying or requiring Cloudflare credentials. This is useful if the deployment itself completed but certificate or DNS propagation exceeded the production workflow retry window.
+
+## Cutover runbook
+
+The custom-domain launch is intentionally split from the metadata switch. Use this order:
+
+1. Confirm that both `vamos-optimization.org` and `vamos-optimization.dev` are active zones in the intended Cloudflare account and remove conflicting records from the four Worker Custom Domain hostnames.
+2. Configure `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` in GitHub. Keep the `cloudflare-production` environment as the approval boundary for the production workflow.
+3. Use a same-repository documentation pull request to confirm that the trusted preview publisher can produce a `workers.dev` preview URL. If credentials are added after a preview run, rerun the read-only `Documentation portal preview` workflow to trigger the trusted publisher again.
+4. Manually run `Deploy documentation to Cloudflare` for version `1.0.0`. The workflow must build, validate, deploy, and pass the live custom-domain gate.
+5. If the Worker deployed but the live gate timed out during provisioning, wait for Cloudflare to finish provisioning and manually run `Verify Cloudflare documentation host` for `1.0.0`. Treat a green live verification as the cutover evidence.
+6. Only after live verification succeeds, prepare the final metadata-cutover change that moves the documentation `site_url`, package Documentation URL, and repository identity checks from GitHub Pages to `https://vamos-optimization.org/`.
+7. Keep GitHub Pages available as a bridge until the metadata-cutover change is merged and the `.org`, `www`, and `.dev` routes have been rechecked from the public Internet.
+
+The repository cannot create the Cloudflare account token or GitHub secrets itself. Those credentials remain an operator-controlled prerequisite rather than source-controlled configuration.
+
 ## Migration boundary
 
-GitHub Pages remains the publication bridge until the Cloudflare production workflow has been run successfully and the custom domains have been verified. The existing `site_url` and package Documentation metadata therefore remain on the GitHub Pages URL during this Goal; they should move to `https://vamos-optimization.org/` only after the canonical host is demonstrably live.
+GitHub Pages remains the publication bridge until the Cloudflare production workflow has been run successfully and the custom domains have been verified. The existing `site_url` and package Documentation metadata therefore remain on the GitHub Pages URL during this stage; they should move to `https://vamos-optimization.org/` only after the canonical host is demonstrably live.
 
 This avoids publishing metadata that points to an unavailable host and makes the final cutover a small, independently verifiable change rather than coupling it to infrastructure creation.

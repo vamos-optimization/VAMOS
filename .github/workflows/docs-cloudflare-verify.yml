@@ -1,0 +1,47 @@
+name: Verify Cloudflare documentation host
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Stable documentation version expected on the public host
+        required: true
+        default: "1.0.0"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-docs-live-verification
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.repository == 'vamos-optimization/VAMOS'
+    name: Verify canonical host and redirects
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout trusted verifier
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - name: Verify live documentation contract
+        run: |
+          python tools/check_docs_live.py \
+            --version '${{ inputs.version }}' \
+            --attempts 1 \
+            --delay 0 \
+            --timeout 15
+      - name: Summarize verification
+        run: |
+          {
+            echo "### VAMOS Cloudflare cutover verification"
+            echo
+            echo "Verified https://vamos-optimization.org/ for VAMOS ${{ inputs.version }}."
+            echo "Canonical version routes and all three redirect hosts satisfy the live contract."
+          } >> "$GITHUB_STEP_SUMMARY"
