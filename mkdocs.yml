@@ -3,9 +3,10 @@ site_url: https://vamos-optimization.github.io/VAMOS/
 site_description: Vectorized Architecture for Multiobjective Optimization Studies
 repo_url: https://github.com/vamos-optimization/VAMOS
 repo_name: vamos-optimization/VAMOS
+
 theme:
   name: material
-  palette: 
+  palette:
     - scheme: default
       primary: teal
       accent: purple
@@ -28,6 +29,15 @@ theme:
   icon:
     repo: fontawesome/brands/github
 
+markdown_extensions:
+  - admonition
+  - tables
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true
+
 plugins:
   - search
   - mkdocstrings:
@@ -39,38 +49,42 @@ plugins:
 
 nav:
   - Home: index.md
-  - Project:
-    - Repository Governance: project/repository-governance.md
-    - VAMOS 1.0.0 Release Notes: project/release-notes-1.0.0.md
-    - Stability and Versioning: project/stability-and-versioning.md
-    - Known Limitations: project/known-limitations.md
-    - Roadmap: roadmap.md
-  - Guide:
+  - Get Started:
+    - Overview: guide/getting-started.md
     - Installation: guide/installation.md
+    - Quickstart: guide/zero_to_hero.md
     - Minimal Python Track: guide/minimal-python.md
-    - Quick Start Guide: guide/zero_to_hero.md
-    - Getting Started: guide/getting-started.md
+  - Guides:
+    - Solve Your Own Problem: guide/custom-problem.md
     - Durable Studies: guide/studies.md
-    - VAMOS Assist: assist.md
+    - Run Artifacts & Replay: guide/run-artifacts.md
     - CLI & Config: guide/cli.md
-    - VAMOS Studio: guide/studio.md
-    - Cookbook: guide/cookbook.md
-    - Save & Load Runs: guide/run-artifacts.md
     - Troubleshooting: guide/troubleshooting.md
+    - Hyperparameter Tuning: topics/tuning.md
+    - Analysis & Visualization: topics/analysis.md
+    - Scaling with Dask: scaling/dask.md
+    - Experimental:
+      - VAMOS Studio: guide/studio.md
+      - VAMOS Assist: assist.md
+  - Examples:
+    - Overview: examples.md
+    - Cookbook: guide/cookbook.md
   - Reference:
     - API Reference: reference/api_reference.md
     - Algorithms & Backends: reference/algorithms.md
     - Problems: reference/problems.md
     - Constraints: reference/constraints.md
     - Stopping & Archive: experiment/stopping_and_archive.md
-  - Topics:
-    - Hyperparameter Tuning: topics/tuning.md
-    - Analysis & Viz: topics/analysis.md
+  - Project:
+    - Stability and Versioning: project/stability-and-versioning.md
+    - Known Limitations: project/known-limitations.md
+    - VAMOS 1.0.0 Release Notes: project/release-notes-1.0.0.md
+    - Roadmap: roadmap.md
+    - Repository Governance: project/repository-governance.md
+  - Developer:
+    - Documentation Architecture: dev/documentation-architecture.md
     - Extending VAMOS: topics/extending.md
     - Plugin Guide: topics/plugin_guide.md
-    - Engineering Audit: topics/engineering_audit.md
-    - Scaling with Dask: scaling/dask.md
-  - Developer Guides:
     - Run Artifact Contract: dev/run_artifact_contract.md
     - Run Artifact Acceptance Tests: dev/run_artifact_acceptance_tests.md
     - Run Artifacts and Replay: dev/run_artifacts_and_replay.md
