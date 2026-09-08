@@ -8,6 +8,8 @@ Changes that affect the documentation portal trigger `.github/workflows/docs-pre
 
 The build workflow has read-only repository permissions and **does not receive Cloudflare credentials**. It also uploads a small metadata artifact containing only the pull-request number, head commit, and source repository so a later trusted workflow can bind the static artifact to the workflow run that produced it.
 
+The read-only build workflow does not deploy. Goal 7 adds publication only in a separate trusted workflow after that build has succeeded.
+
 ## Privileged Cloudflare preview publisher
 
 `.github/workflows/docs-cloudflare-preview.yml` is triggered through `workflow_run` only after the read-only preview workflow succeeds. The workflow itself lives on trusted `main`, checks out `main` rather than pull-request code, downloads the prior run's artifacts into the runner temporary directory, validates their metadata and portal structure, and never executes files from the downloaded portal.
