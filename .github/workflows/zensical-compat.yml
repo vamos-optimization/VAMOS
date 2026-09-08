@@ -34,9 +34,18 @@ jobs:
         run: |
           python -m pip install -U pip
           python -m pip install -c constraints/ci.txt -e ".[docs]"
-      - name: Install pinned Zensical probe
+      - name: Install Zensical compatibility stack
         run: |
-          python -m pip install -c constraints/ci.txt zensical==0.0.59
-          python -c "import importlib.metadata as m; print('Zensical', m.version('zensical'))"
+          # VAMOS 1.0.0 pins mkdocstrings 0.28.2 for the MkDocs release path.
+          # Zensical's native mkdocstrings integration targets the v1 public API,
+          # so the probe upgrades only this isolated CI environment.
+          python -m pip install "mkdocstrings[python]==1.0.6" zensical==0.0.59
+          python - <<'PY'
+          import importlib.metadata as metadata
+
+          for package in ("zensical", "mkdocstrings", "mkdocstrings-python"):
+              print(package, metadata.version(package))
+          PY
+          python -m pip check
       - name: Build canonical documentation with Zensical
         run: zensical build --config-file mkdocs.yml --strict --clean
