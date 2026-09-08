@@ -42,7 +42,7 @@ This plans a two-seed study before execution, creates the immutable study plan, 
 
 | Goal | Start here | Repository material |
 | --- | --- | --- |
-| Run a first optimization | [Quickstart](guide/zero_to_hero.md) | `examples/journeys/try_vamos.py` |
+| Run a first optimization | [Quickstart](guide/zero_to_hero.md) | `examples/journeys/try_vamos.py` and `examples/basics/quickstart.py` |
 | Compare built-in algorithms | [Algorithms & Backends](reference/algorithms.md) | `examples/basics/algorithm_showcase.py` |
 | Define your own objectives | [Solve your own problem](guide/custom-problem.md) | `examples/journeys/solve_my_problem.py` and `examples/problems/` |
 | Work with constraints | [Constraints](reference/constraints.md) | `notebooks/1_intermediate/11_constrained_optimization.ipynb` |
