@@ -1,132 +1,43 @@
-# Getting started
+# Get started
 
-Install
--------
+Choose the shortest route that matches what you want to accomplish. Installation, first-run code, custom-problem guidance, and durable-study guidance each have one canonical page; this page only routes between them.
 
-```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .\.venv\Scripts\Activate.ps1
-pip install vamos-optimization
-```
+## Try VAMOS
 
-Useful extras:
+1. [Install VAMOS](installation.md) from PyPI in an isolated Python environment.
+2. Run the [Quickstart](zero_to_hero.md) to solve a built-in benchmark with the public `optimize(...)` facade.
+3. Use the [API reference](../reference/api_reference.md) when you need exact signatures rather than tutorial guidance.
 
-- `compute`: accelerated kernels + distributed eval (numba, moocore, dask)
-- `research`: external baselines + benchmarks (pymoo, jmetalpy, pygmo)
-- `analysis`: plotting + notebook deps (matplotlib/plotly/scikit-learn, ipywidgets, nbconvert)
-- `tuning`: model-based hyperparameter tuning backends (Optuna, SMAC3, BOHB)
-- `dev`: pytest, ruff, mypy, nbformat/nbconvert for notebook checks
-- `examples`: minimal plotting + scikit-learn deps
-- `studio`: Panel-based dashboard and visualization app
+If Python itself is still new to you, begin with the [Minimal Python Track](minimal-python.md).
 
-Smoke tests
------------
+## Solve your own problem
 
-- Core check: `vamos check`
-- Guided quickstart: `vamos quickstart` (use `--template list` to see domain templates)
-- Quick NSGA-II run: `vamos --problem zdt1 --max-evaluations 2000`
-- Full test suite (core): `pytest`
-- With extras installed: `pytest -m "not slow"`
-- List all subcommands: `vamos help`
-- If you hit missing-dependency or unknown-key errors, see `docs/guide/troubleshooting.md`.
+Use [Solve your own problem](custom-problem.md) to define objectives, bounds, encodings, vectorized evaluation, and constraints with `make_problem(...)`.
 
-Interactive tutorial
---------------------
+Use `vamos create-problem` when you prefer a generated file scaffold. Adding a reusable built-in problem to VAMOS is a contributor workflow and is documented separately in [Adding a problem](../dev/add_problem.md).
 
-For a hands-on walkthrough with runnable code, open the interactive tutorial notebook:
+## Run a reproducible study
 
-```bash
-jupyter notebook notebooks/0_basic/05_interactive_tutorial.ipynb
-```
+Use [Durable studies](studies.md) when you need a persistent problem-by-algorithm-by-seed matrix with explicit task state, resume, retry, inspection, and summaries.
 
-It covers installation verification, first optimization, custom problems, algorithm
-comparison, constraints, parameter tuning, and exporting results for papers.
+Use [Run artifacts & replay](run-artifacts.md) for individual persisted runs and for the distinction between loading, verification, and executable replay.
 
-Python API
-----------
+## Choose an interface
 
-Preferred path: start with `optimize(...)`. Reach for config objects only when you need fully specified, reproducible runs or plugin algorithms.
-If you are new to Python, start with `docs/guide/minimal-python.md`.
-For a quick comparison, see `notebooks/0_basic/00_api_comparison.ipynb`.
+| Need | Recommended surface |
+| --- | --- |
+| A Python script or notebook | `vamos.optimize(...)` |
+| A plain Python objective function | `vamos.make_problem(...)` + `vamos.optimize(...)` |
+| A guided command-line workflow | `vamos quickstart` or the stable CLI commands documented in [CLI & Config](cli.md) |
+| Multiple seeds in one small call | `optimize(..., seed=[...])` returning `StudyResult` |
+| A persistent experiment matrix | `StudySpec`, `plan_study`, `create_study`, and `Study.run()` |
+| Exact parameters for a built-in algorithm | Public configuration objects from `vamos.algorithms` |
 
-**1. One-liner (Unified API):**
+VAMOS 1.0 uses NumPy as its deterministic reference backend. Reproducibility is a same-environment promise, not a cross-platform or cross-backend bitwise guarantee. See [Stability and versioning](../project/stability-and-versioning.md) and [Known limitations](../project/known-limitations.md) for the exact supported surface.
 
-```python
-from vamos import optimize
+## Continue from here
 
-result = optimize("zdt1", algorithm="nsgaii", max_evaluations=10_000, pop_size=100, seed=42, verbose=True)
-print(result.F.shape, result.data["evaluations"])
-```
-
-`engine=None` is deterministic and resolves to `numpy`. `engine="auto"` enables heuristic backend selection in both the Python API and the CLI.
-
-**2. Your own problem (no class needed):**
-
-```python
-from vamos import make_problem, optimize
-
-# Write a simple function -- VAMOS adapts scalar callables to the protocol
-problem = make_problem(
-    lambda x: [x[0], (1 + x[1]) * (1 - x[0] ** 0.5)],
-    n_var=2, n_obj=2,
-    bounds=[(0, 1), (0, 1)],
-    encoding="real",
-)
-result = optimize(problem, algorithm="nsgaii", max_evaluations=5000, seed=42)
-```
-
-With `vectorized=False`, VAMOS evaluates that callable one row at a time. Use `vectorized=True` only when your function already handles `(N, n_var)` batches.
-
-Or scaffold a file interactively: `vamos create-problem`.
-
-**3. Advanced control (explicit args + config objects):**
-
-```python
-from vamos import optimize
-from vamos.algorithms import NSGAIIConfig
-from vamos.problems import ZDT1
-
-problem = ZDT1(n_var=30)
-algo_cfg = NSGAIIConfig.default(pop_size=100, n_var=problem.n_var)
-
-result = optimize(
-    problem,
-    algorithm="nsgaii",
-    algorithm_config=algo_cfg,
-    max_evaluations=10_000,
-    seed=42,
-    engine="numpy",
-)
-```
-
-Prefer the unified `optimize(...)` API; use public algorithm config objects for
-reproducible, fully specified built-in runs. Plugin configuration remains
-experimental in VAMOS 1.0.0.
-
-API decision guide
-------------------
-
-Use the lightest interface that still makes the run reproducible.
-
-| Goal | Use | Example |
-| --- | --- | --- |
-| Quick scripts, notebooks | Unified `optimize(...)` | `optimize("zdt1", algorithm="nsgaii", max_evaluations=5000)` |
-| Your own problem | `make_problem(fn, ...)` | `make_problem(my_fn, n_var=2, n_obj=2, bounds=[(0,1),(0,1)], encoding="real")` |
-| Scaffold a problem file | CLI wizard | `vamos create-problem` |
-| Reproducible configs | `algorithm_config` (via `.default()` or `.builder()`) + explicit budget | `optimize(problem, algorithm="nsgaii", algorithm_config=cfg, max_evaluations=5000)` |
-| Small study in one call | `seed=[...]` | `optimize("zdt1", seed=[0, 1, 2]) -> StudyResult` |
-
-Multi-seed runs return `StudyResult`, a sequence-compatible container with `.runs`, `.metric_values(...)`, `.mean(...)`, `.std(...)`, and `.best_run(...)`.
-
-```python
-study = optimize("zdt1", algorithm="nsgaii", max_evaluations=4000, seed=[0, 1, 2])
-print(study.mean("evaluations"))
-print(study.best_run("evaluations").meta["seed"])
-```
-
-Benchmarks and studies
-----------------------
-
-- Run a predefined suite: `vamos bench ZDT_small --algorithms nsgaii moead --output report/`
-- Run a durable matrix: see `docs/guide/studies.md` and `vamos study --help`.
-- For paper-grade reruns, install the pinned environment in `paper/requirements-publication.txt`.
+- [Examples](../examples.md) — choose maintained scripts, notebooks, or task-oriented guides.
+- [Troubleshooting](troubleshooting.md) — installation, dependency, configuration, and runtime issues.
+- [Algorithms & Backends](../reference/algorithms.md) — algorithm-specific parameters and backend notes.
+- [Analysis & Visualization](../topics/analysis.md) — inspect and visualize optimization results.
