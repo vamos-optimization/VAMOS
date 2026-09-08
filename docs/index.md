@@ -50,6 +50,8 @@ print(result.F.shape)</code></pre>
   </a>
 </div>
 
+**Prefer runnable source?** [Run the three executable journeys](examples.md#three-executable-journeys).
+
 ## Scientific workflows, not just algorithms
 
 VAMOS 1.0 distinguishes stable optimization, run-artifact, and single-owner study surfaces from experimental features such as Studio, provider integrations, and tuning. Check [Stability and versioning](project/stability-and-versioning.md) before depending on an API as a 1.x compatibility commitment.
