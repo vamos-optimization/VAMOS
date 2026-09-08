@@ -43,11 +43,10 @@ jobs:
       - name: Resolve candidate documentation version
         run: |
           python - <<'PY'
+          import importlib.metadata as metadata
           import os
-          import tomllib
-          from pathlib import Path
 
-          version = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
+          version = metadata.version("vamos-optimization")
           with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as handle:
               handle.write(f"DOC_VERSION={version}\n")
           PY
