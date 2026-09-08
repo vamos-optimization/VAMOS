@@ -38,8 +38,12 @@ jobs:
         run: |
           # VAMOS 1.0.0 pins mkdocstrings 0.28.2 for the MkDocs release path.
           # Zensical's native mkdocstrings integration targets the v1 public API,
-          # so the probe upgrades only this isolated CI environment.
-          python -m pip install "mkdocstrings[python]==1.0.6" zensical==0.0.59
+          # and the Python handler must use its corresponding v2 API. Keep this
+          # upgrade isolated to the compatibility probe until migration is approved.
+          python -m pip install \
+            "mkdocstrings==1.0.6" \
+            "mkdocstrings-python==2.0.8" \
+            "zensical==0.0.59"
           python - <<'PY'
           import importlib.metadata as metadata
 
