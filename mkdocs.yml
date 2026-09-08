@@ -1,4 +1,4 @@
-site_name: VAMOS Docs
+site_name: VAMOS
 site_url: https://vamos-optimization.github.io/VAMOS/
 site_description: Vectorized Architecture for Multiobjective Optimization Studies
 repo_url: https://github.com/vamos-optimization/VAMOS
@@ -6,16 +6,19 @@ repo_name: vamos-optimization/VAMOS
 
 theme:
   name: material
+  font:
+    text: DM Sans
+    code: JetBrains Mono
   palette:
     - scheme: default
       primary: teal
-      accent: purple
+      accent: teal
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     - scheme: slate
       primary: teal
-      accent: purple
+      accent: teal
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
@@ -28,6 +31,9 @@ theme:
     - content.code.copy
   icon:
     repo: fontawesome/brands/github
+
+extra_css:
+  - stylesheets/vamos.css
 
 markdown_extensions:
   - admonition
