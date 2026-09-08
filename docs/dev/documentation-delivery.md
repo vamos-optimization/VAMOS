@@ -1,41 +1,49 @@
 # Documentation delivery
 
-VAMOS keeps documentation generation, preview validation, and public deployment as separate stages. This page describes the CI contract around the versioned portal prepared in [Documentation versions and archive](../project/documentation-versioning.md).
+VAMOS keeps documentation generation, preview validation, privileged preview publication, and production deployment as separate stages. This page describes the CI contract around the versioned portal prepared in [Documentation versions and archive](../project/documentation-versioning.md) and the hosting contract in [Hosting and domains](../project/hosting.md).
 
 ## Pull request preview artifact
 
 Changes that affect the documentation portal trigger `.github/workflows/docs-preview.yml`. The workflow installs the constrained documentation environment, builds the complete portable portal with `tools/build_release_docs.py`, validates the generated route/canonical contract with `tools/check_docs_portal.py`, and uploads the resulting static tree as a short-lived GitHub Actions artifact.
 
-The preview workflow has read-only repository permissions and **does not deploy**. It has no Pages write permission, no OIDC write permission, and no `deploy-pages` step. This keeps pull requests from mutating the public documentation site.
+The build workflow has read-only repository permissions and **does not receive Cloudflare credentials**. It also uploads a small metadata artifact containing only the pull-request number, head commit, and source repository so a later trusted workflow can bind the static artifact to the workflow run that produced it.
 
-At this stage the preview is a downloadable build artifact rather than a public website URL. A real branch/PR preview URL belongs to the hosting work in Goal 7, where it can be isolated from the stable/version archive.
+The read-only build workflow does not deploy. Goal 7 adds publication only in a separate trusted workflow after that build has succeeded.
 
-## Release portal gate
+## Privileged Cloudflare preview publisher
 
-`.github/workflows/docs.yml` remains the GitHub Pages publication workflow. Before its Pages artifact can be deployed, the workflow now:
+`.github/workflows/docs-cloudflare-preview.yml` is triggered through `workflow_run` only after the read-only preview workflow succeeds. The workflow itself lives on trusted `main`, checks out `main` rather than pull-request code, downloads the prior run's artifacts into the runner temporary directory, validates their metadata and portal structure, and never executes files from the downloaded portal.
 
-1. builds the versioned portal with the production base URL;
+Only same-repository pull requests are eligible for publication. If `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` are configured, the trusted workflow uploads the validated static tree to the dedicated `vamos-docs-preview` Worker with a `pr-<number>` preview alias and posts or updates the resulting `workers.dev` URL on the pull request. If the credentials are absent, the downloadable artifact remains the only preview surface.
+
+This privilege split is intentional: Cloudflare credentials are never exposed to the workflow that builds pull-request code.
+
+## GitHub Pages release portal gate
+
+`.github/workflows/docs.yml` remains the GitHub Pages publication bridge. Before its Pages artifact can be deployed, the workflow:
+
+1. builds the versioned portal with the GitHub Pages base URL;
 2. verifies the generated stable, immutable, legacy, and canonical routes;
 3. uploads a reusable `vamos-docs-portal-<version>` artifact for audit and archive handoff;
 4. uploads the separately packaged GitHub Pages artifact; and
 5. deploys only from the canonical repository job.
 
-The current tag trigger remains intentionally limited to `v1.0.0`. Goal 6 does not silently enable arbitrary future semantic-version tag deployments.
+The current tag trigger remains intentionally limited to `v1.0.0`; arbitrary later semantic-version tag deployment is not enabled without explicit archive preservation.
+
+## Cloudflare production publication
+
+`.github/workflows/docs-cloudflare.yml` is the custom-domain production path. It is manual, runs in the `cloudflare-production` GitHub environment, rebuilds the portal with `https://vamos-optimization.org/` as the canonical base, reuses the explicit prior-artifact handoff for releases after `1.0.0`, validates the generated tree, and deploys the `vamos-docs` Worker only after those gates pass.
+
+The production Wrangler configuration attaches `vamos-optimization.org`, `www.vamos-optimization.org`, `vamos-optimization.dev`, and `www.vamos-optimization.dev` as Custom Domains. Edge redirect logic sends the three aliases to the apex `.org` host while preserving path and query.
 
 ## Archive handoff for later versions
 
-Goal 5 made archive preservation explicit through `--archive-from`. Goal 6 connects that input to manual release delivery without allowing a later version to overwrite the archive accidentally.
+Goal 5 made archive preservation explicit through `--archive-from`. Both release delivery paths require `archive_run_id` and `archive_artifact_name` for a manually dispatched version after `1.0.0`. The supplied artifact is downloaded from the same repository and fed into the builder before the new stable version is produced.
 
-For a manually dispatched version after `1.0.0`, the release workflow requires both `archive_run_id` and `archive_artifact_name`. It downloads that prior trusted `vamos-docs-portal-<version>` artifact from the same repository and supplies it to the builder. Missing archive metadata fails before the new portal is built.
-
-This GitHub Actions artifact handoff is a migration-stage mechanism, not the final long-term archive store. Goal 7 should replace or supplement it with the hosting pipeline's durable immutable-version storage before generic automatic release deployment is enabled.
+This GitHub Actions artifact handoff is a migration-stage mechanism, not the final long-term archive store. A future retention policy may copy immutable releases to a durable object store, but no deployment is allowed to silently drop an existing `docs/<version>/` tree.
 
 ## Shared validation
 
-Both preview and release use `tools/check_docs_portal.py`. The checker verifies the generated `docs/versions.json`, stable/current release relationship, root and legacy redirects, canonical targets, retained immutable version directories, and the separate legacy `website/` tree.
+Preview, GitHub Pages release, and Cloudflare production all use `tools/check_docs_portal.py`. The checker verifies the generated `docs/versions.json`, stable/current release relationship, root and legacy redirects, canonical targets, retained immutable version directories, and the separate legacy `website/` tree.
 
 Source-level Markdown links remain protected by strict MkDocs and Zensical builds. The portal checker is intentionally a generated-artifact gate: it catches publication-layout mistakes that source-only validation cannot see.
-
-## Non-goals
-
-Goal 6 does not switch the production generator from MkDocs to Zensical, change DNS, configure Cloudflare, or publish a custom-domain preview. Those remain hosting/deployment concerns for Goal 7.
