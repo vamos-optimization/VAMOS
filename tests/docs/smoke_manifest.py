@@ -173,7 +173,7 @@ with tempfile.TemporaryDirectory() as tmp:
         [sys.executable, "examples/journeys/reproducible_study.py", "--output", str(output)],
         check=True,
     )
-    assert (output / "study.json").is_file()
+    assert (output / "study-manifest.json").is_file()
 """,
     ),
 ]
