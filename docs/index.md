@@ -35,4 +35,4 @@ For precise signatures and configuration contracts, use the [API reference](refe
 
 ## Citation and project information
 
-Citation metadata is maintained in [`CITATION.cff`](https://github.com/vamos-optimization/VAMOS/blob/main/CITATION.cff). See [Known limitations](project/known-limitations.md), the [roadmap](roadmap.md), and [repository governance](project/repository-governance.md) for project-level information.
+Citation metadata is maintained in [`CITATION.cff`](https://github.com/vamos-optimization/VAMOS/blob/main/CITATION.cff). See the [security policy](https://github.com/vamos-optimization/VAMOS/blob/main/SECURITY.md) and use [private vulnerability reporting](https://github.com/vamos-optimization/VAMOS/security/advisories/new) for security issues. See [Known limitations](project/known-limitations.md), the [roadmap](roadmap.md), and [repository governance](project/repository-governance.md) for project-level information.
