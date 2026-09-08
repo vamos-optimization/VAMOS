@@ -90,6 +90,7 @@ nav:
     - Repository Governance: project/repository-governance.md
   - Developer:
     - Documentation Architecture: dev/documentation-architecture.md
+    - Documentation Delivery: dev/documentation-delivery.md
     - Extending VAMOS: topics/extending.md
     - Plugin Guide: topics/plugin_guide.md
     - Run Artifact Contract: dev/run_artifact_contract.md

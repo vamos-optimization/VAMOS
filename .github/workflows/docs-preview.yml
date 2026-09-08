@@ -1,0 +1,81 @@
+name: Documentation portal preview
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "website/**"
+      - "examples/journeys/**"
+      - "mkdocs.yml"
+      - "pyproject.toml"
+      - "constraints/ci.txt"
+      - "tools/build_release_docs.py"
+      - "tools/check_docs_portal.py"
+      - ".github/workflows/docs-preview.yml"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-preview-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  DOC_BASE_URL: https://vamos-optimization.github.io/VAMOS/
+
+jobs:
+  build:
+    name: Build documentation preview artifact
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - name: Install constrained documentation environment
+        run: |
+          python -m pip install --disable-pip-version-check -c constraints/ci.txt -e ".[docs]"
+      - name: Resolve candidate documentation version
+        run: |
+          python - <<'PY'
+          import os
+          import tomllib
+          from pathlib import Path
+
+          version = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as handle:
+              handle.write(f"DOC_VERSION={version}\n")
+          PY
+      - name: Build portable portal preview
+        run: |
+          python tools/build_release_docs.py \
+            --version "$DOC_VERSION" \
+            --output preview \
+            --base-url "$DOC_BASE_URL"
+      - name: Verify preview portal contract
+        run: |
+          python tools/check_docs_portal.py \
+            --root preview \
+            --version "$DOC_VERSION" \
+            --base-url "$DOC_BASE_URL"
+      - name: Upload preview artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: docs-preview-${{ github.event.pull_request.number || github.run_id }}
+          path: preview/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Summarize preview
+        run: |
+          {
+            echo "### Documentation preview"
+            echo
+            echo "Built and verified VAMOS ${DOC_VERSION}."
+            echo "The downloadable artifact is named \`docs-preview-${{ github.event.pull_request.number || github.run_id }}\`."
+            echo "This pull-request workflow does not deploy or modify the public site."
+          } >> "$GITHUB_STEP_SUMMARY"
