@@ -17,7 +17,9 @@
     "README.md": "public project entry document",
     "SECURITY.md": "security policy",
     "mkdocs.yml": "canonical documentation build configuration",
-    "pyproject.toml": "canonical package and tool configuration"
+    "pyproject.toml": "canonical package and tool configuration",
+    "wrangler.jsonc": "canonical Cloudflare Workers production hosting configuration",
+    "wrangler.preview.jsonc": "isolated Cloudflare Workers pull-request preview configuration"
   },
   "root_extension_rules": {
     "purpose": "A new root file is allowed only when it is canonical project, community, build or agent metadata and is added to root_files in the same reviewed change.",
@@ -48,6 +50,7 @@
   "top_level_owners": {
     ".github": "GitHub collaboration, CI and release automation",
     ".vscode": "shared editor configuration",
+    "cloudflare": "Cloudflare Workers hosting and edge-routing infrastructure",
     "constraints": "reproducible dependency constraints",
     "docs": "maintained public and developer documentation",
     "examples": "public executable examples",
