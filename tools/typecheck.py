@@ -25,6 +25,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = REPO_ROOT / "pyproject.toml"
 CONSTRAINTS_PATH = REPO_ROOT / "constraints" / "ci.txt"
 BASELINE_PATH = REPO_ROOT / "typing" / "mypy-baseline.json"
+MYPY_POLICY_BASELINE_PATH = REPO_ROOT / "typing" / "mypy-policy-baseline.json"
 
 SUPPORTED_PYTHON = (3, 12)
 SUPPORTED_MYPY = "1.15.0"
@@ -312,6 +313,7 @@ def build_baseline(diagnostics: Sequence[Diagnostic], generation_commit: str) ->
             "type_affecting_optional_distributions": [],
             "config_path": CONFIG_PATH.relative_to(REPO_ROOT).as_posix(),
             "config_sha256": _sha256(CONFIG_PATH),
+            "mypy_config_sha256": _mypy_config_sha256(),
             "constraints_path": CONSTRAINTS_PATH.relative_to(REPO_ROOT).as_posix(),
             "constraints_sha256": _sha256(CONSTRAINTS_PATH),
         },
@@ -330,6 +332,12 @@ def load_baseline(path: Path = BASELINE_PATH) -> dict[str, Any]:
     data = cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
     if data.get("schema_version") != 1 or data.get("policy") != "structured-diagnostic-ratchet":
         raise ValueError(f"Unsupported typing baseline schema in {path}.")
+    environment = data.get("environment")
+    if not isinstance(environment, dict):
+        raise ValueError(f"Typing baseline environment is missing or invalid in {path}.")
+    if "mypy_config_sha256" not in environment:
+        policy = load_mypy_policy_baseline()
+        environment["mypy_config_sha256"] = policy["mypy_config_sha256"]
     return data
 
 
@@ -345,59 +353,20 @@ def _mypy_config_from_text(content: str) -> dict[str, Any] | None:
     return cast(dict[str, Any], config) if isinstance(config, dict) else None
 
 
-def _typing_neutral_config_hash_drift(baseline: dict[str, Any]) -> bool:
-    """Allow pyproject drift only when the stored config is anchored in history and mypy is unchanged."""
-    environment = baseline.get("environment")
-    if not isinstance(environment, dict):
-        return False
-    stored_hash = environment.get("config_sha256")
-    if not isinstance(stored_hash, str):
-        return False
+def _mypy_config_sha256(path: Path = CONFIG_PATH) -> str:
+    config = _mypy_config_from_text(path.read_text(encoding="utf-8"))
+    if config is None:
+        raise ValueError(f"Missing or invalid [tool.mypy] configuration in {path}.")
+    canonical = json.dumps(config, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest().upper()
 
-    candidates: list[str] = []
-    generation_commit = baseline.get("generation_commit")
-    if isinstance(generation_commit, str) and generation_commit:
-        candidates.append(generation_commit)
-    configured_base = os.environ.get("VAMOS_TYPECHECK_BASE")
-    if configured_base:
-        candidates.append(configured_base)
-    if subprocess.run(
-        ["git", "-C", str(REPO_ROOT), "rev-parse", "--verify", "--quiet", "HEAD^{commit}"],
-        capture_output=True,
-        check=False,
-    ).returncode == 0:
-        history = subprocess.run(
-            ["git", "-C", str(REPO_ROOT), "log", "--format=%H", "--", "pyproject.toml"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-        )
-        if history.returncode == 0:
-            candidates.extend(history.stdout.splitlines())
 
-    current_mypy = _mypy_config_from_text(CONFIG_PATH.read_text(encoding="utf-8"))
-    if current_mypy is None:
-        return False
-    seen: set[str] = set()
-    for ref in candidates:
-        if ref in seen:
-            continue
-        seen.add(ref)
-        result = subprocess.run(
-            ["git", "-C", str(REPO_ROOT), "show", f"{ref}:pyproject.toml"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-        )
-        if result.returncode != 0 or _normalized_text_sha256(result.stdout) != stored_hash:
-            continue
-        historical_mypy = _mypy_config_from_text(result.stdout)
-        return historical_mypy is not None and historical_mypy == current_mypy
-    return False
+def load_mypy_policy_baseline(path: Path = MYPY_POLICY_BASELINE_PATH) -> dict[str, Any]:
+    data = cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
+    digest = data.get("mypy_config_sha256")
+    if data.get("schema_version") != 1 or not isinstance(digest, str) or not re.fullmatch(r"[0-9A-F]{64}", digest):
+        raise ValueError(f"Unsupported mypy policy baseline schema in {path}.")
+    return data
 
 
 def baseline_metadata_errors(baseline: dict[str, Any]) -> list[str]:
@@ -410,18 +379,15 @@ def baseline_metadata_errors(baseline: dict[str, Any]) -> list[str]:
         "stub_packages": list(EXPECTED_STUB_PACKAGES),
         "type_affecting_optional_distributions": [],
         "config_path": CONFIG_PATH.relative_to(REPO_ROOT).as_posix(),
-        "config_sha256": _sha256(CONFIG_PATH),
+        "mypy_config_sha256": _mypy_config_sha256(),
         "constraints_path": CONSTRAINTS_PATH.relative_to(REPO_ROOT).as_posix(),
         "constraints_sha256": _sha256(CONSTRAINTS_PATH),
     }
     errors: list[str] = []
     for key, value in expected.items():
         actual = environment.get(key)
-        if actual == value:
-            continue
-        if key == "config_sha256" and _typing_neutral_config_hash_drift(baseline):
-            continue
-        errors.append(f"baseline environment drift for {key}: expected {value!r}, found {actual!r}.")
+        if actual != value:
+            errors.append(f"baseline environment drift for {key}: expected {value!r}, found {actual!r}.")
     return errors
 
 
@@ -591,6 +557,11 @@ def _write_baseline(diagnostics: Sequence[Diagnostic], generation_commit: str) -
     baseline = build_baseline(diagnostics, generation_commit)
     BASELINE_PATH.parent.mkdir(parents=True, exist_ok=True)
     BASELINE_PATH.write_text(json.dumps(baseline, indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
+    policy = {
+        "schema_version": 1,
+        "mypy_config_sha256": baseline["environment"]["mypy_config_sha256"],
+    }
+    MYPY_POLICY_BASELINE_PATH.write_text(json.dumps(policy, indent=2) + "\n", encoding="utf-8", newline="\n")
     return baseline
 
 
