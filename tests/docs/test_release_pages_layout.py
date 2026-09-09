@@ -45,14 +45,14 @@ def test_versioned_pages_canonical_urls_resolve_to_deployed_files(tmp_path: Path
     for page in output.rglob("*.html"):
         for canonical in re.findall(r'<link\s+rel="canonical"\s+href="([^"]+)"', page.read_text(encoding="utf-8")):
             url = urlsplit(canonical)
-            assert url.scheme == "https" and url.netloc == "vamos-optimization.github.io"
+            assert url.scheme == "https" and url.netloc == "vamos-optimization.org"
             assert (
-                url.path.startswith("/VAMOS/docs/1.1.0/")
-                or url.path.startswith("/VAMOS/docs/stable/")
-                or url.path.startswith("/VAMOS/website/")
-                or url.path.startswith("/VAMOS/docs/1.0.0/")
+                url.path.startswith("/docs/1.1.0/")
+                or url.path.startswith("/docs/stable/")
+                or url.path.startswith("/website/")
+                or url.path.startswith("/docs/1.0.0/")
             )
-            target = output / unquote(url.path.removeprefix("/VAMOS/"))
+            target = output / unquote(url.path.lstrip("/"))
             if url.path.endswith("/"):
                 target /= "index.html"
             assert target.is_file(), canonical

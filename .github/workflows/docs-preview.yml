@@ -31,7 +31,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  DOC_BASE_URL: https://vamos-optimization.github.io/VAMOS/
+  DOC_BASE_URL: https://vamos-optimization.org/
 
 jobs:
   build:
@@ -96,7 +96,7 @@ jobs:
           {
             echo "### Documentation preview"
             echo
-            echo "Built and verified VAMOS ${DOC_VERSION}."
+            echo "Built and verified VAMOS ${DOC_VERSION} against the canonical .org base."
             echo "The downloadable artifact is named \`docs-preview-${{ github.event.pull_request.number || github.run_id }}\`."
-            echo "This workflow is read-only. A separate trusted workflow may publish the artifact to an isolated Cloudflare preview after merge of the hosting infrastructure."
+            echo "This workflow is read-only. A separate trusted workflow may publish the artifact to an isolated Cloudflare preview."
           } >> "$GITHUB_STEP_SUMMARY"

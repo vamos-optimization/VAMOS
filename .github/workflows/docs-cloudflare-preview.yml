@@ -16,6 +16,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  DOC_BASE_URL: https://vamos-optimization.org/
   WRANGLER_VERSION: "4.129.1"
 
 jobs:
@@ -74,36 +75,15 @@ jobs:
           print(payload["stable"])
           PY
           )
-          base_url=$(python - "$portal_dir" <<'PY'
-          import re
-          import sys
-          from pathlib import Path
-
-          root = Path(sys.argv[1])
-          redirect = (root / "index.html").read_text(encoding="utf-8")
-          match = re.search(r'<link rel="canonical" href="([^"]+)">', redirect)
-          if match is None:
-              raise SystemExit("preview portal root has no canonical link")
-          allowed = {
-              "https://vamos-optimization.github.io/VAMOS/docs/stable/": "https://vamos-optimization.github.io/VAMOS/",
-              "https://vamos-optimization.org/docs/stable/": "https://vamos-optimization.org/",
-          }
-          canonical = match.group(1)
-          if canonical not in allowed:
-              raise SystemExit(f"unsupported preview canonical target: {canonical}")
-          print(allowed[canonical])
-          PY
-          )
           echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
           echo "portal_dir=$portal_dir" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "base_url=$base_url" >> "$GITHUB_OUTPUT"
       - name: Revalidate generated portal as untrusted data
         run: |
           python tools/check_docs_portal.py \
             --root '${{ steps.metadata.outputs.portal_dir }}' \
             --version '${{ steps.metadata.outputs.version }}' \
-            --base-url '${{ steps.metadata.outputs.base_url }}'
+            --base-url "$DOC_BASE_URL"
       - name: Check Cloudflare credentials
         id: cloudflare
         env:
@@ -150,7 +130,7 @@ jobs:
           script: |
             const marker = '<!-- vamos-cloudflare-docs-preview -->';
             const issue_number = Number(process.env.PR_NUMBER);
-            const body = `${marker}\n### VAMOS documentation preview\n\n${process.env.PREVIEW_URL}\n\nBuilt from \`${process.env.HEAD_SHA.slice(0, 7)}\`. The preview is isolated from the stable/version archive.`;
+            const body = `${marker}\n### VAMOS documentation preview\n\n${process.env.PREVIEW_URL}\n\nBuilt from \`${process.env.HEAD_SHA.slice(0, 7)}\`. Canonical metadata points to the production .org domain; the preview itself remains isolated.`;
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner: context.repo.owner,
               repo: context.repo.repo,

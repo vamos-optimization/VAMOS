@@ -11,7 +11,7 @@ import shutil
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from check_repository_identity import PAGES_URL
+from check_repository_identity import DOCUMENTATION_URL
 from mkdocs.commands.build import build
 from mkdocs.config import load_config
 
@@ -114,7 +114,7 @@ def build_release_docs(
     version: str,
     output: Path,
     *,
-    base_url: str = PAGES_URL,
+    base_url: str = DOCUMENTATION_URL,
     archive_from: Path | None = None,
 ) -> None:
     if _VERSION_RE.fullmatch(version) is None:
@@ -162,7 +162,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--version", required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--base-url", default=PAGES_URL)
+    parser.add_argument("--base-url", default=DOCUMENTATION_URL)
     parser.add_argument(
         "--archive-from",
         type=Path,

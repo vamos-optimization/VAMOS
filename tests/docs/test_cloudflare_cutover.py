@@ -75,11 +75,12 @@ def test_cutover_workflows_separate_deployment_from_read_only_reverification() -
     assert "push:" not in verify
 
 
-def test_hosting_runbook_requires_live_verification_before_metadata_cutover() -> None:
+def test_post_cutover_contract_keeps_pages_only_as_fallback() -> None:
     hosting = (ROOT / "docs" / "project" / "hosting.md").read_text(encoding="utf-8")
+    delivery = (ROOT / "docs" / "dev" / "documentation-delivery.md").read_text(encoding="utf-8")
 
-    assert "## Cutover runbook" in hosting
-    assert "Verify Cloudflare documentation host" in hosting
-    assert "Only after live verification succeeds" in hosting
-    assert "metadata-cutover" in hosting
-    assert "Keep GitHub Pages available as a bridge" in hosting
+    assert "## Canonical metadata cutover" in hosting
+    assert "GitHub Pages remains available as a fallback mirror" in hosting
+    assert "Cloudflare production publication" in delivery
+    assert "GitHub Pages fallback mirror" in delivery
+    assert "competing canonical origin" in delivery

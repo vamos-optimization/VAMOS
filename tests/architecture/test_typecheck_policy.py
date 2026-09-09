@@ -224,11 +224,74 @@ def test_uncoded_ignore_in_changed_production_file_is_rejected(tmp_path: Path) -
     assert any("uncoded type: ignore" in error for error in errors)
 
 
-def test_baseline_metadata_detects_config_hash_drift() -> None:
+def test_baseline_metadata_detects_mypy_config_hash_drift() -> None:
     baseline = typecheck.build_baseline([_diagnostic()], "HEAD")
-    baseline["environment"]["config_sha256"] = "0" * 64
+    baseline["environment"]["mypy_config_sha256"] = "0" * 64
 
-    assert any("config_sha256" in error for error in typecheck.baseline_metadata_errors(baseline))
+    assert any("mypy_config_sha256" in error for error in typecheck.baseline_metadata_errors(baseline))
+
+
+def test_metadata_only_pyproject_drift_preserves_typing_baseline() -> None:
+    baseline = typecheck.load_baseline()
+
+    assert typecheck._sha256(typecheck.CONFIG_PATH) != baseline["environment"]["config_sha256"]
+    assert typecheck._mypy_config_sha256() == baseline["environment"]["mypy_config_sha256"]
+    errors = typecheck.baseline_metadata_errors(baseline)
+    assert not any("mypy_config_sha256" in error for error in errors)
+
+
+def test_mypy_config_fingerprint_ignores_unrelated_project_metadata(tmp_path: Path) -> None:
+    first = tmp_path / "first.toml"
+    second = tmp_path / "second.toml"
+    first.write_text(
+        """[project]
+name = 'first'
+[tool.mypy]
+ignore_missing_imports = false
+[[tool.mypy.overrides]]
+module = ['optional_provider']
+ignore_missing_imports = true
+""",
+        encoding="utf-8",
+    )
+    second.write_text(
+        """[project]
+name = 'second'
+[tool.mypy]
+ignore_missing_imports = false
+[[tool.mypy.overrides]]
+module = ['optional_provider']
+ignore_missing_imports = true
+""",
+        encoding="utf-8",
+    )
+
+    assert typecheck._mypy_config_sha256(first) == typecheck._mypy_config_sha256(second)
+
+
+def test_mypy_config_fingerprint_covers_overrides(tmp_path: Path) -> None:
+    first = tmp_path / "first.toml"
+    second = tmp_path / "second.toml"
+    first.write_text(
+        """[tool.mypy]
+ignore_missing_imports = false
+[[tool.mypy.overrides]]
+module = ['vamos.example']
+strict = true
+""",
+        encoding="utf-8",
+    )
+    second.write_text(
+        """[tool.mypy]
+ignore_missing_imports = false
+[[tool.mypy.overrides]]
+module = ['vamos.example']
+strict = false
+""",
+        encoding="utf-8",
+    )
+
+    assert typecheck._mypy_config_sha256(first) != typecheck._mypy_config_sha256(second)
 
 
 def test_policy_hash_is_independent_of_checkout_line_endings(tmp_path: Path) -> None:
@@ -241,12 +304,17 @@ def test_policy_hash_is_independent_of_checkout_line_endings(tmp_path: Path) -> 
 
 
 def test_committed_baseline_has_the_canonical_schema() -> None:
-    baseline = json.loads(typecheck.BASELINE_PATH.read_text(encoding="utf-8"))
+    raw_baseline = json.loads(typecheck.BASELINE_PATH.read_text(encoding="utf-8"))
+    baseline = typecheck.load_baseline()
+    policy = typecheck.load_mypy_policy_baseline()
 
-    assert baseline["schema_version"] == 1
-    assert baseline["policy"] == "structured-diagnostic-ratchet"
-    assert baseline["diagnostic_count"] == sum(item["multiplicity"] for item in baseline["diagnostics"])
-    assert baseline["fingerprint_count"] == len(baseline["diagnostics"])
+    assert raw_baseline["schema_version"] == 1
+    assert raw_baseline["policy"] == "structured-diagnostic-ratchet"
+    assert raw_baseline["diagnostic_count"] == sum(item["multiplicity"] for item in raw_baseline["diagnostics"])
+    assert raw_baseline["fingerprint_count"] == len(raw_baseline["diagnostics"])
+    assert policy["schema_version"] == 1
+    assert policy["mypy_config_sha256"] == typecheck._mypy_config_sha256()
+    assert baseline["environment"]["mypy_config_sha256"] == policy["mypy_config_sha256"]
 
 
 def test_health_and_ci_invoke_the_same_typecheck_commands_once() -> None:
