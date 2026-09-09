@@ -69,5 +69,3 @@ The repository cannot create the Cloudflare account token or GitHub secrets itse
 GitHub Pages remains the publication bridge until the Cloudflare production workflow has been run successfully and the custom domains have been verified. The existing `site_url` and package Documentation metadata therefore remain on the GitHub Pages URL during this stage; they should move to `https://vamos-optimization.org/` only after the canonical host is demonstrably live.
 
 This avoids publishing metadata that points to an unavailable host and makes the final cutover a small, independently verifiable change rather than coupling it to infrastructure creation.
-
-<!-- Cloudflare preview probe: safe no-op change used to validate the trusted workers.dev preview pipeline. -->
