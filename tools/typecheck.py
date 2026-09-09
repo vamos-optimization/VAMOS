@@ -346,27 +346,58 @@ def _mypy_config_from_text(content: str) -> dict[str, Any] | None:
 
 
 def _typing_neutral_config_hash_drift(baseline: dict[str, Any]) -> bool:
-    """Allow pyproject drift only when the baseline's exact mypy config is unchanged."""
+    """Allow pyproject drift only when the stored config is anchored in history and mypy is unchanged."""
     environment = baseline.get("environment")
-    generation_commit = baseline.get("generation_commit")
-    if not isinstance(environment, dict) or not isinstance(generation_commit, str) or not generation_commit:
+    if not isinstance(environment, dict):
         return False
     stored_hash = environment.get("config_sha256")
     if not isinstance(stored_hash, str):
         return False
-    result = subprocess.run(
-        ["git", "-C", str(REPO_ROOT), "show", f"{generation_commit}:pyproject.toml"],
+
+    candidates: list[str] = []
+    generation_commit = baseline.get("generation_commit")
+    if isinstance(generation_commit, str) and generation_commit:
+        candidates.append(generation_commit)
+    configured_base = os.environ.get("VAMOS_TYPECHECK_BASE")
+    if configured_base:
+        candidates.append(configured_base)
+    if subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "rev-parse", "--verify", "--quiet", "HEAD^{commit}"],
         capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
         check=False,
-    )
-    if result.returncode != 0 or _normalized_text_sha256(result.stdout) != stored_hash:
-        return False
-    historical_mypy = _mypy_config_from_text(result.stdout)
+    ).returncode == 0:
+        history = subprocess.run(
+            ["git", "-C", str(REPO_ROOT), "log", "--format=%H", "--", "pyproject.toml"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        if history.returncode == 0:
+            candidates.extend(history.stdout.splitlines())
+
     current_mypy = _mypy_config_from_text(CONFIG_PATH.read_text(encoding="utf-8"))
-    return historical_mypy is not None and historical_mypy == current_mypy
+    if current_mypy is None:
+        return False
+    seen: set[str] = set()
+    for ref in candidates:
+        if ref in seen:
+            continue
+        seen.add(ref)
+        result = subprocess.run(
+            ["git", "-C", str(REPO_ROOT), "show", f"{ref}:pyproject.toml"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        if result.returncode != 0 or _normalized_text_sha256(result.stdout) != stored_hash:
+            continue
+        historical_mypy = _mypy_config_from_text(result.stdout)
+        return historical_mypy is not None and historical_mypy == current_mypy
+    return False
 
 
 def baseline_metadata_errors(baseline: dict[str, Any]) -> list[str]:
