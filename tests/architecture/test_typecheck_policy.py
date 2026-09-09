@@ -231,6 +231,21 @@ def test_baseline_metadata_detects_config_hash_drift() -> None:
     assert any("config_sha256" in error for error in typecheck.baseline_metadata_errors(baseline))
 
 
+def test_metadata_only_pyproject_drift_preserves_typing_baseline() -> None:
+    baseline = typecheck.load_baseline()
+
+    assert typecheck._sha256(typecheck.CONFIG_PATH) != baseline["environment"]["config_sha256"]
+    errors = typecheck.baseline_metadata_errors(baseline)
+    assert not any("config_sha256" in error for error in errors)
+
+
+def test_typing_neutral_drift_fails_closed_when_baseline_hash_is_not_anchored() -> None:
+    baseline = typecheck.load_baseline()
+    baseline["environment"]["config_sha256"] = "0" * 64
+
+    assert not typecheck._typing_neutral_config_hash_drift(baseline)
+
+
 def test_policy_hash_is_independent_of_checkout_line_endings(tmp_path: Path) -> None:
     lf = tmp_path / "lf.txt"
     crlf = tmp_path / "crlf.txt"

@@ -89,16 +89,6 @@ def test_cloudflare_preview_uses_privilege_separation() -> None:
     assert 'WRANGLER_VERSION: "4.129.1"' in publish
 
 
-def test_cloudflare_preview_transition_accepts_only_old_and_new_canonical_bases() -> None:
-    publish = (ROOT / ".github" / "workflows" / "docs-cloudflare-preview.yml").read_text(encoding="utf-8")
-
-    assert "https://vamos-optimization.github.io/VAMOS/docs/stable/" in publish
-    assert "https://vamos-optimization.org/docs/stable/" in publish
-    assert "unsupported preview canonical target" in publish
-    assert 'echo "base_url=$base_url" >> "$GITHUB_OUTPUT"' in publish
-    assert "--base-url '${{ steps.metadata.outputs.base_url }}'" in publish
-
-
 def test_cloudflare_production_deploy_is_manual_and_guarded() -> None:
     workflow = (ROOT / ".github" / "workflows" / "docs-cloudflare.yml").read_text(encoding="utf-8")
     parsed = yaml.load(workflow, Loader=yaml.BaseLoader)
@@ -116,11 +106,12 @@ def test_cloudflare_production_deploy_is_manual_and_guarded() -> None:
     assert 'WRANGLER_VERSION: "4.129.1"' in workflow
 
 
-def test_hosting_contract_is_discoverable_without_switching_metadata_early() -> None:
+def test_hosting_contract_uses_proven_canonical_domain_and_keeps_pages_as_mirror() -> None:
     mkdocs = (ROOT / "mkdocs.yml").read_text(encoding="utf-8")
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     hosting = (ROOT / "docs" / "project" / "hosting.md").read_text(encoding="utf-8")
 
-    assert "Hosting and Domains: project/hosting.md" in mkdocs
-    assert "site_url: https://vamos-optimization.github.io/VAMOS/" in mkdocs
-    assert "https://vamos-optimization.org/" in hosting
-    assert "GitHub Pages remains the publication bridge" in hosting
+    assert "site_url: https://vamos-optimization.org/docs/stable/" in mkdocs
+    assert 'Documentation = "https://vamos-optimization.org/"' in pyproject
+    assert "VAMOS 1.0.0 has been deployed" in hosting
+    assert "GitHub Pages remains available as a fallback mirror" in hosting

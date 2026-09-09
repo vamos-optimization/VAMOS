@@ -21,6 +21,9 @@ except ModuleNotFoundError:  # Python 3.10
 ROOT = Path(__file__).resolve().parents[1]
 CANONICAL_REPOSITORY = "vamos-optimization/VAMOS"
 CANONICAL_URL = f"https://github.com/{CANONICAL_REPOSITORY}"
+DOCUMENTATION_URL = "https://vamos-optimization.org/"
+STABLE_DOCS_URL = f"{DOCUMENTATION_URL}docs/stable/"
+LEGACY_WEBSITE_URL = f"{DOCUMENTATION_URL}website/"
 PAGES_URL = "https://vamos-optimization.github.io/VAMOS/"
 PERSONAL_OWNER = "NicolasRodriguezUribe"
 MIRROR_REPOSITORY = f"{PERSONAL_OWNER}/VAMOS"
@@ -116,7 +119,7 @@ def metadata_violations(root: Path) -> list[str]:
         "Homepage": CANONICAL_URL,
         "Repository": CANONICAL_URL,
         "Issues": f"{CANONICAL_URL}/issues",
-        "Documentation": PAGES_URL,
+        "Documentation": DOCUMENTATION_URL,
     }
     violations = []
     for name, url in expected_urls.items():
@@ -135,12 +138,16 @@ def metadata_violations(root: Path) -> list[str]:
         )
     ):
         violations.append("The package and citation must retain vamos-optimization 1.0.0.")
-    for relative in ("mkdocs.yml", "website/mkdocs.yml"):
+    expected_site_urls = {
+        "mkdocs.yml": STABLE_DOCS_URL,
+        "website/mkdocs.yml": LEGACY_WEBSITE_URL,
+    }
+    for relative, expected_site_url in expected_site_urls.items():
         config = load_yaml(root, relative)
         if config.get("repo_url") != CANONICAL_URL or config.get("repo_name") != CANONICAL_REPOSITORY:
             violations.append(f"{relative} must identify the canonical repository.")
-        if config.get("site_url") != PAGES_URL:
-            violations.append(f"{relative} must use organization Pages.")
+        if config.get("site_url") != expected_site_url:
+            violations.append(f"{relative} site_url must be {expected_site_url}.")
     changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8")
     for label, suffix in (("Unreleased", "compare/v1.0.0...HEAD"), ("1.0.0", "releases/tag/v1.0.0")):
         if f"[{label}]: {CANONICAL_URL}/{suffix}" not in changelog:

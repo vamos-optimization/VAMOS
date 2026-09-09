@@ -130,9 +130,13 @@ class RatchetComparison:
     new_error_codes: tuple[str, ...]
 
 
-def _sha256(path: Path) -> str:
-    normalized = path.read_text(encoding="utf-8").replace("\r\n", "\n").replace("\r", "\n")
+def _normalized_text_sha256(content: str) -> str:
+    normalized = content.replace("\r\n", "\n").replace("\r", "\n")
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest().upper()
+
+
+def _sha256(path: Path) -> str:
+    return _normalized_text_sha256(path.read_text(encoding="utf-8"))
 
 
 def _distribution_versions() -> dict[str, str]:
@@ -329,6 +333,42 @@ def load_baseline(path: Path = BASELINE_PATH) -> dict[str, Any]:
     return data
 
 
+def _mypy_config_from_text(content: str) -> dict[str, Any] | None:
+    try:
+        parsed = tomllib.loads(content)
+    except (tomllib.TOMLDecodeError, TypeError):
+        return None
+    tool = parsed.get("tool")
+    if not isinstance(tool, dict):
+        return None
+    config = tool.get("mypy")
+    return cast(dict[str, Any], config) if isinstance(config, dict) else None
+
+
+def _typing_neutral_config_hash_drift(baseline: dict[str, Any]) -> bool:
+    """Allow pyproject drift only when the baseline's exact mypy config is unchanged."""
+    environment = baseline.get("environment")
+    generation_commit = baseline.get("generation_commit")
+    if not isinstance(environment, dict) or not isinstance(generation_commit, str) or not generation_commit:
+        return False
+    stored_hash = environment.get("config_sha256")
+    if not isinstance(stored_hash, str):
+        return False
+    result = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "show", f"{generation_commit}:pyproject.toml"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if result.returncode != 0 or _normalized_text_sha256(result.stdout) != stored_hash:
+        return False
+    historical_mypy = _mypy_config_from_text(result.stdout)
+    current_mypy = _mypy_config_from_text(CONFIG_PATH.read_text(encoding="utf-8"))
+    return historical_mypy is not None and historical_mypy == current_mypy
+
+
 def baseline_metadata_errors(baseline: dict[str, Any]) -> list[str]:
     environment = baseline["environment"]
     expected = {
@@ -343,11 +383,15 @@ def baseline_metadata_errors(baseline: dict[str, Any]) -> list[str]:
         "constraints_path": CONSTRAINTS_PATH.relative_to(REPO_ROOT).as_posix(),
         "constraints_sha256": _sha256(CONSTRAINTS_PATH),
     }
-    return [
-        f"baseline environment drift for {key}: expected {value!r}, found {environment.get(key)!r}."
-        for key, value in expected.items()
-        if environment.get(key) != value
-    ]
+    errors: list[str] = []
+    for key, value in expected.items():
+        actual = environment.get(key)
+        if actual == value:
+            continue
+        if key == "config_sha256" and _typing_neutral_config_hash_drift(baseline):
+            continue
+        errors.append(f"baseline environment drift for {key}: expected {value!r}, found {actual!r}.")
+    return errors
 
 
 def build_mypy_command(scope: Scope) -> list[str]:

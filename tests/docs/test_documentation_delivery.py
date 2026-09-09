@@ -10,7 +10,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 UPLOAD_ARTIFACT = "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02"
 DOWNLOAD_ARTIFACT = "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093"
-BASE_URL = "https://vamos-optimization.github.io/VAMOS/"
+BASE_URL = "https://vamos-optimization.org/"
 
 
 def test_preview_workflow_is_read_only_and_artifact_only() -> None:
@@ -24,6 +24,7 @@ def test_preview_workflow_is_read_only_and_artifact_only() -> None:
     assert "pages: write" not in workflow
     assert "id-token: write" not in workflow
     assert "actions/deploy-pages@" not in workflow
+    assert f"DOC_BASE_URL: {BASE_URL}" in workflow
 
 
 def test_release_workflow_checks_portal_and_requires_archive_for_later_versions() -> None:
@@ -39,6 +40,7 @@ def test_release_workflow_checks_portal_and_requires_archive_for_later_versions(
     assert "vamos-docs-portal-${{ env.DOC_VERSION }}" in workflow
     assert "actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9" in workflow
     assert "actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346" in workflow
+    assert f"DOC_BASE_URL: {BASE_URL}" in workflow
 
 
 def test_documentation_delivery_page_is_discoverable() -> None:
@@ -49,7 +51,8 @@ def test_documentation_delivery_page_is_discoverable() -> None:
     assert "dev/documentation-delivery.md" in nav_text
     assert "does not deploy" in delivery
     assert "archive_run_id" in delivery
-    assert "Goal 7" in delivery
+    assert "GitHub Pages fallback mirror" in delivery
+    assert "canonical production path" in delivery
 
 
 def test_portal_checker_accepts_minimal_versioned_contract(tmp_path: Path) -> None:

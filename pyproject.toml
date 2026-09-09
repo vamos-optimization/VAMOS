@@ -51,7 +51,7 @@ readme = { file = "README.md", content-type = "text/markdown" }
 Homepage = "https://github.com/vamos-optimization/VAMOS"
 Repository = "https://github.com/vamos-optimization/VAMOS"
 Issues = "https://github.com/vamos-optimization/VAMOS/issues"
-Documentation = "https://vamos-optimization.github.io/VAMOS/"
+Documentation = "https://vamos-optimization.org/"
 
 [project.optional-dependencies]
 # Simplified core groups (preferred)
