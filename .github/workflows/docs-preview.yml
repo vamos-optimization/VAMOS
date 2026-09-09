@@ -15,8 +15,10 @@ on:
       - "cloudflare/**"
       - "tools/build_release_docs.py"
       - "tools/check_docs_portal.py"
+      - "tools/check_docs_live.py"
       - ".github/workflows/docs-preview.yml"
       - ".github/workflows/docs-cloudflare-preview.yml"
+      - ".github/workflows/docs-cloudflare-verify.yml"
       - ".github/workflows/docs-cloudflare.yml"
       - ".github/workflows/docs.yml"
   workflow_dispatch:

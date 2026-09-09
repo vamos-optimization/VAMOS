@@ -101,12 +101,20 @@ jobs:
           retention-days: 90
       - name: Deploy Worker and custom domains
         run: npx --yes "wrangler@${WRANGLER_VERSION}" deploy --config wrangler.jsonc
+      - name: Verify live custom-domain contract
+        run: |
+          python tools/check_docs_live.py \
+            --version "$DOC_VERSION" \
+            --attempts 24 \
+            --delay 10 \
+            --timeout 15
       - name: Summarize production deployment
         run: |
           {
             echo "### VAMOS documentation production"
             echo
-            echo "Published VAMOS ${DOC_VERSION} through the \`vamos-docs\` Worker."
+            echo "Published and live-verified VAMOS ${DOC_VERSION} through the \`vamos-docs\` Worker."
             echo "Primary: https://vamos-optimization.org/"
             echo "Aliases redirect to the primary host while preserving path and query."
+            echo "The repository metadata remains on GitHub Pages until the separate metadata-cutover change is approved."
           } >> "$GITHUB_STEP_SUMMARY"
