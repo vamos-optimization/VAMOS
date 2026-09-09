@@ -89,6 +89,16 @@ def test_cloudflare_preview_uses_privilege_separation() -> None:
     assert 'WRANGLER_VERSION: "4.129.1"' in publish
 
 
+def test_cloudflare_preview_transition_accepts_only_old_and_new_canonical_bases() -> None:
+    publish = (ROOT / ".github" / "workflows" / "docs-cloudflare-preview.yml").read_text(encoding="utf-8")
+
+    assert "https://vamos-optimization.github.io/VAMOS/docs/stable/" in publish
+    assert "https://vamos-optimization.org/docs/stable/" in publish
+    assert "unsupported preview canonical target" in publish
+    assert 'echo "base_url=$base_url" >> "$GITHUB_OUTPUT"' in publish
+    assert "--base-url '${{ steps.metadata.outputs.base_url }}'" in publish
+
+
 def test_cloudflare_production_deploy_is_manual_and_guarded() -> None:
     workflow = (ROOT / ".github" / "workflows" / "docs-cloudflare.yml").read_text(encoding="utf-8")
     parsed = yaml.load(workflow, Loader=yaml.BaseLoader)
