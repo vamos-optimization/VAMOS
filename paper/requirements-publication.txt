@@ -5,7 +5,7 @@
 #   pip install -r paper/requirements-publication.txt
 
 numpy==2.3.5
-scipy==1.16.3
+scipy==1.15.3
 joblib==1.5.3
 numba==0.63.1
 moocore==0.1.10
