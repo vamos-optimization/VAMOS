@@ -12,7 +12,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: cloudflare-docs-preview
+  group: cloudflare-docs-preview-${{ github.event.workflow_run.id }}
   cancel-in-progress: false
 
 env:
