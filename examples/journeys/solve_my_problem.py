@@ -51,11 +51,22 @@ def solve():
     )
 
 
+def require_feasible_returned_set(result) -> None:
+    """Refuse to present an objective-only Pareto front with infeasible rows."""
+    G = result.data.get("G")
+    if G is None:
+        raise RuntimeError("Expected constraint values for the constrained custom-problem journey.")
+    if not (G <= 0.0).all():
+        raise RuntimeError("Returned set contains infeasible rows; filter them before Pareto analysis.")
+
+
 def main() -> None:
     result = solve()
     if result.X is None or result.F is None:
         raise RuntimeError("Expected decision and objective matrices from the custom-problem journey.")
 
+    # front() Pareto-filters F; it does not apply a separate feasibility filter.
+    require_feasible_returned_set(result)
     front_F, front_indices = result.front(return_indices=True)
     front_X = result.X[front_indices]
 
