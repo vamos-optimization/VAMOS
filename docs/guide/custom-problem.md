@@ -116,11 +116,19 @@ result = optimize(
 
 The custom model changes how candidate solutions are evaluated; it does not require a different optimization entry point.
 
-### 5. Translate the result back to your domain
+### 5. Check feasibility, then translate the result back to your domain
 
-Rows correspond across `X` and `F`. Extract the non-dominated subset of the returned set while keeping those row indices aligned:
+Rows correspond across the returned `X`, `F`, and constraint values `G`. For constrained runs, do not treat objective-space non-dominance as a feasibility test: `result.front()` Pareto-filters the current `F` rows, but it does **not** independently remove rows with positive constraint values.
+
+This maintained example deliberately verifies that every returned row is feasible before calling `front()`:
 
 ```python
+G = result.data.get("G")
+if G is None:
+    raise RuntimeError("Expected constraint values for this constrained problem.")
+if not (G <= 0.0).all():
+    raise RuntimeError("Returned set contains infeasible rows; filter them before Pareto analysis.")
+
 front_F, front_indices = result.front(return_indices=True)
 front_X = result.X[front_indices]
 
@@ -129,6 +137,8 @@ for x, f in zip(front_X[:5], front_F[:5]):
     energy_score, conversion_shortfall = f
     print(temperature, residence_time, energy_score, conversion_shortfall)
 ```
+
+If your returned set contains infeasible rows, filter `X`, `F`, and `G` with the same feasibility mask **before** computing or reporting a Pareto front. Preserve the original row indices whenever you need to trace an objective vector back to its decision vector. Constraint handling during optimization and post-run Pareto filtering are related but distinct operations.
 
 For this simple NSGA-II call, top-level `X` and `F` are the returned population. Do not assume that for every configuration or algorithm: [result modes](understanding-results.md#know-which-set-x-and-f-represent) determine which set is exposed at the top level.
 
@@ -216,6 +226,7 @@ For expensive or failure-prone models, define before the experiment what happens
 | VAMOS reports an objective shape mismatch | function returns the wrong number of objectives | make the return length equal `n_obj` |
 | Constraint shape mismatch | constraint function and `n_constraints` disagree | return exactly `n_constraints` values |
 | Known feasible designs are rejected | inequality sign was translated backwards | rewrite the requirement as `g(x) <= 0` and test hand-picked points |
+| An apparently good trade-off violates a requirement | objective-space Pareto filtering was applied without checking `G` | filter infeasible rows before Pareto analysis |
 | Solutions have impossible domain values | bounds do not encode the real admissible range | correct the problem bounds before tuning the algorithm |
 | Results change unexpectedly between runs | evaluator has uncontrolled randomness or state | make evaluator randomness explicit and reproducible |
 | Vectorized mode fails | batch function does not return `(N, n_obj)` or `(N, n_constraints)` | inspect the array shapes before optimization |
