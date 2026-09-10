@@ -32,10 +32,16 @@ def test_tuning_docs_match_current_contract() -> None:
     assert "advanced evaluation and contributors" in text
     assert "defaults to **`optuna`**" in text
     assert "held-out problems and/or seeds" in text
+    assert "global tuning seed **and** the base used to derive" in text
+    assert "does not\nlet you provide an independent training-seed list" in text
+    assert "--split-seed" in text
+    assert "--validation-seeds" in text
+    assert "--test-seeds" in text
     assert "--backend random" in text
     assert "--budget" in text
     assert "--tune-budget" in text
 
+    assert "Keep the tuner seed separate" not in text
     assert "return -hypervolume" not in text
     assert "RandomSearchTuner(" not in text
     assert "from vamos.engine.tuning import" not in text
