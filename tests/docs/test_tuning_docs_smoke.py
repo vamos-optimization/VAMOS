@@ -38,6 +38,8 @@ def test_tuning_docs_match_current_contract() -> None:
     assert "[10.0, ..., 10.0]" in text
     assert "--runtime-penalty" in text
     assert "--failure-score" in text
+    assert "not a\n  universal failure policy" in text
+    assert "should not be relied on to rescue an invalid HV scoring" in text
     assert "current maintained CLI cannot select it" in text
 
     assert "global tuning seed **and** the base used to derive" in text
@@ -57,6 +59,7 @@ def test_tuning_docs_match_current_contract() -> None:
 
     assert "Keep the tuner seed separate" not in text
     assert "IGD+ (lower is better) or HV" not in text
+    assert "--failure-score` is the score assigned when an evaluation fails" not in text
     assert "return -hypervolume" not in text
     assert "RandomSearchTuner(" not in text
     assert "from vamos.engine.tuning import" not in text
