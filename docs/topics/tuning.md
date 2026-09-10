@@ -56,16 +56,23 @@ candidate runs with **hypervolume (HV) and maximizes that score**.
 - `--runtime-penalty` changes the scalar score to
   `HV - lambda * log1p(runtime_seconds)`; its default is `0.0`, so the default
   score is plain HV.
-- `--failure-score` is the score assigned when an evaluation fails; its default
-  is `0.0`.
+- `--failure-score` has a narrower scope than its name may suggest. Its default
+  is `0.0`, and it is used when the evaluator catches a failure while running
+  the candidate algorithm and therefore has no usable result. It is **not a
+  universal failure policy**: exceptions raised later while scoring HV can
+  propagate in the `random` backend, while racing may substitute its own
+  backend-level sentinel instead of `--failure-score`.
 - `--aggregate-mode` then combines the per-block scores using `mean`, `median`,
   `p25`, or `p10`.
 
 Choose and report a reference point that is meaningful for **all** problems in
 the tuning campaign. The CLI uses the same supplied reference point across the
-selected instances. If you need IGD, IGD+, epsilon indicators, or another
-selection metric, the current maintained CLI cannot select it; that requires a
-custom/experimental workflow rather than a `vamos tune` flag.
+selected instances. In particular, validate that the reference point is valid
+for the objective values produced by every selected problem before a long run;
+`--failure-score` should not be relied on to rescue an invalid HV scoring
+setup. If you need IGD, IGD+, epsilon indicators, or another selection metric,
+the current maintained CLI cannot select it; that requires a custom/experimental
+workflow rather than a `vamos tune` flag.
 
 ### Current CLI seed coupling
 
