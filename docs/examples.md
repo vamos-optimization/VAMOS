@@ -34,9 +34,11 @@ This maps two domain variables, two objective scores, bounds, and one inequality
 python examples/journeys/reproducible_study.py --output results/journeys/study
 ```
 
-This plans a two-seed study before execution, creates the immutable study plan, runs the bounded tasks, and inspects the persisted study summary. Use a new output directory: durable studies are not silently overwritten.
+This builds a bounded `2 problems × 2 algorithms × 2 seeds` matrix, inspects the planned task count and evaluation budget before execution, publishes the exact reviewed plan, runs it, and prints the canonical run identity and manifest path for every summary row. The tiny budget and two-seed schedule are for teaching the workflow, not for making comparative performance claims.
 
-[View the executable source](https://github.com/vamos-optimization/VAMOS/blob/main/examples/journeys/reproducible_study.py) · [Read Durable studies](guide/studies.md)
+Use a new output directory: durable studies are not silently overwritten.
+
+[View the executable source](https://github.com/vamos-optimization/VAMOS/blob/main/examples/journeys/reproducible_study.py) · [Read Run a reproducible study](guide/studies.md)
 
 ## Choose by task
 
@@ -47,7 +49,7 @@ This plans a two-seed study before execution, creates the immutable study plan, 
 | Define your own objectives | [Solve your own problem](guide/custom-problem.md) | `examples/journeys/solve_my_problem.py` and `examples/problems/` |
 | Work with constraints | [Constraints](reference/constraints.md) | `notebooks/1_intermediate/11_constrained_optimization.ipynb` |
 | Persist and inspect runs | [Run artifacts & replay](guide/run-artifacts.md) | canonical run-artifact examples referenced by that guide |
-| Run a persistent experiment matrix | [Durable studies](guide/studies.md) | `examples/journeys/reproducible_study.py` |
+| Plan and trace a persistent experiment matrix | [Run a reproducible study](guide/studies.md) | `examples/journeys/reproducible_study.py` |
 | Tune an algorithm | [Hyperparameter tuning](topics/tuning.md) | `examples/tuning/` and tuning notebooks |
 | Use distributed evaluation | [Scaling with Dask](scaling/dask.md) | `examples/distributed/` |
 | Build a plugin | [Plugin Guide](topics/plugin_guide.md) | `examples/plugins/` |
@@ -68,4 +70,4 @@ Use the [Cookbook](guide/cookbook.md) for short task-oriented recipes. When a re
 
 ## Reproducibility rule
 
-Examples intended to support scientific results should make the evaluation budget and random seed explicit. Paper-grade comparisons should also record the environment used for the run; see [Run artifacts & replay](guide/run-artifacts.md) and the repository's pinned publication environment where applicable.
+Examples intended to support scientific results should make the evaluation budget and random seed explicit. For comparative studies, preserve the complete problem–algorithm–seed design and the run provenance behind every reported row. Paper-grade comparisons should also record the environment used for the run and define the statistical analysis separately; see [Run artifacts & replay](guide/run-artifacts.md) and the repository's pinned publication environment where applicable.
