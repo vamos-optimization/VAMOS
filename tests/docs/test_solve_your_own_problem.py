@@ -3,8 +3,10 @@ from __future__ import annotations
 import re
 import runpy
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
+import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 HOME = ROOT / "docs" / "index.md"
@@ -23,6 +25,7 @@ def test_executable_journey_preserves_domain_mapping_and_result_alignment() -> N
 
     objectives = example["objectives"]
     constraints = example["constraints"]
+    require_feasible_returned_set = example["require_feasible_returned_set"]
     problem = example["build_problem"]()
 
     np.testing.assert_allclose(objectives([75.0, 6.0]), [0.290625, 0.9583333333333333])
@@ -45,11 +48,20 @@ def test_executable_journey_preserves_domain_mapping_and_result_alignment() -> N
     recomputed = np.asarray([objectives(x) for x in result.X], dtype=float)
     np.testing.assert_allclose(result.F, recomputed)
 
+    G = result.data.get("G")
+    assert G is not None
+    assert G.shape == (40, 1)
+    assert (G <= 0.0).all()
+    require_feasible_returned_set(result)
+
     front_F, front_indices = result.front(return_indices=True)
     front_X = result.X[front_indices]
     assert len(front_F) == len(front_X) == len(front_indices)
     np.testing.assert_array_equal(result.F[front_indices], front_F)
     np.testing.assert_array_equal(result.X[front_indices], front_X)
+
+    with pytest.raises(RuntimeError, match="infeasible rows"):
+        require_feasible_returned_set(SimpleNamespace(data={"G": np.asarray([[1.0]])}))
 
 
 def test_guide_scalar_walkthrough_is_executable_in_order() -> None:
@@ -64,6 +76,8 @@ def test_guide_scalar_walkthrough_is_executable_in_order() -> None:
     assert result.X.shape == (40, 2)
     assert result.F.shape == (40, 2)
     assert result.data["evaluations"] == 400
+    assert namespace["G"] is not None
+    assert (namespace["G"] <= 0.0).all()
     assert namespace["front_X"].shape[0] == namespace["front_F"].shape[0]
 
 
@@ -102,6 +116,8 @@ def test_learning_path_explains_translation_not_only_api_calls() -> None:
     assert "teaching surrogates" in guide
     assert "vectorized=True" in guide
     assert "result.front(return_indices=True)" in guide
+    assert "does **not** independently remove rows" in guide
+    assert "filter `X`, `F`, and `G` with the same feasibility mask" in guide
 
     assert "Replace the benchmark with your model" in quickstart
     assert "custom-problem.md" in quickstart
