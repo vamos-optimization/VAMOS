@@ -17,7 +17,14 @@ import numpy as np
 
 from vamos import optimize
 from vamos.algorithms import NSGAIIConfig
-from vamos.engine.tuning import EvalContext, Instance, ParamSpace, RandomSearchTuner, Real, TuningTask
+from vamos.engine.tuning import (
+    EvalContext,
+    Instance,
+    ParamSpace,
+    RandomSearchTuner,
+    Real,
+    TuningTask,
+)
 
 
 def _reference_front(problem_name: str, n_points: int = 101) -> np.ndarray:
@@ -27,7 +34,9 @@ def _reference_front(problem_name: str, n_points: int = 101) -> np.ndarray:
     elif problem_name == "zdt2":
         f2 = 1.0 - np.square(f1)
     else:
-        raise ValueError(f"This teaching example only defines reference fronts for zdt1/zdt2, got {problem_name!r}.")
+        raise ValueError(
+            f"This teaching example only defines reference fronts for zdt1/zdt2, got {problem_name!r}."
+        )
     return np.column_stack((f1, f2))
 
 
@@ -76,7 +85,10 @@ def main() -> None:
     task = TuningTask(
         name="nsgaii_zdt_training_demo",
         param_space=space,
-        instances=[Instance(name="zdt1", n_var=30), Instance(name="zdt2", n_var=30)],
+        instances=[
+            Instance(name="zdt1", n_var=30),
+            Instance(name="zdt2", n_var=30),
+        ],
         seeds=[0, 1],
         budget_per_run=80,
         maximize=False,
