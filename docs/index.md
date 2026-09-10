@@ -41,7 +41,7 @@ print(result.F.shape)</code></pre>
   <a class="vamos-journey" href="guide/custom-problem/">
     <span class="vamos-journey__number">02</span>
     <h2>Solve my problem</h2>
-    <p>Define objectives, bounds, encodings, and constraints through the public problem builder.</p>
+    <p>Translate domain decisions and requirements into objectives, bounds, and constraints, then optimize them through the public problem builder.</p>
     <span class="vamos-journey__link">Custom problems →</span>
   </a>
   <a class="vamos-journey" href="guide/studies/">
