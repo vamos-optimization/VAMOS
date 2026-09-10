@@ -18,13 +18,12 @@ def test_executable_journey_plans_budget_and_traces_every_run(tmp_path: Path) ->
 
     preview, completed, report, summary = example["run"](output)
 
-    problems = tuple(example["PROBLEMS"])
-    algorithms = tuple(example["ALGORITHMS"])
     seeds = tuple(example["SEEDS"])
     max_evaluations = int(example["MAX_EVALUATIONS"])
-    expected_combinations = set(itertools.product(problems, algorithms, seeds))
+    expected_combinations = set(itertools.product(preview.problem_ids, preview.algorithm_ids, preview.seeds))
 
     assert preview.status == "ready"
+    assert preview.seeds == seeds
     assert preview.task_count == len(expected_combinations) == 8
     assert preview.total_evaluation_budget == len(expected_combinations) * max_evaluations == 640
     assert completed.plan_id == preview.plan_id
