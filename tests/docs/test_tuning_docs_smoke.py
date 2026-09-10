@@ -40,7 +40,8 @@ def test_tuning_docs_match_current_contract() -> None:
     assert "from vamos import optimize" in example
     assert "from vamos.algorithms import NSGAIIConfig" in example
     assert "from vamos.engine.tuning import" in example
-    assert "instances=[Instance(name=\"zdt1\", n_var=30), Instance(name=\"zdt2\", n_var=30)]" in example
+    assert 'Instance(name="zdt1", n_var=30)' in example
+    assert 'Instance(name="zdt2", n_var=30)' in example
     assert "seeds=[0, 1]" in example
     assert "budget_per_run=80" in example
     assert "maximize=False" in example
