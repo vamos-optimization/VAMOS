@@ -12,7 +12,9 @@ This page defines the source-of-truth boundaries for VAMOS documentation while t
 | User-defined objective functions and constraints | `docs/guide/custom-problem.md` |
 | Durable studies | `docs/guide/studies.md` |
 | Individual run persistence, verification, and replay | `docs/guide/run-artifacts.md` |
-| Public API signatures | Python code and docstrings rendered through `docs/reference/api_reference.md` |
+| Public API navigation and preserved bookmarks | `docs/reference/api_reference.md` |
+| Public API signatures | Python code and docstrings rendered through the focused pages in `docs/reference/api/` |
+| API documentation maintenance | [Maintaining the API documentation](api-documentation.md) |
 | Algorithm/problem contracts | `docs/reference/` plus the implementation and tests they describe |
 | Executable scripts | `examples/` |
 | Executable notebooks | `notebooks/` |
