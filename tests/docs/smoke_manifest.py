@@ -189,4 +189,14 @@ subprocess.run(
 )
 """,
     ),
+    DocSmokeCase(
+        name="journey_understand_results",
+        source_path="examples/journeys/understand_results.py",
+        code="""
+import subprocess
+import sys
+
+subprocess.run([sys.executable, "examples/journeys/understand_results.py"], check=True)
+""",
+    ),
 ]
