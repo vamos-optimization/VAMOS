@@ -1,12 +1,31 @@
 # Algorithms and backends
 
-Algorithms (internal)
----------------------
+Choose a built-in algorithm through its public identifier in `optimize()`. Start with the [NSGA-II guide](../algorithms/nsgaii.md) for a complete executable example and an explanation of the result. The configuration pages below document exact interfaces; they are not performance rankings.
+
+## Algorithm catalogue
+
+| Algorithm | Identifier | Teaching guide | Configuration reference |
+| --- | --- | --- | --- |
+| NSGA-II | `nsgaii` | [Run and understand NSGA-II](../algorithms/nsgaii.md) | [NSGAIIConfig](api/algorithms/nsgaii.md) |
+| NSGA-III | `nsgaiii` | Use the configuration reference | [NSGAIIIConfig](api/algorithms/nsgaiii.md) |
+| MOEA/D | `moead` | Use the configuration reference | [MOEADConfig](api/algorithms/moead.md) |
+| SMS-EMOA | `smsemoa` | Use the configuration reference | [SMSEMOAConfig](api/algorithms/smsemoa.md) |
+| SPEA2 | `spea2` | Use the configuration reference | [SPEA2Config](api/algorithms/spea2.md) |
+| IBEA | `ibea` | Use the configuration reference | [IBEAConfig](api/algorithms/ibea.md) |
+| SMPSO | `smpso` | Use the configuration reference | [SMPSOConfig](api/algorithms/smpso.md) |
+| AGE-MOEA | `agemoea` | Use the configuration reference | [AGEMOEAConfig](api/algorithms/agemoea.md) |
+| RVEA | `rvea` | Use the configuration reference | [RVEAConfig](api/algorithms/rvea.md) |
+
+Additional teaching pages will be linked when their examples have been validated. To query the installed registry, use `available_algorithms()` from `vamos.algorithms`; see [discovery](api/discovery.md). Compatibility commitments are defined in the [stability policy](../project/stability-and-versioning.md).
+
+<span id="algorithms-internal"></span>
+
+## Implementation notes
 
 - NSGA-II: continuous, permutation, binary, integer, mixed; supports archive, adaptive operators, HV early-stop.
   - `result_mode` accepts only `non_dominated` (default) or `population`.
   - External archive configuration (`.external_archive(...)`) becomes the default result source unless you explicitly set `result_mode="population"`.
-  - When archive is enabled, results still include `result["archive"]` alongside `result["population"]`.
+  - When archive is enabled, results still include `result.data["archive"]` alongside `result.data["population"]`.
   - Supported external-archive prune policies are `crowding`, `hv`, `mc_hv`, `knn`, `maxmin`, and `ref_dirs`.
   - `hv` uses exact hypervolume contributions in 2D and exact higher-dimensional contributions when `moocore` is available; `mc_hv` keeps the Monte Carlo approximation path.
 - NSGA-III: many-objective real/binary/integer; reference direction support. Matching `pop_size` to the number of reference directions is recommended (with divisions p: `comb(p + n_obj - 1, n_obj - 1)`); mismatches emit a warning unless strict enforcement is enabled.

@@ -1,0 +1,128 @@
+from __future__ import annotations
+
+import json
+import re
+import runpy
+import subprocess
+import sys
+from pathlib import Path
+from xml.etree import ElementTree
+
+import numpy as np
+import pytest
+import yaml
+
+from vamos.problems import ZDT1
+
+ROOT = Path(__file__).resolve().parents[2]
+PAGE = ROOT / "docs" / "algorithms" / "nsgaii.md"
+EXAMPLE = ROOT / "examples" / "journeys" / "nsgaii_zdt1.py"
+
+
+def _blocks() -> list[str]:
+    return re.findall(r"```python\n(.*?)\n```", PAGE.read_text(encoding="utf-8"), re.DOTALL)
+
+
+def test_tutorial_example_matches_script_and_problem_contract() -> None:
+    namespace: dict = {}
+    exec(compile(_blocks()[0], str(PAGE), "exec"), namespace)
+    shown = namespace["result"]
+    reference = runpy.run_path(str(EXAMPLE))["solve"]()
+    assert shown.X is not None and shown.F is not None
+    assert reference.X is not None and reference.F is not None
+    np.testing.assert_array_equal(shown.X, reference.X)
+    np.testing.assert_array_equal(shown.F, reference.F)
+    assert shown.X.shape == (len(shown.F), 30)
+    assert shown.F.ndim == 2 and shown.F.shape[1] == 2
+    assert 0 < len(shown.F) <= 100
+    assert np.all(np.isfinite(shown.F))
+    assert np.all((shown.X >= 0.0) & (shown.X <= 1.0))
+    assert shown.data["evaluations"] == 10_000
+    actual = np.empty_like(shown.F)
+    ZDT1(n_var=30).evaluate(shown.X, {"F": actual})
+    np.testing.assert_allclose(shown.F, actual)
+    dominates = np.all(shown.F[:, None, :] <= shown.F[None, :, :], axis=2)
+    dominates &= np.any(shown.F[:, None, :] < shown.F[None, :, :], axis=2)
+    assert not np.any(dominates)
+
+
+def test_explicit_builder_example_is_executable() -> None:
+    from vamos import optimize
+
+    namespace: dict = {}
+    exec(compile(_blocks()[1], str(PAGE), "exec"), namespace)
+    config = namespace["config"]
+    assert config.mutation[1]["prob"] == "1/n"
+    result = optimize(ZDT1(n_var=30), algorithm="nsgaii", algorithm_config=config, max_evaluations=200, engine="numpy", seed=42)
+    assert result.F is not None and result.F.shape[1] == 2
+    assert result.data["evaluations"] == 200
+
+
+def test_tutorial_navigation_and_catalogue_cover_builtin_ids() -> None:
+    config = yaml.safe_load((ROOT / "mkdocs.yml").read_text(encoding="utf-8"))
+    nav = yaml.safe_dump(config["nav"])
+    assert "algorithms/nsgaii.md" in nav
+    assert "dev/algorithm-documentation.md" in nav
+    catalogue = (ROOT / "docs" / "reference" / "algorithms.md").read_text(encoding="utf-8")
+    identifiers = re.findall(r"^\| [^|]+ \| `([a-z0-9]+)` \|", catalogue, re.MULTILINE)
+    # The main test process may contain plugins registered by other tests.
+    registry = subprocess.run(
+        [sys.executable, "-c", "import json; from vamos.algorithms import available_algorithms; print(json.dumps(available_algorithms()))"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert set(identifiers) == set(json.loads(registry.stdout))
+    assert len(identifiers) == len(set(identifiers))
+    assert '<span id="algorithms-internal"></span>' in catalogue
+    reference = (ROOT / "docs" / "reference" / "api" / "algorithms" / "nsgaii.md").read_text(encoding="utf-8")
+    assert "../../../algorithms/nsgaii.md" in reference
+    for algorithm in identifiers:
+        assert f"(api/algorithms/{algorithm}.md)" in catalogue
+
+
+def test_cli_smoke_writes_nothing_without_output(tmp_path: Path) -> None:
+    completed = subprocess.run(
+        [sys.executable, str(EXAMPLE), "--pop-size", "20", "--max-evaluations", "203"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    report = json.loads(completed.stdout)
+    assert report["evaluations"] == 203
+    assert report["n_var"] == 30
+    assert report["engine"] == "numpy"
+    assert report["seed"] == 42
+    assert report["F_shape"][1] == 2
+    assert report["figure"] is None
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_optional_figure_and_overwrite_refusal(tmp_path: Path) -> None:
+    pytest.importorskip("matplotlib")
+    example = runpy.run_path(str(EXAMPLE))
+    result = example["solve"](pop_size=20, max_evaluations=200)
+    output = tmp_path / "nsgaii.svg"
+    example["plot_result"](result, output)
+    tree = ElementTree.parse(output)
+    assert tree.getroot().tag == "{http://www.w3.org/2000/svg}svg"
+    original = output.read_bytes()
+    assert b"Analytical Pareto front" in original
+    assert b"200 evaluations" in original
+    with pytest.raises(FileExistsError):
+        example["plot_result"](result, output)
+    assert output.read_bytes() == original
+    with pytest.raises(ValueError, match=".svg"):
+        example["plot_result"](result, tmp_path / "not-svg.png")
+
+
+def test_maintained_figure_has_generator_provenance() -> None:
+    figure = ROOT / "docs" / "assets" / "algorithms" / "nsgaii-zdt1.svg"
+    tree = ElementTree.parse(figure)
+    assert tree.getroot().tag == "{http://www.w3.org/2000/svg}svg"
+    text = figure.read_text(encoding="utf-8")
+    assert "Generated by examples/journeys/nsgaii_zdt1.py" in text
+    assert "10000 evaluations" in text
+    assert "<script" not in text
+    assert "not an optimization result" in text

@@ -8,7 +8,7 @@ Configure `nsgaii` through `vamos.algorithms.NSGAIIConfig`. This page is the par
 from vamos.algorithms import NSGAIIConfig
 ```
 
-[Configuration overview](index.md) · [Algorithm contracts](../../algorithms.md) · [Optimization](../optimization.md)
+[NSGA-II guide and example](../../../algorithms/nsgaii.md) · [Configuration overview](index.md) · [Algorithm contracts](../../algorithms.md) · [Optimization](../optimization.md)
 
 ::: vamos.algorithms.NSGAIIConfig
     options:
