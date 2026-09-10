@@ -48,17 +48,38 @@ The crosses are non-dominated **within the returned population**. They are not a
 !!! tip "A useful stopping point for a first session"
     If this is your first VAMOS run, you now have the complete minimal loop: execute a bounded optimization and understand what its arrays represent. The remaining sections extend that loop to custom problems, explicit configuration and reproducible evidence.
 
-## 3. Define a problem
+## 3. Replace the benchmark with your model
+
+A custom problem is the same optimization loop with your domain model behind `make_problem(...)`. Start by naming the decisions and outputs rather than by copying a benchmark formula.
+
+This small teaching surrogate uses temperature and residence time as decisions, minimizes an energy score and a conversion-shortfall score, and requires `temperature * residence_time >= 450`.
 
 ```python
 from vamos import make_problem, optimize
 
+
+def objectives(x):
+    temperature, residence_time = x
+    energy_score = ((temperature - 60.0) / 40.0) ** 2 + 0.25 * (residence_time / 10.0)
+    conversion_shortfall = (100.0 - temperature) / 40.0 + 2.0 / residence_time
+    return [energy_score, conversion_shortfall]
+
+
+def constraints(x):
+    # temperature * residence_time >= 450
+    # becomes 450 - temperature * residence_time <= 0
+    temperature, residence_time = x
+    return [450.0 - temperature * residence_time]
+
+
 problem = make_problem(
-    lambda x: [x[0], (1 + x[1]) * (1 - x[0] ** 0.5)],
+    objectives,
     n_var=2,
     n_obj=2,
-    bounds=[(0, 1), (0, 1)],
+    bounds=[(60.0, 100.0), (2.0, 10.0)],
     encoding="real",
+    constraints=constraints,
+    n_constraints=1,
 )
 
 result = optimize(
@@ -66,11 +87,12 @@ result = optimize(
     algorithm="nsgaii",
     max_evaluations=400,
     pop_size=40,
+    engine="numpy",
     seed=42,
 )
 ```
 
-The default `vectorized=False` adapter calls this scalar function once per solution. For a function that accepts an `(N, n_var)` batch and returns an `(N, n_obj)` array, pass `vectorized=True` to `make_problem`.
+The equations above are illustrative, not a validated physical process model. The [Solve your own problem](custom-problem.md) guide shows how to map real variables, bounds, objectives and constraints into this interface, validate the evaluator before optimization, vectorize an existing batch model, and translate the returned rows back into domain quantities.
 
 ## 4. Use an explicit algorithm configuration
 
