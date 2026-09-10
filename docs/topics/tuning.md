@@ -1,38 +1,33 @@
 # Hyperparameter Tuning
 
 VAMOS can tune **algorithm configuration**: operator probabilities, distribution
-indices, population-related settings, and other parameters that control a MOEA.
-The configuration tuner evaluates candidate settings across explicit problem and
-seed blocks, then compares their scalar quality scores.
+indices, population-related settings, archive controls, and other parameters
+that control a MOEA. A tuning campaign evaluates candidate configurations over
+explicit problem and seed blocks and ranks them by a scalar quality score.
 
 !!! warning "Experimental surface in VAMOS 1.0.0"
-    The `vamos.engine.tuning` / racing APIs and the `vamos tune` and
-    `vamos ablation` commands are **experimental**. They are supported for
-    evaluation but may change incompatibly in a minor release. The stable
-    `optimize(...)` and algorithm-configuration facades used to evaluate a
-    candidate remain governed by the [stability policy](../project/stability-and-versioning.md).
+    The tuning/racing implementation and the `vamos tune` and `vamos ablation`
+    commands are **experimental**. They are supported for evaluation but may
+    change incompatibly in a minor release. Stable optimization calls used by
+    the tuning runtime remain governed by the
+    [stability policy](../project/stability-and-versioning.md).
 
 This page is about configuring optimization algorithms. If the variables in
 *your optimization problem* are model hyperparameters (for example SVM `C` and
 `gamma`), that is a different workflow; see
 `examples/tuning/hyperparam_tuning.py` for that formulation.
 
-## Install
+## Programmatic API status
 
-The built-in `random` and `racing` tuners use the core installation.
+VAMOS 1.0.0 does **not** expose a curated public programmatic facade for the
+algorithm-configuration tuner. Maintained user workflows should therefore use
+`vamos tune` rather than import deep `vamos.engine.*` implementation modules.
 
-Model-based CLI backends (`optuna`, `smac3`, `bohb`, and `bohb_optuna`) require
-the optional tuning dependencies:
-
-```bash
-pip install "vamos-optimization[tuning]"
-```
-
-From a local checkout:
-
-```bash
-pip install -e ".[tuning]"
-```
+The implementation-level tuning and racing classes remain documented for
+advanced evaluation and contributors under the
+[experimental tuning API reference](../reference/api/experimental/tuning.md),
+but those deep imports are not a compatibility commitment or a copy-paste
+learning path.
 
 ## What a tuning experiment must define
 
@@ -45,146 +40,41 @@ comparison:
 3. **Algorithm seeds** — stochastic replicates used for every candidate.
 4. **Per-run evaluation budget** — the optimization budget given to each
    candidate/problem/seed run.
-5. **Quality metric and direction** — for example IGD (lower is better) or HV
+5. **Quality metric and direction** — for example IGD+ (lower is better) or HV
    (higher is better).
 6. **Aggregation rule** — how repeated problem/seed scores become one scalar
    tuning score.
 
 Keep the tuner seed separate from the algorithm seeds. The tuner seed controls
-which configurations are proposed; the algorithm seeds control the stochastic
-optimization runs used to evaluate each proposal. Report both.
+the configuration-search process; the algorithm seeds control the stochastic
+optimization runs used to score each candidate. Report both.
 
 For scientific use, reserve **held-out problems and/or seeds** for validation or
 final testing. Do not choose a configuration on the same test blocks used for
 the final claim.
 
-## Programmatic random search
+## Install
 
-The maintained runnable example is:
+The built-in `random` and `racing` backends use the core installation.
+
+Model-based backends (`optuna`, `smac3`, `bohb`, and `bohb_optuna`) require the
+optional tuning dependencies:
 
 ```bash
-python examples/tuning/random_search_nsgaii.py
+pip install "vamos-optimization[tuning]"
 ```
 
-It deliberately stays small for documentation smoke tests: two candidate
-configurations are evaluated on `ZDT1 × ZDT2 × seeds {0, 1}` with 80 function
-evaluations per run. The score is a self-contained IGD estimate against the
-analytic ZDT fronts, aggregated with the median. This is a **teaching design**,
-not a recommended sample size for a publication.
+From a local checkout:
 
-The essential mapping is:
-
-```python
-from typing import Any
-
-from vamos import optimize
-from vamos.algorithms import NSGAIIConfig
-from vamos.engine.tuning import EvalContext
-
-
-def evaluate_config(config: dict[str, Any], ctx: EvalContext) -> float:
-    algorithm_config = (
-        NSGAIIConfig.builder()
-        .pop_size(20)
-        .selection("tournament")
-        .crossover("sbx", prob=float(config["crossover_prob"]), eta=20.0)
-        .mutation(
-            "pm",
-            prob=1.0 / ctx.instance.n_var,
-            eta=float(config["mutation_eta"]),
-        )
-        .build()
-    )
-    result = optimize(
-        ctx.instance.name,
-        algorithm="nsgaii",
-        algorithm_config=algorithm_config,
-        max_evaluations=ctx.budget,
-        n_var=ctx.instance.n_var,
-        seed=ctx.seed,
-        engine="numpy",
-    )
-    if result.F is None or result.F.size == 0:
-        raise RuntimeError("NSGA-II returned no objective vectors.")
-    return igd(result.F, ctx.instance.name)  # lower is better
+```bash
+pip install -e ".[tuning]"
 ```
 
-Here `EvalContext` is important: the tuner chooses the candidate configuration,
-while the tuning task supplies the problem, seed, and evaluation budget for the
-current experimental block. The complete example defines the small `igd(...)`
-helper, parameter space, `TuningTask`, and `RandomSearchTuner` around this
-function.
+## Start with a core-installation run
 
-A compact task looks like this:
-
-```python
-import numpy as np
-
-from vamos.engine.tuning import Instance, ParamSpace, RandomSearchTuner, Real, TuningTask
-
-space = ParamSpace(
-    params={
-        "crossover_prob": Real("crossover_prob", 0.7, 1.0),
-        "mutation_eta": Real("mutation_eta", 10.0, 40.0),
-    }
-)
-
-task = TuningTask(
-    name="nsgaii_zdt_training_demo",
-    param_space=space,
-    instances=[Instance(name="zdt1", n_var=30), Instance(name="zdt2", n_var=30)],
-    seeds=[0, 1],
-    budget_per_run=80,
-    maximize=False,
-    aggregator=lambda values: float(np.median(values)),
-)
-
-tuner = RandomSearchTuner(task=task, max_trials=2, seed=7)
-best_config, history = tuner.run(evaluate_config, verbose=False)
-```
-
-Do not interpret the best score from a tiny search as evidence that the
-configuration is generally superior. The selection process itself creates
-optimism; validate the selected configuration on blocks that were not used to
-choose it.
-
-## Racing tuner
-
-`RacingTuner` uses the same `TuningTask` and evaluation function, but can stop
-spending evaluations on weak candidates as evidence accumulates.
-
-```python
-from vamos.engine.tuning import RacingTuner, Scenario
-
-tuner = RacingTuner(
-    task,
-    scenario=Scenario(
-        max_experiments=50,
-        min_survivors=3,
-        n_jobs=4,
-    ),
-    seed=7,
-)
-best_config, history = tuner.run(evaluate_config, verbose=False)
-```
-
-`Scenario.max_experiments` counts configuration-evaluation blocks
-(`configuration × instance × seed`), not objective-function evaluations inside
-the MOEA. The latter are controlled by `TuningTask.budget_per_run` (or the
-configured fidelity schedule). Keep those two budgets distinct when estimating
-compute cost.
-
-Racing can use paired statistical elimination after enough blocks have been
-observed. That is an allocation mechanism inside the experimental tuner; it is
-not a substitute for an independently designed final comparison on held-out
-blocks.
-
-## Command line: `vamos tune`
-
-`vamos tune` is the experimental orchestration path for larger tuning runs. Its
-**current default backend is `optuna`**, which requires the optional `tuning`
-extra. For a core-installation command that is safe to copy and paste, select a
-built-in backend explicitly:
+The `vamos tune` CLI currently defaults to **`optuna`**, so omitting
+`--backend` requires the optional tuning extra. For a command that works with a
+core installation, choose a built-in backend explicitly:
 
 ```bash
 vamos tune \
@@ -196,18 +86,20 @@ vamos tune \
   --n-jobs 1
 ```
 
-Available backend families are:
+The important budgets are different quantities:
 
-- `random` — built-in random search;
-- `racing` — built-in racing;
-- `optuna` — current CLI default; requires the tuning extra;
-- `bohb_optuna`, `smac3`, and `bohb` — optional model-based backends from the
-  tuning extra.
+- `--budget` is the MOEA objective-evaluation budget for each candidate run;
+- `--tune-budget` is the configuration-search budget (trials/experiments,
+  depending on backend).
 
-### Cheap verification path
+Do not report only `--tune-budget` when estimating compute cost. Candidate
+configurations are evaluated across the selected instances and seeds, and each
+of those runs consumes its own algorithm budget.
 
-Use the explicit built-in backend plus `--smoke` when you only want to verify
-the CLI and artifact path:
+## Cheap verification path
+
+Use `--smoke` when you only want to verify the CLI, evaluator, and artifact
+pipeline:
 
 ```bash
 vamos tune \
@@ -219,10 +111,30 @@ vamos tune \
 ```
 
 `--smoke` clamps budgets and workers and disables validation, test, and
-statistical-finisher stages. It is a real execution path, but its tiny budget
-is not intended for scientific conclusions.
+statistical-finisher stages. It is a real execution path and is exercised by
+the documentation smoke suite, but its tiny design is **not** intended for
+scientific conclusions.
 
-### Larger split-based example
+## Choose a backend deliberately
+
+The current backend families are:
+
+- `random` — built-in random search;
+- `racing` — built-in racing that progressively allocates experiments and can
+  eliminate weak candidates;
+- `optuna` — current CLI default; requires the tuning extra;
+- `bohb_optuna`, `smac3`, and `bohb` — optional model-based backends from the
+  tuning extra.
+
+A racing run uses the same scientific ingredients as any other tuning run:
+problem blocks, algorithm seeds, a per-run budget, a metric, and an aggregation
+rule. Its statistical elimination is an **allocation mechanism during tuning**;
+it is not a substitute for an independently designed final comparison on
+held-out blocks.
+
+## Split-based tuning
+
+For a larger campaign, use explicit instance splitting and post-tuning stages:
 
 ```bash
 vamos tune \
@@ -241,7 +153,7 @@ The key controls include:
 - `--algorithm`: algorithm family to tune;
 - `--instances`: comma-separated problem list; overrides `--problem`;
 - `--backend`: `racing`, `random`, `optuna`, `bohb_optuna`, `smac3`, or `bohb`;
-- `--backend-fallback`: behavior when an optional model backend is unavailable;
+- `--backend-fallback`: fallback when an optional model backend is unavailable;
 - `--split-strategy`: `suite_stratified` or `random` instance splitting;
 - `--budget`: per-run algorithm evaluation budget;
 - `--tune-budget`: racing experiments or model trials;
@@ -252,7 +164,14 @@ The key controls include:
 - `--run-statistical-finisher`: optional paired-test selection on the training
   split top-k.
 
-Output artifacts include:
+Define the split before interpreting results. Tuning chooses among candidate
+configurations; validation can support model-selection decisions; the final
+test split should answer the pre-specified performance question without being
+fed back into another tuning round.
+
+## Artifacts and provenance
+
+Tuning output includes:
 
 - `best_config_raw.json` and `best_config_active.json`;
 - `tuning_history.json` and `tuning_history.csv`;
@@ -260,17 +179,20 @@ Output artifacts include:
 - `split_instances.csv` and `split_seeds.json`;
 - optional finisher/validation/test artifacts when those stages are enabled.
 
-The tuning spaces can also include external-archive controls. When an external
-archive is enabled, remember that archive/result semantics affect the quality
-metric you are tuning; define the result source consistently across candidate
-configurations.
+Keep these together with the command/configuration and environment used for the
+campaign. A best configuration without its search space, seeds, metric,
+aggregation rule, budgets, and split is not a reproducible tuning result.
+
+The tuning spaces can include external-archive controls. When an external
+archive is enabled, archive/result semantics affect the metric being tuned;
+keep the result source consistent across candidate configurations.
 
 ## Ablation planning
 
 `vamos ablation` is also experimental. For a durable scientific comparison of
 already chosen variants, the stable study lifecycle is preferable: represent
 each scientifically distinct configuration explicitly, plan the matrix before
-execution, and retain the canonical run provenance.
+execution, and retain canonical run provenance.
 
 ```python
 from pathlib import Path
