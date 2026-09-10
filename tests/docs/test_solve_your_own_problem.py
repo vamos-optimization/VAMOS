@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
+HOME = ROOT / "docs" / "index.md"
 GUIDE = ROOT / "docs" / "guide" / "custom-problem.md"
 QUICKSTART = ROOT / "docs" / "guide" / "zero_to_hero.md"
 EXAMPLES = ROOT / "docs" / "examples.md"
@@ -88,6 +89,7 @@ def test_guide_vectorized_contract_matches_scalar_model() -> None:
 
 
 def test_learning_path_explains_translation_not_only_api_calls() -> None:
+    home = HOME.read_text(encoding="utf-8")
     guide = GUIDE.read_text(encoding="utf-8")
     quickstart = QUICKSTART.read_text(encoding="utf-8")
     examples = EXAMPLES.read_text(encoding="utf-8")
@@ -104,3 +106,4 @@ def test_learning_path_explains_translation_not_only_api_calls() -> None:
     assert "Replace the benchmark with your model" in quickstart
     assert "custom-problem.md" in quickstart
     assert "maps two domain variables" in examples
+    assert "Translate domain decisions and requirements" in home
