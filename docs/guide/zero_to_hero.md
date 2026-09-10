@@ -142,26 +142,43 @@ vamos results verify runs/zdt1-seed-42 --require-level exact
 vamos reproduce runs/zdt1-seed-42 --output runs/replays/zdt1-seed-42
 ```
 
-## 6. Run a durable study
+## 6. Plan a reproducible study before running it
+
+A study turns one validated run into an explicit problem–algorithm–seed matrix. Review the matrix and its total budget before publishing or executing it:
 
 ```python
-from vamos import StudySpec, create_study
+from vamos import StudySpec, create_study, plan_study
 
 spec = StudySpec(
     problems=["zdt1", "zdt2"],
     algorithms=["nsgaii", "moead"],
     seeds=[0, 1],
-    max_evaluations=400,
-    pop_size=40,
+    max_evaluations=80,
+    pop_size=20,
+    engine="numpy",
+    eval_strategy="serial",
     on_error="continue",
 )
 
-completed = create_study(spec, output="studies/comparison").run()
-print(completed.inspect().counts)
-print(len(completed.summarize().rows))
+preview = plan_study(spec, output="studies/comparison")
+print(preview.task_count)                # 8
+print(preview.total_evaluation_budget)   # 640
+
+study = create_study(spec, output="studies/comparison")
+assert study.plan_id == preview.plan_id
+completed = study.run()
+
+report = completed.inspect()
+summary = completed.summarize()
+print(report.counts)
+
+for row in summary.rows:
+    print(row.problem_id, row.algorithm_id, row.seed, row.selected_run_id)
 ```
 
-A durable study is single-owner and sequential in VAMOS 1.0.0. See the [study guide](studies.md) for planning, inspection, resume, and retry.
+The tutorial values are intentionally small and are not a publication-grade experimental design. A durable study gives you an immutable plan and traceable run evidence; it does not decide how many replications, which indicators, or which statistical analysis are scientifically appropriate.
+
+A durable study is single-owner and sequential in VAMOS 1.0.0. See [Run a reproducible study](studies.md) for experimental planning, budget inspection, provenance, summary interpretation, resume, and retry.
 
 ## Next steps
 
@@ -169,6 +186,6 @@ A durable study is single-owner and sequential in VAMOS 1.0.0. See the [study gu
 - [Run and understand NSGA-II](../algorithms/nsgaii.md)
 - [Solve your own problem](custom-problem.md)
 - [Run artifacts and exact replay](run-artifacts.md)
-- [Durable studies](studies.md)
+- [Run a reproducible study](studies.md)
 - [Stability and versioning](../project/stability-and-versioning.md)
 - [Known limitations](../project/known-limitations.md)
