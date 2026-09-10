@@ -38,7 +38,7 @@ def build_spec() -> StudySpec:
     return StudySpec(
         problems=PROBLEMS,
         algorithms=ALGORITHMS,
-        seeds=SEEDS,
+        seeds=[0, 1],
         max_evaluations=MAX_EVALUATIONS,
         pop_size=POP_SIZE,
         engine="numpy",
