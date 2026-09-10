@@ -139,6 +139,43 @@ assert resolved["backend"]["kernel"]["resolution"]["name"] == "numpy"
 """,
     ),
     DocSmokeCase(
+        name="analysis_guide_snippets",
+        source_path="docs/topics/analysis.md",
+        code="""
+import importlib.util
+import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+if importlib.util.find_spec("matplotlib") is not None:
+    text = Path("docs/topics/analysis.md").read_text(encoding="utf-8")
+    blocks = []
+    for part in text.split("```python")[1:]:
+        block, separator, _rest = part.partition("```")
+        assert separator == "```"
+        blocks.append(block.strip())
+    assert len(blocks) == 4
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        script = tmp_path / "analysis_snippets.py"
+        script.write_text((chr(10) * 2).join(blocks), encoding="utf-8")
+        env = os.environ.copy()
+        env.update({"MPLBACKEND": "Agg", "PYTHONHASHSEED": "0"})
+        subprocess.run(
+            [sys.executable, str(script)],
+            cwd=tmp_path,
+            check=True,
+            timeout=60,
+            env=env,
+        )
+        assert (tmp_path / "cd_plot.png").is_file()
+        assert (tmp_path / "front.png").is_file()
+""",
+    ),
+    DocSmokeCase(
         name="journey_try_vamos",
         source_path="examples/journeys/try_vamos.py",
         code="""
