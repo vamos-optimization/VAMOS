@@ -142,11 +142,15 @@ assert resolved["backend"]["kernel"]["resolution"]["name"] == "numpy"
         name="analysis_guide_snippets",
         source_path="docs/topics/analysis.md",
         code="""
+import importlib.util
 import os
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+if importlib.util.find_spec("matplotlib") is None:
+    raise SystemExit(0)
 
 text = Path("docs/topics/analysis.md").read_text(encoding="utf-8")
 blocks = []
