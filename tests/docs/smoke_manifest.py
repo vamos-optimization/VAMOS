@@ -139,6 +139,38 @@ assert resolved["backend"]["kernel"]["resolution"]["name"] == "numpy"
 """,
     ),
     DocSmokeCase(
+        name="analysis_guide_snippets",
+        source_path="docs/topics/analysis.md",
+        code="""
+import os
+import re
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+text = Path("docs/topics/analysis.md").read_text(encoding="utf-8")
+blocks = re.findall(r"```python\n(.*?)\n```", text, flags=re.DOTALL)
+assert len(blocks) == 4
+
+with tempfile.TemporaryDirectory() as tmp:
+    tmp_path = Path(tmp)
+    script = tmp_path / "analysis_snippets.py"
+    script.write_text("\n\n".join(blocks), encoding="utf-8")
+    env = os.environ.copy()
+    env.update({"MPLBACKEND": "Agg", "PYTHONHASHSEED": "0"})
+    subprocess.run(
+        [sys.executable, str(script)],
+        cwd=tmp_path,
+        check=True,
+        timeout=60,
+        env=env,
+    )
+    assert (tmp_path / "cd_plot.png").is_file()
+    assert (tmp_path / "front.png").is_file()
+""",
+    ),
+    DocSmokeCase(
         name="journey_try_vamos",
         source_path="examples/journeys/try_vamos.py",
         code="""
