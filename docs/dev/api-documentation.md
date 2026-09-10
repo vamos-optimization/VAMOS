@@ -20,10 +20,11 @@ When reorganizing an object, update its destination in both the inventory and th
 
 ## Validation
 
+Follow the [canonical validation tiers](testing.md#canonical-tiers), as required by the repository agent contract. The API-specific checks below supplement those tiers; they do not replace the agent-documentation check, Quick suite, health check, full pytest run, or strict documentation build.
+
 ```bash
 python -m pytest tests/docs/test_modular_api.py tests/docs/test_documentation_architecture.py
 node --test tests/docs/api_reference_redirects.test.cjs
-python -m mkdocs build --strict
 ```
 
 The existing isolated Zensical compatibility workflow must also succeed. Review the built index, a function page, and an algorithm configuration page at desktop and mobile widths, with keyboard navigation and JavaScript disabled. A passing source test is not a visual review.
