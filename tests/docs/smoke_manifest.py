@@ -176,6 +176,20 @@ if importlib.util.find_spec("matplotlib") is not None:
 """,
     ),
     DocSmokeCase(
+        name="tuning_random_search_nsgaii",
+        source_path="examples/tuning/random_search_nsgaii.py",
+        code="""
+import subprocess
+import sys
+
+subprocess.run(
+    [sys.executable, "examples/tuning/random_search_nsgaii.py"],
+    check=True,
+    timeout=60,
+)
+""",
+    ),
+    DocSmokeCase(
         name="journey_try_vamos",
         source_path="examples/journeys/try_vamos.py",
         code="""
