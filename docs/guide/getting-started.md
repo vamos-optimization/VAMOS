@@ -1,12 +1,13 @@
 # Get started
 
-Choose the shortest route that matches what you want to accomplish. Installation, first-run code, custom-problem guidance, and durable-study guidance each have one canonical page; this page only routes between them.
+Choose the shortest route that matches what you want to accomplish. Installation, first-run code, result interpretation, custom-problem guidance, and durable-study guidance each have one canonical page; this page only routes between them.
 
 ## Try VAMOS
 
 1. [Install VAMOS](installation.md) from PyPI in an isolated Python environment.
 2. Run the [Quickstart](zero_to_hero.md) to solve a built-in benchmark with the public `optimize(...)` facade.
-3. Use the [API reference](../reference/api_reference.md) when you need exact signatures rather than tutorial guidance.
+3. Read [Understanding optimization results](understanding-results.md) to connect decision rows (`X`) with objective rows (`F`) and distinguish a returned set from its non-dominated subset.
+4. Use the [API reference](../reference/api_reference.md) when you need exact signatures rather than tutorial guidance.
 
 If Python itself is still new to you, begin with the [Minimal Python Track](minimal-python.md).
 
@@ -27,6 +28,7 @@ Use [Run artifacts & replay](run-artifacts.md) for individual persisted runs and
 | Need | Recommended surface |
 | --- | --- |
 | A Python script or notebook | `vamos.optimize(...)` |
+| Interpret `X`, `F`, and a non-dominated subset | `OptimizationResult` + [Understanding results](understanding-results.md) |
 | A plain Python objective function | `vamos.make_problem(...)` + `vamos.optimize(...)` |
 | A guided command-line workflow | `vamos quickstart` or the stable CLI commands documented in [CLI & Config](cli.md) |
 | Multiple seeds in one small call | `optimize(..., seed=[...])` returning `StudyResult` |
