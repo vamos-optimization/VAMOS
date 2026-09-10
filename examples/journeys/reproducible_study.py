@@ -16,7 +16,15 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from vamos import StudySpec, create_study, plan_study
+from vamos import (
+    Study,
+    StudyPlanReport,
+    StudyReport,
+    StudySpec,
+    StudySummary,
+    create_study,
+    plan_study,
+)
 
 PROBLEMS = ("zdt1", "zdt2")
 ALGORITHMS = ("nsgaii", "moead")
@@ -39,7 +47,7 @@ def build_spec() -> StudySpec:
     )
 
 
-def run(output: Path):
+def run(output: Path) -> tuple[StudyPlanReport, Study, StudyReport, StudySummary]:
     if output.exists():
         raise FileExistsError(f"Study output already exists: {output}")
 
