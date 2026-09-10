@@ -40,20 +40,45 @@ comparison:
 3. **Algorithm seeds** — stochastic replicates used for every candidate.
 4. **Per-run evaluation budget** — the optimization budget given to each
    candidate/problem/seed run.
-5. **Quality metric and direction** — for example IGD+ (lower is better) or HV
-   (higher is better).
+5. **Scoring contract** — the metric, reference point, direction, runtime
+   penalty, and failure score actually used by the selected tuning interface.
 6. **Aggregation rule** — how repeated problem/seed scores become one scalar
    tuning score.
 
-The current CLI has one important seed-coupling constraint: `--seed` is the
+### Current CLI scoring contract: hypervolume
+
+The maintained `vamos tune` CLI currently has **no metric selector**. It scores
+candidate runs with **hypervolume (HV) and maximizes that score**.
+
+- `--ref-point` supplies one HV reference point for the tuning run.
+- If it is omitted (or cannot be parsed with the required dimensionality), the
+  current default is `[10.0, ..., 10.0]`, one value per objective.
+- `--runtime-penalty` changes the scalar score to
+  `HV - lambda * log1p(runtime_seconds)`; its default is `0.0`, so the default
+  score is plain HV.
+- `--failure-score` is the score assigned when an evaluation fails; its default
+  is `0.0`.
+- `--aggregate-mode` then combines the per-block scores using `mean`, `median`,
+  `p25`, or `p10`.
+
+Choose and report a reference point that is meaningful for **all** problems in
+the tuning campaign. The CLI uses the same supplied reference point across the
+selected instances. If you need IGD, IGD+, epsilon indicators, or another
+selection metric, the current maintained CLI cannot select it; that requires a
+custom/experimental workflow rather than a `vamos tune` flag.
+
+### Current CLI seed coupling
+
+The current CLI also has an important seed-coupling constraint: `--seed` is the
 global tuning seed **and** the base used to derive the training algorithm-seed
 schedule. `--n-seeds` changes how many training seeds are derived; it does not
-let you provide an independent training-seed list. Therefore changing
-`--seed` changes both configuration-search randomness and training evaluation
-randomness. Record `--seed` and `--n-seeds` together and do not interpret them
-as independently controlled factors. `--split-seed` separately controls the
-problem split, while validation/test seed lists can be overridden with
-`--validation-seeds` and `--test-seeds`.
+let you provide an independent training-seed list.
+
+Therefore changing `--seed` changes both configuration-search randomness and
+training evaluation randomness. Record `--seed` and `--n-seeds` together and
+do not interpret them as independently controlled factors. `--split-seed`
+separately controls the problem split, while validation/test seed lists can be
+overridden with `--validation-seeds` and `--test-seeds`.
 
 For scientific use, reserve **held-out problems and/or seeds** for validation or
 final testing. Do not choose a configuration on the same test blocks used for
@@ -133,10 +158,10 @@ The current backend families are:
   tuning extra.
 
 A racing run uses the same scientific ingredients as any other tuning run:
-problem blocks, algorithm seeds, a per-run budget, a metric, and an aggregation
-rule. Its statistical elimination is an **allocation mechanism during tuning**;
-it is not a substitute for an independently designed final comparison on
-held-out blocks.
+problem blocks, algorithm seeds, a per-run budget, the CLI HV score, and an
+aggregation rule. Its statistical elimination is an **allocation mechanism
+during tuning**; it is not a substitute for an independently designed final
+comparison on held-out blocks.
 
 ## Split-based tuning
 
@@ -166,6 +191,7 @@ The key controls include:
 - `--n-seeds`: number of training algorithm seeds derived from `--seed`;
 - `--validation-seeds`, `--test-seeds`: optional explicit post-selection seed
   schedules;
+- `--ref-point`: global HV reference point used by the CLI scorer;
 - `--budget`: per-run algorithm evaluation budget;
 - `--tune-budget`: racing experiments or model trials;
 - `--aggregate-mode`: aggregation across instance/seed scores;
@@ -190,12 +216,25 @@ Tuning output includes:
 - optional finisher/validation/test artifacts when those stages are enabled.
 
 Keep these together with the command/configuration and environment used for the
-campaign. A best configuration without its search space, seeds, metric,
-aggregation rule, budgets, and split is not a reproducible tuning result.
+campaign. A best configuration without its search space, seeds, HV reference
+point, aggregation rule, budgets, and split is not a reproducible tuning
+result.
 
-The tuning spaces can include external-archive controls. When an external
-archive is enabled, archive/result semantics affect the metric being tuned;
-keep the result source consistent across candidate configurations.
+!!! warning "Current result-source limitation"
+    The experimental CLI search spaces can vary `use_external_archive`. The
+    evaluator scores the run's top-level `result.F`; consequently an
+    archive-enabled candidate can be scored from its accumulated external
+    archive while a candidate without that archive uses the non-dominated
+    result derived from its final population.
+
+    `vamos tune` currently exposes no flag that fixes this result source or
+    removes the archive decision from the built-in search space. Therefore the
+    current CLI **does not guarantee source-consistent HV comparisons across
+    candidate configurations** when archive use is being explored. Treat the
+    tuning score as an experimental selection signal, not final comparative
+    evidence. For publication-grade claims, evaluate the selected
+    configuration(s) afterward with fixed archive/result semantics and held-out
+    blocks, preferably through the stable Study lifecycle.
 
 ## Ablation planning
 
