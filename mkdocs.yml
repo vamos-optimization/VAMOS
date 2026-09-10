@@ -36,6 +36,9 @@ extra_css:
   - stylesheets/vamos.css
   - stylesheets/home-hero.css
 
+extra_javascript:
+  - javascripts/api-reference.js
+
 markdown_extensions:
   - admonition
   - tables
@@ -77,7 +80,34 @@ nav:
     - Overview: examples.md
     - Cookbook: guide/cookbook.md
   - Reference:
-    - API Reference: reference/api_reference.md
+    - API Reference:
+      - Overview: reference/api_reference.md
+      - Optimization: reference/api/optimization.md
+      - Problem definition: reference/api/problem-definition.md
+      - Results: reference/api/results.md
+      - Discovery: reference/api/discovery.md
+      - Algorithm configuration:
+        - Overview: reference/api/algorithms/index.md
+        - NSGA-II: reference/api/algorithms/nsgaii.md
+        - NSGA-III: reference/api/algorithms/nsgaiii.md
+        - MOEA/D: reference/api/algorithms/moead.md
+        - SMS-EMOA: reference/api/algorithms/smsemoa.md
+        - SPEA2: reference/api/algorithms/spea2.md
+        - IBEA: reference/api/algorithms/ibea.md
+        - SMPSO: reference/api/algorithms/smpso.md
+        - AGE-MOEA: reference/api/algorithms/agemoea.md
+        - RVEA: reference/api/algorithms/rvea.md
+      - Run artifacts:
+        - Save, load, and replay: reference/api/runs.md
+        - Stored runs and reports: reference/api/run-models.md
+      - Durable studies:
+        - Specification and planning: reference/api/study-specification.md
+        - Lifecycle: reference/api/studies.md
+        - Limits and reports: reference/api/study-models.md
+      - Experimental APIs:
+        - Tuning and racing: reference/api/experimental/tuning.md
+        - Parameter spaces: reference/api/experimental/parameter-spaces.md
+        - Diagnostics: reference/api/experimental/diagnostics.md
     - Algorithms & Backends: reference/algorithms.md
     - Problems: reference/problems.md
     - Constraints: reference/constraints.md
@@ -92,9 +122,14 @@ nav:
     - Repository Governance: project/repository-governance.md
   - Developer:
     - Documentation Architecture: dev/documentation-architecture.md
+    - API Documentation: dev/api-documentation.md
     - Documentation Delivery: dev/documentation-delivery.md
     - Extending VAMOS: topics/extending.md
     - Plugin Guide: topics/plugin_guide.md
+    - Internal API:
+      - Constraint implementation: reference/api/internal/constraints.md
+      - Problem adapters and encodings: reference/api/internal/problem-types.md
+      - Generic configuration: reference/api/internal/generic-configuration.md
     - Run Artifact Contract: dev/run_artifact_contract.md
     - Run Artifact Acceptance Tests: dev/run_artifact_acceptance_tests.md
     - Run Artifacts and Replay: dev/run_artifacts_and_replay.md
