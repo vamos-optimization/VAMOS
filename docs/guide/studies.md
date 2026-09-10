@@ -245,5 +245,5 @@ VAMOS 1.0.0 permits one mutating owner per study. Do not run `run`, `resume`, or
 - [Run artifacts & replay](run-artifacts.md) — inspect and verify the canonical evidence behind an individual task.
 - [Understanding optimization results](understanding-results.md) — interpret `X`, `F`, fronts, populations, and archives inside a run.
 - [Algorithms & Backends](../reference/algorithms.md) — make algorithm/backend choices explicit before a comparison.
-- [Benchmarking](../topics/benchmarking.md) — move from durable execution into comparative performance analysis.
+- [Analysis & Visualization](../topics/analysis.md) — move from durable execution into downstream result analysis.
 - [Stability and versioning](../project/stability-and-versioning.md) — understand the 1.x compatibility surface.
