@@ -34,6 +34,7 @@ theme:
 
 extra_css:
   - stylesheets/vamos.css
+  - stylesheets/home-hero.css
 
 markdown_extensions:
   - admonition

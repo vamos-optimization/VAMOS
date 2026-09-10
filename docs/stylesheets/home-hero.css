@@ -1,0 +1,97 @@
+/* Homepage hero layout guard.
+   The documentation content column can be much narrower than the viewport when
+   MkDocs sidebars are present, so this component responds to its own container
+   rather than relying only on viewport media queries. */
+
+.vamos-hero-shell {
+  container-name: vamos-home-hero;
+  container-type: inline-size;
+}
+
+.vamos-hero-shell .vamos-hero {
+  grid-template-columns: minmax(0, 1.45fr) minmax(18rem, 0.75fr);
+  gap: clamp(1.75rem, 3vw, 3rem);
+  padding: clamp(2.4rem, 4vw, 3.6rem);
+}
+
+.vamos-hero-shell .vamos-hero__copy {
+  max-width: 46rem;
+}
+
+.md-typeset .vamos-hero-shell .vamos-hero h1 {
+  max-width: 100%;
+  font-size: clamp(2.45rem, 4.2vw, 3.35rem);
+  line-height: 0.98;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+  text-wrap: balance;
+}
+
+.md-typeset .vamos-hero-shell .vamos-hero h1 .vamos-hero__headline-main,
+.md-typeset .vamos-hero-shell .vamos-hero h1 .vamos-hero__headline-main * {
+  display: block;
+  color: #FFFFFF;
+}
+
+.md-typeset .vamos-hero-shell .vamos-hero h1 .vamos-hero__headline-accent {
+  display: block;
+  margin-top: 0.08em;
+  color: #5EEAD4;
+}
+
+.md-typeset .vamos-hero-shell .vamos-hero h1 .vamos-hero__nowrap {
+  display: inline;
+  white-space: nowrap;
+}
+
+.vamos-hero-shell .vamos-hero__lead {
+  max-width: 38rem;
+}
+
+.vamos-hero-shell .vamos-hero__code {
+  width: 100%;
+  max-width: 25rem;
+  justify-self: end;
+}
+
+/* The critical breakpoint is based on the hero's available content width,
+   not the browser viewport. This prevents the headline from being squeezed by
+   the code card on desktop layouts that also show documentation sidebars. */
+@container vamos-home-hero (max-width: 64rem) {
+  .vamos-hero-shell .vamos-hero {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    padding: clamp(2.2rem, 5vw, 3rem);
+  }
+
+  .vamos-hero-shell .vamos-hero__copy {
+    max-width: 48rem;
+  }
+
+  .md-typeset .vamos-hero-shell .vamos-hero h1 {
+    max-width: 15ch;
+    font-size: clamp(2.4rem, 7cqw, 3.25rem);
+  }
+
+  .vamos-hero-shell .vamos-hero__code {
+    max-width: 36rem;
+    justify-self: start;
+  }
+}
+
+@container vamos-home-hero (max-width: 42rem) {
+  .vamos-hero-shell .vamos-hero {
+    padding: clamp(1.45rem, 5cqw, 2rem);
+  }
+
+  .md-typeset .vamos-hero-shell .vamos-hero h1 {
+    max-width: 100%;
+    font-size: clamp(2.15rem, 9cqw, 2.75rem);
+    line-height: 1;
+  }
+
+  .vamos-hero-shell .vamos-hero__code {
+    max-width: 100%;
+  }
+}

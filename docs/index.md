@@ -1,9 +1,10 @@
 # VAMOS
 
+<div class="vamos-hero-shell">
 <div class="vamos-hero">
   <div class="vamos-hero__copy">
     <p class="vamos-eyebrow">Vectorized Architecture for Multiobjective Optimization Studies</p>
-    <h1>Multi-objective optimization<br><span>built for reproducible studies.</span></h1>
+    <h1><span class="vamos-hero__headline-main"><span class="vamos-hero__nowrap">Multi-objective</span> optimization</span><span class="vamos-hero__headline-accent">built for reproducible studies.</span></h1>
     <p class="vamos-hero__lead">A scientific Python framework with one optimization API, vectorized kernels, durable experiments, and explicit reproducibility contracts.</p>
     <div class="vamos-hero__actions">
       <a class="vamos-button vamos-button--primary" href="guide/getting-started/">Get started</a>
@@ -27,6 +28,7 @@ result = optimize(
 print(result.F.shape)</code></pre>
     <div class="vamos-code-window__result">one API · explicit seed · durable results</div>
   </div>
+</div>
 </div>
 
 <div class="vamos-journeys" aria-label="Choose a VAMOS learning path">

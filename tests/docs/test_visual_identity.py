@@ -11,7 +11,10 @@ def test_vamos_visual_identity_is_wired_into_canonical_docs() -> None:
     config = yaml.safe_load((ROOT / "mkdocs.yml").read_text(encoding="utf-8"))
 
     assert config["site_name"] == "VAMOS"
-    assert config["extra_css"] == ["stylesheets/vamos.css"]
+    assert config["extra_css"] == [
+        "stylesheets/vamos.css",
+        "stylesheets/home-hero.css",
+    ]
     assert config["theme"]["font"] == {"text": "DM Sans", "code": "JetBrains Mono"}
 
 
