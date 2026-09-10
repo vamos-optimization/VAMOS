@@ -24,7 +24,7 @@ This runs NSGA-II on ZDT1 with the NumPy reference backend and prints the shapes
 python examples/journeys/solve_my_problem.py
 ```
 
-This wraps a plain two-objective Python function with `make_problem(...)`, optimizes it through the same `optimize(...)` facade used for built-in benchmarks, and reports the resulting matrix shapes and evaluation count.
+This maps two domain variables, two objective scores, bounds, and one inequality requirement into `make_problem(...)`, then optimizes the resulting teaching surrogate through the same `optimize(...)` facade used for built-in benchmarks. It also extracts the matching decision rows for the non-dominated subset.
 
 [View the executable source](https://github.com/vamos-optimization/VAMOS/blob/main/examples/journeys/solve_my_problem.py) · [Read Solve your own problem](guide/custom-problem.md)
 
