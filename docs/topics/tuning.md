@@ -45,9 +45,15 @@ comparison:
 6. **Aggregation rule** — how repeated problem/seed scores become one scalar
    tuning score.
 
-Keep the tuner seed separate from the algorithm seeds. The tuner seed controls
-the configuration-search process; the algorithm seeds control the stochastic
-optimization runs used to score each candidate. Report both.
+The current CLI has one important seed-coupling constraint: `--seed` is the
+global tuning seed **and** the base used to derive the training algorithm-seed
+schedule. `--n-seeds` changes how many training seeds are derived; it does not
+let you provide an independent training-seed list. Therefore changing
+`--seed` changes both configuration-search randomness and training evaluation
+randomness. Record `--seed` and `--n-seeds` together and do not interpret them
+as independently controlled factors. `--split-seed` separately controls the
+problem split, while validation/test seed lists can be overridden with
+`--validation-seeds` and `--test-seeds`.
 
 For scientific use, reserve **held-out problems and/or seeds** for validation or
 final testing. Do not choose a configuration on the same test blocks used for
@@ -155,9 +161,13 @@ The key controls include:
 - `--backend`: `racing`, `random`, `optuna`, `bohb_optuna`, `smac3`, or `bohb`;
 - `--backend-fallback`: fallback when an optional model backend is unavailable;
 - `--split-strategy`: `suite_stratified` or `random` instance splitting;
+- `--split-seed`: random seed for the instance split;
+- `--seed`: coupled global tuner seed and base for training algorithm seeds;
+- `--n-seeds`: number of training algorithm seeds derived from `--seed`;
+- `--validation-seeds`, `--test-seeds`: optional explicit post-selection seed
+  schedules;
 - `--budget`: per-run algorithm evaluation budget;
 - `--tune-budget`: racing experiments or model trials;
-- `--n-seeds`: algorithm seeds per candidate configuration;
 - `--aggregate-mode`: aggregation across instance/seed scores;
 - `--n-jobs`: parallel workers (`-1` means CPU cores minus one);
 - `--run-validation`, `--run-test`: optional post-tuning evaluation stages;
