@@ -8,9 +8,9 @@ Inspect the result of an optimization. `X` contains decision variables and `F` c
 from vamos import OptimizationResult, StudyResult
 ```
 
-[Quickstart](../../guide/zero_to_hero.md) · [Save and replay a run](runs.md) · [Durable study reports](study-models.md)
+[Understand an optimization result](../../guide/understanding-results.md) · [Quickstart](../../guide/zero_to_hero.md) · [Save and replay a run](runs.md) · [Durable study reports](study-models.md)
 
-Do not infer the number of returned solutions from population size alone. Consult the [algorithm/result-mode contract](../algorithms.md) when choosing between the population, non-dominated results, and an external archive.
+Do not infer the number or source of returned solutions from population size alone. `OptimizationResult.front()` Pareto-filters the current top-level `F`; it does not switch result sources. Consult the [algorithm/result-mode contract](../algorithms.md) when choosing between a population, non-dominated results, and an external archive.
 
 ::: vamos.OptimizationResult
     options:

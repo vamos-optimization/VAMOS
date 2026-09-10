@@ -65,6 +65,7 @@ nav:
     - Quickstart: guide/zero_to_hero.md
     - Minimal Python Track: guide/minimal-python.md
   - Guides:
+    - Understanding Results: guide/understanding-results.md
     - Solve Your Own Problem: guide/custom-problem.md
     - Durable Studies: guide/studies.md
     - Run Artifacts & Replay: guide/run-artifacts.md
