@@ -50,7 +50,8 @@ Use a new output directory: durable studies are not silently overwritten.
 | Work with constraints | [Constraints](reference/constraints.md) | `notebooks/1_intermediate/11_constrained_optimization.ipynb` |
 | Persist and inspect runs | [Run artifacts & replay](guide/run-artifacts.md) | canonical run-artifact examples referenced by that guide |
 | Plan and trace a persistent experiment matrix | [Run a reproducible study](guide/studies.md) | `examples/journeys/reproducible_study.py` |
-| Tune an algorithm | [Hyperparameter tuning](topics/tuning.md) | `examples/tuning/` and tuning notebooks |
+| Tune an algorithm configuration | [Hyperparameter tuning](topics/tuning.md) | `examples/tuning/random_search_nsgaii.py` and tuning notebooks |
+| Optimize model hyperparameters as decision variables | [Hyperparameter tuning](topics/tuning.md) | `examples/tuning/hyperparam_tuning.py` |
 | Use distributed evaluation | [Scaling with Dask](scaling/dask.md) | `examples/distributed/` |
 | Build a plugin | [Plugin Guide](topics/plugin_guide.md) | `examples/plugins/` |
 
