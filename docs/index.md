@@ -47,8 +47,8 @@ print(result.F.shape)</code></pre>
   <a class="vamos-journey" href="guide/studies/">
     <span class="vamos-journey__number">03</span>
     <h2>Run a reproducible study</h2>
-    <p>Freeze a problem–algorithm–seed matrix, persist canonical runs, inspect results, resume work, and verify artifacts.</p>
-    <span class="vamos-journey__link">Durable studies →</span>
+    <p>Plan a problem–algorithm–seed matrix, verify its budget before execution, and trace every summary row back to canonical run evidence.</p>
+    <span class="vamos-journey__link">Reproducible studies →</span>
   </a>
 </div>
 
