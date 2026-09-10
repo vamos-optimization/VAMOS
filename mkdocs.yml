@@ -108,7 +108,9 @@ nav:
         - Tuning and racing: reference/api/experimental/tuning.md
         - Parameter spaces: reference/api/experimental/parameter-spaces.md
         - Diagnostics: reference/api/experimental/diagnostics.md
-    - Algorithms & Backends: reference/algorithms.md
+    - Algorithms:
+      - Overview and backends: reference/algorithms.md
+      - NSGA-II guide: algorithms/nsgaii.md
     - Problems: reference/problems.md
     - Constraints: reference/constraints.md
     - Stopping & Archive: experiment/stopping_and_archive.md
@@ -123,6 +125,7 @@ nav:
   - Developer:
     - Documentation Architecture: dev/documentation-architecture.md
     - API Documentation: dev/api-documentation.md
+    - Algorithm Tutorials: dev/algorithm-documentation.md
     - Documentation Delivery: dev/documentation-delivery.md
     - Extending VAMOS: topics/extending.md
     - Plugin Guide: topics/plugin_guide.md

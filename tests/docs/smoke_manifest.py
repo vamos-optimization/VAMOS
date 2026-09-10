@@ -176,4 +176,17 @@ with tempfile.TemporaryDirectory() as tmp:
     assert (output / "study-manifest.json").is_file()
 """,
     ),
+    DocSmokeCase(
+        name="journey_nsgaii_zdt1",
+        source_path="examples/journeys/nsgaii_zdt1.py",
+        code="""
+import subprocess
+import sys
+
+subprocess.run(
+    [sys.executable, "examples/journeys/nsgaii_zdt1.py", "--pop-size", "20", "--max-evaluations", "200"],
+    check=True,
+)
+""",
+    ),
 ]
