@@ -143,20 +143,23 @@ assert resolved["backend"]["kernel"]["resolution"]["name"] == "numpy"
         source_path="docs/topics/analysis.md",
         code="""
 import os
-import re
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 text = Path("docs/topics/analysis.md").read_text(encoding="utf-8")
-blocks = re.findall(r"```python\n(.*?)\n```", text, flags=re.DOTALL)
+blocks = []
+for part in text.split("```python")[1:]:
+    block, separator, _rest = part.partition("```")
+    assert separator == "```"
+    blocks.append(block.strip())
 assert len(blocks) == 4
 
 with tempfile.TemporaryDirectory() as tmp:
     tmp_path = Path(tmp)
     script = tmp_path / "analysis_snippets.py"
-    script.write_text("\n\n".join(blocks), encoding="utf-8")
+    script.write_text((chr(10) * 2).join(blocks), encoding="utf-8")
     env = os.environ.copy()
     env.update({"MPLBACKEND": "Agg", "PYTHONHASHSEED": "0"})
     subprocess.run(
