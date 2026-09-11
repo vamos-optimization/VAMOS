@@ -21,6 +21,19 @@ from vamos.foundation.kernel.numpy_backend import NumPyKernel
 from vamos.foundation.problem.zdt1 import ZDT1Problem
 
 
+class _ConstrainedBiObjectiveProblem:
+    n_var = 2
+    n_obj = 2
+    n_constraints = 1
+    xl = np.array([0.0, 0.0])
+    xu = np.array([1.0, 1.0])
+    encoding = "real"
+
+    def evaluate(self, X, out):
+        out["F"] = np.column_stack([X[:, 0], 1.0 - X[:, 0] + X[:, 1]])
+        out["G"] = (0.5 - X[:, 0])[:, None]
+
+
 def _agemoea_builder(pop_size: int = 12):
     return AGEMOEAConfig.builder().pop_size(pop_size).crossover("sbx", prob=0.9, eta=15.0).mutation("polynomial", prob=0.1, eta=20.0)
 
@@ -205,3 +218,23 @@ def test_population_result_mode_honored_by_cli_tuning_algorithms_requiring_top_l
 
     np.testing.assert_allclose(result["F"], result["population"]["F"])
     np.testing.assert_allclose(result["X"], result["population"]["X"])
+
+
+@pytest.mark.parametrize(
+    ("algorithm_cls", "config"),
+    [
+        (IBEA, replace(IBEAConfig.default(pop_size=10, n_var=2), result_mode="population")),
+        (SPEA2, replace(SPEA2Config.default(pop_size=10, n_var=2), result_mode="population")),
+    ],
+)
+def test_population_result_mode_exposes_aligned_constraints_for_ibea_and_spea2(algorithm_cls, config):
+    result = algorithm_cls(config.to_dict(), kernel=NumPyKernel()).run(
+        _ConstrainedBiObjectiveProblem(),
+        termination=("max_evaluations", 20),
+        seed=0,
+    )
+
+    assert "G" in result
+    assert result["G"].shape[0] == result["F"].shape[0]
+    assert result["G"].shape[0] == result["population"]["F"].shape[0]
+    np.testing.assert_allclose(result["F"], result["population"]["F"])
