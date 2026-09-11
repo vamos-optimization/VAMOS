@@ -137,13 +137,15 @@ def _force_population_result_mode(config: AlgorithmConfigProtocol) -> AlgorithmC
     top-level G, when present, is row-aligned with the final population used for
     scoring.
     """
+    config_obj: Any = config
     try:
-        field_names = {field.name for field in fields(config)}
+        field_names = {field.name for field in fields(config_obj)}
     except TypeError as exc:
         raise RuntimeError("CLI tuning requires dataclass algorithm configs with result_mode support.") from exc
     if "result_mode" not in field_names:
         raise RuntimeError("CLI tuning algorithm config does not expose result_mode; population-aligned scoring is unavailable.")
-    return cast(AlgorithmConfigProtocol, replace(config, result_mode="population"))
+    updated: Any = replace(config_obj, result_mode="population")
+    return updated
 
 
 def _population_front_for_scoring(result: Any) -> NDArray[np.float64]:
