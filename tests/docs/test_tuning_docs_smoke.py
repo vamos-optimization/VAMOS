@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -36,6 +37,8 @@ def test_tuning_docs_match_current_contract() -> None:
     assert "no metric selector" in text
     assert "hypervolume (HV) and maximizes that score" in text
     assert "[10.0, ..., 10.0]" in text
+    assert "**`G <= 0`**" in text
+    assert "Infeasible rows do not contribute" in text
     assert "--runtime-penalty" in text
     assert "--failure-score" in text
     assert "not a\n  universal failure policy" in text
@@ -56,15 +59,22 @@ def test_tuning_docs_match_current_contract() -> None:
     assert "--fidelity-levels 1000,3000,5000" in text
     assert "Treat `--fidelity-levels`, rather than `--budget`, as the authoritative" in text
 
-    assert "Current result-source limitation" in text
+    assert "Source-consistent CLI scoring" in text
+    assert "search space excludes these three" in text
     assert "use_external_archive" in text
-    assert "does not guarantee source-consistent HV comparisons" in text
-    assert "fixed archive/result semantics" in text
+    assert "archive_unbounded" in text
+    assert "archive_prune_policy" in text
+    assert "same top-level result path" in text
+    assert "scoring contract is written into `tuning_summary.json`" in text
+    assert "Persistent Optuna studies created with the older CLI" in text
+    assert "rejects returned tuning history" in text
 
     assert "--backend random" in text
     assert "--budget" in text
     assert "--tune-budget" in text
 
+    assert "Current result-source limitation" not in text
+    assert "does not guarantee source-consistent HV comparisons" not in text
     assert "Keep the tuner seed separate" not in text
     assert "IGD+ (lower is better) or HV" not in text
     assert "--failure-score` is the score assigned when an evaluation fails" not in text
@@ -95,5 +105,28 @@ def test_tuning_docs_smoke_command(tmp_path: Path) -> None:
         "docs_tuning_smoke",
     )
     assert proc.returncode == 0, f"{source_path}: {proc.stderr or proc.stdout}"
-    summary_path = output_root / "docs_tuning_smoke" / "tuning_summary.json"
+
+    run_dir = output_root / "docs_tuning_smoke"
+    summary_path = run_dir / "tuning_summary.json"
+    best_path = run_dir / "best_config_raw.json"
     assert summary_path.exists(), source_path
+    assert best_path.exists(), source_path
+
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    scoring = summary["scoring"]
+    assert scoring["metric"] == "hypervolume"
+    assert scoring["direction"] == "maximize"
+    assert scoring["reference_point"] == [10.0, 10.0]
+    assert scoring["result_source"] == "top_level_result_external_archive_disabled"
+    assert scoring["feasibility_filter"] == "G <= 0"
+    assert scoring["contract_revision"] == "score_source_v2"
+    assert set(scoring["excluded_cli_tuning_params"]) == {
+        "archive_prune_policy",
+        "archive_unbounded",
+        "use_external_archive",
+    }
+
+    best = json.loads(best_path.read_text(encoding="utf-8"))
+    assert "use_external_archive" not in best
+    assert "archive_unbounded" not in best
+    assert "archive_prune_policy" not in best

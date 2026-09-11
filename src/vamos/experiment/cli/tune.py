@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from vamos.engine.tuning import AlgorithmConfigSpace, Instance, TrialResult, TuningTask, available_model_based_backends
+from vamos.engine.tuning import Instance, TrialResult, TuningTask, available_model_based_backends
 from vamos.engine.tuning.racing.eval_types import EvalFn
 
 from ._tune_args import build_parser as _build_parser_impl
@@ -37,7 +37,9 @@ from ._tune_runtime import (
     ALL_BACKENDS,
     BUILDERS,
     MODEL_BACKENDS,
+    build_cli_param_space,
     make_evaluator,
+    tuning_scoring_summary,
 )
 from ._tune_runtime import (
     build_task as _build_task,
@@ -230,9 +232,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.backend = effective_backend
 
     resolved_jobs = _resolve_n_jobs(int(args.n_jobs))
-    builder = BUILDERS[str(args.algorithm)]
-    algo_space = builder()
-    param_space = algo_space.to_param_space() if isinstance(algo_space, AlgorithmConfigSpace) else algo_space
+    param_space = build_cli_param_space(str(args.algorithm))
 
     problem_names = list(_parse_csv_strings(args.instances)) or [str(args.problem)]
     all_instances = [Instance(name=name, n_var=int(args.n_var), kwargs={}) for name in problem_names]
@@ -349,6 +349,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     summary_updates: dict[str, Any] = {
         "backend_requested": requested_backend,
         "backend_effective": effective_backend,
+        "scoring": tuning_scoring_summary(args.ref_point, int(args.n_obj)),
         "split": {
             "instance_counts": {
                 "train": len(train_instances),

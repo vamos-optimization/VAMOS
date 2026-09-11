@@ -1,9 +1,9 @@
 # Hyperparameter Tuning
 
 VAMOS can tune **algorithm configuration**: operator probabilities, distribution
-indices, population-related settings, archive controls, and other parameters
-that control a MOEA. A tuning campaign evaluates candidate configurations over
-explicit problem and seed blocks and ranks them by a scalar quality score.
+indices, population-related settings, and other parameters that control a MOEA.
+A tuning campaign evaluates candidate configurations over explicit problem and
+seed blocks and ranks them by a scalar quality score.
 
 !!! warning "Experimental surface in VAMOS 1.0.0"
     The tuning/racing implementation and the `vamos tune` and `vamos ablation`
@@ -27,7 +27,8 @@ The implementation-level tuning and racing classes remain documented for
 advanced evaluation and contributors under the
 [experimental tuning API reference](../reference/api/experimental/tuning.md),
 but those deep imports are not a compatibility commitment or a copy-paste
-learning path.
+learning path. Those experimental programmatic spaces may expose controls that
+the maintained CLI deliberately excludes, including external-archive policy.
 
 ## What a tuning experiment must define
 
@@ -40,8 +41,9 @@ comparison:
 3. **Algorithm seeds** — stochastic replicates used for every candidate.
 4. **Evaluation-budget schedule** — the optimization budget or fidelity levels
    given to each candidate/problem/seed run.
-5. **Scoring contract** — the metric, reference point, direction, runtime
-   penalty, and failure score actually used by the selected tuning interface.
+5. **Scoring contract** — the metric, reference point, direction, feasibility
+   rule, runtime penalty, and failure score actually used by the selected
+   tuning interface.
 6. **Aggregation rule** — how repeated problem/seed scores become one scalar
    tuning score.
 
@@ -53,15 +55,18 @@ candidate runs with **hypervolume (HV) and maximizes that score**.
 - `--ref-point` supplies one HV reference point for the tuning run.
 - If it is omitted (or cannot be parsed with the required dimensionality), the
   current default is `[10.0, ..., 10.0]`, one value per objective.
+- Before computing HV, aligned objective/constraint rows are filtered using the
+  VAMOS feasibility convention **`G <= 0`**. Infeasible rows do not contribute
+  to the score. If no feasible row remains, the scorer uses `--failure-score`.
 - `--runtime-penalty` changes the scalar score to
   `HV - lambda * log1p(runtime_seconds)`; its default is `0.0`, so the default
-  score is plain HV.
+  score is plain feasible-set HV.
 - `--failure-score` has a narrower scope than its name may suggest. Its default
-  is `0.0`, and it is used when the evaluator catches a failure while running
-  the candidate algorithm and therefore has no usable result. It is **not a
-  universal failure policy**: exceptions raised later while scoring HV can
-  propagate in the `random` backend, while racing may substitute its own
-  backend-level sentinel instead of `--failure-score`.
+  is `0.0`, and it is used for caught candidate-execution failures and for a
+  result with no feasible rows. It is **not a universal failure policy**:
+  exceptions raised later while computing HV can propagate in the `random`
+  backend, while racing may substitute its own backend-level sentinel instead
+  of `--failure-score`.
 - `--aggregate-mode` then combines the per-block scores using `mean`, `median`,
   `p25`, or `p10`.
 
@@ -259,6 +264,46 @@ among candidate configurations; validation can support model-selection
 decisions; the final test split should answer the pre-specified performance
 question without being fed back into another tuning round.
 
+## Source-consistent CLI scoring
+
+The maintained CLI deliberately keeps **result retention** separate from
+**algorithm configuration tuning**. Its search space excludes these three
+external-archive controls:
+
+- `use_external_archive`;
+- `archive_unbounded`;
+- `archive_prune_policy`.
+
+That means every CLI candidate is scored from the same top-level result path
+with external archive disabled, rather than comparing an accumulated archive
+for one candidate against a final-population result for another. The
+experimental programmatic tuning builders still expose archive controls for
+research that intentionally studies those policies.
+
+The evaluator also filters the aligned top-level `F`/`G` rows with `G <= 0`
+before HV, so an infeasible point cannot improve a candidate's score merely by
+having attractive objective coordinates.
+
+This scoring contract is written into `tuning_summary.json`, including the
+resolved HV reference point, feasibility rule, contract revision, result source,
+and the CLI parameters excluded to preserve source consistency.
+
+### Persistent Optuna studies created with the older CLI
+
+The default persisted Optuna study identity includes the current scoring-contract
+revision, so a default study created by the older experimental CLI is not
+silently resumed under the new scoring space. If you explicitly force an old
+`--optuna-study-name`, VAMOS rejects returned tuning history that still contains
+the retired archive parameters and asks for a fresh study/storage or a new study
+name. This avoids mixing old archive-dependent scores with the new
+source-consistent scores.
+
+Archive policy can still be a scientifically meaningful factor; compare it in a
+separate experiment where that factor and the reported result semantics are
+fixed deliberately across the comparison. For publication-grade claims,
+evaluate selected configurations on held-out blocks, preferably through the
+stable Study lifecycle.
+
 ## Artifacts and provenance
 
 Tuning output includes:
@@ -271,24 +316,8 @@ Tuning output includes:
 
 Keep these together with the command/configuration and environment used for the
 campaign. A best configuration without its search space, seeds, HV reference
-point, aggregation rule, budget/fidelity schedule, and split is not a
-reproducible tuning result.
-
-!!! warning "Current result-source limitation"
-    The experimental CLI search spaces can vary `use_external_archive`. The
-    evaluator scores the run's top-level `result.F`; consequently an
-    archive-enabled candidate can be scored from its accumulated external
-    archive while a candidate without that archive uses the non-dominated
-    result derived from its final population.
-
-    `vamos tune` currently exposes no flag that fixes this result source or
-    removes the archive decision from the built-in search space. Therefore the
-    current CLI **does not guarantee source-consistent HV comparisons across
-    candidate configurations** when archive use is being explored. Treat the
-    tuning score as an experimental selection signal, not final comparative
-    evidence. For publication-grade claims, evaluate the selected
-    configuration(s) afterward with fixed archive/result semantics and held-out
-    blocks, preferably through the stable Study lifecycle.
+point, aggregation rule, budget/fidelity schedule, scoring contract, and split
+is not a reproducible tuning result.
 
 ## Ablation planning
 
