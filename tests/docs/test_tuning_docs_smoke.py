@@ -46,6 +46,11 @@ def test_tuning_docs_match_current_contract() -> None:
     assert "fixed final-population score source" in text
     assert "Archive studies are separate from ordinary CLI tuning" in text
 
+    assert "Constrained AGE-MOEA and RVEA" in text
+    assert "does not currently support" in text
+    assert "fails explicitly" in text
+    assert "population-aligned constraint values" in text
+
     assert "[10.0, ..., 10.0]" in text
     assert "--runtime-penalty" in text
     assert "--failure-score" in text
