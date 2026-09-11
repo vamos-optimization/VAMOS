@@ -76,6 +76,7 @@ def test_cli_tuning_task_excludes_external_archive_controls() -> None:
         backend="random",
         seed=1,
         n_seeds=2,
+        n_var=10,
         aggregate_mode="mean",
     )
     task = build_task(args, param_space, budget_per_run=100)
