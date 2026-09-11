@@ -48,6 +48,14 @@ def test_tuning_docs_match_current_contract() -> None:
     assert "--validation-seeds" in text
     assert "--test-seeds" in text
 
+    assert "Racing has its own fidelity-budget schedule" in text
+    assert "enables multi-fidelity racing by default" in text
+    assert "**`1000,3000,10000` evaluations**" in text
+    assert "they are not capped by\n`--budget`" in text
+    assert "--no-multi-fidelity" in text
+    assert "--fidelity-levels 1000,3000,5000" in text
+    assert "Treat `--fidelity-levels`, rather than `--budget`, as the authoritative" in text
+
     assert "Current result-source limitation" in text
     assert "use_external_archive" in text
     assert "does not guarantee source-consistent HV comparisons" in text
@@ -60,6 +68,7 @@ def test_tuning_docs_match_current_contract() -> None:
     assert "Keep the tuner seed separate" not in text
     assert "IGD+ (lower is better) or HV" not in text
     assert "--failure-score` is the score assigned when an evaluation fails" not in text
+    assert "`--budget` is the MOEA objective-evaluation budget for each candidate run" not in text
     assert "return -hypervolume" not in text
     assert "RandomSearchTuner(" not in text
     assert "from vamos.engine.tuning import" not in text
