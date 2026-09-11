@@ -65,7 +65,6 @@ from ._tune_scoring import (
     _UnsupportedConstrainedTuningError,
     _ensure_constrained_tuning_supported,
     _force_population_result_mode,
-    _population_front_for_scoring,
     _score_population_result,
 )
 from ._tune_utils import build_aggregator, parse_csv_strings, parse_ref_point, parse_seed_spec
