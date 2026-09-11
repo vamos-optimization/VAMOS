@@ -36,11 +36,10 @@ from ._tune_post import (
 from ._tune_runtime import (
     ALL_BACKENDS,
     BUILDERS,
-    CLI_EXCLUDED_TUNING_PARAMS,
-    CLI_TUNING_CONTRACT_REVISION,
     MODEL_BACKENDS,
     build_cli_param_space,
     make_evaluator,
+    tuning_scoring_summary,
 )
 from ._tune_runtime import (
     build_task as _build_task,
@@ -58,9 +57,6 @@ from ._tune_utils import (
     parse_csv_strings as _parse_csv_strings,
 )
 from ._tune_utils import (
-    parse_ref_point as _parse_ref_point,
-)
-from ._tune_utils import (
     resolve_n_jobs as _resolve_n_jobs,
 )
 from ._tune_utils import (
@@ -75,7 +71,6 @@ _SMOKE_TUNE_BUDGET = 4
 _SMOKE_N_SEEDS = 2
 _SMOKE_POP_SIZE = 16
 _SMOKE_N_JOBS = 1
-_CLI_EXCLUDED_TUNING_PARAM_SET = frozenset(CLI_EXCLUDED_TUNING_PARAMS)
 
 
 def _logger() -> logging.Logger:
@@ -205,17 +200,6 @@ def _print_backend_table() -> None:
         print(f"  {name:12s}: {bool(flags.get(name, False))}")
 
 
-def _reject_legacy_cli_history(best_config: dict[str, Any], history: list[TrialResult]) -> None:
-    configs = [best_config, *(trial.config for trial in history)]
-    retired = sorted({name for config in configs for name in config if name in _CLI_EXCLUDED_TUNING_PARAM_SET})
-    if retired:
-        names = ", ".join(retired)
-        raise RuntimeError(
-            "Loaded tuning history uses archive parameters retired from the maintained CLI scoring space "
-            f"({names}). Start a fresh persisted tuning study/storage or choose a new --optuna-study-name."
-        )
-
-
 def main(argv: Sequence[str] | None = None) -> int:
     _configure_cli_logging()
     args = _parse_args(argv)
@@ -341,7 +325,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         run_backend_fn=_run_backend,
         logger=logger,
     )
-    _reject_legacy_cli_history(best_config, history)
 
     logger.info("--- Tuning complete ---")
     logger.info("Best configuration:")
@@ -366,15 +349,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     summary_updates: dict[str, Any] = {
         "backend_requested": requested_backend,
         "backend_effective": effective_backend,
-        "scoring": {
-            "contract_revision": CLI_TUNING_CONTRACT_REVISION,
-            "metric": "hypervolume",
-            "direction": "maximize",
-            "reference_point": _parse_ref_point(args.ref_point, int(args.n_obj)),
-            "result_source": "top_level_result_external_archive_disabled",
-            "feasibility_filter": "G <= 0",
-            "excluded_cli_tuning_params": list(CLI_EXCLUDED_TUNING_PARAMS),
-        },
+        "scoring": tuning_scoring_summary(args.ref_point, int(args.n_obj)),
         "split": {
             "instance_counts": {
                 "train": len(train_instances),
