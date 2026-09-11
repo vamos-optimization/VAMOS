@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable, Mapping
+from dataclasses import fields, replace
 from typing import Any, cast
 
 import numpy as np
 from numpy.typing import NDArray
 
+from vamos.engine.algorithm.config.types import AlgorithmConfigProtocol
 from vamos.engine.algorithm.variants import canonical_algorithm_name
 from vamos.engine.tuning import (
     AlgorithmConfigSpace,
@@ -115,14 +117,7 @@ def supports_warm_start(name: str) -> bool:
 
 
 def _without_archive_tuning_controls(param_space: ParamSpace) -> ParamSpace:
-    """Remove archive controls from the maintained CLI tuning search space.
-
-    The CLI scorer compares the final feasible non-dominated population for
-    every candidate. External-archive controls are therefore intentionally
-    excluded here so trials do not spend budget on parameters that do not
-    define the scored set.
-    """
-
+    """Remove archive controls from the maintained CLI tuning search space."""
     params = {name: spec for name, spec in param_space.params.items() if name not in _ARCHIVE_TUNING_PARAMS}
     conditions = [
         condition
@@ -131,6 +126,24 @@ def _without_archive_tuning_controls(param_space: ParamSpace) -> ParamSpace:
         and not any(f"cfg['{name}']" in condition.expr for name in _ARCHIVE_TUNING_PARAMS)
     ]
     return ParamSpace(params=params, conditions=conditions)
+
+
+def _force_population_result_mode(config: AlgorithmConfigProtocol) -> AlgorithmConfigProtocol:
+    """Return a tuning config whose top-level F/G are the final population.
+
+    CLI tuning needs a population-aligned constraint matrix. Built-in result
+    payloads expose the full population under ``population`` but may otherwise
+    filter top-level F/G according to ``result_mode``. Force population mode so
+    top-level G, when present, is row-aligned with the final population used for
+    scoring.
+    """
+    try:
+        field_names = {field.name for field in fields(config)}
+    except TypeError as exc:
+        raise RuntimeError("CLI tuning requires dataclass algorithm configs with result_mode support.") from exc
+    if "result_mode" not in field_names:
+        raise RuntimeError("CLI tuning algorithm config does not expose result_mode; population-aligned scoring is unavailable.")
+    return cast(AlgorithmConfigProtocol, replace(config, result_mode="population"))
 
 
 def _population_front_for_scoring(result: Any) -> NDArray[np.float64]:
@@ -148,15 +161,20 @@ def _population_front_for_scoring(result: Any) -> NDArray[np.float64]:
     if F.ndim != 2:
         raise RuntimeError(f"Tuning evaluator expected population F to be 2-D, got shape {F.shape}.")
 
-    raw_g = population.get("G")
+    raw_top_f = payload.get("F")
+    if raw_top_f is None:
+        raise RuntimeError("Tuning evaluator requires top-level population-mode F for alignment verification.")
+    top_f = np.asarray(raw_top_f, dtype=float)
+    if top_f.shape != F.shape or not np.array_equal(top_f, F, equal_nan=True):
+        raise RuntimeError("Tuning evaluator expected population result_mode so top-level F aligns with population F.")
+
+    raw_g = payload.get("G")
     if raw_g is not None:
         G = np.asarray(raw_g, dtype=float)
         if G.ndim == 1:
             G = G[:, None]
         if G.ndim != 2 or G.shape[0] != F.shape[0]:
-            raise RuntimeError(
-                "Tuning evaluator population constraint matrix G must align row-wise with population F."
-            )
+            raise RuntimeError("Tuning evaluator top-level G must align row-wise with population F in population result mode.")
         F = F[np.all(G <= 0.0, axis=1)]
 
     if len(F) == 0:
@@ -208,7 +226,7 @@ def make_evaluator(
             elif "pop_size" not in start_config:
                 start_config["pop_size"] = fixed_pop_size
 
-            cfg = config_from_assignment(algorithm_name, start_config)
+            cfg = _force_population_result_mode(config_from_assignment(algorithm_name, start_config))
             algo_name = canonical_algorithm_name(algorithm_name)
             problem_name = str(getattr(ctx.instance, "name", problem_key))
             problem_kwargs = dict(getattr(ctx.instance, "kwargs", {}) or {})
@@ -235,7 +253,11 @@ def make_evaluator(
             logger().warning("[tune] evaluation failed; assigning score=0.", exc_info=True)
 
             class _EmptyResult:
-                data = {"population": {"F": np.empty((0, n_obj), dtype=float)}, "_elapsed_s": 0.0}
+                data = {
+                    "F": np.empty((0, n_obj), dtype=float),
+                    "population": {"F": np.empty((0, n_obj), dtype=float)},
+                    "_elapsed_s": 0.0,
+                }
 
             return _EmptyResult(), None
 
