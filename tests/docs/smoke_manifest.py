@@ -176,6 +176,24 @@ if importlib.util.find_spec("matplotlib") is not None:
 """,
     ),
     DocSmokeCase(
+        name="tuning_model_hyperparameters",
+        source_path="examples/tuning/hyperparam_tuning.py",
+        code="""
+import os
+import subprocess
+import sys
+
+env = os.environ.copy()
+env.update({"MPLBACKEND": "Agg", "PYTHONHASHSEED": "0"})
+subprocess.run(
+    [sys.executable, "examples/tuning/hyperparam_tuning.py"],
+    check=True,
+    timeout=120,
+    env=env,
+)
+""",
+    ),
+    DocSmokeCase(
         name="journey_try_vamos",
         source_path="examples/journeys/try_vamos.py",
         code="""
