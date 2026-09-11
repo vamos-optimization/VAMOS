@@ -10,6 +10,7 @@ from vamos.experiment.cli._tune_runtime import (
     BUILDERS,
     _force_population_result_mode,
     _population_front_for_scoring,
+    _score_population_result,
     build_task,
 )
 
@@ -54,6 +55,24 @@ def test_population_front_for_scoring_rejects_non_population_top_level_result() 
 
     with pytest.raises(RuntimeError, match="top-level F aligns with population F"):
         _population_front_for_scoring(result)
+
+
+def test_successful_empty_feasible_front_scores_zero_not_failure_score() -> None:
+    result = _FakeResult()
+    result.data["G"] = np.ones((4, 1))
+
+    score = _score_population_result(result, [10.0, 10.0], runtime_penalty=0.0, failure_score=-7.0)
+
+    assert score == 0.0
+
+
+def test_failed_tuning_run_uses_failure_score() -> None:
+    result = _FakeResult()
+    result.data["_tuning_failed"] = True
+
+    score = _score_population_result(result, [10.0, 10.0], runtime_penalty=0.0, failure_score=-7.0)
+
+    assert score == -7.0
 
 
 def test_cli_tuning_forces_population_result_mode() -> None:
