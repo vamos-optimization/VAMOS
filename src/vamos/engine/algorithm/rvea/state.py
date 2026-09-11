@@ -62,13 +62,19 @@ def build_rvea_result(
             result_X = state.X.copy()
             result_F = state.F.copy()
 
+    population: dict[str, Any] = {"X": state.X.copy(), "F": state.F.copy()}
+    if state.G is not None:
+        population["G"] = state.G.copy()
+
     result: dict[str, Any] = {
         "X": result_X,
         "F": result_F,
         "evaluations": state.n_eval,
         "generation": state.generation,
-        "population": {"X": state.X.copy(), "F": state.F.copy()},
+        "population": population,
     }
+    if wants_population_result(state) and state.G is not None:
+        result["G"] = state.G.copy()
     if archive_contents is not None:
         archive_X, archive_F = archive_contents
         result["archive"] = {"X": archive_X, "F": archive_F}
