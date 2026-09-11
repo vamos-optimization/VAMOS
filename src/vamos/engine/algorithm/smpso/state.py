@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vamos.engine.algorithm.components.results import wants_population_result
 from vamos.engine.algorithm.components.state import AlgorithmState
@@ -19,10 +20,10 @@ class SMPSOState(AlgorithmState):
     and the operators needed for the turbulence/mutation step.
     """
 
-    velocity: np.ndarray = field(default_factory=lambda: np.array([]))
-    pbest_X: np.ndarray = field(default_factory=lambda: np.array([]))
-    pbest_F: np.ndarray = field(default_factory=lambda: np.array([]))
-    pbest_G: np.ndarray | None = None
+    velocity: NDArray[Any] = field(default_factory=lambda: np.array([]))
+    pbest_X: NDArray[Any] = field(default_factory=lambda: np.array([]))
+    pbest_F: NDArray[Any] = field(default_factory=lambda: np.array([]))
+    pbest_G: NDArray[Any] | None = None
 
     inertia: float = 0.5
     c1: float = 1.5
@@ -40,17 +41,17 @@ class SMPSOState(AlgorithmState):
     change_velocity1: float = -1.0
     change_velocity2: float = -1.0
     mutation_every: int = 6
-    vmax: np.ndarray = field(default_factory=lambda: np.array([]))
-    delta_max: np.ndarray = field(default_factory=lambda: np.array([]))
-    delta_min: np.ndarray = field(default_factory=lambda: np.array([]))
+    vmax: NDArray[Any] = field(default_factory=lambda: np.array([]))
+    delta_max: NDArray[Any] = field(default_factory=lambda: np.array([]))
+    delta_min: NDArray[Any] = field(default_factory=lambda: np.array([]))
 
-    xl: np.ndarray = field(default_factory=lambda: np.array([]))
-    xu: np.ndarray = field(default_factory=lambda: np.array([]))
+    xl: NDArray[Any] = field(default_factory=lambda: np.array([]))
+    xu: NDArray[Any] = field(default_factory=lambda: np.array([]))
 
     mutation_op: Any = None
     repair_op: Any = None
-    archive_crowding: np.ndarray | None = field(default=None, repr=False, compare=False)
-    pending_particle_indices: np.ndarray | None = field(default=None, repr=False, compare=False)
+    archive_crowding: NDArray[Any] | None = field(default=None, repr=False, compare=False)
+    pending_particle_indices: NDArray[Any] | None = field(default=None, repr=False, compare=False)
 
 
 def build_smpso_result(state: SMPSOState, hv_reached: bool = False) -> dict[str, Any]:
