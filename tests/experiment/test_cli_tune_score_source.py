@@ -28,10 +28,11 @@ class _FakeResult:
         self.F = population_f.copy()
         self.data = {
             # Population result mode guarantees this top-level F/G pair is
-            # row-aligned with the full population payload.
+            # row-aligned when the population payload does not embed G itself.
             "F": population_f.copy(),
             "G": np.array([[0.0], [0.0], [0.0], [1.0]]),
             "population": {"F": population_f.copy()},
+            "_tuning_n_constraints": 1,
         }
 
 
@@ -49,12 +50,32 @@ def test_population_front_for_scoring_filters_infeasible_population_rows() -> No
     assert {tuple(row) for row in front.tolist()} == {tuple(row) for row in expected.tolist()}
 
 
-def test_population_front_for_scoring_rejects_non_population_top_level_result() -> None:
+def test_population_front_for_scoring_rejects_misaligned_constraint_fallback() -> None:
     result = _FakeResult()
     result.data["F"] = np.array([[0.0, 0.0]])
 
-    with pytest.raises(RuntimeError, match="top-level F aligns with population F"):
+    with pytest.raises(RuntimeError, match="top-level F to align with population F"):
         _population_front_for_scoring(result)
+
+
+def test_population_embedded_constraints_do_not_require_top_level_population_result() -> None:
+    result = _FakeResult()
+    population_g = result.data.pop("G")
+    result.data["population"]["G"] = population_g
+    # Model archive-backed top-level result semantics such as SMPSO leaders.
+    result.data["F"] = np.array([[0.0, 0.0]])
+
+    front = _population_front_for_scoring(result)
+
+    expected = np.array(
+        [
+            [1.0, 1.0],
+            [0.5, 2.0],
+            [2.0, 0.5],
+        ]
+    )
+    assert front.shape == expected.shape
+    assert {tuple(row) for row in front.tolist()} == {tuple(row) for row in expected.tolist()}
 
 
 def test_successful_empty_feasible_front_scores_zero_not_failure_score() -> None:
