@@ -154,6 +154,7 @@ def initialize_spea2_run(
         archive_X=archive_X,
         archive_F=archive_F,
         archive_manager=archive_manager,
+        result_mode=str(cfg.get("result_mode", "non_dominated")),
         # HV tracking
         hv_tracker=hv_tracker,
         # SPEA2-specific internal archive
