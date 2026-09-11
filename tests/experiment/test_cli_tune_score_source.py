@@ -8,6 +8,7 @@ import pytest
 from vamos.algorithms import NSGAIIConfig
 from vamos.experiment.cli._tune_runtime import (
     BUILDERS,
+    _ensure_constrained_tuning_supported,
     _force_population_result_mode,
     _population_front_for_scoring,
     _score_population_result,
@@ -102,6 +103,21 @@ def test_cli_tuning_forces_population_result_mode() -> None:
 
     assert forced.to_dict()["result_mode"] == "population"
     assert cfg.to_dict()["result_mode"] != "population"
+
+
+@pytest.mark.parametrize("algorithm_name", ["agemoea", "rvea"])
+def test_constrained_cli_tuning_rejects_algorithms_without_aligned_population_constraints(algorithm_name: str) -> None:
+    with pytest.raises(RuntimeError, match="does not yet support constrained"):
+        _ensure_constrained_tuning_supported(algorithm_name, 1)
+
+
+@pytest.mark.parametrize("algorithm_name", ["agemoea", "rvea"])
+def test_unconstrained_cli_tuning_keeps_agemoea_and_rvea_available(algorithm_name: str) -> None:
+    _ensure_constrained_tuning_supported(algorithm_name, 0)
+
+
+def test_constrained_cli_tuning_keeps_supported_algorithm_available() -> None:
+    _ensure_constrained_tuning_supported("nsgaii", 1)
 
 
 def test_cli_tuning_task_excludes_external_archive_controls() -> None:
