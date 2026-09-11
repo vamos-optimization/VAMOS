@@ -107,7 +107,7 @@ BUILDERS: dict[str, Callable[[], AlgorithmConfigSpace | ParamSpace]] = {
 MODEL_BACKENDS = ("optuna", "bohb_optuna", "smac3", "bohb")
 NON_MODEL_BACKENDS = ("racing", "random")
 ALL_BACKENDS = NON_MODEL_BACKENDS + MODEL_BACKENDS
-_ARCHIVE_TUNING_PARAMS = frozenset({"use_external_archive", "archive_unbounded", "archive_prune_policy"})
+_ARCHIVE_TUNING_PARAMS = {"use_external_archive", "archive_unbounded", "archive_prune_policy"}
 
 
 def supports_warm_start(name: str) -> bool:
