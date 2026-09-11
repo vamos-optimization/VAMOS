@@ -120,17 +120,46 @@ def test_constrained_cli_tuning_keeps_supported_algorithm_available() -> None:
     _ensure_constrained_tuning_supported("nsgaii", 1)
 
 
-def test_constrained_cli_preflight_happens_before_backend_dispatch(monkeypatch) -> None:
+def test_constrained_cli_preflight_checks_held_out_selected_instances(monkeypatch) -> None:
     class _Selection:
-        def instantiate(self):
-            return SimpleNamespace(n_constraints=1)
+        def __init__(self, constrained: bool) -> None:
+            self.constrained = constrained
 
-    monkeypatch.setattr(tune_runtime, "make_problem_selection", lambda *_args, **_kwargs: _Selection())
-    task = SimpleNamespace(instances=[SimpleNamespace(name="fake", n_var=2, kwargs={})])
-    args = SimpleNamespace(algorithm="agemoea", n_obj=2)
+        def instantiate(self):
+            return SimpleNamespace(n_constraints=1 if self.constrained else 0)
+
+    def _selection(name: str, **_kwargs):
+        return _Selection(constrained=name == "heldout_constrained")
+
+    monkeypatch.setattr(tune_runtime, "make_problem_selection", _selection)
+    args = SimpleNamespace(
+        algorithm="agemoea",
+        instances="train_unconstrained,heldout_constrained",
+        problem="train_unconstrained",
+        n_var=2,
+        n_obj=2,
+    )
 
     with pytest.raises(RuntimeError, match="does not yet support constrained"):
-        tune_runtime._preflight_constraint_support(args, task)
+        tune_runtime._preflight_constraint_support(args)
+
+
+def test_persistent_optuna_study_name_is_versioned_by_scoring_contract() -> None:
+    args = SimpleNamespace(optuna_study_name="legacy-study", backend="optuna", seed=7)
+    task = SimpleNamespace(name="tune_zdt1_nsgaii_optuna")
+
+    actual = tune_runtime._versioned_optuna_study_name(args, task)
+
+    assert actual == "legacy-study__vamos_cli_final_population_hv_v1"
+
+
+def test_default_persistent_optuna_study_name_is_also_versioned() -> None:
+    args = SimpleNamespace(optuna_study_name="", backend="optuna", seed=7)
+    task = SimpleNamespace(name="tune_zdt1_nsgaii_optuna")
+
+    actual = tune_runtime._versioned_optuna_study_name(args, task)
+
+    assert actual == "tune_zdt1_nsgaii_optuna_optuna_7__vamos_cli_final_population_hv_v1"
 
 
 def test_cli_tuning_task_excludes_external_archive_controls() -> None:
