@@ -174,6 +174,7 @@ def initialize_smpso_run(
         archive_X=archive_X,
         archive_F=archive_F,
         archive_manager=leader_archive,
+        result_mode=str(config.get("result_mode", "non_dominated")),
         # Termination
         hv_tracker=hv_tracker,
         # PSO state
