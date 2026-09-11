@@ -2,13 +2,10 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable, Mapping
-from dataclasses import fields, replace
 from typing import Any, cast
 
 import numpy as np
-from numpy.typing import NDArray
 
-from vamos.engine.algorithm.config.types import AlgorithmConfigProtocol
 from vamos.engine.algorithm.variants import canonical_algorithm_name
 from vamos.engine.tuning import (
     AlgorithmConfigSpace,
@@ -63,9 +60,14 @@ from vamos.engine.tuning.racing.warm_start import WarmStartEvaluator
 from vamos.experiment.types import CheckpointPayload
 from vamos.experiment.unified import optimize
 from vamos.foundation.problem.registry import make_problem_selection
-from vamos.foundation.quality_indicators.hypervolume import hypervolume
-from vamos.foundation.quality_indicators.pareto import pareto_filter
 
+from ._tune_scoring import (
+    _UnsupportedConstrainedTuningError,
+    _ensure_constrained_tuning_supported,
+    _force_population_result_mode,
+    _population_front_for_scoring,
+    _score_population_result,
+)
 from ._tune_utils import build_aggregator, parse_csv_strings, parse_ref_point, parse_seed_spec
 
 BUILDERS: dict[str, Callable[[], AlgorithmConfigSpace | ParamSpace]] = {
@@ -110,26 +112,10 @@ MODEL_BACKENDS = ("optuna", "bohb_optuna", "smac3", "bohb")
 NON_MODEL_BACKENDS = ("racing", "random")
 ALL_BACKENDS = NON_MODEL_BACKENDS + MODEL_BACKENDS
 _ARCHIVE_TUNING_PARAMS = {"use_external_archive", "archive_unbounded", "archive_prune_policy"}
-_CONSTRAINED_TUNING_UNSUPPORTED = {"agemoea", "rvea"}
-
-
-class _UnsupportedConstrainedTuningError(RuntimeError):
-    """Raised when maintained CLI tuning cannot score constraints safely."""
 
 
 def supports_warm_start(name: str) -> bool:
     return canonical_algorithm_name(name) in {"nsgaii", "moead"}
-
-
-def _ensure_constrained_tuning_supported(algorithm_name: str, n_constraints: int) -> None:
-    """Reject constrained CLI tuning when population-aligned G is unavailable."""
-    algo_name = canonical_algorithm_name(algorithm_name)
-    if n_constraints > 0 and algo_name in _CONSTRAINED_TUNING_UNSUPPORTED:
-        raise _UnsupportedConstrainedTuningError(
-            f"Maintained CLI tuning does not yet support constrained {algo_name} runs because the engine does not expose "
-            "population-aligned constraint values without changing its stable constraint-mode semantics. "
-            "Use an explicit controlled study for this algorithm/problem combination."
-        )
 
 
 def _without_archive_tuning_controls(param_space: ParamSpace) -> ParamSpace:
@@ -142,107 +128,6 @@ def _without_archive_tuning_controls(param_space: ParamSpace) -> ParamSpace:
         and not any(f"cfg['{name}']" in condition.expr for name in _ARCHIVE_TUNING_PARAMS)
     ]
     return ParamSpace(params=params, conditions=conditions)
-
-
-def _force_population_result_mode(config: AlgorithmConfigProtocol) -> AlgorithmConfigProtocol:
-    """Prefer population result mode for tuning-compatible built-in configs.
-
-    Most built-in result builders can expose top-level ``F/G`` aligned with the
-    final population when ``result_mode='population'``. The scorer still reads
-    objectives from the canonical ``population`` payload and can use constraint
-    values embedded there directly, so it does not depend on top-level result
-    semantics when the population payload is already self-contained.
-    """
-    config_obj: Any = config
-    try:
-        field_names = {field.name for field in fields(config_obj)}
-    except TypeError as exc:
-        raise RuntimeError("CLI tuning requires dataclass algorithm configs with result_mode support.") from exc
-    if "result_mode" not in field_names:
-        raise RuntimeError("CLI tuning algorithm config does not expose result_mode; population-aligned scoring is unavailable.")
-    updated: Any = replace(config_obj, result_mode="population")
-    return cast(AlgorithmConfigProtocol, updated)
-
-
-def _population_front_for_scoring(result: Any) -> NDArray[np.float64]:
-    payload = getattr(result, "data", None)
-    if not isinstance(payload, dict):
-        raise RuntimeError("Tuning evaluator requires OptimizationResult.data with a final population payload.")
-    population = payload.get("population")
-    if not isinstance(population, Mapping):
-        raise RuntimeError("Tuning evaluator requires result.data['population'] for source-consistent scoring.")
-    raw_f = population.get("F")
-    if raw_f is None:
-        raise RuntimeError("Tuning evaluator final population does not contain objective values 'F'.")
-
-    F = np.asarray(raw_f, dtype=float)
-    if F.ndim != 2:
-        raise RuntimeError(f"Tuning evaluator expected population F to be 2-D, got shape {F.shape}.")
-
-    raw_g = population.get("G")
-    constraint_source = "population"
-    if raw_g is None:
-        try:
-            n_constraints = int(payload.get("_tuning_n_constraints", 0))
-        except (TypeError, ValueError) as exc:
-            raise RuntimeError("Tuning evaluator received invalid constraint-count metadata.") from exc
-
-        if n_constraints > 0:
-            raw_top_f = payload.get("F")
-            if raw_top_f is None:
-                raise RuntimeError("Constrained tuning requires population-aligned constraint values G.")
-            top_f = np.asarray(raw_top_f, dtype=float)
-            if top_f.shape != F.shape or not np.array_equal(top_f, F, equal_nan=True):
-                raise RuntimeError(
-                    "Constrained tuning requires top-level F to align with population F when population G is unavailable."
-                )
-            raw_g = payload.get("G")
-            constraint_source = "top-level"
-            if raw_g is None:
-                raise RuntimeError("Constrained tuning result does not contain population-aligned constraint values G.")
-
-    if raw_g is not None:
-        G = np.asarray(raw_g, dtype=float)
-        if G.ndim == 1:
-            G = G[:, None]
-        if G.ndim != 2 or G.shape[0] != F.shape[0]:
-            raise RuntimeError(f"Tuning evaluator {constraint_source} G must align row-wise with population F.")
-        F = F[np.all(G <= 0.0, axis=1)]
-
-    if len(F) == 0:
-        return np.empty((0, F.shape[1]), dtype=float)
-    front = pareto_filter(F, return_indices=False)
-    if front is None:
-        return np.empty((0, F.shape[1]), dtype=float)
-    return np.asarray(front, dtype=float)
-
-
-def _score_population_result(
-    result: Any,
-    ref_point: list[float],
-    runtime_penalty: float,
-    failure_score: float,
-) -> float:
-    """Score one tuning result while distinguishing valid empty fronts from failures."""
-    payload = getattr(result, "data", None)
-    failed = isinstance(payload, dict) and bool(payload.get("_tuning_failed", False))
-    if failed:
-        base_hv = float(failure_score)
-    else:
-        F = _population_front_for_scoring(result)
-        ref = np.asarray(ref_point, dtype=float)
-        contributing = F[np.all(F <= ref, axis=1)]
-        base_hv = float(hypervolume(contributing, ref)) if len(contributing) > 0 else 0.0
-
-    elapsed_s = 0.0
-    if isinstance(payload, dict):
-        elapsed_raw = payload.get("_elapsed_s", 0.0)
-        try:
-            elapsed_s = float(elapsed_raw)
-        except Exception:
-            elapsed_s = 0.0
-    penalized = base_hv - float(runtime_penalty) * float(np.log1p(max(0.0, elapsed_s)))
-    return float(penalized)
 
 
 def make_evaluator(
