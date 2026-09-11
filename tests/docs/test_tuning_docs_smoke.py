@@ -25,6 +25,7 @@ def _run_vamos(*args: str, timeout: int = 180) -> subprocess.CompletedProcess[st
 
 def test_tuning_docs_match_current_contract() -> None:
     text = DOC_PATH.read_text(encoding="utf-8")
+    normalized_text = " ".join(text.split())
 
     assert "Experimental surface in VAMOS 1.0.0" in text
     assert "does **not** expose a curated public programmatic facade" in text
@@ -48,7 +49,7 @@ def test_tuning_docs_match_current_contract() -> None:
 
     assert "Constrained AGE-MOEA and RVEA" in text
     assert "does not currently support" in text
-    assert "fails explicitly" in text
+    assert "fails explicitly" in normalized_text
     assert "population-aligned constraint values" in text
     assert "including problems later assigned to validation or\n    test splits" in text
 
