@@ -129,13 +129,13 @@ def _without_archive_tuning_controls(param_space: ParamSpace) -> ParamSpace:
 
 
 def _force_population_result_mode(config: AlgorithmConfigProtocol) -> AlgorithmConfigProtocol:
-    """Return a tuning config whose top-level F/G are the final population.
+    """Prefer population result mode for tuning-compatible built-in configs.
 
-    CLI tuning needs a population-aligned constraint matrix. Built-in result
-    payloads expose the full population under ``population`` but may otherwise
-    filter top-level F/G according to ``result_mode``. Force population mode so
-    top-level G, when present, is row-aligned with the final population used for
-    scoring.
+    Most built-in result builders can expose top-level ``F/G`` aligned with the
+    final population when ``result_mode='population'``. The scorer still reads
+    objectives from the canonical ``population`` payload and can use constraint
+    values embedded there directly, so it does not depend on top-level result
+    semantics when the population payload is already self-contained.
     """
     config_obj: Any = config
     try:
@@ -163,20 +163,36 @@ def _population_front_for_scoring(result: Any) -> NDArray[np.float64]:
     if F.ndim != 2:
         raise RuntimeError(f"Tuning evaluator expected population F to be 2-D, got shape {F.shape}.")
 
-    raw_top_f = payload.get("F")
-    if raw_top_f is None:
-        raise RuntimeError("Tuning evaluator requires top-level population-mode F for alignment verification.")
-    top_f = np.asarray(raw_top_f, dtype=float)
-    if top_f.shape != F.shape or not np.array_equal(top_f, F, equal_nan=True):
-        raise RuntimeError("Tuning evaluator expected population result_mode so top-level F aligns with population F.")
+    raw_g = population.get("G")
+    constraint_source = "population"
+    if raw_g is None:
+        try:
+            n_constraints = int(payload.get("_tuning_n_constraints", 0))
+        except (TypeError, ValueError) as exc:
+            raise RuntimeError("Tuning evaluator received invalid constraint-count metadata.") from exc
 
-    raw_g = payload.get("G")
+        if n_constraints > 0:
+            raw_top_f = payload.get("F")
+            if raw_top_f is None:
+                raise RuntimeError("Constrained tuning requires population-aligned constraint values G.")
+            top_f = np.asarray(raw_top_f, dtype=float)
+            if top_f.shape != F.shape or not np.array_equal(top_f, F, equal_nan=True):
+                raise RuntimeError(
+                    "Constrained tuning requires top-level F to align with population F when population G is unavailable."
+                )
+            raw_g = payload.get("G")
+            constraint_source = "top-level"
+            if raw_g is None:
+                raise RuntimeError("Constrained tuning result does not contain population-aligned constraint values G.")
+
     if raw_g is not None:
         G = np.asarray(raw_g, dtype=float)
         if G.ndim == 1:
             G = G[:, None]
         if G.ndim != 2 or G.shape[0] != F.shape[0]:
-            raise RuntimeError("Tuning evaluator top-level G must align row-wise with population F in population result mode.")
+            raise RuntimeError(
+                f"Tuning evaluator {constraint_source} G must align row-wise with population F."
+            )
         F = F[np.all(G <= 0.0, axis=1)]
 
     if len(F) == 0:
@@ -252,9 +268,11 @@ def make_evaluator(
             problem_kwargs.setdefault("n_var", int(n_var))
             problem_kwargs.setdefault("n_obj", int(n_obj))
             selection = make_problem_selection(problem_name, **problem_kwargs)
+            problem = selection.instantiate()
+            n_constraints = int(getattr(problem, "n_constraints", 0) or 0)
             t0 = time.perf_counter()
             result = optimize(
-                selection.instantiate(),
+                problem,
                 algorithm=algo_name,
                 algorithm_config=cfg,
                 max_evaluations=int(ctx.budget),
@@ -266,6 +284,7 @@ def make_evaluator(
             payload = getattr(result, "data", None)
             if isinstance(payload, dict):
                 payload["_elapsed_s"] = elapsed_s
+                payload["_tuning_n_constraints"] = n_constraints
             checkpoint_payload = result.data.get("checkpoint")
             return result, cast(CheckpointPayload | None, checkpoint_payload)
         except Exception:
@@ -276,6 +295,7 @@ def make_evaluator(
                     "F": np.empty((0, n_obj), dtype=float),
                     "population": {"F": np.empty((0, n_obj), dtype=float)},
                     "_elapsed_s": 0.0,
+                    "_tuning_n_constraints": 0,
                     "_tuning_failed": True,
                 }
 
