@@ -137,8 +137,8 @@ class AGEMOEA:
         stop_requested = False
         while not self.should_terminate():
             X_off = self.ask()
-            eval_off = backend.evaluate(X_off, problem)
-            stop_requested = self.tell(eval_off)
+            F_off = np.asarray(backend.evaluate(X_off, problem).F, dtype=float)
+            stop_requested = self.tell(F_off)
             if stop_requested:
                 break
 
@@ -188,9 +188,7 @@ class AGEMOEA:
         encoding = normalize_encoding(getattr(problem, "encoding", "real"))
         xl, xu = resolve_bounds(problem, encoding)
         X = initialize_population(pop_size, problem.n_var, xl, xu, encoding, rng, problem, self.cfg.get("initializer"))
-        initial_eval = backend.evaluate(X, problem)
-        F = np.asarray(initial_eval.F, dtype=float)
-        G = None if initial_eval.G is None else np.asarray(initial_eval.G, dtype=float)
+        F = np.asarray(backend.evaluate(X, problem).F, dtype=float)
 
         variation = _build_variation(self.cfg, encoding, xl, xu, problem)
         ext_cfg = resolve_external_archive(self.cfg)
@@ -202,7 +200,7 @@ class AGEMOEA:
             problem.n_obj,
             X.dtype,
             ext_cfg,
-            G,
+            None,
         )
         selection_ranks, selection_crowding = self.kernel.nsga2_ranking(F)
 
@@ -214,7 +212,7 @@ class AGEMOEA:
         self._st = AGEMOEAState(
             X=X,
             F=F,
-            G=G,
+            G=None,
             rng=rng,
             pop_size=pop_size,
             n_eval=X.shape[0],
@@ -282,9 +280,23 @@ class AGEMOEA:
     def tell(self, eval_result: Any, problem: ProblemProtocol | None = None) -> bool:
         """Receive evaluated offspring and update population.
 
-        ``eval_result`` must include ``G`` when the initialized problem returned
-        constraints, so the final population keeps objective/constraint rows
-        aligned for downstream scoring.
+        Parameters
+        ----------
+        eval_result : Any
+            Objective values as ``np.ndarray``, or an object with ``.F`` attribute,
+            or a dict with ``"F"`` key.
+        problem : ProblemProtocol | None
+            Unused, kept for interface consistency.
+
+        Returns
+        -------
+        bool
+            Always ``False`` (AGE-MOEA has no early-stop criterion).
+
+        Raises
+        ------
+        RuntimeError
+            If called before ``ask()``.
         """
         if self._st is None or self._st.pending_offspring is None:
             raise RuntimeError("No pending offspring. Call ask() first.")
@@ -293,32 +305,21 @@ class AGEMOEA:
         X_off = st.pending_offspring
         assert X_off is not None
 
-        raw_g: Any = None
         if hasattr(eval_result, "F"):
             F_off = np.asarray(eval_result.F, dtype=float)
-            raw_g = getattr(eval_result, "G", None)
         elif isinstance(eval_result, dict):
             F_off = np.asarray(eval_result["F"], dtype=float)
-            raw_g = eval_result.get("G")
         else:
             F_off = np.asarray(eval_result, dtype=float)
-        G_off = None if raw_g is None else np.asarray(raw_g, dtype=float)
-
-        if st.G is not None and G_off is None:
-            raise ValueError("AGE-MOEA tell() requires constraint values G for a constrained run.")
-        if st.G is None and G_off is not None:
-            raise ValueError("AGE-MOEA tell() cannot introduce constraints after unconstrained initialization.")
 
         st.n_eval += X_off.shape[0]
 
         X_combined = np.vstack([st.X, X_off])
         F_combined = np.vstack([st.F, F_off])
-        G_combined = np.vstack([st.G, G_off]) if st.G is not None and G_off is not None else None
 
         survivors = age_survival(F_combined, st.pop_size, self.kernel)
         st.X = X_combined[survivors]
         st.F = F_combined[survivors]
-        st.G = G_combined[survivors] if G_combined is not None else None
         self._refresh_selection_metrics(st)
         if st.archive_manager is not None:
             st.archive_X, st.archive_F = st.archive_manager.update(st.X, st.F, st.G)

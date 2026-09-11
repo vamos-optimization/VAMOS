@@ -219,8 +219,8 @@ class RVEA:
         stop_requested = False
         while not self.should_terminate():
             X_off = self.ask()
-            eval_off = backend.evaluate(X_off, problem)
-            stop_requested = self.tell(eval_off)
+            F_off = np.asarray(backend.evaluate(X_off, problem).F, dtype=float)
+            stop_requested = self.tell(F_off)
             if stop_requested:
                 break
 
@@ -238,7 +238,21 @@ class RVEA:
         eval_strategy: EvaluationBackend | None = None,
         live_viz: LiveVisualization | None = None,
     ) -> None:
-        """Initialize algorithm state for ask/tell loop."""
+        """Initialize algorithm state for ask/tell loop.
+
+        Parameters
+        ----------
+        problem : ProblemProtocol
+            Problem to optimize.
+        termination : tuple
+            Termination criterion, e.g., ``("max_evaluations", 10000)``.
+        seed : int
+            Random seed for reproducibility.
+        eval_strategy : EvaluationBackend, optional
+            Evaluation backend for the initial population.
+        live_viz : LiveVisualization, optional
+            Live visualization callback.
+        """
         rng = np.random.default_rng(seed)
         backend = eval_strategy or SerialEvalBackend()
         live_cb = get_live_viz(live_viz)
@@ -271,9 +285,7 @@ class RVEA:
         encoding = normalize_encoding(getattr(problem, "encoding", "real"))
         xl, xu = resolve_bounds(problem, encoding)
         X = initialize_population(pop_size, problem.n_var, xl, xu, encoding, rng, problem, self.cfg.get("initializer"))
-        initial_eval = backend.evaluate(X, problem)
-        F = np.asarray(initial_eval.F, dtype=float)
-        G = None if initial_eval.G is None else np.asarray(initial_eval.G, dtype=float)
+        F = np.asarray(backend.evaluate(X, problem).F, dtype=float)
 
         variation = _build_variation(self.cfg, encoding, xl, xu, problem)
         ext_cfg = resolve_external_archive(self.cfg)
@@ -285,7 +297,7 @@ class RVEA:
             problem.n_obj,
             X.dtype,
             ext_cfg,
-            G,
+            None,
         )
 
         adapt_interval = None
@@ -300,7 +312,7 @@ class RVEA:
         self._st = RVEAState(
             X=X,
             F=F,
-            G=G,
+            G=None,
             rng=rng,
             pop_size=pop_size,
             n_eval=X.shape[0],
@@ -333,7 +345,18 @@ class RVEA:
         )
 
     def ask(self) -> np.ndarray[Any, Any]:
-        """Generate offspring for external evaluation."""
+        """Generate offspring for external evaluation.
+
+        Returns
+        -------
+        np.ndarray
+            Offspring decision variables, shape ``(n_offspring, n_var)``.
+
+        Raises
+        ------
+        RuntimeError
+            If called before ``initialize()`` or previous offspring not consumed.
+        """
         if self._st is None:
             raise RuntimeError("Algorithm not initialized. Call initialize() first.")
         if self._st.pending_offspring is not None:
@@ -353,9 +376,23 @@ class RVEA:
     def tell(self, eval_result: Any, problem: ProblemProtocol | None = None) -> bool:
         """Receive evaluated offspring and update population.
 
-        ``eval_result`` must include ``G`` when the initialized problem returned
-        constraints, so the final population keeps objective/constraint rows
-        aligned for downstream scoring.
+        Parameters
+        ----------
+        eval_result : Any
+            Objective values as ``np.ndarray``, or an object with ``.F`` attribute,
+            or a dict with ``"F"`` key.
+        problem : ProblemProtocol | None
+            Unused, kept for interface consistency.
+
+        Returns
+        -------
+        bool
+            Always ``False`` (RVEA has no early-stop criterion).
+
+        Raises
+        ------
+        RuntimeError
+            If called before ``ask()``.
         """
         if self._st is None or self._st.pending_offspring is None:
             raise RuntimeError("No pending offspring. Call ask() first.")
@@ -364,27 +401,17 @@ class RVEA:
         X_off = st.pending_offspring
         assert X_off is not None
 
-        raw_g: Any = None
         if hasattr(eval_result, "F"):
             F_off = np.asarray(eval_result.F, dtype=float)
-            raw_g = getattr(eval_result, "G", None)
         elif isinstance(eval_result, dict):
             F_off = np.asarray(eval_result["F"], dtype=float)
-            raw_g = eval_result.get("G")
         else:
             F_off = np.asarray(eval_result, dtype=float)
-        G_off = None if raw_g is None else np.asarray(raw_g, dtype=float)
-
-        if st.G is not None and G_off is None:
-            raise ValueError("RVEA tell() requires constraint values G for a constrained run.")
-        if st.G is None and G_off is not None:
-            raise ValueError("RVEA tell() cannot introduce constraints after unconstrained initialization.")
 
         st.n_eval += X_off.shape[0]
 
         X_combined = np.vstack([st.X, X_off])
         F_combined = np.vstack([st.F, F_off])
-        G_combined = np.vstack([st.G, G_off]) if st.G is not None and G_off is not None else None
 
         survivors, st.ideal, st.nadir = _apd_survival(
             F_combined,
@@ -406,7 +433,6 @@ class RVEA:
 
         st.X = X_combined[survivors]
         st.F = F_combined[survivors]
-        st.G = G_combined[survivors] if G_combined is not None else None
         if st.archive_manager is not None:
             st.archive_X, st.archive_F = st.archive_manager.update(st.X, st.F, st.G)
 
@@ -430,7 +456,14 @@ class RVEA:
         return self._st.n_eval >= self._st.max_evals
 
     def result(self) -> dict[str, Any]:
-        """Get optimization result."""
+        """Get optimization result.
+
+        Returns
+        -------
+        dict
+            Result dictionary with ``X``, ``F``, ``evaluations``, ``generation``,
+            ``population``, and optionally ``archive``.
+        """
         if self._st is None:
             raise RuntimeError("Algorithm not initialized.")
         if self._live_cb is not None:
