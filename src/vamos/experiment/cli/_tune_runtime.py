@@ -187,6 +187,34 @@ def _population_front_for_scoring(result: Any) -> NDArray[np.float64]:
     return np.asarray(front, dtype=float)
 
 
+def _score_population_result(
+    result: Any,
+    ref_point: list[float],
+    runtime_penalty: float,
+    failure_score: float,
+) -> float:
+    """Score one tuning result while distinguishing valid empty fronts from failures."""
+    payload = getattr(result, "data", None)
+    failed = isinstance(payload, dict) and bool(payload.get("_tuning_failed", False))
+    if failed:
+        base_hv = float(failure_score)
+    else:
+        F = _population_front_for_scoring(result)
+        ref = np.asarray(ref_point, dtype=float)
+        contributing = F[np.all(F <= ref, axis=1)]
+        base_hv = float(hypervolume(contributing, ref)) if len(contributing) > 0 else 0.0
+
+    elapsed_s = 0.0
+    if isinstance(payload, dict):
+        elapsed_raw = payload.get("_elapsed_s", 0.0)
+        try:
+            elapsed_s = float(elapsed_raw)
+        except Exception:
+            elapsed_s = 0.0
+    penalized = base_hv - float(runtime_penalty) * float(np.log1p(max(0.0, elapsed_s)))
+    return float(penalized)
+
+
 def make_evaluator(
     problem_key: str,
     n_var: int,
@@ -203,23 +231,7 @@ def make_evaluator(
     ref_point = parse_ref_point(ref_point_str, n_obj)
 
     def _score(result: Any, _ctx: EvalContext) -> float:
-        F = _population_front_for_scoring(result)
-        if len(F) > 0:
-            ref = np.asarray(ref_point, dtype=float)
-            contributing = F[np.all(F <= ref, axis=1)]
-            base_hv = float(hypervolume(contributing, ref)) if len(contributing) > 0 else 0.0
-        else:
-            base_hv = float(failure_score)
-        elapsed_s = 0.0
-        payload = getattr(result, "data", None)
-        if isinstance(payload, dict):
-            elapsed_raw = payload.get("_elapsed_s", 0.0)
-            try:
-                elapsed_s = float(elapsed_raw)
-            except Exception:
-                elapsed_s = 0.0
-        penalized = base_hv - float(runtime_penalty) * float(np.log1p(max(0.0, elapsed_s)))
-        return float(penalized)
+        return _score_population_result(result, ref_point, runtime_penalty, failure_score)
 
     def _run_algorithm(
         config_dict: Mapping[str, object],
@@ -257,13 +269,14 @@ def make_evaluator(
             checkpoint_payload = result.data.get("checkpoint")
             return result, cast(CheckpointPayload | None, checkpoint_payload)
         except Exception:
-            logger().warning("[tune] evaluation failed; assigning score=0.", exc_info=True)
+            logger().warning("[tune] evaluation failed; assigning configured failure score.", exc_info=True)
 
             class _EmptyResult:
                 data = {
                     "F": np.empty((0, n_obj), dtype=float),
                     "population": {"F": np.empty((0, n_obj), dtype=float)},
                     "_elapsed_s": 0.0,
+                    "_tuning_failed": True,
                 }
 
             return _EmptyResult(), None
