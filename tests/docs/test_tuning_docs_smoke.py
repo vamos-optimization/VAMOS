@@ -50,6 +50,12 @@ def test_tuning_docs_match_current_contract() -> None:
     assert "does not currently support" in text
     assert "fails explicitly" in text
     assert "population-aligned constraint values" in text
+    assert "including problems later assigned to validation or\n    test splits" in text
+
+    assert "Persistent Optuna studies are scoring-contract versioned" in text
+    assert "__vamos_cli_final_population_hv_v1" in text
+    assert "must\nnot compete with trials scored under the current final-population HV contract" in text
+    assert "Reusing the same base study name resumes only studies from this contract" in text
 
     assert "[10.0, ..., 10.0]" in text
     assert "--runtime-penalty" in text
@@ -75,6 +81,8 @@ def test_tuning_docs_match_current_contract() -> None:
     assert "--backend random" in text
     assert "--budget" in text
     assert "--tune-budget" in text
+    assert "--optuna-storage" in text
+    assert "--optuna-study-name" in text
 
     assert "Current result-source limitation" not in text
     assert "does not guarantee source-consistent HV comparisons" not in text
