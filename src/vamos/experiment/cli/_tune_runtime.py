@@ -61,6 +61,7 @@ from vamos.experiment.types import CheckpointPayload
 from vamos.experiment.unified import optimize
 from vamos.foundation.problem.registry import make_problem_selection
 from vamos.foundation.quality_indicators.hypervolume import hypervolume
+from vamos.foundation.quality_indicators.pareto import pareto_filter
 
 from ._tune_utils import build_aggregator, parse_csv_strings, parse_ref_point, parse_seed_spec
 
@@ -105,10 +106,64 @@ BUILDERS: dict[str, Callable[[], AlgorithmConfigSpace | ParamSpace]] = {
 MODEL_BACKENDS = ("optuna", "bohb_optuna", "smac3", "bohb")
 NON_MODEL_BACKENDS = ("racing", "random")
 ALL_BACKENDS = NON_MODEL_BACKENDS + MODEL_BACKENDS
+_ARCHIVE_TUNING_PARAMS = frozenset({"use_external_archive", "archive_unbounded", "archive_prune_policy"})
 
 
 def supports_warm_start(name: str) -> bool:
     return canonical_algorithm_name(name) in {"nsgaii", "moead"}
+
+
+def _without_archive_tuning_controls(param_space: ParamSpace) -> ParamSpace:
+    """Remove archive controls from the maintained CLI tuning search space.
+
+    The CLI scorer compares the final feasible non-dominated population for
+    every candidate. External-archive controls are therefore intentionally
+    excluded here so trials do not spend budget on parameters that do not
+    define the scored set.
+    """
+
+    params = {name: spec for name, spec in param_space.params.items() if name not in _ARCHIVE_TUNING_PARAMS}
+    conditions = [
+        condition
+        for condition in param_space.conditions
+        if condition.param_name in params
+        and not any(f"cfg['{name}']" in condition.expr for name in _ARCHIVE_TUNING_PARAMS)
+    ]
+    return ParamSpace(params=params, conditions=conditions)
+
+
+def _population_front_for_scoring(result: Any) -> np.ndarray:
+    payload = getattr(result, "data", None)
+    if not isinstance(payload, dict):
+        raise RuntimeError("Tuning evaluator requires OptimizationResult.data with a final population payload.")
+    population = payload.get("population")
+    if not isinstance(population, Mapping):
+        raise RuntimeError("Tuning evaluator requires result.data['population'] for source-consistent scoring.")
+    raw_f = population.get("F")
+    if raw_f is None:
+        raise RuntimeError("Tuning evaluator final population does not contain objective values 'F'.")
+
+    F = np.asarray(raw_f, dtype=float)
+    if F.ndim != 2:
+        raise RuntimeError(f"Tuning evaluator expected population F to be 2-D, got shape {F.shape}.")
+
+    raw_g = population.get("G")
+    if raw_g is not None:
+        G = np.asarray(raw_g, dtype=float)
+        if G.ndim == 1:
+            G = G[:, None]
+        if G.ndim != 2 or G.shape[0] != F.shape[0]:
+            raise RuntimeError(
+                "Tuning evaluator population constraint matrix G must align row-wise with population F."
+            )
+        F = F[np.all(G <= 0.0, axis=1)]
+
+    if len(F) == 0:
+        return np.empty((0, F.shape[1]), dtype=float)
+    front = pareto_filter(F, return_indices=False)
+    if front is None:
+        return np.empty((0, F.shape[1]), dtype=float)
+    return np.asarray(front, dtype=float)
 
 
 def make_evaluator(
@@ -127,8 +182,8 @@ def make_evaluator(
     ref_point = parse_ref_point(ref_point_str, n_obj)
 
     def _score(result: Any, _ctx: EvalContext) -> float:
-        F = getattr(result, "F", None)
-        base_hv = float(hypervolume(F, np.asarray(ref_point, dtype=float))) if F is not None and len(F) > 0 else float(failure_score)
+        F = _population_front_for_scoring(result)
+        base_hv = float(hypervolume(F, np.asarray(ref_point, dtype=float))) if len(F) > 0 else float(failure_score)
         elapsed_s = 0.0
         payload = getattr(result, "data", None)
         if isinstance(payload, dict):
@@ -179,8 +234,7 @@ def make_evaluator(
             logger().warning("[tune] evaluation failed; assigning score=0.", exc_info=True)
 
             class _EmptyResult:
-                F = None
-                data = {"_elapsed_s": 0.0}
+                data = {"population": {"F": np.empty((0, n_obj), dtype=float)}, "_elapsed_s": 0.0}
 
             return _EmptyResult(), None
 
@@ -202,6 +256,7 @@ def build_task(
     instances: list[Instance] | None = None,
     seeds: list[int] | None = None,
 ) -> TuningTask:
+    param_space = _without_archive_tuning_controls(param_space)
     if instances is None:
         problem_names = list(parse_csv_strings(args.instances)) or [str(args.problem)]
         instances = [Instance(name=name, n_var=int(args.n_var), kwargs={}) for name in problem_names]
