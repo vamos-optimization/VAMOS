@@ -5,8 +5,8 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from vamos.algorithms import NSGAIIConfig
 import vamos.experiment.cli._tune_runtime as tune_runtime
+from vamos.algorithms import NSGAIIConfig
 from vamos.experiment.cli._tune_runtime import BUILDERS, build_task
 from vamos.experiment.cli._tune_scoring import (
     _ensure_constrained_tuning_supported,
