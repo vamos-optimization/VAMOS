@@ -1,16 +1,24 @@
+from dataclasses import replace
+
 import numpy as np
 import pytest
 
 from vamos.engine.algorithm.agemoea import AGEMOEA
 from vamos.engine.algorithm.config import (
     AGEMOEAConfig,
+    IBEAConfig,
     MOEADConfig,
     RVEAConfig,
+    SMPSOConfig,
     SMSEMOAConfig,
+    SPEA2Config,
 )
+from vamos.engine.algorithm.ibea import IBEA
 from vamos.engine.algorithm.moead import MOEAD
 from vamos.engine.algorithm.rvea import RVEA
+from vamos.engine.algorithm.smpso import SMPSO
 from vamos.engine.algorithm.smsemoa import SMSEMOA
+from vamos.engine.algorithm.spea2 import SPEA2
 from vamos.foundation.kernel.numpy_backend import NumPyKernel
 from vamos.foundation.problem.zdt1 import ZDT1Problem
 
@@ -180,3 +188,23 @@ def test_rvea_population_result_mode_with_archive():
 
     assert result["F"].shape == result["population"]["F"].shape
     assert result["archive"]["F"].shape[0] > 0
+
+
+@pytest.mark.parametrize(
+    ("algorithm_cls", "config"),
+    [
+        (IBEA, replace(IBEAConfig.default(pop_size=10, n_var=6), result_mode="population")),
+        (SPEA2, replace(SPEA2Config.default(pop_size=10, n_var=6), result_mode="population")),
+        (SMPSO, replace(SMPSOConfig.default(pop_size=10, n_var=6), result_mode="population")),
+    ],
+)
+def test_population_result_mode_honored_by_all_cli_tuning_algorithms(algorithm_cls, config):
+    problem = ZDT1Problem(n_var=6)
+    result = algorithm_cls(config.to_dict(), kernel=NumPyKernel()).run(
+        problem,
+        termination=("max_evaluations", 20),
+        seed=0,
+    )
+
+    np.testing.assert_allclose(result["F"], result["population"]["F"])
+    np.testing.assert_allclose(result["X"], result["population"]["X"])
