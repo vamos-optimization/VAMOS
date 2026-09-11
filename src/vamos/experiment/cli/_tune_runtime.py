@@ -129,6 +129,18 @@ def _without_archive_tuning_controls(param_space: ParamSpace) -> ParamSpace:
     return ParamSpace(params=params, conditions=conditions)
 
 
+def _preflight_constraint_support(args: Any, task: TuningTask) -> None:
+    """Validate constrained support before a backend can convert failures to scores."""
+    for instance in task.instances:
+        problem_kwargs = dict(instance.kwargs)
+        problem_kwargs.setdefault("n_var", int(instance.n_var))
+        if hasattr(args, "n_obj"):
+            problem_kwargs.setdefault("n_obj", int(args.n_obj))
+        problem = make_problem_selection(str(instance.name), **problem_kwargs).instantiate()
+        n_constraints = int(getattr(problem, "n_constraints", 0) or 0)
+        _ensure_constrained_tuning_supported(str(args.algorithm), n_constraints)
+
+
 def make_evaluator(
     problem_key: str,
     n_var: int,
@@ -243,6 +255,7 @@ def run_backend(
     eval_fn: EvalFn,
     resolved_jobs: int,
 ) -> tuple[dict[str, Any], list[TrialResult]]:
+    _preflight_constraint_support(args, task)
     fidelity_levels = args.fidelity_levels
     if args.backend in MODEL_BACKENDS:
         min_seed_count = int(args.fidelity_min_seed_count)
