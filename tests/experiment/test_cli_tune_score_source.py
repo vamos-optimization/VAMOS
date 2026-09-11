@@ -3,9 +3,12 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 
+from vamos.algorithms import NSGAIIConfig
 from vamos.experiment.cli._tune_runtime import (
     BUILDERS,
+    _force_population_result_mode,
     _population_front_for_scoring,
     build_task,
 )
@@ -13,27 +16,25 @@ from vamos.experiment.cli._tune_runtime import (
 
 class _FakeResult:
     def __init__(self) -> None:
-        # Deliberately better than the population. The tuning scorer must ignore
-        # this top-level value because it may come from an external archive.
-        self.F = np.array([[0.0, 0.0]])
+        population_f = np.array(
+            [
+                [1.0, 1.0],
+                [0.5, 2.0],
+                [2.0, 0.5],
+                [0.2, 0.2],
+            ]
+        )
+        self.F = population_f.copy()
         self.data = {
-            "population": {
-                "F": np.array(
-                    [
-                        [1.0, 1.0],
-                        [0.5, 2.0],
-                        [2.0, 0.5],
-                        [0.2, 0.2],
-                    ]
-                ),
-                # The apparently best row is infeasible and must not influence
-                # the scored front.
-                "G": np.array([[0.0], [0.0], [0.0], [1.0]]),
-            }
+            # Population result mode guarantees this top-level F/G pair is
+            # row-aligned with the full population payload.
+            "F": population_f.copy(),
+            "G": np.array([[0.0], [0.0], [0.0], [1.0]]),
+            "population": {"F": population_f.copy()},
         }
 
 
-def test_population_front_for_scoring_ignores_top_level_result_and_infeasible_rows() -> None:
+def test_population_front_for_scoring_filters_infeasible_population_rows() -> None:
     front = _population_front_for_scoring(_FakeResult())
 
     expected = np.array(
@@ -45,6 +46,22 @@ def test_population_front_for_scoring_ignores_top_level_result_and_infeasible_ro
     )
     assert front.shape == expected.shape
     assert {tuple(row) for row in front.tolist()} == {tuple(row) for row in expected.tolist()}
+
+
+def test_population_front_for_scoring_rejects_non_population_top_level_result() -> None:
+    result = _FakeResult()
+    result.data["F"] = np.array([[0.0, 0.0]])
+
+    with pytest.raises(RuntimeError, match="top-level F aligns with population F"):
+        _population_front_for_scoring(result)
+
+
+def test_cli_tuning_forces_population_result_mode() -> None:
+    cfg = NSGAIIConfig.default(pop_size=20, n_var=10)
+    forced = _force_population_result_mode(cfg)
+
+    assert forced.to_dict()["result_mode"] == "population"
+    assert cfg.to_dict()["result_mode"] != "population"
 
 
 def test_cli_tuning_task_excludes_external_archive_controls() -> None:
