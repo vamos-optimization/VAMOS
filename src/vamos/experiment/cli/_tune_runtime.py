@@ -59,6 +59,7 @@ from vamos.engine.tuning.racing.eval_types import EvalFn
 from vamos.engine.tuning.racing.warm_start import WarmStartEvaluator
 from vamos.experiment.types import CheckpointPayload
 from vamos.experiment.unified import optimize
+from vamos.foundation.constraints.utils import is_feasible
 from vamos.foundation.problem.registry import make_problem_selection
 from vamos.foundation.quality_indicators.hypervolume import hypervolume
 
@@ -106,6 +107,81 @@ MODEL_BACKENDS = ("optuna", "bohb_optuna", "smac3", "bohb")
 NON_MODEL_BACKENDS = ("racing", "random")
 ALL_BACKENDS = NON_MODEL_BACKENDS + MODEL_BACKENDS
 
+# Output-retention policy must not change the objective set used to score an
+# algorithm configuration. Programmatic experimental spaces still expose these
+# controls; only the maintained CLI excludes them from its search space.
+CLI_EXCLUDED_TUNING_PARAMS = (
+    "archive_prune_policy",
+    "archive_unbounded",
+    "use_external_archive",
+)
+CLI_TUNING_CONTRACT_REVISION = "score_source_v2"
+_CLI_EXCLUDED_TUNING_PARAM_SET = frozenset(CLI_EXCLUDED_TUNING_PARAMS)
+
+
+def _condition_references_excluded_param(expr: str) -> bool:
+    return any(f"cfg['{name}']" in expr or f'cfg["{name}"]' in expr for name in _CLI_EXCLUDED_TUNING_PARAM_SET)
+
+
+def _strip_cli_excluded_params(config: Mapping[str, object]) -> dict[str, Any]:
+    return {name: value for name, value in config.items() if name not in _CLI_EXCLUDED_TUNING_PARAM_SET}
+
+
+def build_cli_param_space(algorithm_name: str) -> ParamSpace:
+    """Return the tuning space used by ``vamos tune``.
+
+    Archive/result-retention controls remain available in the experimental
+    programmatic builders, but the CLI removes them so every candidate is
+    scored from the same top-level non-dominated result source.
+    """
+
+    builder = BUILDERS[str(algorithm_name)]
+    algo_space = builder()
+    raw_space = algo_space.to_param_space() if isinstance(algo_space, AlgorithmConfigSpace) else algo_space
+    params = {name: spec for name, spec in raw_space.params.items() if name not in _CLI_EXCLUDED_TUNING_PARAM_SET}
+    conditions = [
+        condition
+        for condition in raw_space.conditions
+        if condition.param_name not in _CLI_EXCLUDED_TUNING_PARAM_SET
+        and not _condition_references_excluded_param(condition.expr)
+    ]
+    return ParamSpace(params=params, conditions=conditions)
+
+
+def _score_hypervolume_result(result: Any, ref_point: np.ndarray, failure_score: float) -> float:
+    """Score a result with HV after applying the public ``G <= 0`` convention."""
+
+    raw_F = getattr(result, "F", None)
+    if raw_F is None:
+        return float(failure_score)
+    F = np.asarray(raw_F, dtype=float)
+    if F.ndim != 2:
+        raise ValueError(f"Tuning scorer expected F with shape (N, n_obj); got {F.shape}.")
+    if F.shape[0] == 0:
+        return float(failure_score)
+
+    raw_G = getattr(result, "G", None)
+    G: np.ndarray | None
+    if raw_G is None:
+        G = None
+    else:
+        G = np.asarray(raw_G, dtype=float)
+        if G.ndim == 1:
+            G = G.reshape(-1, 1)
+        if G.ndim != 2:
+            raise ValueError(f"Tuning scorer expected G with shape (N, n_constraints); got {G.shape}.")
+        if G.shape[0] != F.shape[0]:
+            raise ValueError(
+                "Tuning scorer requires aligned F/G rows; "
+                f"got F rows={F.shape[0]} and G rows={G.shape[0]}."
+            )
+
+    feasible = is_feasible(G, n=F.shape[0])
+    feasible_F = F[feasible]
+    if feasible_F.shape[0] == 0:
+        return float(failure_score)
+    return float(hypervolume(feasible_F, np.asarray(ref_point, dtype=float)))
+
 
 def supports_warm_start(name: str) -> bool:
     return canonical_algorithm_name(name) in {"nsgaii", "moead"}
@@ -124,11 +200,10 @@ def make_evaluator(
     *,
     logger: Callable[[], Any],
 ) -> EvalFn:
-    ref_point = parse_ref_point(ref_point_str, n_obj)
+    ref_point = np.asarray(parse_ref_point(ref_point_str, n_obj), dtype=float)
 
     def _score(result: Any, _ctx: EvalContext) -> float:
-        F = getattr(result, "F", None)
-        base_hv = float(hypervolume(F, np.asarray(ref_point, dtype=float))) if F is not None and len(F) > 0 else float(failure_score)
+        base_hv = _score_hypervolume_result(result, ref_point, failure_score)
         elapsed_s = 0.0
         payload = getattr(result, "data", None)
         if isinstance(payload, dict):
@@ -146,7 +221,10 @@ def make_evaluator(
         checkpoint: CheckpointPayload | None,
     ) -> tuple[object, CheckpointPayload | None]:
         try:
-            start_config: dict[str, Any] = dict(config_dict)
+            # Defensive stripping also protects evaluation of caller-supplied or
+            # explicitly resumed experimental configs created before this CLI
+            # scoring contract revision.
+            start_config = _strip_cli_excluded_params(config_dict)
             if algorithm_name == "rvea":
                 start_config["n_obj"] = n_obj
             elif "pop_size" not in start_config:
@@ -176,10 +254,11 @@ def make_evaluator(
             checkpoint_payload = result.data.get("checkpoint")
             return result, cast(CheckpointPayload | None, checkpoint_payload)
         except Exception:
-            logger().warning("[tune] evaluation failed; assigning score=0.", exc_info=True)
+            logger().warning("[tune] candidate execution failed; assigning the configured failure score.", exc_info=True)
 
             class _EmptyResult:
                 F = None
+                G = None
                 data = {"_elapsed_s": 0.0}
 
             return _EmptyResult(), None
@@ -208,7 +287,7 @@ def build_task(
     if seeds is None:
         seeds = parse_seed_spec(None, default_start=int(args.seed), default_count=int(args.n_seeds))
     return TuningTask(
-        name=f"tune_{args.problem}_{args.algorithm}_{args.backend}",
+        name=f"tune_{CLI_TUNING_CONTRACT_REVISION}_{args.problem}_{args.algorithm}_{args.backend}",
         param_space=param_space,
         instances=instances,
         seeds=seeds,
@@ -277,7 +356,11 @@ def run_backend(
 __all__ = [
     "ALL_BACKENDS",
     "BUILDERS",
+    "CLI_EXCLUDED_TUNING_PARAMS",
+    "CLI_TUNING_CONTRACT_REVISION",
     "MODEL_BACKENDS",
+    "_score_hypervolume_result",
+    "build_cli_param_space",
     "build_task",
     "make_evaluator",
     "run_backend",
