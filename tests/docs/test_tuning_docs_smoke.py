@@ -41,7 +41,7 @@ def test_tuning_docs_match_current_contract() -> None:
     assert "Infeasible rows do not contribute" in text
     assert "--runtime-penalty" in text
     assert "--failure-score" in text
-    assert "not a universal failure policy" in text
+    assert "not a\n  universal failure policy" in text
     assert "should not be relied on to rescue an invalid HV scoring" in text
     assert "current maintained CLI cannot select it" in text
 
