@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from vamos.engine.tuning import AlgorithmConfigSpace, Instance, TrialResult, TuningTask, available_model_based_backends
+from vamos.engine.tuning import Instance, TrialResult, TuningTask, available_model_based_backends
 from vamos.engine.tuning.racing.eval_types import EvalFn
 
 from ._tune_args import build_parser as _build_parser_impl
@@ -36,7 +36,10 @@ from ._tune_post import (
 from ._tune_runtime import (
     ALL_BACKENDS,
     BUILDERS,
+    CLI_EXCLUDED_TUNING_PARAMS,
+    CLI_TUNING_CONTRACT_REVISION,
     MODEL_BACKENDS,
+    build_cli_param_space,
     make_evaluator,
 )
 from ._tune_runtime import (
@@ -55,6 +58,9 @@ from ._tune_utils import (
     parse_csv_strings as _parse_csv_strings,
 )
 from ._tune_utils import (
+    parse_ref_point as _parse_ref_point,
+)
+from ._tune_utils import (
     resolve_n_jobs as _resolve_n_jobs,
 )
 from ._tune_utils import (
@@ -69,6 +75,7 @@ _SMOKE_TUNE_BUDGET = 4
 _SMOKE_N_SEEDS = 2
 _SMOKE_POP_SIZE = 16
 _SMOKE_N_JOBS = 1
+_CLI_EXCLUDED_TUNING_PARAM_SET = frozenset(CLI_EXCLUDED_TUNING_PARAMS)
 
 
 def _logger() -> logging.Logger:
@@ -198,6 +205,17 @@ def _print_backend_table() -> None:
         print(f"  {name:12s}: {bool(flags.get(name, False))}")
 
 
+def _reject_legacy_cli_history(best_config: dict[str, Any], history: list[TrialResult]) -> None:
+    configs = [best_config, *(trial.config for trial in history)]
+    retired = sorted({name for config in configs for name in config if name in _CLI_EXCLUDED_TUNING_PARAM_SET})
+    if retired:
+        names = ", ".join(retired)
+        raise RuntimeError(
+            "Loaded tuning history uses archive parameters retired from the maintained CLI scoring space "
+            f"({names}). Start a fresh persisted tuning study/storage or choose a new --optuna-study-name."
+        )
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     _configure_cli_logging()
     args = _parse_args(argv)
@@ -230,9 +248,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.backend = effective_backend
 
     resolved_jobs = _resolve_n_jobs(int(args.n_jobs))
-    builder = BUILDERS[str(args.algorithm)]
-    algo_space = builder()
-    param_space = algo_space.to_param_space() if isinstance(algo_space, AlgorithmConfigSpace) else algo_space
+    param_space = build_cli_param_space(str(args.algorithm))
 
     problem_names = list(_parse_csv_strings(args.instances)) or [str(args.problem)]
     all_instances = [Instance(name=name, n_var=int(args.n_var), kwargs={}) for name in problem_names]
@@ -325,6 +341,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         run_backend_fn=_run_backend,
         logger=logger,
     )
+    _reject_legacy_cli_history(best_config, history)
 
     logger.info("--- Tuning complete ---")
     logger.info("Best configuration:")
@@ -349,6 +366,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     summary_updates: dict[str, Any] = {
         "backend_requested": requested_backend,
         "backend_effective": effective_backend,
+        "scoring": {
+            "contract_revision": CLI_TUNING_CONTRACT_REVISION,
+            "metric": "hypervolume",
+            "direction": "maximize",
+            "reference_point": _parse_ref_point(args.ref_point, int(args.n_obj)),
+            "result_source": "top_level_result_external_archive_disabled",
+            "feasibility_filter": "G <= 0",
+            "excluded_cli_tuning_params": list(CLI_EXCLUDED_TUNING_PARAMS),
+        },
         "split": {
             "instance_counts": {
                 "train": len(train_instances),
