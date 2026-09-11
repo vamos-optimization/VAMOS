@@ -110,10 +110,26 @@ MODEL_BACKENDS = ("optuna", "bohb_optuna", "smac3", "bohb")
 NON_MODEL_BACKENDS = ("racing", "random")
 ALL_BACKENDS = NON_MODEL_BACKENDS + MODEL_BACKENDS
 _ARCHIVE_TUNING_PARAMS = {"use_external_archive", "archive_unbounded", "archive_prune_policy"}
+_CONSTRAINED_TUNING_UNSUPPORTED = {"agemoea", "rvea"}
+
+
+class _UnsupportedConstrainedTuningError(RuntimeError):
+    """Raised when maintained CLI tuning cannot score constraints safely."""
 
 
 def supports_warm_start(name: str) -> bool:
     return canonical_algorithm_name(name) in {"nsgaii", "moead"}
+
+
+def _ensure_constrained_tuning_supported(algorithm_name: str, n_constraints: int) -> None:
+    """Reject constrained CLI tuning when population-aligned G is unavailable."""
+    algo_name = canonical_algorithm_name(algorithm_name)
+    if n_constraints > 0 and algo_name in _CONSTRAINED_TUNING_UNSUPPORTED:
+        raise _UnsupportedConstrainedTuningError(
+            f"Maintained CLI tuning does not yet support constrained {algo_name} runs because the engine does not expose "
+            "population-aligned constraint values without changing its stable constraint-mode semantics. "
+            "Use an explicit controlled study for this algorithm/problem combination."
+        )
 
 
 def _without_archive_tuning_controls(param_space: ParamSpace) -> ParamSpace:
@@ -190,9 +206,7 @@ def _population_front_for_scoring(result: Any) -> NDArray[np.float64]:
         if G.ndim == 1:
             G = G[:, None]
         if G.ndim != 2 or G.shape[0] != F.shape[0]:
-            raise RuntimeError(
-                f"Tuning evaluator {constraint_source} G must align row-wise with population F."
-            )
+            raise RuntimeError(f"Tuning evaluator {constraint_source} G must align row-wise with population F.")
         F = F[np.all(G <= 0.0, axis=1)]
 
     if len(F) == 0:
@@ -270,6 +284,7 @@ def make_evaluator(
             selection = make_problem_selection(problem_name, **problem_kwargs)
             problem = selection.instantiate()
             n_constraints = int(getattr(problem, "n_constraints", 0) or 0)
+            _ensure_constrained_tuning_supported(algo_name, n_constraints)
             t0 = time.perf_counter()
             result = optimize(
                 problem,
@@ -287,6 +302,8 @@ def make_evaluator(
                 payload["_tuning_n_constraints"] = n_constraints
             checkpoint_payload = result.data.get("checkpoint")
             return result, cast(CheckpointPayload | None, checkpoint_payload)
+        except _UnsupportedConstrainedTuningError:
+            raise
         except Exception:
             logger().warning("[tune] evaluation failed; assigning configured failure score.", exc_info=True)
 
