@@ -38,8 +38,8 @@ comparison:
 2. **Training instances** — the problems on which candidate configurations are
    selected.
 3. **Algorithm seeds** — stochastic replicates used for every candidate.
-4. **Per-run evaluation budget** — the optimization budget given to each
-   candidate/problem/seed run.
+4. **Evaluation-budget schedule** — the optimization budget or fidelity levels
+   given to each candidate/problem/seed run.
 5. **Scoring contract** — the metric, reference point, direction, runtime
    penalty, and failure score actually used by the selected tuning interface.
 6. **Aggregation rule** — how repeated problem/seed scores become one scalar
@@ -126,13 +126,54 @@ vamos tune \
 
 The important budgets are different quantities:
 
-- `--budget` is the MOEA objective-evaluation budget for each candidate run;
+- `--budget` is the candidate-run MOEA evaluation budget for `random` and the
+  ordinary non-racing path; it also supplies the baseline budget used by
+  downstream validation/test stages unless those stages override it.
 - `--tune-budget` is the configuration-search budget (trials/experiments,
   depending on backend).
 
 Do not report only `--tune-budget` when estimating compute cost. Candidate
 configurations are evaluated across the selected instances and seeds, and each
 of those runs consumes its own algorithm budget.
+
+### Racing has its own fidelity-budget schedule
+
+`racing` is a special case. The CLI enables multi-fidelity racing by default.
+If `--fidelity-levels` is omitted, the current racing schedule is
+**`1000,3000,10000` evaluations**. Those values are passed directly as the
+candidate-run budgets at successive fidelity levels; they are not capped by
+`--budget`. Therefore, for example, `--backend racing --budget 5000` can still
+execute promoted candidate blocks with a 10,000-evaluation budget.
+
+For a fixed-budget racing experiment, disable multi-fidelity explicitly:
+
+```bash
+vamos tune \
+  --algorithm nsgaii \
+  --problem zdt1 \
+  --backend racing \
+  --budget 5000 \
+  --no-multi-fidelity
+```
+
+For multi-fidelity racing, specify the schedule explicitly and include it in the
+experimental record. If 5000 evaluations is intended to be the maximum
+fidelity, for example:
+
+```bash
+vamos tune \
+  --algorithm nsgaii \
+  --problem zdt1 \
+  --backend racing \
+  --budget 5000 \
+  --fidelity-levels 1000,3000,5000
+```
+
+Treat `--fidelity-levels`, rather than `--budget`, as the authoritative tuning
+budget schedule while multi-fidelity racing is enabled. `--fidelity-promotion-ratio`
+and `--fidelity-min-configs` additionally affect how many configurations reach
+each level, so compute estimates should account for the schedule and promotion
+policy together.
 
 ## Cheap verification path
 
@@ -159,16 +200,17 @@ The current backend families are:
 
 - `random` — built-in random search;
 - `racing` — built-in racing that progressively allocates experiments and can
-  eliminate weak candidates;
+  eliminate weak candidates; the CLI enables its multi-fidelity schedule by
+  default;
 - `optuna` — current CLI default; requires the tuning extra;
 - `bohb_optuna`, `smac3`, and `bohb` — optional model-based backends from the
   tuning extra.
 
 A racing run uses the same scientific ingredients as any other tuning run:
-problem blocks, algorithm seeds, a per-run budget, the CLI HV score, and an
-aggregation rule. Its statistical elimination is an **allocation mechanism
-during tuning**; it is not a substitute for an independently designed final
-comparison on held-out blocks.
+problem blocks, algorithm seeds, an explicit fidelity/budget schedule, the CLI
+HV score, and an aggregation rule. Its statistical elimination is an
+**allocation mechanism during tuning**; it is not a substitute for an
+independently designed final comparison on held-out blocks.
 
 ## Split-based tuning
 
@@ -199,18 +241,23 @@ The key controls include:
 - `--validation-seeds`, `--test-seeds`: optional explicit post-selection seed
   schedules;
 - `--ref-point`: global HV reference point used by the CLI scorer;
-- `--budget`: per-run algorithm evaluation budget;
+- `--budget`: ordinary candidate-run budget; not a cap on enabled racing
+  multi-fidelity levels;
 - `--tune-budget`: racing experiments or model trials;
+- `--multi-fidelity` / `--no-multi-fidelity`: enable or disable racing
+  multi-fidelity execution;
+- `--fidelity-levels`: explicit increasing candidate-run budgets for the
+  multi-fidelity schedule;
 - `--aggregate-mode`: aggregation across instance/seed scores;
 - `--n-jobs`: parallel workers (`-1` means CPU cores minus one);
 - `--run-validation`, `--run-test`: optional post-tuning evaluation stages;
 - `--run-statistical-finisher`: optional paired-test selection on the training
   split top-k.
 
-Define the split before interpreting results. Tuning chooses among candidate
-configurations; validation can support model-selection decisions; the final
-test split should answer the pre-specified performance question without being
-fed back into another tuning round.
+Define the split and budget schedule before interpreting results. Tuning chooses
+among candidate configurations; validation can support model-selection
+decisions; the final test split should answer the pre-specified performance
+question without being fed back into another tuning round.
 
 ## Artifacts and provenance
 
@@ -224,8 +271,8 @@ Tuning output includes:
 
 Keep these together with the command/configuration and environment used for the
 campaign. A best configuration without its search space, seeds, HV reference
-point, aggregation rule, budgets, and split is not a reproducible tuning
-result.
+point, aggregation rule, budget/fidelity schedule, and split is not a
+reproducible tuning result.
 
 !!! warning "Current result-source limitation"
     The experimental CLI search spaces can vary `use_external_archive`. The
