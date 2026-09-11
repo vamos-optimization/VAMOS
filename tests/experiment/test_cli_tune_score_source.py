@@ -6,13 +6,12 @@ import numpy as np
 import pytest
 
 from vamos.algorithms import NSGAIIConfig
-from vamos.experiment.cli._tune_runtime import (
-    BUILDERS,
+from vamos.experiment.cli._tune_runtime import BUILDERS, build_task
+from vamos.experiment.cli._tune_scoring import (
     _ensure_constrained_tuning_supported,
     _force_population_result_mode,
     _population_front_for_scoring,
     _score_population_result,
-    build_task,
 )
 
 
