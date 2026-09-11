@@ -10,8 +10,8 @@ from vamos.experiment.cli._tune_runtime import (
     CLI_EXCLUDED_TUNING_PARAMS,
     _score_hypervolume_result,
     build_cli_param_space,
+    reject_legacy_cli_history,
 )
-from vamos.experiment.cli.tune import _reject_legacy_cli_history
 from vamos.foundation.quality_indicators.hypervolume import hypervolume
 
 
@@ -83,4 +83,4 @@ def test_cli_rejects_legacy_persisted_history_with_archive_controls() -> None:
     ]
 
     with pytest.raises(RuntimeError, match="fresh persisted tuning study"):
-        _reject_legacy_cli_history({"pop_size": 40}, history)
+        reject_legacy_cli_history({"pop_size": 40}, history)
