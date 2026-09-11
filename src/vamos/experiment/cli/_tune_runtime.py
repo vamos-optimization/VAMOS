@@ -5,6 +5,7 @@ from collections.abc import Callable, Mapping
 from typing import Any, cast
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vamos.engine.algorithm.variants import canonical_algorithm_name
 from vamos.engine.tuning import (
@@ -116,7 +117,7 @@ CLI_EXCLUDED_TUNING_PARAMS = (
     "use_external_archive",
 )
 CLI_TUNING_CONTRACT_REVISION = "score_source_v2"
-_CLI_EXCLUDED_TUNING_PARAM_SET = frozenset(CLI_EXCLUDED_TUNING_PARAMS)
+_CLI_EXCLUDED_TUNING_PARAM_SET = CLI_EXCLUDED_TUNING_PARAMS
 
 
 def _condition_references_excluded_param(expr: str) -> bool:
@@ -128,12 +129,7 @@ def _strip_cli_excluded_params(config: Mapping[str, object]) -> dict[str, Any]:
 
 
 def build_cli_param_space(algorithm_name: str) -> ParamSpace:
-    """Return the tuning space used by ``vamos tune``.
-
-    Archive/result-retention controls remain available in the experimental
-    programmatic builders, but the CLI removes them so every candidate is
-    scored from the same top-level non-dominated result source.
-    """
+    """Return the source-consistent parameter space used by ``vamos tune``."""
 
     builder = BUILDERS[str(algorithm_name)]
     algo_space = builder()
@@ -148,24 +144,28 @@ def build_cli_param_space(algorithm_name: str) -> ParamSpace:
     return ParamSpace(params=params, conditions=conditions)
 
 
-def _score_hypervolume_result(result: Any, ref_point: np.ndarray, failure_score: float) -> float:
+def _score_hypervolume_result(
+    result: Any,
+    ref_point: NDArray[np.float64],
+    failure_score: float,
+) -> float:
     """Score a result with HV after applying the public ``G <= 0`` convention."""
 
     raw_F = getattr(result, "F", None)
     if raw_F is None:
         return float(failure_score)
-    F = np.asarray(raw_F, dtype=float)
+    F = cast(NDArray[np.float64], np.asarray(raw_F, dtype=np.float64))
     if F.ndim != 2:
         raise ValueError(f"Tuning scorer expected F with shape (N, n_obj); got {F.shape}.")
     if F.shape[0] == 0:
         return float(failure_score)
 
     raw_G = getattr(result, "G", None)
-    G: np.ndarray | None
+    G: NDArray[np.float64] | None
     if raw_G is None:
         G = None
     else:
-        G = np.asarray(raw_G, dtype=float)
+        G = cast(NDArray[np.float64], np.asarray(raw_G, dtype=np.float64))
         if G.ndim == 1:
             G = G.reshape(-1, 1)
         if G.ndim != 2:
@@ -180,7 +180,43 @@ def _score_hypervolume_result(result: Any, ref_point: np.ndarray, failure_score:
     feasible_F = F[feasible]
     if feasible_F.shape[0] == 0:
         return float(failure_score)
-    return float(hypervolume(feasible_F, np.asarray(ref_point, dtype=float)))
+    return float(hypervolume(feasible_F, ref_point))
+
+
+def reject_legacy_cli_history(best_config: Mapping[str, object], history: list[TrialResult]) -> None:
+    """Reject persisted histories created with the retired archive-varying CLI space."""
+
+    configs: list[Mapping[str, object]] = [best_config]
+    configs.extend(trial.config for trial in history)
+    retired = sorted({name for config in configs for name in config if name in _CLI_EXCLUDED_TUNING_PARAM_SET})
+    if retired:
+        names = ", ".join(retired)
+        raise RuntimeError(
+            "Loaded tuning history uses archive parameters retired from the maintained CLI scoring space "
+            f"({names}). Start a fresh persisted tuning study/storage or choose a new --optuna-study-name."
+        )
+
+
+def tuning_scoring_summary(ref_point_str: str | None, n_obj: int) -> dict[str, Any]:
+    """Return persisted provenance for the maintained CLI scoring contract."""
+
+    return {
+        "contract_revision": CLI_TUNING_CONTRACT_REVISION,
+        "metric": "hypervolume",
+        "direction": "maximize",
+        "reference_point": parse_ref_point(ref_point_str, n_obj),
+        "result_source": "top_level_result_external_archive_disabled",
+        "feasibility_filter": "G <= 0",
+        "excluded_cli_tuning_params": list(CLI_EXCLUDED_TUNING_PARAMS),
+    }
+
+
+def _validated_backend_result(
+    result: tuple[dict[str, Any], list[TrialResult]],
+) -> tuple[dict[str, Any], list[TrialResult]]:
+    best_config, history = result
+    reject_legacy_cli_history(best_config, history)
+    return best_config, history
 
 
 def supports_warm_start(name: str) -> bool:
@@ -200,7 +236,7 @@ def make_evaluator(
     *,
     logger: Callable[[], Any],
 ) -> EvalFn:
-    ref_point = np.asarray(parse_ref_point(ref_point_str, n_obj), dtype=float)
+    ref_point = cast(NDArray[np.float64], np.asarray(parse_ref_point(ref_point_str, n_obj), dtype=np.float64))
 
     def _score(result: Any, _ctx: EvalContext) -> float:
         base_hv = _score_hypervolume_result(result, ref_point, failure_score)
@@ -325,12 +361,16 @@ def run_backend(
             optuna_study_name=(str(args.optuna_study_name).strip() or None),
             optuna_load_if_exists=bool(args.optuna_load_if_exists),
         )
-        return model_tuner.run(cast(Callable[[dict[str, Any], EvalContext], float], eval_fn), verbose=True)
+        return _validated_backend_result(
+            model_tuner.run(cast(Callable[[dict[str, Any], EvalContext], float], eval_fn), verbose=True)
+        )
 
     if args.backend == "random":
-        return RandomSearchTuner(task=task, max_trials=int(args.tune_budget), seed=int(args.seed)).run(
-            cast(Callable[[dict[str, Any], EvalContext], float], eval_fn),
-            verbose=True,
+        return _validated_backend_result(
+            RandomSearchTuner(task=task, max_trials=int(args.tune_budget), seed=int(args.seed)).run(
+                cast(Callable[[dict[str, Any], EvalContext], float], eval_fn),
+                verbose=True,
+            )
         )
 
     scenario = Scenario(
@@ -347,9 +387,13 @@ def run_backend(
         fidelity_min_configs=int(args.fidelity_min_configs),
         fidelity_warm_start=bool(args.fidelity_warm_start),
     )
-    return RacingTuner(task=task, scenario=scenario, seed=int(args.seed), max_initial_configs=int(args.initial_configs)).run(
-        eval_fn,
-        verbose=True,
+    return _validated_backend_result(
+        RacingTuner(
+            task=task,
+            scenario=scenario,
+            seed=int(args.seed),
+            max_initial_configs=int(args.initial_configs),
+        ).run(eval_fn, verbose=True)
     )
 
 
@@ -363,6 +407,8 @@ __all__ = [
     "build_cli_param_space",
     "build_task",
     "make_evaluator",
+    "reject_legacy_cli_history",
     "run_backend",
     "supports_warm_start",
+    "tuning_scoring_summary",
 ]
