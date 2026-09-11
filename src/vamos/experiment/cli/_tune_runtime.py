@@ -61,12 +61,7 @@ from vamos.experiment.types import CheckpointPayload
 from vamos.experiment.unified import optimize
 from vamos.foundation.problem.registry import make_problem_selection
 
-from ._tune_scoring import (
-    _UnsupportedConstrainedTuningError,
-    _ensure_constrained_tuning_supported,
-    _force_population_result_mode,
-    _score_population_result,
-)
+from . import _tune_scoring
 from ._tune_utils import build_aggregator, parse_csv_strings, parse_ref_point, parse_seed_spec
 
 BUILDERS: dict[str, Callable[[], AlgorithmConfigSpace | ParamSpace]] = {
@@ -111,6 +106,7 @@ MODEL_BACKENDS = ("optuna", "bohb_optuna", "smac3", "bohb")
 NON_MODEL_BACKENDS = ("racing", "random")
 ALL_BACKENDS = NON_MODEL_BACKENDS + MODEL_BACKENDS
 _ARCHIVE_TUNING_PARAMS = {"use_external_archive", "archive_unbounded", "archive_prune_policy"}
+_OPTUNA_CLI_STUDY_SUFFIX = "__vamos_cli_final_population_hv_v1"
 
 
 def supports_warm_start(name: str) -> bool:
@@ -129,16 +125,25 @@ def _without_archive_tuning_controls(param_space: ParamSpace) -> ParamSpace:
     return ParamSpace(params=params, conditions=conditions)
 
 
-def _preflight_constraint_support(args: Any, task: TuningTask) -> None:
-    """Validate constrained support before a backend can convert failures to scores."""
-    for instance in task.instances:
-        problem_kwargs = dict(instance.kwargs)
-        problem_kwargs.setdefault("n_var", int(instance.n_var))
+def _preflight_constraint_support(args: Any) -> None:
+    """Validate every selected CLI instance before any tuning backend starts."""
+    problem_names = list(parse_csv_strings(getattr(args, "instances", ""))) or [str(args.problem)]
+    for problem_name in problem_names:
+        problem_kwargs: dict[str, Any] = {"n_var": int(args.n_var)}
         if hasattr(args, "n_obj"):
-            problem_kwargs.setdefault("n_obj", int(args.n_obj))
-        problem = make_problem_selection(str(instance.name), **problem_kwargs).instantiate()
+            problem_kwargs["n_obj"] = int(args.n_obj)
+        problem = make_problem_selection(str(problem_name), **problem_kwargs).instantiate()
         n_constraints = int(getattr(problem, "n_constraints", 0) or 0)
-        _ensure_constrained_tuning_supported(str(args.algorithm), n_constraints)
+        _tune_scoring._ensure_constrained_tuning_supported(str(args.algorithm), n_constraints)
+
+
+def _versioned_optuna_study_name(args: Any, task: TuningTask) -> str:
+    """Namespace persistent Optuna studies by the maintained CLI scoring contract."""
+    raw = str(getattr(args, "optuna_study_name", "") or "").strip()
+    if not raw:
+        raw = f"{task.name}_{args.backend}_{int(args.seed)}"
+        raw = "".join(ch if (ch.isalnum() or ch in "-_.") else "_" for ch in raw)
+    return f"{raw}{_OPTUNA_CLI_STUDY_SUFFIX}"
 
 
 def make_evaluator(
@@ -157,7 +162,7 @@ def make_evaluator(
     ref_point = parse_ref_point(ref_point_str, n_obj)
 
     def _score(result: Any, _ctx: EvalContext) -> float:
-        return _score_population_result(result, ref_point, runtime_penalty, failure_score)
+        return _tune_scoring._score_population_result(result, ref_point, runtime_penalty, failure_score)
 
     def _run_algorithm(
         config_dict: Mapping[str, object],
@@ -171,7 +176,7 @@ def make_evaluator(
             elif "pop_size" not in start_config:
                 start_config["pop_size"] = fixed_pop_size
 
-            cfg = _force_population_result_mode(config_from_assignment(algorithm_name, start_config))
+            cfg = _tune_scoring._force_population_result_mode(config_from_assignment(algorithm_name, start_config))
             algo_name = canonical_algorithm_name(algorithm_name)
             problem_name = str(getattr(ctx.instance, "name", problem_key))
             problem_kwargs = dict(getattr(ctx.instance, "kwargs", {}) or {})
@@ -180,7 +185,7 @@ def make_evaluator(
             selection = make_problem_selection(problem_name, **problem_kwargs)
             problem = selection.instantiate()
             n_constraints = int(getattr(problem, "n_constraints", 0) or 0)
-            _ensure_constrained_tuning_supported(algo_name, n_constraints)
+            _tune_scoring._ensure_constrained_tuning_supported(algo_name, n_constraints)
             t0 = time.perf_counter()
             result = optimize(
                 problem,
@@ -198,7 +203,7 @@ def make_evaluator(
                 payload["_tuning_n_constraints"] = n_constraints
             checkpoint_payload = result.data.get("checkpoint")
             return result, cast(CheckpointPayload | None, checkpoint_payload)
-        except _UnsupportedConstrainedTuningError:
+        except _tune_scoring._UnsupportedConstrainedTuningError:
             raise
         except Exception:
             logger().warning("[tune] evaluation failed; assigning configured failure score.", exc_info=True)
@@ -232,6 +237,7 @@ def build_task(
     instances: list[Instance] | None = None,
     seeds: list[int] | None = None,
 ) -> TuningTask:
+    _preflight_constraint_support(args)
     param_space = _without_archive_tuning_controls(param_space)
     if instances is None:
         problem_names = list(parse_csv_strings(args.instances)) or [str(args.problem)]
@@ -255,11 +261,14 @@ def run_backend(
     eval_fn: EvalFn,
     resolved_jobs: int,
 ) -> tuple[dict[str, Any], list[TrialResult]]:
-    _preflight_constraint_support(args, task)
     fidelity_levels = args.fidelity_levels
     if args.backend in MODEL_BACKENDS:
         min_seed_count = int(args.fidelity_min_seed_count)
         max_seed_count = int(args.fidelity_max_seed_count)
+        optuna_study_name = str(args.optuna_study_name).strip() or None
+        if str(args.optuna_storage).strip() and str(args.backend) in {"optuna", "bohb_optuna"}:
+            optuna_study_name = _versioned_optuna_study_name(args, task)
+            args.optuna_study_name = optuna_study_name
         model_tuner = ModelBasedTuner(
             task=task,
             max_trials=int(args.tune_budget),
@@ -275,7 +284,7 @@ def run_backend(
             fidelity_max_seed_count=(None if max_seed_count <= 0 else int(max_seed_count)),
             fidelity_selection_seed=(None if int(args.fidelity_selection_seed) < 0 else int(args.fidelity_selection_seed)),
             optuna_storage_url=(str(args.optuna_storage).strip() or None),
-            optuna_study_name=(str(args.optuna_study_name).strip() or None),
+            optuna_study_name=optuna_study_name,
             optuna_load_if_exists=bool(args.optuna_load_if_exists),
         )
         return model_tuner.run(cast(Callable[[dict[str, Any], EvalContext], float], eval_fn), verbose=True)
