@@ -7,6 +7,9 @@ from pathlib import Path
 
 import pytest
 
+ROOT = Path(__file__).resolve().parents[2]
+DOC_PATH = ROOT / "docs" / "topics" / "tuning.md"
+
 
 def _run_vamos(*args: str, timeout: int = 180) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
@@ -18,6 +21,59 @@ def _run_vamos(*args: str, timeout: int = 180) -> subprocess.CompletedProcess[st
         timeout=timeout,
         env=env,
     )
+
+
+def test_tuning_docs_match_current_contract() -> None:
+    text = DOC_PATH.read_text(encoding="utf-8")
+
+    assert "Experimental surface in VAMOS 1.0.0" in text
+    assert "does **not** expose a curated public programmatic facade" in text
+    assert "Maintained user workflows should therefore use\n`vamos tune`" in text
+    assert "advanced evaluation and contributors" in text
+    assert "defaults to **`optuna`**" in text
+    assert "held-out problems and/or seeds" in text
+
+    assert "no metric selector" in text
+    assert "hypervolume (HV) and maximizes that score" in text
+    assert "[10.0, ..., 10.0]" in text
+    assert "--runtime-penalty" in text
+    assert "--failure-score" in text
+    assert "not a\n  universal failure policy" in text
+    assert "should not be relied on to rescue an invalid HV scoring" in text
+    assert "current maintained CLI cannot select it" in text
+
+    assert "global tuning seed **and** the base used to derive" in text
+    assert "does not\nlet you provide an independent training-seed list" in text
+    assert "--split-seed" in text
+    assert "--validation-seeds" in text
+    assert "--test-seeds" in text
+
+    assert "Racing has its own fidelity-budget schedule" in text
+    assert "enables multi-fidelity racing by default" in text
+    assert "**`1000,3000,10000` evaluations**" in text
+    assert "they are not capped by\n`--budget`" in text
+    assert "--no-multi-fidelity" in text
+    assert "--fidelity-levels 1000,3000,5000" in text
+    assert "Treat `--fidelity-levels`, rather than `--budget`, as the authoritative" in text
+
+    assert "Current result-source limitation" in text
+    assert "use_external_archive" in text
+    assert "does not guarantee source-consistent HV comparisons" in text
+    assert "fixed archive/result semantics" in text
+
+    assert "--backend random" in text
+    assert "--budget" in text
+    assert "--tune-budget" in text
+
+    assert "Keep the tuner seed separate" not in text
+    assert "IGD+ (lower is better) or HV" not in text
+    assert "--failure-score` is the score assigned when an evaluation fails" not in text
+    assert "`--budget` is the MOEA objective-evaluation budget for each candidate run" not in text
+    assert "return -hypervolume" not in text
+    assert "RandomSearchTuner(" not in text
+    assert "from vamos.engine.tuning import" not in text
+    assert "racing` (default statistical racing flow)" not in text
+    assert "examples/tuning/random_search_nsgaii.py" not in text
 
 
 @pytest.mark.smoke

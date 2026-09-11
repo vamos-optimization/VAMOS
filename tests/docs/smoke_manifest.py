@@ -176,6 +176,29 @@ if importlib.util.find_spec("matplotlib") is not None:
 """,
     ),
     DocSmokeCase(
+        name="tuning_model_hyperparameters",
+        source_path="examples/tuning/hyperparam_tuning.py",
+        code="""
+import importlib.util
+import os
+import subprocess
+import sys
+
+# The canonical dev+docs quick check does not install optional examples
+# dependencies. Full CI installs the examples extra, so this path executes
+# there while remaining a valid no-op in the lean documentation environment.
+if importlib.util.find_spec("sklearn") is not None:
+    env = os.environ.copy()
+    env.update({"MPLBACKEND": "Agg", "PYTHONHASHSEED": "0"})
+    subprocess.run(
+        [sys.executable, "examples/tuning/hyperparam_tuning.py"],
+        check=True,
+        timeout=120,
+        env=env,
+    )
+""",
+    ),
+    DocSmokeCase(
         name="journey_try_vamos",
         source_path="examples/journeys/try_vamos.py",
         code="""
