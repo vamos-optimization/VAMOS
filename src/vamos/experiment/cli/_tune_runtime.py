@@ -161,6 +161,11 @@ def _score_hypervolume_result(
         return float(failure_score)
 
     raw_G = getattr(result, "G", None)
+    if raw_G is None:
+        payload = getattr(result, "data", None)
+        if isinstance(payload, Mapping):
+            raw_G = payload.get("G")
+
     G: NDArray[np.float64] | None
     if raw_G is None:
         G = None
@@ -183,17 +188,53 @@ def _score_hypervolume_result(
     return float(hypervolume(feasible_F, ref_point))
 
 
+def _retired_cli_params(configs: list[Mapping[str, object]]) -> list[str]:
+    return sorted({name for config in configs for name in config if name in _CLI_EXCLUDED_TUNING_PARAM_SET})
+
+
 def reject_legacy_cli_history(best_config: Mapping[str, object], history: list[TrialResult]) -> None:
-    """Reject persisted histories created with the retired archive-varying CLI space."""
+    """Reject histories created with the retired archive-varying CLI space."""
 
     configs: list[Mapping[str, object]] = [best_config]
     configs.extend(trial.config for trial in history)
-    retired = sorted({name for config in configs for name in config if name in _CLI_EXCLUDED_TUNING_PARAM_SET})
+    retired = _retired_cli_params(configs)
     if retired:
         names = ", ".join(retired)
         raise RuntimeError(
             "Loaded tuning history uses archive parameters retired from the maintained CLI scoring space "
             f"({names}). Start a fresh persisted tuning study/storage or choose a new --optuna-study-name."
+        )
+
+
+def reject_legacy_optuna_study_before_run(args: Any) -> None:
+    """Reject an explicitly named legacy Optuna study before new trials run."""
+
+    if str(args.backend) not in {"optuna", "bohb_optuna"}:
+        return
+    storage_url = str(args.optuna_storage or "").strip()
+    study_name = str(args.optuna_study_name or "").strip()
+    if not storage_url or not study_name or not bool(args.optuna_load_if_exists):
+        return
+
+    import optuna
+
+    summaries = optuna.get_all_study_summaries(storage=storage_url)
+    if not any(str(summary.study_name) == study_name for summary in summaries):
+        return
+    study = optuna.load_study(study_name=study_name, storage=storage_url)
+    configs: list[Mapping[str, object]] = []
+    for trial in study.trials:
+        stored_config = trial.user_attrs.get("config")
+        if isinstance(stored_config, Mapping):
+            configs.append(stored_config)
+        else:
+            configs.append(trial.params)
+    retired = _retired_cli_params(configs)
+    if retired:
+        names = ", ".join(retired)
+        raise RuntimeError(
+            "Persisted Optuna study uses archive parameters retired from the maintained CLI scoring space "
+            f"({names}). Choose a fresh --optuna-study-name or a new storage before running new trials."
         )
 
 
@@ -294,7 +335,6 @@ def make_evaluator(
 
             class _EmptyResult:
                 F = None
-                G = None
                 data = {"_elapsed_s": 0.0}
 
             return _EmptyResult(), None
@@ -341,6 +381,7 @@ def run_backend(
 ) -> tuple[dict[str, Any], list[TrialResult]]:
     fidelity_levels = args.fidelity_levels
     if args.backend in MODEL_BACKENDS:
+        reject_legacy_optuna_study_before_run(args)
         min_seed_count = int(args.fidelity_min_seed_count)
         max_seed_count = int(args.fidelity_max_seed_count)
         model_tuner = ModelBasedTuner(
@@ -408,6 +449,7 @@ __all__ = [
     "build_task",
     "make_evaluator",
     "reject_legacy_cli_history",
+    "reject_legacy_optuna_study_before_run",
     "run_backend",
     "supports_warm_start",
     "tuning_scoring_summary",
