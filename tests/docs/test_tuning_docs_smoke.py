@@ -35,6 +35,17 @@ def test_tuning_docs_match_current_contract() -> None:
 
     assert "no metric selector" in text
     assert "hypervolume (HV) and maximizes that score" in text
+    assert "final population" in text
+    assert "removes\ninfeasible rows" in text
+    assert "Pareto-filters" in text
+    assert "does not score top-level `result.F`" in text
+    assert "use_external_archive" in text
+    assert "archive_unbounded" in text
+    assert "archive_prune_policy" in text
+    assert "removes `use_external_archive`, `archive_unbounded`, and" in text
+    assert "fixed final-population score source" in text
+    assert "Archive studies are separate from ordinary CLI tuning" in text
+
     assert "[10.0, ..., 10.0]" in text
     assert "--runtime-penalty" in text
     assert "--failure-score" in text
@@ -56,15 +67,12 @@ def test_tuning_docs_match_current_contract() -> None:
     assert "--fidelity-levels 1000,3000,5000" in text
     assert "Treat `--fidelity-levels`, rather than `--budget`, as the authoritative" in text
 
-    assert "Current result-source limitation" in text
-    assert "use_external_archive" in text
-    assert "does not guarantee source-consistent HV comparisons" in text
-    assert "fixed archive/result semantics" in text
-
     assert "--backend random" in text
     assert "--budget" in text
     assert "--tune-budget" in text
 
+    assert "Current result-source limitation" not in text
+    assert "does not guarantee source-consistent HV comparisons" not in text
     assert "Keep the tuner seed separate" not in text
     assert "IGD+ (lower is better) or HV" not in text
     assert "--failure-score` is the score assigned when an evaluation fails" not in text
