@@ -69,8 +69,10 @@ not mixed into ordinary `vamos tune` comparisons.
     population-aligned constraint values required by this scorer without
     changing their stable constraint-mode semantics. The CLI therefore fails
     explicitly for those algorithm/problem combinations instead of silently
-    treating infeasible rows as feasible. Use an explicit controlled study when
-    constrained AGE-MOEA or RVEA is the research target.
+    treating infeasible rows as feasible. The preflight checks every problem
+    named by `--instances`, including problems later assigned to validation or
+    test splits. Use an explicit controlled study when constrained AGE-MOEA or
+    RVEA is the research target.
 
 - `--ref-point` supplies one HV reference point for the tuning run.
 - If it is omitted (or cannot be parsed with the required dimensionality), the
@@ -234,6 +236,21 @@ HV score, and an aggregation rule. Its statistical elimination is an
 **allocation mechanism during tuning**; it is not a substitute for an
 independently designed final comparison on held-out blocks.
 
+### Persistent Optuna studies are scoring-contract versioned
+
+When `optuna` or `bohb_optuna` uses `--optuna-storage`, the maintained CLI treats
+`--optuna-study-name` as a base name and appends
+`__vamos_cli_final_population_hv_v1` to the effective persisted study name. The
+same versioned namespace is used whether `--optuna-load-if-exists` is enabled or
+disabled.
+
+This isolation is intentional: trials persisted by an older VAMOS tuning CLI
+may contain archive-derived scores and a different search space, so they must
+not compete with trials scored under the current final-population HV contract.
+Reusing the same base study name resumes only studies from this contract
+version. A future incompatible scoring/search-space change must use a new
+namespace rather than mixing historical trial values.
+
 ## Split-based tuning
 
 For a larger campaign, use explicit instance splitting and post-tuning stages:
@@ -272,6 +289,8 @@ The key controls include:
   multi-fidelity schedule;
 - `--aggregate-mode`: aggregation across instance/seed scores;
 - `--n-jobs`: parallel workers (`-1` means CPU cores minus one);
+- `--optuna-storage`, `--optuna-study-name`: persistent Optuna storage and the
+  base study name used by the contract-versioned namespace;
 - `--run-validation`, `--run-test`: optional post-tuning evaluation stages;
 - `--run-statistical-finisher`: optional paired-test selection on the training
   split top-k.
