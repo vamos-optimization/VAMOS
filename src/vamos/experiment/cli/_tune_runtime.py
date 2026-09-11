@@ -5,6 +5,7 @@ from collections.abc import Callable, Mapping
 from typing import Any, cast
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vamos.engine.algorithm.variants import canonical_algorithm_name
 from vamos.engine.tuning import (
@@ -132,7 +133,7 @@ def _without_archive_tuning_controls(param_space: ParamSpace) -> ParamSpace:
     return ParamSpace(params=params, conditions=conditions)
 
 
-def _population_front_for_scoring(result: Any) -> np.ndarray:
+def _population_front_for_scoring(result: Any) -> NDArray[np.float64]:
     payload = getattr(result, "data", None)
     if not isinstance(payload, dict):
         raise RuntimeError("Tuning evaluator requires OptimizationResult.data with a final population payload.")
