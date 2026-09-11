@@ -7,6 +7,7 @@ from typing import Any
 
 import numpy as np
 
+from vamos.engine.algorithm.components.results import wants_population_result
 from vamos.engine.algorithm.components.state import AlgorithmState
 
 
@@ -58,14 +59,20 @@ def build_smpso_result(state: SMPSOState, hv_reached: bool = False) -> dict[str,
     if state.G is not None and state.constraint_mode != "none":
         pop["G"] = state.G
 
-    # Prefer nondominated leaders archive when available.
+    # Prefer nondominated leaders archive unless population mode is requested.
     archive_X = state.archive_X
     archive_F = state.archive_F
     if state.archive_manager is not None:
         archive_X, archive_F = state.archive_manager.contents()
 
-    result_X = archive_X if archive_X is not None and archive_X.size else state.X
-    result_F = archive_F if archive_F is not None and archive_F.size else state.F
+    if wants_population_result(state):
+        result_X = state.X
+        result_F = state.F
+        result_G = state.G if state.constraint_mode != "none" else None
+    else:
+        result_X = archive_X if archive_X is not None and archive_X.size else state.X
+        result_F = archive_F if archive_F is not None and archive_F.size else state.F
+        result_G = None
 
     result: dict[str, Any] = {
         "X": result_X,
@@ -75,6 +82,8 @@ def build_smpso_result(state: SMPSOState, hv_reached: bool = False) -> dict[str,
         "archive": {"X": archive_X, "F": archive_F},
         "population": pop,
     }
+    if result_G is not None:
+        result["G"] = result_G
     return result
 
 
