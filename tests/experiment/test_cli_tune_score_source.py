@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from vamos.algorithms import NSGAIIConfig
+import vamos.experiment.cli._tune_runtime as tune_runtime
 from vamos.experiment.cli._tune_runtime import BUILDERS, build_task
 from vamos.experiment.cli._tune_scoring import (
     _ensure_constrained_tuning_supported,
@@ -117,6 +118,19 @@ def test_unconstrained_cli_tuning_keeps_agemoea_and_rvea_available(algorithm_nam
 
 def test_constrained_cli_tuning_keeps_supported_algorithm_available() -> None:
     _ensure_constrained_tuning_supported("nsgaii", 1)
+
+
+def test_constrained_cli_preflight_happens_before_backend_dispatch(monkeypatch) -> None:
+    class _Selection:
+        def instantiate(self):
+            return SimpleNamespace(n_constraints=1)
+
+    monkeypatch.setattr(tune_runtime, "make_problem_selection", lambda *_args, **_kwargs: _Selection())
+    task = SimpleNamespace(instances=[SimpleNamespace(name="fake", n_var=2, kwargs={})])
+    args = SimpleNamespace(algorithm="agemoea", n_obj=2)
+
+    with pytest.raises(RuntimeError, match="does not yet support constrained"):
+        tune_runtime._preflight_constraint_support(args, task)
 
 
 def test_cli_tuning_task_excludes_external_archive_controls() -> None:
