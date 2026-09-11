@@ -145,7 +145,7 @@ def _force_population_result_mode(config: AlgorithmConfigProtocol) -> AlgorithmC
     if "result_mode" not in field_names:
         raise RuntimeError("CLI tuning algorithm config does not expose result_mode; population-aligned scoring is unavailable.")
     updated: Any = replace(config_obj, result_mode="population")
-    return updated
+    return cast(AlgorithmConfigProtocol, updated)
 
 
 def _population_front_for_scoring(result: Any) -> NDArray[np.float64]:
@@ -204,7 +204,12 @@ def make_evaluator(
 
     def _score(result: Any, _ctx: EvalContext) -> float:
         F = _population_front_for_scoring(result)
-        base_hv = float(hypervolume(F, np.asarray(ref_point, dtype=float))) if len(F) > 0 else float(failure_score)
+        if len(F) > 0:
+            ref = np.asarray(ref_point, dtype=float)
+            contributing = F[np.all(F <= ref, axis=1)]
+            base_hv = float(hypervolume(contributing, ref)) if len(contributing) > 0 else 0.0
+        else:
+            base_hv = float(failure_score)
         elapsed_s = 0.0
         payload = getattr(result, "data", None)
         if isinstance(payload, dict):
