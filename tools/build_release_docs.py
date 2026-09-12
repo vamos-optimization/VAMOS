@@ -43,11 +43,16 @@ def _page_url(base_url: str, prefix: str, relative: Path) -> str:
 
 def _write_redirect(path: Path, target: str) -> None:
     escaped = html.escape(target, quote=True)
+    javascript_target = json.dumps(target).replace("</", "<\\/")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         "<!doctype html>\n"
         '<html lang="en"><head><meta charset="utf-8">\n'
         f'<link rel="canonical" href="{escaped}">\n'
+        "<script>\n"
+        f"const redirectBase = {javascript_target};\n"
+        "window.location.replace(redirectBase + window.location.search + window.location.hash);\n"
+        "</script>\n"
         f'<meta http-equiv="refresh" content="0; url={escaped}">\n'
         "<title>VAMOS documentation redirect</title></head>\n"
         f'<body><p>Moved to <a href="{escaped}">{escaped}</a>.</p></body></html>\n',
