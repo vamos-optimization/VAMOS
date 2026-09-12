@@ -72,6 +72,12 @@ def test_versioned_pages_canonical_urls_resolve_to_deployed_files(tmp_path: Path
     assert f"url={BASE_URL}" in (output / "docs" / "stable" / "index.html").read_text(encoding="utf-8")
     assert "docs/1.1.0/" in (output / "1.1.0" / "index.html").read_text(encoding="utf-8")
 
+    legacy_api = (output / "docs" / "stable" / "reference" / "api_reference" / "index.html").read_text(encoding="utf-8")
+    assert 'const redirectBase = "https://vamos-optimization.org/reference/api_reference/";' in legacy_api
+    assert "window.location.search" in legacy_api
+    assert "window.location.hash" in legacy_api
+    assert "window.location.replace" in legacy_api
+
     immutable_home = (output / "docs" / "1.1.0" / "index.html").read_text(encoding="utf-8")
     assert 'rel="canonical" href="https://vamos-optimization.org/docs/1.1.0/"' in immutable_home
     assert (output / "docs" / "stable" / "index.html").read_bytes() != (output / "docs" / "1.1.0" / "index.html").read_bytes()
