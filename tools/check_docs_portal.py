@@ -169,7 +169,13 @@ def _target_file(root: Path, *, base_url: str, target_url: str) -> Path:
     candidate = root / relative
     if target.path.endswith("/"):
         candidate /= "index.html"
-    return candidate
+    root_resolved = root.resolve()
+    candidate_resolved = candidate.resolve(strict=False)
+    try:
+        candidate_resolved.relative_to(root_resolved)
+    except ValueError as exc:
+        raise PortalCheckError(f"Canonical URL escapes portal root: {target_url}") from exc
+    return candidate_resolved
 
 
 def _check_redirect(path: Path, *, expected_target: str) -> None:
@@ -185,6 +191,26 @@ def _check_redirect(path: Path, *, expected_target: str) -> None:
             f"Redirect refresh mismatch in {path}: expected exactly {expected_refresh!r}, "
             f"got {directives.refreshes!r}"
         )
+
+
+def _check_canonical_page(
+    root: Path,
+    page: Path,
+    *,
+    base_url: str,
+    expected_url: str,
+) -> None:
+    directives = _directives(page)
+    if directives.canonicals != [expected_url]:
+        raise PortalCheckError(
+            f"Canonical mismatch in {page}: expected exactly {expected_url!r}, "
+            f"got {directives.canonicals!r}"
+        )
+    if directives.refreshes:
+        raise PortalCheckError(f"Canonical content page must not meta-refresh: {page}")
+    target = _target_file(root, base_url=base_url, target_url=expected_url)
+    if not target.is_file():
+        raise PortalCheckError(f"Canonical target is absent for {page}: {expected_url}")
 
 
 def _relative_files(tree: Path) -> set[Path]:
@@ -333,6 +359,12 @@ def check_portal(root: Path, *, version: str, base_url: str) -> dict[str, object
     immutable = root / "docs" / version
     stable_alias = root / "docs" / "stable"
     current_files = _current_relative_files(root)
+    _check_canonical_page(
+        root,
+        root / "index.html",
+        base_url=base_url,
+        expected_url=base_url,
+    )
     _require_same_routes(current_files, stable_alias, label="docs/stable compatibility alias")
     _require_same_routes(current_files, root / "latest", label="latest compatibility alias")
 
