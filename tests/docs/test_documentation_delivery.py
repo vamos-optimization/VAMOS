@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 UPLOAD_ARTIFACT = "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02"
 DOWNLOAD_ARTIFACT = "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093"
 BASE_URL = "https://vamos-optimization.org/"
+VERSION = "1.0.0"
 
 
 def test_preview_workflow_is_read_only_and_artifact_only() -> None:
@@ -56,33 +57,45 @@ def test_documentation_delivery_page_is_discoverable() -> None:
     assert "clean current" in delivery
 
 
-def test_portal_checker_accepts_minimal_clean_current_contract(tmp_path: Path) -> None:
-    root = tmp_path / "portal"
-    version = "1.0.0"
+def _write(root: Path, relative: str, content: str) -> None:
+    path = root / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
 
-    def write(relative: str, content: str) -> None:
-        path = root / relative
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content, encoding="utf-8")
 
-    immutable_url = f"{BASE_URL}docs/{version}/"
-    write("index.html", f'<link rel="canonical" href="{BASE_URL}">\n')
-    write(f"docs/{version}/index.html", f'<link rel="canonical" href="{immutable_url}">\n')
-    write("docs/versions.json", json.dumps({"stable": version, "versions": [version]}))
-    write("docs/index.html", f'<link rel="canonical" href="{BASE_URL}"><meta http-equiv="refresh" content="0; url={BASE_URL}">')
-    write("docs/stable/index.html", f'<link rel="canonical" href="{BASE_URL}"><meta http-equiv="refresh" content="0; url={BASE_URL}">')
-    write("latest/index.html", f'<link rel="canonical" href="{BASE_URL}"><meta http-equiv="refresh" content="0; url={BASE_URL}">')
-    write(f"{version}/index.html", f'<link rel="canonical" href="{immutable_url}"><meta http-equiv="refresh" content="0; url={immutable_url}">')
-    write("website/index.html", f'<link rel="canonical" href="{BASE_URL}website/">')
+def _redirect(target: str) -> str:
+    return (
+        f'<link rel="canonical" href="{target}">\n'
+        f'<meta http-equiv="refresh" content="0; url={target}">\n'
+    )
 
-    completed = subprocess.run(
+
+def _build_minimal_clean_portal(root: Path, *, include_deep_current: bool = False) -> None:
+    immutable_url = f"{BASE_URL}docs/{VERSION}/"
+    _write(root, "index.html", f'<link rel="canonical" href="{BASE_URL}">\n')
+    _write(root, f"docs/{VERSION}/index.html", f'<link rel="canonical" href="{immutable_url}">\n')
+    _write(root, "docs/versions.json", json.dumps({"stable": VERSION, "versions": [VERSION]}))
+    _write(root, "docs/index.html", _redirect(BASE_URL))
+    _write(root, "docs/stable/index.html", _redirect(BASE_URL))
+    _write(root, "latest/index.html", _redirect(BASE_URL))
+    _write(root, f"{VERSION}/index.html", _redirect(immutable_url))
+    _write(root, "website/index.html", f'<link rel="canonical" href="{BASE_URL}website/">')
+    if include_deep_current:
+        target = f"{BASE_URL}algorithms/nsgaii/"
+        _write(root, "algorithms/nsgaii/index.html", f'<link rel="canonical" href="{target}">\n')
+        _write(root, "docs/stable/algorithms/nsgaii/index.html", _redirect(target))
+        _write(root, "latest/algorithms/nsgaii/index.html", _redirect(target))
+
+
+def _run_portal_check(root: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
         [
             sys.executable,
             "tools/check_docs_portal.py",
             "--root",
             str(root),
             "--version",
-            version,
+            VERSION,
             "--base-url",
             BASE_URL,
         ],
@@ -92,9 +105,41 @@ def test_portal_checker_accepts_minimal_clean_current_contract(tmp_path: Path) -
         check=False,
     )
 
+
+def test_portal_checker_accepts_minimal_clean_current_contract(tmp_path: Path) -> None:
+    root = tmp_path / "portal"
+    _build_minimal_clean_portal(root, include_deep_current=True)
+
+    completed = _run_portal_check(root)
     assert completed.returncode == 0, completed.stdout + completed.stderr
     payload = json.loads(completed.stdout)
-    assert payload["stable"] == version
-    assert payload["versions"] == [version]
+    assert payload["stable"] == VERSION
+    assert payload["versions"] == [VERSION]
     assert payload["current_url"] == BASE_URL
-    assert payload["canonical_links_checked"] >= 5
+    assert payload["canonical_links_checked"] >= 7
+
+
+def test_portal_checker_rejects_missing_deep_compatibility_route(tmp_path: Path) -> None:
+    root = tmp_path / "missing-alias"
+    _build_minimal_clean_portal(root, include_deep_current=True)
+    (root / "latest" / "algorithms" / "nsgaii" / "index.html").unlink()
+
+    completed = _run_portal_check(root)
+    assert completed.returncode != 0
+    assert "route inventory does not match its source tree" in completed.stderr
+
+
+def test_portal_checker_rejects_commented_redirect_spoof(tmp_path: Path) -> None:
+    root = tmp_path / "spoof"
+    _build_minimal_clean_portal(root)
+    spoofed = (
+        f'<!-- <link rel="canonical" href="{BASE_URL}">'
+        f'<meta http-equiv="refresh" content="0; url={BASE_URL}"> -->\n'
+        '<link rel="canonical" href="https://evil.invalid/">\n'
+        '<meta http-equiv="refresh" content="0; url=https://evil.invalid/">\n'
+    )
+    _write(root, "docs/stable/index.html", spoofed)
+
+    completed = _run_portal_check(root)
+    assert completed.returncode != 0
+    assert "Redirect canonical mismatch" in completed.stderr
