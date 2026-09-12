@@ -1,6 +1,6 @@
 # Hosting and domains
 
-VAMOS uses Cloudflare Workers Static Assets as the primary public host for the documentation portal. The version/archive model remains independent of the hosting provider, so immutable documentation stays under `docs/<version>/` and the moving stable alias stays under `docs/stable/`.
+VAMOS uses Cloudflare Workers Static Assets as the primary public host for the documentation portal. The version/archive model remains independent of the hosting provider: current documentation is served directly from the site root, while immutable released documentation remains under `docs/<version>/`.
 
 ## Public host contract
 
@@ -17,9 +17,9 @@ The production Worker is `vamos-docs`. Its Wrangler configuration declares four 
 | `vamos-optimization.dev` | Permanent redirect to the apex `.org` host. |
 | `www.vamos-optimization.dev` | Permanent redirect to the apex `.org` host. |
 
-Redirects preserve the path and query string. Root, `docs/`, legacy `latest/`, and legacy root-level semantic-version routes are normalized at the Worker edge to the versioned portal routes prepared in [Documentation versions and archive](documentation-versioning.md).
+Redirects preserve the path and query string. The current documentation is served directly at clean paths such as `/algorithms/nsgaii/`. Legacy `docs/stable/...`, `docs/`, and `latest/...` routes are normalized at the Worker edge to the equivalent clean current route. Legacy root-level semantic-version routes such as `/1.0.0/...` are normalized to the immutable `/docs/1.0.0/...` archive described in [Documentation versions and archive](documentation-versioning.md).
 
-VAMOS 1.0.0 has been deployed through this Worker and the live verification gate has passed against the apex host, stable and immutable documentation routes, version manifest, legacy redirects, and all three redirect hosts. Canonical project metadata may therefore point to the `.org` domain.
+VAMOS 1.0.0 has been deployed through this Worker and the live verification gate covers the apex host, clean current documentation, immutable documentation routes, the version manifest, legacy redirects, and all three redirect hosts. Canonical project metadata therefore points to the `.org` domain.
 
 ## Pull request previews
 
@@ -48,13 +48,14 @@ Use a scoped Cloudflare token suitable for Workers deployment and restrict resou
 
 A separate read-only `Verify Cloudflare documentation host` workflow can repeat the live verification without redeploying or requiring Cloudflare credentials.
 
-## Canonical metadata cutover
+## Canonical metadata contract
 
-The production host has passed live verification, so the canonical metadata contract is now:
+The production host has passed live verification, and the canonical metadata contract is now:
 
 - package Documentation URL: `https://vamos-optimization.org/`;
-- canonical MkDocs source URL: `https://vamos-optimization.org/docs/stable/`;
+- canonical MkDocs current-site URL: `https://vamos-optimization.org/`;
+- immutable release URLs: `https://vamos-optimization.org/docs/<version>/...`;
 - legacy multilingual site URL: `https://vamos-optimization.org/website/`;
-- release, preview, and fallback artifacts emit canonical links rooted at `https://vamos-optimization.org/`.
+- release, preview, and fallback artifacts emit current canonical links at clean root paths and immutable canonical links under `docs/<version>/`.
 
 GitHub Pages remains available as a fallback mirror and archive-delivery mechanism, but it is no longer the canonical documentation origin. Keeping the mirror does not change the public identity of the project because its generated canonical metadata points back to `.org`.
