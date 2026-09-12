@@ -80,7 +80,7 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Revalidate generated portal as untrusted data
         run: |
-          python tools/check_docs_portal.py \
+          python tools/check_docs_portal_transition.py \
             --root '${{ steps.metadata.outputs.portal_dir }}' \
             --version '${{ steps.metadata.outputs.version }}' \
             --base-url "$DOC_BASE_URL"
