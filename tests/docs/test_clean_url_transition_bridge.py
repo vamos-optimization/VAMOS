@@ -70,10 +70,8 @@ def test_transition_bridge_accepts_legacy_portal_contract(tmp_path: Path) -> Non
     assert json.loads(completed.stdout)["contract"] == "legacy-stable-tree"
 
 
-def test_transition_bridge_accepts_only_explicit_clean_current_contract(tmp_path: Path) -> None:
-    root = tmp_path / "clean"
+def _build_clean_fixture(root: Path) -> None:
     immutable_url = f"{BASE_URL}docs/{VERSION}/"
-
     _manifest(root)
     _write(root, "index.html", f'<link rel="canonical" href="{BASE_URL}">\n')
     _write(root, "algorithms/nsgaii/index.html", f'<link rel="canonical" href="{BASE_URL}algorithms/nsgaii/">\n')
@@ -86,14 +84,41 @@ def test_transition_bridge_accepts_only_explicit_clean_current_contract(tmp_path
     _write(root, f"{VERSION}/index.html", _redirect(immutable_url))
     _write(root, "website/index.html", f'<link rel="canonical" href="{BASE_URL}website/">')
 
+
+def test_transition_bridge_accepts_only_explicit_clean_current_contract(tmp_path: Path) -> None:
+    root = tmp_path / "clean"
+    _build_clean_fixture(root)
+
     completed = _check(root)
     assert completed.returncode == 0, completed.stdout + completed.stderr
     assert json.loads(completed.stdout)["contract"] == "clean-current-transition"
 
-    _write(root, "docs/stable/index.html", _redirect("https://evil.invalid/"))
+
+def test_transition_bridge_rejects_missing_deep_alias_route(tmp_path: Path) -> None:
+    root = tmp_path / "missing-alias"
+    _build_clean_fixture(root)
+    (root / "latest" / "algorithms" / "nsgaii" / "index.html").unlink()
+
     rejected = _check(root)
     assert rejected.returncode != 0
-    assert "neither approved transition contract" in rejected.stderr
+    assert "route inventory does not match its source tree" in rejected.stderr
+
+
+def test_transition_bridge_rejects_commented_spoof_with_active_foreign_redirect(tmp_path: Path) -> None:
+    root = tmp_path / "spoofed-redirect"
+    _build_clean_fixture(root)
+    expected = BASE_URL
+    spoofed = (
+        f'<!-- <link rel="canonical" href="{expected}">'
+        f'<meta http-equiv="refresh" content="0; url={expected}"> -->\n'
+        '<link rel="canonical" href="https://evil.invalid/">\n'
+        '<meta http-equiv="refresh" content="0; url=https://evil.invalid/">\n'
+    )
+    _write(root, "docs/stable/index.html", spoofed)
+
+    rejected = _check(root)
+    assert rejected.returncode != 0
+    assert "Redirect canonical mismatch" in rejected.stderr
 
 
 def test_trusted_preview_workflow_uses_transition_validator() -> None:
