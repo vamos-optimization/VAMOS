@@ -84,6 +84,10 @@ jobs:
             --root '${{ steps.metadata.outputs.portal_dir }}' \
             --version '${{ steps.metadata.outputs.version }}' \
             --base-url "$DOC_BASE_URL"
+          python tools/check_docs_portal_transition_content.py \
+            --root '${{ steps.metadata.outputs.portal_dir }}' \
+            --version '${{ steps.metadata.outputs.version }}' \
+            --base-url "$DOC_BASE_URL"
       - name: Check Cloudflare credentials
         id: cloudflare
         env:
