@@ -63,26 +63,36 @@ def _write(root: Path, relative: str, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
+def _canonical(target: str) -> str:
+    return (
+        "<!doctype html><html><head>\n"
+        f'<link rel="canonical" href="{target}">\n'
+        "</head><body></body></html>\n"
+    )
+
+
 def _redirect(target: str) -> str:
     return (
+        "<!doctype html><html><head>\n"
         f'<link rel="canonical" href="{target}">\n'
         f'<meta http-equiv="refresh" content="0; url={target}">\n'
+        "</head><body></body></html>\n"
     )
 
 
 def _build_minimal_clean_portal(root: Path, *, include_deep_current: bool = False) -> None:
     immutable_url = f"{BASE_URL}docs/{VERSION}/"
-    _write(root, "index.html", f'<link rel="canonical" href="{BASE_URL}">\n')
-    _write(root, f"docs/{VERSION}/index.html", f'<link rel="canonical" href="{immutable_url}">\n')
+    _write(root, "index.html", _canonical(BASE_URL))
+    _write(root, f"docs/{VERSION}/index.html", _canonical(immutable_url))
     _write(root, "docs/versions.json", json.dumps({"stable": VERSION, "versions": [VERSION]}))
     _write(root, "docs/index.html", _redirect(BASE_URL))
     _write(root, "docs/stable/index.html", _redirect(BASE_URL))
     _write(root, "latest/index.html", _redirect(BASE_URL))
     _write(root, f"{VERSION}/index.html", _redirect(immutable_url))
-    _write(root, "website/index.html", f'<link rel="canonical" href="{BASE_URL}website/">')
+    _write(root, "website/index.html", _canonical(f"{BASE_URL}website/"))
     if include_deep_current:
         target = f"{BASE_URL}algorithms/nsgaii/"
-        _write(root, "algorithms/nsgaii/index.html", f'<link rel="canonical" href="{target}">\n')
+        _write(root, "algorithms/nsgaii/index.html", _canonical(target))
         _write(root, "docs/stable/algorithms/nsgaii/index.html", _redirect(target))
         _write(root, "latest/algorithms/nsgaii/index.html", _redirect(target))
 
@@ -133,12 +143,47 @@ def test_portal_checker_rejects_commented_redirect_spoof(tmp_path: Path) -> None
     root = tmp_path / "spoof"
     _build_minimal_clean_portal(root)
     spoofed = (
+        "<!doctype html><html><head>\n"
         f'<!-- <link rel="canonical" href="{BASE_URL}">'
         f'<meta http-equiv="refresh" content="0; url={BASE_URL}"> -->\n'
         '<link rel="canonical" href="https://evil.invalid/">\n'
         '<meta http-equiv="refresh" content="0; url=https://evil.invalid/">\n'
+        "</head><body></body></html>\n"
     )
     _write(root, "docs/stable/index.html", spoofed)
+
+    completed = _run_portal_check(root)
+    assert completed.returncode != 0
+    assert "Redirect canonical mismatch" in completed.stderr
+
+
+def test_portal_checker_rejects_duplicate_redirect_attributes(tmp_path: Path) -> None:
+    root = tmp_path / "duplicate-attrs"
+    _build_minimal_clean_portal(root)
+    duplicated = (
+        "<!doctype html><html><head>\n"
+        f'<link rel="canonical" href="https://evil.invalid/" href="{BASE_URL}">\n'
+        f'<meta http-equiv="refresh" content="0; url=https://evil.invalid/" content="0; url={BASE_URL}">\n'
+        "</head><body></body></html>\n"
+    )
+    _write(root, "docs/stable/index.html", duplicated)
+
+    completed = _run_portal_check(root)
+    assert completed.returncode != 0
+    assert "duplicate 'href' attribute" in completed.stderr
+    assert "duplicate 'content' attribute" in completed.stderr
+
+
+def test_portal_checker_ignores_redirect_directives_inside_template(tmp_path: Path) -> None:
+    root = tmp_path / "template-spoof"
+    _build_minimal_clean_portal(root)
+    inert = (
+        "<!doctype html><html><head><template>\n"
+        f'<link rel="canonical" href="{BASE_URL}">\n'
+        f'<meta http-equiv="refresh" content="0; url={BASE_URL}">\n'
+        "</template></head><body></body></html>\n"
+    )
+    _write(root, "docs/stable/index.html", inert)
 
     completed = _run_portal_check(root)
     assert completed.returncode != 0
