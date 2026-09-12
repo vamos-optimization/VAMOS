@@ -11,6 +11,9 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 _VERSION_RE = re.compile(r"\d+\.\d+\.\d+")
+_INERT_TAGS = {"template", "noscript", "svg", "math"}
+_HEAD_ALLOWED_TAGS = {"base", "link", "meta", "title", "style", "script", "noscript", "template"}
+_VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
 
 
 class PortalCheckError(RuntimeError):
@@ -18,26 +21,107 @@ class PortalCheckError(RuntimeError):
 
 
 class _HeadDirectiveParser(HTMLParser):
-    """Collect active canonical and refresh directives while ignoring comments."""
+    """Collect browser-active head directives and reject ambiguous HTML structure."""
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.canonicals: list[str] = []
         self.refreshes: list[str] = []
+        self.errors: list[str] = []
+        self._head_open = False
+        self._head_seen = False
+        self._inert_stack: list[str] = []
+        self._head_element_stack: list[str] = []
+
+    @staticmethod
+    def _attribute_map(
+        tag: str,
+        attrs: list[tuple[str, str | None]],
+        relevant: set[str],
+    ) -> tuple[dict[str, str | None], list[str]]:
+        normalized = [(name.casefold(), value) for name, value in attrs]
+        duplicates = sorted(
+            name
+            for name in relevant
+            if sum(1 for current, _ in normalized if current == name) > 1
+        )
+        data: dict[str, str | None] = {}
+        for name, value in normalized:
+            data.setdefault(name, value)
+        return data, [f"duplicate {name!r} attribute on <{tag}>" for name in duplicates]
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        data = {name.casefold(): value for name, value in attrs}
         lowered = tag.casefold()
+        if lowered in _INERT_TAGS:
+            self._inert_stack.append(lowered)
+            if self._head_open and lowered not in _HEAD_ALLOWED_TAGS:
+                self.errors.append(f"foreign <{lowered}> subtree inside <head>")
+            return
+        if lowered == "head":
+            if self._inert_stack:
+                self.errors.append("<head> inside an inert or foreign subtree")
+                return
+            if self._head_seen or self._head_open:
+                self.errors.append("multiple or nested <head> elements")
+                return
+            self._head_seen = True
+            self._head_open = True
+            return
+        if not self._head_open or self._inert_stack:
+            return
+        if lowered not in _HEAD_ALLOWED_TAGS:
+            self.errors.append(f"unexpected <{lowered}> element inside <head>")
+            if lowered not in _VOID_TAGS:
+                self._head_element_stack.append(lowered)
+            return
+        if self._head_element_stack:
+            return
         if lowered == "link":
+            data, errors = self._attribute_map(lowered, attrs, {"rel", "href"})
+            self.errors.extend(errors)
             rel = data.get("rel") or ""
             if "canonical" in {token.casefold() for token in rel.split()}:
                 href = data.get("href")
                 if href is not None:
                     self.canonicals.append(href)
-        elif lowered == "meta" and (data.get("http-equiv") or "").casefold() == "refresh":
-            content = data.get("content")
-            if content is not None:
-                self.refreshes.append(content)
+        elif lowered == "meta":
+            data, errors = self._attribute_map(lowered, attrs, {"http-equiv", "content"})
+            self.errors.extend(errors)
+            if (data.get("http-equiv") or "").casefold() == "refresh":
+                content = data.get("content")
+                if content is not None:
+                    self.refreshes.append(content)
+        elif lowered not in _VOID_TAGS:
+            self._head_element_stack.append(lowered)
+
+    def handle_endtag(self, tag: str) -> None:
+        lowered = tag.casefold()
+        if lowered in _INERT_TAGS:
+            if not self._inert_stack or self._inert_stack[-1] != lowered:
+                self.errors.append(f"mismatched </{lowered}> inert-subtree close")
+            else:
+                self._inert_stack.pop()
+            return
+        if lowered == "head":
+            if not self._head_open:
+                self.errors.append("closing </head> without an active <head>")
+                return
+            if self._inert_stack or self._head_element_stack:
+                self.errors.append("closing </head> with an unclosed nested element")
+            self._head_open = False
+            self._head_element_stack.clear()
+            return
+        if self._head_open and self._head_element_stack:
+            if self._head_element_stack[-1] != lowered:
+                self.errors.append(f"mismatched </{lowered}> inside <head>")
+            else:
+                self._head_element_stack.pop()
+
+    def finish(self) -> None:
+        if self._head_open:
+            self.errors.append("unclosed <head> element")
+        if self._inert_stack:
+            self.errors.append("unclosed inert or foreign subtree")
 
 
 def _normalize_base_url(value: str) -> str:
@@ -57,6 +141,9 @@ def _directives(path: Path) -> _HeadDirectiveParser:
     parser = _HeadDirectiveParser()
     parser.feed(_read(path))
     parser.close()
+    parser.finish()
+    if parser.errors:
+        raise PortalCheckError(f"Ambiguous or inert redirect markup in {path}: {parser.errors!r}")
     return parser
 
 
