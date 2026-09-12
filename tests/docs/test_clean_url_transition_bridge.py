@@ -104,6 +104,18 @@ def test_transition_bridge_accepts_only_explicit_clean_current_contract(tmp_path
     assert json.loads(completed.stdout)["contract"] == "clean-current-transition"
 
 
+def test_transition_bridge_rejects_missing_clean_homepage(tmp_path: Path) -> None:
+    root = tmp_path / "missing-home"
+    _build_clean_fixture(root)
+    (root / "index.html").unlink()
+    (root / "docs" / "stable" / "index.html").unlink()
+    (root / "latest" / "index.html").unlink()
+
+    rejected = _check(root)
+    assert rejected.returncode != 0
+    assert "Missing required portal file" in rejected.stderr
+
+
 def test_transition_bridge_rejects_missing_deep_alias_route(tmp_path: Path) -> None:
     root = tmp_path / "missing-alias"
     _build_clean_fixture(root)
@@ -112,6 +124,22 @@ def test_transition_bridge_rejects_missing_deep_alias_route(tmp_path: Path) -> N
     rejected = _check(root)
     assert rejected.returncode != 0
     assert "route inventory does not match its source tree" in rejected.stderr
+
+
+def test_transition_bridge_rejects_canonical_path_escape(tmp_path: Path) -> None:
+    root = tmp_path / "path-escape"
+    _build_clean_fixture(root)
+    outside = tmp_path / "outside.txt"
+    outside.write_text("not part of the portal", encoding="utf-8")
+    malicious = (
+        f"{BASE_URL}docs/{VERSION}/"
+        "%2e%2e/%2e%2e/%2e%2e/outside.txt"
+    )
+    _write(root, f"docs/{VERSION}/index.html", _canonical(malicious))
+
+    rejected = _check(root)
+    assert rejected.returncode != 0
+    assert "Canonical URL escapes portal root" in rejected.stderr
 
 
 def test_transition_bridge_rejects_commented_spoof_with_active_foreign_redirect(tmp_path: Path) -> None:
