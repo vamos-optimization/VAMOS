@@ -16,10 +16,20 @@ def _write(root: Path, relative: str, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
+def _canonical(target: str) -> str:
+    return (
+        "<!doctype html><html><head>\n"
+        f'<link rel="canonical" href="{target}">\n'
+        "</head><body></body></html>\n"
+    )
+
+
 def _redirect(target: str) -> str:
     return (
+        "<!doctype html><html><head>\n"
         f'<link rel="canonical" href="{target}">\n'
         f'<meta http-equiv="refresh" content="0; url={target}">\n'
+        "</head><body></body></html>\n"
     )
 
 
@@ -54,7 +64,7 @@ def test_transition_bridge_accepts_legacy_portal_contract(tmp_path: Path) -> Non
     root = tmp_path / "legacy"
     immutable_url = f"{BASE_URL}docs/{VERSION}/"
     stable_url = f"{BASE_URL}docs/stable/"
-    homepage = f'<link rel="canonical" href="{immutable_url}">\n'
+    homepage = _canonical(immutable_url)
 
     _manifest(root)
     _write(root, f"docs/{VERSION}/index.html", homepage)
@@ -63,7 +73,7 @@ def test_transition_bridge_accepts_legacy_portal_contract(tmp_path: Path) -> Non
     _write(root, "docs/index.html", _redirect(stable_url))
     _write(root, "latest/index.html", _redirect(stable_url))
     _write(root, f"{VERSION}/index.html", _redirect(immutable_url))
-    _write(root, "website/index.html", f'<link rel="canonical" href="{BASE_URL}website/">')
+    _write(root, "website/index.html", _canonical(f"{BASE_URL}website/"))
 
     completed = _check(root)
     assert completed.returncode == 0, completed.stdout + completed.stderr
@@ -73,16 +83,16 @@ def test_transition_bridge_accepts_legacy_portal_contract(tmp_path: Path) -> Non
 def _build_clean_fixture(root: Path) -> None:
     immutable_url = f"{BASE_URL}docs/{VERSION}/"
     _manifest(root)
-    _write(root, "index.html", f'<link rel="canonical" href="{BASE_URL}">\n')
-    _write(root, "algorithms/nsgaii/index.html", f'<link rel="canonical" href="{BASE_URL}algorithms/nsgaii/">\n')
-    _write(root, f"docs/{VERSION}/index.html", f'<link rel="canonical" href="{immutable_url}">\n')
+    _write(root, "index.html", _canonical(BASE_URL))
+    _write(root, "algorithms/nsgaii/index.html", _canonical(f"{BASE_URL}algorithms/nsgaii/"))
+    _write(root, f"docs/{VERSION}/index.html", _canonical(immutable_url))
     _write(root, "docs/index.html", _redirect(BASE_URL))
     _write(root, "docs/stable/index.html", _redirect(BASE_URL))
     _write(root, "docs/stable/algorithms/nsgaii/index.html", _redirect(f"{BASE_URL}algorithms/nsgaii/"))
     _write(root, "latest/index.html", _redirect(BASE_URL))
     _write(root, "latest/algorithms/nsgaii/index.html", _redirect(f"{BASE_URL}algorithms/nsgaii/"))
     _write(root, f"{VERSION}/index.html", _redirect(immutable_url))
-    _write(root, "website/index.html", f'<link rel="canonical" href="{BASE_URL}website/">')
+    _write(root, "website/index.html", _canonical(f"{BASE_URL}website/"))
 
 
 def test_transition_bridge_accepts_only_explicit_clean_current_contract(tmp_path: Path) -> None:
@@ -109,12 +119,47 @@ def test_transition_bridge_rejects_commented_spoof_with_active_foreign_redirect(
     _build_clean_fixture(root)
     expected = BASE_URL
     spoofed = (
+        "<!doctype html><html><head>\n"
         f'<!-- <link rel="canonical" href="{expected}">'
         f'<meta http-equiv="refresh" content="0; url={expected}"> -->\n'
         '<link rel="canonical" href="https://evil.invalid/">\n'
         '<meta http-equiv="refresh" content="0; url=https://evil.invalid/">\n'
+        "</head><body></body></html>\n"
     )
     _write(root, "docs/stable/index.html", spoofed)
+
+    rejected = _check(root)
+    assert rejected.returncode != 0
+    assert "Redirect canonical mismatch" in rejected.stderr
+
+
+def test_transition_bridge_rejects_duplicate_redirect_attributes(tmp_path: Path) -> None:
+    root = tmp_path / "duplicate-attributes"
+    _build_clean_fixture(root)
+    duplicated = (
+        "<!doctype html><html><head>\n"
+        f'<link rel="canonical" href="https://evil.invalid/" href="{BASE_URL}">\n'
+        f'<meta http-equiv="refresh" content="0; url=https://evil.invalid/" content="0; url={BASE_URL}">\n'
+        "</head><body></body></html>\n"
+    )
+    _write(root, "docs/stable/index.html", duplicated)
+
+    rejected = _check(root)
+    assert rejected.returncode != 0
+    assert "duplicate 'href' attribute" in rejected.stderr
+    assert "duplicate 'content' attribute" in rejected.stderr
+
+
+def test_transition_bridge_ignores_redirect_directives_inside_template(tmp_path: Path) -> None:
+    root = tmp_path / "template-spoof"
+    _build_clean_fixture(root)
+    inert = (
+        "<!doctype html><html><head><template>\n"
+        f'<link rel="canonical" href="{BASE_URL}">\n'
+        f'<meta http-equiv="refresh" content="0; url={BASE_URL}">\n'
+        "</template></head><body></body></html>\n"
+    )
+    _write(root, "docs/stable/index.html", inert)
 
     rejected = _check(root)
     assert rejected.returncode != 0
