@@ -129,6 +129,18 @@ def test_portal_checker_accepts_minimal_clean_current_contract(tmp_path: Path) -
     assert payload["canonical_links_checked"] >= 7
 
 
+def test_portal_checker_rejects_missing_current_homepage(tmp_path: Path) -> None:
+    root = tmp_path / "missing-home"
+    _build_minimal_clean_portal(root, include_deep_current=True)
+    (root / "index.html").unlink()
+    (root / "docs" / "stable" / "index.html").unlink()
+    (root / "latest" / "index.html").unlink()
+
+    completed = _run_portal_check(root)
+    assert completed.returncode != 0
+    assert "Missing required portal file" in completed.stderr
+
+
 def test_portal_checker_rejects_missing_deep_compatibility_route(tmp_path: Path) -> None:
     root = tmp_path / "missing-alias"
     _build_minimal_clean_portal(root, include_deep_current=True)
@@ -137,6 +149,22 @@ def test_portal_checker_rejects_missing_deep_compatibility_route(tmp_path: Path)
     completed = _run_portal_check(root)
     assert completed.returncode != 0
     assert "route inventory does not match its source tree" in completed.stderr
+
+
+def test_portal_checker_rejects_canonical_path_escape(tmp_path: Path) -> None:
+    root = tmp_path / "path-escape"
+    _build_minimal_clean_portal(root)
+    outside = tmp_path / "outside.txt"
+    outside.write_text("not part of the portal", encoding="utf-8")
+    malicious = (
+        f"{BASE_URL}docs/{VERSION}/"
+        "%2e%2e/%2e%2e/%2e%2e/outside.txt"
+    )
+    _write(root, f"docs/{VERSION}/index.html", _canonical(malicious))
+
+    completed = _run_portal_check(root)
+    assert completed.returncode != 0
+    assert "Canonical URL escapes portal root" in completed.stderr
 
 
 def test_portal_checker_rejects_commented_redirect_spoof(tmp_path: Path) -> None:
