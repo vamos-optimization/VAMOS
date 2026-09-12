@@ -53,9 +53,10 @@ def test_documentation_delivery_page_is_discoverable() -> None:
     assert "archive_run_id" in delivery
     assert "GitHub Pages fallback mirror" in delivery
     assert "canonical production path" in delivery
+    assert "clean current" in delivery
 
 
-def test_portal_checker_accepts_minimal_versioned_contract(tmp_path: Path) -> None:
+def test_portal_checker_accepts_minimal_clean_current_contract(tmp_path: Path) -> None:
     root = tmp_path / "portal"
     version = "1.0.0"
 
@@ -65,14 +66,12 @@ def test_portal_checker_accepts_minimal_versioned_contract(tmp_path: Path) -> No
         path.write_text(content, encoding="utf-8")
 
     immutable_url = f"{BASE_URL}docs/{version}/"
-    stable_url = f"{BASE_URL}docs/stable/"
-    homepage = f'<link rel="canonical" href="{immutable_url}">\n'
-    write(f"docs/{version}/index.html", homepage)
-    write("docs/stable/index.html", homepage)
+    write("index.html", f'<link rel="canonical" href="{BASE_URL}">\n')
+    write(f"docs/{version}/index.html", f'<link rel="canonical" href="{immutable_url}">\n')
     write("docs/versions.json", json.dumps({"stable": version, "versions": [version]}))
-    write("index.html", f'<link rel="canonical" href="{stable_url}"><meta http-equiv="refresh" content="0; url={stable_url}">')
-    write("docs/index.html", f'<link rel="canonical" href="{stable_url}"><meta http-equiv="refresh" content="0; url={stable_url}">')
-    write("latest/index.html", f'<link rel="canonical" href="{stable_url}"><meta http-equiv="refresh" content="0; url={stable_url}">')
+    write("docs/index.html", f'<link rel="canonical" href="{BASE_URL}"><meta http-equiv="refresh" content="0; url={BASE_URL}">')
+    write("docs/stable/index.html", f'<link rel="canonical" href="{BASE_URL}"><meta http-equiv="refresh" content="0; url={BASE_URL}">')
+    write("latest/index.html", f'<link rel="canonical" href="{BASE_URL}"><meta http-equiv="refresh" content="0; url={BASE_URL}">')
     write(f"{version}/index.html", f'<link rel="canonical" href="{immutable_url}"><meta http-equiv="refresh" content="0; url={immutable_url}">')
     write("website/index.html", f'<link rel="canonical" href="{BASE_URL}website/">')
 
@@ -97,4 +96,5 @@ def test_portal_checker_accepts_minimal_versioned_contract(tmp_path: Path) -> No
     payload = json.loads(completed.stdout)
     assert payload["stable"] == version
     assert payload["versions"] == [version]
+    assert payload["current_url"] == BASE_URL
     assert payload["canonical_links_checked"] >= 5
