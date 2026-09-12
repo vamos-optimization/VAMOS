@@ -10,6 +10,7 @@ from urllib.parse import unquote, urlsplit
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
+BASE_URL = "https://vamos-optimization.org/"
 
 
 def test_versioned_pages_canonical_urls_resolve_to_deployed_files(tmp_path: Path) -> None:
@@ -46,12 +47,8 @@ def test_versioned_pages_canonical_urls_resolve_to_deployed_files(tmp_path: Path
         for canonical in re.findall(r'<link\s+rel="canonical"\s+href="([^"]+)"', page.read_text(encoding="utf-8")):
             url = urlsplit(canonical)
             assert url.scheme == "https" and url.netloc == "vamos-optimization.org"
-            assert (
-                url.path.startswith("/docs/1.1.0/")
-                or url.path.startswith("/docs/stable/")
-                or url.path.startswith("/website/")
-                or url.path.startswith("/docs/1.0.0/")
-            )
+            assert not url.path.startswith("/docs/stable/")
+            assert not url.path.startswith("/latest/")
             target = output / unquote(url.path.lstrip("/"))
             if url.path.endswith("/"):
                 target /= "index.html"
@@ -66,12 +63,18 @@ def test_versioned_pages_canonical_urls_resolve_to_deployed_files(tmp_path: Path
     assert (output / "docs" / "1.0.0" / "asset.txt").read_text(encoding="utf-8") == "frozen asset"
     assert "docs/1.0.0/guide/frozen/" in (output / "1.0.0" / "guide" / "frozen" / "index.html").read_text(encoding="utf-8")
 
-    assert "docs/stable/" in (output / "index.html").read_text(encoding="utf-8")
-    assert "docs/stable/" in (output / "docs" / "index.html").read_text(encoding="utf-8")
-    assert "docs/stable/" in (output / "latest" / "index.html").read_text(encoding="utf-8")
-    assert "docs/1.1.0/" in (output / "1.1.0" / "index.html").read_text(encoding="utf-8")
-    assert (output / "docs" / "stable" / "index.html").read_bytes() == (output / "docs" / "1.1.0" / "index.html").read_bytes()
+    current_home = (output / "index.html").read_text(encoding="utf-8")
+    assert f'rel="canonical" href="{BASE_URL}"' in current_home
+    assert "http-equiv=\"refresh\"" not in current_home
 
-    homepage = (output / "docs" / "1.1.0" / "index.html").read_text(encoding="utf-8")
-    assert "https://github.com/vamos-optimization/VAMOS/blob/main/CITATION.cff" in homepage
-    assert "https://github.com/vamos-optimization/VAMOS/blob/main/SECURITY.md" in homepage
+    assert f"url={BASE_URL}" in (output / "docs" / "index.html").read_text(encoding="utf-8")
+    assert f"url={BASE_URL}" in (output / "latest" / "index.html").read_text(encoding="utf-8")
+    assert f"url={BASE_URL}" in (output / "docs" / "stable" / "index.html").read_text(encoding="utf-8")
+    assert "docs/1.1.0/" in (output / "1.1.0" / "index.html").read_text(encoding="utf-8")
+
+    immutable_home = (output / "docs" / "1.1.0" / "index.html").read_text(encoding="utf-8")
+    assert 'rel="canonical" href="https://vamos-optimization.org/docs/1.1.0/"' in immutable_home
+    assert (output / "docs" / "stable" / "index.html").read_bytes() != (output / "docs" / "1.1.0" / "index.html").read_bytes()
+
+    assert "https://github.com/vamos-optimization/VAMOS/blob/main/CITATION.cff" in immutable_home
+    assert "https://github.com/vamos-optimization/VAMOS/blob/main/SECURITY.md" in immutable_home
