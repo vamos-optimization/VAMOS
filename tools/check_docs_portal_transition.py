@@ -1,9 +1,9 @@
-"""Validate either the legacy stable-tree portal or the approved clean-current transition portal.
+"""Validate either approved documentation layout during the clean-URL cutover.
 
-This file is intentionally temporary. The trusted Cloudflare preview publisher checks out
-``main`` and therefore cannot use validation code from an untrusted pull request. During the
-clean-URL migration it must understand both the current production layout and the one proposed
-by the migration PR without executing code from the downloaded artifact.
+This file is intentionally temporary. The privileged Cloudflare preview publisher checks out
+trusted ``main`` and therefore cannot use validation code from an untrusted pull request. During
+the clean-URL migration it must understand exactly two static layouts: the existing stable-tree
+portal and the proposed clean-current portal. Downloaded artifact files are parsed as data only.
 """
 
 from __future__ import annotations
@@ -12,13 +12,38 @@ import argparse
 import html
 import json
 import re
+from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from check_docs_portal import PortalCheckError, check_portal as check_legacy_portal
-
 _VERSION_RE = re.compile(r"\d+\.\d+\.\d+")
-_CANONICAL_RE = re.compile(r'<link\s+rel="canonical"\s+href="([^"]+)"')
+
+
+class PortalCheckError(RuntimeError):
+    """Raised when the downloaded portal matches neither approved transition contract."""
+
+
+class _HeadDirectiveParser(HTMLParser):
+    """Collect active canonical and refresh directives while naturally ignoring comments."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.canonicals: list[str] = []
+        self.refreshes: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        data = {name.casefold(): value for name, value in attrs}
+        lowered = tag.casefold()
+        if lowered == "link":
+            rel = data.get("rel") or ""
+            if "canonical" in {token.casefold() for token in rel.split()}:
+                href = data.get("href")
+                if href is not None:
+                    self.canonicals.append(href)
+        elif lowered == "meta" and (data.get("http-equiv") or "").casefold() == "refresh":
+            content = data.get("content")
+            if content is not None:
+                self.refreshes.append(content)
 
 
 def _normalize_base_url(value: str) -> str:
@@ -32,6 +57,13 @@ def _read(path: Path) -> str:
     if not path.is_file():
         raise PortalCheckError(f"Missing required portal file: {path}")
     return path.read_text(encoding="utf-8")
+
+
+def _directives(path: Path) -> _HeadDirectiveParser:
+    parser = _HeadDirectiveParser()
+    parser.feed(_read(path))
+    parser.close()
+    return parser
 
 
 def _page_url(base_url: str, prefix: str, relative: Path) -> str:
@@ -60,26 +92,63 @@ def _target_file(root: Path, *, base_url: str, target_url: str) -> Path:
 
 
 def _check_redirect(path: Path, *, expected_target: str) -> None:
-    content = _read(path)
-    if f'rel="canonical" href="{expected_target}"' not in content:
-        raise PortalCheckError(f"Redirect canonical mismatch in {path}: expected {expected_target}")
-    if f"url={expected_target}" not in content:
-        raise PortalCheckError(f"Redirect refresh mismatch in {path}: expected {expected_target}")
+    directives = _directives(path)
+    if directives.canonicals != [expected_target]:
+        raise PortalCheckError(
+            f"Redirect canonical mismatch in {path}: expected exactly {expected_target!r}, "
+            f"got {directives.canonicals!r}"
+        )
+    expected_refresh = f"0; url={expected_target}"
+    if directives.refreshes != [expected_refresh]:
+        raise PortalCheckError(
+            f"Redirect refresh mismatch in {path}: expected exactly {expected_refresh!r}, "
+            f"got {directives.refreshes!r}"
+        )
+
+
+def _relative_files(tree: Path) -> set[Path]:
+    if not tree.is_dir():
+        raise PortalCheckError(f"Missing required portal directory: {tree}")
+    return {path.relative_to(tree) for path in tree.rglob("*") if path.is_file()}
+
+
+def _current_relative_files(root: Path) -> set[Path]:
+    files: set[Path] = set()
+    for path in root.rglob("*"):
+        if not path.is_file():
+            continue
+        relative = path.relative_to(root)
+        first = relative.parts[0]
+        if first in {"docs", "website", "latest"} or _VERSION_RE.fullmatch(first):
+            continue
+        files.add(relative)
+    if not files:
+        raise PortalCheckError("Clean current documentation tree is empty")
+    return files
+
+
+def _require_same_routes(source_files: set[Path], alias_tree: Path, *, label: str) -> None:
+    alias_files = _relative_files(alias_tree)
+    if alias_files != source_files:
+        missing = sorted(str(path) for path in source_files - alias_files)[:5]
+        extra = sorted(str(path) for path in alias_files - source_files)[:5]
+        raise PortalCheckError(
+            f"{label} route inventory does not match its source tree; "
+            f"missing={missing!r}, extra={extra!r}"
+        )
 
 
 def _check_redirect_tree(tree: Path, *, base_url: str, canonical_prefix: str) -> int:
-    if not tree.is_dir():
-        raise PortalCheckError(f"Missing required portal directory: {tree}")
-    count = 0
-    for page in tree.rglob("*.html"):
-        _check_redirect(
-            page,
-            expected_target=_page_url(base_url, canonical_prefix, page.relative_to(tree)),
-        )
-        count += 1
-    if count == 0:
+    files = _relative_files(tree)
+    pages = sorted(path for path in files if path.suffix.lower() == ".html")
+    if not pages:
         raise PortalCheckError(f"No redirect pages found under {tree}")
-    return count
+    for relative in pages:
+        _check_redirect(
+            tree / relative,
+            expected_target=_page_url(base_url, canonical_prefix, relative),
+        )
+    return len(pages)
 
 
 def _check_canonical_tree(
@@ -93,16 +162,20 @@ def _check_canonical_tree(
         raise PortalCheckError(f"Missing required portal directory: {tree}")
     count = 0
     for page in tree.rglob("*.html"):
-        for raw_url in _CANONICAL_RE.findall(page.read_text(encoding="utf-8")):
-            canonical = html.unescape(raw_url)
-            if not canonical.startswith(expected_prefix):
-                raise PortalCheckError(
-                    f"Unexpected canonical in {page}: {canonical!r}; expected prefix {expected_prefix!r}"
-                )
-            target = _target_file(root, base_url=base_url, target_url=canonical)
-            if not target.is_file():
-                raise PortalCheckError(f"Canonical target is absent for {page}: {canonical}")
-            count += 1
+        directives = _directives(page)
+        if len(directives.canonicals) > 1:
+            raise PortalCheckError(f"Multiple active canonical URLs in {page}: {directives.canonicals!r}")
+        if not directives.canonicals:
+            continue
+        canonical = directives.canonicals[0]
+        if not canonical.startswith(expected_prefix):
+            raise PortalCheckError(
+                f"Unexpected canonical in {page}: {canonical!r}; expected prefix {expected_prefix!r}"
+            )
+        target = _target_file(root, base_url=base_url, target_url=canonical)
+        if not target.is_file():
+            raise PortalCheckError(f"Canonical target is absent for {page}: {canonical}")
+        count += 1
     if count == 0:
         raise PortalCheckError(f"No canonical URLs found under {tree}")
     return count
@@ -110,48 +183,123 @@ def _check_canonical_tree(
 
 def _check_current_tree(root: Path, *, base_url: str) -> int:
     count = 0
-    for page in root.rglob("*.html"):
-        relative = page.relative_to(root)
-        if relative.parts:
-            first = relative.parts[0]
-            if first in {"docs", "website", "latest"} or _VERSION_RE.fullmatch(first):
-                continue
+    for relative in sorted(_current_relative_files(root)):
+        if relative.suffix.lower() != ".html":
+            continue
+        page = root / relative
+        directives = _directives(page)
+        if len(directives.canonicals) > 1:
+            raise PortalCheckError(f"Multiple active canonical URLs in {page}: {directives.canonicals!r}")
+        if not directives.canonicals:
+            continue
         expected = _page_url(base_url, "", relative)
-        for raw_url in _CANONICAL_RE.findall(page.read_text(encoding="utf-8")):
-            canonical = html.unescape(raw_url)
-            if canonical != expected:
-                raise PortalCheckError(
-                    f"Unexpected current-site canonical in {page}: {canonical!r}; expected {expected!r}"
-                )
-            target = _target_file(root, base_url=base_url, target_url=canonical)
-            if not target.is_file():
-                raise PortalCheckError(f"Canonical target is absent for {page}: {canonical}")
-            count += 1
+        canonical = directives.canonicals[0]
+        if canonical != expected:
+            raise PortalCheckError(
+                f"Unexpected current-site canonical in {page}: {canonical!r}; expected {expected!r}"
+            )
+        target = _target_file(root, base_url=base_url, target_url=canonical)
+        if not target.is_file():
+            raise PortalCheckError(f"Canonical target is absent for {page}: {canonical}")
+        count += 1
     if count == 0:
         raise PortalCheckError("No canonical URLs found in the clean current documentation tree")
     return count
 
 
-def check_clean_portal(root: Path, *, version: str, base_url: str) -> dict[str, object]:
-    """Validate exactly the clean-current portal layout proposed by the migration."""
-    if _VERSION_RE.fullmatch(version) is None:
-        raise PortalCheckError("Version must be a numeric major.minor.patch value")
-    root = root.resolve()
-    if not root.is_dir():
-        raise PortalCheckError(f"Portal root does not exist: {root}")
-    base_url = _normalize_base_url(base_url)
-
-    manifest = json.loads(_read(root / "docs" / "versions.json"))
-    versions = manifest.get("versions")
-    if manifest.get("stable") != version or not isinstance(versions, list) or version not in versions:
+def _manifest(root: Path, *, version: str) -> list[str]:
+    try:
+        payload = json.loads(_read(root / "docs" / "versions.json"))
+    except json.JSONDecodeError as exc:
+        raise PortalCheckError("docs/versions.json is not valid JSON") from exc
+    versions = payload.get("versions")
+    if payload.get("stable") != version or not isinstance(versions, list) or version not in versions:
         raise PortalCheckError("versions.json does not identify the requested version as stable")
     if any(not isinstance(item, str) or _VERSION_RE.fullmatch(item) is None for item in versions):
         raise PortalCheckError("versions.json contains an invalid semantic version")
+    return versions
 
+
+def _check_version_aliases(
+    root: Path,
+    *,
+    versions: list[str],
+    base_url: str,
+) -> int:
+    count = 0
+    for published in versions:
+        archived = root / "docs" / published
+        legacy = root / published
+        archived_files = _relative_files(archived)
+        _require_same_routes(archived_files, legacy, label=f"Legacy {published} alias")
+        count += _check_redirect_tree(
+            legacy,
+            base_url=base_url,
+            canonical_prefix=f"docs/{published}",
+        )
+    return count
+
+
+def check_legacy_portal(root: Path, *, version: str, base_url: str) -> dict[str, object]:
+    """Validate the pre-cutover stable-tree contract without trusting artifact code."""
+    root = root.resolve()
+    base_url = _normalize_base_url(base_url)
+    versions = _manifest(root, version=version)
+    immutable = root / "docs" / version
+    stable = root / "docs" / "stable"
+    immutable_files = _relative_files(immutable)
+    _require_same_routes(immutable_files, stable, label="Legacy stable tree")
+    if _read(stable / "index.html").encode() != _read(immutable / "index.html").encode():
+        raise PortalCheckError("Legacy stable homepage is not the immutable release homepage")
+
+    _check_redirect(root / "index.html", expected_target=f"{base_url}docs/stable/")
+    _check_redirect(root / "docs" / "index.html", expected_target=f"{base_url}docs/stable/")
+
+    stable_files = _relative_files(stable)
+    _require_same_routes(stable_files, root / "latest", label="Legacy latest alias")
+
+    count = _check_canonical_tree(
+        root,
+        immutable,
+        base_url=base_url,
+        expected_prefix=f"{base_url}docs/{version}/",
+    )
+    count += _check_canonical_tree(
+        root,
+        stable,
+        base_url=base_url,
+        expected_prefix=f"{base_url}docs/{version}/",
+    )
+    count += _check_redirect_tree(
+        root / "latest",
+        base_url=base_url,
+        canonical_prefix="docs/stable",
+    )
+    count += _check_canonical_tree(
+        root,
+        root / "website",
+        base_url=base_url,
+        expected_prefix=f"{base_url}website/",
+    )
+    count += _check_version_aliases(root, versions=versions, base_url=base_url)
+    return {
+        "contract": "legacy-stable-tree",
+        "stable": version,
+        "versions": versions,
+        "canonical_links_checked": count,
+    }
+
+
+def check_clean_portal(root: Path, *, version: str, base_url: str) -> dict[str, object]:
+    """Validate exactly the clean-current portal layout proposed by the migration."""
+    root = root.resolve()
+    base_url = _normalize_base_url(base_url)
+    versions = _manifest(root, version=version)
     immutable = root / "docs" / version
     stable_alias = root / "docs" / "stable"
-    if not immutable.is_dir() or not stable_alias.is_dir():
-        raise PortalCheckError("Immutable documentation and legacy stable redirects must both exist")
+    current_files = _current_relative_files(root)
+    _require_same_routes(current_files, stable_alias, label="docs/stable compatibility alias")
+    _require_same_routes(current_files, root / "latest", label="latest compatibility alias")
 
     count = _check_current_tree(root, base_url=base_url)
     count += _check_canonical_tree(
@@ -169,18 +317,7 @@ def check_clean_portal(root: Path, *, version: str, base_url: str) -> dict[str, 
         expected_prefix=f"{base_url}website/",
     )
     _check_redirect(root / "docs" / "index.html", expected_target=base_url)
-
-    for published in versions:
-        archived = root / "docs" / published
-        legacy = root / published
-        if not archived.is_dir():
-            raise PortalCheckError(f"Manifest version is missing from archive: {published}")
-        count += _check_redirect_tree(
-            legacy,
-            base_url=base_url,
-            canonical_prefix=f"docs/{published}",
-        )
-
+    count += _check_version_aliases(root, versions=versions, base_url=base_url)
     return {
         "contract": "clean-current-transition",
         "stable": version,
@@ -191,17 +328,21 @@ def check_clean_portal(root: Path, *, version: str, base_url: str) -> dict[str, 
 
 def check_transition_portal(root: Path, *, version: str, base_url: str) -> dict[str, object]:
     """Accept only the existing production contract or the explicit clean-current contract."""
+    if _VERSION_RE.fullmatch(version) is None:
+        raise PortalCheckError("Version must be a numeric major.minor.patch value")
+    if not root.is_dir():
+        raise PortalCheckError(f"Portal root does not exist: {root}")
+
     try:
-        result = check_legacy_portal(root, version=version, base_url=base_url)
+        return check_legacy_portal(root, version=version, base_url=base_url)
     except PortalCheckError as legacy_error:
         try:
             return check_clean_portal(root, version=version, base_url=base_url)
-        except (PortalCheckError, json.JSONDecodeError) as clean_error:
+        except PortalCheckError as clean_error:
             raise PortalCheckError(
                 "Portal matches neither approved transition contract. "
                 f"Legacy validation: {legacy_error}. Clean-current validation: {clean_error}"
             ) from clean_error
-    return {"contract": "legacy-stable-tree", **result}
 
 
 def main() -> None:
