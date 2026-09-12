@@ -1,4 +1,4 @@
-"""Build a versioned documentation portal while preserving legacy routes."""
+"""Build the clean current documentation site plus immutable version archives and redirects."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ import logging
 import re
 import shutil
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from urllib.parse import urlsplit
 
 from check_repository_identity import DOCUMENTATION_URL
@@ -31,12 +32,13 @@ def _version_key(value: str) -> tuple[int, int, int]:
 
 def _page_url(base_url: str, prefix: str, relative: Path) -> str:
     prefix = prefix.strip("/")
+    route_base = f"{base_url}{prefix}/" if prefix else base_url
     if relative.name == "index.html":
         parent = relative.parent.as_posix()
         suffix = "" if parent == "." else f"{parent}/"
     else:
         suffix = relative.as_posix()
-    return f"{base_url}{prefix}/{suffix}"
+    return f"{route_base}{suffix}"
 
 
 def _write_redirect(path: Path, target: str) -> None:
@@ -65,6 +67,16 @@ def _build_site(root: Path, configuration: str, site_dir: Path, site_url: str) -
         build(config)
     finally:
         config.plugins.on_shutdown()
+
+
+def _copy_tree_contents(source: Path, target: Path) -> None:
+    target.mkdir(parents=True, exist_ok=True)
+    for source_path in source.iterdir():
+        target_path = target / source_path.name
+        if source_path.is_dir():
+            shutil.copytree(source_path, target_path)
+        else:
+            shutil.copy2(source_path, target_path)
 
 
 def _copy_archived_versions(archive_from: Path, docs_root: Path, current_version: str) -> None:
@@ -130,32 +142,41 @@ def build_release_docs(
     if archive_from is not None:
         _copy_archived_versions(archive_from.resolve(), docs_root, version)
 
-    immutable_dir = docs_root / version
-    _build_site(root, "mkdocs.yml", immutable_dir, f"{base_url}docs/{version}/")
-    _build_site(root, "website/mkdocs.yml", output / "website", f"{base_url}website/")
+    with TemporaryDirectory(prefix="vamos-docs-current-") as temporary:
+        current_dir = Path(temporary) / "current"
+        _build_site(root, "mkdocs.yml", current_dir, base_url)
+        _copy_tree_contents(current_dir, output)
 
-    stable_dir = docs_root / "stable"
-    shutil.copytree(immutable_dir, stable_dir)
+        immutable_dir = docs_root / version
+        _build_site(root, "mkdocs.yml", immutable_dir, f"{base_url}docs/{version}/")
+        _build_site(root, "website/mkdocs.yml", output / "website", f"{base_url}website/")
 
-    versions = _published_versions(docs_root)
-    _write_versions_manifest(docs_root, stable=version, versions=versions)
+        versions = _published_versions(docs_root)
+        _write_versions_manifest(docs_root, stable=version, versions=versions)
 
-    for published_version in versions:
+        for published_version in versions:
+            _write_legacy_alias(
+                docs_root / published_version,
+                output / published_version,
+                base_url=base_url,
+                canonical_prefix=f"docs/{published_version}",
+            )
+
+        # Keep old moving aliases as redirect mirrors for bookmarks and static mirrors.
         _write_legacy_alias(
-            docs_root / published_version,
-            output / published_version,
+            current_dir,
+            docs_root / "stable",
             base_url=base_url,
-            canonical_prefix=f"docs/{published_version}",
+            canonical_prefix="",
         )
-    _write_legacy_alias(
-        stable_dir,
-        output / "latest",
-        base_url=base_url,
-        canonical_prefix="docs/stable",
-    )
+        _write_legacy_alias(
+            current_dir,
+            output / "latest",
+            base_url=base_url,
+            canonical_prefix="",
+        )
 
-    _write_redirect(output / "index.html", f"{base_url}docs/stable/")
-    _write_redirect(docs_root / "index.html", f"{base_url}docs/stable/")
+    _write_redirect(docs_root / "index.html", base_url)
 
 
 def main() -> None:
