@@ -84,3 +84,43 @@ def test_versioned_pages_canonical_urls_resolve_to_deployed_files(tmp_path: Path
 
     assert "https://github.com/vamos-optimization/VAMOS/blob/main/CITATION.cff" in immutable_home
     assert "https://github.com/vamos-optimization/VAMOS/blob/main/SECURITY.md" in immutable_home
+
+
+def test_same_version_republish_reuses_immutable_archive(tmp_path: Path) -> None:
+    pytest.importorskip("mkdocs")
+    archive = tmp_path / "previous"
+    immutable = archive / "docs" / "1.0.0"
+    immutable.mkdir(parents=True)
+    frozen_home = (
+        '<link rel="canonical" href="https://vamos-optimization.org/docs/1.0.0/">\n'
+        "<!-- frozen production archive -->\n"
+    )
+    (immutable / "index.html").write_text(frozen_home, encoding="utf-8")
+    (immutable / "frozen-marker.txt").write_text("do not rebuild", encoding="utf-8")
+
+    output = tmp_path / "republished"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "tools/build_release_docs.py",
+            "--version",
+            "1.0.0",
+            "--output",
+            str(output),
+            "--archive-from",
+            str(archive),
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    assert (output / "docs" / "1.0.0" / "index.html").read_text(encoding="utf-8") == frozen_home
+    assert (output / "docs" / "1.0.0" / "frozen-marker.txt").read_text(encoding="utf-8") == "do not rebuild"
+    assert "frozen production archive" not in (output / "index.html").read_text(encoding="utf-8")
+    manifest = json.loads((output / "docs" / "versions.json").read_text(encoding="utf-8"))
+    assert manifest == {"stable": "1.0.0", "versions": ["1.0.0"]}

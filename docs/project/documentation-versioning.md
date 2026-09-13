@@ -39,11 +39,13 @@ The legacy `website/` tree remains separately built for compatibility. It is not
 
 ## Archive preservation
 
-`tools/build_release_docs.py` accepts an optional `--archive-from` artifact. When supplied, immutable `docs/<version>/` directories from that previous portal are copied forward before the current release is built. The generated `docs/versions.json` records the retained versions and the current stable release.
+`tools/build_release_docs.py` accepts an optional `--archive-from` artifact. When supplied, every immutable semantic-version directory already present under `docs/<version>/` is copied forward before publication. If the requested stable version already exists in that trusted artifact, the builder reuses that directory unchanged rather than rebuilding it from the current checkout. If the requested version is new, only that new immutable tree is built after older archives have been copied.
 
-This makes archive preservation an explicit input rather than relying on the hosting provider to retain files after a deployment. Release delivery must supply the previous trusted artifact when publishing a newer release.
+This distinction is essential because the clean current tree is mutable while a released `docs/<version>/` tree is not. A same-version documentation-layout change may update `/...`, `docs/stable/...`, `latest/...`, redirects, navigation, or hosting behavior, but it must not rewrite the historical bytes already published under `docs/<version>/`.
 
-The current clean tree and an immutable `docs/<version>/` tree are built separately so each emits the correct canonical URLs. The current tree points to clean root paths, while each immutable archive points to its version-qualified path.
+Archive preservation is therefore an explicit deployment input rather than relying on the hosting provider to retain files after a deployment. Production and manual republish workflows require a prior trusted portal artifact. The initial release-tag path can create the first immutable archive when no previous publication exists.
+
+The current clean tree and an immutable `docs/<version>/` tree are produced separately so each emits the correct canonical URLs. The current tree points to clean root paths, while each immutable archive points to its version-qualified path.
 
 ## Hosting independence
 

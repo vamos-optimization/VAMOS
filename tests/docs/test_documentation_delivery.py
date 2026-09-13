@@ -28,12 +28,13 @@ def test_preview_workflow_is_read_only_and_artifact_only() -> None:
     assert f"DOC_BASE_URL: {BASE_URL}" in workflow
 
 
-def test_release_workflow_checks_portal_and_requires_archive_for_later_versions() -> None:
+def test_release_workflow_checks_portal_and_requires_archive_for_manual_republishes() -> None:
     workflow = (ROOT / ".github" / "workflows" / "docs.yml").read_text(encoding="utf-8")
 
     assert "archive_run_id:" in workflow
     assert "archive_artifact_name:" in workflow
-    assert "if: env.DOC_VERSION != '1.0.0'" in workflow
+    assert "required for every manual republish" in workflow
+    assert "if: github.event_name == 'workflow_dispatch'" in workflow
     assert DOWNLOAD_ARTIFACT in workflow
     assert "--archive-from previous-public" in workflow
     assert "python tools/check_docs_portal.py" in workflow
@@ -55,6 +56,7 @@ def test_documentation_delivery_page_is_discoverable() -> None:
     assert "GitHub Pages fallback mirror" in delivery
     assert "canonical production path" in delivery
     assert "clean current" in delivery
+    assert "same-version" in delivery
 
 
 def _write(root: Path, relative: str, content: str) -> None:
@@ -63,11 +65,20 @@ def _write(root: Path, relative: str, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
-def _canonical(target: str) -> str:
+def _canonical(
+    target: str,
+    *,
+    body_refresh: str | None = None,
+    include_canonical: bool = True,
+) -> str:
+    canonical = "" if not include_canonical else f'<link rel="canonical" href="{target}">\n'
+    body = "" if body_refresh is None else f'<meta http-equiv="refresh" content="0; url={body_refresh}">\n'
     return (
         "<!doctype html><html><head>\n"
-        f'<link rel="canonical" href="{target}">\n'
-        "</head><body></body></html>\n"
+        f"{canonical}"
+        "</head><body>\n"
+        f"{body}"
+        "</body></html>\n"
     )
 
 
@@ -151,15 +162,38 @@ def test_portal_checker_rejects_missing_deep_compatibility_route(tmp_path: Path)
     assert "route inventory does not match its source tree" in completed.stderr
 
 
+def test_portal_checker_requires_canonical_on_every_current_html_page(tmp_path: Path) -> None:
+    root = tmp_path / "missing-canonical"
+    _build_minimal_clean_portal(root, include_deep_current=True)
+    target = f"{BASE_URL}algorithms/nsgaii/"
+    _write(root, "algorithms/nsgaii/index.html", _canonical(target, include_canonical=False))
+
+    completed = _run_portal_check(root)
+    assert completed.returncode != 0
+    assert "Canonical mismatch" in completed.stderr
+
+
+def test_portal_checker_rejects_body_meta_refresh_on_current_page(tmp_path: Path) -> None:
+    root = tmp_path / "body-refresh"
+    _build_minimal_clean_portal(root, include_deep_current=True)
+    target = f"{BASE_URL}algorithms/nsgaii/"
+    _write(
+        root,
+        "algorithms/nsgaii/index.html",
+        _canonical(target, body_refresh="https://evil.invalid/"),
+    )
+
+    completed = _run_portal_check(root)
+    assert completed.returncode != 0
+    assert "must not meta-refresh" in completed.stderr
+
+
 def test_portal_checker_rejects_canonical_path_escape(tmp_path: Path) -> None:
     root = tmp_path / "path-escape"
     _build_minimal_clean_portal(root)
     outside = tmp_path / "outside.txt"
     outside.write_text("not part of the portal", encoding="utf-8")
-    malicious = (
-        f"{BASE_URL}docs/{VERSION}/"
-        "%2e%2e/%2e%2e/%2e%2e/outside.txt"
-    )
+    malicious = f"{BASE_URL}docs/{VERSION}/" "%2e%2e/%2e%2e/%2e%2e/outside.txt"
     _write(root, f"docs/{VERSION}/index.html", _canonical(malicious))
 
     completed = _run_portal_check(root)

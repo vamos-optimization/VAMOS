@@ -91,7 +91,7 @@ def test_cloudflare_preview_uses_privilege_separation() -> None:
     assert 'WRANGLER_VERSION: "4.129.1"' in publish
 
 
-def test_cloudflare_production_deploy_is_manual_and_guarded() -> None:
+def test_cloudflare_production_deploy_is_manual_guarded_and_archive_preserving() -> None:
     workflow = (ROOT / ".github" / "workflows" / "docs-cloudflare.yml").read_text(encoding="utf-8")
     parsed = yaml.load(workflow, Loader=yaml.BaseLoader)
 
@@ -106,6 +106,11 @@ def test_cloudflare_production_deploy_is_manual_and_guarded() -> None:
     assert "tools/check_docs_portal.py" in workflow
     assert "wrangler.jsonc" in workflow
     assert 'WRANGLER_VERSION: "4.129.1"' in workflow
+    assert "archive_run_id:" in workflow
+    assert "archive_artifact_name:" in workflow
+    assert "required to preserve immutable releases" in workflow
+    assert "Download previous trusted portal artifact" in workflow
+    assert "--archive-from previous-public" in workflow
 
 
 def test_hosting_contract_uses_clean_canonical_domain_and_keeps_pages_as_mirror() -> None:

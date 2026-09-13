@@ -21,7 +21,7 @@ class PortalCheckError(RuntimeError):
 
 
 class _HeadDirectiveParser(HTMLParser):
-    """Collect browser-active head directives and reject ambiguous HTML structure."""
+    """Collect browser-active directives and reject ambiguous HTML structure."""
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -67,7 +67,20 @@ class _HeadDirectiveParser(HTMLParser):
             self._head_seen = True
             self._head_open = True
             return
-        if not self._head_open or self._inert_stack:
+        if self._inert_stack:
+            return
+
+        # Meta refresh remains active even when malformed HTML places it outside
+        # the document head, so record it across the active document tree.
+        if lowered == "meta":
+            data, errors = self._attribute_map(lowered, attrs, {"http-equiv", "content"})
+            self.errors.extend(errors)
+            if (data.get("http-equiv") or "").casefold() == "refresh":
+                self.refreshes.append(data.get("content") or "")
+            if not self._head_open:
+                return
+
+        if not self._head_open:
             return
         if lowered not in _HEAD_ALLOWED_TAGS:
             self.errors.append(f"unexpected <{lowered}> element inside <head>")
@@ -85,12 +98,7 @@ class _HeadDirectiveParser(HTMLParser):
                 if href is not None:
                     self.canonicals.append(href)
         elif lowered == "meta":
-            data, errors = self._attribute_map(lowered, attrs, {"http-equiv", "content"})
-            self.errors.extend(errors)
-            if (data.get("http-equiv") or "").casefold() == "refresh":
-                content = data.get("content")
-                if content is not None:
-                    self.refreshes.append(content)
+            return
         elif lowered not in _VOID_TAGS:
             self._head_element_stack.append(lowered)
 
@@ -293,21 +301,13 @@ def _check_current_tree(root: Path, *, base_url: str) -> int:
     for relative in sorted(_current_relative_files(root)):
         if relative.suffix.lower() != ".html":
             continue
-        page = root / relative
-        directives = _directives(page)
-        if len(directives.canonicals) > 1:
-            raise PortalCheckError(f"Multiple active canonical URLs in {page}: {directives.canonicals!r}")
-        if not directives.canonicals:
-            continue
         expected = _page_url(base_url, "", relative)
-        canonical = directives.canonicals[0]
-        if canonical != expected:
-            raise PortalCheckError(
-                f"Unexpected current-site canonical in {page}: {canonical!r}; expected {expected!r}"
-            )
-        target = _target_file(root, base_url=base_url, target_url=canonical)
-        if not target.is_file():
-            raise PortalCheckError(f"Canonical target is absent for {page}: {canonical}")
+        _check_canonical_page(
+            root,
+            root / relative,
+            base_url=base_url,
+            expected_url=expected,
+        )
         count += 1
     if count == 0:
         raise PortalCheckError("No canonical URLs found in the clean current documentation tree")

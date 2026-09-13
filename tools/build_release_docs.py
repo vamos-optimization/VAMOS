@@ -84,14 +84,12 @@ def _copy_tree_contents(source: Path, target: Path) -> None:
             shutil.copy2(source_path, target_path)
 
 
-def _copy_archived_versions(archive_from: Path, docs_root: Path, current_version: str) -> None:
+def _copy_archived_versions(archive_from: Path, docs_root: Path) -> None:
     archive_docs = archive_from / "docs"
     if not archive_docs.is_dir():
         raise FileNotFoundError(f"Archived documentation root not found: {archive_docs}")
     for source in sorted(archive_docs.iterdir(), key=lambda path: path.name):
         if not source.is_dir() or _VERSION_RE.fullmatch(source.name) is None:
-            continue
-        if source.name == current_version:
             continue
         shutil.copytree(source, docs_root / source.name)
 
@@ -145,7 +143,7 @@ def build_release_docs(
     docs_root.mkdir(parents=True)
 
     if archive_from is not None:
-        _copy_archived_versions(archive_from.resolve(), docs_root, version)
+        _copy_archived_versions(archive_from.resolve(), docs_root)
 
     with TemporaryDirectory(prefix="vamos-docs-current-") as temporary:
         current_dir = Path(temporary) / "current"
@@ -153,7 +151,8 @@ def build_release_docs(
         _copy_tree_contents(current_dir, output)
 
         immutable_dir = docs_root / version
-        _build_site(root, "mkdocs.yml", immutable_dir, f"{base_url}docs/{version}/")
+        if not immutable_dir.exists():
+            _build_site(root, "mkdocs.yml", immutable_dir, f"{base_url}docs/{version}/")
         _build_site(root, "website/mkdocs.yml", output / "website", f"{base_url}website/")
 
         versions = _published_versions(docs_root)
@@ -192,7 +191,11 @@ def main() -> None:
     parser.add_argument(
         "--archive-from",
         type=Path,
-        help="Previous portal artifact whose immutable docs/<version>/ directories should be preserved",
+        help=(
+            "Previous trusted portal artifact whose immutable docs/<version>/ directories "
+            "must be preserved; if it already contains the requested version, that archive "
+            "is reused byte-for-byte instead of rebuilt"
+        ),
     )
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
