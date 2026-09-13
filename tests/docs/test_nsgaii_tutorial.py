@@ -65,7 +65,9 @@ def test_steady_state_builder_example_is_executable() -> None:
     exec(compile(_blocks()[2], str(PAGE), "exec"), namespace)
     config = namespace["steady_state_config"]
     assert config.pop_size == 100
+    assert config.steady_state is True
     assert config.offspring_size == 1
+    assert config.replacement_size == 1
     result = optimize(
         ZDT1(n_var=30),
         algorithm="nsgaii",
