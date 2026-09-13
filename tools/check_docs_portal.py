@@ -11,7 +11,9 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 _VERSION_RE = re.compile(r"\d+\.\d+\.\d+")
-_INERT_TAGS = {"template", "noscript", "svg", "math"}
+# ``noscript`` is not universally inert: meta refresh inside it can become
+# active when scripting is disabled, so keep it in the active scan.
+_INERT_TAGS = {"template", "svg", "math"}
 _HEAD_ALLOWED_TAGS = {"base", "link", "meta", "title", "style", "script", "noscript", "template"}
 _VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
 
