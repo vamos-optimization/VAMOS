@@ -15,35 +15,25 @@ def _snapshot(status: int, *, location: str | None = None, body: bytes = b"") ->
     return ResponseSnapshot(status=status, headers=headers, body=body)
 
 
-def test_live_cutover_checker_accepts_expected_public_contract() -> None:
+def test_live_cutover_checker_accepts_clean_public_contract() -> None:
     version = "1.0.0"
     base_url = f"https://{PRIMARY_HOST}/"
-    stable_url = f"{base_url}docs/stable/"
     immutable_url = f"{base_url}docs/{version}/"
-    homepage = f'<link rel="canonical" href="{immutable_url}">'.encode()
+    algorithm_url = f"{base_url}algorithms/nsgaii/"
 
     responses = {
-        (PRIMARY_HOST, "/"): _snapshot(308, location=stable_url),
-        (PRIMARY_HOST, "/latest/?cutover=1"): _snapshot(
-            308,
-            location=f"{stable_url}?cutover=1",
-        ),
-        (PRIMARY_HOST, f"/{version}/?cutover=1"): _snapshot(
-            308,
-            location=f"{immutable_url}?cutover=1",
-        ),
-        (PRIMARY_HOST, "/docs/versions.json"): _snapshot(
-            200,
-            body=json.dumps({"stable": version, "versions": [version]}).encode(),
-        ),
-        (PRIMARY_HOST, "/docs/stable/"): _snapshot(200, body=homepage),
-        (PRIMARY_HOST, f"/docs/{version}/"): _snapshot(200, body=homepage),
+        (PRIMARY_HOST, "/"): _snapshot(200, body=f'<link rel="canonical" href="{base_url}">'.encode()),
+        (PRIMARY_HOST, "/algorithms/nsgaii/"): _snapshot(200, body=f'<link rel="canonical" href="{algorithm_url}">'.encode()),
+        (PRIMARY_HOST, "/docs/?cutover=1"): _snapshot(308, location=f"{base_url}?cutover=1"),
+        (PRIMARY_HOST, "/docs/stable/?cutover=1"): _snapshot(308, location=f"{base_url}?cutover=1"),
+        (PRIMARY_HOST, "/latest/?cutover=1"): _snapshot(308, location=f"{base_url}?cutover=1"),
+        (PRIMARY_HOST, "/docs/stable/algorithms/nsgaii/?cutover=1"): _snapshot(308, location=f"{algorithm_url}?cutover=1"),
+        (PRIMARY_HOST, f"/{version}/?cutover=1"): _snapshot(308, location=f"{immutable_url}?cutover=1"),
+        (PRIMARY_HOST, "/docs/versions.json"): _snapshot(200, body=json.dumps({"stable": version, "versions": [version]}).encode()),
+        (PRIMARY_HOST, f"/docs/{version}/"): _snapshot(200, body=f'<link rel="canonical" href="{immutable_url}">'.encode()),
     }
     for host in REDIRECT_HOSTS:
-        responses[(host, "/docs/stable/?cutover=1")] = _snapshot(
-            308,
-            location=f"{stable_url}?cutover=1",
-        )
+        responses[(host, "/algorithms/nsgaii/?cutover=1")] = _snapshot(308, location=f"{algorithm_url}?cutover=1")
 
     def fake_request(host: str, target: str, timeout: float) -> ResponseSnapshot:
         assert timeout == 5.0
@@ -53,7 +43,7 @@ def test_live_cutover_checker_accepts_expected_public_contract() -> None:
 
     assert result["primary"] == base_url
     assert result["stable"] == version
-    assert len(result["checked"]) == 9
+    assert len(result["checked"]) == 12
 
 
 def test_cutover_workflows_separate_deployment_from_read_only_reverification() -> None:
@@ -79,7 +69,7 @@ def test_post_cutover_contract_keeps_pages_only_as_fallback() -> None:
     hosting = (ROOT / "docs" / "project" / "hosting.md").read_text(encoding="utf-8")
     delivery = (ROOT / "docs" / "dev" / "documentation-delivery.md").read_text(encoding="utf-8")
 
-    assert "## Canonical metadata cutover" in hosting
+    assert "## Canonical metadata contract" in hosting
     assert "GitHub Pages remains available as a fallback mirror" in hosting
     assert "Cloudflare production publication" in delivery
     assert "GitHub Pages fallback mirror" in delivery

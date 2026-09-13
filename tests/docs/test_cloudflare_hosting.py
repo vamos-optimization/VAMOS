@@ -56,18 +56,20 @@ def test_cloudflare_preview_worker_has_no_custom_domains() -> None:
     assert assets["run_worker_first"] is True
 
 
-def test_edge_worker_preserves_version_routes_and_domain_redirect_policy() -> None:
+def test_edge_worker_preserves_archives_and_normalizes_moving_aliases() -> None:
     source = (ROOT / "cloudflare" / "worker.js").read_text(encoding="utf-8")
 
     assert 'const CANONICAL_HOST = "vamos-optimization.org";' in source
     assert '"www.vamos-optimization.org"' in source
     assert '"vamos-optimization.dev"' in source
     assert '"www.vamos-optimization.dev"' in source
-    assert 'return "/docs/stable/";' in source
+    assert 'pathname === "/docs/stable"' in source
+    assert 'pathname.startsWith("/docs/stable/")' in source
     assert 'pathname.startsWith("/latest/")' in source
     assert "LEGACY_VERSION" in source
     assert "Response.redirect(target.toString(), 308)" in source
     assert "env.ASSETS.fetch(request)" in source
+    assert 'return "/";' in source
 
 
 def test_cloudflare_preview_uses_privilege_separation() -> None:
@@ -89,7 +91,7 @@ def test_cloudflare_preview_uses_privilege_separation() -> None:
     assert 'WRANGLER_VERSION: "4.129.1"' in publish
 
 
-def test_cloudflare_production_deploy_is_manual_and_guarded() -> None:
+def test_cloudflare_production_deploy_is_manual_guarded_and_archive_preserving() -> None:
     workflow = (ROOT / ".github" / "workflows" / "docs-cloudflare.yml").read_text(encoding="utf-8")
     parsed = yaml.load(workflow, Loader=yaml.BaseLoader)
 
@@ -104,14 +106,20 @@ def test_cloudflare_production_deploy_is_manual_and_guarded() -> None:
     assert "tools/check_docs_portal.py" in workflow
     assert "wrangler.jsonc" in workflow
     assert 'WRANGLER_VERSION: "4.129.1"' in workflow
+    assert "archive_run_id:" in workflow
+    assert "archive_artifact_name:" in workflow
+    assert "required to preserve immutable releases" in workflow
+    assert "Download previous trusted portal artifact" in workflow
+    assert "--archive-from previous-public" in workflow
 
 
-def test_hosting_contract_uses_proven_canonical_domain_and_keeps_pages_as_mirror() -> None:
+def test_hosting_contract_uses_clean_canonical_domain_and_keeps_pages_as_mirror() -> None:
     mkdocs = (ROOT / "mkdocs.yml").read_text(encoding="utf-8")
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     hosting = (ROOT / "docs" / "project" / "hosting.md").read_text(encoding="utf-8")
 
-    assert "site_url: https://vamos-optimization.org/docs/stable/" in mkdocs
+    assert "site_url: https://vamos-optimization.org/" in mkdocs
+    assert "site_url: https://vamos-optimization.org/docs/stable/" not in mkdocs
     assert 'Documentation = "https://vamos-optimization.org/"' in pyproject
-    assert "VAMOS 1.0.0 has been deployed" in hosting
+    assert "clean paths such as `/algorithms/nsgaii/`" in hosting
     assert "GitHub Pages remains available as a fallback mirror" in hosting

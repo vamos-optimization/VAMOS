@@ -56,16 +56,22 @@ In the organization repository, open **Settings > Pages > Build and deployment**
 and set **Source** to **GitHub Actions**. The guarded `docs.yml` workflow builds
 both documentation sites strictly and deploys documentation only to
 `https://vamos-optimization.github.io/VAMOS/`. It runs on the official tag or a
-manual workflow dispatch. The root redirects to `latest/`; versioned reference
-docs live under `1.0.0/`, and the multilingual website lives under `website/`.
-The personal mirror must not deploy canonical Pages. Confirm the deployment
-and canonical organization URLs during the final release Goal.
+manual workflow dispatch. The generated portal mirrors the canonical `.org`
+layout: the current documentation is built at clean root paths, immutable
+release documentation lives under `docs/<version>/`, and the multilingual
+website lives under `website/`. Compatibility trees under `docs/stable/`,
+`latest/`, and root-level `<version>/` contain redirects rather than a second
+canonical documentation surface. The personal mirror must not deploy canonical
+Pages. Confirm the deployment and canonical `.org` metadata during the final
+release Goal.
 
 `tools/build_release_docs.py --version 1.0.0 --output <new-directory>` builds
-the complete deployment layout. It applies the version and website prefixes
-to their canonical URLs, keeps `latest/` as an alias of the versioned docs,
-and refuses an existing output directory. The documentation smoke tests verify
-that every emitted canonical URL resolves to a file in that deployment layout.
+the complete deployment layout. It builds the current documentation and the
+immutable release separately so each has the correct canonical URL, preserves
+previous immutable `docs/<version>/` trees when an archive input is supplied,
+generates the compatibility redirects, and refuses an existing output
+directory. The documentation smoke tests verify that every emitted canonical
+URL resolves to a file in that deployment layout.
 
 ## Canonical validation
 
