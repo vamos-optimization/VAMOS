@@ -90,7 +90,7 @@ Pass that `config` as `algorithm_config` to `optimize()` as above. The string `"
 
 ### Steady-state NSGA-II
 
-The default configuration is **generational**: when `offspring_size` is omitted, it resolves to `pop_size`, so a full offspring batch is evaluated before survival. For the classic one-offspring **steady-state** variant, keep the population size and set `offspring_size` to `1`:
+The default configuration is **generational**: when `offspring_size` is omitted, the runtime uses `pop_size`, so a full offspring batch is evaluated before survival. For the classic one-offspring **steady-state** variant, use the explicit `.steady_state()` builder switch:
 
 ```python
 from vamos.algorithms import NSGAIIConfig
@@ -98,7 +98,7 @@ from vamos.algorithms import NSGAIIConfig
 steady_state_config = (
     NSGAIIConfig.builder()
     .pop_size(100)
-    .offspring_size(1)
+    .steady_state()
     .crossover("sbx", prob=1.0, eta=20.0)
     .mutation("pm", prob="1/n", eta=20.0)
     .selection("tournament", size=2)
@@ -106,16 +106,17 @@ steady_state_config = (
 )
 ```
 
-Pass `steady_state_config` to `optimize()` as `algorithm_config`. With `offspring_size=1`, VAMOS creates and evaluates one offspring, combines it with the current population, and applies NSGA-II survival back to `pop_size` after every offspring evaluation. This is the one-at-a-time steady-state regime.
+Pass `steady_state_config` to `optimize()` as `algorithm_config`. `.steady_state()` resolves the configuration to `offspring_size=1` and `replacement_size=1`. VAMOS therefore creates and evaluates one offspring, combines it with the current population, and applies NSGA-II survival back to `pop_size` after every offspring evaluation. Explicit contradictory values such as `.steady_state().offspring_size(20)` fail fast rather than silently changing the requested mode.
 
-The initial population still counts towards `max_evaluations`. With `pop_size=100` and `max_evaluations=10_000`, the first 100 evaluations initialize the population and the remaining 9,900 evaluations are one-offspring steady-state steps. Values `1 < offspring_size < pop_size` instead use smaller incremental batches; they are not the classical one-offspring steady-state case.
+The initial population still counts towards `max_evaluations`. With `pop_size=100` and `max_evaluations=10_000`, the first 100 evaluations initialize the population and the remaining 9,900 evaluations are one-offspring steady-state steps. The older explicit `.offspring_size(1)` form remains supported and reaches the same one-offspring execution path, but `.steady_state()` is the clearer public spelling. Values `1 < offspring_size < pop_size` instead use smaller incremental batches; they are not the classical one-offspring steady-state case.
 
 When comparing generational and steady-state NSGA-II, keep the evaluation budget and seed policy explicit. Changing the replacement schedule changes the search dynamics even when the total number of evaluations is identical.
 
 | Choice | What to consider |
 | --- | --- |
 | `pop_size` | Changes population cardinality and the allocation of a fixed evaluation budget. A larger value is not automatically better. |
-| `offspring_size` | When omitted, resolves to population size. Use `1` for one-offspring steady-state NSGA-II; intermediate values use smaller incremental batches. |
+| `.steady_state()` | Preferred explicit switch for classic one-offspring steady-state NSGA-II; resolves offspring and replacement sizes to `1`. |
+| `offspring_size` | When omitted, the runtime uses population size. `1` remains a compatible one-offspring spelling; intermediate values use smaller incremental batches. |
 | Crossover and mutation | Choose operators compatible with the problem encoding. The SBX/polynomial-mutation example above is real-coded. |
 | `max_evaluations` | Includes evaluation of the initial population. The budget must be large enough to initialize it. |
 | `seed` and `engine` | Record both, together with the environment and resolved configuration. |
