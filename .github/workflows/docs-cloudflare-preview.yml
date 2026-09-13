@@ -52,18 +52,22 @@ jobs:
         id: metadata
         env:
           ARTIFACT_ROOT: ${{ runner.temp }}/docs-preview-artifacts
+          TRUSTED_PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+          TRUSTED_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           meta_dir=$(find "$ARTIFACT_ROOT" -maxdepth 1 -type d -name 'docs-preview-meta-*' -print -quit)
           test -n "$meta_dir"
           pr_number=$(cat "$meta_dir/pr-number.txt")
           head_sha=$(cat "$meta_dir/head-sha.txt")
           head_repository=$(cat "$meta_dir/head-repository.txt")
+          case "$TRUSTED_PR_NUMBER" in (*[!0-9]*|'') exit 1 ;; esac
           case "$pr_number" in (*[!0-9]*|'') exit 1 ;; esac
+          test "$pr_number" = "$TRUSTED_PR_NUMBER"
           case "$head_sha" in (*[!0-9a-f]*|'') exit 1 ;; esac
           test "${#head_sha}" -eq 40
           test "$head_repository" = "$GITHUB_REPOSITORY"
-          test "$head_sha" = '${{ github.event.workflow_run.head_sha }}'
-          portal_dir="$ARTIFACT_ROOT/docs-preview-$pr_number"
+          test "$head_sha" = "$TRUSTED_HEAD_SHA"
+          portal_dir="$ARTIFACT_ROOT/docs-preview-$TRUSTED_PR_NUMBER"
           test -d "$portal_dir/docs"
           version=$(python - "$portal_dir" <<'PY'
           import json
@@ -79,7 +83,7 @@ jobs:
           print(version)
           PY
           )
-          echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
+          echo "pr_number=$TRUSTED_PR_NUMBER" >> "$GITHUB_OUTPUT"
           echo "portal_dir=$portal_dir" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Revalidate generated portal as untrusted data
@@ -87,11 +91,11 @@ jobs:
           PORTAL_DIR: ${{ steps.metadata.outputs.portal_dir }}
           PORTAL_VERSION: ${{ steps.metadata.outputs.version }}
         run: |
-          python tools/check_docs_portal_transition.py \
+          python tools/check_docs_portal.py \
             --root "$PORTAL_DIR" \
             --version "$PORTAL_VERSION" \
             --base-url "$DOC_BASE_URL"
-          python tools/check_docs_portal_transition_content.py \
+          python tools/check_docs_portal_active_content.py \
             --root "$PORTAL_DIR" \
             --version "$PORTAL_VERSION" \
             --base-url "$DOC_BASE_URL"
