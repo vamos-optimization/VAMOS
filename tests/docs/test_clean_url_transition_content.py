@@ -145,6 +145,24 @@ def test_clean_content_pages_may_not_meta_refresh_in_noscript(tmp_path: Path) ->
     assert "Clean-current content page must not meta-refresh" in completed.stderr
 
 
+def test_clean_content_pages_may_not_hide_refresh_in_svg_foreign_object(tmp_path: Path) -> None:
+    root = tmp_path / "clean-svg-foreign-object-refresh"
+    _build_clean(root)
+    deep = f"{BASE_URL}algorithms/nsgaii/"
+    malicious = (
+        "<!doctype html><html><head>\n"
+        f'<link rel="canonical" href="{deep}">\n'
+        "</head><body><svg><foreignObject>\n"
+        '<meta http-equiv="refresh" content="0; url=https://evil.invalid/">\n'
+        "</foreignObject></svg></body></html>\n"
+    )
+    _write(root, "algorithms/nsgaii/index.html", malicious)
+
+    completed = _run(root)
+    assert completed.returncode != 0
+    assert "Clean-current content page must not meta-refresh" in completed.stderr
+
+
 def test_clean_content_pages_require_exact_canonical(tmp_path: Path) -> None:
     root = tmp_path / "clean-missing-canonical"
     _build_clean(root, deep_canonical=False)
