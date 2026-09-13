@@ -15,9 +15,11 @@ For example, the current NSGA-II guide is published at:
 
 `https://vamos-optimization.org/algorithms/nsgaii/`
 
-while the immutable VAMOS 1.0.0 copy is published at:
+A page that is part of the frozen VAMOS 1.0.0 archive remains available at its release-qualified path, for example:
 
-`https://vamos-optimization.org/docs/1.0.0/algorithms/nsgaii/`
+`https://vamos-optimization.org/docs/1.0.0/guide/getting-started/`
+
+The current site may acquire documentation pages after an immutable release archive was first published; those newer pages are not backfilled into the historical `docs/<version>/` tree.
 
 The root current site is intentionally the normal browsing and search-engine surface. Users therefore do not need to carry an implementation-oriented `docs/stable` prefix through every URL.
 

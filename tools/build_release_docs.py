@@ -74,6 +74,22 @@ def _build_site(root: Path, configuration: str, site_dir: Path, site_url: str) -
         config.plugins.on_shutdown()
 
 
+def _ensure_current_error_page_canonical(site_dir: Path, base_url: str) -> None:
+    """Give the generated current-site 404 document an explicit clean canonical URL."""
+    page = site_dir / "404.html"
+    if not page.is_file():
+        raise FileNotFoundError(f"Generated current documentation is missing its 404 page: {page}")
+    content = page.read_text(encoding="utf-8")
+    if 'rel="canonical"' in content:
+        return
+    marker = "</head>"
+    if marker not in content:
+        raise ValueError("Generated current documentation 404 page has no </head> marker")
+    canonical = html.escape(f"{base_url}404.html", quote=True)
+    content = content.replace(marker, f'<link rel="canonical" href="{canonical}">\n{marker}', 1)
+    page.write_text(content, encoding="utf-8")
+
+
 def _copy_tree_contents(source: Path, target: Path) -> None:
     target.mkdir(parents=True, exist_ok=True)
     for source_path in source.iterdir():
@@ -148,6 +164,7 @@ def build_release_docs(
     with TemporaryDirectory(prefix="vamos-docs-current-") as temporary:
         current_dir = Path(temporary) / "current"
         _build_site(root, "mkdocs.yml", current_dir, base_url)
+        _ensure_current_error_page_canonical(current_dir, base_url)
         _copy_tree_contents(current_dir, output)
 
         immutable_dir = docs_root / version
