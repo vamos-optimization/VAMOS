@@ -41,8 +41,18 @@ def _canonical(
     )
 
 
-def _redirect(target: str) -> str:
-    return _canonical(target, head_refresh=target)
+def _redirect(
+    target: str,
+    *,
+    body_refresh: str | None = None,
+    noscript_refresh: str | None = None,
+) -> str:
+    return _canonical(
+        target,
+        head_refresh=target,
+        body_refresh=body_refresh,
+        noscript_refresh=noscript_refresh,
+    )
 
 
 def _build_clean(
@@ -52,9 +62,11 @@ def _build_clean(
     deep_body_refresh: str | None = None,
     deep_noscript_refresh: str | None = None,
     deep_canonical: bool = True,
+    alias_body_refresh: str | None = None,
 ) -> None:
     immutable = f"{BASE_URL}docs/{VERSION}/"
     deep = f"{BASE_URL}algorithms/nsgaii/"
+    missing = f"{BASE_URL}404.html"
     _write(root, "docs/versions.json", json.dumps({"stable": VERSION, "versions": [VERSION]}))
     _write(root, "index.html", _canonical(BASE_URL))
     _write(
@@ -68,12 +80,21 @@ def _build_clean(
             include_canonical=deep_canonical,
         ),
     )
+    # MkDocs emits a 404 document without canonical metadata; it is still content,
+    # not a redirect, and must remain refresh-free.
+    _write(root, "404.html", _canonical(missing, include_canonical=False))
     _write(root, f"docs/{VERSION}/index.html", _canonical(immutable))
     _write(root, "docs/index.html", _redirect(BASE_URL))
     _write(root, "docs/stable/index.html", _redirect(BASE_URL))
-    _write(root, "docs/stable/algorithms/nsgaii/index.html", _redirect(deep))
+    _write(
+        root,
+        "docs/stable/algorithms/nsgaii/index.html",
+        _redirect(deep, body_refresh=alias_body_refresh),
+    )
+    _write(root, "docs/stable/404.html", _redirect(missing))
     _write(root, "latest/index.html", _redirect(BASE_URL))
     _write(root, "latest/algorithms/nsgaii/index.html", _redirect(deep))
+    _write(root, "latest/404.html", _redirect(missing))
     _write(root, f"{VERSION}/index.html", _redirect(immutable))
     _write(root, "website/index.html", _canonical(f"{BASE_URL}website/"))
 
@@ -131,6 +152,23 @@ def test_clean_content_pages_require_exact_canonical(tmp_path: Path) -> None:
     completed = _run(root)
     assert completed.returncode != 0
     assert "Clean-current canonical mismatch" in completed.stderr
+
+
+def test_clean_generated_404_without_canonical_is_allowed(tmp_path: Path) -> None:
+    root = tmp_path / "clean-404"
+    _build_clean(root)
+
+    completed = _run(root)
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+
+
+def test_clean_alias_may_not_add_second_active_refresh(tmp_path: Path) -> None:
+    root = tmp_path / "clean-alias-extra-refresh"
+    _build_clean(root, alias_body_refresh="https://evil.invalid/")
+
+    completed = _run(root)
+    assert completed.returncode != 0
+    assert "Compatibility redirect refresh mismatch" in completed.stderr
 
 
 def test_clean_content_pages_without_refresh_pass(tmp_path: Path) -> None:
