@@ -67,22 +67,33 @@ jobs:
           test -d "$portal_dir/docs"
           version=$(python - "$portal_dir" <<'PY'
           import json
+          import re
           import sys
           from pathlib import Path
 
           root = Path(sys.argv[1])
           payload = json.loads((root / "docs" / "versions.json").read_text(encoding="utf-8"))
-          print(payload["stable"])
+          version = payload.get("stable")
+          if not isinstance(version, str) or re.fullmatch(r"\d+\.\d+\.\d+", version) is None:
+              raise SystemExit("invalid stable version in preview artifact")
+          print(version)
           PY
           )
           echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
           echo "portal_dir=$portal_dir" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Revalidate generated portal as untrusted data
+        env:
+          PORTAL_DIR: ${{ steps.metadata.outputs.portal_dir }}
+          PORTAL_VERSION: ${{ steps.metadata.outputs.version }}
         run: |
-          python tools/check_docs_portal.py \
-            --root '${{ steps.metadata.outputs.portal_dir }}' \
-            --version '${{ steps.metadata.outputs.version }}' \
+          python tools/check_docs_portal_transition.py \
+            --root "$PORTAL_DIR" \
+            --version "$PORTAL_VERSION" \
+            --base-url "$DOC_BASE_URL"
+          python tools/check_docs_portal_transition_content.py \
+            --root "$PORTAL_DIR" \
+            --version "$PORTAL_VERSION" \
             --base-url "$DOC_BASE_URL"
       - name: Check Cloudflare credentials
         id: cloudflare
@@ -97,9 +108,11 @@ jobs:
           fi
       - name: Stage static assets for Wrangler
         if: steps.cloudflare.outputs.configured == 'true'
+        env:
+          PORTAL_DIR: ${{ steps.metadata.outputs.portal_dir }}
         run: |
           rm -rf preview
-          cp -R '${{ steps.metadata.outputs.portal_dir }}' preview
+          cp -R "$PORTAL_DIR" preview
       - name: Publish stable PR alias on workers.dev
         id: deploy
         if: steps.cloudflare.outputs.configured == 'true'
