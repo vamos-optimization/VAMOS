@@ -41,7 +41,7 @@ def _steady_state_cfg(pop_size: int) -> dict[str, object]:
     return (
         NSGAIIConfig.builder()
         .pop_size(pop_size)
-        .offspring_size(1)
+        .steady_state()
         .crossover("sbx", prob=0.9, eta=15.0)
         .mutation("polynomial", prob="1/n", eta=20.0)
         .selection("tournament", size=2)
