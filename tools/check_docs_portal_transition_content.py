@@ -20,6 +20,10 @@ from check_docs_portal_transition import (
     check_transition_portal,
 )
 
+# ``noscript`` can contain active meta refresh content for users with scripting
+# disabled, so it must not be treated as inert by the refresh-specific scanner.
+_REFRESH_INERT_TAGS = _INERT_TAGS - {"noscript"}
+
 
 class _ActiveRefreshScanner(HTMLParser):
     """Find active meta-refresh directives anywhere outside inert subtrees."""
@@ -32,7 +36,7 @@ class _ActiveRefreshScanner(HTMLParser):
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         lowered = tag.casefold()
-        if lowered in _INERT_TAGS:
+        if lowered in _REFRESH_INERT_TAGS:
             self._inert_stack.append(lowered)
             return
         if self._inert_stack or lowered != "meta":
@@ -49,7 +53,7 @@ class _ActiveRefreshScanner(HTMLParser):
 
     def handle_endtag(self, tag: str) -> None:
         lowered = tag.casefold()
-        if lowered not in _INERT_TAGS:
+        if lowered not in _REFRESH_INERT_TAGS:
             return
         if not self._inert_stack or self._inert_stack[-1] != lowered:
             self.errors.append(f"mismatched </{lowered}> inert-subtree close")

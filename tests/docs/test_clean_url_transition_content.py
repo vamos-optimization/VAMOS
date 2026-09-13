@@ -21,16 +21,22 @@ def _canonical(
     *,
     head_refresh: str | None = None,
     body_refresh: str | None = None,
+    noscript_refresh: str | None = None,
     include_canonical: bool = True,
 ) -> str:
     canonical = "" if not include_canonical else f'<link rel="canonical" href="{target}">\n'
     head_meta = "" if head_refresh is None else f'<meta http-equiv="refresh" content="0; url={head_refresh}">\n'
     body_meta = "" if body_refresh is None else f'<meta http-equiv="refresh" content="0; url={body_refresh}">\n'
+    noscript = (
+        ""
+        if noscript_refresh is None
+        else f'<noscript><meta http-equiv="refresh" content="0; url={noscript_refresh}"></noscript>\n'
+    )
     return (
         "<!doctype html><html><head>\n"
         f"{canonical}{head_meta}"
         "</head><body>\n"
-        f"{body_meta}"
+        f"{body_meta}{noscript}"
         "</body></html>\n"
     )
 
@@ -44,6 +50,7 @@ def _build_clean(
     *,
     deep_head_refresh: str | None = None,
     deep_body_refresh: str | None = None,
+    deep_noscript_refresh: str | None = None,
     deep_canonical: bool = True,
 ) -> None:
     immutable = f"{BASE_URL}docs/{VERSION}/"
@@ -57,6 +64,7 @@ def _build_clean(
             deep,
             head_refresh=deep_head_refresh,
             body_refresh=deep_body_refresh,
+            noscript_refresh=deep_noscript_refresh,
             include_canonical=deep_canonical,
         ),
     )
@@ -107,6 +115,15 @@ def test_clean_content_pages_may_not_meta_refresh_in_body(tmp_path: Path) -> Non
     assert "Clean-current content page must not meta-refresh" in completed.stderr
 
 
+def test_clean_content_pages_may_not_meta_refresh_in_noscript(tmp_path: Path) -> None:
+    root = tmp_path / "clean-noscript-refresh"
+    _build_clean(root, deep_noscript_refresh="https://evil.invalid/")
+
+    completed = _run(root)
+    assert completed.returncode != 0
+    assert "Clean-current content page must not meta-refresh" in completed.stderr
+
+
 def test_clean_content_pages_require_exact_canonical(tmp_path: Path) -> None:
     root = tmp_path / "clean-missing-canonical"
     _build_clean(root, deep_canonical=False)
@@ -124,6 +141,12 @@ def test_clean_content_pages_without_refresh_pass(tmp_path: Path) -> None:
     assert completed.returncode == 0, completed.stdout + completed.stderr
 
 
-def test_trusted_preview_runs_supplemental_content_gate() -> None:
+def test_trusted_preview_runs_supplemental_content_gate_safely() -> None:
     workflow = (ROOT / ".github/workflows/docs-cloudflare-preview.yml").read_text(encoding="utf-8")
     assert "python tools/check_docs_portal_transition_content.py" in workflow
+    assert "PORTAL_VERSION: ${{ steps.metadata.outputs.version }}" in workflow
+    assert "PORTAL_DIR: ${{ steps.metadata.outputs.portal_dir }}" in workflow
+    assert '--version "$PORTAL_VERSION"' in workflow
+    assert '--root "$PORTAL_DIR"' in workflow
+    assert "--version '${{ steps.metadata.outputs.version }}'" not in workflow
+    assert "re.fullmatch(r\"\\d+\\.\\d+\\.\\d+\", version)" in workflow
