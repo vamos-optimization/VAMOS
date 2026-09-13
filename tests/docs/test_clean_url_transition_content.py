@@ -16,26 +16,50 @@ def _write(root: Path, relative: str, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
-def _canonical(target: str, *, refresh: str | None = None) -> str:
-    meta = "" if refresh is None else f'<meta http-equiv="refresh" content="0; url={refresh}">\n'
+def _canonical(
+    target: str,
+    *,
+    head_refresh: str | None = None,
+    body_refresh: str | None = None,
+    include_canonical: bool = True,
+) -> str:
+    canonical = "" if not include_canonical else f'<link rel="canonical" href="{target}">\n'
+    head_meta = "" if head_refresh is None else f'<meta http-equiv="refresh" content="0; url={head_refresh}">\n'
+    body_meta = "" if body_refresh is None else f'<meta http-equiv="refresh" content="0; url={body_refresh}">\n'
     return (
         "<!doctype html><html><head>\n"
-        f'<link rel="canonical" href="{target}">\n'
-        f"{meta}"
-        "</head><body></body></html>\n"
+        f"{canonical}{head_meta}"
+        "</head><body>\n"
+        f"{body_meta}"
+        "</body></html>\n"
     )
 
 
 def _redirect(target: str) -> str:
-    return _canonical(target, refresh=target)
+    return _canonical(target, head_refresh=target)
 
 
-def _build_clean(root: Path, *, deep_refresh: str | None = None) -> None:
+def _build_clean(
+    root: Path,
+    *,
+    deep_head_refresh: str | None = None,
+    deep_body_refresh: str | None = None,
+    deep_canonical: bool = True,
+) -> None:
     immutable = f"{BASE_URL}docs/{VERSION}/"
     deep = f"{BASE_URL}algorithms/nsgaii/"
     _write(root, "docs/versions.json", json.dumps({"stable": VERSION, "versions": [VERSION]}))
     _write(root, "index.html", _canonical(BASE_URL))
-    _write(root, "algorithms/nsgaii/index.html", _canonical(deep, refresh=deep_refresh))
+    _write(
+        root,
+        "algorithms/nsgaii/index.html",
+        _canonical(
+            deep,
+            head_refresh=deep_head_refresh,
+            body_refresh=deep_body_refresh,
+            include_canonical=deep_canonical,
+        ),
+    )
     _write(root, f"docs/{VERSION}/index.html", _canonical(immutable))
     _write(root, "docs/index.html", _redirect(BASE_URL))
     _write(root, "docs/stable/index.html", _redirect(BASE_URL))
@@ -65,13 +89,31 @@ def _run(root: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
-def test_clean_content_pages_may_not_meta_refresh(tmp_path: Path) -> None:
-    root = tmp_path / "clean"
-    _build_clean(root, deep_refresh="https://evil.invalid/")
+def test_clean_content_pages_may_not_meta_refresh_in_head(tmp_path: Path) -> None:
+    root = tmp_path / "clean-head-refresh"
+    _build_clean(root, deep_head_refresh="https://evil.invalid/")
 
     completed = _run(root)
     assert completed.returncode != 0
     assert "Clean-current content page must not meta-refresh" in completed.stderr
+
+
+def test_clean_content_pages_may_not_meta_refresh_in_body(tmp_path: Path) -> None:
+    root = tmp_path / "clean-body-refresh"
+    _build_clean(root, deep_body_refresh="https://evil.invalid/")
+
+    completed = _run(root)
+    assert completed.returncode != 0
+    assert "Clean-current content page must not meta-refresh" in completed.stderr
+
+
+def test_clean_content_pages_require_exact_canonical(tmp_path: Path) -> None:
+    root = tmp_path / "clean-missing-canonical"
+    _build_clean(root, deep_canonical=False)
+
+    completed = _run(root)
+    assert completed.returncode != 0
+    assert "Clean-current canonical mismatch" in completed.stderr
 
 
 def test_clean_content_pages_without_refresh_pass(tmp_path: Path) -> None:
