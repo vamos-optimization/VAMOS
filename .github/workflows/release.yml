@@ -67,7 +67,7 @@ jobs:
           python-version: "3.12"
 
       - name: Download frozen candidate bytes
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: vamos-${{ env.VAMOS_RELEASE_VERSION }}-distributions
           path: ${{ runner.temp }}/candidate-dist
@@ -144,7 +144,7 @@ jobs:
           python-version: ${{ matrix.python }}
 
       - name: Download exact candidate wheel
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: vamos-${{ env.VAMOS_RELEASE_VERSION }}-distributions
           path: candidate-dist
@@ -190,7 +190,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download validated evidence
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: vamos-${{ env.VAMOS_RELEASE_VERSION }}-evidence
           path: frozen
