@@ -89,9 +89,13 @@ class _HeadDirectiveParser(HTMLParser):
             if lowered not in _VOID_TAGS:
                 self._head_element_stack.append(lowered)
             return
-        if self._head_element_stack:
-            return
         if lowered == "link":
+            # A head-level <noscript> can expose its link metadata when scripting
+            # is disabled, so canonical links inside that context are active too.
+            if self._head_element_stack and any(
+                element != "noscript" for element in self._head_element_stack
+            ):
+                return
             data, errors = self._attribute_map(lowered, attrs, {"rel", "href"})
             self.errors.extend(errors)
             rel = data.get("rel") or ""
@@ -99,9 +103,12 @@ class _HeadDirectiveParser(HTMLParser):
                 href = data.get("href")
                 if href is not None:
                     self.canonicals.append(href)
-        elif lowered == "meta":
             return
-        elif lowered not in _VOID_TAGS:
+        if self._head_element_stack:
+            return
+        if lowered == "meta":
+            return
+        if lowered not in _VOID_TAGS:
             self._head_element_stack.append(lowered)
 
     def handle_endtag(self, tag: str) -> None:
