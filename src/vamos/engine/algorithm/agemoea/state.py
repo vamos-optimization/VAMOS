@@ -31,7 +31,7 @@ class AGEMOEAState(AlgorithmState):
     selection_crowding: Any = field(default=None, repr=False, compare=False)
 
 
-def _result_population_indices(state: AGEMOEAState, kernel: Any) -> np.ndarray:
+def _result_population_indices(state: AGEMOEAState, kernel: Any) -> np.ndarray[Any, Any]:
     """Return the feasibility-aware non-dominated subset for top-level results."""
     candidates = np.arange(state.F.shape[0], dtype=int)
     if state.G is not None and state.constraint_mode != "none":
@@ -46,7 +46,7 @@ def _result_population_indices(state: AGEMOEAState, kernel: Any) -> np.ndarray:
     if kernel is None or candidates.size == 0:
         return candidates
     ranks, _ = kernel.nsga2_ranking(state.F[candidates])
-    return candidates[np.asarray(ranks) == 0]
+    return np.asarray(candidates[np.asarray(ranks) == 0], dtype=int)
 
 
 def build_agemoea_result(
@@ -55,7 +55,7 @@ def build_agemoea_result(
 ) -> dict[str, Any]:
     """Build AGE-MOEA result dictionary from state."""
     archive_contents = get_external_archive_contents(state)
-    result_G: np.ndarray | None = None
+    result_G: np.ndarray[Any, Any] | None = None
     if archive_contents is not None and not wants_population_result(state):
         archive_X, archive_F = archive_contents
         result_X = archive_X.copy()
