@@ -177,7 +177,6 @@ def _selection_metrics(
     ranks, crowding = kernel.nsga2_ranking(F)
     if G is None or constraint_mode == "none":
         return np.asarray(ranks, dtype=int), np.asarray(crowding, dtype=float)
-
     violation = compute_violation(G, n=G.shape[0])
     feasible = is_feasible(G, n=G.shape[0])
     if feasible.any():
