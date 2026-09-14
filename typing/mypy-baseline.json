@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "80b8e81b55dbabd1535101c7671ae632157f4931",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 80b8e81b55dbabd1535101c7671ae632157f4931",
+  "generation_commit": "1171e25a403698008ec921d729b02f6fe892ba67",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 1171e25a403698008ec921d729b02f6fe892ba67",
   "environment": {
     "python": "3.12",
     "mypy": "1.15.0",
@@ -11,26 +11,27 @@
     "stub_packages": [],
     "type_affecting_optional_distributions": [],
     "config_path": "pyproject.toml",
-    "config_sha256": "475F1ED9AB199344A0196F853D68F4DA27904E33CDA8805F9587A379AB2AD6F1",
+    "config_sha256": "C37A9E13733D3FD89829BA46BBB90DDB3195859408819D41BF8E32C31D7D2018",
+    "mypy_config_sha256": "2D1AAAB5CB687AA8C7871D3AFBE4638A782A12541721A85B770843816611FCAD",
     "constraints_path": "constraints/ci.txt",
     "constraints_sha256": "9FDA96C191D509BFF220177AD804D2F7289837635EEB082E33F862D1B13EEE66"
   },
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 1424,
-  "files_with_diagnostics": 151,
-  "fingerprint_count": 177,
+  "diagnostic_count": 1405,
+  "files_with_diagnostics": 149,
+  "fingerprint_count": 174,
   "error_code_summary": {
     "arg-type": 3,
     "misc": 5,
     "no-any-return": 7,
-    "type-arg": 1401,
-    "union-attr": 3,
+    "type-arg": 1383,
+    "union-attr": 2,
     "unused-ignore": 5
   },
   "layer_summary": {
-    "engine": 812,
+    "engine": 793,
     "experiment": 22,
     "foundation": 522,
     "package-root": 1,
@@ -3651,20 +3652,6 @@
       ]
     },
     {
-      "fingerprint": "6E7E6479723D48966E50F744542489993C594E1F6CC20DDABC355A39C7EA1988",
-      "path": "src/vamos/engine/algorithm/smpso/smpso.py",
-      "error_code": "union-attr",
-      "normalized_message": "Item \"None\" of \"EvaluationBackend | None\" has no attribute \"evaluate\"",
-      "layer": "engine",
-      "multiplicity": 1,
-      "locations": [
-        {
-          "line": 194,
-          "column": 27
-        }
-      ]
-    },
-    {
       "fingerprint": "6F1EA7BE0A66495542DB7BA5EA0D1AE04BE506094EF9C35CA50BD9B732048AE3",
       "path": "src/vamos/foundation/problem/tsplib.py",
       "error_code": "type-arg",
@@ -4038,60 +4025,6 @@
         },
         {
           "line": 323,
-          "column": null
-        }
-      ]
-    },
-    {
-      "fingerprint": "780D2E598EF93E18B62208CC70F9BCDB13DCD3D451D076D1D43B2A088D24ACFE",
-      "path": "src/vamos/engine/algorithm/smpso/state.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 11,
-      "locations": [
-        {
-          "line": 21,
-          "column": 15
-        },
-        {
-          "line": 22,
-          "column": 14
-        },
-        {
-          "line": 23,
-          "column": 14
-        },
-        {
-          "line": 24,
-          "column": null
-        },
-        {
-          "line": 42,
-          "column": 11
-        },
-        {
-          "line": 43,
-          "column": 16
-        },
-        {
-          "line": 44,
-          "column": 16
-        },
-        {
-          "line": 46,
-          "column": 9
-        },
-        {
-          "line": 47,
-          "column": 9
-        },
-        {
-          "line": 51,
-          "column": null
-        },
-        {
-          "line": 52,
           "column": null
         }
       ]
@@ -7271,44 +7204,6 @@
         {
           "line": 75,
           "column": null
-        }
-      ]
-    },
-    {
-      "fingerprint": "F1E73AFB063A92A21570418C432521E7830A6EFCB1C0D50C18329A72C3B40F1C",
-      "path": "src/vamos/engine/algorithm/smpso/smpso.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 7,
-      "locations": [
-        {
-          "line": 46,
-          "column": null
-        },
-        {
-          "line": 47,
-          "column": null
-        },
-        {
-          "line": 50,
-          "column": null
-        },
-        {
-          "line": 250,
-          "column": null
-        },
-        {
-          "line": 276,
-          "column": 18
-        },
-        {
-          "line": 277,
-          "column": 21
-        },
-        {
-          "line": 339,
-          "column": 21
         }
       ]
     },

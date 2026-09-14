@@ -43,11 +43,11 @@ __all__ = ["SMPSO"]
 
 
 def _select_global_best(
-    arch_X: np.ndarray,
-    crowding: np.ndarray,
+    arch_X: np.ndarray[Any, Any],
+    crowding: np.ndarray[Any, Any],
     rng: np.random.Generator,
     n_select: int,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
     """Select leaders using crowding-distance binary tournaments.
 
     Returns the selected leaders and their indices in the archive.
@@ -159,7 +159,7 @@ class SMPSO:
         eval_strategy : EvaluationBackend, optional
             Evaluation backend.
         live_viz : LiveVisualization, optional
-            Live visualization callback.
+            Visualization callback.
 
         Returns
         -------
@@ -169,6 +169,7 @@ class SMPSO:
         self._st, live_cb, eval_strategy, max_eval, hv_tracker = initialize_smpso_run(
             self.cfg, self.kernel, problem, termination, seed, eval_strategy, live_viz
         )
+        assert eval_strategy is not None
         self._live_cb = live_cb
         self._eval_strategy = eval_strategy
         self._max_eval = max_eval
@@ -226,11 +227,11 @@ class SMPSO:
         termination : tuple
             Termination criterion.
         seed : int
-            Random seed.
+            Random seed for reproducibility.
         eval_strategy : EvaluationBackend, optional
             Evaluation backend.
         live_viz : LiveVisualization, optional
-            Live visualization callback.
+            Visualization callback.
         """
         self._st, self._live_cb, self._eval_strategy, self._max_eval, self._hv_tracker = initialize_smpso_run(
             self.cfg, self.kernel, problem, termination, seed, eval_strategy, live_viz
@@ -247,7 +248,7 @@ class SMPSO:
             self._live_cb.on_start(ctx)
             self._live_cb.on_generation(0, F=self._st.hv_points())
 
-    def ask(self) -> np.ndarray:
+    def ask(self) -> np.ndarray[Any, Any]:
         """Generate offspring positions for evaluation.
 
         Updates particle velocities using PSO update rule with cognitive
@@ -273,8 +274,8 @@ class SMPSO:
         # Select leaders from archive using crowding-based binary tournament
         arch_X = st.archive_X
         arch_F = st.archive_F
-        leaders: np.ndarray
-        leader_idx: np.ndarray
+        leaders: np.ndarray[Any, Any]
+        leader_idx: np.ndarray[Any, Any]
         if arch_X is None or arch_F is None or arch_F.size == 0:
             leader_idx = np.asarray(st.rng.integers(0, st.X.shape[0], size=st.X.shape[0]), dtype=int)
             leaders = st.X[leader_idx]
@@ -336,7 +337,7 @@ class SMPSO:
             parent_pairs = np.column_stack([self_idx, leader_idx[pending_idx]]).flatten()
             track_offspring_genealogy(st, parent_pairs, request_size, "pso_update", "smpso")
 
-        return cast(np.ndarray, st.pending_offspring.copy())
+        return cast(np.ndarray[Any, Any], st.pending_offspring.copy())
 
     def tell(
         self,
@@ -420,6 +421,11 @@ class SMPSO:
         if st.archive_manager is not None:
             st.archive_X, st.archive_F = st.archive_manager.update(X_new, F, G)
             self._refresh_archive_crowding(st)
+
+        # Keep the configured result archive independent from the intrinsic
+        # leaders archive so result policy never changes PSO dynamics.
+        if st.result_archive is not None:
+            st.result_archive.update(X_new, F, G)
 
         if st.hv_tracker is not None and st.hv_tracker.enabled:
             return st.hv_tracker.reached(st.hv_points())
