@@ -105,43 +105,9 @@ def test_cli_tuning_forces_population_result_mode() -> None:
     assert cfg.to_dict()["result_mode"] != "population"
 
 
-@pytest.mark.parametrize("algorithm_name", ["agemoea", "rvea"])
-def test_constrained_cli_tuning_rejects_algorithms_without_aligned_population_constraints(algorithm_name: str) -> None:
-    with pytest.raises(RuntimeError, match="does not yet support constrained"):
-        _ensure_constrained_tuning_supported(algorithm_name, 1)
-
-
-@pytest.mark.parametrize("algorithm_name", ["agemoea", "rvea"])
-def test_unconstrained_cli_tuning_keeps_agemoea_and_rvea_available(algorithm_name: str) -> None:
-    _ensure_constrained_tuning_supported(algorithm_name, 0)
-
-
-def test_constrained_cli_tuning_keeps_supported_algorithm_available() -> None:
-    _ensure_constrained_tuning_supported("nsgaii", 1)
-
-
-def test_constrained_cli_preflight_checks_held_out_selected_instances(monkeypatch) -> None:
-    class _Selection:
-        def __init__(self, constrained: bool) -> None:
-            self.constrained = constrained
-
-        def instantiate(self):
-            return SimpleNamespace(n_constraints=1 if self.constrained else 0)
-
-    def _selection(name: str, **_kwargs):
-        return _Selection(constrained=name == "heldout_constrained")
-
-    monkeypatch.setattr(tune_runtime, "make_problem_selection", _selection)
-    args = SimpleNamespace(
-        algorithm="agemoea",
-        instances="train_unconstrained,heldout_constrained",
-        problem="train_unconstrained",
-        n_var=2,
-        n_obj=2,
-    )
-
-    with pytest.raises(RuntimeError, match="does not yet support constrained"):
-        tune_runtime._preflight_constraint_support(args)
+@pytest.mark.parametrize("algorithm_name", ["agemoea", "rvea", "nsgaii"])
+def test_constrained_cli_tuning_accepts_population_aligned_algorithms(algorithm_name: str) -> None:
+    _ensure_constrained_tuning_supported(algorithm_name, 1)
 
 
 def test_persistent_optuna_study_name_is_versioned_by_scoring_contract() -> None:
