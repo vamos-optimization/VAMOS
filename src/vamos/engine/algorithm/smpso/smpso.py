@@ -159,7 +159,7 @@ class SMPSO:
         eval_strategy : EvaluationBackend, optional
             Evaluation backend.
         live_viz : LiveVisualization, optional
-            Live visualization callback.
+            Visualization callback.
 
         Returns
         -------
@@ -169,6 +169,7 @@ class SMPSO:
         self._st, live_cb, eval_strategy, max_eval, hv_tracker = initialize_smpso_run(
             self.cfg, self.kernel, problem, termination, seed, eval_strategy, live_viz
         )
+        assert eval_strategy is not None
         self._live_cb = live_cb
         self._eval_strategy = eval_strategy
         self._max_eval = max_eval
@@ -230,7 +231,7 @@ class SMPSO:
         eval_strategy : EvaluationBackend, optional
             Evaluation backend.
         live_viz : LiveVisualization, optional
-            Live visualization callback.
+            Visualization callback.
         """
         self._st, self._live_cb, self._eval_strategy, self._max_eval, self._hv_tracker = initialize_smpso_run(
             self.cfg, self.kernel, problem, termination, seed, eval_strategy, live_viz
