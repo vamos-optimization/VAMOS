@@ -76,7 +76,10 @@ def _build_variation(config: dict[str, Any], encoding: Any, xl: Any, xu: Any, pr
     )
 
 
-def _extract_evaluation_arrays(eval_result: Any, constraint_mode: str) -> tuple[np.ndarray, np.ndarray | None]:
+def _extract_evaluation_arrays(
+    eval_result: Any,
+    constraint_mode: str,
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any] | None]:
     """Normalize ask/tell evaluation payloads and honor the constraint opt-out."""
     raw_g: Any = None
     if hasattr(eval_result, "F"):
@@ -105,7 +108,11 @@ def _extract_evaluation_arrays(eval_result: Any, constraint_mode: str) -> tuple[
     return F, G
 
 
-def _combine_constraints(current: np.ndarray | None, offspring: np.ndarray | None, constraint_mode: str) -> np.ndarray | None:
+def _combine_constraints(
+    current: np.ndarray[Any, Any] | None,
+    offspring: np.ndarray[Any, Any] | None,
+    constraint_mode: str,
+) -> np.ndarray[Any, Any] | None:
     if constraint_mode == "none":
         return None
     if current is None and offspring is None:
@@ -121,22 +128,22 @@ def _combine_constraints(current: np.ndarray | None, offspring: np.ndarray | Non
 
 
 def _constraint_aware_age_survival(
-    F: np.ndarray,
-    G: np.ndarray | None,
+    F: np.ndarray[Any, Any],
+    G: np.ndarray[Any, Any] | None,
     n_survive: int,
     kernel: KernelBackend,
     constraint_mode: str,
-) -> np.ndarray:
+) -> np.ndarray[Any, Any]:
     """Apply feasibility-first ordering, then AGE geometry among feasible points."""
     if G is None or constraint_mode == "none":
-        return age_survival(F, n_survive, kernel)
+        return np.asarray(age_survival(F, n_survive, kernel), dtype=int)
 
     feasible = is_feasible(G, n=G.shape[0])
     feasible_idx = np.flatnonzero(feasible)
     target = min(int(n_survive), F.shape[0])
     if feasible_idx.size >= target:
-        local = age_survival(F[feasible_idx], target, kernel)
-        return feasible_idx[local]
+        local = np.asarray(age_survival(F[feasible_idx], target, kernel), dtype=int)
+        return np.asarray(feasible_idx[local], dtype=int)
 
     violation = compute_violation(G, n=G.shape[0])
     infeasible_idx = np.flatnonzero(~feasible)
@@ -148,10 +155,10 @@ def _constraint_aware_age_survival(
 
 def _selection_metrics(
     kernel: KernelBackend,
-    F: np.ndarray,
-    G: np.ndarray | None,
+    F: np.ndarray[Any, Any],
+    G: np.ndarray[Any, Any] | None,
     constraint_mode: str,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
     """Build tournament ranks/crowding with feasibility-first constraint ordering."""
     ranks, crowding = kernel.nsga2_ranking(F)
     if G is None or constraint_mode == "none":
@@ -375,7 +382,7 @@ class AGEMOEA:
         if X_off.shape[0] > request_size:
             X_off = X_off[:request_size]
         st.pending_offspring = X_off
-        return np.array(X_off, copy=True)
+        return np.asarray(X_off).copy()
 
     def tell(self, eval_result: Any, problem: ProblemProtocol | None = None) -> bool:
         """Receive evaluated offspring and update population.
