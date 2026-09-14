@@ -177,7 +177,6 @@ def _build_variation(config: dict[str, Any], encoding: Any, xl: Any, xu: Any, pr
         problem=problem,
     )
 
-
 class RVEA:
     """RVEA: Reference Vector-guided Evolutionary Algorithm.
 
