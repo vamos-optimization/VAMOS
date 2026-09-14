@@ -41,6 +41,12 @@ class _UnconstrainedIdentityProblem:
         out["F"] = np.asarray(X[:, :2], dtype=float).copy()
 
 
+class _MissingConstraintBackend:
+    def evaluate(self, X, problem):
+        del problem
+        return {"F": np.asarray(X[:, :2], dtype=float).copy()}
+
+
 def _agemoea_config(*, constraint_mode: str = "feasibility") -> dict:
     return (
         AGEMOEAConfig.builder()
@@ -202,6 +208,25 @@ def test_active_constraint_mode_exposes_population_aligned_g(algorithm_cls, conf
     np.testing.assert_array_equal(result["G"], result["population"]["G"])
     expected_g = (0.5 - result["population"]["X"][:, 0])[:, None]
     np.testing.assert_allclose(result["population"]["G"], expected_g)
+
+
+@pytest.mark.parametrize(
+    ("algorithm_cls", "config"),
+    [
+        (AGEMOEA, _agemoea_config()),
+        (RVEA, _rvea_config()),
+    ],
+)
+def test_active_constraint_mode_rejects_missing_initial_g(algorithm_cls, config) -> None:
+    algorithm = algorithm_cls(config, NumPyKernel())
+
+    with pytest.raises(ValueError, match="requires constraint values G"):
+        algorithm.initialize(
+            _ConstrainedIdentityProblem(),
+            termination=("max_evaluations", 12),
+            seed=5,
+            eval_strategy=_MissingConstraintBackend(),
+        )
 
 
 @pytest.mark.parametrize(
