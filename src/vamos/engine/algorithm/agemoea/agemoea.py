@@ -79,8 +79,9 @@ def _build_variation(config: dict[str, Any], encoding: Any, xl: Any, xu: Any, pr
 def _extract_evaluation_arrays(
     eval_result: Any,
     constraint_mode: str,
+    n_constraints: int | None = None,
 ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any] | None]:
-    """Normalize ask/tell evaluation payloads and honor the constraint opt-out."""
+    """Normalize evaluation payloads and enforce declared active constraints."""
     raw_g: Any = None
     if hasattr(eval_result, "F"):
         raw_f = eval_result.F
@@ -97,7 +98,16 @@ def _extract_evaluation_arrays(
     if F.ndim != 2:
         raise ValueError(f"AGE-MOEA expected 2-D objective values, got shape {F.shape}.")
 
-    if constraint_mode == "none" or raw_g is None:
+    if constraint_mode == "none":
+        return F, None
+    if n_constraints is not None and n_constraints <= 0:
+        return F, None
+    if raw_g is None:
+        if n_constraints is not None and n_constraints > 0:
+            raise ValueError(
+                "AGE-MOEA requires constraint values G when constraint handling is active "
+                f"for a problem declaring {n_constraints} constraint(s)."
+            )
         return F, None
 
     G = np.asarray(raw_g, dtype=float)
@@ -105,6 +115,10 @@ def _extract_evaluation_arrays(
         G = G.reshape(-1, 1)
     if G.ndim != 2 or G.shape[0] != F.shape[0]:
         raise ValueError("AGE-MOEA constraint values G must align row-wise with objective values F.")
+    if n_constraints is not None and n_constraints > 0 and G.shape[1] != n_constraints:
+        raise ValueError(
+            f"AGE-MOEA expected {n_constraints} constraint column(s) in G, got {G.shape[1]}."
+        )
     return F, G
 
 
@@ -124,7 +138,7 @@ def _combine_constraints(
         )
     if current.shape[1] != offspring.shape[1]:
         raise ValueError("AGE-MOEA constraint column count changed between generations.")
-    return np.vstack([current, offspring])
+    return np.asarray(np.vstack([current, offspring]), dtype=float)
 
 
 def _constraint_aware_age_survival(
@@ -150,7 +164,7 @@ def _constraint_aware_age_survival(
     needed = target - feasible_idx.size
     order = np.argsort(violation[infeasible_idx], kind="stable")
     fill = infeasible_idx[order[:needed]]
-    return np.concatenate([feasible_idx, fill]).astype(int, copy=False)
+    return np.asarray(np.concatenate([feasible_idx, fill]), dtype=int)
 
 
 def _selection_metrics(
@@ -282,6 +296,7 @@ class AGEMOEA:
 
         pop_size = int(self.cfg.get("pop_size", 100))
         constraint_mode = str(self.cfg.get("constraint_mode", "feasibility")).strip().lower()
+        n_constraints = int(getattr(problem, "n_constraints", 0) or 0)
         term_key, term_val = termination
         if term_key == "max_evaluations":
             max_evals = int(term_val)
@@ -294,7 +309,11 @@ class AGEMOEA:
         encoding = normalize_encoding(getattr(problem, "encoding", "real"))
         xl, xu = resolve_bounds(problem, encoding)
         X = initialize_population(pop_size, problem.n_var, xl, xu, encoding, rng, problem, self.cfg.get("initializer"))
-        F, G = _extract_evaluation_arrays(backend.evaluate(X, problem), constraint_mode)
+        F, G = _extract_evaluation_arrays(
+            backend.evaluate(X, problem),
+            constraint_mode,
+            n_constraints,
+        )
 
         variation = _build_variation(self.cfg, encoding, xl, xu, problem)
         ext_cfg = resolve_external_archive(self.cfg)
@@ -411,7 +430,12 @@ class AGEMOEA:
         st = self._st
         X_off = st.pending_offspring
         assert X_off is not None
-        F_off, G_off = _extract_evaluation_arrays(eval_result, st.constraint_mode)
+        active_n_constraints = st.G.shape[1] if st.G is not None and st.constraint_mode != "none" else 0
+        F_off, G_off = _extract_evaluation_arrays(
+            eval_result,
+            st.constraint_mode,
+            active_n_constraints,
+        )
         if F_off.shape[0] != X_off.shape[0]:
             raise ValueError("AGE-MOEA offspring objective rows must match the pending decision vectors.")
 
