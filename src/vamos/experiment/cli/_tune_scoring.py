@@ -12,7 +12,7 @@ from vamos.engine.algorithm.variants import canonical_algorithm_name
 from vamos.foundation.quality_indicators.hypervolume import hypervolume
 from vamos.foundation.quality_indicators.pareto import pareto_filter
 
-_CONSTRAINED_TUNING_UNSUPPORTED = {"agemoea", "rvea"}
+_CONSTRAINED_TUNING_UNSUPPORTED: tuple[str, ...] = ()
 
 
 class _UnsupportedConstrainedTuningError(RuntimeError):
@@ -20,7 +20,7 @@ class _UnsupportedConstrainedTuningError(RuntimeError):
 
 
 def _ensure_constrained_tuning_supported(algorithm_name: str, n_constraints: int) -> None:
-    """Reject constrained CLI tuning when population-aligned G is unavailable."""
+    """Reject constrained CLI tuning for engines without population-aligned G."""
     algo_name = canonical_algorithm_name(algorithm_name)
     if n_constraints > 0 and algo_name in _CONSTRAINED_TUNING_UNSUPPORTED:
         raise _UnsupportedConstrainedTuningError(

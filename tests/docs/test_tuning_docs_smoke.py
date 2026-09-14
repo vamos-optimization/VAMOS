@@ -25,7 +25,6 @@ def _run_vamos(*args: str, timeout: int = 180) -> subprocess.CompletedProcess[st
 
 def test_tuning_docs_match_current_contract() -> None:
     text = DOC_PATH.read_text(encoding="utf-8")
-    normalized_text = " ".join(text.split())
 
     assert "Experimental surface in VAMOS 1.0.0" in text
     assert "does **not** expose a curated public programmatic facade" in text
@@ -48,10 +47,11 @@ def test_tuning_docs_match_current_contract() -> None:
     assert "Archive studies are separate from ordinary CLI tuning" in text
 
     assert "Constrained AGE-MOEA and RVEA" in text
-    assert "does not currently support" in text
-    assert "fails explicitly" in normalized_text
-    assert "population-aligned constraint values" in text
-    assert "including problems later assigned to validation or\n    test splits" in text
+    assert "preserve population-aligned constraint values" in text
+    assert "constraint handling is active" in text
+    assert '`constraint_mode="none"`' in text
+    assert "constraints are ignored" in text
+    assert "does not currently support\n    constrained AGE-MOEA and RVEA" not in text
 
     assert "Persistent Optuna studies are scoring-contract versioned" in text
     assert "__vamos_cli_final_population_hv_v1" in text

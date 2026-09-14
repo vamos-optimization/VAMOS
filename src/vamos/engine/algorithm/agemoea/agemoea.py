@@ -9,7 +9,7 @@ Reference:
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -28,6 +28,7 @@ from vamos.engine.variation.helpers import (
 )
 from vamos.engine.variation.pipeline import VariationPipeline
 from vamos.engine.variation.protocol import RepairConfigValue
+from vamos.foundation.constraints.utils import compute_violation, is_feasible
 from vamos.foundation.encoding import normalize_encoding
 from vamos.foundation.eval.backends import EvaluationBackend, SerialEvalBackend
 from vamos.foundation.kernel import default_kernel
@@ -75,6 +76,123 @@ def _build_variation(config: dict[str, Any], encoding: Any, xl: Any, xu: Any, pr
     )
 
 
+def _extract_evaluation_arrays(
+    eval_result: Any,
+    constraint_mode: str,
+    n_constraints: int | None = None,
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any] | None]:
+    """Normalize evaluation payloads and enforce declared active constraints."""
+    raw_g: Any = None
+    if hasattr(eval_result, "F"):
+        raw_f = eval_result.F
+        raw_g = getattr(eval_result, "G", None)
+    elif isinstance(eval_result, dict):
+        raw_f = eval_result["F"]
+        raw_g = eval_result.get("G")
+    else:
+        raw_f = eval_result
+
+    F = np.asarray(raw_f, dtype=float)
+    if F.ndim == 1:
+        F = F.reshape(1, -1)
+    if F.ndim != 2:
+        raise ValueError(f"AGE-MOEA expected 2-D objective values, got shape {F.shape}.")
+
+    if constraint_mode == "none":
+        return F, None
+    if n_constraints is not None and n_constraints <= 0:
+        return F, None
+    if raw_g is None:
+        if n_constraints is not None and n_constraints > 0:
+            raise ValueError(
+                "AGE-MOEA requires constraint values G when constraint handling is active "
+                f"for a problem declaring {n_constraints} constraint(s)."
+            )
+        return F, None
+
+    G = np.asarray(raw_g, dtype=float)
+    if G.ndim == 1:
+        G = G.reshape(-1, 1)
+    if G.ndim != 2 or G.shape[0] != F.shape[0]:
+        raise ValueError("AGE-MOEA constraint values G must align row-wise with objective values F.")
+    if n_constraints is not None and n_constraints > 0 and G.shape[1] != n_constraints:
+        raise ValueError(
+            f"AGE-MOEA expected {n_constraints} constraint column(s) in G, got {G.shape[1]}."
+        )
+    return F, G
+
+
+def _combine_constraints(
+    current: np.ndarray[Any, Any] | None,
+    offspring: np.ndarray[Any, Any] | None,
+    constraint_mode: str,
+) -> np.ndarray[Any, Any] | None:
+    if constraint_mode == "none":
+        return None
+    if current is None and offspring is None:
+        return None
+    if current is None or offspring is None:
+        raise ValueError(
+            "AGE-MOEA received inconsistent constraint data across generations. "
+            "When constraint handling is active, constrained ask/tell evaluations must provide G."
+        )
+    if current.shape[1] != offspring.shape[1]:
+        raise ValueError("AGE-MOEA constraint column count changed between generations.")
+    return np.asarray(np.vstack([current, offspring]), dtype=float)
+
+
+def _constraint_aware_age_survival(
+    F: np.ndarray[Any, Any],
+    G: np.ndarray[Any, Any] | None,
+    n_survive: int,
+    kernel: KernelBackend,
+    constraint_mode: str,
+) -> np.ndarray[Any, Any]:
+    """Apply feasibility-first ordering, then AGE geometry among feasible points."""
+    if G is None or constraint_mode == "none":
+        return np.asarray(age_survival(F, n_survive, kernel), dtype=int)
+
+    feasible = is_feasible(G, n=G.shape[0])
+    feasible_idx = np.flatnonzero(feasible)
+    target = min(int(n_survive), F.shape[0])
+    if feasible_idx.size >= target:
+        local = np.asarray(age_survival(F[feasible_idx], target, kernel), dtype=int)
+        return np.asarray(feasible_idx[local], dtype=int)
+
+    violation = compute_violation(G, n=G.shape[0])
+    infeasible_idx = np.flatnonzero(~feasible)
+    needed = target - feasible_idx.size
+    order = np.argsort(violation[infeasible_idx], kind="stable")
+    fill = infeasible_idx[order[:needed]]
+    return np.asarray(np.concatenate([feasible_idx, fill]), dtype=int)
+
+
+def _selection_metrics(
+    kernel: KernelBackend,
+    F: np.ndarray[Any, Any],
+    G: np.ndarray[Any, Any] | None,
+    constraint_mode: str,
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
+    """Build tournament ranks/crowding with feasibility-first constraint ordering."""
+    ranks, crowding = kernel.nsga2_ranking(F)
+    if G is None or constraint_mode == "none":
+        return np.asarray(ranks, dtype=int), np.asarray(crowding, dtype=float)
+    violation = compute_violation(G, n=G.shape[0])
+    feasible = is_feasible(G, n=G.shape[0])
+    if feasible.any():
+        feasible_idx = np.flatnonzero(feasible)
+        feasible_ranks, feasible_crowding = kernel.nsga2_ranking(F[feasible_idx])
+        ranks = np.full(F.shape[0], int(feasible_ranks.max(initial=0)) + 1, dtype=int)
+        crowding = np.zeros(F.shape[0], dtype=float)
+        ranks[feasible_idx] = feasible_ranks
+        crowding[feasible_idx] = feasible_crowding
+        crowding[~feasible] = -violation[~feasible]
+    else:
+        ranks = np.zeros(F.shape[0], dtype=int)
+        crowding = -violation
+    return np.asarray(ranks, dtype=int), np.asarray(crowding, dtype=float)
+
+
 class AGEMOEA:
     """AGE-MOEA: Adaptive Geometry Estimation MOEA.
 
@@ -113,9 +231,9 @@ class AGEMOEA:
         self._live_cb: LiveVisualization | None = None
 
     def _refresh_selection_metrics(self, st: AGEMOEAState) -> None:
-        ranks, crowding = self.kernel.nsga2_ranking(st.F)
-        st.selection_ranks = np.asarray(ranks, dtype=int)
-        st.selection_crowding = np.asarray(crowding, dtype=float)
+        ranks, crowding = _selection_metrics(self.kernel, st.F, st.G, st.constraint_mode)
+        st.selection_ranks = ranks
+        st.selection_crowding = crowding
 
     # -------------------------------------------------------------------------
     # Main run method (batch mode)
@@ -137,8 +255,8 @@ class AGEMOEA:
         stop_requested = False
         while not self.should_terminate():
             X_off = self.ask()
-            F_off = np.asarray(backend.evaluate(X_off, problem).F, dtype=float)
-            stop_requested = self.tell(F_off)
+            eval_result = backend.evaluate(X_off, problem)
+            stop_requested = self.tell(eval_result)
             if stop_requested:
                 break
 
@@ -176,6 +294,8 @@ class AGEMOEA:
         live_cb = get_live_viz(live_viz)
 
         pop_size = int(self.cfg.get("pop_size", 100))
+        constraint_mode = str(self.cfg.get("constraint_mode", "feasibility")).strip().lower()
+        n_constraints = int(getattr(problem, "n_constraints", 0) or 0)
         term_key, term_val = termination
         if term_key == "max_evaluations":
             max_evals = int(term_val)
@@ -188,7 +308,11 @@ class AGEMOEA:
         encoding = normalize_encoding(getattr(problem, "encoding", "real"))
         xl, xu = resolve_bounds(problem, encoding)
         X = initialize_population(pop_size, problem.n_var, xl, xu, encoding, rng, problem, self.cfg.get("initializer"))
-        F = np.asarray(backend.evaluate(X, problem).F, dtype=float)
+        F, G = _extract_evaluation_arrays(
+            backend.evaluate(X, problem),
+            constraint_mode,
+            n_constraints,
+        )
 
         variation = _build_variation(self.cfg, encoding, xl, xu, problem)
         ext_cfg = resolve_external_archive(self.cfg)
@@ -200,9 +324,9 @@ class AGEMOEA:
             problem.n_obj,
             X.dtype,
             ext_cfg,
-            None,
+            G,
         )
-        selection_ranks, selection_crowding = self.kernel.nsga2_ranking(F)
+        selection_ranks, selection_crowding = _selection_metrics(self.kernel, F, G, constraint_mode)
 
         result_mode = str(self.cfg.get("result_mode", "non_dominated")).strip().lower()
         if result_mode not in {"non_dominated", "population"}:
@@ -212,19 +336,20 @@ class AGEMOEA:
         self._st = AGEMOEAState(
             X=X,
             F=F,
-            G=None,
+            G=G,
             rng=rng,
             pop_size=pop_size,
             n_eval=X.shape[0],
             generation=0,
             max_evals=max_evals,
             variation=variation,
+            constraint_mode=constraint_mode,
             archive_size=ext_cfg.capacity if ext_cfg is not None else None,
             archive_X=archive_X,
             archive_F=archive_F,
             archive_manager=archive_manager,
-            selection_ranks=np.asarray(selection_ranks, dtype=int),
-            selection_crowding=np.asarray(selection_crowding, dtype=float),
+            selection_ranks=selection_ranks,
+            selection_crowding=selection_crowding,
             result_mode=result_mode,
         )
         live_cb.on_start(
@@ -275,7 +400,7 @@ class AGEMOEA:
         if X_off.shape[0] > request_size:
             X_off = X_off[:request_size]
         st.pending_offspring = X_off
-        return np.array(X_off, copy=True)
+        return cast(np.ndarray[Any, Any], np.asarray(X_off).copy())
 
     def tell(self, eval_result: Any, problem: ProblemProtocol | None = None) -> bool:
         """Receive evaluated offspring and update population.
@@ -283,8 +408,8 @@ class AGEMOEA:
         Parameters
         ----------
         eval_result : Any
-            Objective values as ``np.ndarray``, or an object with ``.F`` attribute,
-            or a dict with ``"F"`` key.
+            Objective values as ``np.ndarray``, or an object/dict with ``F`` and
+            optional ``G`` constraint values.
         problem : ProblemProtocol | None
             Unused, kept for interface consistency.
 
@@ -304,22 +429,24 @@ class AGEMOEA:
         st = self._st
         X_off = st.pending_offspring
         assert X_off is not None
-
-        if hasattr(eval_result, "F"):
-            F_off = np.asarray(eval_result.F, dtype=float)
-        elif isinstance(eval_result, dict):
-            F_off = np.asarray(eval_result["F"], dtype=float)
-        else:
-            F_off = np.asarray(eval_result, dtype=float)
-
-        st.n_eval += X_off.shape[0]
+        active_n_constraints = st.G.shape[1] if st.G is not None and st.constraint_mode != "none" else 0
+        F_off, G_off = _extract_evaluation_arrays(
+            eval_result,
+            st.constraint_mode,
+            active_n_constraints,
+        )
+        if F_off.shape[0] != X_off.shape[0]:
+            raise ValueError("AGE-MOEA offspring objective rows must match the pending decision vectors.")
 
         X_combined = np.vstack([st.X, X_off])
         F_combined = np.vstack([st.F, F_off])
+        G_combined = _combine_constraints(st.G, G_off, st.constraint_mode)
 
-        survivors = age_survival(F_combined, st.pop_size, self.kernel)
+        survivors = _constraint_aware_age_survival(F_combined, G_combined, st.pop_size, self.kernel, st.constraint_mode)
         st.X = X_combined[survivors]
         st.F = F_combined[survivors]
+        st.G = G_combined[survivors] if G_combined is not None else None
+        st.n_eval += X_off.shape[0]
         self._refresh_selection_metrics(st)
         if st.archive_manager is not None:
             st.archive_X, st.archive_F = st.archive_manager.update(st.X, st.F, st.G)

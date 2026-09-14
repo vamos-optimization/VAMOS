@@ -63,16 +63,13 @@ parameter space aligned with the set actually used for scoring. Archive design
 can still be studied explicitly in a separate controlled experiment, but it is
 not mixed into ordinary `vamos tune` comparisons.
 
-!!! warning "Constrained AGE-MOEA and RVEA"
-    The maintained experimental `vamos tune` CLI does not currently support
-    constrained AGE-MOEA and RVEA runs. Those engines do not expose the
-    population-aligned constraint values required by this scorer without
-    changing their stable constraint-mode semantics. The CLI therefore fails
-    explicitly for those algorithm/problem combinations instead of silently
-    treating infeasible rows as feasible. The preflight checks every problem
-    named by `--instances`, including problems later assigned to validation or
-    test splits. Use an explicit controlled study when constrained AGE-MOEA or
-    RVEA is the research target.
+!!! note "Constrained AGE-MOEA and RVEA"
+    AGE-MOEA and RVEA preserve population-aligned constraint values whenever
+    constraint handling is active, so constrained runs can use the same
+    final-population HV scoring contract as the other maintained algorithms.
+    Their stable `constraint_mode="none"` setting remains an explicit opt-out:
+    in that mode constraints are ignored and no `G` values participate in
+    survival, archives, or population results.
 
 - `--ref-point` supplies one HV reference point for the tuning run.
 - If it is omitted (or cannot be parsed with the required dimensionality), the

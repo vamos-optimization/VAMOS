@@ -38,6 +38,7 @@ from vamos.foundation.observer import RunContext
 from vamos.foundation.problem.types import ProblemProtocol
 
 from .state import RVEAState, build_rvea_result
+from .survival import constraint_aware_apd_survival as _constraint_aware_apd_survival
 
 
 def _logger() -> logging.Logger:
@@ -80,54 +81,69 @@ def _calc_gamma(V: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     return np.asarray(gamma, dtype=float)
 
 
-def _apd_survival(
-    F: np.ndarray[Any, Any],
-    V: np.ndarray[Any, Any],
-    gamma: np.ndarray[Any, Any],
-    ideal: np.ndarray[Any, Any],
-    n_survive: int,
-    n_gen: int,
-    n_max_gen: int,
-    alpha: float,
-) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any] | None]:
-    if F.size == 0:
-        return np.empty(0, dtype=int), ideal, None
+def _extract_evaluation_arrays(
+    eval_result: Any,
+    constraint_mode: str,
+    n_constraints: int | None = None,
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any] | None]:
+    """Normalize evaluation payloads and enforce declared active constraints."""
+    raw_g: Any = None
+    if hasattr(eval_result, "F"):
+        raw_f = eval_result.F
+        raw_g = getattr(eval_result, "G", None)
+    elif isinstance(eval_result, dict):
+        raw_f = eval_result["F"]
+        raw_g = eval_result.get("G")
+    else:
+        raw_f = eval_result
 
-    n_obj = F.shape[1]
-    ideal = np.minimum(F.min(axis=0), ideal)
+    F = np.asarray(raw_f, dtype=float)
+    if F.ndim == 1:
+        F = F.reshape(1, -1)
+    if F.ndim != 2:
+        raise ValueError(f"RVEA expected 2-D objective values, got shape {F.shape}.")
 
-    F_shift = F - ideal
-    dist_to_ideal = np.linalg.norm(F_shift, axis=1)
-    dist_to_ideal[dist_to_ideal < 1e-64] = 1e-64
-    F_prime = F_shift / dist_to_ideal[:, None]
+    if constraint_mode == "none":
+        return F, None
+    if n_constraints is not None and n_constraints <= 0:
+        return F, None
+    if raw_g is None:
+        if n_constraints is not None and n_constraints > 0:
+            raise ValueError(
+                "RVEA requires constraint values G when constraint handling is active "
+                f"for a problem declaring {n_constraints} constraint(s)."
+            )
+        return F, None
 
-    cos_theta = np.clip(F_prime @ V.T, -1.0, 1.0)
-    acute_angle = np.arccos(cos_theta)
-    niches = acute_angle.argmin(axis=1)
+    G = np.asarray(raw_g, dtype=float)
+    if G.ndim == 1:
+        G = G.reshape(-1, 1)
+    if G.ndim != 2 or G.shape[0] != F.shape[0]:
+        raise ValueError("RVEA constraint values G must align row-wise with objective values F.")
+    if n_constraints is not None and n_constraints > 0 and G.shape[1] != n_constraints:
+        raise ValueError(
+            f"RVEA expected {n_constraints} constraint column(s) in G, got {G.shape[1]}."
+        )
+    return F, G
 
-    M = float(n_obj) if n_obj > 2 else 1.0
-    progress = (n_gen / n_max_gen) ** alpha
-    theta = acute_angle[np.arange(F.shape[0]), niches]
-    penalty = M * progress * (theta / gamma[niches])
-    apd = dist_to_ideal * (1.0 + penalty)
 
-    order = np.lexsort((np.arange(F.shape[0]), apd, niches))
-    sorted_niches = niches[order]
-    first_in_niche = np.empty(sorted_niches.shape[0], dtype=bool)
-    first_in_niche[0] = True
-    first_in_niche[1:] = sorted_niches[1:] != sorted_niches[:-1]
-    survivors = order[first_in_niche]
-    target = min(int(n_survive), F.shape[0])
-    if survivors.size < target:
-        selected = np.zeros(F.shape[0], dtype=bool)
-        selected[survivors] = True
-        fill = order[~selected[order]][: target - survivors.size]
-        survivors = np.concatenate([survivors, fill])
-    elif survivors.size > target:
-        survivors = survivors[:target]
-
-    nadir = F[survivors].max(axis=0) if survivors.size else None
-    return survivors, ideal, nadir
+def _combine_constraints(
+    current: np.ndarray[Any, Any] | None,
+    offspring: np.ndarray[Any, Any] | None,
+    constraint_mode: str,
+) -> np.ndarray[Any, Any] | None:
+    if constraint_mode == "none":
+        return None
+    if current is None and offspring is None:
+        return None
+    if current is None or offspring is None:
+        raise ValueError(
+            "RVEA received inconsistent constraint data across generations. "
+            "When constraint handling is active, constrained ask/tell evaluations must provide G."
+        )
+    if current.shape[1] != offspring.shape[1]:
+        raise ValueError("RVEA constraint column count changed between generations.")
+    return np.asarray(np.vstack([current, offspring]), dtype=float)
 
 
 def _build_variation(config: dict[str, Any], encoding: Any, xl: Any, xu: Any, problem: ProblemProtocol) -> VariationPipeline:
@@ -160,7 +176,6 @@ def _build_variation(config: dict[str, Any], encoding: Any, xl: Any, xu: Any, pr
         repair_cfg=repair_cfg,
         problem=problem,
     )
-
 
 class RVEA:
     """RVEA: Reference Vector-guided Evolutionary Algorithm.
@@ -219,8 +234,8 @@ class RVEA:
         stop_requested = False
         while not self.should_terminate():
             X_off = self.ask()
-            F_off = np.asarray(backend.evaluate(X_off, problem).F, dtype=float)
-            stop_requested = self.tell(F_off)
+            eval_result = backend.evaluate(X_off, problem)
+            stop_requested = self.tell(eval_result)
             if stop_requested:
                 break
 
@@ -262,6 +277,8 @@ class RVEA:
         n_partitions = int(self.cfg.get("n_partitions", 12))
         alpha = float(self.cfg.get("alpha", 2.0))
         adapt_freq = self.cfg.get("adapt_freq", 0.1)
+        constraint_mode = str(self.cfg.get("constraint_mode", "feasibility")).strip().lower()
+        n_constraints = int(getattr(problem, "n_constraints", 0) or 0)
 
         term_key, term_val = termination
         if term_key == "n_gen":
@@ -285,7 +302,11 @@ class RVEA:
         encoding = normalize_encoding(getattr(problem, "encoding", "real"))
         xl, xu = resolve_bounds(problem, encoding)
         X = initialize_population(pop_size, problem.n_var, xl, xu, encoding, rng, problem, self.cfg.get("initializer"))
-        F = np.asarray(backend.evaluate(X, problem).F, dtype=float)
+        F, G = _extract_evaluation_arrays(
+            backend.evaluate(X, problem),
+            constraint_mode,
+            n_constraints,
+        )
 
         variation = _build_variation(self.cfg, encoding, xl, xu, problem)
         ext_cfg = resolve_external_archive(self.cfg)
@@ -297,7 +318,7 @@ class RVEA:
             problem.n_obj,
             X.dtype,
             ext_cfg,
-            None,
+            G,
         )
 
         adapt_interval = None
@@ -312,7 +333,7 @@ class RVEA:
         self._st = RVEAState(
             X=X,
             F=F,
-            G=None,
+            G=G,
             rng=rng,
             pop_size=pop_size,
             n_eval=X.shape[0],
@@ -320,6 +341,7 @@ class RVEA:
             max_evals=max_evals,
             max_gen=max_gen,
             variation=variation,
+            constraint_mode=constraint_mode,
             archive_size=ext_cfg.capacity if ext_cfg is not None else None,
             archive_X=archive_X,
             archive_F=archive_F,
@@ -371,7 +393,7 @@ class RVEA:
         if X_off.shape[0] > request_size:
             X_off = X_off[:request_size]
         st.pending_offspring = X_off
-        return np.array(X_off, copy=True)
+        return np.asarray(X_off).copy()
 
     def tell(self, eval_result: Any, problem: ProblemProtocol | None = None) -> bool:
         """Receive evaluated offspring and update population.
@@ -379,8 +401,8 @@ class RVEA:
         Parameters
         ----------
         eval_result : Any
-            Objective values as ``np.ndarray``, or an object with ``.F`` attribute,
-            or a dict with ``"F"`` key.
+            Objective values as ``np.ndarray``, or an object/dict with ``F`` and
+            optional ``G`` constraint values.
         problem : ProblemProtocol | None
             Unused, kept for interface consistency.
 
@@ -400,21 +422,22 @@ class RVEA:
         st = self._st
         X_off = st.pending_offspring
         assert X_off is not None
-
-        if hasattr(eval_result, "F"):
-            F_off = np.asarray(eval_result.F, dtype=float)
-        elif isinstance(eval_result, dict):
-            F_off = np.asarray(eval_result["F"], dtype=float)
-        else:
-            F_off = np.asarray(eval_result, dtype=float)
-
-        st.n_eval += X_off.shape[0]
+        active_n_constraints = st.G.shape[1] if st.G is not None and st.constraint_mode != "none" else 0
+        F_off, G_off = _extract_evaluation_arrays(
+            eval_result,
+            st.constraint_mode,
+            active_n_constraints,
+        )
+        if F_off.shape[0] != X_off.shape[0]:
+            raise ValueError("RVEA offspring objective rows must match the pending decision vectors.")
 
         X_combined = np.vstack([st.X, X_off])
         F_combined = np.vstack([st.F, F_off])
+        G_combined = _combine_constraints(st.G, G_off, st.constraint_mode)
 
-        survivors, st.ideal, st.nadir = _apd_survival(
+        survivors, st.ideal, st.nadir = _constraint_aware_apd_survival(
             F_combined,
+            G_combined,
             st.V,
             st.gamma,
             st.ideal,
@@ -422,6 +445,7 @@ class RVEA:
             st.generation,
             st.max_gen,
             st.alpha,
+            st.constraint_mode,
         )
         if survivors.size == 0:
             st.pending_offspring = None
@@ -433,6 +457,8 @@ class RVEA:
 
         st.X = X_combined[survivors]
         st.F = F_combined[survivors]
+        st.G = G_combined[survivors] if G_combined is not None else None
+        st.n_eval += X_off.shape[0]
         if st.archive_manager is not None:
             st.archive_X, st.archive_F = st.archive_manager.update(st.X, st.F, st.G)
 
