@@ -9,12 +9,14 @@ from vamos.engine.algorithm.config import (
     IBEAConfig,
     MOEADConfig,
     RVEAConfig,
+    SMPSOConfig,
     SMSEMOAConfig,
     SPEA2Config,
 )
 from vamos.engine.algorithm.ibea import IBEA
 from vamos.engine.algorithm.moead import MOEAD
 from vamos.engine.algorithm.rvea import RVEA
+from vamos.engine.algorithm.smpso import SMPSO
 from vamos.engine.algorithm.smsemoa import SMSEMOA
 from vamos.engine.algorithm.spea2 import SPEA2
 from vamos.foundation.kernel.numpy_backend import NumPyKernel
@@ -48,6 +50,10 @@ def _rvea_builder(pop_size: int = 6, n_partitions: int = 5):
         .crossover("sbx", prob=1.0, eta=30.0)
         .mutation("polynomial", prob=0.1, eta=20.0)
     )
+
+
+def _smpso_builder(pop_size: int = 10):
+    return SMPSOConfig.builder().pop_size(pop_size).archive_size(pop_size).mutation("polynomial", prob="1/n", eta=20.0)
 
 
 def test_moead_archive_keeps_default_nondominated_result_mode():
@@ -199,6 +205,43 @@ def test_rvea_population_result_mode_with_archive():
 
     assert result["F"].shape == result["population"]["F"].shape
     assert result["archive"]["F"].shape[0] > 0
+
+
+def test_smpso_external_archive_is_result_only_and_does_not_change_swarm_dynamics():
+    pop_size = 10
+    problem = ZDT1Problem(n_var=6)
+    base_cfg = _smpso_builder(pop_size).build()
+    archive_cfg = _smpso_builder(pop_size).external_archive(capacity=4).build()
+
+    base_algo = SMPSO(base_cfg.to_dict(), kernel=NumPyKernel())
+    archive_algo = SMPSO(archive_cfg.to_dict(), kernel=NumPyKernel())
+    base_result = base_algo.run(problem, termination=("max_evaluations", pop_size * 3), seed=7)
+    archive_result = archive_algo.run(problem, termination=("max_evaluations", pop_size * 3), seed=7)
+
+    np.testing.assert_allclose(archive_result["population"]["X"], base_result["population"]["X"])
+    np.testing.assert_allclose(archive_result["population"]["F"], base_result["population"]["F"])
+    assert archive_algo.state is not None
+    assert archive_algo.state.result_archive is not None
+    external_X, external_F = archive_algo.state.result_archive.contents()
+    assert external_F.shape[0] <= 4
+    np.testing.assert_allclose(archive_result["archive"]["X"], external_X)
+    np.testing.assert_allclose(archive_result["archive"]["F"], external_F)
+    np.testing.assert_allclose(archive_result["X"], external_X)
+    np.testing.assert_allclose(archive_result["F"], external_F)
+
+
+def test_smpso_population_result_mode_keeps_external_archive_visible():
+    pop_size = 10
+    cfg = _smpso_builder(pop_size).external_archive(capacity=4).result_mode("population").build()
+    result = SMPSO(cfg.to_dict(), kernel=NumPyKernel()).run(
+        ZDT1Problem(n_var=6),
+        termination=("max_evaluations", pop_size * 2),
+        seed=3,
+    )
+
+    np.testing.assert_allclose(result["X"], result["population"]["X"])
+    np.testing.assert_allclose(result["F"], result["population"]["F"])
+    assert result["archive"]["F"].shape[0] <= 4
 
 
 @pytest.mark.parametrize(
