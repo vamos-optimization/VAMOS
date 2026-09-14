@@ -1,9 +1,9 @@
 # Hyperparameter Tuning
 
 VAMOS can tune **algorithm configuration**: operator probabilities, distribution
-indices, population-related settings, archive controls, and other parameters
-that control a MOEA. A tuning campaign evaluates candidate configurations over
-explicit problem and seed blocks and ranks them by a scalar quality score.
+indices, population-related settings, and other parameters that control a MOEA.
+A tuning campaign evaluates candidate configurations over explicit problem and
+seed blocks and ranks them by a scalar quality score.
 
 !!! warning "Experimental surface in VAMOS 1.0.0"
     The tuning/racing implementation and the `vamos tune` and `vamos ablation`
@@ -40,8 +40,9 @@ comparison:
 3. **Algorithm seeds** — stochastic replicates used for every candidate.
 4. **Evaluation-budget schedule** — the optimization budget or fidelity levels
    given to each candidate/problem/seed run.
-5. **Scoring contract** — the metric, reference point, direction, runtime
-   penalty, and failure score actually used by the selected tuning interface.
+5. **Scoring contract** — the metric, reference point, result source, direction,
+   runtime penalty, and failure handling actually used by the selected tuning
+   interface.
 6. **Aggregation rule** — how repeated problem/seed scores become one scalar
    tuning score.
 
@@ -49,6 +50,29 @@ comparison:
 
 The maintained `vamos tune` CLI currently has **no metric selector**. It scores
 candidate runs with **hypervolume (HV) and maximizes that score**.
+
+The score source is fixed: VAMOS takes the **final population**, removes
+infeasible rows when constraint values are present, Pareto-filters the remaining
+objective vectors, and computes HV on that feasible non-dominated population.
+It does not score top-level `result.F`, because that field can refer to an
+external archive for archive-enabled algorithm configurations.
+
+The maintained CLI also removes `use_external_archive`, `archive_unbounded`, and
+`archive_prune_policy` from its built-in search space. This keeps the optimized
+parameter space aligned with the set actually used for scoring. Archive design
+can still be studied explicitly in a separate controlled experiment, but it is
+not mixed into ordinary `vamos tune` comparisons.
+
+!!! warning "Constrained AGE-MOEA and RVEA"
+    The maintained experimental `vamos tune` CLI does not currently support
+    constrained AGE-MOEA and RVEA runs. Those engines do not expose the
+    population-aligned constraint values required by this scorer without
+    changing their stable constraint-mode semantics. The CLI therefore fails
+    explicitly for those algorithm/problem combinations instead of silently
+    treating infeasible rows as feasible. The preflight checks every problem
+    named by `--instances`, including problems later assigned to validation or
+    test splits. Use an explicit controlled study when constrained AGE-MOEA or
+    RVEA is the research target.
 
 - `--ref-point` supplies one HV reference point for the tuning run.
 - If it is omitted (or cannot be parsed with the required dimensionality), the
@@ -212,6 +236,21 @@ HV score, and an aggregation rule. Its statistical elimination is an
 **allocation mechanism during tuning**; it is not a substitute for an
 independently designed final comparison on held-out blocks.
 
+### Persistent Optuna studies are scoring-contract versioned
+
+When `optuna` or `bohb_optuna` uses `--optuna-storage`, the maintained CLI treats
+`--optuna-study-name` as a base name and appends
+`__vamos_cli_final_population_hv_v1` to the effective persisted study name. The
+same versioned namespace is used whether `--optuna-load-if-exists` is enabled or
+disabled.
+
+This isolation is intentional: trials persisted by an older VAMOS tuning CLI
+may contain archive-derived scores and a different search space, so they must
+not compete with trials scored under the current final-population HV contract.
+Reusing the same base study name resumes only studies from this contract
+version. A future incompatible scoring/search-space change must use a new
+namespace rather than mixing historical trial values.
+
 ## Split-based tuning
 
 For a larger campaign, use explicit instance splitting and post-tuning stages:
@@ -250,6 +289,8 @@ The key controls include:
   multi-fidelity schedule;
 - `--aggregate-mode`: aggregation across instance/seed scores;
 - `--n-jobs`: parallel workers (`-1` means CPU cores minus one);
+- `--optuna-storage`, `--optuna-study-name`: persistent Optuna storage and the
+  base study name used by the contract-versioned namespace;
 - `--run-validation`, `--run-test`: optional post-tuning evaluation stages;
 - `--run-statistical-finisher`: optional paired-test selection on the training
   split top-k.
@@ -271,24 +312,19 @@ Tuning output includes:
 
 Keep these together with the command/configuration and environment used for the
 campaign. A best configuration without its search space, seeds, HV reference
-point, aggregation rule, budget/fidelity schedule, and split is not a
-reproducible tuning result.
+point, fixed final-population score source, aggregation rule, budget/fidelity
+schedule, and split is not a reproducible tuning result.
 
-!!! warning "Current result-source limitation"
-    The experimental CLI search spaces can vary `use_external_archive`. The
-    evaluator scores the run's top-level `result.F`; consequently an
-    archive-enabled candidate can be scored from its accumulated external
-    archive while a candidate without that archive uses the non-dominated
-    result derived from its final population.
+## Archive studies are separate from ordinary CLI tuning
 
-    `vamos tune` currently exposes no flag that fixes this result source or
-    removes the archive decision from the built-in search space. Therefore the
-    current CLI **does not guarantee source-consistent HV comparisons across
-    candidate configurations** when archive use is being explored. Treat the
-    tuning score as an experimental selection signal, not final comparative
-    evidence. For publication-grade claims, evaluate the selected
-    configuration(s) afterward with fixed archive/result semantics and held-out
-    blocks, preferably through the stable Study lifecycle.
+The maintained CLI intentionally excludes external-archive controls from its
+ordinary algorithm-configuration search so every candidate is compared on the
+same final-population basis. If archive capacity, pruning, or archive-enabled
+result semantics are themselves the research question, define them explicitly
+as experimental variants and compare them under a pre-specified, common metric
+and result-source protocol. For publication-grade claims, run the selected
+variants on held-out blocks through the stable Study lifecycle and retain the
+canonical run provenance.
 
 ## Ablation planning
 

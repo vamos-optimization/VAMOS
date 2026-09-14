@@ -153,6 +153,7 @@ def initialize_ibea_run(
         archive_X=archive_X,
         archive_F=archive_F,
         archive_manager=archive_manager,
+        result_mode=str(cfg.get("result_mode", "non_dominated")),
         # Termination
         hv_tracker=hv_tracker,
         # Genealogy
