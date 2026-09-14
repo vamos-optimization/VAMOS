@@ -269,5 +269,5 @@ def test_constrained_ask_tell_rejects_missing_offspring_g(algorithm_cls, config)
     X = algorithm.ask()
     F = X[:, :2].copy()
 
-    with pytest.raises(ValueError, match="constraint data"):
+    with pytest.raises(ValueError, match="requires constraint values G"):
         algorithm.tell(F)
