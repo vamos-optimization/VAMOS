@@ -12,7 +12,7 @@ from vamos.engine.algorithm.variants import canonical_algorithm_name
 from vamos.foundation.quality_indicators.hypervolume import hypervolume
 from vamos.foundation.quality_indicators.pareto import pareto_filter
 
-_CONSTRAINED_TUNING_UNSUPPORTED: set[str] = set()
+_CONSTRAINED_TUNING_UNSUPPORTED: tuple[str, ...] = ()
 
 
 class _UnsupportedConstrainedTuningError(RuntimeError):
