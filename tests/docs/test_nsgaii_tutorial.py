@@ -58,6 +58,28 @@ def test_explicit_builder_example_is_executable() -> None:
     assert result.data["evaluations"] == 200
 
 
+def test_steady_state_builder_example_is_executable() -> None:
+    from vamos import optimize
+
+    namespace: dict = {}
+    exec(compile(_blocks()[2], str(PAGE), "exec"), namespace)
+    config = namespace["steady_state_config"]
+    assert config.pop_size == 100
+    assert config.steady_state is True
+    assert config.offspring_size == 1
+    assert config.replacement_size == 1
+    result = optimize(
+        ZDT1(n_var=30),
+        algorithm="nsgaii",
+        algorithm_config=config,
+        max_evaluations=103,
+        engine="numpy",
+        seed=42,
+    )
+    assert result.F is not None and result.F.shape[1] == 2
+    assert result.data["evaluations"] == 103
+
+
 def test_tutorial_navigation_and_catalogue_cover_builtin_ids() -> None:
     config = yaml.safe_load((ROOT / "mkdocs.yml").read_text(encoding="utf-8"))
     nav = yaml.safe_dump(config["nav"])

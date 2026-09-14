@@ -7,14 +7,20 @@ const REDIRECT_HOSTS = new Set([
 const LEGACY_VERSION = /^\/(\d+\.\d+\.\d+)(\/.*)?$/;
 
 function canonicalPath(pathname) {
-  if (pathname === "/" || pathname === "/docs" || pathname === "/docs/") {
-    return "/docs/stable/";
+  if (pathname === "/docs" || pathname === "/docs/") {
+    return "/";
+  }
+  if (pathname === "/docs/stable" || pathname === "/docs/stable/") {
+    return "/";
+  }
+  if (pathname.startsWith("/docs/stable/")) {
+    return `/${pathname.slice("/docs/stable/".length)}`;
   }
   if (pathname === "/latest" || pathname === "/latest/") {
-    return "/docs/stable/";
+    return "/";
   }
   if (pathname.startsWith("/latest/")) {
-    return `/docs/stable/${pathname.slice("/latest/".length)}`;
+    return `/${pathname.slice("/latest/".length)}`;
   }
   const match = LEGACY_VERSION.exec(pathname);
   if (match) {

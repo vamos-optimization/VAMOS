@@ -85,7 +85,7 @@ def test_legacy_redirect_script_preserves_origin_version_and_query() -> None:
     assert completed.returncode == 0, completed.stdout + completed.stderr
 
 
-def test_every_legacy_bookmark_resolves_in_the_built_versioned_portal(tmp_path: Path) -> None:
+def test_every_legacy_bookmark_resolves_in_current_and_immutable_portal(tmp_path: Path) -> None:
     pytest.importorskip("mkdocs")
     output = tmp_path / "portal"
     built = subprocess.run(
@@ -93,22 +93,29 @@ def test_every_legacy_bookmark_resolves_in_the_built_versioned_portal(tmp_path: 
         cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False,
     )
     assert built.returncode == 0, built.stdout + built.stderr
-    for channel in ("stable", "1.0.0"):
-        source = output / "docs" / channel / "reference/api_reference/index.html"
+
+    channels = (
+        (output, "https://example.invalid/"),
+        (output / "docs" / "1.0.0", "https://example.invalid/docs/1.0.0/"),
+    )
+    for tree, base_root in channels:
+        source = tree / "reference/api_reference/index.html"
         parsed = parse_api_html(source.read_text(encoding="utf-8"))
         assert len(parsed.bookmarks) == 152
         assert parsed.h1_count == 1
-        base = f"https://example.invalid/docs/{channel}/reference/api_reference/"
+        base = f"{base_root}reference/api_reference/"
         cache: dict[Path, ApiHTML] = {}
         for old, target in parsed.bookmarks.items():
             resolved = urlsplit(urljoin(base, target))
-            assert resolved.path.startswith(f"/docs/{channel}/reference/api/")
-            path = output / unquote(resolved.path.lstrip("/")) / "index.html"
+            expected_prefix = urlsplit(base_root).path + "reference/api/"
+            assert resolved.path.startswith(expected_prefix)
+            relative = unquote(resolved.path.removeprefix(urlsplit(base_root).path).lstrip("/"))
+            path = tree / relative / "index.html"
             assert path.is_file(), (old, target)
             if path not in cache:
                 cache[path] = parse_api_html(path.read_text(encoding="utf-8"))
             if resolved.fragment:
                 assert unquote(resolved.fragment) in cache[path].ids, (old, target)
         assert len(source.read_bytes()) < 100_000
-        optimization = output / "docs" / channel / "reference/api/optimization/index.html"
+        optimization = tree / "reference/api/optimization/index.html"
         assert len(optimization.read_bytes()) < 150_000

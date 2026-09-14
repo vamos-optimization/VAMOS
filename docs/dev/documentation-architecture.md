@@ -1,6 +1,6 @@
 # Documentation architecture
 
-This page defines the source-of-truth boundaries for VAMOS documentation while the public portal is consolidated around the canonical `docs/` tree and validated with Zensical.
+This page defines the source-of-truth boundaries for VAMOS documentation while the public portal is consolidated around the canonical `docs/` source tree and validated with Zensical.
 
 ## Canonical sources
 
@@ -47,9 +47,9 @@ The multilingual configuration in `website/mkdocs.yml` also remains separate dur
 
 ## Versioned portal boundary
 
-The portal artifact uses immutable `docs/<version>/` releases plus a `docs/stable/` alias. Root, `docs/`, legacy `<version>/...`, and legacy `latest/...` routes redirect into that structure. The exact contract and archive-preservation input are documented in [Documentation versions and archive](../project/documentation-versioning.md).
+The portal exposes the release currently designated stable directly at clean root URLs such as `/guide/...`, `/reference/...`, and `/algorithms/...`. Immutable release snapshots remain under `docs/<version>/`. The former moving aliases `docs/stable/...` and `latest/...` are compatibility redirects to the equivalent clean current route, while legacy root-level `<version>/...` routes redirect to `docs/<version>/...`. The exact contract and archive-preservation input are documented in [Documentation versions and archive](../project/documentation-versioning.md).
 
-The versioning layer changes publication layout, not editorial ownership: current user guidance still comes from `docs/`, executable material from `examples/` and `notebooks/`, and historical release trees are frozen build artifacts.
+The versioning layer changes publication layout, not editorial ownership: current user guidance still comes from the repository `docs/` source tree, executable material from `examples/` and `notebooks/`, and historical release trees are frozen build artifacts.
 
 ## Zensical migration boundary
 
@@ -65,5 +65,5 @@ Goal 2 changes information architecture and canonical ownership; it does not dep
 - Keep scientific claims and citations attached to their maintained source.
 - Do not expose historical audits as current user guidance merely because they remain in the repository.
 - Add maintained user pages to `mkdocs.yml` so readers can discover them.
-- Keep temporary branch previews separate from the stable/version archive.
+- Keep temporary branch previews separate from the current/immutable archive surfaces.
 - Run both the existing strict MkDocs build and the Zensical compatibility build for changes to the canonical portal.

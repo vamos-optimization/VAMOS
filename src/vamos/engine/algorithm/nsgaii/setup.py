@@ -12,6 +12,7 @@ import numpy as np
 
 from vamos.engine.algorithm.components.population import resolve_bounds
 from vamos.engine.algorithm.components.termination import HVTracker, validate_initial_budget
+from vamos.engine.algorithm.config.nsgaii import normalize_nsgaii_steady_state
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
 from vamos.engine.hooks.live_viz import LiveVisualization, NoOpLiveVisualization
 from vamos.engine.operators.impl.real import VariationWorkspace
@@ -64,10 +65,18 @@ def initialize_run(
 
     pop_size = int(algo.cfg["pop_size"])
     validate_initial_budget(max_eval, pop_size, "NSGA-II")
-    offspring_size = int(algo.cfg.get("offspring_size") or pop_size)
-    if offspring_size <= 0:
-        raise ValueError("offspring size must be positive.")
-    incremental_mode = offspring_size < pop_size
+    steady_state = bool(algo.cfg.get("steady_state", False))
+    offspring_setting, _ = normalize_nsgaii_steady_state(
+        steady_state=steady_state,
+        offspring_size=algo.cfg.get("offspring_size"),
+        replacement_size=algo.cfg.get("replacement_size"),
+    )
+    offspring_size = pop_size if offspring_setting is None else offspring_setting
+    incremental_mode = bool(steady_state or offspring_size < pop_size)
+    # The current incremental survival implementation replaces one slot at a
+    # time. ``replacement_size`` remains at its historical runtime value outside
+    # the explicit steady-state contract; broader replacement-size semantics are
+    # a separate compatibility change.
     replacement_size = 1
 
     constraint_mode = algo.cfg.get("constraint_mode", "feasibility")

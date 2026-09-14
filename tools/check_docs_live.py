@@ -1,4 +1,4 @@
-"""Verify the live Cloudflare documentation host before metadata cutover."""
+"""Verify the live Cloudflare documentation host and clean current-route contract."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ _CANONICAL_RE = re.compile(r'<link\s+rel="canonical"\s+href="([^"]+)"')
 
 
 class LiveDocsCheckError(RuntimeError):
-    """Raised when the public documentation host violates the cutover contract."""
+    """Raised when the public documentation host violates the route contract."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,7 +100,7 @@ def check_live(
     requester: Requester = request_https,
     timeout: float = 15.0,
 ) -> dict[str, object]:
-    """Validate the public host, aliases, legacy routes, and version manifest."""
+    """Validate clean current URLs, aliases, immutable archives, and host redirects."""
     if _VERSION_RE.fullmatch(version) is None:
         raise LiveDocsCheckError(
             "Documentation version must be numeric major.minor.patch"
@@ -108,26 +108,39 @@ def check_live(
 
     base_url = f"https://{PRIMARY_HOST}/"
     immutable_url = f"{base_url}docs/{version}/"
-    stable_url = f"{base_url}docs/stable/"
+    algorithm_url = f"{base_url}algorithms/nsgaii/"
     checked: list[str] = []
 
-    _expect_redirect(
-        requester,
-        host=PRIMARY_HOST,
-        target="/",
-        expected_location=stable_url,
-        timeout=timeout,
+    root = requester(PRIMARY_HOST, "/", timeout)
+    _expect_canonical(root, expected_url=base_url, label=base_url)
+    checked.append(base_url)
+
+    algorithm = requester(PRIMARY_HOST, "/algorithms/nsgaii/", timeout)
+    _expect_canonical(
+        algorithm,
+        expected_url=algorithm_url,
+        label=algorithm_url,
     )
-    checked.append(f"https://{PRIMARY_HOST}/")
+    checked.append(algorithm_url)
+
+    for legacy_target in ("/docs/?cutover=1", "/docs/stable/?cutover=1", "/latest/?cutover=1"):
+        _expect_redirect(
+            requester,
+            host=PRIMARY_HOST,
+            target=legacy_target,
+            expected_location=f"{base_url}?cutover=1",
+            timeout=timeout,
+        )
+        checked.append(f"https://{PRIMARY_HOST}{legacy_target}")
 
     _expect_redirect(
         requester,
         host=PRIMARY_HOST,
-        target="/latest/?cutover=1",
-        expected_location=f"{stable_url}?cutover=1",
+        target="/docs/stable/algorithms/nsgaii/?cutover=1",
+        expected_location=f"{algorithm_url}?cutover=1",
         timeout=timeout,
     )
-    checked.append(f"https://{PRIMARY_HOST}/latest/?cutover=1")
+    checked.append(f"https://{PRIMARY_HOST}/docs/stable/algorithms/nsgaii/?cutover=1")
 
     _expect_redirect(
         requester,
@@ -139,12 +152,12 @@ def check_live(
     checked.append(f"https://{PRIMARY_HOST}/{version}/?cutover=1")
 
     for host in REDIRECT_HOSTS:
-        target = "/docs/stable/?cutover=1"
+        target = "/algorithms/nsgaii/?cutover=1"
         _expect_redirect(
             requester,
             host=host,
             target=target,
-            expected_location=f"{stable_url}?cutover=1",
+            expected_location=f"{algorithm_url}?cutover=1",
             timeout=timeout,
         )
         checked.append(f"https://{host}{target}")
@@ -168,14 +181,6 @@ def check_live(
             "docs/versions.json does not retain the requested immutable version"
         )
     checked.append(manifest_url)
-
-    stable = requester(PRIMARY_HOST, "/docs/stable/", timeout)
-    _expect_canonical(
-        stable,
-        expected_url=immutable_url,
-        label=f"https://{PRIMARY_HOST}/docs/stable/",
-    )
-    checked.append(f"https://{PRIMARY_HOST}/docs/stable/")
 
     immutable = requester(PRIMARY_HOST, f"/docs/{version}/", timeout)
     _expect_canonical(

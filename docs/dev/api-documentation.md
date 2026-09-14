@@ -14,9 +14,9 @@ Stable public references, experimental APIs, and internal implementation referen
 
 The former `reference/api_reference/` URL remains the API index. `reference/api/legacy-bookmarks.json` freezes 152 former section and symbol anchors, recorded from the documentation at commit `ed100ea43a3f5dec0204c8297e7defdd5e020bcc`. The index contains a matching directory of ordinary HTML links with the old IDs. This directory stays collapsed for ordinary reading and is usable without JavaScript.
 
-`javascripts/api-reference.js` forwards a recognized fragment to its exact new destination. It keeps the current host, documentation version, and query string. It does not redirect unrecognized fragments, other pages, or unsafe targets. Fragments are handled in the browser because HTTP servers do not receive them.
+`javascripts/api-reference.js` forwards a recognized fragment to its exact new destination. It keeps the current host, route context, and query string: clean current URLs stay clean, while an immutable `docs/<version>/` reference remains inside that immutable release. It does not redirect unrecognized fragments, other pages, or unsafe targets. Fragments are handled in the browser because HTTP servers do not receive them.
 
-When reorganizing an object, update its destination in both the inventory and the index. Do not delete a frozen old ID. The tests compare both representations and check every target fragment against the generated HTML in both `docs/stable/` and `docs/1.0.0/`.
+When reorganizing an object, update its destination in both the inventory and the index. Do not delete a frozen old ID. The tests compare both representations and check every target fragment against the generated HTML in both the clean current tree (`/reference/...`) and the immutable release tree (`/docs/1.0.0/reference/...`).
 
 ## Validation
 

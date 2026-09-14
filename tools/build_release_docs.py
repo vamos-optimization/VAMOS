@@ -1,4 +1,4 @@
-"""Build a versioned documentation portal while preserving legacy routes."""
+"""Build the clean current documentation site plus immutable version archives and redirects."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ import logging
 import re
 import shutil
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from urllib.parse import urlsplit
 
 from check_repository_identity import DOCUMENTATION_URL
@@ -31,21 +32,27 @@ def _version_key(value: str) -> tuple[int, int, int]:
 
 def _page_url(base_url: str, prefix: str, relative: Path) -> str:
     prefix = prefix.strip("/")
+    route_base = f"{base_url}{prefix}/" if prefix else base_url
     if relative.name == "index.html":
         parent = relative.parent.as_posix()
         suffix = "" if parent == "." else f"{parent}/"
     else:
         suffix = relative.as_posix()
-    return f"{base_url}{prefix}/{suffix}"
+    return f"{route_base}{suffix}"
 
 
 def _write_redirect(path: Path, target: str) -> None:
     escaped = html.escape(target, quote=True)
+    javascript_target = json.dumps(target).replace("</", "<\\/")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         "<!doctype html>\n"
         '<html lang="en"><head><meta charset="utf-8">\n'
         f'<link rel="canonical" href="{escaped}">\n'
+        "<script>\n"
+        f"const redirectBase = {javascript_target};\n"
+        "window.location.replace(redirectBase + window.location.search + window.location.hash);\n"
+        "</script>\n"
         f'<meta http-equiv="refresh" content="0; url={escaped}">\n'
         "<title>VAMOS documentation redirect</title></head>\n"
         f'<body><p>Moved to <a href="{escaped}">{escaped}</a>.</p></body></html>\n',
@@ -67,14 +74,38 @@ def _build_site(root: Path, configuration: str, site_dir: Path, site_url: str) -
         config.plugins.on_shutdown()
 
 
-def _copy_archived_versions(archive_from: Path, docs_root: Path, current_version: str) -> None:
+def _ensure_current_error_page_canonical(site_dir: Path, base_url: str) -> None:
+    """Give the generated current-site 404 document an explicit clean canonical URL."""
+    page = site_dir / "404.html"
+    if not page.is_file():
+        raise FileNotFoundError(f"Generated current documentation is missing its 404 page: {page}")
+    content = page.read_text(encoding="utf-8")
+    if 'rel="canonical"' in content:
+        return
+    marker = "</head>"
+    if marker not in content:
+        raise ValueError("Generated current documentation 404 page has no </head> marker")
+    canonical = html.escape(f"{base_url}404.html", quote=True)
+    content = content.replace(marker, f'<link rel="canonical" href="{canonical}">\n{marker}', 1)
+    page.write_text(content, encoding="utf-8")
+
+
+def _copy_tree_contents(source: Path, target: Path) -> None:
+    target.mkdir(parents=True, exist_ok=True)
+    for source_path in source.iterdir():
+        target_path = target / source_path.name
+        if source_path.is_dir():
+            shutil.copytree(source_path, target_path)
+        else:
+            shutil.copy2(source_path, target_path)
+
+
+def _copy_archived_versions(archive_from: Path, docs_root: Path) -> None:
     archive_docs = archive_from / "docs"
     if not archive_docs.is_dir():
         raise FileNotFoundError(f"Archived documentation root not found: {archive_docs}")
     for source in sorted(archive_docs.iterdir(), key=lambda path: path.name):
         if not source.is_dir() or _VERSION_RE.fullmatch(source.name) is None:
-            continue
-        if source.name == current_version:
             continue
         shutil.copytree(source, docs_root / source.name)
 
@@ -128,34 +159,45 @@ def build_release_docs(
     docs_root.mkdir(parents=True)
 
     if archive_from is not None:
-        _copy_archived_versions(archive_from.resolve(), docs_root, version)
+        _copy_archived_versions(archive_from.resolve(), docs_root)
 
-    immutable_dir = docs_root / version
-    _build_site(root, "mkdocs.yml", immutable_dir, f"{base_url}docs/{version}/")
-    _build_site(root, "website/mkdocs.yml", output / "website", f"{base_url}website/")
+    with TemporaryDirectory(prefix="vamos-docs-current-") as temporary:
+        current_dir = Path(temporary) / "current"
+        _build_site(root, "mkdocs.yml", current_dir, base_url)
+        _ensure_current_error_page_canonical(current_dir, base_url)
+        _copy_tree_contents(current_dir, output)
 
-    stable_dir = docs_root / "stable"
-    shutil.copytree(immutable_dir, stable_dir)
+        immutable_dir = docs_root / version
+        if not immutable_dir.exists():
+            _build_site(root, "mkdocs.yml", immutable_dir, f"{base_url}docs/{version}/")
+        _build_site(root, "website/mkdocs.yml", output / "website", f"{base_url}website/")
 
-    versions = _published_versions(docs_root)
-    _write_versions_manifest(docs_root, stable=version, versions=versions)
+        versions = _published_versions(docs_root)
+        _write_versions_manifest(docs_root, stable=version, versions=versions)
 
-    for published_version in versions:
+        for published_version in versions:
+            _write_legacy_alias(
+                docs_root / published_version,
+                output / published_version,
+                base_url=base_url,
+                canonical_prefix=f"docs/{published_version}",
+            )
+
+        # Keep old moving aliases as redirect mirrors for bookmarks and static mirrors.
         _write_legacy_alias(
-            docs_root / published_version,
-            output / published_version,
+            current_dir,
+            docs_root / "stable",
             base_url=base_url,
-            canonical_prefix=f"docs/{published_version}",
+            canonical_prefix="",
         )
-    _write_legacy_alias(
-        stable_dir,
-        output / "latest",
-        base_url=base_url,
-        canonical_prefix="docs/stable",
-    )
+        _write_legacy_alias(
+            current_dir,
+            output / "latest",
+            base_url=base_url,
+            canonical_prefix="",
+        )
 
-    _write_redirect(output / "index.html", f"{base_url}docs/stable/")
-    _write_redirect(docs_root / "index.html", f"{base_url}docs/stable/")
+    _write_redirect(docs_root / "index.html", base_url)
 
 
 def main() -> None:
@@ -166,7 +208,11 @@ def main() -> None:
     parser.add_argument(
         "--archive-from",
         type=Path,
-        help="Previous portal artifact whose immutable docs/<version>/ directories should be preserved",
+        help=(
+            "Previous trusted portal artifact whose immutable docs/<version>/ directories "
+            "must be preserved; if it already contains the requested version, that archive "
+            "is reused byte-for-byte instead of rebuilt"
+        ),
     )
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")

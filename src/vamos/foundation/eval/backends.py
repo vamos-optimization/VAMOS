@@ -102,13 +102,18 @@ class MultiprocessingEvalBackend(EvaluationBackend):
 
 
 class DaskEvalBackend(EvaluationBackend):
-    """
-    Distributed evaluation using Dask.
+    """Experimental distributed evaluation using Dask.
+
+    Dask is an optional third-party integration and is outside the VAMOS 1.0
+    stable compatibility surface. When no explicit client or scheduler address
+    is supplied, the backend attempts to discover the active
+    ``dask.distributed.Client`` for the current process.
 
     Notes:
-        - Requires `dask.distributed` when connecting by address.
+        - Requires ``dask.distributed``.
         - Raises on missing/unavailable Dask by default. Pass
-          ``fallback_to_serial=True`` to opt in to serial fallback.
+          ``fallback_to_serial=True`` only to opt in explicitly to serial
+          fallback.
     """
 
     def __init__(self, client: Any = None, address: str | None = None, *, fallback_to_serial: bool = False) -> None:
@@ -120,7 +125,9 @@ class DaskEvalBackend(EvaluationBackend):
         client : Any, optional
             Existing ``dask.distributed.Client`` instance.
         address : str | None, optional
-            Scheduler address used when ``client`` is not provided.
+            Scheduler address used when ``client`` is not provided. When both
+            ``client`` and ``address`` are omitted, an active client is
+            discovered with ``dask.distributed.get_client`` when available.
         fallback_to_serial : bool, default False
             If True, evaluation falls back to ``SerialEvalBackend`` when Dask
             is unavailable or a scheduler call fails.
@@ -137,7 +144,25 @@ class DaskEvalBackend(EvaluationBackend):
             return
 
         if not self.address:
-            _logger().debug("DaskEvalBackend initialized without a client/address.")
+            try:
+                from dask.distributed import get_client
+            except ImportError as exc:
+                message = "'dask.distributed' is required for experimental Dask evaluation."
+                if self.fallback_to_serial:
+                    _logger().warning("%s Falling back to SerialEvalBackend.", message)
+                    return
+                raise ConfigurationError(
+                    message,
+                    suggestion='Install with: pip install "vamos-optimization[compute]".',
+                ) from exc
+
+            try:
+                self.client = cast(Any, get_client)()
+            except ValueError:
+                _logger().debug("No active Dask client found; backend remains unconnected.")
+                return
+            self._connected = True
+            self._owns_client = False
             return
 
         try:

@@ -30,6 +30,40 @@ from .base import (
 from .types import RepairConfigValue
 
 
+def normalize_nsgaii_steady_state(
+    *,
+    steady_state: bool,
+    offspring_size: int | None,
+    replacement_size: int | None,
+) -> tuple[int | None, int | None]:
+    """Validate NSGA-II incremental settings and resolve steady-state sizes.
+
+    ``steady_state=True`` is the public shorthand for classic one-offspring
+    NSGA-II: one offspring is evaluated and environmental selection is applied
+    immediately, so both the offspring and replacement sizes resolve to one.
+
+    Explicit contradictory sizes are rejected rather than silently ignored.
+    When steady-state mode is disabled, the supplied values are preserved so
+    the existing ``offspring_size`` incremental-batch behavior is unchanged.
+    """
+    resolved_offspring = None if offspring_size is None else int(offspring_size)
+    resolved_replacement = None if replacement_size is None else int(replacement_size)
+
+    if resolved_offspring is not None and resolved_offspring <= 0:
+        raise ValueError("offspring size must be positive.")
+    if resolved_replacement is not None and resolved_replacement <= 0:
+        raise ValueError("replacement size must be positive.")
+
+    if not steady_state:
+        return resolved_offspring, resolved_replacement
+
+    if resolved_offspring not in {None, 1}:
+        raise ValueError("steady-state NSGA-II requires offspring_size=1 when offspring_size is specified.")
+    if resolved_replacement not in {None, 1}:
+        raise ValueError("steady-state NSGA-II requires replacement_size=1 when replacement_size is specified.")
+    return 1, 1
+
+
 class _NSGAIIConfigBuilder(
     _ConfigBuilderState,
     _PopSizeBuilder,
@@ -54,7 +88,11 @@ class _NSGAIIConfigBuilder(
         return self
 
     def steady_state(self, enabled: bool = True) -> _NSGAIIConfigBuilder:
-        """Enable steady-state mode (incremental replacement)."""
+        """Enable classic one-offspring steady-state NSGA-II.
+
+        When enabled, the built configuration resolves ``offspring_size`` and
+        ``replacement_size`` to one. Explicit conflicting values fail fast.
+        """
         self._cfg["steady_state"] = bool(enabled)
         return self
 
@@ -142,6 +180,15 @@ class NSGAIIConfig(_SerializableConfig):
     live_callback_mode: LiveCallbackMode = "nd_only"
     generation_callback: Any | None = None
     generation_callback_copy: bool = True
+
+    def __post_init__(self) -> None:
+        offspring_size, replacement_size = normalize_nsgaii_steady_state(
+            steady_state=bool(self.steady_state),
+            offspring_size=self.offspring_size,
+            replacement_size=self.replacement_size,
+        )
+        object.__setattr__(self, "offspring_size", offspring_size)
+        object.__setattr__(self, "replacement_size", replacement_size)
 
     @classmethod
     def default(

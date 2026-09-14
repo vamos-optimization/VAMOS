@@ -1,6 +1,6 @@
 # Documentation delivery
 
-VAMOS keeps documentation generation, preview validation, privileged preview publication, production deployment, and fallback mirroring as separate stages. This page describes the CI contract around the versioned portal in [Documentation versions and archive](../project/documentation-versioning.md) and the hosting contract in [Hosting and domains](../project/hosting.md).
+VAMOS keeps documentation generation, preview validation, privileged preview publication, production deployment, and fallback mirroring as separate stages. This page describes the CI contract around the clean current site plus immutable archives in [Documentation versions and archive](../project/documentation-versioning.md) and the hosting contract in [Hosting and domains](../project/hosting.md).
 
 ## Pull request preview artifact
 
@@ -20,26 +20,30 @@ This privilege split is intentional: Cloudflare credentials are never exposed to
 
 ## Cloudflare production publication
 
-`.github/workflows/docs-cloudflare.yml` is the canonical production path. It is manual, runs in the `cloudflare-production` GitHub environment, rebuilds the portal with `https://vamos-optimization.org/` as the canonical base, reuses the explicit prior-artifact handoff for releases after `1.0.0`, validates the generated tree, deploys the `vamos-docs` Worker, and then verifies the live custom-domain contract.
+`.github/workflows/docs-cloudflare.yml` is the canonical production path. It is manual, runs in the `cloudflare-production` GitHub environment, rebuilds the mutable current portal with `https://vamos-optimization.org/` as the canonical base, requires an explicit prior trusted portal artifact, validates the generated tree, deploys the `vamos-docs` Worker, and then verifies the live custom-domain contract.
 
-The production Wrangler configuration attaches `vamos-optimization.org`, `www.vamos-optimization.org`, `vamos-optimization.dev`, and `www.vamos-optimization.dev` as Custom Domains. Edge redirect logic sends the three aliases to the apex `.org` host while preserving path and query.
+The archive handoff is required on every production republish, including a same-version republish such as the clean-URL cutover of `1.0.0`. If the trusted prior artifact already contains `docs/<version>/`, the builder carries that immutable directory forward byte-for-byte and rebuilds only the mutable current tree and compatibility aliases. This prevents a documentation-only deployment from silently rewriting an already published scientific reference.
+
+The production Wrangler configuration attaches `vamos-optimization.org`, `www.vamos-optimization.org`, `vamos-optimization.dev`, and `www.vamos-optimization.dev` as Custom Domains. Edge redirect logic sends the three aliases to the apex `.org` host while preserving path and query. On the apex host, `docs/stable/...`, `latest/...`, and `docs/` redirect to the corresponding clean current path; immutable `docs/<version>/...` routes remain unchanged.
 
 ## GitHub Pages fallback mirror
 
-`.github/workflows/docs.yml` remains available as a secondary publication path and archive handoff source. It builds the same versioned tree, but now uses `https://vamos-optimization.org/` as the canonical base before packaging the GitHub Pages artifact. This intentionally makes Pages a mirror rather than a competing canonical origin.
+`.github/workflows/docs.yml` remains available as a secondary publication path and archive handoff source. It builds the same portal, but now uses `https://vamos-optimization.org/` as the canonical base before packaging the GitHub Pages artifact. This intentionally makes Pages a mirror rather than a competing canonical origin.
 
-Before its Pages artifact can be deployed, the workflow verifies the generated stable, immutable, legacy, and canonical routes; uploads a reusable `vamos-docs-portal-<version>` artifact; and deploys only from the canonical repository job.
+Before its Pages artifact can be deployed, the workflow verifies the generated clean-current, immutable, legacy-redirect, and canonical routes; uploads a reusable `vamos-docs-portal-<version>` artifact; and deploys only from the canonical repository job. A manual republish requires the prior trusted portal artifact for the same reason as Cloudflare production: already published immutable versions must be carried forward rather than regenerated. The original `v1.0.0` tag path remains able to create the first immutable archive when no prior publication exists.
 
 The current tag trigger remains intentionally limited to `v1.0.0`; arbitrary later semantic-version tag deployment is not enabled without explicit archive preservation.
 
-## Archive handoff for later versions
+## Archive handoff for releases and republishes
 
-Archive preservation is explicit through `--archive-from`. Both release delivery paths require `archive_run_id` and `archive_artifact_name` for a manually dispatched version after `1.0.0`. The supplied artifact is downloaded from the same repository and fed into the builder before the new stable version is produced.
+Archive preservation is explicit through `--archive-from`. Production and manually dispatched fallback delivery require `archive_run_id` and `archive_artifact_name`. The supplied artifact is downloaded from the same repository and fed into the builder before the current site is produced.
 
-This GitHub Actions artifact handoff is a migration-stage mechanism, not the final long-term archive store. A future retention policy may copy immutable releases to a durable object store, but no deployment is allowed to silently drop an existing `docs/<version>/` tree.
+When the prior artifact contains the requested semantic version, that same-version `docs/<version>/` directory is reused unchanged. When the requested version is genuinely new, the builder creates its immutable tree after copying all older version directories. Therefore both later releases and same-version publication-layout changes preserve the already published archive contract.
+
+This GitHub Actions artifact handoff is a migration-stage mechanism, not the final long-term archive store. A future retention policy may copy immutable releases to a durable object store, but no deployment is allowed to silently drop or regenerate an existing `docs/<version>/` tree.
 
 ## Shared validation
 
-Preview, the GitHub Pages mirror, and Cloudflare production all use `tools/check_docs_portal.py`. The checker verifies the generated `docs/versions.json`, stable/current release relationship, root and legacy redirects, canonical targets, retained immutable version directories, and the separate legacy `website/` tree.
+Preview, the GitHub Pages mirror, and Cloudflare production all use `tools/check_docs_portal.py`. The checker verifies the generated `docs/versions.json`, the clean current tree, immutable version trees, compatibility redirects, canonical targets, retained immutable version directories, and the separate legacy `website/` tree.
 
 Source-level Markdown links remain protected by strict MkDocs and Zensical builds. The portal checker is intentionally a generated-artifact gate: it catches publication-layout mistakes that source-only validation cannot see.
