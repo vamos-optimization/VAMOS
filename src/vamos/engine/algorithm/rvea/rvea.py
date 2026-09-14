@@ -30,6 +30,7 @@ from vamos.engine.variation.helpers import (
 )
 from vamos.engine.variation.pipeline import VariationPipeline
 from vamos.engine.variation.protocol import RepairConfigValue
+from vamos.foundation.constraints.utils import compute_violation, is_feasible
 from vamos.foundation.encoding import normalize_encoding
 from vamos.foundation.eval.backends import EvaluationBackend, SerialEvalBackend
 from vamos.foundation.kernel import default_kernel
@@ -130,6 +131,97 @@ def _apd_survival(
     return survivors, ideal, nadir
 
 
+def _extract_evaluation_arrays(eval_result: Any, constraint_mode: str) -> tuple[np.ndarray, np.ndarray | None]:
+    """Normalize ask/tell evaluation payloads and honor the constraint opt-out."""
+    raw_g: Any = None
+    if hasattr(eval_result, "F"):
+        raw_f = eval_result.F
+        raw_g = getattr(eval_result, "G", None)
+    elif isinstance(eval_result, dict):
+        raw_f = eval_result["F"]
+        raw_g = eval_result.get("G")
+    else:
+        raw_f = eval_result
+
+    F = np.asarray(raw_f, dtype=float)
+    if F.ndim == 1:
+        F = F.reshape(1, -1)
+    if F.ndim != 2:
+        raise ValueError(f"RVEA expected 2-D objective values, got shape {F.shape}.")
+
+    if constraint_mode == "none" or raw_g is None:
+        return F, None
+
+    G = np.asarray(raw_g, dtype=float)
+    if G.ndim == 1:
+        G = G.reshape(-1, 1)
+    if G.ndim != 2 or G.shape[0] != F.shape[0]:
+        raise ValueError("RVEA constraint values G must align row-wise with objective values F.")
+    return F, G
+
+
+def _combine_constraints(current: np.ndarray | None, offspring: np.ndarray | None, constraint_mode: str) -> np.ndarray | None:
+    if constraint_mode == "none":
+        return None
+    if current is None and offspring is None:
+        return None
+    if current is None or offspring is None:
+        raise ValueError(
+            "RVEA received inconsistent constraint data across generations. "
+            "When constraint handling is active, constrained ask/tell evaluations must provide G."
+        )
+    if current.shape[1] != offspring.shape[1]:
+        raise ValueError("RVEA constraint column count changed between generations.")
+    return np.vstack([current, offspring])
+
+
+def _constraint_aware_apd_survival(
+    F: np.ndarray[Any, Any],
+    G: np.ndarray[Any, Any] | None,
+    V: np.ndarray[Any, Any],
+    gamma: np.ndarray[Any, Any],
+    ideal: np.ndarray[Any, Any],
+    n_survive: int,
+    n_gen: int,
+    n_max_gen: int,
+    alpha: float,
+    constraint_mode: str,
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any] | None]:
+    """Apply feasibility-first ordering and APD diversity among feasible points."""
+    if G is None or constraint_mode == "none":
+        return _apd_survival(F, V, gamma, ideal, n_survive, n_gen, n_max_gen, alpha)
+
+    feasible = is_feasible(G, n=G.shape[0])
+    feasible_idx = np.flatnonzero(feasible)
+    target = min(int(n_survive), F.shape[0])
+    if feasible_idx.size >= target:
+        local, updated_ideal, nadir = _apd_survival(
+            F[feasible_idx],
+            V,
+            gamma,
+            ideal,
+            target,
+            n_gen,
+            n_max_gen,
+            alpha,
+        )
+        return feasible_idx[local], updated_ideal, nadir
+
+    violation = compute_violation(G, n=G.shape[0])
+    infeasible_idx = np.flatnonzero(~feasible)
+    needed = target - feasible_idx.size
+    order = np.argsort(violation[infeasible_idx], kind="stable")
+    fill = infeasible_idx[order[:needed]]
+    survivors = np.concatenate([feasible_idx, fill]).astype(int, copy=False)
+
+    geometry_idx = feasible_idx if feasible_idx.size else survivors
+    if geometry_idx.size == 0:
+        return survivors, ideal, None
+    updated_ideal = np.minimum(F[geometry_idx].min(axis=0), ideal)
+    nadir = F[geometry_idx].max(axis=0)
+    return survivors, updated_ideal, nadir
+
+
 def _build_variation(config: dict[str, Any], encoding: Any, xl: Any, xu: Any, problem: ProblemProtocol) -> VariationPipeline:
     explicit_overrides: dict[str, Any] = {}
     if "crossover" in config:
@@ -219,8 +311,8 @@ class RVEA:
         stop_requested = False
         while not self.should_terminate():
             X_off = self.ask()
-            F_off = np.asarray(backend.evaluate(X_off, problem).F, dtype=float)
-            stop_requested = self.tell(F_off)
+            eval_result = backend.evaluate(X_off, problem)
+            stop_requested = self.tell(eval_result)
             if stop_requested:
                 break
 
@@ -262,6 +354,7 @@ class RVEA:
         n_partitions = int(self.cfg.get("n_partitions", 12))
         alpha = float(self.cfg.get("alpha", 2.0))
         adapt_freq = self.cfg.get("adapt_freq", 0.1)
+        constraint_mode = str(self.cfg.get("constraint_mode", "feasibility")).strip().lower()
 
         term_key, term_val = termination
         if term_key == "n_gen":
@@ -285,7 +378,7 @@ class RVEA:
         encoding = normalize_encoding(getattr(problem, "encoding", "real"))
         xl, xu = resolve_bounds(problem, encoding)
         X = initialize_population(pop_size, problem.n_var, xl, xu, encoding, rng, problem, self.cfg.get("initializer"))
-        F = np.asarray(backend.evaluate(X, problem).F, dtype=float)
+        F, G = _extract_evaluation_arrays(backend.evaluate(X, problem), constraint_mode)
 
         variation = _build_variation(self.cfg, encoding, xl, xu, problem)
         ext_cfg = resolve_external_archive(self.cfg)
@@ -297,7 +390,7 @@ class RVEA:
             problem.n_obj,
             X.dtype,
             ext_cfg,
-            None,
+            G,
         )
 
         adapt_interval = None
@@ -312,7 +405,7 @@ class RVEA:
         self._st = RVEAState(
             X=X,
             F=F,
-            G=None,
+            G=G,
             rng=rng,
             pop_size=pop_size,
             n_eval=X.shape[0],
@@ -320,6 +413,7 @@ class RVEA:
             max_evals=max_evals,
             max_gen=max_gen,
             variation=variation,
+            constraint_mode=constraint_mode,
             archive_size=ext_cfg.capacity if ext_cfg is not None else None,
             archive_X=archive_X,
             archive_F=archive_F,
@@ -379,8 +473,8 @@ class RVEA:
         Parameters
         ----------
         eval_result : Any
-            Objective values as ``np.ndarray``, or an object with ``.F`` attribute,
-            or a dict with ``"F"`` key.
+            Objective values as ``np.ndarray``, or an object/dict with ``F`` and
+            optional ``G`` constraint values.
         problem : ProblemProtocol | None
             Unused, kept for interface consistency.
 
@@ -400,21 +494,17 @@ class RVEA:
         st = self._st
         X_off = st.pending_offspring
         assert X_off is not None
-
-        if hasattr(eval_result, "F"):
-            F_off = np.asarray(eval_result.F, dtype=float)
-        elif isinstance(eval_result, dict):
-            F_off = np.asarray(eval_result["F"], dtype=float)
-        else:
-            F_off = np.asarray(eval_result, dtype=float)
-
-        st.n_eval += X_off.shape[0]
+        F_off, G_off = _extract_evaluation_arrays(eval_result, st.constraint_mode)
+        if F_off.shape[0] != X_off.shape[0]:
+            raise ValueError("RVEA offspring objective rows must match the pending decision vectors.")
 
         X_combined = np.vstack([st.X, X_off])
         F_combined = np.vstack([st.F, F_off])
+        G_combined = _combine_constraints(st.G, G_off, st.constraint_mode)
 
-        survivors, st.ideal, st.nadir = _apd_survival(
+        survivors, st.ideal, st.nadir = _constraint_aware_apd_survival(
             F_combined,
+            G_combined,
             st.V,
             st.gamma,
             st.ideal,
@@ -422,6 +512,7 @@ class RVEA:
             st.generation,
             st.max_gen,
             st.alpha,
+            st.constraint_mode,
         )
         if survivors.size == 0:
             st.pending_offspring = None
@@ -433,6 +524,8 @@ class RVEA:
 
         st.X = X_combined[survivors]
         st.F = F_combined[survivors]
+        st.G = G_combined[survivors] if G_combined is not None else None
+        st.n_eval += X_off.shape[0]
         if st.archive_manager is not None:
             st.archive_X, st.archive_F = st.archive_manager.update(st.X, st.F, st.G)
 
