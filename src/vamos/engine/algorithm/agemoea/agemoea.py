@@ -9,7 +9,7 @@ Reference:
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -382,7 +382,7 @@ class AGEMOEA:
         if X_off.shape[0] > request_size:
             X_off = X_off[:request_size]
         st.pending_offspring = X_off
-        return np.asarray(X_off).copy()
+        return cast(np.ndarray[Any, Any], np.asarray(X_off).copy())
 
     def tell(self, eval_result: Any, problem: ProblemProtocol | None = None) -> bool:
         """Receive evaluated offspring and update population.
