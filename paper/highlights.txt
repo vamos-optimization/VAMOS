@@ -1,5 +1,0 @@
-Vectorized MOEA core with pluggable NumPy/Numba/C/JAX kernels.
-Fair cross-framework benchmarking via semantic configuration alignment.
-Backend and cross-framework runtime comparison across multiple MOEA variants.
-Competitive normalized hypervolume under a fixed-reference-front protocol.
-Reproducible pipeline with scripts and versioned artifacts.

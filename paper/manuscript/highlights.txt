@@ -1,7 +1,0 @@
-Highlights
-
-- VAMOS uses dense array populations and pluggable numerical backends.
-- Eight configurable multiobjective evolutionary algorithms share one API.
-- Vectorized kernels substantially reduce runtime across tested algorithms.
-- Solution quality remains equivalent to leading Python libraries.
-- Browser-based tools and automated configuration improve accessibility.

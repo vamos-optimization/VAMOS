@@ -1,5 +1,9 @@
 # VAMOS Software Engineering Audit
 
+This is a historical audit. References to manuscript files and publication
+commands describe that snapshot; those materials are now maintained separately
+from the public repository.
+
 ## 1. Executive Summary
 
 VAMOS has a credible research-software core: it has a clear `src` layout, public facades, typed package metadata, a large test suite, architecture guard tests, optional backend separation, and a usable `vamos` console command. It is not yet publication-grade for an IEEE TEVC software contribution without remediation, mainly because release identity is inconsistent, the current source type check fails, formatting debt is explicitly budgeted, and some publication-facing workflows have weak coverage. The "Vectorized Architecture" claim is mostly supported in core kernels and batched problem protocols, but the default functional-problem adapter is intentionally elementwise and needs clear positioning. Overall readiness: **Promising but not submission-ready**.

@@ -56,9 +56,6 @@ build/
 dist/
 /reports/
 /submission/
-/paper/build/
-/paper/dist/
-/paper/generated/
 
 # --- LaTeX auxiliary files ---
 *.fdb_latexmk
@@ -110,18 +107,5 @@ engine_study*
 # --- LaTeX / build scratch files ---
 *_out.txt
 
-# Generated paper products (canonical TeX/scripts remain tracked)
-/paper/manuscript/*.pdf
-/paper/manuscript/accessibility_proxies.tex
-/paper/manuscript/accessibility_proxy_details.tex
-/paper/manuscript/frameworks_*.tex
-/paper/manuscript/stats_*.tex
-/paper/manuscript/figures/convergence.png
-/paper/manuscript/figures/forest_ci_*.png
-/paper/manuscript/figures/front_*.png
-/paper/manuscript/figures/memory_comparison.png
-/paper/manuscript/figures/pareto_fronts.png
-/paper/manuscript/figures/runtime_heatmap.png
-/paper/manuscript/figures/scaling.png
-/paper/manuscript/figures/time_comparison.png
-/paper/manuscript/figures/zcat_scalability.png
+# Private manuscript workspace (never publish)
+/paper/

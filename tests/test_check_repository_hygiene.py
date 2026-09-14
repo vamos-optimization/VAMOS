@@ -29,6 +29,22 @@ def test_detects_root_png(tmp_path: Path) -> None:
     assert "root_output_file" in _codes(tmp_path, ["plot.png"])
 
 
+def test_rejects_tracked_manuscript_but_allows_local_workspace(tmp_path: Path) -> None:
+    path = tmp_path / "paper" / "manuscript" / "main.tex"
+    path.parent.mkdir(parents=True)
+    path.write_text("local manuscript", encoding="utf-8")
+    assert _codes(tmp_path, []) == set()
+    assert "forbidden_top_level" in _codes(tmp_path, ["paper/manuscript/main.tex"])
+
+
+def test_rejects_manuscript_sources_in_distribution(tmp_path: Path) -> None:
+    wheel = tmp_path / "example.whl"
+    with zipfile.ZipFile(wheel, "w") as archive:
+        archive.writestr("project/paper/manuscript/main.tex", "local manuscript")
+    violations = distribution_violations([wheel], _policy())
+    assert {item.code for item in violations} == {"forbidden_distribution_content"}
+
+
 def test_detects_temporary_file(tmp_path: Path) -> None:
     path = tmp_path / "tools" / ".tmp_probe.txt"
     path.parent.mkdir()

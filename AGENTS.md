@@ -25,7 +25,7 @@ Do not add readers, migrations, aliases, or deprecation cycles for internal pre-
 - `tests/`: unit, integration, architecture, documentation, and smoke coverage.
 - `docs/`, `examples/`, `notebooks/`: maintained learning and user material.
 - `tools/`: repository checks and maintenance utilities.
-- `paper/` and `experiments/`, when present: research material, not runtime APIs.
+- `experiments/`: research material, not runtime APIs. `paper/` is an optional local manuscript workspace; it is ignored and must not be tracked or published.
 - `experiments/scripts/canonical_runs.py`: the shared research collector for canonical `load_run`/`load_result` access.
 - `website/`: the separately configured multilingual public site; it uses the official MkDocs i18n plugin.
 

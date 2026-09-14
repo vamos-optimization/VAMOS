@@ -18,14 +18,6 @@
       "review_condition": "Re-review if the documentation reference is removed or the asset is replaced."
     },
     {
-      "path": "paper/manuscript/figures/ACCESSIBILITY.png",
-      "category": "large_publication_source",
-      "owner": "paper",
-      "reason": "Irreplaceable publication figure; no deterministic source generator is present in the repository.",
-      "size": 7123303,
-      "review_condition": "Re-review when editable source or a deterministic generator is added, or the manuscript permanently drops the figure."
-    },
-    {
       "path": "src/vamos/resources/reference_fronts/cec2009_uf8.csv",
       "category": "semantic_duplicate_package_resource",
       "owner": "src/vamos/resources",
