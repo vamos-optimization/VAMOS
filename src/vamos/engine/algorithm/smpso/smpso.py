@@ -421,6 +421,11 @@ class SMPSO:
             st.archive_X, st.archive_F = st.archive_manager.update(X_new, F, G)
             self._refresh_archive_crowding(st)
 
+        # Keep the configured result archive independent from the intrinsic
+        # leaders archive so result policy never changes PSO dynamics.
+        if st.result_archive is not None:
+            st.result_archive.update(X_new, F, G)
+
         if st.hv_tracker is not None and st.hv_tracker.enabled:
             return st.hv_tracker.reached(st.hv_points())
         return False
