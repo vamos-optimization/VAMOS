@@ -21,10 +21,10 @@ class SMPSOState(AlgorithmState):
     and the operators needed for the turbulence/mutation step.
     """
 
-    velocity: np.ndarray = field(default_factory=lambda: np.array([]))
-    pbest_X: np.ndarray = field(default_factory=lambda: np.array([]))
-    pbest_F: np.ndarray = field(default_factory=lambda: np.array([]))
-    pbest_G: np.ndarray | None = None
+    velocity: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
+    pbest_X: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
+    pbest_F: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
+    pbest_G: np.ndarray[Any, Any] | None = None
 
     inertia: float = 0.5
     c1: float = 1.5
@@ -42,17 +42,17 @@ class SMPSOState(AlgorithmState):
     change_velocity1: float = -1.0
     change_velocity2: float = -1.0
     mutation_every: int = 6
-    vmax: np.ndarray = field(default_factory=lambda: np.array([]))
-    delta_max: np.ndarray = field(default_factory=lambda: np.array([]))
-    delta_min: np.ndarray = field(default_factory=lambda: np.array([]))
+    vmax: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
+    delta_max: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
+    delta_min: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
 
-    xl: np.ndarray = field(default_factory=lambda: np.array([]))
-    xu: np.ndarray = field(default_factory=lambda: np.array([]))
+    xl: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
+    xu: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
 
     mutation_op: Any = None
     repair_op: Any = None
-    archive_crowding: np.ndarray | None = field(default=None, repr=False, compare=False)
-    pending_particle_indices: np.ndarray | None = field(default=None, repr=False, compare=False)
+    archive_crowding: np.ndarray[Any, Any] | None = field(default=None, repr=False, compare=False)
+    pending_particle_indices: np.ndarray[Any, Any] | None = field(default=None, repr=False, compare=False)
 
     # Optional configured result archive. The inherited archive_* fields remain
     # the intrinsic SMPSO leaders archive used by the PSO dynamics.
@@ -73,12 +73,12 @@ def build_smpso_result(state: SMPSOState, hv_reached: bool = False) -> dict[str,
     if state.archive_manager is not None:
         archive_X, archive_F = state.archive_manager.contents()
 
-    external_X: np.ndarray | None = None
-    external_F: np.ndarray | None = None
+    external_X: np.ndarray[Any, Any] | None = None
+    external_F: np.ndarray[Any, Any] | None = None
     if state.result_archive is not None:
         external_X, external_F = state.result_archive.contents()
 
-    result_G: np.ndarray | None = None
+    result_G: np.ndarray[Any, Any] | None = None
     mode = str(state.result_mode or "non_dominated").strip().lower()
     if mode == "population":
         result_X = state.X
