@@ -121,6 +121,67 @@ def test_rvea_feasibility_survival_keeps_feasible_then_least_violating() -> None
     np.testing.assert_array_equal(nadir, np.array([5.0, 5.0]))
 
 
+def test_rvea_all_infeasible_objectives_do_not_seed_geometry() -> None:
+    V = _calc_V(_generate_reference_vectors(2, 5))
+    gamma = _calc_gamma(V)
+    initial_ideal = np.full(2, np.inf)
+    infeasible_F = np.array(
+        [
+            [0.0, 0.0],
+            [1.0, 1.0],
+            [2.0, 2.0],
+            [3.0, 3.0],
+            [4.0, 4.0],
+            [5.0, 5.0],
+        ]
+    )
+    infeasible_G = np.ones((6, 1))
+
+    _, provisional_ideal, provisional_nadir = _constraint_aware_apd_survival(
+        infeasible_F,
+        infeasible_G,
+        V,
+        gamma,
+        initial_ideal,
+        4,
+        1,
+        4,
+        2.0,
+        "feasibility",
+    )
+
+    assert np.isinf(provisional_ideal).all()
+    assert provisional_nadir is None
+
+    mixed_F = np.array(
+        [
+            [4.0, 4.0],
+            [5.0, 5.0],
+            [0.0, 0.0],
+            [1.0, 1.0],
+            [2.0, 2.0],
+            [3.0, 3.0],
+        ]
+    )
+    mixed_G = np.array([[-0.2], [-0.1], [0.1], [0.2], [0.3], [0.4]])
+
+    _, feasible_ideal, feasible_nadir = _constraint_aware_apd_survival(
+        mixed_F,
+        mixed_G,
+        V,
+        gamma,
+        provisional_ideal,
+        4,
+        2,
+        4,
+        2.0,
+        "feasibility",
+    )
+
+    np.testing.assert_array_equal(feasible_ideal, np.array([4.0, 4.0]))
+    np.testing.assert_array_equal(feasible_nadir, np.array([5.0, 5.0]))
+
+
 @pytest.mark.parametrize(
     ("algorithm_cls", "config"),
     [
