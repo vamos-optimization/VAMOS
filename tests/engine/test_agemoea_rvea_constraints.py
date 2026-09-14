@@ -8,8 +8,8 @@ from vamos.engine.algorithm.agemoea.agemoea import _constraint_aware_age_surviva
 from vamos.engine.algorithm.config import AGEMOEAConfig, RVEAConfig
 from vamos.engine.algorithm.rvea import RVEA
 from vamos.engine.algorithm.rvea.rvea import (
-    _calc_V,
     _calc_gamma,
+    _calc_V,
     _constraint_aware_apd_survival,
     _generate_reference_vectors,
 )
