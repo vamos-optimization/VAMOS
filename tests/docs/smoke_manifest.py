@@ -12,16 +12,6 @@ class DocSmokeCase:
 
 DOC_SMOKE_CASES = [
     DocSmokeCase(
-        name="paper_reviewer_data",
-        source_path="paper/README.md",
-        code="""
-import subprocess
-import sys
-
-subprocess.run([sys.executable, "-S", "paper/review.py", "data"], check=True)
-""",
-    ),
-    DocSmokeCase(
         name="readme_quickstart",
         source_path="README.md",
         code="""

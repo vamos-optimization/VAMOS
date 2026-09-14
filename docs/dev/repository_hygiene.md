@@ -74,12 +74,11 @@ once.
 
 ## Publication outputs
 
-`paper/` owns manuscript/supplementary source, rebuild scripts, the minimal
-curated data, and source figures that cannot be recreated deterministically.
-Compiled PDFs, generated plots/tables, submission ZIPs and expanded submission
-copies are not tracked. Local paper builds use ignored `paper/build/`,
-`paper/generated/` and `paper/dist/` paths. Final deliverables belong on the
-relevant release or scholarly archive.
+Manuscript and supplementary sources, author correspondence, rebuild scripts
+and publication figures are maintained outside the public Git tree. A local
+`paper/` workspace may be retained, but the entire directory is ignored and
+forbidden as tracked content or distribution content. The retained public
+benchmark inputs remain governed by `experiments/REFERENCE_RESULTS.md`.
 
 Before removing unique publication or scientific-looking material, preserve an
 external manifest and, when reproducibility is uncertain, a verified external

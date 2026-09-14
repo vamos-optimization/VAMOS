@@ -56,7 +56,6 @@
     "examples": "public executable examples",
     "experiments": "scientific scripts, configs and governed reference inputs/results",
     "notebooks": "clean reproducible learning notebooks",
-    "paper": "canonical publication source and rebuild scripts",
     "release": "release-specific frozen requirements and policy data",
     "scripts": "small documented platform launchers",
     "src": "installable product source and package resources",
@@ -77,6 +76,7 @@
     "zdt1_table.tex"
   ],
   "forbidden_top_level_directories": [
+    "paper",
     "reports",
     "submission"
   ],
@@ -93,23 +93,6 @@
     "(^|/)cleanup[-_ ]?handoff"
   ],
   "generated_forbidden_globs": [
-    "paper/build/**",
-    "paper/dist/**",
-    "paper/generated/**",
-    "paper/manuscript/*.pdf",
-    "paper/manuscript/figures/convergence.png",
-    "paper/manuscript/figures/forest_ci_*.png",
-    "paper/manuscript/figures/front_*.png",
-    "paper/manuscript/figures/memory_comparison.png",
-    "paper/manuscript/figures/pareto_fronts.png",
-    "paper/manuscript/figures/runtime_heatmap.png",
-    "paper/manuscript/figures/scaling.png",
-    "paper/manuscript/figures/time_comparison.png",
-    "paper/manuscript/figures/zcat_scalability.png",
-    "paper/manuscript/accessibility_proxies.tex",
-    "paper/manuscript/accessibility_proxy_details.tex",
-    "paper/manuscript/frameworks_*.tex",
-    "paper/manuscript/stats_*.tex",
     "experiments/backup_csv/**",
     "experiments/mic/optuna_tuning/**",
     "experiments/**/*_trace.csv",
@@ -121,11 +104,9 @@
     "submission/**"
   ],
   "package_forbidden_patterns": [
+    "/paper/",
     "/reports/",
     "/submission/",
-    "/paper/build/",
-    "/paper/dist/",
-    "/paper/generated/",
     "final_audit",
     "goal_handoff",
     "FUN.csv",

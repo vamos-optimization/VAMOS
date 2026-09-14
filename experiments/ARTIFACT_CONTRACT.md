@@ -34,9 +34,9 @@ directory names.
 - `REFERENCE_BENCHMARK_DATA`: only the minimal paper CSVs declared in
   `experiments/REFERENCE_RESULTS.md`. They retain a source commit, command,
   schema, expected use and size budget.
-- `PUBLICATION_SOURCE`: TeX, rebuild scripts and irreplaceable source figures
-  under `paper/`. Compiled PDFs, generated tables/plots, submission archives,
-  backups, raw MIC outputs and tuning databases are external or ignored.
+- `PUBLICATION_SOURCE`: TeX, rebuild scripts, author correspondence and source
+  figures are maintained separately from the public repository. An optional
+  local `paper/` workspace and all publication outputs are ignored.
 - `OBSOLETE_PRE_RELEASE_WORKFLOW`: the removed custom campaign launchers that
   generated per-task CLI configs, inferred completion by scanning directories,
   and treated `runs_index.jsonl` as resume state.

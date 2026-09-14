@@ -1,4 +1,0 @@
-matplotlib>=3.10
-seaborn>=0.13
-numpy>=2.0
-pandas>=2.0
