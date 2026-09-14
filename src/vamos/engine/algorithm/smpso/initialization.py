@@ -22,6 +22,7 @@ from vamos.engine.algorithm.components.population import (
     resolve_bounds,
 )
 from vamos.engine.algorithm.components.termination import parse_termination, validate_initial_budget
+from vamos.engine.archive.factory import resolve_external_archive, setup_archive
 from vamos.engine.operators.policies.smpso import (
     build_mutation_operator,
     build_repair_operator,
@@ -104,6 +105,10 @@ def initialize_smpso_run(
     change_velocity2 = float(config.get("change_velocity2", -1.0))
     mutation_every = int(config.get("mutation_every", 6))
 
+    result_mode = str(config.get("result_mode", "non_dominated") or "non_dominated").strip().lower()
+    if result_mode not in {"non_dominated", "population"}:
+        raise ValueError("result_mode must be 'non_dominated' or 'population'.")
+
     encoding = normalize_encoding(getattr(problem, "encoding", "real"))
     if encoding not in {"real", "mixed"}:
         raise ValueError(f"SMPSO does not support encoding '{encoding}'.")
@@ -137,7 +142,8 @@ def initialize_smpso_run(
     pbest_F = F.copy()
     pbest_G = G.copy() if G is not None else None
 
-    # Leader archive
+    # Leader archive. This archive is intrinsic to SMPSO and drives leader
+    # selection; it must remain independent of any configured result archive.
     leader_archive = CrowdingDistanceArchive(archive_size, n_var, n_obj, X.dtype)
     archive_X, archive_F = leader_archive.update(X, F, G)
     archive_crowding = None
@@ -145,6 +151,19 @@ def initialize_smpso_run(
         from vamos.engine.algorithm.components.subset_selection import _single_front_crowding
 
         archive_crowding = _single_front_crowding(archive_F)
+
+    # Optional external archive used only for result storage/reporting.
+    ext_cfg = resolve_external_archive(config)
+    _, _, result_archive = setup_archive(
+        kernel,
+        X,
+        F,
+        n_var,
+        n_obj,
+        X.dtype,
+        ext_cfg,
+        G,
+    )
 
     # Genealogy tracking
     track_genealogy = bool(config.get("track_genealogy", False))
@@ -174,6 +193,8 @@ def initialize_smpso_run(
         archive_X=archive_X,
         archive_F=archive_F,
         archive_manager=leader_archive,
+        result_mode=result_mode,
+        result_archive=result_archive,
         # Termination
         hv_tracker=hv_tracker,
         # PSO state
