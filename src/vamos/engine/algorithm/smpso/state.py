@@ -66,17 +66,19 @@ def build_smpso_result(state: SMPSOState, hv_reached: bool = False) -> dict[str,
     if population_G is not None:
         pop["G"] = population_G
 
-    # The inherited archive is SMPSO's intrinsic leaders archive and remains
-    # visible as ``archive`` for backward compatibility and algorithm tracing.
-    archive_X = state.archive_X
-    archive_F = state.archive_F
+    # The inherited archive is the intrinsic SMPSO leaders archive. When the
+    # stable external_archive option is configured, expose that configured
+    # result archive through the canonical ``archive`` namespace so run
+    # artifacts preserve it without changing the v1 ResultBundle schema.
+    leaders_X = state.archive_X
+    leaders_F = state.archive_F
     if state.archive_manager is not None:
-        archive_X, archive_F = state.archive_manager.contents()
+        leaders_X, leaders_F = state.archive_manager.contents()
 
-    external_X: np.ndarray[Any, Any] | None = None
-    external_F: np.ndarray[Any, Any] | None = None
+    archive_X = leaders_X
+    archive_F = leaders_F
     if state.result_archive is not None:
-        external_X, external_F = state.result_archive.contents()
+        archive_X, archive_F = state.result_archive.contents()
 
     result_G: np.ndarray[Any, Any] | None = None
     mode = str(state.result_mode or "non_dominated").strip().lower()
@@ -84,9 +86,6 @@ def build_smpso_result(state: SMPSOState, hv_reached: bool = False) -> dict[str,
         result_X = state.X
         result_F = state.F
         result_G = population_G
-    elif external_X is not None and external_F is not None and external_F.size:
-        result_X = external_X
-        result_F = external_F
     elif archive_X is not None and archive_F is not None and archive_F.size:
         result_X = archive_X
         result_F = archive_F
@@ -105,8 +104,6 @@ def build_smpso_result(state: SMPSOState, hv_reached: bool = False) -> dict[str,
     }
     if result_G is not None:
         result["G"] = result_G
-    if state.result_archive is not None:
-        result["external_archive"] = {"X": external_X, "F": external_F}
     return result
 
 
