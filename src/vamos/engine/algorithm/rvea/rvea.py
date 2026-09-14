@@ -131,7 +131,10 @@ def _apd_survival(
     return survivors, ideal, nadir
 
 
-def _extract_evaluation_arrays(eval_result: Any, constraint_mode: str) -> tuple[np.ndarray, np.ndarray | None]:
+def _extract_evaluation_arrays(
+    eval_result: Any,
+    constraint_mode: str,
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any] | None]:
     """Normalize ask/tell evaluation payloads and honor the constraint opt-out."""
     raw_g: Any = None
     if hasattr(eval_result, "F"):
@@ -160,7 +163,11 @@ def _extract_evaluation_arrays(eval_result: Any, constraint_mode: str) -> tuple[
     return F, G
 
 
-def _combine_constraints(current: np.ndarray | None, offspring: np.ndarray | None, constraint_mode: str) -> np.ndarray | None:
+def _combine_constraints(
+    current: np.ndarray[Any, Any] | None,
+    offspring: np.ndarray[Any, Any] | None,
+    constraint_mode: str,
+) -> np.ndarray[Any, Any] | None:
     if constraint_mode == "none":
         return None
     if current is None and offspring is None:
@@ -205,7 +212,7 @@ def _constraint_aware_apd_survival(
             n_max_gen,
             alpha,
         )
-        return feasible_idx[local], updated_ideal, nadir
+        return np.asarray(feasible_idx[local], dtype=int), updated_ideal, nadir
 
     violation = compute_violation(G, n=G.shape[0])
     infeasible_idx = np.flatnonzero(~feasible)
@@ -214,11 +221,13 @@ def _constraint_aware_apd_survival(
     fill = infeasible_idx[order[:needed]]
     survivors = np.concatenate([feasible_idx, fill]).astype(int, copy=False)
 
-    geometry_idx = feasible_idx if feasible_idx.size else survivors
-    if geometry_idx.size == 0:
+    # Infeasible objective values must never seed RVEA's geometry. Until the
+    # first feasible point appears the ideal stays untouched and adaptation is
+    # disabled because no feasible nadir exists.
+    if feasible_idx.size == 0:
         return survivors, ideal, None
-    updated_ideal = np.minimum(F[geometry_idx].min(axis=0), ideal)
-    nadir = F[geometry_idx].max(axis=0)
+    updated_ideal = np.minimum(F[feasible_idx].min(axis=0), ideal)
+    nadir = F[feasible_idx].max(axis=0)
     return survivors, updated_ideal, nadir
 
 
@@ -465,7 +474,7 @@ class RVEA:
         if X_off.shape[0] > request_size:
             X_off = X_off[:request_size]
         st.pending_offspring = X_off
-        return np.array(X_off, copy=True)
+        return np.asarray(X_off).copy()
 
     def tell(self, eval_result: Any, problem: ProblemProtocol | None = None) -> bool:
         """Receive evaluated offspring and update population.
