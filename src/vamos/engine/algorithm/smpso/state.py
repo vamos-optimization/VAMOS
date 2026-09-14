@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from vamos.engine.algorithm.components.state import AlgorithmState
+
+if TYPE_CHECKING:
+    from vamos.engine.archive.factory import ArchiveManager
 
 
 @dataclass
@@ -51,21 +54,46 @@ class SMPSOState(AlgorithmState):
     archive_crowding: np.ndarray | None = field(default=None, repr=False, compare=False)
     pending_particle_indices: np.ndarray | None = field(default=None, repr=False, compare=False)
 
+    # Optional configured result archive. The inherited archive_* fields remain
+    # the intrinsic SMPSO leaders archive used by the PSO dynamics.
+    result_archive: ArchiveManager | None = field(default=None, repr=False, compare=False)
+
 
 def build_smpso_result(state: SMPSOState, hv_reached: bool = False) -> dict[str, Any]:
     """Build final result dictionary from SMPSO state."""
     pop: dict[str, Any] = {"X": state.X, "F": state.F}
-    if state.G is not None and state.constraint_mode != "none":
-        pop["G"] = state.G
+    population_G = state.G if state.G is not None and state.constraint_mode != "none" else None
+    if population_G is not None:
+        pop["G"] = population_G
 
-    # Prefer nondominated leaders archive when available.
+    # The inherited archive is SMPSO's intrinsic leaders archive and remains
+    # visible as ``archive`` for backward compatibility and algorithm tracing.
     archive_X = state.archive_X
     archive_F = state.archive_F
     if state.archive_manager is not None:
         archive_X, archive_F = state.archive_manager.contents()
 
-    result_X = archive_X if archive_X is not None and archive_X.size else state.X
-    result_F = archive_F if archive_F is not None and archive_F.size else state.F
+    external_X: np.ndarray | None = None
+    external_F: np.ndarray | None = None
+    if state.result_archive is not None:
+        external_X, external_F = state.result_archive.contents()
+
+    result_G: np.ndarray | None = None
+    mode = str(state.result_mode or "non_dominated").strip().lower()
+    if mode == "population":
+        result_X = state.X
+        result_F = state.F
+        result_G = population_G
+    elif external_X is not None and external_F is not None and external_F.size:
+        result_X = external_X
+        result_F = external_F
+    elif archive_X is not None and archive_F is not None and archive_F.size:
+        result_X = archive_X
+        result_F = archive_F
+    else:
+        result_X = state.X
+        result_F = state.F
+        result_G = population_G
 
     result: dict[str, Any] = {
         "X": result_X,
@@ -75,6 +103,10 @@ def build_smpso_result(state: SMPSOState, hv_reached: bool = False) -> dict[str,
         "archive": {"X": archive_X, "F": archive_F},
         "population": pop,
     }
+    if result_G is not None:
+        result["G"] = result_G
+    if state.result_archive is not None:
+        result["external_archive"] = {"X": external_X, "F": external_F}
     return result
 
 
