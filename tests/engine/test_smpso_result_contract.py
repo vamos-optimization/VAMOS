@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 
 from vamos.engine.algorithm.config import SMPSOConfig
 from vamos.engine.algorithm.smpso import SMPSO
+from vamos.experiment.artifacts.bundle import load_result_bundle, snapshot_result_arrays, write_result_bundle
+from vamos.experiment.artifacts.bundle_safety import result_descriptor
+from vamos.experiment.artifacts.models import LoadLimits
+from vamos.experiment.artifacts.reader import _result_payload
+from vamos.experiment.optimization_result import OptimizationResult
 from vamos.foundation.kernel.numpy_backend import NumPyKernel
 from vamos.foundation.problem.zdt1 import ZDT1Problem
 
@@ -33,7 +40,6 @@ def test_smpso_without_external_archive_preserves_leader_archive_result() -> Non
 
     assert algorithm.state is not None
     assert algorithm.state.result_archive is None
-    assert "external_archive" not in result
     assert result["archive"]["F"].shape[0] > 0
     np.testing.assert_allclose(result["F"], result["archive"]["F"])
     np.testing.assert_allclose(result["X"], result["archive"]["X"])
@@ -49,10 +55,9 @@ def test_smpso_external_archive_is_separate_and_drives_default_result() -> None:
     assert algorithm.state.result_archive is not None
     assert algorithm.state.result_archive is not algorithm.state.archive_manager
     assert result["archive"]["F"].shape[0] > 0
-    assert result["external_archive"]["F"].shape[0] > 0
-    assert result["external_archive"]["F"].shape[0] <= 3
-    np.testing.assert_allclose(result["F"], result["external_archive"]["F"])
-    np.testing.assert_allclose(result["X"], result["external_archive"]["X"])
+    assert result["archive"]["F"].shape[0] <= 3
+    np.testing.assert_allclose(result["F"], result["archive"]["F"])
+    np.testing.assert_allclose(result["X"], result["archive"]["X"])
 
 
 def test_smpso_population_result_mode_wins_over_external_archive() -> None:
@@ -60,9 +65,34 @@ def test_smpso_population_result_mode_wins_over_external_archive() -> None:
 
     _, result = _run(config)
 
-    assert result["external_archive"]["F"].shape[0] > 0
+    assert result["archive"]["F"].shape[0] > 0
+    assert result["archive"]["F"].shape[0] <= 3
     np.testing.assert_allclose(result["F"], result["population"]["F"])
     np.testing.assert_allclose(result["X"], result["population"]["X"])
+
+
+def test_smpso_configured_archive_round_trips_through_canonical_bundle(tmp_path: Path) -> None:
+    config = _builder().external_archive(capacity=3).result_mode("population").build()
+    _, raw_result = _run(config)
+    limits = LoadLimits()
+    arrays = snapshot_result_arrays(OptimizationResult(raw_result), limits=limits)
+    bundle_path = tmp_path / "result.npz"
+
+    write_result_bundle(bundle_path, arrays, limits=limits)
+    loaded_arrays = load_result_bundle(
+        bundle_path,
+        descriptor=result_descriptor(),
+        limits=limits,
+        required_f=True,
+        operation="test SMPSO result bundle",
+    )
+    payload = _result_payload(loaded_arrays, {})
+
+    assert "archive" in payload
+    np.testing.assert_allclose(payload["archive"]["F"], raw_result["archive"]["F"])
+    np.testing.assert_allclose(payload["archive"]["X"], raw_result["archive"]["X"])
+    np.testing.assert_allclose(payload["F"], raw_result["population"]["F"])
+    np.testing.assert_allclose(payload["X"], raw_result["population"]["X"])
 
 
 def test_smpso_rejects_invalid_raw_result_mode() -> None:
