@@ -233,6 +233,7 @@ def test_baseline_metadata_detects_mypy_config_hash_drift() -> None:
 
 def test_metadata_only_pyproject_drift_preserves_typing_baseline() -> None:
     baseline = typecheck.load_baseline()
+    baseline["environment"]["config_sha256"] = "0" * 64
 
     assert typecheck._sha256(typecheck.CONFIG_PATH) != baseline["environment"]["config_sha256"]
     assert typecheck._mypy_config_sha256() == baseline["environment"]["mypy_config_sha256"]

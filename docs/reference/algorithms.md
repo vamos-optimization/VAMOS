@@ -37,7 +37,12 @@ Additional teaching pages will be linked when their examples have been validated
   - External archive configuration (`.external_archive(...)`) becomes the default result source unless you explicitly set `result_mode="population"`.
 - SPEA2: real/binary/integer with constraint handling.
 - IBEA: epsilon or hypervolume indicator variants.
-- SMPSO: real-coded, archive support.
+- SMPSO: real-coded with an internal crowding-distance leaders archive.
+  - `archive_size` controls the internal leaders archive used by SMPSO for leader selection and HV-based stopping.
+  - `.external_archive(...)` configures a separate result archive; its pruning/storage decisions do not feed back into swarm dynamics or leader selection.
+  - `result_mode` accepts `non_dominated` (default) or `population`.
+  - With `result_mode="non_dominated"`, top-level `X`/`F` come from the configured external archive when present; otherwise they come from the internal leaders archive.
+  - With `result_mode="population"`, top-level `X`/`F` are the final swarm, while `result.data["archive"]` remains available (the external result archive when configured, otherwise the internal leaders archive).
 - AGE-MOEA: adaptive geometry estimation for many-objective search.
   - `result_mode` accepts `non_dominated` (default) or `population`.
   - External archive configuration (`.external_archive(...)`) becomes the default result source unless you explicitly set `result_mode="population"`.
