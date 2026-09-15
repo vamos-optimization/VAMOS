@@ -70,13 +70,6 @@ pip install "vamos-optimization[tuning]"
 pip install "smac>=2.0"
 ```
 
-For publication benchmarking, prefer the pinned paper environment:
-
-```bash
-pip install -e .
-pip install -r paper/requirements-publication.txt
-```
-
 ## Backend Capability Matrix
 
 | Backend | Status | Role |
@@ -323,7 +316,7 @@ VAMOS comes with a comprehensive suite of Jupyter notebooks organized by tier:
 - **2. Advanced**: Custom extensions, tuning, and research benchmarks.
   - `notebooks/2_advanced/21_programmatic_tuning.ipynb` -- Canonical Optuna tuning workflow
   - `notebooks/2_advanced/23_backends_and_performance.ipynb` -- Backend tradeoffs and benchmarking
-  - `notebooks/2_advanced/30_paper_benchmarking.ipynb` -- Publication-ready benchmarks
+  - `notebooks/2_advanced/30_paper_benchmarking.ipynb` -- Inspect retained benchmark data
   - `notebooks/2_advanced/27_operator_efficacy.ipynb` -- Operator efficacy analysis
   - `notebooks/2_advanced/32_ablation_planning.ipynb` -- Ablation studies
   - `notebooks/2_advanced/33_optuna_tuning_advanced.ipynb` -- Multi-fidelity and persistent Optuna workflows
@@ -362,9 +355,9 @@ All tools are available as `vamos <subcommand>`. Run `vamos help` for the full l
 
 ## Citation
 
-Reviewing the Neurocomputing manuscript? The [paper reviewer guide](paper/README.md)
-links the retained CSV data, a small executable check, isolated analysis/PDF
-rebuilds and the relevant documentation.
+The [retained benchmark data guide](experiments/REFERENCE_RESULTS.md) documents
+the available scientific inputs and their provenance. Manuscript sources and
+author revision materials are maintained separately from this public repository.
 
 If you use VAMOS in published work, cite it directly:
 

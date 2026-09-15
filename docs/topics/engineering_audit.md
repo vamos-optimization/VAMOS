@@ -42,7 +42,7 @@ The highest-friction CLI issues identified in this audit were fixed in a follow-
 - `optimize(..., seed=[...])` now returns `StudyResult` with built-in aggregation helpers
 - algorithm config builders now share internal mixins instead of repeating the same fluent method bodies across every algorithm
 - source docstrings are now normalized away from Google-style `Args:` sections, and tests now guard against reintroducing `np.random.rand(` in the test suite
-- the repo now ships a pinned paper environment snapshot at `paper/requirements-publication.txt`
+- a pinned publication environment was recorded during this audit; it is now maintained with the manuscript outside the public repository
 
 The remaining sections preserve the audit rationale, especially around vectorization semantics, reproducibility expectations, and test-surface gaps outside the common path.
 

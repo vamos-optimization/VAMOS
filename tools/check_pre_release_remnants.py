@@ -27,7 +27,7 @@ class Finding:
 
 
 _TEXT_SUFFIXES = {".cfg", ".ipynb", ".json", ".md", ".py", ".toml", ".txt", ".yaml", ".yml"}
-_SCAN_ROOTS = (".github", "docs", "examples", "experiments", "notebooks", "paper", "src", "submission", "tests", "website")
+_SCAN_ROOTS = (".github", "docs", "examples", "experiments", "notebooks", "src", "submission", "tests", "website")
 _SCAN_FILES = ("AGENTS.md", "CLAUDE.md", "CONTRIBUTING.md", "README.md")
 _CHECKER_FIXTURES = {
     "tests/architecture/test_no_legacy_typing_hints.py",

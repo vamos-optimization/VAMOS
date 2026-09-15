@@ -66,6 +66,3 @@ For development from the repository root:
 ```bash
 python -m pip install -e ".[dev]"
 ```
-
-Use `paper/requirements-publication.txt` only when reproducing the paper's
-pinned benchmark environment; it is not the general runtime requirement set.
