@@ -38,4 +38,4 @@ panel==1.9.4
 param==2.2.0
 bokeh==3.8.2
 pymdown-extensions==11.0.1
-jax==0.5.2
+jax==0.6.2
