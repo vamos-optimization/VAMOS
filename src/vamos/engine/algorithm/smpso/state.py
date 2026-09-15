@@ -18,10 +18,10 @@ class SMPSOState(AlgorithmState):
     and the operators needed for the turbulence/mutation step.
     """
 
-    velocity: np.ndarray = field(default_factory=lambda: np.array([]))
-    pbest_X: np.ndarray = field(default_factory=lambda: np.array([]))
-    pbest_F: np.ndarray = field(default_factory=lambda: np.array([]))
-    pbest_G: np.ndarray | None = None
+    velocity: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
+    pbest_X: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
+    pbest_F: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
+    pbest_G: np.ndarray[Any, Any] | None = None
 
     inertia: float = 0.5
     c1: float = 1.5
@@ -39,17 +39,17 @@ class SMPSOState(AlgorithmState):
     change_velocity1: float = -1.0
     change_velocity2: float = -1.0
     mutation_every: int = 6
-    vmax: np.ndarray = field(default_factory=lambda: np.array([]))
-    delta_max: np.ndarray = field(default_factory=lambda: np.array([]))
-    delta_min: np.ndarray = field(default_factory=lambda: np.array([]))
+    vmax: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
+    delta_max: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
+    delta_min: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
 
-    xl: np.ndarray = field(default_factory=lambda: np.array([]))
-    xu: np.ndarray = field(default_factory=lambda: np.array([]))
+    xl: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
+    xu: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
 
     mutation_op: Any = None
     repair_op: Any = None
-    archive_crowding: np.ndarray | None = field(default=None, repr=False, compare=False)
-    pending_particle_indices: np.ndarray | None = field(default=None, repr=False, compare=False)
+    archive_crowding: np.ndarray[Any, Any] | None = field(default=None, repr=False, compare=False)
+    pending_particle_indices: np.ndarray[Any, Any] | None = field(default=None, repr=False, compare=False)
 
     # SMPSO always owns an internal leaders archive through the inherited
     # archive_* fields. A separately configured external archive is result-only
