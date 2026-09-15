@@ -59,15 +59,21 @@ class _SMPSOArchiveFanout:
 
     def update(
         self,
-        X: np.ndarray,
-        F: np.ndarray,
-        G: np.ndarray | None = None,
-    ) -> tuple[np.ndarray, np.ndarray]:
+        X: np.ndarray[Any, Any],
+        F: np.ndarray[Any, Any],
+        G: np.ndarray[Any, Any] | None = None,
+    ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
         self._result_archive.update(X, F, G)
-        return cast(tuple[np.ndarray, np.ndarray], self._leaders.update(X, F, G))
+        return cast(
+            tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]],
+            self._leaders.update(X, F, G),
+        )
 
-    def contents(self) -> tuple[np.ndarray, np.ndarray]:
-        return cast(tuple[np.ndarray, np.ndarray], self._leaders.contents())
+    def contents(self) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
+        return cast(
+            tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]],
+            self._leaders.contents(),
+        )
 
 
 def initialize_smpso_run(
