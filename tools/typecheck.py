@@ -97,6 +97,9 @@ DIAGNOSTIC_RE = re.compile(
     r"(?P<severity>error|note|warning): (?P<message>.*?)(?:  \[(?P<code>[^\]]+)\])?$"
 )
 LOCATIONLESS_DIAGNOSTIC_RE = re.compile(r"^(?P<path>.+?): (?P<severity>error|note|warning): (?P<message>.*?)(?:  \[(?P<code>[^\]]+)\])?$")
+MYPY_SUMMARY_RE = re.compile(
+    r"(?:Success: no issues found in \d+ source files?|Found \d+ errors? in \d+ files? \(checked \d+ source files?\))"
+)
 UNCODED_IGNORE_RE = re.compile(r"#\s*type:\s*ignore(?!\s*\[)")
 
 
@@ -234,7 +237,9 @@ def parse_mypy_output(output: str, repo_root: Path = REPO_ROOT) -> tuple[list[Di
     for line in output.splitlines():
         match = DIAGNOSTIC_RE.match(line) or LOCATIONLESS_DIAGNOSTIC_RE.match(line)
         if match is None:
-            if any(token in line for token in (": error:", ": note:", ": warning:")):
+            # Configuration failures can lack severity and still exit zero. Only
+            # known informational summaries and blank lines may be discarded.
+            if line.strip() and MYPY_SUMMARY_RE.fullmatch(line) is None:
                 unparsed.append(line)
             continue
         data = match.groupdict()

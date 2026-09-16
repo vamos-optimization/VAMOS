@@ -52,6 +52,12 @@ Full runs over all of `src/vamos`. It compares normalized diagnostics with `typi
 
 Normalization treats mypy's missing generic type "arguments" and "parameters" wording as the same diagnostic, preserving the generic type name. Diagnostics without a source line are also parsed; configuration errors still fail validation.
 
+Unrecognized nonblank output fails every gate, including baseline updates with
+`--review-environment-change`, even if mypy exits zero. Only the known success
+and error-count summaries are ignored. This includes configuration-parser
+messages without a severity label, such as unknown options or invalid Python
+versions; they cannot become accepted baseline debt.
+
 Development full-source typing passes the structured no-regression ratchet. It
 does not claim that the complete source tree is free of diagnostics.
 

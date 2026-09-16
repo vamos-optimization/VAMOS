@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
+
+import pytest
 
 from tools import typecheck
 
@@ -93,6 +96,90 @@ def test_parser_preserves_locationless_configuration_notes_and_errors() -> None:
     assert all(item.path == "pyproject.toml" and item.line == 0 and item.column is None for item in diagnostics)
     assert diagnostics[1].error_code == "misc"
     assert typecheck.zero_scope_policy_errors("strict", diagnostics) == ["strict typing requires zero diagnostics."]
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "pyproject.toml: [mypy]: Unrecognized option: unknown_option = True",
+        "pyproject.toml: [mypy]: python_version: Invalid python version 'invalid' (expected format: 'x.y')",
+        '/repo/pyproject.toml: [module = "example.*"]:Unrecognized option: unknown_option = True',
+        r"C:\repo\pyproject.toml: [mypy]: python_version: Invalid python version 'invalid'",
+        "mypy.ini: No [mypy] section in config file",
+        "pyproject.toml: Invalid value (at line 2, column 18)",
+        "Unexpected output from mypy",
+        "Success: no issues found in 1 source file; configuration failed",
+    ],
+)
+def test_parser_rejects_severityless_configuration_failures_and_unknown_output(line: str) -> None:
+    diagnostics, unparsed = typecheck.parse_mypy_output(line)
+
+    assert diagnostics == []
+    assert unparsed == [line]
+
+
+def test_parser_ignores_only_blank_lines_and_known_summaries() -> None:
+    diagnostics, unparsed = typecheck.parse_mypy_output(
+        "\n  \nSuccess: no issues found in 1 source file\nSuccess: no issues found in 20 source files\n"
+        "Found 1 error in 1 file (checked 1 source file)\nFound 2 errors in 2 files (checked 20 source files)\n"
+    )
+
+    assert diagnostics == []
+    assert unparsed == []
+
+
+@pytest.mark.parametrize("scope", ["strict", "stable", "full", "release", "full-zero", "update"])
+def test_gates_reject_severityless_output_even_with_zero_exit(
+    scope: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(json.dumps(typecheck.build_baseline([], "HEAD")), encoding="utf-8")
+    original = baseline_path.read_bytes()
+    line = "pyproject.toml: [mypy]: Unrecognized option: unknown_option = True"
+    diagnostics, unparsed = typecheck.parse_mypy_output(line)
+    monkeypatch.setattr(typecheck, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(typecheck, "BASELINE_PATH", baseline_path)
+    monkeypatch.setattr(typecheck, "environment_errors", lambda: [])
+    monkeypatch.setattr(typecheck, "changed_production_files", lambda: set())
+    monkeypatch.setattr(typecheck, "suppression_policy_errors", lambda **kwargs: [])
+    monkeypatch.setattr(typecheck, "baseline_metadata_errors", lambda baseline: ["configuration changed"] if scope == "update" else [])
+    monkeypatch.setattr(typecheck, "_valid_git_ref", lambda ref: True)
+    monkeypatch.setattr(typecheck, "run_mypy", lambda scope: (["mypy"], 0, line, diagnostics, unparsed))
+
+    def refuse_write(*args: object) -> None:
+        pytest.fail("invalid configuration must never be written into the baseline")
+
+    monkeypatch.setattr(typecheck, "_write_baseline", refuse_write)
+    args = ["--scope", "full" if scope == "update" else scope, "--format", "json"]
+    if scope == "update":
+        args.extend(["--update-baseline", "--review-environment-change", "--generation-commit", "HEAD"])
+
+    assert typecheck.main(args) == 1
+    report = json.loads(capsys.readouterr().out)
+    assert report["passed"] is False
+    assert report["unparsed_diagnostic_lines"] == [line]
+    assert "mypy emitted 1 unparsed diagnostic line(s)." in report["policy_errors"]
+    assert baseline_path.read_bytes() == original
+
+
+@pytest.mark.parametrize("setting", ["unknown_option = true", 'python_version = "invalid"'])
+def test_run_mypy_rejects_real_configuration_failures_with_zero_exit(setting: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    config = tmp_path / "pyproject.toml"
+    config.write_text(f"[tool.mypy]\n{setting}\n", encoding="utf-8")
+    source = tmp_path / "example.py"
+    source.write_text("value: int = 1\n", encoding="utf-8")
+    command = [sys.executable, "-m", "mypy", *typecheck.STABLE_MYPY_ARGS, str(source)]
+    command[command.index("--config-file") + 1] = str(config)
+    monkeypatch.setattr(typecheck, "build_mypy_command", lambda scope: command)
+    monkeypatch.setenv("MYPY_CACHE_DIR", str(tmp_path / "cache"))
+
+    _, exit_code, _, diagnostics, unparsed = typecheck.run_mypy("strict")
+
+    assert exit_code == 0
+    assert diagnostics == []
+    assert len(unparsed) == 1
+    assert unparsed[0].startswith(f"{config}: [mypy]: ")
+    assert "Unrecognized option" in unparsed[0] or "Invalid python version" in unparsed[0]
 
 
 def test_fingerprint_ignores_location_but_not_semantic_identity() -> None:
