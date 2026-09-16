@@ -70,7 +70,7 @@ python -m pip install -U pip
 python -m pip install -e ".[dev,docs]"
 ```
 
-Canonical typing uses Python 3.12, compiled mypy 1.15.0, typing-extensions 4.16.0, no stub distributions, and the constrained extras documented in [Typing policy](docs/dev/typing.md). Install that environment exactly before running typing or health:
+Canonical typing uses Python 3.12, compiled mypy 2.3.1, typing-extensions 4.16.0, no stub distributions, and the constrained extras documented in [Typing policy](docs/dev/typing.md). Install that environment exactly before running typing or health:
 
 ```bash
 python -m pip install -c constraints/ci.txt -e ".[dev]"

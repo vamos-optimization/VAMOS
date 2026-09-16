@@ -40,7 +40,7 @@ def test_supported_toolchain_is_accepted() -> None:
     assert (
         typecheck.supported_version_errors(
             (3, 12),
-            "1.15.0",
+            "2.3.1",
             "compiled",
             "4.16.0",
             (),
@@ -83,6 +83,18 @@ def test_parser_handles_windows_and_posix_paths_columns_notes_and_unicode() -> N
     assert diagnostics[1].severity == "note"
 
 
+def test_parser_preserves_locationless_configuration_notes_and_errors() -> None:
+    diagnostics, unparsed = typecheck.parse_mypy_output(
+        "pyproject.toml: note: unused section(s): module = ['optional.*']\npyproject.toml: error: Invalid configuration  [misc]\n"
+    )
+
+    assert unparsed == []
+    assert [item.severity for item in diagnostics] == ["note", "error"]
+    assert all(item.path == "pyproject.toml" and item.line == 0 and item.column is None for item in diagnostics)
+    assert diagnostics[1].error_code == "misc"
+    assert typecheck.zero_scope_policy_errors("strict", diagnostics) == ["strict typing requires zero diagnostics."]
+
+
 def test_fingerprint_ignores_location_but_not_semantic_identity() -> None:
     first = _diagnostic(line=10, column=3)
     moved = _diagnostic(line=999, column=1)
@@ -90,6 +102,19 @@ def test_fingerprint_ignores_location_but_not_semantic_identity() -> None:
 
     assert first.fingerprint == moved.fingerprint
     assert first.fingerprint != changed.fingerprint
+
+
+def test_generic_wording_change_preserves_identity_and_ratchet() -> None:
+    old, _ = typecheck.parse_mypy_output('src/vamos/a.py:1: error: Missing type parameters for generic type "ndarray"  [type-arg]')
+    new, _ = typecheck.parse_mypy_output('src/vamos/a.py:2: error: Missing type arguments for generic type "ndarray"  [type-arg]')
+    other, _ = typecheck.parse_mypy_output('src/vamos/a.py:2: error: Missing type arguments for generic type "number"  [type-arg]')
+    baseline = typecheck.build_baseline(old, "HEAD")
+
+    assert old[0].fingerprint == new[0].fingerprint
+    assert new[0].fingerprint != other[0].fingerprint
+    assert typecheck.compare_ratchet(new, baseline).new == {}
+    assert typecheck.compare_ratchet(new * 2, baseline).increased == {new[0].fingerprint: 1}
+    assert typecheck.compare_ratchet(other, baseline).new == {other[0].fingerprint: 1}
 
 
 def test_repeated_diagnostics_are_a_multiset() -> None:
@@ -233,6 +258,7 @@ def test_baseline_metadata_detects_mypy_config_hash_drift() -> None:
 
 def test_metadata_only_pyproject_drift_preserves_typing_baseline() -> None:
     baseline = typecheck.load_baseline()
+    baseline["environment"]["config_sha256"] = "0" * 64
 
     assert typecheck._sha256(typecheck.CONFIG_PATH) != baseline["environment"]["config_sha256"]
     assert typecheck._mypy_config_sha256() == baseline["environment"]["mypy_config_sha256"]
