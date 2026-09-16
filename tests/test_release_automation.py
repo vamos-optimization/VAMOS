@@ -254,8 +254,8 @@ def test_compute_extra_excludes_the_reviewed_distributed_advisory() -> None:
     build_requirements = (ROOT / "release" / "requirements-build.txt").read_text(encoding="utf-8")
 
     assert pyproject.count('"dask[distributed]>=2026.1.0"') == 2
-    assert "dask==2026.1.2" in constraints
-    assert "distributed==2026.1.2" in constraints
+    assert "dask==2026.8.0" in constraints
+    assert "distributed==2026.8.0" in constraints
     assert 'requires = ["setuptools>=83", "wheel>=0.46.2"]' in pyproject
     assert pyproject.count('"setuptools>=83"') == 3
     assert pyproject.count('"wheel>=0.46.2"') == 3

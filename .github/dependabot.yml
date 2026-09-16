@@ -5,6 +5,11 @@ updates:
     schedule:
       interval: "daily"
     open-pull-requests-limit: 10
+    groups:
+      dask-distributed:
+        patterns:
+          - "dask"
+          - "distributed"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
