@@ -11,7 +11,7 @@ VAMOS had three incompatible typing signals: a selected CI scope, an unenforced 
 ## Decision
 
 - `tools/typecheck.py` is the sole typecheck entry point.
-- Python 3.12, compiled mypy 1.15.0, typing-extensions 4.16.0, `pyproject.toml`, and `constraints/ci.txt` define the supported environment.
+- Python 3.12, compiled mypy 2.3.1, typing-extensions 4.16.0, `pyproject.toml`, and `constraints/ci.txt` define the supported environment.
 - Strict typing covers at least the former CI paths and requires zero diagnostics.
 - Full development typing enforces one structured multiset baseline. Fingerprints exclude source locations but include path, error code, and normalized message; multiplicity cannot increase.
 - Changed production files must contain no baseline debt.

@@ -28,7 +28,7 @@ BASELINE_PATH = REPO_ROOT / "typing" / "mypy-baseline.json"
 MYPY_POLICY_BASELINE_PATH = REPO_ROOT / "typing" / "mypy-policy-baseline.json"
 
 SUPPORTED_PYTHON = (3, 12)
-SUPPORTED_MYPY = "1.15.0"
+SUPPORTED_MYPY = "2.3.1"
 SUPPORTED_TYPING_EXTENSIONS = "4.16.0"
 EXPECTED_MYPY_BUILD = "compiled"
 EXPECTED_STUB_PACKAGES: tuple[str, ...] = ()
@@ -95,6 +95,10 @@ ZeroScope = Literal["strict", "stable", "full-zero"]
 DIAGNOSTIC_RE = re.compile(
     r"^(?P<path>.+?):(?P<line>\d+)(?::(?P<column>\d+))?: "
     r"(?P<severity>error|note|warning): (?P<message>.*?)(?:  \[(?P<code>[^\]]+)\])?$"
+)
+LOCATIONLESS_DIAGNOSTIC_RE = re.compile(r"^(?P<path>.+?): (?P<severity>error|note|warning): (?P<message>.*?)(?:  \[(?P<code>[^\]]+)\])?$")
+MYPY_SUMMARY_RE = re.compile(
+    r"(?:Success: no issues found in \d+ source files?|Found \d+ errors? in \d+ files? \(checked \d+ source files?\))"
 )
 UNCODED_IGNORE_RE = re.compile(r"#\s*type:\s*ignore(?!\s*\[)")
 
@@ -205,7 +209,14 @@ def environment_errors() -> list[str]:
 
 
 def normalize_message(message: str) -> str:
-    return " ".join(message.strip().split())
+    normalized = " ".join(message.strip().split())
+    # Mypy 2 calls missing generic parameters "arguments". Preserve the same
+    # semantic fingerprint without discarding the generic's name or multiplicity.
+    return re.sub(
+        r'^Missing type arguments for generic type ("[^"]+")$',
+        r"Missing type parameters for generic type \1",
+        normalized,
+    )
 
 
 def normalize_path(raw_path: str, repo_root: Path = REPO_ROOT) -> str:
@@ -224,9 +235,11 @@ def parse_mypy_output(output: str, repo_root: Path = REPO_ROOT) -> tuple[list[Di
     diagnostics: list[Diagnostic] = []
     unparsed: list[str] = []
     for line in output.splitlines():
-        match = DIAGNOSTIC_RE.match(line)
+        match = DIAGNOSTIC_RE.match(line) or LOCATIONLESS_DIAGNOSTIC_RE.match(line)
         if match is None:
-            if any(token in line for token in (": error:", ": note:", ": warning:")):
+            # Configuration failures can lack severity and still exit zero. Only
+            # known informational summaries and blank lines may be discarded.
+            if line.strip() and MYPY_SUMMARY_RE.fullmatch(line) is None:
                 unparsed.append(line)
             continue
         data = match.groupdict()
@@ -235,8 +248,8 @@ def parse_mypy_output(output: str, repo_root: Path = REPO_ROOT) -> tuple[list[Di
                 path=normalize_path(data["path"], repo_root),
                 error_code=data["code"] or "<none>",
                 normalized_message=normalize_message(data["message"]),
-                line=int(data["line"]),
-                column=int(data["column"]) if data["column"] else None,
+                line=int(data["line"]) if data.get("line") else 0,
+                column=int(data["column"]) if data.get("column") else None,
                 severity=data["severity"],
             )
         )

@@ -62,7 +62,7 @@ class ExternalAlgorithmAdapter:
         )
 
 
-EXTERNAL_ALGORITHM_RUNNERS = {
+EXTERNAL_ALGORITHM_RUNNERS: dict[str, Callable[..., object]] = {
     "pymoo_nsga2": _run_pymoo_nsga2,
     "jmetalpy_nsga2": _run_jmetalpy_nsga2,
     "pygmo_nsga2": _run_pygmo_nsga2,

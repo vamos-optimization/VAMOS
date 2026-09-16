@@ -7,7 +7,7 @@ VAMOS uses one reproducible typecheck entry point: `tools/typecheck.py`. Direct 
 The canonical typing environment is:
 
 - Python 3.12;
-- compiled mypy 1.15.0;
+- compiled mypy 2.3.1;
 - typing-extensions 4.16.0;
 - `pyproject.toml` as the only mypy configuration;
 - `constraints/ci.txt` as the dependency constraint set;
@@ -50,6 +50,14 @@ python tools/typecheck.py --scope full
 
 Full runs over all of `src/vamos`. It compares normalized diagnostics with `typing/mypy-baseline.json` as a multiset. A fingerprint contains repository-relative path, error code, and normalized semantic message; line and column are retained only as location metadata. New fingerprints, increased multiplicity, new error-code families, stale resolved entries, environment drift, and baseline debt in a changed production file all fail.
 
+Normalization treats mypy's missing generic type "arguments" and "parameters" wording as the same diagnostic, preserving the generic type name. Diagnostics without a source line are also parsed; configuration errors still fail validation.
+
+Unrecognized nonblank output fails every gate, including baseline updates with
+`--review-environment-change`, even if mypy exits zero. Only the known success
+and error-count summaries are ignored. This includes configuration-parser
+messages without a severity label, such as unknown options or invalid Python
+versions; they cannot become accepted baseline debt.
+
 Development full-source typing passes the structured no-regression ratchet. It
 does not claim that the complete source tree is free of diagnostics.
 
@@ -75,11 +83,11 @@ VAMOS 1.0.0.
 
 ## Current structured debt
 
-After establishing strict=0, the structured baseline contains 1,413 diagnostics in 150 files and 176 stable fingerprints:
+After establishing strict=0, the structured baseline contains 1,397 diagnostics in 150 files and 161 stable fingerprints:
 
 | Layer | Diagnostics |
 |---|---:|
-| engine | 801 |
+| engine | 785 |
 | foundation | 522 |
 | ux | 67 |
 | experiment | 22 |
