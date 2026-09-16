@@ -1,4 +1,5 @@
 from dataclasses import replace
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -19,6 +20,11 @@ from vamos.engine.algorithm.rvea import RVEA
 from vamos.engine.algorithm.smpso import SMPSO
 from vamos.engine.algorithm.smsemoa import SMSEMOA
 from vamos.engine.algorithm.spea2 import SPEA2
+from vamos.experiment.artifacts.bundle import load_result_bundle, snapshot_result_arrays, write_result_bundle
+from vamos.experiment.artifacts.bundle_safety import result_descriptor
+from vamos.experiment.artifacts.models import LoadLimits
+from vamos.experiment.artifacts.reader import _result_payload
+from vamos.experiment.optimization_result import OptimizationResult
 from vamos.foundation.kernel.numpy_backend import NumPyKernel
 from vamos.foundation.problem.zdt1 import ZDT1Problem
 
@@ -205,6 +211,52 @@ def test_rvea_population_result_mode_with_archive():
 
     assert result["F"].shape == result["population"]["F"].shape
     assert result["archive"]["F"].shape[0] > 0
+
+
+def test_smpso_without_external_archive_preserves_leader_archive_result():
+    cfg = _smpso_builder().build()
+    algorithm = SMPSO(cfg.to_dict(), kernel=NumPyKernel())
+    result = algorithm.run(ZDT1Problem(n_var=6), termination=("max_evaluations", 20), seed=0)
+
+    assert algorithm.state is not None
+    assert algorithm.state.result_archive is None
+    assert result["archive"]["F"].shape[0] > 0
+    np.testing.assert_allclose(result["F"], result["archive"]["F"])
+    np.testing.assert_allclose(result["X"], result["archive"]["X"])
+
+
+def test_smpso_rejects_invalid_raw_result_mode():
+    raw = _smpso_builder().build().to_dict()
+    raw["result_mode"] = "archive"
+    algorithm = SMPSO(raw, kernel=NumPyKernel())
+
+    with pytest.raises(ValueError, match="result_mode must be one of: non_dominated, population"):
+        algorithm.initialize(ZDT1Problem(n_var=6), termination=("max_evaluations", 20), seed=0)
+
+
+def test_smpso_configured_archive_round_trips_through_canonical_bundle(tmp_path: Path):
+    cfg = _smpso_builder().external_archive(capacity=3).result_mode("population").build()
+    raw_result = SMPSO(cfg.to_dict(), kernel=NumPyKernel()).run(ZDT1Problem(n_var=6), termination=("max_evaluations", 20), seed=0)
+    limits = LoadLimits()
+    arrays = snapshot_result_arrays(OptimizationResult(raw_result), limits=limits)
+    bundle_path = tmp_path / "result.npz"
+
+    write_result_bundle(bundle_path, arrays, limits=limits)
+    loaded_arrays = load_result_bundle(
+        bundle_path,
+        descriptor=result_descriptor(),
+        limits=limits,
+        required_f=True,
+        operation="test SMPSO result bundle",
+    )
+    payload = _result_payload(loaded_arrays, {})
+
+    assert "archive" in payload
+    assert 0 < payload["archive"]["F"].shape[0] <= 3
+    np.testing.assert_allclose(payload["archive"]["F"], raw_result["archive"]["F"])
+    np.testing.assert_allclose(payload["archive"]["X"], raw_result["archive"]["X"])
+    np.testing.assert_allclose(payload["F"], raw_result["population"]["F"])
+    np.testing.assert_allclose(payload["X"], raw_result["population"]["X"])
 
 
 def test_smpso_external_archive_is_result_only_and_does_not_change_swarm_dynamics():
