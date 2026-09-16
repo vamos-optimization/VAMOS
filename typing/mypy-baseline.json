@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "80b8e81b55dbabd1535101c7671ae632157f4931",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 80b8e81b55dbabd1535101c7671ae632157f4931",
+  "generation_commit": "a206d31214a37e89a8d3e45c058665cf3bce796c",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit a206d31214a37e89a8d3e45c058665cf3bce796c",
   "environment": {
     "python": "3.12",
     "mypy": "1.15.0",
@@ -11,26 +11,27 @@
     "stub_packages": [],
     "type_affecting_optional_distributions": [],
     "config_path": "pyproject.toml",
-    "config_sha256": "475F1ED9AB199344A0196F853D68F4DA27904E33CDA8805F9587A379AB2AD6F1",
+    "config_sha256": "C37A9E13733D3FD89829BA46BBB90DDB3195859408819D41BF8E32C31D7D2018",
+    "mypy_config_sha256": "2D1AAAB5CB687AA8C7871D3AFBE4638A782A12541721A85B770843816611FCAD",
     "constraints_path": "constraints/ci.txt",
-    "constraints_sha256": "9FDA96C191D509BFF220177AD804D2F7289837635EEB082E33F862D1B13EEE66"
+    "constraints_sha256": "52BDBD914F5BC1DEFEA479AD55C527BB053E3BD28764B0CC7D38A2451E708524"
   },
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 1424,
-  "files_with_diagnostics": 151,
-  "fingerprint_count": 177,
+  "diagnostic_count": 1413,
+  "files_with_diagnostics": 150,
+  "fingerprint_count": 176,
   "error_code_summary": {
     "arg-type": 3,
     "misc": 5,
     "no-any-return": 7,
-    "type-arg": 1401,
+    "type-arg": 1390,
     "union-attr": 3,
     "unused-ignore": 5
   },
   "layer_summary": {
-    "engine": 812,
+    "engine": 801,
     "experiment": 22,
     "foundation": 522,
     "package-root": 1,
@@ -4038,60 +4039,6 @@
         },
         {
           "line": 323,
-          "column": null
-        }
-      ]
-    },
-    {
-      "fingerprint": "780D2E598EF93E18B62208CC70F9BCDB13DCD3D451D076D1D43B2A088D24ACFE",
-      "path": "src/vamos/engine/algorithm/smpso/state.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 11,
-      "locations": [
-        {
-          "line": 21,
-          "column": 15
-        },
-        {
-          "line": 22,
-          "column": 14
-        },
-        {
-          "line": 23,
-          "column": 14
-        },
-        {
-          "line": 24,
-          "column": null
-        },
-        {
-          "line": 42,
-          "column": 11
-        },
-        {
-          "line": 43,
-          "column": 16
-        },
-        {
-          "line": 44,
-          "column": 16
-        },
-        {
-          "line": 46,
-          "column": 9
-        },
-        {
-          "line": 47,
-          "column": 9
-        },
-        {
-          "line": 51,
-          "column": null
-        },
-        {
-          "line": 52,
           "column": null
         }
       ]

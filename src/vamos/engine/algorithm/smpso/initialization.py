@@ -9,7 +9,7 @@ This module handles algorithm setup including:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
@@ -22,6 +22,7 @@ from vamos.engine.algorithm.components.population import (
     resolve_bounds,
 )
 from vamos.engine.algorithm.components.termination import parse_termination, validate_initial_budget
+from vamos.engine.archive.factory import resolve_external_archive, setup_archive
 from vamos.engine.operators.policies.smpso import (
     build_mutation_operator,
     build_repair_operator,
@@ -40,6 +41,39 @@ if TYPE_CHECKING:
 __all__ = [
     "initialize_smpso_run",
 ]
+
+
+class _SMPSOArchiveFanout:
+    """Keep the algorithmic leaders archive and result archive synchronized.
+
+    SMPSO's internal crowding archive drives leader selection and HV stopping.
+    A user-configured external archive is result storage only. The algorithm
+    already updates ``archive_manager`` after every evaluated particle batch, so
+    this small adapter forwards those inserts to the result archive while
+    preserving the internal leaders as the manager's visible contents.
+    """
+
+    def __init__(self, leaders: Any, result_archive: Any) -> None:
+        self._leaders = leaders
+        self._result_archive = result_archive
+
+    def update(
+        self,
+        X: np.ndarray[Any, Any],
+        F: np.ndarray[Any, Any],
+        G: np.ndarray[Any, Any] | None = None,
+    ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
+        self._result_archive.update(X, F, G)
+        return cast(
+            tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]],
+            self._leaders.update(X, F, G),
+        )
+
+    def contents(self) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
+        return cast(
+            tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]],
+            self._leaders.contents(),
+        )
 
 
 def initialize_smpso_run(
@@ -104,6 +138,10 @@ def initialize_smpso_run(
     change_velocity2 = float(config.get("change_velocity2", -1.0))
     mutation_every = int(config.get("mutation_every", 6))
 
+    result_mode = str(config.get("result_mode", "non_dominated") or "non_dominated").strip().lower()
+    if result_mode not in {"non_dominated", "population"}:
+        raise ValueError("result_mode must be one of: non_dominated, population")
+
     encoding = normalize_encoding(getattr(problem, "encoding", "real"))
     if encoding not in {"real", "mixed"}:
         raise ValueError(f"SMPSO does not support encoding '{encoding}'.")
@@ -137,7 +175,8 @@ def initialize_smpso_run(
     pbest_F = F.copy()
     pbest_G = G.copy() if G is not None else None
 
-    # Leader archive
+    # Leader archive: this is part of SMPSO's runtime semantics and remains
+    # independent from any external result archive.
     leader_archive = CrowdingDistanceArchive(archive_size, n_var, n_obj, X.dtype)
     archive_X, archive_F = leader_archive.update(X, F, G)
     archive_crowding = None
@@ -145,6 +184,23 @@ def initialize_smpso_run(
         from vamos.engine.algorithm.components.subset_selection import _single_front_crowding
 
         archive_crowding = _single_front_crowding(archive_F)
+
+    # Optional external archive: result storage only. It must not influence
+    # leader tournaments, swarm dynamics, or HV termination.
+    ext_cfg = resolve_external_archive(config)
+    _, _, result_archive = setup_archive(
+        kernel,
+        X,
+        F,
+        n_var,
+        n_obj,
+        X.dtype,
+        ext_cfg,
+        G,
+    )
+    archive_manager: Any = leader_archive
+    if result_archive is not None:
+        archive_manager = _SMPSOArchiveFanout(leader_archive, result_archive)
 
     # Genealogy tracking
     track_genealogy = bool(config.get("track_genealogy", False))
@@ -168,12 +224,13 @@ def initialize_smpso_run(
         constraint_mode=constraint_mode,
         n_eval=pop_size,
         max_evals=max_eval,
-        generation=0,
         # Archive (leaders)
         archive_size=archive_size,
         archive_X=archive_X,
         archive_F=archive_F,
-        archive_manager=leader_archive,
+        archive_manager=cast(Any, archive_manager),
+        result_archive=result_archive,
+        result_mode=result_mode,
         # Termination
         hv_tracker=hv_tracker,
         # PSO state
