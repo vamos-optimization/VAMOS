@@ -1,6 +1,6 @@
 # Tested direct dependency set for CI and reproducible release smoke runs.
 numpy==2.1.3
-scipy==1.14.1
+scipy==1.15.3
 joblib==1.4.2
 pytest==9.0.3
 pytest-cov==6.0.0
