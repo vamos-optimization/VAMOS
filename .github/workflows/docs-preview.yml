@@ -10,6 +10,7 @@ on:
       - "mkdocs.yml"
       - "pyproject.toml"
       - "constraints/ci.txt"
+      - "release/requirements-tools.txt"
       - "wrangler.jsonc"
       - "wrangler.preview.jsonc"
       - "cloudflare/**"
