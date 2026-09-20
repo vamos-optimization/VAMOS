@@ -86,9 +86,12 @@ def test_cloudflare_preview_uses_privilege_separation() -> None:
     assert "ref: main" in publish
     assert "persist-credentials: false" in publish
     assert "Revalidate generated portal as untrusted data" in publish
-    assert "--preview-alias \"$alias\"" in publish
+    assert '--preview-alias "$alias"' in publish
     assert "wrangler@${WRANGLER_VERSION}" in publish
     assert 'WRANGLER_VERSION: "4.129.1"' in publish
+    assert "actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0" in publish
+    assert "require('@actions/github')" not in publish
+    assert 'require("@actions/github")' not in publish
 
 
 def test_cloudflare_production_deploy_is_manual_guarded_and_archive_preserving() -> None:
