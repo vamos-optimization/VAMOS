@@ -268,7 +268,7 @@ def test_compute_extra_excludes_the_reviewed_distributed_advisory() -> None:
 def test_ci_constraints_retain_declared_python_310_support() -> None:
     constraints = (ROOT / "constraints" / "ci.txt").read_text(encoding="utf-8")
 
-    assert 'ipython==8.37.0 ; python_version < "3.11"' in constraints
+    assert 'ipython==8.39.0 ; python_version < "3.11"' in constraints
     assert 'ipython==9.0.2 ; python_version >= "3.11"' in constraints
 
 
