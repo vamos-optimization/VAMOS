@@ -286,7 +286,7 @@ def test_ci_constraints_use_reviewed_security_fixed_tooling() -> None:
     assert "pytest==9.1.1" in constraints
     assert "nbconvert==7.17.1" in constraints
     assert "panel==1.9.4" in constraints
-    assert "bokeh==3.8.2" in constraints
+    assert "bokeh==3.9.2" in constraints
     assert "pymdown-extensions==11.0.1" in constraints
 
 
