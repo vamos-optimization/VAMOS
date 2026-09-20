@@ -8,10 +8,41 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-UPLOAD_ARTIFACT = "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02"
+UPLOAD_ARTIFACT = "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
 DOWNLOAD_ARTIFACT = "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093"
 BASE_URL = "https://vamos-optimization.org/"
 VERSION = "1.0.0"
+
+
+def _artifact_action_steps(action: str) -> list[dict[str, object]]:
+    steps: list[dict[str, object]] = []
+    for workflow_path in (ROOT / ".github" / "workflows").glob("*.yml"):
+        workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+        for job in workflow.get("jobs", {}).values():
+            for step in job.get("steps", []):
+                if str(step.get("uses", "")).startswith(f"actions/{action}-artifact@"):
+                    steps.append(step)
+    return steps
+
+
+def test_artifact_transport_actions_are_pinned_and_archive_compatible() -> None:
+    upload_steps = _artifact_action_steps("upload")
+    download_steps = _artifact_action_steps("download")
+
+    assert upload_steps
+    assert download_steps
+    assert {step["uses"] for step in upload_steps} == {UPLOAD_ARTIFACT}
+    assert {step["uses"] for step in download_steps} == {DOWNLOAD_ARTIFACT}
+
+    for step in upload_steps:
+        inputs = step.get("with", {})
+        assert isinstance(inputs, dict)
+        assert str(inputs.get("archive", "true")).lower() != "false"
+
+    for step in download_steps:
+        inputs = step.get("with", {})
+        assert isinstance(inputs, dict)
+        assert str(inputs.get("digest-mismatch", "error")).lower() == "error"
 
 
 def test_preview_workflow_is_read_only_and_artifact_only() -> None:
@@ -73,13 +104,7 @@ def _canonical(
 ) -> str:
     canonical = "" if not include_canonical else f'<link rel="canonical" href="{target}">\n'
     body = "" if body_refresh is None else f'<meta http-equiv="refresh" content="0; url={body_refresh}">\n'
-    return (
-        "<!doctype html><html><head>\n"
-        f"{canonical}"
-        "</head><body>\n"
-        f"{body}"
-        "</body></html>\n"
-    )
+    return f"<!doctype html><html><head>\n{canonical}</head><body>\n{body}</body></html>\n"
 
 
 def _redirect(target: str) -> str:
@@ -193,7 +218,7 @@ def test_portal_checker_rejects_canonical_path_escape(tmp_path: Path) -> None:
     _build_minimal_clean_portal(root)
     outside = tmp_path / "outside.txt"
     outside.write_text("not part of the portal", encoding="utf-8")
-    malicious = f"{BASE_URL}docs/{VERSION}/" "%2e%2e/%2e%2e/%2e%2e/outside.txt"
+    malicious = f"{BASE_URL}docs/{VERSION}/%2e%2e/%2e%2e/%2e%2e/outside.txt"
     _write(root, f"docs/{VERSION}/index.html", _canonical(malicious))
 
     completed = _run_portal_check(root)
