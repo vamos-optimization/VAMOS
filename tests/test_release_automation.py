@@ -259,9 +259,9 @@ def test_compute_extra_excludes_the_reviewed_distributed_advisory() -> None:
     assert 'requires = ["setuptools>=83", "wheel>=0.46.2"]' in pyproject
     assert pyproject.count('"setuptools>=83"') == 3
     assert pyproject.count('"wheel>=0.46.2"') == 3
-    assert "setuptools==83.0.0" in constraints
+    assert "setuptools==84.0.0" in constraints
     assert "wheel==0.46.2" in constraints
-    assert "setuptools==83.0.0" in build_requirements
+    assert "setuptools==84.0.0" in build_requirements
     assert "wheel==0.46.2" in build_requirements
 
 
