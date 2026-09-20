@@ -2,4 +2,4 @@
 check-wheel-contents==0.6.3
 cyclonedx-bom==7.3.1
 pip-audit==2.10.1
-twine==6.2.0
+twine==7.0.0
