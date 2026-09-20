@@ -9,6 +9,7 @@ on:
       - "src/**"
       - "pyproject.toml"
       - "constraints/ci.txt"
+      - "release/requirements-tools.txt"
       - ".github/workflows/zensical-compat.yml"
   workflow_dispatch:
 
