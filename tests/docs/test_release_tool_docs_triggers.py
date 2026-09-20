@@ -19,3 +19,15 @@ def test_release_tool_updates_trigger_documentation_validation(filename: str) ->
     assert "release/requirements-tools.txt" in workflow["on"]["pull_request"]["paths"]
     assert "main" in workflow["on"]["pull_request"]["branches"]
     assert workflow["permissions"] == {"contents": "read"}
+
+
+@pytest.mark.parametrize("filename", ["docs-cloudflare.yml", "docs-cloudflare-preview.yml"])
+def test_cloudflare_workflow_updates_trigger_read_only_zensical_validation(filename: str) -> None:
+    workflow = yaml.load(
+        (ROOT / ".github" / "workflows" / "zensical-compat.yml").read_text(encoding="utf-8"),
+        Loader=yaml.BaseLoader,
+    )
+
+    assert f".github/workflows/{filename}" in workflow["on"]["pull_request"]["paths"]
+    assert "main" in workflow["on"]["pull_request"]["branches"]
+    assert workflow["permissions"] == {"contents": "read"}

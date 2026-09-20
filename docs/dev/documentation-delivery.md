@@ -12,6 +12,8 @@ The read-only build workflow does not deploy.
 
 Pull requests that change `release/requirements-tools.txt` also run the portal preview and Zensical compatibility workflows, so release-tool updates receive both documentation checks before merging.
 
+Changes to either Cloudflare publication workflow also trigger the read-only Zensical compatibility build. This validates documentation compatibility before merging hosting-action updates without requiring a production deployment.
+
 ## Privileged Cloudflare preview publisher
 
 `.github/workflows/docs-cloudflare-preview.yml` is triggered through `workflow_run` only after the read-only preview workflow succeeds. The workflow itself lives on trusted `main`, checks out `main` rather than pull-request code, downloads the prior run's artifacts into the runner temporary directory, validates their metadata and portal structure, and never executes files from the downloaded portal.
