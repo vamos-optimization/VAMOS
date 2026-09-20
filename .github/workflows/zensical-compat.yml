@@ -10,6 +10,8 @@ on:
       - "pyproject.toml"
       - "constraints/ci.txt"
       - "release/requirements-tools.txt"
+      - ".github/workflows/docs-cloudflare.yml"
+      - ".github/workflows/docs-cloudflare-preview.yml"
       - ".github/workflows/zensical-compat.yml"
   workflow_dispatch:
 
