@@ -13,3 +13,7 @@ Parameter-space objects used by the experimental tuning implementation. The priv
       show_root_heading: false
       show_root_full_path: false
       show_source: false
+      # Preserve the two generated symbol targets in legacy-bookmarks.json.
+      filters:
+        - "!^_[^_]"
+        - "^(_MissingKeyError|_safe_eval_condition)$"
