@@ -283,7 +283,7 @@ def test_notebook_execution_dependencies_include_a_pinned_kernel() -> None:
 def test_ci_constraints_use_reviewed_security_fixed_tooling() -> None:
     constraints = (ROOT / "constraints" / "ci.txt").read_text(encoding="utf-8")
 
-    assert "pytest==9.0.3" in constraints
+    assert "pytest==9.1.1" in constraints
     assert "nbconvert==7.17.1" in constraints
     assert "panel==1.9.4" in constraints
     assert "bokeh==3.8.2" in constraints
