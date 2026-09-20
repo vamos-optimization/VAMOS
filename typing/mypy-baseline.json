@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "8b11dd5522c2af3ebde7a8139f4a3dc1c6e6c500",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 8b11dd5522c2af3ebde7a8139f4a3dc1c6e6c500",
+  "generation_commit": "e28d179159f8ea924e38c7a64710b2cfd3772804",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit e28d179159f8ea924e38c7a64710b2cfd3772804",
   "environment": {
     "python": "3.12",
     "mypy": "2.3.1",
@@ -14,7 +14,7 @@
     "config_sha256": "C37A9E13733D3FD89829BA46BBB90DDB3195859408819D41BF8E32C31D7D2018",
     "mypy_config_sha256": "2D1AAAB5CB687AA8C7871D3AFBE4638A782A12541721A85B770843816611FCAD",
     "constraints_path": "constraints/ci.txt",
-    "constraints_sha256": "EAFAE9EF67D1C2B5881C7466AC33838903C0574BD8CB091C3C8081F4E0C0027A"
+    "constraints_sha256": "3E2B134909269BB8F0F300F495ABC95EC339CB188602C66E64B67672DA006EF7"
   },
   "scope": [
     "src/vamos"
