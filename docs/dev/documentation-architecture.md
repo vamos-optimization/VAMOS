@@ -32,8 +32,9 @@ The public information architecture is task-first:
 2. **Guides** — solve a custom problem, persist runs, and conduct reproducible studies.
 3. **Examples** — locate executable scripts, notebooks, and cookbook recipes.
 4. **Reference** — inspect exact API, algorithm, problem, constraint, and stopping contracts.
-5. **Project** — stability, limitations, releases, roadmap, and governance.
-6. **Developer** — extension contracts, tests, architecture, and maintenance material.
+5. **Developer** — roadmap, extension contracts, tests, architecture, and maintenance material.
+
+Roadmap is the first entry under Developer. Project policy and release pages retain their existing URLs and contextual links without a separate navigation section.
 
 The homepage should route readers into three primary scientific journeys: trying VAMOS, solving their own problem, and running a reproducible study.
 
