@@ -20,7 +20,7 @@ pyyaml==6.0.3
 numba==0.67.0
 dask==2026.8.0
 distributed==2026.8.0
-moocore==0.2.0
+moocore==0.3.2
 pandas==2.2.3
 matplotlib==3.10.9
 seaborn==0.13.2
