@@ -33,7 +33,6 @@ def test_public_navigation_is_task_first() -> None:
         "Guides",
         "Examples",
         "Reference",
-        "Project",
         "Developer",
     ]
 
@@ -43,31 +42,26 @@ def test_public_navigation_is_task_first() -> None:
     assert "dev/documentation-architecture.md" in nav_text
     assert "Engineering Audit" not in nav_text
     assert "website/" not in nav_text
+    assert "project/" not in nav_text
+    developer = next(item["Developer"] for item in nav if isinstance(item, dict) and "Developer" in item)
+    assert developer[0] == {"Roadmap": "roadmap.md"}
+    assert nav_text.count("roadmap.md") == 1
 
 
 def test_installation_tabs_have_required_markdown_extensions() -> None:
     config = _config()
     raw_extensions = config.get("markdown_extensions", [])
-    names = {
-        item if isinstance(item, str) else next(iter(item))
-        for item in raw_extensions
-    }
+    names = {item if isinstance(item, str) else next(iter(item)) for item in raw_extensions}
 
     assert "pymdownx.tabbed" in names
     assert "pymdownx.superfences" in names
 
 
 def test_canonical_routing_pages_exist_and_cross_link() -> None:
-    getting_started = (
-        ROOT / "docs" / "guide" / "getting-started.md"
-    ).read_text(encoding="utf-8")
-    custom_problem = (
-        ROOT / "docs" / "guide" / "custom-problem.md"
-    ).read_text(encoding="utf-8")
+    getting_started = (ROOT / "docs" / "guide" / "getting-started.md").read_text(encoding="utf-8")
+    custom_problem = (ROOT / "docs" / "guide" / "custom-problem.md").read_text(encoding="utf-8")
     examples = (ROOT / "docs" / "examples.md").read_text(encoding="utf-8")
-    architecture = (
-        ROOT / "docs" / "dev" / "documentation-architecture.md"
-    ).read_text(encoding="utf-8")
+    architecture = (ROOT / "docs" / "dev" / "documentation-architecture.md").read_text(encoding="utf-8")
 
     assert "[Install VAMOS](installation.md)" in getting_started
     assert "[Solve your own problem](custom-problem.md)" in getting_started
