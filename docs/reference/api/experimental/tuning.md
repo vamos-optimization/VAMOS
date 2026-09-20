@@ -13,3 +13,7 @@ Reference for the experimental racing implementation. Begin with the tuning guid
       show_root_heading: false
       show_root_full_path: false
       show_source: false
+      # Preserve the two generated method targets in legacy-bookmarks.json.
+      filters:
+        - "!^_[^_]"
+        - "^_(check_convergence|get_current_best_score)$"

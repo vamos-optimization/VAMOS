@@ -18,6 +18,8 @@ The former `reference/api_reference/` URL remains the API index. `reference/api/
 
 When reorganizing an object, update its destination in both the inventory and the index. Do not delete a frozen old ID. The tests compare both representations and check every target fragment against the generated HTML in both the clean current tree (`/reference/...`) and the immutable release tree (`/docs/1.0.0/reference/...`).
 
+The experimental tuning and parameter-space pages explicitly include four underscored symbols that have frozen bookmarks. Keep these page-local rendering exceptions when updating mkdocstrings: `_check_convergence`, `_get_current_best_score`, `_MissingKeyError`, and `_safe_eval_condition`. Their signatures and documentation remain generated from the implementation. These bookmark targets do not make the symbols stable public APIs or change the filtering policy for other pages.
+
 ## Validation
 
 Follow the [canonical validation tiers](testing.md#canonical-tiers), as required by the repository agent contract. The API-specific checks below supplement those tiers; they do not replace the agent-documentation check, Quick suite, health check, full pytest run, or strict documentation build.
