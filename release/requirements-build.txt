@@ -1,4 +1,4 @@
 # Isolated build environment audited separately from runtime and release tooling.
 build==1.6.1
 setuptools==84.0.0
-wheel==0.46.2
+wheel==0.48.0
