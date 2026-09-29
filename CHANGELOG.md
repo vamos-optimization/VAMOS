@@ -11,6 +11,8 @@ All notable public changes to VAMOS are documented here.
   `dev`, and `all` extras.
 - Internal audit pages from the published documentation, including the
   carried-forward 1.0.0 documentation archive.
+- The Architecture Decisions section from the current documentation site. The
+  decision records remain in the repository under `docs/dev/adr/`.
 
 ## [1.0.0] - 2026-09-06
 

@@ -25,6 +25,9 @@ WITHDRAWN_PAGES = (
     "topics/engineering_audit/",
     "website/",
 )
+# Pages under CURRENT_UNPUBLISHED_ROUTES in check_docs_portal.py; absent from
+# the current site only, because released archives retain them.
+CURRENT_UNPUBLISHED_PAGES = ("dev/adr/",)
 _CANONICAL_RE = re.compile(r'<link\s+rel="canonical"\s+href="([^"]+)"')
 
 
@@ -203,6 +206,11 @@ def check_live(
             withdrawn = requester(PRIMARY_HOST, target, timeout)
             _expect_status(withdrawn, 404, f"https://{PRIMARY_HOST}{target}")
             checked.append(f"https://{PRIMARY_HOST}{target}")
+
+    for page in CURRENT_UNPUBLISHED_PAGES:
+        unpublished = requester(PRIMARY_HOST, f"/{page}", timeout)
+        _expect_status(unpublished, 404, f"https://{PRIMARY_HOST}/{page}")
+        checked.append(f"https://{PRIMARY_HOST}/{page}")
 
     return {
         "primary": base_url,

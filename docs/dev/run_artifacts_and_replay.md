@@ -1,6 +1,6 @@
 # Modifying run artifacts and exact replay
 
-The normative schema is [the canonical run-artifact contract](run_artifact_contract.md), accepted by [ADR 0006](adr/0006-run-artifact-and-replay-contract.md). VAMOS supports `vamos.run-manifest` version `1.0.0` only.
+The normative schema is [the canonical run-artifact contract](run_artifact_contract.md), accepted by ADR 0006 (`docs/dev/adr/0006-run-artifact-and-replay-contract.md` in the repository). VAMOS supports `vamos.run-manifest` version `1.0.0` only.
 
 ## Ownership
 

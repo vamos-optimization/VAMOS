@@ -4,7 +4,7 @@ Status: normative persisted-state specification; SA-001..047, SA-049..055, SA-06
 
 Contract: [Durable study and StudyManifest v1](study_manifest_contract.md)
 
-ADR: [ADR 0008](adr/0008-durable-study-manifest-contract.md)
+ADR: ADR 0008, `docs/dev/adr/0008-durable-study-manifest-contract.md` in the repository
 
 These 74 scenarios are the complete v1 acceptance inventory. Each row freezes
 the observable contract before production implementation. “Files” names the

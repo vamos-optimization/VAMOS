@@ -46,6 +46,8 @@ A small, explicit list of routes is withdrawn from every published tree, includi
 
 When the builder carries an archive forward, it deletes these routes and removes their entries from that archive's `sitemap.xml`, `sitemap.xml.gz`, and search index. Every other archived byte is left unchanged. The portal checker rejects any tree, sitemap, or search index that still references a withdrawn route. Withdrawn URLs therefore return the site's 404 page, and the live verifier `tools/check_docs_live.py` confirms that after every production deployment. Adding a route to this list is a deliberate publication decision, not a general way to edit released documentation.
 
+`CURRENT_UNPUBLISHED_ROUTES` names routes that are kept off the current site only. The architecture decision records under `dev/adr/` are repository governance: `exclude_docs` keeps them out of the MkDocs build, and the portal and live checkers require them to be absent from the current tree. Released archives keep them unchanged, because every archived page's navigation links to them.
+
 ## Archive preservation
 
 `tools/build_release_docs.py` accepts an optional `--archive-from` artifact. When supplied, every immutable semantic-version directory already present under `docs/<version>/` is copied forward before publication. If the requested stable version already exists in that trusted artifact, the builder reuses that directory unchanged rather than rebuilding it from the current checkout. If the requested version is new, only that new immutable tree is built after older archives have been copied.

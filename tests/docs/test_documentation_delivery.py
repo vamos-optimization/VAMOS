@@ -205,6 +205,7 @@ def test_portal_checker_requires_canonical_on_every_current_html_page(tmp_path: 
         "audit/commands_used/index.html",
         f"docs/{VERSION}/audit/findings.csv",
         f"docs/{VERSION}/topics/engineering_audit/index.html",
+        "dev/adr/index.html",
     ],
 )
 def test_portal_checker_rejects_withdrawn_routes(tmp_path: Path, relative: str) -> None:
@@ -215,6 +216,17 @@ def test_portal_checker_rejects_withdrawn_routes(tmp_path: Path, relative: str) 
     completed = _run_portal_check(root)
     assert completed.returncode != 0
     assert "Withdrawn route is still published" in completed.stderr
+
+
+def test_portal_checker_keeps_archived_decision_records(tmp_path: Path) -> None:
+    root = tmp_path / "archived-adr"
+    _build_minimal_clean_portal(root)
+    target = f"{BASE_URL}docs/{VERSION}/dev/adr/"
+    _write(root, f"docs/{VERSION}/dev/adr/index.html", _canonical(target))
+    _write(root, f"{VERSION}/dev/adr/index.html", _redirect(target))
+
+    completed = _run_portal_check(root)
+    assert completed.returncode == 0, completed.stdout + completed.stderr
 
 
 def test_portal_checker_rejects_withdrawn_sitemap_and_search_entries(tmp_path: Path) -> None:

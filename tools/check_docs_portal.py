@@ -16,6 +16,10 @@ _VERSION_RE = re.compile(r"\d+\.\d+\.\d+")
 # immutable archives: raw internal audit evidence and the retired legacy
 # multilingual site.
 WITHDRAWN_ROUTES = ("audit", "topics/engineering_audit", "website")
+# Routes kept off the current site but retained in released archives, whose
+# navigation links to them: architecture decision records are repository
+# governance, excluded from the build through ``exclude_docs``.
+CURRENT_UNPUBLISHED_ROUTES = ("dev/adr",)
 _SITEMAP_LOC_RE = re.compile(r"<loc>\s*([^<\s]+)\s*</loc>")
 # ``noscript`` is not universally inert: meta refresh inside it can become
 # active when scripting is disabled, so keep it in the active scan.
@@ -329,10 +333,10 @@ def _check_current_tree(root: Path, *, base_url: str) -> int:
     return count
 
 
-def is_withdrawn(relative: str) -> bool:
-    """Return whether a tree-relative route or file path lies under a withdrawn route."""
+def is_withdrawn(relative: str, routes: tuple[str, ...] = WITHDRAWN_ROUTES) -> bool:
+    """Return whether a tree-relative route or file path lies under one of ``routes``."""
     path = relative.split("#", 1)[0].strip("/")
-    return any(path == route or path.startswith(f"{route}/") for route in WITHDRAWN_ROUTES)
+    return any(path == route or path.startswith(f"{route}/") for route in routes)
 
 
 def _sitemap_locations(path: Path) -> list[str]:
@@ -343,15 +347,15 @@ def _sitemap_locations(path: Path) -> list[str]:
     return _SITEMAP_LOC_RE.findall(text)
 
 
-def _check_withdrawn_routes(tree: Path, *, tree_url: str) -> None:
-    for route in WITHDRAWN_ROUTES:
+def _check_withdrawn_routes(tree: Path, *, tree_url: str, routes: tuple[str, ...] = WITHDRAWN_ROUTES) -> None:
+    for route in routes:
         if (tree / route).exists():
             raise PortalCheckError(f"Withdrawn route is still published: {tree / route}")
     for sitemap in (tree / "sitemap.xml", tree / "sitemap.xml.gz"):
         if not sitemap.is_file():
             continue
         for location in _sitemap_locations(sitemap):
-            if location.startswith(tree_url) and is_withdrawn(location[len(tree_url) :]):
+            if location.startswith(tree_url) and is_withdrawn(location[len(tree_url) :], routes):
                 raise PortalCheckError(f"Sitemap lists withdrawn route in {sitemap}: {location}")
     index = tree / "search" / "search_index.json"
     if index.is_file():
@@ -361,7 +365,7 @@ def _check_withdrawn_routes(tree: Path, *, tree_url: str) -> None:
             raise PortalCheckError(f"Search index is not valid JSON: {index}") from exc
         for entry in entries:
             location = str(entry.get("location", ""))
-            if is_withdrawn(location):
+            if is_withdrawn(location, routes):
                 raise PortalCheckError(f"Search index lists withdrawn route in {index}: {location}")
 
 
@@ -406,7 +410,7 @@ def check_portal(root: Path, *, version: str, base_url: str) -> dict[str, object
         raise PortalCheckError(f"Portal root does not exist: {root}")
     base_url = _normalize_base_url(base_url)
     versions = _manifest(root, version=version)
-    _check_withdrawn_routes(root, tree_url=base_url)
+    _check_withdrawn_routes(root, tree_url=base_url, routes=WITHDRAWN_ROUTES + CURRENT_UNPUBLISHED_ROUTES)
     for published in versions:
         _check_withdrawn_routes(root / "docs" / published, tree_url=f"{base_url}docs/{published}/")
 

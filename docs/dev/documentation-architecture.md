@@ -42,6 +42,8 @@ The homepage should route readers into three primary scientific journeys: trying
 
 `docs/` is the only public documentation source. The former multilingual `website/` tree and its `/website/` route were retired; no parallel content tree or manually maintained copy of API signatures is published. Language publication will be designed only when there is reviewed translated source content and an explicit URL plan.
 
+Architecture decision records in `docs/dev/adr/` remain the repository's accepted decisions, but `exclude_docs` in `mkdocs.yml` keeps them off the published site; contributor pages cite them by repository path.
+
 Raw audit evidence, validation transcripts, and Goal handoffs are not documentation pages. They live outside the product tree or in CI artifact storage, as described in [Architecture Health](architecture_health.md).
 
 ## Versioned portal boundary
