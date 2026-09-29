@@ -3,10 +3,6 @@ site_url: https://vamos-optimization.org/
 site_description: Vectorized Architecture for Multiobjective Optimization Studies
 repo_url: https://github.com/vamos-optimization/VAMOS
 repo_name: vamos-optimization/VAMOS
-# Architecture decision records are contributor governance kept in the
-# repository; they are not published as documentation pages.
-exclude_docs: |
-  dev/adr/
 
 theme:
   name: material

@@ -42,11 +42,12 @@ The old moving aliases are normalized as follows:
 A small, explicit list of routes is withdrawn from every published tree, including carried-forward immutable archives. It is `WITHDRAWN_ROUTES` in `tools/check_docs_portal.py`:
 
 - `audit/` and `topics/engineering_audit/`: raw internal audit evidence, which belongs outside the product tree rather than in published documentation;
+- `dev/adr/`: the retired architecture decision records; the canonical rules they recorded are maintained in [Architecture Health](../dev/architecture_health.md) and the linked contracts;
 - `website/`: the retired legacy multilingual site, superseded by the canonical documentation.
 
-When the builder carries an archive forward, it deletes these routes and removes their entries from that archive's `sitemap.xml`, `sitemap.xml.gz`, and search index. Every other archived byte is left unchanged. The portal checker rejects any tree, sitemap, or search index that still references a withdrawn route. Withdrawn URLs therefore return the site's 404 page, and the live verifier `tools/check_docs_live.py` confirms that after every production deployment. Adding a route to this list is a deliberate publication decision, not a general way to edit released documentation.
+When the builder carries an archive forward, it deletes these routes and removes their entries from that archive's `sitemap.xml`, `sitemap.xml.gz`, and search index. It also removes links to them from the archived pages: navigation items whose links all target withdrawn routes are dropped, `<link rel="prev">` and `<link rel="next">` hints to them are dropped, and any other link to them is unwrapped so its text remains. Pages and files without such references are left byte-for-byte unchanged.
 
-`CURRENT_UNPUBLISHED_ROUTES` names routes that are kept off the current site only. The architecture decision records under `dev/adr/` are repository governance: `exclude_docs` keeps them out of the MkDocs build, and the portal and live checkers require them to be absent from the current tree. Released archives keep them unchanged, because every archived page's navigation links to them.
+The portal checker rejects any tree, sitemap, search index, or page link that still references a withdrawn route. Withdrawn URLs therefore return the site's 404 page, and the live verifier `tools/check_docs_live.py` confirms that after every production deployment. Adding a route to this list is a deliberate publication decision, not a general way to edit released documentation.
 
 ## Archive preservation
 

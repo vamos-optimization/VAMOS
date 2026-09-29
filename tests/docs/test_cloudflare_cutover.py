@@ -7,7 +7,6 @@ import pytest
 import yaml
 
 from tools.check_docs_live import (
-    CURRENT_UNPUBLISHED_PAGES,
     PRIMARY_HOST,
     REDIRECT_HOSTS,
     WITHDRAWN_PAGES,
@@ -15,7 +14,7 @@ from tools.check_docs_live import (
     ResponseSnapshot,
     check_live,
 )
-from tools.check_docs_portal import CURRENT_UNPUBLISHED_ROUTES, WITHDRAWN_ROUTES, is_withdrawn
+from tools.check_docs_portal import WITHDRAWN_ROUTES, is_withdrawn
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -46,8 +45,6 @@ def _clean_responses(version: str) -> dict[tuple[str, str], ResponseSnapshot]:
     for page in WITHDRAWN_PAGES:
         responses[(PRIMARY_HOST, f"/{page}")] = _snapshot(404)
         responses[(PRIMARY_HOST, f"/docs/{version}/{page}")] = _snapshot(404)
-    for page in CURRENT_UNPUBLISHED_PAGES:
-        responses[(PRIMARY_HOST, f"/{page}")] = _snapshot(404)
     return responses
 
 
@@ -64,7 +61,7 @@ def test_live_cutover_checker_accepts_clean_public_contract() -> None:
 
     assert result["primary"] == base_url
     assert result["stable"] == version
-    assert len(result["checked"]) == 12 + 2 * len(WITHDRAWN_PAGES) + len(CURRENT_UNPUBLISHED_PAGES)
+    assert len(result["checked"]) == 12 + 2 * len(WITHDRAWN_PAGES)
 
 
 def test_live_cutover_checker_rejects_published_withdrawn_page() -> None:
@@ -83,9 +80,6 @@ def test_live_withdrawn_probes_cover_every_withdrawn_route() -> None:
     assert all(is_withdrawn(page) for page in WITHDRAWN_PAGES)
     for route in WITHDRAWN_ROUTES:
         assert any(page == f"{route}/" or page.startswith(f"{route}/") for page in WITHDRAWN_PAGES), route
-    assert all(is_withdrawn(page, CURRENT_UNPUBLISHED_ROUTES) for page in CURRENT_UNPUBLISHED_PAGES)
-    for route in CURRENT_UNPUBLISHED_ROUTES:
-        assert any(page == f"{route}/" or page.startswith(f"{route}/") for page in CURRENT_UNPUBLISHED_PAGES), route
 
 
 def test_cutover_workflows_separate_deployment_from_read_only_reverification() -> None:

@@ -206,6 +206,7 @@ def test_portal_checker_requires_canonical_on_every_current_html_page(tmp_path: 
         f"docs/{VERSION}/audit/findings.csv",
         f"docs/{VERSION}/topics/engineering_audit/index.html",
         "dev/adr/index.html",
+        f"docs/{VERSION}/dev/adr/0008-durable-study-manifest-contract/index.html",
     ],
 )
 def test_portal_checker_rejects_withdrawn_routes(tmp_path: Path, relative: str) -> None:
@@ -218,12 +219,31 @@ def test_portal_checker_rejects_withdrawn_routes(tmp_path: Path, relative: str) 
     assert "Withdrawn route is still published" in completed.stderr
 
 
-def test_portal_checker_keeps_archived_decision_records(tmp_path: Path) -> None:
-    root = tmp_path / "archived-adr"
-    _build_minimal_clean_portal(root)
-    target = f"{BASE_URL}docs/{VERSION}/dev/adr/"
-    _write(root, f"docs/{VERSION}/dev/adr/index.html", _canonical(target))
-    _write(root, f"{VERSION}/dev/adr/index.html", _redirect(target))
+@pytest.mark.parametrize(
+    ("relative", "href"),
+    [
+        ("algorithms/nsgaii/index.html", "../../dev/adr/"),
+        (f"docs/{VERSION}/index.html", "dev/adr/0006-run-artifact-and-replay-contract/#decision"),
+        (f"docs/{VERSION}/index.html", f"{BASE_URL}docs/{VERSION}/audit/commands_used/"),
+    ],
+)
+def test_portal_checker_rejects_links_to_withdrawn_routes(tmp_path: Path, relative: str, href: str) -> None:
+    root = tmp_path / "withdrawn-link"
+    _build_minimal_clean_portal(root, include_deep_current=True)
+    canonical = f"{BASE_URL}{relative.removesuffix('index.html')}"
+    _write(root, relative, _canonical(canonical).replace("<body>", f'<body><a href="{href}">ADR</a>'))
+
+    completed = _run_portal_check(root)
+    assert completed.returncode != 0
+    assert "Page links to withdrawn route" in completed.stderr
+
+
+def test_portal_checker_accepts_links_that_only_resemble_withdrawn_routes(tmp_path: Path) -> None:
+    root = tmp_path / "similar-link"
+    _build_minimal_clean_portal(root, include_deep_current=True)
+    target = f"{BASE_URL}algorithms/nsgaii/"
+    body = '<body><a href="../../dev/adr-notes/">notes</a><a href="#dev/adr">anchor</a>'
+    _write(root, "algorithms/nsgaii/index.html", _canonical(target).replace("<body>", body))
 
     completed = _run_portal_check(root)
     assert completed.returncode == 0, completed.stdout + completed.stderr

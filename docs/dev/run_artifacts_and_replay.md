@@ -1,6 +1,6 @@
 # Modifying run artifacts and exact replay
 
-The normative schema is [the canonical run-artifact contract](run_artifact_contract.md), accepted by ADR 0006 (`docs/dev/adr/0006-run-artifact-and-replay-contract.md` in the repository). VAMOS supports `vamos.run-manifest` version `1.0.0` only.
+The normative schema is [the canonical run-artifact contract](run_artifact_contract.md),. VAMOS supports `vamos.run-manifest` version `1.0.0` only.
 
 ## Ownership
 
@@ -16,7 +16,7 @@ Loading is not verification, and verification is not replay. `load_run` reads th
 
 ## Change procedure
 
-1. Read the contract, ADR, acceptance matrix, models, and affected public API tests.
+1. Read the contract, acceptance matrix, models, and affected public API tests.
 2. Identify the single owner for each field or byte. Never add a parallel writer, copied study payload, or consumer-side filename inference.
 3. Preserve `allow_pickle=False`, bounded pre-allocation inspection, confined relative paths, hashes, semantic manifest self-hash, collision refusal, and atomic publication.
 4. Update writers and every reader/consumer together. Analysis, Studio, studies, Python, and CLI must converge on the same API.
@@ -38,7 +38,6 @@ Run architecture/public API tests and the full tier from `/AGENTS.md` for any co
 ```agent-docs
 path: docs/dev/run_artifact_contract.md
 path: docs/dev/run_artifact_acceptance_tests.md
-path: docs/dev/adr/0006-run-artifact-and-replay-contract.md
 path: src/vamos/experiment/artifacts
 path: src/vamos/experiment/artifacts/persistence.py
 path: src/vamos/experiment/artifacts/verification.py

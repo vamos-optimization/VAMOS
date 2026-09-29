@@ -43,7 +43,6 @@ def test_public_navigation_is_task_first() -> None:
     assert "Engineering Audit" not in nav_text
     assert "Architecture Decisions" not in nav_text
     assert "dev/adr/" not in nav_text
-    assert "dev/adr/" in str(config["exclude_docs"]).split()
     assert "website/" not in nav_text
     assert "project/" not in nav_text
     developer = next(item["Developer"] for item in nav if isinstance(item, dict) and "Developer" in item)

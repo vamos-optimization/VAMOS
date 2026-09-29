@@ -38,10 +38,6 @@ CANONICAL_GUIDES = (
     "docs/dev/typing.md",
     "docs/dev/run_artifact_contract.md",
     "docs/dev/run_artifact_acceptance_tests.md",
-    "docs/dev/adr/0004-no-shims-no-allowlists.md",
-    "docs/dev/adr/0005-health-gates-and-retention.md",
-    "docs/dev/adr/0006-run-artifact-and-replay-contract.md",
-    "docs/dev/adr/0007-canonical-typing-gates.md",
 )
 
 AGENT_ONLY_FORBIDDEN_PHRASES = (

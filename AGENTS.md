@@ -6,7 +6,7 @@ This file applies to the entire repository and is the sole global normative sour
 
 Read it before editing. A nested `AGENTS.md` may add rules only for its declared subtree. The closest scoped file wins only for an explicitly identified local rule; it does not replace this contract. Model-specific adapters and file-pattern instructions cannot override architecture, API, testing, Git, security, or artifact rules.
 
-Resolve factual disagreements in this order: the current implementation and tests, accepted ADRs and canonical contracts, CI and packaging configuration, then developer documentation. Fix guidance that disagrees with a higher authority.
+Resolve factual disagreements in this order: the current implementation and tests, canonical contracts, CI and packaging configuration, then developer documentation. Fix guidance that disagrees with a higher authority.
 
 ## Compatibility policy
 
@@ -30,7 +30,7 @@ Do not add readers, migrations, aliases, or deprecation cycles for internal pre-
 
 Permitted dependencies are: foundation -> foundation/resources; engine -> engine/foundation/resources; ux -> ux/foundation/engine/resources; experiment -> experiment/foundation/engine/ux/assist/resources; assist -> assist/foundation/engine/experiment/resources. Do not create reverse imports or import-time initialization to bypass these boundaries.
 
-Read [Architecture Health](docs/dev/architecture_health.md) and the [ADR index](docs/dev/adr/index.md) before adding a module, dependency, or public API.
+Read [Architecture Health](docs/dev/architecture_health.md) before adding a module, dependency, or public API.
 
 ## Public and internal APIs
 
@@ -53,7 +53,7 @@ replay = vamos.reproduce(path)
 
 VAMOS supports one run schema: `vamos.run-manifest` version `1.0.0`. A successful run contains `manifest.json`, `result.npz`, and `environment.json`. Writers and readers live under `src/vamos/experiment/artifacts/`; `src/vamos/run_artifacts.py` and the top-level facade expose the public surface.
 
-The durable study schema is `vamos.study-manifest` version `1.0.0`, governed by `docs/dev/study_manifest_contract.md`, ADR 0008, the complete SA-001 through SA-074 acceptance inventory, and the separate PL-001 through PL-021 planning inventory. Atomic create/data-only load, bounded sequential `Study.run()`, persisted failure policy, single-process graceful cancellation, explicit reconciliation, resume, bounded retry, immutable data-only `Study.inspect()`/`Study.summarize()` projections, the complete single-owner study CLI, and canonical package/research callers are implemented. Local multi-process ownership and coordination remain the next contract Goal. RunManifest remains the sole owner of resolved per-run truth and arrays.
+The durable study schema is `vamos.study-manifest` version `1.0.0`, governed by `docs/dev/study_manifest_contract.md`, the complete SA-001 through SA-074 acceptance inventory, and the separate PL-001 through PL-021 planning inventory. Atomic create/data-only load, bounded sequential `Study.run()`, persisted failure policy, single-process graceful cancellation, explicit reconciliation, resume, bounded retry, immutable data-only `Study.inspect()`/`Study.summarize()` projections, the complete single-owner study CLI, and canonical package/research callers are implemented. Local multi-process ownership and coordination remain the next contract Goal. RunManifest remains the sole owner of resolved per-run truth and arrays.
 
 Shared algorithm variation pipelines live only in `src/vamos/engine/variation/`; concrete operator implementations and their registry live under `src/vamos/engine/operators/`. The external archive model is `ExternalArchiveConfig` in `src/vamos/engine/archive/config.py`, and experiment-spec parsing accepts the single `archive.external` block through `build_archive_cfg`.
 
@@ -173,7 +173,6 @@ Report the base, branch/worktree, files changed, commands with exit status, limi
 ```agent-docs
 path: docs/dev/architecture_health.md
 path: docs/project/stability-and-versioning.md
-path: docs/dev/adr/index.md
 path: CODING_GUIDELINES.md
 path: docs/dev/add_problem.md
 path: docs/dev/add_operator.md
@@ -187,13 +186,11 @@ path: docs/dev/study_manifest_contract.md
 path: docs/dev/study_manifest_acceptance_tests.md
 path: docs/dev/study_plan_acceptance_tests.md
 path: docs/dev/study_manifest_examples/README.md
-path: docs/dev/adr/0008-durable-study-manifest-contract.md
 path: docs/dev/testing.md
 path: docs/dev/typing.md
 path: docs/release_smoke.md
 path: release/requirements-build.txt
 path: release/requirements-tools.txt
-path: docs/dev/adr/0007-canonical-typing-gates.md
 path: tools/typecheck.py
 path: tools/release_check.py
 path: tools/release_smoke.py

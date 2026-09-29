@@ -252,7 +252,6 @@ def test_acceptance_inventory_is_complete_and_fully_populated() -> None:
         ACCEPTANCE,
         PLAN_ACCEPTANCE,
         DOCS / "studies.md",
-        DOCS / "adr" / "0008-durable-study-manifest-contract.md",
         EXAMPLES / "README.md",
     ],
 )
@@ -288,13 +287,9 @@ def test_planning_and_recovery_share_one_persisted_plan_boundary() -> None:
     assert "persisted built-in configuration is reconstructed" in guide
 
 
-def test_adr_records_and_navigation_publish_the_contract() -> None:
-    adr_index = (DOCS / "adr" / "index.md").read_text(encoding="utf-8")
+def test_navigation_publishes_the_contract() -> None:
     nav = (ROOT / "mkdocs.yml").read_text(encoding="utf-8")
-    contract = (DOCS / "study_manifest_contract.md").read_text(encoding="utf-8")
-    assert adr_index.count("0008-durable-study-manifest-contract.md") == 1
     assert nav.count("dev/study_manifest_contract.md") == 1
     assert nav.count("dev/study_manifest_acceptance_tests.md") == 1
     assert nav.count("dev/study_plan_acceptance_tests.md") == 1
-    assert "dev/adr/0008-durable-study-manifest-contract.md" not in nav
-    assert "`docs/dev/adr/0008-durable-study-manifest-contract.md`" in contract
+    assert "dev/adr/" not in nav

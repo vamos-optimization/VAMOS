@@ -8,8 +8,6 @@ Schema version: `1.0.0`
 
 Normative acceptance inventory: [SA-001 through SA-074](study_manifest_acceptance_tests.md)
 
-Decision record: ADR 0008, `docs/dev/adr/0008-durable-study-manifest-contract.md` in the repository
-
 ## 1. Scope and authority
 
 This document freezes the only durable-study contract that VAMOS will implement.

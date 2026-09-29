@@ -9,17 +9,19 @@ import json
 import logging
 import re
 import shutil
+from collections.abc import Callable
+from html.parser import HTMLParser
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from urllib.parse import urlsplit
 
-from check_docs_portal import WITHDRAWN_ROUTES, is_withdrawn
+from check_docs_portal import WITHDRAWN_ROUTES, is_withdrawn, links_to_withdrawn
 from check_repository_identity import DOCUMENTATION_URL
 from mkdocs.commands.build import build
 from mkdocs.config import load_config
 
 _VERSION_RE = re.compile(r"\d+\.\d+\.\d+")
-_SITEMAP_ENTRY_RE = re.compile(r"[ \t]*<url>\s*<loc>\s*([^<\s]+)\s*</loc>.*?</url>[ \t]*\n?", re.DOTALL)
+_SITEMAP_ENTRY_RE = re.compile(r"[ \t]*<url>\s*<loc>\s*([^<\s]+)\s*</loc>.*?</url>[ \t]*(?:\r?\n)?", re.DOTALL)
 
 
 def _normalize_base_url(value: str) -> str:
@@ -103,8 +105,94 @@ def _copy_tree_contents(source: Path, target: Path) -> None:
             shutil.copy2(source_path, target_path)
 
 
+class _WithdrawnLinkLocator(HTMLParser):
+    """Locate markup in one generated page that links to withdrawn routes.
+
+    Navigation items whose links all target withdrawn routes are removed whole,
+    ``<link rel="prev|next">`` hints to them are removed, and any other link to
+    them is unwrapped so its text remains.
+    """
+
+    def __init__(self, text: str, is_withdrawn_href: Callable[[str], bool]) -> None:
+        super().__init__(convert_charrefs=True)
+        self._text = text
+        self._line_starts = [0, *(match.end() for match in re.finditer(r"\n", text))]
+        self._is_withdrawn_href = is_withdrawn_href
+        # [start or -1 for non-navigation items, links, withdrawn links]
+        self._items: list[list[int]] = []
+        self._anchors: list[tuple[int, int, bool]] = []
+        self.removals: list[tuple[int, int]] = []
+
+    def _position(self) -> int:
+        line, column = self.getpos()
+        return self._line_starts[line - 1] + column
+
+    def _end_tag_end(self, start: int) -> int:
+        return self._text.index(">", start) + 1
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        data = dict(attrs)
+        start = self._position()
+        end = start + len(self.get_starttag_text() or "")
+        href = data.get("href")
+        if tag == "li":
+            navigation = "md-nav__item" in (data.get("class") or "").split()
+            self._items.append([start if navigation else -1, 0, 0])
+        elif tag == "a":
+            withdrawn = href is not None and self._is_withdrawn_href(href)
+            if href is not None:
+                for item in self._items:
+                    item[1] += 1
+                    item[2] += int(withdrawn)
+            self._anchors.append((start, end, withdrawn))
+        elif tag == "link" and href is not None:
+            if {"prev", "next"} & set((data.get("rel") or "").split()) and self._is_withdrawn_href(href):
+                self.removals.append((start, end))
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "a" and self._anchors:
+            start, tag_end, withdrawn = self._anchors.pop()
+            if withdrawn:
+                close = self._position()
+                self.removals.extend([(start, tag_end), (close, self._end_tag_end(close))])
+        elif tag == "li" and self._items:
+            start, links, withdrawn = self._items.pop()
+            if start >= 0 and links and links == withdrawn:
+                self.removals.append((start, self._end_tag_end(self._position())))
+
+
+def _remove_spans(text: str, spans: list[tuple[int, int]]) -> str:
+    merged: list[tuple[int, int]] = []
+    for start, end in sorted(spans):
+        if merged and start < merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    pieces: list[str] = []
+    cursor = 0
+    for start, end in merged:
+        pieces.append(text[cursor:start])
+        cursor = end
+    pieces.append(text[cursor:])
+    return "".join(pieces)
+
+
+def _unlink_withdrawn_routes(tree: Path, *, tree_url: str) -> None:
+    for page in sorted(tree.rglob("*.html")):
+        page_url = _page_url(tree_url, "", page.relative_to(tree))
+        original = page.read_bytes().decode("utf-8")
+        locator = _WithdrawnLinkLocator(
+            original,
+            lambda href, page_url=page_url: links_to_withdrawn(href, page_url=page_url, tree_url=tree_url),
+        )
+        locator.feed(original)
+        locator.close()
+        if locator.removals:
+            page.write_bytes(_remove_spans(original, locator.removals).encode("utf-8"))
+
+
 def _withdraw_archived_routes(tree: Path, *, tree_url: str) -> None:
-    """Remove withdrawn routes and their sitemap/search entries from a carried-forward archive.
+    """Remove withdrawn routes, links to them, and their sitemap/search entries from an archive.
 
     Files are rewritten only when they reference a withdrawn route, so an archive
     without withdrawn content is preserved byte-for-byte.
@@ -115,10 +203,11 @@ def _withdraw_archived_routes(tree: Path, *, tree_url: str) -> None:
             shutil.rmtree(target)
         elif target.exists():
             target.unlink()
+    _unlink_withdrawn_routes(tree, tree_url=tree_url)
 
     sitemap = tree / "sitemap.xml"
     if sitemap.is_file():
-        original = sitemap.read_text(encoding="utf-8")
+        original = sitemap.read_bytes().decode("utf-8")
 
         def keep(match: re.Match[str]) -> str:
             location = match.group(1)
@@ -127,19 +216,19 @@ def _withdraw_archived_routes(tree: Path, *, tree_url: str) -> None:
 
         pruned = _SITEMAP_ENTRY_RE.sub(keep, original)
         if pruned != original:
-            sitemap.write_text(pruned, encoding="utf-8")
+            sitemap.write_bytes(pruned.encode("utf-8"))
             compressed = tree / "sitemap.xml.gz"
             if compressed.is_file():
                 compressed.write_bytes(gzip.compress(pruned.encode("utf-8"), mtime=0))
 
     index = tree / "search" / "search_index.json"
     if index.is_file():
-        payload = json.loads(index.read_text(encoding="utf-8"))
+        payload = json.loads(index.read_bytes().decode("utf-8"))
         entries = payload.get("docs", [])
         kept = [entry for entry in entries if not is_withdrawn(str(entry.get("location", "")))]
         if len(kept) != len(entries):
             payload["docs"] = kept
-            index.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
+            index.write_bytes(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
 
 
 def _copy_archived_versions(archive_from: Path, docs_root: Path, *, base_url: str) -> None:

@@ -158,6 +158,28 @@ def test_archive_carry_forward_removes_withdrawn_routes(tmp_path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
     (immutable / "sitemap.xml.gz").write_bytes(gzip.compress(files["sitemap.xml"].encode("utf-8")))
+    (immutable / "dev" / "adr").mkdir(parents=True)
+    (immutable / "dev" / "adr" / "index.html").write_text(f'<link rel="canonical" href="{prefix}dev/adr/">\n', encoding="utf-8")
+    studies = immutable / "dev" / "studies" / "index.html"
+    studies.parent.mkdir(parents=True)
+    studies.write_bytes(
+        (
+            f'<head><link rel="canonical" href="{prefix}dev/studies/">\n'
+            '<link rel="prev" href="../testing/">\n'
+            '<link rel="next" href="../adr/">\n'
+            "</head><body>\n"
+            '<ul class="md-nav__list">\n'
+            '<li class="md-nav__item"><a href="../testing/" class="md-nav__link">Testing</a></li>\n'
+            '<li class="md-nav__item md-nav__item--nested"><label>Architecture Decisions</label><ul>'
+            '<li class="md-nav__item"><a href="../adr/" class="md-nav__link">ADR Index</a></li>'
+            '<li class="md-nav__item"><a href="../adr/0008-durable-study-manifest-contract/" class="md-nav__link">0008</a></li>'
+            "</ul></li>\n"
+            "</ul>\n"
+            '<p>Decision record: <a href="../adr/0008-durable-study-manifest-contract/#decision">ADR 0008</a>.</p>\n'
+            '<ul><li>Read <a href="../adr/">the records</a> first.</li></ul>\n'
+            "</body>\n"
+        ).encode()
+    )
 
     output = tmp_path / "public"
     result = subprocess.run(
@@ -183,14 +205,29 @@ def test_archive_carry_forward_removes_withdrawn_routes(tmp_path: Path) -> None:
     carried = output / "docs" / "1.0.0"
     assert not (carried / "audit").exists()
     assert not (carried / "topics" / "engineering_audit").exists()
+    assert not (carried / "dev" / "adr").exists()
     assert not (output / "1.0.0" / "audit").exists()
+    assert not (output / "1.0.0" / "dev" / "adr").exists()
+    assert (carried / "dev" / "studies" / "index.html").read_bytes().decode("utf-8") == (
+        f'<head><link rel="canonical" href="{prefix}dev/studies/">\n'
+        '<link rel="prev" href="../testing/">\n'
+        "\n"
+        "</head><body>\n"
+        '<ul class="md-nav__list">\n'
+        '<li class="md-nav__item"><a href="../testing/" class="md-nav__link">Testing</a></li>\n'
+        "\n"
+        "</ul>\n"
+        "<p>Decision record: ADR 0008.</p>\n"
+        "<ul><li>Read the records first.</li></ul>\n"
+        "</body>\n"
+    )
     assert not (output / "website").exists()
     for relative in ("index.html", "guide/index.html", "topics/tuning/index.html"):
         assert (carried / relative).read_text(encoding="utf-8") == files[relative]
 
     sitemap = (carried / "sitemap.xml").read_text(encoding="utf-8")
     assert sitemap == f"<urlset>\n{kept_entry}</urlset>\n"
-    assert gzip.decompress((carried / "sitemap.xml.gz").read_bytes()).decode("utf-8") == sitemap
+    assert gzip.decompress((carried / "sitemap.xml.gz").read_bytes()) == (carried / "sitemap.xml").read_bytes()
     index = json.loads((carried / "search" / "search_index.json").read_text(encoding="utf-8"))
     assert index["config"] == {"lang": ["en"]}
     assert [entry["location"] for entry in index["docs"]] == ["guide/"]
