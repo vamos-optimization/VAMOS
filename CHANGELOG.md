@@ -4,7 +4,17 @@ All notable public changes to VAMOS are documented here.
 
 ## [Unreleased]
 
-No changes yet.
+### Removed
+
+- The retired legacy multilingual documentation site under `/website/`, and
+  the `mkdocs-static-i18n` dependency that only it used, from the `docs`,
+  `dev`, and `all` extras.
+- Internal audit pages from the published documentation, including the
+  carried-forward 1.0.0 documentation archive.
+- The architecture decision records (`docs/dev/adr/`) and their published
+  Architecture Decisions section, including from the 1.0.0 documentation
+  archive, whose links to them are removed. Their canonical rules are
+  maintained in Architecture Health and the linked contracts.
 
 ## [1.0.0] - 2026-09-06
 

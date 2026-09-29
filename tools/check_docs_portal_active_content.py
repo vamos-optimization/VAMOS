@@ -102,9 +102,6 @@ def check_active_content(root: Path, *, version: str, base_url: str) -> None:
     for relative in current_pages:
         _require_no_refresh(root / relative)
 
-    for page in (root / "website").rglob("*.html"):
-        _require_no_refresh(page)
-
     for published in versions:
         archive_root = root / "docs" / published
         legacy_root = root / published

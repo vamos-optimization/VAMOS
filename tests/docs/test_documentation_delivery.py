@@ -5,6 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -125,7 +126,6 @@ def _build_minimal_clean_portal(root: Path, *, include_deep_current: bool = Fals
     _write(root, "docs/stable/index.html", _redirect(BASE_URL))
     _write(root, "latest/index.html", _redirect(BASE_URL))
     _write(root, f"{VERSION}/index.html", _redirect(immutable_url))
-    _write(root, "website/index.html", _canonical(f"{BASE_URL}website/"))
     if include_deep_current:
         target = f"{BASE_URL}algorithms/nsgaii/"
         _write(root, "algorithms/nsgaii/index.html", _canonical(target))
@@ -196,6 +196,80 @@ def test_portal_checker_requires_canonical_on_every_current_html_page(tmp_path: 
     completed = _run_portal_check(root)
     assert completed.returncode != 0
     assert "Canonical mismatch" in completed.stderr
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "website/index.html",
+        "audit/commands_used/index.html",
+        f"docs/{VERSION}/audit/findings.csv",
+        f"docs/{VERSION}/topics/engineering_audit/index.html",
+        "dev/adr/index.html",
+        f"docs/{VERSION}/dev/adr/0008-durable-study-manifest-contract/index.html",
+    ],
+)
+def test_portal_checker_rejects_withdrawn_routes(tmp_path: Path, relative: str) -> None:
+    root = tmp_path / "withdrawn"
+    _build_minimal_clean_portal(root)
+    _write(root, relative, "withdrawn")
+
+    completed = _run_portal_check(root)
+    assert completed.returncode != 0
+    assert "Withdrawn route is still published" in completed.stderr
+
+
+@pytest.mark.parametrize(
+    ("relative", "href"),
+    [
+        ("algorithms/nsgaii/index.html", "../../dev/adr/"),
+        (f"docs/{VERSION}/index.html", "dev/adr/0006-run-artifact-and-replay-contract/#decision"),
+        (f"docs/{VERSION}/index.html", f"{BASE_URL}docs/{VERSION}/audit/commands_used/"),
+    ],
+)
+def test_portal_checker_rejects_links_to_withdrawn_routes(tmp_path: Path, relative: str, href: str) -> None:
+    root = tmp_path / "withdrawn-link"
+    _build_minimal_clean_portal(root, include_deep_current=True)
+    canonical = f"{BASE_URL}{relative.removesuffix('index.html')}"
+    _write(root, relative, _canonical(canonical).replace("<body>", f'<body><a href="{href}">ADR</a>'))
+
+    completed = _run_portal_check(root)
+    assert completed.returncode != 0
+    assert "Page links to withdrawn route" in completed.stderr
+
+
+def test_portal_checker_accepts_links_that_only_resemble_withdrawn_routes(tmp_path: Path) -> None:
+    root = tmp_path / "similar-link"
+    _build_minimal_clean_portal(root, include_deep_current=True)
+    target = f"{BASE_URL}algorithms/nsgaii/"
+    body = '<body><a href="../../dev/adr-notes/">notes</a><a href="#dev/adr">anchor</a>'
+    _write(root, "algorithms/nsgaii/index.html", _canonical(target).replace("<body>", body))
+
+    completed = _run_portal_check(root)
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+
+
+def test_portal_checker_rejects_withdrawn_sitemap_and_search_entries(tmp_path: Path) -> None:
+    root = tmp_path / "withdrawn-index"
+    _build_minimal_clean_portal(root)
+    _write(
+        root,
+        f"docs/{VERSION}/sitemap.xml",
+        f"<urlset><url><loc>{BASE_URL}docs/{VERSION}/audit/commands_used/</loc></url></urlset>\n",
+    )
+    completed = _run_portal_check(root)
+    assert completed.returncode != 0
+    assert "Sitemap lists withdrawn route" in completed.stderr
+
+    (root / "docs" / VERSION / "sitemap.xml").unlink()
+    _write(
+        root,
+        f"docs/{VERSION}/search/search_index.json",
+        json.dumps({"docs": [{"location": "topics/engineering_audit/#summary", "text": ""}]}),
+    )
+    completed = _run_portal_check(root)
+    assert completed.returncode != 0
+    assert "Search index lists withdrawn route" in completed.stderr
 
 
 def test_portal_checker_rejects_body_meta_refresh_on_current_page(tmp_path: Path) -> None:

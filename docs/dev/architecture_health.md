@@ -3,9 +3,14 @@
 Purpose: prevent future refactors by enforcing layer boundaries and limiting module bloat.
 These rules are guardrails for long-term maintainability in a research-oriented codebase.
 
-## Canonical Decisions (ADRs)
-- Read before any architectural change: `docs/dev/adr/index.md`.
-- Mandatory ADRs: layering/facades, import-time purity, optional deps, no shims, health gates and repository hygiene.
+## Canonical rules
+Read before any architectural change.
+- Layering and facades: layers depend only in the directions listed in `AGENTS.md`. Public entry points are the curated facades `vamos`, `vamos.algorithms`, `vamos.problems`, and `vamos.ux.api`, and `vamos/__init__.py` stays a small facade.
+- Import-time purity: importing a module runs only imports, constant and type-alias assignments, function and class definitions, decorators, `if TYPE_CHECKING:` blocks, and `if __name__ == "__main__":` blocks. File IO, dynamic imports, environment reads, and initialization live inside functions or CLI entry points.
+- Optional dependencies: core dependencies live in `[project].dependencies`, and heavy or optional libraries only in `[project.optional-dependencies]`. Optional imports are lazy or guarded with `try/except ImportError`. `experiment/external` is the integration boundary for benchmark backends, and Panel imports stay in `ux/panel` and the Studio UI.
+- No shims or allowlists: do not add alternate wrappers for superseded APIs or allowlists for architecture gates. Fix violations at the source and update call sites.
+- Health gates and retention: health and CI run the shared gates below with identical commands. Raw audits, Goal handoffs, and validation logs stay outside the product tree, as described in [Repository hygiene](repository_hygiene.md).
+- Run artifacts, typing, and studies follow the [run artifact contract](run_artifact_contract.md), the [typing policy](typing.md), and the [StudyManifest v1 contract](study_manifest_contract.md).
 
 ## Health Gates (run locally)
 - `python tools/health.py` (local fast-fail suite, including strict and full development typing)

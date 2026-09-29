@@ -20,7 +20,7 @@ This page defines the source-of-truth boundaries for VAMOS documentation while t
 | Executable notebooks | `notebooks/` |
 | Citation metadata | `CITATION.cff` |
 | Stable compatibility commitments | `docs/project/stability-and-versioning.md` |
-| Contributor contracts | `docs/dev/` and accepted ADRs |
+| Contributor contracts | `docs/dev/` |
 
 A user-facing page may summarize another source, but it should link to the canonical page instead of copying a second installation procedure, API table, or lifecycle description.
 
@@ -38,13 +38,11 @@ Roadmap is the first entry under Developer. Project policy and release pages ret
 
 The homepage should route readers into three primary scientific journeys: trying VAMOS, solving their own problem, and running a reproducible study.
 
-## Legacy `website/` surface
+## Single public source
 
-`website/docs/` is a legacy public-content tree during migration. It remains buildable so existing URLs are not removed before a redirect/archive plan is tested, but it is not the source for new canonical user guidance.
+`docs/` is the only public documentation source. The former multilingual `website/` tree and its `/website/` route were retired; no parallel content tree or manually maintained copy of API signatures is published. Language publication will be designed only when there is reviewed translated source content and an explicit URL plan.
 
-Content that is still useful in `website/docs/` should be migrated deliberately into `docs/`, checked against the current implementation, and then referenced from one canonical location. Do not bulk-copy the legacy tree or keep parallel manually maintained API signatures.
-
-The multilingual configuration in `website/mkdocs.yml` also remains separate during this phase. Language publication will be redesigned only when there is reviewed translated source content and an explicit URL-preservation plan.
+Raw audit evidence, validation transcripts, and Goal handoffs are not documentation pages. They live outside the product tree or in CI artifact storage, as described in [Architecture Health](architecture_health.md).
 
 ## Versioned portal boundary
 

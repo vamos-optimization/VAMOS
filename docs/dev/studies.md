@@ -270,7 +270,6 @@ path: docs/dev/study_manifest_contract.md
 path: docs/dev/study_manifest_acceptance_tests.md
 path: docs/dev/study_plan_acceptance_tests.md
 path: docs/dev/study_manifest_examples/README.md
-path: docs/dev/adr/0008-durable-study-manifest-contract.md
 symbol: vamos.study_artifacts:StudySpec
 symbol: vamos.study_artifacts:create_study
 symbol: vamos.study_artifacts:load_study

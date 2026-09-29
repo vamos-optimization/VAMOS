@@ -61,8 +61,7 @@
     "src": "installable product source and package resources",
     "tests": "automated verification and compatibility fixtures",
     "tools": "repository development, validation and maintenance commands",
-    "typing": "stable typing fixtures and ratchets",
-    "website": "maintained website source"
+    "typing": "stable typing fixtures and ratchets"
   },
   "forbidden_root_names": [
     ".tmp_pygmo_err.txt",
@@ -88,7 +87,7 @@
     "backup_[0-9]"
   ],
   "audit_name_patterns": [
-    "(^|/)(?:final_)?audit(?:_|[-.]|$)",
+    "(^|/)(?:[a-z0-9]+_)*audit(?:[-_./]|$)",
     "(^|/)goal[-_ ]?handoff",
     "(^|/)cleanup[-_ ]?handoff"
   ],

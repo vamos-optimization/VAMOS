@@ -61,6 +61,17 @@ def test_detects_duplicate_audit_file(tmp_path: Path) -> None:
     assert "audit_evidence" in _codes(tmp_path, ["final_audit_latest.md", "docs/final_audit_001.md"])
 
 
+def test_detects_published_audit_directory_and_page(tmp_path: Path) -> None:
+    paths = ["docs/audit/findings.csv", "docs/topics/engineering_audit.md", "tools/audit_full_repo.py"]
+    for relative in paths:
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(relative, encoding="utf-8")
+    assert "audit_evidence" in _codes(tmp_path, ["docs/audit/findings.csv"])
+    assert "audit_evidence" in _codes(tmp_path, ["docs/topics/engineering_audit.md"])
+    assert "audit_evidence" not in _codes(tmp_path, ["tools/audit_full_repo.py"])
+
+
 def test_detects_zip_with_expanded_duplicate(tmp_path: Path) -> None:
     expanded = tmp_path / "bundle" / "source.txt"
     expanded.parent.mkdir()

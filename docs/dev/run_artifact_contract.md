@@ -315,5 +315,4 @@ is the separate `results verify` command; reproduction always executes.
 Sanitized machine-readable fixtures live in
 [`run_artifact_examples/`](run_artifact_examples/README.md). The normative
 acceptance matrix is
-[`run_artifact_acceptance_tests.md`](run_artifact_acceptance_tests.md). ADR 0006
-records the architectural decision.
+[`run_artifact_acceptance_tests.md`](run_artifact_acceptance_tests.md).

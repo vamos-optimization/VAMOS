@@ -42,12 +42,12 @@ The current tag trigger remains intentionally limited to `v1.0.0`; arbitrary lat
 
 Archive preservation is explicit through `--archive-from`. Production and manually dispatched fallback delivery require `archive_run_id` and `archive_artifact_name`. The supplied artifact is downloaded from the same repository and fed into the builder before the current site is produced.
 
-When the prior artifact contains the requested semantic version, that same-version `docs/<version>/` directory is reused unchanged. When the requested version is genuinely new, the builder creates its immutable tree after copying all older version directories. Therefore both later releases and same-version publication-layout changes preserve the already published archive contract.
+When the prior artifact contains the requested semantic version, that same-version `docs/<version>/` directory is reused unchanged apart from the declared withdrawn routes described in [Documentation versions and archive](../project/documentation-versioning.md#withdrawn-routes). When the requested version is genuinely new, the builder creates its immutable tree after copying all older version directories. Therefore both later releases and same-version publication-layout changes preserve the already published archive contract.
 
 This GitHub Actions artifact handoff is a migration-stage mechanism, not the final long-term archive store. A future retention policy may copy immutable releases to a durable object store, but no deployment is allowed to silently drop or regenerate an existing `docs/<version>/` tree.
 
 ## Shared validation
 
-Preview, the GitHub Pages mirror, and Cloudflare production all use `tools/check_docs_portal.py`. The checker verifies the generated `docs/versions.json`, the clean current tree, immutable version trees, compatibility redirects, canonical targets, retained immutable version directories, and the separate legacy `website/` tree.
+Preview, the GitHub Pages mirror, and Cloudflare production all use `tools/check_docs_portal.py`. The checker verifies the generated `docs/versions.json`, the clean current tree, immutable version trees, compatibility redirects, canonical targets, retained immutable version directories, and the absence of withdrawn routes from every published tree, sitemap, and search index.
 
 Source-level Markdown links remain protected by strict MkDocs and Zensical builds. The portal checker is intentionally a generated-artifact gate: it catches publication-layout mistakes that source-only validation cannot see.

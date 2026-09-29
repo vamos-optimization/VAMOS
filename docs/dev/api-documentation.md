@@ -1,6 +1,6 @@
 # Maintaining the API documentation
 
-The [API Reference](../reference/api_reference.md) is a short task index. The canonical Python reference lives in `docs/reference/api/`, alongside the existing [documentation architecture](documentation-architecture.md). The legacy `website/docs/` tree is not a second source of API signatures.
+The [API Reference](../reference/api_reference.md) is a short task index. The canonical Python reference lives in `docs/reference/api/`, alongside the existing [documentation architecture](documentation-architecture.md).
 
 ## Page contract
 

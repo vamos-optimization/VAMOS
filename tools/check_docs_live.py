@@ -17,6 +17,15 @@ REDIRECT_HOSTS = (
     "www.vamos-optimization.dev",
 )
 _VERSION_RE = re.compile(r"\d+\.\d+\.\d+")
+# Concrete pages under WITHDRAWN_ROUTES in check_docs_portal.py; each must be
+# absent from both the current site and the immutable release archive.
+WITHDRAWN_PAGES = (
+    "audit/commands_used/",
+    "audit/software_engineering_audit/",
+    "dev/adr/",
+    "topics/engineering_audit/",
+    "website/",
+)
 _CANONICAL_RE = re.compile(r'<link\s+rel="canonical"\s+href="([^"]+)"')
 
 
@@ -100,7 +109,7 @@ def check_live(
     requester: Requester = request_https,
     timeout: float = 15.0,
 ) -> dict[str, object]:
-    """Validate clean current URLs, aliases, immutable archives, and host redirects."""
+    """Validate clean current URLs, aliases, immutable archives, host redirects, and withdrawn pages."""
     if _VERSION_RE.fullmatch(version) is None:
         raise LiveDocsCheckError(
             "Documentation version must be numeric major.minor.patch"
@@ -189,6 +198,12 @@ def check_live(
         label=f"https://{PRIMARY_HOST}/docs/{version}/",
     )
     checked.append(f"https://{PRIMARY_HOST}/docs/{version}/")
+
+    for page in WITHDRAWN_PAGES:
+        for target in (f"/{page}", f"/docs/{version}/{page}"):
+            withdrawn = requester(PRIMARY_HOST, target, timeout)
+            _expect_status(withdrawn, 404, f"https://{PRIMARY_HOST}{target}")
+            checked.append(f"https://{PRIMARY_HOST}{target}")
 
     return {
         "primary": base_url,

@@ -41,6 +41,8 @@ def test_public_navigation_is_task_first() -> None:
     assert "examples.md" in nav_text
     assert "dev/documentation-architecture.md" in nav_text
     assert "Engineering Audit" not in nav_text
+    assert "Architecture Decisions" not in nav_text
+    assert "dev/adr/" not in nav_text
     assert "website/" not in nav_text
     assert "project/" not in nav_text
     developer = next(item["Developer"] for item in nav if isinstance(item, dict) and "Developer" in item)
@@ -68,5 +70,5 @@ def test_canonical_routing_pages_exist_and_cross_link() -> None:
     assert "[Durable studies](studies.md)" in getting_started
     assert "from vamos import make_problem, optimize" in custom_problem
     assert "examples/basics/quickstart.py" in examples
-    assert "`website/docs/` is a legacy public-content tree" in architecture
+    assert "`docs/` is the only public documentation source" in architecture
     assert "does not deploy to Cloudflare" in architecture

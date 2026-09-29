@@ -1,7 +1,7 @@
 # Pull Request Checklist
 
 ## Architecture health
-- [ ] I read the ADRs (`docs/dev/adr/index.md`) relevant to this change.
+- [ ] I read the canonical rules in `docs/dev/architecture_health.md` relevant to this change.
 - [ ] I ran the local health command: `python tools/health.py`.
 - [ ] I updated `docs/dev/architecture_health.md` if I changed guardrails.
 
