@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import html
 import json
 import logging
@@ -12,11 +13,13 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from urllib.parse import urlsplit
 
+from check_docs_portal import WITHDRAWN_ROUTES, is_withdrawn
 from check_repository_identity import DOCUMENTATION_URL
 from mkdocs.commands.build import build
 from mkdocs.config import load_config
 
 _VERSION_RE = re.compile(r"\d+\.\d+\.\d+")
+_SITEMAP_ENTRY_RE = re.compile(r"[ \t]*<url>\s*<loc>\s*([^<\s]+)\s*</loc>.*?</url>[ \t]*\n?", re.DOTALL)
 
 
 def _normalize_base_url(value: str) -> str:
@@ -100,14 +103,55 @@ def _copy_tree_contents(source: Path, target: Path) -> None:
             shutil.copy2(source_path, target_path)
 
 
-def _copy_archived_versions(archive_from: Path, docs_root: Path) -> None:
+def _withdraw_archived_routes(tree: Path, *, tree_url: str) -> None:
+    """Remove withdrawn routes and their sitemap/search entries from a carried-forward archive.
+
+    Files are rewritten only when they reference a withdrawn route, so an archive
+    without withdrawn content is preserved byte-for-byte.
+    """
+    for route in WITHDRAWN_ROUTES:
+        target = tree / route
+        if target.is_dir():
+            shutil.rmtree(target)
+        elif target.exists():
+            target.unlink()
+
+    sitemap = tree / "sitemap.xml"
+    if sitemap.is_file():
+        original = sitemap.read_text(encoding="utf-8")
+
+        def keep(match: re.Match[str]) -> str:
+            location = match.group(1)
+            withdrawn = location.startswith(tree_url) and is_withdrawn(location[len(tree_url) :])
+            return "" if withdrawn else match.group(0)
+
+        pruned = _SITEMAP_ENTRY_RE.sub(keep, original)
+        if pruned != original:
+            sitemap.write_text(pruned, encoding="utf-8")
+            compressed = tree / "sitemap.xml.gz"
+            if compressed.is_file():
+                compressed.write_bytes(gzip.compress(pruned.encode("utf-8"), mtime=0))
+
+    index = tree / "search" / "search_index.json"
+    if index.is_file():
+        payload = json.loads(index.read_text(encoding="utf-8"))
+        entries = payload.get("docs", [])
+        kept = [entry for entry in entries if not is_withdrawn(str(entry.get("location", "")))]
+        if len(kept) != len(entries):
+            payload["docs"] = kept
+            index.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
+
+
+def _copy_archived_versions(archive_from: Path, docs_root: Path, *, base_url: str) -> None:
     archive_docs = archive_from / "docs"
     if not archive_docs.is_dir():
         raise FileNotFoundError(f"Archived documentation root not found: {archive_docs}")
     for source in sorted(archive_docs.iterdir(), key=lambda path: path.name):
         if not source.is_dir() or _VERSION_RE.fullmatch(source.name) is None:
             continue
-        shutil.copytree(source, docs_root / source.name)
+        target = docs_root / source.name
+        shutil.copytree(source, target)
+        _withdraw_archived_routes(target, tree_url=f"{base_url}docs/{source.name}/")
 
 
 def _published_versions(docs_root: Path) -> list[str]:
@@ -159,7 +203,7 @@ def build_release_docs(
     docs_root.mkdir(parents=True)
 
     if archive_from is not None:
-        _copy_archived_versions(archive_from.resolve(), docs_root)
+        _copy_archived_versions(archive_from.resolve(), docs_root, base_url=base_url)
 
     with TemporaryDirectory(prefix="vamos-docs-current-") as temporary:
         current_dir = Path(temporary) / "current"
@@ -170,7 +214,6 @@ def build_release_docs(
         immutable_dir = docs_root / version
         if not immutable_dir.exists():
             _build_site(root, "mkdocs.yml", immutable_dir, f"{base_url}docs/{version}/")
-        _build_site(root, "website/mkdocs.yml", output / "website", f"{base_url}website/")
 
         versions = _published_versions(docs_root)
         _write_versions_manifest(docs_root, stable=version, versions=versions)
@@ -211,7 +254,7 @@ def main() -> None:
         help=(
             "Previous trusted portal artifact whose immutable docs/<version>/ directories "
             "must be preserved; if it already contains the requested version, that archive "
-            "is reused byte-for-byte instead of rebuilt"
+            "is reused byte-for-byte instead of rebuilt, except that withdrawn routes are removed"
         ),
     )
     args = parser.parse_args()

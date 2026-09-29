@@ -50,7 +50,6 @@ def _build_clean(root: Path) -> None:
     _write(root, "latest/index.html", _redirect(BASE_URL))
     _write(root, "latest/algorithms/nsgaii/index.html", _redirect(deep))
     _write(root, f"{VERSION}/index.html", _redirect(immutable))
-    _write(root, "website/index.html", _canonical(f"{BASE_URL}website/"))
 
 
 def _run(root: Path) -> subprocess.CompletedProcess[str]:

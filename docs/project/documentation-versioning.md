@@ -37,13 +37,20 @@ The old moving aliases are normalized as follows:
 - `latest/...` -> `/...`
 - `docs/` -> `/`
 
-The legacy `website/` tree remains separately built for compatibility. It is not promoted to the canonical documentation source.
+## Withdrawn routes
+
+A small, explicit list of routes is withdrawn from every published tree, including carried-forward immutable archives. It is `WITHDRAWN_ROUTES` in `tools/check_docs_portal.py`:
+
+- `audit/` and `topics/engineering_audit/`: raw internal audit evidence, which belongs outside the product tree rather than in published documentation;
+- `website/`: the retired legacy multilingual site, superseded by the canonical documentation.
+
+When the builder carries an archive forward, it deletes these routes and removes their entries from that archive's `sitemap.xml`, `sitemap.xml.gz`, and search index. Every other archived byte is left unchanged. The portal checker rejects any tree, sitemap, or search index that still references a withdrawn route. Withdrawn URLs therefore return the site's 404 page, and the live verifier `tools/check_docs_live.py` confirms that after every production deployment. Adding a route to this list is a deliberate publication decision, not a general way to edit released documentation.
 
 ## Archive preservation
 
 `tools/build_release_docs.py` accepts an optional `--archive-from` artifact. When supplied, every immutable semantic-version directory already present under `docs/<version>/` is copied forward before publication. If the requested stable version already exists in that trusted artifact, the builder reuses that directory unchanged rather than rebuilding it from the current checkout. If the requested version is new, only that new immutable tree is built after older archives have been copied.
 
-This distinction is essential because the clean current tree is mutable while a released `docs/<version>/` tree is not. A same-version documentation-layout change may update `/...`, `docs/stable/...`, `latest/...`, redirects, navigation, or hosting behavior, but it must not rewrite the historical bytes already published under `docs/<version>/`.
+This distinction is essential because the clean current tree is mutable while a released `docs/<version>/` tree is not. A same-version documentation-layout change may update `/...`, `docs/stable/...`, `latest/...`, redirects, navigation, or hosting behavior, but it must not rewrite the historical bytes already published under `docs/<version>/`, except to remove the [withdrawn routes](#withdrawn-routes).
 
 Archive preservation is therefore an explicit deployment input rather than relying on the hosting provider to retain files after a deployment. Production and manual republish workflows require a prior trusted portal artifact. The initial release-tag path can create the first immutable archive when no previous publication exists.
 

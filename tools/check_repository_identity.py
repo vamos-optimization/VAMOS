@@ -23,7 +23,6 @@ CANONICAL_REPOSITORY = "vamos-optimization/VAMOS"
 CANONICAL_URL = f"https://github.com/{CANONICAL_REPOSITORY}"
 DOCUMENTATION_URL = "https://vamos-optimization.org/"
 CURRENT_DOCS_URL = DOCUMENTATION_URL
-LEGACY_WEBSITE_URL = f"{DOCUMENTATION_URL}website/"
 PAGES_URL = "https://vamos-optimization.github.io/VAMOS/"
 PERSONAL_OWNER = "NicolasRodriguezUribe"
 MIRROR_REPOSITORY = f"{PERSONAL_OWNER}/VAMOS"
@@ -140,7 +139,6 @@ def metadata_violations(root: Path) -> list[str]:
         violations.append("The package and citation must retain vamos-optimization 1.0.0.")
     expected_site_urls = {
         "mkdocs.yml": CURRENT_DOCS_URL,
-        "website/mkdocs.yml": LEGACY_WEBSITE_URL,
     }
     for relative, expected_site_url in expected_site_urls.items():
         config = load_yaml(root, relative)

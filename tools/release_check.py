@@ -60,7 +60,6 @@ CHECK_NAMES = (
     "public-examples",
     "complete-tests",
     "documentation",
-    "website-documentation",
     "distribution-build",
     "distribution-hygiene",
     "twine-and-wheel-content",
@@ -205,20 +204,6 @@ class ReleaseChecker:
         self.command(
             "documentation",
             [sys.executable, "-m", "mkdocs", "build", "--strict", "--site-dir", str(self.output / "site")],
-        )
-        self.command(
-            "website-documentation",
-            [
-                sys.executable,
-                "-m",
-                "mkdocs",
-                "build",
-                "--strict",
-                "--config-file",
-                "website/mkdocs.yml",
-                "--site-dir",
-                str(self.output / "website"),
-            ],
         )
         self.check("distribution-build", self._prepare_distributions)
         wheel = self._wheel()

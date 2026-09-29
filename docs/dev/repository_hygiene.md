@@ -92,8 +92,7 @@ Learning notebooks use the `python3` kernel with display name
 absolute paths, and must not create root output. A small pedagogically essential
 output requires an explicit exception and test.
 
-`docs/assets/` is authoritative for public documentation images;
-`website/` owns website source and does not duplicate those binaries. Built
+`docs/assets/` is authoritative for public documentation images. Built
 MkDocs sites are ignored. Keep only referenced assets or explicitly documented
 source artwork.
 

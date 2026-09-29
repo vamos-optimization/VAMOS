@@ -27,7 +27,6 @@ Do not add readers, migrations, aliases, or deprecation cycles for internal pre-
 - `tools/`: repository checks and maintenance utilities.
 - `experiments/`: research material, not runtime APIs. `paper/` is an optional local manuscript workspace; it is ignored and must not be tracked or published.
 - `experiments/scripts/canonical_runs.py`: the shared research collector for canonical `load_run`/`load_result` access.
-- `website/`: the separately configured multilingual public site; it uses the official MkDocs i18n plugin.
 
 Permitted dependencies are: foundation -> foundation/resources; engine -> engine/foundation/resources; ux -> ux/foundation/engine/resources; experiment -> experiment/foundation/engine/ux/assist/resources; assist -> assist/foundation/engine/experiment/resources. Do not create reverse imports or import-time initialization to bypass these boundaries.
 
@@ -58,7 +57,7 @@ The durable study schema is `vamos.study-manifest` version `1.0.0`, governed by 
 
 Shared algorithm variation pipelines live only in `src/vamos/engine/variation/`; concrete operator implementations and their registry live under `src/vamos/engine/operators/`. The external archive model is `ExternalArchiveConfig` in `src/vamos/engine/archive/config.py`, and experiment-spec parsing accepts the single `archive.external` block through `build_archive_cfg`.
 
-Research collectors discover `manifest.json` and call the public `load_run`/`load_result` APIs through `experiments/scripts/canonical_runs.py`; they do not infer run data from filenames. The public website uses `website/mkdocs.yml` with `i18n.docs_structure: folder`, Material reconfiguration disabled, and search reconfiguration enabled.
+Research collectors discover `manifest.json` and call the public `load_run`/`load_result` APIs through `experiments/scripts/canonical_runs.py`; they do not infer run data from filenames.
 
 ## Environment
 
@@ -206,7 +205,6 @@ path: src/vamos/engine/operators/impl/registry.py
 path: src/vamos/engine/archive/config.py
 path: src/vamos/engine/hooks/config_parse.py
 path: experiments/scripts/canonical_runs.py
-path: website/mkdocs.yml
 path: tests/architecture/test_public_api_snapshot.py
 symbol: vamos:optimize
 symbol: vamos:save_result

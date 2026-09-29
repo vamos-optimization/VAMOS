@@ -22,7 +22,6 @@ PRIMARY_DOCUMENTS = (
     "docs/guide/studio.md",
     "docs/project/stability-and-versioning.md",
 )
-WEBSITE_DOCUMENTS = tuple(path.relative_to(ROOT).as_posix() for path in sorted((ROOT / "website" / "docs" / "en").rglob("*.md")))
 
 
 def _read(relative: str) -> str:
@@ -61,12 +60,6 @@ def test_primary_documents_have_no_obsolete_release_or_internal_examples() -> No
 
 def test_every_primary_python_snippet_is_valid_python() -> None:
     for path in PRIMARY_DOCUMENTS:
-        for index, source in enumerate(_python_blocks(_read(path)), start=1):
-            ast.parse(source, filename=f"{path}::python-block-{index}")
-
-
-def test_every_website_python_snippet_is_valid_python() -> None:
-    for path in WEBSITE_DOCUMENTS:
         for index, source in enumerate(_python_blocks(_read(path)), start=1):
             ast.parse(source, filename=f"{path}::python-block-{index}")
 

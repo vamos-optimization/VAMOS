@@ -45,8 +45,6 @@ def test_current_metadata_and_tracked_references_are_canonical() -> None:
         "CITATION.cff",
         "mkdocs.yml",
         "docs/guide/installation.md",
-        "website/docs/zh/index.md",
-        "website/mkdocs.yml",
         ".github/workflows/release.yml",
         "tools/release_artifacts.py",
         "paper/manuscript/main.tex",

@@ -54,12 +54,11 @@ mirror to canonical `main` and copy the existing official annotated tag.
 
 In the organization repository, open **Settings > Pages > Build and deployment**
 and set **Source** to **GitHub Actions**. The guarded `docs.yml` workflow builds
-both documentation sites strictly and deploys documentation only to
+the documentation portal strictly and deploys documentation only to
 `https://vamos-optimization.github.io/VAMOS/`. It runs on the official tag or a
 manual workflow dispatch. The generated portal mirrors the canonical `.org`
 layout: the current documentation is built at clean root paths, immutable
-release documentation lives under `docs/<version>/`, and the multilingual
-website lives under `website/`. Compatibility trees under `docs/stable/`,
+release documentation lives under `docs/<version>/`. Compatibility trees under `docs/stable/`,
 `latest/`, and root-level `<version>/` contain redirects rather than a second
 canonical documentation surface. The personal mirror must not deploy canonical
 Pages. Confirm the deployment and canonical `.org` metadata during the final

@@ -3,9 +3,18 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 import yaml
 
-from tools.check_docs_live import PRIMARY_HOST, REDIRECT_HOSTS, ResponseSnapshot, check_live
+from tools.check_docs_live import (
+    PRIMARY_HOST,
+    REDIRECT_HOSTS,
+    WITHDRAWN_PAGES,
+    LiveDocsCheckError,
+    ResponseSnapshot,
+    check_live,
+)
+from tools.check_docs_portal import WITHDRAWN_ROUTES, is_withdrawn
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -15,8 +24,7 @@ def _snapshot(status: int, *, location: str | None = None, body: bytes = b"") ->
     return ResponseSnapshot(status=status, headers=headers, body=body)
 
 
-def test_live_cutover_checker_accepts_clean_public_contract() -> None:
-    version = "1.0.0"
+def _clean_responses(version: str) -> dict[tuple[str, str], ResponseSnapshot]:
     base_url = f"https://{PRIMARY_HOST}/"
     immutable_url = f"{base_url}docs/{version}/"
     algorithm_url = f"{base_url}algorithms/nsgaii/"
@@ -34,6 +42,16 @@ def test_live_cutover_checker_accepts_clean_public_contract() -> None:
     }
     for host in REDIRECT_HOSTS:
         responses[(host, "/algorithms/nsgaii/?cutover=1")] = _snapshot(308, location=f"{algorithm_url}?cutover=1")
+    for page in WITHDRAWN_PAGES:
+        responses[(PRIMARY_HOST, f"/{page}")] = _snapshot(404)
+        responses[(PRIMARY_HOST, f"/docs/{version}/{page}")] = _snapshot(404)
+    return responses
+
+
+def test_live_cutover_checker_accepts_clean_public_contract() -> None:
+    version = "1.0.0"
+    base_url = f"https://{PRIMARY_HOST}/"
+    responses = _clean_responses(version)
 
     def fake_request(host: str, target: str, timeout: float) -> ResponseSnapshot:
         assert timeout == 5.0
@@ -43,7 +61,25 @@ def test_live_cutover_checker_accepts_clean_public_contract() -> None:
 
     assert result["primary"] == base_url
     assert result["stable"] == version
-    assert len(result["checked"]) == 12
+    assert len(result["checked"]) == 12 + 2 * len(WITHDRAWN_PAGES)
+
+
+def test_live_cutover_checker_rejects_published_withdrawn_page() -> None:
+    version = "1.0.0"
+    responses = _clean_responses(version)
+    responses[(PRIMARY_HOST, f"/docs/{version}/audit/commands_used/")] = _snapshot(200)
+
+    def fake_request(host: str, target: str, timeout: float) -> ResponseSnapshot:
+        return responses[(host, target)]
+
+    with pytest.raises(LiveDocsCheckError, match="expected HTTP 404, got 200"):
+        check_live(version, requester=fake_request, timeout=5.0)
+
+
+def test_live_withdrawn_probes_cover_every_withdrawn_route() -> None:
+    assert all(is_withdrawn(page) for page in WITHDRAWN_PAGES)
+    for route in WITHDRAWN_ROUTES:
+        assert any(page == f"{route}/" or page.startswith(f"{route}/") for page in WITHDRAWN_PAGES), route
 
 
 def test_cutover_workflows_separate_deployment_from_read_only_reverification() -> None:

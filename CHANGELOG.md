@@ -4,7 +4,13 @@ All notable public changes to VAMOS are documented here.
 
 ## [Unreleased]
 
-No changes yet.
+### Removed
+
+- The retired legacy multilingual documentation site under `/website/`, and
+  the `mkdocs-static-i18n` dependency that only it used, from the `docs`,
+  `dev`, and `all` extras.
+- Internal audit pages from the published documentation, including the
+  carried-forward 1.0.0 documentation archive.
 
 ## [1.0.0] - 2026-09-06
 

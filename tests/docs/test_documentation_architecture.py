@@ -68,5 +68,5 @@ def test_canonical_routing_pages_exist_and_cross_link() -> None:
     assert "[Durable studies](studies.md)" in getting_started
     assert "from vamos import make_problem, optimize" in custom_problem
     assert "examples/basics/quickstart.py" in examples
-    assert "`website/docs/` is a legacy public-content tree" in architecture
+    assert "`docs/` is the only public documentation source" in architecture
     assert "does not deploy to Cloudflare" in architecture

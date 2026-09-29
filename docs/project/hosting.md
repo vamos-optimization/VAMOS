@@ -55,7 +55,6 @@ The production host has passed live verification, and the canonical metadata con
 - package Documentation URL: `https://vamos-optimization.org/`;
 - canonical MkDocs current-site URL: `https://vamos-optimization.org/`;
 - immutable release URLs: `https://vamos-optimization.org/docs/<version>/...`;
-- legacy multilingual site URL: `https://vamos-optimization.org/website/`;
 - release, preview, and fallback artifacts emit current canonical links at clean root paths and immutable canonical links under `docs/<version>/`.
 
 GitHub Pages remains available as a fallback mirror and archive-delivery mechanism, but it is no longer the canonical documentation origin. Keeping the mirror does not change the public identity of the project because its generated canonical metadata points back to `.org`.
