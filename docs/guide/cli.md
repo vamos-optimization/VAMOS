@@ -1,20 +1,32 @@
 # CLI and config files
 
-> The standard single-run CLI path, canonical run commands, and the
-> single-owner durable-study lifecycle are covered by command-level smoke tests. Heavier
-> tuning and broader benchmark matrices still depend on installed extras and
-> the local environment.
+Install the [published package](installation.md) before using these commands.
+The examples target VAMOS 1.0.0; use `vamos --help` or `vamos <command> --help`
+for the parser in your installed version.
+
+| Command family | Status in 1.0.0 | Use it for |
+| --- | --- | --- |
+| Main optimization runner | **Stable** core invocation | One run or a configured problem set |
+| `results inspect`, `results verify`, `reproduce` | **Stable** | Canonical run inspection, integrity, and exact replay |
+| `study plan/create/run/inspect/resume/retry/summarize` | **Stable**, single-owner | Durable experiment matrices |
+| `quickstart`, `summarize`, `open-results` | **Experimental** | Interactive onboarding and convenience helpers |
+| `bench`, `tune`, `ablation`, `profile`, `zoo`, `studio`, `assist`, `check` | **Experimental** | Optional workflows and diagnostics |
+
+Stable commands have compatibility guarantees under the
+[stability policy](../project/stability-and-versioning.md). Experimental
+workflows may change in a minor release. Dask, third-party integrations, and
+visualization remain Experimental even when selected through the main runner.
 
 Quickstart wizard
 -----------------
 
-Run an interactive wizard that writes a config file and executes a single run:
+The **Experimental** wizard writes a config file and executes a single run:
 
 ```bash
 vamos quickstart
 ```
 
-If you are new to Python, start with `docs/guide/minimal-python.md`.
+If you are new to Python, start with [Minimal Python](minimal-python.md).
 
 List available templates:
 
@@ -46,6 +58,9 @@ The config is saved under `results/quickstart/` and can be re-run with `vamos --
 Results helpers
 ---------------
 
+The **Experimental** convenience helpers summarize or open run folders.
+For stable data access, use the canonical commands in the next section.
+
 Summarize recent runs:
 
 ```bash
@@ -63,6 +78,8 @@ Open the latest run folder:
 ```bash
 vamos open-results --open
 ```
+
+## Canonical run commands (Stable)
 
 Inspect one canonical run without materializing arrays:
 
@@ -150,11 +167,16 @@ from vamos import optimize
 result = optimize("zdt1", algorithm="nsgaii", max_evaluations=5000, pop_size=80, seed=7)
 ```
 
-Run a predefined problem set with both internal algorithms:
+Run a predefined continuous problem set with one compatible algorithm:
 
 ```bash
-vamos --problem-set families --algorithm both --max-evaluations 3000
+vamos --problem-set zdt --algorithm nsgaii --max-evaluations 3000 --seed 7
 ```
+
+The `families` preset mixes real and permutation problems, so it is not
+compatible with every algorithm selected by `--algorithm both`. Check the
+[capability matrix](../reference/algorithms.md#capability-matrix) before
+combining problem sets and algorithms.
 
 Compare backends on one problem:
 
@@ -162,7 +184,11 @@ Compare backends on one problem:
 vamos --problem zdt1 --experiment backends --max-evaluations 2000
 ```
 
-Optional backends need extras: `numba` and `moocore` require `pip install -e ".[compute]"` (or `pip install "vamos-optimization[compute]"`). Missing backends are skipped.
+Install optional kernels with
+`python -m pip install "vamos-optimization[compute]==1.0.0"`.
+The `--experiment backends` comparison skips unavailable optional kernels with
+a warning. An explicit single-run `--engine numba` or `--engine moocore`
+instead fails if that dependency is missing; it never switches silently.
 
 Multiprocessing evaluation for expensive problems:
 
@@ -170,7 +196,8 @@ Multiprocessing evaluation for expensive problems:
 vamos --problem zdt1 --algorithm nsgaii --max-evaluations 8000 --eval-strategy multiprocessing --n-workers 4
 ```
 
-Enable live visualization and save plots:
+Enable Experimental live visualization and save plots (requires the
+[`analysis` extra](installation.md#optional-extras)):
 
 ```bash
 vamos --problem zdt1 --algorithm nsgaii --max-evaluations 2000 --live-viz --plot
@@ -182,7 +209,8 @@ Early stop when hypervolume reaches a target fraction:
 vamos --problem zdt1 --algorithm nsgaii --max-evaluations 15000 --hv-threshold 0.9
 ```
 
-Include external baselines (ZDT1 only):
+Include Experimental third-party baselines (ZDT1 example; requires the
+[`research` extra](installation.md#optional-extras)):
 
 ```bash
 vamos --problem zdt1 --algorithm both --include-external --external-problem-source native
@@ -212,9 +240,9 @@ vamos --problem zdt1 --algorithm nsgaii --max-evaluations 5000 --population-size
 Key flags
 ---------
 
-- `--algorithm`: nsgaii, moead, smsemoa, nsgaiii, spea2, ibea, smpso, both, or external baselines (pymoo_nsga2, jmetalpy_nsga2, pygmo_nsga2)
+- `--algorithm`: agemoea, ibea, moead, nsgaii, nsgaiii, rvea, smpso, smsemoa, spea2, both, or Experimental external baselines (pymoo_nsga2, jmetalpy_nsga2, pygmo_nsga2)
 - `--engine`: numpy | numba | moocore | auto. The deterministic default is `numpy`; use `auto` when you want heuristic backend selection.
-- `--problem`: any registry key (see Problems page)
+- `--problem`: any registry key (see [Problems](../reference/problems.md))
 - `--problem-set`: predefined sets (e.g., `families`)
 - `--validate-config`: validate `--config` and exit
 - `--output-root`: directory for run artifacts (default: `results/`)
@@ -223,13 +251,13 @@ Key flags
 - `--max-evaluations`
 - `--hv-threshold` and `--hv-reference-front`
 - `--selection-pressure`, `--external-archive-size`
-- `--eval-strategy`: serial | multiprocessing (with `--n-workers`)
+- `--eval-strategy`: serial | multiprocessing (with `--n-workers`) | dask (Experimental; with `--dask-address`, see [Dask](../scaling/dask.md))
 - `--live-viz` with `--live-viz-interval`, `--live-viz-max-points`
 - `--plot`: save Pareto front plots after runs
 - Variation overrides per algorithm (examples):
-  - `--nsgaii-crossover sbx --nsgaii-crossover-prob 1.0 --nsgaii-mutation pm --nsgaii-mutation-prob 1/n`
-  - `--moead-crossover sbx --moead-mutation pm --moead-aggregation pbi`
-  - `--smsemoa-mutation pm --nsga3-crossover sbx`
+  - `--nsgaii-crossover sbx --nsgaii-crossover-prob 1.0 --nsgaii-mutation polynomial --nsgaii-mutation-prob 1/n`
+  - `--moead-crossover sbx --moead-mutation polynomial --moead-aggregation pbi`
+  - `--smsemoa-mutation polynomial --nsga3-crossover sbx`
 
 Config files (YAML/JSON)
 ------------------------
@@ -273,7 +301,8 @@ vamos --config configs/experiment.yaml --algorithm smsemoa --max-evaluations 100
 Other subcommands
 -----------------
 
-All tools are accessed via `vamos <subcommand>`. Run `vamos help` for the full list.
+The following commands are **Experimental**. Run `vamos help` for the full list.
+Install any required [optional extras](installation.md#optional-extras) first.
 
 - Self-check: `vamos check`
 - Benchmarking: `vamos bench --list` and `vamos bench ZDT_small --algorithms nsgaii moead --output report/`
@@ -282,7 +311,7 @@ All tools are accessed via `vamos <subcommand>`. Run `vamos help` for the full l
 - Ablation plans: `vamos ablation --config configs/ablation.yaml`
 - Profiling: `vamos profile --problem zdt1 --engines numpy,numba --budget 2000 --output report/profile.csv`
 - Problem zoo: `vamos zoo list`, `vamos zoo info zdt1`, `vamos zoo run zdt1 --algorithm nsgaii --budget 3000`
-- Studio (interactive, needs `studio` extra): `vamos studio --study-dir results`
+- Studio (interactive, needs `studio` extra): read the [Studio walkthrough and 1.0.0 launcher limitation](studio.md) before starting.
 
 Tuning quick notes (`vamos tune`)
 ---------------------------------
@@ -291,7 +320,7 @@ Use this guide for quick usage. For the complete, maintained `tune` reference
 (all backends, split/fallback behavior, finisher/validation/test, and artifact
 contracts), see:
 
-- `docs/topics/tuning.md`
+- [Hyperparameter tuning](../topics/tuning.md)
 
 Recommended robust invocation:
 

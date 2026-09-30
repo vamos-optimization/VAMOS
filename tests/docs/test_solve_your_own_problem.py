@@ -122,4 +122,5 @@ def test_learning_path_explains_translation_not_only_api_calls() -> None:
     assert "Replace the benchmark with your model" in quickstart
     assert "custom-problem.md" in quickstart
     assert "maps two domain variables" in examples
-    assert "Translate domain decisions and requirements" in home
+    assert "Define your decisions, objectives, bounds, and constraints." in home
+    assert 'href="guide/custom-problem/"' in home

@@ -1,175 +1,250 @@
 # VAMOS Cookbook
 
-Common recipes and patterns for using VAMOS.
+Copy-paste recipes for the published **VAMOS 1.0.0** package. Install the core
+package using [Installation](installation.md); recipes that need an extra say
+so explicitly. Budgets below are demonstrations, not evidence of convergence
+or comparative performance.
+
+**Stable** identifies documented core APIs and CLI commands. **Experimental**
+identifies custom callbacks, analysis helpers, or optional integrations whose
+contracts may change. See [Stability and versioning](../project/stability-and-versioning.md).
+Python recipes are self-contained except where an earlier recipe is explicitly
+required. Run file-writing examples in a fresh working folder; canonical run
+destinations must not already exist.
 
 ## Recommended path (optimize)
 
-The `optimize(...)` API is the fastest way to run experiments in Python.
-See the API decision guide in `docs/guide/getting-started.md` if you need explicit config objects.
+**Stable.** Start with explicit algorithm, budget, population, backend, and seed:
 
 ```python
 from vamos import optimize
-from vamos.ux.api import result_summary_text
 
-result = optimize("zdt1", algorithm="nsgaii", max_evaluations=5000, pop_size=100, seed=0)
-print(result_summary_text(result))
+result = optimize(
+    "zdt1", algorithm="nsgaii", max_evaluations=400,
+    pop_size=40, engine="numpy", seed=7,
+)
+front = result.front()
+assert front is not None
+print(f"Returned: {len(result)} solutions; non-dominated: {len(front)}")
+print(front[:3])
 ```
 
-## 1. Custom Problem Definition
+See [Understanding results](understanding-results.md) before interpreting the
+returned population as a Pareto-front approximation.
 
-Define a problem by implementing `ProblemProtocol` (attributes plus `evaluate`):
+## 1. Custom problem definition
+
+**Stable.** Use `make_problem` to wrap a batch objective. This formula is finite
+at every point in the box, including `x[0] = 0`:
 
 ```python
 import numpy as np
+from vamos import make_problem, optimize
 
 
-class MyProblem:
-    def __init__(self) -> None:
-        self.n_var = 2
-        self.n_obj = 2
-        self.n_constraints = 0
-        self.xl = np.array([0.0, 0.0])
-        self.xu = np.array([1.0, 1.0])
-        self.encoding = "real"
-
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
-        f1 = X[:, 0]
-        f2 = (1.0 + X[:, 1]) / X[:, 0]
-        out["F"] = np.column_stack([f1, f2])
+def objectives(X):
+    f1 = X[:, 0]
+    f2 = (1.0 + X[:, 1]) * (1.0 - np.sqrt(X[:, 0]))
+    return np.column_stack([f1, f2])
 
 
-problem = MyProblem()
+problem = make_problem(
+    objectives, n_var=2, n_obj=2, bounds=[(0.0, 1.0), (0.0, 1.0)],
+    encoding="real", vectorized=True, name="two_objective_example",
+)
+assert np.isfinite(objectives(np.array([[0.0, 0.0], [1.0, 1.0]]))).all()
+result = optimize(
+    problem, algorithm="nsgaii", max_evaluations=400,
+    pop_size=40, engine="numpy", seed=7,
+)
+print(result.front())
 ```
 
-## 2. Handling Constraints
+For a vectorized class implementation, see
+[Solving your own problem](custom-problem.md).
 
-Box constraints are handled via `xl` and `xu`. For other constraints, fill `out["G"]`. VAMOS expects g(x) <= 0 for feasible solutions. Set `n_constraints` to the number of constraints if you want the count explicitly tracked.
+## 2. Handling constraints
 
-```python
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
-        # ... calculate F ...
-
-        # Constraint: x[0] + x[1] <= 1.5
-        g1 = (X[:, 0] + X[:, 1]) - 1.5
-        out["G"] = g1.reshape(-1, 1)
-```
-
-### Constraint DSL (symbolic)
-
-When you want a reusable constraint evaluator, build it symbolically:
+**Stable.** Bounds belong in `bounds`. Other constraints use `g(x) <= 0` for
+feasibility, with `n_constraints` matching the function output. Here the
+requirement is `x[0] + x[1] <= 1.5`:
 
 ```python
 import numpy as np
-from vamos.foundation.constraints.dsl import constraint_model, build_constraint_evaluator
+from vamos import make_problem, optimize
 
-with constraint_model(n_vars=2) as cm:
-    x0, x1 = cm.vars("x0", "x1")
-    cm.add(x0 + x1 <= 1.0)
-    cm.add(x0 >= 0.0)
-
-eval_constraints = build_constraint_evaluator(cm)
-G = eval_constraints(np.array([[0.2, 0.3], [0.9, 0.4]]))
+problem = make_problem(
+    lambda x: [x[0], (1.0 + x[1]) * (1.0 - np.sqrt(x[0]))],
+    n_var=2, n_obj=2, bounds=[(0.0, 1.0), (0.0, 1.0)], encoding="real",
+    constraints=lambda x: [x[0] + x[1] - 1.5], n_constraints=1,
+)
+result = optimize(
+    problem, algorithm="nsgaii", max_evaluations=400,
+    pop_size=40, engine="numpy", seed=7,
+)
+G = result.data["G"]
+feasible = np.all(G <= 0.0, axis=1)
+print(f"Feasible returned solutions: {feasible.sum()} / {len(feasible)}")
 ```
 
-Notes:
-- Constants must be scalar values (including 0-d arrays like `np.array(1.0)`).
-- Vector constants are not supported; expand them into separate constraints.
+`result.front()` filters objective-space dominance; it does not independently
+check constraint feasibility. See [Constraints](../reference/constraints.md)
+for handling modes and the [algorithm matrix](../reference/algorithms.md)
+for support. Internal symbolic-constraint modules are not part of this recipe's
+public API.
 
-## 3. Visualization Callback
+## 3. Progress callback
 
-Use `live_viz` to see progress or save frames.
+**Experimental custom interface.** `live_viz` expects `on_start`,
+`on_generation`, and `on_end`; it does not call `__call__(algorithm)`.
+A console observer needs no plotting extra:
 
 ```python
 from vamos import optimize
 
-class MyCallback:
-    def __call__(self, algorithm):
-        print(f"Gen {algorithm.n_gen}: {len(algorithm.pop)} solutions")
-        # Access population: algorithm.pop.get("F")
 
-optimize("zdt1", algorithm="nsgaii", max_evaluations=2000, live_viz=MyCallback())
+class Progress:
+    def __init__(self):
+        self.generations = []
+        self.finished = False
+
+    def on_start(self, ctx=None):
+        print("Run started")
+
+    def on_generation(self, generation, F=None, X=None, stats=None):
+        self.generations.append(generation)
+        if F is not None:
+            print(f"Generation {generation}: {len(F)} objective rows")
+
+    def on_end(self, final_F=None, final_stats=None):
+        self.finished = True
+        print("Run finished")
+
+
+progress = Progress()
+result = optimize(
+    "zdt1", algorithm="nsgaii", max_evaluations=400,
+    pop_size=40, engine="numpy", seed=7, live_viz=progress,
+)
+assert progress.generations and progress.finished
 ```
 
-## 4. Re-using Algorithm State (Checkpointing)
+Observe the supplied arrays without modifying them. Custom callbacks are not
+covered by the built-in exact-replay contract.
 
-VAMOS algorithms are stateful. You can `resume()` them if you manually stepped them, or pickle them (ensure backends are pickleable).
+## 4. Saving work and resuming a study
 
-*Note: Full checkpointing support is in active development.*
+**Stable:** save completed results with `save_result` (recipe 13), and use the
+[durable study lifecycle](studies.md) to resume pending/interrupted tasks or
+retry eligible failed tasks.
 
-## 5. Using Numba for Performance
+A saved run is a numerical result and its provenance, not a portable snapshot
+of an algorithm midway through a generation. Study resume does not promise to
+continue an interrupted algorithm at its last in-memory generation. Pickling
+algorithm objects is not a supported VAMOS checkpoint format. Internal
+checkpoint/state payloads have no public persistence guarantee.
 
-Select a backend via `optimize(..., engine=...)`.
+## 5. Using Numba
+
+**Stable backend selection; optional dependency.** Install the `compute` extra
+from [Installation](installation.md#optional-extras), then request it explicitly:
 
 ```python
 from vamos import optimize
 
-result = optimize("zdt1", algorithm="nsgaii", engine="numba", max_evaluations=5000)
+result = optimize(
+    "zdt1", algorithm="nsgaii", engine="numba",
+    max_evaluations=400, pop_size=40, seed=7,
+)
+print(result.F.shape)
 ```
 
-## 6. Comparing Algorithms
+The first use can include compilation time. Report warm-up separately in
+performance comparisons; cross-backend bitwise equality is not promised.
 
-Run multiple algorithms and plot their fronts together.
+## 6. Comparing algorithms visually
+
+**Stable optimization; external plotting dependency.** Install the `analysis`
+extra. Keep the problem, evaluation budget, population, and seed explicit:
 
 ```python
 import matplotlib.pyplot as plt
 from vamos import optimize
 
-res_nsga2 = optimize("zdt1", algorithm="nsgaii", max_evaluations=4000)
-res_moead = optimize("zdt1", algorithm="moead", max_evaluations=4000)
-
-plt.scatter(res_nsga2.F[:, 0], res_nsga2.F[:, 1], label="NSGA-II")
-plt.scatter(res_moead.F[:, 0], res_moead.F[:, 1], label="MOEA/D")
-plt.legend()
-plt.show()
+fig, ax = plt.subplots()
+for algorithm, label in [("nsgaii", "NSGA-II"), ("moead", "MOEA/D")]:
+    result = optimize(
+        "zdt1", algorithm=algorithm, max_evaluations=4000,
+        pop_size=80, engine="numpy", seed=7,
+    )
+    front = result.front()
+    assert front is not None
+    ax.scatter(front[:, 0], front[:, 1], s=12, label=label)
+ax.set(xlabel="f1 (minimize)", ylabel="f2 (minimize)")
+ax.legend()
+fig.savefig("algorithm-comparison.png", dpi=150, bbox_inches="tight")
+plt.close(fig)
 ```
 
-## 7. Inspect Auto-Resolved Defaults
+One seeded plot is illustrative, not an algorithm ranking. Use multiple seeds
+and problems for a comparative study; see [Analysis](../topics/analysis.md).
 
-See which top-level settings were inferred vs provided.
+## 7. Inspect resolved defaults
+
+**Stable.** Keep a bounded budget while asking VAMOS to resolve the algorithm
+and population defaults:
 
 ```python
 from vamos import optimize
 
-result = optimize("zdt1")
-print(result.explain_defaults())
+result = optimize("zdt1", max_evaluations=400, seed=7)
+explanation = result.explain_defaults()
+print(explanation["resolved_spec"])
+print(explanation["default_sources"])
 ```
 
-The output includes:
+The resolved specification includes the problem, algorithm, operators,
+backend, termination, seed, and population. Default sources distinguish
+inferred values from explicit settings.
 
-- `resolved_spec`: canonical problem, algorithm, operators, backend, termination, seed, and population details
-- `default_sources`: which values were inferred (`auto`) vs set explicitly
+## 8. Discover and configure operators
 
-## 8. Operator Facade Access
-
-Import common operators directly from `vamos.engine.operators`.
+**Stable.** Use operator identifiers through the public algorithm facade:
 
 ```python
-import numpy as np
-from vamos.engine.operators import SBXCrossover, PolynomialMutation
+from vamos.algorithms import available_crossover_methods, available_mutation_methods
 
-xl = np.zeros(30)
-xu = np.ones(30)
-crossover = SBXCrossover(prob_crossover=0.9, eta=15.0, lower=xl, upper=xu)
-mutation = PolynomialMutation(prob=1 / 30, eta=20.0, lower=xl, upper=xu)
+print(available_crossover_methods("real"))
+print(available_mutation_methods("real"))
+print(available_crossover_methods("permutation"))
 ```
 
-## 9. Multi-Seed Studies
+Pass identifiers to a configuration builder as in recipe 10. Direct operator
+classes in internal engine modules are for contributors; see
+[Adding an operator](../dev/add_operator.md).
 
-Pass a list of seeds to run a small study in one call.
+## 9. Multi-seed runs
+
+**Stable.** A list of seeds returns an in-memory `StudyResult`:
 
 ```python
 from vamos import optimize
-from vamos.ux.api import result_summary_text
 
-study = optimize("zdt1", algorithm="nsgaii", max_evaluations=4000, seed=[0, 1, 2, 3])
-for idx, res in enumerate(study.runs):
-    print(idx, result_summary_text(res))
-print(study.mean("evaluations"))
+study = optimize(
+    "zdt1", algorithm="nsgaii", max_evaluations=400,
+    pop_size=40, engine="numpy", seed=[0, 1, 2, 3],
+)
+for seed, result in zip([0, 1, 2, 3], study.runs):
+    print(seed, len(result.front()), result.data["evaluations"])
+print("Mean evaluations:", study.mean("evaluations"))
 ```
 
-## 10. Algorithm Config Objects (Reproducible Runs)
+This convenience does not create a durable study directory. For campaigns
+with saved plans, task history, and resume, use [Studies](studies.md).
 
-Use a config object when you want every knob explicit.
+## 10. Algorithm config objects
+
+**Stable.** Make population and variation settings explicit:
 
 ```python
 from vamos import optimize
@@ -177,157 +252,233 @@ from vamos.algorithms import NSGAIIConfig
 
 cfg = (
     NSGAIIConfig.builder()
-    .pop_size(100)
-    .offspring_size(100)
+    .pop_size(40)
+    .offspring_size(40)
     .crossover("sbx", prob=1.0, eta=20.0)
     .mutation("pm", prob="1/n", eta=20.0)
     .selection("tournament", size=2)
     .build()
 )
-
-result = optimize("zdt1", algorithm="nsgaii", algorithm_config=cfg, max_evaluations=8000, seed=7)
-```
-
-## 11. Multiprocessing Evaluation
-
-For expensive evaluations, use the multiprocessing backend explicitly.
-
-```python
-from vamos import optimize
-from vamos.foundation.eval.backends import MultiprocessingEvalBackend
-
-backend = MultiprocessingEvalBackend(n_workers=4)
-result = optimize("zdt1", algorithm="nsgaii", max_evaluations=6000, eval_strategy=backend)
-```
-
-## 12. Hypervolume-Based Early Stopping
-
-Use the lower-level experiment runner when you need non-default termination logic.
-
-```python
-from vamos.experiment.runner import run_experiment
-from vamos.foundation.core.experiment_config import ExperimentConfig
-from vamos.foundation.core.hv_stop import build_hv_stop_config
-
-hv_cfg = build_hv_stop_config(hv_threshold=0.9, hv_reference_front=None, problem_key="zdt1")
-hv_cfg["max_evaluations"] = 12000
-
-metrics = run_experiment(
-    problem="zdt1",
-    algorithm="nsgaii",
-    engine="numpy",
-    config=ExperimentConfig(max_evaluations=12000, seed=3),
-    termination=("hv", hv_cfg),
+result = optimize(
+    "zdt1", algorithm="nsgaii", algorithm_config=cfg,
+    max_evaluations=400, engine="numpy", seed=7,
 )
+print(result.F.shape)
 ```
 
-## 13. Save and Load a Run Artifact
+## 11. Multiprocessing evaluation
 
-Persist a complete v1 run and load its canonical numerical result later.
+Use the documented CLI options to select the evaluation strategy and worker
+count without importing an internal backend class. Parallel evaluation is for
+expensive independent objectives; process overhead can dominate this cheap
+demonstration:
+
+```bash
+vamos --problem zdt1 --algorithm nsgaii --engine numpy --population-size 40 --max-evaluations 400 --seed 7 --eval-strategy multiprocessing --n-workers 2 --output-root results/cookbook-multiprocessing
+```
+
+The single-run CLI is **Stable**; custom evaluators and distributed study
+ownership remain **Experimental**. This command distributes evaluations
+within one run, not concurrent mutation of a durable study.
+
+## 12. Hypervolume-based early stopping
+
+**Stable single-run CLI.** For built-in ZDT1, stop at a fraction of its reference
+hypervolume, with a hard evaluation cap:
+
+```bash
+vamos --problem zdt1 --algorithm nsgaii --engine numpy --population-size 40 --max-evaluations 400 --seed 7 --hv-threshold 0.9 --output-root results/cookbook-hv-stop
+```
+
+The small budget can expire before the 0.9 target is reached. The target is a
+reference-relative stopping criterion, not proof of convergence. See
+[CLI options](cli.md#key-flags) for `--hv-reference-front`.
+
+## 13. Save and load a run artifact
+
+**Stable.** Save a complete canonical run and load its result without executing
+optimization again:
 
 ```python
 from vamos import load_result, load_run, optimize, save_result
 
-result = optimize("zdt1", algorithm="nsgaii", max_evaluations=5000)
-stored = save_result(result, "results/zdt1_nsgaii")
-
+result = optimize(
+    "zdt1", algorithm="nsgaii", max_evaluations=400,
+    pop_size=40, engine="numpy", seed=7,
+)
+stored = save_result(result, "results/cookbook-run")
 loaded = load_result(stored.root)
 run = load_run(stored.root)
 print(loaded.F.shape, run.manifest.run_id)
 ```
 
-`save_result` is available from the top-level `vamos` facade only. See
-[Save and load Python run artifacts](run-artifacts.md) for integrity,
-resource-limit, and non-destructive-write behavior.
+The destination must not exist. See [Run artifacts](run-artifacts.md) for the
+layout, integrity checks, resource limits, and non-destructive writes.
 
-## 14. Select a Single Solution from the Front
+## 14. Select one solution
 
-Pick a balanced normalized-sum solution or a simple min objective.
+**Stable.** `balanced_sum` minimizes the sum after objective-wise normalization
+within the returned non-dominated set:
 
 ```python
 from vamos import optimize
 
-result = optimize("zdt1", algorithm="nsgaii", max_evaluations=5000)
+result = optimize(
+    "zdt1", algorithm="nsgaii", max_evaluations=400,
+    pop_size=40, engine="numpy", seed=7,
+)
 choice = result.best("balanced_sum")
-print(choice["F"])
+print("Decision:", choice["X"])
+print("Objectives:", choice["F"])
 ```
 
-## 15. Load a Stored Run Without Re-executing It
+This choice reflects one preference rule, not a uniquely optimal trade-off.
+For constrained runs, check feasibility before applying a preference rule.
 
-Loading stored data is intentionally distinct from reproduction. The v1 core
-implemented here does not expose replay or reproduction; use `load_result` for
-arrays and `load_run` for the immutable manifest and environment.
+## 15. Verify and reproduce a stored run
+
+**Stable. Requires recipe 13 first.** Loading reads stored data; verification
+checks integrity and compatibility; reproduction executes a new run using the
+stored resolved configuration and seed:
 
 ```python
-from vamos import load_run
+from vamos import load_run, reproduce, verify_run
 
-run = load_run("results/zdt1_nsgaii", verify="all")
+run = load_run("results/cookbook-run", verify="all")
 print(run.status, run.result.F.shape)
+verification = verify_run("results/cookbook-run", require_level="exact")
+print("Environment:", verification.environment.level)
+replay = reproduce("results/cookbook-run", output="results/cookbook-replay")
+assert replay.exact
+print(replay.exact, replay.output_root)
 ```
 
-## 16. Validate a Config File (CLI)
+Exact replay is available for supported built-ins in a matching material
+environment. Custom Python problems, plugins, and cross-backend replay are
+outside that contract. The output destination must not already exist.
 
-Check a YAML/JSON experiment spec before running:
+## 16. Validate a config file
+
+**Stable.** Save this as `experiment.json` in your working folder:
+
+```json
+{
+  "version": "1",
+  "defaults": {
+    "problem": "zdt1",
+    "algorithm": "nsgaii",
+    "engine": "numpy",
+    "population_size": 40,
+    "max_evaluations": 400,
+    "seed": 7,
+    "output_root": "results/cookbook-config"
+  }
+}
+```
+
+Validate first, then execute:
 
 ```bash
-vamos --config configs/experiment.yaml --validate-config
+vamos --config experiment.json --validate-config
+vamos --config experiment.json
 ```
 
-## 17. Convert Results to a DataFrame (pandas)
+See [CLI and config files](cli.md) for overrides.
 
-Export results for analysis in pandas (requires the `analysis` extra).
+## 17. Export a DataFrame
+
+**Experimental analysis helper.** Install the `analysis` extra. This exports
+the returned result rows, which need not all be non-dominated:
 
 ```python
+from pathlib import Path
 from vamos import optimize
 from vamos.ux.api import result_to_dataframe
 
-result = optimize("zdt1", algorithm="nsgaii", max_evaluations=4000)
+result = optimize(
+    "zdt1", algorithm="nsgaii", max_evaluations=400,
+    pop_size=40, engine="numpy", seed=7,
+)
+output = Path("exports/zdt1-results.csv")
+output.parent.mkdir(parents=True, exist_ok=True)
 df = result_to_dataframe(result)
-df.to_csv("results/zdt1_nsgaii_front.csv", index=False)
+df.to_csv(output, index=False)
+print(output, df.shape)
 ```
 
-## 18. Combine Fronts from Multiple Runs
+## 18. Combine fronts from multiple runs
 
-Merge fronts from multiple runs and keep the non-dominated set.
+**Stable result API.** Form a pooled objective-space non-dominated set. The
+combined object below is an analysis container, not a new optimization run:
 
 ```python
 import numpy as np
+from vamos import OptimizationResult, optimize
 
-from vamos import optimize
-from vamos.foundation.quality_indicators.pareto import pareto_filter
-
-study = optimize("zdt1", algorithm="nsgaii", max_evaluations=4000, seed=[0, 1, 2])
-combined = np.vstack([res.F for res in study.runs if res.F is not None])
-front = pareto_filter(combined, return_indices=False)
+study = optimize(
+    "zdt1", algorithm="nsgaii", max_evaluations=400,
+    pop_size=40, engine="numpy", seed=[0, 1, 2],
+)
+combined = np.vstack([result.F for result in study.runs])
+front = OptimizationResult({"F": combined}).front()
+assert front is not None
+print(f"Pooled rows: {len(combined)}; non-dominated: {len(front)}")
 ```
 
-## 20. Compute Hypervolume (2D)
+Pool only the same objective definitions, units, and feasibility conventions.
+The pooled set is an empirical reference, not the known true Pareto front.
 
-Compute hypervolume for 2D minimization fronts.
+## 19. Compute hypervolume
+
+**Experimental third-party integration.** The `compute` extra installs MooCore.
+Use its public function instead of importing VAMOS's internal numerical helpers:
 
 ```python
 import numpy as np
-
+from moocore import hypervolume
 from vamos import optimize
-from vamos.foundation.quality_indicators import compute_hypervolume
 
-result = optimize("zdt1", algorithm="nsgaii", max_evaluations=4000)
-F = np.asarray(result.F)
-hv = compute_hypervolume(F, ref_point=[1.1, 1.1])
-print(hv)
+result = optimize(
+    "zdt1", algorithm="nsgaii", max_evaluations=400,
+    pop_size=40, engine="numpy", seed=7,
+)
+front = result.front()
+assert front is not None
+reference_point = np.array([1.1, 11.0])
+hv = float(hypervolume(front, ref=reference_point))
+print("Hypervolume:", hv)
 ```
 
-## 21. Normalized HV for ZDT Problems
+Both objectives are minimized. This fixed point is worse than the full ZDT1
+objective bounds on its default box. Use the **same reference point** when
+comparing runs; changing it changes the indicator's meaning.
 
-Use the built-in reference front to compute normalized hypervolume on ZDT.
+## 20. Reference-relative hypervolume for ZDT1
+
+**Experimental third-party integration; requires `compute`.** Normalize using
+a sampled analytical ZDT1 front and the same reference point in numerator and
+denominator:
 
 ```python
 import numpy as np
-
+from moocore import hypervolume
 from vamos import optimize
-from vamos.foundation.quality_indicators import compute_normalized_hv
 
-result = optimize("zdt1", algorithm="nsgaii", max_evaluations=4000)
-hv_norm = compute_normalized_hv(np.asarray(result.F), "zdt1")
-print(hv_norm)
+result = optimize(
+    "zdt1", algorithm="nsgaii", max_evaluations=400,
+    pop_size=40, engine="numpy", seed=7,
+)
+front = result.front()
+assert front is not None
+f1 = np.linspace(0.0, 1.0, 1001)
+reference_front = np.column_stack([f1, 1.0 - np.sqrt(f1)])
+reference_point = np.array([1.1, 11.0])
+hv = float(hypervolume(front, ref=reference_point))
+reference_hv = float(hypervolume(reference_front, ref=reference_point))
+print("Reference-relative HV:", hv / reference_hv)
 ```
+
+This ratio depends on the reference point and the discretization of the
+analytical front. It is not a universal percentage of convergence. Record
+both when reporting results; values from different reference conventions are
+not directly comparable.

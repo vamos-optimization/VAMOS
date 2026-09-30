@@ -65,6 +65,18 @@ body {
   letter-spacing: -0.01em;
 }
 
+/* A compact vector adaptation of the existing VAMOS mark accompanies the title. */
+.md-header__button.md-logo img {
+  width: 2.25rem;
+  height: 1.65rem;
+  object-fit: contain;
+}
+
+.md-nav__title .md-logo img {
+  width: 3rem;
+  height: auto;
+}
+
 .md-tabs {
   background: var(--vamos-navy-deep);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
@@ -128,6 +140,27 @@ body {
 
 .md-typeset pre > code {
   border-radius: 0.6rem;
+}
+
+/* Copy controls remain discoverable without hover and support keyboard focus. */
+.md-typeset .md-clipboard {
+  color: var(--vamos-teal-dark);
+  opacity: 1;
+}
+
+[data-md-color-scheme="slate"] .md-typeset .md-clipboard {
+  color: #99F6E4;
+}
+
+.md-typeset .md-clipboard:hover,
+.md-typeset .md-clipboard:focus-visible {
+  color: var(--md-typeset-a-color);
+}
+
+.md-typeset .md-clipboard:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+  border-radius: 0.2rem;
 }
 
 .vamos-hero {
@@ -308,14 +341,15 @@ body {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
-  margin: 0 0 3.2rem;
+  margin: 0 0 1.6rem;
 }
 
 .vamos-journey {
-  display: block;
+  display: flex;
+  flex-direction: column;
   position: relative;
   min-width: 0;
-  padding: 1.45rem;
+  padding: 1.15rem;
   border: 1px solid var(--vamos-border);
   border-radius: 0.9rem;
   background: var(--md-default-bg-color);
@@ -359,12 +393,14 @@ body {
   margin: 0;
   color: var(--vamos-muted);
   font-size: 0.82rem;
+  font-weight: 400;
   line-height: 1.65;
 }
 
 .vamos-journey__link {
   display: inline-block;
-  margin-top: 1rem;
+  margin-top: auto;
+  padding-top: 0.85rem;
   color: var(--vamos-teal-dark);
   font-size: 0.78rem;
   font-weight: 750;

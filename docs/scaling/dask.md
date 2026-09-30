@@ -15,16 +15,20 @@ backend internals.
 Install VAMOS with the optional distributed-compute dependencies:
 
 ```bash
-pip install "vamos-optimization[compute]"
+python -m pip install "vamos-optimization[compute]==1.0.0"
 ```
 
-For a local editable checkout, the equivalent developer command is
-`pip install -e ".[compute]"`.
+For environment setup, see [Installation](../guide/installation.md). For an
+editable development installation, follow the separate
+[source-checkout instructions](../guide/installation.md#install-from-a-source-checkout).
 
 ## Quick Start
 
 Create the Dask client first, then ask VAMOS to use the experimental Dask
 strategy. VAMOS discovers the active client and does not own or close it.
+Save the following as a Python script and run it with `python dask_demo.py`.
+The `if __name__ == "__main__"` guard prevents worker processes from starting
+the cluster again when they import the script.
 
 ```python
 from dask.distributed import Client, LocalCluster
@@ -32,24 +36,29 @@ from dask.distributed import Client, LocalCluster
 from vamos import make_problem_selection, optimize
 from vamos.algorithms import NSGAIIConfig
 
-problem = make_problem_selection("zdt1", n_var=30).instantiate()
-algo_cfg = NSGAIIConfig.default(pop_size=100, n_var=problem.n_var)
+def main():
+    problem = make_problem_selection("zdt1", n_var=30).instantiate()
+    algo_cfg = NSGAIIConfig.default(pop_size=100, n_var=problem.n_var)
 
-with LocalCluster(
-    n_workers=4,
-    threads_per_worker=1,
-    dashboard_address=None,
-) as cluster:
-    with Client(cluster):
-        result = optimize(
-            problem,
-            algorithm="nsgaii",
-            algorithm_config=algo_cfg,
-            max_evaluations=10_000,
-            seed=42,
-            engine="numpy",
-            eval_strategy="dask",
-        )
+    with LocalCluster(
+        n_workers=4,
+        threads_per_worker=1,
+        dashboard_address=None,
+    ) as cluster:
+        with Client(cluster):
+            result = optimize(
+                problem,
+                algorithm="nsgaii",
+                algorithm_config=algo_cfg,
+                max_evaluations=10_000,
+                seed=42,
+                engine="numpy",
+                eval_strategy="dask",
+            )
+
+
+if __name__ == "__main__":
+    main()
 ```
 
 ## Connecting to an Existing Cluster
@@ -90,6 +99,10 @@ If Dask is not installed, install the `compute` extra shown above.
 
 ## Kubernetes Deployment
 
+The following is a conceptual resource fragment, **not a complete deployment
+manifest**. Supply the worker and scheduler configuration required by your
+cluster operator before applying it.
+
 ```yaml
 # dask-cluster.yaml
 apiVersion: kubernetes.dask.org/v1
@@ -123,8 +136,9 @@ cheap workload.
 
 ## Complete Example
 
-See `examples/distributed/dask_cluster.py` for an executable experimental
-example.
+See the [Dask example source](https://github.com/vamos-optimization/VAMOS/blob/main/examples/distributed/dask_cluster.py)
+for an executable experimental example. Obtain the repository files as shown
+in [Examples](../examples.md#obtain-the-example-files), then run from its root.
 
 ```bash
 # Local comparison

@@ -249,4 +249,85 @@ import sys
 subprocess.run([sys.executable, "examples/journeys/understand_results.py"], check=True)
 """,
     ),
+    DocSmokeCase(
+        name="journey_moead_zdt1",
+        source_path="examples/journeys/moead_zdt1.py",
+        code="""
+import subprocess
+import sys
+
+subprocess.run(
+    [sys.executable, "examples/journeys/moead_zdt1.py", "--pop-size", "20", "--max-evaluations", "203"],
+    check=True,
+)
+""",
+    ),
+    DocSmokeCase(
+        name="journey_nsgaiii_dtlz2",
+        source_path="examples/journeys/nsgaiii_dtlz2.py",
+        code="""
+import subprocess
+import sys
+
+subprocess.run(
+    [sys.executable, "examples/journeys/nsgaiii_dtlz2.py", "--divisions", "3", "--max-evaluations", "203"],
+    check=True,
+)
+""",
+    ),
+    DocSmokeCase(
+        name="journey_prepare_studio_demo",
+        source_path="examples/journeys/prepare_studio_demo.py",
+        code="""
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+with tempfile.TemporaryDirectory() as tmp:
+    output = Path(tmp) / "study"
+    subprocess.run(
+        [sys.executable, "examples/journeys/prepare_studio_demo.py", "--output", str(output),
+         "--pop-size", "20", "--max-evaluations", "80"],
+        check=True,
+    )
+    assert (output / "study-manifest.json").is_file()
+""",
+    ),
+    DocSmokeCase(
+        name="constraints_public_example",
+        source_path="docs/reference/constraints.md",
+        code="""
+import re
+from pathlib import Path
+
+text = Path("docs/reference/constraints.md").read_text(encoding="utf-8")
+blocks = [part.partition("```")[0] for part in text.split("```python")[1:]]
+assert blocks
+namespace = {}
+exec(compile(blocks[0], "docs/reference/constraints.md", "exec"), namespace)
+assert namespace["result"].data["evaluations"] == 400
+assert namespace["feasible"].any()
+""",
+    ),
+    DocSmokeCase(
+        name="cookbook_public_lifecycle",
+        source_path="docs/guide/cookbook.md",
+        code="""
+import re
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+text = Path("docs/guide/cookbook.md").read_text(encoding="utf-8")
+blocks = []
+for number in (3, 13, 15):
+    section = re.search(rf"^## {number}\\..*?(?=^## |\\Z)", text, flags=re.MULTILINE | re.DOTALL)
+    assert section is not None
+    blocks.extend(part.partition("```")[0] for part in section.group().split("```python")[1:])
+with tempfile.TemporaryDirectory() as tmp:
+    subprocess.run([sys.executable, "-c", (chr(10) * 2).join(blocks)], cwd=tmp, check=True)
+""",
+    ),
 ]

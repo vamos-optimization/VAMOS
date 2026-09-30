@@ -1,5 +1,13 @@
 # VAMOS Assist
 
+!!! warning "Experimental workflow in VAMOS 1.0.0"
+    The Assist CLI, provider integrations, generated plans, and convenience
+    artifacts are Experimental. They may change in a minor release; see
+    [Stability and versioning](project/stability-and-versioning.md).
+
+Start with the [core installation](guide/installation.md). Template-first
+planning needs no provider extra.
+
 VAMOS Assist provides a no-code workflow for planning, materializing, and running experiments from the command line. You can use deterministic template-first planning or optional LLM-assisted planning. Every step writes reproducible artifacts to disk, and generated configs are validated against the ExperimentSpec v1 schema before execution.
 
 ## Quick Start (Template-First, No API Keys)
@@ -50,13 +58,13 @@ Note: `execution_mode` can be `"in_process"` or `"subprocess"` (fallback). The a
 Install optional dependencies:
 
 ```bash
-pip install vamos-optimization[openai]
+python -m pip install "vamos-optimization[openai]==1.0.0"
 ```
 
 Alternative:
 
 ```bash
-pip install openai
+python -m pip install openai
 ```
 
 Set your API key:
@@ -125,13 +133,13 @@ Expected JSON output (example):
 Install optional dependency support:
 
 ```bash
-pip install vamos-optimization[openai]
+python -m pip install "vamos-optimization[openai]==1.0.0"
 ```
 
 Alternative:
 
 ```bash
-pip install openai
+python -m pip install openai
 ```
 
 Set your key:
@@ -250,9 +258,10 @@ Run directory (`assist run` / `assist go --smoke`):
 
 ## Troubleshooting
 
-- Missing OpenAI SDK: install optional deps with `pip install vamos-optimization[openai]` (or `pip install openai`).
+- Missing OpenAI SDK: install optional deps with `python -m pip install "vamos-optimization[openai]==1.0.0"` (or `python -m pip install openai`).
 - Missing API key: set `OPENAI_API_KEY` and open a new shell session if needed.
 - Run diagnostics first: `vamos assist doctor`.
 - Invalid auto overrides: VAMOS filters/rejects unsupported keys and records requested/applied/rejected overrides in `plan.json`.
 
-For development installs, you can also use the same `vamos assist ...` commands after installing the repo in editable mode.
+For development installs, you can also use the same `vamos assist ...` commands after following
+[Install from a source checkout](guide/installation.md#install-from-a-source-checkout).

@@ -15,7 +15,28 @@ seed blocks and ranks them by a scalar quality score.
 This page is about configuring optimization algorithms. If the variables in
 *your optimization problem* are model hyperparameters (for example SVM `C` and
 `gamma`), that is a different workflow; see
-`examples/tuning/hyperparam_tuning.py` for that formulation.
+[`examples/tuning/hyperparam_tuning.py`](https://github.com/vamos-optimization/VAMOS/blob/main/examples/tuning/hyperparam_tuning.py) for that formulation.
+
+## Published release versus current source
+
+The install command below selects the published **1.0.0 wheel**. Some scorer
+corrections described on this page are present in the current repository but
+are **not included in that wheel**:
+
+| Behavior | Published PyPI 1.0.0 | Current repository source |
+| --- | --- | --- |
+| HV input | Top-level `result.F`; may be population, archive, or SMPSO leaders depending on the algorithm/configuration | Feasible non-dominated final population |
+| External-archive search parameters | Included where defined by the search-space builder | Removed from ordinary CLI tuning |
+| Optuna persistent study name | User-supplied name, without the scoring-contract suffix | Adds `__vamos_cli_final_population_hv_v1` |
+| AGE-MOEA/RVEA constraint handling | Constraints are not used in survival | Feasibility-aware behavior when enabled |
+
+The **current-source** scoring, archive-search, and persistence sections below
+apply to the right-hand column. Do not assume those corrections are installed
+because `vamos.__version__` prints `1.0.0`: record whether you used the published
+wheel or a specific source commit. For a release-only campaign, fix and verify
+the result source before comparing candidates; do not mix persisted tuning
+trials from the two implementations. See also the
+[algorithm release caveats](../reference/algorithms.md#published-release-versus-current-source).
 
 ## Programmatic API status
 
@@ -46,9 +67,9 @@ comparison:
 6. **Aggregation rule** — how repeated problem/seed scores become one scalar
    tuning score.
 
-### Current CLI scoring contract: hypervolume
+### Current-source CLI scoring contract: hypervolume
 
-The maintained `vamos tune` CLI currently has **no metric selector**. It scores
+In the current repository source, the maintained `vamos tune` CLI has **no metric selector**. It scores
 candidate runs with **hypervolume (HV) and maximizes that score**.
 
 The score source is fixed: VAMOS takes the **final population**, removes
@@ -63,8 +84,8 @@ parameter space aligned with the set actually used for scoring. Archive design
 can still be studied explicitly in a separate controlled experiment, but it is
 not mixed into ordinary `vamos tune` comparisons.
 
-!!! note "Constrained AGE-MOEA and RVEA"
-    AGE-MOEA and RVEA preserve population-aligned constraint values whenever
+!!! note "Constrained AGE-MOEA and RVEA (current source)"
+    In the current source, AGE-MOEA and RVEA preserve population-aligned constraint values whenever
     constraint handling is active, so constrained runs can use the same
     final-population HV scoring contract as the other maintained algorithms.
     Their stable `constraint_mode="none"` setting remains an explicit opt-out:
@@ -120,14 +141,12 @@ Model-based backends (`optuna`, `smac3`, `bohb`, and `bohb_optuna`) require the
 optional tuning dependencies:
 
 ```bash
-pip install "vamos-optimization[tuning]"
+python -m pip install "vamos-optimization[tuning]==1.0.0"
 ```
 
-From a local checkout:
-
-```bash
-pip install -e ".[tuning]"
-```
+For an editable development installation, follow
+[Install from a source checkout](../guide/installation.md#install-from-a-source-checkout)
+and select the `tuning` extra from the repository root.
 
 ## Start with a core-installation run
 
@@ -235,7 +254,7 @@ independently designed final comparison on held-out blocks.
 
 ### Persistent Optuna studies are scoring-contract versioned
 
-When `optuna` or `bohb_optuna` uses `--optuna-storage`, the maintained CLI treats
+In the current source, when `optuna` or `bohb_optuna` uses `--optuna-storage`, the maintained CLI treats
 `--optuna-study-name` as a base name and appends
 `__vamos_cli_final_population_hv_v1` to the effective persisted study name. The
 same versioned namespace is used whether `--optuna-load-if-exists` is enabled or
@@ -314,7 +333,7 @@ schedule, and split is not a reproducible tuning result.
 
 ## Archive studies are separate from ordinary CLI tuning
 
-The maintained CLI intentionally excludes external-archive controls from its
+The current-source CLI intentionally excludes external-archive controls from its
 ordinary algorithm-configuration search so every candidate is compared on the
 same final-population basis. If archive capacity, pruning, or archive-enabled
 result semantics are themselves the research question, define them explicitly
@@ -360,9 +379,9 @@ table is an analysis artifact, not resume authority.
 
 For executable ablation material, see:
 
-- `examples/tuning/ablation_runner.py`;
-- `notebooks/2_advanced/32_ablation_planning.ipynb`;
-- `examples/configs/study_nsgaii.json` for a configuration whose keys map to
+- [`examples/tuning/ablation_runner.py`](https://github.com/vamos-optimization/VAMOS/blob/main/examples/tuning/ablation_runner.py);
+- [`notebooks/2_advanced/32_ablation_planning.ipynb`](https://github.com/vamos-optimization/VAMOS/blob/main/notebooks/2_advanced/32_ablation_planning.ipynb);
+- [`examples/configs/study_nsgaii.json`](https://github.com/vamos-optimization/VAMOS/blob/main/examples/configs/study_nsgaii.json) for a configuration whose keys map to
   `StudySpec`.
 
 When interpreting variant contributions, define the metric, replicate

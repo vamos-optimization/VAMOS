@@ -6,20 +6,20 @@ This page defines the source-of-truth boundaries for VAMOS documentation while t
 
 | Content | Canonical source |
 | --- | --- |
-| Installation | `docs/guide/installation.md` |
-| First optimization and progression to saved runs/studies | `docs/guide/zero_to_hero.md` |
-| Navigation between beginner workflows | `docs/guide/getting-started.md` |
-| User-defined objective functions and constraints | `docs/guide/custom-problem.md` |
-| Durable studies | `docs/guide/studies.md` |
-| Individual run persistence, verification, and replay | `docs/guide/run-artifacts.md` |
-| Public API navigation and preserved bookmarks | `docs/reference/api_reference.md` |
+| Installation | [installation](../guide/installation.md) |
+| First optimization and progression to saved runs/studies | [zero to hero](../guide/zero_to_hero.md) |
+| Navigation between beginner workflows | [getting started](../guide/getting-started.md) |
+| User-defined objective functions and constraints | [custom problem](../guide/custom-problem.md) |
+| Durable studies | [studies](../guide/studies.md) |
+| Individual run persistence, verification, and replay | [run artifacts](../guide/run-artifacts.md) |
+| Public API navigation and preserved bookmarks | [api reference](../reference/api_reference.md) |
 | Public API signatures | Python code and docstrings rendered through the focused pages in `docs/reference/api/` |
 | API documentation maintenance | [Maintaining the API documentation](api-documentation.md) |
 | Algorithm/problem contracts | `docs/reference/` plus the implementation and tests they describe |
 | Executable scripts | `examples/` |
 | Executable notebooks | `notebooks/` |
 | Citation metadata | `CITATION.cff` |
-| Stable compatibility commitments | `docs/project/stability-and-versioning.md` |
+| Stable compatibility commitments | [stability and versioning](../project/stability-and-versioning.md) |
 | Contributor contracts | `docs/dev/` |
 
 A user-facing page may summarize another source, but it should link to the canonical page instead of copying a second installation procedure, API table, or lifecycle description.

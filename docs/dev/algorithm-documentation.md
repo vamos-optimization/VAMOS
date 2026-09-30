@@ -1,6 +1,6 @@
 # Maintaining algorithm tutorials
 
-The canonical algorithm index remains at [Algorithms and backends](../reference/algorithms.md). Teaching pages live in `docs/algorithms/`; [NSGA-II](../algorithms/nsgaii.md) is the first complete template. Generated signatures and builder methods belong to the separate [configuration reference](../reference/api/algorithms/index.md). Do not maintain a second manual table of all API defaults or promote undocumented internals to a public interface.
+The canonical algorithm index remains at [Algorithms and backends](../reference/algorithms.md). Teaching pages live in `docs/algorithms/`; [NSGA-II](../algorithms/nsgaii.md), [MOEA/D](../algorithms/moead.md), and [NSGA-III](../algorithms/nsgaiii.md) have executable examples and result interpretations. Generated signatures and builder methods belong to the separate [configuration reference](../reference/api/algorithms/index.md). Do not maintain a second manual table of all API defaults or promote undocumented internals to a public interface.
 
 ## Source and figure ownership
 
@@ -12,12 +12,23 @@ The initial illustration was generated with VAMOS 1.0.0, Python 3.13.5, NumPy 2.
 
 To update it, run the example with `--output` pointing to a **new temporary SVG file**, review the output, then replace the maintained illustration deliberately. The generator refuses overwrites. Keep the visible settings and this provenance aligned with the regenerated file. Do not edit point positions by hand or generate a front independently of the example.
 
+The decomposition tutorials add two explicitly owned illustrations:
+
+| Tutorial | Generator | Maintained illustration |
+| --- | --- | --- |
+| MOEA/D on ZDT1 | `examples/journeys/moead_zdt1.py` | `docs/assets/algorithms/moead-zdt1.svg` |
+| NSGA-III on DTLZ2 | `examples/journeys/nsgaiii_dtlz2.py` | `docs/assets/algorithms/nsgaiii-dtlz2.svg` |
+
+Both figures were generated with the installed PyPI VAMOS 1.0.0 wheel, Python 3.12.14, NumPy 2.5.3 and Matplotlib 3.11.2, with NumPy and seed 42. MOEA/D used 30-variable ZDT1, population 100 and 10,000 evaluations, returning 60 objective vectors. NSGA-III used DTLZ2 with 12 variables and three objectives, 12 lattice divisions, population 91 and 10,000 evaluations, returning the explicit final population. The dashed ZDT1 curve and DTLZ2 wireframe are analytical references, not optimization results. Regenerate through the owning script to a new temporary SVG and review before replacing the maintained file.
+
+The catalogue targets published 1.0.0 and separately records post-release source fixes. Its backend evidence is a real-coded, unconstrained ZDT1 smoke for nine algorithms and three backends, not full Cartesian-product validation. Preserve that distinction when extending the matrix. In particular, inspect actual survival rather than inferring constraint support from a configuration field.
+
 ## Validation
 
-Follow the [canonical validation tiers](testing.md#canonical-tiers). The focused regression file is `tests/docs/test_nsgaii_tutorial.py`; the no-plot command is also registered in `tests/docs/smoke_manifest.py`.
+Follow the [canonical validation tiers](testing.md#canonical-tiers). The focused regression files are `tests/docs/test_nsgaii_tutorial.py` and `tests/docs/test_decomposition_tutorials.py`; the no-plot commands are registered in `tests/docs/smoke_manifest.py`. The decomposition checks exercise both full tutorial blocks, generator agreement, exact partial budgets, NSGA-III cardinality rejection, actual objective values, SVG provenance and overwrite refusal. Backend smoke coverage uses numeric mutation probability for the published RVEA path.
 
 The focused tests execute the tutorial's first Python block, compare it with the example at the same settings, validate shapes, bounds, objective values and exact evaluation count, exercise the explicit builder, and check optional SVG generation and overwrite refusal. They do not impose a convergence threshold, compare wall-clock performance or assert bitwise identity across environments. Review the rendered page, figure, table and code at mobile/desktop widths and in both themes; strict builds are not a substitute for that review. Zensical compatibility and the versioned portal checks must remain green.
 
 ## Extending the catalogue
 
-Add a teaching page only when it has a checked example and an interpretation of its output. Until then, the index should link to the available configuration reference rather than to an empty tutorial. MOEA/D and NSGA-III are the next candidates after the NSGA-II template is accepted. Do not change hosting, runtime algorithms, dependency policy or archive-preservation rules as incidental documentation cleanup.
+Add a teaching page only when it has a checked example and an interpretation of its output. Until then, the index should link to the available configuration reference rather than to an empty tutorial. MOEA/D and NSGA-III now follow this pattern. Add further tutorials only with equivalent executable evidence and explicit release/version scope. Do not change hosting, runtime algorithms, dependency policy or archive-preservation rules as incidental documentation cleanup.

@@ -11,7 +11,7 @@ The current canonical subcommands are `quickstart`, `create-problem`, `summarize
 3. Reuse `add_spec_argument(...)` for values shared with machine-readable experiment specs and keep defaults aligned with `ExperimentConfig`/algorithm config.
 4. Delegate domain behavior to its owning layer; CLI modules translate inputs, render results, and return a meaningful exit status.
 5. Add subprocess tests for help, valid invocation, invalid input, exit status, and outputs. Use `tmp_path` and tiny exact budgets.
-6. Update `docs/guide/cli.md` for user behavior and its docs smoke test when the command is published.
+6. Update [cli](../guide/cli.md) for user behavior and its docs smoke test when the command is published.
 
 The canonical run commands have separate responsibilities:
 

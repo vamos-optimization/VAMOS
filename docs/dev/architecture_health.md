@@ -92,9 +92,9 @@ The canonical environment, path inventory, diagnostic fingerprint schema, baseli
 - CLI logging config happens at invocation only via local handlers.
 
 ## Extension guides
-- Problems: `docs/dev/add_problem.md`.
-- Operators: `docs/dev/add_operator.md`.
-- Algorithms: `docs/dev/add_algorithm.md`.
-- Backends: `docs/dev/add_backend.md`.
-- Metrics: `docs/dev/add_metric.md`.
-- Testing: `docs/dev/testing.md`.
+- Problems: [add problem](add_problem.md).
+- Operators: [add operator](add_operator.md).
+- Algorithms: [add algorithm](add_algorithm.md).
+- Backends: [add backend](add_backend.md).
+- Metrics: [add metric](add_metric.md).
+- Testing: [testing](testing.md).
