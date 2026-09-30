@@ -15,7 +15,7 @@ If Python itself is still new to you, begin with the [Minimal Python Track](mini
 
 Use [Solve your own problem](custom-problem.md) to define objectives, bounds, encodings, vectorized evaluation, and constraints with `make_problem(...)`.
 
-Use `vamos create-problem` when you prefer a generated file scaffold. Adding a reusable built-in problem to VAMOS is a contributor workflow and is documented separately in [Adding a problem](../dev/add_problem.md).
+Use the **Experimental** `vamos create-problem` command when you prefer a generated file scaffold. Adding a reusable built-in problem to VAMOS is a contributor workflow and is documented separately in [Adding a problem](../dev/add_problem.md).
 
 ## Run a reproducible study
 
@@ -30,7 +30,8 @@ Use [Run artifacts & replay](run-artifacts.md) for individual persisted runs and
 | A Python script or notebook | `vamos.optimize(...)` |
 | Interpret `X`, `F`, and a non-dominated subset | `OptimizationResult` + [Understanding results](understanding-results.md) |
 | A plain Python objective function | `vamos.make_problem(...)` + `vamos.optimize(...)` |
-| A guided command-line workflow | `vamos quickstart` or the stable CLI commands documented in [CLI & Config](cli.md) |
+| A stable command-line workflow | The main runner, run-artifact commands, and study commands in [CLI & Config](cli.md) |
+| An interactive onboarding wizard | **Experimental** `vamos quickstart` |
 | Multiple seeds in one small call | `optimize(..., seed=[...])` returning `StudyResult` |
 | A persistent experiment matrix | `StudySpec`, `plan_study`, `create_study`, and `Study.run()` |
 | Exact parameters for a built-in algorithm | Public configuration objects from `vamos.algorithms` |
@@ -42,4 +43,4 @@ VAMOS 1.0 uses NumPy as its deterministic reference backend. Reproducibility is 
 - [Examples](../examples.md) — choose maintained scripts, notebooks, or task-oriented guides.
 - [Troubleshooting](troubleshooting.md) — installation, dependency, configuration, and runtime issues.
 - [Algorithms & Backends](../reference/algorithms.md) — algorithm-specific parameters and backend notes.
-- [Analysis & Visualization](../topics/analysis.md) — inspect and visualize optimization results.
+- [Analysis & Visualization](../topics/analysis.md) — Experimental helpers to inspect and visualize optimization results.

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block extrahead %}
+  {{ super() }}
+  {% set social_title = config.site_name %}
+  {% set social_description = config.site_description | default('', true) %}
+  {% set social_canonical_url = '' %}
+  {% if page is defined and page %}
+    {% set page_metadata = page.meta | default({}, true) %}
+    {% set social_title = (page_metadata.title | default(page.title | default(config.site_name, true), true)) ~ " · " ~ config.site_name %}
+    {% set social_description = page_metadata.description | default(social_description, true) %}
+    {% set social_canonical_url = page.canonical_url | default('', true) %}
+  {% endif %}
+  {% set social_image = (config.site_url | trim('/')) ~ '/assets/vamos_logo.png' %}
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="{{ config.site_name | e }}">
+  <meta property="og:title" content="{{ social_title | e }}">
+  <meta property="og:description" content="{{ social_description | e }}">
+  {% if social_canonical_url %}<meta property="og:url" content="{{ social_canonical_url | e }}">{% endif %}
+  <meta property="og:image" content="{{ social_image | e }}">
+  <meta property="og:image:width" content="2048">
+  <meta property="og:image:height" content="1117">
+  <meta property="og:image:alt" content="VAMOS — Vectorized Multi-Objective Optimization">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ social_title | e }}">
+  <meta name="twitter:description" content="{{ social_description | e }}">
+  <meta name="twitter:image" content="{{ social_image | e }}">
+  <meta name="twitter:image:alt" content="VAMOS — Vectorized Multi-Objective Optimization">
+{% endblock %}

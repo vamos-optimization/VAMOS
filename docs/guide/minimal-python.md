@@ -1,110 +1,115 @@
 # Minimal Python Track
 
-If you can run a command and copy-paste, this track is for you.
-Goal: run an experiment and get results in minutes, without learning all the jargon up front.
+Run an experiment and inspect its results from a terminal. You do not need to
+write Python code for this path.
 
-> Status as of March 31, 2026: the quickstart wizard and the base single-run CLI are smoke-tested for the standard NSGA-II/ZDT1 path. If you want the absolute shortest path to a first script, the Python API in `docs/guide/getting-started.md` is still the lightest option.
+> **Stable in VAMOS 1.0.0:** the single-run, inspection, verification, and replay
+> commands below. The optional quickstart wizard is **Experimental**. See
+> [Stability and versioning](../project/stability-and-versioning.md).
 
 ## 1. Install
 
-Create a virtual environment and install VAMOS:
+Follow [Installation](installation.md) to create and activate a virtual
+environment for your operating system. Install the published package from any
+working folder:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .\.venv\Scripts\Activate.ps1
-pip install -e ".[analysis]"
+python -m pip install "vamos-optimization==1.0.0"
+python -c "import vamos; print(vamos.__version__)"
 ```
 
-If you do not need plots, you can install just the core:
+The second command should print `1.0.0`. No repository checkout is needed.
+Optional plotting dependencies are described in
+[Installation: optional extras](installation.md#optional-extras).
+
+## 2. Run a first experiment
+
+This small, seeded run uses NSGA-II on the two-objective ZDT1 benchmark:
 
 ```bash
-pip install -e .
+vamos --problem zdt1 --algorithm nsgaii --engine numpy --population-size 40 --max-evaluations 400 --seed 7 --output-root results/first-run
 ```
 
-## 2. Run the guided wizard
+The budget is deliberately small: it checks the complete workflow, not
+convergence to the true Pareto front.
 
-The quickstart wizard asks a few questions, writes a config file, and runs one experiment:
+## 3. Inspect the result
+
+```bash
+vamos results inspect results/first-run/ZDT1/nsgaii/numpy/seed_7
+vamos results verify results/first-run/ZDT1/nsgaii/numpy/seed_7
+```
+
+The run directory contains:
+
+- `manifest.json`: requested and resolved settings, actual seed, outcome, and hashes.
+- `result.npz`: numerical decision, objective, population, and archive arrays.
+- `environment.json`: the recorded runtime environment.
+
+Inspection reports the run and array shapes. Verification checks the stored
+artifact and reports replay compatibility without rerunning optimization.
+See [Understanding results](understanding-results.md) for the difference
+between a returned population, its non-dominated subset, and the true front.
+
+## 4. Change the budget or replay exactly
+
+Give a larger run its own output root so the first result remains available:
+
+```bash
+vamos --problem zdt1 --algorithm nsgaii --engine numpy --population-size 40 --max-evaluations 4000 --seed 7 --output-root results/larger-run
+```
+
+To repeat the first run with its **stored** configuration and seed:
+
+```bash
+vamos reproduce results/first-run/ZDT1/nsgaii/numpy/seed_7 --output results/replays/first-run
+```
+
+Exact replay requires supported built-in components and the same materially
+relevant environment. A replay creates a new run; its destination must not
+already exist. See [Run artifacts](run-artifacts.md).
+
+## Optional: use the guided wizard
+
+**Experimental.** The wizard asks questions, writes a config file, and runs an
+experiment:
 
 ```bash
 vamos quickstart
 ```
 
-Want to see domain-flavored templates?
+For a bounded demonstration without prompts or plotting dependencies:
 
 ```bash
-vamos quickstart --template list
+vamos quickstart --template demo --yes --no-plot --engine numpy --pop-size 40 --budget 400 --seed 7 --output-root results/wizard --config-path quickstart.json
 ```
 
-Run a template without prompts:
+The wizard prints the actual config and result paths. Validate its generated
+config, then run it into a new output root:
 
 ```bash
-vamos quickstart --template physics_design --yes --no-plot
+vamos --config quickstart.json --validate-config
+vamos --config quickstart.json --max-evaluations 800 --output-root results/wizard-repeat
 ```
 
-## 3. Find your results
+Discover other templates with `vamos quickstart --template list`. The biology
+and chemistry templates need the `examples` extra from
+[Installation](installation.md#optional-extras).
 
-Results are stored under:
+## Glossary
 
-```
-results/quickstart/<PROBLEM>/.../seed_<N>/
-```
-
-Key files:
-
-- `manifest.json`: requested/resolved settings, actual seed, provenance, outcome, and hashes
-- `result.npz`: objective, decision, constraint, population, and archive arrays
-- `environment.json`: bounded runtime environment details
-- `pareto_front_*.png`: plot output outside the canonical run directory (if enabled)
-
-## 4. Re-run or change settings
-
-Re-run the same config:
-
-```bash
-vamos --config results/quickstart/quickstart_YYYYMMDD_HHMMSS.json
-```
-
-Change budget or seed without editing files:
-
-```bash
-vamos --config results/quickstart/quickstart_YYYYMMDD_HHMMSS.json --max-evaluations 8000 --seed 1
-```
-
-## 5. Quick summary
-
-List recent runs:
-
-```bash
-vamos summarize --results results/quickstart
-```
-
-Open the latest run folder:
-
-```bash
-vamos open-results --results results/quickstart --open
-```
-
-## Glossary (plain language)
-
-- Problem: the task you want to optimize (a dataset or a math function).
-- Algorithm: the search method (default is NSGA-II).
-- Objective: the quantity you want to minimize (often two or more).
-- Pareto front: the best trade-offs found so far (no single solution is best at everything).
-- Budget: how many evaluations to spend (more budget = longer run).
-- Population size: how many candidate solutions are kept each step.
-- Seed: fixes randomness so runs are repeatable.
-- Engine: compute backend (numpy is the default).
-
-## If something fails
-
-- Run: `vamos check` to verify your install.
-- For biology/chemistry templates, install scikit-learn:
-  `pip install -e ".[examples]"`.
-- For plots, install the analysis extras:
-  `pip install -e ".[analysis]"`.
+- **Problem:** the model or function to optimize.
+- **Objective:** one quantity to minimize; there can be several competing objectives.
+- **Non-dominated set:** solutions for which no other retained solution is no worse in every objective and strictly better in at least one.
+- **Pareto front:** the objective values of globally Pareto-optimal solutions; a short run usually returns only an approximation.
+- **Budget:** the maximum number of evaluations.
+- **Population size:** the number of candidates maintained by the algorithm.
+- **Seed:** controls randomness for repeatable runs in the same environment.
+- **Engine:** the computational backend; `numpy` is the reference default.
 
 ## Next steps
 
-- `docs/guide/getting-started.md` for the full API overview.
-- `docs/guide/cli.md` for CLI details and config files.
-- `docs/guide/cookbook.md` for copy-paste recipes.
+- [Troubleshooting](troubleshooting.md) for installation and run errors.
+- [Quickstart](getting-started.md) to move from terminal commands to Python.
+- [CLI and config files](cli.md) for the complete command reference.
+- [Cookbook](cookbook.md) for copy-paste Python recipes.

@@ -1,11 +1,17 @@
 site_name: VAMOS
 site_url: https://vamos-optimization.org/
-site_description: Vectorized Architecture for Multiobjective Optimization Studies
+site_description: "Multi-objective optimization in Python: compare algorithms, solve custom problems, and run reproducible studies with VAMOS."
 repo_url: https://github.com/vamos-optimization/VAMOS
 repo_name: vamos-optimization/VAMOS
 
+exclude_docs: |
+  overrides/
+
 theme:
   name: material
+  custom_dir: docs/overrides
+  logo: assets/vamos-mark.svg
+  favicon: assets/vamos-mark.svg
   font:
     text: DM Sans
     code: JetBrains Mono
@@ -112,6 +118,8 @@ nav:
     - Algorithms:
       - Overview and backends: reference/algorithms.md
       - NSGA-II guide: algorithms/nsgaii.md
+      - MOEA/D guide: algorithms/moead.md
+      - NSGA-III guide: algorithms/nsgaiii.md
     - Problems: reference/problems.md
     - Constraints: reference/constraints.md
     - Stopping & Archive: experiment/stopping_and_archive.md

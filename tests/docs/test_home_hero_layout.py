@@ -33,3 +33,26 @@ def test_homepage_hero_styles_are_loaded_after_the_base_identity_styles() -> Non
         "stylesheets/vamos.css",
         "stylesheets/home-hero.css",
     ]
+
+
+def test_homepage_has_one_heading_and_hides_only_its_own_sidebars() -> None:
+    homepage = (ROOT / "docs" / "index.md").read_text(encoding="utf-8")
+    metadata = yaml.safe_load(homepage.split("---", 2)[1])
+
+    assert set(metadata["hide"]) == {"navigation", "toc"}
+    assert metadata["title"] == "Multi-objective optimization in Python"
+    assert homepage.count("<h1>") == 1
+    assert not any(line.startswith("# ") for line in homepage.splitlines())
+
+
+def test_homepage_result_uses_the_maintained_real_run() -> None:
+    homepage = (ROOT / "docs" / "index.md").read_text(encoding="utf-8")
+
+    assert 'src="assets/results/understanding-results.svg"' in homepage
+    assert "pop_size=40" in homepage
+    assert "max_evaluations=400" in homepage
+    assert 'engine="numpy"' in homepage
+    assert "seed=42" in homepage
+    assert "front = result.front()" in homepage
+    assert "not a convergence benchmark" in homepage
+    assert 'href="guide/understanding-results/"' in homepage

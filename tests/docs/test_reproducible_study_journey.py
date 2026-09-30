@@ -74,4 +74,5 @@ def test_learning_path_distinguishes_reproducibility_from_inference() -> None:
 
     assert "2 problems × 2 algorithms × 2 seeds" in examples
     assert "not for making comparative performance claims" in examples
-    assert "trace every summary row" in home
+    assert "Plan a study, check its budget, and trace every result." in home
+    assert 'href="guide/studies/"' in home

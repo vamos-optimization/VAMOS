@@ -13,8 +13,10 @@ after optimization; they are not required by the core optimization runtime.
 ## Install the analysis extras
 
 ```bash
-pip install "vamos-optimization[analysis]"
+python -m pip install "vamos-optimization[analysis]==1.0.0"
 ```
+
+For environment setup and other extras, see [Installation](../guide/installation.md).
 
 ## Statistical comparison
 
@@ -171,4 +173,5 @@ any) in the experimental protocol.
 ## Landscape analysis
 
 For landscape-analysis workflows such as random walks, autocorrelation, and
-ruggedness, see `notebooks/2_advanced/25_landscape_analysis.ipynb`.
+ruggedness, see the [landscape-analysis notebook](https://github.com/vamos-optimization/VAMOS/blob/main/notebooks/2_advanced/25_landscape_analysis.ipynb).
+The [Examples page](../examples.md#notebooks) explains how to obtain notebooks.
