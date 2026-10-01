@@ -6,7 +6,7 @@ def test_dask_guide_is_explicitly_experimental_and_uses_public_api() -> None:
 
     assert "**Experimental integration.**" in text
     assert "outside the VAMOS 1.0 stable compatibility surface" in text
-    assert 'python -m pip install "vamos-optimization[compute]==1.0.0"' in text
+    assert 'python -m pip install "vamos-optimization[compute]==1.0.1"' in text
     assert 'eval_strategy="dask"' in text
     assert "vamos.foundation.eval.backends" not in text
     assert "DaskEvalBackend" not in text

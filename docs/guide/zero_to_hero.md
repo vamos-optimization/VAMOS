@@ -1,6 +1,6 @@
 # Quickstart: run, read, then preserve a result
 
-This guide uses only the stable VAMOS 1.0.0 facades. Install the core package as described in the [installation guide](installation.md).
+This guide uses only the stable VAMOS 1.0.1 facades. Install the core package as described in the [installation guide](installation.md).
 
 For a repository-checkout version that you can run unchanged, use the [Try VAMOS executable journey](../examples.md#try-vamos).
 
@@ -178,7 +178,7 @@ for row in summary.rows:
 
 The tutorial values are intentionally small and are not a publication-grade experimental design. A durable study gives you an immutable plan and traceable run evidence; it does not decide how many replications, which indicators, or which statistical analysis are scientifically appropriate.
 
-A durable study is single-owner and sequential in VAMOS 1.0.0. See [Run a reproducible study](studies.md) for experimental planning, budget inspection, provenance, summary interpretation, resume, and retry.
+A durable study is single-owner and sequential in VAMOS 1.0.1. See [Run a reproducible study](studies.md) for experimental planning, budget inspection, provenance, summary interpretation, resume, and retry.
 
 ## Next steps
 

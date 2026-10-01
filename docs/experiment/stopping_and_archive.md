@@ -87,12 +87,12 @@ Notes:
   of the convergence monitor.
 - For an **algorithm result archive**, use its public configuration builder and
   inspect the resolved `result_mode`; see [Algorithms and backends](../reference/algorithms.md).
-  In particular, published SMPSO 1.0.0 returns its leader archive and does not
-  implement the independent external-result-archive behavior present in current
-  source. See the [release caveats](../reference/algorithms.md#published-release-versus-current-source).
-- The current-source tuning CLI excludes result-archive controls from its
-  ordinary search; the published 1.0.0 tuner differs. See
-  [Tuning version differences](../topics/tuning.md#published-release-versus-current-source).
+  In SMPSO 1.0.1, the search leaders and optional external result archive are
+  separate, and explicit `population` mode returns the final swarm. See the
+  [changes since 1.0.0](../reference/algorithms.md#changes-included-in-101).
+- The 1.0.1 tuning CLI excludes result-archive controls from its ordinary search
+  and scores the feasible non-dominated final population. See
+  [Tuning version differences](../topics/tuning.md#changes-included-in-101).
 
 ## Reproducibility
 

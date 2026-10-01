@@ -86,7 +86,7 @@ completed = study.run()
 
 Checking the `plan_id` is useful when a workflow has a review or approval step between planning and execution: it confirms that the study you created is the same resolved plan you inspected.
 
-VAMOS 1.0.0 executes a durable study sequentially under a single mutating owner. `eval_strategy` belongs to evaluation inside an individual optimization task; it does not make the study itself a concurrent multi-owner scheduler.
+VAMOS 1.0.1 executes a durable study sequentially under a single mutating owner. `eval_strategy` belongs to evaluation inside an individual optimization task; it does not make the study itself a concurrent multi-owner scheduler.
 
 ## 4. Inspect operational state before interpreting results
 
@@ -238,7 +238,7 @@ A retry creates new attempt evidence for the same planned task; it does not quie
 
 ## Ownership boundary
 
-VAMOS 1.0.0 permits one mutating owner per study. Do not run `run`, `resume`, or `retry` concurrently against the same directory. Execution is sequential; distributed workers, multiprocess ownership, and cross-process cancellation are unsupported. See [Known limitations](../project/known-limitations.md).
+VAMOS 1.0.1 permits one mutating owner per study. Do not run `run`, `resume`, or `retry` concurrently against the same directory. Execution is sequential; distributed workers, multiprocess ownership, and cross-process cancellation are unsupported. See [Known limitations](../project/known-limitations.md).
 
 ## Next steps
 

@@ -10,7 +10,7 @@ from vamos import create_study, load_study, Study
 
 [Durable studies guide](../../guide/studies.md) · [Specification and planning](study-specification.md) · [Limits and reports](study-models.md)
 
-Creation performs no optimization; loading is data-only. Study mutation is single-owner and sequential in VAMOS 1.0.0: do not run concurrent `run`, `resume`, or `retry` operations against the same study. There is no cross-process cancellation command.
+Creation performs no optimization; loading is data-only. Study mutation is single-owner and sequential in VAMOS 1.0.1: do not run concurrent `run`, `resume`, or `retry` operations against the same study. There is no cross-process cancellation command.
 
 ::: vamos.study_artifacts.create_study
     options:

@@ -14,7 +14,7 @@ ZDT1, NSGA-II and MOEA/D, seeds 42 and 43, population 100, NumPy backend,
 10,000 evaluations per run. The two seeds are pooled for each algorithm.
 This is a walkthrough dataset, not evidence that one algorithm is better.*
 
-!!! note "Launcher status — VAMOS 1.0.0"
+!!! note "Launcher status — VAMOS 1.0.1"
     The published `vamos studio` launcher currently serves a module that does
     not register its Panel template, which can produce a blank page. Its
     study-path argument is also not passed into the application state.
@@ -85,7 +85,7 @@ exports.
 Studio's optional dependencies are installed from PyPI:
 
 ```bash
-python -m pip install "vamos-optimization[studio]==1.0.0"
+python -m pip install "vamos-optimization[studio]==1.0.1"
 ```
 
 The packaged command and its intended study-root argument are:
@@ -94,7 +94,7 @@ The packaged command and its intended study-root argument are:
 vamos studio --study-dir results/studio-demo
 ```
 
-**The 1.0.0 launcher limitation described above applies to this command.**
+**The 1.0.1 launcher limitation described above applies to this command.**
 Reinstalling optional dependencies does not fix the missing template
 registration. The flags below describe the launcher's binding behavior, not
 a workaround for that issue.

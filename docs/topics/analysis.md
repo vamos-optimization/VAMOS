@@ -4,7 +4,7 @@ VAMOS includes optional post-processing helpers for statistical comparison,
 visualization, and multi-criteria decision making (MCDM). These tools are useful
 after optimization; they are not required by the core optimization runtime.
 
-!!! warning "Experimental surface in VAMOS 1.0.0"
+!!! warning "Experimental surface in VAMOS 1.0.1"
     `vamos.ux.api`, statistical analysis, visualization, and MCDM helpers are
     **experimental**. They are supported for evaluation, but may change
     incompatibly in a minor release. See
@@ -13,7 +13,7 @@ after optimization; they are not required by the core optimization runtime.
 ## Install the analysis extras
 
 ```bash
-python -m pip install "vamos-optimization[analysis]==1.0.0"
+python -m pip install "vamos-optimization[analysis]==1.0.1"
 ```
 
 For environment setup and other extras, see [Installation](../guide/installation.md).

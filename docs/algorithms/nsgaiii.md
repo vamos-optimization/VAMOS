@@ -1,12 +1,12 @@
 # NSGA-III
 
-**Non-dominated Sorting Genetic Algorithm III** combines Pareto ranking with reference-direction niching to distribute a population in objective space [1]. This tutorial uses the stable public API in **VAMOS 1.0.0** on an unconstrained three-objective problem.
+**Non-dominated Sorting Genetic Algorithm III** combines Pareto ranking with reference-direction niching to distribute a population in objective space [1]. This tutorial uses the stable public API in **VAMOS 1.0.1** on an unconstrained three-objective problem.
 
 [All algorithms](../reference/algorithms.md) · [Configuration reference](../reference/api/algorithms/nsgaiii.md) · [Installation](../guide/installation.md)
 
 ## Match population and reference directions
 
-A simplex lattice with `p` divisions and `m` objectives has `comb(p + m - 1, m - 1)` directions. Here, **three objectives** and **12 divisions** give `comb(14, 2) = 91`. The population must also contain **91** solutions. A mismatched explicit lattice raises `ValueError` in VAMOS 1.0.0; do not rely on automatic resizing or a warning.
+A simplex lattice with `p` divisions and `m` objectives has `comb(p + m - 1, m - 1)` directions. Here, **three objectives** and **12 divisions** give `comb(14, 2) = 91`. The population must also contain **91** solutions. A mismatched explicit lattice raises `ValueError` in VAMOS 1.0.1; do not rely on automatic resizing or a warning.
 
 The directions promote coverage during survival selection. They are not a supplied Pareto front and do not guarantee one final solution in each niche.
 
@@ -88,7 +88,7 @@ For explicit reference-direction files, each row must be non-negative, sum to on
 
 ## Scope and limitations
 
-**Use this tutorial for unconstrained problems.** The VAMOS 1.0.0 implementation can evaluate and retain `G`, but its environmental selection ranks objective values without constraint-aware survival. Setting `constraint_mode="feasibility"` does not establish full constrained NSGA-III support. The same limitation exists in the current source inspected for this page. Choose a constraint-aware implementation in the [capability matrix](../reference/algorithms.md#capability-matrix) when feasibility must affect survival.
+**Use this tutorial for unconstrained problems.** The VAMOS 1.0.1 implementation can evaluate and retain `G`, but its environmental selection ranks objective values without constraint-aware survival. Setting `constraint_mode="feasibility"` does not establish full constrained NSGA-III support. Choose a constraint-aware implementation in the [capability matrix](../reference/algorithms.md#capability-matrix) when feasibility must affect survival.
 
 An optional external archive is distinct from the population and from the reference directions; the directions are never a solution archive. Set result mode explicitly when combining archive and population requirements. See [archives](../experiment/stopping_and_archive.md) and [saved runs](../guide/run-artifacts.md).
 

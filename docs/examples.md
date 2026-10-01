@@ -18,8 +18,8 @@ cd VAMOS
 Run the commands below from that folder using your existing VAMOS environment.
 An editable install is unnecessary when you only want to run an example against
 the published package. Links on this page point to maintained `main` examples;
-record the example commit with your experiment. The `v1.0.0` tag preserves
-release source, but newer teaching scripts may not be present there.
+record the example commit with your experiment. The `v1.0.1` tag preserves
+the source and teaching scripts included in this release.
 
 ## Three executable journeys
 
