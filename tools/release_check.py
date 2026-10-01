@@ -396,8 +396,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--expected-commit")
     parser.add_argument(
         "--tag-state",
-        choices=("pre-normalization", "pre-tag", "normalized", "ignore"),
-        default="pre-normalization",
+        choices=("pre-normalization", "pre-tag", "pre-release", "normalized", "ignore"),
+        default="pre-release",
     )
     parser.add_argument("--output-dir")
     parser.add_argument("--artifacts", help="Directory containing one already-frozen wheel and sdist.")

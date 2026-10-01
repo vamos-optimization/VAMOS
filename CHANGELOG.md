@@ -4,6 +4,32 @@ All notable public changes to VAMOS are documented here.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-01
+
+### Fixed
+
+- NSGA-II now applies its configured steady-state mode, including the Numba
+  path, instead of silently retaining generational behavior.
+- SMPSO honors `result_mode` and the external result archive independently
+  from its internal leader archive and swarm dynamics.
+- AGE-MOEA and RVEA honor constraint handling during selection and survival.
+- CLI tuning compares hypervolume from a consistent final-population source,
+  checks constrained-algorithm support before starting, and separates persisted
+  Optuna studies using the corrected scoring contract.
+- The experimental Dask evaluation backend discovers an active client and
+  preserves explicit failure and serial-fallback behavior.
+
+### Changed
+
+- Installation, troubleshooting, cookbook recipes, algorithm capabilities,
+  problem descriptions, and MOEA/D and NSGA-III tutorials were checked and
+  expanded; the documentation homepage includes real optimization results.
+- Release preparation supports subsequent patch versions while preserving
+  published annotated tags and validating one frozen set of distribution bytes
+  through TestPyPI and PyPI.
+- Canonical typing gates use the reviewed mypy 2.3.1 environment; CI actions
+  and release tooling include the updates merged since 1.0.0.
+
 ### Removed
 
 - The retired legacy multilingual documentation site under `/website/`, and
@@ -77,5 +103,6 @@ development markers; they are not prior public releases.
 - Studio, tuning, visualization, provider integrations, plugin interfaces, and
   non-stable CLI commands remain experimental.
 
-[Unreleased]: https://github.com/vamos-optimization/VAMOS/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/vamos-optimization/VAMOS/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.0.1
 [1.0.0]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.0.0

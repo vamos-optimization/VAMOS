@@ -10,45 +10,49 @@ publishing credentials, or create official releases. The `upload_pypi.yml`
 repository guard rejects mirrors and forks before artifact recovery; every
 subsequent publication job depends on that guard.
 
-After the fresh official freeze, a maintainer must configure these Trusted
-Publisher identities through the TestPyPI and PyPI account interfaces:
+## Preparing the next release
+
+The current candidate is **1.0.1**, dated **2026-10-01**. The published
+`v1.0.0` tag and distributions remain immutable. Keep the historical 1.0.0
+compatibility fixtures and artifact schemas unchanged.
+See the [1.0.1 release notes](project/release-notes-1.0.1.md) for the included fixes.
+
+Update the runtime version, citation, changelog, release notes, version
+consistency test, and exact candidate and publication workflow versions in one
+reviewed commit. Freeze the final merged organization `main` commit; if that
+commit changes, produce new evidence before publishing. Verify the actual
+publication date before freezing.
+
+Run full local and hosted release validation. The candidate workflow accepts
+`release/final-1.0.1` pull requests and manual dispatch. After merging, dispatch
+`release.yml` on the final `main` commit and wait for all source and installed
+wheel gates, including the frozen-evidence job, to succeed. The pre-release tag
+check requires the new tag to be absent and all previous public annotated tags
+to match their remote objects and remain ancestors of the candidate.
+
+Trusted Publisher identities remain:
 
 | Registry | Project | Owner | Repository | Workflow | Environment |
 | --- | --- | --- | --- | --- | --- |
 | TestPyPI | vamos-optimization | vamos-optimization | VAMOS | upload_pypi.yml | testpypi |
 | PyPI | vamos-optimization | vamos-optimization | VAMOS | upload_pypi.yml | pypi |
 
-Do not authorize the personal mirror or introduce API tokens. Create the
-`testpypi` and `pypi` GitHub environments in the organization repository, restrict
-deployment to `v1.0.0`, and require production approval where supported.
-Confirm both publisher registrations before creating the official release tag.
+Confirm both existing publisher registrations and the GitHub environments
+before creating the annotated `v1.0.1` tag. If deployment restrictions still
+allow only `v1.0.0`, an authorized maintainer must add `v1.0.1` while preserving
+production approval requirements. Use OIDC; do not introduce API tokens or
+publish through a mirror. A required deployment approval must be completed
+through the normal environment approval flow.
 
-Before the public release, enable **Private vulnerability reporting** under
-the canonical repository's **Settings > Advanced Security**, so the security
-policy's private reporting link is available. See GitHub's
-[repository reporting setup](https://docs.github.com/en/code-security/how-tos/report-and-fix-vulnerabilities/configure-vulnerability-reporting/configure-for-a-repository).
+Keep private vulnerability reporting enabled in the canonical repository's
+security settings. The [repository governance policy](project/repository-governance.md)
+continues to govern synchronization of the personal mirror after publication.
 
-## Fresh official 1.0.0 freeze
-
-The artifact freeze made under the personal-repository identity is superseded.
-Its wheel, sdist, checksums, SBOM, provenance, artifact manifest, release-check
-report, and frozen Actions artifact are historical validation evidence only.
-Do not reuse those artifacts or rerun the superseded workflow run. Validation
-artifacts from the repository cutover are also not the authoritative freeze.
-
-Use the final merged organization `main` commit as the immutable release source.
-The release date in `CITATION.cff`, the changelog, release notes, and version
-consistency test is synchronized to `2026-09-06`. Verify that this remains the
-actual publication date before tagging or uploading. If publication moves to
-another date, update those surfaces through a reviewed commit and create a new
-freeze from the resulting canonical `main` commit. Keep version `1.0.0`.
-Build new distributions and regenerate all evidence from the final source
-commit with `repository = vamos-optimization/VAMOS` in provenance. Run full
-local and hosted release validation before configuring publishers, creating
-the annotated tag, and publishing the identical validated bytes to TestPyPI,
-then PyPI, then the organization GitHub Release.
-After publication and public verification succeed, fast-forward the personal
-mirror to canonical `main` and copy the existing official annotated tag.
+Push the annotated tag at the validated final source commit. Publication
+recovers the exact successful freeze, uploads the same bytes to TestPyPI,
+checks installation and hashes, then publishes to PyPI and creates the GitHub
+Release. Verify the production package, hashes, and release before declaring
+completion. Never replace an existing version or move a published tag.
 
 ## Organization Pages
 
@@ -64,7 +68,7 @@ canonical documentation surface. The personal mirror must not deploy canonical
 Pages. Confirm the deployment and canonical `.org` metadata during the final
 release Goal.
 
-`tools/build_release_docs.py --version 1.0.0 --output <new-directory>` builds
+`tools/build_release_docs.py --version 1.0.1 --output <new-directory>` builds
 the complete deployment layout. It builds the current documentation and the
 immutable release separately so each has the correct canonical URL, preserves
 previous immutable `docs/<version>/` trees when an archive input is supplied,
@@ -80,7 +84,7 @@ both documentation sites, distributions, installed wheel, dependencies, and
 release evidence in one command:
 
 ```bash
-python tools/release_check.py --version 1.0.0
+python tools/release_check.py --version 1.0.1
 ```
 
 Run it from a clean release branch with the development, documentation,
@@ -104,10 +108,10 @@ evidence outside the repository:
 
 ```bash
 python tools/release_check.py \
-  --version 1.0.0 \
-  --expected-branch release/final-1.0.0 \
+  --version 1.0.1 \
+  --expected-branch release/final-1.0.1 \
   --expected-commit <full-commit-sha> \
-  --tag-state pre-tag \
+  --tag-state pre-release \
   --typing-python <typing-venv>/bin/python \
   --output-dir <new-empty-evidence-directory>
 ```
@@ -131,7 +135,7 @@ candidate, pass its directory instead of rebuilding it:
 
 ```bash
 python tools/release_check.py \
-  --version 1.0.0 \
+  --version 1.0.1 \
   --artifacts <directory-with-one-wheel-and-one-sdist> \
   --output-dir <new-empty-evidence-directory>
 ```
@@ -156,7 +160,7 @@ from making pip treat an uninstalled wheel as already installed. Run the full
 smoke with:
 
 ```bash
-python tools/release_smoke.py --version 1.0.0 --mode full
+python tools/release_smoke.py --version 1.0.1 --mode full
 ```
 
 `--mode core` omits the optional-backend failure scenario and is used by the
@@ -177,13 +181,11 @@ Ruff lint is clean across production, tests, and release tools. Ruff formatting
 uses the repository's explicit ratcheted formatting budget, so this release does
 not disguise inherited formatting debt as global formatter compliance.
 
-Use `--tag-state pre-normalization` only while the archived internal tags still
-exist. After history normalization and before the first official tag, use
-`--tag-state pre-tag`; it requires that no public remote version tag exists and
-refuses a local candidate tag while allowing explicitly archived local history.
-After the official tag is created on the release commit, use `--tag-state normalized`.
-Do not publish if repository identity, artifact hashes, TestPyPI installation,
-or any critical gate differs from the frozen candidate.
+Use `--tag-state pre-release` for an update candidate. It preserves and
+verifies previous published tags while rejecting an already existing candidate
+tag. The first-release normalization states remain available only for their
+historical checks. Do not publish if repository identity, artifact hashes,
+TestPyPI installation, or any critical gate differs from the frozen candidate.
 
 TestPyPI is published first using trusted publishing. Only after its exact
 wheel installs and passes the full smoke may the same immutable wheel and sdist

@@ -145,3 +145,10 @@ def test_identity_gate_is_in_health_ci_and_release_validation() -> None:
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr
     assert json.loads(completed.stdout)["violations"] == []
+
+
+@pytest.mark.parametrize("tags", [["v1.0.0"], ["v*"], ["v1.0.1", "v1.0.2"]])
+def test_publication_rejects_tags_other_than_exact_candidate(tags) -> None:
+    workflow = copy.deepcopy(load_yaml(ROOT, ".github/workflows/upload_pypi.yml"))
+    workflow["on"]["push"]["tags"] = tags
+    assert publication_violations(workflow)
