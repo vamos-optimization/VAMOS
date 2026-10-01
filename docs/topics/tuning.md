@@ -5,7 +5,7 @@ indices, population-related settings, and other parameters that control a MOEA.
 A tuning campaign evaluates candidate configurations over explicit problem and
 seed blocks and ranks them by a scalar quality score.
 
-!!! warning "Experimental surface in VAMOS 1.0.0"
+!!! warning "Experimental surface in VAMOS 1.0.1"
     The tuning/racing implementation and the `vamos tune` and `vamos ablation`
     commands are **experimental**. They are supported for evaluation but may
     change incompatibly in a minor release. Stable optimization calls used by
@@ -17,30 +17,26 @@ This page is about configuring optimization algorithms. If the variables in
 `gamma`), that is a different workflow; see
 [`examples/tuning/hyperparam_tuning.py`](https://github.com/vamos-optimization/VAMOS/blob/main/examples/tuning/hyperparam_tuning.py) for that formulation.
 
-## Published release versus current source
+## Changes included in 1.0.1
 
-The install command below selects the published **1.0.0 wheel**. Some scorer
-corrections described on this page are present in the current repository but
-are **not included in that wheel**:
+The install command below selects **VAMOS 1.0.1**, including the corrected
+scoring, archive-search, and persistence behavior described on this page:
 
-| Behavior | Published PyPI 1.0.0 | Current repository source |
+| Behavior | VAMOS 1.0.0 | VAMOS 1.0.1 |
 | --- | --- | --- |
 | HV input | Top-level `result.F`; may be population, archive, or SMPSO leaders depending on the algorithm/configuration | Feasible non-dominated final population |
 | External-archive search parameters | Included where defined by the search-space builder | Removed from ordinary CLI tuning |
 | Optuna persistent study name | User-supplied name, without the scoring-contract suffix | Adds `__vamos_cli_final_population_hv_v1` |
 | AGE-MOEA/RVEA constraint handling | Constraints are not used in survival | Feasibility-aware behavior when enabled |
 
-The **current-source** scoring, archive-search, and persistence sections below
-apply to the right-hand column. Do not assume those corrections are installed
-because `vamos.__version__` prints `1.0.0`: record whether you used the published
-wheel or a specific source commit. For a release-only campaign, fix and verify
-the result source before comparing candidates; do not mix persisted tuning
-trials from the two implementations. See also the
-[algorithm release caveats](../reference/algorithms.md#published-release-versus-current-source).
+Record the package version and any source commit with a tuning campaign. Do not
+mix persisted trials from the two scoring contracts: their result sources and
+search spaces differ. See also the
+[algorithm changes](../reference/algorithms.md#changes-included-in-101).
 
 ## Programmatic API status
 
-VAMOS 1.0.0 does **not** expose a curated public programmatic facade for the
+VAMOS 1.0.1 does **not** expose a curated public programmatic facade for the
 algorithm-configuration tuner. Maintained user workflows should therefore use
 `vamos tune` rather than import deep `vamos.engine.*` implementation modules.
 
@@ -67,9 +63,9 @@ comparison:
 6. **Aggregation rule** — how repeated problem/seed scores become one scalar
    tuning score.
 
-### Current-source CLI scoring contract: hypervolume
+### CLI scoring contract: hypervolume
 
-In the current repository source, the maintained `vamos tune` CLI has **no metric selector**. It scores
+In VAMOS 1.0.1, the maintained `vamos tune` CLI has **no metric selector**. It scores
 candidate runs with **hypervolume (HV) and maximizes that score**.
 
 The score source is fixed: VAMOS takes the **final population**, removes
@@ -84,8 +80,8 @@ parameter space aligned with the set actually used for scoring. Archive design
 can still be studied explicitly in a separate controlled experiment, but it is
 not mixed into ordinary `vamos tune` comparisons.
 
-!!! note "Constrained AGE-MOEA and RVEA (current source)"
-    In the current source, AGE-MOEA and RVEA preserve population-aligned constraint values whenever
+!!! note "Constrained AGE-MOEA and RVEA (1.0.1)"
+    In VAMOS 1.0.1, AGE-MOEA and RVEA preserve population-aligned constraint values whenever
     constraint handling is active, so constrained runs can use the same
     final-population HV scoring contract as the other maintained algorithms.
     Their stable `constraint_mode="none"` setting remains an explicit opt-out:
@@ -141,7 +137,7 @@ Model-based backends (`optuna`, `smac3`, `bohb`, and `bohb_optuna`) require the
 optional tuning dependencies:
 
 ```bash
-python -m pip install "vamos-optimization[tuning]==1.0.0"
+python -m pip install "vamos-optimization[tuning]==1.0.1"
 ```
 
 For an editable development installation, follow
@@ -254,7 +250,7 @@ independently designed final comparison on held-out blocks.
 
 ### Persistent Optuna studies are scoring-contract versioned
 
-In the current source, when `optuna` or `bohb_optuna` uses `--optuna-storage`, the maintained CLI treats
+In VAMOS 1.0.1, when `optuna` or `bohb_optuna` uses `--optuna-storage`, the maintained CLI treats
 `--optuna-study-name` as a base name and appends
 `__vamos_cli_final_population_hv_v1` to the effective persisted study name. The
 same versioned namespace is used whether `--optuna-load-if-exists` is enabled or
@@ -333,7 +329,7 @@ schedule, and split is not a reproducible tuning result.
 
 ## Archive studies are separate from ordinary CLI tuning
 
-The current-source CLI intentionally excludes external-archive controls from its
+The 1.0.1 CLI intentionally excludes external-archive controls from its
 ordinary algorithm-configuration search so every candidate is compared on the
 same final-population basis. If archive capacity, pruning, or archive-enabled
 result semantics are themselves the research question, define them explicitly

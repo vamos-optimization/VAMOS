@@ -17,7 +17,7 @@ hide:
       <a class="vamos-button vamos-button--secondary" href="reference/api_reference/">API reference</a>
     </div>
     <div class="vamos-install" aria-label="Install VAMOS with pip">
-      <span class="vamos-install__prompt">$</span><code>python -m pip install "vamos-optimization==1.0.0"</code>
+      <span class="vamos-install__prompt">$</span><code>python -m pip install "vamos-optimization==1.0.1"</code>
     </div>
   </div>
   <div class="vamos-hero__demo" aria-label="An optimization and its actual result">

@@ -9,7 +9,7 @@ DOC_PATH = ROOT / "docs" / "topics" / "analysis.md"
 def test_analysis_docs_match_public_contract() -> None:
     text = DOC_PATH.read_text(encoding="utf-8")
 
-    assert "Experimental surface in VAMOS 1.0.0" in text
+    assert "Experimental surface in VAMOS 1.0.1" in text
     assert "(n_problems, n_algorithms)" in text
     assert "raw Wilcoxon p-values" in text
     assert "does not apply\nHolm" in text

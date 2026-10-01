@@ -1,6 +1,6 @@
 # VAMOS Cookbook
 
-Copy-paste recipes for the published **VAMOS 1.0.0** package. Install the core
+Copy-paste recipes for the published **VAMOS 1.0.1** package. Install the core
 package using [Installation](installation.md); recipes that need an extra say
 so explicitly. Budgets below are demonstrations, not evidence of convergence
 or comparative performance.

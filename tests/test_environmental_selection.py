@@ -26,8 +26,8 @@ class PublicApiTests(unittest.TestCase):
             ApiEnvironmentalSelectionResult,
         )
 
-    def test_version_metadata_is_1_0_0(self) -> None:
-        self.assertEqual(vamos.__version__, "1.0.0")
+    def test_version_metadata_is_1_0_1(self) -> None:
+        self.assertEqual(vamos.__version__, "1.0.1")
 
 
 class SelectionBehaviorTests(unittest.TestCase):

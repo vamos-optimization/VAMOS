@@ -96,7 +96,7 @@ The stable study lifecycle consists of:
   and `retry` methods;
 - `StudyReport` and `StudySummary`.
 
-Study mutation is single-owner in VAMOS 1.0.0. Do not run concurrent
+Study mutation is single-owner in VAMOS 1.0.1. Do not run concurrent
 `run`, `resume`, or `retry` operations against the same study. There is no
 cross-process cancellation command. Inspection and summary are immutable,
 data-only projections.
@@ -162,7 +162,7 @@ not covered by this promise.
 
 ## Experimental surface
 
-The following remain experimental in VAMOS 1.0.0:
+The following remain experimental in VAMOS 1.0.1:
 
 - Studio and all generated-code execution;
 - LLM-provider and provider-specific assist integrations;
@@ -215,7 +215,7 @@ replacement where available, and affected versions.
 
 ## Python and operating-system support
 
-VAMOS 1.0.0 supports only the Python versions and operating systems exercised
+VAMOS 1.0.1 supports only the Python versions and operating systems exercised
 by the final hosted release matrix and declared in package metadata. Dropping
 a supported Python version during 1.x requires advance documentation and a
 minor release. Optional dependencies may have narrower platform support and

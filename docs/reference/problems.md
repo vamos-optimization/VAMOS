@@ -2,7 +2,7 @@
 
 Choose a problem by its **formulation, encoding and dimensions**, then check the
 [algorithm compatibility matrix](algorithms.md). This catalog describes the
-136 registered problems in VAMOS **1.0.0**. The named selection helpers are
+136 registered problems in VAMOS **1.0.1**. The named selection helpers are
 [stable public APIs](../project/stability-and-versioning.md). A synthetic or
 engineering benchmark is a test model, not a validated model of your application.
 
@@ -48,7 +48,7 @@ computing indicators.
 
 These families use real-valued variables (`real` or `continuous` in the metadata)
 and need only the base installation, **including WFG**. Source links point to
-the corresponding implementation or family registration in the 1.0.0 release.
+the corresponding implementation or family registration in the 1.0.1 release.
 
 | Registered keys | Default n | Default M | G | Default parameters / dimension rule | Source | Reference sample |
 | --- | ---: | ---: | ---: | --- | --- | --- |
@@ -95,7 +95,7 @@ algorithm with the required constraint support in the [matrix](algorithms.md).
 | `mw11` | 15 | 2 | 4 | Actual M fixed at 2 | [MW][constrained] | None packaged |
 | `mw4`, `mw8`, `mw14` | 15 | 3 | 1 | Configurable M | [MW][constrained] | None packaged |
 
-In 1.0.0, the registry accepts an objective override for every MW key, but only
+In 1.0.1, the registry accepts an objective override for every MW key, but only
 MW4, MW8 and MW14 actually change their objective count. Use the instantiated
 problem's `n_obj` and keep the other MW cases at two objectives.
 
@@ -172,7 +172,7 @@ The default bounds and discrete choices are fixed by the linked implementation.
 | `re61` — water resource planning | Real | 3 / 6 | f₆ | Fixed design bounds | [RE6/9][re69] | 6D |
 | `re91` — car cab | Real | 7 / 9 | No separate violation objective | **Deterministic** mean-value evaluation (`stochastic=False`) | [RE6/9][re69] | 9D |
 
-Version 1.0.0 has stale descriptive labels for several RE registry entries.
+Version 1.0.1 has stale descriptive labels for several RE registry entries.
 In particular, the `re24` selection metadata reports four variables while its
 factory creates the two-variable hatch-cover formulation. The table follows
 the implementation; inspect `problem.n_var` after instantiation and use
@@ -201,7 +201,7 @@ implementation converts maximization goals to negative objective values.
 
 ### Learning and mixed engineering examples
 
-Install `python -m pip install "vamos-optimization[examples]==1.0.0"` for the two
+Install `python -m pip install "vamos-optimization[examples]==1.0.1"` for the two
 classifier examples. The base package is sufficient for `welded_beam`.
 See [Installation](../guide/installation.md) for environments and extras.
 
@@ -235,7 +235,7 @@ compatibility or a certified optimum.
   their registered default is three objectives. Supply a matching reference for
   default runs; do not use those two-column files for three-objective indicators.
 - ZCAT supplies dimension-specific samples at M = 2, 3, 4 and 6. Other objective
-  counts need a supplied reference; 1.0.0's automatic lookup can otherwise fall
+  counts need a supplied reference; 1.0.1's automatic lookup can otherwise fall
   back to a 2D file.
 - RE/RWA samples have the dimensions shown above. Their presence does not imply
   that every sample point is a certified global Pareto optimum.
@@ -266,31 +266,31 @@ every member; prefer explicit problem selections for studies that mix fixed and
 scalable formulations. For a new objective function, follow
 [Build your own problem](../guide/custom-problem.md).
 
-[zdt]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.0/src/vamos/foundation/problem/registry/families/zdt.py
-[zdt5]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.0/src/vamos/foundation/problem/zdt5.py
-[dtlz]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.0/src/vamos/foundation/problem/dtlz.py
-[wfg]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.0/src/vamos/foundation/problem/wfg.py
-[lz]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.0/src/vamos/foundation/problem/lz.py
-[cec]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.0/src/vamos/foundation/problem/cec2009.py
-[lsmop]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.0/src/vamos/foundation/problem/lsmop.py
-[zcat]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.0/src/vamos/foundation/problem/zcat/core.py
-[constrained]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.0/src/vamos/foundation/problem/constrained_many.py
-[binary]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.0/src/vamos/foundation/problem/binary.py
-[integer]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.0/src/vamos/foundation/problem/integer.py
-[mixed]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.0/src/vamos/foundation/problem/mixed.py
-[tsp]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.0/src/vamos/foundation/problem/tsp.py
-[tsplib]: https://github.com/vamos-optimization/VAMOS/tree/v1.0.0/src/vamos/resources/tsplib
-[re2]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.0/src/vamos/foundation/problem/real_world/tanabe_ishibuchi_re2.py
-[re3a]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.0/src/vamos/foundation/problem/real_world/tanabe_ishibuchi_re3_a.py
-[re3b]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.0/src/vamos/foundation/problem/real_world/tanabe_ishibuchi_re3_b.py
-[re4]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.0/src/vamos/foundation/problem/real_world/tanabe_ishibuchi_re4.py
-[re69]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.0/src/vamos/foundation/problem/real_world/tanabe_ishibuchi_re6_re9.py
-[rwa14]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.0/src/vamos/foundation/problem/real_world/zapotecas_rwa_1_4.py
-[rwa5]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.0/src/vamos/foundation/problem/real_world/zapotecas_rwa_5.py
-[rwa6]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.0/src/vamos/foundation/problem/real_world/zapotecas_rwa_6.py
-[rwa78]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.0/src/vamos/foundation/problem/real_world/zapotecas_rwa_7_8.py
-[rwa910]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.0/src/vamos/foundation/problem/real_world/zapotecas_rwa_9_10.py
-[fs]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.0/src/vamos/foundation/problem/real_world/feature_selection.py
-[ml]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.0/src/vamos/foundation/problem/real_world/hyperparam.py
-[beam]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.0/src/vamos/foundation/problem/real_world/engineering.py
-[fronts]: https://github.com/vamos-optimization/VAMOS/tree/v1.0.0/src/vamos/resources/reference_fronts
+[zdt]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/registry/families/zdt.py
+[zdt5]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/zdt5.py
+[dtlz]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/dtlz.py
+[wfg]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/wfg.py
+[lz]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/lz.py
+[cec]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/cec2009.py
+[lsmop]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/lsmop.py
+[zcat]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/zcat/core.py
+[constrained]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/constrained_many.py
+[binary]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/binary.py
+[integer]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/integer.py
+[mixed]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/mixed.py
+[tsp]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/tsp.py
+[tsplib]: https://github.com/vamos-optimization/VAMOS/tree/v1.0.1/src/vamos/resources/tsplib
+[re2]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/real_world/tanabe_ishibuchi_re2.py
+[re3a]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/real_world/tanabe_ishibuchi_re3_a.py
+[re3b]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/real_world/tanabe_ishibuchi_re3_b.py
+[re4]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/real_world/tanabe_ishibuchi_re4.py
+[re69]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/real_world/tanabe_ishibuchi_re6_re9.py
+[rwa14]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/real_world/zapotecas_rwa_1_4.py
+[rwa5]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/real_world/zapotecas_rwa_5.py
+[rwa6]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/real_world/zapotecas_rwa_6.py
+[rwa78]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/real_world/zapotecas_rwa_7_8.py
+[rwa910]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/real_world/zapotecas_rwa_9_10.py
+[fs]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/real_world/feature_selection.py
+[ml]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/real_world/hyperparam.py
+[beam]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/real_world/engineering.py
+[fronts]: https://github.com/vamos-optimization/VAMOS/tree/v1.0.1/src/vamos/resources/reference_fronts

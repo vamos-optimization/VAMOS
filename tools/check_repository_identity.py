@@ -82,8 +82,9 @@ def publication_violations(workflow: dict) -> list[str]:
     scripts = [step["run"] for step in recovery.get("steps", []) if "run" in step]
     if not scripts or scripts[0].splitlines()[0] != SHELL_ASSERTION:
         violations.append("The first recovery shell command must assert the canonical repository.")
-    if workflow.get("on", {}).get("push", {}).get("tags") != ["v1.0.0"]:
-        violations.append("Publication must be triggered only by the official v1.0.0 tag.")
+    version = workflow.get("env", {}).get("VAMOS_RELEASE_VERSION", "")
+    if not re.fullmatch(r"\d+\.\d+\.\d+", version) or workflow.get("on", {}).get("push", {}).get("tags") != [f"v{version}"]:
+        violations.append("Publication must be triggered only by the exact configured release tag.")
 
     def guarded(name: str, visiting: frozenset[str] = frozenset()) -> bool:
         if name == "recover-frozen-artifacts":
@@ -128,15 +129,13 @@ def metadata_violations(root: Path) -> list[str]:
     if citation.get("url") != CANONICAL_URL:
         violations.append("CITATION must identify the canonical repository.")
     version_source = (root / "src/vamos/foundation/version.py").read_text(encoding="utf-8")
-    if (
-        project.get("name") != "vamos-optimization"
-        or citation.get("version") != "1.0.0"
-        or not re.search(
-            r'__version__\s*=\s*[\'"]1\.0\.0[\'"]',
-            version_source,
-        )
-    ):
-        violations.append("The package and citation must retain vamos-optimization 1.0.0.")
+    version_match = re.search(r'^__version__\s*=\s*[\'"](\d+\.\d+\.\d+)[\'"]', version_source, re.MULTILINE)
+    version = version_match[1] if version_match else ""
+    if project.get("name") != "vamos-optimization" or not version or citation.get("version") != version:
+        violations.append("The package and citation must agree on the numeric vamos-optimization release version.")
+    for relative in (".github/workflows/release.yml", ".github/workflows/upload_pypi.yml"):
+        if load_yaml(root, relative).get("env", {}).get("VAMOS_RELEASE_VERSION") != version:
+            violations.append(f"{relative} must use the runtime release version.")
     expected_site_urls = {
         "mkdocs.yml": CURRENT_DOCS_URL,
     }
@@ -147,7 +146,7 @@ def metadata_violations(root: Path) -> list[str]:
         if config.get("site_url") != expected_site_url:
             violations.append(f"{relative} site_url must be {expected_site_url}.")
     changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8")
-    for label, suffix in (("Unreleased", "compare/v1.0.0...HEAD"), ("1.0.0", "releases/tag/v1.0.0")):
+    for label, suffix in (("Unreleased", f"compare/v{version}...HEAD"), (version, f"releases/tag/v{version}")):
         if f"[{label}]: {CANONICAL_URL}/{suffix}" not in changelog:
             violations.append(f"CHANGELOG {label} link must use the canonical repository.")
     violations.extend(publication_violations(load_yaml(root, ".github/workflows/upload_pypi.yml")))

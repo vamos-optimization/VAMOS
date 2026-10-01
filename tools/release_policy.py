@@ -181,6 +181,25 @@ def tag_evidence(root: Path, version: str, state: str) -> dict[str, Any]:
             raise AssertionError(f"Expected no public remote version tags; remote={remote_versions}.")
         if _peeled(local, official) == head:
             raise AssertionError(f"Local {official} already resolves to release commit {head}.")
+    elif state == "pre-release":
+        if re.fullmatch(r"\d+\.\d+\.\d+", version) is None:
+            raise AssertionError("A public release requires a numeric major.minor.patch version.")
+        if official in local or official in remote:
+            raise AssertionError(f"Candidate tag {official} already exists locally or remotely.")
+        previous = sorted(tag for tag in remote if re.fullmatch(r"v\d+\.\d+\.\d+", tag))
+        if not previous:
+            raise AssertionError("An update release requires an existing public release tag.")
+        candidate_version = tuple(int(part) for part in version.split("."))
+        for tag in previous:
+            if tuple(int(part) for part in tag[1:].split(".")) >= candidate_version:
+                raise AssertionError(f"Candidate {official} must be newer than published tag {tag}.")
+            if f"{tag}^{{}}" not in remote or f"{tag}^{{}}" not in local:
+                raise AssertionError(f"Published tag {tag} must be annotated and fetched locally.")
+            if local[tag] != remote[tag] or _peeled(local, tag) != _peeled(remote, tag):
+                raise AssertionError(f"Local and remote published tag {tag} differ.")
+            ancestor = git(root, "merge-base", str(_peeled(remote, tag)), head)
+            if ancestor != _peeled(remote, tag):
+                raise AssertionError(f"Published release {tag} is not an ancestor of the candidate.")
     elif state == "normalized":
         local_versions = sorted(tag for tag in local if re.fullmatch(r"v\d+\.\d+\.\d+", tag))
         remote_versions = sorted(tag for tag in remote if re.fullmatch(r"v\d+\.\d+\.\d+", tag))

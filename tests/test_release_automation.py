@@ -10,6 +10,7 @@ import tarfile
 import zipfile
 from pathlib import Path
 
+import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -189,6 +190,60 @@ def test_pre_tag_state_rejects_local_tag_at_candidate(monkeypatch, tmp_path: Pat
         raise AssertionError("A local candidate tag was accepted before the release tag gate.")
 
 
+@pytest.mark.parametrize(
+    "mutation, message",
+    [
+        (None, None),
+        ("candidate-local", "already exists"),
+        ("candidate-remote", "already exists"),
+        ("no-previous", "existing public release"),
+        ("newer-remote", "must be newer"),
+        ("lightweight", "annotated"),
+        ("moved-local", "differ"),
+        ("not-ancestor", "not an ancestor"),
+    ],
+)
+def test_update_release_preserves_published_tags(monkeypatch, tmp_path: Path, mutation, message) -> None:
+    head, tag, previous = "a" * 40, "b" * 40, "c" * 40
+    local = {"v1.0.0": tag, "v1.0.0^{}": previous}
+    remote = dict(local)
+    if mutation == "candidate-local":
+        local["v1.0.1"] = tag
+    elif mutation == "candidate-remote":
+        remote["v1.0.1"] = tag
+    elif mutation == "no-previous":
+        remote.clear()
+    elif mutation == "newer-remote":
+        remote["v1.0.2"] = tag
+    elif mutation == "lightweight":
+        remote.pop("v1.0.0^{}")
+    elif mutation == "moved-local":
+        local["v1.0.0"] = "d" * 40
+
+    def refs(values):
+        return "\n".join(f"{value} refs/tags/{name}" for name, value in values.items())
+
+    def fake_git(_root, *arguments, check=True):
+        del check
+        if arguments == ("rev-parse", "HEAD"):
+            return head
+        if arguments == ("show-ref", "--tags", "-d"):
+            return refs(local)
+        if arguments == ("merge-base", previous, head):
+            return "d" * 40 if mutation == "not-ancestor" else previous
+        raise AssertionError(arguments)
+
+    monkeypatch.setattr(release_policy, "git", fake_git)
+    monkeypatch.setattr(release_policy, "_remote_tags", lambda _root: refs(remote))
+    if message:
+        with pytest.raises(AssertionError, match=message):
+            release_policy.tag_evidence(tmp_path, "1.0.1", "pre-release")
+    else:
+        result = release_policy.tag_evidence(tmp_path, "1.0.1", "pre-release")
+        assert result["state"] == "pre-release"
+        assert result["local"]["v1.0.0"] == tag
+
+
 def test_release_smoke_uses_only_stable_vamos_facade() -> None:
     source = (ROOT / "tools" / "release_smoke.py").read_text(encoding="utf-8")
 
@@ -228,8 +283,8 @@ def test_release_workflows_are_parseable_pinned_and_cover_claimed_matrix() -> No
     assert "release_smoke.py" in release
     assert "test_security_models.py" in release
     assert "vamos-${{ env.VAMOS_RELEASE_VERSION }}-frozen" in release
-    assert "release/final-1.0.0" in release
-    assert "--tag-state pre-tag" in release
+    assert "release/final-1.0.1" in release
+    assert "--tag-state pre-release" in release
 
 
 def test_publication_uses_trusted_publishing_and_never_rebuilds() -> None:

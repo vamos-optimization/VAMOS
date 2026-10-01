@@ -1,6 +1,6 @@
 # MOEA/D
 
-**Multiobjective Evolutionary Algorithm based on Decomposition** assigns a scalar subproblem to each weight vector and shares solutions between neighbouring subproblems [1]. This tutorial runs an unconstrained, real-coded example using the stable public API in **VAMOS 1.0.0**.
+**Multiobjective Evolutionary Algorithm based on Decomposition** assigns a scalar subproblem to each weight vector and shares solutions between neighbouring subproblems [1]. This tutorial runs an unconstrained, real-coded example using the stable public API in **VAMOS 1.0.1**.
 
 [All algorithms](../reference/algorithms.md) · [Configuration reference](../reference/api/algorithms/moead.md) · [Installation](../guide/installation.md)
 

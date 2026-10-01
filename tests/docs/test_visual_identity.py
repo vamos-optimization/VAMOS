@@ -36,7 +36,7 @@ def test_homepage_uses_three_scientific_user_journeys() -> None:
     homepage = (ROOT / "docs" / "index.md").read_text(encoding="utf-8")
 
     assert 'class="vamos-hero"' in homepage
-    assert 'python -m pip install "vamos-optimization==1.0.0"' in homepage
+    assert 'python -m pip install "vamos-optimization==1.0.1"' in homepage
     assert homepage.count('class="vamos-journey"') == 3
     assert "Try VAMOS" in homepage
     assert "Solve my problem" in homepage

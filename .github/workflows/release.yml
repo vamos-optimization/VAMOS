@@ -13,15 +13,14 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  VAMOS_RELEASE_VERSION: "1.0.0"
+  VAMOS_RELEASE_VERSION: "1.0.1"
   VAMOS_RELEASE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
 
 jobs:
   build-distributions:
     if: >-
       github.repository == 'vamos-optimization/VAMOS' &&
-      (github.event_name == 'workflow_dispatch' || github.head_ref == 'release/final-1.0.0' ||
-      github.head_ref == 'chore/official-repository-cutover-1.0.0')
+      (github.event_name == 'workflow_dispatch' || github.head_ref == 'release/final-1.0.1')
     name: Build frozen distributions
     runs-on: ubuntu-latest
     steps:
@@ -91,7 +90,7 @@ jobs:
           --version "$VAMOS_RELEASE_VERSION"
           --expected-branch "$VAMOS_EXPECTED_BRANCH"
           --expected-commit "$VAMOS_RELEASE_COMMIT"
-          --tag-state pre-tag
+          --tag-state pre-release
           --artifacts "$RUNNER_TEMP/candidate-dist"
           --typing-python "$RUNNER_TEMP/typing-venv/bin/python"
           --output-dir "$RUNNER_TEMP/release-evidence"

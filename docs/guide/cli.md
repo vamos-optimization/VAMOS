@@ -1,10 +1,10 @@
 # CLI and config files
 
 Install the [published package](installation.md) before using these commands.
-The examples target VAMOS 1.0.0; use `vamos --help` or `vamos <command> --help`
+The examples target VAMOS 1.0.1; use `vamos --help` or `vamos <command> --help`
 for the parser in your installed version.
 
-| Command family | Status in 1.0.0 | Use it for |
+| Command family | Status in 1.0.1 | Use it for |
 | --- | --- | --- |
 | Main optimization runner | **Stable** core invocation | One run or a configured problem set |
 | `results inspect`, `results verify`, `reproduce` | **Stable** | Canonical run inspection, integrity, and exact replay |
@@ -185,7 +185,7 @@ vamos --problem zdt1 --experiment backends --max-evaluations 2000
 ```
 
 Install optional kernels with
-`python -m pip install "vamos-optimization[compute]==1.0.0"`.
+`python -m pip install "vamos-optimization[compute]==1.0.1"`.
 The `--experiment backends` comparison skips unavailable optional kernels with
 a warning. An explicit single-run `--engine numba` or `--engine moocore`
 instead fails if that dependency is missing; it never switches silently.
@@ -311,7 +311,7 @@ Install any required [optional extras](installation.md#optional-extras) first.
 - Ablation plans: `vamos ablation --config configs/ablation.yaml`
 - Profiling: `vamos profile --problem zdt1 --engines numpy,numba --budget 2000 --output report/profile.csv`
 - Problem zoo: `vamos zoo list`, `vamos zoo info zdt1`, `vamos zoo run zdt1 --algorithm nsgaii --budget 3000`
-- Studio (interactive, needs `studio` extra): read the [Studio walkthrough and 1.0.0 launcher limitation](studio.md) before starting.
+- Studio (interactive, needs `studio` extra): read the [Studio walkthrough and launcher limitation](studio.md) before starting.
 
 Tuning quick notes (`vamos tune`)
 ---------------------------------

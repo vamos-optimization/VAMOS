@@ -11,8 +11,8 @@ except ModuleNotFoundError:  # pragma: no cover - exercised by the Python 3.10 C
 from vamos.foundation.version import __version__
 
 ROOT = Path(__file__).resolve().parents[2]
-EXPECTED_VERSION = "1.0.0"
-RELEASE_DATE = "2026-09-06"
+EXPECTED_VERSION = "1.0.1"
+RELEASE_DATE = "2026-10-01"
 
 
 def _read(relative: str) -> str:
@@ -33,7 +33,7 @@ def test_public_release_documents_match_runtime_version() -> None:
     citation = _read("CITATION.cff")
     changelog = _read("CHANGELOG.md")
     readme = _read("README.md")
-    release_notes = _read("docs/project/release-notes-1.0.0.md")
+    release_notes = _read(f"docs/project/release-notes-{EXPECTED_VERSION}.md")
 
     assert re.search(rf"(?m)^version:\s*{re.escape(EXPECTED_VERSION)}\s*$", citation)
     assert re.search(rf"(?m)^date-released:\s*{RELEASE_DATE}\s*$", citation)

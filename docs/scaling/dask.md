@@ -15,7 +15,7 @@ backend internals.
 Install VAMOS with the optional distributed-compute dependencies:
 
 ```bash
-python -m pip install "vamos-optimization[compute]==1.0.0"
+python -m pip install "vamos-optimization[compute]==1.0.1"
 ```
 
 For environment setup, see [Installation](../guide/installation.md). For an
