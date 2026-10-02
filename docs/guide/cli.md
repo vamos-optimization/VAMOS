@@ -361,3 +361,10 @@ summary_dir: results/ablation_demo/summary
 ```
 
 The CLI writes a summary CSV by default to `<output_root>/summary/ablation_metrics.csv` (override with `summary_path` or `summary_dir`).
+
+## Experimental graphical interface
+
+`vamos gui [RESULTS_ROOT]` starts a local NiceGUI interface to explore canonical
+runs and to launch built-in runs with live progress. It requires the optional
+`gui` extra (`pip install "vamos-optimization[gui]"`) and binds to loopback by
+default. See [VAMOS GUI](gui.md).

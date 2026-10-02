@@ -2,7 +2,7 @@
 
 The `vamos` console entry point dispatches through `src/vamos/experiment/cli/main.py`. Base optimization parsing is split across `args.py`, `args_*.py`, `parser.py`, validation, and orchestration; focused subcommands own their parser in a focused module or subsystem.
 
-The current canonical subcommands are `quickstart`, `create-problem`, `summarize`, `open-results`, `results`, `reproduce`, `study`, `ablation`, `assist`, `check`, `bench`, `studio`, `zoo`, `tune`, and `profile`. `vamos help` lists them; the standard optimization path uses top-level options without a subcommand.
+The current canonical subcommands are `quickstart`, `create-problem`, `summarize`, `open-results`, `results`, `reproduce`, `study`, `ablation`, `assist`, `check`, `bench`, `studio`, `gui`, `zoo`, `tune`, and `profile`. `vamos help` lists them; the standard optimization path uses top-level options without a subcommand.
 
 ## Workflow
 

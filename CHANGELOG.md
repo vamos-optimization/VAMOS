@@ -4,6 +4,13 @@ All notable public changes to VAMOS are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Experimental `vamos gui` command and `gui` extra: a local NiceGUI interface that
+  lists canonical runs, explores their fronts interactively (projections,
+  selection, CSV export, integrity verification), and launches built-in runs in
+  worker processes with live front and progress-hypervolume updates.
+
 ## [1.0.1] - 2026-10-01
 
 ### Fixed

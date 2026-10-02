@@ -124,7 +124,7 @@ field, but existing valid invocations and fields retain their meaning. JSON
 mode writes exactly one JSON document to stdout; diagnostics and warnings use
 stderr.
 
-Other commands, including `studio`, `assist`, `tune`, `ablation`, `profile`,
+Other commands, including `studio`, `gui`, `assist`, `tune`, `ablation`, `profile`,
 `bench`, `zoo`, `quickstart`, `create-problem`, `summarize`, `open-results`,
 and development diagnostics, are experimental unless a later stability policy
 explicitly promotes them.

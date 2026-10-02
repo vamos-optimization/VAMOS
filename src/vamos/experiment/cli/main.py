@@ -45,6 +45,7 @@ _SUBCOMMANDS: dict[str, str] = {
     "check": "Verify installation and backends",
     "bench": "Benchmark suite across algorithms",
     "studio": "Launch the interactive dashboard",
+    "gui": "Launch the experimental NiceGUI interface",
     "zoo": "Problem zoo presets",
     "tune": "Hyperparameter tuning",
     "profile": "Performance profiling",
@@ -139,6 +140,11 @@ def _dispatch_subcommand(argv: list[str]) -> bool:
         exit_code = int(_studio_main(argv[1:]))
         if exit_code != 0:
             raise SystemExit(exit_code)
+        return True
+    if command == "gui":
+        from vamos.experiment.gui.cli import main as _gui_main
+
+        _raise_on_nonzero(_gui_main(argv[1:]))
         return True
     if command == "zoo":
         from vamos.experiment.zoo.cli import main as _zoo_main

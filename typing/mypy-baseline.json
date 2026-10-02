@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "91cc51ed1c3cfedce761d06037aafd5e9d3815b2",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 91cc51ed1c3cfedce761d06037aafd5e9d3815b2",
+  "generation_commit": "49dfa952871bfbc424d4dc3aa8b0039a4f5f3b18",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 49dfa952871bfbc424d4dc3aa8b0039a4f5f3b18",
   "environment": {
     "python": "3.12",
     "mypy": "2.3.1",
@@ -11,10 +11,10 @@
     "stub_packages": [],
     "type_affecting_optional_distributions": [],
     "config_path": "pyproject.toml",
-    "config_sha256": "C37A9E13733D3FD89829BA46BBB90DDB3195859408819D41BF8E32C31D7D2018",
-    "mypy_config_sha256": "2D1AAAB5CB687AA8C7871D3AFBE4638A782A12541721A85B770843816611FCAD",
+    "config_sha256": "CA290D0DBC7C67CC4EB9AAE557940F8AD7585A79765E5107108529403FE0731D",
+    "mypy_config_sha256": "C05B6CB8C2F4B7D9CDF041D6F5755FB0DC920B33CA849FE6EB1EC7B2C6F91474",
     "constraints_path": "constraints/ci.txt",
-    "constraints_sha256": "2BFCA73BEF86704168A791A0033951ED450E86C9D9D25D78E98D0C3457964F94"
+    "constraints_sha256": "87F1F8B944FB7718896FC21F10E527CB2F6CFBDD02F54FD90A6E8FB80B075350"
   },
   "scope": [
     "src/vamos"

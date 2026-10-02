@@ -12,7 +12,7 @@ Inherits all repository-wide rules from `/AGENTS.md`. This file contains local d
 - CLI artifact commands delegate to the canonical artifact API: `results inspect`, `results verify`, and exact `reproduce` stay distinct. The `study` group delegates its complete current lifecycle to canonical StudyManifest services.
 - Preserve useful error messages and nonzero exit codes. Do not silently replace an unavailable algorithm, backend, problem, or file.
 
-The current top-level subcommands are `quickstart`, `create-problem`, `summarize`, `open-results`, `results`, `reproduce`, `study`, `ablation`, `assist`, `check`, `bench`, `studio`, `zoo`, `tune`, and `profile`. The standard optimization path uses top-level options without a subcommand. The current study subcommands are `plan`, `create`, `run`, `inspect`, `resume`, `retry`, and `summarize`; there is no cross-process cancel command.
+The current top-level subcommands are `quickstart`, `create-problem`, `summarize`, `open-results`, `results`, `reproduce`, `study`, `ablation`, `assist`, `check`, `bench`, `studio`, `gui`, `zoo`, `tune`, and `profile`. The standard optimization path uses top-level options without a subcommand. The current study subcommands are `plan`, `create`, `run`, `inspect`, `resume`, `retry`, and `summarize`; there is no cross-process cancel command.
 
 ## Change route
 

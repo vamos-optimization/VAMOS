@@ -155,6 +155,7 @@ All functionality lives under one command. Run `vamos help` to list everything:
 | `vamos check` | Verify installation and backends |
 | `vamos bench` | Benchmark suite across algorithms |
 | `vamos studio` | Launch interactive dashboard |
+| `vamos gui` | Experimental NiceGUI interface: explore runs and launch runs with live progress |
 | `vamos tune` | Hyperparameter tuning |
 | `vamos profile` | Performance profiling |
 | `vamos zoo` | Problem zoo presets |

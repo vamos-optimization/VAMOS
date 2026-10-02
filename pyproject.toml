@@ -95,6 +95,11 @@ studio = [
   "plotly>=5.18",
   "pandas>=1.5",
 ]
+# Experimental NiceGUI interface (`vamos gui`)
+gui = [
+  "nicegui>=3.17,<4",
+  "plotly>=5.18",
+]
 # Examples
 examples = [
   "matplotlib>=3.7",
@@ -158,6 +163,7 @@ all = [
   "panel>=1.9.4",
   "param>=2.0",
   "bokeh>=3.8.2",
+  "nicegui>=3.17,<4",
   "mkdocs>=1.6",
   "mkdocs-material>=9.7.7",
   "mkdocstrings[python]>=0.24",
@@ -263,6 +269,8 @@ module = [
   "param",
   "bokeh",
   "bokeh.*",
+  "nicegui",
+  "nicegui.*",
 ]
 ignore_missing_imports = true
 
@@ -275,6 +283,7 @@ markers = [
   "notebooks: notebook-dependent tests",
   "backends: optional backend-dependent tests",
   "studio: Panel/UI dependent tests",
+  "gui: NiceGUI interface (vamos gui) tests",
   "cli: command-line interface smoke tests",
   "numba: tests requiring the numba backend",
   "moocore: tests requiring the moocore backend",

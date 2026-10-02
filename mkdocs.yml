@@ -81,6 +81,7 @@ nav:
     - Analysis & Visualization: topics/analysis.md
     - Scaling with Dask: scaling/dask.md
     - Experimental:
+      - VAMOS GUI: guide/gui.md
       - VAMOS Studio: guide/studio.md
       - VAMOS Assist: assist.md
   - Examples:
