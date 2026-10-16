@@ -40,6 +40,9 @@ VAMOS 1.0 uses NumPy as its deterministic reference backend. Reproducibility is 
 
 ## Continue from here
 
+- [Tutorials](../tutorials/index.md) — follow a learning path or study an algorithm through a worked example.
+- [How-to Guides](index.md) — find instructions for a specific operation.
+- [Reference](../reference/index.md) — locate exact interfaces, capabilities, and contracts.
 - [Examples](../examples.md) — choose maintained scripts, notebooks, or task-oriented guides.
 - [Troubleshooting](troubleshooting.md) — installation, dependency, configuration, and runtime issues.
 - [Algorithms & Backends](../reference/algorithms.md) — algorithm-specific parameters and backend notes.

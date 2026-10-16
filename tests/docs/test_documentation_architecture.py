@@ -28,10 +28,9 @@ def test_public_navigation_is_task_first() -> None:
     assert isinstance(nav, list)
 
     assert _top_level_nav_titles(nav) == [
-        "Home",
         "Get Started",
-        "Guides",
-        "Examples",
+        "Tutorials",
+        "How-to Guides",
         "Reference",
         "Developer",
     ]
@@ -48,6 +47,18 @@ def test_public_navigation_is_task_first() -> None:
     developer = next(item["Developer"] for item in nav if isinstance(item, dict) and "Developer" in item)
     assert developer[0] == {"Roadmap": "roadmap.md"}
     assert nav_text.count("roadmap.md") == 1
+    tutorials = next(item["Tutorials"] for item in nav if isinstance(item, dict) and "Tutorials" in item)
+    how_to = next(item["How-to Guides"] for item in nav if isinstance(item, dict) and "How-to Guides" in item)
+    reference = next(item["Reference"] for item in nav if isinstance(item, dict) and "Reference" in item)
+    assert tutorials[0] == {"Overview": "tutorials/index.md"}
+    assert how_to[0] == {"Overview": "guide/index.md"}
+    assert reference[0] == {"Overview": "reference/index.md"}
+    tutorial_nav = yaml.safe_dump(tutorials)
+    for algorithm in ("nsgaii", "moead", "nsgaiii"):
+        assert f"algorithms/{algorithm}.md" in tutorial_nav
+    maintainers = next(item["Maintainers"] for item in developer if isinstance(item, dict) and "Maintainers" in item)
+    assert {"Maintaining Algorithm Tutorials": "dev/algorithm-documentation.md"} in maintainers
+    assert "dev/algorithm-documentation.md" not in tutorial_nav
 
 
 def test_installation_tabs_have_required_markdown_extensions() -> None:

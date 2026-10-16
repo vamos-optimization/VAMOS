@@ -9,6 +9,10 @@ This page defines the source-of-truth boundaries for VAMOS documentation while t
 | Installation | [installation](../guide/installation.md) |
 | First optimization and progression to saved runs/studies | [zero to hero](../guide/zero_to_hero.md) |
 | Navigation between beginner workflows | [getting started](../guide/getting-started.md) |
+| Learning paths and worked algorithm lessons | [tutorials](../tutorials/index.md) |
+| Task-oriented guide routing | [how-to guides](../guide/index.md) |
+| Technical reference routing | [reference](../reference/index.md) |
+| Page classification and navigation ownership | [documentation content map](documentation-navigation.md) |
 | User-defined objective functions and constraints | [custom problem](../guide/custom-problem.md) |
 | Durable studies | [studies](../guide/studies.md) |
 | Individual run persistence, verification, and replay | [run artifacts](../guide/run-artifacts.md) |
@@ -29,12 +33,20 @@ A user-facing page may summarize another source, but it should link to the canon
 The public information architecture is task-first:
 
 1. **Get Started** — install VAMOS and complete a first run.
-2. **Guides** — solve a custom problem, persist runs, and conduct reproducible studies.
-3. **Examples** — locate executable scripts, notebooks, and cookbook recipes.
+2. **Tutorials** — learn from worked examples, study algorithms, and find the examples gallery.
+3. **How-to Guides** — locate a specific operation, cookbook recipe, or optional workflow.
 4. **Reference** — inspect exact API, algorithm, problem, constraint, and stopping contracts.
 5. **Developer** — roadmap, extension contracts, tests, architecture, and maintenance material.
 
 Roadmap is the first entry under Developer. Project policy and release pages retain their existing URLs and contextual links without a separate navigation section.
+
+The homepage is available from the logo. Each user section opens with an index;
+Tutorials and How-to Guides link to the same canonical pages when a page serves
+both a learning path and a particular task. Algorithm lessons belong under
+Tutorials, while instructions for maintaining those lessons belong under
+Developer → Maintainers with the explicit label **Maintaining Algorithm Tutorials**.
+The [content map](documentation-navigation.md) records every page's role and
+navigation placement. Moving a navigation entry does not move the source page.
 
 The homepage should route readers into three primary scientific journeys: trying VAMOS, solving their own problem, and running a reproducible study.
 

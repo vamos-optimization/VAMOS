@@ -70,6 +70,10 @@ front = result.front()</code></pre>
 
 **Prefer runnable source?** [Run the three executable journeys](examples.md#three-executable-journeys).
 
+Follow a [learning path in Tutorials](tutorials/index.md), find a specific
+operation in [How-to Guides](guide/index.md), or consult the
+[Reference](reference/index.md) for exact interfaces and capabilities.
+
 ## From a first run to a scientific study
 
 VAMOS 1.0 distinguishes stable optimization, run-artifact, and single-owner study surfaces from experimental features such as Studio, provider integrations, and tuning. Check [Stability and versioning](project/stability-and-versioning.md) before depending on an API as a 1.x compatibility commitment.
