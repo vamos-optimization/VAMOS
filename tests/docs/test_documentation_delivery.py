@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
+from importlib.metadata import version
 from pathlib import Path
 
 import pytest
@@ -13,6 +15,27 @@ UPLOAD_ARTIFACT = "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6
 DOWNLOAD_ARTIFACT = "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c"
 BASE_URL = "https://vamos-optimization.org/"
 VERSION = "1.0.0"
+
+
+@pytest.mark.parametrize("filename", ["docs-cloudflare.yml", "docs.yml"])
+def test_publication_rejects_version_that_differs_from_source(filename: str) -> None:
+    workflow = yaml.load((ROOT / ".github/workflows" / filename).read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+    steps = [step for job in workflow["jobs"].values() for step in job["steps"]]
+    guard = next(step for step in steps if step.get("name") == "Check requested documentation version against source")
+    commands = guard["run"]
+    source = commands.split("<<'PYVERSION'\n", 1)[1].split("\nPYVERSION", 1)[0]
+    installed = version("vamos-optimization")
+    for requested, succeeds in ((installed, True), (f"{installed}-mismatch", False)):
+        result = subprocess.run(
+            [sys.executable, "-c", source],
+            env={**os.environ, "DOC_VERSION": requested},
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert (result.returncode == 0) is succeeds, result.stderr
+        if not succeeds:
+            assert "differs from source version" in result.stderr
 
 
 def _artifact_action_steps(action: str) -> list[dict[str, object]]:
