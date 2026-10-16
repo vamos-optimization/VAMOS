@@ -7,19 +7,24 @@ VAMOS keeps executable learning material in `examples/` and `notebooks/`, while 
 The PyPI package provides the Python API and CLI. The scripts and notebooks on
 this page live in the [source repository](https://github.com/vamos-optimization/VAMOS).
 Install the [published package](guide/installation.md), then download the
-[repository ZIP](https://github.com/vamos-optimization/VAMOS/archive/refs/heads/main.zip)
+[VAMOS 1.0.1 source ZIP](https://github.com/vamos-optimization/VAMOS/archive/refs/tags/v1.0.1.zip)
 and extract it, or use Git:
 
 ```bash
-git clone https://github.com/vamos-optimization/VAMOS.git
+git clone --branch v1.0.1 --depth 1 https://github.com/vamos-optimization/VAMOS.git
 cd VAMOS
 ```
 
 Run the commands below from that folder using your existing VAMOS environment.
 An editable install is unnecessary when you only want to run an example against
-the published package. Links on this page point to maintained `main` examples;
-record the example commit with your experiment. The `v1.0.1` tag preserves
-the source and teaching scripts included in this release.
+the published package. Links on this page use the matching `v1.0.1` source tag.
+The three journeys below need only the core package; plotting and notebooks
+require the additional dependencies described below. Record the package version,
+example revision, and installed dependencies with your experiment.
+
+For development work, obtain `main` separately and follow
+[Install from a source checkout](guide/installation.md#install-from-a-source-checkout).
+Its examples may require changes beyond the published package.
 
 ## Three executable journeys
 
@@ -35,7 +40,7 @@ python examples/journeys/try_vamos.py
 
 This runs NSGA-II on ZDT1 with the NumPy reference backend and prints the shapes of the objective and decision matrices together with the evaluation count. It is the smallest end-to-end optimization path.
 
-[View the executable source](https://github.com/vamos-optimization/VAMOS/blob/main/examples/journeys/try_vamos.py) · [Read the Quickstart](guide/zero_to_hero.md)
+[View the executable source](https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/examples/journeys/try_vamos.py) · [Read the Quickstart](guide/zero_to_hero.md)
 
 ### Solve my problem
 
@@ -45,7 +50,7 @@ python examples/journeys/solve_my_problem.py
 
 This maps two domain variables, two objective scores, bounds, and one inequality requirement into `make_problem(...)`, then optimizes the resulting teaching surrogate through the same `optimize(...)` facade used for built-in benchmarks. It also extracts the matching decision rows for the non-dominated subset.
 
-[View the executable source](https://github.com/vamos-optimization/VAMOS/blob/main/examples/journeys/solve_my_problem.py) · [Read Solve your own problem](guide/custom-problem.md)
+[View the executable source](https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/examples/journeys/solve_my_problem.py) · [Read Solve your own problem](guide/custom-problem.md)
 
 ### Run a reproducible study
 
@@ -57,32 +62,32 @@ This builds a bounded `2 problems × 2 algorithms × 2 seeds` matrix, inspects t
 
 Use a new output directory: durable studies are not silently overwritten.
 
-[View the executable source](https://github.com/vamos-optimization/VAMOS/blob/main/examples/journeys/reproducible_study.py) · [Read Run a reproducible study](guide/studies.md)
+[View the executable source](https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/examples/journeys/reproducible_study.py) · [Read Run a reproducible study](guide/studies.md)
 
 ## Choose by task
 
 | Goal | Start here | Status | Repository material |
 | --- | --- | --- | --- |
-| Run a first optimization | [Quickstart](guide/zero_to_hero.md) | Stable | [`examples/journeys/try_vamos.py`](https://github.com/vamos-optimization/VAMOS/blob/main/examples/journeys/try_vamos.py) and [`examples/basics/quickstart.py`](https://github.com/vamos-optimization/VAMOS/blob/main/examples/basics/quickstart.py) |
-| Compare built-in algorithms | [Algorithms & Backends](reference/algorithms.md) | Stable built-in algorithms | [`examples/basics/algorithm_showcase.py`](https://github.com/vamos-optimization/VAMOS/blob/main/examples/basics/algorithm_showcase.py) |
-| Define your own objectives | [Solve your own problem](guide/custom-problem.md) | Stable problem definition | [`examples/journeys/solve_my_problem.py`](https://github.com/vamos-optimization/VAMOS/blob/main/examples/journeys/solve_my_problem.py) and [`examples/problems/`](https://github.com/vamos-optimization/VAMOS/tree/main/examples/problems/) |
-| Work with constraints | [Constraints](reference/constraints.md) | Stable problem definition; check notebook imports | [`notebooks/1_intermediate/11_constrained_optimization.ipynb`](https://github.com/vamos-optimization/VAMOS/blob/main/notebooks/1_intermediate/11_constrained_optimization.ipynb) |
+| Run a first optimization | [Quickstart](guide/zero_to_hero.md) | Stable | [`examples/journeys/try_vamos.py`](https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/examples/journeys/try_vamos.py) and [`examples/basics/quickstart.py`](https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/examples/basics/quickstart.py) |
+| Compare built-in algorithms | [Algorithms & Backends](reference/algorithms.md) | Stable built-in algorithms | [`examples/basics/algorithm_showcase.py`](https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/examples/basics/algorithm_showcase.py) |
+| Define your own objectives | [Solve your own problem](guide/custom-problem.md) | Stable problem definition | [`examples/journeys/solve_my_problem.py`](https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/examples/journeys/solve_my_problem.py) and [`examples/problems/`](https://github.com/vamos-optimization/VAMOS/tree/v1.0.1/examples/problems/) |
+| Work with constraints | [Constraints](reference/constraints.md) | Stable problem definition; check notebook imports | [`notebooks/1_intermediate/11_constrained_optimization.ipynb`](https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/notebooks/1_intermediate/11_constrained_optimization.ipynb) |
 | Persist and inspect runs | [Run artifacts & replay](guide/run-artifacts.md) | Stable | canonical run-artifact examples referenced by that guide |
-| Plan and trace a persistent experiment matrix | [Run a reproducible study](guide/studies.md) | Stable, single-owner | [`examples/journeys/reproducible_study.py`](https://github.com/vamos-optimization/VAMOS/blob/main/examples/journeys/reproducible_study.py) |
+| Plan and trace a persistent experiment matrix | [Run a reproducible study](guide/studies.md) | Stable, single-owner | [`examples/journeys/reproducible_study.py`](https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/examples/journeys/reproducible_study.py) |
 | Tune an algorithm configuration | [Hyperparameter tuning](topics/tuning.md) | Experimental | `vamos tune` CLI workflow and advanced tuning notebooks |
-| Optimize model hyperparameters as decision variables | [Hyperparameter tuning](topics/tuning.md) | Example-specific custom problem | [`examples/tuning/hyperparam_tuning.py`](https://github.com/vamos-optimization/VAMOS/blob/main/examples/tuning/hyperparam_tuning.py) |
-| Use distributed evaluation | [Scaling with Dask](scaling/dask.md) | Experimental | [`examples/distributed/`](https://github.com/vamos-optimization/VAMOS/tree/main/examples/distributed/) |
-| Build a plugin | [Plugin Guide](topics/plugin_guide.md) | Experimental | [`examples/plugins/`](https://github.com/vamos-optimization/VAMOS/tree/main/examples/plugins/) |
+| Optimize model hyperparameters as decision variables | [Hyperparameter tuning](topics/tuning.md) | Example-specific custom problem | [`examples/tuning/hyperparam_tuning.py`](https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/examples/tuning/hyperparam_tuning.py) |
+| Use distributed evaluation | [Scaling with Dask](scaling/dask.md) | Experimental | [`examples/distributed/`](https://github.com/vamos-optimization/VAMOS/tree/v1.0.1/examples/distributed/) |
+| Build a plugin | [Plugin Guide](topics/plugin_guide.md) | Experimental | [`examples/plugins/`](https://github.com/vamos-optimization/VAMOS/tree/v1.0.1/examples/plugins/) |
 
 ## Notebooks
 
 The notebook suite is organized by learning level:
 
-- [`notebooks/0_basic/`](https://github.com/vamos-optimization/VAMOS/tree/main/notebooks/0_basic/) — first runs, API comparisons, and guided learning.
-- [`notebooks/1_intermediate/`](https://github.com/vamos-optimization/VAMOS/tree/main/notebooks/1_intermediate/) — discrete problems, constraints, MCDM, and interactive analysis.
-- [`notebooks/2_advanced/`](https://github.com/vamos-optimization/VAMOS/tree/main/notebooks/2_advanced/) — tuning, performance, extension workflows, ablations, and publication-oriented benchmarking.
+- [`notebooks/0_basic/`](https://github.com/vamos-optimization/VAMOS/tree/v1.0.1/notebooks/0_basic/) — first runs, API comparisons, and guided learning.
+- [`notebooks/1_intermediate/`](https://github.com/vamos-optimization/VAMOS/tree/v1.0.1/notebooks/1_intermediate/) — discrete problems, constraints, MCDM, and interactive analysis.
+- [`notebooks/2_advanced/`](https://github.com/vamos-optimization/VAMOS/tree/v1.0.1/notebooks/2_advanced/) — tuning, performance, extension workflows, ablations, and publication-oriented benchmarking.
 
-[`notebooks/INDEX.ipynb`](https://github.com/vamos-optimization/VAMOS/blob/main/notebooks/INDEX.ipynb) is the maintained notebook catalog in a repository checkout. The CI smoke suite executes selected notebooks; a notebook being present in the repository is not, by itself, a claim that every cell is part of the stable public API.
+[`notebooks/INDEX.ipynb`](https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/notebooks/INDEX.ipynb) is the maintained notebook catalog in a repository checkout. The CI smoke suite executes selected notebooks; a notebook being present in the repository is not, by itself, a claim that every cell is part of the stable public API.
 
 The [stability policy](project/stability-and-versioning.md) defines these labels.
 Analysis, visualization, tuning, and plugin notebooks may use Experimental or

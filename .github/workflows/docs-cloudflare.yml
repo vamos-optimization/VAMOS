@@ -6,7 +6,6 @@ on:
       version:
         description: Stable documentation version to publish
         required: true
-        default: "1.0.0"
       archive_run_id:
         description: Prior trusted documentation workflow run ID (required to preserve immutable releases)
         required: true
@@ -58,6 +57,16 @@ jobs:
       - name: Install constrained documentation environment
         run: |
           python -m pip install --disable-pip-version-check -c constraints/ci.txt -e ".[docs]"
+      - name: Check requested documentation version against source
+        run: |
+          python - <<'PYVERSION'
+          import os
+          from importlib.metadata import version
+          requested = os.environ["DOC_VERSION"]
+          installed = version("vamos-optimization")
+          if requested != installed:
+              raise SystemExit(f"Documentation version {requested} differs from source version {installed}")
+          PYVERSION
       - name: Require trusted archive input
         env:
           ARCHIVE_RUN_ID: ${{ inputs.archive_run_id }}

@@ -99,21 +99,27 @@ The equations above are illustrative, not a validated physical process model. Th
 ```python
 from vamos import optimize
 from vamos.algorithms import NSGAIIConfig
-from vamos.problems import ZDT1
 
-problem = ZDT1(n_var=30)
-configuration = NSGAIIConfig.default(pop_size=40, n_var=problem.n_var)
+n_var = 30
+configuration = NSGAIIConfig.default(pop_size=40, n_var=n_var)
 
 result = optimize(
-    problem,
+    "zdt1",
+    n_var=n_var,
     algorithm="nsgaii",
     algorithm_config=configuration,
     max_evaluations=400,
+    engine="numpy",
     seed=42,
 )
 ```
 
 Use a public configuration object when the exact operators and their settings need to be preserved. VAMOS rejects a configuration that does not match the selected algorithm.
+
+Use the registered problem name `"zdt1"` here so the following save-and-replay
+steps retain its reconstructable identity. In VAMOS 1.0.1, a directly constructed
+`ZDT1(...)` object can be optimized but does not retain that same registered
+identity for exact replay.
 
 Result selection also belongs to the algorithm configuration. In particular, the explicit NSGA-II configuration above uses its configuration-level `non_dominated` result mode, so the top-level row count need not equal 40. See [Understanding optimization results](understanding-results.md#know-which-set-x-and-f-represent) before comparing row counts between configurations.
 

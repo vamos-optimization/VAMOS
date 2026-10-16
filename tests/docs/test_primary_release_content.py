@@ -65,6 +65,18 @@ def test_every_primary_python_snippet_is_valid_python() -> None:
 
 
 @pytest.mark.smoke
+def test_quickstart_python_blocks_execute_in_reading_order(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    blocks = _python_blocks(_read("docs/guide/zero_to_hero.md"))
+    monkeypatch.chdir(tmp_path)
+    namespace = {"__name__": "__main__"}
+    for index, source in enumerate(blocks, start=1):
+        exec(compile(source, f"docs/guide/zero_to_hero.md::python-block-{index}", "exec"), namespace)
+    assert namespace["verification"].effective_replayability == "exact"
+    assert namespace["replay"].exact is True
+    assert namespace["report"].counts["succeeded"] == 8
+
+
+@pytest.mark.smoke
 def test_primary_optimization_examples_execute() -> None:
     direct = vamos.optimize(
         "zdt1",

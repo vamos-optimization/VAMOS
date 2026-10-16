@@ -26,6 +26,34 @@ This privilege split is intentional: Cloudflare credentials are never exposed to
 
 `.github/workflows/docs-cloudflare.yml` is the canonical production path. It is manual, runs in the `cloudflare-production` GitHub environment, rebuilds the mutable current portal with `https://vamos-optimization.org/` as the canonical base, requires an explicit prior trusted portal artifact, validates the generated tree, deploys the `vamos-docs` Worker, and then verifies the live custom-domain contract.
 
+Publishing a package to PyPI or merging release metadata does not update this
+host. Documentation publication is a separate release step. Manual publication
+and verification require an explicit version, without a preselected historical
+release. Both publication workflows reject a requested version that differs
+from the package installed from the checked-out source.
+
+Before publishing a subsequent release:
+
+1. Confirm the released PyPI version, source tag, and version named by the current
+   installation guide. Run the initial examples against the installed PyPI wheel
+   in a clean environment, without an editable checkout or `PYTHONPATH=src`.
+2. Select a successful prior production run and its unexpired portal artifact as
+   `archive_run_id` and `archive_artifact_name`. Verify the downloaded artifact's
+   digest. A preview without the old archives is not an archive handoff source.
+3. Build with `--archive-from` and run both portal checkers. Compare the retained
+   `docs/<old-version>/` file hashes with the trusted artifact, allowing only the
+   explicit withdrawn-route policy. Preserve the artifact for the next release.
+4. Publish through this workflow with the selected version and archive inputs.
+   Require the live check to pass, then confirm that the homepage, installation
+   guide, and `docs/versions.json` identify the same stable release. If a retrieved
+   page differs, compare it with the deployed artifact and workflow source SHA
+   before attributing the discrepancy to a cache.
+
+Source examples linked from the current [Examples](../examples.md) page use the
+release tag matching the documented PyPI package. Historical version mentions
+and figure provenance remain unchanged unless the corresponding result is
+regenerated and verified.
+
 The archive handoff is required on every production republish, including a same-version republish such as the clean-URL cutover of `1.0.0`. If the trusted prior artifact already contains `docs/<version>/`, the builder carries that immutable directory forward byte-for-byte and rebuilds only the mutable current tree and compatibility aliases. This prevents a documentation-only deployment from silently rewriting an already published scientific reference.
 
 The production Wrangler configuration attaches `vamos-optimization.org`, `www.vamos-optimization.org`, `vamos-optimization.dev`, and `www.vamos-optimization.dev` as Custom Domains. Edge redirect logic sends the three aliases to the apex `.org` host while preserving path and query. On the apex host, `docs/stable/...`, `latest/...`, and `docs/` redirect to the corresponding clean current path; immutable `docs/<version>/...` routes remain unchanged.
