@@ -72,6 +72,9 @@ def _build_site(root: Path, configuration: str, site_dir: Path, site_url: str) -
         site_dir=str(site_dir),
         site_url=site_url,
     )
+    # Recovery links and assets must work from any missing nested URL, including
+    # on a preview origin and under an immutable version prefix.
+    config.extra["documentation_base_path"] = urlsplit(site_url).path
     config.plugins.on_startup(command="build", dirty=False)
     try:
         build(config)
@@ -244,11 +247,7 @@ def _copy_archived_versions(archive_from: Path, docs_root: Path, *, base_url: st
 
 
 def _published_versions(docs_root: Path) -> list[str]:
-    versions = [
-        path.name
-        for path in docs_root.iterdir()
-        if path.is_dir() and _VERSION_RE.fullmatch(path.name) is not None
-    ]
+    versions = [path.name for path in docs_root.iterdir() if path.is_dir() and _VERSION_RE.fullmatch(path.name) is not None]
     return sorted(versions, key=_version_key)
 
 

@@ -1,3 +1,11 @@
+---
+description: 'Feature selection as two objectives: run a verified VAMOS example, inspect actual output, and understand its assumptions and limits.'
+setup: tutorials/coverage-setup/
+downloads:
+- url: assets/coverage/feature_selection.py
+  label: Download feature_selection.py
+---
+
 # Feature selection as two objectives
 
 **Goal:** connect decision variables to a practical objective pair, execute the model, and select or interpret a candidate without losing its original row.

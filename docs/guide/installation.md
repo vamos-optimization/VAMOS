@@ -1,3 +1,9 @@
+---
+description: Install VAMOS 1.0.1 and select the optional dependencies needed for your optimization workflow.
+search:
+  boost: 2
+---
+
 # Installation
 
 The examples on this site target **VAMOS 1.0.1**. Use an isolated Python

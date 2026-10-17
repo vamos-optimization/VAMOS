@@ -1,3 +1,22 @@
+---
+description: Plan and execute a fair comparative study with fixed seeds, evaluation budgets, and durable run evidence.
+search:
+  boost: 2
+setup: tutorials/study-setup/
+downloads:
+- url: assets/studies/t06-fair-study.py
+  label: Download Python example
+lesson:
+  track: From study to report
+  position: 1 of 3
+  previous:
+    url: tutorials/study-setup/
+    label: Set up this learning path
+  next:
+    url: tutorials/t07-quality-and-budget/
+    label: T07 · Quality and budget
+---
+
 # T06. Run a fair comparative study
 
 ## Goal

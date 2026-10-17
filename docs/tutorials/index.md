@@ -1,3 +1,9 @@
+---
+description: 'Choose a VAMOS learning path: first results, constrained problems, comparative studies, algorithms, representations, and advanced experiments.'
+search:
+  boost: 3
+---
+
 # Tutorials
 
 Learn a workflow from its first run to an interpretable result. Start with the
@@ -5,6 +11,12 @@ route that matches your question; each link below leads to an existing worked
 example. For a single operation, use the [How-to Guides](../guide/index.md).
 
 ## Choose a learning path
+
+Use the search field for a topic such as **constraints**, an algorithm such as
+**MOEA/D**, or a public API name such as **StudySpec**. On a narrow screen,
+the magnifying-glass button opens search and the menu button opens the sections.
+Each numbered lesson provides its Python download, setup, and previous/next
+steps. Wide tables scroll horizontally; focus a table to scroll with arrow keys.
 
 Start with the three fundamental lessons. Each has complete downloadable code,
 actual output and a figure, an interpretation, and one guided change. They

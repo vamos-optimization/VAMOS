@@ -1,3 +1,11 @@
+---
+description: 'Measure backend time without hiding initialization: run a verified VAMOS example, inspect actual output, and understand its assumptions and limits.'
+setup: tutorials/coverage-setup/
+downloads:
+- url: assets/coverage/performance.py
+  label: Download performance.py
+---
+
 # Measure backend time without hiding initialization
 
 **Goal:** measure a fixed optimization workload and separate first-call costs from subsequent executions. Read [backend roles](../reference/algorithms.md#backends) first. This is a local end-to-end timing example, not a package performance ranking.

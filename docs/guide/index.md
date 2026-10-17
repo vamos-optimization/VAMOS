@@ -1,3 +1,9 @@
+---
+description: Find task-oriented VAMOS guides for installation, saved runs, command-line workflows, troubleshooting, and experimental features.
+search:
+  boost: 2
+---
+
 # How-to Guides
 
 Find the operation you need once you have a problem or a result. For a guided

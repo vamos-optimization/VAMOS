@@ -4,6 +4,9 @@ site_description: "Multi-objective optimization in Python: compare algorithms, s
 repo_url: https://github.com/vamos-optimization/VAMOS
 repo_name: vamos-optimization/VAMOS
 
+extra:
+  documentation_base_path: /
+
 exclude_docs: |
   overrides/
 
@@ -45,6 +48,7 @@ extra_css:
 
 extra_javascript:
   - javascripts/api-reference.js
+  - javascripts/site-navigation.js
 
 markdown_extensions:
   - admonition
@@ -57,7 +61,8 @@ markdown_extensions:
       permalink: true
 
 plugins:
-  - search
+  - search:
+      separator: '[\s\-/_.]+'
   - mkdocstrings:
       handlers:
         python:

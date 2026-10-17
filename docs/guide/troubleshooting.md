@@ -1,3 +1,9 @@
+---
+description: Diagnose VAMOS installation, backend, configuration, feasibility, and result-loading problems.
+search:
+  boost: 2
+---
+
 # Troubleshooting
 
 These checks target the published VAMOS 1.0.1 package. See

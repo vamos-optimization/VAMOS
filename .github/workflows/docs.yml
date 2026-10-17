@@ -86,6 +86,8 @@ jobs:
             --root public \
             --version "$DOC_VERSION" \
             --base-url "$DOC_BASE_URL"
+      - name: Verify reader-facing site contract
+        run: python tools/check_docs_site.py --root public --base-url "$DOC_BASE_URL"
       - name: Upload reusable portal archive
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

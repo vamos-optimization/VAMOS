@@ -1,3 +1,11 @@
+---
+description: 'SPEA2: run a verified VAMOS example, inspect actual output, and understand its assumptions and limits.'
+setup: tutorials/coverage-setup/
+downloads:
+- url: assets/coverage/spea2.py
+  label: Download spea2.py
+---
+
 # SPEA2
 
 Strength-based fitness combines dominance information with density estimation, while an environmental archive preserves candidates for further search [1]. The archive is part of the algorithm, not simply a saved result.

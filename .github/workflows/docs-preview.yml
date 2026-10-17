@@ -16,6 +16,11 @@ on:
       - "tools/build_release_docs.py"
       - "tools/check_docs_portal.py"
       - "tools/check_docs_live.py"
+      - "tools/check_docs_site.py"
+      - "tools/check_docs_artifact.py"
+      - "tools/check_docs_browser.py"
+      - "tools/docs-browser-requirements.txt"
+      - "tests/docs/**"
       - ".github/workflows/docs-preview.yml"
       - ".github/workflows/docs-cloudflare-preview.yml"
       - ".github/workflows/docs-cloudflare-verify.yml"
@@ -69,6 +74,27 @@ jobs:
             --root preview \
             --version "$DOC_VERSION" \
             --base-url "$DOC_BASE_URL"
+      - name: Verify reader journeys and record artifact identity
+        run: |
+          python tools/check_docs_site.py --root preview --base-url "$DOC_BASE_URL"
+          python tools/check_docs_artifact.py create --root preview --manifest preview-evidence/artifact.json --source-sha "$GITHUB_SHA"
+          python tools/check_docs_artifact.py verify --root preview --manifest preview-evidence/artifact.json --source-sha "$GITHUB_SHA"
+      - name: Install isolated browser QA environment
+        run: |
+          python -m venv "$RUNNER_TEMP/docs-browser"
+          "$RUNNER_TEMP/docs-browser/bin/python" -m pip install -r tools/docs-browser-requirements.txt
+          "$RUNNER_TEMP/docs-browser/bin/python" -m playwright install --with-deps chromium
+      - name: Exercise desktop and mobile documentation
+        run: |
+          "$RUNNER_TEMP/docs-browser/bin/python" tools/check_docs_browser.py --root preview --output preview-evidence/browser
+      - name: Upload documentation QA evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: docs-qa-${{ github.event.pull_request.number || github.run_id }}
+          path: preview-evidence/
+          if-no-files-found: error
+          retention-days: 14
       - name: Upload preview artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

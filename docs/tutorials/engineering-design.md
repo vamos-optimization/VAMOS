@@ -1,3 +1,11 @@
+---
+description: 'Engineering design with mixed constraints: run a verified VAMOS example, inspect actual output, and understand its assumptions and limits.'
+setup: tutorials/coverage-setup/
+downloads:
+- url: assets/coverage/engineering.py
+  label: Download engineering.py
+---
+
 # Engineering design with mixed constraints
 
 **Goal:** connect decision variables to a practical objective pair, execute the model, and select or interpret a candidate without losing its original row.

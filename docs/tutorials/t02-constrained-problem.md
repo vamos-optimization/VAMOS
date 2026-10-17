@@ -1,3 +1,22 @@
+---
+description: Define a constrained multi-objective problem, validate its evaluator, and select feasible results.
+search:
+  boost: 2
+setup: tutorials/setup/
+downloads:
+- url: assets/tutorials/t02-constrained-problem.py
+  label: Download Python example
+lesson:
+  track: First results
+  position: 2 of 3
+  previous:
+    url: tutorials/t01-first-result/
+    label: T01 · First result
+  next:
+    url: tutorials/t03-pareto-decision/
+    label: T03 · Pareto decision
+---
+
 # T02. Solve your own constrained problem
 
 ## Goal

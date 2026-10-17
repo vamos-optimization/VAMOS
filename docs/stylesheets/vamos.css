@@ -447,6 +447,141 @@ body {
   overflow: hidden;
 }
 
+/* Learning controls stay legible, keyboard reachable, and inside narrow viewports. */
+:focus-visible {
+  outline: 3px solid var(--md-typeset-a-color);
+  outline-offset: 3px;
+}
+
+.md-header :focus-visible,
+.md-tabs :focus-visible {
+  outline-color: #99F6E4;
+}
+
+.md-typeset :is(h1, h2, h3, h4, [id]) {
+  scroll-margin-top: 5rem;
+}
+
+.md-typeset :is(summary, .md-clipboard) {
+  min-height: 2.2rem;
+}
+
+.md-typeset__scrollwrap {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.md-typeset__scrollwrap:focus-visible {
+  outline-offset: -3px;
+}
+
+.vamos-lesson-tools {
+  margin: 0 0 1.4rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--vamos-border);
+  border-radius: 0.65rem;
+  background: rgba(20, 184, 166, 0.055);
+}
+
+.md-typeset .vamos-lesson-progress {
+  margin: 0 0 0.55rem;
+  color: var(--vamos-muted);
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.vamos-lesson-downloads {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55rem 0.8rem;
+}
+
+.vamos-download,
+.vamos-setup-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.2rem;
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.vamos-download {
+  padding: 0.45rem 0.75rem;
+  border: 1px solid currentColor;
+  border-radius: 0.4rem;
+}
+
+.vamos-download:hover {
+  background: var(--md-code-bg-color);
+}
+
+.vamos-lesson-nav {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 2rem 0 1rem;
+}
+
+.vamos-lesson-nav a {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.85rem;
+  border: 1px solid var(--vamos-border);
+  border-radius: 0.6rem;
+  font-size: 0.8rem;
+}
+
+.vamos-lesson-nav a span {
+  color: var(--vamos-muted);
+  font-size: 0.7rem;
+  font-weight: 400;
+}
+
+.vamos-recovery {
+  max-width: 45rem;
+  margin: 2rem auto;
+}
+
+.vamos-recovery-search label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.vamos-recovery-search div {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.vamos-recovery-search input {
+  min-width: 0;
+  flex: 1;
+  padding: 0.65rem;
+  border: 1px solid var(--vamos-muted);
+  border-radius: 0.4rem;
+  background: var(--md-default-bg-color);
+  color: var(--md-default-fg-color);
+  font: inherit;
+}
+
+.vamos-recovery-search button {
+  padding: 0.65rem 1rem;
+  border-radius: 0.4rem;
+  background: var(--vamos-teal-dark);
+  color: white;
+  cursor: pointer;
+}
+
+@media screen and (max-width: 600px) {
+  .vamos-lesson-nav { grid-template-columns: 1fr; }
+  .vamos-lesson-downloads { align-items: stretch; flex-direction: column; }
+  .vamos-recovery-search div { flex-direction: column; }
+  .md-typeset { overflow-wrap: break-word; }
+}
+
 @media screen and (max-width: 960px) {
   .vamos-hero {
     grid-template-columns: 1fr;
