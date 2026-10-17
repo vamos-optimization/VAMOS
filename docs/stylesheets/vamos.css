@@ -328,6 +328,11 @@ body {
   line-height: 1.65;
 }
 
+.md-typeset .vamos-hero__code .md-clipboard {
+  background: transparent;
+  color: #99F6E4;
+}
+
 .vamos-code-window__result {
   padding: 0.7rem 1.2rem;
   border-top: 1px solid rgba(255, 255, 255, 0.08);

@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import importlib
 import json
+from html.parser import HTMLParser
 from pathlib import Path
+from urllib.parse import urljoin, urlsplit
 
 import pytest
 import yaml
@@ -96,3 +98,33 @@ def test_preview_and_production_enforce_site_and_artifact_checks():
         < production.index("wrangler@${WRANGLER_VERSION}")
         < production.index("check_docs_artifact.py live")
     )
+
+
+@pytest.mark.parametrize("prefix", ["/", "/docs/1.0.1/"])
+def test_nested_404_keeps_theme_resources_on_the_preview_origin(monkeypatch, tmp_path, prefix):
+    pytest.importorskip("mkdocs")
+    monkeypatch.syspath_prepend(str(ROOT / "tools"))
+    builder = importlib.import_module("build_release_docs")
+    builder._build_site(ROOT, "mkdocs.yml", tmp_path / "site", "https://vamos-optimization.org" + prefix)
+    resources = []
+
+    class Resources(HTMLParser):
+        def handle_starttag(self, tag, attrs):
+            data = dict(attrs)
+            if tag == "link" and data.get("rel") == "stylesheet":
+                resources.append(data["href"])
+            if tag in {"script", "img"} and data.get("src"):
+                resources.append(data["src"])
+
+    Resources().feed((tmp_path / "site/404.html").read_text(encoding="utf-8"))
+    checked = 0
+    for resource in resources:
+        if urlsplit(resource).scheme:
+            assert urlsplit(resource).netloc == "fonts.googleapis.com"
+            continue
+        resolved = urlsplit(urljoin("https://preview.example" + prefix + "missing/nested/page/", resource))
+        assert resolved.netloc == "preview.example"
+        assert resolved.path.startswith(prefix)
+        assert (tmp_path / "site" / resolved.path.removeprefix(prefix)).is_file(), resource
+        checked += 1
+    assert checked >= 7

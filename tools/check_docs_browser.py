@@ -53,7 +53,7 @@ def assert_layout(page) -> dict:
       scrollWidth: document.documentElement.scrollWidth,
       h1: document.querySelectorAll('main h1').length,
       missingAlt: document.querySelectorAll('main img:not([alt])').length,
-      brokenImages: [...document.querySelectorAll('main img')].filter(i => !i.complete || !i.naturalWidth).length
+      brokenImages: [...document.querySelectorAll('img')].filter(i => !i.complete || !i.naturalWidth).length
     })""")
     assert result["scrollWidth"] <= result["width"] + 1, f"Horizontal page overflow at {page.url}: {result}"
     assert result["h1"] == 1 and not result["missingAlt"] and not result["brokenImages"], (page.url, result)
@@ -63,7 +63,7 @@ def assert_layout(page) -> dict:
 def search(page, query: str, expected: str | None) -> None:
     field = page.locator(".md-search__input")
     if not page.locator("#__search").is_checked():
-        opener = page.locator('.md-header label[for="__search"]')
+        opener = page.locator('.md-header__button[for="__search"]')
         if opener.is_visible():
             opener.click()
         else:
@@ -80,7 +80,18 @@ def run_journey(browser, base: str, root: Path, output: Path, width: int) -> dic
     page = context.new_page()
     page.set_default_timeout(15000)
     errors = []
+    failed_resources = []
     page.on("pageerror", lambda error: errors.append(str(error)))
+    page.on(
+        "response",
+        lambda response: (
+            failed_resources.append(response.url)
+            if response.url.startswith(base)
+            and response.request.resource_type in {"stylesheet", "script", "font", "image"}
+            and response.status >= 400
+            else None
+        ),
+    )
     results = []
     try:
         for index, route in enumerate(ROUTES):
@@ -138,12 +149,14 @@ def run_journey(browser, base: str, root: Path, output: Path, width: int) -> dic
         assert response.status == 404
         page.get_by_role("heading", name="Let's find your next step").wait_for()
         assert_layout(page)
+        assert page.locator(".vamos-recovery-search input").evaluate("el => parseFloat(getComputedStyle(el).paddingLeft)") >= 8
         page.screenshot(path=str(output / f"{width}-404.png"), full_page=True)
         page.get_by_label("What are you looking for?").fill("MOEA/D")
         page.get_by_role("button", name="Search", exact=True).click()
         page.wait_for_url("**/?q=MOEA%2FD")
         page.locator('.md-search-result__list a[href*="algorithms/moead/"]').first.wait_for()
         assert not errors, errors
+        assert not failed_resources, failed_resources
         return {
             "viewport": width,
             "pages": results,
