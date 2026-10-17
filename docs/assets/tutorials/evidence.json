@@ -1,0 +1,47 @@
+{
+  "schema": "vamos.documentation.tutorial-evidence.v1",
+  "purpose": "Small teaching outputs, not comparative or convergence evidence; no run arrays retained.",
+  "source": "examples/tutorials/fundamentals.py",
+  "source_sha256": "b1f665d5533971b6582ae0eecc7d7b5da6a540b3e1758078ffbf987b21427e71",
+  "base_commit": "16ff130d60b721d359f323cf769b214ca3b99d35",
+  "command": "python tools/build_fundamental_tutorials.py --write",
+  "python": "3.12.14",
+  "packages": {
+    "vamos-optimization": "1.0.1",
+    "numpy": "2.1.3",
+    "scipy": "1.15.3",
+    "joblib": "1.4.2",
+    "matplotlib": "3.10.9"
+  },
+  "settings": {
+    "algorithm": "nsgaii",
+    "engine": "numpy",
+    "seed": 42,
+    "population": 40,
+    "max_evaluations": 400
+  },
+  "asset_size_budget_bytes": 250000,
+  "lessons": {
+    "t01": {
+      "download_sha256": "bd389b66579705fa2a279adf1804139c830cb5e6460ff00c5e568545fc0e0af7",
+      "figure_sha256": "81d12ff56b2069670e0ef266e083ea62ebc2856556c6d0e4cefe694be45e9d86",
+      "stdout": "Returned decisions: (40, 30)\nReturned objectives: (40, 2)\nNon-dominated objectives: (9, 2)\nMatching decisions: (9, 30)\nEvaluations: 400\n",
+      "returned_rows": 40,
+      "front_rows": 9
+    },
+    "t02": {
+      "download_sha256": "742288658171eb904090509c741d4df2f45b0235be09e002f264a6e72c25efd5",
+      "figure_sha256": "97f462ab79b75975e27fe9b1219585939345f859ded64d862e28e9947df79277",
+      "stdout": "Check [60.0, 2.0]: F=(0.050000, 2.000000), g=330.0\nCheck [75.0, 6.0]: F=(0.290625, 0.958333), g=0.0\nCheck [90.0, 8.0]: F=(0.762500, 0.500000), g=-270.0\nFeasible returned rows: 40/40\nFeasible non-dominated rows: 40\nEvaluations: 400\n",
+      "returned_rows": 40,
+      "front_rows": 40
+    },
+    "t03": {
+      "download_sha256": "22c7ee2c40769bbf3c001f14a160eeb4d72dbaa02639abeace9e606e0bf95639",
+      "figure_sha256": "3f0367f488c13889b63c90b305332b068dc2903207c732cbc41b13b931304bb4",
+      "stdout": "Feasible non-dominated candidates: 40\nWeights (energy, shortfall): [0.8, 0.2]\nSelected original row: 39\nDecision (temperature, time): (65.884430, 7.249734)\nObjectives (energy, shortfall): (0.202885, 1.128761)\nConstraint g: -27.644581\nNormalized weighted score: 0.197111\n",
+      "returned_rows": 40,
+      "front_rows": 40
+    }
+  }
+}

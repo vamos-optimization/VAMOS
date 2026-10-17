@@ -71,7 +71,11 @@ nav:
     - Minimal Python Track: guide/minimal-python.md
   - Tutorials:
     - Overview: tutorials/index.md
+    - Tutorial Setup: tutorials/setup.md
     - First results:
+      - T01. Your First Result: tutorials/t01-first-result.md
+      - T02. Your Constrained Problem: tutorials/t02-constrained-problem.md
+      - T03. From Pareto Set to Decision: tutorials/t03-pareto-decision.md
       - Understanding Results: guide/understanding-results.md
       - Solve Your Own Problem: guide/custom-problem.md
     - Reproducible Studies: guide/studies.md
@@ -155,6 +159,7 @@ nav:
       - Documentation Content Map: dev/documentation-navigation.md
       - Maintaining API Documentation: dev/api-documentation.md
       - Maintaining Algorithm Tutorials: dev/algorithm-documentation.md
+      - Maintaining Fundamental Tutorials: dev/fundamental-tutorials.md
       - Documentation Delivery: dev/documentation-delivery.md
       - Testing and Validation: dev/testing.md
       - Typing Policy: dev/typing.md

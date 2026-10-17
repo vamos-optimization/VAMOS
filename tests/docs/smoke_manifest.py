@@ -11,6 +11,19 @@ class DocSmokeCase:
 
 
 DOC_SMOKE_CASES = [
+    *[
+        DocSmokeCase(
+            name=f"fundamental_tutorial_{lesson}",
+            source_path="examples/tutorials/fundamentals.py",
+            code=f"""
+import subprocess
+import sys
+
+subprocess.run([sys.executable, "examples/tutorials/fundamentals.py", "{lesson}"], check=True)
+""",
+        )
+        for lesson in ("t01", "t02", "t03")
+    ],
     DocSmokeCase(
         name="readme_quickstart",
         source_path="README.md",

@@ -1,5 +1,8 @@
 # Understanding optimization results
 
+For the focused learning path with complete code and actual output, start
+with [T01. Your first meaningful result](../tutorials/t01-first-result.md).
+
 A single-seed call to `vamos.optimize(...)` returns an `OptimizationResult`. This guide explains how to read that object before you save it, rank solutions, or turn the run into a study.
 
 [Quickstart](zero_to_hero.md) · [Results API](../reference/api/results.md) · [NSGA-II guide](../algorithms/nsgaii.md)

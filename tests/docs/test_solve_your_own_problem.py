@@ -123,4 +123,6 @@ def test_learning_path_explains_translation_not_only_api_calls() -> None:
     assert "custom-problem.md" in quickstart
     assert "maps two domain variables" in examples
     assert "Define your decisions, objectives, bounds, and constraints." in home
-    assert 'href="guide/custom-problem/"' in home
+    assert 'href="tutorials/t02-constrained-problem/"' in home
+    tutorial = (HOME.parent / "tutorials/t02-constrained-problem.md").read_text(encoding="utf-8")
+    assert "(../guide/custom-problem.md)" in tutorial

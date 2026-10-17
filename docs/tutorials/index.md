@@ -6,10 +6,21 @@ example. For a single operation, use the [How-to Guides](../guide/index.md).
 
 ## Choose a learning path
 
+Start with the three fundamental lessons. Each has complete downloadable code,
+actual output and a figure, an interpretation, and one guided change. They
+are verified against the published **VAMOS 1.0.1** wheel; use the
+[shared setup](setup.md) for their exact dependency recipe.
+
+| Lesson | Outcome |
+| --- | --- |
+| [T01. Your first meaningful result](t01-first-result.md) | Run ZDT1 and distinguish the population from its non-dominated subset. |
+| [T02. Solve your own constrained problem](t02-constrained-problem.md) | Validate the evaluator, check feasibility, and preserve row alignment. |
+| [T03. From a Pareto set to a decision](t03-pareto-decision.md) | State scales and preferences, select a feasible alternative, and recover its decisions. |
+
 | Your goal | Follow this route | What you will understand |
 | --- | --- | --- |
-| Try VAMOS | [Install](../guide/installation.md) → [Quickstart](../guide/zero_to_hero.md) → [Understand the result](../guide/understanding-results.md) | How to run a built-in problem, relate decisions to objectives, and distinguish a population from its non-dominated subset. |
-| Solve your own problem | [Define and check a constrained problem](../guide/custom-problem.md) → [Inspect the result](../guide/understanding-results.md#inspect-before-selecting-one-solution) → [Select one solution](../guide/cookbook.md#14-select-one-solution) | How to express bounds and requirements, check feasibility, and select a candidate using explicit preferences. |
+| Try VAMOS | [Set up](setup.md) → [T01](t01-first-result.md) → [Result reference guide](../guide/understanding-results.md) | How to run a built-in problem, relate decisions to objectives, and distinguish a population from its non-dominated subset. |
+| Solve your own problem | [T02](t02-constrained-problem.md) → [T03](t03-pareto-decision.md) → [Full modeling guide](../guide/custom-problem.md) | How to express bounds and requirements, check feasibility, and select a candidate using explicit preferences. |
 | Run a reproducible study | [Plan and run a study](../guide/studies.md) → [Trace its results](../guide/studies.md#5-trace-every-summary-row-to-its-run) → [Verify and replay a run](../guide/run-artifacts.md) | How to make the experiment matrix and budget explicit and trace each result to preserved evidence. |
 
 New to the Python workflow? The [Minimal Python Track](../guide/minimal-python.md)

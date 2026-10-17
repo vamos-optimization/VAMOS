@@ -8,6 +8,11 @@ Use this gallery to choose runnable material by task or learning level. Follow
 
 ## Obtain the example files
 
+For the new **T01–T03** lessons, use their
+[standalone downloads and tested setup](tutorials/setup.md). These documentation
+downloads are verified with VAMOS 1.0.1 and do not require cloning the repository;
+they are not included in the release-tag ZIP described below.
+
 The PyPI package provides the Python API and CLI. The scripts and notebooks on
 this page live in the [source repository](https://github.com/vamos-optimization/VAMOS).
 Install the [published package](guide/installation.md), then download the

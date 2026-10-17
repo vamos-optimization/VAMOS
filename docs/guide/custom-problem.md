@@ -1,5 +1,10 @@
 # Solve your own problem
 
+For a guided lesson with a standalone download and verified output, follow
+[T02. Solve your own constrained problem](../tutorials/t02-constrained-problem.md),
+then [T03. From a Pareto set to a decision](../tutorials/t03-pareto-decision.md).
+This guide provides the broader modeling details and task-specific sections.
+
 `make_problem(...)` turns your model into a VAMOS-compatible optimization problem. The important step is not the wrapper itself: it is deciding which quantities are **decision variables**, which outputs are **objectives**, which limits are **constraints**, and what bounds make scientific sense.
 
 Start here after you understand how [`X`, `F`, and the returned set](understanding-results.md) relate. For a repository-checkout version that you can run unchanged, use the [Solve my problem executable journey](../examples.md#solve-my-problem).

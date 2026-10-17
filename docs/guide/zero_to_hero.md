@@ -1,5 +1,10 @@
 # Quickstart: run, read, then preserve a result
 
+For a focused first lesson with downloadable code and actual output, start
+with [T01. Your first meaningful result](../tutorials/t01-first-result.md), then
+follow T02 and T03. This complete Quickstart retains the longer progression
+into configuration, saved runs, and studies.
+
 This guide uses only the stable VAMOS 1.0.1 facades. Install the core package as described in the [installation guide](installation.md).
 
 For a repository-checkout version that you can run unchanged, use the [Try VAMOS executable journey](../examples.md#try-vamos).
