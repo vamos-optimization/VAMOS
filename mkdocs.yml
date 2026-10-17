@@ -47,6 +47,7 @@ extra_javascript:
 
 markdown_extensions:
   - admonition
+  - pymdownx.details
   - tables
   - pymdownx.superfences
   - pymdownx.tabbed:
@@ -78,7 +79,13 @@ nav:
       - T03. From Pareto Set to Decision: tutorials/t03-pareto-decision.md
       - Understanding Results: guide/understanding-results.md
       - Solve Your Own Problem: guide/custom-problem.md
-    - Reproducible Studies: guide/studies.md
+    - From study to report:
+      - Study Setup: tutorials/study-setup.md
+      - T06. A Fair Comparative Study: tutorials/t06-fair-study.md
+      - T07. Quality and Budget: tutorials/t07-quality-and-budget.md
+      - T08. From Results to Report: tutorials/t08-study-report.md
+      - Recorded Study Report: tutorials/recorded-study-report.md
+      - Study Lifecycle Guide: guide/studies.md
     - Algorithms:
       - NSGA-II: algorithms/nsgaii.md
       - MOEA/D: algorithms/moead.md
@@ -160,6 +167,7 @@ nav:
       - Maintaining API Documentation: dev/api-documentation.md
       - Maintaining Algorithm Tutorials: dev/algorithm-documentation.md
       - Maintaining Fundamental Tutorials: dev/fundamental-tutorials.md
+      - Maintaining Study Tutorials: dev/study-tutorials.md
       - Documentation Delivery: dev/documentation-delivery.md
       - Testing and Validation: dev/testing.md
       - Typing Policy: dev/typing.md

@@ -60,11 +60,11 @@ front = result.front()</code></pre>
     <p>Define your decisions, objectives, bounds, and constraints.</p>
     <span class="vamos-journey__link">Constrained problem tutorial →</span>
   </a>
-  <a class="vamos-journey" href="guide/studies/">
+  <a class="vamos-journey" href="tutorials/t06-fair-study/">
     <span class="vamos-journey__number">03</span>
     <h2>Run a reproducible study</h2>
-    <p>Plan a study, check its budget, and trace every result.</p>
-    <span class="vamos-journey__link">Reproducible studies →</span>
+    <p>Plan a fair study, measure saved results, and build a report.</p>
+    <span class="vamos-journey__link">Study-to-report tutorial →</span>
   </a>
 </div>
 

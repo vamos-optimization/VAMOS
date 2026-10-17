@@ -20,6 +20,11 @@ For environment setup and other extras, see [Installation](../guide/installation
 
 ## Statistical comparison
 
+For real saved observations, follow [T07](../tutorials/t07-quality-and-budget.md)
+and [T08](../tutorials/t08-study-report.md), or inspect their
+[recorded report](../tutorials/recorded-study-report.md). That two-problem example
+uses descriptive summaries and ranks only; it does not justify an inferential test.
+
 The public `vamos.ux.api` facade exposes non-parametric helpers for comparing
 algorithms across benchmark problems.
 
@@ -35,7 +40,8 @@ size. Seeds are stochastic replicates of a problem/algorithm cell, not
 additional benchmark problems. Decide the per-cell estimator before looking at
 the statistical result.
 
-The example below uses hypervolume, so larger values are better. For a metric
+The matrix below is **synthetic illustration of the API**, not results from
+the recorded study. The example uses hypervolume, so larger values are better. For a metric
 such as IGD+ where smaller values are better, pass `higher_is_better=False`.
 
 ```python

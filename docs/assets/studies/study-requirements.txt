@@ -1,0 +1,6 @@
+vamos-optimization==1.0.1
+numpy==2.1.3
+scipy==1.15.3
+joblib==1.4.2
+moocore==0.3.2
+matplotlib==3.10.9

@@ -13,6 +13,11 @@ For the new **T01–T03** lessons, use their
 downloads are verified with VAMOS 1.0.1 and do not require cloning the repository;
 they are not included in the release-tag ZIP described below.
 
+The **T06–T08 study-to-report sequence** has its own
+[standalone downloads and setup](tutorials/study-setup.md), including a retained
+120-run example and a report that can be rebuilt without optimization. These
+new downloads also use the published 1.0.1 package and are not in the tag ZIP.
+
 The PyPI package provides the Python API and CLI. The scripts and notebooks on
 this page live in the [source repository](https://github.com/vamos-optimization/VAMOS).
 Install the [published package](guide/installation.md), then download the

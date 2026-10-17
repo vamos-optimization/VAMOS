@@ -11,6 +11,7 @@ This page defines the source-of-truth boundaries for VAMOS documentation while t
 | Navigation between beginner workflows | [getting started](../guide/getting-started.md) |
 | Learning paths and worked algorithm lessons | [tutorials](../tutorials/index.md) |
 | Fundamental tutorial source, downloads, and figure generation | [maintaining fundamental tutorials](fundamental-tutorials.md) |
+| Study-to-report source, observations, and report generation | [maintaining study tutorials](study-tutorials.md) |
 | Task-oriented guide routing | [how-to guides](../guide/index.md) |
 | Technical reference routing | [reference](../reference/index.md) |
 | Page classification and navigation ownership | [documentation content map](documentation-navigation.md) |

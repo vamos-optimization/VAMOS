@@ -17,11 +17,21 @@ are verified against the published **VAMOS 1.0.1** wheel; use the
 | [T02. Solve your own constrained problem](t02-constrained-problem.md) | Validate the evaluator, check feasibility, and preserve row alignment. |
 | [T03. From a Pareto set to a decision](t03-pareto-decision.md) | State scales and preferences, select a feasible alternative, and recover its decisions. |
 
+Continue with a complete experiment. The [study setup](study-setup.md) provides
+three standalone scripts, a small functional run, and a larger recorded example.
+The [recorded report](recorded-study-report.md) exposes every measured row.
+
+| Lesson | Outcome |
+| --- | --- |
+| [T06. Run a fair comparative study](t06-fair-study.md) | Fix the matrix, seeds, budget and incident policy before execution. |
+| [T07. Measure quality and progress with budget](t07-quality-and-budget.md) | Measure saved fronts using fixed references and compare fresh runs at increasing budgets. |
+| [T08. Turn study results into a report](t08-study-report.md) | Rebuild tables and figures from retained observations and qualify the conclusions. |
+
 | Your goal | Follow this route | What you will understand |
 | --- | --- | --- |
 | Try VAMOS | [Set up](setup.md) → [T01](t01-first-result.md) → [Result reference guide](../guide/understanding-results.md) | How to run a built-in problem, relate decisions to objectives, and distinguish a population from its non-dominated subset. |
 | Solve your own problem | [T02](t02-constrained-problem.md) → [T03](t03-pareto-decision.md) → [Full modeling guide](../guide/custom-problem.md) | How to express bounds and requirements, check feasibility, and select a candidate using explicit preferences. |
-| Run a reproducible study | [Plan and run a study](../guide/studies.md) → [Trace its results](../guide/studies.md#5-trace-every-summary-row-to-its-run) → [Verify and replay a run](../guide/run-artifacts.md) | How to make the experiment matrix and budget explicit and trace each result to preserved evidence. |
+| Run a reproducible study | [T06: plan and run](t06-fair-study.md) → [T07: measure](t07-quality-and-budget.md) → [T08: report](t08-study-report.md) | How to make the design explicit and trace each table, figure and conclusion to preserved evidence. |
 
 New to the Python workflow? The [Minimal Python Track](../guide/minimal-python.md)
 provides a command-line entry point. Prefer executable files? The
