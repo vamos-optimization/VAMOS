@@ -73,7 +73,7 @@ def test_site_gate_rejects_removed_public_bookmarks(checker, tmp_path):
 
 def test_learning_path_metadata_points_to_real_pages_and_downloads():
     for path in (ROOT / "docs/tutorials").glob("t0*.md"):
-        metadata = yaml.safe_load(path.read_text().split("---", 2)[1])
+        metadata = yaml.safe_load(path.read_text(encoding="utf-8").split("---", 2)[1])
         assert metadata["description"] and metadata["lesson"]["position"]
         for direction in ("previous", "next"):
             route = metadata["lesson"][direction]["url"].rstrip("/")
@@ -83,8 +83,8 @@ def test_learning_path_metadata_points_to_real_pages_and_downloads():
 
 
 def test_preview_and_production_enforce_site_and_artifact_checks():
-    preview = (ROOT / ".github/workflows/docs-preview.yml").read_text()
-    production = (ROOT / ".github/workflows/docs-cloudflare.yml").read_text()
+    preview = (ROOT / ".github/workflows/docs-preview.yml").read_text(encoding="utf-8")
+    production = (ROOT / ".github/workflows/docs-cloudflare.yml").read_text(encoding="utf-8")
     for text in (preview, production):
         assert "python tools/check_docs_site.py" in text
         assert "python tools/check_docs_artifact.py create" in text
