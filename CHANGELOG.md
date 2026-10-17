@@ -4,6 +4,15 @@ All notable public changes to VAMOS are documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- The Numba binary tournament now draws tie-break coins exactly like the
+  NumPy reference, one coin per fully tied tournament. Algorithms that use
+  tournament selection (NSGA-II, NSGA-III, IBEA, AGE-MOEA, and SMS-EMOA with
+  tournament selection) follow the same trajectory with `engine="numba"` and
+  `engine="numpy"` for the same seed; Numba-engine runs therefore differ from
+  VAMOS 1.0.1 runs.
+
 ## [1.0.1] - 2026-10-01
 
 ### Fixed

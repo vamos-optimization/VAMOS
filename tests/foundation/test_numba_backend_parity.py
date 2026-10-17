@@ -3,6 +3,9 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+pytest.importorskip("numba")
+
+from vamos.foundation.kernel._numba_selection import binary_tournament_winners_numba
 from vamos.foundation.kernel.numba_backend import NumbaKernel
 from vamos.foundation.kernel.numpy_backend import NumPyKernel
 
@@ -181,17 +184,20 @@ def test_numba_backend_mutation_repeats_for_same_seed():
 
 
 @pytest.mark.numba
-def test_numba_backend_tournament_selection_repeats_for_same_seed():
+def test_numba_backend_tournament_selection_matches_numpy_for_same_seed():
     rng = np.random.default_rng(5)
     ranks = rng.integers(0, 4, size=48, dtype=int)
     crowding = rng.normal(size=48)
     crowding[::11] = np.nan
+    crowding[::7] = np.inf
 
-    kernel = NumbaKernel()
-    selected_first = kernel.tournament_selection(ranks, crowding, pressure=2, rng=np.random.default_rng(0), n_parents=64)
-    selected_second = kernel.tournament_selection(ranks, crowding, pressure=2, rng=np.random.default_rng(0), n_parents=64)
+    rng_np = np.random.default_rng(0)
+    rng_nb = np.random.default_rng(0)
+    selected_np = NumPyKernel().tournament_selection(ranks, crowding, pressure=2, rng=rng_np, n_parents=64)
+    selected_nb = NumbaKernel().tournament_selection(ranks, crowding, pressure=2, rng=rng_nb, n_parents=64)
 
-    np.testing.assert_array_equal(selected_first, selected_second)
+    np.testing.assert_array_equal(selected_nb, selected_np)
+    assert rng_nb.bit_generator.state == rng_np.bit_generator.state
 
 
 @pytest.mark.numba
@@ -207,3 +213,40 @@ def test_numba_backend_tournament_selection_uses_numpy_fallback_for_higher_press
     selected_nb = numba_kernel.tournament_selection(ranks, crowding, pressure=3, rng=np.random.default_rng(2), n_parents=50)
 
     np.testing.assert_array_equal(selected_nb, selected_np)
+
+
+@pytest.mark.numba
+def test_binary_tournament_matches_numpy_values_and_draws():
+    numpy_kernel, numba_kernel = NumPyKernel(), NumbaKernel()
+    for seed in range(400):
+        rng = np.random.default_rng(seed)
+        n = int(rng.integers(2, 60))
+        ranks = rng.integers(0, 3, size=n)
+        crowding = rng.choice([0.0, 0.5, 1.0, np.inf, np.nan], size=n)
+        rng_np, rng_nb = np.random.default_rng(seed), np.random.default_rng(seed)
+        expected = numpy_kernel.tournament_selection(ranks, crowding, 2, rng_np, 2 * n)
+        actual = numba_kernel.tournament_selection(ranks, crowding, 2, rng_nb, 2 * n)
+        np.testing.assert_array_equal(actual, expected)
+        assert actual.dtype == expected.dtype
+        assert rng_nb.bit_generator.state == rng_np.bit_generator.state
+
+
+@pytest.mark.numba
+def test_binary_tournament_preserves_fractional_rank_keys():
+    ranks = np.array([0.25, 0.75, 0.5, 0.25])
+    crowding = np.zeros(4)
+    for seed in range(50):
+        expected = NumPyKernel().tournament_selection(ranks, crowding, 2, np.random.default_rng(seed), 16)
+        actual = NumbaKernel().tournament_selection(ranks, crowding, 2, np.random.default_rng(seed), 16)
+        np.testing.assert_array_equal(actual, expected)
+
+
+@pytest.mark.numba
+def test_binary_tournament_kernel_marks_full_ties():
+    winners = binary_tournament_winners_numba(
+        np.array([0, 0, 1], dtype=np.int64),
+        np.array([1.0, 1.0, np.nan]),
+        np.array([0, 2, 1], dtype=np.int64),
+        np.array([1, 0, 2], dtype=np.int64),
+    )
+    np.testing.assert_array_equal(winners, [-1, 0, 1])

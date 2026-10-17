@@ -1,18 +1,25 @@
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
+from numpy.typing import NDArray
 
 from .numba_ops import njit
 
 
 @njit(cache=True)
 def binary_tournament_winners_numba(
-    ranks: np.ndarray,
-    crowding: np.ndarray,
-    first: np.ndarray,
-    second: np.ndarray,
-    tie_break: np.ndarray,
-) -> np.ndarray:
+    ranks: NDArray[np.number[Any]],
+    crowding: NDArray[np.float64],
+    first: NDArray[np.integer[Any]],
+    second: NDArray[np.integer[Any]],
+) -> NDArray[np.int64]:
+    """Resolve binary tournaments by rank, then crowding; mark full ties with -1.
+
+    The caller resolves the ties from its own generator so that random draws
+    match the NumPy reference: one coin per tied tournament, in order.
+    """
     n_parents = first.shape[0]
     winners = np.empty(n_parents, dtype=np.int64)
 
@@ -44,7 +51,7 @@ def binary_tournament_winners_numba(
             winners[i] = right
             continue
 
-        winners[i] = left if tie_break[i] == 0 else right
+        winners[i] = -1
 
     return winners
 

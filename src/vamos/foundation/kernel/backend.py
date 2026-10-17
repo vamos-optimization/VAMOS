@@ -2,9 +2,16 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping
-from typing import Literal, overload
+from typing import Any, Literal, TypeAlias, overload
 
 import numpy as np
+from numpy.typing import NDArray
+
+FloatArray: TypeAlias = NDArray[np.float64]
+RealArray: TypeAlias = NDArray[np.floating[Any]]
+NumericArray: TypeAlias = NDArray[np.number[Any]]
+IndexArray: TypeAlias = NDArray[np.int_]
+DecisionArray: TypeAlias = NDArray[np.generic]
 
 
 class KernelBackend(ABC):
@@ -45,7 +52,7 @@ class KernelBackend(ABC):
     # -------- Evolutionary kernels --------
 
     @abstractmethod
-    def nsga2_ranking(self, F: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def nsga2_ranking(self, F: RealArray) -> tuple[IndexArray, FloatArray]:
         """
         Return ranks and crowding distances for objective matrix F.
         """
@@ -53,12 +60,12 @@ class KernelBackend(ABC):
     @abstractmethod
     def tournament_selection(
         self,
-        ranks: np.ndarray,
-        crowding: np.ndarray,
+        ranks: NumericArray,
+        crowding: RealArray,
         pressure: int,
         rng: np.random.Generator,
         n_parents: int,
-    ) -> np.ndarray:
+    ) -> IndexArray:
         """
         Select n_parents indices using tournament selection.
         """
@@ -66,12 +73,12 @@ class KernelBackend(ABC):
     @abstractmethod
     def sbx_crossover(
         self,
-        X_parents: np.ndarray,
+        X_parents: RealArray,
         params: Mapping[str, object],
         rng: np.random.Generator,
         xl: float,
         xu: float,
-    ) -> np.ndarray:
+    ) -> FloatArray:
         """
         Apply SBX crossover to parent array and return offspring.
         """
@@ -79,7 +86,7 @@ class KernelBackend(ABC):
     @abstractmethod
     def polynomial_mutation(
         self,
-        X: np.ndarray,
+        X: RealArray,
         params: Mapping[str, object],
         rng: np.random.Generator,
         xl: float,
@@ -92,35 +99,35 @@ class KernelBackend(ABC):
     @overload
     def nsga2_survival(
         self,
-        X: np.ndarray,
-        F: np.ndarray,
-        X_off: np.ndarray,
-        F_off: np.ndarray,
+        X: DecisionArray,
+        F: RealArray,
+        X_off: DecisionArray,
+        F_off: RealArray,
         pop_size: int,
         return_indices: Literal[False] = False,
-    ) -> tuple[np.ndarray, np.ndarray]: ...
+    ) -> tuple[DecisionArray, FloatArray]: ...
 
     @overload
     def nsga2_survival(
         self,
-        X: np.ndarray,
-        F: np.ndarray,
-        X_off: np.ndarray,
-        F_off: np.ndarray,
+        X: DecisionArray,
+        F: RealArray,
+        X_off: DecisionArray,
+        F_off: RealArray,
         pop_size: int,
         return_indices: Literal[True],
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]: ...
+    ) -> tuple[DecisionArray, FloatArray, IndexArray]: ...
 
     @abstractmethod
     def nsga2_survival(
         self,
-        X: np.ndarray,
-        F: np.ndarray,
-        X_off: np.ndarray,
-        F_off: np.ndarray,
+        X: DecisionArray,
+        F: RealArray,
+        X_off: DecisionArray,
+        F_off: RealArray,
         pop_size: int,
         return_indices: bool = False,
-    ) -> tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[DecisionArray, FloatArray] | tuple[DecisionArray, FloatArray, IndexArray]:
         """
         Perform NSGA-II elitist replacement returning new (X, F).
         When return_indices is True, also return selected indices in the combined population.
@@ -130,12 +137,12 @@ class KernelBackend(ABC):
 
     def update_archive(
         self,
-        archive_X: np.ndarray | None,
-        archive_F: np.ndarray | None,
-        population_X: np.ndarray,
-        population_F: np.ndarray,
+        archive_X: DecisionArray | None,
+        archive_F: FloatArray | None,
+        population_X: DecisionArray,
+        population_F: FloatArray,
         archive_size: int,
-    ) -> tuple[np.ndarray | None, np.ndarray | None]:
+    ) -> tuple[DecisionArray | None, FloatArray | None]:
         """
         Optional external archive update implementation.
 
@@ -144,14 +151,14 @@ class KernelBackend(ABC):
         """
         raise NotImplementedError(f"Backend '{self.__class__.__name__}' does not support update_archive.")
 
-    def hypervolume(self, points: np.ndarray, reference_point: np.ndarray) -> float:
+    def hypervolume(self, points: FloatArray, reference_point: FloatArray) -> float:
         """
         Optional hypervolume implementation. Backends that override this method
         should also list "hypervolume" in quality_indicators().
         """
         raise NotImplementedError(f"Backend '{self.__class__.__name__}' does not support hypervolume.")
 
-    def hypervolume_contributions(self, points: np.ndarray, reference_point: np.ndarray) -> np.ndarray:
+    def hypervolume_contributions(self, points: FloatArray, reference_point: FloatArray) -> FloatArray:
         """
         Optional least-contributor support for hypervolume-based survival.
 

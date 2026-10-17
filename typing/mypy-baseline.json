@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "91cc51ed1c3cfedce761d06037aafd5e9d3815b2",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 91cc51ed1c3cfedce761d06037aafd5e9d3815b2",
+  "generation_commit": "ffa15b96f71cbd81681a8be13c4a6bc0f4b42ea5",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit ffa15b96f71cbd81681a8be13c4a6bc0f4b42ea5",
   "environment": {
     "python": "3.12",
     "mypy": "2.3.1",
@@ -11,7 +11,7 @@
     "stub_packages": [],
     "type_affecting_optional_distributions": [],
     "config_path": "pyproject.toml",
-    "config_sha256": "C37A9E13733D3FD89829BA46BBB90DDB3195859408819D41BF8E32C31D7D2018",
+    "config_sha256": "0EBC8B0E228CF31F73CBB77B7A2778C067D960374D8B950EC2667138E25BFB16",
     "mypy_config_sha256": "2D1AAAB5CB687AA8C7871D3AFBE4638A782A12541721A85B770843816611FCAD",
     "constraints_path": "constraints/ci.txt",
     "constraints_sha256": "2BFCA73BEF86704168A791A0033951ED450E86C9D9D25D78E98D0C3457964F94"
@@ -19,17 +19,17 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 1397,
-  "files_with_diagnostics": 150,
-  "fingerprint_count": 161,
+  "diagnostic_count": 1327,
+  "files_with_diagnostics": 147,
+  "fingerprint_count": 158,
   "error_code_summary": {
     "no-any-return": 7,
-    "type-arg": 1390
+    "type-arg": 1320
   },
   "layer_summary": {
     "engine": 785,
     "experiment": 22,
-    "foundation": 522,
+    "foundation": 452,
     "package-root": 1,
     "ux": 67
   },
@@ -3248,40 +3248,6 @@
       ]
     },
     {
-      "fingerprint": "65599585C5957C7ED235198A0D1F3665B9AA9D3950CC9724D7A770F256A16342",
-      "path": "src/vamos/foundation/kernel/_numba_selection.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "foundation",
-      "multiplicity": 6,
-      "locations": [
-        {
-          "line": 10,
-          "column": 12
-        },
-        {
-          "line": 11,
-          "column": 15
-        },
-        {
-          "line": 12,
-          "column": 12
-        },
-        {
-          "line": 13,
-          "column": 13
-        },
-        {
-          "line": 14,
-          "column": 16
-        },
-        {
-          "line": 15,
-          "column": 6
-        }
-      ]
-    },
-    {
       "fingerprint": "659FFCD24052030DAD7E5ECAEEC775BE6E3FCE0D6A54428056670B39B98D4BB3",
       "path": "src/vamos/engine/tuning/racing/stats.py",
       "error_code": "type-arg",
@@ -4360,156 +4326,6 @@
         {
           "line": 303,
           "column": 12
-        }
-      ]
-    },
-    {
-      "fingerprint": "84CB045A8BF353447FC7E2C562535FE9F4E1756336E7117663E6E1E15871DC67",
-      "path": "src/vamos/foundation/kernel/numba_backend.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "foundation",
-      "multiplicity": 35,
-      "locations": [
-        {
-          "line": 23,
-          "column": 25
-        },
-        {
-          "line": 24,
-          "column": 25
-        },
-        {
-          "line": 25,
-          "column": 25
-        },
-        {
-          "line": 26,
-          "column": 25
-        },
-        {
-          "line": 27,
-          "column": 30
-        },
-        {
-          "line": 28,
-          "column": 31
-        },
-        {
-          "line": 39,
-          "column": 12
-        },
-        {
-          "line": 40,
-          "column": 12
-        },
-        {
-          "line": 41,
-          "column": 16
-        },
-        {
-          "line": 42,
-          "column": 16
-        },
-        {
-          "line": 43,
-          "column": 16
-        },
-        {
-          "line": 70,
-          "column": 37
-        },
-        {
-          "line": 85,
-          "column": 32
-        },
-        {
-          "line": 90,
-          "column": 16
-        },
-        {
-          "line": 91,
-          "column": 19
-        },
-        {
-          "line": 95,
-          "column": 10
-        },
-        {
-          "line": 132,
-          "column": 20
-        },
-        {
-          "line": 137,
-          "column": 10
-        },
-        {
-          "line": 144,
-          "column": 12
-        },
-        {
-          "line": 176,
-          "column": 12
-        },
-        {
-          "line": 177,
-          "column": 12
-        },
-        {
-          "line": 178,
-          "column": 16
-        },
-        {
-          "line": 179,
-          "column": 16
-        },
-        {
-          "line": 182,
-          "column": 16
-        },
-        {
-          "line": 187,
-          "column": 12
-        },
-        {
-          "line": 188,
-          "column": 12
-        },
-        {
-          "line": 189,
-          "column": 16
-        },
-        {
-          "line": 190,
-          "column": 16
-        },
-        {
-          "line": 193,
-          "column": 16
-        },
-        {
-          "line": 197,
-          "column": 12
-        },
-        {
-          "line": 198,
-          "column": 12
-        },
-        {
-          "line": 199,
-          "column": 16
-        },
-        {
-          "line": 200,
-          "column": 16
-        },
-        {
-          "line": 203,
-          "column": 16
-        },
-        {
-          "line": 220,
-          "column": 35
         }
       ]
     },
@@ -5756,132 +5572,6 @@
         {
           "line": 53,
           "column": 24
-        }
-      ]
-    },
-    {
-      "fingerprint": "C649156CC353F521F04890B12B38A556469EDF921D9C0D22F591D95B108A70C1",
-      "path": "src/vamos/foundation/kernel/backend.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "foundation",
-      "multiplicity": 29,
-      "locations": [
-        {
-          "line": 48,
-          "column": 32
-        },
-        {
-          "line": 56,
-          "column": 16
-        },
-        {
-          "line": 57,
-          "column": 19
-        },
-        {
-          "line": 61,
-          "column": 10
-        },
-        {
-          "line": 69,
-          "column": 20
-        },
-        {
-          "line": 74,
-          "column": 10
-        },
-        {
-          "line": 82,
-          "column": 12
-        },
-        {
-          "line": 95,
-          "column": 12
-        },
-        {
-          "line": 96,
-          "column": 12
-        },
-        {
-          "line": 97,
-          "column": 16
-        },
-        {
-          "line": 98,
-          "column": 16
-        },
-        {
-          "line": 101,
-          "column": 16
-        },
-        {
-          "line": 106,
-          "column": 12
-        },
-        {
-          "line": 107,
-          "column": 12
-        },
-        {
-          "line": 108,
-          "column": 16
-        },
-        {
-          "line": 109,
-          "column": 16
-        },
-        {
-          "line": 112,
-          "column": 16
-        },
-        {
-          "line": 117,
-          "column": 12
-        },
-        {
-          "line": 118,
-          "column": 12
-        },
-        {
-          "line": 119,
-          "column": 16
-        },
-        {
-          "line": 120,
-          "column": 16
-        },
-        {
-          "line": 123,
-          "column": 16
-        },
-        {
-          "line": 133,
-          "column": 20
-        },
-        {
-          "line": 134,
-          "column": 20
-        },
-        {
-          "line": 135,
-          "column": 23
-        },
-        {
-          "line": 136,
-          "column": 23
-        },
-        {
-          "line": 138,
-          "column": 16
-        },
-        {
-          "line": 147,
-          "column": 35
-        },
-        {
-          "line": 154,
-          "column": 49
         }
       ]
     },
