@@ -13,6 +13,12 @@ python tools/build_coverage_tutorials.py --check
 
 The work directory must be new. It preserves complete ablation studies and the tuner’s original files. The checked-in observation JSON is a bounded derived dataset, not a canonical replay artifact. Source/asset hashes, package versions and base commit are recorded. Standard-library `--check` detects stale sources, downloads, generated blocks, dependency recipes and asset bytes; it does not rerun optimization or establish scientific validity.
 
+Before creating any output, `--write` checks the resolved VAMOS module against
+the installed distribution and rejects source-checkout imports and editable
+distribution metadata. A matching version string alone does not establish
+that the published wheel supplied the code. `--check` remains independent of
+an installed VAMOS package.
+
 The generated timing figure intentionally records real elapsed time, so a regeneration changes those values. Capture thread settings and platform metadata, inspect the output, and avoid interpreting incidental timing changes as regressions. Figures are generated with Matplotlib from real arrays or samples. Do not hand-edit outputs or asset hashes. Keep ordinary assets under 250 KB and the observation file under 750 KB.
 
 ## Validate behavior and interpretation

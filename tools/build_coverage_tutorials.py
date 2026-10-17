@@ -98,7 +98,19 @@ def draw_advanced(name, data, path):
     path.write_text("\n".join(line.rstrip() for line in path.read_text(encoding="utf-8").splitlines()) + "\n", encoding="utf-8")
 
 
+def require_installed_wheel(root: Path):
+    import vamos
+
+    distribution = importlib.metadata.distribution("vamos-optimization")
+    origin = Path(vamos.__file__).resolve()
+    installed_origin = Path(distribution.locate_file("vamos/__init__.py")).resolve()
+    direct_url = json.loads(distribution.read_text("direct_url.json") or "{}")
+    if origin.is_relative_to(root.resolve()) or origin != installed_origin or direct_url.get("dir_info", {}).get("editable", False):
+        raise ValueError("Generate with the installed PyPI wheel, without PYTHONPATH or an editable checkout.")
+
+
 def write(root: Path, work: Path):
+    require_installed_wheel(root)
     actual = {name: importlib.metadata.version(name) for name in PACKAGES}
     if actual != PACKAGES:
         raise ValueError(f"Use the recorded dependency versions: {PACKAGES}; installed: {actual}")

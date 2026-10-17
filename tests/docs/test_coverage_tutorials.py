@@ -22,6 +22,40 @@ def test_generated_coverage_is_current():
     subprocess.run([sys.executable, "tools/build_coverage_tutorials.py", "--check"], cwd=ROOT, check=True)
 
 
+@pytest.mark.parametrize("source_location", ("checkout", "other-checkout"))
+def test_recording_rejects_source_imports_before_writing(monkeypatch, tmp_path, source_location):
+    import vamos
+
+    monkeypatch.syspath_prepend(str(ROOT / "tools"))
+    generator = runpy.run_path(str(ROOT / "tools/build_coverage_tutorials.py"))
+    root, output = tmp_path / "checkout", tmp_path / "recording"
+    monkeypatch.setattr(vamos, "__file__", str(tmp_path / source_location / "src/vamos/__init__.py"))
+    with pytest.raises(ValueError, match="installed PyPI wheel"):
+        generator["write"](root, output)
+    assert not root.exists() and not output.exists()
+
+
+def test_recording_rejects_editable_distribution_metadata(monkeypatch, tmp_path):
+    import importlib.metadata
+    from types import SimpleNamespace
+
+    import vamos
+
+    monkeypatch.syspath_prepend(str(ROOT / "tools"))
+    generator = runpy.run_path(str(ROOT / "tools/build_coverage_tutorials.py"))
+    origin = tmp_path / "installed/vamos/__init__.py"
+    distribution = SimpleNamespace(
+        locate_file=lambda name: origin,
+        read_text=lambda name: '{"dir_info": {"editable": true}}',
+    )
+    monkeypatch.setattr(vamos, "__file__", str(origin))
+    monkeypatch.setattr(importlib.metadata, "distribution", lambda name: distribution)
+    root, output = tmp_path / "checkout", tmp_path / "recording"
+    with pytest.raises(ValueError, match="editable checkout"):
+        generator["write"](root, output)
+    assert not root.exists() and not output.exists()
+
+
 @pytest.mark.parametrize("algorithm", ("smsemoa", "spea2", "ibea", "smpso", "agemoea", "rvea"))
 def test_algorithms_honor_budget_and_return_aligned_fronts(lessons, algorithm):
     data = lessons[f"run_{algorithm}"](budget=80)
