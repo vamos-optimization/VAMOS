@@ -116,14 +116,14 @@ jobs:
           python tools/check_docs_artifact.py create --root public --manifest publication-evidence/artifact.json --source-sha "$GITHUB_SHA"
           python tools/check_docs_artifact.py verify --root public --manifest publication-evidence/artifact.json --source-sha "$GITHUB_SHA"
       - name: Upload publication identity
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: vamos-docs-identity-${{ env.DOC_VERSION }}
           path: publication-evidence/
           if-no-files-found: error
           retention-days: 90
       - name: Upload canonical Cloudflare archive
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: vamos-docs-cloudflare-${{ env.DOC_VERSION }}
           path: public/
