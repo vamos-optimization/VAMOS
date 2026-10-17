@@ -129,5 +129,6 @@ Learning-path metadata and download controls live in each lesson's front matter;
 the shared template renders their links relative to the current documentation
 version. The 404 template uses root-relative links under that version's base,
 so recovery from a deeply nested address also works on an isolated preview.
-Search tokenization includes slash, underscore and dot separators for algorithm
-and API names; introductory lessons and routing pages receive a modest boost.
+Search tokenization includes hyphen, underscore and dot separators for API
+names, while preserving the slash in MOEA/D as part of one algorithm name.
+Introductory lessons and routing pages receive a modest boost.

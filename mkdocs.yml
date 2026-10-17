@@ -62,7 +62,7 @@ markdown_extensions:
 
 plugins:
   - search:
-      separator: '[\s\-/_.]+'
+      separator: '[\s\-_.]+'
   - mkdocstrings:
       handlers:
         python:
