@@ -68,7 +68,10 @@ def search(page, query: str, expected: str | None) -> None:
             opener.click()
         else:
             field.click()
-    field.fill(query)
+    # Material observes keyboard events as well as input. Exercise real typing
+    # when replacing a prior query rather than changing the value in one event.
+    field.fill("")
+    field.press_sequentially(query, delay=30)
     if expected is None:
         page.get_by_text("No matching documents", exact=True).wait_for()
     else:
@@ -80,8 +83,10 @@ def run_journey(browser, base: str, root: Path, output: Path, width: int) -> dic
     page = context.new_page()
     page.set_default_timeout(15000)
     errors = []
+    console_errors = []
     failed_resources = []
     page.on("pageerror", lambda error: errors.append(str(error)))
+    page.on("console", lambda message: console_errors.append(message.text) if message.type == "error" else None)
     page.on(
         "response",
         lambda response: (
@@ -166,6 +171,10 @@ def run_journey(browser, base: str, root: Path, output: Path, width: int) -> dic
     except Exception:
         page.screenshot(path=str(output / f"{width}-failure.png"), full_page=True)
         (output / f"{width}-failure.html").write_text(page.content(), encoding="utf-8")
+        (output / f"{width}-failure.json").write_text(
+            json.dumps({"page_errors": errors, "console_errors": console_errors, "failed_resources": failed_resources}, indent=2),
+            encoding="utf-8",
+        )
         raise
     finally:
         context.close()
