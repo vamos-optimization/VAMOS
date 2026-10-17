@@ -2,6 +2,12 @@
 
 A durable study freezes a problem-by-algorithm-by-seed matrix before any task runs. It preserves task identity, attempts, state transitions, and verified references to each canonical run.
 
+For a connected learning sequence, start with
+[T06: a fair comparative study](../tutorials/t06-fair-study.md), then
+[T07: quality and budget](../tutorials/t07-quality-and-budget.md) and
+[T08: results to report](../tutorials/t08-study-report.md). This lifecycle guide
+remains the detailed reference for planning, execution, inspection, resume and retry.
+
 The important step is not merely calling `StudySpec(...)`: it is deciding **what comparison you intend to make**, fixing that design before execution, checking its cost, and keeping every reported row traceable to the run that produced it.
 
 For a bounded repository-checkout example that you can run unchanged, use the [Run a reproducible study executable journey](../examples.md#run-a-reproducible-study).

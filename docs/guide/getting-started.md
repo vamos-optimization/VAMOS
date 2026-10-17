@@ -23,6 +23,12 @@ Use the **Experimental** `vamos create-problem` command when you prefer a genera
 
 ## Run a reproducible study
 
+Follow [T06: plan and run](../tutorials/t06-fair-study.md),
+[T07: measure quality](../tutorials/t07-quality-and-budget.md), then
+[T08: build a report](../tutorials/t08-study-report.md). The
+[shared setup](../tutorials/study-setup.md) includes standalone scripts and a
+recorded experiment whose metrics can be recomputed without optimization.
+
 Use [Durable studies](studies.md) when you need a persistent problem-by-algorithm-by-seed matrix with explicit task state, resume, retry, inspection, and summaries.
 
 Use [Run artifacts & replay](run-artifacts.md) for individual persisted runs and for the distinction between loading, verification, and executable replay.

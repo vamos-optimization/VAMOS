@@ -13,6 +13,35 @@ class DocSmokeCase:
 DOC_SMOKE_CASES = [
     *[
         DocSmokeCase(
+            name=f"study_tutorial_{lesson}",
+            source_path="examples/tutorials/study_workflow.py",
+            code=f"""
+import runpy
+import tempfile
+from pathlib import Path
+
+import pytest
+
+lesson = "{lesson}"
+if lesson in {{"t07", "t08"}}:
+    pytest.importorskip("moocore")
+if lesson == "t08":
+    pytest.importorskip("matplotlib")
+workflow = runpy.run_path("examples/tutorials/study_workflow.py")
+with tempfile.TemporaryDirectory() as directory:
+    root = Path(directory)
+    if lesson == "t08":
+        workflow["render_report"]("docs/assets/studies/recorded-measurements.json", root / "report")
+    else:
+        workflow["plan_or_execute_study"](root / "study", budget=80, execute=True)
+        if lesson == "t07":
+            workflow["measure_studies"]([root / "study"], root / "metrics")
+""",
+        )
+        for lesson in ("t06", "t07", "t08")
+    ],
+    *[
+        DocSmokeCase(
             name=f"fundamental_tutorial_{lesson}",
             source_path="examples/tutorials/fundamentals.py",
             code=f"""

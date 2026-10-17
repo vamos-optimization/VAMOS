@@ -19,7 +19,7 @@ from several routes while retaining one source and one primary navigation entry.
   separately. Project policies remain contextual links, without a Project tab.
 
 The logo links to the homepage. Each user section opens with an index; the
-three homepage journeys lead directly to T01, T02, and the reproducible-study guide.
+three homepage journeys lead directly to T01, T02, and T06.
 
 ## Page boundaries and editorial decisions
 
@@ -31,7 +31,7 @@ three homepage journeys lead directly to T01, T02, and the reproducible-study gu
 | Examples | Keep as a gallery linked from Tutorials, How-to Guides, and the homepage. | Scripts remain in `examples/`; notebooks remain in `notebooks/`. |
 | Quickstart | Keep the complete page and anchors; route focused first-run learning to T01–T03. | Preserve its numbered section anchors and link onward instead of duplicating executable sources. |
 | Cookbook | Keep the recipe index now; split selected tasks into dedicated guides as they are developed. | Retain the recipe anchors as routing points when content is extracted. |
-| Study and analysis material | Keep the current pages; connect the study-to-report learning sequence when its executable evidence is ready. | Do not present an illustrative score matrix as results from a study. |
+| Study and analysis material | Keep the lifecycle and analysis pages; connect T06–T08 and their retained study report. | Keep the synthetic API matrix distinct from actual study observations. |
 | Merging pages | No page merge is needed for this navigation change. | Prefer cross-links between complementary tutorial, how-to, and reference roles. |
 
 ## Complete page inventory
@@ -66,6 +66,7 @@ and reachable through the named parent pages even when absent from the menu.
 | [dev/run_artifact_examples/README.md](run_artifact_examples/README.md) | Development | Run artifact contract links | Keep; contextual links |
 | [dev/run_artifacts_and_replay.md](run_artifacts_and_replay.md) | Development | Developer → Extending VAMOS → Run Artifacts and Replay | Regroup |
 | [dev/studies.md](studies.md) | Development | Developer → Extending VAMOS → Change Studies | Regroup |
+| [dev/study-tutorials.md](study-tutorials.md) | Development | Developer → Maintainers → Maintaining Study Tutorials | Add |
 | [dev/study_manifest_acceptance_tests.md](study_manifest_acceptance_tests.md) | Development | Developer → Contracts → StudyManifest Acceptance | Regroup |
 | [dev/study_manifest_contract.md](study_manifest_contract.md) | Development | Developer → Contracts → StudyManifest v1 Contract | Regroup |
 | [dev/study_manifest_examples/README.md](study_manifest_examples/README.md) | Development | StudyManifest contract links | Keep; contextual links |
@@ -82,7 +83,7 @@ and reachable through the named parent pages even when absent from the menu.
 | [guide/installation.md](../guide/installation.md) | How-to | Get Started → Installation | Keep |
 | [guide/minimal-python.md](../guide/minimal-python.md) | Tutorial | Get Started → Minimal Python Track | Keep |
 | [guide/run-artifacts.md](../guide/run-artifacts.md) | How-to | How-to Guides → Run Artifacts & Replay | Regroup |
-| [guide/studies.md](../guide/studies.md) | Tutorial | Tutorials → Reproducible Studies | Regroup |
+| [guide/studies.md](../guide/studies.md) | Tutorial | Tutorials → From study to report → Study Lifecycle Guide | Regroup |
 | [guide/studio.md](../guide/studio.md) | How-to | How-to Guides → Experimental → VAMOS Studio | Regroup |
 | [guide/troubleshooting.md](../guide/troubleshooting.md) | How-to | How-to Guides → Troubleshooting | Regroup |
 | [guide/understanding-results.md](../guide/understanding-results.md) | Tutorial | Tutorials → First results → Understanding Results | Regroup |
@@ -133,7 +134,12 @@ and reachable through the named parent pages even when absent from the menu.
 | [topics/plugin_guide.md](../topics/plugin_guide.md) | Development | Developer → Extending VAMOS → Plugin Guide | Regroup |
 | [topics/tuning.md](../topics/tuning.md) | How-to | How-to Guides → Experimental → Hyperparameter Tuning | Regroup |
 | [tutorials/index.md](../tutorials/index.md) | Tutorial | Tutorials → Overview | Add |
+| [tutorials/recorded-study-report.md](../tutorials/recorded-study-report.md) | Tutorial | Tutorials → From study to report → Recorded Study Report | Add |
 | [tutorials/setup.md](../tutorials/setup.md) | How-to | Tutorials → Tutorial Setup | Add |
+| [tutorials/study-setup.md](../tutorials/study-setup.md) | How-to | Tutorials → From study to report → Study Setup | Add |
 | [tutorials/t01-first-result.md](../tutorials/t01-first-result.md) | Tutorial | Tutorials → First results → T01. Your First Result | Add |
 | [tutorials/t02-constrained-problem.md](../tutorials/t02-constrained-problem.md) | Tutorial | Tutorials → First results → T02. Your Constrained Problem | Add |
 | [tutorials/t03-pareto-decision.md](../tutorials/t03-pareto-decision.md) | Tutorial | Tutorials → First results → T03. From Pareto Set to Decision | Add |
+| [tutorials/t06-fair-study.md](../tutorials/t06-fair-study.md) | Tutorial | Tutorials → From study to report → T06. A Fair Comparative Study | Add |
+| [tutorials/t07-quality-and-budget.md](../tutorials/t07-quality-and-budget.md) | Tutorial | Tutorials → From study to report → T07. Quality and Budget | Add |
+| [tutorials/t08-study-report.md](../tutorials/t08-study-report.md) | Tutorial | Tutorials → From study to report → T08. From Results to Report | Add |
