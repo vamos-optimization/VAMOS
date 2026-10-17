@@ -62,14 +62,17 @@ def assert_layout(page) -> dict:
 
 def search(page, query: str, expected: str | None) -> None:
     field = page.locator(".md-search__input")
-    if not field.is_visible():
-        page.locator('.md-header label[for="__search"]').click()
+    if not page.locator("#__search").is_checked():
+        opener = page.locator('.md-header label[for="__search"]')
+        if opener.is_visible():
+            opener.click()
+        else:
+            field.click()
     field.fill(query)
     if expected is None:
         page.get_by_text("No matching documents", exact=True).wait_for()
     else:
         page.locator(f'.md-search-result__list a[href*="{expected}"]').first.wait_for()
-    field.press("Escape")
 
 
 def run_journey(browser, base: str, root: Path, output: Path, width: int) -> dict:
@@ -111,6 +114,7 @@ def run_journey(browser, base: str, root: Path, output: Path, width: int) -> dic
             ("zzqnonexistenttopicqq", None),
         ):
             search(page, query, target)
+        page.locator(".md-search__input").press("Escape")
 
         page.goto(base + "reference/algorithms/", wait_until="networkidle")
         if width < 600:
