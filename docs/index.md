@@ -48,17 +48,17 @@ front = result.front()</code></pre>
 </div>
 
 <div class="vamos-journeys" aria-label="Choose a VAMOS learning path">
-  <a class="vamos-journey" href="guide/zero_to_hero/">
+  <a class="vamos-journey" href="tutorials/t01-first-result/">
     <span class="vamos-journey__number">01</span>
     <h2>Try VAMOS</h2>
     <p>Run a built-in problem and inspect its trade-offs.</p>
-    <span class="vamos-journey__link">Quickstart →</span>
+    <span class="vamos-journey__link">First result tutorial →</span>
   </a>
-  <a class="vamos-journey" href="guide/custom-problem/">
+  <a class="vamos-journey" href="tutorials/t02-constrained-problem/">
     <span class="vamos-journey__number">02</span>
     <h2>Solve my problem</h2>
     <p>Define your decisions, objectives, bounds, and constraints.</p>
-    <span class="vamos-journey__link">Custom problems →</span>
+    <span class="vamos-journey__link">Constrained problem tutorial →</span>
   </a>
   <a class="vamos-journey" href="guide/studies/">
     <span class="vamos-journey__number">03</span>

@@ -5,13 +5,17 @@ Choose the shortest route that matches what you want to accomplish. Installation
 ## Try VAMOS
 
 1. [Install VAMOS](installation.md) from PyPI in an isolated Python environment.
-2. Run the [Quickstart](zero_to_hero.md) to solve a built-in benchmark with the public `optimize(...)` facade.
+2. Follow [T01. Your first meaningful result](../tutorials/t01-first-result.md) to solve a built-in benchmark and interpret its actual output. The [Quickstart](zero_to_hero.md) retains the complete run-to-study sequence.
 3. Read [Understanding optimization results](understanding-results.md) to connect decision rows (`X`) with objective rows (`F`) and distinguish a returned set from its non-dominated subset.
 4. Use the [API reference](../reference/api_reference.md) when you need exact signatures rather than tutorial guidance.
 
 If Python itself is still new to you, begin with the [Minimal Python Track](minimal-python.md).
 
 ## Solve your own problem
+
+Follow [T02](../tutorials/t02-constrained-problem.md) to check a constrained
+model, then [T03](../tutorials/t03-pareto-decision.md) to select a feasible
+alternative using explicit preferences.
 
 Use [Solve your own problem](custom-problem.md) to define objectives, bounds, encodings, vectorized evaluation, and constraints with `make_problem(...)`.
 

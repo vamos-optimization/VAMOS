@@ -19,7 +19,7 @@ from several routes while retaining one source and one primary navigation entry.
   separately. Project policies remain contextual links, without a Project tab.
 
 The logo links to the homepage. Each user section opens with an index; the
-three homepage journeys still lead directly to their canonical worked examples.
+three homepage journeys lead directly to T01, T02, and the reproducible-study guide.
 
 ## Page boundaries and editorial decisions
 
@@ -29,7 +29,7 @@ three homepage journeys still lead directly to their canonical worked examples.
 | Algorithm lessons | Move into Tutorials; keep the capability matrix in Reference. | A lesson explains a run; configuration signatures remain generated API content. |
 | Algorithm and API maintenance | Regroup under Developer → Maintainers and use explicit maintenance labels. | Readers learning an algorithm should reach its lesson. |
 | Examples | Keep as a gallery linked from Tutorials, How-to Guides, and the homepage. | Scripts remain in `examples/`; notebooks remain in `notebooks/`. |
-| Quickstart | Keep the complete page now; extract focused fundamental lessons in subsequent tutorial work. | Preserve its numbered section anchors and link onward instead of duplicating executable sources. |
+| Quickstart | Keep the complete page and anchors; route focused first-run learning to T01–T03. | Preserve its numbered section anchors and link onward instead of duplicating executable sources. |
 | Cookbook | Keep the recipe index now; split selected tasks into dedicated guides as they are developed. | Retain the recipe anchors as routing points when content is extracted. |
 | Study and analysis material | Keep the current pages; connect the study-to-report learning sequence when its executable evidence is ready. | Do not present an illustrative score matrix as results from a study. |
 | Merging pages | No page merge is needed for this navigation change. | Prefer cross-links between complementary tutorial, how-to, and reference roles. |
@@ -37,7 +37,7 @@ three homepage journeys still lead directly to their canonical worked examples.
 ## Complete page inventory
 
 “Keep” preserves placement; “Regroup” changes a menu position or label only;
-“Add” introduces an index or this content map. Contextual pages remain published
+“Add” introduces a maintained page. Contextual pages remain published
 and reachable through the named parent pages even when absent from the menu.
 
 | Page (relative to `docs/`) | Role | Primary entry or contextual access | Decision |
@@ -58,6 +58,7 @@ and reachable through the named parent pages even when absent from the menu.
 | [dev/documentation-architecture.md](documentation-architecture.md) | Development | Developer → Maintainers → Documentation Architecture | Regroup |
 | [dev/documentation-delivery.md](documentation-delivery.md) | Development | Developer → Maintainers → Documentation Delivery | Regroup |
 | [dev/documentation-navigation.md](documentation-navigation.md) | Development | Developer → Maintainers → Documentation Content Map | Add |
+| [dev/fundamental-tutorials.md](fundamental-tutorials.md) | Development | Developer → Maintainers → Maintaining Fundamental Tutorials | Add |
 | [dev/maintainers.md](maintainers.md) | Development | Developer → Maintainers → Overview | Add |
 | [dev/repository_hygiene.md](repository_hygiene.md) | Development | Developer → Maintainers → Repository Hygiene | Regroup |
 | [dev/run_artifact_acceptance_tests.md](run_artifact_acceptance_tests.md) | Development | Developer → Contracts → Run Artifact Acceptance Tests | Regroup |
@@ -132,3 +133,7 @@ and reachable through the named parent pages even when absent from the menu.
 | [topics/plugin_guide.md](../topics/plugin_guide.md) | Development | Developer → Extending VAMOS → Plugin Guide | Regroup |
 | [topics/tuning.md](../topics/tuning.md) | How-to | How-to Guides → Experimental → Hyperparameter Tuning | Regroup |
 | [tutorials/index.md](../tutorials/index.md) | Tutorial | Tutorials → Overview | Add |
+| [tutorials/setup.md](../tutorials/setup.md) | How-to | Tutorials → Tutorial Setup | Add |
+| [tutorials/t01-first-result.md](../tutorials/t01-first-result.md) | Tutorial | Tutorials → First results → T01. Your First Result | Add |
+| [tutorials/t02-constrained-problem.md](../tutorials/t02-constrained-problem.md) | Tutorial | Tutorials → First results → T02. Your Constrained Problem | Add |
+| [tutorials/t03-pareto-decision.md](../tutorials/t03-pareto-decision.md) | Tutorial | Tutorials → First results → T03. From Pareto Set to Decision | Add |

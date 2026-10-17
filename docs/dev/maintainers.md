@@ -11,6 +11,7 @@ To learn an algorithm as a user, go to the
 | Decide where content belongs and preserve existing links | [Documentation architecture](documentation-architecture.md) and [content map](documentation-navigation.md). |
 | Maintain generated API pages and compatibility bookmarks | [Maintaining API documentation](api-documentation.md). |
 | Update an algorithm lesson, source example, or result figure | [Maintaining algorithm tutorials](algorithm-documentation.md). |
+| Update T01–T03, their shared template, downloads, and observed output | [Maintaining fundamental tutorials](fundamental-tutorials.md). |
 | Build a preview, preserve release archives, or publish | [Documentation delivery](documentation-delivery.md). |
 | Understand domains and hosting | [Hosting and domains](../project/hosting.md). |
 
