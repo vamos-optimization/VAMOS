@@ -31,6 +31,7 @@ theme:
   features:
     - navigation.tabs
     - navigation.sections
+    - navigation.prune
     - navigation.top
     - search.suggest
     - search.highlight
@@ -90,6 +91,22 @@ nav:
       - NSGA-II: algorithms/nsgaii.md
       - MOEA/D: algorithms/moead.md
       - NSGA-III: algorithms/nsgaiii.md
+      - SMS-EMOA: algorithms/smsemoa.md
+      - SPEA2: algorithms/spea2.md
+      - IBEA: algorithms/ibea.md
+      - SMPSO: algorithms/smpso.md
+      - AGE-MOEA: algorithms/agemoea.md
+      - RVEA: algorithms/rvea.md
+    - Representations and applications:
+      - Coverage Setup: tutorials/coverage-setup.md
+      - Decision Representations: tutorials/encodings.md
+      - Engineering Design: tutorials/engineering-design.md
+      - Feature Selection: tutorials/feature-selection.md
+      - Model Hyperparameters: tutorials/model-hyperparameters.md
+    - Advanced experiments:
+      - Experimental Algorithm Tuning: tutorials/tuning-experiment.md
+      - Controlled Ablation: tutorials/controlled-ablation.md
+      - Measure Backend Performance: tutorials/measure-performance.md
     - Examples Gallery: examples.md
   - How-to Guides:
     - Overview: guide/index.md
@@ -168,6 +185,7 @@ nav:
       - Maintaining Algorithm Tutorials: dev/algorithm-documentation.md
       - Maintaining Fundamental Tutorials: dev/fundamental-tutorials.md
       - Maintaining Study Tutorials: dev/study-tutorials.md
+      - Maintaining Coverage Tutorials: dev/coverage-tutorials.md
       - Documentation Delivery: dev/documentation-delivery.md
       - Testing and Validation: dev/testing.md
       - Typing Policy: dev/typing.md

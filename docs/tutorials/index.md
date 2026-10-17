@@ -49,6 +49,13 @@ Each guide includes runnable code, an actual result, and its limits.
 | [MOEA/D](../algorithms/moead.md) | Decomposition and the role of weight vectors and neighborhoods on ZDT1. | Understand objective trade-offs and evaluation budgets. |
 | [NSGA-III](../algorithms/nsgaiii.md) | Reference directions and population size on three-objective DTLZ2. | Understand a Pareto front and why more objectives change the problem. |
 
+- [SMS-EMOA](../algorithms/smsemoa.md): explicit configuration, recorded results and mechanism-specific limits.
+- [SPEA2](../algorithms/spea2.md): explicit configuration, recorded results and mechanism-specific limits.
+- [IBEA](../algorithms/ibea.md): explicit configuration, recorded results and mechanism-specific limits.
+- [SMPSO](../algorithms/smpso.md): explicit configuration, recorded results and mechanism-specific limits.
+- [AGE-MOEA](../algorithms/agemoea.md): explicit configuration, recorded results and mechanism-specific limits.
+- [RVEA](../algorithms/rvea.md): explicit configuration, recorded results and mechanism-specific limits.
+
 Use the [algorithm capability matrix](../reference/algorithms.md) to check
 encoding, constraint, archive, and backend support before choosing a family.
 The [configuration reference](../reference/api/algorithms/index.md) gives the
@@ -66,3 +73,17 @@ The small study demonstrates the workflow; it does not establish an algorithm
 ranking. Preserve that distinction when moving from a tutorial to your own
 experiment. Check the [stability policy](../project/stability-and-versioning.md)
 and the dependencies stated by each destination before using optional features.
+
+## Representations, applications and advanced experiments
+
+The [coverage setup](coverage-setup.md) supplies the common verified environment and evidence.
+
+| Goal | Worked lesson |
+| --- | --- |
+| Preserve binary, integer, permutation or mixed decisions | [Decision representations](encodings.md) |
+| Select a feasible mixed design | [Engineering design](engineering-design.md) |
+| Trade prediction error against selected features | [Feature selection](feature-selection.md) |
+| Search model settings under a complexity proxy | [Model hyperparameters](model-hyperparameters.md) |
+| Separate algorithm-training and validation seeds | [Experimental tuning](tuning-experiment.md) |
+| Remove one search component under a fixed design | [Controlled ablation](controlled-ablation.md) |
+| Measure initialization and subsequent execution | [Backend performance](measure-performance.md) |

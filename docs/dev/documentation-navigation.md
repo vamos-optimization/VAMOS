@@ -42,6 +42,21 @@ and reachable through the named parent pages even when absent from the menu.
 
 | Page (relative to `docs/`) | Role | Primary entry or contextual access | Decision |
 | --- | --- | --- | --- |
+| [algorithms/agemoea.md](../algorithms/agemoea.md) | Tutorial | Tutorials → Algorithms | Add |
+| [algorithms/ibea.md](../algorithms/ibea.md) | Tutorial | Tutorials → Algorithms | Add |
+| [algorithms/rvea.md](../algorithms/rvea.md) | Tutorial | Tutorials → Algorithms | Add |
+| [algorithms/smpso.md](../algorithms/smpso.md) | Tutorial | Tutorials → Algorithms | Add |
+| [algorithms/smsemoa.md](../algorithms/smsemoa.md) | Tutorial | Tutorials → Algorithms | Add |
+| [algorithms/spea2.md](../algorithms/spea2.md) | Tutorial | Tutorials → Algorithms | Add |
+| [dev/coverage-tutorials.md](coverage-tutorials.md) | Development | Developer → Maintainers | Add |
+| [tutorials/controlled-ablation.md](../tutorials/controlled-ablation.md) | Tutorial | Tutorials → Advanced experiments → Controlled Ablation | Add |
+| [tutorials/coverage-setup.md](../tutorials/coverage-setup.md) | How-to | Tutorials → Representations and applications → Coverage Setup | Add |
+| [tutorials/encodings.md](../tutorials/encodings.md) | Tutorial | Tutorials → Representations and applications → Decision Representations | Add |
+| [tutorials/engineering-design.md](../tutorials/engineering-design.md) | Tutorial | Tutorials → Representations and applications → Engineering Design | Add |
+| [tutorials/feature-selection.md](../tutorials/feature-selection.md) | Tutorial | Tutorials → Representations and applications → Feature Selection | Add |
+| [tutorials/measure-performance.md](../tutorials/measure-performance.md) | Tutorial | Tutorials → Advanced experiments → Measure Backend Performance | Add |
+| [tutorials/model-hyperparameters.md](../tutorials/model-hyperparameters.md) | Tutorial | Tutorials → Representations and applications → Model Hyperparameters | Add |
+| [tutorials/tuning-experiment.md](../tutorials/tuning-experiment.md) | Tutorial | Tutorials → Advanced experiments → Experimental Algorithm Tuning | Add |
 | [algorithms/moead.md](../algorithms/moead.md) | Tutorial | Tutorials → Algorithms → MOEA/D | Regroup |
 | [algorithms/nsgaii.md](../algorithms/nsgaii.md) | Tutorial | Tutorials → Algorithms → NSGA-II | Regroup |
 | [algorithms/nsgaiii.md](../algorithms/nsgaiii.md) | Tutorial | Tutorials → Algorithms → NSGA-III | Regroup |

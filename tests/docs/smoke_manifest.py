@@ -13,6 +13,51 @@ class DocSmokeCase:
 DOC_SMOKE_CASES = [
     *[
         DocSmokeCase(
+            name=f"coverage_tutorial_{lesson}",
+            source_path=f"docs/assets/coverage/{lesson}.py",
+            code=f"""
+import runpy
+import tempfile
+from pathlib import Path
+import pytest
+lesson = "{lesson}"
+if lesson in {{"feature_selection", "model_tuning"}}:
+    pytest.importorskip("sklearn")
+if lesson in {{"ablation", "performance"}}:
+    pytest.importorskip("moocore")
+if lesson == "performance":
+    pytest.importorskip("numba")
+module = runpy.run_path(f"docs/assets/coverage/{{lesson}}.py")
+with tempfile.TemporaryDirectory() as directory:
+    if lesson in {{"tuning", "ablation", "performance"}}:
+        module[f"run_{{lesson}}_example"](Path(directory) / "output")
+    elif lesson in {{"binary", "integer", "permutation", "mixed"}}:
+        module["run_lesson"](budget=80)
+    else:
+        module[f"run_{{lesson}}"](budget=80 if lesson != "engineering" else 400)
+""",
+        )
+        for lesson in (
+            "smsemoa",
+            "spea2",
+            "ibea",
+            "smpso",
+            "agemoea",
+            "rvea",
+            "binary",
+            "integer",
+            "permutation",
+            "mixed",
+            "engineering",
+            "feature_selection",
+            "model_tuning",
+            "tuning",
+            "ablation",
+            "performance",
+        )
+    ],
+    *[
+        DocSmokeCase(
             name=f"study_tutorial_{lesson}",
             source_path="examples/tutorials/study_workflow.py",
             code=f"""

@@ -384,3 +384,7 @@ When interpreting variant contributions, define the metric, replicate
 aggregation, and statistical procedure before comparing deltas against the
 baseline. Tuning, validation, final testing, and ablation answer different
 questions; keep their data partitions and provenance explicit.
+
+## A bounded worked experiment
+
+Follow [the tuning tutorial](../tutorials/tuning-experiment.md) for a verified standalone CLI wrapper, two recorded search trials and separate validation/test seeds. For model parameters as decision variables, use [the mixed SVC example](../tutorials/model-hyperparameters.md). For a controlled component removal using stable studies, use [the ablation lesson](../tutorials/controlled-ablation.md).

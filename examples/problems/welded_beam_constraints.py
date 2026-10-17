@@ -15,12 +15,14 @@ from __future__ import annotations
 import numpy as np
 
 from vamos import optimize
-from vamos.problems import WeldedBeamDesignProblem
 from vamos.algorithms import NSGAIIConfig
+from vamos.problems import WeldedBeamDesignProblem
 
 
 def main() -> None:
     problem = WeldedBeamDesignProblem()
+    # VAMOS 1.0.1 requires this metadata to activate the four emitted constraints.
+    problem.n_constraints = 4
 
     cfg = (
         NSGAIIConfig.builder()
