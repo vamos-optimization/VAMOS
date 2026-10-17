@@ -64,29 +64,36 @@ plugins:
             docstring_style: numpy
 
 nav:
-  - Home: index.md
   - Get Started:
     - Overview: guide/getting-started.md
     - Installation: guide/installation.md
     - Quickstart: guide/zero_to_hero.md
     - Minimal Python Track: guide/minimal-python.md
-  - Guides:
-    - Understanding Results: guide/understanding-results.md
-    - Solve Your Own Problem: guide/custom-problem.md
-    - Durable Studies: guide/studies.md
+  - Tutorials:
+    - Overview: tutorials/index.md
+    - First results:
+      - Understanding Results: guide/understanding-results.md
+      - Solve Your Own Problem: guide/custom-problem.md
+    - Reproducible Studies: guide/studies.md
+    - Algorithms:
+      - NSGA-II: algorithms/nsgaii.md
+      - MOEA/D: algorithms/moead.md
+      - NSGA-III: algorithms/nsgaiii.md
+    - Examples Gallery: examples.md
+  - How-to Guides:
+    - Overview: guide/index.md
+    - Cookbook: guide/cookbook.md
     - Run Artifacts & Replay: guide/run-artifacts.md
     - CLI & Config: guide/cli.md
     - Troubleshooting: guide/troubleshooting.md
-    - Hyperparameter Tuning: topics/tuning.md
-    - Analysis & Visualization: topics/analysis.md
-    - Scaling with Dask: scaling/dask.md
     - Experimental:
+      - Analysis & Visualization: topics/analysis.md
+      - Hyperparameter Tuning: topics/tuning.md
+      - Scaling with Dask: scaling/dask.md
       - VAMOS Studio: guide/studio.md
       - VAMOS Assist: assist.md
-  - Examples:
-    - Overview: examples.md
-    - Cookbook: guide/cookbook.md
   - Reference:
+    - Overview: reference/index.md
     - API Reference:
       - Overview: reference/api_reference.md
       - Optimization: reference/api/optimization.md
@@ -115,41 +122,42 @@ nav:
         - Tuning and racing: reference/api/experimental/tuning.md
         - Parameter spaces: reference/api/experimental/parameter-spaces.md
         - Diagnostics: reference/api/experimental/diagnostics.md
-    - Algorithms:
-      - Overview and backends: reference/algorithms.md
-      - NSGA-II guide: algorithms/nsgaii.md
-      - MOEA/D guide: algorithms/moead.md
-      - NSGA-III guide: algorithms/nsgaiii.md
+    - Algorithms & Backends: reference/algorithms.md
     - Problems: reference/problems.md
     - Constraints: reference/constraints.md
     - Stopping & Archive: experiment/stopping_and_archive.md
   - Developer:
     - Roadmap: roadmap.md
-    - Documentation Architecture: dev/documentation-architecture.md
-    - API Documentation: dev/api-documentation.md
-    - Algorithm Tutorials: dev/algorithm-documentation.md
-    - Documentation Delivery: dev/documentation-delivery.md
-    - Extending VAMOS: topics/extending.md
-    - Plugin Guide: topics/plugin_guide.md
+    - Extending VAMOS:
+      - Overview: topics/extending.md
+      - Plugin Guide: topics/plugin_guide.md
+      - Add a Problem: dev/add_problem.md
+      - Add an Operator: dev/add_operator.md
+      - Add an Algorithm: dev/add_algorithm.md
+      - Add a Backend: dev/add_backend.md
+      - Add a Metric: dev/add_metric.md
+      - Change the CLI: dev/cli.md
+      - Run Artifacts and Replay: dev/run_artifacts_and_replay.md
+      - Change Studies: dev/studies.md
+    - Contracts:
+      - Run Artifact Contract: dev/run_artifact_contract.md
+      - Run Artifact Acceptance Tests: dev/run_artifact_acceptance_tests.md
+      - StudyManifest v1 Contract: dev/study_manifest_contract.md
+      - StudyManifest Acceptance: dev/study_manifest_acceptance_tests.md
+      - Study Planning Acceptance: dev/study_plan_acceptance_tests.md
     - Internal API:
       - Constraint implementation: reference/api/internal/constraints.md
       - Problem adapters and encodings: reference/api/internal/problem-types.md
       - Generic configuration: reference/api/internal/generic-configuration.md
-    - Run Artifact Contract: dev/run_artifact_contract.md
-    - Run Artifact Acceptance Tests: dev/run_artifact_acceptance_tests.md
-    - Run Artifacts and Replay: dev/run_artifacts_and_replay.md
-    - Add a Problem: dev/add_problem.md
-    - Add an Operator: dev/add_operator.md
-    - Add an Algorithm: dev/add_algorithm.md
-    - Add a Backend: dev/add_backend.md
-    - Add a Metric: dev/add_metric.md
-    - Change the CLI: dev/cli.md
-    - Change Studies: dev/studies.md
-    - StudyManifest v1 Contract: dev/study_manifest_contract.md
-    - StudyManifest Acceptance: dev/study_manifest_acceptance_tests.md
-    - Study Planning Acceptance: dev/study_plan_acceptance_tests.md
-    - Testing and Validation: dev/testing.md
-    - Typing Policy: dev/typing.md
-    - Architecture Health: dev/architecture_health.md
-    - Repository Hygiene: dev/repository_hygiene.md
-    - Release Smoke Verification: release_smoke.md
+    - Maintainers:
+      - Overview: dev/maintainers.md
+      - Documentation Architecture: dev/documentation-architecture.md
+      - Documentation Content Map: dev/documentation-navigation.md
+      - Maintaining API Documentation: dev/api-documentation.md
+      - Maintaining Algorithm Tutorials: dev/algorithm-documentation.md
+      - Documentation Delivery: dev/documentation-delivery.md
+      - Testing and Validation: dev/testing.md
+      - Typing Policy: dev/typing.md
+      - Architecture Health: dev/architecture_health.md
+      - Repository Hygiene: dev/repository_hygiene.md
+      - Release Verification: release_smoke.md

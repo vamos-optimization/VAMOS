@@ -2,6 +2,10 @@
 
 VAMOS keeps executable learning material in `examples/` and `notebooks/`, while the documentation explains the supported workflow around that code. This separation avoids maintaining several slightly different copies of the same example.
 
+Use this gallery to choose runnable material by task or learning level. Follow
+[Tutorials](tutorials/index.md) for a connected learning path, or use
+[How-to Guides](guide/index.md) for a single operation.
+
 ## Obtain the example files
 
 The PyPI package provides the Python API and CLI. The scripts and notebooks on
