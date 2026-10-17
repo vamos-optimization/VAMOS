@@ -1,3 +1,22 @@
+---
+description: Rebuild a descriptive study report, tables, and figures from retained observations without rerunning optimization.
+search:
+  boost: 2
+setup: tutorials/study-setup/
+downloads:
+- url: assets/studies/t08-study-report.py
+  label: Download Python example
+lesson:
+  track: From study to report
+  position: 3 of 3
+  previous:
+    url: tutorials/t07-quality-and-budget/
+    label: T07 · Quality and budget
+  next:
+    url: tutorials/recorded-study-report/
+    label: Explore the recorded report
+---
+
 # T08. Turn study results into a report
 
 ## Goal

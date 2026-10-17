@@ -1,3 +1,17 @@
+---
+description: 'Choose a decision representation: run a verified VAMOS example, inspect actual output, and understand its assumptions and limits.'
+setup: tutorials/coverage-setup/
+downloads:
+- url: assets/coverage/binary.py
+  label: Download binary.py
+- url: assets/coverage/integer.py
+  label: Download integer.py
+- url: assets/coverage/permutation.py
+  label: Download permutation.py
+- url: assets/coverage/mixed.py
+  label: Download mixed.py
+---
+
 # Choose a decision representation
 
 **Goal:** choose operators that preserve the meaning of a decision, then verify the returned domains. Complete [T01](t01-first-result.md) first and install the [coverage environment](coverage-setup.md). Real-valued ZDT1 is already covered by T01; the four examples below use NSGA-II, NumPy, seed 42, population/offspring 40 and 400 evaluations each.

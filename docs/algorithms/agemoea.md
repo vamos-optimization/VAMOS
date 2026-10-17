@@ -1,3 +1,11 @@
+---
+description: 'AGE-MOEA: run a verified VAMOS example, inspect actual output, and understand its assumptions and limits.'
+setup: tutorials/coverage-setup/
+downloads:
+- url: assets/coverage/agemoea.py
+  label: Download agemoea.py
+---
+
 # AGE-MOEA
 
 Adaptive geometry estimation uses an estimated non-Euclidean front geometry to support diversity selection in many-objective search [1]. Three-objective DTLZ2 provides a small, inspectable demonstration.

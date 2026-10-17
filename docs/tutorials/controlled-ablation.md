@@ -1,3 +1,11 @@
+---
+description: 'Remove one component in a controlled study: run a verified VAMOS example, inspect actual output, and understand its assumptions and limits.'
+setup: tutorials/coverage-setup/
+downloads:
+- url: assets/coverage/ablation.py
+  label: Download ablation.py
+---
+
 # Remove one component in a controlled study
 
 **Goal:** ask whether polynomial mutation changes outcomes under one fixed experimental design. This example uses the stable [StudySpec and lifecycle](../reference/api/study-specification.md). It does not require the separate Experimental ablation CLI.

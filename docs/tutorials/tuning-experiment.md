@@ -1,3 +1,11 @@
+---
+description: 'An experimental tuning run: run a verified VAMOS example, inspect actual output, and understand its assumptions and limits.'
+setup: tutorials/coverage-setup/
+downloads:
+- url: assets/coverage/tuning.py
+  label: Download tuning.py
+---
+
 # An experimental tuning run
 
 **Goal:** run a bounded algorithm-configuration search and distinguish training, validation and test seeds. This workflow uses the **Experimental** `vamos tune` CLI; it does not establish a stable programmatic tuner API. Read the [canonical tuning guide](../topics/tuning.md) for the exact flags and backend behavior.

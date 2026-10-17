@@ -1,3 +1,22 @@
+---
+description: Turn a Pareto set into a decision using explicit scales, preferences, and feasible alternatives.
+search:
+  boost: 2
+setup: tutorials/setup/
+downloads:
+- url: assets/tutorials/t03-pareto-decision.py
+  label: Download Python example
+lesson:
+  track: First results
+  position: 3 of 3
+  previous:
+    url: tutorials/t02-constrained-problem/
+    label: T02 · Constrained problem
+  next:
+    url: tutorials/t06-fair-study/
+    label: T06 · Fair study
+---
+
 # T03. From a Pareto set to a decision
 
 ## Goal

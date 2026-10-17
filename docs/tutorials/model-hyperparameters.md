@@ -1,3 +1,11 @@
+---
+description: 'Model hyperparameters with mixed decisions: run a verified VAMOS example, inspect actual output, and understand its assumptions and limits.'
+setup: tutorials/coverage-setup/
+downloads:
+- url: assets/coverage/model_tuning.py
+  label: Download model_tuning.py
+---
+
 # Model hyperparameters with mixed decisions
 
 **Goal:** connect decision variables to a practical objective pair, execute the model, and select or interpret a candidate without losing its original row.

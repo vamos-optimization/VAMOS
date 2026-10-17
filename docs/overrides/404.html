@@ -1,0 +1,26 @@
+{% extends "main.html" %}
+{% set base_url = config.extra.documentation_base_path | default('/', true) %}
+
+{% block extrahead %}
+  {{ super() }}
+  <meta name="robots" content="noindex, follow">
+{% endblock %}
+
+{% block content %}
+  {% set recovery_base = base_url %}
+  <div class="vamos-recovery">
+    <p class="vamos-lesson-progress">404 · Page not found</p>
+    <h1>Let's find your next step</h1>
+    <p>This address does not point to a documentation page. Search by topic, algorithm, or API name, or choose a starting point below.</p>
+    <form class="vamos-recovery-search" action="{{ recovery_base }}" method="get" role="search" aria-label="Find documentation">
+      <label for="recovery-query">What are you looking for?</label>
+      <div><input id="recovery-query" name="q" type="search" placeholder="For example: constraints or MOEA/D" required><button type="submit">Search</button></div>
+    </form>
+    <nav class="vamos-lesson-nav" aria-label="Recovery links">
+      <a href="{{ recovery_base }}tutorials/"><span>Learn</span>Tutorials and examples</a>
+      <a href="{{ recovery_base }}reference/"><span>Look up</span>API and capability reference</a>
+      <a href="{{ recovery_base }}guide/installation/"><span>Get started</span>Installation</a>
+    </nav>
+    <p><a href="{{ recovery_base }}">Documentation home</a> · <a href="{{ recovery_base }}guide/troubleshooting/">Troubleshooting</a></p>
+  </div>
+{% endblock %}

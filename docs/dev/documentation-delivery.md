@@ -79,3 +79,56 @@ This GitHub Actions artifact handoff is a migration-stage mechanism, not the fin
 Preview, the GitHub Pages mirror, and Cloudflare production all use `tools/check_docs_portal.py`. The checker verifies the generated `docs/versions.json`, the clean current tree, immutable version trees, compatibility redirects, canonical targets, retained immutable version directories, and the absence of withdrawn routes from every published tree, sitemap, and search index.
 
 Source-level Markdown links remain protected by strict MkDocs and Zensical builds. The portal checker is intentionally a generated-artifact gate: it catches publication-layout mistakes that source-only validation cannot see.
+
+## Reader experience and publication identity
+
+The preview also runs `tools/check_docs_site.py` against the generated current
+tree. It checks local links and fragments, downloadable files, page language,
+one main heading, image alternatives, description/social metadata, searchable
+pages and search-result anchors, and recovery from the 404 page. Use
+`--baseline <previous-built-site>` when changing structure to prove that prior
+public routes and bookmarks remain available. Immutable archives keep their
+original reader experience and are not subjected to new editorial requirements.
+
+`tools/check_docs_browser.py` exercises the built portal in Chromium at 1440,
+390 and 320 CSS pixels. Its isolated environment is pinned in
+`tools/docs-browser-requirements.txt`; it adds no VAMOS runtime dependency.
+The scenarios follow T01–T03 and T06–T08, verify a downloaded script's bytes,
+search for algorithms and study terms, check a query with no results, operate
+the mobile menu and wide tables by keyboard, inspect dark mode and reduced
+motion, and recover from a nested missing address. Critical learning links and
+download controls are also checked with JavaScript disabled. Reports and
+screenshots go to the `docs-qa-<PR>` artifact, including failure evidence.
+These are targeted accessibility checks, not a complete WCAG certification or
+a claim of testing every mobile device.
+
+For a local browser regression run after building the portal:
+
+```bash
+python -m venv /tmp/vamos-docs-browser
+/tmp/vamos-docs-browser/bin/python -m pip install -r tools/docs-browser-requirements.txt
+/tmp/vamos-docs-browser/bin/python -m playwright install --with-deps chromium
+/tmp/vamos-docs-browser/bin/python tools/check_docs_browser.py --root public --output /tmp/vamos-docs-browser-evidence
+```
+
+Keep evidence outside the portal and select a new output directory. On Windows,
+use the environment's `Scripts/python.exe` executable instead of `bin/python`.
+
+Production publication additionally requires `expected_source_sha`, the full
+reviewed commit. The workflow refuses a different checkout. Before deployment,
+`tools/check_docs_artifact.py` records SHA-256 hashes for every portal file and
+the source commit in a separate `vamos-docs-identity-<version>` artifact. After
+the existing live route check, it compares **every current file** served by the
+primary host with those recorded bytes, including HTML, search, scripts, styles,
+figures and downloads. The verifier retries an individual mismatch or transport
+failure three times, and fails the workflow if the host still differs. It does
+not replace archive preservation, validate immutable archive bytes over HTTP,
+automatically roll back a deployment, or accept a changed source commit.
+
+Learning-path metadata and download controls live in each lesson's front matter;
+the shared template renders their links relative to the current documentation
+version. The 404 template uses root-relative links under that version's base,
+so recovery from a deeply nested address also works on an isolated preview.
+Search tokenization includes hyphen, underscore and dot separators for API
+names, while preserving the slash in MOEA/D as part of one algorithm name.
+Introductory lessons and routing pages receive a modest boost.

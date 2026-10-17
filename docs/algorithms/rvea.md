@@ -1,3 +1,11 @@
+---
+description: 'RVEA: run a verified VAMOS example, inspect actual output, and understand its assumptions and limits.'
+setup: tutorials/coverage-setup/
+downloads:
+- url: assets/coverage/rvea.py
+  label: Download rvea.py
+---
+
 # RVEA
 
 Reference vectors divide objective space, and angle-penalized distance balances convergence and diversity during selection. Vector adaptation accounts for objective-space scales [1].

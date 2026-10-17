@@ -1,3 +1,11 @@
+---
+description: 'SMPSO: run a verified VAMOS example, inspect actual output, and understand its assumptions and limits.'
+setup: tutorials/coverage-setup/
+downloads:
+- url: assets/coverage/smpso.py
+  label: Download smpso.py
+---
+
 # SMPSO
 
 Speed-constrained particle swarm optimization moves particles using velocity, personal experience and archive leaders [1]. Mutation adds perturbations; crossover is not part of this configuration.

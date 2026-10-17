@@ -1,3 +1,11 @@
+---
+description: 'IBEA: run a verified VAMOS example, inspect actual output, and understand its assumptions and limits.'
+setup: tutorials/coverage-setup/
+downloads:
+- url: assets/coverage/ibea.py
+  label: Download ibea.py
+---
+
 # IBEA
 
 Indicator-based selection turns pairwise objective comparisons into fitness [1]. Here the additive epsilon indicator drives search; the indicator chosen for selection need not be the metric used to report final quality.

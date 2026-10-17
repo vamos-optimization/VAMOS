@@ -1,3 +1,9 @@
+---
+description: Look up VAMOS public APIs, algorithms, backends, problem support, constraints, and stability commitments.
+search:
+  boost: 2
+---
+
 # Reference
 
 Look up the supported inputs, outputs, capabilities, and contracts. If you are

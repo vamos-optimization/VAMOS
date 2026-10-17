@@ -1,3 +1,11 @@
+---
+description: 'SMS-EMOA: run a verified VAMOS example, inspect actual output, and understand its assumptions and limits.'
+setup: tutorials/coverage-setup/
+downloads:
+- url: assets/coverage/smsemoa.py
+  label: Download smsemoa.py
+---
+
 # SMS-EMOA
 
 Hypervolume contribution provides the environmental selection criterion: candidates compete through the objective-space volume they add relative to a reference point [1]. This steady-state example makes that point explicit.

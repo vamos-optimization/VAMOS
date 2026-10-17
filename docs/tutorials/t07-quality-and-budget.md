@@ -1,3 +1,22 @@
+---
+description: Compare hypervolume and IGD+ at fixed evaluation budgets using verified results and explicit reference fronts.
+search:
+  boost: 2
+setup: tutorials/study-setup/
+downloads:
+- url: assets/studies/t07-quality-and-budget.py
+  label: Download Python example
+lesson:
+  track: From study to report
+  position: 2 of 3
+  previous:
+    url: tutorials/t06-fair-study/
+    label: T06 · Fair study
+  next:
+    url: tutorials/t08-study-report/
+    label: T08 · Study report
+---
+
 # T07. Measure quality and progress with budget
 
 ## Goal

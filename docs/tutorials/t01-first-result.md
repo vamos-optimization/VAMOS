@@ -1,3 +1,22 @@
+---
+description: Run ZDT1 with NSGA-II, interpret the population and Pareto front, and download a verified Python example.
+search:
+  boost: 2
+setup: tutorials/setup/
+downloads:
+- url: assets/tutorials/t01-first-result.py
+  label: Download Python example
+lesson:
+  track: First results
+  position: 1 of 3
+  previous:
+    url: tutorials/setup/
+    label: Set up this learning path
+  next:
+    url: tutorials/t02-constrained-problem/
+    label: T02 · Constrained problem
+---
+
 # T01. Your first meaningful result
 
 ## Goal

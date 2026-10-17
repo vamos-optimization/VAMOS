@@ -1,3 +1,7 @@
+---
+description: Compare VAMOS algorithms, decision encodings, constraint support, archives, and computation backends.
+---
+
 # Algorithms and backends
 
 Choose a built-in algorithm through its public identifier in `optimize()`. Start with the [NSGA-II guide](../algorithms/nsgaii.md) for a complete executable example and an explanation of the result. The configuration pages below document exact interfaces; they are not performance rankings.
