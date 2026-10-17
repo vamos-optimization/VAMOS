@@ -218,6 +218,11 @@ held-out test estimates. Both public classes also accept the wine dataset,
 which changes `fs_real` to 13 decision variables; named registry selection uses
 the defaults above.
 
+**VAMOS 1.0.1 constraint metadata:** `WeldedBeamDesignProblem` emits four
+residual columns but requires an explicit `problem.n_constraints = 4` before
+optimization to activate them. Follow the verified [engineering lesson](../tutorials/engineering-design.md),
+which declares this field and checks the returned `G` before selecting a design.
+
 `welded_beam` is VAMOS's six-variable mixed design example; it is a different
 formulation from the four-variable, three-objective `re32`. Its four emitted G
 columns are shear stress, normal stress, deflection and the `h <= b` condition.
@@ -294,3 +299,5 @@ scalable formulations. For a new objective function, follow
 [ml]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/real_world/hyperparam.py
 [beam]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/real_world/engineering.py
 [fronts]: https://github.com/vamos-optimization/VAMOS/tree/v1.0.1/src/vamos/resources/reference_fronts
+
+For verified application walkthroughs, see [feature selection](../tutorials/feature-selection.md), [model hyperparameters](../tutorials/model-hyperparameters.md), and [decision representations](../tutorials/encodings.md).

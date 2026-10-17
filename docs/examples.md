@@ -18,6 +18,12 @@ The **T06–T08 study-to-report sequence** has its own
 120-run example and a report that can be rebuilt without optimization. These
 new downloads also use the published 1.0.1 package and are not in the tag ZIP.
 
+The [coverage lessons](tutorials/coverage-setup.md) add standalone examples for
+all remaining algorithms, representations, practical cases and advanced experiments.
+Use the [verified engineering download](tutorials/engineering-design.md) for the
+explicit four-constraint metadata required by the 1.0.1 welded-beam class;
+the older tag’s engineering scripts do not include that declaration.
+
 The PyPI package provides the Python API and CLI. The scripts and notebooks on
 this page live in the [source repository](https://github.com/vamos-optimization/VAMOS).
 Install the [published package](guide/installation.md), then download the
@@ -89,7 +95,7 @@ Use a new output directory: durable studies are not silently overwritten.
 | Persist and inspect runs | [Run artifacts & replay](guide/run-artifacts.md) | Stable | canonical run-artifact examples referenced by that guide |
 | Plan and trace a persistent experiment matrix | [Run a reproducible study](guide/studies.md) | Stable, single-owner | [`examples/journeys/reproducible_study.py`](https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/examples/journeys/reproducible_study.py) |
 | Tune an algorithm configuration | [Hyperparameter tuning](topics/tuning.md) | Experimental | `vamos tune` CLI workflow and advanced tuning notebooks |
-| Optimize model hyperparameters as decision variables | [Hyperparameter tuning](topics/tuning.md) | Example-specific custom problem | [`examples/tuning/hyperparam_tuning.py`](https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/examples/tuning/hyperparam_tuning.py) |
+| Optimize model hyperparameters as decision variables | [Model hyperparameters](tutorials/model-hyperparameters.md) | Example-specific custom problem | [`examples/tuning/hyperparam_tuning.py`](https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/examples/tuning/hyperparam_tuning.py) |
 | Use distributed evaluation | [Scaling with Dask](scaling/dask.md) | Experimental | [`examples/distributed/`](https://github.com/vamos-optimization/VAMOS/tree/v1.0.1/examples/distributed/) |
 | Build a plugin | [Plugin Guide](topics/plugin_guide.md) | Experimental | [`examples/plugins/`](https://github.com/vamos-optimization/VAMOS/tree/v1.0.1/examples/plugins/) |
 

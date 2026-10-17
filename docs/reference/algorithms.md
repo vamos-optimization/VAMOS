@@ -9,12 +9,12 @@ Choose a built-in algorithm through its public identifier in `optimize()`. Start
 | NSGA-II | `nsgaii` | [Run and understand NSGA-II](../algorithms/nsgaii.md) | [NSGAIIConfig](api/algorithms/nsgaii.md) |
 | NSGA-III | `nsgaiii` | [Reference directions and DTLZ2](../algorithms/nsgaiii.md) | [NSGAIIIConfig](api/algorithms/nsgaiii.md) |
 | MOEA/D | `moead` | [Decomposition and ZDT1](../algorithms/moead.md) | [MOEADConfig](api/algorithms/moead.md) |
-| SMS-EMOA | `smsemoa` | Use the configuration reference | [SMSEMOAConfig](api/algorithms/smsemoa.md) |
-| SPEA2 | `spea2` | Use the configuration reference | [SPEA2Config](api/algorithms/spea2.md) |
-| IBEA | `ibea` | Use the configuration reference | [IBEAConfig](api/algorithms/ibea.md) |
-| SMPSO | `smpso` | Use the configuration reference | [SMPSOConfig](api/algorithms/smpso.md) |
-| AGE-MOEA | `agemoea` | Use the configuration reference | [AGEMOEAConfig](api/algorithms/agemoea.md) |
-| RVEA | `rvea` | Use the configuration reference | [RVEAConfig](api/algorithms/rvea.md) |
+| SMS-EMOA | `smsemoa` | [Run and interpret SMSEMOA](../algorithms/smsemoa.md) | [SMSEMOAConfig](api/algorithms/smsemoa.md) |
+| SPEA2 | `spea2` | [Run and interpret SPEA2](../algorithms/spea2.md) | [SPEA2Config](api/algorithms/spea2.md) |
+| IBEA | `ibea` | [Run and interpret IBEA](../algorithms/ibea.md) | [IBEAConfig](api/algorithms/ibea.md) |
+| SMPSO | `smpso` | [Run and interpret SMPSO](../algorithms/smpso.md) | [SMPSOConfig](api/algorithms/smpso.md) |
+| AGE-MOEA | `agemoea` | [Run and interpret AGEMOEA](../algorithms/agemoea.md) | [AGEMOEAConfig](api/algorithms/agemoea.md) |
+| RVEA | `rvea` | [Run and interpret RVEA](../algorithms/rvea.md) | [RVEAConfig](api/algorithms/rvea.md) |
 
 To query the installed registry, use `available_algorithms()` from `vamos.algorithms`; see [discovery](api/discovery.md). **All nine built-in identifiers and their public configuration classes are Stable** under the [1.x stability policy](../project/stability-and-versioning.md). Stable API status is a compatibility commitment, not evidence that every combination of algorithm, operator and problem has been validated.
 
@@ -96,6 +96,8 @@ These are implementation fixes under the existing stability policy. Record the p
 - Operator probabilities accept either a numeric value or the string literal `"1/n"`.
 - `"1/n"` resolves to `1.0 / n_var` in supported variation paths. RVEA in 1.0.1 still requires the numeric equivalent, as noted above.
 - Example: `NSGAIIConfig.builder().mutation("pm", prob="1/n", eta=20.0)`
+
+For a measured first-call/subsequent-call example, follow [Measure backend performance](../tutorials/measure-performance.md).
 
 ## Comparative benchmarking
 

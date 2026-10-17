@@ -11,9 +11,9 @@ Requirements:
 from __future__ import annotations
 
 from vamos import optimize
+from vamos.algorithms import NSGAIIConfig
 from vamos.problems import WeldedBeamDesignProblem
 from vamos.ux.api import plot_pareto_front_2d
-from vamos.algorithms import NSGAIIConfig
 
 
 def build_config(pop_size: int = 30) -> NSGAIIConfig:
@@ -32,6 +32,8 @@ def build_config(pop_size: int = 30) -> NSGAIIConfig:
 
 def main(seed: int = 11) -> None:
     problem = WeldedBeamDesignProblem()
+    # VAMOS 1.0.1 requires this metadata to activate the four emitted constraints.
+    problem.n_constraints = 4
     cfg = build_config(pop_size=24)
     result = optimize(
         problem,
