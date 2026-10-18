@@ -24,9 +24,9 @@ To query the installed registry, use `available_algorithms()` from `vamos.algori
 
 ## Capability matrix
 
-This table describes the **VAMOS 1.0.1 package**. Changes since 1.0.0 are listed below. “R / B / I / P / M” means real, binary, integer, permutation and mixed encodings. An encoding requires compatible variation operators and, for mixed problems, the problem's variable specification; a real-coded default configuration does not convert a discrete problem.
+This table describes the **VAMOS 1.0.2 package**. Changes since 1.0.0 are listed below. “R / B / I / P / M” means real, binary, integer, permutation and mixed encodings. An encoding requires compatible variation operators and, for mixed problems, the problem's variable specification; a real-coded default configuration does not convert a discrete problem.
 
-| Algorithm | Encodings | Constraint-aware survival in 1.0.1 | Archive | Backends | API status |
+| Algorithm | Encodings | Constraint-aware survival in 1.0.2 | Archive | Backends | API status |
 | --- | --- | --- | --- | --- | --- |
 | NSGA-II | R / B / I / P / M | Feasibility-based | Optional external result archive | NumPy / Numba / MooCore | Stable |
 | NSGA-III | R / B / I / P / M | **No**; retains `G`, but survival ranks objectives | Optional external result archive | NumPy / Numba / MooCore | Stable; constraint limitation |
@@ -79,13 +79,13 @@ These are implementation fixes under the existing stability policy. Record the p
 ## Optional baselines
 
 - PyMOO NSGA-II (real and permutation), jMetalPy NSGA-II (real and permutation), PyGMO NSGA-II.
-- Enabled via `--include-external`; install with `python -m pip install "vamos-optimization[research]==1.0.1"`. These third-party integrations are **Experimental**, outside the stable VAMOS algorithm contract.
+- Enabled via `--include-external`; install with `python -m pip install "vamos-optimization[research]==1.0.2"`. These third-party integrations are **Experimental**, outside the stable VAMOS algorithm contract.
 
 ## Backends
 
 - NumPy (default): vectorized CPU kernels.
 - Numba: JIT acceleration for supported kernels (set `VAMOS_USE_NUMBA_VARIATION=1` for permutation/binary/integer variation).
-- MooCore: accelerated kernels via `moocore`. Install optional backends with `python -m pip install "vamos-optimization[compute]==1.0.1"`; see [installation](../guide/installation.md).
+- MooCore: accelerated kernels via `moocore`. Install optional backends with `python -m pip install "vamos-optimization[compute]==1.0.2"`; see [installation](../guide/installation.md).
 
 ### Backend roles
 
@@ -134,7 +134,7 @@ Numba when you need a pure NumPy timing reference.
 ## Probability shorthand
 
 - Operator probabilities accept either a numeric value or the string literal `"1/n"`.
-- `"1/n"` resolves to `1.0 / n_var` in supported variation paths. RVEA in 1.0.1 still requires the numeric equivalent, as noted above.
+- `"1/n"` resolves to `1.0 / n_var` in supported variation paths. RVEA in 1.0.2 still requires the numeric equivalent, as noted above.
 - Example: `NSGAIIConfig.builder().mutation("pm", prob="1/n", eta=20.0)`
 
 For a measured first-call/subsequent-call example, follow [Measure backend performance](../tutorials/measure-performance.md).

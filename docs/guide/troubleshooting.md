@@ -6,7 +6,7 @@ search:
 
 # Troubleshooting
 
-These checks target the published VAMOS 1.0.1 package. See
+These checks target the published VAMOS 1.0.2 package. See
 [Installation](installation.md) for supported environments and extras, and
 [Stability and versioning](../project/stability-and-versioning.md) for the
 **Stable**, **Experimental**, and **Internal** labels.
@@ -20,7 +20,7 @@ python -c "import sys, vamos; print(sys.executable); print(vamos.__version__); p
 python -m pip show vamos-optimization
 ```
 
-The version should be `1.0.1` when following this release's examples. If the
+The version should be `1.0.2` when following this release's examples. If the
 package is missing, activate the intended virtual environment and follow
 [Installation](installation.md). Use `python -m pip` so installation targets the
 selected interpreter. Restart a notebook kernel after changing packages.
@@ -36,12 +36,12 @@ without a source checkout:
 
 | Capability | Installation command | Status |
 | --- | --- | --- |
-| Numba/MooCore kernels and Dask dependency | `python -m pip install "vamos-optimization[compute]==1.0.1"` | Kernel selection is Stable; distributed evaluation is Experimental |
-| Plots, pandas, and notebooks | `python -m pip install "vamos-optimization[analysis]==1.0.1"` | Analysis helpers are Experimental |
-| Local Studio | `python -m pip install "vamos-optimization[studio]==1.0.1"` | Experimental |
-| Selected domain examples | `python -m pip install "vamos-optimization[examples]==1.0.1"` | Check the individual example |
-| External research baselines | `python -m pip install "vamos-optimization[research]==1.0.1"` | Experimental integrations |
-| Optional tuning backends | `python -m pip install "vamos-optimization[tuning]==1.0.1"` | Experimental |
+| Numba/MooCore kernels and Dask dependency | `python -m pip install "vamos-optimization[compute]==1.0.2"` | Kernel selection is Stable; distributed evaluation is Experimental |
+| Plots, pandas, and notebooks | `python -m pip install "vamos-optimization[analysis]==1.0.2"` | Analysis helpers are Experimental |
+| Local Studio | `python -m pip install "vamos-optimization[studio]==1.0.2"` | Experimental |
+| Selected domain examples | `python -m pip install "vamos-optimization[examples]==1.0.2"` | Check the individual example |
+| External research baselines | `python -m pip install "vamos-optimization[research]==1.0.2"` | Experimental integrations |
+| Optional tuning backends | `python -m pip install "vamos-optimization[tuning]==1.0.2"` | Experimental |
 
 An explicitly requested unavailable backend fails; it is not silently replaced
 by NumPy. Choose `engine="numpy"` explicitly if you want a core-only run.

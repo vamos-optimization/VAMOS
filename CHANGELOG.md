@@ -4,6 +4,8 @@ All notable public changes to VAMOS are documented here.
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-10-18
+
 ### Added
 
 - With `engine="numba"`, the built-in SBX crossover and polynomial mutation
@@ -30,6 +32,9 @@ All notable public changes to VAMOS are documented here.
   bookkeeping, builds genealogy parent indices only when genealogy is tracked,
   and, with `engine="numba"`, computes its differential-evolution children with
   a compiled kernel fed by the same random draws. Trajectories are unchanged.
+- The documentation is reorganized into learning paths, adds fundamental,
+  study-to-report and per-algorithm tutorials with recorded outputs, and
+  lists what the Numba engine compiles for each algorithm.
 
 ### Fixed
 
@@ -150,6 +155,7 @@ development markers; they are not prior public releases.
 - Studio, tuning, visualization, provider integrations, plugin interfaces, and
   non-stable CLI commands remain experimental.
 
-[Unreleased]: https://github.com/vamos-optimization/VAMOS/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/vamos-optimization/VAMOS/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.0.2
 [1.0.1]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.0.1
 [1.0.0]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.0.0

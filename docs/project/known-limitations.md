@@ -1,4 +1,4 @@
-# Known limitations in VAMOS 1.0.1
+# Known limitations in VAMOS 1.0.2
 
 These limitations are part of the current release scope. They describe
 unsupported behavior rather than future compatibility promises.
@@ -40,7 +40,7 @@ unsupported behavior rather than future compatibility promises.
 
 - Study mutation is single-owner. Do not run, resume, or retry the same study
   concurrently from multiple processes.
-- Study execution is sequential in 1.0.1. Distributed workers, multiprocess
+- Study execution is sequential in 1.0.2. Distributed workers, multiprocess
   ownership, and cross-process cancellation are unsupported.
 - Cancellation is cooperative and local to the process that owns execution.
 

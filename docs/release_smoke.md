@@ -12,10 +12,10 @@ subsequent publication job depends on that guard.
 
 ## Preparing the next release
 
-The current candidate is **1.0.1**, dated **2026-10-01**. The published
-`v1.0.0` tag and distributions remain immutable. Keep the historical 1.0.0
-compatibility fixtures and artifact schemas unchanged.
-See the [1.0.1 release notes](project/release-notes-1.0.1.md) for the included fixes.
+The current candidate is **1.0.2**, dated **2026-10-18**. The published
+`v1.0.0` and `v1.0.1` tags and distributions remain immutable. Keep the
+historical 1.0.0 compatibility fixtures and artifact schemas unchanged.
+See the [1.0.2 release notes](project/release-notes-1.0.2.md) for the included changes.
 
 Update the runtime version, citation, changelog, release notes, version
 consistency test, and exact candidate and publication workflow versions in one
@@ -24,7 +24,7 @@ commit changes, produce new evidence before publishing. Verify the actual
 publication date before freezing.
 
 Run full local and hosted release validation. The candidate workflow accepts
-`release/final-1.0.1` pull requests and manual dispatch. After merging, dispatch
+`release/final-1.0.2` pull requests and manual dispatch. After merging, dispatch
 `release.yml` on the final `main` commit and wait for all source and installed
 wheel gates, including the frozen-evidence job, to succeed. The pre-release tag
 check requires the new tag to be absent and all previous public annotated tags
@@ -38,8 +38,8 @@ Trusted Publisher identities remain:
 | PyPI | vamos-optimization | vamos-optimization | VAMOS | upload_pypi.yml | pypi |
 
 Confirm both existing publisher registrations and the GitHub environments
-before creating the annotated `v1.0.1` tag. If deployment restrictions still
-allow only `v1.0.0`, an authorized maintainer must add `v1.0.1` while preserving
+before creating the annotated `v1.0.2` tag. If deployment restrictions still
+allow only earlier tags, an authorized maintainer must add `v1.0.2` while preserving
 production approval requirements. Use OIDC; do not introduce API tokens or
 publish through a mirror. A required deployment approval must be completed
 through the normal environment approval flow.
@@ -68,7 +68,7 @@ canonical documentation surface. The personal mirror must not deploy canonical
 Pages. Confirm the deployment and canonical `.org` metadata during the final
 release Goal.
 
-`tools/build_release_docs.py --version 1.0.1 --output <new-directory>` builds
+`tools/build_release_docs.py --version 1.0.2 --output <new-directory>` builds
 the complete deployment layout. It builds the current documentation and the
 immutable release separately so each has the correct canonical URL, preserves
 previous immutable `docs/<version>/` trees when an archive input is supplied,
@@ -84,7 +84,7 @@ both documentation sites, distributions, installed wheel, dependencies, and
 release evidence in one command:
 
 ```bash
-python tools/release_check.py --version 1.0.1
+python tools/release_check.py --version 1.0.2
 ```
 
 Run it from a clean release branch with the development, documentation,
@@ -108,8 +108,8 @@ evidence outside the repository:
 
 ```bash
 python tools/release_check.py \
-  --version 1.0.1 \
-  --expected-branch release/final-1.0.1 \
+  --version 1.0.2 \
+  --expected-branch release/final-1.0.2 \
   --expected-commit <full-commit-sha> \
   --tag-state pre-release \
   --typing-python <typing-venv>/bin/python \
@@ -135,7 +135,7 @@ candidate, pass its directory instead of rebuilding it:
 
 ```bash
 python tools/release_check.py \
-  --version 1.0.1 \
+  --version 1.0.2 \
   --artifacts <directory-with-one-wheel-and-one-sdist> \
   --output-dir <new-empty-evidence-directory>
 ```
@@ -160,7 +160,7 @@ from making pip treat an uninstalled wheel as already installed. Run the full
 smoke with:
 
 ```bash
-python tools/release_smoke.py --version 1.0.1 --mode full
+python tools/release_smoke.py --version 1.0.2 --mode full
 ```
 
 `--mode core` omits the optional-backend failure scenario and is used by the

@@ -2,7 +2,7 @@
 
 Choose a problem by its **formulation, encoding and dimensions**, then check the
 [algorithm compatibility matrix](algorithms.md). This catalog describes the
-136 registered problems in VAMOS **1.0.1**. The named selection helpers are
+136 registered problems in VAMOS **1.0.2**. The named selection helpers are
 [stable public APIs](../project/stability-and-versioning.md). A synthetic or
 engineering benchmark is a test model, not a validated model of your application.
 
@@ -95,7 +95,7 @@ algorithm with the required constraint support in the [matrix](algorithms.md).
 | `mw11` | 15 | 2 | 4 | Actual M fixed at 2 | [MW][constrained] | None packaged |
 | `mw4`, `mw8`, `mw14` | 15 | 3 | 1 | Configurable M | [MW][constrained] | None packaged |
 
-In 1.0.1, the registry accepts an objective override for every MW key, but only
+In 1.0.2, the registry accepts an objective override for every MW key, but only
 MW4, MW8 and MW14 actually change their objective count. Use the instantiated
 problem's `n_obj` and keep the other MW cases at two objectives.
 
@@ -172,7 +172,7 @@ The default bounds and discrete choices are fixed by the linked implementation.
 | `re61` — water resource planning | Real | 3 / 6 | f₆ | Fixed design bounds | [RE6/9][re69] | 6D |
 | `re91` — car cab | Real | 7 / 9 | No separate violation objective | **Deterministic** mean-value evaluation (`stochastic=False`) | [RE6/9][re69] | 9D |
 
-Version 1.0.1 has stale descriptive labels for several RE registry entries.
+Version 1.0.2 has stale descriptive labels for several RE registry entries.
 In particular, the `re24` selection metadata reports four variables while its
 factory creates the two-variable hatch-cover formulation. The table follows
 the implementation; inspect `problem.n_var` after instantiation and use
@@ -201,7 +201,7 @@ implementation converts maximization goals to negative objective values.
 
 ### Learning and mixed engineering examples
 
-Install `python -m pip install "vamos-optimization[examples]==1.0.1"` for the two
+Install `python -m pip install "vamos-optimization[examples]==1.0.2"` for the two
 classifier examples. The base package is sufficient for `welded_beam`.
 See [Installation](../guide/installation.md) for environments and extras.
 
@@ -218,7 +218,7 @@ held-out test estimates. Both public classes also accept the wine dataset,
 which changes `fs_real` to 13 decision variables; named registry selection uses
 the defaults above.
 
-**VAMOS 1.0.1 constraint metadata:** `WeldedBeamDesignProblem` emits four
+**VAMOS 1.0.2 constraint metadata:** `WeldedBeamDesignProblem` emits four
 residual columns but requires an explicit `problem.n_constraints = 4` before
 optimization to activate them. Follow the verified [engineering lesson](../tutorials/engineering-design.md),
 which declares this field and checks the returned `G` before selecting a design.
@@ -240,7 +240,7 @@ compatibility or a certified optimum.
   their registered default is three objectives. Supply a matching reference for
   default runs; do not use those two-column files for three-objective indicators.
 - ZCAT supplies dimension-specific samples at M = 2, 3, 4 and 6. Other objective
-  counts need a supplied reference; 1.0.1's automatic lookup can otherwise fall
+  counts need a supplied reference; 1.0.2's automatic lookup can otherwise fall
   back to a 2D file.
 - RE/RWA samples have the dimensions shown above. Their presence does not imply
   that every sample point is a certified global Pareto optimum.
