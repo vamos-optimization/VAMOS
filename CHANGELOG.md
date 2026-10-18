@@ -26,6 +26,10 @@ All notable public changes to VAMOS are documented here.
 - NSGA-II reuses the generation-end ranking of an unchanged population for the
   next parent selection, and constrained selection no longer computes an
   unconstrained ranking it then discards. Trajectories are unchanged.
+- MOEA/D samples the parents of a single offspring without vectorized
+  bookkeeping, builds genealogy parent indices only when genealogy is tracked,
+  and, with `engine="numba"`, computes its differential-evolution children with
+  a compiled kernel fed by the same random draws. Trajectories are unchanged.
 
 ### Fixed
 

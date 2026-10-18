@@ -49,10 +49,10 @@ class MOEAD:
         self.cfg = config
         self.kernel = kernel or default_kernel()
         self._st: MOEADState | None = None
-        self._candidate_lengths: np.ndarray | None = None
-        self._candidate_orders: np.ndarray | None = None
-        self._parent_pairs: np.ndarray | None = None
-        self._row_index: np.ndarray = np.empty(0, dtype=np.int64)
+        self._candidate_lengths: np.ndarray[Any, Any] | None = None
+        self._candidate_orders: np.ndarray[Any, Any] | None = None
+        self._parent_pairs: np.ndarray[Any, Any] | None = None
+        self._row_index: np.ndarray[Any, Any] = np.empty(0, dtype=np.int64)
 
     def run(
         self,
@@ -141,19 +141,19 @@ class MOEAD:
         self._op_label = variation_operator_label(self.cfg, "sbx+pm")
         return live_cb, eval_strategy, max_eval, hv_tracker
 
-    def _ensure_parent_pair_buffer(self, batch_size: int) -> np.ndarray:
+    def _ensure_parent_pair_buffer(self, batch_size: int) -> np.ndarray[Any, Any]:
         if self._parent_pairs is None or self._parent_pairs.shape[0] < batch_size:
             self._parent_pairs = np.empty((batch_size, 2), dtype=int)
         return self._parent_pairs[:batch_size]
 
-    def _ensure_candidate_order_buffers(self, batch_size: int, pop_size: int) -> tuple[np.ndarray, np.ndarray]:
+    def _ensure_candidate_order_buffers(self, batch_size: int, pop_size: int) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
         if self._candidate_orders is None or self._candidate_orders.shape[0] < batch_size or self._candidate_orders.shape[1] != pop_size:
             self._candidate_orders = np.empty((batch_size, pop_size), dtype=int)
         if self._candidate_lengths is None or self._candidate_lengths.shape[0] < batch_size:
             self._candidate_lengths = np.empty(batch_size, dtype=np.int64)
         return self._candidate_orders[:batch_size], self._candidate_lengths[:batch_size]
 
-    def _ensure_row_index(self, length: int) -> np.ndarray:
+    def _ensure_row_index(self, length: int) -> np.ndarray[Any, Any]:
         if self._row_index.shape[0] < length:
             self._row_index = np.arange(length, dtype=np.int64)
         return self._row_index[:length]
@@ -161,13 +161,27 @@ class MOEAD:
     def _sample_parent_pairs(
         self,
         st: MOEADState,
-        active: np.ndarray,
-        use_neighbors: np.ndarray,
-    ) -> np.ndarray:
+        active: np.ndarray[Any, Any],
+        use_neighbors: np.ndarray[Any, Any],
+    ) -> np.ndarray[Any, Any]:
         """Sample one ordered parent pair per active subproblem."""
         batch_size = active.shape[0]
         parent_pairs = self._ensure_parent_pair_buffer(batch_size)
         if batch_size == 0:
+            return parent_pairs
+        if batch_size == 1:
+            # One offspring per step: same generator calls and pairs as the batch path below.
+            if bool(use_neighbors[0]):
+                row = st.neighbors[active[0]]
+                first = st.rng.integers(0, row.shape[0], size=1, dtype=np.int64)
+                second = st.rng.integers(0, row.shape[0] - 1, size=1, dtype=np.int64)
+                parent_pairs[0, 0] = row[first[0]]
+                parent_pairs[0, 1] = row[second[0] + (second[0] >= first[0])]
+            else:
+                first = st.rng.integers(0, st.pop_size, size=1, dtype=np.int64)
+                second = st.rng.integers(0, st.pop_size - 1, size=1, dtype=np.int64)
+                parent_pairs[0, 0] = first[0]
+                parent_pairs[0, 1] = second[0] + (second[0] >= first[0])
             return parent_pairs
 
         neighbor_mask = np.asarray(use_neighbors, dtype=bool)
@@ -196,9 +210,9 @@ class MOEAD:
     def _build_candidate_orders(
         self,
         st: MOEADState,
-        active: np.ndarray,
-        use_neighbors: np.ndarray,
-    ) -> tuple[np.ndarray, np.ndarray]:
+        active: np.ndarray[Any, Any],
+        use_neighbors: np.ndarray[Any, Any],
+    ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
         """Precompute candidate replacement orders for a batch of offspring."""
         batch_size = active.shape[0]
         candidate_orders, candidate_lengths = self._ensure_candidate_order_buffers(batch_size, st.pop_size)
@@ -219,7 +233,7 @@ class MOEAD:
 
         return candidate_orders, candidate_lengths
 
-    def ask(self) -> np.ndarray:
+    def ask(self) -> np.ndarray[Any, Any]:
         """Generate offspring solutions to be evaluated."""
         st = self._st
         if st is None:
@@ -247,10 +261,8 @@ class MOEAD:
             parents[:, 2, :] = st.X[active]
             offspring = st.crossover_fn(parents, st.rng)
             children = offspring[:, 0, :].copy()
-            parents_flat = np.column_stack([parent_pairs, active]).reshape(-1)
         else:
-            parents_flat = parent_pairs.reshape(-1)
-            parents = st.X[parents_flat].reshape(batch_size, 2, n_var)
+            parents = st.X[parent_pairs.reshape(-1)].reshape(batch_size, 2, n_var)
             offspring = st.crossover_fn(parents, st.rng)
             children = offspring[:, 0, :].copy()
 
@@ -261,7 +273,9 @@ class MOEAD:
         st.pending_parent_pairs = parent_pairs
         st.pending_use_neighbors = use_neighbors
 
-        track_offspring_genealogy(st, parents_flat, children.shape[0], self._op_label, "moead")
+        if st.track_genealogy:
+            parents_flat = np.column_stack([parent_pairs, active]).reshape(-1) if self._cross_is_de else parent_pairs.reshape(-1)
+            track_offspring_genealogy(st, parents_flat, children.shape[0], self._op_label, "moead")
 
         return children
 
@@ -328,7 +342,7 @@ class MOEAD:
         return st.hv_tracker is not None and st.hv_tracker.enabled and st.hv_tracker.reached(st.hv_points())
 
     @staticmethod
-    def _next_active_indices(st: MOEADState, batch_size: int) -> np.ndarray:
+    def _next_active_indices(st: MOEADState, batch_size: int) -> np.ndarray[Any, Any]:
         """Return next subproblem indices using a rolling permutation."""
         if st.subproblem_order.size != st.pop_size:
             st.subproblem_order = st.rng.permutation(st.pop_size).astype(int, copy=False)

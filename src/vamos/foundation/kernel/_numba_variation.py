@@ -9,7 +9,7 @@ to nopython code that reproduces the reference arithmetic element by element.
 from __future__ import annotations
 
 from functools import cache
-from typing import TypeAlias
+from typing import Any, TypeAlias
 
 import numpy as np
 from numpy.typing import NDArray
@@ -215,6 +215,26 @@ def polynomial_mutation_apply(
             X[i, j] = mutated
 
 
+@njit(cache=True, error_model="numpy")
+def differential_crossover_apply(
+    parents: FloatArray,
+    f: float,
+    cr: float,
+    rand: FloatArray,
+    j_rand: NDArray[np.int64],
+    out: FloatArray,
+) -> None:
+    """Binomial DE children from caller-provided draws (``parents[:, 2]`` is the base)."""
+    for i in range(parents.shape[0]):
+        forced = j_rand[i]
+        for j in range(parents.shape[2]):
+            base = parents[i, 2, j]
+            if rand[i, j] < cr or j == forced:
+                out[i, j] = base + f * (parents[i, 0, j] - parents[i, 1, j])
+            else:
+                out[i, j] = base
+
+
 def sbx_crossover_pairs_compiled(
     offspring: FloatArray,
     *,
@@ -285,7 +305,7 @@ def polynomial_mutation_from_draws(
 
 
 class NumbaVariationKernels:
-    """Compiled SBX and polynomial mutation exposed through ``KernelBackend.variation_kernels``."""
+    """Compiled variation arithmetic exposed through ``KernelBackend.variation_kernels``."""
 
     name = "numba"
 
@@ -330,6 +350,18 @@ class NumbaVariationKernels:
             rnd_mask=rnd_mask,
             rnd_delta=rnd_delta,
         )
+
+    def differential_crossover(
+        self,
+        parents: FloatArray,
+        f: float,
+        cr: float,
+        rand: FloatArray,
+        j_rand: NDArray[np.integer[Any]],
+    ) -> FloatArray:
+        out = np.empty((parents.shape[0], parents.shape[2]), dtype=np.float64)
+        differential_crossover_apply(parents, float(f), float(cr), rand, np.asarray(j_rand, dtype=np.int64), out)
+        return out
 
 
 NUMBA_VARIATION_KERNELS = NumbaVariationKernels()

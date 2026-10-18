@@ -83,17 +83,17 @@ VAMOS 1.0.0.
 
 ## Current structured debt
 
-After establishing strict=0, the structured baseline contains 954 diagnostics in 115 files and 121 stable fingerprints:
+After establishing strict=0, the structured baseline contains 939 diagnostics in 114 files and 120 stable fingerprints:
 
 | Layer | Diagnostics |
 |---|---:|
-| engine | 495 |
+| engine | 480 |
 | foundation | 369 |
 | ux | 67 |
 | experiment | 22 |
 | package root | 1 |
 
-The dominant family is 948 `type-arg` diagnostics, primarily unparameterized NumPy arrays in packages that now run with strict mypy settings. The remaining families are small protocol/optional/narrowing/decorator issues. VAMOS 1.0.0 enforces zero typing errors on the strict/stable surface and an exact no-regression ratchet over the complete source tree. The complete source tree is not yet globally free of mypy diagnostics.
+The dominant family is 933 `type-arg` diagnostics, primarily unparameterized NumPy arrays in packages that now run with strict mypy settings. The remaining families are small protocol/optional/narrowing/decorator issues. VAMOS 1.0.0 enforces zero typing errors on the strict/stable surface and an exact no-regression ratchet over the complete source tree. The complete source tree is not yet globally free of mypy diagnostics.
 
 ## Reduction and baseline updates
 

@@ -104,15 +104,21 @@ def _build_continuous_operators(
             if parents_arr.ndim != 3 or parents_arr.shape[1] != 3:
                 raise ValueError("DE crossover expects parents shaped (n_pairs, 3, n_var).")
             n_pairs, _, n_vars = parents_arr.shape
-            base = parents_arr[:, 2, :]
-            p1 = parents_arr[:, 0, :]
-            p2 = parents_arr[:, 1, :]
-            mutant = base + f * (p1 - p2)
-            rand = _rng.random((n_pairs, n_vars))
-            mask = rand < cr
-            j_rand = _rng.integers(0, n_vars, size=n_pairs)
-            mask[np.arange(n_pairs), j_rand] = True
-            child = np.where(mask, mutant, base)
+            if variation_kernels is not None and parents_arr.dtype == np.float64:
+                # Same draws (uniform grid, then one forced index per child) and arithmetic.
+                rand = _rng.random((n_pairs, n_vars))
+                j_rand = _rng.integers(0, n_vars, size=n_pairs)
+                child = variation_kernels.differential_crossover(parents_arr, f, cr, rand, j_rand)
+            else:
+                base = parents_arr[:, 2, :]
+                p1 = parents_arr[:, 0, :]
+                p2 = parents_arr[:, 1, :]
+                mutant = base + f * (p1 - p2)
+                rand = _rng.random((n_pairs, n_vars))
+                mask = rand < cr
+                j_rand = _rng.integers(0, n_vars, size=n_pairs)
+                mask[np.arange(n_pairs), j_rand] = True
+                child = np.where(mask, mutant, base)
             offspring = child[:, None, :]
             return apply_policy_repair(repair_operator, offspring, xl, xu, _rng)
 

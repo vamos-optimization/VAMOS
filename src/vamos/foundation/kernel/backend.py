@@ -51,6 +51,21 @@ class VariationKernels(Protocol):
         """Apply polynomial mutation in place from caller-provided uniform draws."""
         ...
 
+    def differential_crossover(
+        self,
+        parents: FloatArray,
+        f: float,
+        cr: float,
+        rand: FloatArray,
+        j_rand: NDArray[np.integer[Any]],
+    ) -> FloatArray:
+        """DE binomial children ``base + f * (p1 - p2)`` from ``parents`` shaped ``(n, 3, n_var)``.
+
+        ``parents[:, 2]`` is the base vector; a variable takes the mutant value when
+        ``rand < cr`` or it is the forced index ``j_rand`` of its row.
+        """
+        ...
+
 
 class SelectionKernels(Protocol):
     """Compiled survival and truncation loops that reproduce NumPy reference loops.

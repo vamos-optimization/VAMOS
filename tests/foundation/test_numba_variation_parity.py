@@ -235,3 +235,30 @@ def test_power_probe_matches_this_platform_numpy():
             matches &= bool(np.array_equal(out, np.power(bases, exponent), equal_nan=True))
     if _numba_variation.compiled_power_matches_numpy():
         assert matches
+
+
+def _reference_differential_children(parents: np.ndarray, f: float, cr: float, rng: np.random.Generator) -> np.ndarray:
+    # Verbatim NumPy branch of the MOEA/D DE crossover (vamos.engine.operators.policies.moead).
+    n_pairs, _, n_vars = parents.shape
+    base, p1, p2 = parents[:, 2, :], parents[:, 0, :], parents[:, 1, :]
+    mutant = base + f * (p1 - p2)
+    rand = rng.random((n_pairs, n_vars))
+    mask = rand < cr
+    j_rand = rng.integers(0, n_vars, size=n_pairs)
+    mask[np.arange(n_pairs), j_rand] = True
+    return np.where(mask, mutant, base)
+
+
+@requires_exact_power
+@pytest.mark.numba
+@pytest.mark.parametrize("cr", [0.0, 0.3, 1.0])
+def test_compiled_differential_crossover_matches_numpy(cr: float) -> None:
+    for seed in range(50):
+        parents = np.random.default_rng(seed).uniform(-3.0, 3.0, size=(int(seed % 7) + 1, 3, 9))
+        rng_ref, rng_cmp = np.random.default_rng(seed + 100), np.random.default_rng(seed + 100)
+        expected = _reference_differential_children(parents, 0.5, cr, rng_ref)
+        rand = rng_cmp.random((parents.shape[0], parents.shape[2]))
+        j_rand = rng_cmp.integers(0, parents.shape[2], size=parents.shape[0])
+        actual = KERNELS.differential_crossover(parents, 0.5, cr, rand, j_rand)
+        np.testing.assert_array_equal(actual, expected)
+        assert rng_cmp.bit_generator.state == rng_ref.bit_generator.state
