@@ -12,7 +12,7 @@ A kernel backend accelerates stable numerical primitives without changing their 
 - `polynomial_mutation(X, params, rng, xl, xu)`;
 - `nsga2_survival(X, F, X_off, F_off, pop_size, return_indices=False)`.
 
-Optional archive and indicator hooks must advertise capability before use. Read the abstract class rather than copying a method list from documentation when the interface changes.
+Optional archive and indicator hooks must advertise capability before use. `variation_kernels()` is the optional hook for compiled SBX and polynomial-mutation arithmetic: it returns `None` by default, and a backend that returns kernels must draw from the caller's generator in exactly the order and shape of the reference operators. Read the abstract class rather than copying a method list from documentation when the interface changes.
 
 ## Workflow
 

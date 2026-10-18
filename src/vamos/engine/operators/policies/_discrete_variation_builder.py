@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from typing import Any, TypeAlias, cast
+from typing import TYPE_CHECKING, Any, TypeAlias, cast
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vamos.engine.algorithm.components.utils import resolve_prob_expression
 from vamos.engine.operators.impl.integer import (
@@ -32,9 +33,23 @@ from vamos.engine.operators.policies.discrete_operator_maps import (
 from vamos.engine.variation.protocol import RepairConfigValue
 from vamos.foundation.encoding import EncodingLike, normalize_encoding
 
-VariationFn: TypeAlias = Callable[..., np.ndarray]
+if TYPE_CHECKING:
+    from vamos.foundation.kernel.backend import VariationKernels
+
+VariationFn: TypeAlias = Callable[..., NDArray[np.generic]]
 RealOperatorBuilder: TypeAlias = Callable[
-    [str, dict[str, Any], str, dict[str, Any], int, np.ndarray, np.ndarray, np.random.Generator, RepairConfigValue],
+    [
+        str,
+        dict[str, Any],
+        str,
+        dict[str, Any],
+        int,
+        NDArray[np.generic],
+        NDArray[np.generic],
+        np.random.Generator,
+        RepairConfigValue,
+        "VariationKernels | None",
+    ],
     tuple[VariationFn, VariationFn],
 ]
 
@@ -56,17 +71,18 @@ def build_discrete_variation_operators(
     algorithm_label: str,
     encoding: EncodingLike,
     n_var: int,
-    xl: np.ndarray,
-    xu: np.ndarray,
+    xl: NDArray[np.generic],
+    xu: NDArray[np.generic],
     rng: np.random.Generator,
     real_builder: RealOperatorBuilder,
-    mixed_spec: dict[str, np.ndarray] | None = None,
+    mixed_spec: dict[str, NDArray[np.generic]] | None = None,
     binary_crossover: Mapping[str, BinaryCrossoverOp] = BINARY_CROSSOVER_COMMON,
     binary_mutation: Mapping[str, BinaryMutationOp] = BINARY_MUTATION_COMMON,
     integer_crossover: Mapping[str, IntCrossoverOp] = INT_CROSSOVER_COMMON,
     integer_mutation: Mapping[str, IntMutationOp] = INT_MUTATION_COMMON,
     permutation_crossover: Mapping[str, PermCrossoverOp] = PERM_CROSSOVER_COMMON,
     permutation_mutation: Mapping[str, PermMutationOp] = PERM_MUTATION_COMMON,
+    variation_kernels: VariationKernels | None = None,
 ) -> tuple[VariationFn, VariationFn]:
     cross_method, cross_params, mut_method, mut_params = unpack_variation_methods(config)
     if mut_params.get("prob") == "1/n":
@@ -128,7 +144,7 @@ def build_discrete_variation_operators(
             rng,
         )
     if normalized == "real":
-        return real_builder(cross_method, cross_params, mut_method, mut_params, n_var, xl, xu, rng, repair_cfg)
+        return real_builder(cross_method, cross_params, mut_method, mut_params, n_var, xl, xu, rng, repair_cfg, variation_kernels)
     raise ValueError(f"{algorithm_label} does not support encoding '{normalized}'.")
 
 
@@ -160,10 +176,10 @@ def _build_binary_operators(
     mut_fn = mutation_map[mut_method]
     mut_prob = resolve_prob_expression(mut_params.get("prob"), n_var, 1.0 / max(1, n_var))
 
-    def crossover(parents: np.ndarray, _rng: np.random.Generator = rng) -> np.ndarray:
+    def crossover(parents: NDArray[np.generic], _rng: np.random.Generator = rng) -> NDArray[np.generic]:
         return cross_fn(parents, cross_prob, _rng)
 
-    def mutation(X_child: np.ndarray, _rng: np.random.Generator = rng) -> np.ndarray:
+    def mutation(X_child: NDArray[np.generic], _rng: np.random.Generator = rng) -> NDArray[np.generic]:
         mut_fn(X_child, mut_prob, _rng)
         return X_child
 
@@ -177,8 +193,8 @@ def _build_integer_operators(
     mut_method: str,
     mut_params: dict[str, Any],
     n_var: int,
-    xl: np.ndarray,
-    xu: np.ndarray,
+    xl: NDArray[np.generic],
+    xu: NDArray[np.generic],
     rng: np.random.Generator,
     crossover_map: Mapping[str, IntCrossoverOp],
     mutation_map: Mapping[str, IntMutationOp],
@@ -197,37 +213,37 @@ def _build_integer_operators(
     if cross_fn is integer_sbx_crossover:
         eta = float(cross_params.get("eta", 20.0))
 
-        def crossover(parents: np.ndarray, _rng: np.random.Generator = rng) -> np.ndarray:
+        def crossover(parents: NDArray[np.generic], _rng: np.random.Generator = rng) -> NDArray[np.generic]:
             return integer_sbx_crossover(parents, cross_prob, eta, xl, xu, _rng)
 
     else:
 
-        def crossover(parents: np.ndarray, _rng: np.random.Generator = rng) -> np.ndarray:
+        def crossover(parents: NDArray[np.generic], _rng: np.random.Generator = rng) -> NDArray[np.generic]:
             return cross_fn(parents, cross_prob, _rng)
 
     if mut_fn is creep_mutation:
 
-        def mutation(X_child: np.ndarray, _rng: np.random.Generator = rng) -> np.ndarray:
+        def mutation(X_child: NDArray[np.generic], _rng: np.random.Generator = rng) -> NDArray[np.generic]:
             creep_mutation(X_child, mut_prob, step, xl, xu, _rng)
             return X_child
 
     elif mut_fn is integer_polynomial_mutation:
         eta = float(mut_params.get("eta", 20.0))
 
-        def mutation(X_child: np.ndarray, _rng: np.random.Generator = rng) -> np.ndarray:
+        def mutation(X_child: NDArray[np.generic], _rng: np.random.Generator = rng) -> NDArray[np.generic]:
             integer_polynomial_mutation(X_child, mut_prob, eta, xl, xu, _rng)
             return X_child
 
     elif mut_fn is gaussian_integer_mutation:
         sigma = float(mut_params.get("sigma", 1.0))
 
-        def mutation(X_child: np.ndarray, _rng: np.random.Generator = rng) -> np.ndarray:
+        def mutation(X_child: NDArray[np.generic], _rng: np.random.Generator = rng) -> NDArray[np.generic]:
             gaussian_integer_mutation(X_child, mut_prob, sigma, xl, xu, _rng)
             return X_child
 
     else:
 
-        def mutation(X_child: np.ndarray, _rng: np.random.Generator = rng) -> np.ndarray:
+        def mutation(X_child: NDArray[np.generic], _rng: np.random.Generator = rng) -> NDArray[np.generic]:
             mut_fn(X_child, mut_prob, xl, xu, _rng)
             return X_child
 
@@ -255,13 +271,13 @@ def _build_permutation_operators(
     mut_fn = mutation_map[mut_method]
     mut_prob = resolve_prob_expression(mut_params.get("prob"), n_var, 1.0 / max(1, n_var))
 
-    def crossover(parents: np.ndarray, _rng: np.random.Generator = rng) -> np.ndarray:
+    def crossover(parents: NDArray[np.generic], _rng: np.random.Generator = rng) -> NDArray[np.generic]:
         flat_shape = parents.shape
         parents_flat = parents.reshape(-1, flat_shape[-1])
         offspring_flat = cross_fn(parents_flat, cross_prob, _rng)
         return offspring_flat.reshape(flat_shape)
 
-    def mutation(X_child: np.ndarray, _rng: np.random.Generator = rng) -> np.ndarray:
+    def mutation(X_child: NDArray[np.generic], _rng: np.random.Generator = rng) -> NDArray[np.generic]:
         mut_fn(X_child, mut_prob, _rng)
         return X_child
 
@@ -275,7 +291,7 @@ def _build_mixed_operators(
     mut_method: str,
     mut_params: dict[str, Any],
     n_var: int,
-    mixed_spec: dict[str, np.ndarray],
+    mixed_spec: dict[str, NDArray[np.generic]],
     rng: np.random.Generator,
 ) -> tuple[VariationFn, VariationFn]:
     if cross_method not in {"mixed", "uniform"}:
@@ -286,13 +302,13 @@ def _build_mixed_operators(
     cross_prob = float(cross_params.get("prob", 0.9))
     mut_prob = resolve_prob_expression(mut_params.get("prob"), n_var, 1.0 / max(1, n_var))
 
-    def crossover(parents: np.ndarray, _rng: np.random.Generator = rng) -> np.ndarray:
+    def crossover(parents: NDArray[np.generic], _rng: np.random.Generator = rng) -> NDArray[np.generic]:
         parent_shape = parents.shape
         parents_flat = parents.reshape(-1, parent_shape[-1])
         offspring_flat = mixed_crossover(parents_flat, cross_prob, mixed_spec, _rng)
         return offspring_flat.reshape(parent_shape)
 
-    def mutation(X_child: np.ndarray, _rng: np.random.Generator = rng) -> np.ndarray:
+    def mutation(X_child: NDArray[np.generic], _rng: np.random.Generator = rng) -> NDArray[np.generic]:
         mixed_mutation(X_child, mut_prob, mixed_spec, _rng)
         return X_child
 

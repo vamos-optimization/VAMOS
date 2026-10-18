@@ -4,13 +4,41 @@ from collections.abc import Iterable, Mapping
 from typing import Any, Literal, overload
 
 import numpy as np
+from numpy.typing import NDArray
 
-from ._numba_ranking import compute_crowding_numba, fast_non_dominated_sort_ranks, fronts_from_ranks
+from ._numba_ranking import compute_crowding_numba, fast_non_dominated_sort_ranks, nsga2_survival_split
 from ._numba_selection import binary_tournament_winners_numba
-from .backend import KernelBackend
-from .numba_ops import _polynomial_mutation_numba_impl, tournament_winners_numba
+from ._numba_survival import numba_selection_kernels
+from ._numba_variation import numpy_power_squares, polynomial_mutation_apply, verified_variation_kernels
+from .backend import DecisionArray, FloatArray, IndexArray, KernelBackend, NumericArray, RealArray, SelectionKernels, VariationKernels
+from .numba_ops import tournament_winners_numba
 from .numpy_backend import NumPyKernel as _NumPyKernel
-from .numpy_backend import _as_float, _sample_tournament_candidates, _select_nsga2
+from .numpy_backend import _as_float, _sample_tournament_candidates, _sbx_crossover_flat
+
+
+def _as_numeric_keys(values: NumericArray) -> NDArray[np.int64] | NDArray[np.float64]:
+    """Pass integer and floating sort keys to the kernel without changing their values."""
+    arr = np.asarray(values)
+    if arr.dtype.kind in "iu":
+        return arr.astype(np.int64, copy=False)
+    return arr.astype(np.float64, copy=False)
+
+
+def _nsga2_survivors(F: FloatArray, pop_size: int) -> IndexArray:
+    """NSGA-II elitist selection with the reference ordering of ``_select_nsga2``.
+
+    Complete fronts are taken in rank order with ascending indices; the splitting
+    front is ordered by ``np.argsort`` of its crowding distances, reversed, exactly
+    like the NumPy reference. Crowding is computed only for that front because no
+    other front's crowding affects the selection.
+    """
+    ranks = fast_non_dominated_sort_ranks(F)
+    complete, splitting, crowding = nsga2_survival_split(F, ranks, pop_size)
+    if splitting.size == 0:
+        return np.asarray(complete, dtype=np.int_)
+    order = np.argsort(crowding)[::-1]
+    remaining = pop_size - complete.shape[0]
+    return np.asarray(np.concatenate((complete, splitting[order[:remaining]])), dtype=np.int_)
 
 
 class NumbaKernel(KernelBackend):
@@ -20,12 +48,10 @@ class NumbaKernel(KernelBackend):
 
     def __init__(self) -> None:
         self._numpy_ops = _NumPyKernel()
-        self._X_buffer: np.ndarray | None = None
-        self._F_buffer: np.ndarray | None = None
-        self._X_output: np.ndarray | None = None
-        self._F_output: np.ndarray | None = None
-        self._mutation_mask: np.ndarray | None = None
-        self._mutation_delta: np.ndarray | None = None
+        self._X_buffer: DecisionArray | None = None
+        self._F_buffer: FloatArray | None = None
+        self._mutation_mask: FloatArray | None = None
+        self._mutation_delta: FloatArray | None = None
 
     def _ensure_buffers(self, total: int, n_var: int, n_obj: int, dtype: Any) -> None:
         dtype = np.dtype(dtype)
@@ -36,11 +62,11 @@ class NumbaKernel(KernelBackend):
 
     def _combine(
         self,
-        X: np.ndarray,
-        F: np.ndarray,
-        X_off: np.ndarray,
-        F_off: np.ndarray,
-    ) -> tuple[np.ndarray, np.ndarray]:
+        X: DecisionArray,
+        F: RealArray,
+        X_off: DecisionArray,
+        F_off: RealArray,
+    ) -> tuple[DecisionArray, FloatArray]:
         total = X.shape[0] + X_off.shape[0]
         self._ensure_buffers(total, X.shape[1], F.shape[1], X.dtype)
         assert self._X_buffer is not None
@@ -54,20 +80,13 @@ class NumbaKernel(KernelBackend):
         np.copyto(F_view[split:], F_off, casting="unsafe")
         return X_view, F_view
 
-    def _ensure_output_buffers(self, size: int, n_var: int, n_obj: int, dtype: Any) -> None:
-        dtype = np.dtype(dtype)
-        if self._X_output is None or self._X_output.shape[0] < size or self._X_output.shape[1] != n_var or self._X_output.dtype != dtype:
-            self._X_output = np.empty((size, n_var), dtype=dtype, order="C")
-        if self._F_output is None or self._F_output.shape[0] < size or self._F_output.shape[1] != n_obj:
-            self._F_output = np.empty((size, n_obj), dtype=np.float64, order="C")
-
     def _ensure_mutation_buffers(self, n_ind: int, n_var: int) -> None:
         if self._mutation_mask is None or self._mutation_mask.shape[0] < n_ind or self._mutation_mask.shape[1] != n_var:
             self._mutation_mask = np.empty((n_ind, n_var), dtype=np.float64, order="C")
         if self._mutation_delta is None or self._mutation_delta.shape[0] < n_ind or self._mutation_delta.shape[1] != n_var:
             self._mutation_delta = np.empty((n_ind, n_var), dtype=np.float64, order="C")
 
-    def _rank_and_crowding(self, F: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def _rank_and_crowding(self, F: RealArray) -> tuple[IndexArray, FloatArray]:
         F_arr = np.asarray(F, dtype=np.float64, order="C")
         if not np.isfinite(F_arr).all():
             ranks, crowding = self._numpy_ops.nsga2_ranking(F_arr)
@@ -82,17 +101,23 @@ class NumbaKernel(KernelBackend):
     def quality_indicators(self) -> Iterable[str]:
         return ("hypervolume",)
 
-    def nsga2_ranking(self, F: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def variation_kernels(self) -> VariationKernels | None:
+        return verified_variation_kernels()
+
+    def selection_kernels(self) -> SelectionKernels:
+        return numba_selection_kernels()
+
+    def nsga2_ranking(self, F: RealArray) -> tuple[IndexArray, FloatArray]:
         return self._rank_and_crowding(F)
 
     def tournament_selection(
         self,
-        ranks: np.ndarray,
-        crowding: np.ndarray,
+        ranks: NumericArray,
+        crowding: RealArray,
         pressure: int,
         rng: np.random.Generator,
         n_parents: int,
-    ) -> np.ndarray:
+    ) -> IndexArray:
         n_candidates = ranks.shape[0]
         if pressure <= 0:
             raise ValueError("pressure must be a positive integer")
@@ -105,13 +130,21 @@ class NumbaKernel(KernelBackend):
             return rng.integers(0, n_candidates, size=n_parents, dtype=int)
 
         if pressure == 2:
-            ranks_arr = np.asarray(ranks, dtype=np.int64)
-            crowding_arr = np.asarray(crowding, dtype=np.float64)
-            first = rng.integers(0, n_candidates, size=n_parents, dtype=np.int64)
-            second = rng.integers(0, n_candidates - 1, size=n_parents, dtype=np.int64)
-            second += second >= first
-            tie_break = rng.integers(0, 2, size=n_parents, dtype=np.int64)
-            return binary_tournament_winners_numba(ranks_arr, crowding_arr, first, second, tie_break)
+            # Same draws as NumPyKernel: two index vectors, then one coin per full tie.
+            first = rng.integers(0, n_candidates, size=n_parents, dtype=int)
+            second = rng.integers(0, n_candidates - 1, size=n_parents, dtype=int)
+            second = second + (second >= first)
+            winners = binary_tournament_winners_numba(
+                _as_numeric_keys(ranks),
+                np.asarray(crowding, dtype=np.float64),
+                first,
+                second,
+            )
+            ties = winners < 0
+            if np.any(ties):
+                tie_coin = rng.integers(0, 2, size=int(np.count_nonzero(ties)), dtype=int).astype(bool)
+                winners[ties] = np.where(tie_coin, first[ties], second[ties])
+            return winners.astype(int, copy=False)
 
         candidates = _sample_tournament_candidates(
             rng,
@@ -129,19 +162,19 @@ class NumbaKernel(KernelBackend):
 
     def sbx_crossover(
         self,
-        X_parents: np.ndarray,
+        X_parents: RealArray,
         params: Mapping[str, object],
         rng: np.random.Generator | None,
         xl: float,
         xu: float,
-    ) -> np.ndarray:
+    ) -> FloatArray:
         if rng is None:
             rng = np.random.default_rng()
-        return self._numpy_ops.sbx_crossover(X_parents, params, rng, xl, xu)
+        return _sbx_crossover_flat(X_parents, params, rng, xl, xu, kernels=self.variation_kernels())
 
     def polynomial_mutation(
         self,
-        X: np.ndarray,
+        X: RealArray,
         params: Mapping[str, object],
         rng: np.random.Generator | None,
         xl: float,
@@ -151,6 +184,10 @@ class NumbaKernel(KernelBackend):
             return
         if rng is None:
             rng = np.random.default_rng()
+        if self.variation_kernels() is None:
+            # Compiled pow differs from np.power on this platform: keep the exact reference.
+            self._numpy_ops.polynomial_mutation(X, params, rng, xl, xu)
+            return
         n_ind, n_var = X.shape
         lower, upper = self._numpy_ops._normalize_bounds(xl, xu, n_var)
         self._ensure_mutation_buffers(n_ind, n_var)
@@ -160,7 +197,7 @@ class NumbaKernel(KernelBackend):
         rnd_delta = self._mutation_delta[:n_ind, :n_var]
         rng.random(out=rnd_mask)
         rng.random(out=rnd_delta)
-        _polynomial_mutation_numba_impl(
+        polynomial_mutation_apply(
             X,
             _as_float(params.get("prob"), 0.1),
             _as_float(params.get("eta"), 20.0),
@@ -168,56 +205,54 @@ class NumbaKernel(KernelBackend):
             upper,
             rnd_mask,
             rnd_delta,
+            numpy_power_squares(),
         )
 
     @overload
     def nsga2_survival(
         self,
-        X: np.ndarray,
-        F: np.ndarray,
-        X_off: np.ndarray,
-        F_off: np.ndarray,
+        X: DecisionArray,
+        F: RealArray,
+        X_off: DecisionArray,
+        F_off: RealArray,
         pop_size: int,
         return_indices: Literal[False] = False,
-    ) -> tuple[np.ndarray, np.ndarray]: ...
+    ) -> tuple[DecisionArray, FloatArray]: ...
 
     @overload
     def nsga2_survival(
         self,
-        X: np.ndarray,
-        F: np.ndarray,
-        X_off: np.ndarray,
-        F_off: np.ndarray,
+        X: DecisionArray,
+        F: RealArray,
+        X_off: DecisionArray,
+        F_off: RealArray,
         pop_size: int,
         return_indices: Literal[True],
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]: ...
+    ) -> tuple[DecisionArray, FloatArray, IndexArray]: ...
 
     def nsga2_survival(
         self,
-        X: np.ndarray,
-        F: np.ndarray,
-        X_off: np.ndarray,
-        F_off: np.ndarray,
+        X: DecisionArray,
+        F: RealArray,
+        X_off: DecisionArray,
+        F_off: RealArray,
         pop_size: int,
         return_indices: bool = False,
-    ) -> tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[DecisionArray, FloatArray] | tuple[DecisionArray, FloatArray, IndexArray]:
         X_comb, F_comb = self._combine(X, F, X_off, F_off)
         if not np.isfinite(F_comb).all():
             if return_indices:
                 return self._numpy_ops.nsga2_survival(X, F, X_off, F_off, pop_size, return_indices=True)
             return self._numpy_ops.nsga2_survival(X, F, X_off, F_off, pop_size, return_indices=False)
-        ranks, crowding = self._rank_and_crowding(F_comb)
-        sel = _select_nsga2(fronts_from_ranks(ranks), crowding, pop_size)
-        self._ensure_output_buffers(pop_size, X_comb.shape[1], F_comb.shape[1], X_comb.dtype)
-        assert self._X_output is not None
-        assert self._F_output is not None
-        np.copyto(self._X_output[:pop_size], X_comb[sel])
-        np.copyto(self._F_output[:pop_size], F_comb[sel])
+        sel = _nsga2_survivors(F_comb, pop_size)
+        # Fancy indexing returns arrays owned by the caller; the combine buffers stay private.
+        X_sel = X_comb[sel]
+        F_sel = F_comb[sel]
         if return_indices:
-            return self._X_output[:pop_size], self._F_output[:pop_size], sel
-        return self._X_output[:pop_size], self._F_output[:pop_size]
+            return X_sel, F_sel, sel
+        return X_sel, F_sel
 
-    def hypervolume(self, points: np.ndarray, reference_point: np.ndarray) -> float:
+    def hypervolume(self, points: FloatArray, reference_point: FloatArray) -> float:
         from vamos.foundation.quality_indicators.hypervolume import hypervolume as hv_fn
 
         return hv_fn(points, reference_point)

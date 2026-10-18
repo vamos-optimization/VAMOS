@@ -18,32 +18,34 @@ import numpy as np
 from vamos.foundation.constraints.utils import compute_violation, is_feasible
 
 if TYPE_CHECKING:
-    pass
+    from vamos.foundation.kernel.backend import SelectionKernels
 
 
-def dominance_matrix(F: np.ndarray, G: np.ndarray | None, constraint_mode: str) -> tuple[np.ndarray, np.ndarray | None, np.ndarray | None]:
+def dominance_matrix(
+    F: np.ndarray[Any, Any], G: np.ndarray[Any, Any] | None, constraint_mode: str
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any] | None, np.ndarray[Any, Any] | None]:
     """Compute dominance matrix with optional feasibility-aware handling.
 
     Parameters
     ----------
-    F : np.ndarray
+    F : np.ndarray[Any, Any]
         Objective values, shape (N, n_obj).
-    G : np.ndarray | None
+    G : np.ndarray[Any, Any] | None
         Constraint values, shape (N, n_con) or None.
     constraint_mode : str
         Constraint handling mode: "none" or "feasibility".
 
     Returns
     -------
-    tuple[np.ndarray, np.ndarray | None, np.ndarray | None]
+    tuple[np.ndarray[Any, Any], np.ndarray[Any, Any] | None, np.ndarray[Any, Any] | None]
         (dominance_matrix, feasibility_mask, constraint_violations)
     """
     n = F.shape[0]
     if n == 0:
         return np.zeros((0, 0), dtype=bool), None, None
 
-    feas: np.ndarray | None = None
-    cv: np.ndarray | None = None
+    feas: np.ndarray[Any, Any] | None = None
+    cv: np.ndarray[Any, Any] | None = None
 
     if constraint_mode and constraint_mode != "none" and G is not None:
         cv = compute_violation(G)
@@ -71,7 +73,9 @@ def dominance_matrix(F: np.ndarray, G: np.ndarray | None, constraint_mode: str) 
     return dom, feas, cv
 
 
-def spea2_fitness(F: np.ndarray, dom: np.ndarray, k: int | None = None) -> tuple[np.ndarray, np.ndarray]:
+def spea2_fitness(
+    F: np.ndarray[Any, Any], dom: np.ndarray[Any, Any], k: int | None = None
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
     """Compute SPEA2 fitness and distance matrix.
 
     SPEA2 fitness consists of:
@@ -80,16 +84,16 @@ def spea2_fitness(F: np.ndarray, dom: np.ndarray, k: int | None = None) -> tuple
 
     Parameters
     ----------
-    F : np.ndarray
+    F : np.ndarray[Any, Any]
         Objective values, shape (N, n_obj).
-    dom : np.ndarray
+    dom : np.ndarray[Any, Any]
         Dominance matrix, shape (N, N).
     k : int | None
         k for k-th nearest neighbor distance. Defaults to sqrt(N).
 
     Returns
     -------
-    tuple[np.ndarray, np.ndarray]
+    tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]
         (fitness, distance_matrix)
     """
     n = F.shape[0]
@@ -112,7 +116,7 @@ def spea2_fitness(F: np.ndarray, dom: np.ndarray, k: int | None = None) -> tuple
     return raw_fitness + density, dist
 
 
-def strength_raw_fitness(dom: np.ndarray) -> np.ndarray:
+def strength_raw_fitness(dom: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     """Compute SPEA2 raw fitness (strength ranking) from dominance matrix."""
     n = dom.shape[0]
     if n == 0:
@@ -122,7 +126,7 @@ def strength_raw_fitness(dom: np.ndarray) -> np.ndarray:
     return np.asarray(raw, dtype=float)
 
 
-def knn_density(F: np.ndarray, k: int = 1) -> np.ndarray:
+def knn_density(F: np.ndarray[Any, Any], k: int = 1) -> np.ndarray[Any, Any]:
     """Compute k-th nearest neighbor distance for each solution (higher is better)."""
     n = F.shape[0]
     if n == 0:
@@ -140,11 +144,11 @@ def knn_density(F: np.ndarray, k: int = 1) -> np.ndarray:
 
 
 def selection_fitness_density(
-    F: np.ndarray,
-    G: np.ndarray | None,
+    F: np.ndarray[Any, Any],
+    G: np.ndarray[Any, Any] | None,
     constraint_mode: str,
     k_neighbors: int | None,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
     """Compute the cached SPEA2 tournament metrics for a population/archive."""
     if F.size == 0:
         return np.empty(0, dtype=float), np.empty(0, dtype=float)
@@ -155,7 +159,12 @@ def selection_fitness_density(
     return raw_fitness, density
 
 
-def truncate_by_kth_distance(dist_matrix: np.ndarray, keep: int, k: int) -> np.ndarray:
+def truncate_by_kth_distance(
+    dist_matrix: np.ndarray[Any, Any],
+    keep: int,
+    k: int,
+    selection_kernels: SelectionKernels | None = None,
+) -> np.ndarray[Any, Any]:
     """Sequentially truncate by the current k-th nearest-neighbor distance."""
     n = int(dist_matrix.shape[0])
     if n <= keep:
@@ -167,9 +176,12 @@ def truncate_by_kth_distance(dist_matrix: np.ndarray, keep: int, k: int) -> np.n
     if dist.ndim != 2 or dist.shape[1] != n:
         raise ValueError("dist_matrix must be a square 2D array.")
 
-    active = np.arange(n, dtype=int)
     kth_neighbor = max(1, int(k))
+    if selection_kernels is not None and bool(np.isfinite(dist).all()):
+        # Same k-th statistics, stable descending order and removal as the loop below.
+        return np.asarray(selection_kernels.kth_distance_truncation(dist, keep, kth_neighbor), dtype=int)
 
+    active = np.arange(n, dtype=int)
     while active.size > keep:
         active_dist = dist[np.ix_(active, active)]
         active_k = min(kth_neighbor, active_dist.shape[0] - 1)
@@ -180,21 +192,21 @@ def truncate_by_kth_distance(dist_matrix: np.ndarray, keep: int, k: int) -> np.n
     return active
 
 
-def truncate_by_distance(dist_matrix: np.ndarray, keep: int) -> np.ndarray:
+def truncate_by_distance(dist_matrix: np.ndarray[Any, Any], keep: int) -> np.ndarray[Any, Any]:
     """Truncate by iteratively removing solution with smallest distance.
 
     This is the SPEA2 truncation procedure that preserves boundary solutions.
 
     Parameters
     ----------
-    dist_matrix : np.ndarray
+    dist_matrix : np.ndarray[Any, Any]
         Distance matrix, shape (N, N).
     keep : int
         Number of solutions to keep.
 
     Returns
     -------
-    np.ndarray
+    np.ndarray[Any, Any]
         Indices of retained solutions.
     """
     n = int(dist_matrix.shape[0])
@@ -251,24 +263,25 @@ def truncate_by_distance(dist_matrix: np.ndarray, keep: int) -> np.ndarray:
 
 
 def environmental_selection(
-    X: np.ndarray,
-    F: np.ndarray,
-    G: np.ndarray | None,
+    X: np.ndarray[Any, Any],
+    F: np.ndarray[Any, Any],
+    G: np.ndarray[Any, Any] | None,
     archive_size: int,
     k_neighbors: int | None,
     constraint_mode: str,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
+    selection_kernels: SelectionKernels | None = None,
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any] | None]:
     """SPEA2 environmental selection (sequential truncation).
 
     Select solutions for the next generation archive based on fitness.
 
     Parameters
     ----------
-    X : np.ndarray
+    X : np.ndarray[Any, Any]
         Decision variables, shape (N, n_var).
-    F : np.ndarray
+    F : np.ndarray[Any, Any]
         Objective values, shape (N, n_obj).
-    G : np.ndarray | None
+    G : np.ndarray[Any, Any] | None
         Constraint values, shape (N, n_con) or None.
     archive_size : int
         Target archive size.
@@ -276,10 +289,12 @@ def environmental_selection(
         k for density estimation.
     constraint_mode : str
         Constraint handling mode.
+    selection_kernels : SelectionKernels | None
+        Optional compiled truncation from the selected kernel backend.
 
     Returns
     -------
-    tuple[np.ndarray, np.ndarray, np.ndarray | None]
+    tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any] | None]
         (X_selected, F_selected, G_selected)
     """
     n = F.shape[0]
@@ -307,7 +322,7 @@ def environmental_selection(
 
         front_F = F[front]
         dist_matrix = np.linalg.norm(front_F[:, None, :] - front_F[None, :, :], axis=2)
-        keep_idx = truncate_by_kth_distance(dist_matrix, remaining, k)
+        keep_idx = truncate_by_kth_distance(dist_matrix, remaining, k, selection_kernels)
         selected.extend(front[keep_idx].tolist())
         break
 
@@ -316,18 +331,18 @@ def environmental_selection(
 
 
 def compute_selection_metrics(
-    F: np.ndarray,
-    G: np.ndarray | None,
+    F: np.ndarray[Any, Any],
+    G: np.ndarray[Any, Any] | None,
     constraint_mode: str,
     kernel: Any,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
     """Compute selection metrics for mating selection.
 
     Parameters
     ----------
-    F : np.ndarray
+    F : np.ndarray[Any, Any]
         Objective values.
-    G : np.ndarray | None
+    G : np.ndarray[Any, Any] | None
         Constraint values.
     constraint_mode : str
         Constraint handling mode.
@@ -336,7 +351,7 @@ def compute_selection_metrics(
 
     Returns
     -------
-    tuple[np.ndarray, np.ndarray]
+    tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]
         (ranks, crowding_distances)
     """
     if F.size == 0:

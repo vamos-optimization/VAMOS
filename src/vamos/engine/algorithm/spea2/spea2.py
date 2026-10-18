@@ -42,11 +42,11 @@ from vamos.engine.hooks.live_viz import LiveVisualization
 
 
 def _tournament_by_strength(
-    raw_fitness: np.ndarray,
-    density: np.ndarray,
+    raw_fitness: np.ndarray[Any, Any],
+    density: np.ndarray[Any, Any],
     rng: np.random.Generator,
     n_pairs: int,
-) -> np.ndarray:
+) -> np.ndarray[Any, Any]:
     """Binary tournament selection using strength ranking + kNN density."""
     n = raw_fitness.size
     if n == 0:
@@ -249,12 +249,12 @@ class SPEA2:
         if self._st is not None and self._live_cb is not None and self._st.env_F is not None:
             self._live_cb.on_generation(0, F=self._st.env_F)
 
-    def ask(self) -> np.ndarray:
+    def ask(self) -> np.ndarray[Any, Any]:
         """Generate offspring for external evaluation.
 
         Returns
         -------
-        np.ndarray
+        np.ndarray[Any, Any]
             Offspring decision variables to evaluate.
 
         Raises
@@ -376,6 +376,7 @@ class SPEA2:
             st.env_archive_size,
             st.k_neighbors,
             st.constraint_mode,
+            self.kernel.selection_kernels(),
         )
         self._refresh_selection_metrics(st)
 

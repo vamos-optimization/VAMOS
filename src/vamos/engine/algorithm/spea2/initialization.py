@@ -102,7 +102,7 @@ def initialize_spea2_run(
     n_eval = pop_size
 
     # Environmental selection for initial internal archive
-    env_X, env_F, env_G = environmental_selection(X, F, G, env_archive_size, k_neighbors, constraint_mode)
+    env_X, env_F, env_G = environmental_selection(X, F, G, env_archive_size, k_neighbors, constraint_mode, kernel.selection_kernels())
     selection_raw_fitness, selection_density = selection_fitness_density(env_F, env_G, constraint_mode, k_neighbors)
 
     # Setup external archive (optional, separate from internal)
@@ -126,7 +126,16 @@ def initialize_spea2_run(
     genealogy_tracker, ids = setup_genealogy(pop_size, F, track_genealogy, "spea2")
 
     # Build variation operators
-    crossover_fn, mutation_fn = build_variation_operators(cfg, encoding, n_var, xl, xu, rng, problem=problem)
+    crossover_fn, mutation_fn = build_variation_operators(
+        cfg,
+        encoding,
+        n_var,
+        xl,
+        xu,
+        rng,
+        problem=problem,
+        variation_kernels=kernel.variation_kernels(),
+    )
 
     ctx = RunContext(
         problem=problem,

@@ -2,9 +2,104 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping
-from typing import Literal, overload
+from typing import Any, Literal, Protocol, TypeAlias, overload
 
 import numpy as np
+from numpy.typing import NDArray
+
+FloatArray: TypeAlias = NDArray[np.float64]
+RealArray: TypeAlias = NDArray[np.floating[Any]]
+NumericArray: TypeAlias = NDArray[np.number[Any]]
+IndexArray: TypeAlias = NDArray[np.int_]
+DecisionArray: TypeAlias = NDArray[np.generic]
+
+
+class VariationKernels(Protocol):
+    """Compiled variation arithmetic that preserves the NumPy operator contracts.
+
+    Implementations draw from the supplied generator in the same order and shape
+    as the reference real-coded operators and modify arrays in place.
+    """
+
+    name: str
+
+    def sbx_crossover_pairs(
+        self,
+        offspring: FloatArray,
+        *,
+        rng: np.random.Generator,
+        lower: FloatArray,
+        upper: FloatArray,
+        prob_crossover: float,
+        eta: float,
+        prob_var: float,
+    ) -> FloatArray:
+        """Apply SBX in place to a float64 tensor shaped ``(n_pairs, 2, n_var)``."""
+        ...
+
+    def polynomial_mutation(
+        self,
+        X: FloatArray,
+        *,
+        lower: FloatArray,
+        upper: FloatArray,
+        prob_mutation: float,
+        eta: float,
+        rnd_mask: FloatArray,
+        rnd_delta: FloatArray,
+    ) -> None:
+        """Apply polynomial mutation in place from caller-provided uniform draws."""
+        ...
+
+    def differential_crossover(
+        self,
+        parents: FloatArray,
+        f: float,
+        cr: float,
+        rand: FloatArray,
+        j_rand: NDArray[np.integer[Any]],
+    ) -> FloatArray:
+        """DE binomial children ``base + f * (p1 - p2)`` from ``parents`` shaped ``(n, 3, n_var)``.
+
+        ``parents[:, 2]`` is the base vector; a variable takes the mutant value when
+        ``rand < cr`` or it is the forced index ``j_rand`` of its row.
+        """
+        ...
+
+
+class SelectionKernels(Protocol):
+    """Compiled survival and truncation loops that reproduce NumPy reference loops.
+
+    The kernels never draw random numbers. Callers use them only for inputs
+    the kernels accept (finite values) and keep their NumPy reference otherwise.
+    """
+
+    name: str
+
+    def iterative_crowding_truncation(self, F: FloatArray, target_size: int) -> NDArray[np.int64]:
+        """Repeatedly drop the first least-crowded row of a single front."""
+        ...
+
+    def greedy_two_nearest_selection(
+        self,
+        distances: FloatArray,
+        remaining: NDArray[np.integer[Any]],
+        best1: FloatArray,
+        best2: FloatArray,
+        scores: FloatArray,
+        selected_count: int,
+        crowd_dist: FloatArray,
+    ) -> None:
+        """AGE-MOEA greedy diversity scores written into ``crowd_dist``."""
+        ...
+
+    def kth_distance_truncation(self, dist: FloatArray, keep: int, k: int) -> NDArray[np.int64]:
+        """SPEA2 truncation by the current k-th nearest-neighbour distance."""
+        ...
+
+    def indicator_removal(self, fitness: FloatArray, contrib: FloatArray, target_size: int) -> NDArray[np.int64]:
+        """IBEA iterative removal of the lowest fitness, updating ``fitness`` in place."""
+        ...
 
 
 class KernelBackend(ABC):
@@ -42,10 +137,28 @@ class KernelBackend(ABC):
         normalized = name.lower()
         return any(ind.lower() == normalized for ind in self.quality_indicators())
 
+    def variation_kernels(self) -> VariationKernels | None:
+        """
+        Optional compiled SBX/polynomial-mutation arithmetic.
+
+        ``None`` means callers keep the reference NumPy operator code. A backend
+        that returns kernels guarantees the reference random-draw contract.
+        """
+        return None
+
+    def selection_kernels(self) -> SelectionKernels | None:
+        """
+        Optional compiled survival/truncation loops.
+
+        ``None`` means callers keep their NumPy reference loops. A backend that
+        returns kernels guarantees identical selections for finite inputs.
+        """
+        return None
+
     # -------- Evolutionary kernels --------
 
     @abstractmethod
-    def nsga2_ranking(self, F: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def nsga2_ranking(self, F: RealArray) -> tuple[IndexArray, FloatArray]:
         """
         Return ranks and crowding distances for objective matrix F.
         """
@@ -53,12 +166,12 @@ class KernelBackend(ABC):
     @abstractmethod
     def tournament_selection(
         self,
-        ranks: np.ndarray,
-        crowding: np.ndarray,
+        ranks: NumericArray,
+        crowding: RealArray,
         pressure: int,
         rng: np.random.Generator,
         n_parents: int,
-    ) -> np.ndarray:
+    ) -> IndexArray:
         """
         Select n_parents indices using tournament selection.
         """
@@ -66,12 +179,12 @@ class KernelBackend(ABC):
     @abstractmethod
     def sbx_crossover(
         self,
-        X_parents: np.ndarray,
+        X_parents: RealArray,
         params: Mapping[str, object],
         rng: np.random.Generator,
         xl: float,
         xu: float,
-    ) -> np.ndarray:
+    ) -> FloatArray:
         """
         Apply SBX crossover to parent array and return offspring.
         """
@@ -79,7 +192,7 @@ class KernelBackend(ABC):
     @abstractmethod
     def polynomial_mutation(
         self,
-        X: np.ndarray,
+        X: RealArray,
         params: Mapping[str, object],
         rng: np.random.Generator,
         xl: float,
@@ -92,35 +205,35 @@ class KernelBackend(ABC):
     @overload
     def nsga2_survival(
         self,
-        X: np.ndarray,
-        F: np.ndarray,
-        X_off: np.ndarray,
-        F_off: np.ndarray,
+        X: DecisionArray,
+        F: RealArray,
+        X_off: DecisionArray,
+        F_off: RealArray,
         pop_size: int,
         return_indices: Literal[False] = False,
-    ) -> tuple[np.ndarray, np.ndarray]: ...
+    ) -> tuple[DecisionArray, FloatArray]: ...
 
     @overload
     def nsga2_survival(
         self,
-        X: np.ndarray,
-        F: np.ndarray,
-        X_off: np.ndarray,
-        F_off: np.ndarray,
+        X: DecisionArray,
+        F: RealArray,
+        X_off: DecisionArray,
+        F_off: RealArray,
         pop_size: int,
         return_indices: Literal[True],
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]: ...
+    ) -> tuple[DecisionArray, FloatArray, IndexArray]: ...
 
     @abstractmethod
     def nsga2_survival(
         self,
-        X: np.ndarray,
-        F: np.ndarray,
-        X_off: np.ndarray,
-        F_off: np.ndarray,
+        X: DecisionArray,
+        F: RealArray,
+        X_off: DecisionArray,
+        F_off: RealArray,
         pop_size: int,
         return_indices: bool = False,
-    ) -> tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[DecisionArray, FloatArray] | tuple[DecisionArray, FloatArray, IndexArray]:
         """
         Perform NSGA-II elitist replacement returning new (X, F).
         When return_indices is True, also return selected indices in the combined population.
@@ -130,12 +243,12 @@ class KernelBackend(ABC):
 
     def update_archive(
         self,
-        archive_X: np.ndarray | None,
-        archive_F: np.ndarray | None,
-        population_X: np.ndarray,
-        population_F: np.ndarray,
+        archive_X: DecisionArray | None,
+        archive_F: FloatArray | None,
+        population_X: DecisionArray,
+        population_F: FloatArray,
         archive_size: int,
-    ) -> tuple[np.ndarray | None, np.ndarray | None]:
+    ) -> tuple[DecisionArray | None, FloatArray | None]:
         """
         Optional external archive update implementation.
 
@@ -144,14 +257,14 @@ class KernelBackend(ABC):
         """
         raise NotImplementedError(f"Backend '{self.__class__.__name__}' does not support update_archive.")
 
-    def hypervolume(self, points: np.ndarray, reference_point: np.ndarray) -> float:
+    def hypervolume(self, points: FloatArray, reference_point: FloatArray) -> float:
         """
         Optional hypervolume implementation. Backends that override this method
         should also list "hypervolume" in quality_indicators().
         """
         raise NotImplementedError(f"Backend '{self.__class__.__name__}' does not support hypervolume.")
 
-    def hypervolume_contributions(self, points: np.ndarray, reference_point: np.ndarray) -> np.ndarray:
+    def hypervolume_contributions(self, points: FloatArray, reference_point: FloatArray) -> FloatArray:
         """
         Optional least-contributor support for hypervolume-based survival.
 

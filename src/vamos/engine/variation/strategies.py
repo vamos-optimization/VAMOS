@@ -9,10 +9,12 @@ extensible.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Protocol, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import numpy as np
+from numpy.typing import NDArray
 
+from vamos.engine.operators.impl.real.utils import with_variation_kernels
 from vamos.engine.operators.impl.registry import get_operator_registry
 from vamos.engine.variation.helpers import (
     BINARY_CROSSOVER,
@@ -34,13 +36,17 @@ from vamos.engine.variation.protocol import (
 from vamos.foundation.encoding import Encoding
 from vamos.foundation.problem.types import ProblemProtocol
 
+if TYPE_CHECKING:
+    from vamos.foundation.kernel.backend import VariationKernels
+
 
 @dataclass(frozen=True)
 class VariationContext:
-    xl: np.ndarray
-    xu: np.ndarray
+    xl: NDArray[np.generic]
+    xu: NDArray[np.generic]
     workspace: VariationWorkspaceProtocol | None
     problem: ProblemProtocol | None
+    variation_kernels: VariationKernels | None = None
 
 
 class EncodingStrategy(Protocol):
@@ -90,6 +96,7 @@ class RealEncodingStrategy:
         kwargs.setdefault("lower", self.ctx.xl)
         kwargs.setdefault("upper", self.ctx.xu)
         kwargs.setdefault("workspace", self.ctx.workspace)
+        with_variation_kernels(op_cls, kwargs, self.ctx.variation_kernels)
 
         try:
             op = op_cls(**kwargs)
@@ -98,7 +105,7 @@ class RealEncodingStrategy:
 
         group_size = self.parents_per_group(method)
 
-        def crossover(parents: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+        def crossover(parents: NDArray[np.generic], rng: np.random.Generator) -> NDArray[np.generic]:
             n_var = parents.shape[1]
             if parents.shape[0] % group_size != 0:
                 usable = (parents.shape[0] // group_size) * group_size
@@ -107,7 +114,7 @@ class RealEncodingStrategy:
                 return parents
 
             groups = parents.reshape(-1, group_size, n_var)
-            offspring = cast(np.ndarray, op(groups, rng))
+            offspring = cast(NDArray[np.generic], op(groups, rng))
             if offspring.ndim == 3:
                 offspring = offspring.reshape(-1, n_var)
             return offspring
@@ -130,14 +137,15 @@ class RealEncodingStrategy:
         kwargs.setdefault("lower", self.ctx.xl)
         kwargs.setdefault("upper", self.ctx.xu)
         kwargs.setdefault("workspace", self.ctx.workspace)
+        with_variation_kernels(op_cls, kwargs, self.ctx.variation_kernels)
 
         try:
             op = op_cls(**kwargs)
         except TypeError as exc:
             raise ValueError(f"Failed to initialize mutation '{method}' with params {kwargs}. Error: {exc}") from exc
 
-        def mutate(offspring: np.ndarray, rng: np.random.Generator) -> np.ndarray:
-            return cast(np.ndarray, op(offspring, rng))
+        def mutate(offspring: NDArray[np.generic], rng: np.random.Generator) -> NDArray[np.generic]:
+            return cast(NDArray[np.generic], op(offspring, rng))
 
         return mutate
 
@@ -148,7 +156,7 @@ class PairwiseEncodingStrategy:
     Strategy for encodings with pairwise crossover and in-place mutation functions.
 
     Handles "binary" and "permutation" which share the same signatures:
-    - crossover(X_parents, prob, rng) -> np.ndarray
+    - crossover(X_parents, prob, rng) -> NDArray[np.generic]
     - mutation(X, prob, rng) -> None
     """
 
@@ -166,8 +174,8 @@ class PairwiseEncodingStrategy:
         cross_prob = float(params.get("prob", 1.0))
         cross_fn = cast(Any, registry[method])
 
-        def crossover(parents: np.ndarray, rng: np.random.Generator) -> np.ndarray:
-            return cast(np.ndarray, cross_fn(parents, cross_prob, rng))
+        def crossover(parents: NDArray[np.generic], rng: np.random.Generator) -> NDArray[np.generic]:
+            return cast(NDArray[np.generic], cross_fn(parents, cross_prob, rng))
 
         return crossover
 
@@ -176,7 +184,7 @@ class PairwiseEncodingStrategy:
         mut_prob = float(params.get("prob", 0.0))
         mut_fn = cast(Any, registry[method])
 
-        def mutate(offspring: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+        def mutate(offspring: NDArray[np.generic], rng: np.random.Generator) -> NDArray[np.generic]:
             mut_fn(offspring, mut_prob, rng)
             return offspring
 
@@ -204,10 +212,10 @@ class IntegerEncodingStrategy:
             eta = None
             xl, xu = self.ctx.xl, self.ctx.xu
 
-        def crossover(parents: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+        def crossover(parents: NDArray[np.generic], rng: np.random.Generator) -> NDArray[np.generic]:
             if eta is not None:
-                return cast(np.ndarray, cross_fn(parents, cross_prob, float(eta), xl, xu, rng))
-            return cast(np.ndarray, cross_fn(parents, cross_prob, rng))
+                return cast(NDArray[np.generic], cross_fn(parents, cross_prob, float(eta), xl, xu, rng))
+            return cast(NDArray[np.generic], cross_fn(parents, cross_prob, rng))
 
         return crossover
 
@@ -225,7 +233,7 @@ class IntegerEncodingStrategy:
         else:
             extra = None
 
-        def mutate(offspring: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+        def mutate(offspring: NDArray[np.generic], rng: np.random.Generator) -> NDArray[np.generic]:
             if extra is not None:
                 mut_fn(offspring, mut_prob, extra, xl, xu, rng)
             else:
@@ -262,8 +270,8 @@ class MixedEncodingStrategy:
         cross_prob = float(params.get("prob", 1.0))
         cross_fn = cast(Any, MIXED_CROSSOVER[method])
 
-        def crossover(parents: np.ndarray, rng: np.random.Generator) -> np.ndarray:
-            return cast(np.ndarray, cross_fn(parents, cross_prob, spec, rng))
+        def crossover(parents: NDArray[np.generic], rng: np.random.Generator) -> NDArray[np.generic]:
+            return cast(NDArray[np.generic], cross_fn(parents, cross_prob, spec, rng))
 
         return crossover
 
@@ -272,7 +280,7 @@ class MixedEncodingStrategy:
         mut_prob = float(params.get("prob", 0.0))
         mut_fn = cast(Any, MIXED_MUTATION[method])
 
-        def mutate(offspring: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+        def mutate(offspring: NDArray[np.generic], rng: np.random.Generator) -> NDArray[np.generic]:
             mut_fn(offspring, mut_prob, spec, rng)
             return offspring
 

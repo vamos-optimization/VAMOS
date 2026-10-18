@@ -11,27 +11,27 @@ This module contains the core IBEA selection functions:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
 from vamos.foundation.constraints.utils import compute_violation, is_feasible
 
 if TYPE_CHECKING:
-    pass
+    from vamos.foundation.kernel.backend import SelectionKernels
 
 
-def epsilon_indicator(F: np.ndarray) -> np.ndarray:
+def epsilon_indicator(F: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     """Compute additive epsilon indicator matrix.
 
     Parameters
     ----------
-    F : np.ndarray
+    F : np.ndarray[Any, Any]
         Objective values, shape (N, n_obj).
 
     Returns
     -------
-    np.ndarray
+    np.ndarray[Any, Any]
         Epsilon indicator matrix, shape (N, N).
     """
     # Match jMetalPy: epsilon(i, j) = max_k (f_jk - f_ik)
@@ -39,17 +39,17 @@ def epsilon_indicator(F: np.ndarray) -> np.ndarray:
     return np.asarray(np.max(diff, axis=2), dtype=float)
 
 
-def hypervolume_indicator(F: np.ndarray) -> np.ndarray:
+def hypervolume_indicator(F: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     """Compute hypervolume indicator matrix.
 
     Parameters
     ----------
-    F : np.ndarray
+    F : np.ndarray[Any, Any]
         Objective values, shape (N, n_obj).
 
     Returns
     -------
-    np.ndarray
+    np.ndarray[Any, Any]
         Hypervolume indicator matrix, shape (N, N).
     """
     n = F.shape[0]
@@ -62,22 +62,22 @@ def hypervolume_indicator(F: np.ndarray) -> np.ndarray:
     intersection_hv = np.prod(pair_intersection, axis=2)
     indicator = intersection_hv - singleton_hv[:, None]
     np.fill_diagonal(indicator, 0.0)
-    return cast(np.ndarray, indicator)
+    return cast(np.ndarray[Any, Any], indicator)
 
 
-def compute_indicator_matrix(F: np.ndarray, indicator: str) -> np.ndarray:
+def compute_indicator_matrix(F: np.ndarray[Any, Any], indicator: str) -> np.ndarray[Any, Any]:
     """Compute indicator matrix based on selected type.
 
     Parameters
     ----------
-    F : np.ndarray
+    F : np.ndarray[Any, Any]
         Objective values.
     indicator : str
         Indicator type: "epsilon" or "hypervolume".
 
     Returns
     -------
-    np.ndarray
+    np.ndarray[Any, Any]
         Indicator matrix.
     """
     if indicator == "hypervolume":
@@ -85,7 +85,7 @@ def compute_indicator_matrix(F: np.ndarray, indicator: str) -> np.ndarray:
     return epsilon_indicator(F)
 
 
-def ibea_fitness(indicator: np.ndarray, kappa: float) -> np.ndarray:
+def ibea_fitness(indicator: np.ndarray[Any, Any], kappa: float) -> np.ndarray[Any, Any]:
     """Compute IBEA fitness from indicator matrix.
 
     IBEA fitness is the negative sum of exponential indicator contributions.
@@ -93,14 +93,14 @@ def ibea_fitness(indicator: np.ndarray, kappa: float) -> np.ndarray:
 
     Parameters
     ----------
-    indicator : np.ndarray
+    indicator : np.ndarray[Any, Any]
         Indicator matrix, shape (N, N).
     kappa : float
         Scaling factor controlling selection pressure.
 
     Returns
     -------
-    np.ndarray
+    np.ndarray[Any, Any]
         Fitness values, shape (N,).
     """
     mat = indicator.copy()
@@ -110,19 +110,19 @@ def ibea_fitness(indicator: np.ndarray, kappa: float) -> np.ndarray:
     return np.asarray(-np.sum(contrib, axis=1), dtype=float)
 
 
-def apply_constraint_penalty(fitness: np.ndarray, G: np.ndarray | None) -> np.ndarray:
+def apply_constraint_penalty(fitness: np.ndarray[Any, Any], G: np.ndarray[Any, Any] | None) -> np.ndarray[Any, Any]:
     """Apply constraint penalty to fitness values.
 
     Parameters
     ----------
-    fitness : np.ndarray
+    fitness : np.ndarray[Any, Any]
         Fitness values.
-    G : np.ndarray | None
+    G : np.ndarray[Any, Any] | None
         Constraint values.
 
     Returns
     -------
-    np.ndarray
+    np.ndarray[Any, Any]
         Penalized fitness values.
     """
     if G is None:
@@ -138,24 +138,25 @@ def apply_constraint_penalty(fitness: np.ndarray, G: np.ndarray | None) -> np.nd
 
 
 def environmental_selection(
-    X: np.ndarray,
-    F: np.ndarray,
-    G: np.ndarray | None,
+    X: np.ndarray[Any, Any],
+    F: np.ndarray[Any, Any],
+    G: np.ndarray[Any, Any] | None,
     pop_size: int,
     indicator: str,
     kappa: float,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray]:
+    selection_kernels: SelectionKernels | None = None,
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any] | None, np.ndarray[Any, Any]]:
     """Perform IBEA environmental selection.
 
     Iteratively removes the worst individual until population size is reached.
 
     Parameters
     ----------
-    X : np.ndarray
+    X : np.ndarray[Any, Any]
         Decision variables, shape (N, n_var).
-    F : np.ndarray
+    F : np.ndarray[Any, Any]
         Objective values, shape (N, n_obj).
-    G : np.ndarray | None
+    G : np.ndarray[Any, Any] | None
         Constraint values or None.
     pop_size : int
         Target population size.
@@ -163,10 +164,12 @@ def environmental_selection(
         Indicator type.
     kappa : float
         Scaling factor.
+    selection_kernels : SelectionKernels | None
+        Optional compiled removal loop from the selected kernel backend.
 
     Returns
     -------
-    tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray]
+    tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any] | None, np.ndarray[Any, Any]]
         (X_selected, F_selected, G_selected, fitness)
     """
     ind = compute_indicator_matrix(F, indicator)
@@ -175,8 +178,13 @@ def environmental_selection(
     np.fill_diagonal(contrib, 0.0)
     fitness = np.asarray(-np.sum(contrib, axis=1), dtype=float)
     fitness = apply_constraint_penalty(fitness, G)
-    active = np.arange(X.shape[0], dtype=int)
+    if selection_kernels is not None:
+        # Same removal order and per-row accumulation order as the loop below.
+        fitness = np.ascontiguousarray(fitness, dtype=np.float64)
+        selected = np.asarray(selection_kernels.indicator_removal(fitness, contrib, pop_size), dtype=int)
+        return X[selected], F[selected], G[selected] if G is not None else None, fitness[selected]
 
+    active = np.arange(X.shape[0], dtype=int)
     while active.size > pop_size:
         active_fitness = fitness[active]
         worst_pos = int(np.argmin(active_fitness))
@@ -190,19 +198,19 @@ def environmental_selection(
     return X[selected], F[selected], G[selected] if G is not None else None, fitness[selected]
 
 
-def combine_constraints(G: np.ndarray | None, G_off: np.ndarray | None) -> np.ndarray | None:
+def combine_constraints(G: np.ndarray[Any, Any] | None, G_off: np.ndarray[Any, Any] | None) -> np.ndarray[Any, Any] | None:
     """Combine parent and offspring constraints.
 
     Parameters
     ----------
-    G : np.ndarray | None
+    G : np.ndarray[Any, Any] | None
         Parent constraints.
-    G_off : np.ndarray | None
+    G_off : np.ndarray[Any, Any] | None
         Offspring constraints.
 
     Returns
     -------
-    np.ndarray | None
+    np.ndarray[Any, Any] | None
         Combined constraints.
     """
     if G is None and G_off is None:

@@ -3,6 +3,9 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+pytest.importorskip("numba")
+
+from vamos.foundation.kernel._numba_selection import binary_tournament_winners_numba
 from vamos.foundation.kernel.numba_backend import NumbaKernel
 from vamos.foundation.kernel.numpy_backend import NumPyKernel
 
@@ -161,8 +164,7 @@ def test_numba_backend_mutation_matches_numpy_for_same_seed():
     numpy_kernel.polynomial_mutation(X_np, params, np.random.default_rng(0), 0.0, 1.0)
     numba_kernel.polynomial_mutation(X_nb, params, np.random.default_rng(0), 0.0, 1.0)
 
-    # NumPy and Numba may round the same float64 expression one ULP apart.
-    np.testing.assert_allclose(X_nb, X_np, rtol=0.0, atol=np.finfo(np.float64).eps)
+    np.testing.assert_array_equal(X_nb, X_np)
 
 
 @pytest.mark.numba
@@ -181,17 +183,20 @@ def test_numba_backend_mutation_repeats_for_same_seed():
 
 
 @pytest.mark.numba
-def test_numba_backend_tournament_selection_repeats_for_same_seed():
+def test_numba_backend_tournament_selection_matches_numpy_for_same_seed():
     rng = np.random.default_rng(5)
     ranks = rng.integers(0, 4, size=48, dtype=int)
     crowding = rng.normal(size=48)
     crowding[::11] = np.nan
+    crowding[::7] = np.inf
 
-    kernel = NumbaKernel()
-    selected_first = kernel.tournament_selection(ranks, crowding, pressure=2, rng=np.random.default_rng(0), n_parents=64)
-    selected_second = kernel.tournament_selection(ranks, crowding, pressure=2, rng=np.random.default_rng(0), n_parents=64)
+    rng_np = np.random.default_rng(0)
+    rng_nb = np.random.default_rng(0)
+    selected_np = NumPyKernel().tournament_selection(ranks, crowding, pressure=2, rng=rng_np, n_parents=64)
+    selected_nb = NumbaKernel().tournament_selection(ranks, crowding, pressure=2, rng=rng_nb, n_parents=64)
 
-    np.testing.assert_array_equal(selected_first, selected_second)
+    np.testing.assert_array_equal(selected_nb, selected_np)
+    assert rng_nb.bit_generator.state == rng_np.bit_generator.state
 
 
 @pytest.mark.numba
@@ -207,3 +212,104 @@ def test_numba_backend_tournament_selection_uses_numpy_fallback_for_higher_press
     selected_nb = numba_kernel.tournament_selection(ranks, crowding, pressure=3, rng=np.random.default_rng(2), n_parents=50)
 
     np.testing.assert_array_equal(selected_nb, selected_np)
+
+
+@pytest.mark.numba
+def test_binary_tournament_matches_numpy_values_and_draws():
+    numpy_kernel, numba_kernel = NumPyKernel(), NumbaKernel()
+    for seed in range(400):
+        rng = np.random.default_rng(seed)
+        n = int(rng.integers(2, 60))
+        ranks = rng.integers(0, 3, size=n)
+        crowding = rng.choice([0.0, 0.5, 1.0, np.inf, np.nan], size=n)
+        rng_np, rng_nb = np.random.default_rng(seed), np.random.default_rng(seed)
+        expected = numpy_kernel.tournament_selection(ranks, crowding, 2, rng_np, 2 * n)
+        actual = numba_kernel.tournament_selection(ranks, crowding, 2, rng_nb, 2 * n)
+        np.testing.assert_array_equal(actual, expected)
+        assert actual.dtype == expected.dtype
+        assert rng_nb.bit_generator.state == rng_np.bit_generator.state
+
+
+@pytest.mark.numba
+def test_binary_tournament_preserves_fractional_rank_keys():
+    ranks = np.array([0.25, 0.75, 0.5, 0.25])
+    crowding = np.zeros(4)
+    for seed in range(50):
+        expected = NumPyKernel().tournament_selection(ranks, crowding, 2, np.random.default_rng(seed), 16)
+        actual = NumbaKernel().tournament_selection(ranks, crowding, 2, np.random.default_rng(seed), 16)
+        np.testing.assert_array_equal(actual, expected)
+
+
+@pytest.mark.numba
+def test_binary_tournament_kernel_marks_full_ties():
+    winners = binary_tournament_winners_numba(
+        np.array([0, 0, 1], dtype=np.int64),
+        np.array([1.0, 1.0, np.nan]),
+        np.array([0, 2, 1], dtype=np.int64),
+        np.array([1, 0, 2], dtype=np.int64),
+    )
+    np.testing.assert_array_equal(winners, [-1, 0, 1])
+
+
+def _adversarial_objectives(rng: np.random.Generator, trial: int, n_rows: int, n_obj: int) -> np.ndarray:
+    kind = trial % 5
+    if kind == 0:
+        return rng.integers(0, 4, size=(n_rows, n_obj)).astype(float)  # heavy ties
+    if kind == 1:
+        return rng.random((n_rows, n_obj))
+    if kind == 2:
+        base = rng.random((max(1, n_rows // 3), n_obj))
+        return base[rng.integers(0, base.shape[0], size=n_rows)]  # exact duplicates
+    if kind == 3:
+        F = rng.random((n_rows, n_obj))
+        F[:, 0] = 1.0  # degenerate objective
+        return F
+    F = rng.random((n_rows, n_obj))
+    return F / np.linalg.norm(F, axis=1, keepdims=True)  # mostly one front
+
+
+@pytest.mark.numba
+def test_numba_ranking_matches_numpy_on_adversarial_populations():
+    rng = np.random.default_rng(2026)
+    numpy_kernel, numba_kernel = NumPyKernel(), NumbaKernel()
+    for trial in range(1500):
+        F = _adversarial_objectives(rng, trial, int(rng.integers(1, 120)), int(rng.integers(1, 11)))
+        ranks_np, crowding_np = numpy_kernel.nsga2_ranking(F)
+        ranks_nb, crowding_nb = numba_kernel.nsga2_ranking(F)
+        np.testing.assert_array_equal(ranks_nb, ranks_np)
+        np.testing.assert_array_equal(crowding_nb, crowding_np)
+
+
+@pytest.mark.numba
+def test_numba_survival_matches_numpy_at_front_boundaries():
+    rng = np.random.default_rng(77)
+    numpy_kernel, numba_kernel = NumPyKernel(), NumbaKernel()
+    for trial in range(1500):
+        half = int(rng.integers(1, 60))
+        F = _adversarial_objectives(rng, trial, 2 * half, int(rng.integers(1, 9)))
+        X = rng.random((2 * half, 3))
+        ranks, _ = numpy_kernel.nsga2_ranking(F)
+        front_sizes = np.cumsum(np.bincount(ranks))
+        candidates = {1, 2 * half, int(rng.integers(1, 2 * half + 1)), int(front_sizes[0])}
+        candidates.update(int(size) for size in front_sizes[:3])
+        for pop_size in sorted(candidates):
+            X_np, F_np, sel_np = numpy_kernel.nsga2_survival(X[:half], F[:half], X[half:], F[half:], pop_size, return_indices=True)
+            X_nb, F_nb, sel_nb = numba_kernel.nsga2_survival(X[:half], F[:half], X[half:], F[half:], pop_size, return_indices=True)
+            np.testing.assert_array_equal(sel_nb, sel_np)
+            assert sel_nb.dtype == sel_np.dtype
+            np.testing.assert_array_equal(X_nb, X_np)
+            np.testing.assert_array_equal(F_nb, F_np)
+
+
+@pytest.mark.numba
+def test_numba_survival_returns_arrays_owned_by_the_caller():
+    rng = np.random.default_rng(5)
+    kernel = NumbaKernel()
+    X, F = rng.random((40, 3)), rng.random((40, 3))
+    X_first, F_first = kernel.nsga2_survival(X[:20], F[:20], X[20:], F[20:], 20)
+    expected = (X_first.copy(), F_first.copy())
+    for _ in range(5):
+        X_next, F_next = rng.random((40, 3)), rng.random((40, 3))
+        kernel.nsga2_survival(X_next[:20], F_next[:20], X_next[20:], F_next[20:], 20)
+    np.testing.assert_array_equal(X_first, expected[0])
+    np.testing.assert_array_equal(F_first, expected[1])

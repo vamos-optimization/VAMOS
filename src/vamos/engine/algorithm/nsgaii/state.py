@@ -108,11 +108,30 @@ class NSGAIIState:
     # HV points function (computed lazily)
     _hv_points_fn: Callable[[], np.ndarray[Any, Any]] | None = field(default=None, repr=False)
 
+    # Unconstrained ranking of F computed at the end of a generation, reused by the next ask().
+    _generation_ranking: tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any]] | None = field(default=None, repr=False)
+
     def hv_points_fn(self) -> np.ndarray[Any, Any]:
         """Get points for hypervolume computation (archive if available, else population)."""
         if self.archive_F is not None and self.archive_F.size > 0:
             return self.archive_F
         return self.F
+
+    def publish_generation_ranking(self, F: np.ndarray[Any, Any], ranks: np.ndarray[Any, Any], crowding: np.ndarray[Any, Any]) -> None:
+        """Remember the unconstrained ranking of the current population for the next selection."""
+        if F is self.F:
+            self._generation_ranking = (np.array(F, copy=True), ranks, crowding)
+
+    def take_generation_ranking(self) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]] | None:
+        """Return the published ranking when the population is unchanged, consuming it."""
+        published = self._generation_ranking
+        self._generation_ranking = None
+        if published is None:
+            return None
+        snapshot, ranks, crowding = published
+        if snapshot.shape != self.F.shape or not np.array_equal(snapshot, self.F, equal_nan=True):
+            return None
+        return ranks, crowding
 
 
 def build_result(
@@ -240,6 +259,7 @@ def compute_selection_metrics(
     F: np.ndarray[Any, Any],
     G: np.ndarray[Any, Any] | None,
     constraint_mode: str,
+    precomputed: tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]] | None = None,
 ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
     """Compute selection metrics (ranks and crowding) with constraint handling.
 
@@ -253,6 +273,9 @@ def compute_selection_metrics(
         Constraint values (None if unconstrained).
     constraint_mode : str
         Constraint handling mode.
+    precomputed : tuple[np.ndarray, np.ndarray] | None
+        Unconstrained ``kernel.nsga2_ranking(F)`` result for this exact ``F``,
+        reused instead of ranking the population again.
 
     Returns
     -------
@@ -261,7 +284,6 @@ def compute_selection_metrics(
     """
     from vamos.foundation.constraints.utils import compute_violation, is_feasible
 
-    ranks, crowding = kernel.nsga2_ranking(F)
     if G is not None and constraint_mode != "none":
         cv = compute_violation(G)
         feas = is_feasible(G)
@@ -276,6 +298,10 @@ def compute_selection_metrics(
         else:
             ranks = np.zeros(F.shape[0], dtype=int)
             crowding = -cv
+        return ranks, crowding
+    if precomputed is not None:
+        return precomputed
+    ranks, crowding = kernel.nsga2_ranking(F)
     return ranks, crowding
 
 

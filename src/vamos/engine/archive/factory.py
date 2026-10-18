@@ -50,7 +50,6 @@ def setup_archive(
     G: np.ndarray[Any, Any] | None = None,
 ) -> tuple[np.ndarray[Any, Any] | None, np.ndarray[Any, Any] | None, ArchiveManager | None]:
     """Initialize the shared external archive manager when configured."""
-    del kernel
     if ext_cfg is None:
         return None, None, None
 
@@ -144,6 +143,7 @@ def setup_archive(
             deduplicate_in=dedup_mode,
             decision_tolerance=decision_tol,
             n_con=n_con,
+            selection_kernels=kernel.selection_kernels(),
         )
 
     archive_X, archive_F = manager.update(X, F, G)

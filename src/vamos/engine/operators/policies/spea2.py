@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vamos.engine.operators.policies._discrete_variation_builder import (
     VariationFn,
@@ -23,6 +24,7 @@ from vamos.engine.variation.protocol import RepairConfigValue
 from vamos.foundation.encoding import EncodingLike, normalize_encoding
 
 if TYPE_CHECKING:
+    from vamos.foundation.kernel.backend import VariationKernels
     from vamos.foundation.problem.types import ProblemProtocol
 
 
@@ -40,10 +42,12 @@ def build_variation_operators(
     cfg: dict[str, Any],
     encoding: EncodingLike,
     n_var: int,
-    xl: np.ndarray,
-    xu: np.ndarray,
+    xl: NDArray[np.generic],
+    xu: NDArray[np.generic],
     rng: np.random.Generator,
     problem: ProblemProtocol | None = None,
+    *,
+    variation_kernels: VariationKernels | None = None,
 ) -> tuple[VariationFnAlias, VariationFnAlias]:
     """Build variation operators for SPEA2."""
     mixed_spec = getattr(problem, "mixed_spec", None) if normalize_encoding(encoding) == "mixed" and problem is not None else None
@@ -63,6 +67,7 @@ def build_variation_operators(
         integer_mutation=INT_MUTATION,
         permutation_crossover=PERM_CROSSOVER,
         permutation_mutation=PERM_MUTATION,
+        variation_kernels=variation_kernels,
     )
 
 
@@ -72,10 +77,11 @@ def _build_real_operators(
     mut_method: str,
     mut_params: dict[str, Any],
     n_var: int,
-    xl: np.ndarray,
-    xu: np.ndarray,
+    xl: NDArray[np.generic],
+    xu: NDArray[np.generic],
     rng: np.random.Generator,
     repair_cfg: RepairConfigValue,
+    variation_kernels: VariationKernels | None = None,
 ) -> tuple[VariationFnAlias, VariationFnAlias]:
     return cast(
         tuple[VariationFnAlias, VariationFnAlias],
@@ -89,6 +95,7 @@ def _build_real_operators(
             xu=xu,
             rng=rng,
             repair_cfg=repair_cfg,
+            variation_kernels=variation_kernels,
         ),
     )
 

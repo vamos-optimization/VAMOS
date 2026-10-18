@@ -4,6 +4,53 @@ All notable public changes to VAMOS are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- With `engine="numba"`, the built-in SBX crossover and polynomial mutation
+  operators use compiled arithmetic in every algorithm that builds them
+  (NSGA-II, NSGA-III, MOEA/D, SMS-EMOA, SPEA2, IBEA, SMPSO turbulence,
+  AGE-MOEA and RVEA). Results are bitwise identical to the NumPy operators.
+- With `engine="numba"`, the iterative survival loops of AGE-MOEA (greedy
+  diversity scores), SPEA2 (k-th-distance truncation), IBEA (indicator-based
+  removal) and the crowding-distance archive (SMPSO leaders and crowding
+  external archives) run as compiled kernels that reproduce the NumPy loops
+  exactly, including first-index tie-breaking. Non-finite inputs keep the
+  NumPy path.
+
+### Changed
+
+- The Numba kernel ranks populations with three or more objectives by
+  sequential-search non-dominated sorting over a lexicographic presort, and
+  NSGA-II survival computes crowding only for the front it truncates. Ranks,
+  crowding and survivor order are unchanged.
+- NSGA-II reuses the generation-end ranking of an unchanged population for the
+  next parent selection, and constrained selection no longer computes an
+  unconstrained ranking it then discards. Trajectories are unchanged.
+- MOEA/D samples the parents of a single offspring without vectorized
+  bookkeeping, builds genealogy parent indices only when genealogy is tracked,
+  and, with `engine="numba"`, computes its differential-evolution children with
+  a compiled kernel fed by the same random draws. Trajectories are unchanged.
+
+### Fixed
+
+- Single-mating-pair SBX, which uses compiled arithmetic whenever Numba is
+  installed, now consumes random draws exactly like the NumPy implementation.
+  Steady-state runs (MOEA/D, SMS-EMOA, steady-state NSGA-II) no longer depend
+  on whether Numba is installed when parents are identical.
+- `NumbaKernel.nsga2_survival` returns arrays owned by the caller. It used to
+  return views of reusable buffers, so a later call with the same kernel (for
+  example a second run of the same algorithm object) overwrote previously
+  returned populations and results.
+- `NumbaKernel.polynomial_mutation` reproduces NumPy for `eta == 1`, and
+  `NumbaKernel.sbx_crossover` now uses compiled arithmetic instead of
+  delegating to NumPy.
+- The Numba binary tournament now draws tie-break coins exactly like the
+  NumPy reference, one coin per fully tied tournament. Algorithms that use
+  tournament selection (NSGA-II, NSGA-III, IBEA, AGE-MOEA, and SMS-EMOA with
+  tournament selection) follow the same trajectory with `engine="numba"` and
+  `engine="numpy"` for the same seed; Numba-engine runs therefore differ from
+  VAMOS 1.0.1 runs.
+
 ## [1.0.1] - 2026-10-01
 
 ### Fixed

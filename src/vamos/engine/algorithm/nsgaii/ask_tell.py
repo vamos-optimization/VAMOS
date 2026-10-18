@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from .state import NSGAIIState
 
 
-def combine_ids(st: NSGAIIState) -> np.ndarray | None:
+def combine_ids(st: NSGAIIState) -> np.ndarray[Any, Any] | None:
     if not st.track_genealogy:
         return None
     current_ids = st.ids if st.ids is not None else np.array([], dtype=int)
@@ -39,7 +39,7 @@ def combine_ids(st: NSGAIIState) -> np.ndarray | None:
     return np.asarray(np.concatenate([current_ids, pending_ids]), dtype=int)
 
 
-def _coerce_parent_candidates(raw: Any, size: int) -> np.ndarray | None:
+def _coerce_parent_candidates(raw: Any, size: int) -> np.ndarray[Any, Any] | None:
     if raw is None:
         return None
     arr = np.asarray(raw)
@@ -56,7 +56,8 @@ def _coerce_parent_candidates(raw: Any, size: int) -> np.ndarray | None:
     idx = idx[(idx >= 0) & (idx < size)]
     if idx.size == 0:
         return None
-    return np.unique(idx)
+    unique_idx: np.ndarray[Any, Any] = np.unique(idx)
+    return unique_idx
 
 
 def _prefer_full_numba_steady_state_survival(st: NSGAIIState, kernel: Any) -> bool:
@@ -66,11 +67,11 @@ def _prefer_full_numba_steady_state_survival(st: NSGAIIState, kernel: Any) -> bo
 
 def _build_incremental_survivor_state(
     fronts: list[list[int]],
-    ranks: np.ndarray,
-    crowding: np.ndarray,
-    selected_idx: np.ndarray,
-    new_F: np.ndarray,
-) -> tuple[list[list[int]], np.ndarray, np.ndarray]:
+    ranks: np.ndarray[Any, Any],
+    crowding: np.ndarray[Any, Any],
+    selected_idx: np.ndarray[Any, Any],
+    new_F: np.ndarray[Any, Any],
+) -> tuple[list[list[int]], np.ndarray[Any, Any], np.ndarray[Any, Any]]:
     """
     Rebuild cached fronts/ranks/crowding after selecting survivors from N+1 candidates.
 
@@ -112,10 +113,10 @@ def _build_incremental_survivor_state(
 def _prefilter_archive_candidates(
     st: NSGAIIState,
     kernel: Any,
-    X: np.ndarray,
-    F: np.ndarray,
-    G: np.ndarray | None,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
+    X: np.ndarray[Any, Any],
+    F: np.ndarray[Any, Any],
+    G: np.ndarray[Any, Any] | None,
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any] | None]:
     """Trim unconstrained archive updates to the combined nondominated set."""
     if (st.archive_manager is None and st.result_archive is None) or G is not None or F.shape[0] <= st.pop_size:
         return X, F, G
@@ -132,7 +133,7 @@ def _prefilter_archive_candidates(
     return X[nd_mask], F[nd_mask], None
 
 
-def ask_nsgaii(algo: NSGAII) -> np.ndarray:
+def ask_nsgaii(algo: NSGAII) -> np.ndarray[Any, Any]:
     st = algo._st
     if st is None:
         raise RuntimeError("ask() called before initialization.")
@@ -140,7 +141,13 @@ def ask_nsgaii(algo: NSGAII) -> np.ndarray:
     if st.incremental_enabled and st.ranks is not None and st.crowding is not None and st.G is None:
         ranks, crowding = st.ranks, st.crowding
     else:
-        ranks, crowding = compute_selection_metrics(algo.kernel, st.F, st.G, st.constraint_mode)
+        ranks, crowding = compute_selection_metrics(
+            algo.kernel,
+            st.F,
+            st.G,
+            st.constraint_mode,
+            precomputed=st.take_generation_ranking(),
+        )
         if st.incremental_mode:
             st.ranks = ranks
             st.crowding = crowding
@@ -150,7 +157,7 @@ def ask_nsgaii(algo: NSGAII) -> np.ndarray:
     children_per_group = st.variation.children_per_group
     parent_count = int(np.ceil(request_size / children_per_group) * parents_per_group)
 
-    candidate_indices: np.ndarray | None = None
+    candidate_indices: np.ndarray[Any, Any] | None = None
     filter_fn = st.parent_selection_filter
     if callable(filter_fn):
         selected_raw: Any | None = None

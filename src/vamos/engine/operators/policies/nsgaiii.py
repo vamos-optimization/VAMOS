@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vamos.engine.operators.policies._discrete_variation_builder import (
     VariationFn,
@@ -21,6 +22,9 @@ from vamos.engine.operators.policies.discrete_operator_maps import (
 )
 from vamos.engine.variation.protocol import RepairConfigValue
 from vamos.foundation.encoding import EncodingLike
+
+if TYPE_CHECKING:
+    from vamos.foundation.kernel.backend import VariationKernels
 
 __all__ = [
     "BINARY_CROSSOVER",
@@ -47,10 +51,12 @@ def build_variation_operators(
     config: dict[str, Any],
     encoding: EncodingLike,
     n_var: int,
-    xl: np.ndarray,
-    xu: np.ndarray,
+    xl: NDArray[np.generic],
+    xu: NDArray[np.generic],
     rng: np.random.Generator,
-    mixed_spec: dict[str, np.ndarray] | None = None,
+    mixed_spec: dict[str, NDArray[np.generic]] | None = None,
+    *,
+    variation_kernels: VariationKernels | None = None,
 ) -> tuple[VariationCrossoverFn, VariationMutationFn]:
     """Build crossover and mutation operators for the given encoding."""
     return build_discrete_variation_operators(
@@ -69,6 +75,7 @@ def build_variation_operators(
         integer_mutation=INT_MUTATION,
         permutation_crossover=PERM_CROSSOVER,
         permutation_mutation=PERM_MUTATION,
+        variation_kernels=variation_kernels,
     )
 
 
@@ -78,10 +85,11 @@ def _build_real_operators(
     mut_method: str,
     mut_params: dict[str, Any],
     n_var: int,
-    xl: np.ndarray,
-    xu: np.ndarray,
+    xl: NDArray[np.generic],
+    xu: NDArray[np.generic],
     rng: np.random.Generator,
     repair_cfg: RepairConfigValue,
+    variation_kernels: VariationKernels | None = None,
 ) -> tuple[VariationCrossoverFn, VariationMutationFn]:
     """Build continuous (real) encoding operators via the operator registry."""
     base_crossover, base_mutation = build_real_variation_pair(
@@ -94,12 +102,13 @@ def _build_real_operators(
         xu=xu,
         rng=rng,
         repair_cfg=repair_cfg,
+        variation_kernels=variation_kernels,
     )
 
-    def crossover(parents: np.ndarray) -> np.ndarray:
+    def crossover(parents: NDArray[np.generic]) -> NDArray[np.generic]:
         return base_crossover(parents, rng)
 
-    def mutation(X_child: np.ndarray) -> np.ndarray:
+    def mutation(X_child: NDArray[np.generic]) -> NDArray[np.generic]:
         return base_mutation(X_child, rng)
 
     return crossover, mutation

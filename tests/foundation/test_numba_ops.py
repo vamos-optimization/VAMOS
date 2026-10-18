@@ -1,96 +1,49 @@
 import numpy as np
 import pytest
 
-from vamos.foundation.kernel.numba_ops import polynomial_mutation_numba, sbx_crossover_numba
+pytest.importorskip("numba")
+
+from vamos.foundation.kernel.numba_backend import NumbaKernel
+from vamos.foundation.kernel.numba_ops import tournament_winners_numba
 
 
 @pytest.mark.numba
-def test_polynomial_mutation_numba_runs_in_place():
-    """Verify mutation runs in place and keeps finite values."""
-    N, D = 100, 5
-    X = np.random.default_rng(0).random((N, D))
-    lower = np.zeros(D)
-    upper = np.ones(D)
+def test_tournament_winners_numba_orders_by_rank_crowding_then_key():
+    ranks = np.array([1, 0, 0, 0], dtype=np.int64)
+    crowding = np.array([9.0, 1.0, np.nan, 1.0])
+    candidates = np.array([[0, 1, 2], [2, 3, 1]], dtype=np.int64)
+    tie_break = np.array([[0.1, 0.2, 0.3], [0.5, 0.9, 0.4]])
 
-    # Mutate with high probability
-    polynomial_mutation_numba(X, 1.0, 20.0, lower, upper)
+    winners = tournament_winners_numba(ranks, crowding, candidates, tie_break)
 
-    assert X.shape == (N, D)
-    assert np.all(np.isfinite(X))
-
-
-@pytest.mark.numba
-def test_polynomial_mutation_numba_no_change_zero_prob():
-    """Verify prob=0.0 causes no changes."""
-    N, D = 100, 5
-    X_orig = np.random.default_rng(1).random((N, D))
-    X = X_orig.copy()
-    lower = np.zeros(D)
-    upper = np.ones(D)
-
-    polynomial_mutation_numba(X, 0.0, 20.0, lower, upper)
-
-    np.testing.assert_array_equal(X, X_orig)
+    # Row 0: rank 0 beats rank 1; NaN crowding counts as -inf.
+    # Row 1: candidates 3 and 1 tie on rank and crowding; the smaller key wins.
+    np.testing.assert_array_equal(winners, [1, 1])
 
 
 @pytest.mark.numba
-def test_sbx_crossover_numba_shape_and_finiteness():
-    """Verify crossover returns a finite array of the expected shape."""
-    N, D = 100, 5
-    parents = np.random.default_rng(2).random((N, D))
-    lower = np.zeros(D)
-    upper = np.ones(D)
-
-    # We pass parents directly; Numba backend handles reshaping but test passes flat
-    # Actually our implementation expects flatten-ish usage but handles pairs internally
-    offspring = sbx_crossover_numba(parents, 1.0, 20.0, lower, upper)
-
-    assert offspring.shape == parents.shape
-    assert np.all(np.isfinite(offspring))
-
-
-@pytest.mark.numba
-def test_sbx_crossover_numba_change():
-    """Verify prob=1.0 causes changes."""
-    N, D = 100, 5
-    parents = np.random.default_rng(3).random((N, D))
-    lower = np.zeros(D)
-    upper = np.ones(D)
-
-    offspring = sbx_crossover_numba(parents, 1.0, 20.0, lower, upper)
-
-    # It's possible for SBX to produce same values if parents are identical or by chance,
-    # but with random parents and high prob, full equality is extremely unlikely.
-    assert not np.array_equal(offspring, parents)
-
-
-@pytest.mark.numba
-def test_sbx_crossover_numba_preserves_odd_last_parent():
-    parents = np.random.default_rng(0).random((5, 3))
-    lower = np.zeros(3)
-    upper = np.ones(3)
-
-    offspring = sbx_crossover_numba(parents, 1.0, 20.0, lower, upper)
-
-    np.testing.assert_allclose(offspring[-1], parents[-1])
-
-
-@pytest.mark.numba
-def test_numba_backend_integration():
-    """Verify NumbaBackend uses the new ops correctly."""
-    from vamos.foundation.kernel.numba_backend import NumbaKernel
-
+def test_numba_backend_integration_with_explicit_generator():
     kernel = NumbaKernel()
-    N, D = 10, 2
-    X = np.random.default_rng(4).random((N, D))
     params = {"prob": 0.5, "eta": 20.0}
 
-    # Mutation
-    kernel.polynomial_mutation(X, params, None, 0.0, 1.0)
+    X = np.random.default_rng(4).random((10, 2))
+    kernel.polynomial_mutation(X, params, np.random.default_rng(0), 0.0, 1.0)
     assert np.all(np.isfinite(X))
+    assert np.all((X >= 0.0) & (X <= 1.0))
 
-    # Crossover
-    parents = np.random.default_rng(5).random((20, D))  # 10 pairs
-    offspring = kernel.sbx_crossover(parents, params, None, 0.0, 1.0)
+    parents = np.random.default_rng(5).random((20, 2))
+    offspring = kernel.sbx_crossover(parents, params, np.random.default_rng(1), 0.0, 1.0)
     assert offspring.shape == parents.shape
     assert np.all(np.isfinite(offspring))
+    assert np.all((offspring >= 0.0) & (offspring <= 1.0))
+
+
+@pytest.mark.numba
+def test_numba_backend_sbx_keeps_odd_parent_padding_contract():
+    kernel = NumbaKernel()
+    parents = np.random.default_rng(0).random((5, 3))
+
+    offspring = kernel.sbx_crossover(parents, {"prob": 1.0, "eta": 20.0}, np.random.default_rng(2), 0.0, 1.0)
+
+    # Odd parent counts duplicate the last parent, exactly like NumPyKernel.
+    assert offspring.shape == (6, 3)
