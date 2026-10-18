@@ -24,6 +24,9 @@ def test_kernel_benchmark_harness_smoke(tmp_path: Path) -> None:
     assert data["meta"]["smoke"] is True
     assert "polynomial_mutation.numpy" in data["benchmarks"]
     assert "tournament_selection.numpy" in data["benchmarks"]
+    assert "sbx_crossover.numpy" in data["benchmarks"]
+    assert "nsga2_ranking.numpy" in data["benchmarks"]
+    assert "nsga2_survival.numpy" in data["benchmarks"]
     assert "archive_deduplication" in data["benchmarks"]
     assert "moead_neighborhood.python" in data["benchmarks"]
 

@@ -116,6 +116,50 @@ def _selection_cases(smoke: bool) -> dict[str, Any]:
     return cases
 
 
+def _ranking_cases(smoke: bool) -> dict[str, Any]:
+    rng = np.random.default_rng(13)
+    n_points, n_obj = (256, 3) if smoke else (1000, 3)
+    F = rng.random((n_points, n_obj), dtype=np.float64)
+    F[:, -1] += 0.3 * F[:, 0]
+    X = rng.random((n_points, 16), dtype=np.float64)
+    half = n_points // 2
+    kernels: dict[str, Any] = {"numpy": NumPyKernel()}
+    if NumbaKernel is not None:
+        kernels["numba"] = NumbaKernel()
+
+    cases: dict[str, Any] = {}
+    for label, kernel in kernels.items():
+
+        def _run_ranking(kernel: Any = kernel) -> None:
+            kernel.nsga2_ranking(F)
+
+        def _run_survival(kernel: Any = kernel) -> None:
+            kernel.nsga2_survival(X[:half], F[:half], X[half:], F[half:], half)
+
+        cases[f"nsga2_ranking.{label}"] = {"fn": _run_ranking, "shape": [n_points, n_obj]}
+        cases[f"nsga2_survival.{label}"] = {"fn": _run_survival, "shape": [n_points, n_obj]}
+    return cases
+
+
+def _crossover_cases(smoke: bool) -> dict[str, Any]:
+    rng = np.random.default_rng(19)
+    n_parents, n_var = (128, 32) if smoke else (768, 64)
+    parents = rng.random((n_parents, n_var), dtype=np.float64)
+    params = {"prob": 0.9, "eta": 20.0}
+    kernels: dict[str, Any] = {"numpy": NumPyKernel()}
+    if NumbaKernel is not None:
+        kernels["numba"] = NumbaKernel()
+
+    cases: dict[str, Any] = {}
+    for label, kernel in kernels.items():
+
+        def _run(kernel: Any = kernel) -> None:
+            kernel.sbx_crossover(parents, params, np.random.default_rng(29), 0.0, 1.0)
+
+        cases[f"sbx_crossover.{label}"] = {"fn": _run, "shape": [n_parents, n_var]}
+    return cases
+
+
 def _archive_case(smoke: bool) -> dict[str, Any]:
     rng = np.random.default_rng(17)
     n_rows, n_obj = (384, 3) if smoke else (2048, 4)
@@ -244,7 +288,9 @@ def _moead_cases(smoke: bool) -> dict[str, Any]:
 def _build_cases(smoke: bool) -> dict[str, Any]:
     cases: dict[str, Any] = {}
     cases.update(_mutation_cases(smoke))
+    cases.update(_crossover_cases(smoke))
     cases.update(_selection_cases(smoke))
+    cases.update(_ranking_cases(smoke))
     cases.update(_archive_case(smoke))
     cases.update(_moead_cases(smoke))
     return cases
