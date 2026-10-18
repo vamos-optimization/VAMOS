@@ -33,7 +33,7 @@ from vamos.engine.variation.protocol import RepairConfigValue
 from vamos.foundation.encoding import normalize_encoding
 from vamos.foundation.eval.backends import EvaluationBackend, SerialEvalBackend
 from vamos.foundation.kernel import default_kernel
-from vamos.foundation.kernel.backend import KernelBackend
+from vamos.foundation.kernel.backend import KernelBackend, VariationKernels
 from vamos.foundation.observer import RunContext
 from vamos.foundation.problem.types import ProblemProtocol
 
@@ -121,9 +121,7 @@ def _extract_evaluation_arrays(
     if G.ndim != 2 or G.shape[0] != F.shape[0]:
         raise ValueError("RVEA constraint values G must align row-wise with objective values F.")
     if n_constraints is not None and n_constraints > 0 and G.shape[1] != n_constraints:
-        raise ValueError(
-            f"RVEA expected {n_constraints} constraint column(s) in G, got {G.shape[1]}."
-        )
+        raise ValueError(f"RVEA expected {n_constraints} constraint column(s) in G, got {G.shape[1]}.")
     return F, G
 
 
@@ -146,7 +144,14 @@ def _combine_constraints(
     return np.asarray(np.vstack([current, offspring]), dtype=float)
 
 
-def _build_variation(config: dict[str, Any], encoding: Any, xl: Any, xu: Any, problem: ProblemProtocol) -> VariationPipeline:
+def _build_variation(
+    config: dict[str, Any],
+    encoding: Any,
+    xl: Any,
+    xu: Any,
+    problem: ProblemProtocol,
+    variation_kernels: VariationKernels | None = None,
+) -> VariationPipeline:
     explicit_overrides: dict[str, Any] = {}
     if "crossover" in config:
         explicit_overrides["crossover"] = config["crossover"]
@@ -175,7 +180,9 @@ def _build_variation(config: dict[str, Any], encoding: Any, xl: Any, xu: Any, pr
         workspace=None,
         repair_cfg=repair_cfg,
         problem=problem,
+        variation_kernels=variation_kernels,
     )
+
 
 class RVEA:
     """RVEA: Reference Vector-guided Evolutionary Algorithm.
@@ -308,7 +315,7 @@ class RVEA:
             n_constraints,
         )
 
-        variation = _build_variation(self.cfg, encoding, xl, xu, problem)
+        variation = _build_variation(self.cfg, encoding, xl, xu, problem, self.kernel.variation_kernels())
         ext_cfg = resolve_external_archive(self.cfg)
         archive_X, archive_F, archive_manager = setup_archive(
             self.kernel,

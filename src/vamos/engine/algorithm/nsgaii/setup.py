@@ -214,6 +214,7 @@ def initialize_run(
         variation_workspace,
         problem,
         mut_factor,
+        variation_kernels=algo.kernel.variation_kernels(),
     )
 
     result_mode = str(algo.cfg.get("result_mode", "non_dominated")).strip().lower()

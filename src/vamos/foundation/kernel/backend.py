@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping
-from typing import Any, Literal, TypeAlias, overload
+from typing import Any, Literal, Protocol, TypeAlias, overload
 
 import numpy as np
 from numpy.typing import NDArray
@@ -12,6 +12,44 @@ RealArray: TypeAlias = NDArray[np.floating[Any]]
 NumericArray: TypeAlias = NDArray[np.number[Any]]
 IndexArray: TypeAlias = NDArray[np.int_]
 DecisionArray: TypeAlias = NDArray[np.generic]
+
+
+class VariationKernels(Protocol):
+    """Compiled variation arithmetic that preserves the NumPy operator contracts.
+
+    Implementations draw from the supplied generator in the same order and shape
+    as the reference real-coded operators and modify arrays in place.
+    """
+
+    name: str
+
+    def sbx_crossover_pairs(
+        self,
+        offspring: FloatArray,
+        *,
+        rng: np.random.Generator,
+        lower: FloatArray,
+        upper: FloatArray,
+        prob_crossover: float,
+        eta: float,
+        prob_var: float,
+    ) -> FloatArray:
+        """Apply SBX in place to a float64 tensor shaped ``(n_pairs, 2, n_var)``."""
+        ...
+
+    def polynomial_mutation(
+        self,
+        X: FloatArray,
+        *,
+        lower: FloatArray,
+        upper: FloatArray,
+        prob_mutation: float,
+        eta: float,
+        rnd_mask: FloatArray,
+        rnd_delta: FloatArray,
+    ) -> None:
+        """Apply polynomial mutation in place from caller-provided uniform draws."""
+        ...
 
 
 class KernelBackend(ABC):
@@ -48,6 +86,15 @@ class KernelBackend(ABC):
     def supports_quality_indicator(self, name: str) -> bool:
         normalized = name.lower()
         return any(ind.lower() == normalized for ind in self.quality_indicators())
+
+    def variation_kernels(self) -> VariationKernels | None:
+        """
+        Optional compiled SBX/polynomial-mutation arithmetic.
+
+        ``None`` means callers keep the reference NumPy operator code. A backend
+        that returns kernels guarantees the reference random-draw contract.
+        """
+        return None
 
     # -------- Evolutionary kernels --------
 

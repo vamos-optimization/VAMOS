@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vamos.engine.algorithm.smpso.helpers import resolve_repair
 from vamos.engine.operators.impl.mixed import mixed_mutation
@@ -18,6 +19,7 @@ from vamos.engine.variation import prepare_mutation_params
 from vamos.foundation.encoding import normalize_encoding
 
 if TYPE_CHECKING:
+    from vamos.foundation.kernel.backend import VariationKernels
     from vamos.foundation.problem.types import ProblemProtocol
 
 
@@ -31,9 +33,11 @@ def build_mutation_operator(
     config: dict[str, Any],
     encoding: str,
     n_var: int,
-    xl: np.ndarray,
-    xu: np.ndarray,
+    xl: NDArray[np.float64],
+    xu: NDArray[np.float64],
     problem: ProblemProtocol | None = None,
+    *,
+    variation_kernels: VariationKernels | None = None,
 ) -> Any:
     """Build the mutation (turbulence) operator for SMPSO.
 
@@ -48,10 +52,12 @@ def build_mutation_operator(
         Variable encoding ("real" or "mixed").
     n_var : int
         Number of decision variables.
-    xl : np.ndarray
+    xl : NDArray[np.generic]
         Lower bounds.
-    xu : np.ndarray
+    xu : NDArray[np.generic]
         Upper bounds.
+    variation_kernels : VariationKernels | None
+        Optional backend kernels for the polynomial mutation arithmetic.
 
     Returns
     -------
@@ -85,11 +91,11 @@ def build_mutation_operator(
             spec[key] = value
 
         class _MixedMutationOperator:
-            def __init__(self, mutation_prob: float, spec: dict[str, np.ndarray]) -> None:
+            def __init__(self, mutation_prob: float, spec: dict[str, NDArray[np.generic]]) -> None:
                 self._prob = float(mutation_prob)
                 self._spec = spec
 
-            def __call__(self, X: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+            def __call__(self, X: NDArray[np.generic], rng: np.random.Generator) -> NDArray[np.generic]:
                 mixed_mutation(X, self._prob, self._spec, rng)
                 return X
 
@@ -111,6 +117,7 @@ def build_mutation_operator(
         lower=xl,
         upper=xu,
         workspace=workspace,
+        variation_kernels=variation_kernels,
     )
 
 

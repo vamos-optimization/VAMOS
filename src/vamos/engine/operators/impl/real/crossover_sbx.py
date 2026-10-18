@@ -2,91 +2,24 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import numpy as np
+from numpy.typing import NDArray
 
-from vamos.foundation.kernel.operator_primitives import sbx_crossover_pairs
+from vamos.foundation.kernel.operator_primitives import available_variation_kernels, sbx_crossover_pairs
 
 from ._crossover_base import Crossover
 from .utils import ArrayLike, VariationWorkspace, _ensure_bounds
 
-_sbx_single_pair_numba = None
-
-
-def _get_sbx_single_pair_numba() -> Any:
-    """Lazily compile the Numba SBX kernel on first use."""
-    global _sbx_single_pair_numba  # noqa: PLW0603
-    if _sbx_single_pair_numba is not None:
-        return _sbx_single_pair_numba
-    try:
-        from numba import njit
-
-        @njit(cache=True)
-        def _kernel(  # type: ignore[no-untyped-def]
-            p1,
-            p2,
-            xl,
-            xu,
-            eta,
-            prob_var,
-            rand_var,
-            rand_sbx,
-            rand_swap,
-        ):
-            n = p1.shape[0]
-            c1 = p1.copy()
-            c2 = p2.copy()
-            eps = 1.0e-14
-            inv_eta = 1.0 / (eta + 1.0)
-            neg_eta1 = -(eta + 1.0)
-            for j in range(n):
-                if rand_var[j] > prob_var:
-                    continue
-                y1 = min(p1[j], p2[j])
-                y2 = max(p1[j], p2[j])
-                diff = y2 - y1
-                if diff <= eps:
-                    continue
-                r = rand_sbx[j]
-                beta = 1.0 + 2.0 * (y1 - xl[j]) / diff
-                if beta < eps:
-                    beta = eps
-                alpha = 2.0 - beta**neg_eta1
-                if alpha < eps:
-                    alpha = eps
-                if r <= 1.0 / alpha:
-                    betaq = (r * alpha) ** inv_eta
-                else:
-                    betaq = (1.0 / (2.0 - r * alpha)) ** inv_eta
-                v1 = 0.5 * ((y1 + y2) - betaq * diff)
-                beta = 1.0 + 2.0 * (xu[j] - y2) / diff
-                if beta < eps:
-                    beta = eps
-                alpha = 2.0 - beta**neg_eta1
-                if alpha < eps:
-                    alpha = eps
-                if r <= 1.0 / alpha:
-                    betaq = (r * alpha) ** inv_eta
-                else:
-                    betaq = (1.0 / (2.0 - r * alpha)) ** inv_eta
-                v2 = 0.5 * ((y1 + y2) + betaq * diff)
-                if rand_swap[j] <= 0.5:
-                    c1[j] = v2
-                    c2[j] = v1
-                else:
-                    c1[j] = v1
-                    c2[j] = v2
-            return c1, c2
-
-        _sbx_single_pair_numba = _kernel
-        return _kernel
-    except ImportError:
-        return None
+if TYPE_CHECKING:
+    from vamos.foundation.kernel.backend import VariationKernels
 
 
 class SBXCrossover(Crossover):
     """Simulated Binary Crossover (SBX) operator."""
+
+    supports_variation_kernels: ClassVar[bool] = True
 
     def __init__(
         self,
@@ -98,6 +31,7 @@ class SBXCrossover(Crossover):
         upper: ArrayLike,
         workspace: VariationWorkspace | None = None,
         allow_inplace: bool = False,
+        variation_kernels: VariationKernels | None = None,
     ) -> None:
         self.prob = float(prob_crossover)
         self.eta = float(eta)
@@ -105,15 +39,16 @@ class SBXCrossover(Crossover):
         self.lower, self.upper = _ensure_bounds(lower, upper)
         self.workspace = workspace
         self.allow_inplace = bool(allow_inplace)
+        self.variation_kernels = variation_kernels
 
-    def _rand(self, key: str, shape: tuple[int, ...], rng: np.random.Generator) -> np.ndarray:
+    def _rand(self, key: str, shape: tuple[int, ...], rng: np.random.Generator) -> ArrayLike:
         if self.workspace is None:
             return rng.random(shape)
         buf = self.workspace.request(key, shape, np.float64)
         rng.random(out=buf)
         return buf
 
-    def _mask_pairs(self, n_pairs: int, rng: np.random.Generator) -> np.ndarray:
+    def _mask_pairs(self, n_pairs: int, rng: np.random.Generator) -> NDArray[np.bool_]:
         if self.workspace is None:
             return rng.random(n_pairs) <= self.prob
         probs = self.workspace.request("sbx_prob", (n_pairs,), np.float64)
@@ -122,7 +57,7 @@ class SBXCrossover(Crossover):
         np.less_equal(probs, self.prob, out=mask)
         return mask
 
-    def _buffer(self, key: str, shape: tuple[int, ...], dtype: Any) -> np.ndarray:
+    def _buffer(self, key: str, shape: tuple[int, ...], dtype: Any) -> NDArray[Any]:
         if self.workspace is None:
             return np.empty(shape, dtype=dtype)
         return self.workspace.request(key, shape, dtype)
@@ -144,23 +79,22 @@ class SBXCrossover(Crossover):
                 eta=self.eta,
                 prob_var=self.prob_var,
                 inplace=True,
+                kernels=self.variation_kernels,
             )
 
-        if n_pairs == 1:
-            kernel = _get_sbx_single_pair_numba()
-            if kernel is not None:
-                if rng.random() > self.prob:
-                    return offspring
-                n_var = offspring.shape[2]
-                rand_var = np.asarray(rng.random(n_var)) if self.prob_var < 1.0 else np.zeros(n_var, dtype=np.float64)
-                rand_sbx = rng.random(n_var)
-                rand_swap = rng.random(n_var)
-                c1, c2 = kernel(
-                    offspring[0, 0, :], offspring[0, 1, :], self.lower, self.upper, self.eta, self.prob_var, rand_var, rand_sbx, rand_swap
-                )
-                offspring[0, 0, :] = c1
-                offspring[0, 1, :] = c2
-                return offspring
+        kernels = self.variation_kernels
+        if kernels is None and n_pairs == 1:
+            kernels = available_variation_kernels()
+        if kernels is not None:
+            return kernels.sbx_crossover_pairs(
+                offspring,
+                rng=rng,
+                lower=self.lower,
+                upper=self.upper,
+                prob_crossover=self.prob,
+                eta=self.eta,
+                prob_var=self.prob_var,
+            )
 
         pair_mask = self._mask_pairs(n_pairs, rng)
         idx = np.flatnonzero(pair_mask)

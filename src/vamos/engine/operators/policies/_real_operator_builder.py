@@ -3,15 +3,20 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vamos.engine.operators.impl.real import VariationWorkspace
+from vamos.engine.operators.impl.real.utils import with_variation_kernels
 from vamos.engine.operators.impl.registry import get_operator_registry
 from vamos.engine.operators.policies.real_repair import apply_policy_repair, resolve_policy_repair
 from vamos.engine.variation.helpers import resolve_prob_expression
 from vamos.engine.variation.protocol import CrossoverOperator, MutationOperator, RepairConfigValue
+
+if TYPE_CHECKING:
+    from vamos.foundation.kernel.backend import VariationKernels
 
 
 def _resolve_operator_factory(method: str) -> Callable[..., object]:
@@ -25,10 +30,16 @@ def _resolve_operator_factory(method: str) -> Callable[..., object]:
     return cast(Callable[..., object], factory)
 
 
-def instantiate_operator(method: str, params: Mapping[str, object], *, label: str) -> Callable[..., object]:
+def instantiate_operator(
+    method: str,
+    params: Mapping[str, object],
+    *,
+    label: str,
+    variation_kernels: VariationKernels | None = None,
+) -> Callable[..., object]:
     """Instantiate a registry-backed operator with consistent error handling."""
     factory = _resolve_operator_factory(method)
-    kwargs = dict(params)
+    kwargs = with_variation_kernels(factory, dict(params), variation_kernels)
     try:
         return cast(Callable[..., object], factory(**kwargs))
     except TypeError as exc:
@@ -42,11 +53,15 @@ def build_real_variation_pair(
     mut_method: str,
     mut_params: Mapping[str, object],
     n_var: int,
-    xl: np.ndarray,
-    xu: np.ndarray,
+    xl: NDArray[np.generic],
+    xu: NDArray[np.generic],
     rng: np.random.Generator,
     repair_cfg: RepairConfigValue,
-) -> tuple[Callable[[np.ndarray, np.random.Generator], np.ndarray], Callable[[np.ndarray, np.random.Generator], np.ndarray]]:
+    variation_kernels: VariationKernels | None = None,
+) -> tuple[
+    Callable[[NDArray[np.generic], np.random.Generator], NDArray[np.generic]],
+    Callable[[NDArray[np.generic], np.random.Generator], NDArray[np.generic]],
+]:
     """Build real-coded crossover and mutation callables with shared defaults."""
     workspace = VariationWorkspace()
     repair_operator = resolve_policy_repair("real", repair_cfg)
@@ -62,7 +77,7 @@ def build_real_variation_pair(
     cross_kwargs.setdefault("workspace", workspace)
     crossover_operator = cast(
         CrossoverOperator,
-        instantiate_operator(cross_method, cross_kwargs, label="crossover"),
+        instantiate_operator(cross_method, cross_kwargs, label="crossover", variation_kernels=variation_kernels),
     )
 
     mut_kwargs = dict(mut_params)
@@ -76,14 +91,14 @@ def build_real_variation_pair(
     mut_kwargs.setdefault("workspace", workspace)
     mutation_operator = cast(
         MutationOperator,
-        instantiate_operator(mut_method, mut_kwargs, label="mutation"),
+        instantiate_operator(mut_method, mut_kwargs, label="mutation", variation_kernels=variation_kernels),
     )
 
-    def crossover(parents: np.ndarray, _rng: np.random.Generator = rng) -> np.ndarray:
+    def crossover(parents: NDArray[np.generic], _rng: np.random.Generator = rng) -> NDArray[np.generic]:
         offspring = np.asarray(crossover_operator(parents, _rng))
         return apply_policy_repair(repair_operator, offspring, xl, xu, _rng)
 
-    def mutation(X_child: np.ndarray, _rng: np.random.Generator = rng) -> np.ndarray:
+    def mutation(X_child: NDArray[np.generic], _rng: np.random.Generator = rng) -> NDArray[np.generic]:
         mutated = np.asarray(mutation_operator(X_child, _rng))
         return apply_policy_repair(repair_operator, mutated, xl, xu, _rng)
 

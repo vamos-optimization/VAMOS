@@ -13,6 +13,7 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vamos.engine.algorithm.components.hooks import get_live_viz, setup_genealogy
 from vamos.engine.algorithm.components.lifecycle import get_eval_strategy
@@ -75,16 +76,16 @@ def initialize_moead_run(
     n_var = problem.n_var
     n_obj = problem.n_obj
 
-    X: np.ndarray
-    F: np.ndarray
-    G: np.ndarray | None
+    X: NDArray[np.generic]
+    F: NDArray[np.generic]
+    G: NDArray[np.generic] | None
     n_eval: int
     generation = 0
-    subproblem_order: np.ndarray
+    subproblem_order: NDArray[np.generic]
     subproblem_cursor = 0
-    ideal_override: np.ndarray | None = None
-    checkpoint_archive_X: np.ndarray | None = None
-    checkpoint_archive_F: np.ndarray | None = None
+    ideal_override: NDArray[np.generic] | None = None
+    checkpoint_archive_X: NDArray[np.generic] | None = None
+    checkpoint_archive_F: NDArray[np.generic] | None = None
 
     if checkpoint is not None:
         try:
@@ -210,6 +211,7 @@ def initialize_moead_run(
         xu,
         rng,
         mixed_spec=getattr(problem, "mixed_spec", None),
+        variation_kernels=kernel.variation_kernels(),
     )
 
     ext_cfg = resolve_external_archive(cfg)
@@ -294,13 +296,13 @@ def initialize_population(
     encoding: EncodingLike,
     pop_size: int,
     n_var: int,
-    xl: np.ndarray,
-    xu: np.ndarray,
+    xl: NDArray[np.generic],
+    xu: NDArray[np.generic],
     rng: np.random.Generator,
     problem: ProblemProtocol,
     constraint_mode: str,
     initializer: Any | None = None,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
+) -> tuple[NDArray[np.generic], NDArray[np.generic], NDArray[np.generic] | None]:
     """Initialize population based on encoding.
 
     Parameters
@@ -311,9 +313,9 @@ def initialize_population(
         Population size.
     n_var : int
         Number of decision variables.
-    xl : np.ndarray
+    xl : NDArray[np.generic]
         Lower bounds.
-    xu : np.ndarray
+    xu : NDArray[np.generic]
         Upper bounds.
     rng : np.random.Generator
         Random number generator.
@@ -324,7 +326,7 @@ def initialize_population(
 
     Returns
     -------
-    tuple[np.ndarray, np.ndarray, np.ndarray | None]
+    tuple[NDArray[np.generic], NDArray[np.generic], NDArray[np.generic] | None]
         (X, F, G) population arrays.
     """
     X = initialize_decision_population(

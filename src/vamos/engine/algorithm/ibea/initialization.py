@@ -103,7 +103,7 @@ def initialize_ibea_run(
         pressure = 2
 
     # Build variation pipeline
-    variation = build_variation_pipeline(cfg, encoding, n_var, xl, xu, problem)
+    variation = build_variation_pipeline(cfg, encoding, n_var, xl, xu, problem, variation_kernels=kernel.variation_kernels())
 
     # IBEA parameters
     indicator = cfg.get("indicator", "eps").lower()

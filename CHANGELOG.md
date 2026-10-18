@@ -4,7 +4,22 @@ All notable public changes to VAMOS are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- With `engine="numba"`, the built-in SBX crossover and polynomial mutation
+  operators use compiled arithmetic in every algorithm that builds them
+  (NSGA-II, NSGA-III, MOEA/D, SMS-EMOA, SPEA2, IBEA, SMPSO turbulence,
+  AGE-MOEA and RVEA). Results are bitwise identical to the NumPy operators.
+
 ### Fixed
+
+- Single-mating-pair SBX, which uses compiled arithmetic whenever Numba is
+  installed, now consumes random draws exactly like the NumPy implementation.
+  Steady-state runs (MOEA/D, SMS-EMOA, steady-state NSGA-II) no longer depend
+  on whether Numba is installed when parents are identical.
+- `NumbaKernel.polynomial_mutation` reproduces NumPy for `eta == 1`, and
+  `NumbaKernel.sbx_crossover` now uses compiled arithmetic instead of
+  delegating to NumPy.
 
 - The Numba binary tournament now draws tie-break coins exactly like the
   NumPy reference, one coin per fully tied tournament. Algorithms that use

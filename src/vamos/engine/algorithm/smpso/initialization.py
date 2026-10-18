@@ -207,7 +207,7 @@ def initialize_smpso_run(
     genealogy_tracker, ids = setup_genealogy(pop_size, F, track_genealogy, "smpso")
 
     # Build operators
-    mutation_op = build_mutation_operator(config, encoding, n_var, xl, xu, problem=problem)
+    mutation_op = build_mutation_operator(config, encoding, n_var, xl, xu, problem=problem, variation_kernels=kernel.variation_kernels())
     repair_op = build_repair_operator(config, encoding)
 
     # HV tracker

@@ -8,10 +8,11 @@ from numpy.typing import NDArray
 
 from ._numba_ranking import compute_crowding_numba, fast_non_dominated_sort_ranks, fronts_from_ranks
 from ._numba_selection import binary_tournament_winners_numba
-from .backend import DecisionArray, FloatArray, IndexArray, KernelBackend, NumericArray, RealArray
-from .numba_ops import _polynomial_mutation_numba_impl, tournament_winners_numba
+from ._numba_variation import NUMPY_POWER_SQUARES, polynomial_mutation_apply, verified_variation_kernels
+from .backend import DecisionArray, FloatArray, IndexArray, KernelBackend, NumericArray, RealArray, VariationKernels
+from .numba_ops import tournament_winners_numba
 from .numpy_backend import NumPyKernel as _NumPyKernel
-from .numpy_backend import _as_float, _sample_tournament_candidates, _select_nsga2
+from .numpy_backend import _as_float, _sample_tournament_candidates, _sbx_crossover_flat, _select_nsga2
 
 
 def _as_numeric_keys(values: NumericArray) -> NDArray[np.int64] | NDArray[np.float64]:
@@ -91,6 +92,9 @@ class NumbaKernel(KernelBackend):
     def quality_indicators(self) -> Iterable[str]:
         return ("hypervolume",)
 
+    def variation_kernels(self) -> VariationKernels | None:
+        return verified_variation_kernels()
+
     def nsga2_ranking(self, F: RealArray) -> tuple[IndexArray, FloatArray]:
         return self._rank_and_crowding(F)
 
@@ -154,7 +158,7 @@ class NumbaKernel(KernelBackend):
     ) -> FloatArray:
         if rng is None:
             rng = np.random.default_rng()
-        return self._numpy_ops.sbx_crossover(X_parents, params, rng, xl, xu)
+        return _sbx_crossover_flat(X_parents, params, rng, xl, xu, kernels=self.variation_kernels())
 
     def polynomial_mutation(
         self,
@@ -168,6 +172,10 @@ class NumbaKernel(KernelBackend):
             return
         if rng is None:
             rng = np.random.default_rng()
+        if self.variation_kernels() is None:
+            # Compiled pow differs from np.power on this platform: keep the exact reference.
+            self._numpy_ops.polynomial_mutation(X, params, rng, xl, xu)
+            return
         n_ind, n_var = X.shape
         lower, upper = self._numpy_ops._normalize_bounds(xl, xu, n_var)
         self._ensure_mutation_buffers(n_ind, n_var)
@@ -177,7 +185,7 @@ class NumbaKernel(KernelBackend):
         rnd_delta = self._mutation_delta[:n_ind, :n_var]
         rng.random(out=rnd_mask)
         rng.random(out=rnd_delta)
-        _polynomial_mutation_numba_impl(
+        polynomial_mutation_apply(
             X,
             _as_float(params.get("prob"), 0.1),
             _as_float(params.get("eta"), 20.0),
@@ -185,6 +193,7 @@ class NumbaKernel(KernelBackend):
             upper,
             rnd_mask,
             rnd_delta,
+            NUMPY_POWER_SQUARES,
         )
 
     @overload

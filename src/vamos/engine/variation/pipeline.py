@@ -4,9 +4,10 @@ VariationPipeline class leveraging shared registries/helpers.
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vamos.engine.operators.impl.registry import get_operator_registry
 from vamos.engine.variation.helpers import (
@@ -24,6 +25,9 @@ from vamos.engine.variation.strategies import VariationContext, make_encoding_st
 from vamos.foundation.encoding import EncodingLike, normalize_encoding
 from vamos.foundation.problem.types import ProblemProtocol
 
+if TYPE_CHECKING:
+    from vamos.foundation.kernel.backend import VariationKernels
+
 
 class VariationPipeline:
     """
@@ -39,11 +43,12 @@ class VariationPipeline:
         cross_params: dict[str, Any],
         mut_method: MutationName,
         mut_params: dict[str, Any],
-        xl: np.ndarray,
-        xu: np.ndarray,
+        xl: NDArray[np.generic],
+        xu: NDArray[np.generic],
         workspace: VariationWorkspaceProtocol | None,
         repair_cfg: RepairConfigValue = "auto",
         problem: ProblemProtocol | None = None,
+        variation_kernels: VariationKernels | None = None,
     ) -> None:
         self.encoding = normalize_encoding(encoding)
         self.cross_method = cross_method
@@ -58,7 +63,13 @@ class VariationPipeline:
 
         validate_operator_support(self.encoding, cross_method, mut_method)
 
-        ctx = VariationContext(xl=xl, xu=xu, workspace=workspace, problem=problem)
+        ctx = VariationContext(
+            xl=xl,
+            xu=xu,
+            workspace=workspace,
+            problem=problem,
+            variation_kernels=variation_kernels,
+        )
         strategy = make_encoding_strategy(self.encoding, ctx)
         self.parents_per_group = strategy.parents_per_group(cross_method)
         self.children_per_group = strategy.children_per_group(cross_method)
@@ -89,15 +100,15 @@ class VariationPipeline:
             raise ValueError(f"Failed to initialize repair '{method}' with params {params}. Error: {exc}") from exc
         return cast(RepairOperator, op)
 
-    def gather_parents(self, population: np.ndarray, parent_idx: np.ndarray) -> np.ndarray:
+    def gather_parents(self, population: NDArray[np.generic], parent_idx: NDArray[np.integer[Any]]) -> NDArray[np.generic]:
         if self.workspace is None:
-            return cast(np.ndarray, population[parent_idx])
+            return cast(NDArray[np.generic], population[parent_idx])
         shape = (parent_idx.size, population.shape[1])
         buffer = self.workspace.request("parent_buffer", shape, population.dtype)
         np.take(population, parent_idx, axis=0, out=buffer)
         return buffer
 
-    def produce_offspring(self, parents: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+    def produce_offspring(self, parents: NDArray[np.generic], rng: np.random.Generator) -> NDArray[np.generic]:
         # Crossover
         offspring = self.crossover_op(parents, rng)
         if self.encoding == "real":

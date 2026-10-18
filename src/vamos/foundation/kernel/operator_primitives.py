@@ -1,86 +1,33 @@
 from __future__ import annotations
 
-from typing import Any
+from functools import cache
+from importlib.util import find_spec
+from typing import TYPE_CHECKING
 
 import numpy as np
 
-_sbx_single_pair_numba = None
+if TYPE_CHECKING:
+    from .backend import FloatArray, RealArray, VariationKernels
 
 
-def _get_sbx_single_pair_numba() -> Any:
-    """Lazily compile the Numba SBX kernel on first use."""
-    global _sbx_single_pair_numba  # noqa: PLW0603
-    if _sbx_single_pair_numba is not None:
-        return _sbx_single_pair_numba
-    try:
-        from numba import njit
+@cache
+def available_variation_kernels() -> VariationKernels | None:
+    """Return the compiled variation kernels when numba is installed and exact.
 
-        @njit(cache=True)
-        def _kernel(  # type: ignore[no-untyped-def]
-            p1,
-            p2,
-            xl,
-            xu,
-            eta,
-            prob_var,
-            rand_var,
-            rand_sbx,
-            rand_swap,
-        ):
-            n = p1.shape[0]
-            c1 = p1.copy()
-            c2 = p2.copy()
-            eps = 1.0e-14
-            inv_eta = 1.0 / (eta + 1.0)
-            neg_eta1 = -(eta + 1.0)
-            for j in range(n):
-                if rand_var[j] > prob_var:
-                    continue
-                y1 = min(p1[j], p2[j])
-                y2 = max(p1[j], p2[j])
-                diff = y2 - y1
-                if diff <= eps:
-                    continue
-                r = rand_sbx[j]
-                beta = 1.0 + 2.0 * (y1 - xl[j]) / diff
-                if beta < eps:
-                    beta = eps
-                alpha = 2.0 - beta**neg_eta1
-                if alpha < eps:
-                    alpha = eps
-                if r <= 1.0 / alpha:
-                    betaq = (r * alpha) ** inv_eta
-                else:
-                    betaq = (1.0 / (2.0 - r * alpha)) ** inv_eta
-                v1 = 0.5 * ((y1 + y2) - betaq * diff)
-
-                beta = 1.0 + 2.0 * (xu[j] - y2) / diff
-                if beta < eps:
-                    beta = eps
-                alpha = 2.0 - beta**neg_eta1
-                if alpha < eps:
-                    alpha = eps
-                if r <= 1.0 / alpha:
-                    betaq = (r * alpha) ** inv_eta
-                else:
-                    betaq = (1.0 / (2.0 - r * alpha)) ** inv_eta
-                v2 = 0.5 * ((y1 + y2) + betaq * diff)
-
-                if rand_swap[j] <= 0.5:
-                    c1[j] = v2
-                    c2[j] = v1
-                else:
-                    c1[j] = v1
-                    c2[j] = v2
-            return c1, c2
-
-        _sbx_single_pair_numba = _kernel
-        return _kernel
-    except ImportError:
+    Single-pair SBX has historically used compiled arithmetic whenever numba is
+    importable, independently of the selected engine. The compiled kernels
+    consume random draws exactly like the NumPy code below and are returned
+    only when their arithmetic reproduces NumPy on this platform, so this
+    changes speed, never results.
+    """
+    if find_spec("numba") is None:
         return None
+    from ._numba_variation import verified_variation_kernels
+
+    return verified_variation_kernels()
 
 
-def _ensure_bounds(lower: np.ndarray, upper: np.ndarray, n_var: int) -> tuple[np.ndarray, np.ndarray]:
+def _ensure_bounds(lower: float | RealArray, upper: float | RealArray, n_var: int) -> tuple[FloatArray, FloatArray]:
     lower_arr = np.asarray(lower, dtype=float)
     upper_arr = np.asarray(upper, dtype=float)
     if lower_arr.ndim == 0 or (lower_arr.ndim == 1 and lower_arr.shape[0] == 1 and n_var > 1):
@@ -91,16 +38,17 @@ def _ensure_bounds(lower: np.ndarray, upper: np.ndarray, n_var: int) -> tuple[np
 
 
 def sbx_crossover_pairs(
-    parents: np.ndarray,
+    parents: RealArray,
     *,
     rng: np.random.Generator,
-    lower: np.ndarray,
-    upper: np.ndarray,
+    lower: float | RealArray,
+    upper: float | RealArray,
     prob_crossover: float = 0.9,
     eta: float = 10.0,
     prob_var: float = 0.5,
     inplace: bool = False,
-) -> np.ndarray:
+    kernels: VariationKernels | None = None,
+) -> FloatArray:
     offspring = parents if inplace else np.array(parents, copy=True, dtype=float)
     if offspring.ndim != 3 or offspring.shape[1] != 2:
         raise ValueError("SBX expects a mating tensor of shape (n_pairs, 2, n_var).")
@@ -110,31 +58,18 @@ def sbx_crossover_pairs(
 
     lower_arr, upper_arr = _ensure_bounds(lower, upper, n_var)
 
-    if n_pairs == 1:
-        kernel = _get_sbx_single_pair_numba()
-        if kernel is not None:
-            if rng.random() > prob_crossover:
-                return offspring
-            if prob_var < 1.0:
-                rand_var = np.asarray(rng.random(n_var))
-            else:
-                rand_var = np.zeros(n_var, dtype=np.float64)
-            rand_sbx = rng.random(n_var)
-            rand_swap = rng.random(n_var)
-            c1, c2 = kernel(
-                offspring[0, 0, :],
-                offspring[0, 1, :],
-                lower_arr,
-                upper_arr,
-                float(eta),
-                float(prob_var),
-                rand_var,
-                rand_sbx,
-                rand_swap,
-            )
-            offspring[0, 0, :] = c1
-            offspring[0, 1, :] = c2
-            return offspring
+    if kernels is None and n_pairs == 1:
+        kernels = available_variation_kernels()
+    if kernels is not None and offspring.dtype == np.float64:
+        return kernels.sbx_crossover_pairs(
+            offspring,
+            rng=rng,
+            lower=lower_arr,
+            upper=upper_arr,
+            prob_crossover=float(prob_crossover),
+            eta=float(eta),
+            prob_var=float(prob_var),
+        )
 
     pair_mask = rng.random(n_pairs) <= prob_crossover
     idx = np.flatnonzero(pair_mask)
@@ -194,17 +129,18 @@ def sbx_crossover_pairs(
 
 
 def polynomial_mutation_population(
-    offspring: np.ndarray,
+    offspring: RealArray,
     *,
     rng: np.random.Generator,
-    lower: np.ndarray,
-    upper: np.ndarray,
+    lower: float | RealArray,
+    upper: float | RealArray,
     prob_mutation: float,
     eta: float = 20.0,
-    rnd_mask: np.ndarray | None = None,
-    rnd_delta: np.ndarray | None = None,
+    rnd_mask: RealArray | None = None,
+    rnd_delta: RealArray | None = None,
     inplace: bool = False,
-) -> np.ndarray:
+    kernels: VariationKernels | None = None,
+) -> FloatArray:
     X = offspring if inplace else np.array(offspring, copy=True, dtype=float)
     if X.ndim != 2:
         raise ValueError("Polynomial mutation expects a population matrix of shape (n_ind, n_var).")
@@ -215,6 +151,17 @@ def polynomial_mutation_population(
     lower_arr, upper_arr = _ensure_bounds(lower, upper, n_var)
     active_mask = rnd_mask if rnd_mask is not None else rng.random(X.shape)
     delta_draws = rnd_delta if rnd_delta is not None else rng.random(X.shape)
+    if kernels is not None and X.dtype == np.float64:
+        kernels.polynomial_mutation(
+            X,
+            lower=lower_arr,
+            upper=upper_arr,
+            prob_mutation=float(prob_mutation),
+            eta=float(eta),
+            rnd_mask=np.asarray(active_mask, dtype=float),
+            rnd_delta=np.asarray(delta_draws, dtype=float),
+        )
+        return X
     _polynomial_mutation_inplace(
         X,
         lower=lower_arr,
@@ -228,14 +175,14 @@ def polynomial_mutation_population(
 
 
 def _polynomial_mutation_inplace(
-    X: np.ndarray,
+    X: FloatArray,
     *,
-    lower: np.ndarray,
-    upper: np.ndarray,
+    lower: FloatArray,
+    upper: FloatArray,
     prob_mutation: float,
     eta: float,
-    rnd_mask: np.ndarray,
-    rnd_delta: np.ndarray,
+    rnd_mask: FloatArray,
+    rnd_delta: FloatArray,
 ) -> None:
     active = rnd_mask <= prob_mutation
     if not np.any(active):
@@ -280,6 +227,7 @@ def _polynomial_mutation_inplace(
 
 
 __all__ = [
+    "available_variation_kernels",
     "polynomial_mutation_population",
     "sbx_crossover_pairs",
 ]

@@ -101,6 +101,7 @@ def initialize_nsgaiii_run(
         xu,
         rng,
         mixed_spec=getattr(problem, "mixed_spec", None),
+        variation_kernels=kernel.variation_kernels(),
     )
 
     # Tournament size

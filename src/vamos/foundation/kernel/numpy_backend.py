@@ -7,23 +7,26 @@ Assumes F is float64 of shape (N, M), X is float64 of shape (N, n_var).
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
-from typing import Literal, cast, overload
+from typing import Any, Literal, TypeAlias, cast, overload
 
 import numpy as np
+from numpy.typing import NDArray
 
-from .backend import KernelBackend
+from .backend import DecisionArray, FloatArray, IndexArray, KernelBackend, NumericArray, RealArray, VariationKernels
+
+BoolArray: TypeAlias = NDArray[np.bool_]
 from .operator_primitives import polynomial_mutation_population, sbx_crossover_pairs
 
 _DOMINANCE_TENSOR_BUDGET = 2_000_000
 _TOURNAMENT_KEY_BUDGET = 2_000_000
 
 
-def _dominance_rows(F_rows: np.ndarray, F_all: np.ndarray) -> np.ndarray:
+def _dominance_rows(F_rows: RealArray, F_all: RealArray) -> BoolArray:
     """Compute the dominance relation for ``F_rows`` against ``F_all``."""
     less_equal = F_rows[:, None, :] <= F_all[None, :, :]
     strictly_less = F_rows[:, None, :] < F_all[None, :, :]
     return cast(
-        np.ndarray,
+        BoolArray,
         np.logical_and(
             np.all(less_equal, axis=2),
             np.any(strictly_less, axis=2),
@@ -31,7 +34,7 @@ def _dominance_rows(F_rows: np.ndarray, F_all: np.ndarray) -> np.ndarray:
     )
 
 
-def _fast_non_dominated_sort_dense(F: np.ndarray) -> tuple[list[list[int]], np.ndarray]:
+def _fast_non_dominated_sort_dense(F: RealArray) -> tuple[list[list[int]], IndexArray]:
     """Dense vectorized fast non-dominated sort for moderate population sizes."""
     N = F.shape[0]
     less_equal = F[:, None, :] <= F[None, :, :]
@@ -60,7 +63,7 @@ def _fast_non_dominated_sort_dense(F: np.ndarray) -> tuple[list[list[int]], np.n
     return fronts, rank
 
 
-def _fast_non_dominated_sort_blocked(F: np.ndarray) -> tuple[list[list[int]], np.ndarray]:
+def _fast_non_dominated_sort_blocked(F: RealArray) -> tuple[list[list[int]], IndexArray]:
     """Memory-safe fast non-dominated sort using blocked dominance sweeps."""
     N, M = F.shape
     rank = np.empty(N, dtype=int)
@@ -100,7 +103,7 @@ def _fast_non_dominated_sort_blocked(F: np.ndarray) -> tuple[list[list[int]], np
     return fronts, rank
 
 
-def _fast_non_dominated_sort(F: np.ndarray) -> tuple[list[list[int]], np.ndarray]:
+def _fast_non_dominated_sort(F: RealArray) -> tuple[list[list[int]], IndexArray]:
     """Classic O(N^2) fast non-dominated sort.
 
     Parameters
@@ -110,7 +113,7 @@ def _fast_non_dominated_sort(F: np.ndarray) -> tuple[list[list[int]], np.ndarray
 
     Returns
     -------
-    tuple[list[list[int]], np.ndarray]
+    tuple[list[list[int]], IndexArray]
         Front membership lists and the per-solution front-rank array.
     """
     N = F.shape[0]
@@ -122,7 +125,7 @@ def _fast_non_dominated_sort(F: np.ndarray) -> tuple[list[list[int]], np.ndarray
     return _fast_non_dominated_sort_blocked(F)
 
 
-def _compute_crowding(F: np.ndarray, fronts: list[list[int]]) -> np.ndarray:
+def _compute_crowding(F: RealArray, fronts: list[list[int]]) -> FloatArray:
     """
     Standard crowding-distance computation.
     crowding: array of length N.
@@ -162,7 +165,7 @@ def _compute_crowding(F: np.ndarray, fronts: list[list[int]]) -> np.ndarray:
     return crowding
 
 
-def _select_nsga2(fronts: list[list[int]], crowding: np.ndarray, pop_size: int) -> np.ndarray:
+def _select_nsga2(fronts: list[list[int]], crowding: RealArray, pop_size: int) -> IndexArray:
     """
     NSGA-II elitist selection based on fronts + crowding.
     """
@@ -199,7 +202,7 @@ def _sample_tournament_candidates(
     n_candidates: int,
     n_parents: int,
     pressure: int,
-) -> np.ndarray:
+) -> NDArray[np.int64]:
     take = n_candidates if pressure >= n_candidates else pressure
     kth = n_candidates - 1 if take == n_candidates else take - 1
     if n_parents * n_candidates <= _TOURNAMENT_KEY_BUDGET:
@@ -218,12 +221,12 @@ def _sample_tournament_candidates(
 
 
 def _tournament_winners_numpy(
-    ranks: np.ndarray,
-    crowding: np.ndarray,
-    candidates: np.ndarray,
-    tie_break: np.ndarray,
-    row_index: np.ndarray,
-) -> np.ndarray:
+    ranks: NumericArray,
+    crowding: RealArray,
+    candidates: NDArray[np.integer[Any]],
+    tie_break: FloatArray,
+    row_index: NDArray[np.int64],
+) -> IndexArray:
     candidate_ranks = ranks[candidates]
     best_rank = candidate_ranks.min(axis=1, keepdims=True)
     best_rank_mask = candidate_ranks == best_rank
@@ -238,6 +241,38 @@ def _tournament_winners_numpy(
     return np.asarray(candidates[row_index, winner_pos], dtype=int)
 
 
+def _sbx_crossover_flat(
+    X_parents: RealArray,
+    params: Mapping[str, object],
+    rng: np.random.Generator,
+    xl: float | RealArray,
+    xu: float | RealArray,
+    *,
+    kernels: VariationKernels | None,
+) -> FloatArray:
+    """Pair consecutive parent rows and apply SBX (shared by the kernel backends)."""
+    Np, D = X_parents.shape
+    if Np == 0:
+        return np.empty_like(X_parents)
+    # Handle odd parent count by duplicating the last parent
+    if Np % 2 != 0:
+        X_parents = np.vstack([X_parents, X_parents[-1:]])
+        Np += 1
+    lower, upper = NumPyKernel._normalize_bounds(xl, xu, D)
+    pairs = X_parents.reshape(Np // 2, 2, D)
+    offspring = sbx_crossover_pairs(
+        pairs,
+        rng=rng,
+        lower=lower,
+        upper=upper,
+        prob_crossover=_as_float(params.get("prob"), 0.9),
+        eta=_as_float(params.get("eta"), 20.0),
+        inplace=False,
+        kernels=kernels,
+    )
+    return offspring.reshape(Np, D)
+
+
 class NumPyKernel(KernelBackend):
     """
     Backend with pure NumPy implementations of the NSGA-II kernels.
@@ -247,24 +282,24 @@ class NumPyKernel(KernelBackend):
 
     def __init__(self) -> None:
         self._row_index = np.empty(0, dtype=np.int64)
-        self._score_buffer: np.ndarray | None = None
+        self._score_buffer: FloatArray | None = None
 
-    def _ensure_row_index(self, length: int) -> np.ndarray:
+    def _ensure_row_index(self, length: int) -> NDArray[np.int64]:
         if self._row_index.shape[0] != length:
             self._row_index = np.arange(length, dtype=np.int64)
         return self._row_index
 
-    def _ensure_score_buffer(self, shape: tuple[int, ...]) -> np.ndarray:
+    def _ensure_score_buffer(self, shape: tuple[int, ...]) -> FloatArray:
         if self._score_buffer is None or self._score_buffer.shape != shape:
             self._score_buffer = np.empty(shape, dtype=np.float64)
         return self._score_buffer
 
     @staticmethod
     def _normalize_bounds(
-        xl: float | np.ndarray,
-        xu: float | np.ndarray,
+        xl: float | RealArray,
+        xu: float | RealArray,
         n_var: int,
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[FloatArray, FloatArray]:
         lower = np.asarray(xl, dtype=float)
         upper = np.asarray(xu, dtype=float)
         if lower.ndim == 0 or (lower.ndim == 1 and lower.shape[0] == 1 and n_var > 1):
@@ -279,19 +314,19 @@ class NumPyKernel(KernelBackend):
     def quality_indicators(self) -> Iterable[str]:
         return ("hypervolume",)
 
-    def nsga2_ranking(self, F: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def nsga2_ranking(self, F: RealArray) -> tuple[IndexArray, FloatArray]:
         fronts, ranks = _fast_non_dominated_sort(F)
         crowding = _compute_crowding(F, fronts)
         return ranks, crowding
 
     def tournament_selection(
         self,
-        ranks: np.ndarray,
-        crowding: np.ndarray,
+        ranks: NumericArray,
+        crowding: RealArray,
         pressure: int,
         rng: np.random.Generator,
         n_parents: int,
-    ) -> np.ndarray:
+    ) -> IndexArray:
         """
         Standard binary/m-ary tournament:
         smallest rank wins; break ties with higher crowding.
@@ -340,7 +375,7 @@ class NumPyKernel(KernelBackend):
             pressure=pressure,
         )
         row_index = self._ensure_row_index(n_parents)
-        tie_break = rng.random(candidates.shape)
+        tie_break = rng.random((candidates.shape[0], candidates.shape[1]))
         return _tournament_winners_numpy(
             np.asarray(ranks, dtype=np.int64),
             np.asarray(crowding, dtype=np.float64),
@@ -351,35 +386,17 @@ class NumPyKernel(KernelBackend):
 
     def sbx_crossover(
         self,
-        X_parents: np.ndarray,
+        X_parents: RealArray,
         params: Mapping[str, object],
         rng: np.random.Generator,
         xl: float,
         xu: float,
-    ) -> np.ndarray:
-        Np, D = X_parents.shape
-        if Np == 0:
-            return np.empty_like(X_parents)
-        # Handle odd parent count by duplicating the last parent
-        if Np % 2 != 0:
-            X_parents = np.vstack([X_parents, X_parents[-1:]])
-            Np += 1
-        lower, upper = self._normalize_bounds(xl, xu, D)
-        pairs = X_parents.reshape(Np // 2, 2, D)
-        offspring = sbx_crossover_pairs(
-            pairs,
-            rng=rng,
-            lower=lower,
-            upper=upper,
-            prob_crossover=_as_float(params.get("prob"), 0.9),
-            eta=_as_float(params.get("eta"), 20.0),
-            inplace=False,
-        )
-        return offspring.reshape(Np, D)
+    ) -> FloatArray:
+        return _sbx_crossover_flat(X_parents, params, rng, xl, xu, kernels=None)
 
     def polynomial_mutation(
         self,
-        X: np.ndarray,
+        X: RealArray,
         params: Mapping[str, object],
         rng: np.random.Generator,
         xl: float,
@@ -403,34 +420,34 @@ class NumPyKernel(KernelBackend):
     @overload
     def nsga2_survival(
         self,
-        X: np.ndarray,
-        F: np.ndarray,
-        X_off: np.ndarray,
-        F_off: np.ndarray,
+        X: DecisionArray,
+        F: RealArray,
+        X_off: DecisionArray,
+        F_off: RealArray,
         pop_size: int,
         return_indices: Literal[False] = False,
-    ) -> tuple[np.ndarray, np.ndarray]: ...
+    ) -> tuple[DecisionArray, FloatArray]: ...
 
     @overload
     def nsga2_survival(
         self,
-        X: np.ndarray,
-        F: np.ndarray,
-        X_off: np.ndarray,
-        F_off: np.ndarray,
+        X: DecisionArray,
+        F: RealArray,
+        X_off: DecisionArray,
+        F_off: RealArray,
         pop_size: int,
         return_indices: Literal[True],
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]: ...
+    ) -> tuple[DecisionArray, FloatArray, IndexArray]: ...
 
     def nsga2_survival(
         self,
-        X: np.ndarray,
-        F: np.ndarray,
-        X_off: np.ndarray,
-        F_off: np.ndarray,
+        X: DecisionArray,
+        F: RealArray,
+        X_off: DecisionArray,
+        F_off: RealArray,
         pop_size: int,
         return_indices: bool = False,
-    ) -> tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[DecisionArray, FloatArray] | tuple[DecisionArray, FloatArray, IndexArray]:
         """
         NSGA-II elitism: merge parents + offspring, re-rank, and select.
         """
@@ -443,7 +460,7 @@ class NumPyKernel(KernelBackend):
             return X_comb[sel], F_comb[sel], sel
         return X_comb[sel], F_comb[sel]
 
-    def hypervolume(self, points: np.ndarray, reference_point: np.ndarray) -> float:
+    def hypervolume(self, points: FloatArray, reference_point: FloatArray) -> float:
         from vamos.foundation.quality_indicators.hypervolume import hypervolume as hv_fn
 
         return hv_fn(points, reference_point)

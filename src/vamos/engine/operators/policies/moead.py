@@ -3,9 +3,10 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vamos.engine.algorithm.components.utils import resolve_prob_expression
 from vamos.engine.operators.impl.binary import one_point_crossover
@@ -27,6 +28,9 @@ from vamos.engine.operators.policies.real_repair import apply_policy_repair, res
 from vamos.engine.variation.protocol import RepairConfigValue
 from vamos.foundation.encoding import EncodingLike
 
+if TYPE_CHECKING:
+    from vamos.foundation.kernel.backend import VariationKernels
+
 VariationCrossoverFn = VariationFn
 VariationMutationFn = VariationFn
 
@@ -45,10 +49,12 @@ def build_variation_operators(
     cfg: dict[str, Any],
     encoding: EncodingLike,
     n_var: int,
-    xl: np.ndarray,
-    xu: np.ndarray,
+    xl: NDArray[np.generic],
+    xu: NDArray[np.generic],
     rng: np.random.Generator,
-    mixed_spec: dict[str, np.ndarray] | None = None,
+    mixed_spec: dict[str, NDArray[np.generic]] | None = None,
+    *,
+    variation_kernels: VariationKernels | None = None,
 ) -> tuple[VariationCrossoverFn, VariationMutationFn]:
     """Build crossover and mutation operators for MOEA/D."""
     return build_discrete_variation_operators(
@@ -67,6 +73,7 @@ def build_variation_operators(
         integer_mutation=INT_MUTATION,
         permutation_crossover=PERM_CROSSOVER,
         permutation_mutation=PERM_MUTATION,
+        variation_kernels=variation_kernels,
     )
 
 
@@ -76,10 +83,11 @@ def _build_continuous_operators(
     mut_method: str,
     mut_params: dict[str, Any],
     n_var: int,
-    xl: np.ndarray,
-    xu: np.ndarray,
+    xl: NDArray[np.generic],
+    xu: NDArray[np.generic],
     rng: np.random.Generator,
     repair_cfg: RepairConfigValue,
+    variation_kernels: VariationKernels | None = None,
 ) -> tuple[VariationCrossoverFn, VariationMutationFn]:
     """Build variation operators for continuous/real encoding."""
     method = (cross_method or "sbx").lower()
@@ -91,7 +99,7 @@ def _build_continuous_operators(
         cr = float(cross_params.get("cr", cross_params.get("CR", 1.0)))
         f = float(cross_params.get("f", cross_params.get("F", 0.5)))
 
-        def crossover(parents: np.ndarray, _rng: np.random.Generator = rng) -> np.ndarray:
+        def crossover(parents: NDArray[np.floating[Any]], _rng: np.random.Generator = rng) -> NDArray[np.generic]:
             parents_arr = np.asarray(parents)
             if parents_arr.ndim != 3 or parents_arr.shape[1] != 3:
                 raise ValueError("DE crossover expects parents shaped (n_pairs, 3, n_var).")
@@ -116,9 +124,9 @@ def _build_continuous_operators(
         cross_kwargs.setdefault("lower", xl)
         cross_kwargs.setdefault("upper", xu)
         cross_kwargs.setdefault("workspace", workspace)
-        crossover_operator = instantiate_operator(method, cross_kwargs, label="crossover")
+        crossover_operator = instantiate_operator(method, cross_kwargs, label="crossover", variation_kernels=variation_kernels)
 
-        def crossover(parents: np.ndarray, _rng: np.random.Generator = rng) -> np.ndarray:
+        def crossover(parents: NDArray[np.floating[Any]], _rng: np.random.Generator = rng) -> NDArray[np.generic]:
             offspring = np.asarray(crossover_operator(parents, _rng))
             return apply_policy_repair(repair_operator, offspring, xl, xu, _rng)
 
@@ -131,9 +139,9 @@ def _build_continuous_operators(
     mut_kwargs.setdefault("lower", xl)
     mut_kwargs.setdefault("upper", xu)
     mut_kwargs.setdefault("workspace", workspace)
-    mutation_operator = instantiate_operator(mut_name, mut_kwargs, label="mutation")
+    mutation_operator = instantiate_operator(mut_name, mut_kwargs, label="mutation", variation_kernels=variation_kernels)
 
-    def mutation(X_child: np.ndarray, _rng: np.random.Generator = rng) -> np.ndarray:
+    def mutation(X_child: NDArray[np.generic], _rng: np.random.Generator = rng) -> NDArray[np.generic]:
         mutated = np.asarray(mutation_operator(X_child, _rng))
         return apply_policy_repair(repair_operator, mutated, xl, xu, _rng)
 
