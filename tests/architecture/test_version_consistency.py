@@ -11,8 +11,8 @@ except ModuleNotFoundError:  # pragma: no cover - exercised by the Python 3.10 C
 from vamos.foundation.version import __version__
 
 ROOT = Path(__file__).resolve().parents[2]
-EXPECTED_VERSION = "1.0.1"
-RELEASE_DATE = "2026-10-01"
+EXPECTED_VERSION = "1.0.2"
+RELEASE_DATE = "2026-10-18"
 
 
 def _read(relative: str) -> str:

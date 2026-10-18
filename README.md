@@ -11,8 +11,10 @@ Issues, pull requests, releases, and development are coordinated there. See
 VAMOS bridges the gap between simple research scripts and large-scale optimization studies. It provides a unified API for running state-of-the-art algorithms across diverse problems, backed by vectorized kernels with NumPy as the exact reference path and optional Numba acceleration for core kernels.
 
 VAMOS 1.0.0 is the first official public release and compatibility baseline.
-VAMOS 1.0.1 includes the subsequent algorithm, evaluation, and tuning fixes;
-see the [release notes](docs/project/release-notes-1.0.1.md).
+VAMOS 1.0.2 extends the optional Numba engine to every built-in algorithm, with
+the same trajectories as the NumPy engine for a given seed and environment; see the
+[1.0.2 release notes](docs/project/release-notes-1.0.2.md) and the
+[1.0.1 release notes](docs/project/release-notes-1.0.1.md).
 Earlier version strings and Git tags were internal pre-public development
 markers, not prior public releases. See the
 [stability policy](docs/project/stability-and-versioning.md) and
@@ -368,7 +370,7 @@ If you use VAMOS in published work, cite it directly:
   title = {VAMOS: Vectorized Architecture for Multiobjective Optimization Studies},
   author = {Rodriguez Uribe, Nicolas and Herr{\'a}n, Alberto and Nebro, Antonio J. and Del Ser, Javier and Colmenar, J. Manuel},
   year = {2026},
-  version = {1.0.1},
+  version = {1.0.2},
   url = {https://github.com/vamos-optimization/VAMOS}
 }
 ```
