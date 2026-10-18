@@ -21,10 +21,10 @@ BoolArray: TypeAlias = NDArray[np.bool_]
 IndexArray: TypeAlias = NDArray[np.intp]
 
 _SBX_EPS = 1.0e-14
-_NO_DRAWS = np.empty((0, 0), dtype=np.float64)
 
 
-def _numpy_power_squares_exponent_two() -> bool:
+@cache
+def numpy_power_squares() -> bool:
     """Return whether ``np.power(x, 2.0)`` is evaluated as ``x * x``.
 
     NumPy 2 special-cases a scalar exponent of two; older releases call the
@@ -33,9 +33,6 @@ def _numpy_power_squares_exponent_two() -> bool:
     """
     probe = np.linspace(0.5, 3.0, 1 << 16)
     return bool(np.array_equal(np.power(probe, 2.0), probe * probe))
-
-
-NUMPY_POWER_SQUARES = _numpy_power_squares_exponent_two()
 
 
 @njit(cache=True, error_model="numpy")
@@ -72,7 +69,7 @@ def compiled_power_matches_numpy() -> bool:
     out = np.empty_like(bases)
     with np.errstate(all="ignore"):
         for exponent in exponents:
-            _numpy_power_vector(bases, float(exponent), NUMPY_POWER_SQUARES, out)
+            _numpy_power_vector(bases, float(exponent), numpy_power_squares(), out)
             if not np.array_equal(out, np.power(bases, float(exponent)), equal_nan=True):
                 return False
     return True
@@ -260,7 +257,7 @@ def sbx_crossover_pairs_compiled(
         return offspring
     shape = (pair_index.size, n_var)
     use_var_draws = prob_var < 1.0
-    var_draws = rng.random(shape) if use_var_draws else _NO_DRAWS
+    var_draws = rng.random(shape) if use_var_draws else np.empty((0, 0), dtype=np.float64)
     active = np.empty(shape, dtype=np.bool_)
     if not _sbx_mark_active(offspring, pair_index, var_draws, float(prob_var), use_var_draws, active):
         return offspring
@@ -276,7 +273,7 @@ def sbx_crossover_pairs_compiled(
         upper,
         -(eta + 1.0),
         1.0 / (eta + 1.0),
-        NUMPY_POWER_SQUARES,
+        numpy_power_squares(),
     )
     return offspring
 
@@ -300,7 +297,7 @@ def polynomial_mutation_from_draws(
         upper,
         rnd_mask,
         rnd_delta,
-        NUMPY_POWER_SQUARES,
+        numpy_power_squares(),
     )
 
 
@@ -364,17 +361,20 @@ class NumbaVariationKernels:
         return out
 
 
-NUMBA_VARIATION_KERNELS = NumbaVariationKernels()
+@cache
+def numba_variation_kernels() -> NumbaVariationKernels:
+    """Shared compiled variation kernels (created on first use, not at import)."""
+    return NumbaVariationKernels()
 
 
 def verified_variation_kernels() -> NumbaVariationKernels | None:
     """Return the compiled kernels only when they reproduce NumPy on this platform."""
-    return NUMBA_VARIATION_KERNELS if compiled_power_matches_numpy() else None
+    return numba_variation_kernels() if compiled_power_matches_numpy() else None
 
 
 __all__ = [
-    "NUMBA_VARIATION_KERNELS",
-    "NUMPY_POWER_SQUARES",
+    "numpy_power_squares",
+    "numba_variation_kernels",
     "NumbaVariationKernels",
     "compiled_power_matches_numpy",
     "verified_variation_kernels",

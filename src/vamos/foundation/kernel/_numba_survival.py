@@ -8,6 +8,7 @@ kernel does not accept (for example non-finite objective values).
 
 from __future__ import annotations
 
+from functools import cache
 from typing import Any, TypeAlias
 
 import numpy as np
@@ -279,13 +280,17 @@ class NumbaSelectionKernels:
         return indicator_removal(fitness, contrib, int(target_size))
 
 
-NUMBA_SELECTION_KERNELS = NumbaSelectionKernels()
+@cache
+def numba_selection_kernels() -> NumbaSelectionKernels:
+    """Shared compiled selection kernels (created on first use, not at import)."""
+    return NumbaSelectionKernels()
+
 
 __all__ = [
-    "NUMBA_SELECTION_KERNELS",
     "NumbaSelectionKernels",
     "greedy_two_nearest_selection",
     "indicator_removal",
     "iterative_crowding_truncation",
     "kth_distance_truncation",
+    "numba_selection_kernels",
 ]

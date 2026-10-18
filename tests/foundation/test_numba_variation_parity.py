@@ -20,7 +20,7 @@ from vamos.foundation.kernel import _numba_variation
 from vamos.foundation.kernel.numba_backend import NumbaKernel
 from vamos.foundation.kernel.numpy_backend import NumPyKernel
 
-KERNELS = _numba_variation.NUMBA_VARIATION_KERNELS
+KERNELS = _numba_variation.numba_variation_kernels()
 
 requires_exact_power = pytest.mark.skipif(
     not _numba_variation.compiled_power_matches_numpy(),
@@ -154,7 +154,7 @@ def test_compiled_polynomial_mutation_matches_numpy(use_workspace, eta, n_rows):
 @pytest.mark.numba
 def test_power_flag_reproduces_numpy_scalar_exponent_two():
     probe = np.linspace(0.5, 3.0, 4096)
-    if _numba_variation.NUMPY_POWER_SQUARES:
+    if _numba_variation.numpy_power_squares():
         np.testing.assert_array_equal(np.power(probe, 2.0), probe * probe)
     # eta == 1 uses exponent 2.0 inside polynomial mutation; it must stay exact.
     X = np.random.default_rng(4).random((64, 9))
@@ -231,7 +231,7 @@ def test_power_probe_matches_this_platform_numpy():
     matches = True
     with np.errstate(all="ignore"):
         for exponent in (21.0, -21.0, 1.0 / 21.0, 2.0, 0.5):
-            _numba_variation._numpy_power_vector(bases, exponent, _numba_variation.NUMPY_POWER_SQUARES, out)
+            _numba_variation._numpy_power_vector(bases, exponent, _numba_variation.numpy_power_squares(), out)
             matches &= bool(np.array_equal(out, np.power(bases, exponent), equal_nan=True))
     if _numba_variation.compiled_power_matches_numpy():
         assert matches
