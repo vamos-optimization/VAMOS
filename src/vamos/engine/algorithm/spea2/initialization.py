@@ -102,7 +102,7 @@ def initialize_spea2_run(
     n_eval = pop_size
 
     # Environmental selection for initial internal archive
-    env_X, env_F, env_G = environmental_selection(X, F, G, env_archive_size, k_neighbors, constraint_mode)
+    env_X, env_F, env_G = environmental_selection(X, F, G, env_archive_size, k_neighbors, constraint_mode, kernel.selection_kernels())
     selection_raw_fitness, selection_density = selection_fitness_density(env_F, env_G, constraint_mode, k_neighbors)
 
     # Setup external archive (optional, separate from internal)

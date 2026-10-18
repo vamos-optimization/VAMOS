@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 
-from vamos.foundation.kernel.backend import KernelBackend
+from vamos.foundation.kernel.backend import KernelBackend, SelectionKernels
 
 
-def _point_to_line_distance(P: np.ndarray, A: np.ndarray, B: np.ndarray) -> np.ndarray:
+def _point_to_line_distance(P: np.ndarray[Any, Any], A: np.ndarray[Any, Any], B: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     ba = B - A
     denom = np.dot(ba, ba)
     if denom == 0.0:
@@ -18,7 +20,7 @@ def _point_to_line_distance(P: np.ndarray, A: np.ndarray, B: np.ndarray) -> np.n
     return np.asarray(np.sum(residual * residual, axis=1), dtype=float)
 
 
-def _find_corner_solutions(front: np.ndarray) -> np.ndarray:
+def _find_corner_solutions(front: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     m, n = front.shape
     if m <= n:
         return np.arange(m)
@@ -34,7 +36,7 @@ def _find_corner_solutions(front: np.ndarray) -> np.ndarray:
     return indexes
 
 
-def _normalize_front(front: np.ndarray, extreme: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def _normalize_front(front: np.ndarray[Any, Any], extreme: np.ndarray[Any, Any]) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
     if len(extreme) != len(np.unique(extreme, axis=0)):
         normalization = np.max(front, axis=0)
         normalization[normalization == 0.0] = 1.0
@@ -55,17 +57,17 @@ def _normalize_front(front: np.ndarray, extreme: np.ndarray) -> tuple[np.ndarray
     return front / normalization, normalization
 
 
-def _pairwise_distances(front: np.ndarray, p: float) -> np.ndarray:
+def _pairwise_distances(front: np.ndarray[Any, Any], p: float) -> np.ndarray[Any, Any]:
     diff = np.abs(front[:, None, :] - front[None, :, :])
     return np.asarray(np.sum(diff**p, axis=2) ** (1.0 / p), dtype=float)
 
 
-def _minkowski_distances(A: np.ndarray, B: np.ndarray, p: float) -> np.ndarray:
+def _minkowski_distances(A: np.ndarray[Any, Any], B: np.ndarray[Any, Any], p: float) -> np.ndarray[Any, Any]:
     diff = np.abs(A[:, None, :] - B[None, :, :])
     return np.asarray(np.sum(diff**p, axis=2) ** (1.0 / p), dtype=float)
 
 
-def _compute_geometry(front: np.ndarray, extreme: np.ndarray, n_obj: int) -> float:
+def _compute_geometry(front: np.ndarray[Any, Any], extreme: np.ndarray[Any, Any], n_obj: int) -> float:
     d = _point_to_line_distance(front, np.zeros(n_obj), np.ones(n_obj))
     d[extreme] = np.inf
     index = int(np.argmin(d))
@@ -80,7 +82,11 @@ def _compute_geometry(front: np.ndarray, extreme: np.ndarray, n_obj: int) -> flo
     return float(p)
 
 
-def _survival_score(front: np.ndarray, ideal_point: np.ndarray) -> tuple[np.ndarray, float, np.ndarray]:
+def _survival_score(
+    front: np.ndarray[Any, Any],
+    ideal_point: np.ndarray[Any, Any],
+    selection_kernels: SelectionKernels | None = None,
+) -> tuple[np.ndarray[Any, Any], float, np.ndarray[Any, Any]]:
     front = np.round(front, 12, out=front.copy())
     m, n = front.shape
     crowd_dist = np.zeros(m, dtype=float)
@@ -124,6 +130,11 @@ def _survival_score(front: np.ndarray, ideal_point: np.ndarray) -> tuple[np.ndar
         scores = best1.copy()
 
     selected_count = selected_idx.size
+    if selection_kernels is not None:
+        # Same greedy order, first-index ties and float accumulation as the loop below.
+        selection_kernels.greedy_two_nearest_selection(distances, remaining, best1, best2, scores, selected_count, crowd_dist)
+        return crowd_dist, p, normalization
+
     while remaining.size > 0:
         index = int(np.argmax(scores))
         best = int(remaining[index])
@@ -158,12 +169,12 @@ def _survival_score(front: np.ndarray, ideal_point: np.ndarray) -> tuple[np.ndar
     return crowd_dist, p, normalization
 
 
-def age_survival(F: np.ndarray, n_survive: int, kernel: KernelBackend) -> np.ndarray:
+def age_survival(F: np.ndarray[Any, Any], n_survive: int, kernel: KernelBackend) -> np.ndarray[Any, Any]:
     """Select AGE-MOEA survivors from a combined parent-offspring front."""
     ranks, _ = kernel.nsga2_ranking(F)
     max_rank = int(ranks.max()) if ranks.size else 0
 
-    fronts: list[np.ndarray] = []
+    fronts: list[np.ndarray[Any, Any]] = []
     ranked = 0
     last_rank = 0
     for r in range(max_rank + 1):
@@ -179,7 +190,7 @@ def age_survival(F: np.ndarray, n_survive: int, kernel: KernelBackend) -> np.nda
 
     front0 = F[ranks == 0, :]
     ideal_point = np.min(front0, axis=0)
-    crowd_dist[ranks == 0], p, normalization = _survival_score(front0, ideal_point)
+    crowd_dist[ranks == 0], p, normalization = _survival_score(front0, ideal_point, kernel.selection_kernels())
 
     for r in range(1, last_rank):
         front_idx = fronts[r]

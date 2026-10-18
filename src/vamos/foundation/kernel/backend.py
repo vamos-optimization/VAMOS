@@ -52,6 +52,41 @@ class VariationKernels(Protocol):
         ...
 
 
+class SelectionKernels(Protocol):
+    """Compiled survival and truncation loops that reproduce NumPy reference loops.
+
+    The kernels never draw random numbers. Callers use them only for inputs
+    the kernels accept (finite values) and keep their NumPy reference otherwise.
+    """
+
+    name: str
+
+    def iterative_crowding_truncation(self, F: FloatArray, target_size: int) -> NDArray[np.int64]:
+        """Repeatedly drop the first least-crowded row of a single front."""
+        ...
+
+    def greedy_two_nearest_selection(
+        self,
+        distances: FloatArray,
+        remaining: NDArray[np.integer[Any]],
+        best1: FloatArray,
+        best2: FloatArray,
+        scores: FloatArray,
+        selected_count: int,
+        crowd_dist: FloatArray,
+    ) -> None:
+        """AGE-MOEA greedy diversity scores written into ``crowd_dist``."""
+        ...
+
+    def kth_distance_truncation(self, dist: FloatArray, keep: int, k: int) -> NDArray[np.int64]:
+        """SPEA2 truncation by the current k-th nearest-neighbour distance."""
+        ...
+
+    def indicator_removal(self, fitness: FloatArray, contrib: FloatArray, target_size: int) -> NDArray[np.int64]:
+        """IBEA iterative removal of the lowest fitness, updating ``fitness`` in place."""
+        ...
+
+
 class KernelBackend(ABC):
     """
     Interface for all kernel backends used by the evolutionary algorithms.
@@ -93,6 +128,15 @@ class KernelBackend(ABC):
 
         ``None`` means callers keep the reference NumPy operator code. A backend
         that returns kernels guarantees the reference random-draw contract.
+        """
+        return None
+
+    def selection_kernels(self) -> SelectionKernels | None:
+        """
+        Optional compiled survival/truncation loops.
+
+        ``None`` means callers keep their NumPy reference loops. A backend that
+        returns kernels guarantees identical selections for finite inputs.
         """
         return None
 

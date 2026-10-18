@@ -10,6 +10,12 @@ All notable public changes to VAMOS are documented here.
   operators use compiled arithmetic in every algorithm that builds them
   (NSGA-II, NSGA-III, MOEA/D, SMS-EMOA, SPEA2, IBEA, SMPSO turbulence,
   AGE-MOEA and RVEA). Results are bitwise identical to the NumPy operators.
+- With `engine="numba"`, the iterative survival loops of AGE-MOEA (greedy
+  diversity scores), SPEA2 (k-th-distance truncation), IBEA (indicator-based
+  removal) and the crowding-distance archive (SMPSO leaders and crowding
+  external archives) run as compiled kernels that reproduce the NumPy loops
+  exactly, including first-index tie-breaking. Non-finite inputs keep the
+  NumPy path.
 
 ### Changed
 

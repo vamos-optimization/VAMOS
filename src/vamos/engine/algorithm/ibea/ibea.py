@@ -141,7 +141,9 @@ class IBEA:
             F_comb = np.vstack([st.F, F_off])
             G_comb = combine_constraints(st.G, G_off)
 
-            st.X, st.F, st.G, st.fitness = environmental_selection(X_comb, F_comb, G_comb, st.pop_size, st.indicator, st.kappa)
+            st.X, st.F, st.G, st.fitness = environmental_selection(
+                X_comb, F_comb, G_comb, st.pop_size, st.indicator, st.kappa, self.kernel.selection_kernels()
+            )
 
             st.generation += 1
 
@@ -181,7 +183,7 @@ class IBEA:
         self._hv_tracker = cast(HVTracker, hv_tracker)
         return live_cb, eval_strategy, max_eval, hv_tracker
 
-    def _generate_offspring(self, st: IBEAState) -> np.ndarray:
+    def _generate_offspring(self, st: IBEAState) -> np.ndarray[Any, Any]:
         """Generate offspring using tournament selection and variation."""
         if st.variation is None:
             raise RuntimeError("IBEA variation pipeline is not initialized.")
@@ -210,10 +212,10 @@ class IBEA:
     def _evaluate_offspring(
         self,
         problem: ProblemProtocol,
-        X: np.ndarray,
+        X: np.ndarray[Any, Any],
         eval_strategy: EvaluationBackend,
         constraint_mode: str,
-    ) -> tuple[np.ndarray, np.ndarray | None]:
+    ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any] | None]:
         """Evaluate offspring and compute constraints."""
         return evaluate_batch(problem, eval_strategy, X, constraint_mode)
 
@@ -237,12 +239,12 @@ class IBEA:
         if self._st is not None:
             self._st.pending_offspring = None
 
-    def ask(self) -> np.ndarray:
+    def ask(self) -> np.ndarray[Any, Any]:
         """Generate offspring for evaluation.
 
         Returns
         -------
-        np.ndarray
+        np.ndarray[Any, Any]
             Offspring decision vectors to evaluate.
 
         Raises
@@ -265,7 +267,7 @@ class IBEA:
         Parameters
         ----------
         eval_result : Any
-            Objective values as ``np.ndarray``, or an object with ``.F``
+            Objective values as ``np.ndarray[Any, Any]``, or an object with ``.F``
             attribute, or a dict with ``"F"`` key.
         problem : ProblemProtocol | None
             Unused, kept for interface consistency.
@@ -305,7 +307,9 @@ class IBEA:
         F_comb = np.vstack([st.F, F])
         G_comb = combine_constraints(st.G, G)
 
-        st.X, st.F, st.G, st.fitness = environmental_selection(X_comb, F_comb, G_comb, st.pop_size, st.indicator, st.kappa)
+        st.X, st.F, st.G, st.fitness = environmental_selection(
+            X_comb, F_comb, G_comb, st.pop_size, st.indicator, st.kappa, self.kernel.selection_kernels()
+        )
 
         st.n_eval += X_off.shape[0]
         st.generation += 1

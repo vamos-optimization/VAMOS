@@ -112,7 +112,15 @@ def initialize_ibea_run(
     kappa = float(cfg.get("kappa", 1.0))
 
     # Compute initial fitness
-    _, _, _, fitness = environmental_selection(X.copy(), F.copy(), G.copy() if G is not None else None, pop_size, indicator, kappa)
+    _, _, _, fitness = environmental_selection(
+        X.copy(),
+        F.copy(),
+        G.copy() if G is not None else None,
+        pop_size,
+        indicator,
+        kappa,
+        kernel.selection_kernels(),
+    )
 
     # Setup external archive
     ext_cfg = resolve_external_archive(cfg)

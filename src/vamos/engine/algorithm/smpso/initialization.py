@@ -177,7 +177,7 @@ def initialize_smpso_run(
 
     # Leader archive: this is part of SMPSO's runtime semantics and remains
     # independent from any external result archive.
-    leader_archive = CrowdingDistanceArchive(archive_size, n_var, n_obj, X.dtype)
+    leader_archive = CrowdingDistanceArchive(archive_size, n_var, n_obj, X.dtype, selection_kernels=kernel.selection_kernels())
     archive_X, archive_F = leader_archive.update(X, F, G)
     archive_crowding = None
     if archive_F is not None and archive_F.size:

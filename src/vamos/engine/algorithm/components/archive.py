@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import warnings
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from vamos.engine.algorithm.components.archive_core import DeduplicateIn, _BaseArchive
 from vamos.engine.archive.pruning_selectors import select_maxmin_subset, select_ref_dirs_subset
 from vamos.foundation.kernel.numpy_backend import _compute_crowding
+
+if TYPE_CHECKING:
+    from vamos.foundation.kernel.backend import SelectionKernels
 
 try:  # pragma: no cover - optional dependency
     import moocore as _moocore
@@ -17,13 +20,13 @@ except ImportError:  # pragma: no cover - optional dependency
 _HV_FALLBACK_WARNED = False
 
 
-def _single_front_crowding(F: np.ndarray) -> np.ndarray:
+def _single_front_crowding(F: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     if F.shape[0] == 0:
         return np.empty(0, dtype=float)
     return _compute_crowding(F, [list(range(F.shape[0]))])
 
 
-def _hv_contributions(F: np.ndarray, ref: np.ndarray) -> np.ndarray:
+def _hv_contributions(F: np.ndarray[Any, Any], ref: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     """Compute HV contributions while preserving this module's MooCore test hook."""
     global _HV_FALLBACK_WARNED
     if F.shape[0] == 0:
@@ -43,13 +46,45 @@ def _hv_contributions(F: np.ndarray, ref: np.ndarray) -> np.ndarray:
 class CrowdingDistanceArchive(_BaseArchive):
     """Bounded archive with NSGA-II-style iterative crowding truncation."""
 
+    def __init__(
+        self,
+        capacity: int | None,
+        n_var: int,
+        n_obj: int,
+        dtype: Any,
+        *,
+        truncate_size: int | None = None,
+        objective_tolerance: float = 1e-10,
+        deduplicate_in: DeduplicateIn = "objective",
+        decision_tolerance: float = 1e-32,
+        n_con: int | None = None,
+        initial_capacity: int = 256,
+        selection_kernels: SelectionKernels | None = None,
+    ) -> None:
+        super().__init__(
+            capacity,
+            n_var,
+            n_obj,
+            dtype,
+            truncate_size=truncate_size,
+            objective_tolerance=objective_tolerance,
+            deduplicate_in=deduplicate_in,
+            decision_tolerance=decision_tolerance,
+            n_con=n_con,
+            initial_capacity=initial_capacity,
+        )
+        self.selection_kernels = selection_kernels
+
     def _select_subset(
         self,
-        F: np.ndarray,
+        F: np.ndarray[Any, Any],
         target_size: int,
-        G: np.ndarray | None = None,
-    ) -> np.ndarray:
+        G: np.ndarray[Any, Any] | None = None,
+    ) -> np.ndarray[Any, Any]:
         _ = G
+        if self.selection_kernels is not None and F.shape[0] > target_size and bool(np.isfinite(F).all()):
+            # Same crowding values and first-argmin removals as the loop below.
+            return np.asarray(self.selection_kernels.iterative_crowding_truncation(F, target_size), dtype=int)
         keep = np.arange(F.shape[0], dtype=int)
         while keep.size > target_size:
             crowd = _single_front_crowding(F[keep])
@@ -69,7 +104,7 @@ class HypervolumeArchive(_BaseArchive):
         dtype: Any,
         *,
         ref_offset: float = 1.0,
-        ref_point: np.ndarray | list[float] | None = None,
+        ref_point: np.ndarray[Any, Any] | list[float] | None = None,
         truncate_size: int | None = None,
         objective_tolerance: float = 1e-10,
         deduplicate_in: DeduplicateIn = "objective",
@@ -88,15 +123,15 @@ class HypervolumeArchive(_BaseArchive):
             n_con=n_con,
         )
         self._ref_offset = float(ref_offset)
-        self._global_worst: np.ndarray | None = None
-        self._fixed_ref: np.ndarray | None = None
+        self._global_worst: np.ndarray[Any, Any] | None = None
+        self._fixed_ref: np.ndarray[Any, Any] | None = None
         if ref_point is not None:
             ref = np.asarray(ref_point, dtype=float)
             if ref.ndim != 1 or ref.shape[0] != self._n_obj:
                 raise ValueError(f"hv_ref_point must be 1D with length {self._n_obj}, got shape {ref.shape}.")
             self._fixed_ref = ref.copy()
 
-    def _stable_ref(self, F: np.ndarray) -> np.ndarray:
+    def _stable_ref(self, F: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
         current_max = np.max(F, axis=0)
         if self._global_worst is None:
             self._global_worst = current_max.copy()
@@ -104,17 +139,17 @@ class HypervolumeArchive(_BaseArchive):
             np.maximum(self._global_worst, current_max, out=self._global_worst)
         return self._global_worst + self._ref_offset
 
-    def _reference(self, F: np.ndarray) -> np.ndarray:
+    def _reference(self, F: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
         if self._fixed_ref is not None:
             return self._fixed_ref
         return self._stable_ref(F)
 
     def _select_subset(
         self,
-        F: np.ndarray,
+        F: np.ndarray[Any, Any],
         target_size: int,
-        G: np.ndarray | None = None,
-    ) -> np.ndarray:
+        G: np.ndarray[Any, Any] | None = None,
+    ) -> np.ndarray[Any, Any]:
         _ = G
         keep = np.arange(F.shape[0], dtype=int)
         while keep.size > target_size:
@@ -163,10 +198,10 @@ class SPEA2Archive(_BaseArchive):
 
     def _select_subset(
         self,
-        F: np.ndarray,
+        F: np.ndarray[Any, Any],
         target_size: int,
-        G: np.ndarray | None = None,
-    ) -> np.ndarray:
+        G: np.ndarray[Any, Any] | None = None,
+    ) -> np.ndarray[Any, Any]:
         _ = G
         from vamos.engine.algorithm.spea2.helpers import truncate_by_distance
 
@@ -183,10 +218,10 @@ class MaxMinArchive(_BaseArchive):
 
     def _select_subset(
         self,
-        F: np.ndarray,
+        F: np.ndarray[Any, Any],
         target_size: int,
-        G: np.ndarray | None = None,
-    ) -> np.ndarray:
+        G: np.ndarray[Any, Any] | None = None,
+    ) -> np.ndarray[Any, Any]:
         _ = G
         return select_maxmin_subset(F, target_size)
 
@@ -223,10 +258,10 @@ class ReferenceDirectionsArchive(_BaseArchive):
 
     def _select_subset(
         self,
-        F: np.ndarray,
+        F: np.ndarray[Any, Any],
         target_size: int,
-        G: np.ndarray | None = None,
-    ) -> np.ndarray:
+        G: np.ndarray[Any, Any] | None = None,
+    ) -> np.ndarray[Any, Any]:
         _ = G
         return select_ref_dirs_subset(F, target_size, self._rng)
 
