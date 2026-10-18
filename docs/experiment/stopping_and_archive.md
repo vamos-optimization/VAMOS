@@ -87,10 +87,10 @@ Notes:
   of the convergence monitor.
 - For an **algorithm result archive**, use its public configuration builder and
   inspect the resolved `result_mode`; see [Algorithms and backends](../reference/algorithms.md).
-  In SMPSO 1.0.1, the search leaders and optional external result archive are
+  Since VAMOS 1.0.1, the SMPSO search leaders and optional external result archive are
   separate, and explicit `population` mode returns the final swarm. See the
   [changes since 1.0.0](../reference/algorithms.md#changes-included-in-101).
-- The 1.0.1 tuning CLI excludes result-archive controls from its ordinary search
+- Since VAMOS 1.0.1, the tuning CLI excludes result-archive controls from its ordinary search
   and scores the feasible non-dominated final population. See
   [Tuning version differences](../topics/tuning.md#changes-included-in-101).
 

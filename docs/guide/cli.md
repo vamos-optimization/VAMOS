@@ -1,10 +1,10 @@
 # CLI and config files
 
 Install the [published package](installation.md) before using these commands.
-The examples target VAMOS 1.0.1; use `vamos --help` or `vamos <command> --help`
+The examples target VAMOS 1.0.2; use `vamos --help` or `vamos <command> --help`
 for the parser in your installed version.
 
-| Command family | Status in 1.0.1 | Use it for |
+| Command family | Status in 1.0.2 | Use it for |
 | --- | --- | --- |
 | Main optimization runner | **Stable** core invocation | One run or a configured problem set |
 | `results inspect`, `results verify`, `reproduce` | **Stable** | Canonical run inspection, integrity, and exact replay |
@@ -185,7 +185,7 @@ vamos --problem zdt1 --experiment backends --max-evaluations 2000
 ```
 
 Install optional kernels with
-`python -m pip install "vamos-optimization[compute]==1.0.1"`.
+`python -m pip install "vamos-optimization[compute]==1.0.2"`.
 The `--experiment backends` comparison skips unavailable optional kernels with
 a warning. An explicit single-run `--engine numba` or `--engine moocore`
 instead fails if that dependency is missing; it never switches silently.
