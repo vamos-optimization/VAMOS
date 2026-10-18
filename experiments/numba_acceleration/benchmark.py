@@ -422,10 +422,12 @@ def command_report(args: argparse.Namespace) -> None:
         ]
         for case in dict.fromkeys(case for case, _ in runs):
             seeds = sorted({seed for (c, _, seed) in digests if c == case})
-            signature: dict[str, tuple[str, ...]] = {}
+            # Keep each seed paired with every digest it produced so different seed mappings
+            # or nondeterministic repeats of one seed can never look identical.
+            signature: dict[str, tuple[tuple[int, tuple[str, ...]], ...]] = {}
             for label in labels:
-                signature[label] = tuple(sorted(next(iter(digests.get((case, label, seed), {"-"}))) for seed in seeds))
-            groups: dict[tuple[str, ...], list[str]] = defaultdict(list)
+                signature[label] = tuple((seed, tuple(sorted(digests.get((case, label, seed), {"-"})))) for seed in seeds)
+            groups: dict[tuple[tuple[int, tuple[str, ...]], ...], list[str]] = defaultdict(list)
             for label, key in signature.items():
                 groups[key].append(label)
             lines.append(f"| {case} | " + "; ".join(" = ".join(group) for group in groups.values()) + " |")
