@@ -6,13 +6,13 @@ from typing import Any, Literal, overload
 import numpy as np
 from numpy.typing import NDArray
 
-from ._numba_ranking import compute_crowding_numba, fast_non_dominated_sort_ranks, fronts_from_ranks
+from ._numba_ranking import compute_crowding_numba, fast_non_dominated_sort_ranks, nsga2_survival_split
 from ._numba_selection import binary_tournament_winners_numba
 from ._numba_variation import NUMPY_POWER_SQUARES, polynomial_mutation_apply, verified_variation_kernels
 from .backend import DecisionArray, FloatArray, IndexArray, KernelBackend, NumericArray, RealArray, VariationKernels
 from .numba_ops import tournament_winners_numba
 from .numpy_backend import NumPyKernel as _NumPyKernel
-from .numpy_backend import _as_float, _sample_tournament_candidates, _sbx_crossover_flat, _select_nsga2
+from .numpy_backend import _as_float, _sample_tournament_candidates, _sbx_crossover_flat
 
 
 def _as_numeric_keys(values: NumericArray) -> NDArray[np.int64] | NDArray[np.float64]:
@@ -21,6 +21,23 @@ def _as_numeric_keys(values: NumericArray) -> NDArray[np.int64] | NDArray[np.flo
     if arr.dtype.kind in "iu":
         return arr.astype(np.int64, copy=False)
     return arr.astype(np.float64, copy=False)
+
+
+def _nsga2_survivors(F: FloatArray, pop_size: int) -> IndexArray:
+    """NSGA-II elitist selection with the reference ordering of ``_select_nsga2``.
+
+    Complete fronts are taken in rank order with ascending indices; the splitting
+    front is ordered by ``np.argsort`` of its crowding distances, reversed, exactly
+    like the NumPy reference. Crowding is computed only for that front because no
+    other front's crowding affects the selection.
+    """
+    ranks = fast_non_dominated_sort_ranks(F)
+    complete, splitting, crowding = nsga2_survival_split(F, ranks, pop_size)
+    if splitting.size == 0:
+        return np.asarray(complete, dtype=np.int_)
+    order = np.argsort(crowding)[::-1]
+    remaining = pop_size - complete.shape[0]
+    return np.asarray(np.concatenate((complete, splitting[order[:remaining]])), dtype=np.int_)
 
 
 class NumbaKernel(KernelBackend):
@@ -32,8 +49,6 @@ class NumbaKernel(KernelBackend):
         self._numpy_ops = _NumPyKernel()
         self._X_buffer: DecisionArray | None = None
         self._F_buffer: FloatArray | None = None
-        self._X_output: DecisionArray | None = None
-        self._F_output: FloatArray | None = None
         self._mutation_mask: FloatArray | None = None
         self._mutation_delta: FloatArray | None = None
 
@@ -63,13 +78,6 @@ class NumbaKernel(KernelBackend):
         np.copyto(X_view[split:], X_off)
         np.copyto(F_view[split:], F_off, casting="unsafe")
         return X_view, F_view
-
-    def _ensure_output_buffers(self, size: int, n_var: int, n_obj: int, dtype: Any) -> None:
-        dtype = np.dtype(dtype)
-        if self._X_output is None or self._X_output.shape[0] < size or self._X_output.shape[1] != n_var or self._X_output.dtype != dtype:
-            self._X_output = np.empty((size, n_var), dtype=dtype, order="C")
-        if self._F_output is None or self._F_output.shape[0] < size or self._F_output.shape[1] != n_obj:
-            self._F_output = np.empty((size, n_obj), dtype=np.float64, order="C")
 
     def _ensure_mutation_buffers(self, n_ind: int, n_var: int) -> None:
         if self._mutation_mask is None or self._mutation_mask.shape[0] < n_ind or self._mutation_mask.shape[1] != n_var:
@@ -232,16 +240,13 @@ class NumbaKernel(KernelBackend):
             if return_indices:
                 return self._numpy_ops.nsga2_survival(X, F, X_off, F_off, pop_size, return_indices=True)
             return self._numpy_ops.nsga2_survival(X, F, X_off, F_off, pop_size, return_indices=False)
-        ranks, crowding = self._rank_and_crowding(F_comb)
-        sel = _select_nsga2(fronts_from_ranks(ranks), crowding, pop_size)
-        self._ensure_output_buffers(pop_size, X_comb.shape[1], F_comb.shape[1], X_comb.dtype)
-        assert self._X_output is not None
-        assert self._F_output is not None
-        np.copyto(self._X_output[:pop_size], X_comb[sel])
-        np.copyto(self._F_output[:pop_size], F_comb[sel])
+        sel = _nsga2_survivors(F_comb, pop_size)
+        # Fancy indexing returns arrays owned by the caller; the combine buffers stay private.
+        X_sel = X_comb[sel]
+        F_sel = F_comb[sel]
         if return_indices:
-            return self._X_output[:pop_size], self._F_output[:pop_size], sel
-        return self._X_output[:pop_size], self._F_output[:pop_size]
+            return X_sel, F_sel, sel
+        return X_sel, F_sel
 
     def hypervolume(self, points: FloatArray, reference_point: FloatArray) -> float:
         from vamos.foundation.quality_indicators.hypervolume import hypervolume as hv_fn

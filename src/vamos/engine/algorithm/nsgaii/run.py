@@ -33,7 +33,7 @@ def notify_generation(
     algo: NSGAII,
     live_cb: LiveVisualization,
     generation: int,
-    F: np.ndarray,
+    F: np.ndarray[Any, Any],
     problem: Any | None = None,
     evals: int | None = None,
 ) -> bool:
@@ -58,8 +58,10 @@ def notify_generation(
                 st.fronts = None
 
     try:
-        ranks, _ = algo.kernel.nsga2_ranking(F)
+        ranks, crowding = algo.kernel.nsga2_ranking(F)
         nd_mask = ranks == ranks.min(initial=0)
+        if st is not None:
+            st.publish_generation_ranking(F, ranks, crowding)
     except (ValueError, IndexError) as exc:
         _logger().debug("Failed to compute non-dominated front for viz: %s", exc)
         nd_mask = None

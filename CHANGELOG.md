@@ -11,16 +11,29 @@ All notable public changes to VAMOS are documented here.
   (NSGA-II, NSGA-III, MOEA/D, SMS-EMOA, SPEA2, IBEA, SMPSO turbulence,
   AGE-MOEA and RVEA). Results are bitwise identical to the NumPy operators.
 
+### Changed
+
+- The Numba kernel ranks populations with three or more objectives by
+  sequential-search non-dominated sorting over a lexicographic presort, and
+  NSGA-II survival computes crowding only for the front it truncates. Ranks,
+  crowding and survivor order are unchanged.
+- NSGA-II reuses the generation-end ranking of an unchanged population for the
+  next parent selection, and constrained selection no longer computes an
+  unconstrained ranking it then discards. Trajectories are unchanged.
+
 ### Fixed
 
 - Single-mating-pair SBX, which uses compiled arithmetic whenever Numba is
   installed, now consumes random draws exactly like the NumPy implementation.
   Steady-state runs (MOEA/D, SMS-EMOA, steady-state NSGA-II) no longer depend
   on whether Numba is installed when parents are identical.
+- `NumbaKernel.nsga2_survival` returns arrays owned by the caller. It used to
+  return views of reusable buffers, so a later call with the same kernel (for
+  example a second run of the same algorithm object) overwrote previously
+  returned populations and results.
 - `NumbaKernel.polynomial_mutation` reproduces NumPy for `eta == 1`, and
   `NumbaKernel.sbx_crossover` now uses compiled arithmetic instead of
   delegating to NumPy.
-
 - The Numba binary tournament now draws tie-break coins exactly like the
   NumPy reference, one coin per fully tied tournament. Algorithms that use
   tournament selection (NSGA-II, NSGA-III, IBEA, AGE-MOEA, and SMS-EMOA with

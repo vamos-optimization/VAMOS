@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+from typing import Any, TypeAlias
+
 import numpy as np
+from numpy.typing import NDArray
 
 from .numba_ops import njit
 
+FloatArray: TypeAlias = NDArray[np.float64]
+RealArray: TypeAlias = NDArray[np.floating[Any]]
+RankArray: TypeAlias = NDArray[np.int64]
+
 
 @njit(cache=True)
-def _fast_non_dominated_sort_ranks_2d_sorted(F_sorted: np.ndarray, y_codes: np.ndarray) -> np.ndarray:
+def _fast_non_dominated_sort_ranks_2d_sorted(F_sorted: FloatArray, y_codes: RankArray) -> RankArray:
     N = F_sorted.shape[0]
     if N == 0:
         return np.empty(0, dtype=np.int64)
@@ -46,7 +53,7 @@ def _fast_non_dominated_sort_ranks_2d_sorted(F_sorted: np.ndarray, y_codes: np.n
     return ranks_sorted
 
 
-def fast_non_dominated_sort_ranks_2d(F: np.ndarray) -> np.ndarray:
+def fast_non_dominated_sort_ranks_2d(F: RealArray) -> RankArray:
     N = F.shape[0]
     if N == 0:
         return np.empty(0, dtype=np.int64)
@@ -61,117 +68,63 @@ def fast_non_dominated_sort_ranks_2d(F: np.ndarray) -> np.ndarray:
 
 
 @njit(cache=True)
-def _fast_non_dominated_sort_ranks_general(F: np.ndarray) -> np.ndarray:
-    N = F.shape[0]
-    if N == 0:
-        return np.empty(0, dtype=np.int64)
+def _sequential_search_ranks(F: RealArray, order: RankArray) -> RankArray:
+    """Pareto ranks by sequential search over a lexicographic visiting order.
 
-    M = F.shape[1]
-    dominated_count = np.zeros(N, dtype=np.int64)
-    out_degree = np.zeros(N, dtype=np.int64)
-
-    for p in range(N - 1):
-        for q in range(p + 1, N):
-            p_dominates = True
-            q_dominates = True
-            p_strict = False
-            q_strict = False
-
-            for m in range(M):
-                fp = F[p, m]
-                fq = F[q, m]
-                if fp < fq:
-                    p_strict = True
-                    q_dominates = False
-                elif fp > fq:
-                    q_strict = True
-                    p_dominates = False
-                if not p_dominates and not q_dominates:
+    ``order`` sorts the rows lexicographically by all objectives, so a row can
+    only be dominated by rows visited before it. Each row joins the first front
+    that holds no row dominating it; by transitivity that front is its rank.
+    The ranks are those of the classic fast non-dominated sort.
+    """
+    n = order.shape[0]
+    n_obj = F.shape[1]
+    ranks = np.empty(n, dtype=np.int64)
+    last_member = np.full(n, -1, dtype=np.int64)
+    previous_member = np.full(n, -1, dtype=np.int64)
+    n_fronts = 0
+    for pos in range(n):
+        row = order[pos]
+        front = 0
+        while front < n_fronts:
+            dominated = False
+            member = last_member[front]
+            while member != -1:
+                member_better = False
+                member_dominates = True
+                for obj in range(n_obj):
+                    a = F[member, obj]
+                    b = F[row, obj]
+                    if a > b:
+                        member_dominates = False
+                        break
+                    if a < b:
+                        member_better = True
+                if member_dominates and member_better:
+                    dominated = True
                     break
-
-            if p_dominates and p_strict:
-                dominated_count[q] += 1
-                out_degree[p] += 1
-            elif q_dominates and q_strict:
-                dominated_count[p] += 1
-                out_degree[q] += 1
-
-    offsets = np.empty(N + 1, dtype=np.int64)
-    offsets[0] = 0
-    for i in range(N):
-        offsets[i + 1] = offsets[i] + out_degree[i]
-
-    dominated = np.empty(offsets[N], dtype=np.int64)
-    cursor = np.empty(N, dtype=np.int64)
-    for i in range(N):
-        cursor[i] = offsets[i]
-
-    for p in range(N - 1):
-        for q in range(p + 1, N):
-            p_dominates = True
-            q_dominates = True
-            p_strict = False
-            q_strict = False
-
-            for m in range(M):
-                fp = F[p, m]
-                fq = F[q, m]
-                if fp < fq:
-                    p_strict = True
-                    q_dominates = False
-                elif fp > fq:
-                    q_strict = True
-                    p_dominates = False
-                if not p_dominates and not q_dominates:
-                    break
-
-            if p_dominates and p_strict:
-                dominated[cursor[p]] = q
-                cursor[p] += 1
-            elif q_dominates and q_strict:
-                dominated[cursor[q]] = p
-                cursor[q] += 1
-
-    ranks = np.empty(N, dtype=np.int64)
-    current = np.empty(N, dtype=np.int64)
-    next_front = np.empty(N, dtype=np.int64)
-
-    current_size = 0
-    for i in range(N):
-        if dominated_count[i] == 0:
-            ranks[i] = 0
-            current[current_size] = i
-            current_size += 1
-
-    level = 0
-    while current_size > 0:
-        next_size = 0
-        for idx in range(current_size):
-            p = current[idx]
-            for edge_idx in range(offsets[p], offsets[p + 1]):
-                q = dominated[edge_idx]
-                dominated_count[q] -= 1
-                if dominated_count[q] == 0:
-                    ranks[q] = level + 1
-                    next_front[next_size] = q
-                    next_size += 1
-
-        for i in range(next_size):
-            current[i] = next_front[i]
-        current_size = next_size
-        level += 1
-
+                member = previous_member[member]
+            if not dominated:
+                break
+            front += 1
+        ranks[row] = front
+        if front == n_fronts:
+            n_fronts += 1
+        previous_member[row] = last_member[front]
+        last_member[front] = row
     return ranks
 
 
-def fast_non_dominated_sort_ranks(F: np.ndarray) -> np.ndarray:
+def fast_non_dominated_sort_ranks(F: RealArray) -> RankArray:
     if F.shape[1] == 2:
         return fast_non_dominated_sort_ranks_2d(F)
-    return _fast_non_dominated_sort_ranks_general(F)
+    if F.shape[0] == 0:
+        return np.empty(0, dtype=np.int64)
+    order = np.lexsort(F.T[::-1]).astype(np.int64, copy=False)
+    return _sequential_search_ranks(F, order)
 
 
 @njit(cache=True)
-def _stable_merge_sort_order(values: np.ndarray, order: np.ndarray, temp: np.ndarray, length: int) -> None:
+def _stable_merge_sort_order(values: FloatArray, order: RankArray, temp: RankArray, length: int) -> None:
     width = 1
     while width < length:
         left = 0
@@ -220,76 +173,125 @@ def _stable_merge_sort_order(values: np.ndarray, order: np.ndarray, temp: np.nda
 
 
 @njit(cache=True)
-def compute_crowding_numba(F: np.ndarray, ranks: np.ndarray) -> np.ndarray:
+def _front_crowding(
+    F: RealArray,
+    members: RankArray,
+    start: int,
+    front_size: int,
+    local_values: FloatArray,
+    local_order: RankArray,
+    local_temp: RankArray,
+    local_dist: FloatArray,
+) -> None:
+    """Crowding distances of ``members[start:start + front_size]`` into ``local_dist``."""
+    for i in range(front_size):
+        local_dist[i] = 0.0
+    if front_size == 1:
+        local_dist[0] = np.inf
+        return
+
+    for obj in range(F.shape[1]):
+        for i in range(front_size):
+            local_order[i] = i
+            local_values[i] = F[members[start + i], obj]
+
+        _stable_merge_sort_order(local_values, local_order, local_temp, front_size)
+        local_dist[local_order[0]] = np.inf
+        local_dist[local_order[front_size - 1]] = np.inf
+
+        span = local_values[local_order[front_size - 1]] - local_values[local_order[0]]
+        if span <= 0.0:
+            continue
+
+        for pos in range(1, front_size - 1):
+            local_dist[local_order[pos]] += (local_values[local_order[pos + 1]] - local_values[local_order[pos - 1]]) / span
+
+
+@njit(cache=True)
+def _ranks_counting_order(ranks: RankArray) -> tuple[RankArray, RankArray]:
+    """Row indices grouped by rank (ascending index within a rank) and rank offsets."""
+    n = ranks.shape[0]
+    max_rank = 0
+    for i in range(n):
+        if ranks[i] > max_rank:
+            max_rank = ranks[i]
+    offsets = np.zeros(max_rank + 2, dtype=np.int64)
+    for i in range(n):
+        offsets[ranks[i] + 1] += 1
+    for rank in range(max_rank + 1):
+        offsets[rank + 1] += offsets[rank]
+    cursor = offsets[:-1].copy()
+    grouped = np.empty(n, dtype=np.int64)
+    for i in range(n):
+        rank = ranks[i]
+        grouped[cursor[rank]] = i
+        cursor[rank] += 1
+    return grouped, offsets
+
+
+@njit(cache=True)
+def compute_crowding_numba(F: RealArray, ranks: RankArray) -> FloatArray:
     N = F.shape[0]
     crowding = np.zeros(N, dtype=np.float64)
     if N == 0:
         return crowding
 
-    max_rank = int(ranks.max())
-    counts = np.zeros(max_rank + 1, dtype=np.int64)
-    for i in range(N):
-        counts[ranks[i]] += 1
-
-    offsets = np.empty(max_rank + 2, dtype=np.int64)
-    offsets[0] = 0
-    for rank in range(max_rank + 1):
-        offsets[rank + 1] = offsets[rank] + counts[rank]
-
-    front_indices = np.empty(N, dtype=np.int64)
-    cursor = np.empty(max_rank + 1, dtype=np.int64)
-    for rank in range(max_rank + 1):
-        cursor[rank] = offsets[rank]
-
-    for idx in range(N):
-        rank = ranks[idx]
-        front_indices[cursor[rank]] = idx
-        cursor[rank] += 1
-
-    max_front_size = int(counts.max())
+    front_indices, offsets = _ranks_counting_order(ranks)
+    n_fronts = offsets.shape[0] - 1
+    max_front_size = 0
+    for rank in range(n_fronts):
+        size = offsets[rank + 1] - offsets[rank]
+        if size > max_front_size:
+            max_front_size = size
     local_values = np.empty(max_front_size, dtype=np.float64)
     local_order = np.empty(max_front_size, dtype=np.int64)
     local_temp = np.empty(max_front_size, dtype=np.int64)
     local_dist = np.empty(max_front_size, dtype=np.float64)
-    n_obj = F.shape[1]
 
-    for rank in range(max_rank + 1):
+    for rank in range(n_fronts):
         start = offsets[rank]
-        end = offsets[rank + 1]
-        front_size = end - start
-
+        front_size = offsets[rank + 1] - start
         if front_size == 0:
             continue
-        if front_size == 1:
-            crowding[front_indices[start]] = np.inf
-            continue
-
-        for i in range(front_size):
-            local_dist[i] = 0.0
-
-        for obj in range(n_obj):
-            for i in range(front_size):
-                local_order[i] = i
-                local_values[i] = F[front_indices[start + i], obj]
-
-            _stable_merge_sort_order(local_values, local_order, local_temp, front_size)
-            local_dist[local_order[0]] = np.inf
-            local_dist[local_order[front_size - 1]] = np.inf
-
-            span = local_values[local_order[front_size - 1]] - local_values[local_order[0]]
-            if span <= 0.0:
-                continue
-
-            for pos in range(1, front_size - 1):
-                local_dist[local_order[pos]] += (local_values[local_order[pos + 1]] - local_values[local_order[pos - 1]]) / span
-
+        _front_crowding(F, front_indices, start, front_size, local_values, local_order, local_temp, local_dist)
         for i in range(front_size):
             crowding[front_indices[start + i]] = local_dist[i]
 
     return crowding
 
 
-def fronts_from_ranks(ranks: np.ndarray) -> list[list[int]]:
+@njit(cache=True)
+def nsga2_survival_split(F: RealArray, ranks: RankArray, pop_size: int) -> tuple[RankArray, RankArray, FloatArray]:
+    """Split NSGA-II survivors into complete fronts and the front that must be truncated.
+
+    Returns the complete-front survivors (rank order, ascending index within a
+    rank), the members of the splitting front (ascending index) and their
+    crowding distances. The splitting front is empty when complete fronts fill
+    ``pop_size`` exactly or the whole population survives.
+    """
+    grouped, offsets = _ranks_counting_order(ranks)
+    n_fronts = offsets.shape[0] - 1
+    selected = 0
+    rank = 0
+    while rank < n_fronts and selected + (offsets[rank + 1] - offsets[rank]) <= pop_size:
+        selected += offsets[rank + 1] - offsets[rank]
+        rank += 1
+    complete = grouped[:selected].copy()
+    if rank >= n_fronts or selected >= pop_size:
+        return complete, np.empty(0, dtype=np.int64), np.empty(0, dtype=np.float64)
+
+    start = offsets[rank]
+    front_size = offsets[rank + 1] - start
+    splitting = grouped[start : start + front_size].copy()
+    local_values = np.empty(front_size, dtype=np.float64)
+    local_order = np.empty(front_size, dtype=np.int64)
+    local_temp = np.empty(front_size, dtype=np.int64)
+    crowding = np.empty(front_size, dtype=np.float64)
+    _front_crowding(F, grouped, start, front_size, local_values, local_order, local_temp, crowding)
+    return complete, splitting, crowding
+
+
+def fronts_from_ranks(ranks: NDArray[np.integer[Any]]) -> list[list[int]]:
     if ranks.size == 0:
         return []
     unique_ranks = np.unique(ranks)
@@ -300,4 +302,5 @@ __all__ = [
     "compute_crowding_numba",
     "fast_non_dominated_sort_ranks",
     "fronts_from_ranks",
+    "nsga2_survival_split",
 ]

@@ -19,17 +19,17 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 1044,
-  "files_with_diagnostics": 124,
-  "fingerprint_count": 131,
+  "diagnostic_count": 1022,
+  "files_with_diagnostics": 121,
+  "fingerprint_count": 127,
   "error_code_summary": {
-    "no-any-return": 7,
-    "type-arg": 1037
+    "no-any-return": 6,
+    "type-arg": 1016
   },
   "layer_summary": {
-    "engine": 578,
+    "engine": 563,
     "experiment": 22,
-    "foundation": 376,
+    "foundation": 369,
     "package-root": 1,
     "ux": 67
   },
@@ -1102,20 +1102,6 @@
         {
           "line": 295,
           "column": 24
-        }
-      ]
-    },
-    {
-      "fingerprint": "3CDD8322CCB987810508CE6A7F097B5F6593424726943E853DD1D7A2DBF527AC",
-      "path": "src/vamos/engine/algorithm/nsgaii/ask_tell.py",
-      "error_code": "no-any-return",
-      "normalized_message": "Returning Any from function declared to return \"ndarray[Any, Any] | None\"",
-      "layer": "engine",
-      "multiplicity": 1,
-      "locations": [
-        {
-          "line": 59,
-          "column": 5
         }
       ]
     },
@@ -2464,44 +2450,6 @@
         {
           "line": 195,
           "column": 27
-        }
-      ]
-    },
-    {
-      "fingerprint": "660EA168F1C03ABFF1180B30BE7E476CC21D66FAE75C842C6F01C72701C140C7",
-      "path": "src/vamos/foundation/kernel/_numba_ranking.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "foundation",
-      "multiplicity": 7,
-      "locations": [
-        {
-          "line": 9,
-          "column": 56
-        },
-        {
-          "line": 49,
-          "column": 41
-        },
-        {
-          "line": 64,
-          "column": 47
-        },
-        {
-          "line": 167,
-          "column": 38
-        },
-        {
-          "line": 174,
-          "column": 38
-        },
-        {
-          "line": 223,
-          "column": 31
-        },
-        {
-          "line": 292,
-          "column": 30
         }
       ]
     },
@@ -4004,20 +3952,6 @@
       ]
     },
     {
-      "fingerprint": "A534F44D667C64333A8578211AAC3D37CB6102CC3CAF8126AB1695DFAD5DF19E",
-      "path": "src/vamos/engine/algorithm/nsgaii/run.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 1,
-      "locations": [
-        {
-          "line": 36,
-          "column": 8
-        }
-      ]
-    },
-    {
       "fingerprint": "B530EA7D374BBE1C8FBD601983CD4C657F45BA2E1C02663ADC33FF14A29DC4CC",
       "path": "src/vamos/engine/operators/impl/_mixed_crossover.py",
       "error_code": "type-arg",
@@ -4670,68 +4604,6 @@
         {
           "line": 118,
           "column": 5
-        }
-      ]
-    },
-    {
-      "fingerprint": "D7F0FC42B3912B263DA5623FC2A83BC5558B699735D12EFA3104446F7804F871",
-      "path": "src/vamos/engine/algorithm/nsgaii/ask_tell.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 13,
-      "locations": [
-        {
-          "line": 34,
-          "column": 37
-        },
-        {
-          "line": 42,
-          "column": 55
-        },
-        {
-          "line": 69,
-          "column": 12
-        },
-        {
-          "line": 70,
-          "column": 15
-        },
-        {
-          "line": 71,
-          "column": 19
-        },
-        {
-          "line": 72,
-          "column": 12
-        },
-        {
-          "line": 73,
-          "column": 29
-        },
-        {
-          "line": 115,
-          "column": 8
-        },
-        {
-          "line": 116,
-          "column": 8
-        },
-        {
-          "line": 117,
-          "column": 8
-        },
-        {
-          "line": 118,
-          "column": 12
-        },
-        {
-          "line": 135,
-          "column": 33
-        },
-        {
-          "line": 153,
-          "column": 24
         }
       ]
     },
