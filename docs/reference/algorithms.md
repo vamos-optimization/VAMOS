@@ -95,6 +95,42 @@ These are implementation fixes under the existing stability policy. Record the p
 | `numba` | Optional backend | JIT implementations of supported kernels; includes compilation cost on first use. |
 | `moocore` | Optional backend | Native non-dominated sorting/hypervolume operations where available; not every algorithm step is accelerated. |
 
+### Numba engine coverage
+
+`engine="numba"` replaces selected numerical steps with compiled kernels. Each
+kernel is written to reproduce the NumPy reference: the same random draws in the
+same order, the same tie-breaking and the same floating-point operations. The
+repository's parity tests check that the built-in algorithms follow identical
+trajectories under both engines for the same seed in the same environment;
+cross-backend bitwise equality nevertheless remains outside the
+[stability promise](../project/stability-and-versioning.md). Selecting an engine
+never compiles problem evaluation.
+
+| Algorithm | Compiled with `engine="numba"` | Stays in NumPy/Python |
+| --- | --- | --- |
+| NSGA-II | Non-dominated ranking and crowding, survival, tournament selection, SBX, polynomial mutation | Steady-state incremental front maintenance for three or more objectives, feasibility ordering, archives |
+| NSGA-III | Ranking and crowding, tournament selection, SBX, polynomial mutation | Normalization, association to reference directions, niching (it shuffles with the run generator inside the loop) |
+| MOEA/D | Differential-evolution children, SBX, polynomial mutation, neighbourhood replacement | Parent sampling, repair, weight geometry |
+| SMS-EMOA | SBX, polynomial mutation; ranking and tournament selection where configured | Front insertion, hypervolume contributions (MooCore when installed) |
+| SPEA2 | SBX, polynomial mutation, k-th-distance truncation | Strength/raw fitness and density (vectorized NumPy) |
+| IBEA | Tournament selection, SBX, polynomial mutation, indicator-based removal | Indicator matrix |
+| SMPSO | Turbulence mutation, leaders-archive crowding truncation | Velocity/position updates (vectorized NumPy), deduplication |
+| AGE-MOEA | Ranking and crowding, tournament selection, SBX, polynomial mutation, greedy survival scores | Front normalization and pairwise Minkowski distances |
+| RVEA | SBX, polynomial mutation | Angle-penalized survival and reference-vector adaptation (vectorized NumPy) |
+
+Compiled SBX and polynomial mutation are enabled only after a one-time check
+that compiled `pow` matches `np.power` bit for bit on the platform (some NumPy
+builds use vendor SIMD power). Otherwise the Numba engine keeps the NumPy
+operators. Compiled ranking, survival and archive truncation fall back to NumPy
+for non-finite objective values.
+
+Two compiled paths depend on whether Numba is installed rather than on the
+engine: the MOEA/D neighbourhood update (disable with
+`VAMOS_USE_NUMBA_MOEAD=0`) and SBX applied to a single mating pair (MOEA/D,
+SMS-EMOA, steady-state NSGA-II). Both reproduce the NumPy results, so they
+change speed, not trajectories. Compare engines in an environment without
+Numba when you need a pure NumPy timing reference.
+
 ## Probability shorthand
 
 - Operator probabilities accept either a numeric value or the string literal `"1/n"`.
