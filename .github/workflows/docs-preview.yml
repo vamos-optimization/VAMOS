@@ -41,7 +41,8 @@ env:
 jobs:
   build:
     name: Build documentation preview artifact
-    runs-on: ubuntu-latest
+    # Keep browser QA on an OS supported by the pinned Playwright toolchain.
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

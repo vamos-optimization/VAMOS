@@ -73,6 +73,7 @@ def test_preview_workflow_is_read_only_and_artifact_only() -> None:
     workflow = (ROOT / ".github" / "workflows" / "docs-preview.yml").read_text(encoding="utf-8")
 
     assert "pull_request:" in workflow
+    assert "runs-on: ubuntu-24.04" in workflow
     assert "python tools/build_release_docs.py" in workflow
     assert "python tools/check_docs_portal.py" in workflow
     assert UPLOAD_ARTIFACT in workflow
