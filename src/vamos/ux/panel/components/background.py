@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 import panel as pn
 
@@ -59,6 +60,50 @@ class BackgroundWork(Generic[T]):
             self._executor = None
 
 
+class BackgroundRun(Generic[T]):
+    """Run one long job in a thread, refresh the page while it runs, and report its end.
+
+    ``on_tick`` runs on the session every ``period_ms`` while the job runs;
+    ``on_done`` receives the result or the exception. Without a server
+    session, as in tests, the job runs inline, then one tick and ``on_done`` run.
+    """
+
+    def __init__(self, *, on_tick: Callable[[], None], on_done: Callable[[T | Exception], None], period_ms: int = 1000) -> None:
+        self._on_tick = on_tick
+        self._on_done = on_done
+        self._period_ms = period_ms
+        self._ticker: Any = None
+        self.running = False
+
+    def start(self, work: Callable[[], T]) -> bool:
+        """Start ``work``; ``False`` when a job is already running."""
+        if self.running:
+            return False
+        document = pn.state.curdoc
+        if document is None or document.session_context is None:
+            result = _run(work)
+            self._on_tick()
+            self._on_done(result)
+            return True
+        self.running = True
+        self._ticker = pn.state.add_periodic_callback(self._on_tick, period=self._period_ms)
+
+        def run() -> None:
+            result = _run(work)
+            document.add_next_tick_callback(lambda: self._finish(result))
+
+        threading.Thread(target=run, name="vamos-studio-run", daemon=True).start()
+        return True
+
+    def _finish(self, result: T | Exception) -> None:
+        if self._ticker is not None:
+            self._ticker.stop()
+            self._ticker = None
+        self.running = False
+        self._on_tick()
+        self._on_done(result)
+
+
 def _run(work: Callable[[], T]) -> T | Exception:
     try:
         return work()
@@ -66,4 +111,4 @@ def _run(work: Callable[[], T]) -> T | Exception:
         return exc
 
 
-__all__ = ["BackgroundWork"]
+__all__ = ["BackgroundRun", "BackgroundWork"]

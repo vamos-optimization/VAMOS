@@ -34,8 +34,8 @@ def render_welcome() -> pn.Column:
     hero = pn.pane.Markdown(welcome_markdown(), sizing_mode="stretch_width")
     tips = pn.pane.Alert(
         "**Tip:** for long or many runs, use **Batch Comparison**: it runs a durable study in a background process "
-        "that keeps going if you close the browser. Problem Builder and Run Experiment run in the Studio server "
-        "process, and their page updates when the run finishes.",
+        "that keeps going if you close the browser. Problem Builder and Run Experiment run one run in the "
+        "background while you watch it, and **Stop** ends it; leaving the page stops it too.",
         alert_type="info",
     )
     return pn.Column(hero, tips, sizing_mode="stretch_both")

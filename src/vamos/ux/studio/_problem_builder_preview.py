@@ -131,12 +131,14 @@ def run_preview_optimization(
     trusted_local_code: bool = False,
     algorithm_config: Any = None,
     record_history: bool = False,
+    cancel: Any = None,
 ) -> dict[str, Any]:
     """Run reviewed local Python after an explicit trust acknowledgement.
 
     ``algorithm_config`` replaces the default configuration of ``algorithm``;
     ``record_history`` adds the population objectives of every generation to the
-    payload under ``"history"``.
+    payload under ``"history"``. Setting the ``threading.Event`` ``cancel``
+    terminates the child process and raises ``InterruptedError``.
     """
     require_trusted_local_code(trusted_local_code)
     resource_profile = normalize_resource_profile(resource_profile)
@@ -182,7 +184,7 @@ def run_preview_optimization(
     )
     process.start()
     try:
-        worker_result = _await_worker_result(result_queue, process, float(timeout_seconds))
+        worker_result = _await_worker_result(result_queue, process, float(timeout_seconds), cancel=cancel)
     finally:
         result_queue.close()
         result_queue.join_thread()
@@ -200,7 +202,7 @@ def run_preview_optimization(
     return payload
 
 
-def _await_worker_result(result_queue: Any, process: Any, timeout_seconds: float) -> object:
+def _await_worker_result(result_queue: Any, process: Any, timeout_seconds: float, *, cancel: Any = None) -> object:
     """Read the worker's result before joining it.
 
     A child process does not exit until its queued payload has been read, so
@@ -213,6 +215,10 @@ def _await_worker_result(result_queue: Any, process: Any, timeout_seconds: float
         try:
             result = result_queue.get(timeout=0.2)
         except queue_mod.Empty:
+            if cancel is not None and cancel.is_set():
+                process.terminate()
+                process.join(timeout=1.0)
+                raise InterruptedError("Stopped from Studio.") from None
             if not process.is_alive():
                 try:
                     result = result_queue.get(timeout=1.0)

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import threading
+import time
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -9,6 +12,7 @@ import panel as pn
 import param
 
 from vamos.ux.panel.components.algorithm_config import AlgorithmConfigurator
+from vamos.ux.panel.components.background import BackgroundRun
 from vamos.ux.panel.components.plots import front_figure
 from vamos.ux.panel.pages.problem_builder_ai import build_ai_generation_tab, build_trusted_code_controls
 from vamos.ux.studio.algorithm_form import algorithm_label
@@ -74,6 +78,10 @@ class ProblemBuilderState(param.Parameterized):
     def __init__(self, **params: Any) -> None:
         super().__init__(**params)
         self.configurator = AlgorithmConfigurator()
+        self._cancel: threading.Event | None = None
+        self._mode = "preview"
+        self._started = time.monotonic()
+        self._runner: BackgroundRun[dict[str, Any]] = BackgroundRun(on_tick=self._tick, on_done=self._done)
         self._apply_template()
         self._sync_configurator()
 
@@ -122,8 +130,8 @@ class ProblemBuilderState(param.Parameterized):
 
     # ---- Actions ----
 
-    def _run_user_problem(self, *, record_history: bool, timeout_seconds: float) -> dict[str, Any] | None:
-        """Compile the reviewed code and run it in a child process; ``None`` when it cannot run."""
+    def _prepare_run(self, *, record_history: bool, timeout_seconds: float) -> Callable[[], dict[str, Any]] | None:
+        """Compile and check the reviewed code now; return the child-process run, or ``None``."""
         if not self.trusted_local_code:
             self.status_text = f"Execution disabled. {TRUSTED_LOCAL_CODE_WARNING}"
             return None
@@ -153,56 +161,78 @@ class ProblemBuilderState(param.Parameterized):
         except Exception as exc:
             self.status_text = f"Configuration error: {exc}"
             return None
-        self.status_text = "Running..."
-        try:
-            return run_preview_optimization(
-                fn,
-                n_var=self.n_var,
-                n_obj=self.n_obj,
-                bounds=bounds,
-                algorithm=self.algorithm,
-                pop_size=pop_size,
-                budget=pop_size * self.max_gen,
-                seed=self.seed,
-                constraints=constraints,
-                n_constraints=n_constraints,
-                objective_code=self.objective_code,
-                constraint_code=self.constraint_code,
-                timeout_seconds=timeout_seconds,
-                trusted_local_code=True,
-                algorithm_config=resolved.config,
-                record_history=record_history,
-            )
-        except Exception as exc:
-            self.status_text = f"Error: {exc}"
-            return None
+        cancel = threading.Event()
+        self._cancel = cancel
+        settings: dict[str, Any] = {
+            "n_var": self.n_var,
+            "n_obj": self.n_obj,
+            "bounds": bounds,
+            "algorithm": self.algorithm,
+            "pop_size": pop_size,
+            "budget": pop_size * self.max_gen,
+            "seed": self.seed,
+            "constraints": constraints,
+            "n_constraints": n_constraints,
+            "objective_code": self.objective_code,
+            "constraint_code": self.constraint_code,
+            "timeout_seconds": timeout_seconds,
+            "trusted_local_code": True,
+            "algorithm_config": resolved.config,
+            "record_history": record_history,
+            "cancel": cancel,
+        }
+        return lambda: run_preview_optimization(fn, **settings)
+
+    def _start(self, mode: str, *, record_history: bool, timeout_seconds: float) -> None:
+        if self.running:
+            return
+        work = self._prepare_run(record_history=record_history, timeout_seconds=timeout_seconds)
+        if work is None:
+            if mode == "preview":
+                self.preview_plot = None
+            return
+        self._mode, self._started = mode, time.monotonic()
+        if mode == "full":
+            self.generation_history, self.current_gen = [], 0
+        self.running = True
+        self.status_text = f"Running with {algorithm_label(self.algorithm)}…"
+        self._runner.start(work)
 
     def run_preview(self, event: Any = None) -> None:
-        """Compile code, run a short optimization, update preview_plot."""
-        result = self._run_user_problem(record_history=False, timeout_seconds=PREVIEW_TIME_LIMIT_SECONDS)
-        if result is None:
-            self.preview_plot = None
-            return
-        F_arr = np.asarray(result["F"])
-        self.preview_plot = front_figure(F_arr, title="Pareto Front Preview")
-        self.status_text = f"Preview complete — {F_arr.shape[0]} solutions found with {algorithm_label(self.algorithm)}."
+        """Compile code, run a short optimization in a child process, update preview_plot."""
+        self._start("preview", record_history=False, timeout_seconds=PREVIEW_TIME_LIMIT_SECONDS)
 
     def run_full_experiment(self, event: Any = None) -> None:
-        """Run the defined problem with the full budget and collect the generation history."""
-        self.running = True
-        self.generation_history = []
-        self.current_gen = 0
-        try:
-            result = self._run_user_problem(record_history=True, timeout_seconds=float(self.time_limit))
-            if result is None:
-                return
-            history = list(result.get("history") or [result["F"]])
-            self.generation_history = history
-            self.current_gen = len(history) - 1
-            self.result_F = np.asarray(result["F"])
-            self.status_text = f"Done — {len(history)} generations recorded with {algorithm_label(self.algorithm)}."
-        finally:
-            self.running = False
+        """Run the defined problem with the full budget in a child process and collect the generation history."""
+        self._start("full", record_history=True, timeout_seconds=float(self.time_limit))
+
+    def stop(self, event: Any = None) -> None:
+        """End the child process of the running preview or experiment."""
+        if self.running and self._cancel is not None:
+            self._cancel.set()
+            self.status_text = "Stopping…"
+
+    def _tick(self) -> None:
+        if self.running and not (self._cancel is not None and self._cancel.is_set()):
+            self.status_text = f"Running with {algorithm_label(self.algorithm)}… {time.monotonic() - self._started:.0f} s"
+
+    def _done(self, result: dict[str, Any] | Exception) -> None:
+        self.running = False
+        if isinstance(result, Exception):
+            self.status_text = "Stopped." if isinstance(result, InterruptedError) else f"Error: {result}"
+            if self._mode == "preview":
+                self.preview_plot = None
+            return
+        F_arr = np.asarray(result["F"])
+        if self._mode == "preview":
+            self.preview_plot = front_figure(F_arr, title="Pareto Front Preview")
+            self.status_text = f"Preview complete — {F_arr.shape[0]} solutions found with {algorithm_label(self.algorithm)}."
+            return
+        history = list(result.get("history") or [result["F"]])
+        self.generation_history = history
+        self.current_gen = len(history) - 1
+        self.result_F = F_arr
+        self.status_text = f"Done — {len(history)} generations recorded with {algorithm_label(self.algorithm)}."
 
     def do_generate_script(self, event: Any = None) -> None:
         """Generate a standalone Python script for the configured problem."""
@@ -250,9 +280,11 @@ class ProblemBuilderState(param.Parameterized):
             self.ai_status = f"Error: {exc}"
 
 
-def render_problem_builder() -> pn.Column:
+def render_problem_builder(on_exit: Callable[[Callable[[], None]], None] | None = None) -> pn.Column:
     """Build and return the Problem Builder page layout with tabs."""
     state = ProblemBuilderState()
+    if on_exit is not None:
+        on_exit(state.stop)  # Leaving the page stops its run.
 
     template_select = pn.widgets.Select.from_param(state.param.template_name, name="Template")
     code_editor = pn.widgets.CodeEditor.from_param(
@@ -283,8 +315,10 @@ def render_problem_builder() -> pn.Column:
         pn.widgets.FloatInput.from_param(state.param.time_limit, name="Time limit of a full experiment (s)"),
     )
 
-    preview_btn = pn.widgets.Button(name="Quick Preview", button_type="primary")
+    preview_btn = pn.widgets.Button(name="Quick Preview", button_type="primary", disabled=pn.bind(lambda r: r, state.param.running))
     preview_btn.on_click(state.run_preview)
+    stop_btn = pn.widgets.Button(name="Stop", button_type="danger", disabled=pn.bind(lambda r: not r, state.param.running))
+    stop_btn.on_click(state.stop)
     run_btn = pn.widgets.Button(
         name="Run Full Experiment",
         button_type="success",
@@ -332,7 +366,7 @@ def render_problem_builder() -> pn.Column:
         sizing_mode="stretch_width",
     )
     tab_results = pn.Column(
-        pn.Row(preview_btn, run_btn, generate_btn),
+        pn.Row(preview_btn, run_btn, stop_btn, generate_btn),
         status_pane,
         pn.pane.Markdown(
             f"*Quick Preview stops after {PREVIEW_TIME_LIMIT_SECONDS:.0f} s; Run Full Experiment uses the time limit "

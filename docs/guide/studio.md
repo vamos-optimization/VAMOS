@@ -131,8 +131,16 @@ environment; Studio does not provide an authentication boundary.
 - **Explore Results** loads a study, overlays the fronts of each problem, ranks
   solutions with MCDM methods and exports the ranking as CSV.
 
-Problem Builder and Run Experiment execute in the Studio server process, and
-the page updates when the run finishes.
+Problem Builder and Run Experiment start a single run in the background, so
+the rest of Studio stays responsive while it runs. Run Experiment follows the
+run every second, with its progress through the evaluation budget, the current
+generation and the front recorded so far. Its **Stop** button ends the run after
+the current generation and keeps every front recorded up to then. The Problem
+Builder runs your code in a child process and shows the time elapsed. Its
+**Stop** button ends that process, and nothing from the run is kept. Leaving
+either page stops its run. These runs end with the Studio server and are not
+saved as studies, so use Batch Comparison for runs that need to last or be
+compared.
 
 ## Batch studies
 

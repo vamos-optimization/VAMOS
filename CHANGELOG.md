@@ -28,6 +28,10 @@ All notable public changes to VAMOS are documented here.
   progress with an estimate of the time left, stops, resumes and retries it,
   lists the batches and studies of the Studio folder, and opens a finished
   batch in Explore Results.
+- Studio's Run Experiment and Problem Builder no longer block the Studio server
+  while they run. Run Experiment shows its progress, generation, and front as
+  the run advances. Both pages have a **Stop** button, and leaving a page stops
+  its run.
 
 ### Fixed
 

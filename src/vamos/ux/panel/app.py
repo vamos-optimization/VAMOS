@@ -120,16 +120,16 @@ def _render_welcome(_app: StudioApp) -> pn.viewable.Viewable:
     return render_welcome()
 
 
-def _render_problem_builder(_app: StudioApp) -> pn.viewable.Viewable:
+def _render_problem_builder(app: StudioApp) -> pn.viewable.Viewable:
     from vamos.ux.panel.pages.problem_builder import render_problem_builder
 
-    return render_problem_builder()
+    return render_problem_builder(on_exit=app.on_page_exit)
 
 
-def _render_experiment(_app: StudioApp) -> pn.viewable.Viewable:
+def _render_experiment(app: StudioApp) -> pn.viewable.Viewable:
     from vamos.ux.panel.pages.experiment import render_experiment
 
-    return render_experiment()
+    return render_experiment(on_exit=app.on_page_exit)
 
 
 def _render_batch(app: StudioApp) -> pn.viewable.Viewable:

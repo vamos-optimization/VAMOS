@@ -306,3 +306,37 @@ def test_app_hands_a_batch_to_the_comparison(tmp_path: Path) -> None:
 
     assert app.page == "compare"
     assert app.focus_study == ""
+
+
+def test_experiment_reports_a_stopped_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_run(problem: Any, **kwargs: Any) -> dict[str, Any]:
+        live = kwargs["live_viz"]
+        for generation in range(3):
+            live.on_generation(generation, F=np.array([[0.0, 1.0]]), stats={"evals": 100 * (generation + 1)})
+        state.stop()  # The user presses Stop while the run is going.
+        return {"F": np.array([[0.0, 1.0]])}
+
+    monkeypatch.setattr(experiment, "_run_algorithm", fake_run)
+    state = experiment.ExperimentState(max_evaluations=1000)
+
+    state.run_experiment()
+
+    assert state.status.startswith("Stopped")
+    assert "300 evaluations" in state.status
+    assert state.generation_numbers == [0, 1, 2]
+    assert state.progress == pytest.approx(0.3)
+    assert not state.running
+
+
+def test_problem_builder_reports_a_stopped_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_preview(fn: Any, **kwargs: Any) -> dict[str, Any]:
+        raise InterruptedError("Stopped from Studio.")
+
+    monkeypatch.setattr(problem_builder, "run_preview_optimization", fake_preview)
+    state = problem_builder.ProblemBuilderState()
+    state.trusted_local_code = True
+
+    state.run_full_experiment()
+
+    assert state.status_text == "Stopped."
+    assert not state.running
