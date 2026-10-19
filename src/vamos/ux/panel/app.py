@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import argparse
+import sys
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +27,7 @@ class StudioApp(param.Parameterized):
         doc="Currently active page slug.",
     )
     study_dir = param.String(default="results", doc="Root directory for study results.")
+    focus_study = param.String(default="", doc="Study that Explore Results loads when it opens next.")
 
     # ---- internal ----
     _nav_col = param.ClassSelector(class_=pn.Column, precedence=-1)
@@ -33,6 +37,7 @@ class StudioApp(param.Parameterized):
         super().__init__(**params)
         self._nav_col = build_sidebar_nav(self.page)
         self._main_area = pn.Column(sizing_mode="stretch_both")
+        self._exit_hooks: list[Callable[[], None]] = []
         self._wire_nav_buttons()
         self._refresh_main()
 
@@ -55,28 +60,37 @@ class StudioApp(param.Parameterized):
                 slug = btn.tags[0] if btn.tags else ""
                 btn.button_type = "primary" if slug == self.page else "light"
 
-        # Lazy-load the selected page
+        # Let the page being left stop its background work, then lazy-load the selected page
+        hooks, self._exit_hooks = self._exit_hooks, []
+        for hook in hooks:
+            hook()
         self._main_area.clear()
         self._main_area.append(self._load_page(self.page))
 
     def _load_page(self, slug: str) -> pn.viewable.Viewable:
-        if slug == "welcome":
-            from vamos.ux.panel.pages.welcome import render_welcome
+        renderer = PAGE_RENDERERS.get(slug)
+        if renderer is None:
+            return pn.pane.Markdown(f"## Unknown page: {slug}")
+        try:
+            return renderer(self)
+        except Exception as exc:
+            return pn.pane.Alert(f"**{PAGES[slug][0]}** could not be opened: {exc}", alert_type="danger")
 
-            return render_welcome()
-        if slug == "problem_builder":
-            from vamos.ux.panel.pages.problem_builder import render_problem_builder
+    # ---- page services ----
 
-            return render_problem_builder()
-        if slug == "batch":
-            from vamos.ux.panel.pages.batch import render_batch
+    def on_page_exit(self, hook: Callable[[], None]) -> None:
+        """Run ``hook`` when the user leaves the current page."""
+        self._exit_hooks.append(hook)
 
-            return render_batch()
-        if slug == "results":
-            from vamos.ux.panel.pages.results import render_results
+    def open_results(self, study_root: str) -> None:
+        """Show ``study_root`` in Explore Results."""
+        self.focus_study = study_root
+        self.page = "results"
 
-            return render_results(study_dir=Path(self.study_dir))
-        return pn.pane.Markdown(f"## Unknown page: {slug}")
+    def open_compare(self, study_root: str) -> None:
+        """Analyze ``study_root`` in Statistical Comparison."""
+        self.focus_study = study_root
+        self.page = "compare"
 
     # ---- public: composable template ----
 
@@ -96,12 +110,103 @@ class StudioApp(param.Parameterized):
 
 
 # ---------------------------------------------------------------------------
-# Servable entry point (used by `panel serve app.py`)
+# Page renderers — one per entry of the shell's page registry
 # ---------------------------------------------------------------------------
 
 
-def create_app() -> pn.template.FastListTemplate:
-    """Factory called when Panel serves this module."""
+def _render_welcome(_app: StudioApp) -> pn.viewable.Viewable:
+    from vamos.ux.panel.pages.welcome import render_welcome
+
+    return render_welcome()
+
+
+def _render_problem_builder(_app: StudioApp) -> pn.viewable.Viewable:
+    from vamos.ux.panel.pages.problem_builder import render_problem_builder
+
+    return render_problem_builder()
+
+
+def _render_experiment(_app: StudioApp) -> pn.viewable.Viewable:
+    from vamos.ux.panel.pages.experiment import render_experiment
+
+    return render_experiment()
+
+
+def _render_batch(app: StudioApp) -> pn.viewable.Viewable:
+    from vamos.ux.panel.pages.batch import render_batch
+
+    return render_batch(
+        study_dir=Path(app.study_dir), open_results=app.open_results, open_compare=app.open_compare, on_exit=app.on_page_exit
+    )
+
+
+def _render_compare(app: StudioApp) -> pn.viewable.Viewable:
+    from vamos.ux.panel.pages.compare import render_compare
+
+    focus, app.focus_study = app.focus_study, ""
+    return render_compare(study_dir=Path(app.study_dir), focus_study=focus or None)
+
+
+def _render_results(app: StudioApp) -> pn.viewable.Viewable:
+    from vamos.ux.panel.pages.results import render_results
+
+    focus, app.focus_study = app.focus_study, ""
+    return render_results(study_dir=Path(app.study_dir), focus_study=focus or None)
+
+
+PAGE_RENDERERS: dict[str, Callable[[StudioApp], pn.viewable.Viewable]] = {
+    "welcome": _render_welcome,
+    "problem_builder": _render_problem_builder,
+    "experiment": _render_experiment,
+    "batch": _render_batch,
+    "compare": _render_compare,
+    "results": _render_results,
+}
+
+
+# ---------------------------------------------------------------------------
+# Server entry point (``vamos studio`` runs ``python -m vamos.ux.panel.app``)
+# ---------------------------------------------------------------------------
+
+
+def create_app(study_dir: str = "results") -> pn.template.FastListTemplate:
+    """Build one Studio session; Panel calls this for every browser session."""
     _ensure_panel_extension()
-    app = StudioApp()
+    app = StudioApp(study_dir=study_dir)
     return app.view()
+
+
+def parse_serve_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(prog="python -m vamos.ux.panel.app", description="Serve VAMOS Studio with Panel.")
+    parser.add_argument("--study-dir", default="results")
+    parser.add_argument("--address", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=5006)
+    parser.add_argument("--show", action="store_true", help="Open a browser tab.")
+    parser.add_argument(
+        "--allow-websocket-origin",
+        action="append",
+        default=[],
+        help="Extra host[:port] allowed to open the session websocket (repeatable).",
+    )
+    return parser.parse_args(argv)
+
+
+def serve(argv: Sequence[str] | None = None) -> int:
+    """Serve Studio at ``/app`` until the process is stopped."""
+    args = parse_serve_args(argv)
+    origins = [f"localhost:{args.port}", *args.allow_websocket_origin]
+    if ":" not in args.address:  # Bokeh's allowlist cannot express IPv6 literals; browse those via localhost.
+        origins.append(f"{args.address}:{args.port}")
+    pn.serve(
+        {"app": lambda: create_app(args.study_dir)},
+        address=args.address,
+        port=args.port,
+        show=args.show,
+        websocket_origin=origins,
+        title="VAMOS Studio",
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(serve(sys.argv[1:]))

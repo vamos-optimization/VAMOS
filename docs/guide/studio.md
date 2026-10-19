@@ -14,12 +14,13 @@ ZDT1, NSGA-II and MOEA/D, seeds 42 and 43, population 100, NumPy backend,
 10,000 evaluations per run. The two seeds are pooled for each algorithm.
 This is a walkthrough dataset, not evidence that one algorithm is better.*
 
-!!! note "Launcher status — VAMOS 1.0.2"
-    The published `vamos studio` launcher currently serves a module that does
-    not register its Panel template, which can produce a blank page. Its
-    study-path argument is also not passed into the application state.
-    Until the launcher is corrected, use the stable inspection commands
-    below or the [Python results workflow](understanding-results.md).
+!!! note "Launcher in VAMOS 1.0.2"
+    The `vamos studio` launcher published in VAMOS 1.0.2 serves a module that
+    does not register its Panel template, which can produce a blank page, and
+    it does not pass its study-path argument to the application. This guide
+    describes the development version, where both are fixed. With 1.0.2, use
+    the stable inspection commands below or the
+    [Python results workflow](understanding-results.md).
 
 ### Prepare the same data
 
@@ -50,35 +51,33 @@ or filtering them.
 
 ### Read the Results Explorer
 
-When the Studio interface is available:
+With Studio running:
 
 1. Open **Explore Results** in the sidebar.
-2. Set **Study directory** to the exact study root, such as
-   `results/studio-demo`, and click **Load Study**. It must contain
-   `study-manifest.json`; the parent `results/` folder is not a study.
+2. Set **Study directory or search folder** to the study root, such as
+   `results/studio-demo`, or to a folder that contains studies, such as
+   `results`, and click **Find studies**. Choose the study under **Study** and
+   click **Load study**.
 3. Check the status: this example should say **Loaded 4 runs, 2 fronts**.
-   A message about *demo data* or a loading error means your study was not
-   loaded. The built-in fallback is synthetic and must not be interpreted as
-   your results.
-4. Inspect **Pareto Front Overlay**. Hover over points to read `f1` and `f2`;
-   click a legend entry to hide or show an algorithm. Both ZDT1 objectives are
-   minimized, so improvements move toward the lower left.
-5. Change **MCDM method** or **Top K solutions** to explore **Solution Rankings**.
-   Ranks are calculated separately for each algorithm's pooled solutions;
-   they are not ranks of algorithms or a statistical comparison.
+   A loading error means your study was not loaded. Synthetic demo fronts
+   appear only after you click **Load demo data**, and are labelled as such.
+4. Inspect **Pareto Fronts** for the chosen **Problem**. Hover over points to
+   read `f1` and `f2`; click a legend entry to hide or show an algorithm. Both
+   ZDT1 objectives are minimized, so improvements move toward the lower left.
+5. Change **MCDM method** or **Top solutions per front** to explore
+   **Solution Rankings**. Ranks are calculated separately for each algorithm's
+   pooled solutions; they are not ranks of algorithms or a statistical
+   comparison, which the **Statistical Comparison** page provides.
 
 Studio displays the saved objective vectors. A returned population can contain
 dominated points, and the plot title does not certify that every point is
 non-dominated or lies on the true Pareto front. See
 [Understanding results](understanding-results.md) for those distinctions.
 
-For this release, load a **single-problem study** when comparing traces: the
-overlay uses the first two objectives and does not separate different problems.
-For more than two objectives, it is only a two-dimensional projection.
-The **Export CSV** action currently exports up to Top K rows from the first
-loaded front in stored order; it does not export the combined ranking table.
-Use the [analysis workflow](../topics/analysis.md) for controlled plots and
-exports.
+The overlay shows the fronts of one problem at a time: two or three objectives
+as a scatter plot, more as parallel coordinates. **Export ranking (CSV)**
+downloads the ranking table shown on the page. Use the
+[analysis workflow](../topics/analysis.md) for controlled plots and exports.
 
 ## Installation and launch options
 
@@ -94,10 +93,8 @@ The packaged command and its intended study-root argument are:
 vamos studio --study-dir results/studio-demo
 ```
 
-**The 1.0.2 launcher limitation described above applies to this command.**
-Reinstalling optional dependencies does not fix the missing template
-registration. The flags below describe the launcher's binding behavior, not
-a workaround for that issue.
+With VAMOS 1.0.2, this command has the launcher limitation described above;
+reinstalling the optional dependencies does not fix it.
 
 The server binds to `127.0.0.1:5006` by default. To choose another loopback
 address or port:
@@ -105,6 +102,8 @@ address or port:
 ```bash
 vamos studio --address ::1 --port 5010 --study-dir results/studio-demo
 ```
+
+With an IPv6 address, open Studio at `http://localhost:5010/app`.
 
 A non-loopback address is rejected unless you separately acknowledge the
 network exposure:
@@ -117,12 +116,103 @@ Remote binding exposes an experimental local application to other network
 users. Apply operating-system firewall and access controls appropriate to the
 environment; Studio does not provide an authentication boundary.
 
-## Data-only exploration
+## Pages
 
-The Results Explorer reads canonical run and study artifacts through
-`load_run`, `load_result`, and `load_study`. It does not resolve plugins,
-reconstruct components, or invoke replay. Use the explicit stable
-`vamos reproduce` command when execution is intended.
+- **Problem Builder** defines a problem in Python, or starts from a template
+  with its bounds and constraints, previews its Pareto front, runs it with a
+  configurable algorithm and generates a standalone script.
+- **Run Experiment** runs a registered problem and lets you browse the
+  population of every generation.
+- **Batch Comparison** runs several algorithms on several problems for
+  consecutive seeds as a durable study in a background process, follows its
+  progress, and reports hypervolume with CSV and LaTeX downloads.
+- **Statistical Comparison** tests whether the algorithms of a study differ and
+  exports the evidence as LaTeX tables, CSV, and SAES files.
+- **Explore Results** loads a study, overlays the fronts of each problem, ranks
+  solutions with MCDM methods and exports the ranking as CSV.
+
+Problem Builder and Run Experiment execute in the Studio server process, and
+the page updates when the run finishes.
+
+## Batch studies
+
+A batch is an ordinary StudyManifest study, created in the Studio folder
+(`--study-dir`) under a `batch-<date>-<time>` name unless you give it one.
+**Check plan** resolves the exact plan with `plan_study` without writing
+anything: the number of runs, the total evaluation budget, the population sizes,
+and any reason the batch cannot run, such as a population that does not match
+an algorithm's reference directions. **Create and run** publishes the study with
+`create_study` and starts a background process that owns it, as
+`vamos study run` would.
+
+The background process keeps running if you close the browser or stop the
+Studio server; opening the page again reconnects to it. Studio keeps the
+process's heartbeat, outcome, and log next to the study, in
+`.vamos-studio/jobs/<study-id>/`, and never writes inside the study itself.
+
+**Stop** ends the background process at once. The run in progress is lost and
+the study stays `running`; **Resume** reconciles the study and continues with
+the pending runs, rerunning the interrupted one. Resuming requires the same
+runtime and dependency build that produced the earlier runs. **Retry failed
+runs** retries the failed runs that the study classifies as retryable.
+
+Studio does not lock a study. A study that is marked `running` without a Studio
+process may be running in another process, such as `vamos study run` in a
+terminal; Studio asks you to confirm that no other process owns it before
+resuming it.
+
+## Algorithm configuration
+
+Algorithms run with their VAMOS default configuration unless you choose
+**Customize**. The customization controls come from the algorithm's tuning
+configuration space for the problem encoding, the same space that `vamos tune`
+explores, so only operators and conditional parameters that VAMOS can build are
+offered. Studio applies only the configuration fields you change on top of the
+default configuration and lists every difference before the run. When a VAMOS
+default lies outside the tuning range, Studio keeps it and says so.
+
+NSGA-III, RVEA, and MOEA/D with three or more objectives take their population
+size from their reference directions or weight vectors, so Studio shows that
+size instead of accepting another one. For binary, integer, permutation, and
+mixed problems, some algorithms have no default operators for the encoding;
+Studio warns about them, and Customize offers operators for that encoding.
+
+A script generated from a customized configuration rebuilds it with the
+configuration class's `from_dict`; otherwise the script uses the default
+configuration and the chosen population size.
+
+## Batch hypervolume
+
+Batch Comparison computes the hypervolume of each run's feasible final front on
+objectives normalized per problem with the ideal and nadir points of all the
+fronts of that batch, using 1.1 as the reference point in every objective.
+Values compare algorithms and seeds within one batch; they are not comparable
+across batches or problems.
+
+## Statistical comparison
+
+Statistical Comparison reads the successful runs of a study and computes, per
+run, the batch-normalized hypervolume (higher is better) and, when VAMOS ships a
+reference front with the problem's number of objectives, IGD+ on objectives
+normalized by that front (lower is better). One algorithm is the pivot.
+
+- **Verdict** and **Comparisons** compare every algorithm with the pivot on
+  every problem with a two-sided Mann-Whitney test, Holm or Benjamini-Hochberg
+  correction, and the Vargha-Delaney A12 effect size. A mark is `+` or `-` only
+  when the corrected p-value is below the significance level. The page says
+  when the number of runs makes a significant result impossible; no significant
+  difference is not evidence that two algorithms perform the same.
+- **Ranking** gives the average rank of each algorithm's median over the
+  problems, the Friedman test, a Nemenyi critical-difference diagram, and
+  Holm's post-hoc test against the pivot. With fewer than five problems these
+  tests have little power.
+- **Distributions**, **Fronts** (the median run of each algorithm), and
+  **Attainment** (empirical attainment surfaces of two-objective problems)
+  show the data behind the tests; **Cost** shows the median runtime.
+
+The exports are a LaTeX table of medians and interquartile ranges with the
+marks, a LaTeX ranking table, the comparisons as CSV, and the long-format
+results and metrics files that the SAES tool reads.
 
 ## Trusted local Python
 
@@ -144,6 +234,19 @@ values.
 
 Generating a standalone script only displays text; running that exported
 script remains a separate user action outside Studio.
+
+## Data-only exploration
+
+Explore Results reads `vamos.run-manifest` and StudyManifest artifacts through
+`load_run`, `load_result`, and `load_study`. It does not resolve plugins,
+reconstruct components, or invoke replay. Use the explicit stable
+`vamos reproduce` command when execution is intended. **Find studies** lists
+the canonical studies at or below the chosen folder. A study that cannot be
+loaded is reported as an error; synthetic demo fronts appear only after you
+choose **Load demo data**, and are labelled as such.
+
+Studio also provides experimental ranking and export helpers. These features
+are not part of the stable VAMOS 1.x compatibility surface.
 
 ## Optional dependencies
 

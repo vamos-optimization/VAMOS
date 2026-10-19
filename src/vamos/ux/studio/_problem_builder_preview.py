@@ -29,16 +29,23 @@ def _run_preview_once(
     seed: int,
     constraints: Any = None,
     n_constraints: int = 0,
+    algorithm_config: Any = None,
+    record_history: bool = False,
 ) -> dict[str, Any]:
     from vamos.foundation.problem.builder import make_problem
-    from vamos.ux.studio.services import _build_algorithm_config, _run_algorithm
+    from vamos.ux.studio.services import DynamicsCallback, _build_algorithm_config, _run_algorithm
 
     kw: dict[str, Any] = {}
     if constraints is not None and n_constraints > 0:
         kw["constraints"] = constraints
         kw["n_constraints"] = n_constraints
     problem = make_problem(fn, n_var=n_var, n_obj=n_obj, bounds=bounds, encoding="real", name="studio_preview", **kw)
-    algo_cfg = _build_algorithm_config(algorithm, pop_size=pop_size, n_var=n_var, n_obj=n_obj)
+    algo_cfg = (
+        algorithm_config
+        if algorithm_config is not None
+        else _build_algorithm_config(algorithm, pop_size=pop_size, n_var=n_var, n_obj=n_obj)
+    )
+    callback = DynamicsCallback() if record_history else None
     t0 = time.perf_counter()
     result = _run_algorithm(
         problem,
@@ -47,6 +54,7 @@ def _run_preview_once(
         termination=("max_evaluations", budget),
         seed=seed,
         engine="numpy",
+        live_viz=callback,
     )
     elapsed = (time.perf_counter() - t0) * 1000.0
     F = result.get("F")
@@ -57,6 +65,7 @@ def _run_preview_once(
         "F": np.asarray(F),
         "X": np.asarray(X) if X is not None else None,
         "elapsed_ms": elapsed,
+        "history": list(callback.history) if callback is not None else [],
     }
 
 
@@ -75,6 +84,8 @@ def _preview_worker(
     n_constraints: int,
     timeout_seconds: float,
     resource_profile: str,
+    algorithm_config: Any = None,
+    record_history: bool = False,
 ) -> None:
     try:
         apply_process_limits(profile=resource_profile, timeout_seconds=timeout_seconds)
@@ -93,6 +104,8 @@ def _preview_worker(
             seed=seed,
             constraints=constraints,
             n_constraints=n_constraints,
+            algorithm_config=algorithm_config,
+            record_history=record_history,
         )
         queue.put({"ok": True, "payload": payload})
     except Exception as exc:  # pragma: no cover
@@ -116,8 +129,15 @@ def run_preview_optimization(
     timeout_seconds: float = PREVIEW_TIMEOUT_SECONDS,
     resource_profile: str = DEFAULT_RESOURCE_PROFILE,
     trusted_local_code: bool = False,
+    algorithm_config: Any = None,
+    record_history: bool = False,
 ) -> dict[str, Any]:
-    """Run reviewed local Python after an explicit trust acknowledgement."""
+    """Run reviewed local Python after an explicit trust acknowledgement.
+
+    ``algorithm_config`` replaces the default configuration of ``algorithm``;
+    ``record_history`` adds the population objectives of every generation to the
+    payload under ``"history"``.
+    """
     require_trusted_local_code(trusted_local_code)
     resource_profile = normalize_resource_profile(resource_profile)
     if objective_code is None or timeout_seconds <= 0:
@@ -132,10 +152,11 @@ def run_preview_optimization(
             seed=seed,
             constraints=constraints,
             n_constraints=n_constraints,
+            algorithm_config=algorithm_config,
+            record_history=record_history,
         )
 
     import multiprocessing as mp
-    import queue as queue_mod
 
     ctx = mp.get_context("spawn")
     result_queue = ctx.Queue(maxsize=1)
@@ -155,22 +176,13 @@ def run_preview_optimization(
             "n_constraints": n_constraints,
             "timeout_seconds": timeout_seconds,
             "resource_profile": resource_profile,
+            "algorithm_config": algorithm_config,
+            "record_history": record_history,
         },
     )
     process.start()
-    process.join(float(timeout_seconds))
-
-    if process.is_alive():
-        process.terminate()
-        process.join(timeout=1.0)
-        raise TimeoutError(f"Preview timed out after {timeout_seconds:.1f}s. Try simpler code or a smaller budget.")
-
     try:
-        worker_result = result_queue.get(timeout=1.0)
-    except queue_mod.Empty as exc:
-        if process.exitcode not in (0, None):
-            raise RuntimeError(f"Preview worker exited unexpectedly (exit code {process.exitcode}).") from exc
-        raise RuntimeError("Preview worker finished without returning a result.") from exc
+        worker_result = _await_worker_result(result_queue, process, float(timeout_seconds))
     finally:
         result_queue.close()
         result_queue.join_thread()
@@ -184,7 +196,42 @@ def run_preview_optimization(
         raise RuntimeError("Preview worker returned an invalid payload body.")
     payload["F"] = np.asarray(payload.get("F"))
     payload["X"] = np.asarray(payload["X"]) if payload.get("X") is not None else None
+    payload["history"] = [np.asarray(F) for F in payload.get("history") or []]
     return payload
+
+
+def _await_worker_result(result_queue: Any, process: Any, timeout_seconds: float) -> object:
+    """Read the worker's result before joining it.
+
+    A child process does not exit until its queued payload has been read, so
+    joining first would turn any large result into a timeout.
+    """
+    import queue as queue_mod
+
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        try:
+            result = result_queue.get(timeout=0.2)
+        except queue_mod.Empty:
+            if not process.is_alive():
+                try:
+                    result = result_queue.get(timeout=1.0)
+                except queue_mod.Empty as exc:
+                    if process.exitcode not in (0, None):
+                        raise RuntimeError(f"Preview worker exited unexpectedly (exit code {process.exitcode}).") from exc
+                    raise RuntimeError("Preview worker finished without returning a result.") from exc
+                break
+            if time.monotonic() >= deadline:
+                process.terminate()
+                process.join(timeout=1.0)
+                raise TimeoutError(f"Preview timed out after {timeout_seconds:.1f}s. Try simpler code or a smaller budget.") from None
+            continue
+        break
+    process.join(timeout=5.0)
+    if process.is_alive():
+        process.terminate()
+        process.join(timeout=1.0)
+    return result
 
 
 __all__ = ["run_preview_optimization"]

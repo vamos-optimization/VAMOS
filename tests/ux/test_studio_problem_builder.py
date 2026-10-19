@@ -226,3 +226,78 @@ class TestRunPreviewOptimization:
                 resource_profile="invalid_profile",
                 trusted_local_code=True,
             )
+
+    def test_child_process_returns_a_large_generation_history(self) -> None:
+        from vamos.ux.studio.algorithm_form import default_algorithm_config
+
+        code = "return [x[0], 1.0 - x[0] + sum(x[1:])]"
+        fn = compile_objective_function(code, trusted_local_code=True)
+        config = default_algorithm_config("nsgaii", encoding="real", n_var=10, n_obj=2, pop_size=100)
+        result = run_preview_optimization(
+            fn,
+            n_var=10,
+            n_obj=2,
+            bounds=[(0.0, 1.0)] * 10,
+            algorithm="nsgaii",
+            budget=20000,
+            pop_size=100,
+            seed=0,
+            objective_code=code,
+            timeout_seconds=120.0,
+            trusted_local_code=True,
+            algorithm_config=config,
+            record_history=True,
+        )
+
+        # Tens of generations of 100 points exceed a pipe buffer; the parent must read before joining.
+        assert len(result["history"]) >= 150
+        assert all(F.shape[1] == 2 for F in result["history"])
+
+
+class TestGenerateScriptConfiguration:
+    """The generated script runs the configuration Studio ran."""
+
+    def test_default_configuration_passes_the_population_size(self) -> None:
+        script = generate_script(
+            "return [x[0], 1 - x[0]]", name="t", n_var=1, n_obj=2, bounds=[(0, 1)], algorithm="nsgaii", budget=1000, pop_size=40
+        )
+
+        assert "pop_size=40," in script
+        assert "ALGORITHM_CONFIG" not in script
+
+    def test_customized_configuration_is_rebuilt_from_its_dictionary(self) -> None:
+        from vamos.algorithms import NSGAIIConfig
+
+        config = NSGAIIConfig.default(pop_size=40, n_var=1).to_dict()
+        script = generate_script(
+            "return [x[0], 1 - x[0]]",
+            name="t",
+            n_var=1,
+            n_obj=2,
+            bounds=[(0, 1)],
+            algorithm="nsgaii",
+            budget=1000,
+            algorithm_config=config,
+            config_class="NSGAIIConfig",
+        )
+        namespace: dict[str, object] = {"__name__": "generated"}
+        exec(compile(script, "<generated>", "exec"), namespace)  # noqa: S102 - script built from fixed test inputs
+
+        assert "algorithm_config=ALGORITHM_CONFIG," in script
+        rebuilt = namespace["ALGORITHM_CONFIG"]
+        assert isinstance(rebuilt, NSGAIIConfig)
+        assert rebuilt.to_dict() == config
+
+    def test_unscriptable_configuration_is_refused(self) -> None:
+        with pytest.raises(ValueError, match="cannot reproduce"):
+            generate_script(
+                "return [x[0], 1 - x[0]]",
+                name="t",
+                n_var=1,
+                n_obj=2,
+                bounds=[(0, 1)],
+                algorithm="nsgaii",
+                budget=1000,
+                algorithm_config={"generation_callback": object()},
+                config_class="NSGAIIConfig",
+            )

@@ -160,3 +160,37 @@ def test_studio_provider_code_does_not_log_secrets_or_generated_code() -> None:
     assert "logging" not in source
     assert "print(" not in source
     assert _studio_llm.__all__ == ["llm_generate_problem_code"]
+
+
+@pytest.mark.parametrize(
+    ("provider", "module_name", "env_var"), [("anthropic", "anthropic", "ANTHROPIC_API_KEY"), ("openai", "openai", "OPENAI_API_KEY")]
+)
+def test_provider_clients_receive_the_api_key_field(
+    monkeypatch: pytest.MonkeyPatch,
+    provider: str,
+    module_name: str,
+    env_var: str,
+) -> None:
+    payload = '{"objective_code": "return [x[0], x[1]]", "n_var": 2, "n_obj": 2, "bounds": "0, 1"}'
+    clients: list[dict[str, object]] = []
+
+    class FakeAnthropic:
+        def __init__(self, **kwargs: object) -> None:
+            clients.append(kwargs)
+            self.messages = SimpleNamespace(create=lambda **_kw: SimpleNamespace(content=[SimpleNamespace(text=payload)]))
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs: object) -> None:
+            clients.append(kwargs)
+            self.responses = SimpleNamespace(create=lambda **_kw: SimpleNamespace(output_text=payload))
+
+    fake = ModuleType(module_name)
+    fake.Anthropic = FakeAnthropic  # type: ignore[attr-defined]
+    fake.OpenAI = FakeOpenAI  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, module_name, fake)
+    monkeypatch.delenv(env_var, raising=False)
+
+    result = _studio_llm.llm_generate_problem_code("two objectives", provider=provider, api_key="field-key")
+
+    assert clients == [{"api_key": "field-key"}]
+    assert result["n_obj"] == 2

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import ast
+from collections.abc import Mapping
+
 
 def parse_bounds_text(text: str, n_var: int) -> list[tuple[float, float]] | str:
     """Parse a bounds textarea into a list of (lo, hi) tuples."""
@@ -44,13 +47,22 @@ def generate_script(
     budget: int,
     constraint_code: str = "",
     n_constraints: int = 0,
+    pop_size: int | None = None,
+    algorithm_config: Mapping[str, object] | None = None,
+    config_class: str | None = None,
 ) -> str:
-    """Generate a standalone Python script from the builder state."""
+    """Generate a standalone Python script from the builder state.
+
+    With ``algorithm_config`` and ``config_class`` the script rebuilds that exact
+    configuration with ``<config_class>.from_dict``; otherwise it uses the
+    VAMOS default configuration with ``pop_size``.
+    """
     func_name = "".join(c if c.isalnum() else "_" for c in name.lower()).strip("_") or "custom"
     while "__" in func_name:
         func_name = func_name.replace("__", "_")
 
     has_constraints = bool(constraint_code.strip()) and n_constraints > 0
+    config_literal = _config_literal(algorithm_config) if algorithm_config is not None and config_class else None
 
     parts: list[str] = [
         '"""',
@@ -60,6 +72,10 @@ def generate_script(
         '"""',
         "",
         "from vamos import make_problem, optimize",
+    ]
+    if config_literal is not None:
+        parts.append(f"from vamos.algorithms import {config_class}")
+    parts += [
         "",
         "",
         f"def {func_name}(x):",
@@ -88,6 +104,8 @@ def generate_script(
         parts.append(f"    constraints={func_name}_constraints,")
         parts.append(f"    n_constraints={n_constraints},")
     parts.append(")")
+    if config_literal is not None:
+        parts += ["", f"ALGORITHM_CONFIG = {config_class}.from_dict({config_literal})"]
 
     parts += [
         "",
@@ -95,6 +113,12 @@ def generate_script(
         "    result = optimize(",
         "        problem,",
         f'        algorithm="{algorithm}",',
+    ]
+    if config_literal is not None:
+        parts.append("        algorithm_config=ALGORITHM_CONFIG,")
+    elif pop_size is not None:
+        parts.append(f"        pop_size={int(pop_size)},")
+    parts += [
         f"        max_evaluations={budget},",
         "        seed=42,",
         "        verbose=True,",
@@ -107,6 +131,16 @@ def generate_script(
     parts.append("")
 
     return "\n".join(parts)
+
+
+def _config_literal(config: Mapping[str, object]) -> str:
+    """Return ``config`` as a Python literal, refusing values a script cannot spell."""
+    literal = repr(dict(config))
+    try:
+        ast.literal_eval(literal)
+    except (ValueError, SyntaxError) as exc:
+        raise ValueError("This algorithm configuration contains values that a script cannot reproduce.") from exc
+    return literal
 
 
 __all__ = ["generate_script", "parse_bounds_text"]

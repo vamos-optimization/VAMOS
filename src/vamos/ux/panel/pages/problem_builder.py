@@ -8,7 +8,10 @@ import numpy as np
 import panel as pn
 import param
 
+from vamos.ux.panel.components.algorithm_config import AlgorithmConfigurator
+from vamos.ux.panel.components.plots import front_figure
 from vamos.ux.panel.pages.problem_builder_ai import build_ai_generation_tab, build_trusted_code_controls
+from vamos.ux.studio.algorithm_form import algorithm_label
 from vamos.ux.studio.problem_builder_backend import (
     TRUSTED_LOCAL_CODE_WARNING,
     compile_constraint_function,
@@ -19,7 +22,9 @@ from vamos.ux.studio.problem_builder_backend import (
     run_preview_optimization,
 )
 from vamos.ux.studio.problem_builder_templates import _DEFAULT_TEMPLATE
-from vamos.ux.studio.services import DynamicsCallback, _build_algorithm_config, _run_algorithm, llm_generate_problem_code
+from vamos.ux.studio.services import llm_generate_problem_code
+
+PREVIEW_TIME_LIMIT_SECONDS = 10.0
 
 
 class ProblemBuilderState(param.Parameterized):
@@ -36,45 +41,16 @@ class ProblemBuilderState(param.Parameterized):
     n_obj = param.Integer(default=2, bounds=(2, 10), doc="Number of objectives.")
     bounds_text = param.String(default="0.0, 1.0", doc="Bounds: one line per var, or single line for all.")
     constraint_code = param.String(default="", doc="Optional constraint code.")
+    n_constraints = param.Integer(default=1, bounds=(1, 50), doc="Number of values returned by the constraint code.")
     trusted_local_code = param.Boolean(
         default=False,
         doc="Explicit acknowledgement that the currently displayed Python code is trusted.",
     )
 
-    # ---- Algorithm Setup ----
-    algorithm = param.Selector(
-        default="nsgaii",
-        objects=["nsgaii", "moead", "spea2", "smsemoa", "nsgaiii", "ibea", "agemoea", "rvea", "smpso"],
-        doc="Algorithm for optimization.",
-    )
-    pop_size = param.Integer(default=100, bounds=(10, 500), doc="Population size.")
-    max_gen = param.Integer(default=250, bounds=(10, 1000), doc="Max generations.")
-    seed = param.Integer(default=0, bounds=(0, 99999), doc="Random seed.")
-
-    # ---- Operator config ----
-    selection = param.Selector(
-        default="Tournament",
-        objects=["Tournament", "Random", "Boltzmann", "Ranking", "SUS"],
-    )
-    tournament_size = param.Integer(default=2, bounds=(2, 10))
-    use_archive = param.Boolean(default=False)
-    archive_mode = param.Selector(default="bounded", objects=["bounded", "unbounded"])
-    archive_prune = param.Selector(
-        default="crowding",
-        objects=["crowding", "hv", "mc_hv", "knn", "maxmin", "ref_dirs"],
-    )
-    crossover = param.Selector(
-        default="SBX",
-        objects=["SBX", "BLX-a", "BLX-ab", "Arithmetic", "WholeArithmetic", "Laplace", "Fuzzy", "PCX", "UNDX", "Simplex"],
-    )
-    crossover_prob = param.Number(default=0.9, bounds=(0.6, 1.0))
-    sbx_dist_index = param.Number(default=20.0, bounds=(5.0, 40.0))
-    mutation = param.Selector(
-        default="Polynomial",
-        objects=["Polynomial", "LinkedPolynomial", "NonUniform", "Gaussian", "Cauchy", "Uniform", "UniformReset", "LevyFlight", "PowerLaw"],
-    )
-    mutation_prob_factor = param.Number(default=1.0, bounds=(0.25, 3.0))
-    mutation_dist_index = param.Number(default=20.0, bounds=(5.0, 40.0))
+    # ---- Run Setup ----
+    max_gen = param.Integer(default=250, bounds=(1, 10000), doc="Generations: the budget is population size x generations.")
+    seed = param.Integer(default=0, bounds=(0, 2**31 - 1), doc="Random seed.")
+    time_limit = param.Number(default=120.0, bounds=(10.0, 3600.0), doc="Wall-clock limit of a full experiment, in seconds.")
 
     # ---- AI Assistant ----
     ai_provider = param.Selector(
@@ -92,12 +68,18 @@ class ProblemBuilderState(param.Parameterized):
     status_text = param.String(default="", precedence=-1)
     running = param.Boolean(default=False, precedence=-1)
     generation_history = param.List(default=[], precedence=-1)
-    current_gen = param.Integer(default=0, bounds=(0, 10000), precedence=-1)
+    current_gen = param.Integer(default=0, bounds=(0, None), precedence=-1)
     result_F = param.Array(default=None, precedence=-1)
 
     def __init__(self, **params: Any) -> None:
         super().__init__(**params)
+        self.configurator = AlgorithmConfigurator()
         self._apply_template()
+        self._sync_configurator()
+
+    @property
+    def algorithm(self) -> str:
+        return self.configurator.selected_algorithm
 
     @param.depends("template_name", watch=True)
     def _apply_template(self) -> None:
@@ -106,7 +88,14 @@ class ProblemBuilderState(param.Parameterized):
         self.objective_code = t.get("code", "")
         self.n_var = int(t.get("n_var", 2))
         self.n_obj = int(t.get("n_obj", 2))
-        self.bounds_text = "0.0, 1.0"
+        self.bounds_text = t.get("bounds", "0.0, 1.0")
+        self.constraint_code = t.get("constraint_code", "")
+        self.n_constraints = int(t.get("n_constraints", 1))
+
+    @param.depends("n_var", "n_obj", watch=True)
+    def _sync_configurator(self) -> None:
+        if hasattr(self, "configurator"):
+            self.configurator.set_problem(encoding="real", n_var=self.n_var, n_obj=self.n_obj)
 
     @param.depends("objective_code", "constraint_code", watch=True)
     def _invalidate_code_trust(self) -> None:
@@ -119,165 +108,99 @@ class ProblemBuilderState(param.Parameterized):
             return None
         return result
 
-    # ---- Conditional visibility helpers ----
-
-    @pn.depends("selection")
-    def tournament_panel(self) -> pn.Column:
-        if self.selection == "Tournament":
-            return pn.Column(pn.widgets.IntInput.from_param(self.param.tournament_size, name="Tournament size"))
-        return pn.Column()
-
-    @pn.depends("use_archive")
-    def archive_panel(self) -> pn.Column:
-        if self.use_archive:
-            widgets = [pn.widgets.Select.from_param(self.param.archive_mode, name="Archive mode")]
-            if self.archive_mode == "bounded":
-                widgets.append(pn.widgets.Select.from_param(self.param.archive_prune, name="Archive prune"))
-            return pn.Column(*widgets)
-        return pn.Column()
-
-    @pn.depends("crossover")
-    def crossover_params_panel(self) -> pn.Column:
-        widgets: list[pn.widgets.Widget] = []
-        if self.crossover == "SBX":
-            widgets.append(pn.widgets.FloatInput.from_param(self.param.sbx_dist_index, name="SBX dist. index"))
-        return pn.Column(*widgets)
+    def _constraint_count(self) -> int:
+        return int(self.n_constraints) if self.constraint_code.strip() else 0
 
     # ---- Generation viewer ----
 
-    @pn.depends("current_gen")
+    @pn.depends("current_gen", "generation_history")
     def generation_view(self) -> pn.pane.Plotly | pn.pane.Markdown:
         if not self.generation_history:
             return pn.pane.Markdown("*No generations recorded yet.*")
         idx = min(self.current_gen, len(self.generation_history) - 1)
-        F = self.generation_history[idx]
-        import plotly.express as px
-
-        if F.shape[1] == 2:
-            fig = px.scatter(x=F[:, 0], y=F[:, 1], labels={"x": "f1", "y": "f2"}, title=f"Generation {idx}")
-        elif F.shape[1] >= 3:
-            fig = px.scatter_3d(x=F[:, 0], y=F[:, 1], z=F[:, 2], title=f"Generation {idx}")
-        else:
-            fig = px.scatter(x=F[:, 0], y=np.zeros(len(F)), title=f"Generation {idx}")
-        fig.update_layout(height=450)
-        return pn.pane.Plotly(fig, sizing_mode="stretch_width")
+        return pn.pane.Plotly(front_figure(self.generation_history[idx], title=f"Generation {idx}"), sizing_mode="stretch_width")
 
     # ---- Actions ----
 
-    def run_preview(self, event: Any = None) -> None:
-        """Compile code, run a short optimization, update preview_plot."""
+    def _run_user_problem(self, *, record_history: bool, timeout_seconds: float) -> dict[str, Any] | None:
+        """Compile the reviewed code and run it in a child process; ``None`` when it cannot run."""
         if not self.trusted_local_code:
             self.status_text = f"Execution disabled. {TRUSTED_LOCAL_CODE_WARNING}"
-            self.preview_plot = None
-            return
+            return None
         self.status_text = "Compiling..."
         try:
             fn = compile_objective_function(self.objective_code, trusted_local_code=True)
         except Exception as exc:
             self.status_text = f"Compilation error: {exc}"
-            self.preview_plot = None
-            return
+            return None
 
         bounds = self._parse_bounds()
         if bounds is None:
-            return
+            return None
 
         constraints = None
-        n_constraints = 0
-        if self.constraint_code.strip():
+        n_constraints = self._constraint_count()
+        if n_constraints:
             try:
                 constraints = compile_constraint_function(self.constraint_code, trusted_local_code=True)
-                n_constraints = 1
             except Exception as exc:
                 self.status_text = f"Constraint error: {exc}"
-                return
+                return None
 
-        self.status_text = "Running preview..."
         try:
-            result = run_preview_optimization(
+            resolved = self.configurator.resolve()
+            pop_size = self.configurator.effective_pop_size()
+        except Exception as exc:
+            self.status_text = f"Configuration error: {exc}"
+            return None
+        self.status_text = "Running..."
+        try:
+            return run_preview_optimization(
                 fn,
                 n_var=self.n_var,
                 n_obj=self.n_obj,
                 bounds=bounds,
                 algorithm=self.algorithm,
-                pop_size=self.pop_size,
-                budget=self.pop_size * self.max_gen,
+                pop_size=pop_size,
+                budget=pop_size * self.max_gen,
                 seed=self.seed,
                 constraints=constraints,
                 n_constraints=n_constraints,
                 objective_code=self.objective_code,
                 constraint_code=self.constraint_code,
+                timeout_seconds=timeout_seconds,
                 trusted_local_code=True,
+                algorithm_config=resolved.config,
+                record_history=record_history,
             )
-            F = result.get("F")
-            if F is not None:
-                import plotly.express as px
-
-                F_arr = np.asarray(F)
-                if F_arr.shape[1] == 2:
-                    fig = px.scatter(x=F_arr[:, 0], y=F_arr[:, 1], labels={"x": "f1", "y": "f2"})
-                    fig.update_layout(title="Pareto Front Preview")
-                elif F_arr.shape[1] == 3:
-                    fig = px.scatter_3d(
-                        x=F_arr[:, 0],
-                        y=F_arr[:, 1],
-                        z=F_arr[:, 2],
-                        labels={"x": "f1", "y": "f2", "z": "f3"},
-                    )
-                    fig.update_layout(title="Pareto Front Preview (3D)")
-                else:
-                    import pandas as pd
-
-                    df = pd.DataFrame(F_arr, columns=[f"f{i + 1}" for i in range(F_arr.shape[1])])
-                    fig = px.parallel_coordinates(df)
-                    fig.update_layout(title="Pareto Front Preview (Parallel Coordinates)")
-                self.preview_plot = fig
-                self.status_text = f"Preview complete — {F_arr.shape[0]} solutions found."
-            else:
-                self.status_text = "Preview returned no objectives."
-                self.preview_plot = None
         except Exception as exc:
             self.status_text = f"Error: {exc}"
+            return None
+
+    def run_preview(self, event: Any = None) -> None:
+        """Compile code, run a short optimization, update preview_plot."""
+        result = self._run_user_problem(record_history=False, timeout_seconds=PREVIEW_TIME_LIMIT_SECONDS)
+        if result is None:
             self.preview_plot = None
+            return
+        F_arr = np.asarray(result["F"])
+        self.preview_plot = front_figure(F_arr, title="Pareto Front Preview")
+        self.status_text = f"Preview complete — {F_arr.shape[0]} solutions found with {algorithm_label(self.algorithm)}."
 
     def run_full_experiment(self, event: Any = None) -> None:
-        """Run a full optimization using the registry problem and collect generation history."""
+        """Run the defined problem with the full budget and collect the generation history."""
         self.running = True
-        self.status_text = "Running full experiment..."
         self.generation_history = []
         self.current_gen = 0
         try:
-            from vamos.foundation.problem.registry import make_problem_selection
-
-            selection = make_problem_selection(self.template_name)
-            problem = selection.instantiate()
-            n_var = getattr(problem, "n_var", None)
-            n_obj = getattr(problem, "n_obj", None)
-
-            algo_cfg = _build_algorithm_config(
-                self.algorithm,
-                pop_size=self.pop_size,
-                n_var=n_var,
-                n_obj=n_obj,
-                encoding=getattr(problem, "encoding", None),
-            )
-            callback = DynamicsCallback()
-            _run_algorithm(
-                problem,
-                algorithm=self.algorithm,
-                algorithm_config=algo_cfg,
-                termination=("max_evaluations", self.pop_size * self.max_gen),
-                seed=self.seed,
-                engine="numpy",
-                live_viz=callback,
-            )
-            self.generation_history = list(callback.history)
-            if self.generation_history:
-                self.current_gen = len(self.generation_history) - 1
-                self.result_F = self.generation_history[-1]
-            self.status_text = f"Done — {len(self.generation_history)} generations recorded."
-        except Exception as exc:
-            self.status_text = f"Error: {exc}"
+            result = self._run_user_problem(record_history=True, timeout_seconds=float(self.time_limit))
+            if result is None:
+                return
+            history = list(result.get("history") or [result["F"]])
+            self.generation_history = history
+            self.current_gen = len(history) - 1
+            self.result_F = np.asarray(result["F"])
+            self.status_text = f"Done — {len(history)} generations recorded with {algorithm_label(self.algorithm)}."
         finally:
             self.running = False
 
@@ -287,6 +210,9 @@ class ProblemBuilderState(param.Parameterized):
         if bounds is None:
             return
         try:
+            resolved = self.configurator.resolve()
+            pop_size = self.configurator.effective_pop_size()
+            customized = bool(resolved.differences)
             self.generated_script = generate_script(
                 self.objective_code,
                 name=self.template_name,
@@ -294,10 +220,14 @@ class ProblemBuilderState(param.Parameterized):
                 n_obj=self.n_obj,
                 bounds=bounds,
                 algorithm=self.algorithm,
-                budget=self.pop_size * self.max_gen,
+                budget=pop_size * self.max_gen,
                 constraint_code=self.constraint_code,
+                n_constraints=self._constraint_count(),
+                pop_size=pop_size,
+                algorithm_config=dict(resolved.config.to_dict()) if customized else None,
+                config_class=type(resolved.config).__name__ if customized else None,
             )
-            self.status_text = "Script generated."
+            self.status_text = "Script generated with the customized configuration." if customized else "Script generated."
         except Exception as exc:
             self.status_text = f"Script generation error: {exc}"
 
@@ -324,10 +254,7 @@ def render_problem_builder() -> pn.Column:
     """Build and return the Problem Builder page layout with tabs."""
     state = ProblemBuilderState()
 
-    # ---- Template selector ----
     template_select = pn.widgets.Select.from_param(state.param.template_name, name="Template")
-
-    # ---- Code editor ----
     code_editor = pn.widgets.CodeEditor.from_param(
         state.param.objective_code,
         language="python",
@@ -335,15 +262,11 @@ def render_problem_builder() -> pn.Column:
         height=200,
         name="Objective code",
     )
-
-    # ---- Variable config ----
     var_controls = pn.Column(
         pn.widgets.IntInput.from_param(state.param.n_var, name="Variables (n_var)"),
         pn.widgets.IntInput.from_param(state.param.n_obj, name="Objectives (n_obj)"),
         pn.widgets.TextAreaInput.from_param(state.param.bounds_text, name="Bounds (lo, hi per line)"),
     )
-
-    # ---- Constraints ----
     constraint_editor = pn.widgets.CodeEditor.from_param(
         state.param.constraint_code,
         language="python",
@@ -351,73 +274,37 @@ def render_problem_builder() -> pn.Column:
         height=100,
         name="Constraint code (optional)",
     )
+    constraint_count = pn.widgets.IntInput.from_param(state.param.n_constraints, name="Constraint values returned (g(x) <= 0 is feasible)")
     trusted_code_warning, trusted_code_confirmation = build_trusted_code_controls(state)
 
-    # ---- Algorithm config ----
-    algo_general = pn.Column(
-        pn.widgets.Select.from_param(state.param.algorithm, name="Algorithm"),
-        pn.widgets.IntInput.from_param(state.param.pop_size, name="Population size"),
-        pn.widgets.IntInput.from_param(state.param.max_gen, name="Max generations"),
+    run_setup = pn.Column(
+        pn.widgets.IntInput.from_param(state.param.max_gen, name="Generations (budget = population x generations)"),
         pn.widgets.IntInput.from_param(state.param.seed, name="Seed"),
+        pn.widgets.FloatInput.from_param(state.param.time_limit, name="Time limit of a full experiment (s)"),
     )
 
-    # ---- Operator config ----
-    operators = pn.Column(
-        "### Selection",
-        pn.widgets.Select.from_param(state.param.selection, name="Selection"),
-        state.tournament_panel,
-        pn.layout.Divider(),
-        "### Archive",
-        pn.widgets.Checkbox.from_param(state.param.use_archive, name="Use external archive"),
-        state.archive_panel,
-        pn.layout.Divider(),
-        "### Crossover",
-        pn.widgets.Select.from_param(state.param.crossover, name="Crossover"),
-        pn.widgets.FloatInput.from_param(state.param.crossover_prob, name="Crossover probability"),
-        state.crossover_params_panel,
-        pn.layout.Divider(),
-        "### Mutation",
-        pn.widgets.Select.from_param(state.param.mutation, name="Mutation"),
-        pn.widgets.FloatInput.from_param(state.param.mutation_prob_factor, name="Mutation prob. factor"),
-        pn.widgets.FloatInput.from_param(state.param.mutation_dist_index, name="Mutation dist. index"),
-    )
-
-    # ---- Action buttons ----
     preview_btn = pn.widgets.Button(name="Quick Preview", button_type="primary")
     preview_btn.on_click(state.run_preview)
-
     run_btn = pn.widgets.Button(
         name="Run Full Experiment",
         button_type="success",
         disabled=pn.bind(lambda r: r, state.param.running),
     )
     run_btn.on_click(state.run_full_experiment)
-
     generate_btn = pn.widgets.Button(name="Generate Script", button_type="warning")
     generate_btn.on_click(state.do_generate_script)
 
     status_pane = pn.pane.Alert(pn.bind(lambda t: t or "Ready.", state.param.status_text), alert_type="info")
-
-    # ---- Preview plot ----
     plot_pane = pn.pane.Plotly(pn.bind(lambda p: p, state.param.preview_plot), sizing_mode="stretch_both", min_height=400)
-
-    # ---- Generation slider + live view ----
     gen_slider = pn.widgets.IntSlider.from_param(
         state.param.current_gen,
         name="Generation",
         start=0,
-        end=pn.bind(lambda h: max(len(h) - 1, 0), state.param.generation_history),
+        end=pn.bind(lambda h: max(len(h) - 1, 1), state.param.generation_history),
     )
-
-    # ---- Generated script ----
-    script_pane = pn.pane.Str(
-        pn.bind(lambda s: s, state.param.generated_script),
-        sizing_mode="stretch_width",
-    )
+    script_pane = pn.pane.Str(pn.bind(lambda s: s, state.param.generated_script), sizing_mode="stretch_width")
 
     tab_ai = build_ai_generation_tab(state)
-
-    # ==== Tab 2: Problem Definition ====
     tab_problem = pn.Column(
         "### Template",
         template_select,
@@ -430,25 +317,27 @@ def render_problem_builder() -> pn.Column:
         pn.layout.Divider(),
         "### Constraints (optional)",
         constraint_editor,
+        constraint_count,
         pn.layout.Divider(),
         trusted_code_warning,
         trusted_code_confirmation,
         sizing_mode="stretch_width",
     )
-
-    # ==== Tab 3: Algorithm & Operators ====
     tab_algorithm = pn.Column(
-        "### General",
-        algo_general,
+        "### Algorithm",
+        state.configurator.view(),
         pn.layout.Divider(),
-        operators,
+        "### Run",
+        run_setup,
         sizing_mode="stretch_width",
     )
-
-    # ==== Tab 4: Results ====
     tab_results = pn.Column(
         pn.Row(preview_btn, run_btn, generate_btn),
         status_pane,
+        pn.pane.Markdown(
+            f"*Quick Preview stops after {PREVIEW_TIME_LIMIT_SECONDS:.0f} s; Run Full Experiment uses the time limit "
+            "from Algorithm & Run and records every generation. Both run the reviewed code in a child process.*"
+        ),
         pn.layout.Divider(),
         "### Pareto Front Preview",
         plot_pane,
@@ -465,15 +354,9 @@ def render_problem_builder() -> pn.Column:
     tabs = pn.Tabs(
         ("AI Assistant", tab_ai),
         ("Problem Definition", tab_problem),
-        ("Algorithm & Operators", tab_algorithm),
+        ("Algorithm & Run", tab_algorithm),
         ("Results", tab_results),
         sizing_mode="stretch_both",
         dynamic=False,
     )
-
-    return pn.Column(
-        "## Problem Builder",
-        pn.layout.Divider(),
-        tabs,
-        sizing_mode="stretch_both",
-    )
+    return pn.Column("## Problem Builder", pn.layout.Divider(), tabs, sizing_mode="stretch_both")
