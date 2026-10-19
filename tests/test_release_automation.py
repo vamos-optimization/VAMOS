@@ -315,9 +315,9 @@ def test_compute_extra_excludes_the_reviewed_distributed_advisory() -> None:
     assert pyproject.count('"setuptools>=83"') == 3
     assert pyproject.count('"wheel>=0.46.2"') == 3
     assert "setuptools==84.0.0" in constraints
-    assert "wheel==0.46.2" in constraints
+    assert "wheel==0.48.0" in constraints
     assert "setuptools==84.0.0" in build_requirements
-    assert "wheel==0.46.2" in build_requirements
+    assert "wheel==0.48.0" in build_requirements
 
 
 def test_ci_constraints_retain_declared_python_310_support() -> None:
@@ -342,7 +342,7 @@ def test_ci_constraints_use_reviewed_security_fixed_tooling() -> None:
     assert "nbconvert==7.17.1" in constraints
     assert "panel==1.9.4" in constraints
     assert "bokeh==3.9.2" in constraints
-    assert "pymdown-extensions==11.0.1" in constraints
+    assert "pymdown-extensions==12.1" in constraints
 
 
 def test_version_documents_and_license_policy(tmp_path: Path) -> None:

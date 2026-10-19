@@ -211,7 +211,7 @@ class KernelBackend(ABC):
         F_off: RealArray,
         pop_size: int,
         return_indices: Literal[False] = False,
-    ) -> tuple[DecisionArray, FloatArray]: ...
+    ) -> tuple[DecisionArray, RealArray]: ...
 
     @overload
     def nsga2_survival(
@@ -222,7 +222,7 @@ class KernelBackend(ABC):
         F_off: RealArray,
         pop_size: int,
         return_indices: Literal[True],
-    ) -> tuple[DecisionArray, FloatArray, IndexArray]: ...
+    ) -> tuple[DecisionArray, RealArray, IndexArray]: ...
 
     @abstractmethod
     def nsga2_survival(
@@ -233,7 +233,7 @@ class KernelBackend(ABC):
         F_off: RealArray,
         pop_size: int,
         return_indices: bool = False,
-    ) -> tuple[DecisionArray, FloatArray] | tuple[DecisionArray, FloatArray, IndexArray]:
+    ) -> tuple[DecisionArray, RealArray] | tuple[DecisionArray, RealArray, IndexArray]:
         """
         Perform NSGA-II elitist replacement returning new (X, F).
         When return_indices is True, also return selected indices in the combined population.

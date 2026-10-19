@@ -4,6 +4,7 @@ import warnings
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vamos.engine.algorithm.components.archive_core import DeduplicateIn, _BaseArchive
 from vamos.engine.archive.pruning_selectors import select_maxmin_subset, select_ref_dirs_subset
@@ -85,7 +86,7 @@ class CrowdingDistanceArchive(_BaseArchive):
         if self.selection_kernels is not None and F.shape[0] > target_size and bool(np.isfinite(F).all()):
             # Same crowding values and first-argmin removals as the loop below.
             return np.asarray(self.selection_kernels.iterative_crowding_truncation(F, target_size), dtype=int)
-        keep = np.arange(F.shape[0], dtype=int)
+        keep: NDArray[np.int_] = np.arange(F.shape[0], dtype=int)
         while keep.size > target_size:
             crowd = _single_front_crowding(F[keep])
             worst_local = int(np.argmin(crowd))
@@ -151,7 +152,7 @@ class HypervolumeArchive(_BaseArchive):
         G: np.ndarray[Any, Any] | None = None,
     ) -> np.ndarray[Any, Any]:
         _ = G
-        keep = np.arange(F.shape[0], dtype=int)
+        keep: NDArray[np.int_] = np.arange(F.shape[0], dtype=int)
         while keep.size > target_size:
             F_keep = F[keep]
             ref = self._reference(F_keep)

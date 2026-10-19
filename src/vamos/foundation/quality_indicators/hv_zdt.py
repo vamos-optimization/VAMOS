@@ -1,18 +1,21 @@
 from __future__ import annotations
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vamos.foundation.quality_indicators.hypervolume import hypervolume
 
 
-def get_zdt_reference_front(name: str, n_points: int = 1000) -> np.ndarray:
+def get_zdt_reference_front(name: str, n_points: int = 1000) -> NDArray[np.float64]:
     """Return an approximate Pareto front for ZDT problems (analytic for 1,2,3,4,6)."""
     name = name.lower()
+    f1: NDArray[np.float64]
+    f2: NDArray[np.float64]
     if name == "zdt5":
         f1 = np.arange(1.0, 32.0, dtype=float)
         f2 = 10.0 / f1
         return np.column_stack((f1, f2))
-    t = np.linspace(0.0, 1.0, num=n_points)
+    t = np.linspace(0.0, 1.0, num=n_points, dtype=np.float64)
     if name == "zdt1":
         f1 = t
         f2 = 1.0 - np.sqrt(t)
@@ -34,7 +37,7 @@ def get_zdt_reference_front(name: str, n_points: int = 1000) -> np.ndarray:
     return np.vstack((f1, f2)).T
 
 
-def get_zdt_reference_point(name: str) -> np.ndarray:
+def get_zdt_reference_point(name: str) -> NDArray[np.float64]:
     """Return a reasonable reference point for HV of the given ZDT problem."""
     name = name.lower()
     if name in {"zdt1", "zdt2", "zdt3"}:
@@ -48,7 +51,7 @@ def get_zdt_reference_point(name: str) -> np.ndarray:
     raise ValueError(f"Unsupported ZDT problem '{name}'.")
 
 
-def compute_normalized_hv(F: np.ndarray, problem_name: str) -> float:
+def compute_normalized_hv(F: NDArray[np.float64], problem_name: str) -> float:
     """
     Compute normalized hypervolume: HV(F)/HV(PF_ref) using ZDT reference fronts.
     """

@@ -426,7 +426,7 @@ class NumPyKernel(KernelBackend):
         F_off: RealArray,
         pop_size: int,
         return_indices: Literal[False] = False,
-    ) -> tuple[DecisionArray, FloatArray]: ...
+    ) -> tuple[DecisionArray, RealArray]: ...
 
     @overload
     def nsga2_survival(
@@ -437,7 +437,7 @@ class NumPyKernel(KernelBackend):
         F_off: RealArray,
         pop_size: int,
         return_indices: Literal[True],
-    ) -> tuple[DecisionArray, FloatArray, IndexArray]: ...
+    ) -> tuple[DecisionArray, RealArray, IndexArray]: ...
 
     def nsga2_survival(
         self,
@@ -447,7 +447,7 @@ class NumPyKernel(KernelBackend):
         F_off: RealArray,
         pop_size: int,
         return_indices: bool = False,
-    ) -> tuple[DecisionArray, FloatArray] | tuple[DecisionArray, FloatArray, IndexArray]:
+    ) -> tuple[DecisionArray, RealArray] | tuple[DecisionArray, RealArray, IndexArray]:
         """
         NSGA-II elitism: merge parents + offspring, re-rank, and select.
         """

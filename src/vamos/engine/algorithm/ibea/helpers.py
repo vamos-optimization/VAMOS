@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vamos.foundation.constraints.utils import compute_violation, is_feasible
 
@@ -184,7 +185,7 @@ def environmental_selection(
         selected = np.asarray(selection_kernels.indicator_removal(fitness, contrib, pop_size), dtype=int)
         return X[selected], F[selected], G[selected] if G is not None else None, fitness[selected]
 
-    active = np.arange(X.shape[0], dtype=int)
+    active: NDArray[np.int_] = np.arange(X.shape[0], dtype=int)
     while active.size > pop_size:
         active_fitness = fitness[active]
         worst_pos = int(np.argmin(active_fitness))

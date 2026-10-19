@@ -7,7 +7,7 @@ import os
 import struct
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, BinaryIO, Protocol, cast
 from zipfile import ZIP_DEFLATED, ZIP_STORED, BadZipFile, ZipFile
 
 import numpy as np
@@ -34,6 +34,10 @@ _ALLOWED_COMPRESSIONS = (ZIP_STORED, ZIP_DEFLATED)
 class ResultLike(Protocol):
     F: NDArray[Any] | None
     X: NDArray[Any] | None
+
+
+class _ValidatedArrayWriter(Protocol):
+    def __call__(self, file: BinaryIO, **arrays: NDArray[np.generic]) -> None: ...
 
 
 def snapshot_result_arrays(result: ResultLike, *, limits: LoadLimits) -> dict[str, np.ndarray[Any, Any]]:
@@ -64,7 +68,9 @@ def write_result_bundle(path: Path, arrays: Mapping[str, np.ndarray[Any, Any]], 
     copied = {name: np.array(value, copy=True, order="K", subok=False) for name, value in arrays.items()}
     validate_array_collection(copied, required_f=True, limits=limits, operation="save result")
     with path.open("xb") as handle:
-        np.savez(handle, **copied)
+        # Validation excludes control keywords such as NumPy 2.2's allow_pickle.
+        # Pass only arrays, retaining compatibility with older NumPy releases.
+        cast(_ValidatedArrayWriter, np.savez)(handle, **copied)
         handle.flush()
         os.fsync(handle.fileno())
 

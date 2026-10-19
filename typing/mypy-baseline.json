@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "ffa15b96f71cbd81681a8be13c4a6bc0f4b42ea5",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit ffa15b96f71cbd81681a8be13c4a6bc0f4b42ea5",
+  "generation_commit": "0db7acd5efa3087431e559404784218d0e140550",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 0db7acd5efa3087431e559404784218d0e140550",
   "environment": {
     "python": "3.12",
     "mypy": "2.3.1",
@@ -14,22 +14,21 @@
     "config_sha256": "0EBC8B0E228CF31F73CBB77B7A2778C067D960374D8B950EC2667138E25BFB16",
     "mypy_config_sha256": "2D1AAAB5CB687AA8C7871D3AFBE4638A782A12541721A85B770843816611FCAD",
     "constraints_path": "constraints/ci.txt",
-    "constraints_sha256": "2BFCA73BEF86704168A791A0033951ED450E86C9D9D25D78E98D0C3457964F94"
+    "constraints_sha256": "3271460993936845A185A952C0443DEBC7FA59F2210EEEB27C5B630F18670497"
   },
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 939,
-  "files_with_diagnostics": 114,
-  "fingerprint_count": 120,
+  "diagnostic_count": 837,
+  "files_with_diagnostics": 108,
+  "fingerprint_count": 108,
   "error_code_summary": {
-    "no-any-return": 6,
-    "type-arg": 933
+    "type-arg": 837
   },
   "layer_summary": {
-    "engine": 480,
+    "engine": 461,
     "experiment": 22,
-    "foundation": 369,
+    "foundation": 286,
     "package-root": 1,
     "ux": 67
   },
@@ -64,20 +63,6 @@
         {
           "line": 24,
           "column": 20
-        }
-      ]
-    },
-    {
-      "fingerprint": "042D964C389DEC4EB31560CFAD2953F683A64EED04BB744BD9B167512D7BAB9B",
-      "path": "src/vamos/engine/archive/pruning_selectors.py",
-      "error_code": "no-any-return",
-      "normalized_message": "Returning Any from function declared to return \"ndarray[Any, Any]\"",
-      "layer": "engine",
-      "multiplicity": 1,
-      "locations": [
-        {
-          "line": 78,
-          "column": 5
         }
       ]
     },
@@ -1836,28 +1821,6 @@
       ]
     },
     {
-      "fingerprint": "54BF3025EFCE97BB0B72F0610E8C86C56DAC235519CC3B8966A7F00F0A82DAEA",
-      "path": "src/vamos/foundation/quality_indicators/pareto.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "foundation",
-      "multiplicity": 3,
-      "locations": [
-        {
-          "line": 9,
-          "column": 22
-        },
-        {
-          "line": 13,
-          "column": 22
-        },
-        {
-          "line": 16,
-          "column": 22
-        }
-      ]
-    },
-    {
       "fingerprint": "55DB4C4183E5A1BC9E3C3FAA0484981CD1C60BC141FE491C01AC25E71A80F2E4",
       "path": "src/vamos/foundation/problem/cec2009.py",
       "error_code": "type-arg",
@@ -1920,240 +1883,6 @@
         {
           "line": 327,
           "column": 27
-        }
-      ]
-    },
-    {
-      "fingerprint": "561B93AF31651E537B59CE2CA8FFEF6FE29E8DC45C399EE8C72ECE9E8D15C125",
-      "path": "src/vamos/foundation/kernel/moocore_backend.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "foundation",
-      "multiplicity": 56,
-      "locations": [
-        {
-          "line": 112,
-          "column": 25
-        },
-        {
-          "line": 113,
-          "column": 25
-        },
-        {
-          "line": 114,
-          "column": 28
-        },
-        {
-          "line": 115,
-          "column": 25
-        },
-        {
-          "line": 116,
-          "column": 25
-        },
-        {
-          "line": 130,
-          "column": 32
-        },
-        {
-          "line": 132,
-          "column": 13
-        },
-        {
-          "line": 141,
-          "column": 16
-        },
-        {
-          "line": 142,
-          "column": 19
-        },
-        {
-          "line": 146,
-          "column": 10
-        },
-        {
-          "line": 147,
-          "column": 21
-        },
-        {
-          "line": 151,
-          "column": 20
-        },
-        {
-          "line": 156,
-          "column": 10
-        },
-        {
-          "line": 157,
-          "column": 21
-        },
-        {
-          "line": 161,
-          "column": 12
-        },
-        {
-          "line": 178,
-          "column": 14
-        },
-        {
-          "line": 179,
-          "column": 14
-        },
-        {
-          "line": 180,
-          "column": 14
-        },
-        {
-          "line": 181,
-          "column": 14
-        },
-        {
-          "line": 182,
-          "column": 16
-        },
-        {
-          "line": 218,
-          "column": 33
-        },
-        {
-          "line": 224,
-          "column": 45
-        },
-        {
-          "line": 235,
-          "column": 17
-        },
-        {
-          "line": 243,
-          "column": 14
-        },
-        {
-          "line": 244,
-          "column": 14
-        },
-        {
-          "line": 245,
-          "column": 14
-        },
-        {
-          "line": 246,
-          "column": 14
-        },
-        {
-          "line": 249,
-          "column": 16
-        },
-        {
-          "line": 251,
-          "column": 22
-        },
-        {
-          "line": 285,
-          "column": 12
-        },
-        {
-          "line": 286,
-          "column": 12
-        },
-        {
-          "line": 287,
-          "column": 16
-        },
-        {
-          "line": 288,
-          "column": 16
-        },
-        {
-          "line": 291,
-          "column": 16
-        },
-        {
-          "line": 296,
-          "column": 12
-        },
-        {
-          "line": 297,
-          "column": 12
-        },
-        {
-          "line": 298,
-          "column": 16
-        },
-        {
-          "line": 299,
-          "column": 16
-        },
-        {
-          "line": 302,
-          "column": 16
-        },
-        {
-          "line": 306,
-          "column": 12
-        },
-        {
-          "line": 307,
-          "column": 12
-        },
-        {
-          "line": 308,
-          "column": 16
-        },
-        {
-          "line": 309,
-          "column": 16
-        },
-        {
-          "line": 312,
-          "column": 16
-        },
-        {
-          "line": 317,
-          "column": 20
-        },
-        {
-          "line": 318,
-          "column": 20
-        },
-        {
-          "line": 319,
-          "column": 23
-        },
-        {
-          "line": 320,
-          "column": 23
-        },
-        {
-          "line": 322,
-          "column": 16
-        },
-        {
-          "line": 343,
-          "column": 35
-        },
-        {
-          "line": 371,
-          "column": 36
-        },
-        {
-          "line": 375,
-          "column": 38
-        },
-        {
-          "line": 381,
-          "column": 21
-        },
-        {
-          "line": 391,
-          "column": 29
-        },
-        {
-          "line": 410,
-          "column": 28
-        },
-        {
-          "line": 424,
-          "column": 33
         }
       ]
     },
@@ -2254,24 +1983,6 @@
         {
           "line": 279,
           "column": 28
-        }
-      ]
-    },
-    {
-      "fingerprint": "5C43292B87B76BBFE154CD038066C1319A04E98795DE5D0CCD8F88E1B145C7F9",
-      "path": "src/vamos/foundation/constraints/__init__.py",
-      "error_code": "no-any-return",
-      "normalized_message": "Returning Any from function declared to return \"ndarray[Any, Any]\"",
-      "layer": "foundation",
-      "multiplicity": 2,
-      "locations": [
-        {
-          "line": 95,
-          "column": 9
-        },
-        {
-          "line": 109,
-          "column": 9
         }
       ]
     },
@@ -2482,20 +2193,6 @@
       ]
     },
     {
-      "fingerprint": "6869EC754C4CC1D23BBF52FC14A1376CCA346590662852EA06D580DCD660FEA5",
-      "path": "src/vamos/foundation/kernel/moocore_backend.py",
-      "error_code": "no-any-return",
-      "normalized_message": "Returning Any from function declared to return \"ndarray[Any, Any]\"",
-      "layer": "foundation",
-      "multiplicity": 1,
-      "locations": [
-        {
-          "line": 239,
-          "column": 9
-        }
-      ]
-    },
-    {
       "fingerprint": "690BECFCB9FF9CC012531C97635595B9937D095F2A61597B5DA2E60D44B340FC",
       "path": "src/vamos/engine/algorithm/components/matching.py",
       "error_code": "type-arg",
@@ -2614,28 +2311,6 @@
       ]
     },
     {
-      "fingerprint": "7138811F6678584247FDD5DE62C7FF5B5CA523A5FF13AF65F5215528493A6696",
-      "path": "src/vamos/foundation/problem/real_world/tanabe_ishibuchi_re6_re9.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "foundation",
-      "multiplicity": 3,
-      "locations": [
-        {
-          "line": 20,
-          "column": 27
-        },
-        {
-          "line": 67,
-          "column": 51
-        },
-        {
-          "line": 81,
-          "column": 27
-        }
-      ]
-    },
-    {
       "fingerprint": "75BAA413BC52CC6368C69FD8042D4805DBE85E172717CEEB5F0C65A21FFDD5AA",
       "path": "src/vamos/engine/operators/impl/repair.py",
       "error_code": "type-arg",
@@ -2666,28 +2341,6 @@
         {
           "line": 32,
           "column": 10
-        }
-      ]
-    },
-    {
-      "fingerprint": "76863A74C36FDE6C545990117918F6921C3237D908F48F904499916238682494",
-      "path": "src/vamos/foundation/quality_indicators/hv_zdt.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "foundation",
-      "multiplicity": 3,
-      "locations": [
-        {
-          "line": 8,
-          "column": 65
-        },
-        {
-          "line": 37,
-          "column": 43
-        },
-        {
-          "line": 51,
-          "column": 30
         }
       ]
     },
@@ -3090,20 +2743,6 @@
       ]
     },
     {
-      "fingerprint": "8623C0DCE36B5A5F2CDC3DD754413883173E026C36A4245DD647D9A3DB820AC2",
-      "path": "src/vamos/foundation/problem/lsmop.py",
-      "error_code": "no-any-return",
-      "normalized_message": "Returning Any from function declared to return \"ndarray[Any, Any]\"",
-      "layer": "foundation",
-      "multiplicity": 1,
-      "locations": [
-        {
-          "line": 142,
-          "column": 9
-        }
-      ]
-    },
-    {
       "fingerprint": "86F37CF9414141F14C1B80EDE6FEF66B64B1A345B4F449986587A1CB8B72A1D3",
       "path": "src/vamos/engine/hooks/live_viz.py",
       "error_code": "type-arg",
@@ -3182,32 +2821,6 @@
       ]
     },
     {
-      "fingerprint": "90DE2F025297258C02F8CBB05392401E59253ABE34CA2EAB22364EE3CE8C5660",
-      "path": "src/vamos/engine/algorithm/nsgaiii/nsgaiii.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 4,
-      "locations": [
-        {
-          "line": 155,
-          "column": 56
-        },
-        {
-          "line": 197,
-          "column": 12
-        },
-        {
-          "line": 200,
-          "column": 16
-        },
-        {
-          "line": 234,
-          "column": 22
-        }
-      ]
-    },
-    {
       "fingerprint": "927D7EBB5EDE43412868B46DC8CDEF3276B1E3140F7232ECA9645A4BE4877ACE",
       "path": "src/vamos/engine/tuning/racing/config_space.py",
       "error_code": "type-arg",
@@ -3236,72 +2849,6 @@
         {
           "line": 17,
           "column": 27
-        }
-      ]
-    },
-    {
-      "fingerprint": "93E50816C57FE178772A8DE2488E9A96CBCA030FDBCE7B73302188CB2A0BF3E4",
-      "path": "src/vamos/engine/algorithm/components/subset_selection.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 14,
-      "locations": [
-        {
-          "line": 29,
-          "column": 31
-        },
-        {
-          "line": 37,
-          "column": 26
-        },
-        {
-          "line": 64,
-          "column": 30
-        },
-        {
-          "line": 104,
-          "column": 30
-        },
-        {
-          "line": 149,
-          "column": 25
-        },
-        {
-          "line": 197,
-          "column": 42
-        },
-        {
-          "line": 282,
-          "column": 8
-        },
-        {
-          "line": 288,
-          "column": 6
-        },
-        {
-          "line": 325,
-          "column": 18
-        },
-        {
-          "line": 326,
-          "column": 21
-        },
-        {
-          "line": 403,
-          "column": 27
-        },
-        {
-          "line": 461,
-          "column": 8
-        },
-        {
-          "line": 464,
-          "column": 16
-        },
-        {
-          "line": 466,
-          "column": 6
         }
       ]
     },
@@ -3738,68 +3285,6 @@
         {
           "line": 72,
           "column": 32
-        }
-      ]
-    },
-    {
-      "fingerprint": "B561349B672B2F4F10DC3170EA67108791B86588BBA3CDEDB7DC01B4D06D3635",
-      "path": "src/vamos/foundation/constraints/dsl.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"number\"",
-      "layer": "foundation",
-      "multiplicity": 13,
-      "locations": [
-        {
-          "line": 25,
-          "column": 57
-        },
-        {
-          "line": 38,
-          "column": 57
-        },
-        {
-          "line": 41,
-          "column": 58
-        },
-        {
-          "line": 44,
-          "column": 57
-        },
-        {
-          "line": 47,
-          "column": 58
-        },
-        {
-          "line": 50,
-          "column": 57
-        },
-        {
-          "line": 53,
-          "column": 58
-        },
-        {
-          "line": 56,
-          "column": 61
-        },
-        {
-          "line": 59,
-          "column": 62
-        },
-        {
-          "line": 64,
-          "column": 43
-        },
-        {
-          "line": 69,
-          "column": 56
-        },
-        {
-          "line": 72,
-          "column": 56
-        },
-        {
-          "line": 75,
-          "column": 56
         }
       ]
     },
@@ -4286,20 +3771,6 @@
         {
           "line": 29,
           "column": 31
-        }
-      ]
-    },
-    {
-      "fingerprint": "D69F9ECAE72039BC4466C35D3FBD36E6205315A3B481453572463DE3630B7B80",
-      "path": "src/vamos/foundation/problem/constrained_many.py",
-      "error_code": "no-any-return",
-      "normalized_message": "Returning Any from function declared to return \"ndarray[Any, Any]\"",
-      "layer": "foundation",
-      "multiplicity": 1,
-      "locations": [
-        {
-          "line": 118,
-          "column": 5
         }
       ]
     },

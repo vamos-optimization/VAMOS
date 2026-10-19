@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vamos.foundation.constraints.utils import compute_violation, is_feasible
 
@@ -181,7 +182,7 @@ def truncate_by_kth_distance(
         # Same k-th statistics, stable descending order and removal as the loop below.
         return np.asarray(selection_kernels.kth_distance_truncation(dist, keep, kth_neighbor), dtype=int)
 
-    active = np.arange(n, dtype=int)
+    active: NDArray[np.int_] = np.arange(n, dtype=int)
     while active.size > keep:
         active_dist = dist[np.ix_(active, active)]
         active_k = min(kth_neighbor, active_dist.shape[0] - 1)
