@@ -25,6 +25,7 @@ from vamos.engine.algorithm.components.lifecycle import evaluate_batch
 from vamos.engine.algorithm.components.termination import HVTracker, capped_offspring_size
 from vamos.engine.algorithm.components.utils import variation_operator_label
 from vamos.foundation.kernel import default_kernel
+from vamos.foundation.kernel.backend import DecisionArray, FloatArray
 
 from .helpers import (
     nsgaiii_survival,
@@ -152,7 +153,7 @@ class NSGAIII:
     # Generation logic
     # -------------------------------------------------------------------------
 
-    def _generate_offspring(self, st: NSGAIIIState) -> np.ndarray:
+    def _generate_offspring(self, st: NSGAIIIState) -> DecisionArray:
         """Generate offspring using tournament selection and variation."""
         n_var = st.X.shape[1]
         request_size = capped_offspring_size(st.n_eval, self._max_eval, st.pop_size, "NSGA-III")
@@ -174,7 +175,7 @@ class NSGAIII:
         if st.crossover_fn is None or st.mutation_fn is None:
             raise RuntimeError("NSGA-III variation operators are not initialized.")
         offspring_pairs = st.crossover_fn(X_parents)
-        X_off = offspring_pairs.reshape(-1, n_var)
+        X_off: DecisionArray = offspring_pairs.reshape(-1, n_var)
         X_off = st.mutation_fn(X_off)
         if X_off.shape[0] > request_size:
             X_off = X_off[:request_size]
@@ -194,10 +195,10 @@ class NSGAIII:
     def _evaluate_offspring(
         self,
         problem: ProblemProtocol,
-        X: np.ndarray,
+        X: DecisionArray,
         eval_strategy: EvaluationBackend,
         constraint_mode: str,
-    ) -> tuple[np.ndarray, np.ndarray | None]:
+    ) -> tuple[FloatArray, FloatArray | None]:
         """Evaluate offspring and compute constraints."""
         return evaluate_batch(problem, eval_strategy, X, constraint_mode)
 
@@ -231,7 +232,7 @@ class NSGAIII:
             )
             self._live_cb.on_start(ctx)
 
-    def ask(self) -> np.ndarray:
+    def ask(self) -> DecisionArray:
         """Generate offspring for evaluation."""
         if self._st is None:
             raise RuntimeError("Algorithm not initialized. Call initialize() first.")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+from numpy.typing import NDArray
 
 from .tanabe_ishibuchi_utils import sum_violations_gte0
 
@@ -17,7 +18,7 @@ class RE61Problem:
         self.xl = np.array([0.01, 0.01, 0.01], dtype=float)
         self.xu = np.array([0.45, 0.10, 0.10], dtype=float)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: NDArray[np.float64], out: dict[str, NDArray[np.float64]]) -> None:
         x1, x2, x3 = X[:, 0], X[:, 1], X[:, 2]
 
         f1 = 106780.37 * (x2 + x3) + 61704.67
@@ -64,12 +65,12 @@ class RE91Problem:
         self._stochastic = bool(stochastic)
         self._rng = np.random.default_rng(int(seed))
 
-    def _sample_stochastic(self, n: int) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def _sample_stochastic(self, n: int) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
         if not self._stochastic:
-            x8 = np.full(n, 0.345, dtype=float)
-            x9 = np.full(n, 0.192, dtype=float)
-            x10 = np.zeros(n, dtype=float)
-            x11 = np.zeros(n, dtype=float)
+            x8: NDArray[np.float64] = np.full(n, 0.345, dtype=float)
+            x9: NDArray[np.float64] = np.full(n, 0.192, dtype=float)
+            x10: NDArray[np.float64] = np.zeros(n, dtype=float)
+            x11: NDArray[np.float64] = np.zeros(n, dtype=float)
             return x8, x9, x10, x11
 
         x8 = 0.006 * self._rng.normal(size=n) + 0.345
@@ -78,7 +79,7 @@ class RE91Problem:
         x11 = 10.0 * self._rng.normal(size=n)
         return x8, x9, x10, x11
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: NDArray[np.float64], out: dict[str, NDArray[np.float64]]) -> None:
         x1, x2, x3, x4, x5, x6, x7 = (X[:, i] for i in range(7))
         x8, x9, x10, x11 = self._sample_stochastic(X.shape[0])
 

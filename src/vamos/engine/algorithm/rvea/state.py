@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vamos.engine.algorithm.components.results import get_external_archive_contents, wants_population_result
 from vamos.engine.algorithm.components.state import AlgorithmState
@@ -41,7 +42,7 @@ class RVEAState(AlgorithmState):
 
 def _result_population_indices(state: RVEAState, kernel: Any) -> np.ndarray[Any, Any]:
     """Return the feasibility-aware non-dominated subset for top-level results."""
-    candidates = np.arange(state.F.shape[0], dtype=int)
+    candidates: NDArray[np.int_] = np.arange(state.F.shape[0], dtype=int)
     if state.G is not None and state.constraint_mode != "none":
         feasible = is_feasible(state.G, n=state.G.shape[0])
         if feasible.any():

@@ -217,7 +217,7 @@ class NumbaKernel(KernelBackend):
         F_off: RealArray,
         pop_size: int,
         return_indices: Literal[False] = False,
-    ) -> tuple[DecisionArray, FloatArray]: ...
+    ) -> tuple[DecisionArray, RealArray]: ...
 
     @overload
     def nsga2_survival(
@@ -228,7 +228,7 @@ class NumbaKernel(KernelBackend):
         F_off: RealArray,
         pop_size: int,
         return_indices: Literal[True],
-    ) -> tuple[DecisionArray, FloatArray, IndexArray]: ...
+    ) -> tuple[DecisionArray, RealArray, IndexArray]: ...
 
     def nsga2_survival(
         self,
@@ -238,7 +238,7 @@ class NumbaKernel(KernelBackend):
         F_off: RealArray,
         pop_size: int,
         return_indices: bool = False,
-    ) -> tuple[DecisionArray, FloatArray] | tuple[DecisionArray, FloatArray, IndexArray]:
+    ) -> tuple[DecisionArray, RealArray] | tuple[DecisionArray, RealArray, IndexArray]:
         X_comb, F_comb = self._combine(X, F, X_off, F_off)
         if not np.isfinite(F_comb).all():
             if return_indices:

@@ -42,7 +42,7 @@ jobs:
         run: python -m build --no-isolation --outdir candidate-dist
 
       - name: Upload candidate bytes
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: vamos-${{ env.VAMOS_RELEASE_VERSION }}-distributions
           path: candidate-dist/
@@ -66,7 +66,7 @@ jobs:
           python-version: "3.12"
 
       - name: Download frozen candidate bytes
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: vamos-${{ env.VAMOS_RELEASE_VERSION }}-distributions
           path: ${{ runner.temp }}/candidate-dist
@@ -96,7 +96,7 @@ jobs:
           --output-dir "$RUNNER_TEMP/release-evidence"
 
       - name: Upload complete release evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: vamos-${{ env.VAMOS_RELEASE_VERSION }}-evidence
           path: ${{ runner.temp }}/release-evidence/
@@ -143,7 +143,7 @@ jobs:
           python-version: ${{ matrix.python }}
 
       - name: Download exact candidate wheel
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: vamos-${{ env.VAMOS_RELEASE_VERSION }}-distributions
           path: candidate-dist
@@ -189,7 +189,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download validated evidence
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: vamos-${{ env.VAMOS_RELEASE_VERSION }}-evidence
           path: frozen
@@ -204,7 +204,7 @@ jobs:
           test "$(jq -r .status release-check-report.json)" = "passed"
 
       - name: Upload immutable publication input
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: vamos-${{ env.VAMOS_RELEASE_VERSION }}-frozen
           path: frozen/

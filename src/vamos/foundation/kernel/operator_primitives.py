@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from functools import cache
 from importlib.util import find_spec
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, cast, overload
 
 import numpy as np
 
@@ -37,6 +37,51 @@ def _ensure_bounds(lower: float | RealArray, upper: float | RealArray, n_var: in
     return lower_arr, upper_arr
 
 
+@overload
+def sbx_crossover_pairs(
+    parents: FloatArray,
+    *,
+    rng: np.random.Generator,
+    lower: float | RealArray,
+    upper: float | RealArray,
+    prob_crossover: float = 0.9,
+    eta: float = 10.0,
+    prob_var: float = 0.5,
+    inplace: bool = False,
+    kernels: VariationKernels | None = None,
+) -> FloatArray: ...
+
+
+@overload
+def sbx_crossover_pairs(
+    parents: RealArray,
+    *,
+    rng: np.random.Generator,
+    lower: float | RealArray,
+    upper: float | RealArray,
+    prob_crossover: float = 0.9,
+    eta: float = 10.0,
+    prob_var: float = 0.5,
+    inplace: Literal[False] = False,
+    kernels: VariationKernels | None = None,
+) -> FloatArray: ...
+
+
+@overload
+def sbx_crossover_pairs(
+    parents: RealArray,
+    *,
+    rng: np.random.Generator,
+    lower: float | RealArray,
+    upper: float | RealArray,
+    prob_crossover: float = 0.9,
+    eta: float = 10.0,
+    prob_var: float = 0.5,
+    inplace: bool,
+    kernels: VariationKernels | None = None,
+) -> RealArray: ...
+
+
 def sbx_crossover_pairs(
     parents: RealArray,
     *,
@@ -48,7 +93,7 @@ def sbx_crossover_pairs(
     prob_var: float = 0.5,
     inplace: bool = False,
     kernels: VariationKernels | None = None,
-) -> FloatArray:
+) -> RealArray:
     offspring = parents if inplace else np.array(parents, copy=True, dtype=float)
     if offspring.ndim != 3 or offspring.shape[1] != 2:
         raise ValueError("SBX expects a mating tensor of shape (n_pairs, 2, n_var).")
@@ -62,7 +107,7 @@ def sbx_crossover_pairs(
         kernels = available_variation_kernels()
     if kernels is not None and offspring.dtype == np.float64:
         return kernels.sbx_crossover_pairs(
-            offspring,
+            cast("FloatArray", offspring),
             rng=rng,
             lower=lower_arr,
             upper=upper_arr,
@@ -128,6 +173,54 @@ def sbx_crossover_pairs(
     return offspring
 
 
+@overload
+def polynomial_mutation_population(
+    offspring: FloatArray,
+    *,
+    rng: np.random.Generator,
+    lower: float | RealArray,
+    upper: float | RealArray,
+    prob_mutation: float,
+    eta: float = 20.0,
+    rnd_mask: RealArray | None = None,
+    rnd_delta: RealArray | None = None,
+    inplace: bool = False,
+    kernels: VariationKernels | None = None,
+) -> FloatArray: ...
+
+
+@overload
+def polynomial_mutation_population(
+    offspring: RealArray,
+    *,
+    rng: np.random.Generator,
+    lower: float | RealArray,
+    upper: float | RealArray,
+    prob_mutation: float,
+    eta: float = 20.0,
+    rnd_mask: RealArray | None = None,
+    rnd_delta: RealArray | None = None,
+    inplace: Literal[False] = False,
+    kernels: VariationKernels | None = None,
+) -> FloatArray: ...
+
+
+@overload
+def polynomial_mutation_population(
+    offspring: RealArray,
+    *,
+    rng: np.random.Generator,
+    lower: float | RealArray,
+    upper: float | RealArray,
+    prob_mutation: float,
+    eta: float = 20.0,
+    rnd_mask: RealArray | None = None,
+    rnd_delta: RealArray | None = None,
+    inplace: bool,
+    kernels: VariationKernels | None = None,
+) -> RealArray: ...
+
+
 def polynomial_mutation_population(
     offspring: RealArray,
     *,
@@ -140,7 +233,7 @@ def polynomial_mutation_population(
     rnd_delta: RealArray | None = None,
     inplace: bool = False,
     kernels: VariationKernels | None = None,
-) -> FloatArray:
+) -> RealArray:
     X = offspring if inplace else np.array(offspring, copy=True, dtype=float)
     if X.ndim != 2:
         raise ValueError("Polynomial mutation expects a population matrix of shape (n_ind, n_var).")
@@ -153,7 +246,7 @@ def polynomial_mutation_population(
     delta_draws = rnd_delta if rnd_delta is not None else rng.random(X.shape)
     if kernels is not None and X.dtype == np.float64:
         kernels.polynomial_mutation(
-            X,
+            cast("FloatArray", X),
             lower=lower_arr,
             upper=upper_arr,
             prob_mutation=float(prob_mutation),
@@ -175,7 +268,7 @@ def polynomial_mutation_population(
 
 
 def _polynomial_mutation_inplace(
-    X: FloatArray,
+    X: RealArray,
     *,
     lower: FloatArray,
     upper: FloatArray,

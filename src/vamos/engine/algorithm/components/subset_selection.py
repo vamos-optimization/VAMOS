@@ -1,7 +1,7 @@
 """
 Subset selection functions for choosing representative subsets from Pareto fronts.
 
-All public functions follow the signature ``(F, k, ...) -> np.ndarray`` where *F*
+All public functions follow the signature ``(F, k, ...) -> NDArray[np.int_]`` where *F*
 is an ``(n, n_obj)`` objective matrix and the return value is a 1-D integer index
 array of length ``min(k, n)`` into *F*.
 """
@@ -11,6 +11,7 @@ from __future__ import annotations
 import warnings
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vamos.foundation.kernel.numpy_backend import _compute_crowding
 
@@ -26,7 +27,7 @@ except ImportError:  # pragma: no cover - optional dependency
 _HV_FALLBACK_WARNED = False
 
 
-def _single_front_crowding(F: np.ndarray) -> np.ndarray:
+def _single_front_crowding(F: NDArray[np.float64]) -> NDArray[np.float64]:
     """Crowding distance for a single nondominated front."""
     if F.shape[0] == 0:
         return np.empty(0, dtype=float)
@@ -34,7 +35,7 @@ def _single_front_crowding(F: np.ndarray) -> np.ndarray:
     return _compute_crowding(F, fronts)
 
 
-def _hv_contributions(F: np.ndarray, ref: np.ndarray) -> np.ndarray:
+def _hv_contributions(F: NDArray[np.float64], ref: NDArray[np.float64]) -> NDArray[np.float64]:
     """
     Compute hypervolume contribution of each point.
 
@@ -61,7 +62,7 @@ def _hv_contributions(F: np.ndarray, ref: np.ndarray) -> np.ndarray:
 # ---------------------------------------------------------------------------
 
 
-def select_top_k_crowding(F: np.ndarray, k: int) -> np.ndarray:
+def select_top_k_crowding(F: NDArray[np.float64], k: int) -> NDArray[np.int_]:
     """Select the top-*k* most spread solutions using crowding distance.
 
     Iteratively removes the solution with the lowest crowding distance
@@ -80,7 +81,7 @@ def select_top_k_crowding(F: np.ndarray, k: int) -> np.ndarray:
 
     Returns
     -------
-    np.ndarray
+    NDArray[np.int_]
         1-D integer array of indices into *F* for the selected solutions.
     """
     if k <= 0:
@@ -88,7 +89,7 @@ def select_top_k_crowding(F: np.ndarray, k: int) -> np.ndarray:
     n = F.shape[0]
     if n <= k:
         return np.arange(n, dtype=int)
-    keep = np.arange(n, dtype=int)
+    keep: NDArray[np.int_] = np.arange(n, dtype=int)
     while keep.size > k:
         crowd = _single_front_crowding(F[keep])
         worst_local = int(np.argmin(crowd))
@@ -101,7 +102,7 @@ def select_top_k_crowding(F: np.ndarray, k: int) -> np.ndarray:
 # ---------------------------------------------------------------------------
 
 
-def select_top_k_farthest(F: np.ndarray, k: int) -> np.ndarray:
+def select_top_k_farthest(F: NDArray[np.float64], k: int) -> NDArray[np.int_]:
     """Select the top-*k* most diverse solutions using farthest-point sampling.
 
     Greedy algorithm that iteratively picks the point maximising the minimum
@@ -119,7 +120,7 @@ def select_top_k_farthest(F: np.ndarray, k: int) -> np.ndarray:
 
     Returns
     -------
-    np.ndarray
+    NDArray[np.int_]
         1-D integer array of indices into *F* for the selected solutions.
     """
     if k <= 0:
@@ -146,7 +147,7 @@ def select_top_k_farthest(F: np.ndarray, k: int) -> np.ndarray:
 # ---------------------------------------------------------------------------
 
 
-def select_top_k_knn(F: np.ndarray, k: int, *, neighbors: int = 1) -> np.ndarray:
+def select_top_k_knn(F: NDArray[np.float64], k: int, *, neighbors: int = 1) -> NDArray[np.int_]:
     """Select the top-*k* most diverse solutions via k-NN density truncation.
 
     Iteratively removes the solution with the smallest distance to its
@@ -165,7 +166,7 @@ def select_top_k_knn(F: np.ndarray, k: int, *, neighbors: int = 1) -> np.ndarray
 
     Returns
     -------
-    np.ndarray
+    NDArray[np.int_]
         1-D integer array of indices into *F* for the selected solutions.
     """
     if k <= 0:
@@ -194,7 +195,7 @@ def select_top_k_knn(F: np.ndarray, k: int, *, neighbors: int = 1) -> np.ndarray
 # ---------------------------------------------------------------------------
 
 
-def select_top_k_reference_directions(F: np.ndarray, k: int, *, divisions: int | None = None) -> np.ndarray:
+def select_top_k_reference_directions(F: NDArray[np.float64], k: int, *, divisions: int | None = None) -> NDArray[np.int_]:
     """Select the top-*k* solutions via reference-direction association.
 
     Generates *k* uniformly distributed reference directions on the simplex
@@ -220,7 +221,7 @@ def select_top_k_reference_directions(F: np.ndarray, k: int, *, divisions: int |
 
     Returns
     -------
-    np.ndarray
+    NDArray[np.int_]
         1-D integer array of indices into *F* for the selected solutions.
     """
     if k <= 0:
@@ -279,13 +280,13 @@ def select_top_k_reference_directions(F: np.ndarray, k: int, *, divisions: int |
 
 
 def select_top_k_kmeans(
-    F: np.ndarray,
+    F: NDArray[np.float64],
     k: int,
     *,
     n_init: int = 10,
     max_iter: int = 300,
     rng: int | np.random.Generator | None = None,
-) -> np.ndarray:
+) -> NDArray[np.int_]:
     """Select the top-*k* solutions using k-means clustering.
 
     Normalizes *F*, runs k-means with *k* clusters, and picks the solution
@@ -306,7 +307,7 @@ def select_top_k_kmeans(
 
     Returns
     -------
-    np.ndarray
+    NDArray[np.int_]
         1-D integer array of indices into *F* for the selected solutions.
     """
     if k <= 0:
@@ -322,8 +323,8 @@ def select_top_k_kmeans(
     if not isinstance(rng, np.random.Generator):
         rng = np.random.default_rng(rng)
 
-    best_labels: np.ndarray | None = None
-    best_centroids: np.ndarray | None = None
+    best_labels: NDArray[np.int_] | None = None
+    best_centroids: NDArray[np.float64] | None = None
     best_inertia = np.inf
 
     for _ in range(max(1, int(n_init))):
@@ -400,7 +401,7 @@ def select_top_k_kmeans(
 # ---------------------------------------------------------------------------
 
 
-def select_top_k_angle(F: np.ndarray, k: int) -> np.ndarray:
+def select_top_k_angle(F: NDArray[np.float64], k: int) -> NDArray[np.int_]:
     """Select the top-*k* solutions by angle-based diversity.
 
     Iteratively removes the solution with the smallest minimum angle to any
@@ -419,7 +420,7 @@ def select_top_k_angle(F: np.ndarray, k: int) -> np.ndarray:
 
     Returns
     -------
-    np.ndarray
+    NDArray[np.int_]
         1-D integer array of indices into *F* for the selected solutions.
     """
     if k <= 0:
@@ -458,12 +459,12 @@ def select_top_k_angle(F: np.ndarray, k: int) -> np.ndarray:
 
 
 def select_top_k_hv_greedy(
-    F: np.ndarray,
+    F: NDArray[np.float64],
     k: int,
     *,
-    ref_point: np.ndarray | list[float] | None = None,
+    ref_point: NDArray[np.float64] | list[float] | None = None,
     ref_offset: float = 1.0,
-) -> np.ndarray:
+) -> NDArray[np.int_]:
     """Select the top-*k* solutions by greedy hypervolume inclusion.
 
     Iteratively adds the solution that maximizes the hypervolume contribution
@@ -487,7 +488,7 @@ def select_top_k_hv_greedy(
 
     Returns
     -------
-    np.ndarray
+    NDArray[np.int_]
         1-D integer array of indices into *F* for the selected solutions.
     """
     if k <= 0:

@@ -190,7 +190,7 @@ def _ranking_scores(
     if key == "weighted_sum":
         F_norm = _normalize_front(F)
         if weights is None:
-            w = np.full(F.shape[1], 1.0 / F.shape[1], dtype=float)
+            w: NDArray[np.float64] = np.full(F.shape[1], 1.0 / F.shape[1], dtype=float)
         else:
             w = np.asarray(weights, dtype=float)
             if w.ndim != 1 or w.shape[0] != F.shape[1]:

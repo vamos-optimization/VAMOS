@@ -11,8 +11,8 @@ import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-UPLOAD_ARTIFACT = "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
-DOWNLOAD_ARTIFACT = "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c"
+UPLOAD_ARTIFACT = "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9"
+DOWNLOAD_ARTIFACT = "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333"
 BASE_URL = "https://vamos-optimization.org/"
 VERSION = "1.0.0"
 
@@ -73,6 +73,7 @@ def test_preview_workflow_is_read_only_and_artifact_only() -> None:
     workflow = (ROOT / ".github" / "workflows" / "docs-preview.yml").read_text(encoding="utf-8")
 
     assert "pull_request:" in workflow
+    assert "runs-on: ubuntu-24.04" in workflow
     assert "python tools/build_release_docs.py" in workflow
     assert "python tools/check_docs_portal.py" in workflow
     assert UPLOAD_ARTIFACT in workflow

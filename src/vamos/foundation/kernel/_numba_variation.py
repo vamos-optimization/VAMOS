@@ -170,7 +170,7 @@ def _sbx_apply(
 
 @njit(cache=True, error_model="numpy")
 def polynomial_mutation_apply(
-    X: FloatArray,
+    X: NDArray[np.floating[Any]],
     prob: float,
     eta: float,
     lower: FloatArray,

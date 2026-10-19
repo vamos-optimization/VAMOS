@@ -83,17 +83,17 @@ VAMOS 1.0.0.
 
 ## Current structured debt
 
-After establishing strict=0, the structured baseline contains 939 diagnostics in 114 files and 120 stable fingerprints:
+After establishing strict=0, the structured baseline contains 837 diagnostics in 108 files and 108 stable fingerprints:
 
 | Layer | Diagnostics |
 |---|---:|
-| engine | 480 |
-| foundation | 369 |
+| engine | 461 |
+| foundation | 286 |
 | ux | 67 |
 | experiment | 22 |
 | package root | 1 |
 
-The dominant family is 933 `type-arg` diagnostics, primarily unparameterized NumPy arrays in packages that now run with strict mypy settings. The remaining families are small protocol/optional/narrowing/decorator issues. VAMOS 1.0.0 enforces zero typing errors on the strict/stable surface and an exact no-regression ratchet over the complete source tree. The complete source tree is not yet globally free of mypy diagnostics.
+All remaining diagnostics belong to the `type-arg` family, primarily unparameterized NumPy arrays in packages that now run with strict mypy settings. VAMOS 1.0.0 enforces zero typing errors on the strict/stable surface and an exact no-regression ratchet over the complete source tree. The complete source tree is not yet globally free of mypy diagnostics.
 
 ## Reduction and baseline updates
 
@@ -112,7 +112,7 @@ Every production file changed by a Goal must finish with zero diagnostics. Reduc
 
 If the supported environment or effective configuration intentionally changes, add `--review-environment-change` to the update command after reviewing the diagnostic diff. The tool records the drift and still refuses new or increased diagnostics or debt in changed production files. Never replace this process with total-count edits, broad ignores, exclusions, disabled error codes, or `Any` inserted only to silence mypy.
 
-The reduction order is: remaining non-NumPy structural errors; shared NumPy type aliases and protocols by layer; engine algorithms/operators; foundation numerical modules; UX; then verification with the explicit full-zero scope.
+The reduction order is: shared NumPy type aliases and protocols by layer; engine algorithms/operators; foundation numerical modules; UX; then verification with the explicit full-zero scope.
 
 ```agent-docs
 path: tools/typecheck.py
