@@ -1,4 +1,4 @@
-import time
+from threading import Barrier, Lock
 from typing import Any
 
 import pytest
@@ -10,55 +10,52 @@ from src.vamos.engine.tuning.racing.scenario import Scenario
 from src.vamos.engine.tuning.racing.tuning_task import EvalContext, Instance, TuningTask
 
 
-def slow_eval_fn(config: dict[str, Any], ctx: EvalContext) -> float:
-    """A mock eval function that sleeps to simulate work."""
-    time.sleep(0.5)
-    # Simple objective: target x=0.5
-    x = config["x"]
-    return abs(x - 0.5)
+def test_parallel_execution_preserves_results():
+    """Two workers overlap and retain sequential results, independent of host speed."""
+    task = TuningTask(
+        name="test_parallel",
+        param_space=ParamSpace({"x": Real("x", 0.0, 1.0)}),
+        instances=[Instance("inst1", 1)],
+        seeds=[0],
+        budget_per_run=1,
+        maximize=False,
+    )
 
+    def evaluate(config: dict[str, Any], ctx: EvalContext) -> float:
+        return abs(config["x"] - 0.5)
 
-def test_parallel_speedup():
-    """
-    Verify that n_jobs > 1 allows parallel execution.
-    We'll evaluate 10 configs.
-    Sequential: 10 * 0.05 = 0.5s.
-    Parallel (2 jobs): ~0.25s.
-    """
-    param_space = ParamSpace({"x": Real("x", 0.0, 1.0)})
-    instances = [Instance("inst1", 1)]
-    seeds = [0]
+    sequential = RacingTuner(task, Scenario(max_experiments=8, n_jobs=1, verbose=False), max_initial_configs=8)
+    expected = sequential.run(evaluate)
 
-    task = TuningTask(name="test_parallel", param_space=param_space, instances=instances, seeds=seeds, budget_per_run=1, maximize=False)
+    rendezvous = Barrier(2, timeout=10)
+    lock = Lock()
+    active = peak = calls = 0
 
-    # 1. Sequential Run
-    scenario_seq = Scenario(max_experiments=20, n_jobs=1, verbose=False, start_instances=1, elimination_fraction=0.1)
-    tuner_seq = RacingTuner(task, scenario_seq, max_initial_configs=8)
+    def parallel_evaluate(config: dict[str, Any], ctx: EvalContext) -> float:
+        nonlocal active, peak, calls
+        with lock:
+            active += 1
+            calls += 1
+            peak = max(peak, active)
+            first_pair = calls <= 2
+        try:
+            # The first evaluation cannot finish until another worker enters.
+            # A serial implementation times out and produces failure scores.
+            if first_pair:
+                rendezvous.wait()
+            return evaluate(config, ctx)
+        finally:
+            with lock:
+                active -= 1
 
-    start = time.time()
-    tuner_seq.run(slow_eval_fn)
-    dur_seq = time.time() - start
-
-    # 2. Parallel Run
-    scenario_par = Scenario(max_experiments=20, n_jobs=2, verbose=False, start_instances=1, elimination_fraction=0.1)
-    tuner_par = RacingTuner(task, scenario_par, max_initial_configs=8)
-
-    start = time.time()
+    parallel = RacingTuner(task, Scenario(max_experiments=8, n_jobs=2, verbose=False), max_initial_configs=8)
     with parallel_config(backend="threading"):
-        tuner_par.run(slow_eval_fn)
-    dur_par = time.time() - start
+        actual = parallel.run(parallel_evaluate)
 
-    # Expect parallel to be faster
-    # Note: Overhead might eat gains for such small sleep, but 0.05 * 8 = 0.4s is huge compared to overhead.
-    # Parallel should be around 0.2s + overhead.
-    # Let's assess if it's at least faster.
-
-    print(f"Sequential: {dur_seq:.4f}s")
-    print(f"Parallel: {dur_par:.4f}s")
-
-    # Relaxed assertion to account for potential test env noise/overhead
-    # But usually parallel should be significantly faster here.
-    assert dur_par < dur_seq
+    assert peak == 2
+    assert calls == 8
+    assert active == 0
+    assert actual == expected
 
 
 def test_joblib_pickling_lambda():

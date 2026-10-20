@@ -4,6 +4,24 @@ All notable public changes to VAMOS are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- Explicit `engine="auto"` now prefers loadable, JIT-enabled Numba for all nine
+  built-in algorithms. Missing or incompatible optional installations fall back
+  to NumPy before execution. The stable omitted-engine default remains NumPy;
+  explicit backend requests and stored replay/study backends never substitute.
+- Canonical requested configurations retain an explicit `engine="auto"` while
+  resolved configurations continue to store the effective backend. Schemas and
+  optional compute requirements are unchanged.
+
+### Fixed
+
+- Refresh the reviewed dependency set, the canonical mypy 2.4.0 environment,
+  and its exact diagnostic baseline. Pair PyMdown 12.3 with mkdocstrings 1.0.8
+  on Python 3.11+, retaining the compatible documentation pair on Python 3.10.
+- NumPy's optional single-pair SBX and MOEA/D neighbourhood shortcuts tolerate
+  unloadable Numba installations, so they do not defeat automatic fallback.
+
 ## [1.0.2] - 2026-10-18
 
 ### Added

@@ -315,7 +315,7 @@ def run_quickstart(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--algorithm", help="Algorithm name (default: nsgaii).")
     parser.add_argument(
         "--engine",
-        help="Backend engine. Default is deterministic numpy. Use 'auto' to heuristically prefer optional accelerated backends.",
+        help="Backend engine. Default is deterministic numpy. Use 'auto' to prefer available Numba, with a NumPy fallback.",
     )
     parser.add_argument("--budget", "--max-evaluations", dest="budget", type=int, help="Max evaluations (default: 5000).")
     parser.add_argument("--pop-size", "--population-size", dest="pop_size", type=int, help="Population size (default: 100).")

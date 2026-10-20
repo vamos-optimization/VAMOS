@@ -146,7 +146,8 @@ def optimize(
         Population size. Auto-determined when omitted.
     engine : EngineName | str | None, optional
         Backend engine (for example ``"numpy"``, ``"numba"``, ``"moocore"``,
-        or ``"auto"``).
+        or ``"auto"``). Omission keeps the NumPy reference default. ``"auto"``
+        prefers loadable Numba for built-in algorithms, otherwise NumPy.
     seed : int | None | list[int] | tuple[int, ...], default ``42``
         Random seed for one run, ``None`` to generate and record a seed before
         execution, or a sequence of explicit seeds for multi-run studies.

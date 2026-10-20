@@ -63,6 +63,13 @@ For these entry points:
 - `numpy` is the deterministic reference backend. Cross-backend bitwise
   equality is not promised.
 
+Omitting `engine` continues to select NumPy throughout 1.x. Explicit `auto`
+opts into an environment-dependent acceleration heuristic; its coverage may
+expand as built-in backends gain support. Persisted runs and created studies
+retain their resolved engine and never reapply that heuristic for exact replay
+or execution of an existing study plan. See the
+[automatic engine policy](../reference/algorithms.md#automatic-engine-selection).
+
 ### Canonical run lifecycle
 
 The stable run lifecycle consists of:

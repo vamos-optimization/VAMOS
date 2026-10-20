@@ -7,7 +7,7 @@ VAMOS uses one reproducible typecheck entry point: `tools/typecheck.py`. Direct 
 The canonical typing environment is:
 
 - Python 3.12;
-- compiled mypy 2.3.1;
+- compiled mypy 2.4.0;
 - typing-extensions 4.16.0;
 - `pyproject.toml` as the only mypy configuration;
 - `constraints/ci.txt` as the dependency constraint set;
@@ -20,7 +20,7 @@ Create or select a Python 3.12 environment and install exactly:
 python -m pip install -c constraints/ci.txt -e ".[dev]"
 ```
 
-The entry point rejects Python, mypy, build-kind, typing-extensions, stub-set, optional-distribution, configuration, or constraints drift that could silently change diagnostic identity. The mypy configuration owns narrow third-party import boundaries, so optional runtime extras do not belong in this environment. Every invocation disables mypy's incremental cache and anchors imports to this checkout's `src` directory.
+The entry point rejects Python, mypy, build-kind, typing-extensions, stub-set, optional-distribution, configuration, or constraints drift that could silently change diagnostic identity. The mypy configuration owns narrow third-party import boundaries, so optional runtime extras do not belong in this environment. Every invocation disables mypy's incremental cache and native parser and anchors imports to this checkout's `src` directory. The portable parser avoids process-affinity discovery failures in isolated runners; the strict rules and diagnostic ratchet remain unchanged.
 
 ## Scopes
 
@@ -83,11 +83,11 @@ VAMOS 1.0.0.
 
 ## Current structured debt
 
-After establishing strict=0, the structured baseline contains 837 diagnostics in 108 files and 108 stable fingerprints:
+After establishing strict=0, the structured baseline contains 781 diagnostics in 107 files and 107 stable fingerprints:
 
 | Layer | Diagnostics |
 |---|---:|
-| engine | 461 |
+| engine | 405 |
 | foundation | 286 |
 | ux | 67 |
 | experiment | 22 |

@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 import yaml
+from packaging.requirements import Requirement
+from packaging.version import Version
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -335,14 +337,20 @@ def test_notebook_execution_dependencies_include_a_pinned_kernel() -> None:
     assert "ipykernel==7.3.0" in constraints
 
 
-def test_ci_constraints_use_reviewed_security_fixed_tooling() -> None:
+@pytest.mark.parametrize(
+    ("package", "minimum"),
+    [("pytest", "9.1.1"), ("nbconvert", "7.17.1"), ("panel", "1.9.4"), ("bokeh", "3.9.2"), ("pymdown-extensions", "12.1")],
+)
+def test_ci_constraints_use_reviewed_security_fixed_tooling(package: str, minimum: str) -> None:
     constraints = (ROOT / "constraints" / "ci.txt").read_text(encoding="utf-8")
+    requirements = [Requirement(line) for line in constraints.splitlines() if line and not line.startswith("#")]
+    pins = [requirement for requirement in requirements if requirement.name == package]
 
-    assert "pytest==9.1.1" in constraints
-    assert "nbconvert==7.17.1" in constraints
-    assert "panel==1.9.4" in constraints
-    assert "bokeh==3.9.2" in constraints
-    assert "pymdown-extensions==12.1" in constraints
+    assert pins, f"Missing reviewed constraint for {package}"
+    for requirement in pins:
+        specifiers = list(requirement.specifier)
+        assert len(specifiers) == 1 and specifiers[0].operator == "=="
+        assert Version(specifiers[0].version) >= Version(minimum)
 
 
 def test_version_documents_and_license_policy(tmp_path: Path) -> None:

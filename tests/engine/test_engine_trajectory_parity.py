@@ -8,6 +8,7 @@ import pytest
 pytest.importorskip("numba")
 
 import vamos
+from vamos.engine.hooks.live_viz import NoOpLiveVisualization
 from vamos.foundation.kernel.numba_backend import NumbaKernel
 from vamos.foundation.kernel.numpy_backend import NumPyKernel
 
@@ -32,6 +33,59 @@ def test_numpy_and_numba_engines_follow_the_same_trajectory(algorithm: str, prob
 
     np.testing.assert_array_equal(X_nb, X_np)
     np.testing.assert_array_equal(F_nb, F_np)
+
+
+@pytest.mark.numba
+@pytest.mark.parametrize("algorithm", ALGORITHMS)
+@pytest.mark.parametrize("problem,kwargs", PROBLEMS, ids=[name for name, _ in PROBLEMS])
+def test_auto_preserves_generation_trace_and_generator_states(algorithm, problem, kwargs, monkeypatch):
+    """Compare intermediate populations and every run-owned RNG, not just fronts."""
+    from copy import deepcopy
+
+    from vamos.experiment.runtime.catalog import resolve_engine
+
+    assert resolve_engine("auto", algorithm=algorithm) == "numba"
+    generators = []
+    original = np.random.default_rng
+
+    def tracked_rng(*args, **kwargs):
+        rng = original(*args, **kwargs)
+        generators.append(rng)
+        return rng
+
+    class Trace(NoOpLiveVisualization):
+        def __init__(self):
+            self.frames = []
+
+        def on_generation(self, generation, F=None, X=None, stats=None):
+            self.frames.append((generation, None if F is None else F.copy(), None if X is None else X.copy()))
+
+    monkeypatch.setattr(np.random, "default_rng", tracked_rng)
+    runs = []
+    for engine in ("numpy", "numba", "auto"):
+        generators.clear()
+        trace = Trace()
+        result = vamos.optimize(problem, algorithm=algorithm, engine=engine, seed=17, max_evaluations=600, live_viz=trace, **kwargs)
+        states = [deepcopy(rng.bit_generator.state) for rng in generators]
+        assert states and trace.frames
+        assert result.data["evaluations"] == 600
+        runs.append((result, trace.frames, states))
+    reference, frames, states = runs[0]
+    for result, actual_frames, actual_states in runs[1:]:
+        assert actual_states == states
+        assert len(actual_frames) == len(frames)
+        for expected, actual in zip(frames, actual_frames):
+            assert expected[0] == actual[0]
+            for left, right in zip(expected[1:], actual[1:]):
+                if left is None:
+                    assert right is None
+                else:
+                    assert left.dtype == right.dtype and left.shape == right.shape
+                    assert left.tobytes() == right.tobytes()
+        for name in ("X", "F"):
+            assert getattr(reference, name).tobytes() == getattr(result, name).tobytes()
+    assert runs[-1][0].meta["engine"] == "numba"
+    assert runs[-1][0].meta["default_sources"]["engine"] == "auto"
 
 
 @pytest.mark.numba

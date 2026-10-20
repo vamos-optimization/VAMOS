@@ -4,17 +4,19 @@ from collections.abc import Callable
 
 import numpy as np
 
+from vamos.foundation.kernel.backend import DecisionArray, FloatArray, IndexArray
+
 from .aggregation import AGG_PBI, AGG_TCHEBYCHEFF, AGG_WEIGHTED_SUM
 
 _UPDATE_NEIGHBORHOOD_JIT: Callable[..., int] | None = None
 _UPDATE_NEIGHBORHOOD_BATCH_JIT: Callable[..., None] | None = None
 _UPDATE_NEIGHBORHOOD_DISABLED = False
-_DUMMY_G: np.ndarray | None = None
-_DUMMY_CV: np.ndarray | None = None
-_DUMMY_CHILD_G: np.ndarray | None = None
+_DUMMY_G: FloatArray | None = None
+_DUMMY_CV: FloatArray | None = None
+_DUMMY_CHILD_G: FloatArray | None = None
 
 
-def dummy_buffers() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def dummy_buffers() -> tuple[FloatArray, FloatArray, FloatArray]:
     global _DUMMY_G, _DUMMY_CV, _DUMMY_CHILD_G
     if _DUMMY_G is None:
         _DUMMY_G = np.empty((0, 0), dtype=float)
@@ -45,25 +47,25 @@ def get_update_neighborhood_numba() -> Callable[..., int] | None:
         return None
     try:
         from numba import njit
-    except ImportError:
+    except (ImportError, OSError, RuntimeError, AttributeError):
         _UPDATE_NEIGHBORHOOD_DISABLED = True
         return None
 
     @njit(cache=True)  # type: ignore[untyped-decorator]
     def _update_neighborhood_numba(
-        X: np.ndarray,
-        F: np.ndarray,
-        G: np.ndarray,
-        cv: np.ndarray,
-        weights: np.ndarray,
-        weights_safe: np.ndarray,
-        weights_unit: np.ndarray,
-        ideal: np.ndarray,
-        child: np.ndarray,
-        child_f: np.ndarray,
-        child_g: np.ndarray,
+        X: DecisionArray,
+        F: FloatArray,
+        G: FloatArray,
+        cv: FloatArray,
+        weights: FloatArray,
+        weights_safe: FloatArray,
+        weights_unit: FloatArray,
+        ideal: FloatArray,
+        child: DecisionArray,
+        child_f: FloatArray,
+        child_g: FloatArray,
         child_cv: float,
-        candidate_order: np.ndarray,
+        candidate_order: IndexArray,
         candidate_length: int,
         replace_limit: int,
         agg_id: int,
@@ -168,20 +170,20 @@ def get_update_neighborhood_numba() -> Callable[..., int] | None:
 
     @njit(cache=True)  # type: ignore[untyped-decorator]
     def _update_neighborhood_batch_numba(
-        X: np.ndarray,
-        F: np.ndarray,
-        G: np.ndarray,
-        cv: np.ndarray,
-        weights: np.ndarray,
-        weights_safe: np.ndarray,
-        weights_unit: np.ndarray,
-        ideal: np.ndarray,
-        children: np.ndarray,
-        children_f: np.ndarray,
-        children_g: np.ndarray,
-        children_cv: np.ndarray,
-        candidate_orders: np.ndarray,
-        candidate_lengths: np.ndarray,
+        X: DecisionArray,
+        F: FloatArray,
+        G: FloatArray,
+        cv: FloatArray,
+        weights: FloatArray,
+        weights_safe: FloatArray,
+        weights_unit: FloatArray,
+        ideal: FloatArray,
+        children: DecisionArray,
+        children_f: FloatArray,
+        children_g: FloatArray,
+        children_cv: FloatArray,
+        candidate_orders: IndexArray,
+        candidate_lengths: IndexArray,
         replace_limit: int,
         agg_id: int,
         agg_theta: float,
@@ -227,19 +229,19 @@ def get_update_neighborhood_batch_numba() -> Callable[..., None] | None:
 
 
 def update_neighborhood_python(
-    X: np.ndarray,
-    F: np.ndarray,
-    G: np.ndarray,
-    cv: np.ndarray,
-    weights: np.ndarray,
-    weights_safe: np.ndarray,
-    weights_unit: np.ndarray,
-    ideal: np.ndarray,
-    child: np.ndarray,
-    child_f: np.ndarray,
-    child_g: np.ndarray,
+    X: DecisionArray,
+    F: FloatArray,
+    G: FloatArray,
+    cv: FloatArray,
+    weights: FloatArray,
+    weights_safe: FloatArray,
+    weights_unit: FloatArray,
+    ideal: FloatArray,
+    child: DecisionArray,
+    child_f: FloatArray,
+    child_g: FloatArray,
     child_cv: float,
-    candidate_order: np.ndarray,
+    candidate_order: IndexArray,
     candidate_length: int,
     replace_limit: int,
     agg_id: int,
@@ -303,20 +305,20 @@ def update_neighborhood_python(
 
 
 def update_neighborhood_batch_python(
-    X: np.ndarray,
-    F: np.ndarray,
-    G: np.ndarray,
-    cv: np.ndarray,
-    weights: np.ndarray,
-    weights_safe: np.ndarray,
-    weights_unit: np.ndarray,
-    ideal: np.ndarray,
-    children: np.ndarray,
-    children_f: np.ndarray,
-    children_g: np.ndarray,
-    children_cv: np.ndarray,
-    candidate_orders: np.ndarray,
-    candidate_lengths: np.ndarray,
+    X: DecisionArray,
+    F: FloatArray,
+    G: FloatArray,
+    cv: FloatArray,
+    weights: FloatArray,
+    weights_safe: FloatArray,
+    weights_unit: FloatArray,
+    ideal: FloatArray,
+    children: DecisionArray,
+    children_f: FloatArray,
+    children_g: FloatArray,
+    children_cv: FloatArray,
+    candidate_orders: IndexArray,
+    candidate_lengths: IndexArray,
     replace_limit: int,
     agg_id: int,
     agg_theta: float,

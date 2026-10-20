@@ -104,7 +104,9 @@ examples = [
 docs = [
   "mkdocs>=1.6",
   "mkdocs-material>=9.7.7",
-  "mkdocstrings[python]>=0.24",
+  "mkdocstrings[python]>=1.0.6,<1.0.7; python_version < '3.11'",
+  "pymdown-extensions<12.2; python_version < '3.11'",
+  "mkdocstrings[python]>=1.0.8; python_version >= '3.11'",
   "jinja2>=3.1",
 ]
 openai = [
@@ -125,7 +127,9 @@ dev = [
   "wheel>=0.46.2",
   "mkdocs>=1.6",
   "mkdocs-material>=9.7.7",
-  "mkdocstrings[python]>=0.24",
+  "mkdocstrings[python]>=1.0.6,<1.0.7; python_version < '3.11'",
+  "pymdown-extensions<12.2; python_version < '3.11'",
+  "mkdocstrings[python]>=1.0.8; python_version >= '3.11'",
   "nbformat>=5.9",
   "nbconvert>=7.17.1",
   "jinja2>=3.1",
@@ -160,7 +164,9 @@ all = [
   "bokeh>=3.8.2",
   "mkdocs>=1.6",
   "mkdocs-material>=9.7.7",
-  "mkdocstrings[python]>=0.24",
+  "mkdocstrings[python]>=1.0.6,<1.0.7; python_version < '3.11'",
+  "pymdown-extensions<12.2; python_version < '3.11'",
+  "mkdocstrings[python]>=1.0.8; python_version >= '3.11'",
   "jinja2>=3.1",
   "openai>=1.0.0",
   "anthropic>=0.30.0",
