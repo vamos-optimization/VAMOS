@@ -21,8 +21,8 @@ EXTRA_PURPOSES: dict[str, str] = {
     "openai": "OpenAI code generation in Problem Builder",
     "anthropic": "Anthropic code generation in Problem Builder",
 }
-_NAME = re.compile(r"\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
-_EXTRA_MARKER = re.compile(r"""^extra\s*==\s*["']([^"']+)["']$""")
+_NAME = r"\s*([A-Za-z0-9][A-Za-z0-9._-]*)"
+_EXTRA_MARKER = r"""^extra\s*==\s*["']([^"']+)["']$"""
 
 
 @dataclass(frozen=True)
@@ -88,8 +88,8 @@ def _extra_requirements() -> dict[str, tuple[str, ...]]:
     found: dict[str, list[str]] = {}
     for line in metadata.requires(DISTRIBUTION) or []:
         requirement, _, marker = line.partition(";")
-        extra = _EXTRA_MARKER.match(marker.strip())
-        name = _NAME.match(requirement)
+        extra = re.match(_EXTRA_MARKER, marker.strip())
+        name = re.match(_NAME, requirement)
         if extra is not None and name is not None:
             found.setdefault(extra.group(1), []).append(name.group(1))
     return {extra: tuple(names) for extra, names in found.items()}
