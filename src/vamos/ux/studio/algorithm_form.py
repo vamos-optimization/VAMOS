@@ -360,6 +360,32 @@ def _canonical(value: object) -> str:
     return json.dumps(value, sort_keys=True, default=str)
 
 
+def format_config_value(value: object) -> str:
+    """Render one configuration value as ``name(key=value, ...)`` when it is an operator."""
+    if isinstance(value, (tuple, list)) and len(value) == 2 and isinstance(value[0], str) and isinstance(value[1], dict):
+        params = ", ".join(f"{key}={_short(item)}" for key, item in value[1].items())
+        return f"{value[0]}({params})" if params else value[0]
+    if isinstance(value, dict):
+        return ", ".join(f"{key}={_short(item)}" for key, item in value.items() if item is not None) or "{}"
+    return _short(value)
+
+
+def choice_label(parameter: FormParameter, choice: object) -> str:
+    """How a form shows one choice of a categorical parameter, marking the VAMOS default."""
+    if choice == VAMOS_DEFAULT_CHOICE:
+        shown = "automatic" if parameter.default_value is None else format_config_value(parameter.default_value)
+        return f"VAMOS default ({shown})"
+    if choice == parameter.start and parameter.from_default:
+        return f"{choice} (VAMOS default)"
+    return str(choice)
+
+
+def _short(value: object) -> str:
+    if isinstance(value, float):
+        return f"{value:.6g}"
+    return str(value)
+
+
 __all__ = [
     "ALGORITHM_LABELS",
     "AlgorithmForm",
@@ -370,10 +396,12 @@ __all__ = [
     "algorithm_label",
     "algorithms_for_encoding",
     "build_algorithm_form",
+    "choice_label",
     "config_fields_for",
     "config_space_for",
     "configuration_differences",
     "default_algorithm_config",
+    "format_config_value",
     "population_is_derived",
     "studio_algorithms",
 ]

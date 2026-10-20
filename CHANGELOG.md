@@ -12,6 +12,16 @@ All notable public changes to VAMOS are documented here.
   critical-difference diagram and Holm post-hoc tests, distributions, median
   fronts, empirical attainment surfaces, runtimes, and LaTeX, CSV, and SAES
   exports, for hypervolume and, where a reference front exists, IGD+.
+- A Studio **Problems & Algorithms** page lists the registered problems with
+  their encoding, dimensions and shipped reference fronts, and the configurable
+  parameters of each algorithm with their VAMOS defaults, and opens either in
+  Run Experiment.
+- Studio's sidebar shows the VAMOS and Python versions, the installed kernel
+  backends, and which optional extras are installed.
+- Explore Results filters fronts to feasible solutions and to objective ranges,
+  and opens a stored run's settings in Run Experiment to run it again.
+- Run Experiment lets you choose the number of variables and, where the
+  problem allows it, the number of objectives.
 
 ### Changed
 

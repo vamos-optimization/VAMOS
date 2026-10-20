@@ -103,6 +103,11 @@ h1, h2, h3, h4, h5 {{
 # ---------------------------------------------------------------------------
 PAGES: dict[str, tuple[str, str]] = {
     "welcome": ("Welcome", "What Studio does and where to start."),
+    "catalog": (
+        "Problems & Algorithms",
+        "Browse the registered problems by encoding, dimensions and reference front, and the built-in algorithms "
+        "with their configurable parameters, and open any of them in Run Experiment.",
+    ),
     "problem_builder": (
         "Problem Builder",
         "Define a problem in Python or start from a template, preview its Pareto front, run it with a configurable "
@@ -126,8 +131,8 @@ PAGES: dict[str, tuple[str, str]] = {
     ),
     "results": (
         "Explore Results",
-        "Load a saved study with the data-only readers, compare the fronts of each problem, rank solutions with "
-        "MCDM methods and export the ranking.",
+        "Load a saved study with the data-only readers, compare the fronts of each problem, filter them by "
+        "feasibility and objective ranges, rank solutions with MCDM methods, export the ranking, and run a run again.",
     ),
 }
 

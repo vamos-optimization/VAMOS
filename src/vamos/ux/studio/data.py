@@ -24,6 +24,7 @@ class RunRecord:
     archive_fun: NDArray[Any] | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
     constraints: NDArray[Any] | None = None
+    root: Path | None = None
 
 
 @dataclass
@@ -58,6 +59,7 @@ def load_run_from_directory(run_dir: Path) -> RunRecord:
         archive_fun=_array_or_none(archive_data.get("F")),
         metadata=manifest.as_dict(),
         constraints=_array_or_none(result.data.get("G")),
+        root=run_dir,
     )
 
 

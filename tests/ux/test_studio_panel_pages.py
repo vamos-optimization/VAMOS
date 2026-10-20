@@ -340,3 +340,141 @@ def test_problem_builder_reports_a_stopped_run(monkeypatch: pytest.MonkeyPatch) 
 
     assert state.status_text == "Stopped."
     assert not state.running
+
+
+def test_sidebar_shows_the_environment() -> None:
+    import panel as pn
+
+    template = studio_app.StudioApp().view()
+
+    cards = [item for item in template.sidebar if isinstance(item, pn.Card) and item.title == "Environment"]
+    assert len(cards) == 1
+    assert "**Kernels**" in cards[0].objects[0].object
+
+
+def test_catalog_filters_problems_and_describes_algorithms() -> None:
+    from vamos.ux.panel.pages import catalog
+
+    state = catalog.CatalogState()
+
+    state.encoding = "binary"
+    assert state.visible_problems() and all(entry.encoding == "binary" for entry in state.visible_problems())
+    state.algorithm = "smpso"
+    assert "permutation" not in state.param.algorithm_encoding.objects
+    state.problem, state.algorithm, state.algorithm_encoding = "dtlz2", "nsgaii", "real"
+    detail = state.detail_problem()
+    assert detail is not None and detail.key == "dtlz2"
+
+
+def test_catalog_opens_a_problem_and_an_algorithm_in_run_experiment() -> None:
+    from vamos.ux.panel.pages import catalog
+
+    opened: list[Any] = []
+    state = catalog.CatalogState(open_experiment=opened.append)
+
+    state.open_problem()  # Nothing selected yet.
+    state.problem = "dtlz2"
+    state.open_problem()
+    state.algorithm = "nsgaiii"
+    state.open_algorithm()
+
+    assert [(setup.problem, setup.algorithm) for setup in opened] == [("dtlz2", None), ("dtlz2", "nsgaiii")]
+
+
+def test_app_hands_a_setup_to_run_experiment() -> None:
+    from vamos.ux.studio.experiment_setup import ExperimentSetup
+
+    app = studio_app.StudioApp()
+
+    app.open_experiment(ExperimentSetup(problem="dtlz2", n_obj=4))
+
+    assert app.page == "experiment"
+    assert app.pending_setup is None  # The page consumed it.
+
+
+def test_experiment_dimensions_follow_the_number_of_objectives(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: list[Any] = []
+    monkeypatch.setattr(experiment, "_run_algorithm", lambda problem, **kwargs: captured.append(problem) or {"F": np.zeros((1, 5))})
+    state = experiment.ExperimentState()
+
+    state.problem_name = "dtlz2"
+    assert (state.n_var, state.n_obj, state.n_obj_adjustable) == (12, 3, True)
+    state.n_obj = 5
+    state.run_experiment()
+
+    assert (state.n_var, state.n_obj) == (14, 5)
+    assert state.configurator.form is not None and state.configurator.form.n_obj == 5
+    assert (captured[0].n_var, captured[0].n_obj) == (14, 5)
+    state.problem_name = "zdt1"
+    assert (state.n_var, state.n_obj, state.n_obj_adjustable) == (30, 2, False)
+
+
+def test_experiment_loads_the_settings_of_a_run() -> None:
+    from vamos.ux.studio.experiment_setup import ExperimentSetup
+
+    state = experiment.ExperimentState()
+
+    state.apply_setup(
+        ExperimentSetup(
+            problem="dtlz2",
+            n_var=8,
+            n_obj=4,
+            algorithm="spea2",
+            pop_size=12,
+            max_evaluations=40,
+            seed=7,
+            source="run 1234",
+            notes=("A note.",),
+        )
+    )
+
+    assert (state.problem_name, state.n_var, state.n_obj, state.seed) == ("dtlz2", 8, 4, 7)
+    assert state.max_evaluations == 100  # Raised to the page's minimum, and said so.
+    assert state.configurator.selected_algorithm == "spea2"
+    assert state.configurator.pop_size.value == 12
+    assert state.setup_note.startswith("Loaded from run 1234. A note.")
+    assert "below this page's minimum" in state.setup_note
+    assert "8 variables, 4 objectives" in state.problem_info
+
+
+def test_running_a_default_configuration_run_again_reproduces_it(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from vamos.ux.studio.data import load_runs_from_study
+    from vamos.ux.studio.experiment_setup import setup_from_run
+
+    spec = vamos.StudySpec(problems=["zdt1"], algorithms=["nsgaii"], seeds=[3], pop_size=8, max_evaluations=200, engine="numpy")
+    (run,) = load_runs_from_study(vamos.create_study(spec, output=tmp_path / "study").run().root)
+    results_seen: list[Any] = []
+    original = experiment._run_algorithm
+    monkeypatch.setattr(
+        experiment, "_run_algorithm", lambda problem, **kwargs: results_seen.append(original(problem, **kwargs)) or results_seen[-1]
+    )
+    state = experiment.ExperimentState()
+
+    state.apply_setup(setup_from_run(run))
+    state.run_experiment()
+
+    rerun_F = np.asarray(results_seen[0]["F"])
+    assert np.allclose(np.sort(rerun_F, axis=0), np.sort(run.fun, axis=0))
+
+
+def test_results_filter_fronts_and_run_a_run_again(tmp_path: Path) -> None:
+    spec = vamos.StudySpec(problems=["zdt1"], algorithms=["nsgaii"], seeds=[0, 1], pop_size=8, max_evaluations=40, engine="numpy")
+    vamos.create_study(spec, output=tmp_path / "study").run()
+    opened: list[Any] = []
+    state = results.ResultsState(open_experiment=opened.append, study_dir=str(tmp_path / "study"))
+    state.load_data()
+    total = state.filtered_fronts()[0].points_F.shape[0]
+    middle = float(np.median(state.fronts[0].points_F[:, 0]))
+
+    state.objective_ranges = [(None, middle), (None, None)]
+    state.feasible_only = True
+
+    kept = state.filtered_fronts()[0].points_F
+    assert 0 < kept.shape[0] < total and float(kept[:, 0].max()) <= middle
+    assert all(float(row["f1"]) <= middle for row in state.ranking().rows)
+    assert "every solution counts as feasible" in state.filter_summary().object
+    assert len(state.param.rerun.objects) == 2
+    state.run_again()
+    assert (opened[0].problem, opened[0].algorithm, opened[0].max_evaluations) == ("zdt1", "nsgaii", 40)
+    state.problem = None
+    assert state.objective_ranges == [] and state.rerun is None

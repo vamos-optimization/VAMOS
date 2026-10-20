@@ -6,12 +6,15 @@ import argparse
 import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import panel as pn
 import param
 
 from vamos.ux.panel.shell import PAGES, build_sidebar_nav, build_template
+
+if TYPE_CHECKING:
+    from vamos.ux.studio.experiment_setup import ExperimentSetup
 
 
 def _ensure_panel_extension() -> None:
@@ -28,6 +31,7 @@ class StudioApp(param.Parameterized):
     )
     study_dir = param.String(default="results", doc="Root directory for study results.")
     focus_study = param.String(default="", doc="Study that Explore Results loads when it opens next.")
+    pending_setup = param.Parameter(default=None, precedence=-1, doc="Settings that Run Experiment loads when it opens next.")
 
     # ---- internal ----
     _nav_col = param.ClassSelector(class_=pn.Column, precedence=-1)
@@ -92,9 +96,16 @@ class StudioApp(param.Parameterized):
         self.focus_study = study_root
         self.page = "compare"
 
+    def open_experiment(self, setup: ExperimentSetup) -> None:
+        """Open Run Experiment with a catalog problem or the settings of a stored run."""
+        self.pending_setup = setup
+        self.page = "experiment"
+
     # ---- public: composable template ----
 
     def view(self) -> pn.template.FastListTemplate:
+        from vamos.ux.studio.environment import environment_markdown, environment_report
+
         tmpl = build_template()
         tmpl.sidebar.append(
             pn.pane.Markdown(
@@ -105,6 +116,14 @@ class StudioApp(param.Parameterized):
         )
         tmpl.sidebar.append(pn.layout.Divider())
         tmpl.sidebar.append(self._nav_col)
+        tmpl.sidebar.append(
+            pn.Card(
+                pn.pane.Markdown(environment_markdown(environment_report()), sizing_mode="stretch_width"),
+                title="Environment",
+                collapsed=True,
+                sizing_mode="stretch_width",
+            )
+        )
         tmpl.main.append(self._main_area)
         return tmpl
 
@@ -120,6 +139,12 @@ def _render_welcome(_app: StudioApp) -> pn.viewable.Viewable:
     return render_welcome()
 
 
+def _render_catalog(app: StudioApp) -> pn.viewable.Viewable:
+    from vamos.ux.panel.pages.catalog import render_catalog
+
+    return render_catalog(open_experiment=app.open_experiment)
+
+
 def _render_problem_builder(app: StudioApp) -> pn.viewable.Viewable:
     from vamos.ux.panel.pages.problem_builder import render_problem_builder
 
@@ -129,7 +154,8 @@ def _render_problem_builder(app: StudioApp) -> pn.viewable.Viewable:
 def _render_experiment(app: StudioApp) -> pn.viewable.Viewable:
     from vamos.ux.panel.pages.experiment import render_experiment
 
-    return render_experiment(on_exit=app.on_page_exit)
+    setup, app.pending_setup = app.pending_setup, None
+    return render_experiment(on_exit=app.on_page_exit, setup=setup)
 
 
 def _render_batch(app: StudioApp) -> pn.viewable.Viewable:
@@ -151,11 +177,12 @@ def _render_results(app: StudioApp) -> pn.viewable.Viewable:
     from vamos.ux.panel.pages.results import render_results
 
     focus, app.focus_study = app.focus_study, ""
-    return render_results(study_dir=Path(app.study_dir), focus_study=focus or None)
+    return render_results(study_dir=Path(app.study_dir), focus_study=focus or None, open_experiment=app.open_experiment)
 
 
 PAGE_RENDERERS: dict[str, Callable[[StudioApp], pn.viewable.Viewable]] = {
     "welcome": _render_welcome,
+    "catalog": _render_catalog,
     "problem_builder": _render_problem_builder,
     "experiment": _render_experiment,
     "batch": _render_batch,

@@ -15,38 +15,15 @@ from vamos.ux.studio.algorithm_form import (
     algorithm_label,
     algorithms_for_encoding,
     build_algorithm_form,
+    choice_label,
     default_algorithm_config,
+    format_config_value,
     population_is_derived,
 )
 
 DEFAULTS_MODE = "VAMOS defaults"
 CUSTOM_MODE = "Customize"
 CHANGED_MARK = " ✎"
-
-
-def format_config_value(value: object) -> str:
-    """Render one configuration value as ``name(key=value, ...)`` when it is an operator."""
-    if isinstance(value, (tuple, list)) and len(value) == 2 and isinstance(value[0], str) and isinstance(value[1], dict):
-        params = ", ".join(f"{key}={_short(item)}" for key, item in value[1].items())
-        return f"{value[0]}({params})" if params else value[0]
-    if isinstance(value, dict):
-        return ", ".join(f"{key}={_short(item)}" for key, item in value.items() if item is not None) or "{}"
-    return _short(value)
-
-
-def _short(value: object) -> str:
-    if isinstance(value, float):
-        return f"{value:.6g}"
-    return str(value)
-
-
-def _choice_label(parameter: FormParameter, choice: object) -> str:
-    if choice == VAMOS_DEFAULT_CHOICE:
-        shown = "automatic" if parameter.default_value is None else format_config_value(parameter.default_value)
-        return f"VAMOS default ({shown})"
-    if choice == parameter.start and parameter.from_default:
-        return f"{choice} (VAMOS default)"
-    return str(choice)
 
 
 def _as_float(value: object) -> float:
@@ -192,7 +169,7 @@ class AlgorithmConfigurator:
         if parameter.kind == "boolean":
             return pn.widgets.Checkbox(name=parameter.label, value=bool(parameter.start))
         if parameter.kind == "categorical":
-            options = {_choice_label(parameter, choice): choice for choice in parameter.choices}
+            options = {choice_label(parameter, choice): choice for choice in parameter.choices}
             return pn.widgets.Select(
                 name=parameter.label, options=options, value=parameter.start, description=description, sizing_mode="stretch_width"
             )
@@ -310,4 +287,4 @@ class AlgorithmConfigurator:
         return "\n".join(lines)
 
 
-__all__ = ["AlgorithmConfigurator", "CUSTOM_MODE", "DEFAULTS_MODE", "format_config_value"]
+__all__ = ["AlgorithmConfigurator", "CUSTOM_MODE", "DEFAULTS_MODE"]

@@ -75,8 +75,12 @@ non-dominated or lies on the true Pareto front. See
 [Understanding results](understanding-results.md) for those distinctions.
 
 The overlay shows the fronts of one problem at a time: two or three objectives
-as a scatter plot, more as parallel coordinates. **Export ranking (CSV)**
-downloads the ranking table shown on the page. Use the
+as a scatter plot, more as parallel coordinates. **Filters** narrow the overlay
+and the ranking to the solutions that satisfy every constraint, or whose
+objectives lie inside the ranges you set with one slider per objective; the
+page reports how many solutions remain. Runs that stored no constraint values
+count every solution as feasible. **Export ranking (CSV)** downloads the
+ranking table shown on the page, filters included. Use the
 [analysis workflow](../topics/analysis.md) for controlled plots and exports.
 
 ## Installation and launch options
@@ -118,18 +122,68 @@ environment; Studio does not provide an authentication boundary.
 
 ## Pages
 
+- **Problems & Algorithms** lists the registered problems and the built-in
+  algorithms, and opens either in Run Experiment.
 - **Problem Builder** defines a problem in Python, or starts from a template
   with its bounds and constraints, previews its Pareto front, runs it with a
   configurable algorithm and generates a standalone script.
-- **Run Experiment** runs a registered problem and lets you browse the
-  population of every generation.
+- **Run Experiment** runs a registered problem, with the number of variables
+  and, where the problem allows it, of objectives that you choose, and lets
+  you browse the population of every generation.
 - **Batch Comparison** runs several algorithms on several problems for
   consecutive seeds as a durable study in a background process, follows its
   progress, and reports hypervolume with CSV and LaTeX downloads.
 - **Statistical Comparison** tests whether the algorithms of a study differ and
   exports the evidence as LaTeX tables, CSV, and SAES files.
-- **Explore Results** loads a study, overlays the fronts of each problem, ranks
-  solutions with MCDM methods and exports the ranking as CSV.
+- **Explore Results** loads a study, overlays the fronts of each problem,
+  filters them, ranks solutions with MCDM methods, exports the ranking as CSV,
+  and opens a run in Run Experiment to run it again.
+
+The **Environment** panel at the bottom of the sidebar lists the VAMOS and
+Python versions, the installed kernel backends, and which optional extras are
+installed. Studio reads them from the installed package metadata without
+importing the backends.
+
+## Problems and algorithms
+
+The **Problems** tab lists every registered problem with its encoding, its
+default numbers of variables and objectives, whether you can choose the number
+of objectives, whether VAMOS ships its reference front for that number of
+objectives, and the algorithms that have operators for its encoding. Filter by
+encoding or search by key, name or description, and select a problem to read
+its description.
+
+The **Algorithms** tab shows the configurable parameters of an algorithm for a
+problem encoding, with their VAMOS defaults and allowed values. They come from
+the same tuning configuration space that Customize offers and `vamos tune`
+explores. Defaults are shown for the selected problem when its encoding
+matches, and otherwise for the first registered problem of that encoding,
+because some defaults depend on the problem's dimensions.
+
+**Open in Run Experiment** opens the selected problem, or the algorithm with
+that problem, in Run Experiment.
+
+## Running a stored run again
+
+In Explore Results, **Run again** lists the runs of the chosen problem. **Run
+again in Run Experiment** opens the run's problem, numbers of variables and
+objectives, algorithm, population size, evaluation budget, and seed in Run
+Experiment, which says what it could not carry over:
+
+- A run that used its algorithm's VAMOS default configuration runs with the
+  same default. When the run was made with another VAMOS version, Studio warns
+  that the defaults may differ.
+- A run that was given its own algorithm configuration starts from the VAMOS
+  default configuration instead, because Studio cannot load a stored
+  configuration into its form. `vamos reproduce <run directory>` repeats such a
+  run exactly.
+- Run Experiment always uses the NumPy engine and an evaluation budget of at
+  least 100 evaluations.
+
+The seed is the run's own. For a NumPy run with the default configuration and
+a budget of at least 100 evaluations, made with the same VAMOS version, Run
+Experiment therefore follows the same trajectory; change the seed to run
+another replicate.
 
 Problem Builder and Run Experiment start a single run in the background, so
 the rest of Studio stays responsive while it runs. Run Experiment follows the
