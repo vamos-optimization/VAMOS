@@ -100,7 +100,7 @@ def _requested_spec(inputs: RunSpecInputs) -> dict[str, Any]:
         raise AssertionError("requested defaults is not an object")
     if inputs.algorithm_requested != "auto":
         defaults["algorithm"] = inputs.algorithm_requested
-    if inputs.engine_requested not in (None, "auto"):
+    if inputs.engine_requested is not None:
         defaults["engine"] = inputs.engine_requested
     if inputs.max_evaluations_requested is not None:
         defaults["max_evaluations"] = inputs.max_evaluations_requested

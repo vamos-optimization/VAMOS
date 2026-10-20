@@ -95,6 +95,49 @@ These are implementation fixes under the existing stability policy. Record the p
 | `numba` | Optional backend | JIT implementations of supported kernels; includes compilation cost on first use. |
 | `moocore` | Optional backend | Native non-dominated sorting/hypervolume operations where available; not every algorithm step is accelerated. |
 
+### Automatic engine selection
+
+**Development after 1.0.2:** the published 1.0.2 wheel only prefers Numba for
+NSGA-II and MOEA/D in `auto` mode. The following expanded policy applies to the
+next release and the current source branch.
+
+| Request | Effective engine |
+| --- | --- |
+| Omitted / `None` | NumPy, preserving the stable 1.x default |
+| `"auto"`, any of the nine built-in algorithms | Numba if its dependency and backend load and JIT is enabled; otherwise NumPy |
+| `"auto"`, external/plugin/unknown algorithm | NumPy; no compatibility claim for custom algorithms |
+| `"numpy"`, `"numba"`, `"moocore"` | Exactly the requested engine; unavailable engines raise an error |
+
+Pass `engine="auto"` to `optimize`, `engine="auto"` in `StudySpec`, or
+`--engine auto` on the CLI. It does not install optional packages, benchmark the
+workload, choose MooCore, compile kernels during selection, or consume random
+draws. Missing or incompatible optional imports fall back before optimization;
+the effective engine is recorded in result metadata and the canonical resolved
+specification. Diagnostics for load failures are available through VAMOS logging.
+`NUMBA_DISABLE_JIT=1` also selects NumPy in auto mode.
+
+After selection, compilation or execution errors propagate; VAMOS does not
+restart an optimization under another engine. Retrying could repeat objective
+side effects or consume a different random stream. The NumPy single-pair SBX
+and MOEA/D optional shortcuts also tolerate unloadable Numba installations.
+
+An explicit `auto` request is retained in the requested configuration. Saved
+runs and created studies freeze the **resolved** engine: exact replay, study
+resume, and retry do not rerun auto selection. If that stored engine becomes
+unavailable, they fail rather than silently substitute NumPy. A newly resolved
+auto configuration can select differently in another environment; pin
+`engine="numpy"` or `engine="numba"` and record the environment when that matters.
+Existing 1.0 artifacts and schema versions are unchanged. Expanding the
+environment-dependent auto heuristic does not change the stable omitted default
+or promise cross-environment bitwise reproducibility.
+
+Numba is a throughput preference, not a guarantee of a faster first call.
+Compare an empty JIT cache in a fresh process, a fresh process with a populated
+disk cache, and repeated runs with warm JIT separately. The reproducible
+[benchmark harness](https://github.com/vamos-optimization/VAMOS/tree/main/experiments/numba_acceleration)
+supports `numpy`, `numba`, and `auto`; see also
+[Measure backend performance](../tutorials/measure-performance.md).
+
 ### Numba engine coverage
 
 `engine="numba"` replaces selected numerical steps with compiled kernels. Each

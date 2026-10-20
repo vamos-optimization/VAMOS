@@ -82,6 +82,14 @@ pip install "smac>=2.0"
 | `numba` | Stable optional | Accelerates core numeric kernels such as variation, tournament selection, and MOEA/D neighborhood updates. |
 | `moocore` | Stable optional | Adds accelerated quality-indicator support, especially hypervolume-style metrics. |
 
+On the development branch after 1.0.2, use `engine="auto"` (CLI: `--engine auto`)
+to prefer loadable Numba for all nine built-in algorithms, with a NumPy fallback.
+Numba remains optional. Omitting `engine` still selects NumPy, preserving the 1.x
+default; explicit `engine="numba"` fails if unavailable. First use can spend more
+time compiling than a short optimization takes. See the
+[selection and replay policy](docs/reference/algorithms.md#automatic-engine-selection)
+before comparing timings or moving runs between environments.
+
 Operator shorthand accepts either numeric probabilities or the string literal `"1/n"` for per-variable mutation rates.
 
 ## API Contracts

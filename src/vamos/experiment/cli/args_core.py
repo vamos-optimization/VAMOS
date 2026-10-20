@@ -56,7 +56,7 @@ def add_core_arguments(
         default=spec_default(experiment_defaults, "engine", None),
         help=(
             "Kernel backend to use. Default is deterministic numpy. Use 'auto' to "
-            "heuristically prefer optional accelerated backends."
+            "prefer available Numba for built-in algorithms, with a NumPy fallback."
         ),
     )
     add_spec_argument(

@@ -210,6 +210,7 @@ def command_runs(args: argparse.Namespace) -> None:
                         "kind": "run",
                         "label": args.label,
                         "engine": args.engine,
+                        "effective_engine": result.meta["engine"],
                         "case": case[0],
                         "seed": seed,
                         "repeat": repeat,
@@ -255,6 +256,11 @@ print(t1 - t0, t2 - t1, t3 - t2)
 def command_startup(args: argparse.Namespace) -> None:
     env = _environment()
     cases = (("nsgaii", "zdt1", 100, 2000, ""), ("nsgaii", "dtlz2", 100, 2000, ", n_obj=3"), ("moead", "zdt1", 100, 2000, ""))
+    if args.all_algorithms:
+        cases += tuple(
+            (algorithm, "dtlz2", 91 if algorithm in {"nsgaiii", "rvea"} else 100, 2000, ", n_obj=3")
+            for algorithm in ("nsgaiii", "smsemoa", "spea2", "ibea", "smpso", "agemoea", "rvea")
+        )
     records = []
     with tempfile.TemporaryDirectory() as cache_root:
         for algorithm, problem, population, evaluations, extra in cases:
@@ -483,13 +489,15 @@ def main() -> None:
     for name in ("runs", "startup", "kernels"):
         cmd = sub.add_parser(name)
         cmd.add_argument("--label", required=True)
-        cmd.add_argument("--engine", choices=("numpy", "numba"), required=True)
+        cmd.add_argument("--engine", choices=("numpy", "numba", "auto") if name != "kernels" else ("numpy", "numba"), required=True)
         cmd.add_argument("--output", type=Path, required=True)
         cmd.add_argument("--repeat", type=int, default=3 if name != "kernels" else 40)
         cmd.add_argument("--cpu", type=int, default=None, help="Pin to one logical processor.")
         if name == "runs":
             cmd.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2, 3, 4])
             cmd.add_argument("--cases", nargs="*", default=[])
+        if name == "startup":
+            cmd.add_argument("--all-algorithms", action="store_true", help="Include startup costs for all nine built-in algorithms.")
     report = sub.add_parser("report")
     report.add_argument("--inputs", nargs="+", required=True)
     report.add_argument("--output", type=Path, required=True)
