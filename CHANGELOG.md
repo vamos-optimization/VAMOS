@@ -4,6 +4,21 @@ All notable public changes to VAMOS are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- Explicit `engine="auto"` now prefers loadable, JIT-enabled Numba for all nine
+  built-in algorithms. Missing or incompatible optional installations fall back
+  to NumPy before execution. The stable omitted-engine default remains NumPy;
+  explicit backend requests and stored replay/study backends never substitute.
+- Canonical requested configurations retain an explicit `engine="auto"` while
+  resolved configurations continue to store the effective backend. Schemas and
+  optional dependency requirements are unchanged.
+
+### Fixed
+
+- NumPy's optional single-pair SBX and MOEA/D neighbourhood shortcuts tolerate
+  unloadable Numba installations, so they do not defeat automatic fallback.
+
 ## [1.0.2] - 2026-10-18
 
 ### Added

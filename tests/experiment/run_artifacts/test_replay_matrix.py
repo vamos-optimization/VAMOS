@@ -61,13 +61,18 @@ _ALGORITHMS: tuple[tuple[str, str, Callable[[], Any], dict[str, int]], ...] = (
 
 
 @pytest.mark.parametrize(("algorithm", "problem", "config_factory", "problem_dimensions"), _ALGORITHMS)
+@pytest.mark.parametrize("engine", ["numpy", "auto"])
 def test_all_registered_built_in_algorithms_replay_exactly(
     algorithm: str,
     problem: str,
     config_factory: Callable[[], Any],
     problem_dimensions: dict[str, int],
     tmp_path: Path,
+    engine: str,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    if engine == "auto":
+        pytest.importorskip("numba")
     config = config_factory()
     pop_size = int(config.to_dict()["pop_size"])
     result = vamos.optimize(
@@ -75,11 +80,17 @@ def test_all_registered_built_in_algorithms_replay_exactly(
         algorithm=algorithm,
         algorithm_config=config,
         termination=("max_evaluations", max(12, pop_size * 2)),
-        engine="numpy",
+        engine=engine,
         seed=3,
         **problem_dimensions,
     )
     source = vamos.save_result(result, tmp_path / f"{algorithm}-source")
+
+    if engine == "auto":
+        assert source.manifest.requested_spec["defaults"]["engine"] == "auto"
+        assert source.manifest.resolved_spec["backend"]["kernel"]["resolution"]["name"] == "numba"
+        # Replay must use stored resolution even if today's auto policy differs.
+        monkeypatch.setattr("vamos.experiment.runtime.catalog._has_numba", lambda: False)
 
     replay = vamos.reproduce(source.root, output=tmp_path / f"{algorithm}-replay")
 

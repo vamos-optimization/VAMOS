@@ -129,3 +129,70 @@ one-time cost: with the on-disk cache, startup is unchanged.
   starts at three objectives.
 - Python peak allocation (`tracemalloc`) did not increase; it decreased slightly
   for Numba NSGA-II because survival no longer copies into persistent buffers.
+
+## Automatic selection after 1.0.2
+
+`runs` and `startup` also accept `--engine auto`. Run them separately for
+`numpy`, `numba`, and `auto`, using the same cases, seeds and thread settings.
+Run records include the effective engine. `startup --all-algorithms` covers all
+nine built-ins, with an empty cache in a fresh process, disk-cache startup in
+another process, and a subsequent call with warm JIT. Selection itself does not
+compile or draw random values. Keep generated reports under ignored
+`artifacts/performance/`; the existing 2026-10-18 evidence remains historical.
+
+### 2026-10-20 selection measurements
+
+Measured on 2026-10-20: Linux x86-64, AMD EPYC 9V74, Python 3.12.14, NumPy 2.2.6, Numba 0.67.0 / llvmlite 0.49.0. One logical processor (CPU 0), one BLAS/Numba thread; sequential processes after the test suites completed. Results describe this machine and dependency build, not a universal speedup.
+
+Warm optimization: median seconds over seeds 0–4, one measured run per seed after a separate excluded warm-up. The separate tracemalloc pass is excluded from timings. Final objective digests match all three engines for **50/50 case-seed pairs**. All auto calls resolved to Numba.
+
+| Workload | Evaluations | NumPy | Numba | auto | NumPy / auto |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| nsgaii-zdt1-m2-p100 | 20,000 | 0.842 | 0.152 | 0.128 | 6.59x |
+| nsgaii-dtlz2-m3-p500 | 50,000 | 14.643 | 0.334 | 0.299 | 48.94x |
+| moead-zdt1-m2-p100 | 20,000 | 2.535 | 2.442 | 2.499 | 1.01x |
+| nsgaiii-dtlz2-m3-p91 | 20,000 | 0.872 | 0.282 | 0.364 | 2.40x |
+| smsemoa-zdt1-m2-p100 | 5,000 | 1.667 | 1.800 | 1.732 | 0.96x |
+| spea2-dtlz2-m3-p100 | 10,000 | 1.174 | 0.676 | 0.688 | 1.71x |
+| ibea-zdt1-m2-p100 | 10,000 | 0.344 | 0.242 | 0.261 | 1.32x |
+| smpso-dtlz2-m3-p100 | 10,000 | 0.265 | 0.189 | 0.198 | 1.34x |
+| agemoea-dtlz2-m3-p100 | 10,000 | 0.899 | 0.207 | 0.241 | 3.73x |
+| rvea-dtlz2-m3-p91 | 10,000 | 0.054 | 0.063 | 0.063 | 0.85x |
+
+Startup uses **2,000 evaluations** per call (N=100, except NSGA-III/RVEA N=91). These are different budgets from the warm workloads above. Each cold measurement uses a fresh process and empty Numba cache. The warm value below is the median second-call time across the cold process and two new disk-cache processes. Disk-cache first-call values are medians of those two fresh processes. Times wrap optimize(), including backend load/selection and compilation when reached; they exclude Python/VAMOS import, which is recorded separately by the harness.
+
+| Startup case | NumPy cold / warm | Numba cold / warm | auto cold / warm | auto disk-cache first |
+| --- | ---: | ---: | ---: | ---: |
+| nsgaii-zdt1 | 0.102 / 0.087 | 3.373 / 0.017 | 3.466 / 0.016 | 0.366 |
+| nsgaii-dtlz2 | 0.084 / 0.078 | 2.880 / 0.013 | 2.890 / 0.015 | 0.341 |
+| moead-zdt1 | 3.036 / 0.234 | 2.809 / 0.198 | 3.120 / 0.193 | 0.520 |
+| nsgaiii-dtlz2 | 0.092 / 0.083 | 2.551 / 0.028 | 2.457 / 0.029 | 0.405 |
+| smsemoa-dtlz2 | 0.921 / 0.591 | 3.003 / 0.647 | 2.864 / 0.710 | 1.013 |
+| spea2-dtlz2 | 0.119 / 0.101 | 1.499 / 0.102 | 1.458 / 0.092 | 0.391 |
+| ibea-dtlz2 | 0.072 / 0.060 | 1.409 / 0.049 | 1.415 / 0.049 | 0.352 |
+| smpso-dtlz2 | 0.042 / 0.037 | 1.706 / 0.029 | 1.907 / 0.029 | 0.308 |
+| agemoea-dtlz2 | 0.129 / 0.137 | 2.881 / 0.029 | 2.971 / 0.030 | 0.309 |
+| rvea-dtlz2 | 0.029 / 0.014 | 0.449 / 0.017 | 0.418 / 0.014 | 0.318 |
+
+The compiled-power guard disabled SBX/PM acceleration on this NumPy build; the remaining Numba kernels stayed active. NumPy timings use the same environment, which already permits the existing Numba single-pair/MOEA-D shortcuts. Thus they are not timings from the separate core-only installation. Short-run startup can outweigh warm throughput gains, and algorithms with little active compiled work can show no gain. Auto and explicit Numba execute the same algorithm implementation; differences in these sequential timings include machine variability and are not attributed to resolver performance.
+
+Reproduce with the existing harness (set OMP_NUM_THREADS, OPENBLAS_NUM_THREADS, MKL_NUM_THREADS and NUMBA_NUM_THREADS to 1 before starting Python):
+
+```bash
+python experiments/numba_acceleration/benchmark.py startup --engine auto --label auto --cpu 0 --all-algorithms --repeat 2 --output artifacts/performance/startup-auto.jsonl
+python experiments/numba_acceleration/benchmark.py runs --engine auto --label auto --cpu 0 --repeat 1 --seeds 0 1 2 3 4 --cases nsgaii-zdt1-m2-p100 nsgaii-dtlz2-m3-p500 moead-zdt1-m2-p100 nsgaiii-dtlz2-m3-p91 smsemoa-zdt1-m2-p100 spea2-dtlz2-m3-p100 ibea-zdt1-m2-p100 smpso-dtlz2-m3-p100 agemoea-dtlz2-m3-p100 rvea-dtlz2-m3-p91 --output artifacts/performance/runs-auto.jsonl
+```
+
+Repeat both commands with `--engine numpy` / `--label numpy` and `--engine numba` / `--label numba`, each with a distinct output filename. Use an available logical CPU on your host. Raw JSON-lines and generated reports remain in ignored `artifacts/performance/`; maintained conclusions are recorded here.
+
+### Check with rotating engine order
+
+To investigate small slowdowns in the sequential measurements, the same warm cases below were repeated in one pinned process over seeds 0–8, rotating the order of NumPy, Numba and auto each seed. Each engine received an excluded warm-up. All 27 case-seed comparisons had identical final objective digests. Median seconds:
+
+| Case | NumPy | Numba | auto |
+| --- | ---: | ---: | ---: |
+| rvea-dtlz2-m3-p91 | 0.057 | 0.056 | 0.058 |
+| smsemoa-zdt1-m2-p100 | 1.668 | 1.712 | 1.752 |
+| nsgaiii-dtlz2-m3-p91 | 0.902 | 0.339 | 0.290 |
+
+Warm auto resolution itself took 1.87 microseconds per call (median of five batches of 10,000 calls). RVEA was essentially flat in this follow-up; SMS-EMOA remained about 5% slower with auto on this build. Automatic Numba preference is not a performance guarantee for every workload, especially when compiled variation is disabled. The omitted NumPy default remains available without any behavior change.

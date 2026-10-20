@@ -22,9 +22,14 @@ def available_variation_kernels() -> VariationKernels | None:
     """
     if find_spec("numba") is None:
         return None
-    from ._numba_variation import verified_variation_kernels
+    try:
+        from ._numba_variation import verified_variation_kernels
 
-    return verified_variation_kernels()
+        return verified_variation_kernels()
+    except (ImportError, OSError, RuntimeError, AttributeError):
+        # This optional single-pair shortcut also runs under the NumPy engine.
+        # An installed but unloadable accelerator must not defeat its fallback.
+        return None
 
 
 def _ensure_bounds(lower: float | RealArray, upper: float | RealArray, n_var: int) -> tuple[FloatArray, FloatArray]:

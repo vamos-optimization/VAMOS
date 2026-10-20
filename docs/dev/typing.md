@@ -83,11 +83,11 @@ VAMOS 1.0.0.
 
 ## Current structured debt
 
-After establishing strict=0, the structured baseline contains 837 diagnostics in 108 files and 108 stable fingerprints:
+After establishing strict=0, the structured baseline contains 781 diagnostics in 107 files and 107 stable fingerprints:
 
 | Layer | Diagnostics |
 |---|---:|
-| engine | 461 |
+| engine | 405 |
 | foundation | 286 |
 | ux | 67 |
 | experiment | 22 |
