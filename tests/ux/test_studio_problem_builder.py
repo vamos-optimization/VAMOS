@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import multiprocessing as mp
 import queue
+from typing import Any
 from unittest.mock import Mock
 
 import numpy as np
@@ -20,6 +22,34 @@ from vamos.ux.studio.problem_builder_backend import (
 # ======================================================================
 # compile_objective_function
 # ======================================================================
+
+
+def _send_large_preview_history(result_queue: Any) -> None:
+    history = [np.full((512, 2), generation, dtype=float) for generation in range(256)]
+    result_queue.put({"ok": True, "payload": {"history": history}})
+
+
+def test_preview_receives_history_larger_than_the_process_pipe() -> None:
+    ctx = mp.get_context("spawn")
+    result_queue = ctx.Queue(maxsize=1)
+    process = ctx.Process(target=_send_large_preview_history, args=(result_queue,))
+    process.start()
+    try:
+        result = preview._await_worker_result(result_queue, process, 60.0)
+    finally:
+        if process.is_alive():
+            process.terminate()
+        process.join(timeout=5.0)
+        result_queue.close()
+        result_queue.join_thread()
+
+    assert process.exitcode == 0
+    assert isinstance(result, dict) and result["ok"] is True
+    history = result["payload"]["history"]
+    assert len(history) == 256
+    assert sum(front.nbytes for front in history) > 1024 * 1024
+    for generation, front in enumerate(history):
+        np.testing.assert_array_equal(front, np.full((512, 2), generation))
 
 
 @pytest.mark.parametrize("alive", [True, False])
@@ -257,20 +287,20 @@ class TestRunPreviewOptimization:
                 trusted_local_code=True,
             )
 
-    def test_child_process_returns_a_large_generation_history(self) -> None:
+    def test_child_process_records_generation_history(self) -> None:
         from vamos.ux.studio.algorithm_form import default_algorithm_config
 
         code = "return [x[0], 1.0 - x[0] + sum(x[1:])]"
         fn = compile_objective_function(code, trusted_local_code=True)
-        config = default_algorithm_config("nsgaii", encoding="real", n_var=10, n_obj=2, pop_size=100)
+        config = default_algorithm_config("nsgaii", encoding="real", n_var=10, n_obj=2, pop_size=20)
         result = run_preview_optimization(
             fn,
             n_var=10,
             n_obj=2,
             bounds=[(0.0, 1.0)] * 10,
             algorithm="nsgaii",
-            budget=20000,
-            pop_size=100,
+            budget=400,
+            pop_size=20,
             seed=0,
             objective_code=code,
             timeout_seconds=120.0,
@@ -279,9 +309,8 @@ class TestRunPreviewOptimization:
             record_history=True,
         )
 
-        # Tens of generations of 100 points exceed a pipe buffer; the parent must read before joining.
-        assert len(result["history"]) >= 150
-        assert all(F.shape[1] == 2 for F in result["history"])
+        assert len(result["history"]) >= 15
+        assert all(F.shape[1] == 2 and 0 < F.shape[0] <= 20 for F in result["history"])
 
 
 class TestGenerateScriptConfiguration:
