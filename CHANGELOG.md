@@ -53,6 +53,8 @@ All notable public changes to VAMOS are documented here.
   the final generation once.
 - Preview timeouts retain their timeout diagnosis when the worker exits at the
   deadline; crashes before the deadline remain distinct worker errors.
+- Stopping a Studio batch unwinds active file writes before acknowledging the
+  stop, so temporary attempt files do not prevent loading and resuming it.
 - The registered `cec2009_cf1` and `welded_beam` problems declare their
   constraints, so algorithms enforce them; they used to run as unconstrained
   problems. CF1 also stores its CEC2009 constraint with the VAMOS sign

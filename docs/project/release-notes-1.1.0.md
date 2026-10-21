@@ -43,7 +43,8 @@ when reproducing historical artifacts.
   filters, and run-again workflow support inspecting and repeating experiments.
 - Stop requests target a unique worker token. The matching worker exits itself;
   Studio does not signal a possibly reused process ID or confirm a stop without
-  the worker's acknowledgment. Wildcard remote binding accepts the computer's
+  the worker's acknowledgment after file cleanup. Interrupted atomic writes
+  do not strand temporary attempt files that prevent resume. Wildcard remote binding accepts the computer's
   host names and addresses; proxies and aliases have an explicit origin option. Final generations are
   recorded once in the live history.
 

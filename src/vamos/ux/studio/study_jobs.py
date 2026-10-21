@@ -16,8 +16,9 @@ The job files live outside the study, in
 A fresh heartbeat indicates recent activity, not process identity. Studio
 requests a stop using the worker's unique token; the matching worker exits
 itself. Studio never sends a signal to a PID read from a file.
-Stopping a worker ends its process: the task in progress is lost, the study
-stays ``running``, and resuming it reconciles and reruns that task.
+Stopping a worker unwinds its owning thread before acknowledging the stop,
+so atomic writes clean up their temporary files. The task in progress is lost,
+the study stays ``running``, and resuming it reconciles and reruns that task.
 """
 
 from __future__ import annotations

@@ -216,7 +216,9 @@ process's heartbeat, outcome, and log next to the study, in
 `.vamos-studio/jobs/<study-id>/`, and never writes inside the study itself.
 
 **Stop** addresses a request to the current worker's unique token. The worker
-checks requests every 0.25 seconds and ends its own process; Studio never
+checks requests every 0.25 seconds and interrupts its owning thread, allowing
+file cleanup to finish before reporting a stop. A native calculation must
+return control to Python before that interruption can take effect. Studio never
 signals a process by its id, which the system may have given to another
 program after a crash. Studio shows **stopping** until the worker acknowledges
 the request; a stale heartbeat is reported as lost, not as a confirmed stop.
