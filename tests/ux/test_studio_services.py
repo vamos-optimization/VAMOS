@@ -1,7 +1,34 @@
 from pathlib import Path
 
+import numpy as np
+
 import vamos
-from vamos.ux.studio.services import build_demo_study_data, discover_study_directories, load_studio_data
+from vamos.ux.studio.services import DynamicsCallback, build_demo_study_data, discover_study_directories, load_studio_data
+
+
+def test_dynamics_final_front_replaces_the_last_recorded_generation() -> None:
+    callback = DynamicsCallback()
+    callback.on_generation(1, F=np.zeros((3, 2)))
+    callback.on_generation(2, F=np.ones((3, 2)))
+    final = np.array([[0.2, 0.8]])
+    callback.on_end(final_F=final)
+    assert len(callback.history) == 2
+    np.testing.assert_array_equal(callback.history[-1], final)
+
+
+def test_dynamics_records_an_uncaptured_final_generation() -> None:
+    callback = DynamicsCallback()
+    callback.on_generation(1, F=np.zeros((3, 2)))
+    callback.on_generation(2)
+    callback.on_end(final_F=np.ones((1, 2)))
+    assert len(callback.history) == 2
+    np.testing.assert_array_equal(callback.history[0], np.zeros((3, 2)))
+
+
+def test_dynamics_records_the_final_front_without_generation_callbacks() -> None:
+    callback = DynamicsCallback()
+    callback.on_end(final_F=np.ones((1, 2)))
+    assert len(callback.history) == 1
 
 
 def test_discover_study_directories_finds_canonical_roots(tmp_path: Path) -> None:
