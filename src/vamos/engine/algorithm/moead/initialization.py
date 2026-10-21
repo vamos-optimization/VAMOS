@@ -24,6 +24,7 @@ from vamos.engine.algorithm.components.population import (
 from vamos.engine.algorithm.components.termination import parse_termination, validate_initial_budget
 from vamos.engine.algorithm.components.utils import resolve_bounds_array
 from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors
+from vamos.engine.algorithm.config.base import normalize_constraint_mode
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
 from vamos.engine.operators.impl.flags import set_numba_variation
 from vamos.engine.operators.policies.moead import build_variation_operators
@@ -70,7 +71,7 @@ def initialize_moead_run(
         raise ValueError("MOEA/D requires pop_size >= 2.")
     validate_initial_budget(max_eval, pop_size, "MOEA/D")
 
-    constraint_mode = cfg.get("constraint_mode", "feasibility")
+    constraint_mode = normalize_constraint_mode(cfg.get("constraint_mode", "feasibility"))
     encoding = normalize_encoding(getattr(problem, "encoding", "real"))
     xl, xu = resolve_bounds_array(problem, encoding)
     n_var = problem.n_var

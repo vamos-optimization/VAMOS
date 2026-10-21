@@ -21,6 +21,7 @@ from vamos.engine.algorithm.components.population import (
     resolve_bounds,
 )
 from vamos.engine.algorithm.components.termination import parse_termination, validate_initial_budget
+from vamos.engine.algorithm.config.base import normalize_constraint_mode
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
 from vamos.engine.operators.policies.spea2 import build_variation_operators
 from vamos.foundation.encoding import normalize_encoding
@@ -83,7 +84,7 @@ def initialize_spea2_run(
     offspring_size = pop_size
     k_neighbors = cfg.get("k_neighbors")
     k_neighbors = 1 if k_neighbors is None else int(k_neighbors)
-    constraint_mode = cfg.get("constraint_mode", "none")
+    constraint_mode = normalize_constraint_mode(cfg.get("constraint_mode", "feasibility"))
 
     encoding = normalize_encoding(getattr(problem, "encoding", "real"))
     n_var = problem.n_var

@@ -21,7 +21,7 @@ else:
 
 # ── Shared Literal type aliases ──────────────────────────────────────
 ResultMode = Literal["non_dominated", "population"]
-ConstraintModeStr = Literal["none", "feasibility", "penalty", "epsilon"]
+ConstraintModeStr = Literal["none", "feasibility"]
 LiveCallbackMode = Literal["nd_only", "all"]
 IndicatorType = Literal["eps", "hypervolume"]
 OperatorCategory: TypeAlias = Literal["crossover", "mutation", "selection", "repair", "initializer"]
@@ -214,11 +214,25 @@ class _MutationProbFactorBuilder:
         return self
 
 
+def normalize_constraint_mode(value: object) -> ConstraintModeStr:
+    """Return the constraint mode the built-in algorithms implement, or raise ``ValueError``.
+
+    ``"feasibility"`` ranks feasible solutions before infeasible ones and orders
+    infeasible ones by total violation; ``"none"`` ignores constraint values.
+    """
+    mode = str(value).strip().lower() if isinstance(value, str) else value
+    if mode == "none":
+        return "none"
+    if mode == "feasibility":
+        return "feasibility"
+    raise ValueError(f"constraint_mode must be 'feasibility' or 'none'; got {value!r}.")
+
+
 class _ConstraintModeBuilder:
     _cfg: dict[str, Any]
 
     def constraint_mode(self, value: ConstraintModeStr) -> Self:
-        self._cfg["constraint_mode"] = value
+        self._cfg["constraint_mode"] = normalize_constraint_mode(value)
         return self
 
 
@@ -259,6 +273,11 @@ class _SerializableConfig:
     """Mixin to serialize dataclass configs."""
 
     __dataclass_fields__: dict[str, Any]
+
+    def __post_init__(self) -> None:
+        if "constraint_mode" in self.__dataclass_fields__:
+            config = cast(Any, self)
+            object.__setattr__(self, "constraint_mode", normalize_constraint_mode(config.constraint_mode))
 
     def to_dict(self) -> dict[str, object]:
         payload = cast(dict[str, object], asdict(cast(Any, self)))

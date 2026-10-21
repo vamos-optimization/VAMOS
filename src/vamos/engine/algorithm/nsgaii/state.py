@@ -23,7 +23,7 @@ from vamos.engine.algorithm.components.archive import (
     SPEA2Archive,
     UnboundedArchive,
 )
-from vamos.engine.algorithm.components.results import get_external_archive_contents, wants_population_result
+from vamos.engine.algorithm.components.results import feasible_result_indices, get_external_archive_contents, wants_population_result
 from vamos.engine.algorithm.components.termination import HVTracker
 from vamos.engine.hooks.genealogy import GenealogyTracker
 from vamos.engine.operators.impl.real import VariationWorkspace
@@ -172,11 +172,10 @@ def build_result(
         should_filter = kernel is not None and not wants_population_result(state)
         if should_filter:
             try:
-                ranks, _ = kernel.nsga2_ranking(state.F)
-                nd_mask = ranks == ranks.min(initial=0)
-                result_X = state.X[nd_mask]
-                result_F = state.F[nd_mask]
-                result_G = state.G[nd_mask] if state.G is not None else None
+                selected = feasible_result_indices(state.F, state.G, state.constraint_mode, kernel)
+                result_X = state.X[selected]
+                result_F = state.F[selected]
+                result_G = state.G[selected] if state.G is not None else None
             except (ValueError, IndexError) as exc:
                 _logger().warning("Failed to filter non-dominated solutions: %s", exc)
                 result_X, result_F, result_G = state.X, state.F, state.G

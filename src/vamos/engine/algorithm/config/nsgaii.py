@@ -182,6 +182,7 @@ class NSGAIIConfig(_SerializableConfig):
     generation_callback_copy: bool = True
 
     def __post_init__(self) -> None:
+        super().__post_init__()
         offspring_size, replacement_size = normalize_nsgaii_steady_state(
             steady_state=bool(self.steady_state),
             offspring_size=self.offspring_size,

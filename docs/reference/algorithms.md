@@ -29,7 +29,7 @@ This table describes the **VAMOS 1.0.2 package**. Changes since 1.0.0 are listed
 | Algorithm | Encodings | Constraint-aware survival in 1.0.2 | Archive | Backends | API status |
 | --- | --- | --- | --- | --- | --- |
 | NSGA-II | R / B / I / P / M | Feasibility-based | Optional external result archive | NumPy / Numba / MooCore | Stable |
-| NSGA-III | R / B / I / P / M | **No**; retains `G`, but survival ranks objectives | Optional external result archive | NumPy / Numba / MooCore | Stable; constraint limitation |
+| NSGA-III | R / B / I / P / M | **No** in 1.0.2; retains `G`, but survival ranks objectives. Feasibility-based after 1.0.2 ([details](#constraint-handling-after-102)) | Optional external result archive | NumPy / Numba / MooCore | Stable; constraint limitation in 1.0.2 |
 | MOEA/D | R / B / I / P / M | Feasibility-based replacement | Optional external result archive | NumPy / Numba / MooCore | Stable |
 | SMS-EMOA | R / B / I / P / M | Feasibility-based | Optional external result archive | NumPy / Numba / MooCore | Stable |
 | SPEA2 | R / B / I / P / M | Feasibility-based | Internal environmental archive; optional external result archive | NumPy / Numba / MooCore | Stable |
@@ -40,7 +40,35 @@ This table describes the **VAMOS 1.0.2 package**. Changes since 1.0.0 are listed
 
 **Evidence and scope.** The encoding families are exercised by repository operator-combination tests and encoding integration tests. Historical real-coded, unconstrained ZDT1 smoke runs were checked for all nine algorithms on each of the three backends against the installed 1.0.0 package. That is not a validation of the full encoding × constraints × archive × backend Cartesian product, nor a convergence or speed benchmark. Custom operators and untested combinations require a representative check before a large study. SMPSO rejects standalone binary, integer and permutation encodings; its mixed path requires mixed-variable mutation.
 
-Constraints use `G <= 0`, with positive residuals representing violation. Consult the [constraint reference](constraints.md) for residual construction; an accepted `constraint_mode` field alone does not establish constraint enforcement. In particular, NSGA-III's environmental selection uses objective values even though it carries constraint arrays.
+Constraints use `G <= 0`, with positive residuals representing violation. Consult the [constraint reference](constraints.md) for residual construction; an accepted `constraint_mode` field alone does not establish constraint enforcement. In particular, NSGA-III's environmental selection in 1.0.2 uses objective values even though it carries constraint arrays.
+
+### Constraint handling after 1.0.2
+
+**Development after 1.0.2:** the following applies to the next release and the
+current source branch.
+
+- `constraint_mode` accepts only `"feasibility"` (the default) and `"none"`.
+  Every built-in algorithm treated any other value, including `"penalty"` and
+  `"epsilon"`, exactly like `"feasibility"`; such values are now rejected with
+  `ValueError` instead of being accepted without effect.
+- NSGA-III applies feasibility-first survival: when more solutions are feasible
+  than survive, reference-direction niching selects among the feasible ones;
+  otherwise every feasible solution survives and the least violated infeasible
+  ones fill the population. Its parent tournament ranks feasible solutions
+  first as well.
+- IBEA penalized infeasible solutions in the wrong direction, so its
+  environmental selection removed feasible solutions before infeasible ones.
+  It now removes infeasible solutions first, in decreasing order of violation.
+- With `result_mode="non_dominated"`, every algorithm returns the
+  non-dominated feasible solutions whenever the final population contains a
+  feasible one, and the least violated solutions otherwise. NSGA-II, NSGA-III,
+  MOEA/D, SMS-EMOA, IBEA and SPEA2 used to return non-dominated solutions
+  regardless of feasibility; AGE-MOEA, RVEA and SMPSO already did this.
+- SPEA2 runs with `constraint_mode="none"` on constrained problems; it used to
+  fail after the first generation.
+
+Runs of constrained problems with these algorithms therefore differ from 1.0.2
+runs with the same seed. Unconstrained runs are unchanged.
 
 ### Choose an initial experiment
 

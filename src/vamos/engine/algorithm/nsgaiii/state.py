@@ -11,7 +11,7 @@ from typing import Any
 
 import numpy as np
 
-from vamos.engine.algorithm.components.results import get_external_archive_contents, wants_population_result
+from vamos.engine.algorithm.components.results import feasible_result_indices, get_external_archive_contents, wants_population_result
 from vamos.engine.algorithm.components.state import AlgorithmState
 
 
@@ -24,9 +24,9 @@ class NSGAIIIState(AlgorithmState):
 
     Additional Attributes
     ---------------------
-    ref_dirs : np.ndarray
+    ref_dirs : np.ndarray[Any, Any]
         Reference directions for diversity maintenance.
-    ref_dirs_norm : np.ndarray
+    ref_dirs_norm : np.ndarray[Any, Any]
         Normalized reference directions.
     pressure : int
         Tournament selection pressure.
@@ -36,17 +36,17 @@ class NSGAIIIState(AlgorithmState):
         Mutation operator function.
     """
 
-    ref_dirs: np.ndarray = field(default_factory=lambda: np.array([]))
-    ref_dirs_norm: np.ndarray = field(default_factory=lambda: np.array([]))
+    ref_dirs: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
+    ref_dirs_norm: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
     pressure: int = 2
-    crossover_fn: Callable[[np.ndarray], np.ndarray] | None = None
-    mutation_fn: Callable[[np.ndarray], np.ndarray] | None = None
+    crossover_fn: Callable[[np.ndarray[Any, Any]], np.ndarray[Any, Any]] | None = None
+    mutation_fn: Callable[[np.ndarray[Any, Any]], np.ndarray[Any, Any]] | None = None
     result_mode: str = "population"
-    ideal_point: np.ndarray = field(default_factory=lambda: np.array([]))
-    worst_point: np.ndarray = field(default_factory=lambda: np.array([]))
-    extreme_points: np.ndarray | None = None
-    selection_ranks: np.ndarray | None = field(default=None, repr=False, compare=False)
-    selection_crowding: np.ndarray | None = field(default=None, repr=False, compare=False)
+    ideal_point: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
+    worst_point: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
+    extreme_points: np.ndarray[Any, Any] | None = None
+    selection_ranks: np.ndarray[Any, Any] | None = field(default=None, repr=False, compare=False)
+    selection_crowding: np.ndarray[Any, Any] | None = field(default=None, repr=False, compare=False)
 
 
 def build_nsgaiii_result(
@@ -82,11 +82,10 @@ def build_nsgaiii_result(
         should_filter = kernel is not None and not wants_population_result(state)
         if should_filter:
             try:
-                ranks, _ = kernel.nsga2_ranking(state.F)
-                nd_mask = ranks == ranks.min(initial=0)
-                result_X = state.X[nd_mask].copy()
-                result_F = state.F[nd_mask].copy()
-                result_G = state.G[nd_mask].copy() if state.G is not None else None
+                selected = feasible_result_indices(state.F, state.G, state.constraint_mode, kernel)
+                result_X = state.X[selected].copy()
+                result_F = state.F[selected].copy()
+                result_G = state.G[selected].copy() if state.G is not None else None
             except (ValueError, IndexError):
                 result_X = state.X.copy()
                 result_F = state.F.copy()
