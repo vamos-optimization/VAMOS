@@ -22,6 +22,7 @@ from vamos.engine.algorithm.components.population import (
     resolve_bounds,
 )
 from vamos.engine.algorithm.components.termination import parse_termination, validate_initial_budget
+from vamos.engine.algorithm.config.base import normalize_constraint_mode
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
 from vamos.engine.operators.policies.smpso import (
     build_mutation_operator,
@@ -164,7 +165,7 @@ def initialize_smpso_run(
     # Evaluate initial population
     eval_init = eval_strategy.evaluate(X, problem)
     F = eval_init.F
-    constraint_mode = config.get("constraint_mode", "feasibility")
+    constraint_mode = normalize_constraint_mode(config.get("constraint_mode", "feasibility"))
     G = eval_init.G if constraint_mode != "none" else None
 
     # Initialize velocity (jMetalPy starts at zero velocity)

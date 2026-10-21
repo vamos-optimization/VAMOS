@@ -215,14 +215,17 @@ def parse_serve_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=[],
         help="Extra host[:port] allowed to open the session websocket (repeatable).",
     )
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.address in {"0.0.0.0", "::"} and not args.allow_websocket_origin:
+        parser.error("wildcard binding requires --allow-websocket-origin=HOST:PORT with the hostname used by the browser")
+    return args
 
 
 def serve(argv: Sequence[str] | None = None) -> int:
     """Serve Studio at ``/app`` until the process is stopped."""
     args = parse_serve_args(argv)
     origins = [f"localhost:{args.port}", *args.allow_websocket_origin]
-    if ":" not in args.address:  # Bokeh's allowlist cannot express IPv6 literals; browse those via localhost.
+    if ":" not in args.address and args.address != "0.0.0.0":  # Use hostnames for IPv6 and wildcard binds.
         origins.append(f"{args.address}:{args.port}")
     pn.serve(
         {"app": lambda: create_app(args.study_dir)},

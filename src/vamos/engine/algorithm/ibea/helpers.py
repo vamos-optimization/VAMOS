@@ -112,12 +112,19 @@ def ibea_fitness(indicator: np.ndarray[Any, Any], kappa: float) -> np.ndarray[An
 
 
 def apply_constraint_penalty(fitness: np.ndarray[Any, Any], G: np.ndarray[Any, Any] | None) -> np.ndarray[Any, Any]:
-    """Apply constraint penalty to fitness values.
+    """Lower the fitness of infeasible solutions so that selection removes them first.
+
+    IBEA removes the solution with the lowest fitness. Each infeasible solution
+    is lowered by a multiple of a penalty larger than any fitness magnitude, one
+    multiple per rank of its total violation. The indicator updates of later
+    removals never exceed that penalty, so feasible solutions always outrank
+    infeasible ones and infeasible ones are removed in decreasing order of
+    violation; the indicator decides only between equal violations.
 
     Parameters
     ----------
     fitness : np.ndarray[Any, Any]
-        Fitness values.
+        Fitness values (negative sums of indicator contributions).
     G : np.ndarray[Any, Any] | None
         Constraint values.
 
@@ -128,13 +135,14 @@ def apply_constraint_penalty(fitness: np.ndarray[Any, Any], G: np.ndarray[Any, A
     """
     if G is None:
         return np.asarray(fitness, dtype=float)
-    cv = compute_violation(G)
     feas = is_feasible(G)
-    if not feas.any():
-        return np.asarray(fitness + cv, dtype=float)
-    penalty = np.max(np.abs(fitness)) + 1.0
-    penalized = fitness.copy()
-    penalized[~feas] += penalty * (1.0 + cv[~feas])
+    penalized = np.array(fitness, dtype=float)
+    if feas.all():
+        return penalized
+    infeasible = ~feas
+    _, violation_rank = np.unique(compute_violation(G)[infeasible], return_inverse=True)
+    penalty = float(np.max(np.abs(penalized), initial=0.0)) + 1.0
+    penalized[infeasible] -= penalty * (1.0 + violation_rank)
     return penalized
 
 

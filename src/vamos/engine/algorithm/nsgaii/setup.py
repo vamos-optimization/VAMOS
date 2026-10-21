@@ -12,6 +12,7 @@ import numpy as np
 
 from vamos.engine.algorithm.components.population import resolve_bounds
 from vamos.engine.algorithm.components.termination import HVTracker, validate_initial_budget
+from vamos.engine.algorithm.config.base import normalize_constraint_mode
 from vamos.engine.algorithm.config.nsgaii import normalize_nsgaii_steady_state
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
 from vamos.engine.hooks.live_viz import LiveVisualization, NoOpLiveVisualization
@@ -79,7 +80,7 @@ def initialize_run(
     # a separate compatibility change.
     replacement_size = 1
 
-    constraint_mode = algo.cfg.get("constraint_mode", "feasibility")
+    constraint_mode = normalize_constraint_mode(algo.cfg.get("constraint_mode", "feasibility"))
     initializer_cfg = algo.cfg.get("initializer")
     X: np.ndarray[Any, Any]
     F: np.ndarray[Any, Any]

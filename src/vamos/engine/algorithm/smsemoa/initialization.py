@@ -22,6 +22,7 @@ from vamos.engine.algorithm.components.population import (
 )
 from vamos.engine.algorithm.components.termination import parse_termination, validate_initial_budget
 from vamos.engine.algorithm.components.utils import resolve_bounds_array
+from vamos.engine.algorithm.config.base import normalize_constraint_mode
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
 from vamos.engine.operators.policies.smsemoa import build_variation_operators
 from vamos.foundation.encoding import EncodingLike, normalize_encoding
@@ -93,7 +94,7 @@ def initialize_smsemoa_run(
     xl, xu = resolve_bounds_array(problem, encoding)
     n_var = problem.n_var
     n_obj = problem.n_obj
-    constraint_mode = config.get("constraint_mode", "feasibility")
+    constraint_mode = normalize_constraint_mode(config.get("constraint_mode", "feasibility"))
 
     # Build variation operators
     crossover_fn, mutation_fn = build_variation_operators(

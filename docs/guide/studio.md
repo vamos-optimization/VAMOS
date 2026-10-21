@@ -113,8 +113,12 @@ A non-loopback address is rejected unless you separately acknowledge the
 network exposure:
 
 ```bash
-vamos studio --address 0.0.0.0 --allow-remote-binding --no-browser
+vamos studio --address 0.0.0.0 --allow-remote-binding --no-browser --allow-websocket-origin=server.example:5006
 ```
+
+Replace `server.example:5006` with the hostname and port used by the browser.
+Wildcard binds (`0.0.0.0` or `::`) require this explicit websocket origin;
+repeat `--allow-websocket-origin` for additional hostnames.
 
 Remote binding exposes an experimental local application to other network
 users. Apply operating-system firewall and access controls appropriate to the
@@ -212,7 +216,9 @@ Studio server; opening the page again reconnects to it. Studio keeps the
 process's heartbeat, outcome, and log next to the study, in
 `.vamos-studio/jobs/<study-id>/`, and never writes inside the study itself.
 
-**Stop** ends the background process at once. The run in progress is lost and
+**Stop** requests that specific worker to exit at its next heartbeat (normally
+within two seconds). Studio shows **stopping** until the worker acknowledges
+the request; it never signals a process ID from disk. The run in progress is lost and
 the study stays `running`; **Resume** reconciles the study and continues with
 the pending runs, rerunning the interrupted one. Resuming requires the same
 runtime and dependency build that produced the earlier runs. **Retry failed

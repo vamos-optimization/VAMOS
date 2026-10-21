@@ -13,17 +13,24 @@ import os
 import threading
 import time
 import traceback
+import uuid
 from collections.abc import Sequence
 from pathlib import Path
 
 from vamos.study_artifacts import load_study
-from vamos.ux.studio.study_jobs import HEARTBEAT_FILE, HEARTBEAT_SECONDS, OUTCOME_FILE, write_json
+from vamos.ux.studio.study_jobs import HEARTBEAT_FILE, HEARTBEAT_SECONDS, OUTCOME_FILE, STOP_FILE, _read_json, write_json
 
 
-def _beat(job_dir: Path, stop: threading.Event) -> None:
+def _beat(job_dir: Path, stop: threading.Event, worker_id: str) -> None:
     while not stop.is_set():
         try:
-            write_json(job_dir / HEARTBEAT_FILE, {"pid": os.getpid(), "time": time.time()})
+            request = _read_json(job_dir / STOP_FILE)
+            if request is not None and request.get("worker_id") == worker_id:
+                write_json(job_dir / OUTCOME_FILE, {"status": "stopped", "message": "Stopped from Studio.", "time": time.time()})
+                # End this worker, including its optimization thread. The study
+                # remains resumable, just as after external process termination.
+                os._exit(0)
+            write_json(job_dir / HEARTBEAT_FILE, {"pid": os.getpid(), "worker_id": worker_id, "time": time.time()})
         except OSError:  # A missed beat only ages the heartbeat; the next one retries.
             logging.getLogger(__name__).debug("Cannot write the Studio heartbeat.", exc_info=True)
         stop.wait(HEARTBEAT_SECONDS)
@@ -53,7 +60,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     job_dir = Path(args.job_dir)
     stop = threading.Event()
-    heartbeat = threading.Thread(target=_beat, args=(job_dir, stop), name="vamos-studio-heartbeat", daemon=True)
+    heartbeat = threading.Thread(target=_beat, args=(job_dir, stop, uuid.uuid4().hex), name="vamos-studio-heartbeat", daemon=True)
     heartbeat.start()
     try:
         state = run_operation(Path(args.study), args.operation, retry_failed=args.retry_failed)
@@ -63,6 +70,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
     finally:
         stop.set()
+        heartbeat.join()
     write_json(job_dir / OUTCOME_FILE, {"status": "finished", "message": f"the study is {state}", "state": state, "time": time.time()})
     return 0
 

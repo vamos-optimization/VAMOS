@@ -23,6 +23,8 @@ from vamos.engine.algorithm.components.population import initialize_population a
 from vamos.engine.algorithm.components.termination import parse_termination, validate_initial_budget
 from vamos.engine.algorithm.components.utils import resolve_bounds_array
 from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors
+from vamos.engine.algorithm.config.base import normalize_constraint_mode
+from vamos.engine.algorithm.nsgaii.state import compute_selection_metrics
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
 from vamos.engine.operators.policies.nsgaiii import build_variation_operators
 from vamos.foundation.encoding import EncodingLike, normalize_encoding
@@ -89,7 +91,7 @@ def initialize_nsgaiii_run(
     xl, xu = resolve_bounds_array(problem, encoding)
     n_var = problem.n_var
     n_obj = problem.n_obj
-    constraint_mode = config.get("constraint_mode", "penalty")
+    constraint_mode = normalize_constraint_mode(config.get("constraint_mode", "feasibility"))
     result_mode = config.get("result_mode", "population")
 
     # Build variation operators
@@ -182,7 +184,7 @@ def initialize_nsgaiii_run(
     # Setup external archive
     ext_cfg = resolve_external_archive(config)
     archive_X, archive_F, archive_manager = setup_archive(kernel, X, F, n_var, n_obj, X.dtype, ext_cfg, G)
-    selection_ranks, selection_crowding = kernel.nsga2_ranking(F)
+    selection_ranks, selection_crowding = compute_selection_metrics(kernel, F, G, constraint_mode)
 
     # Create state
     state = NSGAIIIState(

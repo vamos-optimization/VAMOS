@@ -69,6 +69,16 @@ def test_app_module_rejects_unknown_server_options() -> None:
         studio_app.parse_serve_args(["--autoreload-everything"])
 
 
+@pytest.mark.parametrize("address", ["0.0.0.0", "::"])
+def test_wildcard_binding_requires_the_browser_host(address: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    with pytest.raises(SystemExit):
+        studio_app.parse_serve_args([f"--address={address}"])
+    served: dict[str, Any] = {}
+    monkeypatch.setattr(studio_app.pn, "serve", lambda panels, **kwargs: served.update(kwargs))
+    studio_app.serve([f"--address={address}", "--allow-websocket-origin=server.example:5006"])
+    assert served["websocket_origin"] == ["localhost:5006", "server.example:5006"]
+
+
 def test_configurator_offers_only_algorithms_for_the_encoding() -> None:
     configurator = AlgorithmConfigurator()
 

@@ -11,7 +11,7 @@ from typing import Any
 
 import numpy as np
 
-from vamos.engine.algorithm.components.results import get_external_archive_contents, wants_population_result
+from vamos.engine.algorithm.components.results import feasible_result_indices, get_external_archive_contents, wants_population_result
 from vamos.engine.algorithm.components.state import AlgorithmState
 
 
@@ -24,7 +24,7 @@ class SMSEMOAState(AlgorithmState):
 
     Additional Attributes
     ---------------------
-    ref_point : np.ndarray
+    ref_point : np.ndarray[Any, Any]
         Current reference point for hypervolume computation.
     ref_offset : float
         Offset for adaptive reference point updates.
@@ -38,21 +38,21 @@ class SMSEMOAState(AlgorithmState):
         Mutation operator function.
     """
 
-    ref_point: np.ndarray = field(default_factory=lambda: np.array([]))
+    ref_point: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
     ref_offset: float = 0.1
     ref_adaptive: bool = True
     pressure: int = 2
     selection_method: str = "random"
     eliminate_duplicates: bool = False
-    crossover_fn: Callable[[np.ndarray], np.ndarray] | None = None
-    mutation_fn: Callable[[np.ndarray], np.ndarray] | None = None
+    crossover_fn: Callable[[np.ndarray[Any, Any]], np.ndarray[Any, Any]] | None = None
+    mutation_fn: Callable[[np.ndarray[Any, Any]], np.ndarray[Any, Any]] | None = None
     fronts: list[list[int]] | None = None
-    ranks: np.ndarray | None = None
-    crowding: np.ndarray | None = None
+    ranks: np.ndarray[Any, Any] | None = None
+    crowding: np.ndarray[Any, Any] | None = None
 
     # Workspace buffers (avoid per-iteration allocations in steady-state SMS-EMOA)
-    _survival_F: np.ndarray | None = field(default=None, repr=False, compare=False)
-    _survival_G: np.ndarray | None = field(default=None, repr=False, compare=False)
+    _survival_F: np.ndarray[Any, Any] | None = field(default=None, repr=False, compare=False)
+    _survival_G: np.ndarray[Any, Any] | None = field(default=None, repr=False, compare=False)
 
 
 def build_smsemoa_result(
@@ -88,11 +88,10 @@ def build_smsemoa_result(
         should_filter = kernel is not None and not wants_population_result(state)
         if should_filter:
             try:
-                ranks, _ = kernel.nsga2_ranking(state.F)
-                nd_mask = ranks == ranks.min(initial=0)
-                result_X = state.X[nd_mask].copy()
-                result_F = state.F[nd_mask].copy()
-                result_G = state.G[nd_mask].copy() if state.G is not None else None
+                selected = feasible_result_indices(state.F, state.G, state.constraint_mode, kernel)
+                result_X = state.X[selected].copy()
+                result_F = state.F[selected].copy()
+                result_G = state.G[selected].copy() if state.G is not None else None
             except (ValueError, IndexError):
                 result_X = state.X.copy()
                 result_F = state.F.copy()

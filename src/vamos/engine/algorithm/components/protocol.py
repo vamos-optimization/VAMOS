@@ -41,12 +41,10 @@ class SurvivalMethod(str, Enum):
 
 
 class ConstraintMode(str, Enum):
-    """Constraint handling modes."""
+    """Constraint handling modes that the built-in algorithms implement."""
 
     NONE = "none"
     FEASIBILITY = "feasibility"
-    PENALTY = "penalty"
-    EPSILON = "epsilon"
 
     def __str__(self) -> str:
         return self.value
@@ -117,13 +115,13 @@ class InteractiveAlgorithmProtocol(AlgorithmProtocol, Protocol):
     - Integration with external simulators
     """
 
-    def ask(self) -> np.ndarray:
+    def ask(self) -> np.ndarray[Any, Any]:
         """
         Generate offspring solutions to be evaluated.
 
         Returns
         -------
-        np.ndarray
+        np.ndarray[Any, Any]
             Offspring decision variables to evaluate, shape (n_offspring, n_var).
 
         Raises
@@ -141,7 +139,7 @@ class InteractiveAlgorithmProtocol(AlgorithmProtocol, Protocol):
         ----------
         eval_result : Any
             Evaluation result — accepts:
-            - ``np.ndarray`` of objectives, shape ``(n_offspring, n_obj)``
+            - ``np.ndarray[Any, Any]`` of objectives, shape ``(n_offspring, n_obj)``
             - ``dict`` with ``"F"`` key (and optionally ``"G"``)
             - Object with ``.F`` attribute (and optionally ``.G``)
         problem : ProblemProtocol, optional

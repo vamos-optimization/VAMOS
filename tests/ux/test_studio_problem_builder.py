@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import queue
+from unittest.mock import Mock
+
 import numpy as np
 import pytest
 
+from vamos.ux.studio import _problem_builder_preview as preview
 from vamos.ux.studio.problem_builder_backend import (
     compile_objective_function,
     example_objectives,
@@ -16,6 +20,32 @@ from vamos.ux.studio.problem_builder_backend import (
 # ======================================================================
 # compile_objective_function
 # ======================================================================
+
+
+@pytest.mark.parametrize("alive", [True, False])
+def test_preview_deadline_is_reported_even_if_the_worker_just_exited(alive: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    result_queue = Mock()
+    result_queue.get.side_effect = queue.Empty
+    process = Mock(exitcode=-9)
+    process.is_alive.return_value = alive
+    clock = iter([0.0, 1.0])
+    monkeypatch.setattr(preview.time, "monotonic", lambda: next(clock))
+
+    with pytest.raises(TimeoutError, match="timed out"):
+        preview._await_worker_result(result_queue, process, 0.5)
+    assert process.terminate.call_count == int(alive)
+    process.join.assert_called_once()
+
+
+def test_preview_crash_before_the_deadline_is_not_reported_as_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    result_queue = Mock()
+    result_queue.get.side_effect = queue.Empty
+    process = Mock(exitcode=-9)
+    process.is_alive.return_value = False
+    monkeypatch.setattr(preview.time, "monotonic", lambda: 0.0)
+
+    with pytest.raises(RuntimeError, match="exited unexpectedly"):
+        preview._await_worker_result(result_queue, process, 10.0)
 
 
 class TestCompileObjectiveFunction:

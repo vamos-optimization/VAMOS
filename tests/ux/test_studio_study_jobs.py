@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -61,17 +63,67 @@ def test_job_phases_follow_the_job_files(tmp_path: Path) -> None:
     assert "completed" in finished.describe()
 
 
-def test_stop_signals_only_a_fresh_heartbeat(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_stop_requests_target_a_worker_token_without_signalling_a_pid(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     signalled: list[int] = []
     monkeypatch.setattr(study_jobs.os, "kill", lambda pid, _sig: signalled.append(pid))
     stale = _job(
         tmp_path / "stale", job={"operation": "run", "started_at": time.time() - 600}, heartbeat={"pid": 111, "time": time.time() - 600}
     )
-    fresh = _job(tmp_path / "fresh", job={"operation": "run", "started_at": time.time()}, heartbeat={"pid": 222, "time": time.time()})
+    fresh = _job(
+        tmp_path / "fresh",
+        job={"operation": "run", "started_at": time.time()},
+        heartbeat={"pid": 222, "worker_id": "worker-a", "time": time.time()},
+    )
 
     assert stop_job(stale).phase == "lost"
-    assert stop_job(fresh).phase == "stopped"
-    assert signalled == [222]
+    assert stop_job(fresh).phase == "stopping"
+    assert job_status(fresh).active
+    assert signalled == []
+    assert json.loads((fresh / "stop.json").read_text())["worker_id"] == "worker-a"
+    assert not (fresh / "outcome.json").exists()
+
+
+def test_stop_refuses_a_heartbeat_without_worker_identity(tmp_path: Path) -> None:
+    job_dir = _job(tmp_path, job={"operation": "run"}, heartbeat={"pid": 222, "time": time.time()})
+    with pytest.raises(JobConflictError, match="no worker identity"):
+        stop_job(job_dir)
+    assert not (job_dir / "stop.json").exists()
+
+
+def test_a_replacement_worker_ignores_an_old_stop_request(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    job_dir = _job(tmp_path, job={"operation": "run"}, stop={"worker_id": "old-worker"})
+    done = threading.Event()
+    monkeypatch.setattr(done, "wait", lambda _timeout: done.set())
+    study_worker._beat(job_dir, done, "replacement-worker")
+    assert json.loads((job_dir / "heartbeat.json").read_text())["worker_id"] == "replacement-worker"
+    assert not (job_dir / "outcome.json").exists()
+
+
+def test_only_the_addressed_worker_acknowledges_a_stop(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    job_dir = _job(tmp_path, job={"operation": "run"}, stop={"worker_id": "worker-a"})
+
+    def exit_worker(code: int) -> None:
+        raise SystemExit(code)
+
+    monkeypatch.setattr(study_worker.os, "_exit", exit_worker)
+    with pytest.raises(SystemExit) as outcome:
+        study_worker._beat(job_dir, threading.Event(), "worker-a")
+    assert outcome.value.code == 0
+    assert job_status(job_dir).phase == "stopped"
+
+
+def test_stop_ends_the_detached_worker_without_terminal_study_cancellation(tmp_path: Path) -> None:
+    study = create_study(_tiny_spec(max_evaluations=100_000_000), output=tmp_path / "study")
+    start_job(study.root, study.study_id, "run")
+    job_dir = job_dir_for(study.root, study.study_id)
+    deadline = time.monotonic() + 30
+    while job_status(job_dir).phase == "starting" and time.monotonic() < deadline:
+        time.sleep(0.1)
+    assert stop_job(job_dir).phase in {"stopping", "stopped"}
+    while job_status(job_dir).active and time.monotonic() < deadline:
+        time.sleep(0.1)
+    assert job_status(job_dir).phase == "stopped", log_tail(job_dir)
+    assert load_study(study.root).inspect().as_dict()["state"] in {"created", "running"}
 
 
 def test_a_starting_runner_cannot_be_stopped_or_doubled(tmp_path: Path) -> None:

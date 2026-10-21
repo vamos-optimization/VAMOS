@@ -9,11 +9,9 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from numpy.typing import NDArray
 
-from vamos.engine.algorithm.components.results import get_external_archive_contents, wants_population_result
+from vamos.engine.algorithm.components.results import feasible_result_indices, get_external_archive_contents, wants_population_result
 from vamos.engine.algorithm.components.state import AlgorithmState
-from vamos.foundation.constraints.utils import compute_violation, is_feasible
 
 if TYPE_CHECKING:
     from vamos.engine.variation.pipeline import VariationPipeline
@@ -30,24 +28,6 @@ class AGEMOEAState(AlgorithmState):
     variation: VariationPipeline | None = None
     selection_ranks: Any = field(default=None, repr=False, compare=False)
     selection_crowding: Any = field(default=None, repr=False, compare=False)
-
-
-def _result_population_indices(state: AGEMOEAState, kernel: Any) -> np.ndarray[Any, Any]:
-    """Return the feasibility-aware non-dominated subset for top-level results."""
-    candidates: NDArray[np.int_] = np.arange(state.F.shape[0], dtype=int)
-    if state.G is not None and state.constraint_mode != "none":
-        feasible = is_feasible(state.G, n=state.G.shape[0])
-        if feasible.any():
-            candidates = np.flatnonzero(feasible)
-        else:
-            violation = compute_violation(state.G, n=state.G.shape[0])
-            minimum = float(np.min(violation))
-            candidates = np.flatnonzero(violation <= minimum + 1e-12)
-
-    if kernel is None or candidates.size == 0:
-        return candidates
-    ranks, _ = kernel.nsga2_ranking(state.F[candidates])
-    return np.asarray(candidates[np.asarray(ranks) == 0], dtype=int)
 
 
 def build_agemoea_result(
@@ -67,7 +47,7 @@ def build_agemoea_result(
         result_G = state.G.copy() if state.G is not None else None
     else:
         try:
-            selected = _result_population_indices(state, kernel)
+            selected = feasible_result_indices(state.F, state.G, state.constraint_mode, kernel)
             result_X = state.X[selected].copy()
             result_F = state.F[selected].copy()
             result_G = state.G[selected].copy() if state.G is not None else None

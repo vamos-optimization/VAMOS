@@ -54,7 +54,11 @@ class LiveRun:
         if isinstance(evaluations, (int, np.integer)):
             self.evaluations = int(evaluations)
         if final_F is not None:
-            self.snapshots.append((self.generation, np.array(final_F, dtype=float)))
+            snapshot = (self.generation, np.array(final_F, dtype=float))
+            if self.snapshots and self.snapshots[-1][0] == self.generation:
+                self.snapshots[-1] = snapshot
+            else:
+                self.snapshots.append(snapshot)
         self.finished_at = time.monotonic()
 
     def should_stop(self) -> bool:

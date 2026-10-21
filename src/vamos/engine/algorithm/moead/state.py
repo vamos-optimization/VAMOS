@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from vamos.engine.algorithm.components.results import get_external_archive_contents, wants_population_result
+from vamos.engine.algorithm.components.results import feasible_result_indices, get_external_archive_contents, wants_population_result
 from vamos.engine.algorithm.components.state import AlgorithmState
 
 if TYPE_CHECKING:
@@ -30,11 +30,11 @@ class MOEADState(AlgorithmState):
 
     Attributes
     ----------
-    weights : np.ndarray
+    weights : np.ndarray[Any, Any]
         Weight vectors for decomposition, shape (pop_size, n_obj).
-    neighbors : np.ndarray
+    neighbors : np.ndarray[Any, Any]
         Neighborhood indices for each subproblem, shape (pop_size, T).
-    ideal : np.ndarray
+    ideal : np.ndarray[Any, Any]
         Ideal point (minimum objectives seen), shape (n_obj,).
     aggregator : Callable
         Aggregation function (tchebycheff, weighted_sum, pbi, etc.).
@@ -48,17 +48,17 @@ class MOEADState(AlgorithmState):
         Whether to track genealogy information.
     genealogy_tracker : GenealogyTracker | None
         Tracker for lineage information.
-    ids : np.ndarray | None
+    ids : np.ndarray[Any, Any] | None
         Individual IDs for genealogy tracking.
     """
 
     # MOEA/D-specific fields
-    weights: np.ndarray = field(default_factory=lambda: np.array([]))
-    weights_safe: np.ndarray = field(default_factory=lambda: np.array([]))
-    weights_unit: np.ndarray = field(default_factory=lambda: np.array([]))
-    neighbors: np.ndarray = field(default_factory=lambda: np.array([]))
-    ideal: np.ndarray = field(default_factory=lambda: np.array([]))
-    aggregator: Callable[[np.ndarray, np.ndarray, np.ndarray], np.ndarray] | None = None
+    weights: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
+    weights_safe: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
+    weights_unit: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
+    neighbors: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
+    ideal: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
+    aggregator: Callable[[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any]], np.ndarray[Any, Any]] | None = None
     aggregation_id: int = -1
     aggregation_theta: float = 5.0
     aggregation_rho: float = 0.001
@@ -66,24 +66,24 @@ class MOEADState(AlgorithmState):
     delta: float = 0.9
     replace_limit: int = 2
     batch_size: int = 1
-    subproblem_order: np.ndarray = field(default_factory=lambda: np.array([], dtype=int))
+    subproblem_order: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([], dtype=int))
     subproblem_cursor: int = 0
 
     # Cached constraint violation (sum of positive parts), when constraints are enabled.
-    cv: np.ndarray | None = None
+    cv: np.ndarray[Any, Any] | None = None
 
     # Variation operators (as callables for flexibility across encodings)
-    crossover_fn: Callable[[np.ndarray, np.random.Generator], np.ndarray] | None = None
-    mutation_fn: Callable[[np.ndarray, np.random.Generator], np.ndarray] | None = None
+    crossover_fn: Callable[[np.ndarray[Any, Any], np.random.Generator], np.ndarray[Any, Any]] | None = None
+    mutation_fn: Callable[[np.ndarray[Any, Any], np.random.Generator], np.ndarray[Any, Any]] | None = None
 
     # Bounds for integer/real encodings
-    xl: np.ndarray | None = None
-    xu: np.ndarray | None = None
+    xl: np.ndarray[Any, Any] | None = None
+    xu: np.ndarray[Any, Any] | None = None
 
     # Pending offspring tracking for ask/tell
-    pending_active_indices: np.ndarray | None = None
-    pending_parent_pairs: np.ndarray | None = None
-    pending_use_neighbors: np.ndarray | None = None
+    pending_active_indices: np.ndarray[Any, Any] | None = None
+    pending_parent_pairs: np.ndarray[Any, Any] | None = None
+    pending_use_neighbors: np.ndarray[Any, Any] | None = None
 
 
 def build_moead_result(
@@ -118,11 +118,10 @@ def build_moead_result(
         should_filter = kernel is not None and not wants_population_result(state)
         if should_filter:
             try:
-                ranks, _ = kernel.nsga2_ranking(state.F)
-                nd_mask = ranks == ranks.min(initial=0)
-                result_X = state.X[nd_mask]
-                result_F = state.F[nd_mask]
-                result_G = state.G[nd_mask] if state.G is not None else None
+                selected = feasible_result_indices(state.F, state.G, state.constraint_mode, kernel)
+                result_X = state.X[selected]
+                result_F = state.F[selected]
+                result_G = state.G[selected] if state.G is not None else None
             except (ValueError, IndexError):
                 result_X, result_F, result_G = state.X, state.F, state.G
         else:

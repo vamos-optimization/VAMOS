@@ -55,6 +55,25 @@ def test_live_run_keeps_a_bounded_number_of_fronts() -> None:
     assert live.snapshots[-1][0] >= 4 * MAX_SNAPSHOTS
 
 
+def test_final_front_replaces_the_last_generation_snapshot() -> None:
+    live = LiveRun(budget=40)
+    live.on_generation(2, F=np.zeros((3, 2)), stats={"evals": 40})
+    final = np.array([[0.1, 0.9]])
+    live.on_end(final_F=final, final_stats={"evals": 40})
+    assert [number for number, _ in live.snapshots] == [2]
+    np.testing.assert_array_equal(live.latest(), final)
+    assert live.finished_at is not None
+
+
+def test_final_front_is_recorded_when_generation_was_not_sampled() -> None:
+    live = LiveRun(budget=40)
+    live._stride = 2
+    live.on_generation(2, F=np.zeros((3, 2)))
+    live.on_generation(3, F=np.ones((3, 2)))
+    live.on_end(final_F=np.ones((1, 2)))
+    assert [number for number, _ in live.snapshots] == [2, 3]
+
+
 @pytest.mark.parametrize("algorithm", studio_algorithms())
 def test_every_algorithm_stops_when_asked(algorithm: str) -> None:
     problem = make_problem_selection("zdt1").instantiate()
