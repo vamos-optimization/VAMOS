@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
-from vamos.run_artifacts import load_result, load_run
+from vamos.run_artifacts import load_run
 from vamos.study_artifacts import load_study
 
 
@@ -23,6 +23,8 @@ class RunRecord:
     var: NDArray[Any] | None
     archive_fun: NDArray[Any] | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    constraints: NDArray[Any] | None = None
+    root: Path | None = None
 
 
 @dataclass
@@ -39,7 +41,7 @@ def load_run_from_directory(run_dir: Path) -> RunRecord:
     """Load one canonical v1 run through the data-only public reader."""
     run_dir = run_dir.resolve()
     stored = load_run(run_dir)
-    result = load_result(run_dir)
+    result = stored.result  # The same verified read that ``load_result`` performs.
     manifest = stored.manifest
     resolved = manifest.resolved_spec
     archive = result.data.get("archive")
@@ -56,11 +58,17 @@ def load_run_from_directory(run_dir: Path) -> RunRecord:
         var=result.X,
         archive_fun=_array_or_none(archive_data.get("F")),
         metadata=manifest.as_dict(),
+        constraints=_array_or_none(result.data.get("G")),
+        root=run_dir,
     )
 
 
-def load_runs_from_study(study_dir: Path) -> list[RunRecord]:
-    """Load selected successful runs through one canonical StudySummary."""
+def load_runs_from_study(study_dir: Path, *, cache: dict[str, RunRecord] | None = None) -> list[RunRecord]:
+    """Load selected successful runs through one canonical StudySummary.
+
+    A canonical run never changes once published, so ``cache`` (keyed by the
+    run's manifest path) lets repeated calls read only the runs added since.
+    """
     study = load_study(study_dir)
     summary = study.summarize()
     runs: list[RunRecord] = []
@@ -68,7 +76,12 @@ def load_runs_from_study(study_dir: Path) -> list[RunRecord]:
         if row.selected_run_id is None or row.run_manifest_path is None:
             continue
         run_dir = study.root / Path(row.run_manifest_path).parent
-        run = load_run_from_directory(run_dir)
+        key = str(run_dir)
+        run = cache.get(key) if cache is not None else None
+        if run is None:
+            run = load_run_from_directory(run_dir)
+            if cache is not None:
+                cache[key] = run
         run.metadata["study_summary"] = row.as_dict()
         runs.append(run)
     return runs
@@ -119,6 +132,9 @@ def build_fronts(
         if any(r.var is not None for r in records):
             X = np.vstack([r.var for r in records if r.var is not None])
         constraints = None
+        with_points = [r for r in records if r.fun.size]
+        if with_points and all(r.constraints is not None for r in with_points):
+            constraints = np.vstack([r.constraints for r in with_points if r.constraints is not None])
         fronts.append(
             FrontRecord(
                 problem_name=problem,

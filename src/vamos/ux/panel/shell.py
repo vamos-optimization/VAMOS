@@ -98,13 +98,42 @@ h1, h2, h3, h4, h5 {{
 """
 
 # ---------------------------------------------------------------------------
-# Page registry — each entry maps a slug to (label, icon)
+# Page registry — slug -> (label, summary); the navigation, the welcome page
+# and the app's renderers all follow it
 # ---------------------------------------------------------------------------
 PAGES: dict[str, tuple[str, str]] = {
-    "welcome": ("Welcome", ""),
-    "problem_builder": ("Problem Builder", ""),
-    "batch": ("Batch Comparison", ""),
-    "results": ("Explore Results", ""),
+    "welcome": ("Welcome", "What Studio does and where to start."),
+    "catalog": (
+        "Problems & Algorithms",
+        "Browse the registered problems by encoding, dimensions and reference front, and the built-in algorithms "
+        "with their configurable parameters, and open any of them in Run Experiment.",
+    ),
+    "problem_builder": (
+        "Problem Builder",
+        "Define a problem in Python or start from a template, preview its Pareto front, run it with a configurable "
+        "algorithm and export a ready-to-run script.",
+    ),
+    "experiment": (
+        "Run Experiment",
+        "Run any registered problem with an algorithm whose operators and parameters come from its VAMOS "
+        "configuration space, and browse the population generation by generation.",
+    ),
+    "batch": (
+        "Batch Comparison",
+        "Run several algorithms on several problems for many seeds as a durable study in the background; follow, "
+        "stop and resume it, and compare normalized hypervolume with CSV and LaTeX exports.",
+    ),
+    "compare": (
+        "Statistical Comparison",
+        "Test whether the algorithms of a study differ on each problem and across problems: Mann-Whitney with Holm "
+        "or Benjamini-Hochberg correction, A12 effect sizes, Friedman ranks with a critical-difference diagram, "
+        "attainment surfaces, and LaTeX and SAES exports.",
+    ),
+    "results": (
+        "Explore Results",
+        "Load a saved study with the data-only readers, compare the fronts of each problem, filter them by "
+        "feasibility and objective ranges, rank solutions with MCDM methods, export the ranking, and run a run again.",
+    ),
 }
 
 
@@ -129,10 +158,9 @@ def build_template(title: str = "VAMOS Studio") -> pn.template.FastListTemplate:
 def build_sidebar_nav(current: str = "welcome") -> pn.Column:
     """Build the sidebar navigation column. Returns a Column of buttons."""
     buttons: list[pn.widgets.Button] = []
-    for slug, (label, icon) in PAGES.items():
-        display = f"{icon}  {label}" if icon else label
+    for slug, (label, _summary) in PAGES.items():
         btn = pn.widgets.Button(
-            name=display,
+            name=label,
             button_type="primary" if slug == current else "light",
             css_classes=["sidenav-btn"],
             sizing_mode="stretch_width",

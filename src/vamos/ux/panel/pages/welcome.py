@@ -4,39 +4,38 @@ from __future__ import annotations
 
 import panel as pn
 
+from vamos.ux.panel.shell import PAGES
 
-def render_welcome() -> pn.Column:
-    """Render the welcome / onboarding page."""
-    hero = pn.pane.Markdown(
-        """
+
+def welcome_markdown() -> str:
+    """The welcome text; its page list comes from the shell's page registry."""
+    pages = [(label, summary) for slug, (label, summary) in PAGES.items() if slug != "welcome"]
+    steps = "\n".join(f"{index}. **{label}** — {summary}" for index, (label, summary) in enumerate(pages, start=1))
+    return f"""
 # Welcome to VAMOS Studio
 
 **Vectorized Architecture for Multi-Objective Optimization Studies**
 
-VAMOS Studio is your interactive workbench for designing, running and
-analysing multi-objective optimization experiments.
+VAMOS Studio is an experimental workbench for defining multi-objective
+problems, running VAMOS algorithms on them and exploring saved studies.
 
 ---
 
-### Quick start
+### Pages
 
-1. **Problem Builder** — define or pick a template problem, preview the
-   Pareto front, and generate a ready-to-run Python script.
-2. **Run Experiment** — configure an algorithm (NSGA-II, MOEA/D, SMPSO, ...)
-   with full parameter control and watch the optimization live.
-3. **Batch Comparison** — run multiple algorithms on multiple problems in
-   parallel and produce publication-ready comparison tables.
-4. **Explore Results** — load any saved study, rank solutions with MCDM
-   methods, and export to CSV / LaTeX / Excel.
+{steps}
 
 Use the sidebar on the left to navigate between pages.
-        """,
-        sizing_mode="stretch_width",
-    )
+"""
 
+
+def render_welcome() -> pn.Column:
+    """Render the welcome / onboarding page."""
+    hero = pn.pane.Markdown(welcome_markdown(), sizing_mode="stretch_width")
     tips = pn.pane.Alert(
-        '**Tip:** Install the full studio extras with `pip install -e ".[studio]"` for interactive charts and tables.',
+        "**Tip:** for long or many runs, use **Batch Comparison**: it runs a durable study in a background process "
+        "that keeps going if you close the browser. Problem Builder and Run Experiment run one run in the "
+        "background while you watch it, and **Stop** ends it; leaving the page stops it too.",
         alert_type="info",
     )
-
     return pn.Column(hero, tips, sizing_mode="stretch_both")

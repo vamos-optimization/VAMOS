@@ -66,16 +66,16 @@ def _llm_generate_gemini(description: str, *, api_key: str = "") -> dict[str, An
     return cast(dict[str, Any], json.loads(text.strip()))
 
 
-def _llm_generate_openai(description: str) -> dict[str, Any]:
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY environment variable is not set.")
+def _llm_generate_openai(description: str, *, api_key: str = "") -> dict[str, Any]:
+    key = api_key or os.getenv("OPENAI_API_KEY", "")
+    if not key:
+        raise RuntimeError("No OpenAI API key provided. Paste it in the API Key field or set OPENAI_API_KEY.")
     try:
         from openai import OpenAI  # type: ignore[import-not-found]
     except ImportError as exc:
         raise RuntimeError("openai package not installed. Run: pip install vamos-optimization[openai]") from exc
 
-    client = OpenAI()
+    client = OpenAI(api_key=key)
     response = client.responses.create(
         model=os.getenv("VAMOS_ASSIST_OPENAI_MODEL", "gpt-4o"),
         input=[
@@ -91,16 +91,14 @@ def _llm_generate_openai(description: str) -> dict[str, Any]:
     return cast(dict[str, Any], json.loads(raw))
 
 
-def _llm_generate_anthropic(description: str) -> dict[str, Any]:
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY environment variable is not set.")
+def _llm_generate_anthropic(description: str, *, api_key: str = "") -> dict[str, Any]:
     try:
         from anthropic import Anthropic  # type: ignore[import-not-found]
     except ImportError as exc:
         raise RuntimeError("anthropic package not installed. Run: pip install vamos-optimization[anthropic]") from exc
 
-    client = Anthropic()
+    # Without a key in the field, the SDK resolves ANTHROPIC_API_KEY or another configured credential.
+    client = Anthropic(api_key=api_key) if api_key else Anthropic()
     message = client.messages.create(
         model=os.getenv("VAMOS_ASSIST_ANTHROPIC_MODEL", "claude-sonnet-4-20250514"),
         max_tokens=1500,
@@ -127,9 +125,9 @@ def llm_generate_problem_code(
     if provider == "gemini":
         result = _llm_generate_gemini(description, api_key=api_key)
     elif provider == "anthropic":
-        result = _llm_generate_anthropic(description)
+        result = _llm_generate_anthropic(description, api_key=api_key)
     else:
-        result = _llm_generate_openai(description)
+        result = _llm_generate_openai(description, api_key=api_key)
 
     for key in ("objective_code", "n_var", "n_obj", "bounds"):
         if key not in result:

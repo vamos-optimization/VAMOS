@@ -7,12 +7,8 @@ import ipaddress
 import subprocess
 import sys
 from collections.abc import Sequence
-from pathlib import Path
 
-
-def _studio_app_path() -> Path:
-    return Path(__file__).resolve().with_name("app.py")
-
+STUDIO_APP_MODULE = "vamos.ux.panel.app"
 
 LOOPBACK_ADDRESS = "127.0.0.1"
 
@@ -45,12 +41,10 @@ def _build_panel_command(
     command = [
         sys.executable,
         "-m",
-        "panel",
-        "serve",
-        str(_studio_app_path()),
+        STUDIO_APP_MODULE,
         f"--address={address}",
         f"--port={port}",
-        f"--args=--study-dir={study_dir}",
+        f"--study-dir={study_dir}",
         *panel_args,
     ]
     if show:
@@ -60,7 +54,7 @@ def _build_panel_command(
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="vamos studio", description="Launch VAMOS Studio (Panel).")
-    parser.add_argument("--study-dir", default="results", help="Path to a canonical StudyManifest directory.")
+    parser.add_argument("--study-dir", default="results", help="A StudyManifest directory, or a folder to search for studies.")
     parser.add_argument("--address", default=LOOPBACK_ADDRESS, help="Bind address (default: loopback 127.0.0.1).")
     parser.add_argument("--port", type=_port, default=5006, help="Port for the Panel server.")
     parser.add_argument("--no-browser", action="store_true", help="Don't auto-open a browser tab.")
@@ -69,7 +63,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="Acknowledge the risk and allow a non-loopback bind address.",
     )
+    parser.add_argument(
+        "--allow-websocket-origin",
+        action="append",
+        default=[],
+        metavar="HOST:PORT",
+        help=(
+            "Allow pages served under HOST:PORT to open Studio sessions (repeatable). With a wildcard --address, "
+            "this computer's names and addresses are allowed already; add proxies or DNS aliases here."
+        ),
+    )
     args, panel_args = parser.parse_known_args(argv)
+    panel_args = [*(f"--allow-websocket-origin={origin}" for origin in args.allow_websocket_origin), *panel_args]
 
     if not _is_loopback_address(args.address) and not args.allow_remote_binding:
         parser.error("non-loopback binding is disabled; pass --allow-remote-binding to acknowledge the exposure risk")

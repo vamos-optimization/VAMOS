@@ -4,6 +4,25 @@ All notable public changes to VAMOS are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- A Studio **Statistical Comparison** page: per-problem Mann-Whitney tests
+  against a pivot algorithm with Holm or Benjamini-Hochberg correction and
+  Vargha-Delaney A12 effect sizes, Friedman average ranks with a Nemenyi
+  critical-difference diagram and Holm post-hoc tests, distributions, median
+  fronts, empirical attainment surfaces, runtimes, and LaTeX, CSV, and SAES
+  exports, for hypervolume and, where a reference front exists, IGD+.
+- A Studio **Problems & Algorithms** page lists the registered problems with
+  their encoding, dimensions and shipped reference fronts, and the configurable
+  parameters of each algorithm with their VAMOS defaults, and opens either in
+  Run Experiment.
+- Studio's sidebar shows the VAMOS and Python versions, the installed kernel
+  backends, and which optional extras are installed.
+- Explore Results filters fronts to feasible solutions and to objective ranges,
+  and opens a stored run's settings in Run Experiment to run it again.
+- Run Experiment lets you choose the number of variables and, where the
+  problem allows it, the number of objectives.
+
 ### Changed
 
 - Explicit `engine="auto"` now prefers loadable, JIT-enabled Numba for all nine
@@ -13,9 +32,25 @@ All notable public changes to VAMOS are documented here.
 - Canonical requested configurations retain an explicit `engine="auto"` while
   resolved configurations continue to store the effective backend. Schemas and
   optional compute requirements are unchanged.
+- Studio's Batch Comparison creates a durable study for each batch and runs it
+  in a background process that survives closing the browser or restarting
+  Studio. The page checks the plan before creating the study, follows its
+  progress with an estimate of the time left, stops, resumes and retries it,
+  lists the batches and studies of the Studio folder, and opens a finished
+  batch in Explore Results.
+- Studio's Run Experiment and Problem Builder no longer block the Studio server
+  while they run. Run Experiment shows its progress, generation, and front as
+  the run advances. Both pages have a **Stop** button, and leaving a page stops
+  its run.
 
 ### Fixed
 
+- Studio stop requests address a unique worker token; workers exit themselves,
+  so a reused process ID cannot target an unrelated process. Wildcard remote
+  binds accept the computer's host names and addresses, and live runs record
+  the final generation once.
+- Preview timeouts retain their timeout diagnosis when the worker exits at the
+  deadline; crashes before the deadline remain distinct worker errors.
 - The registered `cec2009_cf1` and `welded_beam` problems declare their
   constraints, so algorithms enforce them; they used to run as unconstrained
   problems. CF1 also stores its CEC2009 constraint with the VAMOS sign
@@ -41,6 +76,26 @@ All notable public changes to VAMOS are documented here.
   on Python 3.11+, retaining the compatible documentation pair on Python 3.10.
 - NumPy's optional single-pair SBX and MOEA/D neighbourhood shortcuts tolerate
   unloadable Numba installations, so they do not defeat automatic fallback.
+- `vamos studio` serves the Studio application again instead of an empty page,
+  and honours `--study-dir`.
+- Studio algorithm settings now apply to runs: the controls come from each
+  algorithm's tuning configuration space for the problem encoding, only the
+  fields you change are applied on top of the VAMOS default configuration, and
+  every difference is listed before the run.
+- Studio runs NSGA-III, RVEA, and MOEA/D with three or more objectives with the
+  population size their reference directions require.
+- The Problem Builder's full experiment runs the problem you defined, templates
+  bring their bounds and constraints, and generated scripts include constraints
+  and any customized configuration.
+- Batch Comparison reports a normalized hypervolume instead of the largest
+  first-objective value, lists every failed run, and exports CSV and LaTeX
+  through the browser.
+- Explore Results reports studies it cannot load instead of showing demo data,
+  overlays fronts per problem for any number of objectives, and exports the
+  ranking it displays.
+- The Problem Builder API-key field is used for the OpenAI and Anthropic
+  providers.
+- Studio's **Run Experiment** page is reachable from the navigation.
 
 ## [1.0.2] - 2026-10-18
 
