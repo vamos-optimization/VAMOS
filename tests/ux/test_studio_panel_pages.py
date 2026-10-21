@@ -23,6 +23,31 @@ from vamos.ux.panel.shell import PAGES  # noqa: E402
 pytestmark = pytest.mark.studio
 
 
+@pytest.mark.parametrize("phase", ["stopping", "stopped", "lost"])
+def test_batch_stop_reports_the_worker_status(phase: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from vamos.ux.studio.study_jobs import JobStatus
+    from vamos.ux.studio.study_progress import StudyProgress
+
+    status = JobStatus(phase)  # type: ignore[arg-type]
+    state = batch.BatchState()
+    state.progress = StudyProgress(root=tmp_path / "study", study_id="id", state="running", counts={"tasks": 2})
+    monkeypatch.setattr(batch, "stop_job", lambda _path: status)
+    monkeypatch.setattr(state, "refresh", lambda **_kwargs: None)
+
+    state.stop()
+
+    assert state.job is status
+    assert not state.actions.stop
+    if phase == "stopped":
+        assert state.status.startswith("Stopped ")
+    elif phase == "stopping":
+        assert state.status.startswith("Stop requested ")
+        assert "waiting" in state.status
+    else:
+        assert "without reporting an outcome" in state.status
+        assert state.status_kind == "warning"
+
+
 def test_every_registered_page_has_a_renderer_and_opens() -> None:
     app = studio_app.StudioApp()
 

@@ -61,21 +61,30 @@ def _logger() -> logging.Logger:
 class DynamicsCallback:
     def __init__(self) -> None:
         self.history: list[NDArray[Any]] = []
+        self._generation: int | None = None
+        self._recorded_generation: int | None = None
 
     def on_start(self, ctx: Any) -> None:
         pass
 
     def on_generation(self, generation: int, *, F: Any = None, **kwargs: Any) -> None:
+        self._generation = generation
         try:
             if F is not None:
                 self.history.append(np.array(F))
+                self._recorded_generation = generation
         except Exception:
             _logger().debug("Failed to capture population snapshot in DynamicsCallback", exc_info=True)
 
     def on_end(self, *, final_F: Any = None) -> None:
         try:
             if final_F is not None:
-                self.history.append(np.array(final_F))
+                final = np.array(final_F)
+                if self.history and self._recorded_generation == self._generation:
+                    self.history[-1] = final
+                else:
+                    self.history.append(final)
+                self._recorded_generation = self._generation
         except Exception:
             _logger().debug("Failed to capture final front in DynamicsCallback", exc_info=True)
 
@@ -84,7 +93,7 @@ class DynamicsCallback:
             if hasattr(algorithm, "pop") and algorithm.pop is not None:
                 F = algorithm.pop.get("F")
                 if F is not None:
-                    self.history.append(np.array(F))
+                    self.on_generation(len(self.history), F=F)
         except Exception:
             _logger().debug("Failed to capture population snapshot in DynamicsCallback", exc_info=True)
 

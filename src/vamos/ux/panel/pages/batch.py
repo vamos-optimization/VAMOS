@@ -227,11 +227,18 @@ class BatchState(param.Parameterized):
         if not isinstance(progress, StudyProgress):
             return
         try:
-            stop_job(job_dir_for(progress.root, progress.study_id))
-        except JobConflictError as exc:
+            status = stop_job(job_dir_for(progress.root, progress.study_id))
+        except (JobConflictError, OSError) as exc:
             self._report(str(exc), "warning")
             return
-        self._report(f"Stopped {progress.root.name}. Resume it to continue; the interrupted run is repeated.", "info")
+        self.job = status
+        self.actions = runner_actions(progress, status)
+        if status.phase == "stopped":
+            self._report(f"Stopped {progress.root.name}. Resume it to continue; the interrupted run is repeated.", "info")
+        elif status.phase == "stopping":
+            self._report(f"Stop requested for {progress.root.name}; waiting for the worker to confirm.", "info")
+        else:
+            self._report(status.describe(), "warning")
         self.refresh(force=True)
 
     def start_polling(self) -> None:
