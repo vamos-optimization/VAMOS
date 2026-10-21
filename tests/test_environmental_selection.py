@@ -27,7 +27,7 @@ class PublicApiTests(unittest.TestCase):
         )
 
     def test_version_metadata_is_1_0_2(self) -> None:
-        self.assertEqual(vamos.__version__, "1.0.2")
+        self.assertEqual(vamos.__version__, "1.1.0")
 
 
 class SelectionBehaviorTests(unittest.TestCase):

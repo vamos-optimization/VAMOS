@@ -1,10 +1,10 @@
 # CLI and config files
 
 Install the [published package](installation.md) before using these commands.
-The examples target VAMOS 1.0.2; use `vamos --help` or `vamos <command> --help`
+The examples target VAMOS 1.1.0; use `vamos --help` or `vamos <command> --help`
 for the parser in your installed version.
 
-| Command family | Status in 1.0.2 | Use it for |
+| Command family | Status in 1.1.0 | Use it for |
 | --- | --- | --- |
 | Main optimization runner | **Stable** core invocation | One run or a configured problem set |
 | `results inspect`, `results verify`, `reproduce` | **Stable** | Canonical run inspection, integrity, and exact replay |
@@ -185,7 +185,7 @@ vamos --problem zdt1 --experiment backends --max-evaluations 2000
 ```
 
 Install optional kernels with
-`python -m pip install "vamos-optimization[compute]==1.0.2"`.
+`python -m pip install "vamos-optimization[compute]==1.1.0"`.
 The `--experiment backends` comparison skips unavailable optional kernels with
 a warning. An explicit single-run `--engine numba` or `--engine moocore`
 instead fails if that dependency is missing; it never switches silently.
@@ -241,7 +241,7 @@ Key flags
 ---------
 
 - `--algorithm`: agemoea, ibea, moead, nsgaii, nsgaiii, rvea, smpso, smsemoa, spea2, both, or Experimental external baselines (pymoo_nsga2, jmetalpy_nsga2, pygmo_nsga2)
-- `--engine`: numpy | numba | moocore | auto. The deterministic default is `numpy`; `auto` prefers available Numba with a NumPy fallback. See the [automatic engine policy](../reference/algorithms.md#automatic-engine-selection) for coverage in the published 1.0.2 wheel versus the development branch.
+- `--engine`: numpy | numba | moocore | auto. The deterministic default is `numpy`; `auto` prefers available Numba with a NumPy fallback. See the [automatic engine policy](../reference/algorithms.md#automatic-engine-selection) for the selection and replay rules in VAMOS 1.1.0.
 - `--problem`: any registry key (see [Problems](../reference/problems.md))
 - `--problem-set`: predefined sets (e.g., `families`)
 - `--validate-config`: validate `--config` and exit

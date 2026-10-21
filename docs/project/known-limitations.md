@@ -1,4 +1,4 @@
-# Known limitations in VAMOS 1.0.2
+# Known limitations in VAMOS 1.1.0
 
 These limitations are part of the current release scope. They describe
 unsupported behavior rather than future compatibility promises.
@@ -13,6 +13,20 @@ unsupported behavior rather than future compatibility promises.
 - Deterministic same-environment runs do not imply bitwise equality across
   different kernels, BLAS implementations, operating systems, architectures,
   or optional third-party engines.
+
+## Benchmark validation
+
+- `welded_beam` is a six-variable mixed design example with its own formulas,
+  materials and stiffeners. Its constraint metadata is fixed, but this does
+  not certify equivalence to the canonical four-variable welded-beam benchmark.
+- `cec2009_uf3` still searches `[-1, 1]` for variables 2 to n. Treat its domain
+  as pending reference validation rather than assuming canonical CEC2009 UF3.
+- Independent algorithm-conformance validation for AGE-MOEA, RVEA and SMPSO
+  remains pending. Passing API and regression tests does not establish
+  convergence equivalence with a reference implementation.
+- IBEA still replaces nonfinite exponential indicator contributions with zero.
+  Extreme indicator scales require particular care; the constraint-penalty
+  correction does not resolve this separate numerical limitation.
 
 ## Backends and optional dependencies
 
@@ -40,9 +54,11 @@ unsupported behavior rather than future compatibility promises.
 
 - Study mutation is single-owner. Do not run, resume, or retry the same study
   concurrently from multiple processes.
-- Study execution is sequential in 1.0.2. Distributed workers, multiprocess
+- Study execution is sequential in 1.1.0. Distributed workers, multiprocess
   ownership, and cross-process cancellation are unsupported.
 - Cancellation is cooperative and local to the process that owns execution.
+  Studio's token-addressed worker stop ends the worker and requires reconciliation
+  on resume; it is not durable cross-process cancellation of the study API.
 
 ## Analysis and tuning
 

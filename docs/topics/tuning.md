@@ -5,7 +5,7 @@ indices, population-related settings, and other parameters that control a MOEA.
 A tuning campaign evaluates candidate configurations over explicit problem and
 seed blocks and ranks them by a scalar quality score.
 
-!!! warning "Experimental surface in VAMOS 1.0.2"
+!!! warning "Experimental surface in VAMOS 1.1.0"
     The tuning/racing implementation and the `vamos tune` and `vamos ablation`
     commands are **experimental**. They are supported for evaluation but may
     change incompatibly in a minor release. Stable optimization calls used by
@@ -19,7 +19,7 @@ This page is about configuring optimization algorithms. If the variables in
 
 ## Changes included in 1.0.1
 
-The install command below selects **VAMOS 1.0.2**, which keeps the corrected
+The install command below selects **VAMOS 1.1.0**, which keeps the corrected
 scoring, archive-search, and persistence behavior introduced in 1.0.1 and
 described on this page:
 
@@ -37,7 +37,7 @@ search spaces differ. See also the
 
 ## Programmatic API status
 
-VAMOS 1.0.2 does **not** expose a curated public programmatic facade for the
+VAMOS 1.1.0 does **not** expose a curated public programmatic facade for the
 algorithm-configuration tuner. Maintained user workflows should therefore use
 `vamos tune` rather than import deep `vamos.engine.*` implementation modules.
 
@@ -66,7 +66,7 @@ comparison:
 
 ### CLI scoring contract: hypervolume
 
-In VAMOS 1.0.2, the maintained `vamos tune` CLI has **no metric selector**. It scores
+In VAMOS 1.1.0, the maintained `vamos tune` CLI has **no metric selector**. It scores
 candidate runs with **hypervolume (HV) and maximizes that score**.
 
 The score source is fixed: VAMOS takes the **final population**, removes
@@ -138,7 +138,7 @@ Model-based backends (`optuna`, `smac3`, `bohb`, and `bohb_optuna`) require the
 optional tuning dependencies:
 
 ```bash
-python -m pip install "vamos-optimization[tuning]==1.0.2"
+python -m pip install "vamos-optimization[tuning]==1.1.0"
 ```
 
 For an editable development installation, follow
@@ -251,7 +251,7 @@ independently designed final comparison on held-out blocks.
 
 ### Persistent Optuna studies are scoring-contract versioned
 
-In VAMOS 1.0.2, when `optuna` or `bohb_optuna` uses `--optuna-storage`, the maintained CLI treats
+In VAMOS 1.1.0, when `optuna` or `bohb_optuna` uses `--optuna-storage`, the maintained CLI treats
 `--optuna-study-name` as a base name and appends
 `__vamos_cli_final_population_hv_v1` to the effective persisted study name. The
 same versioned namespace is used whether `--optuna-load-if-exists` is enabled or
@@ -330,7 +330,7 @@ schedule, and split is not a reproducible tuning result.
 
 ## Archive studies are separate from ordinary CLI tuning
 
-The 1.0.2 CLI intentionally excludes external-archive controls from its
+The 1.1.0 CLI intentionally excludes external-archive controls from its
 ordinary algorithm-configuration search so every candidate is compared on the
 same final-population basis. If archive capacity, pruning, or archive-enabled
 result semantics are themselves the research question, define them explicitly

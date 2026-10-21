@@ -26,7 +26,7 @@ instructions for one operation, use [How-to Guides](../guide/index.md).
 - [Stability and versioning](../project/stability-and-versioning.md) defines **Stable**, **Experimental**, and **Internal** surfaces.
 - [Known limitations](../project/known-limitations.md) records the current support boundaries.
 - [Documentation versions and archive](../project/documentation-versioning.md) explains current documentation and immutable release snapshots.
-- [1.0.2 release notes](../project/release-notes-1.0.2.md) describe the current maintenance release; [1.0.1 notes](../project/release-notes-1.0.1.md) and [1.0.0 notes](../project/release-notes-1.0.0.md) retain earlier release context.
+- [1.1.0 release notes](../project/release-notes-1.1.0.md) describe the current release; [1.0.2 notes](../project/release-notes-1.0.2.md), [1.0.1 notes](../project/release-notes-1.0.1.md) and [1.0.0 notes](../project/release-notes-1.0.0.md) retain earlier release context.
 
 Contributor implementation contracts and internal APIs are grouped under
 **Developer**. Use [Extending VAMOS](../topics/extending.md) to find the owning

@@ -50,7 +50,7 @@ def test_primary_documents_have_no_obsolete_release_or_internal_examples() -> No
     combined = "\n".join(_read(path) for path in PRIMARY_DOCUMENTS)
 
     assert "1.5.0" not in combined
-    assert "1.1.0" not in combined
+    assert f"VAMOS {vamos.__version__}" in combined
     assert "algorithm_kwargs" not in combined
     discarded_study_symbols = ("Study" + "Runner", "Study" + "Task", "run" + "_study")
     assert not any(symbol in combined for symbol in discarded_study_symbols)

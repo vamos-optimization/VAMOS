@@ -24,12 +24,12 @@ To query the installed registry, use `available_algorithms()` from `vamos.algori
 
 ## Capability matrix
 
-This table describes the **VAMOS 1.0.2 package**. Changes since 1.0.0 are listed below. “R / B / I / P / M” means real, binary, integer, permutation and mixed encodings. An encoding requires compatible variation operators and, for mixed problems, the problem's variable specification; a real-coded default configuration does not convert a discrete problem.
+This table describes the **VAMOS 1.1.0 package**. Changes since 1.0.0 are listed below. “R / B / I / P / M” means real, binary, integer, permutation and mixed encodings. An encoding requires compatible variation operators and, for mixed problems, the problem's variable specification; a real-coded default configuration does not convert a discrete problem.
 
-| Algorithm | Encodings | Constraint-aware survival in 1.0.2 | Archive | Backends | API status |
+| Algorithm | Encodings | Constraint-aware survival in 1.1.0 | Archive | Backends | API status |
 | --- | --- | --- | --- | --- | --- |
 | NSGA-II | R / B / I / P / M | Feasibility-based | Optional external result archive | NumPy / Numba / MooCore | Stable |
-| NSGA-III | R / B / I / P / M | **No** in 1.0.2; retains `G`, but survival ranks objectives. Feasibility-based after 1.0.2 ([details](#constraint-handling-after-102)) | Optional external result archive | NumPy / Numba / MooCore | Stable; constraint limitation in 1.0.2 |
+| NSGA-III | R / B / I / P / M | Feasibility-first with reference-direction niching ([details](#constraint-handling-in-110)) | Optional external result archive | NumPy / Numba / MooCore | Stable |
 | MOEA/D | R / B / I / P / M | Feasibility-based replacement | Optional external result archive | NumPy / Numba / MooCore | Stable |
 | SMS-EMOA | R / B / I / P / M | Feasibility-based | Optional external result archive | NumPy / Numba / MooCore | Stable |
 | SPEA2 | R / B / I / P / M | Feasibility-based | Internal environmental archive; optional external result archive | NumPy / Numba / MooCore | Stable |
@@ -40,12 +40,11 @@ This table describes the **VAMOS 1.0.2 package**. Changes since 1.0.0 are listed
 
 **Evidence and scope.** The encoding families are exercised by repository operator-combination tests and encoding integration tests. Historical real-coded, unconstrained ZDT1 smoke runs were checked for all nine algorithms on each of the three backends against the installed 1.0.0 package. That is not a validation of the full encoding × constraints × archive × backend Cartesian product, nor a convergence or speed benchmark. Custom operators and untested combinations require a representative check before a large study. SMPSO rejects standalone binary, integer and permutation encodings; its mixed path requires mixed-variable mutation.
 
-Constraints use `G <= 0`, with positive residuals representing violation. Consult the [constraint reference](constraints.md) for residual construction; an accepted `constraint_mode` field alone does not establish constraint enforcement. In particular, NSGA-III's environmental selection in 1.0.2 uses objective values even though it carries constraint arrays.
+Constraints use `G <= 0`, with positive residuals representing violation. Consult the [constraint reference](constraints.md) for residual construction; an accepted `constraint_mode` field alone does not establish constraint enforcement. NSGA-III now uses the same feasibility-first contract in both survival and parent selection.
 
-### Constraint handling after 1.0.2
+### Constraint handling in 1.1.0
 
-**Development after 1.0.2:** the following applies to the next release and the
-current source branch.
+VAMOS 1.1.0 includes the following constraint corrections.
 
 - `constraint_mode` accepts only `"feasibility"` (the default) and `"none"`.
   Every built-in algorithm treated any other value, including `"penalty"` and
@@ -107,13 +106,13 @@ These are implementation fixes under the existing stability policy. Record the p
 ## Optional baselines
 
 - PyMOO NSGA-II (real and permutation), jMetalPy NSGA-II (real and permutation), PyGMO NSGA-II.
-- Enabled via `--include-external`; install with `python -m pip install "vamos-optimization[research]==1.0.2"`. These third-party integrations are **Experimental**, outside the stable VAMOS algorithm contract.
+- Enabled via `--include-external`; install with `python -m pip install "vamos-optimization[research]==1.1.0"`. These third-party integrations are **Experimental**, outside the stable VAMOS algorithm contract.
 
 ## Backends
 
 - NumPy (default): vectorized CPU kernels.
 - Numba: JIT acceleration for supported kernels (set `VAMOS_USE_NUMBA_VARIATION=1` for permutation/binary/integer variation).
-- MooCore: accelerated kernels via `moocore`. Install optional backends with `python -m pip install "vamos-optimization[compute]==1.0.2"`; see [installation](../guide/installation.md).
+- MooCore: accelerated kernels via `moocore`. Install optional backends with `python -m pip install "vamos-optimization[compute]==1.1.0"`; see [installation](../guide/installation.md).
 
 ### Backend roles
 
@@ -125,9 +124,8 @@ These are implementation fixes under the existing stability policy. Record the p
 
 ### Automatic engine selection
 
-**Development after 1.0.2:** the published 1.0.2 wheel only prefers Numba for
-NSGA-II and MOEA/D in `auto` mode. The following expanded policy applies to the
-next release and the current source branch.
+VAMOS 1.1.0 expands the automatic Numba preference to all nine built-in
+algorithms. Version 1.0.2 applied it only to NSGA-II and MOEA/D.
 
 | Request | Effective engine |
 | --- | --- |
@@ -205,7 +203,7 @@ Numba when you need a pure NumPy timing reference.
 ## Probability shorthand
 
 - Operator probabilities accept either a numeric value or the string literal `"1/n"`.
-- `"1/n"` resolves to `1.0 / n_var` in supported variation paths. RVEA in 1.0.2 still requires the numeric equivalent, as noted above.
+- `"1/n"` resolves to `1.0 / n_var` in supported variation paths. RVEA in 1.1.0 still requires the numeric equivalent, as noted above.
 - Example: `NSGAIIConfig.builder().mutation("pm", prob="1/n", eta=20.0)`
 
 For a measured first-call/subsequent-call example, follow [Measure backend performance](../tutorials/measure-performance.md).

@@ -4,6 +4,8 @@ All notable public changes to VAMOS are documented here.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-21
+
 ### Added
 
 - A Studio **Statistical Comparison** page: per-problem Mann-Whitney tests
@@ -248,7 +250,8 @@ development markers; they are not prior public releases.
 - Studio, tuning, visualization, provider integrations, plugin interfaces, and
   non-stable CLI commands remain experimental.
 
-[Unreleased]: https://github.com/vamos-optimization/VAMOS/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/vamos-optimization/VAMOS/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.1.0
 [1.0.2]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.0.2
 [1.0.1]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.0.1
 [1.0.0]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.0.0
