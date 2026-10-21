@@ -29,6 +29,16 @@ def _send_large_preview_history(result_queue: Any) -> None:
     result_queue.put({"ok": True, "payload": {"history": history}})
 
 
+def _trace_preview_worker(**kwargs: Any) -> None:
+    import faulthandler
+
+    faulthandler.dump_traceback_later(10.0)
+    try:
+        preview._preview_worker(**kwargs)
+    finally:
+        faulthandler.cancel_dump_traceback_later()
+
+
 def test_preview_receives_history_larger_than_the_process_pipe() -> None:
     ctx = mp.get_context("spawn")
     result_queue = ctx.Queue(maxsize=1)
@@ -287,12 +297,13 @@ class TestRunPreviewOptimization:
                 trusted_local_code=True,
             )
 
-    def test_child_process_records_generation_history(self) -> None:
+    def test_child_process_records_generation_history(self, monkeypatch: pytest.MonkeyPatch) -> None:
         from vamos.ux.studio.algorithm_form import default_algorithm_config
 
         code = "return [x[0], 1.0 - x[0] + sum(x[1:])]"
         fn = compile_objective_function(code, trusted_local_code=True)
         config = default_algorithm_config("nsgaii", encoding="real", n_var=10, n_obj=2, pop_size=20)
+        monkeypatch.setattr(preview, "_preview_worker", _trace_preview_worker)
         result = run_preview_optimization(
             fn,
             n_var=10,
