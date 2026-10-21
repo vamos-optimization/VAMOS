@@ -16,11 +16,6 @@ All notable public changes to VAMOS are documented here.
 
 ### Fixed
 
-- Refresh the reviewed dependency set, the canonical mypy 2.4.0 environment,
-  and its exact diagnostic baseline. Pair PyMdown 12.3 with mkdocstrings 1.0.8
-  on Python 3.11+, retaining the compatible documentation pair on Python 3.10.
-- NumPy's optional single-pair SBX and MOEA/D neighbourhood shortcuts tolerate
-  unloadable Numba installations, so they do not defeat automatic fallback.
 - The registered `cec2009_cf1` and `welded_beam` problems declare their
   constraints, so algorithms enforce them; they used to run as unconstrained
   problems. CF1 also stores its CEC2009 constraint with the VAMOS sign
@@ -41,6 +36,11 @@ All notable public changes to VAMOS are documented here.
   like `"feasibility"` in every algorithm.
 - SPEA2 runs with `constraint_mode="none"` on constrained problems instead of
   failing with an `IndexError` after the first generation.
+- Refresh the reviewed dependency set, the canonical mypy 2.4.0 environment,
+  and its exact diagnostic baseline. Pair PyMdown 12.3 with mkdocstrings 1.0.8
+  on Python 3.11+, retaining the compatible documentation pair on Python 3.10.
+- NumPy's optional single-pair SBX and MOEA/D neighbourhood shortcuts tolerate
+  unloadable Numba installations, so they do not defeat automatic fallback.
 
 ## [1.0.2] - 2026-10-18
 
