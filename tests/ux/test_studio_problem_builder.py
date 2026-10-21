@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import multiprocessing as mp
+import signal
 from typing import Any
 from unittest.mock import Mock, patch
 
@@ -32,6 +33,52 @@ def _send_large_preview_history(connection: Any) -> None:
 def _preview_worker_without_threads(**kwargs: Any) -> None:
     with patch("threading.Thread.start", side_effect=RuntimeError("can't start new thread")):
         preview._preview_worker(**kwargs)
+
+
+def _exceed_preview_cpu_limit(_connection: Any) -> None:
+    import math
+    import resource
+
+    # Spawn imports consume CPU too. Budget from the current usage so this
+    # test reaches SIGXCPU rather than installing an already-exceeded hard limit.
+    usage = resource.getrusage(resource.RUSAGE_SELF)
+    soft_limit = math.ceil(usage.ru_utime + usage.ru_stime) + 1
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+    resource.setrlimit(resource.RLIMIT_CPU, (soft_limit, soft_limit + 1))
+    while True:
+        pass
+
+
+@pytest.mark.skipif(not hasattr(signal, "SIGXCPU"), reason="CPU resource-limit signals require POSIX")
+def test_preview_cpu_limit_is_reported_before_the_wall_clock_deadline() -> None:
+    ctx = mp.get_context("spawn")
+    connection, sender = ctx.Pipe(duplex=False)
+    process = ctx.Process(target=_exceed_preview_cpu_limit, args=(sender,))
+    process.start()
+    sender.close()
+    try:
+        with pytest.raises(TimeoutError, match="CPU time limit"):
+            preview._await_worker_result(connection, process, 30.0)
+        assert process.exitcode == -signal.SIGXCPU
+    finally:
+        if process.is_alive():
+            process.terminate()
+        process.join(timeout=5.0)
+        connection.close()
+
+
+@pytest.mark.parametrize("pipe_ready", [True, False])
+def test_preview_cpu_limit_exit_is_a_timeout_on_both_receive_paths(pipe_ready: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    connection = Mock()
+    connection.poll.return_value = pipe_ready
+    connection.recv.side_effect = EOFError
+    process = Mock(exitcode=-24)
+    process.is_alive.return_value = False
+    monkeypatch.setattr(preview.signal, "SIGXCPU", 24, raising=False)
+    monkeypatch.setattr(preview.time, "monotonic", lambda: 0.0)
+
+    with pytest.raises(TimeoutError, match="CPU time limit"):
+        preview._await_worker_result(connection, process, 30.0)
 
 
 def test_preview_receives_history_larger_than_the_process_pipe() -> None:
@@ -282,7 +329,7 @@ class TestRunPreviewOptimization:
         )
         assert result["F"].shape[1] == 3
 
-    def test_preview_timeout_for_non_terminating_code(self) -> None:
+    def test_preview_wall_clock_timeout_for_non_terminating_code(self) -> None:
         fn = compile_objective_function("return [x[0], x[1]]", trusted_local_code=True)
         with pytest.raises(TimeoutError, match="timed out"):
             run_preview_optimization(
@@ -296,6 +343,7 @@ class TestRunPreviewOptimization:
                 seed=0,
                 objective_code="while True:\n    pass\nreturn [x[0], x[1]]",
                 timeout_seconds=0.5,
+                resource_profile="none",  # Isolate the wall-clock watchdog from CPU-limit signals.
                 trusted_local_code=True,
             )
 

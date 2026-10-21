@@ -304,6 +304,10 @@ not isolate untrusted Python and are not a security boundary. Do not opt in for
 code from an untrusted source. Studio does not log generated code or API-key
 values.
 
+A preview reports a timeout when its elapsed-time limit expires or the
+operating system reports an exhausted CPU budget. Other worker failures
+remain distinct errors.
+
 Generating a standalone script only displays text; running that exported
 script remains a separate user action outside Studio.
 

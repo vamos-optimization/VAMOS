@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import signal
 import time
 from typing import Any
 
@@ -226,9 +227,7 @@ def _await_worker_result(connection: Any, process: Any, timeout_seconds: float, 
                 process.join(timeout=1.0)
                 if time.monotonic() >= deadline:
                     raise TimeoutError(f"Preview timed out after {timeout_seconds:.1f}s. Try simpler code or a smaller budget.") from exc
-                if process.exitcode not in (0, None):
-                    raise RuntimeError(f"Preview worker exited unexpectedly (exit code {process.exitcode}).") from exc
-                raise RuntimeError("Preview worker finished without returning a result.") from exc
+                raise _worker_exit_error(process.exitcode) from exc
             break
         if cancel is not None and cancel.is_set():
             process.terminate()
@@ -242,14 +241,21 @@ def _await_worker_result(connection: Any, process: Any, timeout_seconds: float, 
         if not process.is_alive():
             if connection.poll(1.0):
                 continue
-            if process.exitcode not in (0, None):
-                raise RuntimeError(f"Preview worker exited unexpectedly (exit code {process.exitcode}).")
-            raise RuntimeError("Preview worker finished without returning a result.")
+            raise _worker_exit_error(process.exitcode)
     process.join(timeout=5.0)
     if process.is_alive():
         process.terminate()
         process.join(timeout=1.0)
     return result
+
+
+def _worker_exit_error(exitcode: int | None) -> RuntimeError | TimeoutError:
+    cpu_limit_signal = getattr(signal, "SIGXCPU", None)
+    if cpu_limit_signal is not None and exitcode == -cpu_limit_signal:
+        return TimeoutError("Preview timed out at its CPU time limit. Try simpler code or a smaller budget.")
+    if exitcode not in (0, None):
+        return RuntimeError(f"Preview worker exited unexpectedly (exit code {exitcode}).")
+    return RuntimeError("Preview worker finished without returning a result.")
 
 
 __all__ = ["run_preview_optimization"]
