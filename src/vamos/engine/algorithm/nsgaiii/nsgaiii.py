@@ -24,6 +24,7 @@ from vamos.engine.algorithm.components.hooks import (
 from vamos.engine.algorithm.components.lifecycle import evaluate_batch
 from vamos.engine.algorithm.components.termination import HVTracker, capped_offspring_size
 from vamos.engine.algorithm.components.utils import variation_operator_label
+from vamos.engine.algorithm.nsgaii.state import compute_selection_metrics
 from vamos.foundation.kernel import default_kernel
 from vamos.foundation.kernel.backend import DecisionArray, FloatArray
 
@@ -57,7 +58,7 @@ class NSGAIII:
         self._problem: ProblemProtocol | None = None
 
     def _refresh_selection_metrics(self, st: NSGAIIIState) -> None:
-        ranks, crowd = self.kernel.nsga2_ranking(st.F)
+        ranks, crowd = compute_selection_metrics(self.kernel, st.F, st.G, st.constraint_mode)
         st.selection_ranks = np.asarray(ranks, dtype=int)
         st.selection_crowding = np.asarray(crowd, dtype=float)
 

@@ -99,6 +99,12 @@ In 1.0.2, the registry accepts an objective override for every MW key, but only
 MW4, MW8 and MW14 actually change their objective count. Use the instantiated
 problem's `n_obj` and keep the other MW cases at two objectives.
 
+In 1.0.2, `cec2009_cf1` did not declare its constraint, so algorithms ran it as
+an unconstrained problem; it also stored the CEC2009 constraint `c(x) >= 0`
+without changing its sign and searched `[-1, 1]` for variables 2 to n.
+**Development after 1.0.2:** CF1 declares its constraint, stores `G = -c(x)` so
+that `G <= 0` is feasible, and uses the CEC2009 domain `[0, 1]^n`.
+
 ## Binary, integer, mixed and permutation examples
 
 These examples are useful for checking representations and operators. The
@@ -222,6 +228,9 @@ the defaults above.
 residual columns but requires an explicit `problem.n_constraints = 4` before
 optimization to activate them. Follow the verified [engineering lesson](../tutorials/engineering-design.md),
 which declares this field and checks the returned `G` before selecting a design.
+**Development after 1.0.2:** the class declares its four constraints, so
+`welded_beam` from the registry is constrained without that assignment, which
+remains harmless.
 
 `welded_beam` is VAMOS's six-variable mixed design example; it is a different
 formulation from the four-variable, three-objective `re32`. Its four emitted G

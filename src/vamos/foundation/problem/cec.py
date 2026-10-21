@@ -115,10 +115,12 @@ class _BaseCEC2009:
         self.xl = getattr(self._problem, "xl", 0.0)
         self.xu = getattr(self._problem, "xu", 1.0)
         self.encoding = normalize_encoding(getattr(self._problem, "encoding", "real"))
+        # Algorithms only receive G from problems that declare their constraints.
+        self.n_constraints = int(getattr(self._problem, "n_constraints", 0) or getattr(self._problem, "n_ieq_constr", 0) or 0)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         if self._uses_pymoo:
-            tmp: dict[str, np.ndarray] = {}
+            tmp: dict[str, np.ndarray[Any, Any]] = {}
             self._problem._evaluate(X, out=tmp)
             F = tmp.get("F")
             if F is not None:

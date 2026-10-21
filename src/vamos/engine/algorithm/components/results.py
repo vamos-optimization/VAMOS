@@ -7,6 +7,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+from numpy.typing import NDArray
+
+from vamos.foundation.constraints.utils import compute_violation, is_feasible
 
 if TYPE_CHECKING:
     from vamos.engine.algorithm.components.state import AlgorithmState
@@ -56,7 +59,7 @@ def build_result(
     return result
 
 
-def get_external_archive_contents(state: Any) -> tuple[np.ndarray, np.ndarray] | None:
+def get_external_archive_contents(state: Any) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]] | None:
     """Return external archive contents regardless of the concrete archive holder."""
     result_archive = getattr(state, "result_archive", None)
     if result_archive is not None:
@@ -87,4 +90,27 @@ def wants_population_result(state: Any) -> bool:
     return mode == "population"
 
 
-__all__ = ["build_result", "get_external_archive_contents", "wants_population_result"]
+def feasible_result_indices(
+    F: np.ndarray[Any, Any], G: np.ndarray[Any, Any] | None, constraint_mode: str, kernel: Any = None
+) -> NDArray[np.int_]:
+    """Rows of a population that form its non-dominated result, feasible solutions first.
+
+    With constraint handling, the candidates are the feasible rows or, when none
+    is feasible, the least violated ones; without it, every row. ``kernel``
+    keeps only the candidates that no other candidate dominates.
+    """
+    candidates: NDArray[np.int_] = np.arange(F.shape[0], dtype=int)
+    if G is not None and constraint_mode != "none" and G.shape[0]:
+        feasible = is_feasible(G, n=G.shape[0])
+        if feasible.any():
+            candidates = np.flatnonzero(feasible)
+        else:
+            violation = compute_violation(G, n=G.shape[0])
+            candidates = np.flatnonzero(violation <= float(np.min(violation)) + 1e-12)
+    if kernel is None or candidates.size == 0:
+        return candidates
+    ranks, _ = kernel.nsga2_ranking(F[candidates])
+    return np.asarray(candidates[np.asarray(ranks) == 0], dtype=int)
+
+
+__all__ = ["build_result", "feasible_result_indices", "get_external_archive_contents", "wants_population_result"]

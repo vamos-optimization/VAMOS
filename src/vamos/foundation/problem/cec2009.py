@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 
 from vamos.foundation.problem.base import Problem
@@ -28,7 +30,7 @@ class _CEC2009Base(Problem):
         self.xl = xl
         self.xu = xu
 
-    def _prepare(self, X: np.ndarray, out: dict[str, np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
+    def _prepare(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
         X = np.asarray(X, dtype=float)
         if X.ndim != 2 or X.shape[1] != self.n_var:
             raise ValueError(f"Expected decision matrix of shape (N, {self.n_var}).")
@@ -39,13 +41,15 @@ class _CEC2009Base(Problem):
             out["F"] = F
         return X, F
 
-    def _split_even_odd(self, *, start_j: int = 2) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def _split_even_odd(self, *, start_j: int = 2) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any]]:
         j = np.arange(start_j, self.n_var + 1)
         even_mask = j % 2 == 0
         odd_mask = ~even_mask
         return j, even_mask, odd_mask
 
-    def _split_mod3(self, *, start_j: int = 3) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def _split_mod3(
+        self, *, start_j: int = 3
+    ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any]]:
         j = np.arange(start_j, self.n_var + 1)
         mod1 = j % 3 == 1
         mod2 = j % 3 == 2
@@ -66,7 +70,7 @@ class _CEC2009UF3ObjBase(_CEC2009Base):
 class CEC2009_UF1(_CEC2009UF2ObjBase):
     """UF1 from the CEC2009 competition."""
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         X, F = self._prepare(X, out)
         x0 = X[:, 0]
         rest = X[:, 1:]
@@ -87,7 +91,7 @@ class CEC2009_UF1(_CEC2009UF2ObjBase):
 class CEC2009_UF2(_CEC2009UF2ObjBase):
     """UF2 from the CEC2009 competition."""
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         X, F = self._prepare(X, out)
         x0 = X[:, 0]
         rest = X[:, 1:]
@@ -112,7 +116,7 @@ class CEC2009_UF2(_CEC2009UF2ObjBase):
 class CEC2009_UF3(_CEC2009UF2ObjBase):
     """UF3 from the CEC2009 competition."""
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         X, F = self._prepare(X, out)
         x0 = X[:, 0]
         rest = X[:, 1:]
@@ -144,7 +148,7 @@ class CEC2009_UF4(_CEC2009UF2ObjBase):
     def __init__(self, n_var: int = 30) -> None:
         super().__init__(n_var=n_var, lower_rest=-2.0, upper_rest=2.0)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         X, F = self._prepare(X, out)
         x0 = X[:, 0]
         rest = X[:, 1:]
@@ -169,7 +173,7 @@ class CEC2009_UF5(_CEC2009UF2ObjBase):
         self._N = int(N)
         self._epsilon = float(epsilon)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         X, F = self._prepare(X, out)
         x0 = X[:, 0]
         rest = X[:, 1:]
@@ -195,7 +199,7 @@ class CEC2009_UF6(_CEC2009UF2ObjBase):
         self._N = int(N)
         self._epsilon = float(epsilon)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         X, F = self._prepare(X, out)
         x0 = X[:, 0]
         rest = X[:, 1:]
@@ -221,7 +225,7 @@ class CEC2009_UF6(_CEC2009UF2ObjBase):
 class CEC2009_UF7(_CEC2009UF2ObjBase):
     """UF7 from the CEC2009 competition."""
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         X, F = self._prepare(X, out)
         x0 = X[:, 0]
         rest = X[:, 1:]
@@ -242,7 +246,7 @@ class CEC2009_UF7(_CEC2009UF2ObjBase):
 class CEC2009_UF8(_CEC2009UF3ObjBase):
     """UF8 from the CEC2009 competition."""
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         X, F = self._prepare(X, out)
         x0 = X[:, 0]
         x1 = X[:, 1]
@@ -271,7 +275,7 @@ class CEC2009_UF9(_CEC2009UF3ObjBase):
         super().__init__(n_var=n_var, lower_rest=-2.0, upper_rest=2.0)
         self._epsilon = float(epsilon)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         X, F = self._prepare(X, out)
         x0 = X[:, 0]
         x1 = X[:, 1]
@@ -299,7 +303,7 @@ class CEC2009_UF9(_CEC2009UF3ObjBase):
 class CEC2009_UF10(_CEC2009UF3ObjBase):
     """UF10 from the CEC2009 competition."""
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         X, F = self._prepare(X, out)
         x0 = X[:, 0]
         x1 = X[:, 1]
@@ -322,9 +326,18 @@ class CEC2009_UF10(_CEC2009UF3ObjBase):
 
 
 class CEC2009_CF1(_CEC2009UF2ObjBase):
-    """Constrained CF1 from the CEC2009 competition."""
+    """Constrained CF1 from the CEC2009 competition, on ``[0, 1]^n``.
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    CEC2009 states the constraint as ``c(x) >= 0``; ``out["G"]`` holds ``-c(x)`` so
+    that, as everywhere in VAMOS, ``G <= 0`` means feasible.
+    """
+
+    n_constraints = 1
+
+    def __init__(self, n_var: int = 30) -> None:
+        super().__init__(n_var=n_var, lower_rest=0.0, upper_rest=1.0)
+
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         X, F = self._prepare(X, out)
         x0 = X[:, 0]
         rest = X[:, 1:]
@@ -345,7 +358,7 @@ class CEC2009_CF1(_CEC2009UF2ObjBase):
 
         F[:, 0] = f0
         F[:, 1] = f1
-        out["G"] = constraint[:, None]
+        out["G"] = -constraint[:, None]
 
 
 __all__ = [

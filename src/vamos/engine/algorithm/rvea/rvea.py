@@ -18,6 +18,7 @@ import numpy as np
 from vamos.engine.algorithm.components.hooks import get_live_viz, live_should_stop
 from vamos.engine.algorithm.components.population import initialize_population, resolve_bounds
 from vamos.engine.algorithm.components.termination import capped_offspring_size, validate_initial_budget
+from vamos.engine.algorithm.config.base import normalize_constraint_mode
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
 from vamos.engine.config.variation import (
     ensure_operator_tuple,
@@ -284,7 +285,7 @@ class RVEA:
         n_partitions = int(self.cfg.get("n_partitions", 12))
         alpha = float(self.cfg.get("alpha", 2.0))
         adapt_freq = self.cfg.get("adapt_freq", 0.1)
-        constraint_mode = str(self.cfg.get("constraint_mode", "feasibility")).strip().lower()
+        constraint_mode = normalize_constraint_mode(self.cfg.get("constraint_mode", "feasibility"))
         n_constraints = int(getattr(problem, "n_constraints", 0) or 0)
 
         term_key, term_val = termination

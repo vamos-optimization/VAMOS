@@ -350,6 +350,8 @@ class SPEA2:
         else:
             F = eval_result
             G = None
+        if st.constraint_mode == "none":
+            G = None  # The archive carries no constraint values in this mode.
 
         # Update evaluation count
         st.n_eval += len(F)
