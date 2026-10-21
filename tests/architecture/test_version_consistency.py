@@ -12,7 +12,7 @@ from vamos.foundation.version import __version__
 
 ROOT = Path(__file__).resolve().parents[2]
 EXPECTED_VERSION = "1.1.0"
-RELEASE_DATE = "2026-10-21"
+RELEASE_DATE = "2026-10-22"
 
 
 def _read(relative: str) -> str:

@@ -43,6 +43,12 @@ def epsilon_indicator(F: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
 def hypervolume_indicator(F: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     """Compute hypervolume indicator matrix.
 
+    Entry ``(i, j)`` is the hypervolume-difference indicator ``I_HD(x_j, x_i)`` of
+    Zitzler and Kuenzli (2004), with the epsilon indicator's orientation: the
+    fitness of ``x_i`` sums over its row. It is ``H(x_i) - H(x_j)`` when ``x_j``
+    dominates ``x_i``, and otherwise the volume dominated by ``x_i`` but not by
+    ``x_j``. Volumes use the reference point ``max(F) + 1``.
+
     Parameters
     ----------
     F : np.ndarray[Any, Any]
@@ -61,7 +67,10 @@ def hypervolume_indicator(F: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     singleton_hv = np.prod(singleton_box, axis=1)
     pair_intersection = np.maximum(ref - np.maximum(F[:, None, :], F[None, :, :]), 0.0)
     intersection_hv = np.prod(pair_intersection, axis=2)
-    indicator = intersection_hv - singleton_hv[:, None]
+    indicator = singleton_hv[:, None] - intersection_hv
+    row, column = F[:, None, :], F[None, :, :]
+    column_dominates_row = np.all(column <= row, axis=2) & np.any(column < row, axis=2)
+    indicator = np.where(column_dominates_row, singleton_hv[:, None] - singleton_hv[None, :], indicator)
     np.fill_diagonal(indicator, 0.0)
     return cast(np.ndarray[Any, Any], indicator)
 
@@ -80,10 +89,46 @@ def compute_indicator_matrix(F: np.ndarray[Any, Any], indicator: str) -> np.ndar
     -------
     np.ndarray[Any, Any]
         Indicator matrix.
+
+    Notes
+    -----
+    The hypervolume indicator follows adaptive IBEA (Zitzler and Kuenzli, 2004), as in
+    jMetal. Hypervolume differences grow with the product of the objective ranges, so
+    the objectives are normalized over ``F`` and the indicator is divided by its largest
+    magnitude, which keeps the fitness exponents within ``[-1/kappa, 1/kappa]``. The
+    epsilon indicator is used unscaled, as in jMetalPy.
     """
     if indicator == "hypervolume":
-        return hypervolume_indicator(F)
+        if F.shape[0] == 0:
+            return np.empty((0, 0), dtype=float)
+        low, high = np.min(F, axis=0), np.max(F, axis=0)
+        values = hypervolume_indicator((F - low) / np.where(high > low, high - low, 1.0))
+        largest = float(np.max(np.abs(values), initial=0.0))
+        return values / largest if largest > 0.0 else values
     return epsilon_indicator(F)
+
+
+# np.exp overflows float64 above an exponent of about 709.78. Past _EXP_RESCALE_ABOVE every
+# contribution is scaled down so that the largest exponent becomes _EXP_RESCALED_MAX, which
+# leaves headroom for summing contributions and for the constraint penalty.
+_EXP_RESCALE_ABOVE = 700.0
+_EXP_RESCALED_MAX = 600.0
+
+
+def _exponential_contributions(indicator: np.ndarray[Any, Any], kappa: float) -> np.ndarray[Any, Any]:
+    """Return ``exp(-indicator / kappa)``, scaled by one common factor when it would overflow.
+
+    IBEA only compares fitness values and adds contributions to them, so scaling every
+    contribution by the same positive factor leaves its selections unchanged. Contributions
+    far below the largest one may then underflow to zero. Nonfinite indicator values
+    contribute zero.
+    """
+    exponent = -np.asarray(indicator, dtype=float) / kappa
+    finite = np.isfinite(exponent)
+    largest = float(np.max(exponent, where=finite, initial=-np.inf))
+    if largest > _EXP_RESCALE_ABOVE:
+        exponent = exponent - (largest - _EXP_RESCALED_MAX)
+    return np.exp(exponent, where=finite, out=np.zeros_like(exponent))
 
 
 def ibea_fitness(indicator: np.ndarray[Any, Any], kappa: float) -> np.ndarray[Any, Any]:
@@ -106,8 +151,7 @@ def ibea_fitness(indicator: np.ndarray[Any, Any], kappa: float) -> np.ndarray[An
     """
     mat = indicator.copy()
     np.fill_diagonal(mat, np.inf)
-    contrib = np.exp(-mat / kappa)
-    contrib[~np.isfinite(contrib)] = 0.0
+    contrib = _exponential_contributions(mat, kappa)
     return np.asarray(-np.sum(contrib, axis=1), dtype=float)
 
 
@@ -182,8 +226,7 @@ def environmental_selection(
         (X_selected, F_selected, G_selected, fitness)
     """
     ind = compute_indicator_matrix(F, indicator)
-    contrib = np.exp(-ind / kappa)
-    contrib[~np.isfinite(contrib)] = 0.0
+    contrib = _exponential_contributions(ind, kappa)
     np.fill_diagonal(contrib, 0.0)
     fitness = np.asarray(-np.sum(contrib, axis=1), dtype=float)
     fitness = apply_constraint_penalty(fitness, G)

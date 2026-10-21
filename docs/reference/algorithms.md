@@ -69,6 +69,23 @@ VAMOS 1.1.0 includes the following constraint corrections.
 Runs of constrained problems with these algorithms therefore differ from 1.0.2
 runs with the same seed. Unconstrained runs are unchanged.
 
+### IBEA indicator corrections in 1.1.0
+
+- With `indicator="hypervolume"`, IBEA used the hypervolume-difference
+  indicator with the opposite orientation. It removed the solutions with the
+  largest exclusive hypervolume first and kept dominated ones. It now uses
+  `I_HD` as defined by Zitzler and Künzli (2004) and as in jMetal, with the
+  adaptive scaling of their IBEA: objectives are normalized over the population
+  and the indicator is divided by its largest magnitude. Its final fronts match
+  jMetal 7.9's IBEA on ZDT1, DTLZ2 and DTLZ1 within seed variation.
+  Hypervolume-based IBEA results from VAMOS 1.0.2 and earlier are not valid;
+  rerun them.
+- An exponential indicator contribution that exceeded the float64 range
+  counted as zero, so a solution dominated by a wide margin looked like the
+  best one. Contributions are now rescaled by a common factor when they would
+  overflow, which leaves the selection unchanged. The epsilon indicator
+  remains unscaled, as in jMetalPy, and runs without overflow are unchanged.
+
 ### Choose an initial experiment
 
 | Need | Starting point | Check before increasing the budget |
