@@ -120,6 +120,24 @@ def test_nsgaiii_survival_fills_with_the_least_violation() -> None:
     assert sorted(indices.tolist()) == [1, 3, 4]  # The feasible offspring, then violations 0.1 and 0.2.
 
 
+def test_nsgaiii_ask_tell_requires_offspring_constraints_on_a_constrained_problem() -> None:
+    from vamos.engine.algorithm.nsgaiii.nsgaiii import NSGAIII
+    from vamos.foundation.kernel.numpy_backend import NumPyKernel
+
+    config = NSGAIIIConfig.default(n_var=3, n_obj=2)
+    algorithm = NSGAIII(config.to_dict(), kernel=NumPyKernel())
+    algorithm.initialize(_problem(), ("max_evaluations", 10 * int(config.to_dict()["pop_size"])), seed=0)
+    X = algorithm.ask()
+
+    with pytest.raises(ValueError, match="requires constraint values G"):
+        algorithm.tell({"F": _objectives(X)})
+    with pytest.raises(ValueError, match="align"):
+        algorithm.tell({"F": _objectives(X), "G": _constraints(X)[:-1]})
+    algorithm.tell({"F": _objectives(X), "G": _constraints(X)})  # The offspring is still pending after a rejection.
+
+    assert algorithm.state is not None and algorithm.state.G is not None
+
+
 def test_nsgaiii_moves_the_population_into_the_feasible_region() -> None:
     def feasible_share(mode: str) -> float:
         config = dataclasses.replace(NSGAIIIConfig.default(n_var=3, n_obj=2), constraint_mode=mode)

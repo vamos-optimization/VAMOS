@@ -44,6 +44,26 @@ from vamos.foundation.observer import RunContext
 __all__ = ["NSGAIII"]
 
 
+def _offspring_constraints(G: Any, F: FloatArray, population_G: FloatArray | None, constraint_mode: str) -> FloatArray | None:
+    """Offspring constraint values for survival; required while the population carries constraints."""
+    if constraint_mode == "none" or population_G is None:
+        return None
+    if G is None:
+        raise ValueError(
+            "NSGA-III requires constraint values G when constraint handling is active "
+            f"for a population with {population_G.shape[1]} constraint(s)."
+        )
+    offspring_G = np.asarray(G, dtype=float)
+    if offspring_G.ndim == 1:
+        offspring_G = offspring_G.reshape(-1, 1)
+    if offspring_G.shape != (F.shape[0], population_G.shape[1]):
+        raise ValueError(
+            f"NSGA-III constraint values G must align row-wise with objective values F and have "
+            f"{population_G.shape[1]} column(s); got shape {offspring_G.shape} for {F.shape[0]} offspring."
+        )
+    return offspring_G
+
+
 class NSGAIII:
     """Non-dominated Sorting Genetic Algorithm III for many-objective optimization."""
 
@@ -254,7 +274,6 @@ class NSGAIII:
         st = self._st
         X_off = st.pending_offspring
         assert X_off is not None
-        st.pending_offspring = None
 
         if hasattr(eval_result, "F"):
             F = np.asarray(eval_result.F, dtype=float)
@@ -265,6 +284,8 @@ class NSGAIII:
         else:
             F = np.asarray(eval_result, dtype=float)
             G = None
+        G = _offspring_constraints(G, F, st.G, st.constraint_mode)
+        st.pending_offspring = None
 
         ids_combined = None
         if st.ids is not None and st.pending_offspring_ids is not None:
