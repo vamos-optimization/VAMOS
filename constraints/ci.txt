@@ -39,6 +39,6 @@ nbconvert==7.17.2
 panel==1.9.4
 param==2.4.2
 bokeh==3.9.2
-pymdown-extensions==12.1 ; python_version < "3.11"
+pymdown-extensions==12.3 ; python_version < "3.11"
 pymdown-extensions==12.3 ; python_version >= "3.11"
 jax==0.6.2
