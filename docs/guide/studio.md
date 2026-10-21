@@ -120,6 +120,16 @@ Remote binding exposes an experimental local application to other network
 users. Apply operating-system firewall and access controls appropriate to the
 environment; Studio does not provide an authentication boundary.
 
+Browsers open Studio sessions only from pages served under an allowed
+`host:port`. With a wildcard address such as `0.0.0.0`, these are `localhost`
+and this computer's host names and IPv4 addresses; with a specific address,
+`localhost` and that address. Allow any other name, such as a reverse proxy or
+DNS alias, with `--allow-websocket-origin`, once per name:
+
+```bash
+vamos studio --address 0.0.0.0 --allow-remote-binding --no-browser --allow-websocket-origin studio.example.org:443
+```
+
 ## Pages
 
 - **Problems & Algorithms** lists the registered problems and the built-in
@@ -212,7 +222,9 @@ Studio server; opening the page again reconnects to it. Studio keeps the
 process's heartbeat, outcome, and log next to the study, in
 `.vamos-studio/jobs/<study-id>/`, and never writes inside the study itself.
 
-**Stop** ends the background process at once. The run in progress is lost and
+**Stop** asks the background process to end, and it does within a second; Studio
+never signals a process by its id, which the system may have given to another
+program after a crash. The run in progress is lost and
 the study stays `running`; **Resume** reconciles the study and continues with
 the pending runs, rerunning the interrupted one. Resuming requires the same
 runtime and dependency build that produced the earlier runs. **Retry failed

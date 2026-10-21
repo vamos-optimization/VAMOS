@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -218,12 +219,38 @@ def parse_serve_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def websocket_origins(address: str, port: int, extra: Sequence[str] = ()) -> list[str]:
+    """The ``host:port`` origins whose pages may open a Studio session.
+
+    A browser sends the host it used to reach Studio. A specific address is
+    reached through itself; a wildcard address (``0.0.0.0`` or ``::``) through
+    any name or address of this computer, so those are allowed. Names this
+    computer cannot see, such as a proxy or DNS alias, go in ``extra``.
+    """
+    origins = [f"localhost:{port}", *extra]
+    if address.strip("[]") in {"0.0.0.0", "::", ""}:
+        origins += [f"{host}:{port}" for host in _local_host_names() if f"{host}:{port}" not in origins]
+    elif ":" not in address:  # Bokeh's allowlist cannot express IPv6 literals; browse those via localhost.
+        origins.append(f"{address}:{port}")
+    return origins
+
+
+def _local_host_names() -> list[str]:
+    """This computer's host names and IPv4 addresses, as browsers on the network address it."""
+    import socket
+
+    names = {"127.0.0.1", socket.gethostname(), socket.getfqdn()}
+    try:
+        names.update(str(sockaddr[0]) for *_, sockaddr in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET))
+    except OSError:  # An unresolvable host name still allows the names above.
+        logging.getLogger(__name__).debug("Cannot list this computer's addresses.", exc_info=True)
+    return sorted(name for name in names if name and ":" not in name)
+
+
 def serve(argv: Sequence[str] | None = None) -> int:
     """Serve Studio at ``/app`` until the process is stopped."""
     args = parse_serve_args(argv)
-    origins = [f"localhost:{args.port}", *args.allow_websocket_origin]
-    if ":" not in args.address:  # Bokeh's allowlist cannot express IPv6 literals; browse those via localhost.
-        origins.append(f"{args.address}:{args.port}")
+    origins = websocket_origins(args.address, args.port, args.allow_websocket_origin)
     pn.serve(
         {"app": lambda: create_app(args.study_dir)},
         address=args.address,

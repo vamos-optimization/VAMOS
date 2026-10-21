@@ -55,6 +55,36 @@ def test_live_run_keeps_a_bounded_number_of_fronts() -> None:
     assert live.snapshots[-1][0] >= 4 * MAX_SNAPSHOTS
 
 
+def test_the_final_front_replaces_a_generation_already_recorded() -> None:
+    live = LiveRun(budget=1000)
+
+    live.on_generation(3, F=np.array([[0.0, 1.0]]), stats={"evals": 300})
+    live.on_end(final_F=np.array([[0.2, 0.8]]))
+
+    assert [number for number, _ in live.snapshots] == [3]
+    assert live.latest().tolist() == [[0.2, 0.8]]
+
+
+@pytest.mark.parametrize("algorithm", studio_algorithms())
+def test_every_algorithm_records_each_generation_once(algorithm: str) -> None:
+    selection = make_problem_selection("dtlz2" if algorithm in {"nsgaiii", "rvea"} else "zdt1")
+    config = default_algorithm_config(algorithm, encoding="real", n_var=selection.n_var, n_obj=selection.n_obj, pop_size=20)
+    live = LiveRun(budget=200)
+
+    _run_algorithm(
+        selection.instantiate(),
+        algorithm=algorithm,
+        algorithm_config=config,
+        termination=("max_evaluations", 4 * int(config.to_dict()["pop_size"])),
+        seed=0,
+        engine="numpy",
+        live_viz=live,
+    )
+
+    numbers = [number for number, _ in live.snapshots]
+    assert numbers and len(numbers) == len(set(numbers)), f"duplicated generations: {numbers}"
+
+
 @pytest.mark.parametrize("algorithm", studio_algorithms())
 def test_every_algorithm_stops_when_asked(algorithm: str) -> None:
     problem = make_problem_selection("zdt1").instantiate()

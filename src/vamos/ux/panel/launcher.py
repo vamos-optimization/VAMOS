@@ -63,7 +63,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="Acknowledge the risk and allow a non-loopback bind address.",
     )
+    parser.add_argument(
+        "--allow-websocket-origin",
+        action="append",
+        default=[],
+        metavar="HOST:PORT",
+        help=(
+            "Allow pages served under HOST:PORT to open Studio sessions (repeatable). With a wildcard --address, "
+            "this computer's names and addresses are allowed already; add proxies or DNS aliases here."
+        ),
+    )
     args, panel_args = parser.parse_known_args(argv)
+    panel_args = [*(f"--allow-websocket-origin={origin}" for origin in args.allow_websocket_origin), *panel_args]
 
     if not _is_loopback_address(args.address) and not args.allow_remote_binding:
         parser.error("non-loopback binding is disabled; pass --allow-remote-binding to acknowledge the exposure risk")

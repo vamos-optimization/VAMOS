@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 from pathlib import Path
 from typing import Any
 
@@ -62,6 +64,41 @@ def test_ipv6_loopback_is_served_through_localhost(monkeypatch: pytest.MonkeyPat
     studio_app.serve(["--address=::1", "--port=5010"])
 
     assert served["websocket_origin"] == ["localhost:5010"]
+
+
+def _served_origins(monkeypatch: pytest.MonkeyPatch, *argv: str) -> list[str]:
+    captured: dict[str, Any] = {}
+    monkeypatch.setattr(studio_app.pn, "serve", lambda *args, **kwargs: captured.update(kwargs))
+    studio_app.serve(list(argv))
+    return list(captured["websocket_origin"])
+
+
+def test_wildcard_binding_accepts_browsers_that_use_this_computers_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    import socket
+
+    origins = _served_origins(monkeypatch, "--address=0.0.0.0", "--port=5010")
+
+    assert f"{socket.gethostname()}:5010".lower() in [origin.lower() for origin in origins]
+    assert "localhost:5010" in origins
+    assert "0.0.0.0:5010" not in origins  # No browser sends a wildcard address as its origin.
+
+
+def test_specific_bindings_keep_a_narrow_websocket_allowlist(monkeypatch: pytest.MonkeyPatch) -> None:
+    origins = _served_origins(monkeypatch, "--address=192.168.1.20", "--port=5010", "--allow-websocket-origin=studio.example.org:443")
+
+    assert origins == ["localhost:5010", "studio.example.org:443", "192.168.1.20:5010"]
+
+
+def test_launcher_documents_and_forwards_extra_websocket_origins() -> None:
+    from vamos.ux.panel import launcher
+
+    help_text = io.StringIO()
+    with contextlib.redirect_stdout(help_text), pytest.raises(SystemExit):
+        launcher.main(["--help"])
+    command = _build_panel_command("results", ["--allow-websocket-origin=studio.example.org:443"])
+
+    assert "--allow-websocket-origin" in help_text.getvalue()
+    assert "--allow-websocket-origin=studio.example.org:443" in command
 
 
 def test_app_module_rejects_unknown_server_options() -> None:

@@ -9,13 +9,16 @@ The job files live outside the study, in
 - ``job.json``: operation, study path and start time, written by Studio;
 - ``heartbeat.json``: the worker's process id and a timestamp, refreshed every
   few seconds while it runs;
+- ``stop.json``: a stop request, written by Studio;
 - ``outcome.json``: how the worker ended, written by the worker, or by Studio
-  when it stops the worker;
+  when a stopped worker no longer answers;
 - ``worker.log``: the worker's output.
 
-A fresh heartbeat proves that the worker is alive. Studio only signals the
-process id of a fresh heartbeat, so it never targets a reused process id.
-Stopping a worker ends its process: the task in progress is lost, the study
+A fresh heartbeat shows that the worker is alive. Studio never signals a
+process: a process id recorded in a heartbeat may already belong to another
+program. To stop a worker, Studio writes a stop request; the worker's
+heartbeat thread, which keeps running whatever the study is doing, records
+the stop and ends its own process. The task in progress is lost, the study
 stays ``running``, and resuming it reconciles and reruns that task.
 """
 
@@ -24,7 +27,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import signal
 import subprocess
 import sys
 import threading
@@ -37,12 +39,16 @@ JobOperation = Literal["run", "resume", "retry"]
 JobPhase = Literal["none", "starting", "running", "finished", "failed", "stopped", "lost"]
 
 HEARTBEAT_SECONDS = 2.0
+STOP_POLL_SECONDS = 0.25
+STOP_WAIT_SECONDS = 5.0
 STALE_AFTER_SECONDS = 15.0
 STARTUP_GRACE_SECONDS = 60.0
 WORKER_MODULE = "vamos.ux.studio.study_worker"
+STOPPED_BY_RUNNER = "The runner stopped at the request of Studio."
 
 JOB_FILE = "job.json"
 HEARTBEAT_FILE = "heartbeat.json"
+STOP_FILE = "stop.json"
 OUTCOME_FILE = "outcome.json"
 LOG_FILE = "worker.log"
 
@@ -125,7 +131,7 @@ def start_job(study_root: Path, study_id: str, operation: JobOperation, *, retry
     if job_status(job_dir).active:
         raise JobConflictError("A Studio runner is already working on this study.")
     job_dir.mkdir(parents=True, exist_ok=True)
-    for name in (HEARTBEAT_FILE, OUTCOME_FILE):
+    for name in (HEARTBEAT_FILE, STOP_FILE, OUTCOME_FILE):
         (job_dir / name).unlink(missing_ok=True)
     write_json(
         job_dir / JOB_FILE, {"operation": operation, "study": str(study_root), "started_at": time.time(), "retry_failed": retry_failed}
@@ -141,19 +147,32 @@ def start_job(study_root: Path, study_id: str, operation: JobOperation, *, retry
     return job_status(job_dir)
 
 
-def stop_job(job_dir: Path) -> JobStatus:
-    """End the worker of a fresh heartbeat and record that Studio stopped it."""
+def stop_job(job_dir: Path, *, wait_seconds: float = STOP_WAIT_SECONDS) -> JobStatus:
+    """Ask the worker of a fresh heartbeat to stop, and wait until it has.
+
+    The worker answers within ``STOP_POLL_SECONDS`` by recording the stop and
+    ending its process. A worker that does not answer within ``wait_seconds``
+    has already exited without an outcome, so Studio records the stop itself.
+    """
     status = job_status(job_dir)
     if status.phase == "starting":
         raise JobConflictError("The runner is still starting; stop it once it reports a heartbeat.")
-    if status.phase != "running" or status.pid is None:
+    if status.phase != "running":
         return status
-    try:
-        os.kill(status.pid, signal.SIGTERM)  # On Windows this calls TerminateProcess.
-    except OSError:
-        _logger().debug("The Studio runner %s had already exited.", status.pid, exc_info=True)
-    write_json(job_dir / OUTCOME_FILE, {"status": "stopped", "message": "Stopped from Studio.", "time": time.time()})
+    write_json(job_dir / STOP_FILE, {"time": time.time()})
+    deadline = time.monotonic() + wait_seconds
+    while not (job_dir / OUTCOME_FILE).exists() and time.monotonic() < deadline:
+        time.sleep(STOP_POLL_SECONDS / 2)
+    if not (job_dir / OUTCOME_FILE).exists():
+        write_json(
+            job_dir / OUTCOME_FILE,
+            {"status": "stopped", "message": "Stopped from Studio; its process had already exited.", "time": time.time()},
+        )
     return job_status(job_dir)
+
+
+def stop_requested(job_dir: Path) -> bool:
+    return (job_dir / STOP_FILE).exists()
 
 
 def log_tail(job_dir: Path, *, max_bytes: int = 16_384) -> str:
@@ -200,6 +219,8 @@ def _spawn_detached(command: list[str], log: BinaryIO) -> subprocess.Popen[bytes
 
 __all__ = [
     "HEARTBEAT_SECONDS",
+    "STOPPED_BY_RUNNER",
+    "STOP_POLL_SECONDS",
     "JobConflictError",
     "JobOperation",
     "JobStatus",
@@ -209,5 +230,6 @@ __all__ = [
     "log_tail",
     "start_job",
     "stop_job",
+    "stop_requested",
     "write_json",
 ]

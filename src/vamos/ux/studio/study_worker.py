@@ -17,16 +17,33 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from vamos.study_artifacts import load_study
-from vamos.ux.studio.study_jobs import HEARTBEAT_FILE, HEARTBEAT_SECONDS, OUTCOME_FILE, write_json
+from vamos.ux.studio.study_jobs import (
+    HEARTBEAT_FILE,
+    HEARTBEAT_SECONDS,
+    OUTCOME_FILE,
+    STOP_POLL_SECONDS,
+    STOPPED_BY_RUNNER,
+    stop_requested,
+    write_json,
+)
+
+STOPPED_EXIT_CODE = 3
 
 
 def _beat(job_dir: Path, stop: threading.Event) -> None:
+    """Refresh the heartbeat, and end this process when Studio asks it to stop."""
+    next_beat = 0.0
     while not stop.is_set():
-        try:
-            write_json(job_dir / HEARTBEAT_FILE, {"pid": os.getpid(), "time": time.time()})
-        except OSError:  # A missed beat only ages the heartbeat; the next one retries.
-            logging.getLogger(__name__).debug("Cannot write the Studio heartbeat.", exc_info=True)
-        stop.wait(HEARTBEAT_SECONDS)
+        if stop_requested(job_dir):
+            write_json(job_dir / OUTCOME_FILE, {"status": "stopped", "message": STOPPED_BY_RUNNER, "time": time.time()})
+            os._exit(STOPPED_EXIT_CODE)  # Ends the study operation wherever it is, like a terminal interrupt.
+        if time.monotonic() >= next_beat:
+            try:
+                write_json(job_dir / HEARTBEAT_FILE, {"pid": os.getpid(), "time": time.time()})
+            except OSError:  # A missed beat only ages the heartbeat; the next one retries.
+                logging.getLogger(__name__).debug("Cannot write the Studio heartbeat.", exc_info=True)
+            next_beat = time.monotonic() + HEARTBEAT_SECONDS
+        stop.wait(STOP_POLL_SECONDS)
 
 
 def run_operation(study_root: Path, operation: str, *, retry_failed: bool = False) -> str:

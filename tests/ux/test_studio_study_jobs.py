@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import subprocess
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -61,17 +63,45 @@ def test_job_phases_follow_the_job_files(tmp_path: Path) -> None:
     assert "completed" in finished.describe()
 
 
-def test_stop_signals_only_a_fresh_heartbeat(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    signalled: list[int] = []
-    monkeypatch.setattr(study_jobs.os, "kill", lambda pid, _sig: signalled.append(pid))
-    stale = _job(
-        tmp_path / "stale", job={"operation": "run", "started_at": time.time() - 600}, heartbeat={"pid": 111, "time": time.time() - 600}
-    )
-    fresh = _job(tmp_path / "fresh", job={"operation": "run", "started_at": time.time()}, heartbeat={"pid": 222, "time": time.time()})
+def test_stop_never_signals_the_process_id_in_a_heartbeat(tmp_path: Path) -> None:
+    # A worker killed without an outcome leaves a fresh heartbeat for a while; its process id may then belong to
+    # an unrelated process, which stopping the job must not touch.
+    unrelated = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    try:
+        job_dir = _job(tmp_path, job={"operation": "run", "started_at": time.time()}, heartbeat={"pid": unrelated.pid, "time": time.time()})
 
-    assert stop_job(stale).phase == "lost"
-    assert stop_job(fresh).phase == "stopped"
-    assert signalled == [222]
+        status = stop_job(job_dir, wait_seconds=0.5)
+
+        assert status.phase == "stopped"
+        assert unrelated.poll() is None, "stopping the job killed an unrelated process"
+    finally:
+        unrelated.kill()
+        unrelated.wait()
+
+
+def test_stop_of_a_stale_heartbeat_changes_nothing(tmp_path: Path) -> None:
+    stale = _job(tmp_path, job={"operation": "run", "started_at": time.time() - 600}, heartbeat={"pid": 111, "time": time.time() - 600})
+
+    assert stop_job(stale, wait_seconds=0.1).phase == "lost"
+    assert not (stale / "stop.json").exists()
+
+
+def test_stop_ends_a_running_worker(tmp_path: Path) -> None:
+    study = create_study(_tiny_spec(seeds=list(range(40)), pop_size=20, max_evaluations=4000), output=tmp_path / "study")
+    start_job(study.root, study.study_id, "run")
+    job_dir = job_dir_for(study.root, study.study_id)
+    deadline = time.time() + 120
+    while job_status(job_dir).phase != "running" and time.time() < deadline:
+        time.sleep(0.2)
+    assert job_status(job_dir).phase == "running", log_tail(job_dir)
+
+    status = stop_job(job_dir)
+
+    assert status.phase == "stopped"
+    assert status.message == study_jobs.STOPPED_BY_RUNNER  # The worker itself recorded the stop before exiting.
+    beat = (job_dir / "heartbeat.json").stat().st_mtime
+    time.sleep(2.5 * study_jobs.HEARTBEAT_SECONDS)
+    assert (job_dir / "heartbeat.json").stat().st_mtime == beat, "the worker kept running after Stop"
 
 
 def test_a_starting_runner_cannot_be_stopped_or_doubled(tmp_path: Path) -> None:
