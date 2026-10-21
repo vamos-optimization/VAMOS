@@ -70,7 +70,7 @@ def _run_preview_once(
 
 
 def _preview_worker(
-    queue: Any,
+    connection: Any,
     *,
     objective_code: str,
     constraint_code: str,
@@ -107,9 +107,13 @@ def _preview_worker(
             algorithm_config=algorithm_config,
             record_history=record_history,
         )
-        queue.put({"ok": True, "payload": payload})
+        result = {"ok": True, "payload": payload}
     except Exception as exc:  # pragma: no cover
-        queue.put({"ok": False, "error": f"{type(exc).__name__}: {exc}"})
+        result = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+    try:
+        connection.send(result)
+    finally:
+        connection.close()
 
 
 def run_preview_optimization(
@@ -161,11 +165,11 @@ def run_preview_optimization(
     import multiprocessing as mp
 
     ctx = mp.get_context("spawn")
-    result_queue = ctx.Queue(maxsize=1)
+    result_connection, worker_connection = ctx.Pipe(duplex=False)
     process = ctx.Process(
         target=_preview_worker,
         kwargs={
-            "queue": result_queue,
+            "connection": worker_connection,
             "objective_code": objective_code,
             "constraint_code": constraint_code,
             "n_var": n_var,
@@ -182,12 +186,17 @@ def run_preview_optimization(
             "record_history": record_history,
         },
     )
-    process.start()
     try:
-        worker_result = _await_worker_result(result_queue, process, float(timeout_seconds), cancel=cancel)
+        process.start()
+    except BaseException:
+        result_connection.close()
+        raise
     finally:
-        result_queue.close()
-        result_queue.join_thread()
+        worker_connection.close()
+    try:
+        worker_result = _await_worker_result(result_connection, process, float(timeout_seconds), cancel=cancel)
+    finally:
+        result_connection.close()
 
     if not isinstance(worker_result, dict):
         raise RuntimeError("Preview worker returned an invalid result payload.")
@@ -202,38 +211,40 @@ def run_preview_optimization(
     return payload
 
 
-def _await_worker_result(result_queue: Any, process: Any, timeout_seconds: float, *, cancel: Any = None) -> object:
+def _await_worker_result(connection: Any, process: Any, timeout_seconds: float, *, cancel: Any = None) -> object:
     """Read the worker's result before joining it.
 
-    A child process does not exit until its queued payload has been read, so
-    joining first would turn any large result into a timeout.
+    A direct pipe avoids creating a queue feeder thread inside the resource-
+    limited worker. Drain it before joining so large histories cannot deadlock.
     """
-    import queue as queue_mod
-
     deadline = time.monotonic() + timeout_seconds
     while True:
-        try:
-            result = result_queue.get(timeout=0.2)
-        except queue_mod.Empty:
-            if cancel is not None and cancel.is_set():
+        if connection.poll(0.2):
+            try:
+                result = connection.recv()
+            except EOFError as exc:
+                process.join(timeout=1.0)
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(f"Preview timed out after {timeout_seconds:.1f}s. Try simpler code or a smaller budget.") from exc
+                if process.exitcode not in (0, None):
+                    raise RuntimeError(f"Preview worker exited unexpectedly (exit code {process.exitcode}).") from exc
+                raise RuntimeError("Preview worker finished without returning a result.") from exc
+            break
+        if cancel is not None and cancel.is_set():
+            process.terminate()
+            process.join(timeout=1.0)
+            raise InterruptedError("Stopped from Studio.") from None
+        if time.monotonic() >= deadline:
+            if process.is_alive():
                 process.terminate()
-                process.join(timeout=1.0)
-                raise InterruptedError("Stopped from Studio.") from None
-            if time.monotonic() >= deadline:
-                if process.is_alive():
-                    process.terminate()
-                process.join(timeout=1.0)
-                raise TimeoutError(f"Preview timed out after {timeout_seconds:.1f}s. Try simpler code or a smaller budget.") from None
-            if not process.is_alive():
-                try:
-                    result = result_queue.get(timeout=1.0)
-                except queue_mod.Empty as exc:
-                    if process.exitcode not in (0, None):
-                        raise RuntimeError(f"Preview worker exited unexpectedly (exit code {process.exitcode}).") from exc
-                    raise RuntimeError("Preview worker finished without returning a result.") from exc
-                break
-            continue
-        break
+            process.join(timeout=1.0)
+            raise TimeoutError(f"Preview timed out after {timeout_seconds:.1f}s. Try simpler code or a smaller budget.") from None
+        if not process.is_alive():
+            if connection.poll(1.0):
+                continue
+            if process.exitcode not in (0, None):
+                raise RuntimeError(f"Preview worker exited unexpectedly (exit code {process.exitcode}).")
+            raise RuntimeError("Preview worker finished without returning a result.")
     process.join(timeout=5.0)
     if process.is_alive():
         process.terminate()
