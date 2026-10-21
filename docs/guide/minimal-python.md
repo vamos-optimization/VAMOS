@@ -3,7 +3,7 @@
 Run an experiment and inspect its results from a terminal. You do not need to
 write Python code for this path.
 
-> **Stable in VAMOS 1.0.2:** the single-run, inspection, verification, and replay
+> **Stable in VAMOS 1.1.0:** the single-run, inspection, verification, and replay
 > commands below. The optional quickstart wizard is **Experimental**. See
 > [Stability and versioning](../project/stability-and-versioning.md).
 
@@ -14,11 +14,11 @@ environment for your operating system. Install the published package from any
 working folder:
 
 ```bash
-python -m pip install "vamos-optimization==1.0.2"
+python -m pip install "vamos-optimization==1.1.0"
 python -c "import vamos; print(vamos.__version__)"
 ```
 
-The second command should print `1.0.2`. No repository checkout is needed.
+The second command should print `1.1.0`. No repository checkout is needed.
 Optional plotting dependencies are described in
 [Installation: optional extras](installation.md#optional-extras).
 

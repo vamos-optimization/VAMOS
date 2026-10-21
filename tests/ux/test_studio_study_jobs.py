@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import signal
 import subprocess
 import sys
 import threading
@@ -121,17 +122,25 @@ def test_a_replacement_worker_ignores_an_old_stop_request(tmp_path: Path, monkey
     assert not (job_dir / "outcome.json").exists()
 
 
-def test_only_the_addressed_worker_acknowledges_a_stop(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_only_the_addressed_worker_interrupts_its_main_thread_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     job_dir = _job(tmp_path, job={"operation": "run"}, stop={"worker_id": "worker-a"})
+    done = threading.Event()
+    interrupts: list[int] = []
+    polls: list[float] = []
 
-    def exit_worker(code: int) -> None:
-        raise SystemExit(code)
+    def wait(timeout: float) -> None:
+        polls.append(timeout)
+        if len(polls) == 3:
+            done.set()
 
-    monkeypatch.setattr(study_worker.os, "_exit", exit_worker)
-    with pytest.raises(SystemExit) as outcome:
-        study_worker._beat(job_dir, threading.Event(), "worker-a")
-    assert outcome.value.code == study_worker.STOPPED_EXIT_CODE
-    assert job_status(job_dir).phase == "stopped"
+    monkeypatch.setattr(study_worker._thread, "interrupt_main", interrupts.append)
+    monkeypatch.setattr(done, "wait", wait)
+
+    study_worker._beat(job_dir, done, "worker-a")
+
+    assert interrupts == [signal.SIGTERM]
+    assert job_status(job_dir).phase == "stopping"
+    assert not (job_dir / "outcome.json").exists(), "only the owning thread can acknowledge its completed cleanup"
 
 
 def test_stop_ends_the_detached_worker_without_terminal_study_cancellation(tmp_path: Path) -> None:
@@ -152,6 +161,66 @@ def test_stop_ends_the_detached_worker_without_terminal_study_cancellation(tmp_p
     assert (job_dir / "heartbeat.json").stat().st_mtime == beat
 
 
+def test_stop_during_an_atomic_attempt_write_cleans_up_before_acknowledgment(tmp_path: Path) -> None:
+    study = create_study(_tiny_spec(seeds=[0]), output=tmp_path / "study")
+    job_dir = job_dir_for(study.root, study.study_id)
+    job_dir.mkdir(parents=True)
+    write_json(job_dir / "job.json", {"operation": "run", "started_at": time.time()})
+    # Stop precisely while an attempt's temporary file is open. A hard process
+    # exit strands that file and makes the canonical study unreadable.
+    script = """
+import sys
+import time
+from pathlib import Path
+from vamos.experiment.study import writing
+from vamos.ux.studio import study_worker
+
+original_write = writing.write_bytes_atomic
+original_fsync = writing.os.fsync
+inside_attempt = False
+
+def write(path, payload):
+    global inside_attempt
+    inside_attempt = path.parent.name == "attempts"
+    try:
+        original_write(path, payload)
+    finally:
+        inside_attempt = False
+
+def fsync(fd):
+    if inside_attempt:
+        Path(sys.argv[2], "inside-attempt-write").touch()
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline:
+            time.sleep(0.05)
+        raise RuntimeError("the test did not stop the worker")
+    original_fsync(fd)
+
+writing.write_bytes_atomic = write
+writing.os.fsync = fsync
+raise SystemExit(study_worker.main([
+    "--study", sys.argv[1], "--job-dir", sys.argv[2], "--operation", "run"
+]))
+"""
+    process = subprocess.Popen([sys.executable, "-c", script, str(study.root), str(job_dir)])
+    try:
+        deadline = time.monotonic() + 30
+        while not (job_dir / "inside-attempt-write").exists() and time.monotonic() < deadline:
+            assert process.poll() is None, "worker exited before the interrupted write"
+            time.sleep(0.05)
+        assert (job_dir / "inside-attempt-write").exists()
+        assert list(study.root.rglob(".tmp-*")), "the test must interrupt an actual open temporary file"
+        assert stop_job(job_dir).phase in {"stopping", "stopped"}
+        assert process.wait(timeout=30) == study_worker.STOPPED_EXIT_CODE
+        assert job_status(job_dir).phase == "stopped"
+        assert not list(study.root.rglob(".tmp-*"))
+        assert load_study(study.root).resume().status == "completed"
+    finally:
+        if process.poll() is None:
+            process.kill()
+        process.wait()
+
+
 def test_a_starting_runner_cannot_be_stopped_or_doubled(tmp_path: Path) -> None:
     study = create_study(_tiny_spec(), output=tmp_path / "study")
     job_dir = job_dir_for(study.root, study.study_id)
@@ -170,6 +239,7 @@ def test_worker_runs_the_study_and_records_its_outcome(tmp_path: Path) -> None:
     job_dir.mkdir()
     write_json(job_dir / "job.json", {"operation": "run", "started_at": time.time()})
 
+    previous_handler = signal.getsignal(signal.SIGTERM)
     code = study_worker.main(["--study", str(study.root), "--job-dir", str(job_dir), "--operation", "run"])
 
     status = job_status(job_dir)
@@ -177,6 +247,7 @@ def test_worker_runs_the_study_and_records_its_outcome(tmp_path: Path) -> None:
     assert status.phase == "finished"
     assert "completed" in status.message
     assert (job_dir / "heartbeat.json").is_file()
+    assert signal.getsignal(signal.SIGTERM) == previous_handler
 
 
 def test_worker_reports_an_operation_the_study_refuses(tmp_path: Path) -> None:

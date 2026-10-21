@@ -11,10 +11,12 @@ Issues, pull requests, releases, and development are coordinated there. See
 VAMOS bridges the gap between simple research scripts and large-scale optimization studies. It provides a unified API for running state-of-the-art algorithms across diverse problems, backed by vectorized kernels with NumPy as the exact reference path and optional Numba acceleration for core kernels.
 
 VAMOS 1.0.0 is the first official public release and compatibility baseline.
-VAMOS 1.0.2 extends the optional Numba engine to every built-in algorithm, with
-the same trajectories as the NumPy engine for a given seed and environment; see the
-[1.0.2 release notes](docs/project/release-notes-1.0.2.md) and the
-[1.0.1 release notes](docs/project/release-notes-1.0.1.md).
+VAMOS 1.1.0 corrects constraint handling, adds durable batches and statistical
+comparison to Studio, and lets explicit `engine="auto"` prefer Numba across
+all nine built-in algorithms. See the
+[1.1.0 release notes](docs/project/release-notes-1.1.0.md), including the impact
+on constrained experiments, and the earlier
+[1.0.2 release notes](docs/project/release-notes-1.0.2.md).
 Earlier version strings and Git tags were internal pre-public development
 markers, not prior public releases. See the
 [stability policy](docs/project/stability-and-versioning.md) and
@@ -82,7 +84,7 @@ pip install "smac>=2.0"
 | `numba` | Stable optional | Accelerates core numeric kernels such as variation, tournament selection, and MOEA/D neighborhood updates. |
 | `moocore` | Stable optional | Adds accelerated quality-indicator support, especially hypervolume-style metrics. |
 
-On the development branch after 1.0.2, use `engine="auto"` (CLI: `--engine auto`)
+In VAMOS 1.1.0, use `engine="auto"` (CLI: `--engine auto`)
 to prefer loadable Numba for all nine built-in algorithms, with a NumPy fallback.
 Numba remains optional. Omitting `engine` still selects NumPy, preserving the 1.x
 default; explicit `engine="numba"` fails if unavailable. First use can spend more
@@ -378,7 +380,7 @@ If you use VAMOS in published work, cite it directly:
   title = {VAMOS: Vectorized Architecture for Multiobjective Optimization Studies},
   author = {Rodriguez Uribe, Nicolas and Herr{\'a}n, Alberto and Nebro, Antonio J. and Del Ser, Javier and Colmenar, J. Manuel},
   year = {2026},
-  version = {1.0.2},
+  version = {1.1.0},
   url = {https://github.com/vamos-optimization/VAMOS}
 }
 ```

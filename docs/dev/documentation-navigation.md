@@ -110,6 +110,7 @@ and reachable through the named parent pages even when absent from the menu.
 | [project/release-notes-1.0.0.md](../project/release-notes-1.0.0.md) | Reference | Reference overview; Documentation versions | Keep; contextual links |
 | [project/release-notes-1.0.1.md](../project/release-notes-1.0.1.md) | Reference | Reference overview; Documentation versions | Keep; contextual links |
 | [project/release-notes-1.0.2.md](../project/release-notes-1.0.2.md) | Reference | Reference overview; Documentation versions | Keep; contextual links |
+| [project/release-notes-1.1.0.md](../project/release-notes-1.1.0.md) | Reference | Reference overview; Documentation versions | Keep; contextual links |
 | [project/repository-governance.md](../project/repository-governance.md) | Development | Homepage; Maintainers overview | Keep; contextual links |
 | [project/stability-and-versioning.md](../project/stability-and-versioning.md) | Reference | Homepage; Reference overview; learning indexes | Keep; contextual links |
 | [reference/algorithms.md](../reference/algorithms.md) | Reference | Reference → Algorithms & Backends | Regroup |

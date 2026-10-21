@@ -14,13 +14,9 @@ ZDT1, NSGA-II and MOEA/D, seeds 42 and 43, population 100, NumPy backend,
 10,000 evaluations per run. The two seeds are pooled for each algorithm.
 This is a walkthrough dataset, not evidence that one algorithm is better.*
 
-!!! note "Launcher in VAMOS 1.0.2"
-    The `vamos studio` launcher published in VAMOS 1.0.2 serves a module that
-    does not register its Panel template, which can produce a blank page, and
-    it does not pass its study-path argument to the application. This guide
-    describes the development version, where both are fixed. With 1.0.2, use
-    the stable inspection commands below or the
-    [Python results workflow](understanding-results.md).
+This guide targets **VAMOS 1.1.0**. The launcher now serves the application
+and honors its study directory. Users of 1.0.2 should upgrade to obtain these
+fixes and the durable batch and comparison pages described here.
 
 ### Prepare the same data
 
@@ -88,7 +84,7 @@ ranking table shown on the page, filters included. Use the
 Studio's optional dependencies are installed from PyPI:
 
 ```bash
-python -m pip install "vamos-optimization[studio]==1.0.2"
+python -m pip install "vamos-optimization[studio]==1.1.0"
 ```
 
 The packaged command and its intended study-root argument are:
@@ -96,9 +92,6 @@ The packaged command and its intended study-root argument are:
 ```bash
 vamos studio --study-dir results/studio-demo
 ```
-
-With VAMOS 1.0.2, this command has the launcher limitation described above;
-reinstalling the optional dependencies does not fix it.
 
 The server binds to `127.0.0.1:5006` by default. To choose another loopback
 address or port:
@@ -223,7 +216,9 @@ process's heartbeat, outcome, and log next to the study, in
 `.vamos-studio/jobs/<study-id>/`, and never writes inside the study itself.
 
 **Stop** addresses a request to the current worker's unique token. The worker
-checks requests every 0.25 seconds and ends its own process; Studio never
+checks requests every 0.25 seconds and interrupts its owning thread, allowing
+file cleanup to finish before reporting a stop. A native calculation must
+return control to Python before that interruption can take effect. Studio never
 signals a process by its id, which the system may have given to another
 program after a crash. Studio shows **stopping** until the worker acknowledges
 the request; a stale heartbeat is reported as lost, not as a confirmed stop.

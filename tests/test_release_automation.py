@@ -285,7 +285,7 @@ def test_release_workflows_are_parseable_pinned_and_cover_claimed_matrix() -> No
     assert "release_smoke.py" in release
     assert "test_security_models.py" in release
     assert "vamos-${{ env.VAMOS_RELEASE_VERSION }}-frozen" in release
-    assert "release/final-1.0.2" in release
+    assert "release/final-1.1.0" in release
     assert "--tag-state pre-release" in release
 
 

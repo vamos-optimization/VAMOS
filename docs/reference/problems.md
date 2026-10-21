@@ -2,7 +2,7 @@
 
 Choose a problem by its **formulation, encoding and dimensions**, then check the
 [algorithm compatibility matrix](algorithms.md). This catalog describes the
-136 registered problems in VAMOS **1.0.2**. The named selection helpers are
+136 registered problems in VAMOS **1.1.0**. The named selection helpers are
 [stable public APIs](../project/stability-and-versioning.md). A synthetic or
 engineering benchmark is a test model, not a validated model of your application.
 
@@ -95,14 +95,14 @@ algorithm with the required constraint support in the [matrix](algorithms.md).
 | `mw11` | 15 | 2 | 4 | Actual M fixed at 2 | [MW][constrained] | None packaged |
 | `mw4`, `mw8`, `mw14` | 15 | 3 | 1 | Configurable M | [MW][constrained] | None packaged |
 
-In 1.0.2, the registry accepts an objective override for every MW key, but only
+In 1.1.0, the registry accepts an objective override for every MW key, but only
 MW4, MW8 and MW14 actually change their objective count. Use the instantiated
 problem's `n_obj` and keep the other MW cases at two objectives.
 
 In 1.0.2, `cec2009_cf1` did not declare its constraint, so algorithms ran it as
 an unconstrained problem; it also stored the CEC2009 constraint `c(x) >= 0`
 without changing its sign and searched `[-1, 1]` for variables 2 to n.
-**Development after 1.0.2:** CF1 declares its constraint, stores `G = -c(x)` so
+**VAMOS 1.1.0:** CF1 declares its constraint, stores `G = -c(x)` so
 that `G <= 0` is feasible, and uses the CEC2009 domain `[0, 1]^n`.
 
 ## Binary, integer, mixed and permutation examples
@@ -178,7 +178,7 @@ The default bounds and discrete choices are fixed by the linked implementation.
 | `re61` — water resource planning | Real | 3 / 6 | f₆ | Fixed design bounds | [RE6/9][re69] | 6D |
 | `re91` — car cab | Real | 7 / 9 | No separate violation objective | **Deterministic** mean-value evaluation (`stochastic=False`) | [RE6/9][re69] | 9D |
 
-Version 1.0.2 has stale descriptive labels for several RE registry entries.
+Version 1.1.0 has stale descriptive labels for several RE registry entries.
 In particular, the `re24` selection metadata reports four variables while its
 factory creates the two-variable hatch-cover formulation. The table follows
 the implementation; inspect `problem.n_var` after instantiation and use
@@ -207,7 +207,7 @@ implementation converts maximization goals to negative objective values.
 
 ### Learning and mixed engineering examples
 
-Install `python -m pip install "vamos-optimization[examples]==1.0.2"` for the two
+Install `python -m pip install "vamos-optimization[examples]==1.1.0"` for the two
 classifier examples. The base package is sufficient for `welded_beam`.
 See [Installation](../guide/installation.md) for environments and extras.
 
@@ -224,17 +224,19 @@ held-out test estimates. Both public classes also accept the wine dataset,
 which changes `fs_real` to 13 decision variables; named registry selection uses
 the defaults above.
 
-**VAMOS 1.0.2 constraint metadata:** `WeldedBeamDesignProblem` emits four
-residual columns but requires an explicit `problem.n_constraints = 4` before
-optimization to activate them. Follow the verified [engineering lesson](../tutorials/engineering-design.md),
-which declares this field and checks the returned `G` before selecting a design.
-**Development after 1.0.2:** the class declares its four constraints, so
-`welded_beam` from the registry is constrained without that assignment, which
-remains harmless.
+**VAMOS 1.1.0 constraint metadata:** `WeldedBeamDesignProblem` declares its
+four constraint columns, so registry-created problems enforce them. In 1.0.2,
+an explicit `problem.n_constraints = 4` was required; that assignment remains
+harmless. Follow the [engineering lesson](../tutorials/engineering-design.md)
+and inspect the returned `G` before selecting a design.
 
 `welded_beam` is VAMOS's six-variable mixed design example; it is a different
 formulation from the four-variable, three-objective `re32`. Its four emitted G
 columns are shear stress, normal stress, deflection and the `h <= b` condition.
+Its formulas are not certified as the canonical four-variable welded-beam
+benchmark. Likewise, `cec2009_uf3` currently uses `[-1, 1]` for variables 2 to n,
+so its domain needs independent reference validation before use as canonical
+CEC2009 UF3. See [Known limitations](../project/known-limitations.md).
 
 ## Reference fronts
 
@@ -249,7 +251,7 @@ compatibility or a certified optimum.
   their registered default is three objectives. Supply a matching reference for
   default runs; do not use those two-column files for three-objective indicators.
 - ZCAT supplies dimension-specific samples at M = 2, 3, 4 and 6. Other objective
-  counts need a supplied reference; 1.0.2's automatic lookup can otherwise fall
+  counts need a supplied reference; 1.1.0's automatic lookup can otherwise fall
   back to a 2D file.
 - RE/RWA samples have the dimensions shown above. Their presence does not imply
   that every sample point is a certified global Pareto optimum.

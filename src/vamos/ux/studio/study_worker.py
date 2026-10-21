@@ -7,9 +7,11 @@ a heartbeat that Studio reads, and records how the operation ended.
 
 from __future__ import annotations
 
+import _thread
 import argparse
 import logging
 import os
+import signal
 import threading
 import time
 import traceback
@@ -32,16 +34,26 @@ from vamos.ux.studio.study_jobs import (
 STOPPED_EXIT_CODE = 3
 
 
+class _StopRequested(BaseException):
+    """Unwind the owning thread without cancelling the durable study."""
+
+
+def _interrupt_worker(_signum: int, _frame: object) -> None:
+    raise _StopRequested
+
+
 def _beat(job_dir: Path, stop: threading.Event, worker_id: str) -> None:
     next_beat = 0.0
+    requested = False
     while not stop.is_set():
         try:
             request = _read_json(job_dir / STOP_FILE)
-            if request is not None and request.get("worker_id") == worker_id:
-                write_json(job_dir / OUTCOME_FILE, {"status": "stopped", "message": STOPPED_BY_RUNNER, "time": time.time()})
-                # End this worker, including its optimization thread. The study
-                # remains resumable, just as after external process termination.
-                os._exit(STOPPED_EXIT_CODE)
+            if not requested and request is not None and request.get("worker_id") == worker_id:
+                requested = True
+                # Schedule an exception in this process's owning thread. Unlike
+                # os._exit(), unwinding executes atomic writers' cleanup before
+                # main() acknowledges the stop. No signal is sent to a PID.
+                _thread.interrupt_main(signal.SIGTERM)
             if time.monotonic() >= next_beat:
                 write_json(job_dir / HEARTBEAT_FILE, {"pid": os.getpid(), "worker_id": worker_id, "time": time.time()})
                 next_beat = time.monotonic() + HEARTBEAT_SECONDS
@@ -75,18 +87,29 @@ def main(argv: Sequence[str] | None = None) -> int:
     job_dir = Path(args.job_dir)
     stop = threading.Event()
     heartbeat = threading.Thread(target=_beat, args=(job_dir, stop, uuid.uuid4().hex), name="vamos-studio-heartbeat", daemon=True)
-    heartbeat.start()
+    previous_handler = signal.signal(signal.SIGTERM, _interrupt_worker)
     try:
-        state = run_operation(Path(args.study), args.operation, retry_failed=args.retry_failed)
+        try:
+            heartbeat.start()
+            state = run_operation(Path(args.study), args.operation, retry_failed=args.retry_failed)
+        finally:
+            stop.set()
+            if heartbeat.ident is not None:
+                heartbeat.join()
+    except _StopRequested:
+        outcome: dict[str, object] = {"status": "stopped", "message": STOPPED_BY_RUNNER, "time": time.time()}
+        code = STOPPED_EXIT_CODE
     except BaseException as exc:  # Report every ending, including an interrupt.
         traceback.print_exc()
-        write_json(job_dir / OUTCOME_FILE, {"status": "failed", "message": f"{type(exc).__name__}: {exc}", "time": time.time()})
-        return 1
+        outcome = {"status": "failed", "message": f"{type(exc).__name__}: {exc}", "time": time.time()}
+        code = 1
+    else:
+        outcome = {"status": "finished", "message": f"the study is {state}", "state": state, "time": time.time()}
+        code = 0
     finally:
-        stop.set()
-        heartbeat.join()
-    write_json(job_dir / OUTCOME_FILE, {"status": "finished", "message": f"the study is {state}", "state": state, "time": time.time()})
-    return 0
+        signal.signal(signal.SIGTERM, previous_handler)
+    write_json(job_dir / OUTCOME_FILE, outcome)
+    return code
 
 
 if __name__ == "__main__":
