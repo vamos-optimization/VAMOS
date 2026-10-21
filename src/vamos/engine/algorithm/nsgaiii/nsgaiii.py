@@ -24,6 +24,7 @@ from vamos.engine.algorithm.components.hooks import (
 from vamos.engine.algorithm.components.lifecycle import evaluate_batch
 from vamos.engine.algorithm.components.termination import HVTracker, capped_offspring_size
 from vamos.engine.algorithm.components.utils import variation_operator_label
+from vamos.engine.algorithm.nsgaii.state import compute_selection_metrics
 from vamos.foundation.kernel import default_kernel
 from vamos.foundation.kernel.backend import DecisionArray, FloatArray
 
@@ -43,6 +44,26 @@ from vamos.foundation.observer import RunContext
 __all__ = ["NSGAIII"]
 
 
+def _offspring_constraints(G: Any, F: FloatArray, population_G: FloatArray | None, constraint_mode: str) -> FloatArray | None:
+    """Offspring constraint values for survival; required while the population carries constraints."""
+    if constraint_mode == "none" or population_G is None:
+        return None
+    if G is None:
+        raise ValueError(
+            "NSGA-III requires constraint values G when constraint handling is active "
+            f"for a population with {population_G.shape[1]} constraint(s)."
+        )
+    offspring_G = np.asarray(G, dtype=float)
+    if offspring_G.ndim == 1:
+        offspring_G = offspring_G.reshape(-1, 1)
+    if offspring_G.shape != (F.shape[0], population_G.shape[1]):
+        raise ValueError(
+            f"NSGA-III constraint values G must align row-wise with objective values F and have "
+            f"{population_G.shape[1]} column(s); got shape {offspring_G.shape} for {F.shape[0]} offspring."
+        )
+    return offspring_G
+
+
 class NSGAIII:
     """Non-dominated Sorting Genetic Algorithm III for many-objective optimization."""
 
@@ -57,7 +78,7 @@ class NSGAIII:
         self._problem: ProblemProtocol | None = None
 
     def _refresh_selection_metrics(self, st: NSGAIIIState) -> None:
-        ranks, crowd = self.kernel.nsga2_ranking(st.F)
+        ranks, crowd = compute_selection_metrics(self.kernel, st.F, st.G, st.constraint_mode)
         st.selection_ranks = np.asarray(ranks, dtype=int)
         st.selection_crowding = np.asarray(crowd, dtype=float)
 
@@ -253,7 +274,6 @@ class NSGAIII:
         st = self._st
         X_off = st.pending_offspring
         assert X_off is not None
-        st.pending_offspring = None
 
         if hasattr(eval_result, "F"):
             F = np.asarray(eval_result.F, dtype=float)
@@ -264,6 +284,8 @@ class NSGAIII:
         else:
             F = np.asarray(eval_result, dtype=float)
             G = None
+        G = _offspring_constraints(G, F, st.G, st.constraint_mode)
+        st.pending_offspring = None
 
         ids_combined = None
         if st.ids is not None and st.pending_offspring_ids is not None:

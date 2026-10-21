@@ -222,9 +222,12 @@ Studio server; opening the page again reconnects to it. Studio keeps the
 process's heartbeat, outcome, and log next to the study, in
 `.vamos-studio/jobs/<study-id>/`, and never writes inside the study itself.
 
-**Stop** asks the background process to end, and it does within a second; Studio
-never signals a process by its id, which the system may have given to another
-program after a crash. The run in progress is lost and
+**Stop** addresses a request to the current worker's unique token. The worker
+checks requests every 0.25 seconds and ends its own process; Studio never
+signals a process by its id, which the system may have given to another
+program after a crash. Studio shows **stopping** until the worker acknowledges
+the request; a stale heartbeat is reported as lost, not as a confirmed stop.
+The run in progress is lost and
 the study stays `running`; **Resume** reconciles the study and continues with
 the pending runs, rerunning the interrupted one. Resuming requires the same
 runtime and dependency build that produced the earlier runs. **Retry failed

@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from vamos.foundation.constraints.utils import compute_violation, is_feasible
+
 if TYPE_CHECKING:
     from vamos.foundation.kernel.backend import KernelBackend
     from vamos.foundation.problem.types import ProblemProtocol
@@ -299,11 +301,70 @@ def nsgaiii_survival(
     tuple
         (X_new, F_new, G_new, survivor_indices) where survivor_indices
         are indices into the combined [X, X_off] array.
+
+    Notes
+    -----
+    With constraint values, feasible solutions come first (Jain and Deb, 2014):
+    when more solutions are feasible than survive, reference-direction niching
+    selects among the feasible ones only; otherwise every feasible solution
+    survives and the least violated infeasible ones fill the population.
     """
     X_all = np.vstack([X, X_off])
     F_all = np.vstack([F, F_off])
     G_all = np.vstack([G, G_off]) if G is not None and G_off is not None else None
 
+    candidates: np.ndarray[Any, Any] | None = None
+    if G_all is not None:
+        feasible_mask = is_feasible(G_all)
+        feasible = np.flatnonzero(feasible_mask)
+        if feasible.size <= pop_size:
+            infeasible = np.flatnonzero(~feasible_mask)
+            by_violation = infeasible[np.argsort(compute_violation(G_all)[infeasible], kind="stable")]
+            survivor_arr = np.concatenate([feasible, by_violation[: pop_size - feasible.size]]).astype(int)
+            return (
+                X_all[survivor_arr],
+                F_all[survivor_arr],
+                G_all[survivor_arr],
+                survivor_arr,
+                ideal_point,
+                extreme_points,
+                worst_point,
+            )
+        candidates = feasible
+
+    local, ideal_point, extreme_points, worst_point = _reference_direction_survival(
+        F_all if candidates is None else F_all[candidates],
+        pop_size,
+        ref_dirs_norm,
+        rng,
+        ideal_point,
+        extreme_points,
+        worst_point,
+        kernel,
+    )
+    survivor_arr = local if candidates is None else candidates[local]
+    return (
+        X_all[survivor_arr],
+        F_all[survivor_arr],
+        G_all[survivor_arr] if G_all is not None else None,
+        survivor_arr,
+        ideal_point,
+        extreme_points,
+        worst_point,
+    )
+
+
+def _reference_direction_survival(
+    F_all: np.ndarray[Any, Any],
+    pop_size: int,
+    ref_dirs_norm: np.ndarray[Any, Any],
+    rng: np.random.Generator,
+    ideal_point: np.ndarray[Any, Any],
+    extreme_points: np.ndarray[Any, Any] | None,
+    worst_point: np.ndarray[Any, Any],
+    kernel: KernelBackend | None,
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any] | None, np.ndarray[Any, Any]]:
+    """Select ``pop_size`` rows of ``F_all`` by non-dominated fronts and reference-direction niching."""
     if kernel is not None:
         ranks, _ = kernel.nsga2_ranking(F_all)
         fronts = _fronts_from_ranks(ranks)
@@ -347,16 +408,7 @@ def nsgaiii_survival(
         selected_idx = niche_selection(last_front, remaining, niche_counts, associations, distances, rng)
         survivor_indices.extend(selected_idx.tolist())
 
-    survivor_arr = np.asarray(survivor_indices, dtype=int)
-    return (
-        X_all[survivor_arr],
-        F_all[survivor_arr],
-        G_all[survivor_arr] if G_all is not None else None,
-        survivor_arr,
-        ideal_point,
-        extreme_points,
-        worst_point,
-    )
+    return np.asarray(survivor_indices, dtype=int), ideal_point, extreme_points, worst_point
 
 
 def evaluate_population_with_constraints(

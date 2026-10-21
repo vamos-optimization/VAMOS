@@ -20,6 +20,7 @@ from vamos.engine.algorithm.components.population import (
     resolve_bounds,
 )
 from vamos.engine.algorithm.components.termination import parse_termination, validate_initial_budget
+from vamos.engine.algorithm.config.base import normalize_constraint_mode
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
 from vamos.engine.operators.policies.ibea import build_variation_pipeline
 from vamos.foundation.encoding import normalize_encoding
@@ -84,7 +85,7 @@ def initialize_ibea_run(
     n_var = problem.n_var
     n_obj = problem.n_obj
     xl, xu = resolve_bounds(problem, encoding)
-    constraint_mode = cfg.get("constraint_mode", "none")
+    constraint_mode = normalize_constraint_mode(cfg.get("constraint_mode", "feasibility"))
 
     # Initialize population
     initializer_cfg = cfg.get("initializer")

@@ -219,6 +219,11 @@ def _await_worker_result(result_queue: Any, process: Any, timeout_seconds: float
                 process.terminate()
                 process.join(timeout=1.0)
                 raise InterruptedError("Stopped from Studio.") from None
+            if time.monotonic() >= deadline:
+                if process.is_alive():
+                    process.terminate()
+                process.join(timeout=1.0)
+                raise TimeoutError(f"Preview timed out after {timeout_seconds:.1f}s. Try simpler code or a smaller budget.") from None
             if not process.is_alive():
                 try:
                     result = result_queue.get(timeout=1.0)
@@ -227,10 +232,6 @@ def _await_worker_result(result_queue: Any, process: Any, timeout_seconds: float
                         raise RuntimeError(f"Preview worker exited unexpectedly (exit code {process.exitcode}).") from exc
                     raise RuntimeError("Preview worker finished without returning a result.") from exc
                 break
-            if time.monotonic() >= deadline:
-                process.terminate()
-                process.join(timeout=1.0)
-                raise TimeoutError(f"Preview timed out after {timeout_seconds:.1f}s. Try simpler code or a smaller budget.") from None
             continue
         break
     process.join(timeout=5.0)

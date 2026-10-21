@@ -45,6 +45,32 @@ All notable public changes to VAMOS are documented here.
 
 ### Fixed
 
+- Studio stop requests address a unique worker token; workers exit themselves,
+  so a reused process ID cannot target an unrelated process. Wildcard remote
+  binds accept the computer's host names and addresses, and live runs record
+  the final generation once.
+- Preview timeouts retain their timeout diagnosis when the worker exits at the
+  deadline; crashes before the deadline remain distinct worker errors.
+- The registered `cec2009_cf1` and `welded_beam` problems declare their
+  constraints, so algorithms enforce them; they used to run as unconstrained
+  problems. CF1 also stores its CEC2009 constraint with the VAMOS sign
+  (`G <= 0` is feasible; it was inverted) and uses the CEC2009 domain
+  `[0, 1]^n` instead of `[-1, 1]` for variables 2 to n.
+- IBEA's constraint penalty raised the fitness of infeasible solutions, so its
+  environmental selection removed feasible solutions first. Infeasible
+  solutions are now removed first, in decreasing order of violation.
+- NSGA-III enforces constraints: its survival keeps feasible solutions before
+  infeasible ones and its parent tournament ranks them first, instead of
+  ranking objective values only.
+- With `result_mode="non_dominated"`, NSGA-II, NSGA-III, MOEA/D, SMS-EMOA,
+  IBEA and SPEA2 return the non-dominated feasible solutions whenever the final
+  population has any, as AGE-MOEA, RVEA and SMPSO already did, instead of
+  returning infeasible solutions that dominate feasible ones.
+- `constraint_mode` rejects values other than `"feasibility"` and `"none"`.
+  `"penalty"`, `"epsilon"` and any other value were accepted and behaved exactly
+  like `"feasibility"` in every algorithm.
+- SPEA2 runs with `constraint_mode="none"` on constrained problems instead of
+  failing with an `IndexError` after the first generation.
 - Refresh the reviewed dependency set, the canonical mypy 2.4.0 environment,
   and its exact diagnostic baseline. Pair PyMdown 12.3 with mkdocstrings 1.0.8
   on Python 3.11+, retaining the compatible documentation pair on Python 3.10.

@@ -15,7 +15,7 @@ from typing import Any
 
 import numpy as np
 
-from vamos.engine.algorithm.components.results import get_external_archive_contents, wants_population_result
+from vamos.engine.algorithm.components.results import feasible_result_indices, get_external_archive_contents, wants_population_result
 from vamos.engine.algorithm.components.state import AlgorithmState
 
 
@@ -35,22 +35,22 @@ class SPEA2State(AlgorithmState):
     """
 
     # SPEA2-specific internal archive (from environmental selection)
-    env_X: np.ndarray | None = None
-    env_F: np.ndarray | None = None
-    env_G: np.ndarray | None = None
+    env_X: np.ndarray[Any, Any] | None = None
+    env_F: np.ndarray[Any, Any] | None = None
+    env_G: np.ndarray[Any, Any] | None = None
     env_archive_size: int = 100
 
     # Algorithm parameters
     k_neighbors: int | None = None
 
     # Variation operators (callables)
-    crossover_fn: Callable[[np.ndarray, np.random.Generator], np.ndarray] | None = None
-    mutation_fn: Callable[[np.ndarray, np.random.Generator], np.ndarray] | None = None
-    xl: np.ndarray | None = None
-    xu: np.ndarray | None = None
-    _fused_offspring: np.ndarray | None = field(default=None, repr=False, compare=False)
-    selection_raw_fitness: np.ndarray | None = field(default=None, repr=False, compare=False)
-    selection_density: np.ndarray | None = field(default=None, repr=False, compare=False)
+    crossover_fn: Callable[[np.ndarray[Any, Any], np.random.Generator], np.ndarray[Any, Any]] | None = None
+    mutation_fn: Callable[[np.ndarray[Any, Any], np.random.Generator], np.ndarray[Any, Any]] | None = None
+    xl: np.ndarray[Any, Any] | None = None
+    xu: np.ndarray[Any, Any] | None = None
+    _fused_offspring: np.ndarray[Any, Any] | None = field(default=None, repr=False, compare=False)
+    selection_raw_fitness: np.ndarray[Any, Any] | None = field(default=None, repr=False, compare=False)
+    selection_density: np.ndarray[Any, Any] | None = field(default=None, repr=False, compare=False)
 
 
 def build_spea2_result(state: SPEA2State, hv_reached: bool = False) -> dict[str, Any]:
@@ -80,9 +80,12 @@ def build_spea2_result(state: SPEA2State, hv_reached: bool = False) -> dict[str,
     else:
         assert state.env_X is not None
         assert state.env_F is not None
-        result_X = state.env_X
-        result_F = state.env_F
-        result_G = state.env_G if state.constraint_mode != "none" else None
+        if state.env_G is not None and state.constraint_mode != "none":
+            # The environmental archive is the result; keep its feasible members when it has any.
+            selected = feasible_result_indices(state.env_F, state.env_G, state.constraint_mode)
+            result_X, result_F, result_G = state.env_X[selected], state.env_F[selected], state.env_G[selected]
+        else:
+            result_X, result_F, result_G = state.env_X, state.env_F, None
 
     result: dict[str, Any] = {
         "X": result_X,

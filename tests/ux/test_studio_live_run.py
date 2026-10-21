@@ -55,6 +55,15 @@ def test_live_run_keeps_a_bounded_number_of_fronts() -> None:
     assert live.snapshots[-1][0] >= 4 * MAX_SNAPSHOTS
 
 
+def test_final_front_is_recorded_when_generation_was_not_sampled() -> None:
+    live = LiveRun(budget=40)
+    live._stride = 2
+    live.on_generation(2, F=np.zeros((3, 2)))
+    live.on_generation(3, F=np.ones((3, 2)))
+    live.on_end(final_F=np.ones((1, 2)))
+    assert [number for number, _ in live.snapshots] == [2, 3]
+
+
 def test_the_final_front_replaces_a_generation_already_recorded() -> None:
     live = LiveRun(budget=1000)
 

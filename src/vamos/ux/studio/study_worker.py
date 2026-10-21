@@ -13,6 +13,7 @@ import os
 import threading
 import time
 import traceback
+import uuid
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -21,28 +22,31 @@ from vamos.ux.studio.study_jobs import (
     HEARTBEAT_FILE,
     HEARTBEAT_SECONDS,
     OUTCOME_FILE,
+    STOP_FILE,
     STOP_POLL_SECONDS,
     STOPPED_BY_RUNNER,
-    stop_requested,
+    _read_json,
     write_json,
 )
 
 STOPPED_EXIT_CODE = 3
 
 
-def _beat(job_dir: Path, stop: threading.Event) -> None:
-    """Refresh the heartbeat, and end this process when Studio asks it to stop."""
+def _beat(job_dir: Path, stop: threading.Event, worker_id: str) -> None:
     next_beat = 0.0
     while not stop.is_set():
-        if stop_requested(job_dir):
-            write_json(job_dir / OUTCOME_FILE, {"status": "stopped", "message": STOPPED_BY_RUNNER, "time": time.time()})
-            os._exit(STOPPED_EXIT_CODE)  # Ends the study operation wherever it is, like a terminal interrupt.
-        if time.monotonic() >= next_beat:
-            try:
-                write_json(job_dir / HEARTBEAT_FILE, {"pid": os.getpid(), "time": time.time()})
-            except OSError:  # A missed beat only ages the heartbeat; the next one retries.
-                logging.getLogger(__name__).debug("Cannot write the Studio heartbeat.", exc_info=True)
-            next_beat = time.monotonic() + HEARTBEAT_SECONDS
+        try:
+            request = _read_json(job_dir / STOP_FILE)
+            if request is not None and request.get("worker_id") == worker_id:
+                write_json(job_dir / OUTCOME_FILE, {"status": "stopped", "message": STOPPED_BY_RUNNER, "time": time.time()})
+                # End this worker, including its optimization thread. The study
+                # remains resumable, just as after external process termination.
+                os._exit(STOPPED_EXIT_CODE)
+            if time.monotonic() >= next_beat:
+                write_json(job_dir / HEARTBEAT_FILE, {"pid": os.getpid(), "worker_id": worker_id, "time": time.time()})
+                next_beat = time.monotonic() + HEARTBEAT_SECONDS
+        except OSError:  # A missed beat only ages the heartbeat; the next one retries.
+            logging.getLogger(__name__).debug("Cannot write the Studio heartbeat.", exc_info=True)
         stop.wait(STOP_POLL_SECONDS)
 
 
@@ -70,7 +74,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     job_dir = Path(args.job_dir)
     stop = threading.Event()
-    heartbeat = threading.Thread(target=_beat, args=(job_dir, stop), name="vamos-studio-heartbeat", daemon=True)
+    heartbeat = threading.Thread(target=_beat, args=(job_dir, stop, uuid.uuid4().hex), name="vamos-studio-heartbeat", daemon=True)
     heartbeat.start()
     try:
         state = run_operation(Path(args.study), args.operation, retry_failed=args.retry_failed)
@@ -80,6 +84,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
     finally:
         stop.set()
+        heartbeat.join()
     write_json(job_dir / OUTCOME_FILE, {"status": "finished", "message": f"the study is {state}", "state": state, "time": time.time()})
     return 0
 
