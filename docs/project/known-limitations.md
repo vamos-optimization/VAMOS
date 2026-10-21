@@ -24,9 +24,14 @@ unsupported behavior rather than future compatibility promises.
 - Independent algorithm-conformance validation for AGE-MOEA, RVEA and SMPSO
   remains pending. Passing API and regression tests does not establish
   convergence equivalence with a reference implementation.
-- IBEA still replaces nonfinite exponential indicator contributions with zero.
-  Extreme indicator scales require particular care; the constraint-penalty
-  correction does not resolve this separate numerical limitation.
+- **Development after 1.1.0:** IBEA no longer counts an overflowing
+  exponential indicator contribution as zero, and its hypervolume indicator is
+  correctly oriented and adaptively scaled. VAMOS 1.1.0 and earlier have both
+  defects; see the [IBEA indicator corrections](../reference/algorithms.md#ibea-indicator-corrections).
+  The epsilon indicator is unscaled, so objective units still shape its
+  selection pressure. With `indicator="hypervolume"`, far-dominated solutions
+  in early populations dominate the normalization, which slows convergence on
+  problems such as DTLZ1.
 
 ## Backends and optional dependencies
 

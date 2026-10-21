@@ -4,6 +4,21 @@ All notable public changes to VAMOS are documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- IBEA with `indicator="hypervolume"` used the hypervolume-difference indicator
+  with the opposite orientation, so it removed the solutions with the largest
+  exclusive hypervolume first and kept dominated ones; on ZDT1 and DTLZ2 its
+  final populations never reached the reference box. It now follows Zitzler and
+  Künzli's `I_HD` with adaptive scaling, as jMetal does. Rerun hypervolume-based
+  IBEA experiments from earlier versions.
+- IBEA counted an exponential indicator contribution beyond the float64 range
+  as zero, which made a solution dominated by a wide margin look best (with
+  `kappa=0.05`, once another solution was better by more than about 35.5 in
+  every objective). Such contributions
+  are now rescaled by a common factor, which preserves the selection; runs
+  without overflow are unchanged.
+
 ## [1.1.0] - 2026-10-21
 
 ### Added
