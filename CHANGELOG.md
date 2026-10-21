@@ -52,7 +52,8 @@ All notable public changes to VAMOS are documented here.
   binds accept the computer's host names and addresses, and live runs record
   the final generation once.
 - Preview timeouts retain their timeout diagnosis when the worker exits at the
-  deadline; crashes before the deadline remain distinct worker errors.
+  deadline or receives the operating system's CPU-limit signal; unrelated
+  crashes before the deadline remain distinct worker errors.
 - Stopping a Studio batch unwinds active file writes before acknowledging the
   stop, so temporary attempt files do not prevent loading and resuming it.
 - The registered `cec2009_cf1` and `welded_beam` problems declare their
