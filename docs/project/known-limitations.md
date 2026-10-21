@@ -19,8 +19,9 @@ unsupported behavior rather than future compatibility promises.
 - `welded_beam` is a six-variable mixed design example with its own formulas,
   materials and stiffeners. Its constraint metadata is fixed, but this does
   not certify equivalence to the canonical four-variable welded-beam benchmark.
-- `cec2009_uf3` still searches `[-1, 1]` for variables 2 to n. Treat its domain
-  as pending reference validation rather than assuming canonical CEC2009 UF3.
+- **Development after 1.1.0:** `cec2009_uf3` searches the CEC2009 domain
+  `[0, 1]^n`. VAMOS 1.1.0 and earlier search `[-1, 1]` for variables 2 to n, so
+  UF3 results from those versions do not correspond to the CEC2009 instance.
 - Independent algorithm-conformance validation for AGE-MOEA, RVEA and SMPSO
   remains pending. Passing API and regression tests does not establish
   convergence equivalence with a reference implementation.

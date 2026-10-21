@@ -234,9 +234,12 @@ and inspect the returned `G` before selecting a design.
 formulation from the four-variable, three-objective `re32`. Its four emitted G
 columns are shear stress, normal stress, deflection and the `h <= b` condition.
 Its formulas are not certified as the canonical four-variable welded-beam
-benchmark. Likewise, `cec2009_uf3` currently uses `[-1, 1]` for variables 2 to n,
-so its domain needs independent reference validation before use as canonical
-CEC2009 UF3. See [Known limitations](../project/known-limitations.md).
+benchmark. See [Known limitations](../project/known-limitations.md).
+
+**Development after 1.1.0:** `cec2009_uf3` searches the CEC2009 domain
+`[0, 1]^n`, as in the CEC2009 technical report, jMetal and the MOEA Framework.
+VAMOS 1.1.0 and earlier search `[-1, 1]` for variables 2 to n. The Pareto front
+is the same, but the larger search space changes the problem's difficulty.
 
 ## Reference fronts
 
