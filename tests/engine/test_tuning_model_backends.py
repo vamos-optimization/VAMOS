@@ -102,6 +102,30 @@ def test_conditional_trials_and_history(backend, tmp_path, monkeypatch):
     assert all(trial.config in evaluated for trial in history)
 
 
+def test_native_bohb_is_reproducible_for_a_seed(tmp_path, monkeypatch):
+    pytest.importorskip("hpbandster")
+    pytest.importorskip("ConfigSpace")
+    monkeypatch.chdir(tmp_path)
+
+    def run() -> list[tuple[dict, int]]:
+        tuner = ModelBasedTuner(task=_make_task(), backend="bohb", max_trials=24, seed=7, n_jobs=1, bohb_reduction_factor=2)
+        _, history = tuner.run(_eval_fn, verbose=False)
+        return [(trial.config, trial.details["budget"]) for trial in history]
+
+    # HpBandSter samples from NumPy's global state; whatever the caller left there must not matter.
+    np.random.seed(1)
+    first = run()
+    np.random.seed(2)
+    assert run() == first
+
+    # The run leaves the caller's global state where it found it.
+    np.random.seed(3)
+    expected = np.random.random_sample()
+    np.random.seed(3)
+    run()
+    assert np.random.random_sample() == expected
+
+
 def test_optuna_persists_only_active_parameters(tmp_path):
     optuna = pytest.importorskip("optuna")
     storage = f"sqlite:///{(tmp_path / 'conditional.sqlite3').as_posix()}"

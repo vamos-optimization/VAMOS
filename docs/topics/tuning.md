@@ -267,7 +267,15 @@ are combined with AND, and descendants of an inactive parameter stay inactive.
 The ConfigSpace translation supports comparisons of `cfg['parent']` with a
 scalar literal (`==`, `!=`, `<`, `<=`, `>`, `>=`), boolean parents, and
 `and`/`or`/`not`; any other condition, an unknown parent, or a dependency cycle
-fails with an explicit error before sampling starts.
+fails with an explicit error before sampling starts. `AlgorithmConfigSpace`
+samples and encodes parameters in the same dependency order, so a parameter
+may be declared before its parent.
+
+HpBandSter's native BOHB accepts no seed and samples from NumPy's global random
+state. The `bohb` backend therefore seeds that state from the tuning seed for
+the duration of the search and then restores the caller's state. With one
+worker (`--n-jobs 1`) a native BOHB search is reproducible for a seed; with
+several workers, the order in which results arrive can still change it.
 
 Inactive parameters never changed how a candidate algorithm was built, so the
 scores of studies persisted by earlier versions remain comparable and keep

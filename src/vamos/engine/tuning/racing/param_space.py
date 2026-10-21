@@ -252,6 +252,58 @@ _CMP_OPS: dict[type[ast.AST], Callable[[Any, Any], bool]] = {
 }
 
 
+def _parent_name(node: ast.AST) -> str:
+    if (
+        isinstance(node, ast.Subscript)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "cfg"
+        and isinstance(node.slice, ast.Constant)
+        and isinstance(node.slice.value, str)
+    ):
+        return node.slice.value
+    raise ValueError("Condition parents must use cfg['parameter_name'] with a literal name.")
+
+
+def _condition_parents(expr: str) -> tuple[str, ...]:
+    try:
+        tree = ast.parse(expr, mode="eval")
+    except SyntaxError as exc:
+        raise ValueError(f"Invalid condition syntax: {expr}") from exc
+    return tuple(dict.fromkeys(_parent_name(node) for node in ast.walk(tree) if isinstance(node, ast.Subscript)))
+
+
+def _dependency_order(param_space: ParamSpace) -> tuple[str, ...]:
+    """Parameter names with every parent before the parameters it conditions.
+
+    Parameters keep their declaration order wherever their parents already precede them.
+    """
+    parents: dict[str, list[str]] = {name: [] for name in param_space.params}
+    for condition in param_space.conditions:
+        if condition.param_name not in parents:
+            raise ValueError(f"Condition references unknown parameter '{condition.param_name}'.")
+        for parent in _condition_parents(condition.expr):
+            if parent not in parents:
+                raise ValueError(f"Condition for '{condition.param_name}' references unknown parent '{parent}'.")
+            parents[condition.param_name].append(parent)
+    order: dict[str, None] = {}
+    visiting: set[str] = set()
+
+    def visit(name: str) -> None:
+        if name in order:
+            return
+        if name in visiting:
+            raise ValueError("Conditional parameter dependencies contain a cycle.")
+        visiting.add(name)
+        for parent in parents[name]:
+            visit(parent)
+        visiting.discard(name)
+        order[name] = None
+
+    for name in parents:
+        visit(name)
+    return tuple(order)
+
+
 class _MissingKeyError(Exception):
     """Raised when a condition references a cfg key that is absent (inactive parent)."""
 

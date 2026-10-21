@@ -85,8 +85,10 @@ All notable public changes to VAMOS are documented here.
   dependency cycles fail before sampling. In real-valued operator spaces
   `mutation_eta` is active only for polynomial mutations, so a seeded MOEA/D
   `random` or `racing` search proposes different candidates than 1.0.2.
-- Native BOHB tuning starts without an unsupported `random_state` argument and
-  sends plain Python values to its workers.
+- Native BOHB tuning starts without an unsupported `random_state` argument,
+  sends plain Python values to its workers, and seeds HpBandSter's global NumPy
+  sampling from the tuning seed, restoring the caller's state afterwards, so a
+  single-worker search is reproducible.
 - Refresh the reviewed dependency set, the canonical mypy 2.4.0 environment,
   and its exact diagnostic baseline. Pair PyMdown 12.3 with mkdocstrings 1.0.8
   on Python 3.11+, retaining the compatible documentation pair on Python 3.10.

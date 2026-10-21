@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import ast
-from graphlib import CycleError, TopologicalSorter
 from typing import Any
 
 import numpy as np
 
-from .racing.param_space import Boolean, Categorical, Int, ParamSpace, Real
+from .racing.param_space import Boolean, Categorical, Int, ParamSpace, Real, _condition_parents, _dependency_order, _parent_name
 
 _OPTUNA_SAMPLERS: dict[str, str] = {
     "tpe": "TPESampler",
@@ -19,45 +18,9 @@ _OPTUNA_SAMPLERS: dict[str, str] = {
 }
 
 
-def _parent_name(node: ast.AST) -> str:
-    if (
-        isinstance(node, ast.Subscript)
-        and isinstance(node.value, ast.Name)
-        and node.value.id == "cfg"
-        and isinstance(node.slice, ast.Constant)
-        and isinstance(node.slice.value, str)
-    ):
-        return node.slice.value
-    raise ValueError("Condition parents must use cfg['parameter_name'] with a literal name.")
-
-
-def _condition_parents(expr: str) -> tuple[str, ...]:
-    try:
-        tree = ast.parse(expr, mode="eval")
-    except SyntaxError as exc:
-        raise ValueError(f"Invalid condition syntax: {expr}") from exc
-    return tuple(dict.fromkeys(_parent_name(node) for node in ast.walk(tree) if isinstance(node, ast.Subscript)))
-
-
-def _ordered_param_names(param_space: ParamSpace) -> tuple[str, ...]:
-    """Resolve parents before children, independently of declaration order."""
-    dependencies: dict[str, list[str]] = {name: [] for name in param_space.params}
-    for condition in param_space.conditions:
-        if condition.param_name not in dependencies:
-            raise ValueError(f"Condition references unknown parameter '{condition.param_name}'.")
-        for parent in _condition_parents(condition.expr):
-            if parent not in dependencies:
-                raise ValueError(f"Condition for '{condition.param_name}' references unknown parent '{parent}'.")
-            dependencies[condition.param_name].append(parent)
-    try:
-        return tuple(TopologicalSorter(dependencies).static_order())
-    except CycleError as exc:
-        raise ValueError("Conditional parameter dependencies contain a cycle.") from exc
-
-
 def sample_from_optuna_trial(trial: Any, param_space: ParamSpace) -> dict[str, Any]:
     cfg: dict[str, Any] = {}
-    for name in _ordered_param_names(param_space):
+    for name in _dependency_order(param_space):
         if not param_space.is_active(name, cfg):
             continue
         spec = param_space.params[name]
@@ -122,7 +85,7 @@ def build_configspace(param_space: ParamSpace, seed: int) -> Any:
         UniformIntegerHyperparameter,
     )
 
-    names = _ordered_param_names(param_space)
+    names = _dependency_order(param_space)
     cs = ConfigurationSpace(seed=int(seed))
     for name in names:
         spec = param_space.params[name]

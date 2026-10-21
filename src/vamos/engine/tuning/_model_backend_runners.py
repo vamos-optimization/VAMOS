@@ -287,6 +287,11 @@ def run_bohb_native(tuner: BackendTunerLike, eval_fn: ScoreEvalFn) -> tuple[dict
     ns = None
     optimizer = None
     workers: list[Any] = []
+    # HpBandSter's BOHB accepts no seed: its configuration generator draws from NumPy's global
+    # random state, directly and through SciPy distributions. Seed that state from the tuner
+    # seed (apart from the ConfigSpace stream) for this run and give the caller's state back.
+    caller_random_state = np.random.get_state()
+    np.random.seed(int(np.random.default_rng(int(tuner.seed)).integers(2**32)))
     try:
         ns = hpns.NameServer(run_id=run_id, host="127.0.0.1", port=0)
         ns_host, ns_port = ns.start()
@@ -324,6 +329,7 @@ def run_bohb_native(tuner: BackendTunerLike, eval_fn: ScoreEvalFn) -> tuple[dict
                 ns.shutdown()
             except Exception:
                 _logger().debug("Failed to shutdown BOHB nameserver cleanly.", exc_info=True)
+        np.random.set_state(caller_random_state)
 
     if not history:
         raise RuntimeError("Tuner finished without a valid configuration.")

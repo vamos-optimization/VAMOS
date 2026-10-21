@@ -38,7 +38,8 @@ and `bohb` now honor the conditions of the tuning space, as `random` and
 parents first, and SMAC3 and BOHB receive native ConfigSpace conditions.
 Unsupported conditions, unknown parents and dependency cycles fail before
 sampling. `mutation_eta` is active only for polynomial mutations in real-valued
-operator spaces, and native BOHB no longer passes an unsupported seed argument.
+operator spaces. Native BOHB no longer fails on an unsupported seed argument,
+and a single-worker native BOHB search is reproducible for a seed.
 
 **Reproducibility:** inactive parameters never changed the candidate
 algorithm, so scores of persisted Optuna studies stay comparable and keep their
