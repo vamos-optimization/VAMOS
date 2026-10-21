@@ -42,3 +42,8 @@ bokeh==3.9.2
 pymdown-extensions==12.1 ; python_version < "3.11"
 pymdown-extensions==12.3 ; python_version >= "3.11"
 jax==0.6.2
+# Optional tuning backends, exercised by the Ubuntu Python 3.12 test job.
+optuna==5.0.0
+smac==2.4.1
+ConfigSpace==1.2.2
+hpbandster==0.7.4
