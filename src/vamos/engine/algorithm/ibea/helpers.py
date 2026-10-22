@@ -11,6 +11,7 @@ This module contains the core IBEA selection functions:
 
 from __future__ import annotations
 
+from collections import Counter
 from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
@@ -155,6 +156,28 @@ def _log_domain_fitness(log_sums: np.ndarray[Any, Any], rank: np.ndarray[Any, An
     return np.asarray(fitness - span * rank, dtype=float)
 
 
+def _sum_exceeds(a: np.ndarray[Any, Any], b: np.ndarray[Any, Any]) -> bool:
+    """Whether ``sum(exp(a))`` exceeds ``sum(exp(b))`` when their float log-sums tie.
+
+    Equal exponents contribute equally, so they cancel; the remaining terms decide, including
+    those that a shared leading term absorbed in floating point.
+    """
+    left, right = Counter(a[np.isfinite(a)].tolist()), Counter(b[np.isfinite(b)].tolist())
+    rest_left = np.fromiter((left - right).elements(), dtype=float)
+    rest_right = np.fromiter((right - left).elements(), dtype=float)
+    return bool(_log_sum_exp(rest_left[None, :])[0] > _log_sum_exp(rest_right[None, :])[0])
+
+
+def _largest_sum(exponent: np.ndarray[Any, Any], log_sums: np.ndarray[Any, Any], candidates: np.ndarray[Any, Any]) -> int:
+    """The first candidate row with the largest ``sum(exp(row))``, resolving float ties exactly."""
+    tied = candidates[log_sums[candidates] == np.max(log_sums[candidates])]
+    largest = int(tied[0])
+    for row in tied[1:]:
+        if _sum_exceeds(exponent[row], exponent[largest]):
+            largest = int(row)
+    return largest
+
+
 def _log_domain_selection(
     exponent: np.ndarray[Any, Any], rank: np.ndarray[Any, Any], pop_size: int
 ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
@@ -163,13 +186,14 @@ def _log_domain_selection(
     The fitness of an active solution is ``-exp(L)``, with ``L`` the log-sum of its contributions
     from the other active solutions. ``L`` is recomputed after every removal, so no contribution
     is lost to rounding or underflow. The worst solution has the highest penalty rank and, among
-    those, the largest ``L``: the order that the penalized fitness defines.
+    those, the largest ``L``: the order that the penalized fitness defines. Rows whose ``L`` tie
+    in floating point are compared exactly on their remaining terms.
     """
     active: NDArray[np.int_] = np.arange(exponent.shape[0], dtype=int)
     while active.size > pop_size:
-        log_sums = _log_sum_exp(exponent[np.ix_(active, active)])
+        sub = exponent[np.ix_(active, active)]
         candidates = np.flatnonzero(rank[active] == np.max(rank[active]))
-        worst_pos = int(candidates[np.argmax(log_sums[candidates])])
+        worst_pos = _largest_sum(sub, _log_sum_exp(sub), candidates)
         active = np.delete(active, worst_pos)
     return active, _log_domain_fitness(_log_sum_exp(exponent[np.ix_(active, active)]), rank[active])
 

@@ -184,6 +184,9 @@ def _exact_selection(F: np.ndarray, G: np.ndarray | None, pop_size: int, kappa: 
         # A rescaled contribution near exp(600) absorbed the penalty's "+ 1", so the feasible 100 tied with the
         # penalized infeasible 0 and was removed instead.
         (np.array([[100.0], [0.0], [50.0]]), np.array([[-1.0], [1.0], [-1.0]]), 2, [0, 2]),
+        # Rows 1 and 2 share the leading exponent 1640, so their float log-sums tie; only the lower-order terms
+        # (exp(-1480) versus exp(0)) show that row 2, which row 1 dominates, has the larger sum.
+        (np.array([[14.0, -88.0], [96.0, 21.0], [96.0, 95.0]]), None, 2, [0, 1]),
     ],
 )
 def test_selection_beyond_the_exponential_range_matches_exact_arithmetic(F, G, pop_size, expected) -> None:
@@ -205,3 +208,15 @@ def test_wide_objective_ranges_select_like_exact_arithmetic(seed: int) -> None:
     X_kept, _, _, _ = environmental_selection(X, F, G, 4, "epsilon", 0.05)
 
     assert sorted(X_kept[:, 0].astype(int).tolist()) == sorted(_exact_selection(F, G, 4, 0.05))
+
+
+@pytest.mark.parametrize("seed", range(4))
+def test_tied_leading_exponents_select_like_exact_arithmetic(seed: int) -> None:
+    # Integer objectives make many contributions share exactly the same exponent.
+    rng = np.random.default_rng(100 + seed)
+    F = rng.integers(-40, 41, size=(8, 2)).astype(float)
+    X = np.arange(8, dtype=float)[:, None]
+
+    X_kept, _, _, _ = environmental_selection(X, F, None, 3, "epsilon", 0.05)
+
+    assert sorted(X_kept[:, 0].astype(int).tolist()) == sorted(_exact_selection(F, None, 3, 0.05))
