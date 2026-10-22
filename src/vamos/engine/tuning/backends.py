@@ -12,6 +12,7 @@ from ._model_backend_fidelity import (
     resolve_fidelity_slice,
     resolve_seed_bounds,
 )
+from ._model_backend_irace import run_irace
 from ._model_backend_runners import run_bohb_native, run_optuna_like, run_smac3
 from .racing.random_search_tuner import TrialResult
 from .racing.tuning_task import EvalContext, Instance, TuningTask
@@ -19,7 +20,13 @@ from .racing.tuning_task import EvalContext, Instance, TuningTask
 
 @dataclass
 class ModelBasedTuner:
-    """Optional facade for Optuna, BOHB, and SMAC3 tuning backends."""
+    """Optional facade for Optuna, BOHB, SMAC3, and irace tuning backends.
+
+    The ``irace_*`` fields apply only to ``backend="irace"``, which runs the R package irace
+    through ``irace_rscript``. By default irace receives every instance/seed pair of the task
+    as an instance (``irace_instance_seeds="task"``) and ``max_trials`` times that number of
+    pairs as ``maxExperiments``; ``irace_instance_seeds="irace"`` lets irace draw the seeds.
+    """
 
     task: TuningTask
     max_trials: int
@@ -38,6 +45,12 @@ class ModelBasedTuner:
     optuna_study_name: str | None = None
     optuna_load_if_exists: bool = True
     optuna_sampler: str = "tpe"
+    irace_max_experiments: int | None = None
+    irace_rscript: str = "Rscript"
+    irace_work_dir: str | None = None
+    irace_options: dict[str, Any] | None = None
+    irace_initial_configs: list[dict[str, Any]] | None = None
+    irace_instance_seeds: str = "task"
     _fidelity_cache: dict[int, tuple[Sequence[Instance], Sequence[int], dict[str, Any]]] = field(
         default_factory=dict, init=False, repr=False
     )
@@ -99,6 +112,9 @@ class ModelBasedTuner:
     ) -> tuple[dict[str, Any], list[TrialResult]]:
         return run_bohb_native(self, eval_fn)
 
+    def _run_irace(self, eval_fn: Callable[[dict[str, Any], EvalContext], float]) -> tuple[dict[str, Any], list[TrialResult]]:
+        return run_irace(self, eval_fn)
+
     def run(
         self,
         eval_fn: Callable[[dict[str, Any], EvalContext], float],
@@ -117,6 +133,9 @@ class ModelBasedTuner:
         if self.backend == "bohb":
             require_backend("bohb")
             return self._run_bohb_native(eval_fn)
+        if self.backend == "irace":
+            # irace_rscript may name an Rscript outside PATH; run_irace checks it and the R package.
+            return self._run_irace(eval_fn)
         raise ValueError(f"Unknown backend '{self.backend}'.")
 
 

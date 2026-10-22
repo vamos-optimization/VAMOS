@@ -102,7 +102,7 @@ BUILDERS: dict[str, Callable[[], AlgorithmConfigSpace | ParamSpace]] = {
     "rvea_integer": build_rvea_integer_config_space,
 }
 
-MODEL_BACKENDS = ("optuna", "bohb_optuna", "smac3", "bohb")
+MODEL_BACKENDS = ("optuna", "bohb_optuna", "smac3", "bohb", "irace")
 NON_MODEL_BACKENDS = ("racing", "random")
 ALL_BACKENDS = NON_MODEL_BACKENDS + MODEL_BACKENDS
 _ARCHIVE_TUNING_PARAMS = {"use_external_archive", "archive_unbounded", "archive_prune_policy"}
@@ -119,8 +119,7 @@ def _without_archive_tuning_controls(param_space: ParamSpace) -> ParamSpace:
     conditions = [
         condition
         for condition in param_space.conditions
-        if condition.param_name in params
-        and not any(f"cfg['{name}']" in condition.expr for name in _ARCHIVE_TUNING_PARAMS)
+        if condition.param_name in params and not any(f"cfg['{name}']" in condition.expr for name in _ARCHIVE_TUNING_PARAMS)
     ]
     return ParamSpace(params=params, conditions=conditions)
 
@@ -286,6 +285,12 @@ def run_backend(
             optuna_storage_url=(str(args.optuna_storage).strip() or None),
             optuna_study_name=optuna_study_name,
             optuna_load_if_exists=bool(args.optuna_load_if_exists),
+            # For irace, --tune-budget counts experiments, as for the racing backend.
+            irace_max_experiments=int(args.tune_budget),
+            irace_rscript=str(args.irace_rscript),
+            irace_work_dir=str(args.irace_work_dir).strip() or None,
+            irace_options=dict(args.irace_options) or None,
+            irace_instance_seeds=str(args.irace_instance_seeds),
         )
         return model_tuner.run(cast(Callable[[dict[str, Any], EvalContext], float], eval_fn), verbose=True)
 

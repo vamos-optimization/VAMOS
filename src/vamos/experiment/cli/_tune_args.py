@@ -5,6 +5,8 @@ from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from ._tune_irace import add_irace_arguments, validate_irace_arguments
+
 
 def build_parser(
     *,
@@ -122,6 +124,7 @@ def build_parser(
         default=True,
         help="When using --optuna-storage, resume existing study if present.",
     )
+    add_irace_arguments(parser)
 
     parser.add_argument("--split-seed", type=int, default=42, help="Seed used to split instances into train/validation/test.")
     parser.add_argument(
@@ -170,6 +173,7 @@ def parse_args(
     parser = build_parser(builders=builders, all_backends=all_backends)
     args = parser.parse_args(argv)
     args.fidelity_levels = parse_csv_ints(args.fidelity_levels, parser, "--fidelity-levels", min_len=2)
+    validate_irace_arguments(args, parser)
     if args.budget <= 0:
         parser.error("--budget must be > 0.")
     if args.tune_budget <= 0:
