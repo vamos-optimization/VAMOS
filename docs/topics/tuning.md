@@ -256,8 +256,11 @@ assignment: `crossover_eta` only for SBX, `archive_prune_policy` only when the
 external archive is enabled and bounded, and, since VAMOS 1.1.0 for real-valued
 operator spaces, `mutation_eta` only for polynomial and linked polynomial
 mutation. The evaluation callback, the trial history, and the returned best
-configuration contain that active assignment. `random` and `racing` always
-dropped inactive parameters; in VAMOS 1.1.0 the model-based backends do too.
+configuration contain that active assignment. Before VAMOS 1.1.0, the
+model-based backends kept every parameter, and `random` and `racing` could keep
+a parameter whose own conditions held while its parent was inactive. They now
+still draw every value in declaration order, so their seeded values do not
+change, and keep a parameter only when its parents are kept.
 
 `optuna` and `bohb_optuna` suggest parents before the parameters that depend on
 them, whatever their declaration order, and record only active suggestions in
@@ -271,11 +274,13 @@ fails with an explicit error before sampling starts. `AlgorithmConfigSpace`
 samples and encodes parameters in the same dependency order, so a parameter
 may be declared before its parent.
 
-HpBandSter's native BOHB accepts no seed and samples from NumPy's global random
-state. The `bohb` backend therefore seeds that state from the tuning seed for
-the duration of the search and then restores the caller's state. With one
-worker (`--n-jobs 1`) a native BOHB search is reproducible for a seed; with
-several workers, the order in which results arrive can still change it.
+HpBandSter's native BOHB accepts no seed, and its configuration generator draws
+from NumPy's global random state. The `bohb` backend gives the generator of
+each search a private random stream derived from the tuning seed instead.
+NumPy's global state therefore remains entirely the caller's, including inside
+the evaluation callback. With one worker (`--n-jobs 1`) a native BOHB search is
+reproducible for a seed; with several workers, the order in which results
+arrive can still change it.
 
 Inactive parameters never changed how a candidate algorithm was built, so the
 scores of studies persisted by earlier versions remain comparable and keep

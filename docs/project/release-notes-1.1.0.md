@@ -33,11 +33,11 @@ when reproducing historical artifacts.
 ## Tuning conditional parameters
 
 The experimental model-based tuning backends `optuna`, `bohb_optuna`, `smac3`
-and `bohb` now honor the conditions of the tuning space, as `random` and
-`racing` already did. Trials contain only active parameters, Optuna suggests
-parents first, and SMAC3 and BOHB receive native ConfigSpace conditions.
-Unsupported conditions, unknown parents and dependency cycles fail before
-sampling. `mutation_eta` is active only for polynomial mutations in real-valued
+and `bohb` now honor the conditions of the tuning space, and `random` and
+`racing` also leave out descendants of inactive parameters. Trials contain only
+active parameters, Optuna suggests parents first, and SMAC3 and BOHB receive
+native ConfigSpace conditions. Unsupported conditions, unknown parents and
+dependency cycles fail before sampling. `mutation_eta` is active only for polynomial mutations in real-valued
 operator spaces. Native BOHB no longer fails on an unsupported seed argument,
 and a single-worker native BOHB search is reproducible for a seed.
 

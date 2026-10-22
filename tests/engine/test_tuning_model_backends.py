@@ -118,12 +118,34 @@ def test_native_bohb_is_reproducible_for_a_seed(tmp_path, monkeypatch):
     np.random.seed(2)
     assert run() == first
 
-    # The run leaves the caller's global state where it found it.
+
+def test_native_bohb_leaves_the_global_random_stream_to_the_caller(tmp_path, monkeypatch):
+    pytest.importorskip("hpbandster")
+    pytest.importorskip("ConfigSpace")
+    monkeypatch.chdir(tmp_path)
+
+    def run(eval_fn) -> list[tuple[dict, int]]:
+        tuner = ModelBasedTuner(task=_make_task(), backend="bohb", max_trials=24, seed=7, n_jobs=1, bohb_reduction_factor=2)
+        _, history = tuner.run(eval_fn, verbose=False)
+        return [(trial.config, trial.details["budget"]) for trial in history]
+
+    isolated = run(_eval_fn)
+    drawn: list[float] = []
+
+    def eval_using_global_rng(config: dict, ctx) -> float:
+        drawn.append(float(np.random.random_sample()))
+        return _eval_fn(config, ctx)
+
     np.random.seed(3)
-    expected = np.random.random_sample()
+    history = run(eval_using_global_rng)
+    after = float(np.random.random_sample())
     np.random.seed(3)
-    run()
-    assert np.random.random_sample() == expected
+    stream = np.random.random_sample(len(drawn) + 1)
+
+    # The callback sees the caller's stream, in order and without repeats, and does not move BOHB.
+    assert drawn == list(stream[:-1])
+    assert after == stream[-1]
+    assert history == isolated
 
 
 def test_optuna_persists_only_active_parameters(tmp_path):

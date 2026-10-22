@@ -200,10 +200,19 @@ class ParamSpace:
     conditions: list[Condition] = field(default_factory=list)
 
     def sample(self, rng: np.random.Generator | None = None) -> dict[str, Any]:
-        """Sample a configuration from the space."""
+        """Sample a configuration from the space.
+
+        Every parameter is drawn in declaration order, so the random stream does not depend on
+        which parameters end up active. A parameter is kept when its conditions hold for the
+        parents already kept, so descendants of an inactive parameter are left out.
+        """
         rng = np.random.default_rng() if rng is None else rng
-        full_cfg = {name: spec.sample(rng) for name, spec in self.params.items()}
-        return {name: value for name, value in full_cfg.items() if self.is_active(name, full_cfg)}
+        drawn = {name: spec.sample(rng) for name, spec in self.params.items()}
+        kept: dict[str, Any] = {}
+        for name in _dependency_order(self):
+            if self.is_active(name, kept):
+                kept[name] = drawn[name]
+        return {name: value for name, value in drawn.items() if name in kept}
 
     def is_active(self, param_name: str, config: dict[str, Any]) -> bool:
         """Check if param is active given config and conditions."""

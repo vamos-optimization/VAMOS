@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import logging
 import math
+import sys
 import threading
 import time
+import types
 from collections.abc import Mapping
 from typing import Any, Protocol
 
@@ -229,6 +231,67 @@ def run_smac3(tuner: BackendTunerLike, eval_fn: ScoreEvalFn) -> tuple[dict[str, 
     return dict(best.config), history
 
 
+class _NumpyWithPrivateRandom:
+    """The ``numpy`` module as HpBandSter's BOHB generator sees it, with ``random`` bound to a private stream."""
+
+    def __init__(self, random_state: np.random.RandomState) -> None:
+        self.random = random_state
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(np, name)
+
+
+class _SeededDistribution:
+    """A SciPy distribution whose ``rvs`` draws from a private stream unless given one."""
+
+    def __init__(self, distribution: Any, random_state: np.random.RandomState) -> None:
+        self._distribution = distribution
+        self._random_state = random_state
+
+    def rvs(self, *args: Any, **kwargs: Any) -> Any:
+        kwargs.setdefault("random_state", self._random_state)
+        return self._distribution.rvs(*args, **kwargs)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._distribution, name)
+
+
+class _StatsWithPrivateRandom:
+    """``scipy.stats`` as HpBandSter's BOHB generator sees it, with distributions drawing from a private stream."""
+
+    def __init__(self, stats: Any, random_state: np.random.RandomState) -> None:
+        self._stats = stats
+        self._random_state = random_state
+
+    def __getattr__(self, name: str) -> Any:
+        value = getattr(self._stats, name)
+        return _SeededDistribution(value, self._random_state) if hasattr(value, "rvs") else value
+
+
+def _isolate_bohb_random_stream(config_generator: Any, seed: int) -> None:
+    """Give one HpBandSter BOHB configuration generator its own seeded random stream.
+
+    HpBandSter accepts no seed: the generator draws through the ``np`` and ``sps`` globals of
+    its module (``np.random`` and SciPy ``rvs`` without a ``random_state``), that is, from
+    NumPy's process-wide state. Its two sampling methods are rebuilt on this instance over a
+    copy of those globals in which both draw from one private ``RandomState``. The search is
+    then reproducible for a seed, and neither NumPy's global state nor HpBandSter's module
+    is modified.
+    """
+    from scipy import stats  # type: ignore[import-untyped]
+
+    random_state = np.random.RandomState(seed)
+    scope = dict(vars(sys.modules[type(config_generator).__module__]))
+    scope["np"] = _NumpyWithPrivateRandom(random_state)
+    scope["sps"] = _StatsWithPrivateRandom(stats, random_state)
+    for name in ("get_config", "impute_conditional_data"):
+        function = getattr(type(config_generator), name, None)
+        if not isinstance(function, types.FunctionType):
+            raise RuntimeError(f"Unsupported HpBandSter version: the BOHB generator has no {name}() to seed.")
+        rebuilt = types.FunctionType(function.__code__, scope, function.__name__, function.__defaults__, function.__closure__)
+        setattr(config_generator, name, types.MethodType(rebuilt, config_generator))
+
+
 def run_bohb_native(tuner: BackendTunerLike, eval_fn: ScoreEvalFn) -> tuple[dict[str, Any], list[TrialResult]]:
     import hpbandster.core.nameserver as hpns
     from hpbandster.core.worker import Worker
@@ -287,11 +350,6 @@ def run_bohb_native(tuner: BackendTunerLike, eval_fn: ScoreEvalFn) -> tuple[dict
     ns = None
     optimizer = None
     workers: list[Any] = []
-    # HpBandSter's BOHB accepts no seed: its configuration generator draws from NumPy's global
-    # random state, directly and through SciPy distributions. Seed that state from the tuner
-    # seed (apart from the ConfigSpace stream) for this run and give the caller's state back.
-    caller_random_state = np.random.get_state()
-    np.random.seed(int(np.random.default_rng(int(tuner.seed)).integers(2**32)))
     try:
         ns = hpns.NameServer(run_id=run_id, host="127.0.0.1", port=0)
         ns_host, ns_port = ns.start()
@@ -315,6 +373,8 @@ def run_bohb_native(tuner: BackendTunerLike, eval_fn: ScoreEvalFn) -> tuple[dict
             max_budget=float(max_budget_i),
             eta=int(eta),
         )
+        # A stream apart from the ConfigSpace one, which is seeded with the tuner seed itself.
+        _isolate_bohb_random_stream(optimizer.config_generator, int(np.random.default_rng(int(tuner.seed)).integers(2**32)))
         evals_per_iter = _estimate_hyperband_evals_per_iteration(max_budget=int(max_budget_i), eta=int(eta))
         n_iterations = max(1, int(math.ceil(max(1, int(tuner.max_trials)) / evals_per_iter)))
         _ = optimizer.run(n_iterations=n_iterations, min_n_workers=max(1, int(tuner.n_jobs)))
@@ -329,7 +389,6 @@ def run_bohb_native(tuner: BackendTunerLike, eval_fn: ScoreEvalFn) -> tuple[dict
                 ns.shutdown()
             except Exception:
                 _logger().debug("Failed to shutdown BOHB nameserver cleanly.", exc_info=True)
-        np.random.set_state(caller_random_state)
 
     if not history:
         raise RuntimeError("Tuner finished without a valid configuration.")
