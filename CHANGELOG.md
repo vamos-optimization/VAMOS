@@ -75,8 +75,9 @@ All notable public changes to VAMOS are documented here.
   as zero, which made a solution dominated by a wide margin look best (with
   `kappa=0.05`, once another solution was better by more than about 35.5 in
   every objective). Selection then works in the log domain, recomputing each
-  fitness exactly after every removal and keeping feasible solutions ahead of
-  infeasible ones; runs without overflow are unchanged.
+  fitness after every removal and keeping feasible solutions ahead of
+  infeasible ones, so overflow no longer changes which solutions survive; runs
+  without overflow are unchanged.
 - NSGA-III enforces constraints: its survival keeps feasible solutions before
   infeasible ones and its parent tournament ranks them first, instead of
   ranking objective values only.

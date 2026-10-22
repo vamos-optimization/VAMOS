@@ -184,10 +184,11 @@ def _log_domain_selection(
     """IBEA's removal loop for contributions beyond the float64 range.
 
     The fitness of an active solution is ``-exp(L)``, with ``L`` the log-sum of its contributions
-    from the other active solutions. ``L`` is recomputed after every removal, so no contribution
-    is lost to rounding or underflow. The worst solution has the highest penalty rank and, among
-    those, the largest ``L``: the order that the penalized fitness defines. Rows whose ``L`` tie
-    in floating point are compared exactly on their remaining terms.
+    from the other active solutions. ``L`` is recomputed after every removal, so a removed
+    solution's dominant term no longer hides the others. The worst solution has the highest
+    penalty rank and, among those, the largest ``L``: the order that the penalized fitness
+    defines. Rows whose ``L`` tie in floating point are compared on the terms they do not share.
+    Fitness differences below floating-point resolution decide as in the non-overflow path.
     """
     active: NDArray[np.int_] = np.arange(exponent.shape[0], dtype=int)
     while active.size > pop_size:

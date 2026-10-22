@@ -220,3 +220,28 @@ def test_tied_leading_exponents_select_like_exact_arithmetic(seed: int) -> None:
     X_kept, _, _, _ = environmental_selection(X, F, None, 3, "epsilon", 0.05)
 
     assert sorted(X_kept[:, 0].astype(int).tolist()) == sorted(_exact_selection(F, None, 3, 0.05))
+
+
+_NEAR_EQUAL = np.array(
+    [
+        [89.31269745138374, 96.7848207530103],
+        [89.31269745139926, 96.78482075301112],
+        [89.31269745138124, 96.7848207530153],
+        [89.3126974513888, 96.78482075299739],
+    ]
+)
+
+
+@pytest.mark.parametrize("seed", [None, 0, 1, 2, 3])
+def test_a_far_dominated_outlier_leaves_the_selection_among_the_others_unchanged(seed: int | None) -> None:
+    # The outlier forces the overflow path and is removed first; the rest must then be selected as without it.
+    # seed=None is a set of near-equal solutions whose order is decided at floating-point resolution.
+    F = _NEAR_EQUAL if seed is None else np.random.default_rng(200 + seed).random((8, 2))
+    n = F.shape[0]
+    X = np.arange(n + 1, dtype=float)[:, None]
+    pop_size = n // 2
+
+    kept_plain = environmental_selection(X[:n], F, None, pop_size, "epsilon", 0.05)[0]
+    kept_overflow = environmental_selection(X, np.vstack([F, [[200.0, 200.0]]]), None, pop_size, "epsilon", 0.05)[0]
+
+    assert sorted(kept_overflow[:, 0].tolist()) == sorted(kept_plain[:, 0].tolist())

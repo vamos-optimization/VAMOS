@@ -40,8 +40,8 @@ when reproducing historical artifacts.
   its final fronts match jMetal 7.9's IBEA on ZDT1, DTLZ2 and DTLZ1.
 - An exponential indicator contribution beyond the float64 range counted as
   zero and made a far-dominated solution look best. Selection then works in the
-  log domain and recomputes each fitness exactly after every removal, matching
-  exact arithmetic.
+  log domain and recomputes each fitness after every removal, so overflow no
+  longer changes which solutions survive.
 
 **Scientific impact:** discard hypervolume-based IBEA results from earlier
 versions and rerun them. Epsilon-based IBEA runs without overflow are unchanged;

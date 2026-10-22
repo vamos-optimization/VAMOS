@@ -84,8 +84,10 @@ runs with the same seed. Unconstrained runs are unchanged.
   counted as zero, so a solution dominated by a wide margin looked like the
   best one. When a contribution would overflow, selection works in the log
   domain: each fitness is recomputed from the remaining solutions after every
-  removal, and feasibility ranks still come first, so the removal order is the
-  one exact arithmetic gives. The epsilon indicator remains unscaled, as in
+  removal, and feasibility ranks still come first. Overflow therefore no
+  longer changes the removal order; solutions whose fitness differs by less
+  than floating-point resolution are ordered as in runs without overflow, and
+  as in jMetal and jMetalPy. The epsilon indicator remains unscaled, as in
   jMetalPy, and runs without overflow are unchanged.
 
 ### Choose an initial experiment
