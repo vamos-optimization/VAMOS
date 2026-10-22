@@ -119,6 +119,25 @@ def test_native_bohb_is_reproducible_for_a_seed(tmp_path, monkeypatch):
     assert run() == first
 
 
+def test_native_bohb_draws_from_an_owned_generator():
+    pytest.importorskip("hpbandster")
+    ConfigSpace = pytest.importorskip("ConfigSpace")
+    from hpbandster.optimizers.config_generators.bohb import BOHB as BOHBGenerator
+
+    from vamos.engine.tuning._model_backend_runners import _isolate_bohb_random_stream
+
+    space = ConfigSpace.ConfigurationSpace(seed=1)
+    space.add(ConfigSpace.UniformFloatHyperparameter("x", 0.0, 1.0))
+    generator = BOHBGenerator(configspace=space)
+    _isolate_bohb_random_stream(generator, np.random.default_rng(3))
+
+    # The repository's RNG contract: stochastic paths own a numpy.random.Generator, not a RandomState.
+    for name in ("get_config", "impute_conditional_data"):
+        assert isinstance(getattr(generator, name).__globals__["np"].random.generator, np.random.Generator)
+    config, _ = generator.get_config(1.0)
+    assert 0.0 <= config["x"] <= 1.0
+
+
 def test_native_bohb_leaves_the_global_random_stream_to_the_caller(tmp_path, monkeypatch):
     pytest.importorskip("hpbandster")
     pytest.importorskip("ConfigSpace")
@@ -146,6 +165,32 @@ def test_native_bohb_leaves_the_global_random_stream_to_the_caller(tmp_path, mon
     assert drawn == list(stream[:-1])
     assert after == stream[-1]
     assert history == isolated
+
+
+def test_resumed_optuna_study_returns_only_active_parameters_of_earlier_trials(tmp_path):
+    optuna = pytest.importorskip("optuna")
+    storage = f"sqlite:///{(tmp_path / 'earlier.sqlite3').as_posix()}"
+    # A trial stored before conditional parameters were honored: every parameter, and the best score.
+    earlier = {"depth": 3, "rate": 0.1, "enabled": True, "method": "linear"}
+    distributions = {
+        "depth": optuna.distributions.IntDistribution(1, 5),
+        "rate": optuna.distributions.FloatDistribution(0.01, 1.0, log=True),
+        "enabled": optuna.distributions.CategoricalDistribution([False, True]),
+        "method": optuna.distributions.CategoricalDistribution(["tree", "linear"]),
+    }
+    study = optuna.create_study(storage=storage, study_name="earlier", direction="maximize")
+    study.add_trial(optuna.trial.create_trial(params=earlier, distributions=distributions, value=1.0e6, user_attrs={"config": earlier}))
+
+    task = _make_task()
+    task.param_space = _conditional_space()
+    tuner = ModelBasedTuner(
+        task=task, max_trials=2, seed=5, optuna_storage_url=storage, optuna_study_name="earlier", optuna_load_if_exists=True
+    )
+    best, history = tuner.run(lambda config, ctx: float(ctx.budget), verbose=False)
+
+    assert best == {"rate": 0.1, "method": "linear"}
+    for trial in history:
+        assert set(trial.config) == {name for name in task.param_space.params if task.param_space.is_active(name, trial.config)}
 
 
 def test_optuna_persists_only_active_parameters(tmp_path):

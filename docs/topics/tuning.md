@@ -284,7 +284,8 @@ arrive can still change it.
 
 Inactive parameters never changed how a candidate algorithm was built, so the
 scores of studies persisted by earlier versions remain comparable and keep
-their namespace, although their trials may record inactive values. Seeded
+their namespace. Their stored trials may record inactive values; when such a
+study is resumed, the history and the best configuration leave them out. Seeded
 `random` and `racing` searches propose the same candidates as VAMOS 1.0.2,
 without an inactive `mutation_eta`, except for MOEA/D: its `mutation_eta` moved
 into the polynomial-mutation block, so a seeded MOEA/D search proposes

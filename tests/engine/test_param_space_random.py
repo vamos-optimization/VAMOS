@@ -4,6 +4,17 @@ import pytest
 from vamos.engine.tuning.racing.param_space import Boolean, Categorical, Condition, Int, ParamSpace, Real
 
 
+def test_conditions_may_index_into_a_parent_value():
+    space = ParamSpace(
+        params={"mode": Categorical("mode", ["tree", "linear"]), "depth": Int("depth", 1, 5)},
+        conditions=[Condition("depth", "cfg['mode'][0] == 't'")],
+    )
+    samples = [space.sample(np.random.default_rng(seed)) for seed in range(20)]
+
+    assert {sample["mode"] for sample in samples} == {"tree", "linear"}
+    assert all(("depth" in sample) == (sample["mode"] == "tree") for sample in samples)
+
+
 def test_sample_omits_descendants_of_inactive_parameters_and_keeps_its_draws():
     # "budget" depends on "bounded", which is active only with an archive: the archive case of the built-in spaces.
     space = ParamSpace(
