@@ -269,11 +269,15 @@ def _parent_name(node: ast.AST) -> str:
 
 
 def _condition_parents(expr: str) -> tuple[str, ...]:
+    """Names read as ``cfg['name']``; outer subscripts such as ``cfg['name'][0]`` index into a parent's value."""
     try:
         tree = ast.parse(expr, mode="eval")
     except SyntaxError as exc:
         raise ValueError(f"Invalid condition syntax: {expr}") from exc
-    return tuple(dict.fromkeys(_parent_name(node) for node in ast.walk(tree) if isinstance(node, ast.Subscript)))
+    reads_cfg = (
+        node for node in ast.walk(tree) if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Name) and node.value.id == "cfg"
+    )
+    return tuple(dict.fromkeys(_parent_name(node) for node in reads_cfg))
 
 
 def _dependency_order(param_space: ParamSpace) -> tuple[str, ...]:
