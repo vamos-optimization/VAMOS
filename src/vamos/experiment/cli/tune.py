@@ -24,6 +24,10 @@ from ._tune_flow import (
 from ._tune_flow import (
     write_split_artifacts as _write_split_artifacts,
 )
+from ._tune_irace import backend_availability as _backend_availability
+from ._tune_irace import print_backend_table as _print_backend_table
+from ._tune_irace import resolve_irace_work_dir as _resolve_irace_work_dir
+from ._tune_irace import smoke_tune_budget as _smoke_tune_budget
 from ._tune_post import (
     append_summary as _append_summary,
 )
@@ -104,7 +108,7 @@ def _clamp_positive(value: int, ceiling: int) -> int:
 
 def _apply_smoke_mode(args: argparse.Namespace) -> dict[str, Any]:
     args.budget = _clamp_positive(int(args.budget), _SMOKE_BUDGET)
-    args.tune_budget = _clamp_positive(int(args.tune_budget), _SMOKE_TUNE_BUDGET)
+    args.tune_budget = _smoke_tune_budget(args, _clamp_positive(int(args.tune_budget), _SMOKE_TUNE_BUDGET))
     args.n_seeds = _clamp_positive(int(args.n_seeds), _SMOKE_N_SEEDS)
     args.n_jobs = _SMOKE_N_JOBS
     args.pop_size = _clamp_positive(int(args.pop_size), _SMOKE_POP_SIZE)
@@ -185,24 +189,15 @@ def _persist_artifacts(
         history=history,
         elapsed_seconds=elapsed_seconds,
         resolved_jobs=resolved_jobs,
-        available_backends_fn=available_model_based_backends,
+        available_backends_fn=lambda: _backend_availability(args, available_model_based_backends),
     )
-
-
-def _print_backend_table() -> None:
-    flags = available_model_based_backends()
-    print("Backend availability:")
-    print("  racing       : True")
-    print("  random       : True")
-    for name in MODEL_BACKENDS:
-        print(f"  {name:12s}: {bool(flags.get(name, False))}")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     _configure_cli_logging()
     args = _parse_args(argv)
     if bool(args.list_backends):
-        _print_backend_table()
+        _print_backend_table(MODEL_BACKENDS, _backend_availability(args, available_model_based_backends))
         return 0
 
     logger = _logger()
@@ -213,7 +208,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     requested_backend = str(args.backend)
     effective_backend = requested_backend
-    availability = available_model_based_backends()
+    availability = _backend_availability(args, available_model_based_backends)
     if requested_backend in MODEL_BACKENDS and not bool(availability.get(requested_backend, False)):
         fallback = str(args.backend_fallback)
         if fallback == "error":
@@ -291,6 +286,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         seed=int(args.seed),
     )
     logger.info("Output: %s", out_dir)
+    _resolve_irace_work_dir(args, out_dir)
     logger.info("Backend: requested=%s effective=%s", requested_backend, effective_backend)
     logger.info("Jobs: requested=%s resolved=%s", args.n_jobs, resolved_jobs)
     logger.info("Tune budget: %s", args.tune_budget)

@@ -12,8 +12,11 @@ All notable public changes to VAMOS are documented here.
   translated to an irace parameter file; each experiment reaches the evaluation
   function in the calling process; `max_trials` times the task's
   instance/seed pairs sets `maxExperiments` unless `irace_max_experiments` is
-  given; initial configurations and extra scenario options are supported. The
-  backend is programmatic only; `vamos tune` does not offer it.
+  given; initial configurations and extra scenario options are supported.
+- `vamos tune --backend irace`, with `--irace-rscript`,
+  `--irace-instance-seeds`, `--irace-work-dir` and repeatable
+  `--irace-option KEY=VALUE`. `--tune-budget` sets irace's `maxExperiments`;
+  the irace scenario, log and `irace.Rdata` are kept in `<output>/irace`.
 
 ## [1.1.0] - 2026-10-21
 

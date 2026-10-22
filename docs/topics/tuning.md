@@ -145,9 +145,9 @@ For an editable development installation, follow
 [Install from a source checkout](../guide/installation.md#install-from-a-source-checkout)
 and select the `tuning` extra from the repository root.
 
-The programmatic `irace` backend needs no Python extra. It needs R with
-`Rscript` and the CRAN package irace 4.4.4 or newer
-(`install.packages("irace")` in R); see [irace from Python](#irace-from-python).
+The `irace` backend needs no Python extra. It needs R with `Rscript` and the
+CRAN package irace 4.4.4 or newer (`install.packages("irace")` in R); see
+[The irace backend](#the-irace-backend).
 
 ## Start with a core-installation run
 
@@ -246,8 +246,7 @@ The current backend families are:
 - `optuna` — current CLI default; requires the tuning extra;
 - `bohb_optuna`, `smac3`, and `bohb` — optional model-based backends from the
   tuning extra;
-- `irace` — iterated racing with the R package irace, available through
-  `ModelBasedTuner` in Python but not in `vamos tune`.
+- `irace` — iterated racing with the R package irace, run through `Rscript`.
 
 A racing run uses the same scientific ingredients as any other tuning run:
 problem blocks, algorithm seeds, an explicit fidelity/budget schedule, the CLI
@@ -279,7 +278,7 @@ scalar literal (`==`, `!=`, `<`, `<=`, `>`, `>=`), boolean parents, and
 fails with an explicit error before sampling starts. `AlgorithmConfigSpace`
 samples and encodes parameters in the same dependency order, so a parameter
 may be declared before its parent. `irace` receives the same subset as
-irace conditions; see [irace from Python](#irace-from-python).
+irace conditions; see [The irace backend](#the-irace-backend).
 
 HpBandSter's native BOHB accepts no seed, and its configuration generator draws
 from NumPy's global random state. The `bohb` backend gives the generator of
@@ -298,12 +297,26 @@ without an inactive `mutation_eta`, except for MOEA/D: its `mutation_eta` moved
 into the polynomial-mutation block, so a seeded MOEA/D search proposes
 different candidates.
 
-### irace from Python
+### The irace backend
 
-`ModelBasedTuner(backend="irace")` belongs to the implementation-level API
-described in [Programmatic API status](#programmatic-api-status): it is for
-advanced evaluation and is not offered by `vamos tune`. It keeps the contract
-of the other model-based backends: `tuner.run(eval_fn)` calls
+`vamos tune --backend irace` runs the R package irace. In the CLI,
+`--tune-budget` is irace's `maxExperiments`, as for `racing`; `--n-jobs`
+becomes irace's `parallel`; `--irace-rscript` selects `Rscript`;
+`--irace-instance-seeds` chooses who provides the seeds (below);
+`--irace-option KEY=VALUE` adds a scenario option and may be repeated; and
+the scenario, `irace.log` and `irace.Rdata` are kept in `<output>/irace`
+unless `--irace-work-dir` names another directory. The CLI rejects
+`--timeout-seconds` and `--fidelity-levels` with this backend, and falls
+back through `--backend-fallback` only when the configured `Rscript` is
+missing. irace needs many experiments even for a short race: the built-in
+real-valued NSGA-II space requires at least 728 with its default iterations,
+so `--smoke` uses 64 experiments and one iteration (`nbIterations=1`) unless
+that option is given.
+
+In Python, `ModelBasedTuner(backend="irace")` belongs to the
+implementation-level API described in
+[Programmatic API status](#programmatic-api-status). It keeps the contract of
+the other model-based backends: `tuner.run(eval_fn)` calls
 `eval_fn(assignment, ctx)` in the calling process and returns the best
 configuration and the history.
 
@@ -373,7 +386,8 @@ The key controls include:
 
 - `--algorithm`: algorithm family to tune;
 - `--instances`: comma-separated problem list; overrides `--problem`;
-- `--backend`: `racing`, `random`, `optuna`, `bohb_optuna`, `smac3`, or `bohb`;
+- `--backend`: `racing`, `random`, `optuna`, `bohb_optuna`, `smac3`, `bohb`,
+  or `irace`;
 - `--backend-fallback`: fallback when an optional model backend is unavailable;
 - `--split-strategy`: `suite_stratified` or `random` instance splitting;
 - `--split-seed`: random seed for the instance split;
@@ -384,7 +398,9 @@ The key controls include:
 - `--ref-point`: global HV reference point used by the CLI scorer;
 - `--budget`: ordinary candidate-run budget; not a cap on enabled racing
   multi-fidelity levels;
-- `--tune-budget`: racing experiments or model trials;
+- `--tune-budget`: racing or irace experiments, or model trials;
+- `--irace-rscript`, `--irace-instance-seeds`, `--irace-work-dir`,
+  `--irace-option`: irace settings; see [The irace backend](#the-irace-backend);
 - `--multi-fidelity` / `--no-multi-fidelity`: enable or disable racing
   multi-fidelity execution;
 - `--fidelity-levels`: explicit increasing candidate-run budgets for the
