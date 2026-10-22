@@ -4,6 +4,17 @@ All notable public changes to VAMOS are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- `ModelBasedTuner(backend="irace")` runs the R package irace (>= 4.4.4)
+  through `Rscript` with the same `tuner.run(eval_fn)` contract as the other
+  model-based backends. The `ParamSpace`, including its conditions, is
+  translated to an irace parameter file; each experiment reaches the evaluation
+  function in the calling process; `max_trials` times the task's
+  instance/seed pairs sets `maxExperiments` unless `irace_max_experiments` is
+  given; initial configurations and extra scenario options are supported. The
+  backend is programmatic only; `vamos tune` does not offer it.
+
 ## [1.1.0] - 2026-10-21
 
 ### Added

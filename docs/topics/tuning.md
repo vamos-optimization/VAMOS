@@ -145,6 +145,10 @@ For an editable development installation, follow
 [Install from a source checkout](../guide/installation.md#install-from-a-source-checkout)
 and select the `tuning` extra from the repository root.
 
+The programmatic `irace` backend needs no Python extra. It needs R with
+`Rscript` and the CRAN package irace 4.4.4 or newer
+(`install.packages("irace")` in R); see [irace from Python](#irace-from-python).
+
 ## Start with a core-installation run
 
 The `vamos tune` CLI currently defaults to **`optuna`**, so omitting
@@ -241,7 +245,9 @@ The current backend families are:
   default;
 - `optuna` — current CLI default; requires the tuning extra;
 - `bohb_optuna`, `smac3`, and `bohb` — optional model-based backends from the
-  tuning extra.
+  tuning extra;
+- `irace` — iterated racing with the R package irace, available through
+  `ModelBasedTuner` in Python but not in `vamos tune`.
 
 A racing run uses the same scientific ingredients as any other tuning run:
 problem blocks, algorithm seeds, an explicit fidelity/budget schedule, the CLI
@@ -272,7 +278,8 @@ scalar literal (`==`, `!=`, `<`, `<=`, `>`, `>=`), boolean parents, and
 `and`/`or`/`not`; any other condition, an unknown parent, or a dependency cycle
 fails with an explicit error before sampling starts. `AlgorithmConfigSpace`
 samples and encodes parameters in the same dependency order, so a parameter
-may be declared before its parent.
+may be declared before its parent. `irace` receives the same subset as
+irace conditions; see [irace from Python](#irace-from-python).
 
 HpBandSter's native BOHB accepts no seed, and its configuration generator draws
 from NumPy's global random state. The `bohb` backend gives the generator of
@@ -290,6 +297,46 @@ study is resumed, the history and the best configuration leave them out. Seeded
 without an inactive `mutation_eta`, except for MOEA/D: its `mutation_eta` moved
 into the polynomial-mutation block, so a seeded MOEA/D search proposes
 different candidates.
+
+### irace from Python
+
+`ModelBasedTuner(backend="irace")` belongs to the implementation-level API
+described in [Programmatic API status](#programmatic-api-status): it is for
+advanced evaluation and is not offered by `vamos tune`. It keeps the contract
+of the other model-based backends: `tuner.run(eval_fn)` calls
+`eval_fn(assignment, ctx)` in the calling process and returns the best
+configuration and the history.
+
+VAMOS writes an irace scenario in `irace_work_dir` (a temporary directory by
+default) and runs irace with `irace_rscript` (`Rscript` by default). irace's
+target runner is a small client, started with the current Python interpreter,
+that forwards each experiment over a local socket to the running tuner and
+returns the cost; scores are negated when the task maximizes, because irace
+minimizes. An error raised by `eval_fn` stops irace and is re-raised as the
+cause of a `RuntimeError`.
+
+- **Space:** the `ParamSpace` becomes an irace parameter file. Conditions use
+  the subset described in [Conditional parameters](#conditional-parameters);
+  conditions with `or` or `not` also require every parent they read to be
+  active, as VAMOS does. Categorical choices must have distinct tokens made of
+  letters, digits, `_`, `.`, `+` or `-`. irace rounds real values to four
+  decimal places by default.
+- **Instances and seeds:** by default each instance/seed pair of the task is an
+  irace instance of a deterministic race, so `ctx.seed` always comes from
+  `task.seeds`. With `irace_instance_seeds="irace"`, irace receives the
+  instances and draws the seeds itself.
+- **Budget:** `maxExperiments` is `max_trials` times the number of task pairs
+  unless `irace_max_experiments` is given; each call uses
+  `task.budget_per_run`. There is one fidelity level and no wall-clock limit.
+- **Parallelism and options:** `n_jobs` becomes irace's `parallel`, so
+  `eval_fn` must be thread-safe when it is greater than one. `seed` becomes
+  irace's seed, `irace_initial_configs` its initial configurations, and
+  `irace_options` adds other scenario options; the options the backend writes
+  itself are rejected there.
+- **Result:** the best configuration is irace's first final elite. The history
+  has one entry per configuration, scored with `task.aggregator` over its
+  evaluations; `details` records the number of evaluations and the final elite
+  rank. `irace.Rdata` and `irace.log` stay in `irace_work_dir` when it is set.
 
 ### Persistent Optuna studies are scoring-contract versioned
 

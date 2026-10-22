@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import importlib.util
+import shutil
 
 
 def available_model_based_backends() -> dict[str, bool]:
-    """Return availability flags for optional model-based tuning backends."""
+    """Return availability flags for optional model-based tuning backends.
+
+    The ``irace`` flag only reports an ``Rscript`` on PATH; the R package is checked when the
+    backend runs, because probing it needs an R process.
+    """
     has_optuna = importlib.util.find_spec("optuna") is not None
     has_smac = importlib.util.find_spec("smac") is not None
     has_cs = importlib.util.find_spec("ConfigSpace") is not None
@@ -14,6 +19,7 @@ def available_model_based_backends() -> dict[str, bool]:
         "bohb_optuna": has_optuna,
         "smac3": has_smac and has_cs,
         "bohb": has_hpbandster and has_cs,
+        "irace": shutil.which("Rscript") is not None,
     }
 
 
@@ -31,6 +37,8 @@ def require_backend(name: str) -> None:
         raise RuntimeError("Backend 'smac3' requires optional dependencies `smac` and `ConfigSpace`.")
     if name == "bohb":
         raise RuntimeError("Backend 'bohb' requires optional dependencies `hpbandster` and `ConfigSpace`.")
+    if name == "irace":
+        raise RuntimeError("Backend 'irace' requires R with `Rscript` on PATH and the R package `irace` >= 4.0.")
     raise ValueError(f"Unknown backend '{name}'.")
 
 
