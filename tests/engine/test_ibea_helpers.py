@@ -258,3 +258,13 @@ def test_an_infinite_contribution_makes_its_solution_the_worst(worse: float) -> 
     assert np.isfinite(fitness).all()
     ranked = ibea_fitness(compute_indicator_matrix(F, "epsilon"), 0.05)
     assert int(np.argmin(ranked)) == 1 and np.isfinite(ranked).all()
+
+
+def test_fitness_stays_finite_when_log_sums_span_beyond_float64() -> None:
+    # Log-sums near -1e308, 1e308 and inf: a span-based penalty overflowed to inf and inf * 0 gave NaN fitness.
+    F = np.array([[-5.0e306], [0.0], [5.0e306]])
+    X_kept, _, _, fitness = environmental_selection(np.arange(3, dtype=float)[:, None], F, None, 2, "epsilon", 0.05)
+
+    assert sorted(X_kept[:, 0].tolist()) == [0.0, 1.0]
+    assert np.isfinite(fitness).all()
+    assert np.isfinite(ibea_fitness(compute_indicator_matrix(F, "epsilon"), 0.05)).all()

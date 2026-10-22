@@ -31,6 +31,9 @@ unsupported behavior rather than future compatibility promises.
   IBEA behaves the same. VAMOS 1.0.2 and earlier also inverted the hypervolume
   indicator and counted overflowing contributions as zero; see the
   [IBEA indicator corrections](../reference/algorithms.md#ibea-indicator-corrections-in-110).
+  Indicator values divided by `kappa` must fit in float64 (objective differences
+  below about `kappa * 1.8e308`); larger ones saturate to infinity, and
+  solutions with saturated contributions are not ordered among themselves.
 
 ## Backends and optional dependencies
 

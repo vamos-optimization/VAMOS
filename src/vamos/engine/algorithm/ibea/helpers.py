@@ -152,14 +152,14 @@ def _penalty_ranks(G: np.ndarray[Any, Any] | None, n: int) -> np.ndarray[Any, An
 
 
 def _log_domain_fitness(log_sums: np.ndarray[Any, Any], rank: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
-    """Finite fitness in the same order as the penalized ``-exp(log_sums)``, without overflow."""
-    fitness = -np.asarray(log_sums, dtype=float)
-    finite = np.isfinite(fitness)
-    best, worst = float(np.max(fitness, where=finite, initial=0.0)), float(np.min(fitness, where=finite, initial=0.0))
-    fitness[fitness == np.inf] = best + 1.0  # no contributions
-    fitness[fitness == -np.inf] = worst - 1.0  # an infinite contribution
-    span = float(np.max(fitness, initial=0.0) - np.min(fitness, initial=0.0)) + 1.0
-    return np.asarray(fitness - span * rank, dtype=float)
+    """Finite fitness in the order of the penalized ``-exp(log_sums)``: 0 for the best, -1 for the next, and so on.
+
+    Positions rather than values keep the fitness finite whatever the range of the log-sums.
+    """
+    best_first = np.lexsort((np.asarray(log_sums, dtype=float), np.asarray(rank, dtype=float)))
+    fitness = np.empty(best_first.size, dtype=float)
+    fitness[best_first] = -np.arange(best_first.size, dtype=float)
+    return fitness
 
 
 def _sum_exceeds(a: np.ndarray[Any, Any], b: np.ndarray[Any, Any]) -> bool:
