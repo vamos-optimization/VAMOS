@@ -82,9 +82,11 @@ runs with the same seed. Unconstrained runs are unchanged.
   rerun them.
 - An exponential indicator contribution that exceeded the float64 range
   counted as zero, so a solution dominated by a wide margin looked like the
-  best one. Contributions are now rescaled by a common factor when they would
-  overflow, which leaves the selection unchanged. The epsilon indicator
-  remains unscaled, as in jMetalPy, and runs without overflow are unchanged.
+  best one. When a contribution would overflow, selection works in the log
+  domain: each fitness is recomputed from the remaining solutions after every
+  removal, and feasibility ranks still come first, so the removal order is the
+  one exact arithmetic gives. The epsilon indicator remains unscaled, as in
+  jMetalPy, and runs without overflow are unchanged.
 
 ### Choose an initial experiment
 

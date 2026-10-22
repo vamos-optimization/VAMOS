@@ -39,8 +39,9 @@ when reproducing historical artifacts.
   Zitzler and Künzli's `I_HD` with their adaptive scaling, as jMetal does, and
   its final fronts match jMetal 7.9's IBEA on ZDT1, DTLZ2 and DTLZ1.
 - An exponential indicator contribution beyond the float64 range counted as
-  zero and made a far-dominated solution look best. Such contributions are now
-  rescaled by a common factor, which preserves the selection.
+  zero and made a far-dominated solution look best. Selection then works in the
+  log domain and recomputes each fitness exactly after every removal, matching
+  exact arithmetic.
 
 **Scientific impact:** discard hypervolume-based IBEA results from earlier
 versions and rerun them. Epsilon-based IBEA runs without overflow are unchanged;

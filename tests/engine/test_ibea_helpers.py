@@ -142,3 +142,66 @@ def test_selection_without_exponential_overflow_is_unchanged(indicator: str) -> 
 
     assert np.array_equal(X_kept[:, 0].astype(int), expected_active)
     assert np.array_equal(fitness, expected_fitness)
+
+
+def _exact_selection(F: np.ndarray, G: np.ndarray | None, pop_size: int, kappa: float) -> list[int]:
+    """IBEA's removal loop with the epsilon indicator in exact high-precision arithmetic, which never overflows."""
+    from decimal import Decimal, localcontext
+
+    from vamos.foundation.constraints.utils import compute_violation, is_feasible
+
+    ind = compute_indicator_matrix(F, "epsilon")
+    with localcontext() as ctx:
+        # Contributions span exp(-max|I| / kappa) to exp(max|I| / kappa); enough digits keep every term and the
+        # penalty's "+ 1" through all additions and removals.
+        ctx.prec = int(2.0 * np.max(np.abs(ind)) / kappa / np.log(10.0)) + 60
+        n = F.shape[0]
+        contrib = [
+            [Decimal(0) if i == j else (-Decimal(repr(float(ind[i, j]))) / Decimal(repr(kappa))).exp() for j in range(n)] for i in range(n)
+        ]
+        fitness = [-sum(row, Decimal(0)) for row in contrib]
+        if G is not None and not is_feasible(G).all():
+            infeasible = np.flatnonzero(~is_feasible(G))
+            _, rank = np.unique(compute_violation(G)[infeasible], return_inverse=True)
+            penalty = max(abs(value) for value in fitness) + 1
+            for row, r in zip(infeasible, rank):
+                fitness[row] -= penalty * (1 + int(r))
+        active = list(range(n))
+        while len(active) > pop_size:
+            worst = min(active, key=lambda k: (fitness[k], k))
+            active.remove(worst)
+            for k in active:
+                fitness[k] += contrib[k][worst]
+        return active
+
+
+@pytest.mark.parametrize(
+    "F, G, pop_size, expected",
+    [
+        # Shifting every exponent by the same amount underflowed the 25-versus-0 contribution, so 0 and 25 tied
+        # once 100 was removed and the dominated 25 survived.
+        (np.array([[0.0], [25.0], [100.0]]), None, 1, [0]),
+        # A rescaled contribution near exp(600) absorbed the penalty's "+ 1", so the feasible 100 tied with the
+        # penalized infeasible 0 and was removed instead.
+        (np.array([[100.0], [0.0], [50.0]]), np.array([[-1.0], [1.0], [-1.0]]), 2, [0, 2]),
+    ],
+)
+def test_selection_beyond_the_exponential_range_matches_exact_arithmetic(F, G, pop_size, expected) -> None:
+    X = np.arange(F.shape[0], dtype=float)[:, None]
+    X_kept, _, _, fitness = environmental_selection(X, F, G, pop_size, "epsilon", 0.05)
+
+    assert sorted(X_kept[:, 0].astype(int).tolist()) == expected == sorted(_exact_selection(F, G, pop_size, 0.05))
+    assert np.isfinite(fitness).all()
+
+
+@pytest.mark.parametrize("seed", range(6))
+def test_wide_objective_ranges_select_like_exact_arithmetic(seed: int) -> None:
+    rng = np.random.default_rng(seed)
+    # Objective ranges up to 50 give exponents up to 1000 with kappa=0.05, beyond float64's exp range.
+    F = rng.random((10, 2)) * rng.choice([1.0, 10.0, 50.0], size=2)
+    G = (rng.random((10, 1)) - 0.7) if seed % 2 else None
+    X = np.arange(10, dtype=float)[:, None]
+
+    X_kept, _, _, _ = environmental_selection(X, F, G, 4, "epsilon", 0.05)
+
+    assert sorted(X_kept[:, 0].astype(int).tolist()) == sorted(_exact_selection(F, G, 4, 0.05))
