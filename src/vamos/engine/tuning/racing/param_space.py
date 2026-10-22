@@ -200,10 +200,14 @@ class ParamSpace:
     conditions: list[Condition] = field(default_factory=list)
 
     def sample(self, rng: np.random.Generator | None = None) -> dict[str, Any]:
-        """Sample a configuration from the space."""
+        """Sample a configuration from the space.
+
+        Every parameter is drawn in declaration order, so the random stream does not depend on
+        which parameters end up active. A parameter is kept when its conditions hold for the
+        parents already kept, so descendants of an inactive parameter are left out.
+        """
         rng = np.random.default_rng() if rng is None else rng
-        full_cfg = {name: spec.sample(rng) for name, spec in self.params.items()}
-        return {name: value for name, value in full_cfg.items() if self.is_active(name, full_cfg)}
+        return _active_assignment(self, {name: spec.sample(rng) for name, spec in self.params.items()})
 
     def is_active(self, param_name: str, config: dict[str, Any]) -> bool:
         """Check if param is active given config and conditions."""
@@ -250,6 +254,75 @@ _CMP_OPS: dict[type[ast.AST], Callable[[Any, Any], bool]] = {
     ast.In: lambda a, b: a in b,
     ast.NotIn: lambda a, b: a not in b,
 }
+
+
+def _parent_name(node: ast.AST) -> str:
+    if (
+        isinstance(node, ast.Subscript)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "cfg"
+        and isinstance(node.slice, ast.Constant)
+        and isinstance(node.slice.value, str)
+    ):
+        return node.slice.value
+    raise ValueError("Condition parents must use cfg['parameter_name'] with a literal name.")
+
+
+def _condition_parents(expr: str) -> tuple[str, ...]:
+    """Names read as ``cfg['name']``; outer subscripts such as ``cfg['name'][0]`` index into a parent's value."""
+    try:
+        tree = ast.parse(expr, mode="eval")
+    except SyntaxError as exc:
+        raise ValueError(f"Invalid condition syntax: {expr}") from exc
+    reads_cfg = (
+        node for node in ast.walk(tree) if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Name) and node.value.id == "cfg"
+    )
+    return tuple(dict.fromkeys(_parent_name(node) for node in reads_cfg))
+
+
+def _dependency_order(param_space: ParamSpace) -> tuple[str, ...]:
+    """Parameter names with every parent before the parameters it conditions.
+
+    Parameters keep their declaration order wherever their parents already precede them.
+    """
+    parents: dict[str, list[str]] = {name: [] for name in param_space.params}
+    for condition in param_space.conditions:
+        if condition.param_name not in parents:
+            raise ValueError(f"Condition references unknown parameter '{condition.param_name}'.")
+        for parent in _condition_parents(condition.expr):
+            if parent not in parents:
+                raise ValueError(f"Condition for '{condition.param_name}' references unknown parent '{parent}'.")
+            parents[condition.param_name].append(parent)
+    order: dict[str, None] = {}
+    visiting: set[str] = set()
+
+    def visit(name: str) -> None:
+        if name in order:
+            return
+        if name in visiting:
+            raise ValueError("Conditional parameter dependencies contain a cycle.")
+        visiting.add(name)
+        for parent in parents[name]:
+            visit(parent)
+        visiting.discard(name)
+        order[name] = None
+
+    for name in parents:
+        visit(name)
+    return tuple(order)
+
+
+def _active_assignment(param_space: ParamSpace, values: dict[str, Any]) -> dict[str, Any]:
+    """The given values of the space's active parameters, in declaration order.
+
+    A parameter is active when its conditions hold for the parents already kept, so
+    descendants of an inactive parameter are left out, as are names outside the space.
+    """
+    kept: dict[str, Any] = {}
+    for name in _dependency_order(param_space):
+        if name in values and param_space.is_active(name, kept):
+            kept[name] = values[name]
+    return {name: kept[name] for name in param_space.params if name in kept}
 
 
 class _MissingKeyError(Exception):
@@ -312,9 +385,9 @@ def _safe_eval_condition(expr: str, cfg: dict[str, Any]) -> bool:
         result = _eval(tree)
     except _MissingKeyError:
         return False
-    if not isinstance(result, bool):
+    if not isinstance(result, (bool, np.bool_)):
         raise ValueError(f"Condition must evaluate to bool, got {result!r} for: {expr}")
-    return result
+    return bool(result)
 
 
 __all__ = [

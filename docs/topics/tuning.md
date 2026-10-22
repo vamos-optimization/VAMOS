@@ -249,6 +249,48 @@ HV score, and an aggregation rule. Its statistical elimination is an
 **allocation mechanism during tuning**; it is not a substitute for an
 independently designed final comparison on held-out blocks.
 
+### Conditional parameters
+
+A trial contains only the parameters that are active for the rest of its
+assignment: `crossover_eta` only for SBX, `archive_prune_policy` only when the
+external archive is enabled and bounded, and, since VAMOS 1.1.0 for real-valued
+operator spaces, `mutation_eta` only for polynomial and linked polynomial
+mutation. The evaluation callback, the trial history, and the returned best
+configuration contain that active assignment. Before VAMOS 1.1.0, the
+model-based backends kept every parameter, and `random` and `racing` could keep
+a parameter whose own conditions held while its parent was inactive. They now
+still draw every value in declaration order, so their seeded values do not
+change, and keep a parameter only when its parents are kept.
+
+`optuna` and `bohb_optuna` suggest parents before the parameters that depend on
+them, whatever their declaration order, and record only active suggestions in
+`trial.params`. `smac3` and `bohb` receive the dependencies as ConfigSpace
+conditions, so their models see them too. Several conditions on one parameter
+are combined with AND, and descendants of an inactive parameter stay inactive.
+The ConfigSpace translation supports comparisons of `cfg['parent']` with a
+scalar literal (`==`, `!=`, `<`, `<=`, `>`, `>=`), boolean parents, and
+`and`/`or`/`not`; any other condition, an unknown parent, or a dependency cycle
+fails with an explicit error before sampling starts. `AlgorithmConfigSpace`
+samples and encodes parameters in the same dependency order, so a parameter
+may be declared before its parent.
+
+HpBandSter's native BOHB accepts no seed, and its configuration generator draws
+from NumPy's global random state. The `bohb` backend gives the generator of
+each search a private random stream derived from the tuning seed instead.
+NumPy's global state therefore remains entirely the caller's, including inside
+the evaluation callback. With one worker (`--n-jobs 1`) a native BOHB search is
+reproducible for a seed; with several workers, the order in which results
+arrive can still change it.
+
+Inactive parameters never changed how a candidate algorithm was built, so the
+scores of studies persisted by earlier versions remain comparable and keep
+their namespace. Their stored trials may record inactive values; when such a
+study is resumed, the history and the best configuration leave them out. Seeded
+`random` and `racing` searches propose the same candidates as VAMOS 1.0.2,
+without an inactive `mutation_eta`, except for MOEA/D: its `mutation_eta` moved
+into the polynomial-mutation block, so a seeded MOEA/D search proposes
+different candidates.
+
 ### Persistent Optuna studies are scoring-contract versioned
 
 In VAMOS 1.1.0, when `optuna` or `bohb_optuna` uses `--optuna-storage`, the maintained CLI treats

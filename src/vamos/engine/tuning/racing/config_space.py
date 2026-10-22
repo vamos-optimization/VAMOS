@@ -8,8 +8,9 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 
-from .param_space import PARAM_ROLES, Condition, ParamSpace, ParamType
+from .param_space import PARAM_ROLES, Condition, ParamSpace, ParamType, _dependency_order
 from .parameters import ConditionalBlock
 
 # Type alias for composable space parts: (params, conditionals, conditions).
@@ -55,50 +56,47 @@ class AlgorithmConfigSpace:
         """
         if assignment is None:
             return list(self.params)
-        active = list(self.params)
         param_space = self.to_param_space()
+        active = [p for p in self.params if param_space.is_active(p.name, assignment)]
         for p in self._conditional_params():
             if param_space.is_active(p.name, assignment):
                 active.append(p)
         return active
+
+    def _dependency_ordered(self, param_space: ParamSpace) -> list[ParamType]:
+        """Top-level then conditional parameters, moving each after the parents its conditions read."""
+        return [param_space.params[name] for name in _dependency_order(param_space)]
 
     def sample(self, rng: np.random.Generator) -> dict[str, Any]:
         """
         Sample a concrete assignment dict for all active params.
         """
         assignment: dict[str, Any] = {}
-        for p in self.params:
-            assignment[p.name] = p.sample(rng)
         param_space = self.to_param_space()
-        for p in self._conditional_params():
+        for p in self._dependency_ordered(param_space):
             if param_space.is_active(p.name, assignment):
                 assignment[p.name] = p.sample(rng)
         return assignment
 
-    def to_unit_vector(self, assignment: dict[str, Any]) -> np.ndarray:
+    def to_unit_vector(self, assignment: dict[str, Any]) -> NDArray[np.float64]:
         """
-        Encode an assignment into a unit vector [0,1]^D following param order.
+        Encode an assignment into a unit vector [0,1]^D following the dependency order of its params.
         """
         values: list[float] = []
-        for p in self.params:
-            values.append(float(p.to_unit(assignment[p.name])))
         param_space = self.to_param_space()
-        for p in self._conditional_params():
+        for p in self._dependency_ordered(param_space):
             if param_space.is_active(p.name, assignment):
                 values.append(float(p.to_unit(assignment[p.name])))
         return np.asarray(values, dtype=float)
 
-    def from_unit_vector(self, u: np.ndarray) -> dict[str, Any]:
+    def from_unit_vector(self, u: NDArray[np.float64]) -> dict[str, Any]:
         """
         Decode a unit vector into an assignment dict, respecting conditionals.
         """
         assignment: dict[str, Any] = {}
         idx = 0
-        for p in self.params:
-            assignment[p.name] = p.from_unit(float(u[idx]))
-            idx += 1
         param_space = self.to_param_space()
-        for p in self._conditional_params():
+        for p in self._dependency_ordered(param_space):
             if param_space.is_active(p.name, assignment):
                 assignment[p.name] = p.from_unit(float(u[idx]))
                 idx += 1

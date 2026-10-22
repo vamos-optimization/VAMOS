@@ -12,7 +12,7 @@ from .bridge_space_parts_discrete import (
     permutation_operator_part_full,
 )
 from .config_space import AlgorithmConfigSpace, SpacePart, compose_config_space
-from .param_space import Categorical, ConditionalBlock, Int, ParamType, Real
+from .param_space import Categorical, Condition, ConditionalBlock, Int, ParamType, Real
 
 # ---------------------------------------------------------------------------
 # Core part (shared by ALL NSGA-II encoding variants)
@@ -135,7 +135,7 @@ def _real_operator_part() -> SpacePart:
             [Categorical("scatter_base_size_factor", [0.1, 0.2, 0.3, 0.5, 0.75, 1.0])],
         ),
     ]
-    return params, conditionals, []
+    return params, conditionals, [Condition("mutation_eta", "cfg['mutation'] == 'polynomial' or cfg['mutation'] == 'linked_polynomial'")]
 
 
 def _permutation_operator_part() -> SpacePart:
