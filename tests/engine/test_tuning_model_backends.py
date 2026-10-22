@@ -148,6 +148,32 @@ def test_native_bohb_leaves_the_global_random_stream_to_the_caller(tmp_path, mon
     assert history == isolated
 
 
+def test_resumed_optuna_study_returns_only_active_parameters_of_earlier_trials(tmp_path):
+    optuna = pytest.importorskip("optuna")
+    storage = f"sqlite:///{(tmp_path / 'legacy.sqlite3').as_posix()}"
+    # A trial stored before conditional parameters were honored: every parameter, and the best score.
+    legacy = {"depth": 3, "rate": 0.1, "enabled": True, "method": "linear"}
+    distributions = {
+        "depth": optuna.distributions.IntDistribution(1, 5),
+        "rate": optuna.distributions.FloatDistribution(0.01, 1.0, log=True),
+        "enabled": optuna.distributions.CategoricalDistribution([False, True]),
+        "method": optuna.distributions.CategoricalDistribution(["tree", "linear"]),
+    }
+    study = optuna.create_study(storage=storage, study_name="legacy", direction="maximize")
+    study.add_trial(optuna.trial.create_trial(params=legacy, distributions=distributions, value=1.0e6, user_attrs={"config": legacy}))
+
+    task = _make_task()
+    task.param_space = _conditional_space()
+    tuner = ModelBasedTuner(
+        task=task, max_trials=2, seed=5, optuna_storage_url=storage, optuna_study_name="legacy", optuna_load_if_exists=True
+    )
+    best, history = tuner.run(lambda config, ctx: float(ctx.budget), verbose=False)
+
+    assert best == {"rate": 0.1, "method": "linear"}
+    for trial in history:
+        assert set(trial.config) == {name for name in task.param_space.params if task.param_space.is_active(name, trial.config)}
+
+
 def test_optuna_persists_only_active_parameters(tmp_path):
     optuna = pytest.importorskip("optuna")
     storage = f"sqlite:///{(tmp_path / 'conditional.sqlite3').as_posix()}"

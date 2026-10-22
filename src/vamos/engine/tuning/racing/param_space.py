@@ -207,12 +207,7 @@ class ParamSpace:
         parents already kept, so descendants of an inactive parameter are left out.
         """
         rng = np.random.default_rng() if rng is None else rng
-        drawn = {name: spec.sample(rng) for name, spec in self.params.items()}
-        kept: dict[str, Any] = {}
-        for name in _dependency_order(self):
-            if self.is_active(name, kept):
-                kept[name] = drawn[name]
-        return {name: value for name, value in drawn.items() if name in kept}
+        return _active_assignment(self, {name: spec.sample(rng) for name, spec in self.params.items()})
 
     def is_active(self, param_name: str, config: dict[str, Any]) -> bool:
         """Check if param is active given config and conditions."""
@@ -311,6 +306,19 @@ def _dependency_order(param_space: ParamSpace) -> tuple[str, ...]:
     for name in parents:
         visit(name)
     return tuple(order)
+
+
+def _active_assignment(param_space: ParamSpace, values: dict[str, Any]) -> dict[str, Any]:
+    """The given values of the space's active parameters, in declaration order.
+
+    A parameter is active when its conditions hold for the parents already kept, so
+    descendants of an inactive parameter are left out, as are names outside the space.
+    """
+    kept: dict[str, Any] = {}
+    for name in _dependency_order(param_space):
+        if name in values and param_space.is_active(name, kept):
+            kept[name] = values[name]
+    return {name: kept[name] for name in param_space.params if name in kept}
 
 
 class _MissingKeyError(Exception):

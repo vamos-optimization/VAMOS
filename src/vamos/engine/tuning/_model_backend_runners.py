@@ -31,6 +31,7 @@ from ._model_backend_utils import (
 from ._model_backend_utils import (
     sample_from_optuna_trial as _sample_from_optuna_trial,
 )
+from .racing.param_space import _active_assignment
 from .racing.random_search_tuner import TrialResult
 from .racing.tuning_task import TuningTask
 
@@ -143,11 +144,15 @@ def run_optuna_like(
         show_progress_bar=bool(tuner.show_progress_bar),
     )
 
+    def active_config(trial: Any) -> dict[str, Any]:
+        # Trials resumed from a study stored before conditions were honored may record inactive parameters.
+        return _active_assignment(tuner.task.param_space, dict(trial.user_attrs.get("config", trial.params)))
+
     history: list[TrialResult] = []
     for trial in study.trials:
         if trial.value is None:
             continue
-        cfg = trial.user_attrs.get("config", dict(trial.params))
+        cfg = active_config(trial)
         details: dict[str, Any] = {"state": str(getattr(trial.state, "name", trial.state))}
         fidelity_trace = trial.user_attrs.get("fidelity_trace")
         if isinstance(fidelity_trace, list):
@@ -155,9 +160,7 @@ def run_optuna_like(
         history.append(TrialResult(trial_id=int(trial.number), config=dict(cfg), score=float(trial.value), details=details))
     if not history:
         raise RuntimeError("Tuner finished without a valid configuration.")
-    best_trial = study.best_trial
-    best_cfg = best_trial.user_attrs.get("config", dict(best_trial.params))
-    return dict(best_cfg), history
+    return active_config(study.best_trial), history
 
 
 def run_smac3(tuner: BackendTunerLike, eval_fn: ScoreEvalFn) -> tuple[dict[str, Any], list[TrialResult]]:
