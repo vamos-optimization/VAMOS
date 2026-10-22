@@ -4,7 +4,7 @@ All notable public changes to VAMOS are documented here.
 
 ## [Unreleased]
 
-## [1.1.0] - 2026-10-22
+## [1.1.0] - 2026-10-23
 
 ### Added
 

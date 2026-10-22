@@ -1,6 +1,6 @@
 # VAMOS 1.1.0 release notes
 
-Released 2026-10-22.
+Released 2026-10-23.
 
 VAMOS 1.1.0 fixes constraint handling and IBEA's hypervolume indicator, both of
 which could produce scientifically invalid results, and expands the
