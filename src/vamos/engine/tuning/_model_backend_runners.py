@@ -234,11 +234,30 @@ def run_smac3(tuner: BackendTunerLike, eval_fn: ScoreEvalFn) -> tuple[dict[str, 
     return dict(best.config), history
 
 
+class _RandomStateCallsFromGenerator:
+    """The ``RandomState``-style ``np.random`` calls of HpBandSter's BOHB generator, served by an owned ``Generator``.
+
+    Any other ``np.random`` call fails with ``AttributeError`` instead of drawing from a global stream.
+    """
+
+    def __init__(self, generator: np.random.Generator) -> None:
+        self.generator = generator
+
+    def rand(self) -> float:
+        return float(self.generator.random())
+
+    def randint(self, low: int, high: int | None = None) -> int:
+        return int(self.generator.integers(low, high))
+
+    def choice(self, a: Any) -> Any:
+        return self.generator.choice(a)
+
+
 class _NumpyWithPrivateRandom:
     """The ``numpy`` module as HpBandSter's BOHB generator sees it, with ``random`` bound to a private stream."""
 
-    def __init__(self, random_state: np.random.RandomState) -> None:
-        self.random = random_state
+    def __init__(self, generator: np.random.Generator) -> None:
+        self.random = _RandomStateCallsFromGenerator(generator)
 
     def __getattr__(self, name: str) -> Any:
         return getattr(np, name)
@@ -247,7 +266,7 @@ class _NumpyWithPrivateRandom:
 class _SeededDistribution:
     """A SciPy distribution whose ``rvs`` draws from a private stream unless given one."""
 
-    def __init__(self, distribution: Any, random_state: np.random.RandomState) -> None:
+    def __init__(self, distribution: Any, random_state: np.random.Generator) -> None:
         self._distribution = distribution
         self._random_state = random_state
 
@@ -262,7 +281,7 @@ class _SeededDistribution:
 class _StatsWithPrivateRandom:
     """``scipy.stats`` as HpBandSter's BOHB generator sees it, with distributions drawing from a private stream."""
 
-    def __init__(self, stats: Any, random_state: np.random.RandomState) -> None:
+    def __init__(self, stats: Any, random_state: np.random.Generator) -> None:
         self._stats = stats
         self._random_state = random_state
 
@@ -271,22 +290,20 @@ class _StatsWithPrivateRandom:
         return _SeededDistribution(value, self._random_state) if hasattr(value, "rvs") else value
 
 
-def _isolate_bohb_random_stream(config_generator: Any, seed: int) -> None:
-    """Give one HpBandSter BOHB configuration generator its own seeded random stream.
+def _isolate_bohb_random_stream(config_generator: Any, rng: np.random.Generator) -> None:
+    """Make one HpBandSter BOHB configuration generator draw from ``rng``.
 
     HpBandSter accepts no seed: the generator draws through the ``np`` and ``sps`` globals of
     its module (``np.random`` and SciPy ``rvs`` without a ``random_state``), that is, from
     NumPy's process-wide state. Its two sampling methods are rebuilt on this instance over a
-    copy of those globals in which both draw from one private ``RandomState``. The search is
-    then reproducible for a seed, and neither NumPy's global state nor HpBandSter's module
-    is modified.
+    copy of those globals in which both draw from ``rng``. The search is then reproducible
+    for a seed, and neither NumPy's global state nor HpBandSter's module is modified.
     """
     from scipy import stats  # type: ignore[import-untyped]
 
-    random_state = np.random.RandomState(seed)
     scope = dict(vars(sys.modules[type(config_generator).__module__]))
-    scope["np"] = _NumpyWithPrivateRandom(random_state)
-    scope["sps"] = _StatsWithPrivateRandom(stats, random_state)
+    scope["np"] = _NumpyWithPrivateRandom(rng)
+    scope["sps"] = _StatsWithPrivateRandom(stats, rng)
     for name in ("get_config", "impute_conditional_data"):
         function = getattr(type(config_generator), name, None)
         if not isinstance(function, types.FunctionType):
@@ -377,7 +394,7 @@ def run_bohb_native(tuner: BackendTunerLike, eval_fn: ScoreEvalFn) -> tuple[dict
             eta=int(eta),
         )
         # A stream apart from the ConfigSpace one, which is seeded with the tuner seed itself.
-        _isolate_bohb_random_stream(optimizer.config_generator, int(np.random.default_rng(int(tuner.seed)).integers(2**32)))
+        _isolate_bohb_random_stream(optimizer.config_generator, np.random.default_rng([int(tuner.seed), 1]))
         evals_per_iter = _estimate_hyperband_evals_per_iteration(max_budget=int(max_budget_i), eta=int(eta))
         n_iterations = max(1, int(math.ceil(max(1, int(tuner.max_trials)) / evals_per_iter)))
         _ = optimizer.run(n_iterations=n_iterations, min_n_workers=max(1, int(tuner.n_jobs)))
