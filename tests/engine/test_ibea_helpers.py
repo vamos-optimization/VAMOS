@@ -245,3 +245,16 @@ def test_a_far_dominated_outlier_leaves_the_selection_among_the_others_unchanged
     kept_overflow = environmental_selection(X, np.vstack([F, [[200.0, 200.0]]]), None, pop_size, "epsilon", 0.05)[0]
 
     assert sorted(kept_overflow[:, 0].tolist()) == sorted(kept_plain[:, 0].tolist())
+
+
+@pytest.mark.filterwarnings("ignore:invalid value encountered in subtract:RuntimeWarning")  # inf - inf on the diagonal
+@pytest.mark.parametrize("worse", [1.0e308, np.inf])
+def test_an_infinite_contribution_makes_its_solution_the_worst(worse: float) -> None:
+    # -I / kappa overflows to +inf (or the indicator itself is infinite): the largest contribution, not none.
+    F = np.array([[0.0], [worse]])
+    X_kept, F_kept, _, fitness = environmental_selection(np.arange(2, dtype=float)[:, None], F, None, 1, "epsilon", 0.05)
+
+    assert X_kept[:, 0].tolist() == [0.0]
+    assert np.isfinite(fitness).all()
+    ranked = ibea_fitness(compute_indicator_matrix(F, "epsilon"), 0.05)
+    assert int(np.argmin(ranked)) == 1 and np.isfinite(ranked).all()

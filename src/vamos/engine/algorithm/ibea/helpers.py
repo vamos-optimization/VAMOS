@@ -115,9 +115,13 @@ _EXP_LIMIT = 700.0
 
 
 def _fitness_exponents(indicator: np.ndarray[Any, Any], kappa: float) -> np.ndarray[Any, Any]:
-    """``-indicator / kappa``, with ``-inf`` (no contribution) on the diagonal and for nonfinite values."""
-    exponent = -np.asarray(indicator, dtype=float) / kappa
-    exponent[~np.isfinite(exponent)] = -np.inf
+    """``-indicator / kappa``, with ``-inf`` (no contribution) on the diagonal and for undefined values.
+
+    ``+inf``, from an infinite indicator or a division that overflows, stays the largest contribution.
+    """
+    with np.errstate(over="ignore"):
+        exponent = -np.asarray(indicator, dtype=float) / kappa
+    exponent[np.isnan(exponent)] = -np.inf
     np.fill_diagonal(exponent, -np.inf)
     return exponent
 
@@ -127,7 +131,7 @@ def _overflows(exponent: np.ndarray[Any, Any]) -> bool:
 
 
 def _log_sum_exp(exponent: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
-    """Row-wise ``log(sum(exp(exponent)))``; ``-inf`` for rows without contributions."""
+    """Row-wise ``log(sum(exp(exponent)))``; ``-inf`` for rows without contributions, ``+inf`` with an infinite one."""
     top = np.max(exponent, axis=1, initial=-np.inf)
     shift = np.where(np.isfinite(top), top, 0.0)
     with np.errstate(divide="ignore"):
@@ -150,8 +154,10 @@ def _penalty_ranks(G: np.ndarray[Any, Any] | None, n: int) -> np.ndarray[Any, An
 def _log_domain_fitness(log_sums: np.ndarray[Any, Any], rank: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     """Finite fitness in the same order as the penalized ``-exp(log_sums)``, without overflow."""
     fitness = -np.asarray(log_sums, dtype=float)
-    without_contributions = ~np.isfinite(fitness)
-    fitness[without_contributions] = float(np.max(fitness, where=~without_contributions, initial=0.0)) + 1.0
+    finite = np.isfinite(fitness)
+    best, worst = float(np.max(fitness, where=finite, initial=0.0)), float(np.min(fitness, where=finite, initial=0.0))
+    fitness[fitness == np.inf] = best + 1.0  # no contributions
+    fitness[fitness == -np.inf] = worst - 1.0  # an infinite contribution
     span = float(np.max(fitness, initial=0.0) - np.min(fitness, initial=0.0)) + 1.0
     return np.asarray(fitness - span * rank, dtype=float)
 
@@ -162,7 +168,7 @@ def _sum_exceeds(a: np.ndarray[Any, Any], b: np.ndarray[Any, Any]) -> bool:
     Equal exponents contribute equally, so they cancel; the remaining terms decide, including
     those that a shared leading term absorbed in floating point.
     """
-    left, right = Counter(a[np.isfinite(a)].tolist()), Counter(b[np.isfinite(b)].tolist())
+    left, right = Counter(a[a > -np.inf].tolist()), Counter(b[b > -np.inf].tolist())
     rest_left = np.fromiter((left - right).elements(), dtype=float)
     rest_right = np.fromiter((right - left).elements(), dtype=float)
     return bool(_log_sum_exp(rest_left[None, :])[0] > _log_sum_exp(rest_right[None, :])[0])
