@@ -268,3 +268,13 @@ def test_fitness_stays_finite_when_log_sums_span_beyond_float64() -> None:
     assert sorted(X_kept[:, 0].tolist()) == [0.0, 1.0]
     assert np.isfinite(fitness).all()
     assert np.isfinite(ibea_fitness(compute_indicator_matrix(F, "epsilon"), 0.05)).all()
+
+
+def test_returned_fitness_resolves_tied_log_sums_like_removal() -> None:
+    # Rows 1 and 2 tie at log-sum 1640; row 1 (dominated by row 2) has the larger exact sum, so it is worse.
+    F = np.array([[14.0, -88.0], [96.0, 95.0], [96.0, 21.0]])
+    _, _, _, fitness = environmental_selection(np.arange(3, dtype=float)[:, None], F, None, 3, "epsilon", 0.05)
+
+    assert fitness[1] < fitness[2] < fitness[0]
+    ranked = ibea_fitness(compute_indicator_matrix(F, "epsilon"), 0.05)
+    assert ranked[1] < ranked[2] < ranked[0]

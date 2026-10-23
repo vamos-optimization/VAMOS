@@ -12,6 +12,7 @@ This module contains the core IBEA selection functions:
 from __future__ import annotations
 
 from collections import Counter
+from functools import cmp_to_key
 from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
@@ -151,14 +152,28 @@ def _penalty_ranks(G: np.ndarray[Any, Any] | None, n: int) -> np.ndarray[Any, An
     return rank
 
 
-def _log_domain_fitness(log_sums: np.ndarray[Any, Any], rank: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
+def _log_domain_fitness(exponent: np.ndarray[Any, Any], log_sums: np.ndarray[Any, Any], rank: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     """Finite fitness in the order of the penalized ``-exp(log_sums)``: 0 for the best, -1 for the next, and so on.
 
-    Positions rather than values keep the fitness finite whatever the range of the log-sums.
+    Rows are ordered as removal compares them: penalty rank, then log-sum, with float ties in
+    the log-sum resolved exactly and the lower index worse among equal sums. Positions rather
+    than values keep the fitness finite whatever the range of the log-sums.
     """
-    best_first = np.lexsort((np.asarray(log_sums, dtype=float), np.asarray(rank, dtype=float)))
-    fitness = np.empty(best_first.size, dtype=float)
-    fitness[best_first] = -np.arange(best_first.size, dtype=float)
+
+    def better_first(i: int, j: int) -> int:
+        if rank[i] != rank[j]:
+            return -1 if rank[i] < rank[j] else 1
+        if log_sums[i] != log_sums[j]:
+            return -1 if log_sums[i] < log_sums[j] else 1
+        if _sum_exceeds(exponent[j], exponent[i]):
+            return -1
+        if _sum_exceeds(exponent[i], exponent[j]):
+            return 1
+        return 1 if i < j else -1 if i > j else 0
+
+    best_first = sorted(range(exponent.shape[0]), key=cmp_to_key(better_first))
+    fitness = np.empty(len(best_first), dtype=float)
+    fitness[best_first] = -np.arange(len(best_first), dtype=float)
     return fitness
 
 
@@ -202,7 +217,8 @@ def _log_domain_selection(
         candidates = np.flatnonzero(rank[active] == np.max(rank[active]))
         worst_pos = _largest_sum(sub, _log_sum_exp(sub), candidates)
         active = np.delete(active, worst_pos)
-    return active, _log_domain_fitness(_log_sum_exp(exponent[np.ix_(active, active)]), rank[active])
+    survivors = exponent[np.ix_(active, active)]
+    return active, _log_domain_fitness(survivors, _log_sum_exp(survivors), rank[active])
 
 
 def ibea_fitness(indicator: np.ndarray[Any, Any], kappa: float) -> np.ndarray[Any, Any]:
@@ -226,7 +242,7 @@ def ibea_fitness(indicator: np.ndarray[Any, Any], kappa: float) -> np.ndarray[An
     """
     exponent = _fitness_exponents(indicator, kappa)
     if _overflows(exponent):
-        return _log_domain_fitness(_log_sum_exp(exponent), np.zeros(exponent.shape[0]))
+        return _log_domain_fitness(exponent, _log_sum_exp(exponent), np.zeros(exponent.shape[0]))
     return np.asarray(-np.sum(np.exp(exponent), axis=1), dtype=float)
 
 
