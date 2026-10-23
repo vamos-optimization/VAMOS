@@ -9,7 +9,7 @@ typing-extensions==4.16.0
 tomli==2.5.0 ; python_version < "3.11"
 ruff==0.17.1
 build==1.6.1
-setuptools==84.0.0
+setuptools==84.2.0
 wheel==0.48.0
 mkdocs==1.6.1
 mkdocs-material==9.7.7
