@@ -70,6 +70,48 @@ def test_cec2009_extended_uf_smoke():
     assert np.isfinite(out3["F"]).all()
 
 
+# CEC2009 technical report (Zhang et al., 2008) domains, as in jMetal and the MOEA Framework:
+# (number of leading variables in [0, 1], bound b of the remaining variables in [-b, b]).
+_CEC2009_UF_DOMAINS = {
+    1: (1, 1.0),
+    2: (1, 1.0),
+    3: (30, None),  # UF3 searches [0, 1]^n.
+    4: (1, 2.0),
+    5: (1, 1.0),
+    6: (1, 1.0),
+    7: (1, 1.0),
+    8: (2, 2.0),
+    9: (2, 2.0),
+    10: (2, 2.0),
+}
+
+
+@pytest.mark.parametrize("index", sorted(_CEC2009_UF_DOMAINS))
+def test_cec2009_uf_problems_use_the_reference_domains(index: int) -> None:
+    from vamos.foundation.problem import cec
+
+    problem = getattr(cec, f"CEC2009UF{index}Problem")(n_var=30)
+    head, rest_bound = _CEC2009_UF_DOMAINS[index]
+    xl = np.broadcast_to(np.asarray(problem.xl, dtype=float), (30,))
+    xu = np.broadcast_to(np.asarray(problem.xu, dtype=float), (30,))
+    assert np.all(xl[:head] == 0.0) and np.all(xu[:head] == 1.0)
+    if rest_bound is not None:
+        assert np.all(xl[head:] == -rest_bound) and np.all(xu[head:] == rest_bound)
+
+
+def test_cec2009_uf3_reaches_its_front_on_the_pareto_set():
+    from vamos.foundation.problem.cec import CEC2009UF3Problem
+
+    n_var = 10
+    problem = CEC2009UF3Problem(n_var=n_var)
+    x1 = np.array([0.0, 0.2, 0.5, 1.0])
+    j = np.arange(2, n_var + 1)
+    X = np.column_stack([x1, x1[:, None] ** (0.5 * (1.0 + 3.0 * (j - 2.0) / (n_var - 2.0)))])
+    out = {"F": np.empty((X.shape[0], 2))}
+    problem.evaluate(X, out)
+    np.testing.assert_allclose(out["F"], np.column_stack([x1, 1.0 - np.sqrt(x1)]), atol=1e-12)
+
+
 def test_welded_beam_design_constraints():
     problem = WeldedBeamDesignProblem()
     X = _sample(problem, n=2)

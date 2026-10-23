@@ -4,6 +4,13 @@ All notable public changes to VAMOS are documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- `cec2009_uf3` searches the CEC2009 domain `[0, 1]^n`. It searched `[-1, 1]`
+  for variables 2 to n, a search space twice as wide per variable as the
+  CEC2009 instance, with the same Pareto front. UF3 runs from earlier versions
+  are not comparable with CEC2009 results; rerun them before comparing.
+
 ## [1.1.0] - 2026-10-23
 
 ### Added
