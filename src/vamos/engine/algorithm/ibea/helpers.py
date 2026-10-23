@@ -11,6 +11,8 @@ This module contains the core IBEA selection functions:
 
 from __future__ import annotations
 
+from collections import Counter
+from functools import cmp_to_key
 from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
@@ -43,6 +45,12 @@ def epsilon_indicator(F: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
 def hypervolume_indicator(F: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     """Compute hypervolume indicator matrix.
 
+    Entry ``(i, j)`` is the hypervolume-difference indicator ``I_HD(x_j, x_i)`` of
+    Zitzler and Kuenzli (2004), with the epsilon indicator's orientation: the
+    fitness of ``x_i`` sums over its row. It is ``H(x_i) - H(x_j)`` when ``x_j``
+    dominates ``x_i``, and otherwise the volume dominated by ``x_i`` but not by
+    ``x_j``. Volumes use the reference point ``max(F) + 1``.
+
     Parameters
     ----------
     F : np.ndarray[Any, Any]
@@ -61,7 +69,10 @@ def hypervolume_indicator(F: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     singleton_hv = np.prod(singleton_box, axis=1)
     pair_intersection = np.maximum(ref - np.maximum(F[:, None, :], F[None, :, :]), 0.0)
     intersection_hv = np.prod(pair_intersection, axis=2)
-    indicator = intersection_hv - singleton_hv[:, None]
+    indicator = singleton_hv[:, None] - intersection_hv
+    row, column = F[:, None, :], F[None, :, :]
+    column_dominates_row = np.all(column <= row, axis=2) & np.any(column < row, axis=2)
+    indicator = np.where(column_dominates_row, singleton_hv[:, None] - singleton_hv[None, :], indicator)
     np.fill_diagonal(indicator, 0.0)
     return cast(np.ndarray[Any, Any], indicator)
 
@@ -80,10 +91,134 @@ def compute_indicator_matrix(F: np.ndarray[Any, Any], indicator: str) -> np.ndar
     -------
     np.ndarray[Any, Any]
         Indicator matrix.
+
+    Notes
+    -----
+    The hypervolume indicator follows adaptive IBEA (Zitzler and Kuenzli, 2004), as in
+    jMetal. Hypervolume differences grow with the product of the objective ranges, so
+    the objectives are normalized over ``F`` and the indicator is divided by its largest
+    magnitude, which keeps the fitness exponents within ``[-1/kappa, 1/kappa]``. The
+    epsilon indicator is used unscaled, as in jMetalPy.
     """
     if indicator == "hypervolume":
-        return hypervolume_indicator(F)
+        if F.shape[0] == 0:
+            return np.empty((0, 0), dtype=float)
+        low, high = np.min(F, axis=0), np.max(F, axis=0)
+        values = hypervolume_indicator((F - low) / np.where(high > low, high - low, 1.0))
+        largest = float(np.max(np.abs(values), initial=0.0))
+        return values / largest if largest > 0.0 else values
     return epsilon_indicator(F)
+
+
+# np.exp overflows float64 above an exponent of about 709.78. Up to _EXP_LIMIT, IBEA sums the
+# exponential contributions directly; beyond it, fitness is handled in the log domain.
+_EXP_LIMIT = 700.0
+
+
+def _fitness_exponents(indicator: np.ndarray[Any, Any], kappa: float) -> np.ndarray[Any, Any]:
+    """``-indicator / kappa``, with ``-inf`` (no contribution) on the diagonal and for undefined values.
+
+    ``+inf``, from an infinite indicator or a division that overflows, stays the largest contribution.
+    """
+    with np.errstate(over="ignore"):
+        exponent = -np.asarray(indicator, dtype=float) / kappa
+    exponent[np.isnan(exponent)] = -np.inf
+    np.fill_diagonal(exponent, -np.inf)
+    return exponent
+
+
+def _overflows(exponent: np.ndarray[Any, Any]) -> bool:
+    return float(np.max(exponent, initial=-np.inf)) > _EXP_LIMIT
+
+
+def _log_sum_exp(exponent: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
+    """Row-wise ``log(sum(exp(exponent)))``; ``-inf`` for rows without contributions, ``+inf`` with an infinite one."""
+    top = np.max(exponent, axis=1, initial=-np.inf)
+    shift = np.where(np.isfinite(top), top, 0.0)
+    with np.errstate(divide="ignore"):
+        return np.asarray(shift + np.log(np.sum(np.exp(exponent - shift[:, None]), axis=1)), dtype=float)
+
+
+def _penalty_ranks(G: np.ndarray[Any, Any] | None, n: int) -> np.ndarray[Any, Any]:
+    """0 for feasible solutions; 1 + the rank of the total violation for infeasible ones."""
+    rank = np.zeros(n, dtype=float)
+    if G is None:
+        return rank
+    feasible = is_feasible(G)
+    if feasible.all():
+        return rank
+    _, violation_rank = np.unique(compute_violation(G)[~feasible], return_inverse=True)
+    rank[~feasible] = 1.0 + violation_rank
+    return rank
+
+
+def _log_domain_fitness(exponent: np.ndarray[Any, Any], log_sums: np.ndarray[Any, Any], rank: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
+    """Finite fitness in the order of the penalized ``-exp(log_sums)``: 0 for the best, -1 for the next, and so on.
+
+    Rows are ordered as removal compares them: penalty rank, then log-sum, with float ties in
+    the log-sum resolved exactly and the lower index worse among equal sums. Positions rather
+    than values keep the fitness finite whatever the range of the log-sums.
+    """
+
+    def better_first(i: int, j: int) -> int:
+        if rank[i] != rank[j]:
+            return -1 if rank[i] < rank[j] else 1
+        if log_sums[i] != log_sums[j]:
+            return -1 if log_sums[i] < log_sums[j] else 1
+        if _sum_exceeds(exponent[j], exponent[i]):
+            return -1
+        if _sum_exceeds(exponent[i], exponent[j]):
+            return 1
+        return 1 if i < j else -1 if i > j else 0
+
+    best_first = sorted(range(exponent.shape[0]), key=cmp_to_key(better_first))
+    fitness = np.empty(len(best_first), dtype=float)
+    fitness[best_first] = -np.arange(len(best_first), dtype=float)
+    return fitness
+
+
+def _sum_exceeds(a: np.ndarray[Any, Any], b: np.ndarray[Any, Any]) -> bool:
+    """Whether ``sum(exp(a))`` exceeds ``sum(exp(b))`` when their float log-sums tie.
+
+    Equal exponents contribute equally, so they cancel; the remaining terms decide, including
+    those that a shared leading term absorbed in floating point.
+    """
+    left, right = Counter(a[a > -np.inf].tolist()), Counter(b[b > -np.inf].tolist())
+    rest_left = np.fromiter((left - right).elements(), dtype=float)
+    rest_right = np.fromiter((right - left).elements(), dtype=float)
+    return bool(_log_sum_exp(rest_left[None, :])[0] > _log_sum_exp(rest_right[None, :])[0])
+
+
+def _largest_sum(exponent: np.ndarray[Any, Any], log_sums: np.ndarray[Any, Any], candidates: np.ndarray[Any, Any]) -> int:
+    """The first candidate row with the largest ``sum(exp(row))``, resolving float ties exactly."""
+    tied = candidates[log_sums[candidates] == np.max(log_sums[candidates])]
+    largest = int(tied[0])
+    for row in tied[1:]:
+        if _sum_exceeds(exponent[row], exponent[largest]):
+            largest = int(row)
+    return largest
+
+
+def _log_domain_selection(
+    exponent: np.ndarray[Any, Any], rank: np.ndarray[Any, Any], pop_size: int
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
+    """IBEA's removal loop for contributions beyond the float64 range.
+
+    The fitness of an active solution is ``-exp(L)``, with ``L`` the log-sum of its contributions
+    from the other active solutions. ``L`` is recomputed after every removal, so a removed
+    solution's dominant term no longer hides the others. The worst solution has the highest
+    penalty rank and, among those, the largest ``L``: the order that the penalized fitness
+    defines. Rows whose ``L`` tie in floating point are compared on the terms they do not share.
+    Fitness differences below floating-point resolution decide as in the non-overflow path.
+    """
+    active: NDArray[np.int_] = np.arange(exponent.shape[0], dtype=int)
+    while active.size > pop_size:
+        sub = exponent[np.ix_(active, active)]
+        candidates = np.flatnonzero(rank[active] == np.max(rank[active]))
+        worst_pos = _largest_sum(sub, _log_sum_exp(sub), candidates)
+        active = np.delete(active, worst_pos)
+    survivors = exponent[np.ix_(active, active)]
+    return active, _log_domain_fitness(survivors, _log_sum_exp(survivors), rank[active])
 
 
 def ibea_fitness(indicator: np.ndarray[Any, Any], kappa: float) -> np.ndarray[Any, Any]:
@@ -102,13 +237,13 @@ def ibea_fitness(indicator: np.ndarray[Any, Any], kappa: float) -> np.ndarray[An
     Returns
     -------
     np.ndarray[Any, Any]
-        Fitness values, shape (N,).
+        Fitness values, shape (N,). When a contribution exceeds the float64 range, the
+        values are finite and in the same order, but no longer equal to the sums.
     """
-    mat = indicator.copy()
-    np.fill_diagonal(mat, np.inf)
-    contrib = np.exp(-mat / kappa)
-    contrib[~np.isfinite(contrib)] = 0.0
-    return np.asarray(-np.sum(contrib, axis=1), dtype=float)
+    exponent = _fitness_exponents(indicator, kappa)
+    if _overflows(exponent):
+        return _log_domain_fitness(exponent, _log_sum_exp(exponent), np.zeros(exponent.shape[0]))
+    return np.asarray(-np.sum(np.exp(exponent), axis=1), dtype=float)
 
 
 def apply_constraint_penalty(fitness: np.ndarray[Any, Any], G: np.ndarray[Any, Any] | None) -> np.ndarray[Any, Any]:
@@ -133,16 +268,13 @@ def apply_constraint_penalty(fitness: np.ndarray[Any, Any], G: np.ndarray[Any, A
     np.ndarray[Any, Any]
         Penalized fitness values.
     """
-    if G is None:
-        return np.asarray(fitness, dtype=float)
-    feas = is_feasible(G)
     penalized = np.array(fitness, dtype=float)
-    if feas.all():
+    rank = _penalty_ranks(G, penalized.shape[0])
+    if not rank.any():
         return penalized
-    infeasible = ~feas
-    _, violation_rank = np.unique(compute_violation(G)[infeasible], return_inverse=True)
     penalty = float(np.max(np.abs(penalized), initial=0.0)) + 1.0
-    penalized[infeasible] -= penalty * (1.0 + violation_rank)
+    infeasible = rank > 0.0
+    penalized[infeasible] -= penalty * rank[infeasible]
     return penalized
 
 
@@ -181,10 +313,11 @@ def environmental_selection(
     tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any] | None, np.ndarray[Any, Any]]
         (X_selected, F_selected, G_selected, fitness)
     """
-    ind = compute_indicator_matrix(F, indicator)
-    contrib = np.exp(-ind / kappa)
-    contrib[~np.isfinite(contrib)] = 0.0
-    np.fill_diagonal(contrib, 0.0)
+    exponent = _fitness_exponents(compute_indicator_matrix(F, indicator), kappa)
+    if _overflows(exponent):
+        selected, fitness = _log_domain_selection(exponent, _penalty_ranks(G, F.shape[0]), pop_size)
+        return X[selected], F[selected], G[selected] if G is not None else None, fitness
+    contrib = np.exp(exponent)
     fitness = np.asarray(-np.sum(contrib, axis=1), dtype=float)
     fitness = apply_constraint_penalty(fitness, G)
     if selection_kernels is not None:

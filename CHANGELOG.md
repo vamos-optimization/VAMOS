@@ -4,7 +4,7 @@ All notable public changes to VAMOS are documented here.
 
 ## [Unreleased]
 
-## [1.1.0] - 2026-10-21
+## [1.1.0] - 2026-10-23
 
 ### Added
 
@@ -64,6 +64,20 @@ All notable public changes to VAMOS are documented here.
 - IBEA's constraint penalty raised the fitness of infeasible solutions, so its
   environmental selection removed feasible solutions first. Infeasible
   solutions are now removed first, in decreasing order of violation.
+- IBEA with `indicator="hypervolume"` used the hypervolume-difference indicator
+  with the opposite orientation, so it removed the solutions with the largest
+  exclusive hypervolume first and kept dominated ones; on ZDT1 and DTLZ2 its
+  final populations never reached the reference box. It now follows Zitzler and
+  Künzli's `I_HD` with adaptive scaling, as jMetal does, and matches jMetal's
+  IBEA on ZDT1, DTLZ2 and DTLZ1. Rerun hypervolume-based IBEA experiments from
+  earlier versions.
+- IBEA counted an exponential indicator contribution beyond the float64 range
+  as zero, which made a solution dominated by a wide margin look best (with
+  `kappa=0.05`, once another solution was better by more than about 35.5 in
+  every objective). Selection then works in the log domain, recomputing each
+  fitness after every removal and keeping feasible solutions ahead of
+  infeasible ones, so overflow no longer changes which solutions survive; runs
+  without overflow are unchanged.
 - NSGA-III enforces constraints: its survival keeps feasible solutions before
   infeasible ones and its parent tournament ranks them first, instead of
   ranking objective values only.

@@ -24,9 +24,16 @@ unsupported behavior rather than future compatibility promises.
 - Independent algorithm-conformance validation for AGE-MOEA, RVEA and SMPSO
   remains pending. Passing API and regression tests does not establish
   convergence equivalence with a reference implementation.
-- IBEA still replaces nonfinite exponential indicator contributions with zero.
-  Extreme indicator scales require particular care; the constraint-penalty
-  correction does not resolve this separate numerical limitation.
+- IBEA's epsilon indicator is unscaled, as in jMetalPy, so objective units
+  still shape its selection pressure. With `indicator="hypervolume"`,
+  far-dominated solutions in early populations dominate the adaptive
+  normalization, which slows convergence on problems such as DTLZ1; jMetal's
+  IBEA behaves the same. VAMOS 1.0.2 and earlier also inverted the hypervolume
+  indicator and counted overflowing contributions as zero; see the
+  [IBEA indicator corrections](../reference/algorithms.md#ibea-indicator-corrections-in-110).
+  Indicator values divided by `kappa` must fit in float64 (objective differences
+  below about `kappa * 1.8e308`); larger ones saturate to infinity, and
+  solutions with saturated contributions are not ordered among themselves.
 
 ## Backends and optional dependencies
 
