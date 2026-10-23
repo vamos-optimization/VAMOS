@@ -47,7 +47,8 @@ jobs:
             extras: dev,compute,research,analysis,examples,studio,docs
           - os: ubuntu-latest
             python-version: "3.12"
-            extras: dev,compute,research,analysis,examples,studio,docs
+            # The only job with the tuning extra; without it, the Optuna, SMAC3 and BOHB backend tests are skipped.
+            extras: dev,compute,research,analysis,examples,studio,docs,tuning
           - os: windows-latest
             python-version: "3.12"
             extras: dev,compute,analysis,examples,studio,docs
