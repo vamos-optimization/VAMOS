@@ -10,6 +10,7 @@ from vamos.engine.tuning.racing.bridge import (
     build_ibea_integer_config_space,
     build_ibea_permutation_config_space,
     build_moead_binary_config_space,
+    build_moead_config_space,
     build_moead_integer_config_space,
     build_moead_permutation_config_space,
     build_nsgaii_binary_config_space,
@@ -37,6 +38,8 @@ from vamos.engine.tuning.racing.config_space import AlgorithmConfigSpace
 from vamos.engine.tuning.racing.param_space import (
     Boolean,
     Categorical,
+    Condition,
+    ConditionalBlock,
     Int,
     Real,
 )
@@ -80,6 +83,26 @@ def test_algorithm_config_space_round_trip():
     decoded = space.from_unit_vector(vec)
     assert decoded["a"] in ["x", "y"]
     assert 1 <= decoded["b"] <= 3
+
+
+@pytest.mark.parametrize("builder", [build_nsgaii_config_space, build_moead_config_space, build_agemoea_config_space])
+def test_mutation_eta_is_active_only_for_polynomial_mutations(builder):
+    space = builder()
+    param_space = space.to_param_space()
+    rng = np.random.default_rng(11)
+    seen = set()
+    for _ in range(80):
+        config = space.sample(rng)
+        active = config["mutation"] in {"pm", "polynomial", "linked_polynomial"}
+        assert ("mutation_eta" in config) == active
+        assert {param.name for param in space.flatten(config)} == set(config)
+        param_space.validate(config)
+        vector = space.to_unit_vector(config)
+        decoded = space.from_unit_vector(vector)
+        assert set(decoded) == set(config)
+        np.testing.assert_allclose(space.to_unit_vector(decoded), vector)
+        seen.add(active)
+    assert seen == {False, True}
 
 
 def test_nsgaii_config_space_builds_and_constructs_config():
@@ -686,3 +709,23 @@ def test_new_integer_parameter_mapping_in_assignment():
     sp_cfg = config_from_assignment("spea2_integer", sp_assignment)
     assert sp_cfg.mutation[0] == "creep"
     assert int(sp_cfg.mutation[1]["step"]) == 3
+
+
+def test_conditioned_parameters_declared_before_their_parents_are_sampled():
+    # "eta" precedes its parent "op" and also depends on "kind", a conditional-block parameter.
+    space = AlgorithmConfigSpace(
+        "ordering",
+        params=[Real("eta", 1.0, 2.0), Categorical("op", ["a", "b"])],
+        conditionals=[ConditionalBlock("op", "a", [Categorical("kind", ["x", "y"])])],
+        conditions=[Condition("eta", "cfg['op'] == 'a'"), Condition("eta", "cfg['kind'] == 'x'")],
+    )
+    param_space = space.to_param_space()
+    samples = [space.sample(np.random.default_rng(seed)) for seed in range(40)]
+    assert any("eta" in sample for sample in samples)
+    for sample in samples:
+        assert set(sample) == {name for name in param_space.params if param_space.is_active(name, sample)}
+        param_space.validate(sample)
+        decoded = space.from_unit_vector(space.to_unit_vector(sample))
+        assert set(decoded) == set(sample)
+        assert decoded["op"] == sample["op"] and decoded.get("kind") == sample.get("kind")
+        assert decoded.get("eta") == pytest.approx(sample.get("eta"))

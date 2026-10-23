@@ -55,9 +55,9 @@ def _real_operator_part() -> SpacePart:
         Categorical("crossover", ["sbx", "de"], role="operator"),
         Categorical("mutation", ["polynomial", "gaussian", "non_uniform", "cauchy", "uniform"], role="operator"),
         Real("mutation_prob", 0.01, 0.5, role="operator_rate"),
-        Real("mutation_eta", 5.0, 40.0, role="operator_rate"),
     ]
     conditionals = [
+        ConditionalBlock("mutation", "polynomial", [Real("mutation_eta", 5.0, 40.0, role="operator_rate")]),
         ConditionalBlock(
             "crossover",
             "sbx",

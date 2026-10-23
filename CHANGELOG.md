@@ -11,7 +11,7 @@ All notable public changes to VAMOS are documented here.
   CEC2009 instance, with the same Pareto front. UF3 runs from earlier versions
   are not comparable with CEC2009 results; rerun them before comparing.
 
-## [1.1.0] - 2026-10-21
+## [1.1.0] - 2026-10-23
 
 ### Added
 
@@ -71,6 +71,20 @@ All notable public changes to VAMOS are documented here.
 - IBEA's constraint penalty raised the fitness of infeasible solutions, so its
   environmental selection removed feasible solutions first. Infeasible
   solutions are now removed first, in decreasing order of violation.
+- IBEA with `indicator="hypervolume"` used the hypervolume-difference indicator
+  with the opposite orientation, so it removed the solutions with the largest
+  exclusive hypervolume first and kept dominated ones; on ZDT1 and DTLZ2 its
+  final populations never reached the reference box. It now follows Zitzler and
+  Künzli's `I_HD` with adaptive scaling, as jMetal does, and matches jMetal's
+  IBEA on ZDT1, DTLZ2 and DTLZ1. Rerun hypervolume-based IBEA experiments from
+  earlier versions.
+- IBEA counted an exponential indicator contribution beyond the float64 range
+  as zero, which made a solution dominated by a wide margin look best (with
+  `kappa=0.05`, once another solution was better by more than about 35.5 in
+  every objective). Selection then works in the log domain, recomputing each
+  fitness after every removal and keeping feasible solutions ahead of
+  infeasible ones, so overflow no longer changes which solutions survive; runs
+  without overflow are unchanged.
 - NSGA-III enforces constraints: its survival keeps feasible solutions before
   infeasible ones and its parent tournament ranks them first, instead of
   ranking objective values only.
@@ -83,6 +97,24 @@ All notable public changes to VAMOS are documented here.
   like `"feasibility"` in every algorithm.
 - SPEA2 runs with `constraint_mode="none"` on constrained problems instead of
   failing with an `IndexError` after the first generation.
+- The model-based tuning backends `optuna`, `bohb_optuna`, `smac3` and `bohb`
+  honor conditional parameters, as `random` and `racing` already did for a
+  parameter's own conditions. They
+  suggested every parameter, so trials recorded values that had no effect and
+  SMAC3 and BOHB modelled inactive dimensions. They now sample a parameter
+  only when its conditions hold, resolve parents first, and give SMAC3 and BOHB
+  native ConfigSpace conditions; unsupported conditions, unknown parents and
+  dependency cycles fail before sampling. In real-valued operator spaces
+  `mutation_eta` is active only for polynomial mutations, so a seeded MOEA/D
+  `random` or `racing` search proposes different candidates than 1.0.2.
+- Native BOHB tuning starts without an unsupported `random_state` argument and
+  sends plain Python values to its workers. Its configuration generator draws
+  from a private stream derived from the tuning seed instead of NumPy's global
+  state, so a single-worker search is reproducible and the caller's global
+  random stream is left untouched.
+- `random` and `racing` no longer return a parameter whose parent is inactive.
+  They still draw every value in declaration order, so their seeded values do
+  not change.
 - Refresh the reviewed dependency set, the canonical mypy 2.4.0 environment,
   and its exact diagnostic baseline. Pair PyMdown 12.3 with mkdocstrings 1.0.8
   on Python 3.11+, retaining the compatible documentation pair on Python 3.10.

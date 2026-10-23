@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import logging
 import math
+import sys
 import threading
 import time
+import types
 from collections.abc import Mapping
 from typing import Any, Protocol
 
@@ -29,6 +31,7 @@ from ._model_backend_utils import (
 from ._model_backend_utils import (
     sample_from_optuna_trial as _sample_from_optuna_trial,
 )
+from .racing.param_space import _active_assignment
 from .racing.random_search_tuner import TrialResult
 from .racing.tuning_task import TuningTask
 
@@ -141,11 +144,15 @@ def run_optuna_like(
         show_progress_bar=bool(tuner.show_progress_bar),
     )
 
+    def active_config(trial: Any) -> dict[str, Any]:
+        # Trials resumed from a study stored before conditions were honored may record inactive parameters.
+        return _active_assignment(tuner.task.param_space, dict(trial.user_attrs.get("config", trial.params)))
+
     history: list[TrialResult] = []
     for trial in study.trials:
         if trial.value is None:
             continue
-        cfg = trial.user_attrs.get("config", dict(trial.params))
+        cfg = active_config(trial)
         details: dict[str, Any] = {"state": str(getattr(trial.state, "name", trial.state))}
         fidelity_trace = trial.user_attrs.get("fidelity_trace")
         if isinstance(fidelity_trace, list):
@@ -153,9 +160,7 @@ def run_optuna_like(
         history.append(TrialResult(trial_id=int(trial.number), config=dict(cfg), score=float(trial.value), details=details))
     if not history:
         raise RuntimeError("Tuner finished without a valid configuration.")
-    best_trial = study.best_trial
-    best_cfg = best_trial.user_attrs.get("config", dict(best_trial.params))
-    return dict(best_cfg), history
+    return active_config(study.best_trial), history
 
 
 def run_smac3(tuner: BackendTunerLike, eval_fn: ScoreEvalFn) -> tuple[dict[str, Any], list[TrialResult]]:
@@ -229,6 +234,84 @@ def run_smac3(tuner: BackendTunerLike, eval_fn: ScoreEvalFn) -> tuple[dict[str, 
     return dict(best.config), history
 
 
+class _RandomStateCallsFromGenerator:
+    """The ``RandomState``-style ``np.random`` calls of HpBandSter's BOHB generator, served by an owned ``Generator``.
+
+    Any other ``np.random`` call fails with ``AttributeError`` instead of drawing from a global stream.
+    """
+
+    def __init__(self, generator: np.random.Generator) -> None:
+        self.generator = generator
+
+    def rand(self) -> float:
+        return float(self.generator.random())
+
+    def randint(self, low: int, high: int | None = None) -> int:
+        return int(self.generator.integers(low, high))
+
+    def choice(self, a: Any) -> Any:
+        return self.generator.choice(a)
+
+
+class _NumpyWithPrivateRandom:
+    """The ``numpy`` module as HpBandSter's BOHB generator sees it, with ``random`` bound to a private stream."""
+
+    def __init__(self, generator: np.random.Generator) -> None:
+        self.random = _RandomStateCallsFromGenerator(generator)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(np, name)
+
+
+class _SeededDistribution:
+    """A SciPy distribution whose ``rvs`` draws from a private stream unless given one."""
+
+    def __init__(self, distribution: Any, random_state: np.random.Generator) -> None:
+        self._distribution = distribution
+        self._random_state = random_state
+
+    def rvs(self, *args: Any, **kwargs: Any) -> Any:
+        kwargs.setdefault("random_state", self._random_state)
+        return self._distribution.rvs(*args, **kwargs)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._distribution, name)
+
+
+class _StatsWithPrivateRandom:
+    """``scipy.stats`` as HpBandSter's BOHB generator sees it, with distributions drawing from a private stream."""
+
+    def __init__(self, stats: Any, random_state: np.random.Generator) -> None:
+        self._stats = stats
+        self._random_state = random_state
+
+    def __getattr__(self, name: str) -> Any:
+        value = getattr(self._stats, name)
+        return _SeededDistribution(value, self._random_state) if hasattr(value, "rvs") else value
+
+
+def _isolate_bohb_random_stream(config_generator: Any, rng: np.random.Generator) -> None:
+    """Make one HpBandSter BOHB configuration generator draw from ``rng``.
+
+    HpBandSter accepts no seed: the generator draws through the ``np`` and ``sps`` globals of
+    its module (``np.random`` and SciPy ``rvs`` without a ``random_state``), that is, from
+    NumPy's process-wide state. Its two sampling methods are rebuilt on this instance over a
+    copy of those globals in which both draw from ``rng``. The search is then reproducible
+    for a seed, and neither NumPy's global state nor HpBandSter's module is modified.
+    """
+    from scipy import stats  # type: ignore[import-untyped]
+
+    scope = dict(vars(sys.modules[type(config_generator).__module__]))
+    scope["np"] = _NumpyWithPrivateRandom(rng)
+    scope["sps"] = _StatsWithPrivateRandom(stats, rng)
+    for name in ("get_config", "impute_conditional_data"):
+        function = getattr(type(config_generator), name, None)
+        if not isinstance(function, types.FunctionType):
+            raise RuntimeError(f"Unsupported HpBandSter version: the BOHB generator has no {name}() to seed.")
+        rebuilt = types.FunctionType(function.__code__, scope, function.__name__, function.__defaults__, function.__closure__)
+        setattr(config_generator, name, types.MethodType(rebuilt, config_generator))
+
+
 def run_bohb_native(tuner: BackendTunerLike, eval_fn: ScoreEvalFn) -> tuple[dict[str, Any], list[TrialResult]]:
     import hpbandster.core.nameserver as hpns
     from hpbandster.core.worker import Worker
@@ -240,6 +323,13 @@ def run_bohb_native(tuner: BackendTunerLike, eval_fn: ScoreEvalFn) -> tuple[dict
     history: list[TrialResult] = []
     lock = threading.Lock()
     trial_counter = 0
+
+    class _BOHB(BOHB):  # type: ignore[misc]
+        def _submit_job(inner_self, config_id: Any, config: Mapping[str, Any], budget: float) -> None:
+            # ConfigSpace returns NumPy scalars for categorical/boolean parents;
+            # HpBandSter's Pyro transport requires plain Python values.
+            cfg = {name: value.item() if isinstance(value, np.generic) else value for name, value in config.items()}
+            super()._submit_job(config_id, cfg, float(budget))
 
     class _Worker(Worker):  # type: ignore[misc]
         def compute(inner_self, config: Mapping[str, Any], budget: float | None, **kwargs: Any) -> dict[str, Any]:
@@ -294,7 +384,7 @@ def run_bohb_native(tuner: BackendTunerLike, eval_fn: ScoreEvalFn) -> tuple[dict
             worker.run(background=True)
             workers.append(worker)
 
-        optimizer = BOHB(
+        optimizer = _BOHB(
             configspace=cs,
             run_id=run_id,
             nameserver=ns_host,
@@ -302,8 +392,9 @@ def run_bohb_native(tuner: BackendTunerLike, eval_fn: ScoreEvalFn) -> tuple[dict
             min_budget=float(min_budget_i),
             max_budget=float(max_budget_i),
             eta=int(eta),
-            random_state=int(tuner.seed),
         )
+        # A stream apart from the ConfigSpace one, which is seeded with the tuner seed itself.
+        _isolate_bohb_random_stream(optimizer.config_generator, np.random.default_rng([int(tuner.seed), 1]))
         evals_per_iter = _estimate_hyperband_evals_per_iteration(max_budget=int(max_budget_i), eta=int(eta))
         n_iterations = max(1, int(math.ceil(max(1, int(tuner.max_trials)) / evals_per_iter)))
         _ = optimizer.run(n_iterations=n_iterations, min_n_workers=max(1, int(tuner.n_jobs)))
