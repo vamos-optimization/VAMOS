@@ -116,9 +116,9 @@ class CEC2009_UF2(_CEC2009UF2ObjBase):
 class CEC2009_UF3(_CEC2009UF2ObjBase):
     """UF3 from the CEC2009 competition."""
 
-    def __init__(self, n_var: int = 30) -> None:
+    def __init__(self, n_var: int = 30, *, lower_rest: float = 0.0, upper_rest: float = 1.0) -> None:
         # Unlike UF1 and UF2, UF3 searches [0, 1]^n.
-        super().__init__(n_var=n_var, lower_rest=0.0, upper_rest=1.0)
+        super().__init__(n_var=n_var, lower_rest=lower_rest, upper_rest=upper_rest)
 
     def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         X, F = self._prepare(X, out)

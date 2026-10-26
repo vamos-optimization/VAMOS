@@ -99,6 +99,17 @@ def test_cec2009_uf_problems_use_the_reference_domains(index: int) -> None:
         assert np.all(xl[head:] == -rest_bound) and np.all(xu[head:] == rest_bound)
 
 
+def test_cec2009_uf3_keeps_its_stable_keyword_bounds() -> None:
+    # vamos.problems.CEC2009UF3 is a stable class: its 1.x keywords stay, with the CEC2009 domain as default.
+    from vamos.problems import CEC2009UF3
+
+    default = CEC2009UF3(n_var=5)
+    explicit = CEC2009UF3(n_var=5, lower_rest=-1.0, upper_rest=1.0)
+
+    assert np.all(np.broadcast_to(np.asarray(default.xl, dtype=float), (5,))[1:] == 0.0)
+    assert np.all(np.broadcast_to(np.asarray(explicit.xl, dtype=float), (5,))[1:] == -1.0)
+
+
 def test_cec2009_uf3_reaches_its_front_on_the_pareto_set():
     from vamos.foundation.problem.cec import CEC2009UF3Problem
 
