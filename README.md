@@ -11,11 +11,11 @@ Issues, pull requests, releases, and development are coordinated there. See
 VAMOS bridges the gap between simple research scripts and large-scale optimization studies. It provides a unified API for running state-of-the-art algorithms across diverse problems, backed by vectorized kernels with NumPy as the exact reference path and optional Numba acceleration for core kernels.
 
 VAMOS 1.0.0 is the first official public release and compatibility baseline.
-VAMOS 1.1.0 corrects constraint handling, adds durable batches and statistical
-comparison to Studio, and lets explicit `engine="auto"` prefer Numba across
-all nine built-in algorithms. See the
+VAMOS 1.1.0 corrects constraint handling and IBEA's hypervolume indicator, adds
+durable batches and statistical comparison to Studio, and lets explicit
+`engine="auto"` prefer Numba across all nine built-in algorithms. See the
 [1.1.0 release notes](docs/project/release-notes-1.1.0.md), including the impact
-on constrained experiments, and the earlier
+on constrained and hypervolume-based IBEA experiments, and the earlier
 [1.0.2 release notes](docs/project/release-notes-1.0.2.md).
 Earlier version strings and Git tags were internal pre-public development
 markers, not prior public releases. See the
