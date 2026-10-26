@@ -24,16 +24,23 @@ unsupported behavior rather than future compatibility promises.
 - Independent algorithm-conformance validation for AGE-MOEA, RVEA and SMPSO
   remains pending. Passing API and regression tests does not establish
   convergence equivalence with a reference implementation.
-- IBEA's epsilon indicator is unscaled, as in jMetalPy, so objective units
-  still shape its selection pressure. With `indicator="hypervolume"`,
-  far-dominated solutions in early populations dominate the adaptive
-  normalization, which slows convergence on problems such as DTLZ1; jMetal's
-  IBEA behaves the same. VAMOS 1.0.2 and earlier also inverted the hypervolume
-  indicator and counted overflowing contributions as zero; see the
-  [IBEA indicator corrections](../reference/algorithms.md#ibea-indicator-corrections-in-110).
-  Indicator values divided by `kappa` must fit in float64 (objective differences
-  below about `kappa * 1.8e308`); larger ones saturate to infinity, and
-  solutions with saturated contributions are not ordered among themselves.
+- IBEA normalizes the objectives over the population for both indicators,
+  as adaptive IBEA does.
+  - **Effect on multimodal problems:** far-dominated solutions in early
+    populations widen the normalization range, which lowers the resolution
+    among the other solutions. This slows convergence on problems such as ZDT4
+    and DTLZ1; jMetal's IBEA behaves the same.
+  - **Earlier versions:**
+    - VAMOS 1.1.0 used the epsilon indicator unscaled, so objective units
+      shaped its selection.
+    - VAMOS 1.0.2 and earlier also inverted the hypervolume indicator and
+      counted overflowing contributions as zero; see the
+      [IBEA indicator corrections](../reference/algorithms.md#ibea-indicator-corrections-in-110).
+  - **Overflow:** with the normalized indicators, contributions exceed the
+    float64 range only for `kappa` below about 1/709, and selection then works
+    in the log domain.
+  - **Infinite objective values:** they give infinite contributions, and
+    solutions with such contributions are not ordered among themselves.
 
 ## Backends and optional dependencies
 

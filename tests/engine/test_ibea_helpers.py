@@ -7,7 +7,9 @@ from vamos.engine.algorithm.ibea.helpers import (
     epsilon_indicator,
     hypervolume_indicator,
     ibea_fitness,
+    indicator_selection,
 )
+from vamos.foundation.problem.zdt1 import ZDT1Problem
 from vamos.foundation.quality_indicators.hypervolume import hypervolume
 
 
@@ -65,6 +67,75 @@ def test_hypervolume_indicator_is_normalized_for_fitness() -> None:
     assert np.max(np.abs(indicator)) == pytest.approx(1.0)
 
 
+def test_epsilon_indicator_is_normalized_for_fitness() -> None:
+    F = np.random.default_rng(6).random((12, 3))
+    rescaled = F * np.array([1.0, 100.0, 1.0e4]) + np.array([0.0, -50.0, 3.0])
+
+    indicator = compute_indicator_matrix(F, "epsilon")
+
+    np.testing.assert_allclose(compute_indicator_matrix(rescaled, "epsilon"), indicator, atol=1e-12)
+    assert np.max(np.abs(indicator)) == pytest.approx(1.0)
+
+
+# Multiplying an objective by a power of two is exact in floating point, so it must leave every value unchanged.
+_POWER_OF_TWO_UNITS = np.array([2.0**10, 2.0**-7, 2.0**3])
+
+
+@pytest.mark.parametrize("indicator", ["epsilon", "hypervolume"])
+def test_selection_is_invariant_to_the_units_of_each_objective(indicator: str) -> None:
+    F = np.random.default_rng(12).random((30, 3)) * np.array([1.0, 50.0, 1.0e-3])
+    X = np.arange(30, dtype=float)[:, None]
+
+    X_kept, _, _, fitness = environmental_selection(X, F, None, 15, indicator, 0.05)
+    X_rescaled, _, _, fitness_rescaled = environmental_selection(X, F * _POWER_OF_TWO_UNITS, None, 15, indicator, 0.05)
+
+    assert np.array_equal(X_rescaled, X_kept)
+    assert np.array_equal(fitness_rescaled, fitness)
+
+
+class _ZDT1InOtherUnits(ZDT1Problem):
+    def __init__(self, n_var: int, units: np.ndarray) -> None:
+        super().__init__(n_var)
+        self.units = units
+
+    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+        super().evaluate(X, out)
+        out["F"] *= self.units
+
+
+@pytest.mark.parametrize("indicator", ["epsilon", "hypervolume"])
+def test_ibea_run_is_invariant_to_the_units_of_each_objective(indicator: str) -> None:
+    import dataclasses
+
+    import vamos
+    from vamos.engine.algorithm.config import IBEAConfig
+
+    config = dataclasses.replace(IBEAConfig.default(pop_size=20, n_var=8), indicator=indicator, kappa=0.05)
+    units = _POWER_OF_TWO_UNITS[:2]
+    runs = [
+        vamos.optimize(problem, algorithm="ibea", algorithm_config=config, max_evaluations=1000, seed=3, engine="numpy")
+        for problem in (ZDT1Problem(n_var=8), _ZDT1InOtherUnits(8, units))
+    ]
+
+    assert np.array_equal(np.asarray(runs[1].X), np.asarray(runs[0].X))
+    assert np.array_equal(np.asarray(runs[1].F), np.asarray(runs[0].F) * units)
+
+
+def test_ibea_keeps_a_spread_front_when_objective_ranges_differ() -> None:
+    import vamos
+    from vamos.engine.algorithm.config import IBEAConfig
+
+    # RE21's f1 spans about 1238 to 2886 and its f2 about 0.002 to 0.04. With the epsilon indicator on raw
+    # objectives, f1 decided every value and the whole population collapsed onto f1's minimum (1 distinct point).
+    problem = vamos.make_problem_selection("re21").instantiate()
+    config = IBEAConfig.default(pop_size=20, n_var=problem.n_var)
+    result = vamos.optimize(problem, algorithm="ibea", algorithm_config=config, max_evaluations=3000, seed=0, engine="numpy")
+
+    F = np.asarray(result.F)
+    assert len(np.unique(F, axis=0)) >= 15
+    assert np.ptp(F[:, 0]) > 1000.0
+
+
 @pytest.mark.parametrize("indicator", ["epsilon", "hypervolume"])
 def test_ibea_converges_on_zdt1_with_either_indicator(indicator: str) -> None:
     import dataclasses
@@ -95,8 +166,7 @@ def test_selection_removes_the_dominated_solution(indicator: str) -> None:
     np.testing.assert_array_equal(F_kept, F[[0, 2]])
 
 
-# (0, 0) and (0.5, -0.5) are mutually non-dominated; (1000, 1000) is dominated by both by a margin
-# whose exponential contribution exp(-I / kappa) exceeds the float64 range.
+# (0, 0) and (0.5, -0.5) are mutually non-dominated; (1000, 1000) is dominated by both by a wide margin.
 _FAR_DOMINATED = np.array([[0.0, 0.0], [1000.0, 1000.0], [0.5, -0.5]])
 
 
@@ -144,13 +214,22 @@ def test_selection_without_exponential_overflow_is_unchanged(indicator: str) -> 
     assert np.array_equal(fitness, expected_fitness)
 
 
+# The removal loop must handle contributions beyond the float64 range: an indicator matrix
+# that is not normalized, or a kappa below about 1/709 with the normalized one. The tests
+# below feed it the raw epsilon indicator, whose wide values reach that range directly.
+
+
+def _raw_epsilon_selection(X: np.ndarray, F: np.ndarray, G: np.ndarray | None, pop_size: int, kappa: float):
+    return indicator_selection(X, F, G, epsilon_indicator(F), pop_size, kappa)
+
+
 def _exact_selection(F: np.ndarray, G: np.ndarray | None, pop_size: int, kappa: float) -> list[int]:
-    """IBEA's removal loop with the epsilon indicator in exact high-precision arithmetic, which never overflows."""
+    """IBEA's removal loop on the raw epsilon indicator in exact high-precision arithmetic, which never overflows."""
     from decimal import Decimal, localcontext
 
     from vamos.foundation.constraints.utils import compute_violation, is_feasible
 
-    ind = compute_indicator_matrix(F, "epsilon")
+    ind = epsilon_indicator(F)
     with localcontext() as ctx:
         # Contributions span exp(-max|I| / kappa) to exp(max|I| / kappa); enough digits keep every term and the
         # penalty's "+ 1" through all additions and removals.
@@ -191,7 +270,7 @@ def _exact_selection(F: np.ndarray, G: np.ndarray | None, pop_size: int, kappa: 
 )
 def test_selection_beyond_the_exponential_range_matches_exact_arithmetic(F, G, pop_size, expected) -> None:
     X = np.arange(F.shape[0], dtype=float)[:, None]
-    X_kept, _, _, fitness = environmental_selection(X, F, G, pop_size, "epsilon", 0.05)
+    X_kept, _, _, fitness = _raw_epsilon_selection(X, F, G, pop_size, 0.05)
 
     assert sorted(X_kept[:, 0].astype(int).tolist()) == expected == sorted(_exact_selection(F, G, pop_size, 0.05))
     assert np.isfinite(fitness).all()
@@ -205,7 +284,7 @@ def test_wide_objective_ranges_select_like_exact_arithmetic(seed: int) -> None:
     G = (rng.random((10, 1)) - 0.7) if seed % 2 else None
     X = np.arange(10, dtype=float)[:, None]
 
-    X_kept, _, _, _ = environmental_selection(X, F, G, 4, "epsilon", 0.05)
+    X_kept, _, _, _ = _raw_epsilon_selection(X, F, G, 4, 0.05)
 
     assert sorted(X_kept[:, 0].astype(int).tolist()) == sorted(_exact_selection(F, G, 4, 0.05))
 
@@ -217,7 +296,7 @@ def test_tied_leading_exponents_select_like_exact_arithmetic(seed: int) -> None:
     F = rng.integers(-40, 41, size=(8, 2)).astype(float)
     X = np.arange(8, dtype=float)[:, None]
 
-    X_kept, _, _, _ = environmental_selection(X, F, None, 3, "epsilon", 0.05)
+    X_kept, _, _, _ = _raw_epsilon_selection(X, F, None, 3, 0.05)
 
     assert sorted(X_kept[:, 0].astype(int).tolist()) == sorted(_exact_selection(F, None, 3, 0.05))
 
@@ -241,8 +320,8 @@ def test_a_far_dominated_outlier_leaves_the_selection_among_the_others_unchanged
     X = np.arange(n + 1, dtype=float)[:, None]
     pop_size = n // 2
 
-    kept_plain = environmental_selection(X[:n], F, None, pop_size, "epsilon", 0.05)[0]
-    kept_overflow = environmental_selection(X, np.vstack([F, [[200.0, 200.0]]]), None, pop_size, "epsilon", 0.05)[0]
+    kept_plain = _raw_epsilon_selection(X[:n], F, None, pop_size, 0.05)[0]
+    kept_overflow = _raw_epsilon_selection(X, np.vstack([F, [[200.0, 200.0]]]), None, pop_size, 0.05)[0]
 
     assert sorted(kept_overflow[:, 0].tolist()) == sorted(kept_plain[:, 0].tolist())
 
@@ -252,29 +331,39 @@ def test_a_far_dominated_outlier_leaves_the_selection_among_the_others_unchanged
 def test_an_infinite_contribution_makes_its_solution_the_worst(worse: float) -> None:
     # -I / kappa overflows to +inf (or the indicator itself is infinite): the largest contribution, not none.
     F = np.array([[0.0], [worse]])
-    X_kept, F_kept, _, fitness = environmental_selection(np.arange(2, dtype=float)[:, None], F, None, 1, "epsilon", 0.05)
+    X_kept, F_kept, _, fitness = _raw_epsilon_selection(np.arange(2, dtype=float)[:, None], F, None, 1, 0.05)
 
     assert X_kept[:, 0].tolist() == [0.0]
     assert np.isfinite(fitness).all()
-    ranked = ibea_fitness(compute_indicator_matrix(F, "epsilon"), 0.05)
+    ranked = ibea_fitness(epsilon_indicator(F), 0.05)
     assert int(np.argmin(ranked)) == 1 and np.isfinite(ranked).all()
+
+
+@pytest.mark.filterwarnings("ignore:invalid value encountered in subtract:RuntimeWarning")  # inf - inf on the diagonal
+def test_an_infinite_objective_value_makes_its_solution_the_worst() -> None:
+    # The normalization ranges over the finite values, so the infinite one stays the largest.
+    F = np.array([[0.0, 1.0], [np.inf, 0.5], [1.0, 0.0]])
+    X_kept, _, _, fitness = environmental_selection(np.arange(3, dtype=float)[:, None], F, None, 2, "epsilon", 0.05)
+
+    assert sorted(X_kept[:, 0].tolist()) == [0.0, 2.0]
+    assert np.isfinite(fitness).all()
 
 
 def test_fitness_stays_finite_when_log_sums_span_beyond_float64() -> None:
     # Log-sums near -1e308, 1e308 and inf: a span-based penalty overflowed to inf and inf * 0 gave NaN fitness.
     F = np.array([[-5.0e306], [0.0], [5.0e306]])
-    X_kept, _, _, fitness = environmental_selection(np.arange(3, dtype=float)[:, None], F, None, 2, "epsilon", 0.05)
+    X_kept, _, _, fitness = _raw_epsilon_selection(np.arange(3, dtype=float)[:, None], F, None, 2, 0.05)
 
     assert sorted(X_kept[:, 0].tolist()) == [0.0, 1.0]
     assert np.isfinite(fitness).all()
-    assert np.isfinite(ibea_fitness(compute_indicator_matrix(F, "epsilon"), 0.05)).all()
+    assert np.isfinite(ibea_fitness(epsilon_indicator(F), 0.05)).all()
 
 
 def test_returned_fitness_resolves_tied_log_sums_like_removal() -> None:
     # Rows 1 and 2 tie at log-sum 1640; row 1 (dominated by row 2) has the larger exact sum, so it is worse.
     F = np.array([[14.0, -88.0], [96.0, 95.0], [96.0, 21.0]])
-    _, _, _, fitness = environmental_selection(np.arange(3, dtype=float)[:, None], F, None, 3, "epsilon", 0.05)
+    _, _, _, fitness = _raw_epsilon_selection(np.arange(3, dtype=float)[:, None], F, None, 3, 0.05)
 
     assert fitness[1] < fitness[2] < fitness[0]
-    ranked = ibea_fitness(compute_indicator_matrix(F, "epsilon"), 0.05)
+    ranked = ibea_fitness(epsilon_indicator(F), 0.05)
     assert ranked[1] < ranked[2] < ranked[0]

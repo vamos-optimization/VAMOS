@@ -174,7 +174,11 @@ Evaluations: 400
 
 Each `X` row aligns with the same `F` row. This lesson explicitly requests `population` mode, then computes the feasible non-dominated subset separately. All objectives are minimized. A non-dominated row is only non-dominated among the available rows; it need not be Pareto optimal. The retained [observations](../assets/coverage/observations.json) contain the actual arrays and configuration.
 
-Objective units and the indicator’s scaling affect fitness. Do not infer scale invariance or superior quality from the indicator name. The figure reports objectives in their original units; it does not show a hypervolume-optimized run.
+IBEA normalizes each objective over the population before computing either indicator, as adaptive IBEA does [1].
+- **Units:** a positive affine change of the units of any objective leaves its selection unchanged. The recorded run, measured with VAMOS 1.0.1, predates this normalization of the epsilon indicator.
+- **Limitation:** solutions far behind the others widen the normalization range and slow convergence on multimodal problems.
+- **Quality:** do not infer superior quality from the indicator name.
+- **The figure:** it reports objectives in their original units. It does not show a hypervolume-optimized run.
 
 This run has no constraints. Before using a constrained or discrete problem, check the [capability matrix](../reference/algorithms.md#capability-matrix) and [constraint convention](../reference/constraints.md). Preserve complete runs through the [canonical lifecycle](../guide/run-artifacts.md); the teaching JSON is not a replay bundle.
 
