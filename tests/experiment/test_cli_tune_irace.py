@@ -55,13 +55,23 @@ def test_list_backends_reports_irace(capsys: pytest.CaptureFixture[str]) -> None
 
 
 def test_smoke_profile_keeps_enough_irace_experiments() -> None:
-    args = tune_cli._parse_args(["--backend", "irace", "--smoke"])
+    args = tune_cli._parse_args(["--backend", "irace", "--smoke", "--irace-rscript", sys.executable])
     profile = tune_cli._apply_smoke_mode(args)
     assert profile["tune_budget"] == SMOKE_TUNE_BUDGET and args.irace_options == {"nbIterations": 1}
-    kept = tune_cli._parse_args(["--backend", "irace", "--irace-option", "nbIterations=2"])
+    kept = tune_cli._parse_args(["--backend", "irace", "--irace-option", "nbIterations=2", "--irace-rscript", sys.executable])
     tune_cli._apply_smoke_mode(kept)
     assert kept.irace_options == {"nbIterations": 2}
     assert tune_cli._apply_smoke_mode(tune_cli._parse_args(["--backend", "random"]))["tune_budget"] == 4
+
+
+def test_smoke_fallback_without_rscript_keeps_the_standard_budget(tmp_path: Path) -> None:
+    # Without Rscript the smoke run falls back to random search, which must keep the usual smoke budget.
+    missing = str(tmp_path / "no-rscript")
+    args = tune_cli._parse_args(["--backend", "irace", "--smoke", "--irace-rscript", missing])
+    profile = tune_cli._apply_smoke_mode(args)
+    assert profile["backend_fallback"] == "random"
+    assert profile["tune_budget"] == tune_cli._apply_smoke_mode(tune_cli._parse_args(["--backend", "random"]))["tune_budget"] == 4
+    assert args.irace_options == {}
 
 
 def test_irace_work_dir_defaults_inside_the_output(tmp_path: Path) -> None:

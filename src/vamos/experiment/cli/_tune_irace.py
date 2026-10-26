@@ -84,8 +84,12 @@ def print_backend_table(model_backends: Sequence[str], flags: dict[str, bool]) -
 
 
 def smoke_tune_budget(args: argparse.Namespace, clamped: int) -> int:
-    """Smoke budget for the requested backend; irace keeps one iteration with enough experiments."""
-    if str(args.backend) != "irace":
+    """Smoke budget for the requested backend; irace keeps one iteration with enough experiments.
+
+    Without the configured Rscript the run falls back to another backend, which keeps the usual
+    smoke budget.
+    """
+    if str(args.backend) != "irace" or shutil.which(str(args.irace_rscript)) is None:
         return clamped
     args.irace_options.setdefault("nbIterations", 1)
     return SMOKE_TUNE_BUDGET
