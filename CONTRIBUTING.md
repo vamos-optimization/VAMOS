@@ -69,3 +69,4 @@ Repository-wide contributor and agent rules, including validation tiers and Git 
    - Build docs with `mkdocs build --strict` and run the affected notebook smoke.
 5. For AI-assisted work, start at root `AGENTS.md`; use at most one scoped local instruction and one routed developer guide.
 6. Put the changelog entry in the pull request description, not in `CHANGELOG.md`, so that open pull requests do not conflict there. `AGENTS.md` (change discipline) has the exact rule.
+7. Merge through the merge queue ("Merge when ready"). It reruns the required checks on the pull request combined with the latest `main` and with the pull requests ahead of it in the queue, so several pull requests can be queued at once without updating their branches by hand.
