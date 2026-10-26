@@ -166,7 +166,7 @@ Evaluations: 400
 | Setting | Meaning in this example |
 | --- | --- |
 | `indicator("eps")` | Uses VAMOS’s epsilon-based fitness path. |
-| `kappa(1.0)` | Controls scaling in the indicator-to-fitness transformation; it is not an evaluation budget or tolerance. |
+| `kappa(1.0)` | Controls scaling in the indicator-to-fitness transformation; it is not an evaluation budget or tolerance. This lesson sets 1.0; the default is 0.05, the value of Zitzler and Künzli [1]. |
 | SBX + polynomial mutation | Real-coded variation with mutation probability `1/10`. |
 | Tournament selection | Selects parents using the computed fitness. |
 

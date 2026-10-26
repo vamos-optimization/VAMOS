@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import pytest
 
+from vamos.engine.tuning.racing.param_space import Real
 from vamos.foundation.problem.registry import make_problem_selection
 from vamos.ux.studio.algorithm_form import (
     VAMOS_DEFAULT_CHOICE,
     AlgorithmForm,
     FormParameter,
+    _form_parameter,
     algorithms_for_encoding,
     build_algorithm_form,
     config_fields_for,
@@ -99,11 +101,19 @@ def test_conditional_parameters_follow_their_parent() -> None:
 
 
 def test_defaults_outside_the_tuning_range_are_kept_and_explained() -> None:
-    kappa = next(parameter for parameter in _form("ibea").parameters if parameter.name == "kappa")
+    # No built-in default lies outside its tuning range since IBEA's kappa default became 0.05.
+    kappa = _form_parameter(Real("kappa", 0.01, 0.2), 0, {"kappa": 1.0})
 
     assert kappa.start == pytest.approx(1.0)
     assert kappa.high is not None and kappa.high >= 1.0
     assert "outside the tuning range" in kappa.note
+
+
+def test_ibea_kappa_default_lies_in_its_tuning_range() -> None:
+    kappa = next(parameter for parameter in _form("ibea").parameters if parameter.name == "kappa")
+
+    assert kappa.start == pytest.approx(0.05)
+    assert kappa.note == ""
 
 
 def test_population_follows_reference_directions_where_required() -> None:

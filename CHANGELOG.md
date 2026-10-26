@@ -4,6 +4,19 @@ All notable public changes to VAMOS are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- IBEA's default `kappa` is 0.05, the value of Zitzler and Künzli (2004), PISA,
+  jMetal and PlatEMO, and the middle of VAMOS's IBEA tuning range.
+  - **Why:** with indicator values normalized to `[-1, 1]` (see Fixed),
+    `kappa=1.0` left almost no selection pressure.
+  - **Effect** (default configuration, final-front hypervolume, 20 000
+    evaluations, mean of 3 seeds, `kappa` 1.0 to 0.05):
+    - DTLZ2 (2 objectives): 0.210 to 0.419;
+    - ZDT4: 0.253 to 0.713;
+    - DTLZ1: 0.206 to 0.470.
+  - **Unaffected:** configurations that set `kappa` explicitly.
+
 ### Fixed
 
 - IBEA scales its epsilon indicator as adaptive IBEA does (Zitzler and Künzli,

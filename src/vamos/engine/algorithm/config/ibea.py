@@ -60,7 +60,7 @@ class IBEAConfig(_SerializableConfig):
             .mutation("pm", prob=mut_prob, eta=20.0)
             .selection("tournament")
             .indicator("eps")
-            .kappa(1.0)
+            .kappa(0.05)
             .build()
         )
 

@@ -110,7 +110,7 @@ def initialize_ibea_run(
     indicator = cfg.get("indicator", "eps").lower()
     if indicator in ("eps", "epsilon", "additive_epsilon"):
         indicator = "epsilon"
-    kappa = float(cfg.get("kappa", 1.0))
+    kappa = float(cfg.get("kappa", 0.05))
 
     # Compute initial fitness
     _, _, _, fitness = environmental_selection(

@@ -227,7 +227,7 @@ def build_ibea_config(assignment: dict[str, Any], *, mixed: bool = False) -> IBE
     builder.mutation(mut, **mut_params)
     builder.selection("tournament", size=int(assignment["selection_pressure"]))
     builder.indicator(str(assignment.get("indicator", "eps")))
-    builder.kappa(float(assignment.get("kappa", 1.0)))
+    builder.kappa(float(assignment.get("kappa", 0.05)))
     apply_optional_repair(builder, assignment)
     apply_optional_external_archive(builder, assignment, pop_size)
     return builder.build()
