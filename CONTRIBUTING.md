@@ -68,3 +68,4 @@ Repository-wide contributor and agent rules, including validation tiers and Git 
 4. If you added docs or notebooks:
    - Build docs with `mkdocs build --strict` and run the affected notebook smoke.
 5. For AI-assisted work, start at root `AGENTS.md`; use at most one scoped local instruction and one routed developer guide.
+6. Put the changelog entry in the pull request description, not in `CHANGELOG.md`, so that open pull requests do not conflict there. `AGENTS.md` (change discipline) has the exact rule.
