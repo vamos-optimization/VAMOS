@@ -81,14 +81,20 @@ def _normalized_objectives(F: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     """Each objective mapped to ``[0, 1]`` over the finite values of ``F``.
 
     A constant objective maps to 0. Infinite values stay infinite, so they keep the largest
-    indicator values instead of stretching the range of the finite ones.
+    indicator values instead of stretching the range of the finite ones. A finite range wider
+    than float64's maximum is divided first by its largest magnitude, so ``high - low`` cannot
+    overflow; every other objective is scaled by 1, which leaves its values bit for bit.
     """
     finite = np.isfinite(F)
     low = np.min(np.where(finite, F, np.inf), axis=0)
     high = np.max(np.where(finite, F, -np.inf), axis=0)
     has_range = np.isfinite(low) & (high > low)
     low = np.where(np.isfinite(low), low, 0.0)
-    return np.asarray((F - low) / np.where(has_range, high - low, 1.0), dtype=float)
+    with np.errstate(over="ignore"):
+        too_wide = has_range & ~np.isfinite(high - low)
+    scale = np.where(too_wide, np.maximum(np.abs(low), np.abs(high)), 1.0)
+    span = np.where(has_range, high / scale - low / scale, 1.0)
+    return np.asarray((F / scale - low / scale) / span, dtype=float)
 
 
 def _divided_by_largest_magnitude(values: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:

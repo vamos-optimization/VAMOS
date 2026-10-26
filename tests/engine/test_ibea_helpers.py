@@ -349,6 +349,18 @@ def test_an_infinite_objective_value_makes_its_solution_the_worst() -> None:
     assert np.isfinite(fitness).all()
 
 
+@pytest.mark.parametrize("indicator", ["epsilon", "hypervolume"])
+def test_a_finite_objective_range_beyond_float64_keeps_the_best_solution(indicator: str) -> None:
+    # high - low overflows to inf: the normalization made the largest objective NaN and the others 0,
+    # so the selection removed the best solution instead of the worst.
+    F = np.array([[-1.0e308], [0.0], [1.0e308]])
+    X_kept, _, _, fitness = environmental_selection(np.arange(3, dtype=float)[:, None], F, None, 2, indicator, 0.05)
+
+    assert sorted(X_kept[:, 0].tolist()) == [0.0, 1.0]
+    assert np.isfinite(fitness).all()
+    assert np.isfinite(compute_indicator_matrix(F, indicator)).all()
+
+
 def test_fitness_stays_finite_when_log_sums_span_beyond_float64() -> None:
     # Log-sums near -1e308, 1e308 and inf: a span-based penalty overflowed to inf and inf * 0 gave NaN fitness.
     F = np.array([[-5.0e306], [0.0], [5.0e306]])
