@@ -4,37 +4,6 @@ All notable public changes to VAMOS are documented here.
 
 ## [Unreleased]
 
-### Changed
-
-- IBEA's default `kappa` is 0.05, the value of Zitzler and Künzli (2004), PISA,
-  jMetal and PlatEMO, and the middle of VAMOS's IBEA tuning range.
-  - **Why:** with indicator values normalized to `[-1, 1]` (see Fixed),
-    `kappa=1.0` left almost no selection pressure.
-  - **Effect** (default configuration, final-front hypervolume, 20 000
-    evaluations, mean of 3 seeds, `kappa` 1.0 to 0.05):
-    - DTLZ2 (2 objectives): 0.210 to 0.419;
-    - ZDT4: 0.253 to 0.713;
-    - DTLZ1: 0.206 to 0.470.
-  - **Unaffected:** configurations that set `kappa` explicitly.
-
-### Fixed
-
-- IBEA scales its epsilon indicator as adaptive IBEA does (Zitzler and Künzli,
-  2004), as PISA and jMetal do, and as VAMOS 1.1.0 already scaled the
-  hypervolume indicator. The objectives are normalized over the population, and
-  the indicator is divided by its largest magnitude.
-  - **What went wrong unscaled:** an objective with a much wider range than the
-    others decided every epsilon value, and the population collapsed toward
-    that objective's minimum. On RE21 (f1 about 10^3, f2 about 10^-2), the
-    default IBEA ended with a single distinct solution.
-  - **New guarantees:** a positive affine change of the units of any objective
-    leaves IBEA's selection unchanged, and fitness exponents stay within
-    `[-1/kappa, 1/kappa]`.
-  - **Effect on results:** epsilon-based runs differ from 1.1.0 runs with the
-    same seed. As with the hypervolume indicator, far-dominated solutions
-    widen the normalization range, which slows convergence on multimodal
-    problems such as ZDT4 and DTLZ1.
-
 ## [1.1.0] - 2026-10-23
 
 ### Added
