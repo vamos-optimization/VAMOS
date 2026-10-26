@@ -13,6 +13,9 @@
 - [ ] Runtime behavior is unchanged (or explicitly documented as a bugfix).
 - [ ] Tests pass locally (`pytest -q`).
 
+## Changelog
+- [ ] `CHANGELOG.md` is unchanged, and the changelog entry is under a "Changelog entry" heading in this description (release pull requests excepted; see `AGENTS.md`).
+
 ## Reports/retention
 - [ ] Raw audit/Goal evidence is external or a CI artifact; only durable conclusions are added to maintained docs.
 - [ ] Generated output follows `docs/dev/repository_hygiene.md` and `python tools/check_repository_hygiene.py` passes.

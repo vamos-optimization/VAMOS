@@ -116,7 +116,8 @@ For a bounded code change, also run Ruff on changed Python, `ruff format --check
 4. Do not reset, clean, stash, rewrite history, or overwrite generated/user data without explicit authority.
 5. Do not change public behavior, dependencies, schemas, or defaults as incidental cleanup.
 6. Add or update the nearest tests and canonical guide with the implementation.
-7. Do not push unless explicitly requested. Commit only after the requested validation passes.
+7. Leave `CHANGELOG.md` unchanged outside a `release/final-X.Y.Z` pull request. Write the changelog entry in the pull request description, under a "Changelog entry" heading that names its `[Unreleased]` subsection (Added, Changed or Fixed); the release pull request moves the entries into `CHANGELOG.md`.
+8. Do not push unless explicitly requested. Commit only after the requested validation passes.
 
 ## Extension routes
 
