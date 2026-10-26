@@ -19,7 +19,9 @@ See the [1.1.0 release notes](project/release-notes-1.1.0.md) for the included c
 
 Update the runtime version, citation, changelog, release notes, version
 consistency test, and exact candidate and publication workflow versions in one
-reviewed commit. Freeze the final merged organization `main` commit; if that
+reviewed commit. Build the changelog from the "Changelog entry" sections of the
+pull requests merged since the previous release; those pull requests do not
+edit `CHANGELOG.md`. Freeze the final merged organization `main` commit; if that
 commit changes, produce new evidence before publishing. Verify the actual
 publication date before freezing.
 
