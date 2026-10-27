@@ -10,14 +10,15 @@ crowding distances and reference point evolve exactly as in the reference.
 
 Supported configurations: real encoding with SBX, polynomial mutation and the
 clip repair (``repair="auto"``); random or tournament parent selection;
-duplicate elimination; adaptive or fixed reference points. The run loop still
-updates archives, live callbacks and hypervolume termination after each step.
-Two-objective contributions are compiled when they match the installed
-reference (MooCore or the NumPy fallback); otherwise, and for three or more
-objectives, the reference contribution function is called on the worst front.
-Steps with infeasible rows, and anything the kernels do not accept, run the
-reference survival. Other configurations, genealogy tracking and kernels
-without the compiled hooks keep the reference path.
+duplicate elimination; constraints; adaptive or fixed reference points. The run
+loop still updates archives, live callbacks and hypervolume termination after
+each step. Two-objective contributions are compiled when they match the
+installed reference (MooCore or the NumPy fallback); otherwise, and for three
+or more objectives, the reference contribution function is called on the worst
+front. Feasibility-first removal is compiled when the compiled violation sums
+match NumPy's; non-finite objective values and anything else the kernels do not
+accept run the reference survival. Other configurations, genealogy tracking
+and kernels without the compiled hooks keep the reference path.
 """
 
 from __future__ import annotations
@@ -199,7 +200,7 @@ class CompiledSteadyStep:
         st = self._st
         if st.G is None:
             G, g_child = self._no_G, self._no_g
-        elif G_child is not None:
+        elif G_child is not None and G_child.shape == (1, st.G.shape[1]):
             G, g_child = st.G, G_child[0]
         else:
             self._reference(X_child, F_child, G_child)

@@ -202,7 +202,7 @@ class SMSEMOA:
                     self.kernel,
                 )
 
-    def _generate_offspring(self, st: SMSEMOAState) -> NDArray[np.float64]:
+    def _generate_offspring(self, st: SMSEMOAState) -> NDArray[Any]:
         """Generate offspring using parent selection and variation."""
         sel_method = st.selection_method
 
@@ -243,7 +243,7 @@ class SMSEMOA:
     def _evaluate_offspring(
         self,
         problem: ProblemProtocol,
-        X: NDArray[np.float64],
+        X: NDArray[Any],
         eval_strategy: EvaluationBackend,
         constraint_mode: str,
     ) -> tuple[NDArray[np.float64], NDArray[np.float64] | None]:
@@ -298,7 +298,7 @@ class SMSEMOA:
             )
             self._live_cb.on_start(ctx)
 
-    def ask(self) -> NDArray[np.float64]:
+    def ask(self) -> NDArray[Any]:
         """Generate offspring for evaluation.
 
         Returns
