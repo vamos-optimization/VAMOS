@@ -356,11 +356,12 @@ def test_metadata_only_pyproject_drift_preserves_typing_baseline() -> None:
     assert not any("mypy_config_sha256" in error for error in errors)
 
 
-def _checkout_with_constraints(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, replacements: dict[str, str]) -> None:
+def _checkout_with_bumped_pins(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *names: str) -> None:
+    # Bump whatever version is pinned today, so the test survives the bumps it is meant to allow.
     constraints = (ROOT / "constraints" / "ci.txt").read_text(encoding="utf-8")
-    for old, new in replacements.items():
-        assert old in constraints
-        constraints = constraints.replace(old, new)
+    for name in names:
+        constraints, count = re.subn(rf"^({re.escape(name)}==\S+)", r"\1.post1", constraints, flags=re.M)
+        assert count == 1
     (tmp_path / "constraints").mkdir()
     (tmp_path / "constraints" / "ci.txt").write_text(constraints, encoding="utf-8")
     (tmp_path / "pyproject.toml").write_text((ROOT / "pyproject.toml").read_text(encoding="utf-8"), encoding="utf-8")
@@ -370,15 +371,14 @@ def _checkout_with_constraints(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, 
 
 
 def test_unrelated_constraints_drift_preserves_typing_baseline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    _checkout_with_constraints(tmp_path, monkeypatch, {"ruff==0.17.1": "ruff==0.17.2", "setuptools==84.0.0": "setuptools==84.2.1"})
+    _checkout_with_bumped_pins(tmp_path, monkeypatch, "ruff", "setuptools")
 
     assert typecheck.baseline_metadata_errors(typecheck.load_baseline()) == []
 
 
-@pytest.mark.parametrize("pin", ["numpy==2.2.6", "pyyaml==6.0.3"])
-def test_type_affecting_constraints_drift_requires_a_reviewed_baseline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pin: str) -> None:
-    name, version = pin.split("==")
-    _checkout_with_constraints(tmp_path, monkeypatch, {pin: f"{name}=={version}.post1"})
+@pytest.mark.parametrize("name", ["numpy", "pyyaml"])
+def test_type_affecting_constraints_drift_requires_a_reviewed_baseline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str) -> None:
+    _checkout_with_bumped_pins(tmp_path, monkeypatch, name)
 
     errors = typecheck.baseline_metadata_errors(typecheck.load_baseline())
 
