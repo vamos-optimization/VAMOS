@@ -133,6 +133,10 @@ def test_default_steady_state_matches_numpy_engine_with_exact_budget(problem: st
     assert algorithm._steady is not None
     _assert_same_run(expected, actual)
     assert actual["evaluations"] == compiled_problem.rows == reference_problem.rows == 2003
+    state = algorithm._st
+    assert state is not None and state.generation == expected["checkpoint"]["generation"]
+    pending = (state.pending_offspring, state.pending_active_indices, state.pending_parent_pairs, state.pending_use_neighbors)
+    assert pending == (None, None, None, None)
 
 
 @requires_compiled

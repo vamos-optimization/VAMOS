@@ -249,15 +249,19 @@ class SteadyStateStep:
         self._set_pending(st, child)
         return child
 
-    def _replace_args(self, st: MOEADState, eval_result: EvaluationResult) -> ReplaceArgs | None:
-        """Start the reference tell (budget, pending state, candidate order) and return the replacement arguments.
+    def _replace_args(
+        self,
+        st: MOEADState,
+        eval_result: EvaluationResult,
+        children: np.ndarray[Any, Any] | None,
+        active: np.ndarray[Any, Any] | None,
+        use_neighbors: np.ndarray[Any, Any] | None,
+    ) -> ReplaceArgs | None:
+        """Start the reference tell of the pending ask (budget, candidate order) and return the replacement arguments.
 
         Returns ``None``, with the state untouched, when the pending ask or the
         evaluation result is not one the compiled replacement takes.
         """
-        children = st.pending_offspring
-        active = st.pending_active_indices
-        use_neighbors = st.pending_use_neighbors
         if children is None or active is None or use_neighbors is None or children.shape != self._child_shape:
             return None
         F_child = eval_result.F
@@ -268,11 +272,6 @@ class SteadyStateStep:
         if G_child is not None and (G_child.dtype is not f64 or G_child.ndim != 2 or G_child.shape[0] != 1):
             return None
         st.n_eval += 1
-        st.pending_offspring = None
-        st.pending_active_indices = None
-        st.pending_parent_pairs = None
-        st.pending_use_neighbors = None
-
         order = st.neighbors[active[0]] if use_neighbors[0] else st.rng.permutation(st.pop_size)
         G = st.G
         if G is None or G_child is None:
@@ -302,9 +301,13 @@ class SteadyStateStep:
 
     def tell(self, st: MOEADState, eval_result: EvaluationResult) -> bool | None:
         """Apply one evaluated child, or return ``None`` (state untouched) for the reference ``tell``."""
-        args = self._replace_args(st, eval_result)
+        args = self._replace_args(st, eval_result, st.pending_offspring, st.pending_active_indices, st.pending_use_neighbors)
         if args is None:
             return None
+        st.pending_offspring = None
+        st.pending_active_indices = None
+        st.pending_parent_pairs = None
+        st.pending_use_neighbors = None
         if self._replace(*args, self._slots, self._params, True) < 0:
             self._replace_with_numpy_ideal(st, args)
         if st.archive_manager is not None:
@@ -378,7 +381,6 @@ class SteadyStateStep:
                 self._replace_with_numpy_ideal(st, args)
                 any_active = self._sbx_parents(st.X, neighbors, *sbx_args)
             self._finish_sbx(st.rng, any_active > 0, child)
-        self._set_pending(st, child)
         return child
 
     def run(
@@ -397,11 +399,15 @@ class SteadyStateStep:
         the reference loop exactly; ``reference_tell`` takes any evaluation result
         that the compiled replacement does not.
         """
+        # ask() names the pending buffers once; they always hold the current child's subproblem,
+        # parents and neighbourhood flag, so each step only records the child itself.
         child = self.ask(st)
+        active, use_neighbors = self._active, self._flags
         while child is not None:
             st.generation = generation
+            st.pending_offspring = child
             eval_result = eval_strategy.evaluate(child, problem)
-            args = self._replace_args(st, eval_result)
+            args = self._replace_args(st, eval_result, child, active, use_neighbors)
             if args is None:
                 reference_tell(eval_result)
                 child = self.ask(st)
@@ -409,6 +415,10 @@ class SteadyStateStep:
                 child = self._replace_then_ask(st, args)
             generation += 1
         st.generation = generation
+        st.pending_offspring = None
+        st.pending_active_indices = None
+        st.pending_parent_pairs = None
+        st.pending_use_neighbors = None
         return generation
 
 
