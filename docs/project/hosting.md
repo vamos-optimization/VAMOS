@@ -35,7 +35,7 @@ The alias is updated when the pull request receives new commits. Fork pull reque
 
 ## Production publication
 
-`.github/workflows/docs-cloudflare.yml` is deliberately manual. It builds the canonical portal with `https://vamos-optimization.org/` as its base URL, verifies the generated artifact, preserves earlier immutable versions through the same archive handoff used by the GitHub Pages mirror, deploys Wrangler, and then verifies the real public host before reporting success.
+`.github/workflows/docs-cloudflare.yml` is deliberately manual. It builds the canonical portal with `https://vamos-optimization.org/` as its base URL, preserves earlier immutable versions from the portal archive attached to a GitHub Release, verifies the generated artifact, deploys Wrangler, verifies the real public host, and then attaches the new portal to the GitHub Release of that version.
 
 The production job uses the `cloudflare-production` GitHub environment as an approval boundary. It does not run on pull requests or arbitrary pushes.
 
@@ -55,6 +55,6 @@ The production host has passed live verification, and the canonical metadata con
 - package Documentation URL: `https://vamos-optimization.org/`;
 - canonical MkDocs current-site URL: `https://vamos-optimization.org/`;
 - immutable release URLs: `https://vamos-optimization.org/docs/<version>/...`;
-- release, preview, and fallback artifacts emit current canonical links at clean root paths and immutable canonical links under `docs/<version>/`.
+- release and preview artifacts emit current canonical links at clean root paths and immutable canonical links under `docs/<version>/`.
 
-GitHub Pages remains available as a fallback mirror and archive-delivery mechanism, but it is no longer the canonical documentation origin. Keeping the mirror does not change the public identity of the project because its generated canonical metadata points back to `.org`.
+GitHub Pages only redirects to the canonical host. `https://vamos-optimization.github.io/VAMOS/` serves no documentation: it sends readers to `https://vamos-optimization.org/`, keeping the rest of an old address, and both of its pages declare `.org` as canonical. It is neither a mirror nor an archive store. The [GitHub Pages redirect](../dev/documentation-delivery.md#github-pages-redirect) section describes it.

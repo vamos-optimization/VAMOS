@@ -59,24 +59,22 @@ completion. Never replace an existing version or move a published tag.
 ## Organization Pages
 
 In the organization repository, open **Settings > Pages > Build and deployment**
-and set **Source** to **GitHub Actions**. The guarded `docs.yml` workflow builds
-the documentation portal strictly and deploys documentation only to
-`https://vamos-optimization.github.io/VAMOS/`. It runs on the official tag or a
-manual workflow dispatch. The generated portal mirrors the canonical `.org`
-layout: the current documentation is built at clean root paths, immutable
-release documentation lives under `docs/<version>/`. Compatibility trees under `docs/stable/`,
-`latest/`, and root-level `<version>/` contain redirects rather than a second
-canonical documentation surface. The personal mirror must not deploy canonical
-Pages. Confirm the deployment and canonical `.org` metadata during the final
-release Goal.
+and set **Source** to **GitHub Actions**. The guarded `docs.yml` workflow deploys
+`https://vamos-optimization.github.io/VAMOS/` as a redirect to
+`https://vamos-optimization.org/`; it builds no documentation and does not run
+on tags, so a release does not redeploy it. Dispatch it manually from `main`
+only when the redirect changes. The personal mirror must not deploy Pages. The
+[documentation delivery guide](dev/documentation-delivery.md#github-pages-redirect)
+describes the redirect. Documentation is published through the Cloudflare
+production workflow, which attaches the portal archive to the GitHub Release.
 
 `tools/build_release_docs.py --version 1.1.0 --output <new-directory>` builds
 the complete deployment layout. It builds the current documentation and the
 immutable release separately so each has the correct canonical URL, preserves
-previous immutable `docs/<version>/` trees when an archive input is supplied,
-generates the compatibility redirects, and refuses an existing output
-directory. The documentation smoke tests verify that every emitted canonical
-URL resolves to a file in that deployment layout.
+previous immutable `docs/<version>/` trees when an archive directory or portal
+archive is supplied, generates the compatibility redirects, and refuses an
+existing output directory. The documentation smoke tests verify that every
+emitted canonical URL resolves to a file in that deployment layout.
 
 ## Canonical validation
 

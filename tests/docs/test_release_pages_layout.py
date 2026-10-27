@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import gzip
+import importlib
 import json
 import re
 import subprocess
 import sys
+import tarfile
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
@@ -66,7 +68,7 @@ def test_versioned_pages_canonical_urls_resolve_to_deployed_files(tmp_path: Path
 
     current_home = (output / "index.html").read_text(encoding="utf-8")
     assert f'rel="canonical" href="{BASE_URL}"' in current_home
-    assert "http-equiv=\"refresh\"" not in current_home
+    assert 'http-equiv="refresh"' not in current_home
 
     assert f"url={BASE_URL}" in (output / "docs" / "index.html").read_text(encoding="utf-8")
     assert f"url={BASE_URL}" in (output / "latest" / "index.html").read_text(encoding="utf-8")
@@ -92,10 +94,7 @@ def test_same_version_republish_reuses_immutable_archive(tmp_path: Path) -> None
     archive = tmp_path / "previous"
     immutable = archive / "docs" / "1.0.0"
     immutable.mkdir(parents=True)
-    frozen_home = (
-        '<link rel="canonical" href="https://vamos-optimization.org/docs/1.0.0/">\n'
-        "<!-- frozen production archive -->\n"
-    )
+    frozen_home = '<link rel="canonical" href="https://vamos-optimization.org/docs/1.0.0/">\n<!-- frozen production archive -->\n'
     (immutable / "index.html").write_text(frozen_home, encoding="utf-8")
     (immutable / "frozen-marker.txt").write_text("do not rebuild", encoding="utf-8")
 
@@ -231,3 +230,99 @@ def test_archive_carry_forward_removes_withdrawn_routes(tmp_path: Path) -> None:
     index = json.loads((carried / "search" / "search_index.json").read_text(encoding="utf-8"))
     assert index["config"] == {"lang": ["en"]}
     assert [entry["location"] for entry in index["docs"]] == ["guide/"]
+
+
+def _portal_tarball(source: Path, tarball: Path, *, prefix: str = ".") -> Path:
+    """Pack a portal tree the way the production workflow does (``tar -C public .``)."""
+    with tarfile.open(tarball, "w:gz") as bundle:
+        bundle.add(source, arcname=prefix)
+    return tarball
+
+
+def _tree_bytes(root: Path) -> dict[str, bytes]:
+    return {path.relative_to(root).as_posix(): path.read_bytes() for path in sorted(root.rglob("*")) if path.is_file()}
+
+
+def _build_from_archive(archive: Path, output: Path, version: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            sys.executable,
+            "tools/build_release_docs.py",
+            "--version",
+            version,
+            "--output",
+            str(output),
+            "--archive-from",
+            str(archive),
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+
+
+def test_portal_tarball_carries_the_same_immutable_trees_as_the_directory(monkeypatch, tmp_path: Path) -> None:
+    pytest.importorskip("mkdocs")
+    previous = tmp_path / "previous"
+    files = {
+        "index.html": "current home is rebuilt, not carried",
+        "docs/stable/index.html": "moving alias is rebuilt, not carried",
+        "docs/1.0.0/index.html": f'<link rel="canonical" href="{BASE_URL}docs/1.0.0/">\n',
+        "docs/1.0.0/guide/frozen/index.html": "frozen 1.0.0 page",
+        "docs/1.0.0/audit/commands_used/index.html": "withdrawn",
+        "docs/1.1.0/index.html": f'<link rel="canonical" href="{BASE_URL}docs/1.1.0/">\n<!-- frozen 1.1.0 -->\n',
+    }
+    for relative, content in files.items():
+        path = previous / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content.encode("utf-8"))
+    (previous / "docs" / "1.0.0" / "figure.bin").write_bytes(bytes(range(256)) + b"\r\n\x00")
+    tarball = _portal_tarball(previous, tmp_path / "vamos-docs-portal-1.1.0.tar.gz")
+
+    output = tmp_path / "public"
+    result = _build_from_archive(tarball, output, "1.1.0")
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    monkeypatch.syspath_prepend(str(ROOT / "tools"))
+    builder = importlib.import_module("build_release_docs")
+    from_directory = tmp_path / "from-directory"
+    from_directory.mkdir()
+    builder._copy_archived_versions(previous, from_directory, base_url=BASE_URL)
+
+    for version in ("1.0.0", "1.1.0"):
+        carried = _tree_bytes(output / "docs" / version)
+        assert carried == _tree_bytes(from_directory / version)
+    assert _tree_bytes(output / "docs" / "1.1.0") == {"index.html": files["docs/1.1.0/index.html"].encode("utf-8")}
+    assert (output / "docs" / "1.0.0" / "figure.bin").read_bytes() == bytes(range(256)) + b"\r\n\x00"
+    assert not (output / "docs" / "1.0.0" / "audit").exists()
+    manifest = json.loads((output / "docs" / "versions.json").read_text(encoding="utf-8"))
+    assert manifest == {"stable": "1.1.0", "versions": ["1.0.0", "1.1.0"]}
+
+
+@pytest.mark.parametrize("layout", ["wrapped", "escaping"])
+def test_portal_tarball_without_root_docs_is_rejected(tmp_path: Path, layout: str) -> None:
+    pytest.importorskip("mkdocs")
+    tarball = tmp_path / "vamos-docs-portal-1.1.0.tar.gz"
+    if layout == "wrapped":
+        # A portal packed with its directory name has no docs/ at the archive root.
+        portal = tmp_path / "public"
+        (portal / "docs" / "1.0.0").mkdir(parents=True)
+        (portal / "docs" / "1.0.0" / "index.html").write_text("frozen", encoding="utf-8")
+        _portal_tarball(portal, tarball, prefix="public")
+        expected = "has no docs/ directory at its root"
+    else:
+        outside = tmp_path / "outside.html"
+        outside.write_text("planted", encoding="utf-8")
+        with tarfile.open(tarball, "w:gz") as bundle:
+            bundle.add(outside, arcname="../escaped.html")
+        expected = "outside the destination"
+
+    output = tmp_path / "out"
+    result = _build_from_archive(tarball, output, "1.1.0")
+    assert result.returncode != 0
+    assert expected in result.stderr
+    assert not output.exists()
+    assert not (tmp_path / "escaped.html").exists()

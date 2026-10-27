@@ -1,6 +1,6 @@
 # Documentation delivery
 
-VAMOS keeps documentation generation, preview validation, privileged preview publication, production deployment, and fallback mirroring as separate stages. This page describes the CI contract around the clean current site plus immutable archives in [Documentation versions and archive](../project/documentation-versioning.md) and the hosting contract in [Hosting and domains](../project/hosting.md).
+VAMOS keeps documentation generation, preview validation, privileged preview publication, production deployment, and the GitHub Pages redirect as separate stages. This page describes the CI contract around the clean current site plus immutable archives in [Documentation versions and archive](../project/documentation-versioning.md) and the hosting contract in [Hosting and domains](../project/hosting.md).
 
 ## Pull request preview artifact
 
@@ -24,61 +24,76 @@ This privilege split is intentional: Cloudflare credentials are never exposed to
 
 ## Cloudflare production publication
 
-`.github/workflows/docs-cloudflare.yml` is the canonical production path. It is manual, runs in the `cloudflare-production` GitHub environment, rebuilds the mutable current portal with `https://vamos-optimization.org/` as the canonical base, requires an explicit prior trusted portal artifact, validates the generated tree, deploys the `vamos-docs` Worker, and then verifies the live custom-domain contract.
+`.github/workflows/docs-cloudflare.yml` is the canonical production path. It is manual, runs in the `cloudflare-production` GitHub environment, rebuilds the mutable current portal with `https://vamos-optimization.org/` as the canonical base, requires one trusted archive source, validates the generated tree, deploys the `vamos-docs` Worker, verifies the live custom-domain contract, and then attaches the published portal to the GitHub Release of that version.
 
 Publishing a package to PyPI or merging release metadata does not update this
 host. Documentation publication is a separate release step. Manual publication
 and verification require an explicit version, without a preselected historical
-release. Both publication workflows reject a requested version that differs
-from the package installed from the checked-out source.
+release. Production rejects a requested version that differs from the package
+installed from the checked-out source, and it stops before building when the
+GitHub Release `v<version>` does not exist.
 
 Before publishing a subsequent release:
 
 1. Confirm the released PyPI version, source tag, and version named by the current
    installation guide. Run the initial examples against the installed PyPI wheel
    in a clean environment, without an editable checkout or `PYTHONPATH=src`.
-2. Select a successful prior production run and its unexpired portal artifact as
-   `archive_run_id` and `archive_artifact_name`. Verify the downloaded artifact's
-   digest. A preview without the old archives is not an archive handoff source.
-3. Build with `--archive-from` and run both portal checkers. Compare the retained
-   `docs/<old-version>/` file hashes with the trusted artifact, allowing only the
-   explicit withdrawn-route policy. Preserve the artifact for the next release.
-4. Publish through this workflow with the selected version and archive inputs.
+2. Select the archive source: `archive_release` set to the previous release tag,
+   whose `vamos-docs-portal-<version>.tar.gz` asset holds every published
+   `docs/<version>/` tree. If that release has no portal asset, use the run inputs
+   described in [Recovery](#recovery) instead. A preview without the old archives
+   is not an archive source.
+3. Download that asset and its `.sha256` file, run `sha256sum --check`, build with
+   `--archive-from <tarball>`, and run both portal checkers. Compare the retained
+   `docs/<old-version>/` file hashes with the archive, allowing only the explicit
+   withdrawn-route policy.
+4. Publish through this workflow with the selected version and archive input.
    Require the live check to pass, then confirm that the homepage, installation
    guide, and `docs/versions.json` identify the same stable release. If a retrieved
    page differs, compare it with the deployed artifact and workflow source SHA
    before attributing the discrepancy to a cache.
+5. Confirm that release `v<version>` now lists `vamos-docs-portal-<version>.tar.gz`
+   and its `.sha256` file. That asset is the archive source of the next release.
 
 Source examples linked from the current [Examples](../examples.md) page use the
 release tag matching the documented PyPI package. Historical version mentions
 and figure provenance remain unchanged unless the corresponding result is
 regenerated and verified.
 
-The archive handoff is required on every production republish, including a same-version republish such as the clean-URL cutover of `1.0.0`. If the trusted prior artifact already contains `docs/<version>/`, the builder carries that immutable directory forward byte-for-byte and rebuilds only the mutable current tree and compatibility aliases. This prevents a documentation-only deployment from silently rewriting an already published scientific reference.
+The archive handoff is required on every production republish, including a same-version republish such as the clean-URL cutover of `1.0.0`. If the archive source already contains `docs/<version>/`, the builder carries that immutable directory forward byte-for-byte and rebuilds only the mutable current tree and compatibility aliases. This prevents a documentation-only deployment from silently rewriting an already published scientific reference.
 
 The production Wrangler configuration attaches `vamos-optimization.org`, `www.vamos-optimization.org`, `vamos-optimization.dev`, and `www.vamos-optimization.dev` as Custom Domains. Edge redirect logic sends the three aliases to the apex `.org` host while preserving path and query. On the apex host, `docs/stable/...`, `latest/...`, and `docs/` redirect to the corresponding clean current path; immutable `docs/<version>/...` routes remain unchanged.
 
-## GitHub Pages fallback mirror
+## GitHub Pages redirect
 
-`.github/workflows/docs.yml` remains available as a secondary publication path and archive handoff source. It builds the same portal, but now uses `https://vamos-optimization.org/` as the canonical base before packaging the GitHub Pages artifact. This intentionally makes Pages a mirror rather than a competing canonical origin.
+`https://vamos-optimization.github.io/VAMOS/` serves no documentation. `.github/workflows/docs.yml` is dispatched manually, without inputs, and deploys two pages built by `tools/build_pages_redirect.py`:
 
-Before its Pages artifact can be deployed, the workflow verifies the generated clean-current, immutable, legacy-redirect, and canonical routes; uploads a reusable `vamos-docs-portal-<version>` artifact; and deploys only from the canonical repository job. A manual republish requires the prior trusted portal artifact for the same reason as Cloudflare production: already published immutable versions must be carried forward rather than regenerated. The original `v1.0.0` tag path remains able to create the first immutable archive when no prior publication exists.
+- `index.html` declares `https://vamos-optimization.org/` as canonical, redirects there with a meta refresh, and shows a link to it;
+- `404.html` answers every other Pages address. A small script maps `/VAMOS/<path>?<query>#<hash>` to `https://vamos-optimization.org/<path>?<query>#<hash>`. The production host already redirects `latest/...`, `docs/stable/...`, and root-level `<version>/...`, so an old Pages bookmark reaches the same page. Without JavaScript, the page links to `https://vamos-optimization.org/`.
 
-The current tag trigger remains intentionally limited to `v1.0.0`; arbitrary later semantic-version tag deployment is not enabled without explicit archive preservation.
+Both pages declare `.org` as canonical, so Pages is not a competing canonical origin. The workflow builds no portal, downloads no archive, and is not an archive source. `tools/check_repository_identity.py` keeps it guarded to the canonical repository, manual, and limited to this redirect. Redeploy it only when the redirect changes.
 
 ## Archive handoff for releases and republishes
 
-Archive preservation is explicit through `--archive-from`. Production and manually dispatched fallback delivery require `archive_run_id` and `archive_artifact_name`. The supplied artifact is downloaded from the same repository and fed into the builder before the current site is produced.
+Archive preservation is explicit through `--archive-from`, which accepts a portal directory or a `.tar.gz` portal archive with `docs/` at its root. Production requires exactly one archive source: `archive_release`, or both `archive_run_id` and `archive_artifact_name`. A release asset is downloaded with its `.sha256` file and checked with `sha256sum --check`; an Actions artifact is downloaded from the same repository. The builder extracts a tarball with the `data` filter of `tarfile` and then uses it exactly as a directory, before the current site is produced.
 
-When the prior artifact contains the requested semantic version, that same-version `docs/<version>/` directory is reused unchanged apart from the declared withdrawn routes described in [Documentation versions and archive](../project/documentation-versioning.md#withdrawn-routes). When the requested version is genuinely new, the builder creates its immutable tree after copying all older version directories. Therefore both later releases and same-version publication-layout changes preserve the already published archive contract.
+When the archive source contains the requested semantic version, that same-version `docs/<version>/` directory is reused unchanged apart from the declared withdrawn routes described in [Documentation versions and archive](../project/documentation-versioning.md#withdrawn-routes). When the requested version is genuinely new, the builder creates its immutable tree after copying all older version directories. Therefore both later releases and same-version publication-layout changes preserve the already published archive contract.
 
-This GitHub Actions artifact handoff is a migration-stage mechanism, not the final long-term archive store. A future retention policy may copy immutable releases to a durable object store, but no deployment is allowed to silently drop or regenerate an existing `docs/<version>/` tree.
+The durable store is the GitHub Release of each version. Only after the live checks pass, production packages the published `public/` tree as `vamos-docs-portal-<version>.tar.gz` (sorted names, numeric owner 0, and the source commit time as every modification time, so the bytes depend only on the tree), checks that the archive extracts to the approved file inventory, writes `vamos-docs-portal-<version>.tar.gz.sha256`, and uploads both to release `v<version>` with `gh release upload --clobber`. Release assets do not expire; the `vamos-docs-cloudflare-<version>` and `vamos-docs-identity-<version>` Actions artifacts that the workflow still uploads expire after 90 days. A same-version republish replaces the asset, which is safe because the immutable trees inside it are carried forward byte-for-byte. No deployment is allowed to silently drop or regenerate an existing `docs/<version>/` tree.
+
+### Recovery
+
+- To rebuild or republish from the durable store, dispatch the production workflow with `archive_release` set to the tag whose asset holds the trees: the previous release for a new version, or the same release for a same-version republish.
+- To inspect or rebuild an archive locally, run `gh release download v<version> --pattern 'vamos-docs-portal-*'`, check it with `sha256sum --check vamos-docs-portal-<version>.tar.gz.sha256`, and pass the tarball to `python tools/build_release_docs.py --archive-from`.
+- Only the latest published release needs the asset, because each portal contains every earlier `docs/<version>/` tree. That release has none if it was deployed before production attached its portal, or if an upload failed: `--clobber` deletes the old asset before uploading the new one. Republish that version once with `archive_run_id` and `archive_artifact_name` naming a successful production run and its `vamos-docs-cloudflare-<version>` artifact, before that artifact expires; the deployment attaches the missing asset.
 
 ## Shared validation
 
-Preview, the GitHub Pages mirror, and Cloudflare production all use `tools/check_docs_portal.py`. The checker verifies the generated `docs/versions.json`, the clean current tree, immutable version trees, compatibility redirects, canonical targets, retained immutable version directories, and the absence of withdrawn routes from every published tree, sitemap, and search index.
+Preview and Cloudflare production both use `tools/check_docs_portal.py`. The checker verifies the generated `docs/versions.json`, the clean current tree, immutable version trees, compatibility redirects, canonical targets, retained immutable version directories, and the absence of withdrawn routes from every published tree, sitemap, and search index.
 
 Source-level Markdown links remain protected by strict MkDocs and Zensical builds. The portal checker is intentionally a generated-artifact gate: it catches publication-layout mistakes that source-only validation cannot see.
+
+The GitHub Pages redirect holds no documentation tree, so no portal checker runs on it. `tools/check_repository_identity.py` checks its workflow, and the documentation tests check the generated pages and run the address mapping of `404.html`.
 
 ## Reader experience and publication identity
 

@@ -101,12 +101,12 @@ def test_cutover_workflows_separate_deployment_from_read_only_reverification() -
     assert "push:" not in verify
 
 
-def test_post_cutover_contract_keeps_pages_only_as_fallback() -> None:
+def test_post_cutover_contract_keeps_pages_only_as_redirect() -> None:
     hosting = (ROOT / "docs" / "project" / "hosting.md").read_text(encoding="utf-8")
     delivery = (ROOT / "docs" / "dev" / "documentation-delivery.md").read_text(encoding="utf-8")
 
     assert "## Canonical metadata contract" in hosting
-    assert "GitHub Pages remains available as a fallback mirror" in hosting
+    assert "GitHub Pages only redirects to the canonical host" in hosting
     assert "Cloudflare production publication" in delivery
-    assert "GitHub Pages fallback mirror" in delivery
+    assert "## GitHub Pages redirect" in delivery
     assert "competing canonical origin" in delivery

@@ -1,22 +1,11 @@
-name: Deploy versioned documentation
+name: Redirect GitHub Pages to the documentation host
 
+# The documentation is published only at https://vamos-optimization.org/.
+# This Pages site holds no documentation: it redirects readers there.
 on:
-  push:
-    tags: ["v1.0.0"]
   workflow_dispatch:
-    inputs:
-      version:
-        description: Version directory to deploy
-        required: true
-      archive_run_id:
-        description: Prior trusted documentation workflow run ID (required for every manual republish)
-        required: true
-      archive_artifact_name:
-        description: Prior trusted portal artifact name (required for every manual republish)
-        required: true
 
 permissions:
-  actions: read
   contents: read
   pages: write
   id-token: write
@@ -29,72 +18,15 @@ jobs:
   build:
     if: github.repository == 'vamos-optimization/VAMOS'
     runs-on: ubuntu-latest
-    env:
-      DOC_VERSION: ${{ inputs.version || '1.0.0' }}
-      DOC_BASE_URL: https://vamos-optimization.org/
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
-      - name: Install constrained documentation environment
-        run: |
-          python -m pip install --disable-pip-version-check -c constraints/ci.txt -e ".[docs]"
-      - name: Check requested documentation version against source
-        run: |
-          python - <<'PYVERSION'
-          import os
-          from importlib.metadata import version
-          requested = os.environ["DOC_VERSION"]
-          installed = version("vamos-optimization")
-          if requested != installed:
-              raise SystemExit(f"Documentation version {requested} differs from source version {installed}")
-          PYVERSION
-      - name: Require trusted archive input for manual republishes
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          ARCHIVE_RUN_ID: ${{ inputs.archive_run_id }}
-          ARCHIVE_ARTIFACT_NAME: ${{ inputs.archive_artifact_name }}
-        run: |
-          test -n "$ARCHIVE_RUN_ID"
-          test -n "$ARCHIVE_ARTIFACT_NAME"
-      - name: Download previous trusted portal artifact
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: ${{ inputs.archive_artifact_name }}
-          path: previous-public
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          repository: ${{ github.repository }}
-          run-id: ${{ inputs.archive_run_id }}
-      - name: Build canonical and multilingual documentation strictly
-        run: |
-          test "$GITHUB_REPOSITORY" = "vamos-optimization/VAMOS"
-          test "$GITHUB_EVENT_NAME" = "workflow_dispatch" || test "$GITHUB_REF_NAME" = "v$DOC_VERSION"
-          args=(
-            --version "$DOC_VERSION"
-            --output public
-            --base-url "$DOC_BASE_URL"
-          )
-          if test -d previous-public/docs; then
-            args+=(--archive-from previous-public)
-          fi
-          python tools/build_release_docs.py "${args[@]}"
-      - name: Verify release portal contract
-        run: |
-          python tools/check_docs_portal.py \
-            --root public \
-            --version "$DOC_VERSION" \
-            --base-url "$DOC_BASE_URL"
-      - name: Verify reader-facing site contract
-        run: python tools/check_docs_site.py --root public --base-url "$DOC_BASE_URL"
-      - name: Upload reusable portal archive
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: vamos-docs-portal-${{ env.DOC_VERSION }}
-          path: public/
-          if-no-files-found: error
-          retention-days: 90
+      - name: Build GitHub Pages redirect
+        run: python tools/build_pages_redirect.py --base-url https://vamos-optimization.org/ --output public
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
         with:

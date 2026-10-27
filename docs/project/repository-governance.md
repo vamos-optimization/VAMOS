@@ -17,7 +17,7 @@ workflows enforce this even when both repositories contain the same commit.
 Use the canonical [issues](https://github.com/vamos-optimization/VAMOS/issues),
 [pull requests](https://github.com/vamos-optimization/VAMOS/pulls), and
 [releases](https://github.com/vamos-optimization/VAMOS/releases).
-Documentation is hosted on [organization Pages](https://vamos-optimization.github.io/VAMOS/).
+Documentation is hosted at [https://vamos-optimization.org/](https://vamos-optimization.org/).
 For security reports, use the organization's
 [private vulnerability reporting](https://github.com/vamos-optimization/VAMOS/security/advisories/new).
 
@@ -28,4 +28,4 @@ policy constant, not a project link. Historical audit evidence stays outside
 the repository. Health, CI, and release validation enforce this policy.
 
 See [release verification](../release_smoke.md) for the publisher identity,
-Pages configuration, and the required fresh official artifact freeze.
+the GitHub Pages redirect, and the required fresh official artifact freeze.

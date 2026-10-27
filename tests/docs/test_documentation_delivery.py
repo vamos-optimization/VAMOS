@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import importlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 from importlib.metadata import version
@@ -17,9 +19,8 @@ BASE_URL = "https://vamos-optimization.org/"
 VERSION = "1.0.0"
 
 
-@pytest.mark.parametrize("filename", ["docs-cloudflare.yml", "docs.yml"])
-def test_publication_rejects_version_that_differs_from_source(filename: str) -> None:
-    workflow = yaml.load((ROOT / ".github/workflows" / filename).read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+def test_publication_rejects_version_that_differs_from_source() -> None:
+    workflow = yaml.load((ROOT / ".github/workflows/docs-cloudflare.yml").read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
     steps = [step for job in workflow["jobs"].values() for step in job["steps"]]
     guard = next(step for step in steps if step.get("name") == "Check requested documentation version against source")
     commands = guard["run"]
@@ -84,21 +85,241 @@ def test_preview_workflow_is_read_only_and_artifact_only() -> None:
     assert f"DOC_BASE_URL: {BASE_URL}" in workflow
 
 
-def test_release_workflow_checks_portal_and_requires_archive_for_manual_republishes() -> None:
-    workflow = (ROOT / ".github" / "workflows" / "docs.yml").read_text(encoding="utf-8")
+def test_release_workflow_checks_portal_and_requires_an_archive_for_every_publication() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "docs-cloudflare.yml").read_text(encoding="utf-8")
 
+    assert "archive_release:" in workflow
     assert "archive_run_id:" in workflow
     assert "archive_artifact_name:" in workflow
-    assert "required for every manual republish" in workflow
-    assert "if: github.event_name == 'workflow_dispatch'" in workflow
+    assert "if: steps.archive.outputs.source == 'release'" in workflow
+    assert "if: steps.archive.outputs.source == 'artifact'" in workflow
     assert DOWNLOAD_ARTIFACT in workflow
-    assert "--archive-from previous-public" in workflow
+    assert '--archive-from "$ARCHIVE_PATH"' in workflow
     assert "python tools/check_docs_portal.py" in workflow
     assert UPLOAD_ARTIFACT in workflow
-    assert "vamos-docs-portal-${{ env.DOC_VERSION }}" in workflow
-    assert "actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9" in workflow
-    assert "actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346" in workflow
+    assert "vamos-docs-cloudflare-${{ env.DOC_VERSION }}" in workflow
+    assert "pages: write" not in workflow
+    assert "actions/deploy-pages@" not in workflow
     assert f"DOC_BASE_URL: {BASE_URL}" in workflow
+
+
+def _workflow(filename: str) -> tuple[str, dict]:
+    text = (ROOT / ".github" / "workflows" / filename).read_text(encoding="utf-8")
+    # BaseLoader preserves GitHub's `on` key and keeps every scalar as text.
+    return text, yaml.load(text, Loader=yaml.BaseLoader)
+
+
+def _step_names(job: dict) -> list[str]:
+    return [str(step.get("name", "")) for step in job["steps"]]
+
+
+def _named_step(job: dict, name: str) -> dict:
+    return next(step for step in job["steps"] if step.get("name") == name)
+
+
+def test_production_publication_attaches_the_portal_to_the_release() -> None:
+    text, workflow = _workflow("docs-cloudflare.yml")
+
+    inputs = workflow["on"]["workflow_dispatch"]["inputs"]
+    assert inputs["archive_release"]["required"] == "false"
+    assert inputs["archive_run_id"]["required"] == "false"
+    assert inputs["archive_artifact_name"]["required"] == "false"
+    assert workflow["permissions"] == {"actions": "read", "contents": "read"}
+    job = workflow["jobs"]["deploy"]
+    assert job["permissions"] == {"actions": "read", "contents": "write"}
+    names = _step_names(job)
+
+    release = _named_step(job, "Require the GitHub Release of the documented version")
+    assert 'gh release view "v$DOC_VERSION"' in release["run"]
+    assert release["env"]["GH_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
+    assert names.index(release["name"]) < names.index("Build canonical Cloudflare portal")
+    assert names.index("Build canonical Cloudflare portal") < names.index("Deploy Worker and custom domains")
+
+    artifact = _named_step(job, "Download previous trusted portal artifact")
+    assert artifact["uses"] == DOWNLOAD_ARTIFACT
+    asset = _named_step(job, "Download previous trusted portal release asset")
+    assert asset["env"]["GH_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
+    assert 'gh release download "$ARCHIVE_RELEASE"' in asset["run"]
+    assert 'sha256sum --check --strict "$asset.sha256"' in asset["run"]
+    build = _named_step(job, "Build canonical Cloudflare portal")
+    assert '--archive-from "$ARCHIVE_PATH"' in build["run"]
+
+    live = names.index("Compare deployed current files with the approved artifact")
+    package = _named_step(job, "Package the published portal as a release asset")
+    upload = _named_step(job, "Attach the portal archive to the GitHub Release")
+    assert live < names.index(package["name"]) < names.index(upload["name"])
+    for option in ("--sort=name", "--owner=0", "--group=0", "--numeric-owner", "--mtime="):
+        assert option in package["run"]
+    assert "gzip -n" in package["run"]
+    assert 'asset="vamos-docs-portal-${DOC_VERSION}.tar.gz"' in package["run"]
+    assert 'sha256sum "$asset" > "$asset.sha256"' in package["run"]
+    assert upload["env"]["GH_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
+    assert 'gh release upload "v$DOC_VERSION"' in upload["run"]
+    assert "--clobber" in upload["run"]
+
+    assert "name: vamos-docs-identity-${{ env.DOC_VERSION }}" in text
+    assert "name: vamos-docs-cloudflare-${{ env.DOC_VERSION }}" in text
+    summary = _named_step(job, "Summarize production deployment")["run"]
+    assert "vamos-docs-portal-${DOC_VERSION}.tar.gz" in summary
+
+
+def _workflow_bash() -> str:
+    bash = shutil.which("bash")
+    if sys.platform == "win32":
+        # Prefer Git's bash over the WSL launcher that may shadow it on PATH.
+        git = shutil.which("git")
+        parents = Path(git).resolve().parents if git is not None else ()
+        candidates = (parent / relative for parent in parents for relative in ("bin/bash.exe", "usr/bin/bash.exe"))
+        bash = next((str(candidate) for candidate in candidates if candidate.is_file()), None)
+    if bash is None:
+        pytest.skip("bash is needed to run the workflow step")
+    return bash
+
+
+@pytest.mark.parametrize(
+    ("release", "run_id", "artifact", "expected"),
+    [
+        ("v1.1.0", "", "", {"source": "release", "path": "previous-release/vamos-docs-portal-1.1.0.tar.gz"}),
+        ("", "39917026051", "vamos-docs-cloudflare-1.1.0", {"source": "artifact", "path": "previous-public"}),
+        ("", "", "", None),
+        ("", "39917026051", "", None),
+        ("", "", "vamos-docs-cloudflare-1.1.0", None),
+        ("v1.1.0", "39917026051", "", None),
+        ("v1.1.0", "", "vamos-docs-cloudflare-1.1.0", None),
+        ("1.1.0", "", "", None),
+        ("v1.1.0/../x", "", "", None),
+    ],
+)
+def test_production_publication_requires_exactly_one_archive_source(
+    tmp_path: Path, release: str, run_id: str, artifact: str, expected: dict[str, str] | None
+) -> None:
+    _, workflow = _workflow("docs-cloudflare.yml")
+    step = _named_step(workflow["jobs"]["deploy"], "Select one trusted archive source")
+    assert step["env"] == {
+        "ARCHIVE_RELEASE": "${{ inputs.archive_release }}",
+        "ARCHIVE_RUN_ID": "${{ inputs.archive_run_id }}",
+        "ARCHIVE_ARTIFACT_NAME": "${{ inputs.archive_artifact_name }}",
+    }
+    outputs = tmp_path / "github-output"
+    outputs.write_text("", encoding="utf-8")
+    environment = {
+        **os.environ,
+        "ARCHIVE_RELEASE": release,
+        "ARCHIVE_RUN_ID": run_id,
+        "ARCHIVE_ARTIFACT_NAME": artifact,
+        "GITHUB_OUTPUT": outputs.as_posix(),
+    }
+    completed = subprocess.run(
+        [_workflow_bash(), "--noprofile", "--norc", "-eo", "pipefail", "-c", step["run"]],
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if expected is None:
+        assert completed.returncode != 0
+        assert completed.stderr.strip()
+        assert outputs.read_text(encoding="utf-8") == ""
+    else:
+        assert completed.returncode == 0, completed.stderr
+        lines = outputs.read_text(encoding="utf-8").splitlines()
+        assert dict(line.split("=", 1) for line in lines) == expected
+
+
+def test_pages_mirror_points_to_org(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    text, workflow = _workflow("docs.yml")
+
+    assert set(workflow["on"]) == {"workflow_dispatch"}
+    assert not workflow["on"]["workflow_dispatch"]
+    assert "build_release_docs.py" not in text
+    assert DOWNLOAD_ARTIFACT not in text
+    assert UPLOAD_ARTIFACT not in text
+    build = workflow["jobs"]["build"]
+    commands = [str(step.get("run", "")).strip() for step in build["steps"]]
+    assert f"python tools/build_pages_redirect.py --base-url {BASE_URL} --output public" in commands
+    assert "actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9" in text
+    assert "actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346" in text
+    assert workflow["jobs"]["deploy"]["environment"]["name"] == "github-pages"
+
+    output = tmp_path / "pages"
+    completed = subprocess.run(
+        [sys.executable, "tools/build_pages_redirect.py", "--base-url", BASE_URL, "--output", str(output)],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert sorted(path.name for path in output.iterdir()) == ["404.html", "index.html"]
+
+    index = (output / "index.html").read_text(encoding="utf-8")
+    assert f'<link rel="canonical" href="{BASE_URL}">' in index
+    assert f'<meta http-equiv="refresh" content="0; url={BASE_URL}">' in index
+    assert f'<a href="{BASE_URL}">' in index
+
+    missing = (output / "404.html").read_text(encoding="utf-8")
+    assert f'<link rel="canonical" href="{BASE_URL}">' in missing
+    assert 'http-equiv="refresh"' not in missing
+    assert f'<noscript><p>Continue to <a href="{BASE_URL}">' in missing
+    monkeypatch.syspath_prepend(str(ROOT / "tools"))
+    redirect = importlib.import_module("build_pages_redirect")
+    assert f".replace(/{redirect.REPOSITORY_SEGMENT}/, " in missing
+    assert "\\.github\\.io$" in missing
+    assert "window.location.replace(" in missing
+
+
+_NODE_PAGES_HARNESS = """
+const vm = require("node:vm");
+const input = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+const targets = input.locations.map((href) => {
+  const url = new URL(href);
+  const replaced = [];
+  const location = {
+    hostname: url.hostname, pathname: url.pathname, search: url.search, hash: url.hash,
+    replace: (value) => replaced.push(value),
+  };
+  vm.runInNewContext(input.script, { window: { location } });
+  return replaced;
+});
+process.stdout.write(JSON.stringify(targets));
+"""
+
+
+def test_pages_not_found_script_maps_repository_paths_to_org(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.syspath_prepend(str(ROOT / "tools"))
+    redirect = importlib.import_module("build_pages_redirect")
+    pages = importlib.import_module("check_repository_identity").PAGES_URL
+    cases = {
+        pages: BASE_URL,
+        pages.rstrip("/"): BASE_URL,
+        f"{pages}algorithms/nsgaii/?q=front#usage": f"{BASE_URL}algorithms/nsgaii/?q=front#usage",
+        f"{pages}latest/guide/getting-started/": f"{BASE_URL}latest/guide/getting-started/",
+        f"{pages}docs/stable/reference/?v=1": f"{BASE_URL}docs/stable/reference/?v=1",
+        f"{pages}1.0.0/guide/#install": f"{BASE_URL}1.0.0/guide/#install",
+        f"{pages}docs/1.1.0/algorithms/moead/": f"{BASE_URL}docs/1.1.0/algorithms/moead/",
+        "https://vamos-optimization.github.io/": BASE_URL,
+        "https://mirror.example/VAMOS/latest/": BASE_URL,
+    }
+    for location, expected in cases.items():
+        assert redirect.redirect_target(location, BASE_URL) == expected, location
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is needed to run the generated redirect script")
+    output = tmp_path / "pages"
+    redirect.build_pages_redirect(BASE_URL, output)
+    page = (output / "404.html").read_text(encoding="utf-8")
+    script = page.split("<script>", 1)[1].split("</script>", 1)[0]
+    completed = subprocess.run(
+        [node, "-e", _NODE_PAGES_HARNESS],
+        input=json.dumps({"script": script, "locations": list(cases)}),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == [[expected] for expected in cases.values()]
 
 
 def test_documentation_delivery_page_is_discoverable() -> None:
@@ -108,8 +329,12 @@ def test_documentation_delivery_page_is_discoverable() -> None:
 
     assert "dev/documentation-delivery.md" in nav_text
     assert "does not deploy" in delivery
+    assert "archive_release" in delivery
     assert "archive_run_id" in delivery
-    assert "GitHub Pages fallback mirror" in delivery
+    assert "vamos-docs-portal-<version>.tar.gz" in delivery
+    assert "### Recovery" in delivery
+    assert "## GitHub Pages redirect" in delivery
+    assert "migration-stage" not in delivery
     assert "canonical production path" in delivery
     assert "clean current" in delivery
     assert "same-version" in delivery
