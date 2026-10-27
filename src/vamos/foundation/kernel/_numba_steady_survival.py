@@ -23,6 +23,19 @@ from .numba_ops import njit
 FloatArray: TypeAlias = NDArray[np.float64]
 IntArray: TypeAlias = NDArray[np.int64]
 
+# Rows of the ``int_work`` workspace, shaped ``(INT_WORK_ROWS + n_obj, N + 1)``: the
+# combined ranks, two scratch rows, the members of the truncated front, then the
+# combined per-objective orders.
+COMB_RANKS = 0
+SCRATCH_A = 1
+SCRATCH_B = 2
+SPLIT_MEMBERS = 3
+COMB_ORDERS = 4
+INT_WORK_ROWS = 4
+# Rows of the ``float_work`` workspace, shaped ``(2, N + 1)``.
+COMB_CROWD = 0
+SPLIT_CROWD = 1
+
 
 @njit(cache=True)
 def _dominates(F: FloatArray, a: int, b: int) -> bool:
@@ -93,28 +106,29 @@ def nsga2_steady_insert(
     f_child: FloatArray,
     orders: IntArray,
     comb_F: FloatArray,
-    comb_ranks: IntArray,
-    comb_crowd: FloatArray,
-    comb_orders: IntArray,
-    index_work: IntArray,
-    split_crowd: FloatArray,
+    int_work: IntArray,
+    float_work: FloatArray,
 ) -> int:
     """Insert the evaluated child ``f_child[0]`` into the fronts of ``F`` (child at row ``N``).
 
     ``ranks`` and ``crowding`` are the cached Pareto ranks and per-front
     crowding distances of the population, and ``orders[m]`` its rows sorted by
-    objective ``m`` (ties by row). The combined population is written to the
-    ``comb_*`` arrays: fronts whose membership changes get fresh crowding
-    distances, every other front keeps its cached values. The members of the
-    last front (the one NSGA-II truncates) are left in ``index_work[2, :size]``
-    in ascending row order with their crowding in ``split_crowd[:size]``, and
-    ``size`` is returned. Returns ``STEADY_STATE_REJECTED`` when a member of the
-    worst front dominates the child (the reference keeps the population
-    unchanged) and ``STEADY_STATE_UNSUPPORTED`` when an objective value is not
-    finite. ``index_work`` has shape ``(3, N + 1)``.
+    objective ``m`` (ties by row). The combined population goes to ``comb_F``
+    and the workspaces (see :data:`INT_WORK_ROWS`): fronts whose membership
+    changes get fresh crowding distances, every other front keeps its cached
+    values. The members of the last front (the one NSGA-II truncates) are left
+    in ascending row order with their crowding in ``float_work[SPLIT_CROWD]``,
+    and their number is returned. Returns ``STEADY_STATE_REJECTED`` when a
+    member of the worst front dominates the child (the reference keeps the
+    population unchanged) and ``STEADY_STATE_UNSUPPORTED`` when an objective
+    value is not finite.
     """
     n = F.shape[0]
     n_obj = F.shape[1]
+    comb_ranks = int_work[COMB_RANKS]
+    comb_orders = int_work[COMB_ORDERS:]
+    comb_crowd = float_work[COMB_CROWD]
+    split_crowd = float_work[SPLIT_CROWD]
     worst = 0
     for i in range(n):
         for k in range(n_obj):
@@ -140,13 +154,13 @@ def nsga2_steady_insert(
     # child joins front r + 1: the first front with no member dominating it.
     child_rank = 0
     for i in range(n):
-        if ranks[i] >= child_rank and _dominates(comb_F, i, n):
+        if child_rank <= ranks[i] < worst and _dominates(comb_F, i, n):
             child_rank = ranks[i] + 1
     comb_ranks[n] = child_rank
 
     # Rows dominated by the rows that just moved down one front move down too.
-    displaced = index_work[0]
-    following = index_work[1]
+    displaced = int_work[SCRATCH_A]
+    following = int_work[SCRATCH_B]
     n_displaced = 0
     for i in range(n):
         if ranks[i] == child_rank and _dominates(comb_F, n, i):
@@ -191,7 +205,7 @@ def nsga2_steady_insert(
         _sorted_front_crowding(comb_F, comb_orders, comb_ranks, rank, comb_crowd)
 
     last = worst if worst > level else level
-    members = index_work[2]
+    members = int_work[SPLIT_MEMBERS]
     size = 0
     for i in range(n + 1):
         if comb_ranks[i] == last:
@@ -206,17 +220,14 @@ def nsga2_steady_replace(
     X: FloatArray,
     x_child: FloatArray,
     comb_F: FloatArray,
-    comb_ranks: IntArray,
-    comb_crowd: FloatArray,
-    comb_orders: IntArray,
+    int_work: IntArray,
+    float_work: FloatArray,
     order: NDArray[np.integer[Any]],
-    size: int,
     out_X: FloatArray,
     out_F: FloatArray,
     out_ranks: IntArray,
     out_crowd: FloatArray,
     out_orders: IntArray,
-    index_work: IntArray,
 ) -> None:
     """Write the NSGA-II survivors of the combined population left by :func:`nsga2_steady_insert`.
 
@@ -230,11 +241,15 @@ def nsga2_steady_replace(
     n = X.shape[0]
     n_var = X.shape[1]
     n_obj = comb_F.shape[1]
-    split_members = index_work[2]
+    size = order.shape[0]
+    comb_ranks = int_work[COMB_RANKS]
+    comb_orders = int_work[COMB_ORDERS:]
+    comb_crowd = float_work[COMB_CROWD]
+    split_members = int_work[SPLIT_MEMBERS]
     last = comb_ranks[split_members[0]]
 
-    cursor = index_work[0]
-    position_of = index_work[1]
+    cursor = int_work[SCRATCH_A]
+    position_of = int_work[SCRATCH_B]
     for rank in range(last + 1):
         cursor[rank] = 0
     for i in range(n + 1):
@@ -298,4 +313,4 @@ def nsga2_steady_replace(
         _sorted_front_crowding(out_F, out_orders, out_ranks, last, out_crowd)
 
 
-__all__ = ["nsga2_steady_insert", "nsga2_steady_replace"]
+__all__ = ["INT_WORK_ROWS", "SPLIT_CROWD", "nsga2_steady_insert", "nsga2_steady_replace"]

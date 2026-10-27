@@ -27,7 +27,6 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from vamos.engine.algorithm.components.termination import capped_offspring_size
 from vamos.engine.operators.impl.real import ClampRepair, PolynomialMutation, SBXCrossover
 from vamos.foundation.kernel.backend import STEADY_STATE_REJECTED, STEADY_STATE_UNSUPPORTED, NSGA2SteadyStateKernels
 
@@ -42,13 +41,16 @@ class SteadyStateStep:
 
     __slots__ = (
         "active",
+        "bounds",
+        "child_shape",
         "comb_F",
-        "comb_crowd",
-        "comb_orders",
-        "comb_ranks",
+        "differing",
+        "f_child_shape",
+        "f_shape",
+        "float_work",
         "head",
         "head_size",
-        "index_work",
+        "int_work",
         "kernels",
         "n_obj",
         "n_var",
@@ -56,15 +58,19 @@ class SteadyStateStep:
         "orders",
         "orders_for",
         "params",
-        "bounds",
         "pipeline",
         "pop_size",
+        "prob_crossover",
+        "prob_var",
         "single",
         "spare_orders",
         "split_crowd",
         "stream",
+        "tails",
+        "use_var_draws",
         "winners",
         "work",
+        "x_shape",
     )
 
     def __init__(
@@ -76,30 +82,38 @@ class SteadyStateStep:
         n_obj: int,
         params: np.ndarray[Any, Any],
         bounds: np.ndarray[Any, Any],
+        prob_crossover: float,
+        prob_var: float,
     ) -> None:
         self.kernels = kernels
         self.pipeline = pipeline
         self.pop_size = pop_size
         self.n_var = n_var
         self.n_obj = n_obj
+        self.x_shape = (pop_size, n_var)
+        self.f_shape = (pop_size, n_obj)
+        self.child_shape = (1, n_var)
+        self.f_child_shape = (1, n_obj)
         self.params = params
         self.bounds = bounds
-        size = pop_size + 1
+        # SBX settings that decide how many uniform draws the compiled SBX consumes.
+        self.prob_crossover = float(prob_crossover)
+        self.prob_var = float(prob_var)
+        self.use_var_draws = self.prob_var < 1.0
+        # Tournament winners, then the stream offsets of the variables in which they differ.
         self.winners = np.empty(2, dtype=np.int64)
+        self.differing = np.empty(n_var, dtype=np.int64)
         self.no_coins = np.zeros(0, dtype=int)
         # SBX pair draw, variable draws, spread and swap draws, mutation mask and deltas.
         self.stream = np.empty(1 + 7 * n_var, dtype=np.float64)
         # Draws every step consumes whatever SBX does: the pair draw and both mutation grids.
         self.head_size = 1 + 4 * n_var
         self.head = self.stream[: self.head_size]
+        self.tails = {total: self.stream[self.head_size : total] for total in (1 + 5 * n_var, 1 + 6 * n_var, 1 + 7 * n_var)}
         self.work = np.empty((2, n_var), dtype=np.float64)
         self.active = np.empty((1, n_var), dtype=np.bool_)
-        self.comb_F = np.empty((size, n_obj), dtype=np.float64)
-        self.comb_ranks = np.empty(size, dtype=np.int64)
-        self.comb_crowd = np.empty(size, dtype=np.float64)
-        self.comb_orders = np.empty((n_obj, size), dtype=np.int64)
-        self.index_work = np.empty((3, size), dtype=np.int64)
-        self.split_crowd = np.empty(size, dtype=np.float64)
+        self.comb_F = np.empty((pop_size + 1, n_obj), dtype=np.float64)
+        self.int_work, self.float_work, self.split_crowd = kernels.survival_workspace(pop_size, n_obj)
         self.single = np.zeros(1, dtype=np.int64)
         # Rows sorted by each objective (ties by row), valid for the objective array ``orders_for``.
         self.orders = np.empty((n_obj, pop_size), dtype=np.int64)
@@ -145,52 +159,79 @@ def build_steady_state_step(kernel: Any, st: NSGAIIState) -> SteadyStateStep | N
         repair_bounds=repair_bounds,
         mutation_bounds=(mutation.lower, mutation.upper),
     )
-    return SteadyStateStep(kernels, pipeline, int(st.pop_size), n_var, int(F.shape[1]), params, bounds)
+    return SteadyStateStep(kernels, pipeline, int(st.pop_size), n_var, int(F.shape[1]), params, bounds, crossover.prob, crossover.prob_var)
 
 
-def _supported(st: NSGAIIState, step: SteadyStateStep) -> bool:
-    """Whether this step's state is inside the compiled path's contract."""
+def _state_supported(st: NSGAIIState, step: SteadyStateStep) -> bool:
+    """Whether the population state is inside the compiled survival's contract."""
+    X = st.X
     return (
         st.incremental_enabled
         and st.G is None
         and st.ranks is not None
         and st.crowding is not None
+        and not st.track_genealogy
+        and X.shape == step.x_shape
+        and X.dtype == np.float64
+    )
+
+
+def ask_steady_state(st: NSGAIIState, step: SteadyStateStep) -> np.ndarray[Any, Any] | None:
+    """Produce the step's offspring like the reference ``ask``; ``None`` keeps the reference path."""
+    if not (
+        _state_supported(st, step)
         and st.variation is step.pipeline
         and st.sel_method == "tournament"
         and st.pressure == 2
         and st.parent_selection_filter is None
         and st.non_breeding_indices.size == 0
         and st.immigration_manager is None
-        and not st.track_genealogy
-        and st.X.shape == (step.pop_size, step.n_var)
-        and st.X.dtype == np.float64
-    )
-
-
-def ask_steady_state(st: NSGAIIState, step: SteadyStateStep) -> np.ndarray[Any, Any] | None:
-    """Produce the step's offspring like the reference ``ask``; ``None`` keeps the reference path."""
-    if not _supported(st, step):
-        return None
-    if capped_offspring_size(st.n_eval, st.max_evals, st.offspring_size, "NSGA-II") != 1:
+        and st.offspring_size == 1
+        # One offspring fits the budget; otherwise the reference ask reports the exhausted budget.
+        and st.n_eval < st.max_evals
+    ):
         return None
     ranks, crowding = st.ranks, st.crowding
     assert ranks is not None and crowding is not None
     rng = st.rng
     kernels = step.kernels
+    winners = step.winners
+    X = st.X
     n = step.pop_size
     # Reference binary tournament: two candidate vectors, then one coin per full tie.
     first = rng.integers(0, n, size=2, dtype=int)
     second = rng.integers(0, n - 1, size=2, dtype=int)
-    n_ties = kernels.tournament(ranks, crowding, first, second, step.winners)
-    coins = rng.integers(0, 2, size=n_ties, dtype=int) if n_ties else step.no_coins
-    rng.random(out=step.head)
-    X_off = np.empty((1, step.n_var), dtype=np.float64)
-    args = (step.params, step.bounds, step.work, step.active, X_off)
-    needed = kernels.offspring(st.X, step.winners, first, second, coins, step.stream, step.head_size, *args)
-    if needed:
-        # SBX changed variables: its variable/spread/swap draws precede the mutation grids.
-        rng.random(out=step.stream[step.head_size : needed])
-        kernels.offspring(st.X, step.winners, first, second, coins, step.stream, needed, *args)
+    status = kernels.tournament(ranks, crowding, first, second, X, winners, step.differing)
+    stream, head, head_size = step.stream, step.head, step.head_size
+    params, bounds, work, active = step.params, step.bounds, step.work, step.active
+    X_off = np.empty(step.child_shape, dtype=np.float64)
+    if status < 0:
+        coins = rng.integers(0, 2, size=-status, dtype=int)
+        rng.random(out=head)
+        needed = kernels.offspring(X, winners, first, second, coins, stream, head_size, params, bounds, work, active, X_off)
+        if needed:
+            # SBX changed variables: its variable/spread/swap draws precede the mutation grids.
+            rng.random(out=step.tails[needed])
+            kernels.offspring(X, winners, first, second, coins, stream, needed, params, bounds, work, active, X_off)
+    else:
+        rng.random(out=head)
+        needed = head_size
+        if head[0] <= step.prob_crossover:
+            # The compiled SBX draws its spread and swap grids only when a variable changes.
+            changes = status > 0
+            if step.use_var_draws:
+                needed += step.n_var
+                changes = False
+                for offset in step.differing[:status].tolist():
+                    if head[offset] <= step.prob_var:
+                        changes = True
+                        break
+            if changes:
+                needed += 2 * step.n_var
+        if needed > head_size:
+            rng.random(out=step.tails[needed])
+        if kernels.offspring(X, winners, first, second, step.no_coins, stream, needed, params, bounds, work, active, X_off):
+            raise RuntimeError("compiled steady-state SBX expected a different number of draws")
     st.pending_offspring = X_off
     return X_off
 
@@ -209,11 +250,11 @@ def tell_steady_state(
     (without changing the state) when the reference path must handle the step.
     The caller updates archives and checks hypervolume termination.
     """
-    if G_off is not None or not _supported(st, step):
+    if G_off is not None or not _state_supported(st, step):
         return None
-    if not isinstance(F_off, np.ndarray) or F_off.shape != (1, step.n_obj) or F_off.dtype != np.float64:
+    if type(F_off) is not np.ndarray or F_off.shape != step.f_child_shape or F_off.dtype != np.float64:
         return None
-    if X_off.shape != (1, step.n_var) or X_off.dtype != np.float64:
+    if X_off.shape != step.child_shape or X_off.dtype != np.float64:
         return None
     kernels = step.kernels
     F, ranks, crowding = st.F, st.ranks, st.crowding
@@ -222,19 +263,7 @@ def tell_steady_state(
         # Stable sorts give the reference tie order; afterwards the kernels maintain the orders.
         step.orders[:] = np.argsort(F, axis=0, kind="stable").T
         step.orders_for = F
-    status = kernels.insert(
-        F,
-        ranks,
-        crowding,
-        F_off,
-        step.orders,
-        step.comb_F,
-        step.comb_ranks,
-        step.comb_crowd,
-        step.comb_orders,
-        step.index_work,
-        step.split_crowd,
-    )
+    status = kernels.insert(F, ranks, crowding, F_off, step.orders, step.comb_F, step.int_work, step.float_work)
     if status == STEADY_STATE_UNSUPPORTED:
         return None
     st.n_eval += 1
@@ -244,27 +273,12 @@ def tell_steady_state(
     # Reference ordering of the truncated front: reversed np.argsort of its crowding.
     order = step.split_crowd[:status].argsort() if status > 1 else step.single
     n = step.pop_size
-    out_X = np.empty((n, step.n_var), dtype=np.float64)
-    out_F = np.empty((n, step.n_obj), dtype=np.float64)
+    out_X = np.empty(step.x_shape, dtype=np.float64)
+    out_F = np.empty(step.f_shape, dtype=np.float64)
     out_ranks = np.empty(n, dtype=np.int64)
     out_crowd = np.empty(n, dtype=np.float64)
     out_orders = step.spare_orders
-    kernels.replace(
-        st.X,
-        X_off,
-        step.comb_F,
-        step.comb_ranks,
-        step.comb_crowd,
-        step.comb_orders,
-        order,
-        status,
-        out_X,
-        out_F,
-        out_ranks,
-        out_crowd,
-        out_orders,
-        step.index_work,
-    )
+    kernels.replace(st.X, X_off, step.comb_F, step.int_work, step.float_work, order, out_X, out_F, out_ranks, out_crowd, out_orders)
     step.spare_orders, step.orders, step.orders_for = step.orders, out_orders, out_F
     st.X, st.F, st.G = out_X, out_F, None
     # Fronts are rebuilt from the ranks only if a later step takes the reference path.

@@ -139,9 +139,15 @@ class NSGA2SteadyStateKernels(Protocol):
         crowding: FloatArray,
         first: NDArray[np.int64],
         second: NDArray[np.int64],
+        X: FloatArray,
         winners: NDArray[np.int64],
+        differing: NDArray[np.int64],
     ) -> int:
-        """Resolve the binary tournaments of the reference kernel; return the number of ties."""
+        """Resolve the reference binary tournaments.
+
+        Returns minus the number of tied tournaments, or, without ties, the
+        number of variables SBX may change (their stream offsets in ``differing``).
+        """
         ...
 
     def offspring(
@@ -162,6 +168,10 @@ class NSGA2SteadyStateKernels(Protocol):
         """Write the first SBX/polynomial-mutation child, or return the number of draws it needs."""
         ...
 
+    def survival_workspace(self, pop_size: int, n_obj: int) -> tuple[NDArray[np.int64], FloatArray, FloatArray]:
+        """Return ``(int_work, float_work, split_crowd)`` buffers for ``insert`` and ``replace``."""
+        ...
+
     def insert(
         self,
         F: FloatArray,
@@ -170,17 +180,16 @@ class NSGA2SteadyStateKernels(Protocol):
         f_child: FloatArray,
         orders: NDArray[np.int64],
         comb_F: FloatArray,
-        comb_ranks: NDArray[np.int64],
-        comb_crowd: FloatArray,
-        comb_orders: NDArray[np.int64],
-        index_work: NDArray[np.int64],
-        split_crowd: FloatArray,
+        int_work: NDArray[np.int64],
+        float_work: FloatArray,
     ) -> int:
         """Insert the child into the cached fronts; return the size of the truncated front.
 
         ``orders[m]`` lists the population rows sorted by objective ``m`` with
-        ties in row order. Returns ``STEADY_STATE_REJECTED`` or ``STEADY_STATE_UNSUPPORTED`` instead
-        when the population stays unchanged or the input is not supported.
+        ties in row order. The truncated front's crowding distances are left in
+        the ``split_crowd`` view of ``float_work``. Returns
+        ``STEADY_STATE_REJECTED`` or ``STEADY_STATE_UNSUPPORTED`` instead when
+        the population stays unchanged or the input is not supported.
         """
         ...
 
@@ -189,19 +198,19 @@ class NSGA2SteadyStateKernels(Protocol):
         X: FloatArray,
         x_child: FloatArray,
         comb_F: FloatArray,
-        comb_ranks: NDArray[np.int64],
-        comb_crowd: FloatArray,
-        comb_orders: NDArray[np.int64],
+        int_work: NDArray[np.int64],
+        float_work: FloatArray,
         order: NDArray[np.integer[Any]],
-        size: int,
         out_X: FloatArray,
         out_F: FloatArray,
         out_ranks: NDArray[np.int64],
         out_crowd: FloatArray,
         out_orders: NDArray[np.int64],
-        index_work: NDArray[np.int64],
     ) -> None:
-        """Write the survivors, their ranks, crowding distances and per-objective orders."""
+        """Write the survivors, their ranks, crowding distances and per-objective orders.
+
+        ``order`` is ``np.argsort`` of the truncated front's crowding distances.
+        """
         ...
 
 

@@ -19,8 +19,8 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ._numba_selection import binary_tournament_winners_numba
-from ._numba_steady_survival import nsga2_steady_insert, nsga2_steady_replace
-from ._numba_variation import _sbx_apply, _sbx_mark_active, numpy_power_squares, polynomial_mutation_apply
+from ._numba_steady_survival import INT_WORK_ROWS, SPLIT_CROWD, nsga2_steady_insert, nsga2_steady_replace
+from ._numba_variation import _SBX_EPS, _sbx_apply, _sbx_mark_active, numpy_power_squares, polynomial_mutation_apply
 from .numba_ops import njit
 
 FloatArray: TypeAlias = NDArray[np.float64]
@@ -52,14 +52,21 @@ def nsga2_steady_tournament(
     crowding: FloatArray,
     first: IntArray,
     second: IntArray,
+    X: FloatArray,
     winners: IntArray,
+    differing: IntArray,
 ) -> int:
-    """Binary tournaments of the reference kernel; returns the number of full ties.
+    """Binary tournaments of the reference kernel.
 
     ``second`` holds draws from ``[0, N - 1)`` and is shifted in place past
-    ``first`` like the reference (``second + (second >= first)``). Tied
-    tournaments are marked with ``-1`` in ``winners``; the caller draws one coin
-    per tie and passes them to :func:`nsga2_steady_offspring`.
+    ``first`` like the reference (``second + (second >= first)``). When some
+    tournaments tie, they are marked with ``-1`` in ``winners`` and minus the
+    number of ties is returned; the caller draws one coin per tie and passes
+    them to :func:`nsga2_steady_offspring`. Otherwise the return value is the
+    number ``k`` of variables in which the two parents differ by more than the
+    SBX threshold, and ``differing[:k]`` holds their stream offsets
+    ``1 + j`` (the SBX variable draws follow the pair draw), so the caller can
+    tell from the variable draws whether SBX changes the pair.
     """
     for i in range(first.shape[0]):
         if second[i] >= first[i]:
@@ -70,7 +77,18 @@ def nsga2_steady_tournament(
         winners[i] = found[i]
         if found[i] < 0:
             n_ties += 1
-    return n_ties
+    if n_ties > 0:
+        return -n_ties
+    count = 0
+    for j in range(X.shape[1]):
+        a = X[winners[0], j]
+        b = X[winners[1], j]
+        # Same test as the compiled SBX for a variable it may change.
+        diff = b - a if a < b else a - b
+        if diff > _SBX_EPS:
+            differing[count] = 1 + j
+            count += 1
+    return count
 
 
 @njit(cache=True)
@@ -181,6 +199,12 @@ class NumbaSteadyStateKernels:
     offspring = staticmethod(nsga2_steady_offspring)
     insert = staticmethod(nsga2_steady_insert)
     replace = staticmethod(nsga2_steady_replace)
+
+    def survival_workspace(self, pop_size: int, n_obj: int) -> tuple[IntArray, FloatArray, FloatArray]:
+        """Workspaces of ``insert``/``replace`` and the view holding the truncated front's crowding."""
+        int_work = np.empty((INT_WORK_ROWS + n_obj, pop_size + 1), dtype=np.int64)
+        float_work = np.empty((2, pop_size + 1), dtype=np.float64)
+        return int_work, float_work, float_work[SPLIT_CROWD]
 
     def pack_variation(
         self,
