@@ -21,9 +21,25 @@ RankArray: TypeAlias = NDArray[np.integer[Any]]
 BoolArray: TypeAlias = NDArray[np.bool_]
 
 # Rows of the integer, boolean and float work buffers.
-_GROUPED, _OFFSETS, _CURSOR, _FIRST, _LAST, _PREV, _CUR, _TEMP, _CHILD_POS, _INFEASIBLE, _CV_ORDER, _CV_TEMP = range(12)
-_DISPLACED, _CHANGED, _MEMBER = range(3)
-_CONTRIB, _VIOLATION = range(2)
+_GROUPED = 0
+_OFFSETS = 1
+_CURSOR = 2
+_FIRST = 3
+_LAST = 4
+_PREV = 5
+_CUR = 6
+_TEMP = 7
+_CHILD_POS = 8
+_INFEASIBLE = 9
+_CV_ORDER = 10
+_CV_TEMP = 11
+
+_DISPLACED = 0
+_CHANGED = 1
+_MEMBER = 2
+
+_CONTRIB = 0
+_VIOLATION = 1
 
 
 @njit(cache=True)
