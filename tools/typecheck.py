@@ -62,6 +62,12 @@ TYPE_AFFECTING_OPTIONAL_DISTRIBUTIONS = (
     "seaborn",
     "smac",
 )
+# Pins in constraints/ci.txt whose versions can change diagnostics in the canonical environment:
+# mypy, typing-extensions, and the runtime and [dev] distributions that src/vamos imports. The
+# other pins (ruff, the build backend, documentation tools, optional extras) can move without
+# regenerating the baseline.
+TYPE_AFFECTING_PINS = ("joblib", "mypy", "numpy", "pyyaml", "scipy", "typing-extensions")
+EXACT_PIN_RE = re.compile(r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)\s*==\s*(?P<version>[^\s;#]+)\s*(?:;.*)?$")
 
 STRICT_PATHS = (
     "src/vamos/engine/algorithm/config",
@@ -145,6 +151,27 @@ def _normalized_text_sha256(content: str) -> str:
 
 def _sha256(path: Path) -> str:
     return _normalized_text_sha256(path.read_text(encoding="utf-8"))
+
+
+def normalize_distribution(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name).casefold()
+
+
+def type_affecting_pins(path: Path | None = None) -> dict[str, str]:
+    """Return the exact version pinned for each of ``TYPE_AFFECTING_PINS`` in the constraint file."""
+    lines = (path or CONSTRAINTS_PATH).read_text(encoding="utf-8").splitlines()
+    pins: dict[str, list[str]] = collections.defaultdict(list)
+    for line in lines:
+        text = line.split("#", 1)[0].strip()
+        if not text:
+            continue
+        match = EXACT_PIN_RE.match(text)
+        name = match["name"] if match else re.split(r"[\s<>=!~;\[]", text, maxsplit=1)[0]
+        pins[normalize_distribution(name)].append(match["version"] if match else "")
+    errors = [name for name in TYPE_AFFECTING_PINS if len(pins.get(name, [])) != 1 or not pins[name][0]]
+    if errors:
+        raise ValueError(f"constraints must pin each type-affecting distribution exactly once with '==': {', '.join(errors)}.")
+    return {name: pins[name][0] for name in TYPE_AFFECTING_PINS}
 
 
 def _distribution_versions() -> dict[str, str]:
@@ -331,7 +358,7 @@ def build_baseline(diagnostics: Sequence[Diagnostic], generation_commit: str) ->
             "config_sha256": _sha256(CONFIG_PATH),
             "mypy_config_sha256": _mypy_config_sha256(),
             "constraints_path": CONSTRAINTS_PATH.relative_to(REPO_ROOT).as_posix(),
-            "constraints_sha256": _sha256(CONSTRAINTS_PATH),
+            "type_affecting_pins": type_affecting_pins(),
         },
         "scope": list(FULL_PATHS),
         "diagnostic_count": len(errors),
@@ -397,7 +424,7 @@ def baseline_metadata_errors(baseline: dict[str, Any]) -> list[str]:
         "config_path": CONFIG_PATH.relative_to(REPO_ROOT).as_posix(),
         "mypy_config_sha256": _mypy_config_sha256(),
         "constraints_path": CONSTRAINTS_PATH.relative_to(REPO_ROOT).as_posix(),
-        "constraints_sha256": _sha256(CONSTRAINTS_PATH),
+        "type_affecting_pins": type_affecting_pins(),
     }
     errors: list[str] = []
     for key, value in expected.items():

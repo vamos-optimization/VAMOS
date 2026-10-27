@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import ast
+import importlib.metadata
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -351,6 +354,71 @@ def test_metadata_only_pyproject_drift_preserves_typing_baseline() -> None:
     assert typecheck._mypy_config_sha256() == baseline["environment"]["mypy_config_sha256"]
     errors = typecheck.baseline_metadata_errors(baseline)
     assert not any("mypy_config_sha256" in error for error in errors)
+
+
+def _checkout_with_constraints(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, replacements: dict[str, str]) -> None:
+    constraints = (ROOT / "constraints" / "ci.txt").read_text(encoding="utf-8")
+    for old, new in replacements.items():
+        assert old in constraints
+        constraints = constraints.replace(old, new)
+    (tmp_path / "constraints").mkdir()
+    (tmp_path / "constraints" / "ci.txt").write_text(constraints, encoding="utf-8")
+    (tmp_path / "pyproject.toml").write_text((ROOT / "pyproject.toml").read_text(encoding="utf-8"), encoding="utf-8")
+    monkeypatch.setattr(typecheck, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(typecheck, "CONFIG_PATH", tmp_path / "pyproject.toml")
+    monkeypatch.setattr(typecheck, "CONSTRAINTS_PATH", tmp_path / "constraints" / "ci.txt")
+
+
+def test_unrelated_constraints_drift_preserves_typing_baseline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _checkout_with_constraints(tmp_path, monkeypatch, {"ruff==0.17.1": "ruff==0.17.2", "setuptools==84.0.0": "setuptools==84.2.1"})
+
+    assert typecheck.baseline_metadata_errors(typecheck.load_baseline()) == []
+
+
+@pytest.mark.parametrize("pin", ["numpy==2.2.6", "pyyaml==6.0.3"])
+def test_type_affecting_constraints_drift_requires_a_reviewed_baseline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pin: str) -> None:
+    name, version = pin.split("==")
+    _checkout_with_constraints(tmp_path, monkeypatch, {pin: f"{name}=={version}.post1"})
+
+    errors = typecheck.baseline_metadata_errors(typecheck.load_baseline())
+
+    assert len(errors) == 1 and "type_affecting_pins" in errors[0] and name in errors[0]
+
+
+def test_type_affecting_pins_cover_the_canonical_imports() -> None:
+    # The canonical environment holds the runtime dependencies and the [dev] extra; optional
+    # provider distributions are excluded from it, so only these can change diagnostics.
+    project = typecheck.tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    canonical = {
+        typecheck.normalize_distribution(re.split(r"[\s<>=!~;\[]", requirement, maxsplit=1)[0])
+        for requirement in [*project["dependencies"], *project["optional-dependencies"]["dev"]]
+    }
+    imported: set[str] = set()
+    for path in (ROOT / "src" / "vamos").rglob("*.py"):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.Import):
+                imported.update(alias.name.split(".")[0] for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+                imported.add(node.module.split(".")[0])
+    providers = importlib.metadata.packages_distributions()
+    used = {
+        typecheck.normalize_distribution(distribution)
+        for module in imported
+        for distribution in providers.get(module, ())
+        if typecheck.normalize_distribution(distribution) in canonical
+    }
+
+    assert {"numpy", "scipy", "joblib", "typing-extensions"} <= used
+    assert used <= set(typecheck.TYPE_AFFECTING_PINS)
+    assert {"mypy", "typing-extensions"} <= set(typecheck.TYPE_AFFECTING_PINS)
+
+
+def test_type_affecting_pins_must_be_exact_and_unique(tmp_path: Path) -> None:
+    constraints = tmp_path / "ci.txt"
+    constraints.write_text("numpy>=2\nscipy==1.15.3\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="numpy"):
+        typecheck.type_affecting_pins(constraints)
 
 
 def test_mypy_config_fingerprint_ignores_unrelated_project_metadata(tmp_path: Path) -> None:

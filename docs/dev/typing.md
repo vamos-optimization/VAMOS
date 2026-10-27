@@ -20,7 +20,7 @@ Create or select a Python 3.12 environment and install exactly:
 python -m pip install -c constraints/ci.txt -e ".[dev]"
 ```
 
-The entry point rejects Python, mypy, build-kind, typing-extensions, stub-set, optional-distribution, configuration, or constraints drift that could silently change diagnostic identity. The mypy configuration owns narrow third-party import boundaries, so optional runtime extras do not belong in this environment. Every invocation disables mypy's incremental cache and native parser and anchors imports to this checkout's `src` directory. The portable parser avoids process-affinity discovery failures in isolated runners; the strict rules and diagnostic ratchet remain unchanged.
+The entry point rejects Python, mypy, build-kind, typing-extensions, stub-set, optional-distribution, configuration, or type-affecting pin drift that could silently change diagnostic identity. The mypy configuration owns narrow third-party import boundaries, so optional runtime extras do not belong in this environment. Every invocation disables mypy's incremental cache and native parser and anchors imports to this checkout's `src` directory. The portable parser avoids process-affinity discovery failures in isolated runners; the strict rules and diagnostic ratchet remain unchanged.
 
 ## Scopes
 
@@ -111,6 +111,8 @@ Every production file changed by a Goal must finish with zero diagnostics. Reduc
 5. rerun strict, full, health, and the focused behavioral tests.
 
 If the supported environment or effective configuration intentionally changes, add `--review-environment-change` to the update command after reviewing the diagnostic diff. The tool records the drift and still refuses new or increased diagnostics or debt in changed production files. Never replace this process with total-count edits, broad ignores, exclusions, disabled error codes, or `Any` inserted only to silence mypy.
+
+The baseline records the exact versions that `constraints/ci.txt` pins for the type-affecting distributions (`TYPE_AFFECTING_PINS` in `tools/typecheck.py`): mypy, typing-extensions, and the runtime and `[dev]` distributions that `src/vamos` imports. Bumping one of them needs the reviewed update above. Other pins, such as ruff, setuptools, documentation tools, or optional extras, change without touching the baseline. `tests/architecture/test_typecheck_policy.py` fails if `src/vamos` starts importing a runtime or `[dev]` distribution that the list does not name.
 
 The reduction order is: shared NumPy type aliases and protocols by layer; engine algorithms/operators; foundation numerical modules; UX; then verification with the explicit full-zero scope.
 
