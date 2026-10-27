@@ -56,7 +56,7 @@ class IBEA:
         - crossover (tuple): Crossover operator config
         - mutation (tuple): Mutation operator config
         - indicator (str, optional): "epsilon" (default) or "hypervolume"
-        - kappa (float, optional): Scaling factor (default: 1.0)
+        - kappa (float, optional): Scaling factor (default: 0.05)
         - constraint_mode (str, optional): "none" or "penalty"
     kernel : KernelBackend
         Backend for vectorized operations.
@@ -64,7 +64,7 @@ class IBEA:
     Examples
     --------
     >>> from vamos.algorithms import IBEAConfig
-    >>> config = IBEAConfig.builder().pop_size(100).indicator("epsilon").kappa(1.0).build()
+    >>> config = IBEAConfig.builder().pop_size(100).indicator("epsilon").kappa(0.05).build()
     >>> ibea = IBEA(config, kernel)
     >>> result = ibea.run(problem, ("max_evaluations", 10000), seed=42)
 

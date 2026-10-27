@@ -77,6 +77,32 @@ def hypervolume_indicator(F: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     return cast(np.ndarray[Any, Any], indicator)
 
 
+def _normalized_objectives(F: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
+    """Each objective mapped to ``[0, 1]`` over the finite values of ``F``.
+
+    A constant objective maps to 0. Infinite values stay infinite, so they keep the largest
+    indicator values instead of stretching the range of the finite ones. A finite range wider
+    than float64's maximum is divided first by its largest magnitude, so ``high - low`` cannot
+    overflow; every other objective is scaled by 1, which leaves its values bit for bit.
+    """
+    finite = np.isfinite(F)
+    low = np.min(np.where(finite, F, np.inf), axis=0)
+    high = np.max(np.where(finite, F, -np.inf), axis=0)
+    has_range = np.isfinite(low) & (high > low)
+    low = np.where(np.isfinite(low), low, 0.0)
+    with np.errstate(over="ignore"):
+        too_wide = has_range & ~np.isfinite(high - low)
+    scale = np.where(too_wide, np.maximum(np.abs(low), np.abs(high)), 1.0)
+    span = np.where(has_range, high / scale - low / scale, 1.0)
+    return np.asarray((F / scale - low / scale) / span, dtype=float)
+
+
+def _divided_by_largest_magnitude(values: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
+    """``values`` divided by their largest finite magnitude; unchanged when that is 0."""
+    largest = float(np.max(np.abs(values[np.isfinite(values)]), initial=0.0))
+    return values / largest if largest > 0.0 else values
+
+
 def compute_indicator_matrix(F: np.ndarray[Any, Any], indicator: str) -> np.ndarray[Any, Any]:
     """Compute indicator matrix based on selected type.
 
@@ -90,24 +116,26 @@ def compute_indicator_matrix(F: np.ndarray[Any, Any], indicator: str) -> np.ndar
     Returns
     -------
     np.ndarray[Any, Any]
-        Indicator matrix.
+        Indicator matrix, with entries in ``[-1, 1]`` when ``F`` is finite.
 
     Notes
     -----
-    The hypervolume indicator follows adaptive IBEA (Zitzler and Kuenzli, 2004), as in
-    jMetal. Hypervolume differences grow with the product of the objective ranges, so
-    the objectives are normalized over ``F`` and the indicator is divided by its largest
-    magnitude, which keeps the fitness exponents within ``[-1/kappa, 1/kappa]``. The
-    epsilon indicator is used unscaled, as in jMetalPy.
+    Both indicators follow adaptive IBEA (Zitzler and Kuenzli, 2004), as in PISA and
+    jMetal: the objectives are normalized to ``[0, 1]`` over ``F`` and the indicator is
+    divided by its largest magnitude. The objectives then weigh alike whatever their
+    units, the fitness exponents stay within ``[-1/kappa, 1/kappa]``, and a positive
+    affine change of the units of any objective leaves the selection unchanged. Without
+    the normalization, an objective with a much wider range than the others decides
+    every epsilon value, and the population collapses toward that objective's minimum.
+    Solutions far from the others widen the normalization range, which lowers the
+    resolution among the rest.
     """
+    if F.shape[0] == 0:
+        return np.empty((0, 0), dtype=float)
+    normalized = _normalized_objectives(F)
     if indicator == "hypervolume":
-        if F.shape[0] == 0:
-            return np.empty((0, 0), dtype=float)
-        low, high = np.min(F, axis=0), np.max(F, axis=0)
-        values = hypervolume_indicator((F - low) / np.where(high > low, high - low, 1.0))
-        largest = float(np.max(np.abs(values), initial=0.0))
-        return values / largest if largest > 0.0 else values
-    return epsilon_indicator(F)
+        return _divided_by_largest_magnitude(hypervolume_indicator(normalized))
+    return _divided_by_largest_magnitude(epsilon_indicator(normalized))
 
 
 # np.exp overflows float64 above an exponent of about 709.78. Up to _EXP_LIMIT, IBEA sums the
@@ -313,7 +341,31 @@ def environmental_selection(
     tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any] | None, np.ndarray[Any, Any]]
         (X_selected, F_selected, G_selected, fitness)
     """
-    exponent = _fitness_exponents(compute_indicator_matrix(F, indicator), kappa)
+    return indicator_selection(X, F, G, compute_indicator_matrix(F, indicator), pop_size, kappa, selection_kernels)
+
+
+def indicator_selection(
+    X: np.ndarray[Any, Any],
+    F: np.ndarray[Any, Any],
+    G: np.ndarray[Any, Any] | None,
+    indicator_values: np.ndarray[Any, Any],
+    pop_size: int,
+    kappa: float,
+    selection_kernels: SelectionKernels | None = None,
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any] | None, np.ndarray[Any, Any]]:
+    """IBEA's removal loop on a given indicator matrix.
+
+    Entry ``(i, j)`` of ``indicator_values`` is ``I(x_j, x_i)``; the fitness of ``x_i`` sums
+    ``-exp(-I(x_j, x_i) / kappa)`` over its row. :func:`environmental_selection` passes
+    :func:`compute_indicator_matrix`; contributions beyond the float64 range are handled
+    exactly in the log domain.
+
+    Returns
+    -------
+    tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any] | None, np.ndarray[Any, Any]]
+        (X_selected, F_selected, G_selected, fitness)
+    """
+    exponent = _fitness_exponents(indicator_values, kappa)
     if _overflows(exponent):
         selected, fitness = _log_domain_selection(exponent, _penalty_ranks(G, F.shape[0]), pop_size)
         return X[selected], F[selected], G[selected] if G is not None else None, fitness
@@ -371,5 +423,6 @@ __all__ = [
     "ibea_fitness",
     "apply_constraint_penalty",
     "environmental_selection",
+    "indicator_selection",
     "combine_constraints",
 ]

@@ -196,7 +196,7 @@ def build_ibea_algorithm(
         builder.indicator(indicator)
     else:
         raise ValueError("IBEA indicator must be a string.")
-    builder.kappa(_as_float(var_cfg.get("kappa", 1.0)))
+    builder.kappa(_as_float(var_cfg.get("kappa", 0.05)))
     apply_optional_operator_config(
         builder,
         method_name="repair",
