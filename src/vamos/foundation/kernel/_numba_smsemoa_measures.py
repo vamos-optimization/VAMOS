@@ -68,7 +68,7 @@ def violation_matches_reference(n_constraints: int) -> bool:
 
     if n_constraints < 1 or n_constraints > 128:
         return False
-    probe = np.random.default_rng(4099)
+    probe = np.random.Generator(np.random.PCG64(4099))
     G = probe.standard_normal((256, n_constraints))
     G *= probe.choice((1.0e-3, 1.0, 1.0e3), size=G.shape)
     G[::7] = 0.0
@@ -142,7 +142,7 @@ def front_contributions_2d_match_reference() -> bool:
     """
     from vamos.foundation.quality_indicators.hypervolume import hypervolume_contributions
 
-    probe = np.random.default_rng(1729)
+    probe = np.random.Generator(np.random.PCG64(1729))
     for size in (2, 3, 5, 17, 64, 101):
         for offset in (1.0, 0.1, 0.0):
             x = np.sort(probe.random(size)) * probe.choice((1.0, 1.0e-3, 4.0e3))
