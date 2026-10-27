@@ -308,7 +308,6 @@ def test_publication_uses_trusted_publishing_and_never_rebuilds() -> None:
 def test_compute_extra_excludes_the_reviewed_distributed_advisory() -> None:
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     constraints = (ROOT / "constraints" / "ci.txt").read_text(encoding="utf-8")
-    build_requirements = (ROOT / "release" / "requirements-build.txt").read_text(encoding="utf-8")
 
     assert pyproject.count('"dask[distributed]>=2026.1.0"') == 2
     assert "dask==2026.8.0" in constraints
@@ -316,10 +315,23 @@ def test_compute_extra_excludes_the_reviewed_distributed_advisory() -> None:
     assert 'requires = ["setuptools>=83", "wheel>=0.46.2"]' in pyproject
     assert pyproject.count('"setuptools>=83"') == 3
     assert pyproject.count('"wheel>=0.46.2"') == 3
-    assert "setuptools==84.0.0" in constraints
-    assert "wheel==0.48.0" in constraints
-    assert "setuptools==84.0.0" in build_requirements
-    assert "wheel==0.48.0" in build_requirements
+
+
+def _exact_pins(text: str) -> dict[str, Version]:
+    return {
+        match["name"].lower(): Version(match["version"])
+        for match in re.finditer(r"^(?P<name>[A-Za-z0-9._-]+)==(?P<version>\S+)", text, re.M)
+    }
+
+
+def test_build_pins_agree_between_ci_and_release() -> None:
+    # Dependabot bumps both files together; any reviewed version above the declared minimum is accepted.
+    constraints = _exact_pins((ROOT / "constraints" / "ci.txt").read_text(encoding="utf-8"))
+    build_requirements = _exact_pins((ROOT / "release" / "requirements-build.txt").read_text(encoding="utf-8"))
+
+    for name, minimum in (("setuptools", Version("83")), ("wheel", Version("0.46.2"))):
+        assert constraints[name] == build_requirements[name]
+        assert constraints[name] >= minimum
 
 
 def test_ci_constraints_retain_declared_python_310_support() -> None:

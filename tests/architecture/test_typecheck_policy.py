@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import ast
+import importlib.metadata
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -351,6 +354,76 @@ def test_metadata_only_pyproject_drift_preserves_typing_baseline() -> None:
     assert typecheck._mypy_config_sha256() == baseline["environment"]["mypy_config_sha256"]
     errors = typecheck.baseline_metadata_errors(baseline)
     assert not any("mypy_config_sha256" in error for error in errors)
+
+
+def _checkout_with_bumped_pins(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *names: str) -> None:
+    # Bump whatever version is pinned today, so the test survives the bumps it is meant to allow.
+    constraints = (ROOT / "constraints" / "ci.txt").read_text(encoding="utf-8")
+    for name in names:
+        constraints, count = re.subn(rf"^({re.escape(name)}==\S+)", r"\1.post1", constraints, flags=re.M)
+        assert count == 1
+    (tmp_path / "constraints").mkdir()
+    (tmp_path / "constraints" / "ci.txt").write_text(constraints, encoding="utf-8")
+    (tmp_path / "pyproject.toml").write_text((ROOT / "pyproject.toml").read_text(encoding="utf-8"), encoding="utf-8")
+    monkeypatch.setattr(typecheck, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(typecheck, "CONFIG_PATH", tmp_path / "pyproject.toml")
+    monkeypatch.setattr(typecheck, "CONSTRAINTS_PATH", tmp_path / "constraints" / "ci.txt")
+
+
+def test_unrelated_constraints_drift_preserves_typing_baseline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _checkout_with_bumped_pins(tmp_path, monkeypatch, "ruff", "setuptools")
+
+    assert typecheck.baseline_metadata_errors(typecheck.load_baseline()) == []
+
+
+@pytest.mark.parametrize("name", ["numpy", "pyyaml"])
+def test_type_affecting_constraints_drift_requires_a_reviewed_baseline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str) -> None:
+    _checkout_with_bumped_pins(tmp_path, monkeypatch, name)
+
+    errors = typecheck.baseline_metadata_errors(typecheck.load_baseline())
+
+    assert len(errors) == 1 and "type_affecting_pins" in errors[0] and name in errors[0]
+
+
+def _top_level_modules(distribution: str) -> set[str]:
+    # packages_distributions() reads only top_level.txt before Python 3.11, and numpy, scipy and
+    # typing-extensions do not ship one, so infer the modules from the installed files as well.
+    try:
+        installed = importlib.metadata.distribution(distribution)
+    except importlib.metadata.PackageNotFoundError:
+        return set()
+    declared = set((installed.read_text("top_level.txt") or "").split())
+    return declared | {file.parts[0] if len(file.parts) > 1 else file.stem for file in installed.files or () if file.suffix == ".py"}
+
+
+def test_type_affecting_pins_cover_the_canonical_imports() -> None:
+    # The canonical environment holds the runtime dependencies and the [dev] extra; optional
+    # provider distributions are excluded from it, so only these can change diagnostics.
+    project = typecheck.tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    canonical = {
+        typecheck.normalize_distribution(re.split(r"[\s<>=!~;\[]", requirement, maxsplit=1)[0])
+        for requirement in [*project["dependencies"], *project["optional-dependencies"]["dev"]]
+    }
+    imported: set[str] = set()
+    for path in (ROOT / "src" / "vamos").rglob("*.py"):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.Import):
+                imported.update(alias.name.split(".")[0] for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+                imported.add(node.module.split(".")[0])
+    used = {distribution for distribution in canonical if _top_level_modules(distribution) & imported}
+
+    assert {"numpy", "scipy", "joblib", "typing-extensions"} <= used
+    assert used <= set(typecheck.TYPE_AFFECTING_PINS)
+    assert {"mypy", "typing-extensions"} <= set(typecheck.TYPE_AFFECTING_PINS)
+
+
+def test_type_affecting_pins_must_be_exact_and_unique(tmp_path: Path) -> None:
+    constraints = tmp_path / "ci.txt"
+    constraints.write_text("numpy>=2\nscipy==1.15.3\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="numpy"):
+        typecheck.type_affecting_pins(constraints)
 
 
 def test_mypy_config_fingerprint_ignores_unrelated_project_metadata(tmp_path: Path) -> None:
