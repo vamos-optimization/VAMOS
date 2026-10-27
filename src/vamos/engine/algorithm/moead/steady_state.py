@@ -98,7 +98,6 @@ class SteadyStateStep:
         self._squares = numpy_power_squares()
         self._f64 = np.dtype(np.float64)
         self._is_de = variation.crossover == "de"
-        self._n_var = n_var
         self._child_shape = (1, n_var)
         self._f_shape = (1, st.F.shape[1])
         self._sbx_prob = float(variation.sbx_prob)
@@ -124,9 +123,17 @@ class SteadyStateStep:
         )
         self._params = np.array([*params, st.aggregation_theta, st.aggregation_rho], dtype=np.float64)
         self._draws = np.empty((kernels.N_DRAWS, n_var))
-        rows = [self._draws[i : i + 1] for i in range(kernels.N_DRAWS)]
-        self._rand, self._pm_mask, self._pm_delta = rows[kernels.RAND], rows[kernels.PM_MASK], rows[kernels.PM_DELTA]
-        self._var_draws, self._swap = rows[kernels.VAR_DRAWS], rows[kernels.SWAP]
+        draws = self._draws
+        # Consecutive draws fill consecutive rows: one fill of several rows consumes the stream like one fill per row.
+        self._var_draws = draws[kernels.VAR_DRAWS : kernels.VAR_DRAWS + 1]
+        self._rand = draws[kernels.RAND : kernels.RAND + 1]
+        self._pm_draws = draws[kernels.PM_MASK : kernels.PM_DELTA + 1]
+        self._sbx_draws = draws[kernels.RAND : kernels.PM_DELTA + 1]
+        # 0-d integer bounds skip a conversion inside Generator.integers; the draws are the same.
+        self._zero = np.array(0, dtype=np.int64)
+        self._bounds_neighbors = (np.array(st.neighbors.shape[1], dtype=np.int64), np.array(st.neighbors.shape[1] - 1, dtype=np.int64))
+        self._bounds_population = (np.array(st.pop_size, dtype=np.int64), np.array(st.pop_size - 1, dtype=np.int64))
+        self._n_var_bound = np.array(n_var, dtype=np.int64)
         self._mating = np.empty((1, 3, n_var))
         self._sbx_active = np.zeros((1, n_var), dtype=np.bool_)
         self._slots = np.zeros(kernels.N_SLOTS, dtype=np.int64)
@@ -170,14 +177,14 @@ class SteadyStateStep:
         index = int(st.subproblem_order[cursor])
         st.subproblem_cursor = cursor + 1
         use_neighbors = rng.random() < st.delta
-        high = st.neighbors.shape[1] if use_neighbors else pop_size
-        first = int(rng.integers(0, high, dtype=np.int64))
-        second = int(rng.integers(0, high - 1, dtype=np.int64))
+        high, high_second = self._bounds_neighbors if use_neighbors else self._bounds_population
+        zero = self._zero
+        first = int(rng.integers(zero, high, dtype=np.int64))
+        second = int(rng.integers(zero, high_second, dtype=np.int64))
         if self._is_de:
             rng.random(out=self._rand)
-            j_forced = int(rng.integers(0, self._n_var, dtype=np.int64))
-            rng.random(out=self._pm_mask)
-            rng.random(out=self._pm_delta)
+            j_forced = int(rng.integers(zero, self._n_var_bound, dtype=np.int64))
+            rng.random(out=self._pm_draws)
             return index, use_neighbors, first, second, j_forced, False
         crossed = rng.random() <= self._sbx_prob
         if crossed and self._use_var_draws:
@@ -186,11 +193,7 @@ class SteadyStateStep:
 
     def _finish_sbx(self, rng: np.random.Generator, any_active: bool, child: np.ndarray[Any, Any]) -> None:
         # SBX draws its spread and swap grids only when some variable crosses; mutation draws follow.
-        if any_active:
-            rng.random(out=self._rand)
-            rng.random(out=self._swap)
-        rng.random(out=self._pm_mask)
-        rng.random(out=self._pm_delta)
+        rng.random(out=self._sbx_draws if any_active else self._pm_draws)
         self._sbx_child(
             any_active, self._draws, self._bounds, self._params, self._squares, self._slots, self._mating, self._sbx_active, child
         )

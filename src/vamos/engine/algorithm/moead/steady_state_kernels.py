@@ -10,8 +10,8 @@ replacement; they add only the glue between them: parent selection, the clip
 repair with ``np.clip`` semantics and the ideal-point update.
 
 Arguments are packed to keep the per-call dispatch cheap. The rows of ``draws``
-(shape ``(5, n_var)``) are :data:`RAND`, :data:`PM_MASK`, :data:`PM_DELTA`,
-:data:`VAR_DRAWS` and :data:`SWAP`. The rows of ``bounds`` (shape ``(6, n_var)``)
+(shape ``(5, n_var)``) are :data:`VAR_DRAWS`, :data:`RAND`, :data:`SWAP`,
+:data:`PM_MASK` and :data:`PM_DELTA`. The rows of ``bounds`` (shape ``(6, n_var)``)
 are the clip, polynomial-mutation and SBX lower and upper bounds. ``params``
 holds ``f, cr, pm_prob, pm_eta, sbx_prob_var, -(sbx_eta + 1), 1 / (sbx_eta + 1)``
 and the aggregation ``theta`` and ``rho``. ``slots`` (int64, length 7) receives the
@@ -38,7 +38,8 @@ FloatArray = NDArray[np.float64]
 IntArray = NDArray[np.int64]
 BoolArray = NDArray[np.bool_]
 
-RAND, PM_MASK, PM_DELTA, VAR_DRAWS, SWAP = 0, 1, 2, 3, 4
+# Rows in draw order, so that consecutive draws fill consecutive rows with one Generator call.
+VAR_DRAWS, RAND, SWAP, PM_MASK, PM_DELTA = 0, 1, 2, 3, 4
 N_DRAWS = 5
 N_SLOTS = 7
 
