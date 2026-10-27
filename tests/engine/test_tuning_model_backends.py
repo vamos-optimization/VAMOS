@@ -334,7 +334,7 @@ def _eval_fn(config: dict, ctx) -> float:
 
 def test_available_model_based_backends_keys():
     backends = available_model_based_backends()
-    assert set(backends) == {"optuna", "bohb_optuna", "smac3", "bohb"}
+    assert set(backends) == {"optuna", "bohb_optuna", "smac3", "bohb", "irace"}
 
 
 def test_missing_smac3_dependency_raises():
