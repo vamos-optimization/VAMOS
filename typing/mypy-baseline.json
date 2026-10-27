@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "5afe8446",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 5afe8446",
+  "generation_commit": "1bdee315",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 1bdee315",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.0",
@@ -26,14 +26,14 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 718,
-  "files_with_diagnostics": 97,
-  "fingerprint_count": 97,
+  "diagnostic_count": 714,
+  "files_with_diagnostics": 96,
+  "fingerprint_count": 96,
   "error_code_summary": {
-    "type-arg": 718
+    "type-arg": 714
   },
   "layer_summary": {
-    "engine": 360,
+    "engine": 356,
     "experiment": 22,
     "foundation": 268,
     "package-root": 1,
@@ -3256,32 +3256,6 @@
         {
           "line": 329,
           "column": 27
-        }
-      ]
-    },
-    {
-      "fingerprint": "CEEAD6747AE2142876F26C6D2C267C10848C8B2682D9100AA9272E732B8F3BFA",
-      "path": "src/vamos/engine/algorithm/smsemoa/smsemoa.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 4,
-      "locations": [
-        {
-          "line": 193,
-          "column": 56
-        },
-        {
-          "line": 234,
-          "column": 12
-        },
-        {
-          "line": 237,
-          "column": 16
-        },
-        {
-          "line": 289,
-          "column": 22
         }
       ]
     },
