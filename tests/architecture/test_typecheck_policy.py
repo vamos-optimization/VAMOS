@@ -385,6 +385,17 @@ def test_type_affecting_constraints_drift_requires_a_reviewed_baseline(tmp_path:
     assert len(errors) == 1 and "type_affecting_pins" in errors[0] and name in errors[0]
 
 
+def _top_level_modules(distribution: str) -> set[str]:
+    # packages_distributions() reads only top_level.txt before Python 3.11, and numpy, scipy and
+    # typing-extensions do not ship one, so infer the modules from the installed files as well.
+    try:
+        installed = importlib.metadata.distribution(distribution)
+    except importlib.metadata.PackageNotFoundError:
+        return set()
+    declared = set((installed.read_text("top_level.txt") or "").split())
+    return declared | {file.parts[0] if len(file.parts) > 1 else file.stem for file in installed.files or () if file.suffix == ".py"}
+
+
 def test_type_affecting_pins_cover_the_canonical_imports() -> None:
     # The canonical environment holds the runtime dependencies and the [dev] extra; optional
     # provider distributions are excluded from it, so only these can change diagnostics.
@@ -400,13 +411,7 @@ def test_type_affecting_pins_cover_the_canonical_imports() -> None:
                 imported.update(alias.name.split(".")[0] for alias in node.names)
             elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
                 imported.add(node.module.split(".")[0])
-    providers = importlib.metadata.packages_distributions()
-    used = {
-        typecheck.normalize_distribution(distribution)
-        for module in imported
-        for distribution in providers.get(module, ())
-        if typecheck.normalize_distribution(distribution) in canonical
-    }
+    used = {distribution for distribution in canonical if _top_level_modules(distribution) & imported}
 
     assert {"numpy", "scipy", "joblib", "typing-extensions"} <= used
     assert used <= set(typecheck.TYPE_AFFECTING_PINS)
