@@ -15,6 +15,11 @@ on:
       - ".github/workflows/zensical-compat.yml"
   workflow_dispatch:
 
+# A new push to a pull request cancels its previous run; manual runs never share a group.
+concurrency:
+  group: zensical-compat-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 

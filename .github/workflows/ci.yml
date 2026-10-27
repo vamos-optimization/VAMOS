@@ -5,6 +5,12 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+  merge_group:
+
+# A new push to a pull request cancels its previous run; other events never share a group.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
 
 defaults:
   run:
@@ -14,7 +20,7 @@ jobs:
   typing:
     runs-on: ubuntu-latest
     env:
-      VAMOS_TYPECHECK_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+      VAMOS_TYPECHECK_BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -38,23 +44,26 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            python-version: "3.10"
-            extras: dev,compute,research,analysis,examples,studio,docs
-          - os: ubuntu-latest
-            python-version: "3.11"
-            extras: dev,compute,research,analysis,examples,studio,docs
-          - os: ubuntu-latest
-            python-version: "3.12"
-            # The only job with the tuning extra; without it, the Optuna, SMAC3 and BOHB backend tests are skipped.
-            extras: dev,compute,research,analysis,examples,studio,docs,tuning
+        # Pull requests test Linux only, to save runners; the merge queue and main also test Windows and macOS.
+        os: ${{ fromJSON(github.event_name == 'pull_request' && '["ubuntu-latest"]' || '["ubuntu-latest", "windows-latest", "macos-latest"]') }}
+        python-version: ["3.10", "3.11", "3.12"]
+        exclude:
           - os: windows-latest
-            python-version: "3.12"
-            extras: dev,compute,analysis,examples,studio,docs
+            python-version: "3.10"
+          - os: windows-latest
+            python-version: "3.11"
           - os: macos-latest
+            python-version: "3.10"
+          - os: macos-latest
+            python-version: "3.11"
+        include:
+          # The only job with the tuning extra; without it, the Optuna, SMAC3 and BOHB backend tests are skipped.
+          - os: ubuntu-latest
             python-version: "3.12"
-            extras: dev,compute,analysis,examples,studio,docs
+            tuning: true
+    env:
+      # The research extra (pygmo) has Linux wheels only.
+      EXTRAS: ${{ matrix.os == 'ubuntu-latest' && 'dev,compute,research,analysis,examples,studio,docs' || 'dev,compute,analysis,examples,studio,docs' }}${{ matrix.tuning && ',tuning' || '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -65,7 +74,7 @@ jobs:
       - name: Install dependencies (full extras)
         run: |
           python -m pip install -U pip
-          python -m pip install -c constraints/ci.txt -e ".[${{ matrix.extras }}]"
+          python -m pip install -c constraints/ci.txt -e ".[${EXTRAS}]"
       - name: Lint (ruff)
         run: ruff check src/vamos tests
       # Validation tier reference: /AGENTS.md. Keep this command identical to tools/health.py.
@@ -137,7 +146,15 @@ jobs:
   build-wheel:
     runs-on: ubuntu-latest
     needs: [typing, tests-full, tests-minimal]
+    # A required check: it runs even when a needed job fails, and then fails itself, because
+    # GitHub counts a skipped required check as passing, also in the merge queue.
+    if: ${{ always() }}
     steps:
+      - name: Require typing and tests
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}
+        run: |
+          echo "typing=${{ needs.typing.result }} tests-full=${{ needs.tests-full.result }} tests-minimal=${{ needs.tests-minimal.result }}"
+          exit 1
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Python
