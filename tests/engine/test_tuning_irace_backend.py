@@ -148,6 +148,26 @@ def test_missing_rscript_raises_clearly(tmp_path: Path) -> None:
         tuner.run(_score)
 
 
+@pytest.mark.parametrize(("rscript", "expected"), [(os.path.join("R", "bin", "Rscript"), "resolved"), ("Rscript", "Rscript")])
+def test_rscript_paths_resolve_against_the_invocation_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, rscript: str, expected: str
+) -> None:
+    calls: list[tuple[str, Path]] = []
+
+    def fake_run(command: list[str], *, cwd: Path, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append((command[0], cwd))
+        return subprocess.CompletedProcess(command, 1, "", "no irace")
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("vamos.engine.tuning._model_backend_irace.subprocess.run", fake_run)
+    tuner = ModelBasedTuner(task=_task(), max_trials=5, backend="irace", irace_rscript=rscript)
+    with pytest.raises(RuntimeError, match="R package `irace`"):
+        tuner.run(_score)
+    (executable, cwd), *_ = calls
+    assert cwd != tmp_path
+    assert executable == (str(tmp_path / "R" / "bin" / "Rscript") if expected == "resolved" else expected)
+
+
 def test_evaluation_server_and_target_runner(monkeypatch: pytest.MonkeyPatch) -> None:
     tuner = ModelBasedTuner(task=_task(), max_trials=1, backend="irace")
     pair = (tuner.task.instances[1], 12)

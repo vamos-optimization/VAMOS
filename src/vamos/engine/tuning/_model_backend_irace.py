@@ -123,9 +123,12 @@ def _work_dir(path: str | None) -> Generator[Path, None, None]:
 
 def _rscript(tuner: IraceTunerLike, work: Path, script: str, name: str, *args: str, **kwargs: Any) -> subprocess.CompletedProcess[str]:
     (work / name).write_text(script, encoding="utf-8")
+    # R runs inside the work directory, so a path with a directory part is resolved against ours first;
+    # a bare name keeps the PATH lookup.
+    rscript = os.path.abspath(tuner.irace_rscript) if os.path.dirname(tuner.irace_rscript) else tuner.irace_rscript
     try:
         # R writes messages in the platform's native encoding.
-        return subprocess.run([tuner.irace_rscript, str(work / name), *args], cwd=work, text=True, errors="replace", check=False, **kwargs)
+        return subprocess.run([rscript, str(work / name), *args], cwd=work, text=True, errors="replace", check=False, **kwargs)
     except FileNotFoundError as exc:
         raise RuntimeError(f"Backend 'irace' requires Rscript; {tuner.irace_rscript!r} was not found.") from exc
 
