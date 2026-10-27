@@ -102,6 +102,109 @@ class SelectionKernels(Protocol):
         ...
 
 
+#: ``NSGA2SteadyStateKernels.insert`` result: a member of the worst front dominates the child.
+STEADY_STATE_REJECTED = -1
+#: ``NSGA2SteadyStateKernels.insert`` result: the child is outside the kernel contract (non-finite).
+STEADY_STATE_UNSUPPORTED = -2
+
+
+class NSGA2SteadyStateKernels(Protocol):
+    """Compiled one-offspring NSGA-II step that reproduces the reference ask/tell path.
+
+    The caller draws every random value from the run generator in the reference
+    order and shape and passes the draws; the kernels never draw. Buffers are
+    caller-owned and reused across steps.
+    """
+
+    name: str
+
+    def pack_variation(
+        self,
+        *,
+        prob_crossover: float,
+        eta_crossover: float,
+        prob_var: float,
+        prob_mutation: float,
+        eta_mutation: float,
+        crossover_bounds: tuple[FloatArray, FloatArray],
+        repair_bounds: tuple[FloatArray, FloatArray],
+        mutation_bounds: tuple[FloatArray, FloatArray],
+    ) -> tuple[FloatArray, FloatArray]:
+        """Pack SBX, clip-repair and polynomial-mutation settings for ``offspring``."""
+        ...
+
+    def tournament(
+        self,
+        ranks: NDArray[np.integer[Any]],
+        crowding: FloatArray,
+        first: NDArray[np.int64],
+        second: NDArray[np.int64],
+        winners: NDArray[np.int64],
+    ) -> int:
+        """Resolve the binary tournaments of the reference kernel; return the number of ties."""
+        ...
+
+    def offspring(
+        self,
+        X: FloatArray,
+        winners: NDArray[np.int64],
+        first: NDArray[np.int64],
+        second: NDArray[np.int64],
+        coins: NDArray[np.integer[Any]],
+        stream: FloatArray,
+        available: int,
+        params: FloatArray,
+        bounds: FloatArray,
+        work: FloatArray,
+        active: NDArray[np.bool_],
+        child: FloatArray,
+    ) -> int:
+        """Write the first SBX/polynomial-mutation child, or return the number of draws it needs."""
+        ...
+
+    def insert(
+        self,
+        F: FloatArray,
+        ranks: NDArray[np.integer[Any]],
+        crowding: FloatArray,
+        f_child: FloatArray,
+        orders: NDArray[np.int64],
+        comb_F: FloatArray,
+        comb_ranks: NDArray[np.int64],
+        comb_crowd: FloatArray,
+        comb_orders: NDArray[np.int64],
+        index_work: NDArray[np.int64],
+        split_crowd: FloatArray,
+    ) -> int:
+        """Insert the child into the cached fronts; return the size of the truncated front.
+
+        ``orders[m]`` lists the population rows sorted by objective ``m`` with
+        ties in row order. Returns ``STEADY_STATE_REJECTED`` or ``STEADY_STATE_UNSUPPORTED`` instead
+        when the population stays unchanged or the input is not supported.
+        """
+        ...
+
+    def replace(
+        self,
+        X: FloatArray,
+        x_child: FloatArray,
+        comb_F: FloatArray,
+        comb_ranks: NDArray[np.int64],
+        comb_crowd: FloatArray,
+        comb_orders: NDArray[np.int64],
+        order: NDArray[np.integer[Any]],
+        size: int,
+        out_X: FloatArray,
+        out_F: FloatArray,
+        out_ranks: NDArray[np.int64],
+        out_crowd: FloatArray,
+        out_orders: NDArray[np.int64],
+        index_work: NDArray[np.int64],
+    ) -> None:
+        """Write the survivors, their ranks, crowding distances and per-objective orders."""
+        ...
+
+
 class KernelBackend(ABC):
     """
     Interface for all kernel backends used by the evolutionary algorithms.
@@ -152,6 +255,16 @@ class KernelBackend(ABC):
 
         ``None`` means callers keep their NumPy reference loops. A backend that
         returns kernels guarantees identical selections for finite inputs.
+        """
+        return None
+
+    def nsga2_steady_state_kernels(self) -> NSGA2SteadyStateKernels | None:
+        """
+        Optional compiled one-offspring NSGA-II step.
+
+        ``None`` means NSGA-II keeps its reference steady-state ask/tell path. A
+        backend that returns kernels guarantees the same offspring, survivors,
+        ranks and crowding distances as that path for the same draws.
         """
         return None
 
