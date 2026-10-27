@@ -16,7 +16,9 @@ def test_zensical_probe_is_pinned_and_strict() -> None:
 
 
 def test_zensical_probe_does_not_replace_release_deployment() -> None:
-    deploy = (ROOT / ".github" / "workflows" / "docs.yml").read_text(encoding="utf-8")
+    deploy = (ROOT / ".github" / "workflows" / "docs-cloudflare.yml").read_text(encoding="utf-8")
+    pages = (ROOT / ".github" / "workflows" / "docs.yml").read_text(encoding="utf-8")
 
     assert "python tools/build_release_docs.py" in deploy
     assert "zensical build" not in deploy
+    assert "zensical build" not in pages

@@ -9,7 +9,9 @@ import json
 import logging
 import re
 import shutil
-from collections.abc import Callable
+import tarfile
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from html.parser import HTMLParser
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -234,6 +236,29 @@ def _withdraw_archived_routes(tree: Path, *, tree_url: str) -> None:
             index.write_bytes(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
 
 
+@contextmanager
+def _archive_directory(archive_from: Path) -> Iterator[Path]:
+    """Yield the trusted portal as a directory, extracting a ``.tar.gz`` portal archive first."""
+    if archive_from.is_dir():
+        if not (archive_from / "docs").is_dir():
+            raise FileNotFoundError(f"Archived documentation root not found: {archive_from / 'docs'}")
+        yield archive_from
+        return
+    if not archive_from.is_file() or not archive_from.name.endswith(".tar.gz"):
+        raise FileNotFoundError(f"Archive source must be a portal directory or a .tar.gz portal archive: {archive_from}")
+    if not hasattr(tarfile, "data_filter"):
+        raise RuntimeError("Extracting a portal archive requires a Python with tarfile extraction filters")
+    with TemporaryDirectory(prefix="vamos-docs-archive-") as temporary:
+        extracted = Path(temporary)
+        with tarfile.open(archive_from, mode="r:gz") as bundle:
+            # The archive is downloaded data: refuse absolute paths, members or links that
+            # resolve outside the target, and device files.
+            bundle.extractall(extracted, filter="data")
+        if not (extracted / "docs").is_dir():
+            raise FileNotFoundError(f"Portal archive has no docs/ directory at its root: {archive_from}")
+        yield extracted
+
+
 def _copy_archived_versions(archive_from: Path, docs_root: Path, *, base_url: str) -> None:
     archive_docs = archive_from / "docs"
     if not archive_docs.is_dir():
@@ -288,10 +313,14 @@ def build_release_docs(
         raise FileExistsError(f"Refusing to overwrite documentation output: {output}")
     base_url = _normalize_base_url(base_url)
     docs_root = output / "docs"
-    docs_root.mkdir(parents=True)
 
-    if archive_from is not None:
-        _copy_archived_versions(archive_from.resolve(), docs_root, base_url=base_url)
+    if archive_from is None:
+        docs_root.mkdir(parents=True)
+    else:
+        # Extract and validate the archive before creating any output.
+        with _archive_directory(archive_from.resolve()) as archive:
+            docs_root.mkdir(parents=True)
+            _copy_archived_versions(archive, docs_root, base_url=base_url)
 
     with TemporaryDirectory(prefix="vamos-docs-current-") as temporary:
         current_dir = Path(temporary) / "current"
@@ -340,9 +369,10 @@ def main() -> None:
         "--archive-from",
         type=Path,
         help=(
-            "Previous trusted portal artifact whose immutable docs/<version>/ directories "
-            "must be preserved; if it already contains the requested version, that archive "
-            "is reused byte-for-byte instead of rebuilt, except that withdrawn routes are removed"
+            "Previous trusted portal, as a directory or a .tar.gz portal archive with docs/ at its root, "
+            "whose immutable docs/<version>/ directories must be preserved; if it already contains the "
+            "requested version, that archive is reused byte-for-byte instead of rebuilt, except that "
+            "withdrawn routes are removed"
         ),
     )
     args = parser.parse_args()

@@ -16,13 +16,17 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 from check_repository_identity import (  # noqa: E402
     CANONICAL_REPOSITORY,
+    DOCUMENTATION_URL,
     MIRROR_DECLARATION,
     MIRROR_REPOSITORY,
+    PAGES_REDIRECT_COMMAND,
+    PAGES_URL,
     PERSONAL_OWNER,
     REPOSITORY_GUARD,
     classify_references,
     load_yaml,
     metadata_violations,
+    pages_violations,
     publication_violations,
     scan_tracked_references,
 )
@@ -131,6 +135,28 @@ def test_release_and_pages_workflows_require_organization_identity() -> None:
     assert pages["jobs"]["build"]["if"] == REPOSITORY_GUARD
     assert pages["jobs"]["deploy"]["needs"] == "build"
     assert "if" not in pages["jobs"]["deploy"]
+    assert pages_violations(pages) == []
+    assert PAGES_REDIRECT_COMMAND == f"python tools/build_pages_redirect.py --base-url {DOCUMENTATION_URL} --output public"
+
+
+@pytest.mark.parametrize("mutation", ["guard", "deploy-if", "tag-trigger", "inputs", "self-redirect", "portal-build"])
+def test_checker_rejects_pages_workflow_that_is_not_an_org_redirect(mutation: str) -> None:
+    workflow = copy.deepcopy(load_yaml(ROOT, ".github/workflows/docs.yml"))
+    jobs = workflow["jobs"]
+    redirect = next(step for step in jobs["build"]["steps"] if "run" in step)
+    if mutation == "guard":
+        jobs["build"]["if"] = "true"
+    elif mutation == "deploy-if":
+        jobs["deploy"]["if"] = "always()"
+    elif mutation == "tag-trigger":
+        workflow["on"]["push"] = {"tags": ["v1.0.0"]}
+    elif mutation == "inputs":
+        workflow["on"]["workflow_dispatch"] = {"inputs": {"version": {"required": "true"}}}
+    elif mutation == "self-redirect":
+        redirect["run"] = redirect["run"].replace(DOCUMENTATION_URL, PAGES_URL)
+    else:
+        jobs["build"]["steps"].insert(0, {"run": "python tools/build_release_docs.py --version 1.1.0 --output public"})
+    assert pages_violations(workflow)
 
 
 def test_identity_gate_is_in_health_ci_and_release_validation() -> None:

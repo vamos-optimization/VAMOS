@@ -51,11 +51,11 @@ The portal checker rejects any tree, sitemap, search index, or page link that st
 
 ## Archive preservation
 
-`tools/build_release_docs.py` accepts an optional `--archive-from` artifact. When supplied, every immutable semantic-version directory already present under `docs/<version>/` is copied forward before publication. If the requested stable version already exists in that trusted artifact, the builder reuses that directory unchanged rather than rebuilding it from the current checkout. If the requested version is new, only that new immutable tree is built after older archives have been copied.
+`tools/build_release_docs.py` accepts an optional `--archive-from` source: a portal directory or a `.tar.gz` portal archive with `docs/` at its root, such as the `vamos-docs-portal-<version>.tar.gz` asset that production attaches to each GitHub Release. When supplied, every immutable semantic-version directory already present under `docs/<version>/` is copied forward before publication. If the requested stable version already exists in that trusted archive, the builder reuses that directory unchanged rather than rebuilding it from the current checkout. If the requested version is new, only that new immutable tree is built after older archives have been copied.
 
 This distinction is essential because the clean current tree is mutable while a released `docs/<version>/` tree is not. A same-version documentation-layout change may update `/...`, `docs/stable/...`, `latest/...`, redirects, navigation, or hosting behavior, but it must not rewrite the historical bytes already published under `docs/<version>/`, except to remove the [withdrawn routes](#withdrawn-routes).
 
-Archive preservation is therefore an explicit deployment input rather than relying on the hosting provider to retain files after a deployment. Production and manual republish workflows require a prior trusted portal artifact. The initial release-tag path can create the first immutable archive when no previous publication exists.
+Archive preservation is therefore an explicit deployment input rather than relying on the hosting provider to retain files after a deployment. Every production publication requires a trusted archive source, and the [documentation delivery guide](../dev/documentation-delivery.md#archive-handoff-for-releases-and-republishes) describes the release-asset store and its recovery procedure.
 
 The current clean tree and an immutable `docs/<version>/` tree are produced separately so each emits the correct canonical URLs. The current tree points to clean root paths, while each immutable archive points to its version-qualified path.
 
@@ -69,4 +69,4 @@ The current documentation entry point is therefore simply:
 
 `https://vamos-optimization.org/`
 
-Cloudflare Workers is the primary production host. GitHub Pages remains available as a secondary mirror, but its generated canonical metadata also points to the `.org` domain so search engines and citations converge on one public identity.
+Cloudflare Workers is the production host. GitHub Pages only redirects to the `.org` domain, so search engines and citations converge on one public identity.

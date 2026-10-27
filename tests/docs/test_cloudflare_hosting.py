@@ -109,14 +109,16 @@ def test_cloudflare_production_deploy_is_manual_guarded_and_archive_preserving()
     assert "tools/check_docs_portal.py" in workflow
     assert "wrangler.jsonc" in workflow
     assert 'WRANGLER_VERSION: "4.129.1"' in workflow
+    assert "archive_release:" in workflow
     assert "archive_run_id:" in workflow
     assert "archive_artifact_name:" in workflow
-    assert "required to preserve immutable releases" in workflow
+    assert "Select one trusted archive source" in workflow
+    assert "Download previous trusted portal release asset" in workflow
     assert "Download previous trusted portal artifact" in workflow
-    assert "--archive-from previous-public" in workflow
+    assert '--archive-from "$ARCHIVE_PATH"' in workflow
 
 
-def test_hosting_contract_uses_clean_canonical_domain_and_keeps_pages_as_mirror() -> None:
+def test_hosting_contract_uses_clean_canonical_domain_and_redirects_pages() -> None:
     mkdocs = (ROOT / "mkdocs.yml").read_text(encoding="utf-8")
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     hosting = (ROOT / "docs" / "project" / "hosting.md").read_text(encoding="utf-8")
@@ -125,4 +127,5 @@ def test_hosting_contract_uses_clean_canonical_domain_and_keeps_pages_as_mirror(
     assert "site_url: https://vamos-optimization.org/docs/stable/" not in mkdocs
     assert 'Documentation = "https://vamos-optimization.org/"' in pyproject
     assert "clean paths such as `/algorithms/nsgaii/`" in hosting
-    assert "GitHub Pages remains available as a fallback mirror" in hosting
+    assert "GitHub Pages only redirects to the canonical host" in hosting
+    assert "fallback mirror" not in hosting

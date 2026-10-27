@@ -23,7 +23,9 @@ CANONICAL_REPOSITORY = "vamos-optimization/VAMOS"
 CANONICAL_URL = f"https://github.com/{CANONICAL_REPOSITORY}"
 DOCUMENTATION_URL = "https://vamos-optimization.org/"
 CURRENT_DOCS_URL = DOCUMENTATION_URL
+# GitHub Pages serves only a redirect from this address to DOCUMENTATION_URL.
 PAGES_URL = "https://vamos-optimization.github.io/VAMOS/"
+PAGES_REDIRECT_COMMAND = f"python tools/build_pages_redirect.py --base-url {DOCUMENTATION_URL} --output public"
 PERSONAL_OWNER = "NicolasRodriguezUribe"
 MIRROR_REPOSITORY = f"{PERSONAL_OWNER}/VAMOS"
 MIRROR_DECLARATION = f"Personal mirror: [{MIRROR_REPOSITORY}](https://github.com/{MIRROR_REPOSITORY})."
@@ -150,9 +152,24 @@ def metadata_violations(root: Path) -> list[str]:
         if f"[{label}]: {CANONICAL_URL}/{suffix}" not in changelog:
             violations.append(f"CHANGELOG {label} link must use the canonical repository.")
     violations.extend(publication_violations(load_yaml(root, ".github/workflows/upload_pypi.yml")))
-    pages = load_yaml(root, ".github/workflows/docs.yml")["jobs"]
-    if pages["build"].get("if") != REPOSITORY_GUARD or pages["deploy"].get("needs") != "build":
+    violations.extend(pages_violations(load_yaml(root, ".github/workflows/docs.yml")))
+    return violations
+
+
+def pages_violations(workflow: dict) -> list[str]:
+    """Keep PAGES_URL a guarded, manually deployed redirect to the documentation host."""
+    jobs = workflow.get("jobs", {})
+    build = jobs.get("build", {})
+    deploy = jobs.get("deploy", {})
+    violations = []
+    if build.get("if") != REPOSITORY_GUARD or deploy.get("needs") != "build" or "if" in deploy:
         violations.append("Pages deployment must depend on the canonical repository guard.")
+    triggers = workflow.get("on", {})
+    if not isinstance(triggers, dict) or set(triggers) != {"workflow_dispatch"} or triggers["workflow_dispatch"]:
+        violations.append("Pages must deploy only through a manual dispatch without inputs.")
+    commands = [step["run"].strip() for step in build.get("steps", []) if "run" in step]
+    if commands != [PAGES_REDIRECT_COMMAND]:
+        violations.append(f"Pages must publish only the redirect to {DOCUMENTATION_URL}, not a documentation copy.")
     return violations
 
 
