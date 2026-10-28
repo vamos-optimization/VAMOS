@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -28,6 +28,9 @@ from vamos.engine.algorithm.components.termination import HVTracker
 from vamos.engine.hooks.genealogy import GenealogyTracker
 from vamos.engine.operators.impl.real import VariationWorkspace
 from vamos.engine.variation import VariationPipeline
+
+if TYPE_CHECKING:
+    from .steady_state import SteadyStateStep
 
 
 def _logger() -> logging.Logger:
@@ -87,11 +90,13 @@ class NSGAIIState:
     step: int = 0
     replacements: int = 0
 
-    # Cached selection metrics (incremental replacement)
+    # Cached selection metrics (incremental replacement). The compiled steady-state
+    # step maintains ranks and crowding only and leaves ``fronts`` as None.
     fronts: list[list[int]] | None = None
     ranks: np.ndarray[Any, Any] | None = None
     crowding: np.ndarray[Any, Any] | None = None
     incremental_enabled: bool = False
+    steady_step: SteadyStateStep | None = field(default=None, repr=False)
 
     # Pending offspring (from ask)
     pending_offspring: np.ndarray[Any, Any] | None = None
