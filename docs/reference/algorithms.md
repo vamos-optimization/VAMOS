@@ -200,7 +200,7 @@ never compiles problem evaluation.
 
 | Algorithm | Compiled with `engine="numba"` | Stays in NumPy/Python |
 | --- | --- | --- |
-| NSGA-II | Non-dominated ranking and crowding, survival, tournament selection, SBX, polynomial mutation | Steady-state incremental front maintenance for three or more objectives, feasibility ordering, archives |
+| NSGA-II | Non-dominated ranking and crowding, survival, tournament selection, SBX, polynomial mutation; the whole one-offspring steady-state step in its supported configuration (below) | Feasibility ordering, archives, steady-state front maintenance outside that configuration |
 | NSGA-III | Ranking and crowding, tournament selection, SBX, polynomial mutation | Normalization, association to reference directions, niching (it shuffles with the run generator inside the loop) |
 | MOEA/D | Differential-evolution children, SBX, polynomial mutation, neighbourhood replacement | Parent sampling, repair, weight geometry |
 | SMS-EMOA | SBX, polynomial mutation; ranking and tournament selection where configured | Front insertion, hypervolume contributions (MooCore when installed) |
@@ -209,6 +209,21 @@ never compiles problem evaluation.
 | SMPSO | Turbulence mutation, leaders-archive crowding truncation | Velocity/position updates (vectorized NumPy), deduplication |
 | AGE-MOEA | Ranking and crowding, tournament selection, SBX, polynomial mutation, greedy survival scores | Front normalization and pairwise Minkowski distances |
 | RVEA | SBX, polynomial mutation | Angle-penalized survival and reference-vector adaptation (vectorized NumPy) |
+
+**Development after 1.1.0:** steady-state NSGA-II (`.steady_state()`, one
+offspring per step) runs each step as a few compiled calls under
+`engine="numba"`: the binary tournament, SBX on the mating pair, clip repair,
+polynomial mutation, the insertion of the evaluated child into the cached
+fronts, crowding and the truncation back to the population size. Random values
+are still drawn from the run generator in the NumPy order, and the truncated
+front is still ordered with `np.argsort`, so the trajectory is the NumPy
+engine's. This covers unconstrained runs with binary tournament selection, SBX,
+polynomial mutation and the default clip repair. Constrained problems, other
+selection, crossover, mutation or repair operators, genealogy tracking,
+immigration, parent-selection filters and non-breeding indices keep the
+NumPy/Python steady-state path, as does any step with non-finite objective
+values. External archives and hypervolume termination behave the same on both
+paths.
 
 Compiled SBX and polynomial mutation are enabled only after a one-time check
 that compiled `pow` matches `np.power` bit for bit on the platform (some NumPy
