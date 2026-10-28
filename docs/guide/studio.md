@@ -286,6 +286,19 @@ The exports are a LaTeX table of medians and interquartile ranges with the
 marks, a LaTeX ranking table, the comparisons as CSV, and the long-format
 results and metrics files that the SAES tool reads.
 
+**Development after 1.1.0:** a run without any feasible solution takes the
+worst value of each indicator, HV = 0 and IGD+ = ∞, and counts as such in the
+Mann-Whitney tests, the A12 effect sizes, the medians, and the Friedman and
+Nemenyi ranks; a problem therefore stays in the ranking when an algorithm never
+finds a feasible solution on it. Every cell of the comparison tables, on the
+page and in LaTeX, gives the runs with a feasible solution out of all runs, and
+the Verdict and Ranking tabs warn when some run has none. The SAES results file
+writes those IGD+ values as `inf`; Distributions does not draw them and lists
+how many there are, and Fronts says when the median run of an algorithm has no
+feasible solution. VAMOS 1.1.0 left such runs out of IGD+, so an algorithm that
+was feasible in a few runs could appear significantly better than one that was
+always feasible.
+
 ## Trusted local Python
 
 The **Problem Builder** can compile and execute Python entered by the user or
