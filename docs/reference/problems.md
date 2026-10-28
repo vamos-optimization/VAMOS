@@ -260,6 +260,13 @@ benchmark. See [Known limitations](../project/known-limitations.md).
 VAMOS 1.1.0 and earlier search `[-1, 1]` for variables 2 to n. The Pareto front
 is the same, but the larger search space changes the problem's difficulty.
 
+**Development after 1.1.0:** `cec2009_uf9` adds the squared distance `y_j^2` of
+each remaining variable, as in the CEC2009 technical report, jMetal and PlatEMO,
+and as `cec2009_uf8` does. VAMOS 1.1.0 and earlier use the multimodal distance
+`2 y_j^2 - cos(4 pi y_j) + 1` of UF5. The Pareto front is the same, since
+`y_j = 0` there, but the landscape differs, so UF9 results from those versions
+are not comparable with CEC2009 results.
+
 ## Reference fronts
 
 The [packaged CSV directory][fronts] contains finite **reference samples**. Check

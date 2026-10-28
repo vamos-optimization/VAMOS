@@ -3,7 +3,9 @@
 Indicators are computed per run from the study's canonical runs: the
 normalized hypervolume of the batch (higher is better) and, where VAMOS ships a
 reference front with the problem's number of objectives, IGD+ on objectives
-normalized by that front (lower is better).
+normalized by that front (lower is better). A run without a feasible solution
+takes the worst value of each indicator, HV = 0 and IGD+ = +inf, and stays in
+the tests, effect sizes, medians and ranks.
 """
 
 from __future__ import annotations
@@ -53,8 +55,14 @@ class ComparisonData:
         return tuple(name for name in (HV, IGD_PLUS) if any(len(v) for v in self.values.get(name, {}).values()))
 
     def sample(self, indicator: str, problem: str, algorithm: str) -> NDArray[np.float64]:
+        """The indicator value of every run, +inf included; only undefined (NaN) values are left out."""
         values = self.values.get(indicator, {}).get((problem, algorithm), np.empty(0))
-        return np.asarray(values[np.isfinite(values)], dtype=np.float64)
+        return np.asarray(values[~np.isnan(values)], dtype=np.float64)
+
+    def feasible_runs(self, problem: str, algorithm: str) -> tuple[int, int]:
+        """The runs of ``algorithm`` on ``problem`` with at least one feasible solution, and all its runs."""
+        runs = [run for run in self.runs if run.problem == problem and run.algorithm == algorithm]
+        return sum(1 for run in runs if run.feasible_F.size), len(runs)
 
 
 @dataclass(frozen=True)
@@ -88,9 +96,12 @@ class Ranking:
 
 
 def igd_plus(points: NDArray[np.float64], reference: NDArray[np.float64]) -> float:
-    """Mean distance from every reference point to the closest solution, counting only shortfalls."""
+    """Mean distance from every reference point to the closest solution, counting only shortfalls.
+
+    A run without feasible solutions gets +inf, the worst value, so that it still counts in the tests.
+    """
     if points.size == 0:
-        return float("nan")
+        return float("inf")
     shortfall = np.maximum(points[None, :, :] - reference[:, None, :], 0.0)
     return float(np.sqrt((shortfall**2).sum(axis=2)).min(axis=1).mean())
 
@@ -167,6 +178,20 @@ def compare_with_pivot(data: ComparisonData, indicator: str, pivot: str, *, corr
     return comparisons
 
 
+def infeasible_note(data: ComparisonData, indicator: str) -> str:
+    """Say how many runs found no feasible solution and how they count; empty when every run found one."""
+    keys = data.values.get(indicator, {})
+    runs = [run for run in data.runs if (run.problem, run.algorithm) in keys]
+    infeasible = sum(1 for run in runs if not run.feasible_F.size)
+    if not infeasible:
+        return ""
+    worst = "0" if INDICATOR_DIRECTIONS[indicator] else "∞"
+    return (
+        f"{infeasible} of {len(runs)} runs found no feasible solution. They count as the worst value, "
+        f"{indicator} = {worst}, in the tests, effect sizes, medians and ranks; the tables give the feasible runs of every cell."
+    )
+
+
 def verdict_counts(comparisons: Sequence[Comparison]) -> dict[str, dict[str, int]]:
     counts: dict[str, dict[str, int]] = {}
     for item in comparisons:
@@ -197,6 +222,8 @@ def rank_algorithms(data: ComparisonData, indicator: str, pivot: str, *, alpha: 
         warnings.append(f"Only {n} problem(s): rank-based tests over problems have little power; read them as indicative.")
     if k < 3:
         warnings.append("The Friedman test needs at least three algorithms.")
+    if note := infeasible_note(data, indicator):
+        warnings.append(note)
     cd = nemenyi_cd(k, n, alpha) if k >= 2 else None
     groups = tuple(cd_groups(list(ranks), cd)) if cd is not None else ()
     against = tuple(holm_against_pivot(ranks, data.algorithms.index(pivot), n)) if pivot in data.algorithms else ()
@@ -209,10 +236,10 @@ def median_run(data: ComparisonData, indicator: str, problem: str, algorithm: st
     values = data.values.get(indicator, {}).get((problem, algorithm))
     if not candidates or values is None or len(values) != len(candidates):
         return candidates[0] if candidates else None
-    finite = [index for index, value in enumerate(values) if np.isfinite(value)]
-    if not finite:
+    defined = [index for index, value in enumerate(values) if not np.isnan(value)]
+    if not defined:
         return candidates[0]
-    ordered = sorted(finite, key=lambda index: float(values[index]))
+    ordered = sorted(defined, key=lambda index: float(values[index]))
     return candidates[ordered[(len(ordered) - 1) // 2]]
 
 
@@ -241,6 +268,7 @@ __all__ = [
     "Ranking",
     "compare_with_pivot",
     "igd_plus",
+    "infeasible_note",
     "load_comparison_data",
     "median_matrix",
     "median_run",

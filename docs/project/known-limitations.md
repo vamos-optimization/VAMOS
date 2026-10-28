@@ -22,6 +22,10 @@ unsupported behavior rather than future compatibility promises.
 - **Development after 1.1.0:** `cec2009_uf3` searches the CEC2009 domain
   `[0, 1]^n`. VAMOS 1.1.0 and earlier search `[-1, 1]` for variables 2 to n, so
   UF3 results from those versions do not correspond to the CEC2009 instance.
+- **Development after 1.1.0:** `cec2009_uf9` uses the CEC2009 squared distance
+  `y_j^2`. VAMOS 1.1.0 and earlier use the multimodal distance of UF5, with the
+  same Pareto front but a different landscape, so UF9 results from those
+  versions do not correspond to the CEC2009 instance.
 - **Development after 1.1.0:** `rwa7` and `rwa8` search the normalized domain
   `[0, 1]^4` of their response surfaces, with the TTmax sign of `re37`, and
   their packaged reference samples are regenerated. VAMOS 1.1.0 and earlier
@@ -98,6 +102,10 @@ unsupported behavior rather than future compatibility promises.
 
 - Studio is experimental and is intended for trusted local use. It is not a
   multi-user hosted service.
+- **Development after 1.1.0:** the Statistical Comparison counts a run without
+  feasible solutions as the worst IGD+ (∞). VAMOS 1.1.0 and earlier leave those
+  runs out of IGD+, which favors algorithms that are rarely feasible; see
+  [Statistical comparison](../guide/studio.md#statistical-comparison).
 - AST checks, restricted builtins, process isolation, resource limits, and
   timeouts are best-effort controls, not a security sandbox.
 - Reviewed Python executes with the current operating-system user's
