@@ -33,6 +33,7 @@ from .initialization import (
 )
 from .injection import ImmigrationManager
 from .state import NSGAIIState
+from .steady_state import build_steady_state_step
 
 if TYPE_CHECKING:
     from vamos.engine.archive import ExternalArchiveConfig
@@ -277,6 +278,7 @@ def initialize_run(
         generation_callback=generation_callback,
         generation_callback_copy=generation_callback_copy,
     )
+    algo._st.steady_step = build_steady_state_step(algo.kernel, algo._st)
     return live_cb, eval_strategy, max_eval, n_eval, hv_tracker
 
 
