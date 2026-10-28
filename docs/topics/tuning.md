@@ -254,6 +254,13 @@ HV score, and an aggregation rule. Its statistical elimination is an
 **allocation mechanism during tuning**; it is not a substitute for an
 independently designed final comparison on held-out blocks.
 
+**Development after 1.1.0:** racing returns the best of the configurations
+still alive when the race ends, aggregated over the problem/seed blocks that
+all of them were evaluated on; with multi-fidelity racing, over the last
+fidelity level they reached. VAMOS 1.1.0 and earlier compared every evaluated
+configuration on its own blocks, so a configuration the race had already
+eliminated could be returned.
+
 ### Conditional parameters
 
 A trial contains only the parameters that are active for the rest of its
