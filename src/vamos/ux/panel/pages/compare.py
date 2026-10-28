@@ -22,6 +22,7 @@ from vamos.ux.studio.comparison import (
     Comparison,
     ComparisonData,
     compare_with_pivot,
+    infeasible_note,
     load_comparison_data,
     median_run,
     rank_algorithms,
@@ -211,6 +212,8 @@ def verdict_view(state: CompareState) -> Any:
     items: list[Any] = [pn.pane.Markdown("\n".join(lines), sizing_mode="stretch_width")]
     if warning := state.power_warning():
         items.insert(0, pn.pane.Alert(warning, alert_type="warning"))
+    if isinstance(state.data, ComparisonData) and (note := infeasible_note(state.data, state.indicator)):
+        items.insert(0, pn.pane.Alert(note, alert_type="warning"))
     return pn.Column(*items, sizing_mode="stretch_width")
 
 
@@ -225,7 +228,8 @@ def comparisons_view(state: CompareState) -> Any:
     return pn.Column(
         pn.pane.Markdown(
             "Median (IQR) of every algorithm; `+`/`-`/`=` compare it with the pivot. The darker cell is the best median, "
-            "the lighter one the second best."
+            "the lighter one the second best. The fraction gives the runs with a feasible solution out of all runs; "
+            "a run without one counts as the worst value (HV = 0, IGD+ = ∞)."
         ),
         pn.pane.HTML(comparison_html(data, state.indicator, comparisons, state.pivot), sizing_mode="stretch_width"),
         pn.Card(_table(details), title="p-values and effect sizes", collapsed=True, sizing_mode="stretch_width"),
@@ -279,32 +283,47 @@ def distribution_view(state: CompareState) -> Any:
     data = state.data
     if not isinstance(data, ComparisonData):
         return pn.pane.Markdown("*Load a study first.*")
+    by_key = data.values.get(state.indicator, {})
     rows = [
         {"Problem": problem, "Algorithm": algorithm, state.indicator: float(value)}
-        for (problem, algorithm), values in data.values.get(state.indicator, {}).items()
+        for (problem, algorithm), values in by_key.items()
         for value in values
         if np.isfinite(value)
     ]
-    return (
-        pn.pane.Plotly(box_figure(rows, indicator=state.indicator), sizing_mode="stretch_width")
-        if rows
-        else pn.pane.Markdown("*No values.*")
+    figure = pn.pane.Plotly(box_figure(rows, indicator=state.indicator), sizing_mode="stretch_width") if rows else None
+    undrawn = [
+        f"{problem} · {algorithm}: {int(np.isinf(values).sum())} of {values.size}"
+        for (problem, algorithm), values in by_key.items()
+        if np.isinf(values).any()
+    ]
+    if not undrawn:
+        return figure if figure is not None else pn.pane.Markdown("*No values.*")
+    note = pn.pane.Markdown(
+        f"*Not drawn: the runs without a feasible solution, whose {state.indicator} is ∞ — {'; '.join(undrawn)}.*",
+        sizing_mode="stretch_width",
     )
+    return pn.Column(note, figure, sizing_mode="stretch_width") if figure is not None else note
 
 
 def fronts_view(state: CompareState) -> Any:
     data = state.data
     if not isinstance(data, ComparisonData) or state.problem is None:
         return pn.pane.Markdown("*Load a study first.*")
-    fronts = []
+    fronts, infeasible = [], []
     for algorithm in data.algorithms:
         run = median_run(data, state.indicator, state.problem, algorithm)
         if run is not None and run.feasible_F.size:
             fronts.append((f"{algorithm} (seed {run.seed})", run.feasible_F))
+        elif run is not None:
+            infeasible.append(algorithm)
     if not fronts:
         return pn.pane.Markdown("*No feasible front on this problem.*")
     title = f"Front of the median-{state.indicator} run of each algorithm on {state.problem}"
-    return pn.pane.Plotly(overlay_figure(fronts, title=title), sizing_mode="stretch_width")
+    figure = pn.pane.Plotly(overlay_figure(fronts, title=title), sizing_mode="stretch_width")
+    if not infeasible:
+        return figure
+    note = pn.pane.Markdown(f"*The median run of {', '.join(infeasible)} has no feasible solution, so it is not drawn.*")
+    return pn.Column(note, figure, sizing_mode="stretch_width")
 
 
 def attainment_view(state: CompareState) -> Any:

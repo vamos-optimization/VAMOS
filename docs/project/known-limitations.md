@@ -86,6 +86,10 @@ unsupported behavior rather than future compatibility promises.
 
 - Studio is experimental and is intended for trusted local use. It is not a
   multi-user hosted service.
+- **Development after 1.1.0:** the Statistical Comparison counts a run without
+  feasible solutions as the worst IGD+ (∞). VAMOS 1.1.0 and earlier leave those
+  runs out of IGD+, which favors algorithms that are rarely feasible; see
+  [Statistical comparison](../guide/studio.md#statistical-comparison).
 - AST checks, restricted builtins, process isolation, resource limits, and
   timeouts are best-effort controls, not a security sandbox.
 - Reviewed Python executes with the current operating-system user's
