@@ -273,7 +273,10 @@ class CEC2009_UF8(_CEC2009UF3ObjBase):
 
 
 class CEC2009_UF9(_CEC2009UF3ObjBase):
-    """UF9 from the CEC2009 competition."""
+    """UF9 from the CEC2009 competition.
+
+    Like UF8, UF9 adds the squared distance ``y_j**2`` of the CEC2009 report.
+    """
 
     def __init__(self, n_var: int = 30, *, epsilon: float = 0.1) -> None:
         super().__init__(n_var=n_var, lower_rest=-2.0, upper_rest=2.0)
@@ -287,11 +290,11 @@ class CEC2009_UF9(_CEC2009UF3ObjBase):
         j, mod1, mod2, mod0 = self._split_mod3()
         phase = 2.0 * np.pi * x0[:, None] + j * np.pi / self.n_var
         y = rest - 2.0 * x1[:, None] * np.sin(phase)
-        h = 2.0 * y * y - np.cos(4.0 * np.pi * y) + 1.0
+        y2 = y * y
 
-        sum1 = np.sum(h[:, mod1], axis=1)
-        sum2 = np.sum(h[:, mod2], axis=1)
-        sum3 = np.sum(h[:, mod0], axis=1)
+        sum1 = np.sum(y2[:, mod1], axis=1)
+        sum2 = np.sum(y2[:, mod2], axis=1)
+        sum3 = np.sum(y2[:, mod0], axis=1)
         count1 = max(1, int(mod1.sum()))
         count2 = max(1, int(mod2.sum()))
         count3 = max(1, int(mod0.sum()))
