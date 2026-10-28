@@ -63,9 +63,10 @@ def adjust(p_values: ArrayLike, correction: str) -> NDArray[np.float64]:
 
 
 def rank_sum_p(a: ArrayLike, b: ArrayLike) -> float:
-    """Two-sided Mann-Whitney p-value; 1 when the samples cannot differ."""
+    """Two-sided Mann-Whitney p-value; 1 when the samples cannot differ. ``inf`` ranks as the largest value."""
     x, y = np.asarray(a, dtype=float), np.asarray(b, dtype=float)
-    if x.size == 0 or y.size == 0 or np.ptp(np.concatenate([x, y])) == 0.0:
+    pooled = np.concatenate([x, y])
+    if x.size == 0 or y.size == 0 or np.all(pooled == pooled[0]):
         return 1.0
     return float(stats.mannwhitneyu(x, y, alternative="two-sided").pvalue)
 
@@ -104,7 +105,7 @@ def friedman_p(matrix: NDArray[np.float64]) -> tuple[float, float] | None:
     data = np.asarray(matrix, dtype=float)
     if data.ndim != 2 or data.shape[1] < 3 or data.shape[0] < 2:
         return None
-    if np.all(np.ptp(data, axis=1) == 0.0):
+    if np.all(data == data[:, :1]):  # Every problem ties all algorithms, infinite medians included.
         return 0.0, 1.0
     result = stats.friedmanchisquare(*[data[:, j] for j in range(data.shape[1])])
     return float(result.statistic), float(result.pvalue)

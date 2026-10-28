@@ -361,6 +361,35 @@ def test_compare_page_analyzes_a_study(tmp_path: Path) -> None:
     assert compare.smallest_p_value(5, 5) == pytest.approx(2 / 252)
 
 
+def test_compare_page_annotates_runs_without_feasible_solutions() -> None:
+    from vamos.ux.panel.pages import compare
+    from vamos.ux.studio.batch import BatchRun
+    from vamos.ux.studio.comparison import HV, IGD_PLUS, ComparisonData
+
+    front = np.array([[0.0, 1.0], [1.0, 0.0]])
+    runs = tuple(
+        BatchRun("zdt1", name, seed, front, np.full((2, 1), -1.0 if name == "A" or seed == 0 else 1.0))
+        for name in ("A", "B")
+        for seed in range(3)
+    )
+    values = {
+        HV: {("zdt1", "A"): np.array([0.8, 0.7, 0.9]), ("zdt1", "B"): np.array([0.95, 0.0, 0.0])},
+        IGD_PLUS: {("zdt1", "A"): np.array([0.1, 0.2, 0.15]), ("zdt1", "B"): np.array([0.01, np.inf, np.inf])},
+    }
+    state = compare.CompareState()
+    state.pivot, state.indicator, state.problem = "A", IGD_PLUS, "zdt1"
+    state.data = ComparisonData(Path("study"), ("zdt1",), ("A", "B"), runs, values)
+
+    verdict = compare.verdict_view(state)
+    distribution = compare.distribution_view(state)
+    fronts = compare.fronts_view(state)
+
+    assert "2 of 6 runs found no feasible solution" in verdict[0].object
+    assert "zdt1 · B: 2 of 3" in distribution[0].object and type(distribution[1]).__name__ == "Plotly"
+    assert "median run of B has no feasible solution" in fronts[0].object
+    assert "1/3" in compare.comparisons_view(state)[1].object
+
+
 def test_app_hands_a_batch_to_the_comparison(tmp_path: Path) -> None:
     app = studio_app.StudioApp(study_dir=str(tmp_path))
 

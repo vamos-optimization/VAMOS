@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import html
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vamos.ux.studio.batch import csv_text, latex_escape
 from vamos.ux.studio.comparison import INDICATOR_DIRECTIONS, Comparison, ComparisonData, Ranking
@@ -22,27 +24,40 @@ def ordered_algorithms(data: ComparisonData, pivot: str) -> list[str]:
 
 @dataclass(frozen=True)
 class TableRow:
-    """The median, IQR and mark of every algorithm on one problem, with the two best medians."""
+    """Per algorithm on one problem: median, IQR, mark, feasible runs and runs; with the two best finite medians."""
 
     problem: str
-    cells: dict[str, tuple[float, float, str]]
+    cells: dict[str, tuple[float, float, str, int, int]]
     best: float | None
     second: float | None
 
 
+def _quartiles(sample: NDArray[np.float64]) -> tuple[float, float, float]:
+    """Linearly interpolated quartiles in which +inf, a run without feasible solutions, is the largest value."""
+    ordered = np.sort(sample)
+    position = (ordered.size - 1) * np.array([0.25, 0.5, 0.75])
+    low, high = ordered[np.floor(position).astype(int)], ordered[np.ceil(position).astype(int)]
+    fraction = position - np.floor(position)
+    with np.errstate(invalid="ignore"):  # inf - inf, discarded where the two neighbours coincide
+        quartiles = np.where((fraction == 0.0) | (low == high), low, low + (high - low) * fraction)
+    return float(quartiles[0]), float(quartiles[1]), float(quartiles[2])
+
+
 def table_cells(data: ComparisonData, indicator: str, comparisons: Sequence[Comparison], pivot: str) -> list[TableRow]:
-    """One row per problem: the median, IQR and mark of every algorithm."""
+    """One row per problem: the median, IQR, mark and feasible runs out of all runs of every algorithm."""
     marks = {(item.problem, item.contender): item.verdict for item in comparisons}
     higher = INDICATOR_DIRECTIONS[indicator]
     rows: list[TableRow] = []
     for problem in data.problems:
-        cells: dict[str, tuple[float, float, str]] = {}
+        cells: dict[str, tuple[float, float, str, int, int]] = {}
         for algorithm in ordered_algorithms(data, pivot):
             sample = data.sample(indicator, problem, algorithm)
             if sample.size:
-                q25, q50, q75 = np.percentile(sample, [25, 50, 75])
-                cells[algorithm] = (float(q50), float(q75 - q25), marks.get((problem, algorithm), ""))
-        medians = sorted({value[0] for value in cells.values()}, reverse=higher)
+                q25, q50, q75 = _quartiles(sample)
+                with np.errstate(invalid="ignore"):
+                    iqr = q75 - q25  # NaN when both quartiles are infinite
+                cells[algorithm] = (q50, iqr, marks.get((problem, algorithm), ""), *data.feasible_runs(problem, algorithm))
+        medians = sorted({value[0] for value in cells.values() if math.isfinite(value[0])}, reverse=higher)
         rows.append(TableRow(problem, cells, medians[0] if medians else None, medians[1] if len(medians) > 1 else None))
     return rows
 
@@ -77,11 +92,12 @@ def comparison_html(data: ComparisonData, indicator: str, comparisons: Sequence[
             if value is None:
                 cells.append("<td>—</td>")
                 continue
-            median, iqr, mark = value
+            median, iqr, mark, feasible, runs = value
             shade = "#b7e1cd" if median == row.best else "#e3f2ea" if median == row.second else "transparent"
-            cells.append(
-                f'<td style="background:{shade};text-align:right">{median:.4g} <small>({iqr:.2g})</small> <b>{html.escape(mark)}</b></td>'
-            )
+            spread = "∞" if math.isinf(iqr) else f"{iqr:.2g}"
+            number = "∞" if math.isinf(median) else f"{median:.4g} <small>({spread})</small>"
+            count = f'<small title="Runs with a feasible solution out of all runs">{feasible}/{runs}</small>'
+            cells.append(f'<td style="background:{shade};text-align:right">{number} <b>{html.escape(mark)}</b> {count}</td>')
         body.append(f"<tr><th style='text-align:left'>{html.escape(row.problem)}</th>{''.join(cells)}</tr>")
     return (
         "<table style='border-collapse:collapse;width:100%' border='1' cellpadding='6'>"
@@ -95,11 +111,13 @@ def comparison_latex(
     """A booktabs table of medians with IQR subscripts and marks against the pivot."""
     algorithms = ordered_algorithms(data, pivot)
     direction = "higher" if INDICATOR_DIRECTIONS[indicator] else "lower"
+    worst = "0" if INDICATOR_DIRECTIONS[indicator] else r"\infty"
     caption = (
         f"Median and interquartile range of {indicator} ({direction} is better). Marks compare each algorithm with "
         f"{pivot} by a two-sided Mann-Whitney test at $\\alpha={alpha:g}$ with {CORRECTIONS.get(correction, correction)} "
         "correction and the Vargha-Delaney A12 effect size: $+$ better, $-$ worse, $=$ no significant difference. "
-        "Bold marks the best median of each problem and underline the second best."
+        "Bold marks the best median of each problem and underline the second best. The fraction gives the runs with "
+        f"a feasible solution out of all runs; a run without one counts as the worst value, {indicator} $= {worst}$."
     )
     lines = [
         r"\begin{table}[htbp]",
@@ -119,10 +137,14 @@ def comparison_latex(
             if value is None:
                 cells.append("--")
                 continue
-            median, iqr, mark = value
-            text = f"{median:.4f}$_{{{iqr:.2e}}}$"
+            median, iqr, mark, feasible, runs = value
+            if math.isinf(median):
+                text = r"$\infty$"
+            else:
+                text = f"{median:.4f}" + (r"$_{\infty}$" if math.isinf(iqr) else f"$_{{{iqr:.2e}}}$")
             text = f"\\textbf{{{text}}}" if median == row.best else f"\\underline{{{text}}}" if median == row.second else text
-            cells.append(f"{text} {marks[mark]}".strip())
+            count = f"{{\\scriptsize {feasible}/{runs}}}"
+            cells.append(" ".join(part for part in (text, marks[mark], count) if part))
         lines.append(latex_escape(row.problem) + " & " + " & ".join(cells) + r" \\")
     lines += [r"\bottomrule", r"\end{tabular}", r"\end{table}", ""]
     return "\n".join(lines)
@@ -160,7 +182,7 @@ def saes_csv(data: ComparisonData) -> str:
     for indicator, by_key in data.values.items():
         for (problem, algorithm), values in by_key.items():
             for execution, value in enumerate(values):
-                if np.isfinite(value):
+                if not np.isnan(value):  # +inf is the worst value of a run without feasible solutions.
                     rows.append(
                         {
                             "Algorithm": algorithm,
