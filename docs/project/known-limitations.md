@@ -81,6 +81,12 @@ unsupported behavior rather than future compatibility promises.
   remain experimental and may change in a minor release.
 - Users are responsible for selecting indicators, reference points, sample
   sizes, and statistical tests appropriate for their scientific claim.
+- **Development after 1.1.0:** the Nemenyi critical difference of
+  `plot_critical_distance` and of the `cd_<metric>.pdf` plots of `vamos bench`
+  uses the critical value for the number of algorithms. VAMOS 1.1.0 and earlier
+  use the four-algorithm value for every count, which understates the critical
+  difference with more than four algorithms; see
+  [Critical-distance plot](../topics/analysis.md#critical-distance-plot).
 
 ## Studio and generated code
 
