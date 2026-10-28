@@ -323,6 +323,18 @@ benchmark. VAMOS 1.1.0 built one reference for the whole suite, which distorts
 its indicator values and significance tests; rerun those benchmarks before
 comparing them.
 
+**Development after 1.1.0:** the indicators and their references use only the
+feasible solutions of each run, those whose stored constraint values are all
+`G <= 0`. A run without feasible solutions gets HV 0 and +inf for IGD, IGD+,
+epsilon and Hausdorff, the worst values, and stays in the rank tests. The
+`n_feasible` column counts the feasible solutions of each run. When a run
+stores no constraint values, `feasibility_known` is `false` and every solution
+counts as feasible: this is the case for unconstrained problems, and for
+constrained runs whose result comes from an archive that keeps no constraint
+values, such as SMPSO with `result_mode: non_dominated`. VAMOS 1.1.0 also
+measured infeasible solutions, so its values for constrained problems are not
+valid.
+
 Tuning quick notes (`vamos tune`)
 ---------------------------------
 

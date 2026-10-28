@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -11,24 +12,38 @@ import pytest
 
 from vamos.experiment.study_analysis import SummarySource, derive_summary_rows
 from vamos.foundation.core.hv_stop import compute_hv_reference
+from vamos.foundation.quality_indicators.hypervolume import hypervolume
 from vamos.run_artifacts import load_result
 from vamos.study_artifacts import StudySpec, create_study
 
 pytest.importorskip("moocore")
 
 _INDICATORS = ("hv", "igd_plus")
+_CONSTRAINED_INDICATORS = ("hv", "igd_plus", "epsilon_additive")
 
 
-def _run_study(root: Path, name: str, problem: str, *, n_var: int, n_obj: int | None = None, pop_size: int = 20) -> SummarySource:
+def _run_study(
+    root: Path,
+    name: str,
+    problem: str,
+    *,
+    n_var: int | None = None,
+    n_obj: int | None = None,
+    pop_size: int = 20,
+    algorithm: str = "nsgaii",
+    max_evaluations: int = 1200,
+    algorithm_config: Mapping[str, object] | None = None,
+) -> SummarySource:
     spec = StudySpec(
         problems=[problem],
-        algorithms=["nsgaii"],
+        algorithms=[algorithm],
         seeds=[0, 1],
-        max_evaluations=1200,
+        max_evaluations=max_evaluations,
         pop_size=pop_size,
         engine="numpy",
         n_var=n_var,
         n_obj=n_obj,
+        algorithm_configs=None if algorithm_config is None else {algorithm: dict(algorithm_config)},
     )
     study = create_study(spec, output=root / name).run()
     assert study.status == "completed"
@@ -56,6 +71,24 @@ def _values(rows: Sequence[Mapping[str, Any]], problem: str) -> dict[tuple[str, 
 
 def _front(source: SummarySource, run_manifest_path: str) -> np.ndarray:
     return np.asarray(load_result(source.root / Path(run_manifest_path).parent).F, dtype=float)
+
+
+def _feasible_front(source: SummarySource, run_manifest_path: str) -> np.ndarray:
+    result = load_result(source.root / Path(run_manifest_path).parent)
+    return np.asarray(result.F, dtype=float)[np.all(np.asarray(result.data["G"]) <= 0.0, axis=1)]
+
+
+@pytest.fixture(scope="module")
+def mw2(tmp_path_factory: pytest.TempPathFactory) -> dict[str, SummarySource]:
+    root = tmp_path_factory.mktemp("study-analysis-mw2")
+    return {
+        # 1200 evaluations reach the MW2 feasible region in both seeds.
+        "feasible": _run_study(root, "feasible", "mw2"),
+        # The random initial population (budget = population) has no feasible solution.
+        "infeasible": _run_study(root, "infeasible", "mw2", pop_size=10, max_evaluations=10),
+        # SPEA2 after 400 evaluations keeps 2 and 4 feasible solutions out of 20.
+        "partial": _run_study(root, "partial", "mw2", algorithm="spea2", max_evaluations=400),
+    }
 
 
 def test_derive_summary_rows_uses_per_problem_references(studies: dict[str, SummarySource]) -> None:
@@ -107,3 +140,66 @@ def test_derive_summary_rows_accepts_problems_with_different_objectives(
     three = _values(derive_summary_rows([dtlz2_3], indicators=_INDICATORS), "dtlz2")
     two = _values(derive_summary_rows([dtlz2_2], indicators=_INDICATORS), "dtlz2")
     assert _values(rows, "dtlz2") == {**three, **two}
+
+
+def test_derive_summary_rows_excludes_infeasible_solutions(mw2: dict[str, SummarySource]) -> None:
+    rows = derive_summary_rows([mw2["feasible"], mw2["infeasible"]], indicators=_CONSTRAINED_INDICATORS)
+
+    infeasible = [row for row in rows if row["study_id"] == mw2["infeasible"].summary.study_id]
+    assert len(infeasible) == 2
+    for row in infeasible:
+        observed = {
+            key: row.get(key) for key in ("hv", "indicator_igd_plus", "indicator_epsilon_additive", "n_feasible", "feasibility_known")
+        }
+        assert observed == {
+            "hv": 0.0,
+            "indicator_igd_plus": math.inf,
+            "indicator_epsilon_additive": math.inf,
+            "n_feasible": 0,
+            "feasibility_known": True,
+        }
+
+
+def test_infeasible_run_does_not_change_feasible_indicators(mw2: dict[str, SummarySource]) -> None:
+    feasible_study = mw2["feasible"].summary.study_id
+
+    def feasible_values(rows: Sequence[Mapping[str, Any]]) -> dict[int, tuple[object, ...]]:
+        return {
+            row["seed"]: (row["hv"], row["indicator_igd_plus"], row["indicator_epsilon_additive"], row["hv_reference"])
+            for row in rows
+            if row["study_id"] == feasible_study
+        }
+
+    alone = feasible_values(derive_summary_rows([mw2["feasible"]], indicators=_CONSTRAINED_INDICATORS))
+    mixed = feasible_values(derive_summary_rows([mw2["feasible"], mw2["infeasible"]], indicators=_CONSTRAINED_INDICATORS))
+
+    assert len(alone) == 2
+    assert mixed == alone
+
+
+def test_derive_summary_rows_measures_only_the_feasible_part_of_a_run(mw2: dict[str, SummarySource]) -> None:
+    source = mw2["partial"]
+    fronts = [_feasible_front(source, row.run_manifest_path) for row in source.summary.rows if row.run_manifest_path is not None]
+    totals = [len(_front(source, row.run_manifest_path)) for row in source.summary.rows if row.run_manifest_path is not None]
+    assert all(0 < len(front) < total for front, total in zip(fronts, totals))
+
+    rows = derive_summary_rows([source], indicators=("hv",))
+
+    reference = compute_hv_reference(fronts)
+    assert [row["hv"] for row in rows] == [float(hypervolume(front, reference)) for front in fronts]
+    assert [row.get("n_feasible") for row in rows] == [len(front) for front in fronts]
+
+
+def test_derive_summary_rows_marks_runs_without_constraint_values(studies: dict[str, SummarySource], tmp_path: Path) -> None:
+    # SMPSO's non-dominated result comes from its archive, which stores no G.
+    archive = _run_study(
+        tmp_path, "archive", "mw2", algorithm="smpso", max_evaluations=400, algorithm_config={"result_mode": "non_dominated"}
+    )
+
+    rows = derive_summary_rows([studies["zdt1"], archive], indicators=_INDICATORS)
+
+    by_study = {source.summary.study_id: source for source in (studies["zdt1"], archive)}
+    assert len(rows) == 4
+    for row in rows:
+        assert row["feasibility_known"] is False
+        assert row["n_feasible"] == len(_front(by_study[row["study_id"]], row["run_manifest_path"]))
