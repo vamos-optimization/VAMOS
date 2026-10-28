@@ -1,8 +1,9 @@
 import os
 import warnings
-from math import comb
 
 import numpy as np
+
+from vamos.engine.reference_directions import FloatArray, das_dennis, largest_lattice_divisions, lattice_size
 
 
 def load_or_generate_weight_vectors(
@@ -12,10 +13,14 @@ def load_or_generate_weight_vectors(
     path: str | None = None,
     divisions: int | None = None,
     mode: str = "auto",
-) -> np.ndarray:
+) -> FloatArray:
     """
     Load weight vectors from CSV if available, otherwise generate a simplex-lattice
     design and persist it when a path is provided.
+
+    mode="auto" generates the complete Das-Dennis lattice: with ``divisions``, all of
+    its vectors; without, the largest lattice with at most ``pop_size`` vectors. The
+    lattice is never truncated, so the result can have fewer rows than ``pop_size``.
 
     mode="jmetalpy" enforces jMetalPy-style behavior:
     - n_obj == 2: uniform weights of size pop_size
@@ -42,7 +47,7 @@ def load_or_generate_weight_vectors(
     return weights
 
 
-def _load_weights(path: str, delimiter: str | None = ",") -> np.ndarray:
+def _load_weights(path: str, delimiter: str | None = ",") -> FloatArray:
     if delimiter is None:
         arr = np.loadtxt(path)
     else:
@@ -51,13 +56,13 @@ def _load_weights(path: str, delimiter: str | None = ",") -> np.ndarray:
     return arr
 
 
-def _load_or_generate_jmetalpy_weights(pop_size: int, n_obj: int, path: str | None, divisions: int | None) -> np.ndarray:
+def _load_or_generate_jmetalpy_weights(pop_size: int, n_obj: int, path: str | None, divisions: int | None) -> FloatArray:
     if n_obj < 2:
         return np.ones((pop_size, 1), dtype=float)
     if n_obj == 2:
-        if divisions is not None and _count_lattice_points(n_obj, int(divisions)) != pop_size:
+        if divisions is not None and lattice_size(n_obj, int(divisions)) != pop_size:
             raise ValueError(
-                f"MOEA/D weight vectors for divisions={divisions} require pop_size={_count_lattice_points(n_obj, int(divisions))}, got {pop_size}."
+                f"MOEA/D weight vectors for divisions={divisions} require pop_size={lattice_size(n_obj, int(divisions))}, got {pop_size}."
             )
         vals = np.linspace(0.0, 1.0, pop_size, dtype=float)
         return np.column_stack([vals, 1.0 - vals])
@@ -113,7 +118,7 @@ def _resolve_jmetalpy_weight_path(path: str | None, n_obj: int, pop_size: int) -
     return os.path.join(path, filename)
 
 
-def _assert_valid_weights(weights: np.ndarray, n_obj: int) -> None:
+def _assert_valid_weights(weights: FloatArray, n_obj: int) -> None:
     if weights.ndim != 2:
         raise ValueError("Weight matrix must be 2D.")
     if weights.shape[1] != n_obj:
@@ -126,39 +131,26 @@ def _assert_valid_weights(weights: np.ndarray, n_obj: int) -> None:
         raise ValueError("Each weight vector must sum to 1.")
 
 
-def _generate_weights(pop_size: int, n_obj: int, divisions: int | None, *, strict: bool = False) -> np.ndarray:
+def _generate_weights(pop_size: int, n_obj: int, divisions: int | None, *, strict: bool = False) -> FloatArray:
     if n_obj < 2:
         # Degenerate single-objective: return uniform weights.
         return np.ones((pop_size, 1), dtype=float)
     if divisions is None:
-        divisions = _choose_exact_divisions(pop_size, n_obj) if strict else _choose_min_divisions(pop_size, n_obj)
-    else:
-        max_vectors = _count_lattice_points(n_obj, divisions)
-        if strict and max_vectors != pop_size:
+        divisions = _choose_exact_divisions(pop_size, n_obj) if strict else largest_lattice_divisions(pop_size, n_obj)
+    elif strict:
+        max_vectors = lattice_size(n_obj, divisions)
+        if max_vectors != pop_size:
             raise ValueError(
                 f"Das-Dennis simplex lattice for n_obj={n_obj}, divisions={divisions} has {max_vectors} vectors, "
                 f"but pop_size={pop_size}. Choose pop_size={max_vectors} or compatible divisions."
             )
-        if max_vectors < pop_size:
-            # Automatically increase divisions until we have enough directions.
-            fallback = _choose_min_divisions(pop_size, n_obj)
-            divisions = max(divisions, fallback)
-
-    weights = _simplex_lattice(n_obj, divisions, limit=pop_size)
-    return weights
-
-
-def _choose_min_divisions(pop_size: int, n_obj: int) -> int:
-    divisions = 1
-    while _count_lattice_points(n_obj, divisions) < pop_size:
-        divisions += 1
-    return divisions
+    return das_dennis(n_obj, divisions)
 
 
 def _choose_exact_divisions(pop_size: int, n_obj: int) -> int:
     divisions = 1
     while True:
-        count = _count_lattice_points(n_obj, divisions)
+        count = lattice_size(n_obj, divisions)
         if count == pop_size:
             return divisions
         if count > pop_size:
@@ -167,39 +159,3 @@ def _choose_exact_divisions(pop_size: int, n_obj: int) -> int:
                 "Choose a compatible pop_size or provide an explicit weight vector file."
             )
         divisions += 1
-
-
-def _count_lattice_points(n_obj: int, divisions: int) -> int:
-    if divisions < 1:
-        raise ValueError("divisions must be >= 1")
-    return comb(divisions + n_obj - 1, n_obj - 1)
-
-
-def _simplex_lattice(n_obj: int, divisions: int, limit: int | None) -> np.ndarray:
-    coords: list[tuple[int, ...]] = []
-
-    def rec(remaining: int, depth: int, current: list[int]) -> None:
-        if limit is not None and len(coords) >= limit:
-            return
-        if depth == n_obj - 1:
-            current.append(remaining)
-            coords.append(tuple(current))
-            current.pop()
-            return
-        for value in range(remaining + 1):
-            current.append(value)
-            rec(remaining - value, depth + 1, current)
-            current.pop()
-            if limit is not None and len(coords) >= limit:
-                return
-
-    rec(divisions, 0, [])
-    arr = np.asarray(coords, dtype=float)
-    if arr.size == 0:
-        raise ValueError("Failed to generate weight vectors.")
-    arr /= divisions
-    # Numerical guard to keep rows summing to exactly 1
-    arr = np.asarray(np.clip(arr, 0.0, 1.0), dtype=float)
-    row_sums = arr.sum(axis=1, keepdims=True)
-    arr /= row_sums
-    return np.asarray(arr, dtype=float)

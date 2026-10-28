@@ -138,7 +138,7 @@ Follow at most one scoped `AGENTS.md` plus the linked canonical guide. Search th
 - Termination honors exact evaluation budgets; do not hide overshoot in orchestration.
 - Stochastic production paths receive and own an explicit `numpy.random.Generator`; do not use global random state.
 - Problems, operators, and algorithms must agree on real, integer, binary, permutation, or mixed encoding.
-- Reference-direction algorithms preserve their population/reference-direction cardinality contract.
+- Reference-direction algorithms keep at least one individual per reference direction (N >= H) and never truncate a reference-direction lattice.
 - An unavailable backend fails clearly; never substitute another backend silently.
 - Exact replay uses the stored resolved configuration, effective backend, and resolved seed, and refuses unsupported reconstruction.
 

@@ -1,8 +1,15 @@
+from itertools import permutations
+from math import comb
+
 import numpy as np
 import pytest
 
+from vamos import optimize
+from vamos.engine.algorithm.components.weight_vectors import _generate_weights
 from vamos.engine.algorithm.config import NSGAIIIConfig
+from vamos.engine.algorithm.factory import build_algorithm
 from vamos.engine.algorithm.nsgaiii import NSGAIII, associate, nsgaiii_survival
+from vamos.foundation.core.experiment_config import ExperimentConfig
 from vamos.foundation.kernel.numba_backend import NumbaKernel
 from vamos.foundation.kernel.numpy_backend import NumPyKernel
 from vamos.foundation.problem.dtlz import DTLZ2Problem
@@ -158,3 +165,73 @@ def test_nsgaiii_numba_same_seed_reproducible():
 
     assert np.array_equal(result_a["F"], result_b["F"])
     assert np.array_equal(result_a["X"], result_b["X"])
+
+
+def _largest_complete_lattice(pop_size: int, n_obj: int) -> tuple[int, int]:
+    # Das-Dennis lattice size, the cardinality of pymoo's get_reference_directions("das-dennis", M, n_partitions=H).
+    divisions = max(p for p in range(1, pop_size + 1) if comb(p + n_obj - 1, n_obj - 1) <= pop_size)
+    return divisions, comb(divisions + n_obj - 1, n_obj - 1)
+
+
+def _lattice_points(weights: np.ndarray, divisions: int) -> set[tuple[int, ...]]:
+    return {tuple(int(v) for v in row) for row in np.rint(weights * divisions)}
+
+
+def _has_every_axis(directions: np.ndarray) -> bool:
+    return all(np.any(np.all(np.isclose(directions, axis), axis=1)) for axis in np.eye(directions.shape[1]))
+
+
+@pytest.mark.parametrize(("pop_size", "n_obj"), [(100, 3), (92, 3), (20, 3), (3, 3), (100, 2), (100, 5)])
+def test_generated_reference_directions_are_complete_and_symmetric(pop_size: int, n_obj: int) -> None:
+    divisions, size = _largest_complete_lattice(pop_size, n_obj)
+
+    weights = _generate_weights(pop_size, n_obj, None)
+
+    assert weights.shape == (size, n_obj)
+    points = _lattice_points(weights, divisions)
+    assert len(points) == size
+    assert all(sum(point) == divisions for point in points)
+    np.testing.assert_allclose(weights.sum(axis=1), 1.0)
+    assert _has_every_axis(weights)
+    for perm in permutations(range(n_obj)):
+        assert _lattice_points(weights[:, list(perm)], divisions) == points
+
+
+def test_cli_builder_nsgaiii_keeps_every_axis() -> None:
+    problem = DTLZ2Problem(n_var=12, n_obj=3)
+    algorithm, _ = build_algorithm("nsgaiii", "numpy", problem, ExperimentConfig())
+
+    result = algorithm.run(problem, termination=("max_evaluations", 100), seed=0)
+
+    directions = np.asarray(result["reference_directions"])
+    assert directions.shape == (91, 3)
+    assert _has_every_axis(directions)
+    assert result["X"].shape[0] == 100
+
+
+def test_nsgaiii_accepts_more_individuals_than_reference_directions() -> None:
+    cfg = _make_config(pop_size=100, divisions=12)
+
+    result = NSGAIII(cfg, kernel=NumPyKernel()).run(DTLZ2Problem(n_var=12, n_obj=3), termination=("max_evaluations", 300), seed=1)
+
+    assert result["reference_directions"].shape == (91, 3)
+    assert result["X"].shape[0] == 100
+    assert result["evaluations"] == 300
+
+
+def test_nsgaiii_rejects_fewer_individuals_than_reference_directions() -> None:
+    cfg = _make_config(pop_size=90, divisions=12)
+
+    with pytest.raises(ValueError, match="pop_size"):
+        NSGAIII(cfg, kernel=NumPyKernel()).run(DTLZ2Problem(n_var=12, n_obj=3), termination=("max_evaluations", 200), seed=1)
+
+
+@pytest.mark.parametrize("algorithm", ["nsgaiii", "rvea"])
+def test_nsgaiii_and_rvea_two_objective_defaults(algorithm: str) -> None:
+    default = optimize("zdt1", algorithm=algorithm, max_evaluations=200, seed=1, engine="numpy")
+    explicit = optimize("zdt1", algorithm=algorithm, pop_size=100, max_evaluations=200, seed=1, engine="numpy")
+
+    assert default.meta["run_artifact_resolved_spec"]["population"]["initial_size"] == 100
+    assert explicit.meta["run_artifact_resolved_spec"]["population"]["initial_size"] == 100
+    if algorithm == "nsgaiii":
+        assert explicit.data["reference_directions"].shape == (100, 2)

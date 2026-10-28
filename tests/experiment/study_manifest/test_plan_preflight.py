@@ -79,6 +79,8 @@ def test_pl_005_006_007_exact_budget_seed_and_backend_summaries() -> None:
 def test_pl_008_nsgaiii_reference_direction_cardinality_is_preflighted() -> None:
     valid = vamos.plan_study(_spec(problems=["dtlz2"], algorithms=["nsgaiii"], seeds=[0], n_obj=3, pop_size=None, max_evaluations=100))
     assert valid.population_sizes == (91,)
+    larger = vamos.plan_study(_spec(problems=["dtlz2"], algorithms=["nsgaiii"], seeds=[0], n_obj=3, pop_size=100, max_evaluations=100))
+    assert larger.population_sizes == (100,)
 
     with pytest.raises(UnresolvedStudyTaskError) as caught:
         vamos.plan_study(_spec(problems=["dtlz2"], algorithms=["nsgaiii"], seeds=[0], n_obj=3, pop_size=8))

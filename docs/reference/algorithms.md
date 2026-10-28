@@ -115,6 +115,8 @@ For algorithms with a supported external result archive, enabling it makes that 
 
 NSGA-III and RVEA require a population compatible with the configured reference directions. MOEA/D requires one weight vector per population member. For a simplex lattice with `p` divisions and `m` objectives, use `comb(p + m - 1, m - 1)`; for three objectives and 12 divisions, that is **91**. Explicit incompatible cardinalities fail; they are not warning-only cases. Follow the tutorials before changing objective count or population size.
 
+**Development after 1.1.0:** NSGA-III needs at least one individual per reference direction (N >= H) instead of exactly one, as Deb and Jain, jMetal and pymoo do; 100 individuals with 12 divisions and three objectives run with 91 directions, and fewer than 91 fail. Without `divisions`, NSGA-III uses the complete Das-Dennis lattice with the most directions that fit in `pop_size`; VAMOS 1.1.0 and earlier cut the next larger lattice to `pop_size` directions and lost the extreme direction of the first objective. With two objectives, NSGA-III and RVEA default to `pop_size - 1` divisions, or 99 without `pop_size`, instead of 6. RVEA and MOEA/D still need exactly one individual per vector.
+
 ### Changes included in 1.0.1
 
 - **SMPSO:** `archive_size` controls search leaders, `.external_archive(...)` configures a separate result archive, and explicit `population` mode returns the final swarm. Version 1.0.0 returned the leaders archive without honoring these independent result controls.

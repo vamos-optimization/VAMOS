@@ -9,6 +9,16 @@ unsupported behavior rather than future compatibility promises.
   objectives themselves.
 - A valid population size may depend on an algorithm's reference directions or
   weight lattice. Incompatible sizes fail instead of being adjusted silently.
+  - **Development after 1.1.0:** NSGA-III accepts a population at least as
+    large as its reference directions (N >= H), as Deb and Jain, jMetal and
+    pymoo do, and fails only below that. Without `divisions` it uses the
+    complete Das-Dennis lattice with the most directions that fit in
+    `pop_size`: 91 directions for 100 individuals and three objectives.
+    VAMOS 1.1.0 and earlier truncated the next larger lattice to `pop_size`
+    directions, which dropped the corner of the first objective; the `ref_dirs`
+    archive pruning and `top_k(method="reference_directions")` had the same
+    bias. NSGA-III and RVEA with two objectives default to 100 directions, or
+    `pop_size`, instead of 7.
 - The strict evaluation budget must be at least the resolved population size.
 - Deterministic same-environment runs do not imply bitwise equality across
   different kernels, BLAS implementations, operating systems, architectures,

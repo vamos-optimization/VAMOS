@@ -86,6 +86,25 @@ def test_result_archive_ref_dirs_prunes_to_target_size():
     assert np.any(np.all(kept == np.array([0.05, 0.05, 0.90]), axis=1))
 
 
+@pytest.mark.parametrize("perm", [(1, 2, 0), (2, 0, 1), (1, 0, 2)])
+def test_ref_dirs_archive_is_symmetric_between_objectives(perm: tuple[int, int, int]) -> None:
+    rng = np.random.default_rng(3)
+    sphere = np.abs(rng.normal(size=(200, 3)))
+    F = np.vstack([np.eye(3), sphere / np.linalg.norm(sphere, axis=1, keepdims=True)])
+    cfg = ExternalArchiveConfig(capacity=20, pruning="ref_dirs")
+
+    original = setup_result_archive(cfg, n_var=0, n_obj=3, dtype=float)
+    permuted = setup_result_archive(cfg, n_var=0, n_obj=3, dtype=float)
+    assert original is not None and permuted is not None
+    _, kept = original.update(_empty_X(F.shape[0]), F)
+    _, kept_perm = permuted.update(_empty_X(F.shape[0]), F[:, list(perm)])
+
+    assert kept.shape[0] == 20
+    assert {tuple(row) for row in kept_perm} == {tuple(row) for row in kept[:, list(perm)]}
+    for axis in np.eye(3):
+        assert np.any(np.all(kept == axis, axis=1))
+
+
 def test_result_archive_hv_uses_moocore_for_many_objective_pruning(monkeypatch: pytest.MonkeyPatch):
     calls: list[tuple[np.ndarray, np.ndarray]] = []
 

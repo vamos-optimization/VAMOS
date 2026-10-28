@@ -198,13 +198,15 @@ def select_top_k_knn(F: NDArray[np.float64], k: int, *, neighbors: int = 1) -> N
 def select_top_k_reference_directions(F: NDArray[np.float64], k: int, *, divisions: int | None = None) -> NDArray[np.int_]:
     """Select the top-*k* solutions via reference-direction association.
 
-    Generates *k* uniformly distributed reference directions on the simplex
-    (Das-Dennis design), normalizes *F* to [0, 1], and associates each solution
-    to its nearest reference direction by perpendicular distance.  Per direction,
-    the closest solution is kept.  If fewer than *k* solutions are selected
-    (because some directions have no nearby solutions), the remaining slots are
+    Generates the complete Das-Dennis lattice of reference directions with the
+    most directions that fit in *k*, normalizes *F* to [0, 1], and associates each
+    solution to its nearest reference direction by perpendicular distance.  Per
+    direction, the closest solution is kept.  The remaining slots (the lattice can
+    be smaller than *k*, and some directions may have no nearby solutions) are
     filled from unselected solutions by smallest perpendicular distance to any
-    direction.
+    direction.  With a single objective, or *k* smaller than the number of
+    objectives, no lattice fits and the selection falls back to greedy max-min
+    distance.
 
     Particularly effective for many-objective problems (3+ objectives).
 
@@ -215,9 +217,9 @@ def select_top_k_reference_directions(F: NDArray[np.float64], k: int, *, divisio
     k:
         Number of solutions to keep.
     divisions:
-        Number of divisions for the Das-Dennis simplex lattice.  If ``None``,
-        the minimum divisions yielding ``>= k`` reference directions are chosen
-        automatically.
+        Number of divisions for the Das-Dennis simplex lattice; its lattice must
+        have at most *k* directions.  If ``None``, the most divisions whose
+        lattice has at most *k* directions are chosen automatically.
 
     Returns
     -------
@@ -231,12 +233,22 @@ def select_top_k_reference_directions(F: NDArray[np.float64], k: int, *, divisio
         return np.arange(n, dtype=int)
 
     from vamos.engine.algorithm.components.utils import normalize_objectives
-    from vamos.engine.algorithm.components.weight_vectors import (
-        load_or_generate_weight_vectors,
-    )
+    from vamos.engine.archive.pruning_selectors import select_maxmin_subset
+    from vamos.engine.reference_directions import das_dennis, largest_lattice_divisions, lattice_size
+
+    n_obj = F.shape[1]
+    if divisions is None:
+        if n_obj < 2 or k < n_obj:
+            return select_maxmin_subset(F, k)
+        divisions = largest_lattice_divisions(k, n_obj)
+    elif lattice_size(n_obj, divisions) > k:
+        raise ValueError(
+            f"divisions={divisions} gives {lattice_size(n_obj, divisions)} reference directions for "
+            f"{n_obj} objectives, more than k={k}; choose fewer divisions."
+        )
 
     F_norm = normalize_objectives(F)
-    weights = load_or_generate_weight_vectors(k, F.shape[1], divisions=divisions)
+    weights = das_dennis(n_obj, divisions)
 
     # Perpendicular distance from each solution to each reference direction
     # d_perp(x, w) = ||x - (x·w / w·w) * w||

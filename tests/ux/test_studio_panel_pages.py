@@ -252,7 +252,8 @@ def test_batch_plans_creates_and_monitors_a_study(tmp_path: Path, monkeypatch: p
 
 
 def test_batch_refuses_an_impossible_plan(tmp_path: Path) -> None:
-    state = batch.BatchState(study_dir=str(tmp_path), algorithms=["nsgaiii"], problems=["zdt1"], default_population=False, pop_size=100)
+    # NSGA-III needs at least its 91 reference directions on three-objective DTLZ2.
+    state = batch.BatchState(study_dir=str(tmp_path), algorithms=["nsgaiii"], problems=["dtlz2"], default_population=False, pop_size=50)
 
     state.launch()
 
