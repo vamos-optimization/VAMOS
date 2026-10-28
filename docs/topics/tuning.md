@@ -216,6 +216,35 @@ and `--fidelity-min-configs` additionally affect how many configurations reach
 each level, so compute estimates should account for the schedule and promotion
 policy together.
 
+### Model-based backends run one fidelity unless given levels
+
+**Development after 1.1.0:** without `--fidelity-levels` (`budget_levels=None`
+in Python), `optuna`, `bohb_optuna`, `smac3` and `bohb` evaluate every
+candidate once, at `--budget`, on every training instance and seed. A trial
+then costs one run per instance/seed pair, and `optuna` and `bohb_optuna` prune
+nothing. VAMOS 1.1.0 and earlier invented a schedule instead: Optuna evaluated
+each trial at `b/3`, `2b/3` and `b` (about `2b` evaluations per pair), and
+SMAC3 and BOHB ran Hyperband from 1 evaluation, so most of their runs had too
+few evaluations for any population and failed.
+
+With `--fidelity-levels`, the last level is always `--budget`:
+
+- `optuna` and `bohb_optuna` evaluate a trial at each level in turn, each from
+  scratch, so a trial that is never pruned costs the sum of the levels per
+  instance/seed pair. The median pruner (`optuna`) or the Hyperband pruner
+  (`bohb_optuna`) can stop a trial after any level but the last. A pruned trial
+  stays in the history with state `PRUNED` and its last score, but it is never
+  returned as the best configuration.
+- `smac3` and `bohb` run Hyperband between the smallest and the largest level;
+  the intermediate budgets are the largest level divided by powers of η (3 for
+  SMAC3, `--bohb-reduction-factor` for BOHB), not the intermediate levels.
+  `--tune-budget` counts SMAC3 runs (one per configuration and budget) and the
+  configurations that BOHB samples.
+- `smac3` and `bohb` return the best configuration evaluated at the full
+  budget, and fail with an error when the search ends before any configuration
+  reaches it. VAMOS 1.1.0 and earlier returned the best score of any budget, and
+  BOHB ignored `--tune-budget`.
+
 ## Cheap verification path
 
 Use `--smoke` when you only want to verify the CLI, evaluator, and artifact
@@ -253,6 +282,13 @@ problem blocks, algorithm seeds, an explicit fidelity/budget schedule, the CLI
 HV score, and an aggregation rule. Its statistical elimination is an
 **allocation mechanism during tuning**; it is not a substitute for an
 independently designed final comparison on held-out blocks.
+
+**Development after 1.1.0:** racing returns the best of the configurations
+still alive when the race ends, aggregated over the problem/seed blocks that
+all of them were evaluated on; with multi-fidelity racing, over the last
+fidelity level they reached. VAMOS 1.1.0 and earlier compared every evaluated
+configuration on its own blocks, so a configuration the race had already
+eliminated could be returned.
 
 ### Conditional parameters
 

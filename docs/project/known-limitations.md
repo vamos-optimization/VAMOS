@@ -22,6 +22,10 @@ unsupported behavior rather than future compatibility promises.
 - **Development after 1.1.0:** `cec2009_uf3` searches the CEC2009 domain
   `[0, 1]^n`. VAMOS 1.1.0 and earlier search `[-1, 1]` for variables 2 to n, so
   UF3 results from those versions do not correspond to the CEC2009 instance.
+- **Development after 1.1.0:** `cec2009_uf9` uses the CEC2009 squared distance
+  `y_j^2`. VAMOS 1.1.0 and earlier use the multimodal distance of UF5, with the
+  same Pareto front but a different landscape, so UF9 results from those
+  versions do not correspond to the CEC2009 instance.
 - Independent algorithm-conformance validation for AGE-MOEA, RVEA and SMPSO
   remains pending. Passing API and regression tests does not establish
   convergence equivalence with a reference implementation.
@@ -81,11 +85,21 @@ unsupported behavior rather than future compatibility promises.
   remain experimental and may change in a minor release.
 - Users are responsible for selecting indicators, reference points, sample
   sizes, and statistical tests appropriate for their scientific claim.
+- **Development after 1.1.0:** the Nemenyi critical difference of
+  `plot_critical_distance` and of the `cd_<metric>.pdf` plots of `vamos bench`
+  uses the critical value for the number of algorithms. VAMOS 1.1.0 and earlier
+  use the four-algorithm value for every count, which understates the critical
+  difference with more than four algorithms; see
+  [Critical-distance plot](../topics/analysis.md#critical-distance-plot).
 
 ## Studio and generated code
 
 - Studio is experimental and is intended for trusted local use. It is not a
   multi-user hosted service.
+- **Development after 1.1.0:** the Statistical Comparison counts a run without
+  feasible solutions as the worst IGD+ (∞). VAMOS 1.1.0 and earlier leave those
+  runs out of IGD+, which favors algorithms that are rarely feasible; see
+  [Statistical comparison](../guide/studio.md#statistical-comparison).
 - AST checks, restricted builtins, process isolation, resource limits, and
   timeouts are best-effort controls, not a security sandbox.
 - Reviewed Python executes with the current operating-system user's

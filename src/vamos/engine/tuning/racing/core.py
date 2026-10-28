@@ -45,6 +45,62 @@ def _eval_worker(
         return _failure_score(maximize)
 
 
+_BlockScores = dict[tuple[int, int], float]
+
+
+def _final_evidence(survivors: list[ConfigState], *, multi_fidelity: bool) -> list[tuple[ConfigState, _BlockScores]]:
+    """Map each survivor's final scores to the blocks that produced them."""
+    if not multi_fidelity:
+        return [(state, dict(zip(state.blocks, state.scores))) for state in survivors if state.scores]
+
+    # Survivors are compared on the last fidelity level they reached, which is
+    # the final level unless the experiment budget stopped the run earlier.
+    reached = [max(state.fidelity_scores) for state in survivors if state.fidelity_scores]
+    if not reached:
+        return []
+    level = max(reached)
+    evidence: list[tuple[ConfigState, _BlockScores]] = []
+    for state in survivors:
+        level_scores = state.fidelity_scores.get(level, [])
+        if level_scores:
+            # That level is the most recent one, so its blocks close the record.
+            level_blocks = state.blocks[-len(level_scores) :]
+            evidence.append((state, dict(zip(level_blocks, level_scores))))
+    return evidence
+
+
+def _select_final(configs: list[ConfigState], *, task: TuningTask, multi_fidelity: bool) -> EliteEntry | None:
+    """Choose the returned configuration among the survivors only.
+
+    Survivors are aggregated over the blocks they all share, so a configuration
+    cannot win because it was scored on easier instances or on fewer blocks.
+    When survivors share no block (configurations spawned late by elitist
+    restarts), those with the fewest blocks are left out until some block is
+    shared.
+    """
+    pool = _final_evidence([state for state in configs if state.alive], multi_fidelity=multi_fidelity)
+    shared: set[tuple[int, int]] = set()
+    while pool:
+        shared = set.intersection(*(set(by_block) for _, by_block in pool))
+        if shared:
+            break
+        fewest = min(len(by_block) for _, by_block in pool)
+        richer = [entry for entry in pool if len(entry[1]) > fewest]
+        if not richer:
+            break
+        pool = richer
+
+    best: EliteEntry | None = None
+    for state, by_block in pool:
+        blocks = [block for block in by_block if block in shared] if shared else list(by_block)
+        agg_score = float(task.aggregator([by_block[block] for block in blocks]))
+        if np.isnan(agg_score):
+            continue
+        if best is None or (agg_score > best.score if task.maximize else agg_score < best.score):
+            best = EliteEntry(config=state.config, score=agg_score)
+    return best
+
+
 class RacingTuner:
     """Racing tuner for algorithm configuration."""
 
@@ -269,6 +325,7 @@ class RacingTuner:
     ) -> int:
         instance = self.instances[inst_idx]
         seed = self.seeds[seed_idx]
+        block = (inst_idx, seed_idx)
         budget = self._current_budget()
 
         # Identify jobs to run
@@ -307,6 +364,7 @@ class RacingTuner:
                     )
                     score = _failure_score(self.task.maximize)
                 configs[indices[i]].scores.append(score)
+                configs[indices[i]].blocks.append(block)
         else:
             # Parallel execution with joblib
             results = Parallel(n_jobs=self.scenario.n_jobs)(
@@ -315,6 +373,7 @@ class RacingTuner:
 
             for i, score in enumerate(results):
                 configs[indices[i]].scores.append(score)
+                configs[indices[i]].blocks.append(block)
         return len(tasks)
 
     def _num_alive(self, configs: list[ConfigState]) -> int:
@@ -374,8 +433,6 @@ class RacingTuner:
 
     def _finalize_results(self, configs: list[ConfigState]) -> tuple[EliteEntry | None, list[TrialResult]]:
         history: list[TrialResult] = []
-        best_state: EliteEntry | None = None
-        best_score: float | None = None
 
         for state in configs:
             scores = state.scores
@@ -402,23 +459,7 @@ class RacingTuner:
                 )
             )
 
-            # Consider all evaluated configs, not only survivors.
-            if not scores or np.isnan(agg_score):
-                continue
-
-            if best_score is None:
-                best_state = EliteEntry(config=state.config, score=agg_score)
-                best_score = agg_score
-                continue
-
-            if self.task.maximize and agg_score > best_score:
-                best_state = EliteEntry(config=state.config, score=agg_score)
-                best_score = agg_score
-            elif not self.task.maximize and agg_score < best_score:
-                best_state = EliteEntry(config=state.config, score=agg_score)
-                best_score = agg_score
-
-        return best_state, history
+        return _select_final(configs, task=self.task, multi_fidelity=self.scenario.use_multi_fidelity), history
 
 
 __all__ = ["RacingTuner"]

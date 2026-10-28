@@ -91,6 +91,17 @@ helper and report which procedure you used.
 `n_problems` is supplied, a Nemenyi-style critical-distance bar. It does not
 infer or draw significance cliques for you.
 
+**Development after 1.1.0:** the bar is the Nemenyi critical difference
+`CD = q_alpha * sqrt(k * (k + 1) / (6 * N))` for the `k` plotted algorithms and
+`N = n_problems`. The critical value `q_alpha` depends on `k`: it comes from
+Demšar (2006), "Statistical comparisons of classifiers over multiple data sets",
+JMLR 7, Table 5, for `alpha` 0.05 and 0.10 with up to ten algorithms, and
+otherwise from the studentized range quantile with infinite degrees of freedom
+divided by √2. `alpha` may be any value strictly between 0 and 1. VAMOS 1.1.0
+and earlier used the four-algorithm value for every `k`, so their bars, including
+the `cd_<metric>.pdf` plots of `vamos bench`, are too short with more than four
+algorithms and too long with two or three.
+
 The plotting helpers return a Matplotlib `Axes`; save the figure through that
 object instead of passing a filename argument.
 

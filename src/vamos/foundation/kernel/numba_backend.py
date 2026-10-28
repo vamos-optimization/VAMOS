@@ -8,9 +8,20 @@ from numpy.typing import NDArray
 
 from ._numba_ranking import compute_crowding_numba, fast_non_dominated_sort_ranks, nsga2_survival_split
 from ._numba_selection import binary_tournament_winners_numba
+from ._numba_steady_state import numba_steady_state_kernels
 from ._numba_survival import numba_selection_kernels
 from ._numba_variation import numpy_power_squares, polynomial_mutation_apply, verified_variation_kernels
-from .backend import DecisionArray, FloatArray, IndexArray, KernelBackend, NumericArray, RealArray, SelectionKernels, VariationKernels
+from .backend import (
+    DecisionArray,
+    FloatArray,
+    IndexArray,
+    KernelBackend,
+    NSGA2SteadyStateKernels,
+    NumericArray,
+    RealArray,
+    SelectionKernels,
+    VariationKernels,
+)
 from .numba_ops import tournament_winners_numba
 from .numpy_backend import NumPyKernel as _NumPyKernel
 from .numpy_backend import _as_float, _sample_tournament_candidates, _sbx_crossover_flat
@@ -106,6 +117,12 @@ class NumbaKernel(KernelBackend):
 
     def selection_kernels(self) -> SelectionKernels:
         return numba_selection_kernels()
+
+    def nsga2_steady_state_kernels(self) -> NSGA2SteadyStateKernels | None:
+        if self.variation_kernels() is None:
+            # The step embeds compiled SBX and polynomial mutation: keep the reference path.
+            return None
+        return numba_steady_state_kernels()
 
     def nsga2_ranking(self, F: RealArray) -> tuple[IndexArray, FloatArray]:
         return self._rank_and_crowding(F)

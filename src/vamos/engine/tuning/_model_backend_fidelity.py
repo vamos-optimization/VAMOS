@@ -50,31 +50,23 @@ def resolve_seed_bounds(tuner: FidelityTunerLike) -> tuple[int, int]:
 
 
 def resolve_budget_levels(tuner: FidelityTunerLike) -> list[int]:
-    if tuner.budget_levels:
-        levels = [int(v) for v in tuner.budget_levels if int(v) > 0]
-        if not levels:
-            levels = [int(tuner.task.budget_per_run)]
-        levels = sorted({min(int(tuner.task.budget_per_run), max(1, v)) for v in levels})
-    else:
-        bmax = max(1, int(tuner.task.budget_per_run))
-        if bmax <= 3:
-            levels = list(range(1, bmax + 1))
-        else:
-            levels = sorted({max(1, bmax // 3), max(1, (2 * bmax) // 3), bmax})
-    if levels[-1] != int(tuner.task.budget_per_run):
-        levels.append(int(tuner.task.budget_per_run))
+    """Return the increasing per-run budgets of the fidelity schedule.
+
+    Without ``budget_levels`` there is one fidelity, the task's full budget. Given levels are
+    capped at that budget, which closes the schedule when it is missing.
+    """
+    full_budget = int(tuner.task.budget_per_run)
+    levels = sorted({min(full_budget, int(v)) for v in tuner.budget_levels or [] if int(v) > 0})
+    if not levels or levels[-1] != full_budget:
+        levels.append(full_budget)
     return levels
 
 
 def budget_fraction(tuner: FidelityTunerLike, budget: int) -> float:
     b = int(min(int(tuner.task.budget_per_run), max(1, int(budget))))
-    if tuner.budget_levels:
-        levels = resolve_budget_levels(tuner)
-        b_min = int(levels[0])
-        b_max = int(levels[-1])
-    else:
-        b_min = 1
-        b_max = max(1, int(tuner.task.budget_per_run))
+    levels = resolve_budget_levels(tuner)
+    b_min = int(levels[0])
+    b_max = int(levels[-1])
     if b_max <= b_min:
         return 1.0
     frac = (float(b) - float(b_min)) / float(b_max - b_min)
