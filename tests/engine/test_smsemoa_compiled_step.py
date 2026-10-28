@@ -52,6 +52,11 @@ class _StepCounter:
         monkeypatch.setattr(compiled_step.CompiledSteadyStep, "_reference", counted_reference)
 
 
+def _expected_steps(count: int) -> int:
+    """Compiled steps run only where compiled ``pow`` matches ``np.power``; elsewhere the reference step runs."""
+    return count if NumbaKernel().variation_kernels() is not None else 0
+
+
 def _run(monkeypatch: pytest.MonkeyPatch, problem: str, engine: str, *, compiled: bool = True, **kwargs: Any):
     """Run once, recording every live frame and the final state of every run-owned generator."""
     generators: list[np.random.Generator] = []
@@ -103,7 +108,7 @@ def test_compiled_step_follows_the_numpy_trajectory(monkeypatch, problem, kwargs
     _assert_same_run(numpy_run, numba_run)
     pop_size = numba_run[0].data["population"]["X"].shape[0]
     assert numba_run[0].data["evaluations"] == 2000
-    assert counter.steps == 2000 - pop_size
+    assert counter.steps == _expected_steps(2000 - pop_size)
     assert counter.references == 0
 
 
@@ -140,7 +145,7 @@ def test_compiled_step_matches_the_reference_step(monkeypatch, problem, kwargs, 
     actual = _run(monkeypatch, problem, "numba", **run_kwargs)
     _assert_same_run(reference, actual)
     assert actual[0].data["evaluations"] == 1237
-    assert counter.steps == 1237 - 40
+    assert counter.steps == _expected_steps(1237 - 40)
 
 
 @pytest.mark.numba
