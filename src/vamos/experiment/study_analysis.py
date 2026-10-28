@@ -32,6 +32,7 @@ class SummarySource:
 @dataclass(slots=True)
 class _DerivedRow:
     record: dict[str, Any]
+    problem_id: str | None
     front: NDArray[np.float64] | None
 
 
@@ -40,19 +41,39 @@ def derive_summary_rows(
     *,
     indicators: Sequence[str] = (),
 ) -> tuple[dict[str, Any], ...]:
-    """Add caller metrics to summary rows without reinterpreting study state."""
+    """Add caller metrics to summary rows without reinterpreting study state.
+
+    Indicator references are built per problem: rows that share a problem
+    identity and objective count, across all sources, are measured against one
+    HV reference point and one non-dominated reference front derived only from
+    their own fronts.
+    """
     rows = [_load_row(source, row) for source in sources for row in source.summary.rows]
-    fronts = [row.front for row in rows if row.front is not None and row.front.size]
-    if fronts:
-        reference = np.asarray(compute_hv_reference(fronts), dtype=float)
-        reference_text = " ".join(f"{value:.6f}" for value in reference)
-        for row in rows:
-            if row.front is not None:
-                row.record["hv"] = float(hypervolume(row.front, reference))
-                row.record["hv_source"] = "global"
-                row.record["hv_reference"] = reference_text
-        _attach_indicators(rows, fronts, reference, indicators)
+    for group in _problem_groups(rows):
+        _attach_problem_metrics(group, indicators)
     return tuple(row.record for row in rows)
+
+
+def _problem_groups(rows: Sequence[_DerivedRow]) -> tuple[list[_DerivedRow], ...]:
+    groups: dict[tuple[str | None, int], list[_DerivedRow]] = {}
+    for row in rows:
+        if row.front is not None:
+            groups.setdefault((row.problem_id, row.front.shape[-1]), []).append(row)
+    return tuple(groups.values())
+
+
+def _attach_problem_metrics(rows: list[_DerivedRow], indicators: Sequence[str]) -> None:
+    fronts = [row.front for row in rows if row.front is not None and row.front.size]
+    if not fronts:
+        return
+    reference = np.asarray(compute_hv_reference(fronts), dtype=float)
+    reference_text = " ".join(f"{value:.6f}" for value in reference)
+    for row in rows:
+        if row.front is not None:
+            row.record["hv"] = float(hypervolume(row.front, reference))
+            row.record["hv_source"] = "problem"
+            row.record["hv_reference"] = reference_text
+    _attach_indicators(rows, fronts, reference, indicators)
 
 
 def _load_row(source: SummarySource, row: StudySummaryRow) -> _DerivedRow:
@@ -68,7 +89,7 @@ def _load_row(source: SummarySource, row: StudySummaryRow) -> _DerivedRow:
         record.update(metrics)
     if isinstance(row.evaluations, int) and isinstance(row.runtime_ms, (int, float)) and row.runtime_ms > 0:
         record["evals_per_sec"] = float(row.evaluations * 1000.0 / row.runtime_ms)
-    return _DerivedRow(record, _load_front(source.root, row))
+    return _DerivedRow(record, row.problem_id, _load_front(source.root, row))
 
 
 def _load_front(root: Path, row: StudySummaryRow) -> NDArray[np.float64] | None:

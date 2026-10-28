@@ -313,6 +313,16 @@ Install any required [optional extras](installation.md#optional-extras) first.
 - Problem zoo: `vamos zoo list`, `vamos zoo info zdt1`, `vamos zoo run zdt1 --algorithm nsgaii --budget 3000`
 - Studio (interactive, needs `studio` extra): read the [Studio walkthrough and launcher limitation](studio.md) before starting.
 
+**Development after 1.1.0:** `vamos bench` and `vamos ablation` build the
+indicator references per problem and number of objectives. The HV reference
+point (`hv_reference`, with `hv_source` set to `problem`) and the reference
+front for IGD, IGD+, epsilon and Hausdorff come from the non-dominated union of
+that problem's runs in the same benchmark or ablation. The values are relative
+to those runs, so do not compare them across problems or with another
+benchmark. VAMOS 1.1.0 built one reference for the whole suite, which distorts
+its indicator values and significance tests; rerun those benchmarks before
+comparing them.
+
 Tuning quick notes (`vamos tune`)
 ---------------------------------
 
