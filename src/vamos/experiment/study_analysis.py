@@ -118,7 +118,9 @@ def _load_front(root: Path, row: StudySummaryRow) -> tuple[NDArray[np.float64], 
     constraints = result.data.get("G")
     if constraints is None:
         return front, False
-    violations = np.asarray(constraints, dtype=float).reshape(front.shape[0], -1)
+    # The run bundle stores G as (n_solutions, n_constraints), row-aligned with F,
+    # so an empty result keeps its (0, n_constraints) shape.
+    violations = np.asarray(constraints, dtype=float)
     return front[np.all(violations <= 0.0, axis=1)], True
 
 

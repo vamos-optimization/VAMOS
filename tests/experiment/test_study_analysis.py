@@ -10,6 +10,7 @@ from typing import Any
 import numpy as np
 import pytest
 
+from vamos.experiment import study_analysis
 from vamos.experiment.study_analysis import SummarySource, derive_summary_rows
 from vamos.foundation.core.hv_stop import compute_hv_reference
 from vamos.foundation.quality_indicators.hypervolume import hypervolume
@@ -203,3 +204,35 @@ def test_derive_summary_rows_marks_runs_without_constraint_values(studies: dict[
     for row in rows:
         assert row["feasibility_known"] is False
         assert row["n_feasible"] == len(_front(by_study[row["study_id"]], row["run_manifest_path"]))
+
+
+def test_derive_summary_rows_scores_a_stored_empty_result_as_infeasible(
+    mw2: dict[str, SummarySource],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The canonical bundle accepts F (0, n_obj) and G (0, n_constraints).
+    source = mw2["feasible"]
+    empty_row = source.summary.rows[0]
+    assert empty_row.run_manifest_path is not None
+    empty_run = source.root / Path(empty_row.run_manifest_path).parent
+
+    def load_with_empty_run(path: Path) -> Any:
+        result = load_result(path)
+        if Path(path) != empty_run:
+            return result
+        n_obj, n_constraints = result.F.shape[1], np.asarray(result.data["G"]).shape[1]
+        return type(result)({"F": np.empty((0, n_obj)), "X": np.empty((0, result.X.shape[1])), "G": np.empty((0, n_constraints))})
+
+    monkeypatch.setattr(study_analysis, "load_result", load_with_empty_run)
+
+    rows = derive_summary_rows([source, mw2["infeasible"]], indicators=_CONSTRAINED_INDICATORS)
+
+    empty = [row for row in rows if row["study_id"] == source.summary.study_id and row["task_id"] == empty_row.task_id]
+    assert [
+        {key: row[key] for key in ("hv", "indicator_igd_plus", "indicator_epsilon_additive", "n_feasible", "feasibility_known")}
+        for row in empty
+    ] == [{"hv": 0.0, "indicator_igd_plus": math.inf, "indicator_epsilon_additive": math.inf, "n_feasible": 0, "feasibility_known": True}]
+    other = [row for row in rows if row["study_id"] == source.summary.study_id and row["task_id"] != empty_row.task_id]
+    assert len(other) == 1
+    assert other[0]["hv"] > 0.0
+    assert math.isfinite(other[0]["indicator_igd_plus"])
