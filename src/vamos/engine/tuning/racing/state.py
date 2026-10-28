@@ -17,6 +17,9 @@ class ConfigState:
     alive: bool = True
     # Scores are stored in the same order as the evaluation schedule.
     scores: list[float] = field(default_factory=list)
+    # Internal: the (instance index, seed index) block of each entry in `scores`,
+    # so the final choice can compare survivors on the blocks they share.
+    blocks: list[tuple[int, int]] = field(default_factory=list)
     # Warm-start support
     checkpoint: Any | None = None
     last_budget: int = 0

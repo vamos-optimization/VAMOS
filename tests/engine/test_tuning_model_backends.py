@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from pathlib import Path
 
 import numpy as np
@@ -460,3 +461,109 @@ def test_bohb_optuna_backend_smoke():
     best, history = tuner.run(_eval_fn, verbose=False)
     assert "x" in best
     assert len(history) >= 1
+
+
+_BACKEND_MODULES = {"optuna": "optuna", "bohb_optuna": "optuna", "smac3": "smac", "bohb": "hpbandster"}
+
+
+def _require_backend(backend: str) -> None:
+    pytest.importorskip(_BACKEND_MODULES[backend])
+    if backend in {"smac3", "bohb"}:
+        pytest.importorskip("ConfigSpace")
+
+
+def _budget_task(budget_per_run: int) -> TuningTask:
+    return TuningTask(
+        name="fidelity_budgets",
+        param_space=ParamSpace(params={"x": Real("x", 0.0, 1.0)}),
+        instances=[Instance("p", 2)],
+        seeds=[1],
+        budget_per_run=budget_per_run,
+        maximize=True,
+        aggregator=np.mean,
+    )
+
+
+@pytest.mark.parametrize("backend", ["optuna", "bohb_optuna", "smac3", "bohb"])
+def test_model_backends_without_fidelity_levels_run_one_budget(backend, tmp_path, monkeypatch):
+    _require_backend(backend)
+    monkeypatch.chdir(tmp_path)
+    budgets: Counter[int] = Counter()
+
+    def evaluate(config, ctx):
+        budgets[int(ctx.budget)] += 1
+        return 1.0 - abs(float(config["x"]) - 0.8)
+
+    tuner = ModelBasedTuner(task=_budget_task(90), backend=backend, max_trials=8, seed=3)
+    best, history = tuner.run(evaluate, verbose=False)
+
+    # One run per trial and instance/seed pair, at the full budget.
+    assert dict(budgets) == {90: 8}
+    assert len(history) == 8
+    assert best in [trial.config for trial in history]
+
+
+@pytest.mark.parametrize("levels", [None, [1000, 3000, 5000]])
+def test_bohb_respects_max_trials(levels, tmp_path, monkeypatch):
+    _require_backend("bohb")
+    monkeypatch.chdir(tmp_path)
+    configs: set[float] = set()
+
+    def evaluate(config, ctx):
+        configs.add(float(config["x"]))
+        return float(config["x"])
+
+    tuner = ModelBasedTuner(task=_budget_task(5000), backend="bohb", max_trials=20, seed=3, budget_levels=levels)
+    tuner.run(evaluate, verbose=False)
+
+    assert len(configs) == 20
+
+
+@pytest.mark.parametrize("backend", ["smac3", "bohb"])
+def test_smac3_and_bohb_return_the_full_budget_incumbent(backend, tmp_path, monkeypatch):
+    _require_backend(backend)
+    monkeypatch.chdir(tmp_path)
+    full_budget_scores: dict[float, float] = {}
+
+    def evaluate(config, ctx):
+        x = float(config["x"])
+        if ctx.budget < 9:
+            # Cheap runs score higher and favor the configurations that are worst at the full budget.
+            return 10.0 + abs(x - 0.8)
+        full_budget_scores[x] = 1.0 - abs(x - 0.8)
+        return full_budget_scores[x]
+
+    # Budgets 1, 3 and 9: several Hyperband brackets, each with a run at the full budget.
+    tuner = ModelBasedTuner(task=_budget_task(9), backend=backend, max_trials=30, seed=3, budget_levels=[1, 9])
+    best, _ = tuner.run(evaluate, verbose=False)
+
+    assert float(best["x"]) in full_budget_scores
+    assert full_budget_scores[float(best["x"])] == max(full_budget_scores.values())
+
+
+def test_smac3_without_a_full_budget_run_fails_clearly(tmp_path, monkeypatch):
+    _require_backend("smac3")
+    monkeypatch.chdir(tmp_path)
+    tuner = ModelBasedTuner(task=_budget_task(90), backend="smac3", max_trials=3, seed=3, budget_levels=[10, 90])
+
+    with pytest.raises(RuntimeError, match="full budget"):
+        tuner.run(lambda config, ctx: float(config["x"]), verbose=False)
+
+
+@pytest.mark.parametrize("backend", ["optuna", "bohb_optuna"])
+def test_optuna_pruners_stop_trials_before_the_last_level(backend):
+    _require_backend(backend)
+    budgets: Counter[int] = Counter()
+
+    def evaluate(config, ctx):
+        budgets[int(ctx.budget)] += 1
+        return float(config["x"])
+
+    tuner = ModelBasedTuner(task=_budget_task(90), backend=backend, max_trials=40, seed=3, budget_levels=[30, 60, 90])
+    best, history = tuner.run(evaluate, verbose=False)
+
+    assert budgets[30] == 40
+    assert budgets[60] < budgets[30]
+    states = {trial.details["state"] for trial in history}
+    assert states == {"COMPLETE", "PRUNED"}
+    assert next(trial for trial in history if trial.config == best).details["state"] == "COMPLETE"

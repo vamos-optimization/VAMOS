@@ -7,15 +7,19 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from numpy.typing import NDArray
 from scipy import stats
 
 from vamos.study_artifacts import StudySpec, create_study
+from vamos.ux.studio import comparison
 from vamos.ux.studio.comparison import (
     HV,
     IGD_PLUS,
+    ComparisonData,
     compare_with_pivot,
     igd_plus,
     load_comparison_data,
+    median_matrix,
     median_run,
     rank_algorithms,
     verdict_counts,
@@ -36,6 +40,7 @@ from vamos.ux.studio.comparison_stats import (
     rank_sum_p,
     verdict,
 )
+from vamos.ux.studio.data import RunRecord
 
 
 def test_holm_and_benjamini_hochberg_adjust_in_input_order() -> None:
@@ -94,7 +99,18 @@ def test_igd_plus_counts_only_shortfalls() -> None:
     assert igd_plus(reference, reference) == 0.0
     assert igd_plus(np.array([[0.0, 0.0]]), reference) == 0.0
     assert igd_plus(np.array([[1.0, 1.0]]), reference) == pytest.approx(1.0)
-    assert math.isnan(igd_plus(np.empty((0, 2)), reference))
+    assert igd_plus(np.empty((0, 2)), reference) == math.inf  # No feasible solution is the worst value.
+
+
+def test_rank_tests_treat_infinity_as_the_worst_value() -> None:
+    worst, values = [math.inf] * 5, [0.1, 0.2, 0.3, 0.4, 0.5]
+
+    assert rank_sum_p([math.inf, math.inf], [math.inf, math.inf]) == 1.0
+    assert rank_sum_p(worst, values) < 0.05
+    assert a12([math.inf, math.inf], [math.inf, math.inf], higher_is_better=False) == 0.5
+    assert a12(worst, values, higher_is_better=False) == 0.0
+    assert average_ranks(np.array([[math.inf, 0.1, math.inf]]), higher_is_better=False) == pytest.approx([2.5, 1.0, 2.5])
+    assert friedman_p(np.full((2, 3), math.inf)) == (0.0, 1.0)
 
 
 @pytest.fixture(scope="module")
@@ -144,3 +160,74 @@ def test_comparison_exports(small_study: Path) -> None:
     assert saes_csv(data).splitlines()[0] == "Algorithm,Problem,MetricName,ExecutionId,MetricValue"
     assert len(saes_csv(data).splitlines()) == 1 + 2 * 12
     assert saes_metrics_csv(data).splitlines() == ["MetricName,Maximize", "HV,True", "IGD+,False"]
+
+
+def _shifted_front(problem: str, offset: float) -> NDArray[np.float64]:
+    f1 = np.linspace(0.0, 1.0, 20)
+    f2 = 1.0 - (np.sqrt(f1) if problem == "zdt1" else f1**2)
+    return np.column_stack([f1, f2 + offset])
+
+
+@pytest.fixture
+def partly_infeasible_study(monkeypatch: pytest.MonkeyPatch) -> ComparisonData:
+    """NSGA-II is always feasible; MOEA/D finds better fronts, but feasible ones in 2 of 10 runs on zdt1 and none on zdt2."""
+    feasible_moead = {"zdt1": {0, 1}, "zdt2": set()}
+    records = []
+    for problem in ("zdt1", "zdt2"):
+        for seed in range(10):
+            for algorithm, offset, feasible in (
+                ("nsgaii", 0.05 + 0.001 * seed, True),
+                ("moead", 0.005 + 0.001 * seed, seed in feasible_moead[problem]),
+            ):
+                front = _shifted_front(problem, offset)
+                records.append(
+                    RunRecord(
+                        suite_name=None,
+                        experiment_id=f"{problem}-{algorithm}-{seed}",
+                        problem_name=problem,
+                        algorithm_name=algorithm,
+                        seed=seed,
+                        fun=front,
+                        var=None,
+                        constraints=np.full((front.shape[0], 1), -1.0 if feasible else 1.0),
+                    )
+                )
+    monkeypatch.setattr(comparison, "load_runs_from_study", lambda root, cache=None: records)
+    return load_comparison_data(Path("synthetic-study"))
+
+
+def test_runs_without_feasible_points_are_worst_in_igd_plus(partly_infeasible_study: ComparisonData) -> None:
+    data = partly_infeasible_study
+
+    sample = data.sample(IGD_PLUS, "zdt1", "MOEA/D")
+    verdicts = {item.problem: item for item in compare_with_pivot(data, IGD_PLUS, "NSGA-II", correction="holm", alpha=0.05)}
+    problems, medians = median_matrix(data, IGD_PLUS)
+    ranking = rank_algorithms(data, IGD_PLUS, "NSGA-II")
+
+    assert data.algorithms == ("NSGA-II", "MOEA/D")
+    assert sample.size == 10 and int(np.isinf(sample).sum()) == 8
+    assert verdicts["zdt1"].effect == pytest.approx(0.2)  # Its 2 feasible runs beat every NSGA-II run; the other 8 lose.
+    assert verdicts["zdt1"].verdict == "-"
+    assert verdicts["zdt2"].verdict == "-"
+    assert problems == ("zdt1", "zdt2")
+    assert np.isinf(medians[:, 1]).all()
+    assert ranking.ranks == pytest.approx((1.0, 2.0))
+    assert data.sample(HV, "zdt2", "MOEA/D").tolist() == [0.0] * 10
+
+
+def test_comparison_tables_count_feasible_runs(partly_infeasible_study: ComparisonData) -> None:
+    data = partly_infeasible_study
+    comparisons = compare_with_pivot(data, IGD_PLUS, "NSGA-II", correction="holm", alpha=0.05)
+
+    table = comparison_html(data, IGD_PLUS, comparisons, "NSGA-II")
+    latex = comparison_latex(data, IGD_PLUS, comparisons, "NSGA-II", correction="holm", alpha=0.05)
+    saes = saes_csv(data).splitlines()
+
+    assert data.feasible_runs("zdt1", "MOEA/D") == (2, 10)
+    assert data.feasible_runs("zdt2", "NSGA-II") == (10, 10)
+    assert "2/10" in table and "0/10" in table and "10/10" in table and "∞" in table
+    assert "2/10" in latex and r"\infty" in latex and "feasible" in latex
+    assert len(saes) == 1 + 2 * 40  # Every run, with IGD+ = inf for those without a feasible solution.
+    assert sum(line.endswith(",inf") for line in saes) == 18
+    assert "18 of 40 runs" in comparison.infeasible_note(data, IGD_PLUS)
+    assert any("18 of 40 runs" in warning for warning in rank_algorithms(data, IGD_PLUS, "NSGA-II").warnings)

@@ -207,6 +207,7 @@ def _run_stage_with_budget(
                 score = float(result) if not isinstance(result, tuple) else float(result[0])
 
             configs[idx].scores.append(float(score))
+            configs[idx].blocks.append(block_key)
             configs[idx].fidelity_scores.setdefault(fidelity_level, []).append(float(score))
             configs[idx].last_budget = budget
             configs[idx].last_budget_map[block_key] = budget
@@ -224,6 +225,7 @@ def _run_stage_with_budget(
                 score = float(result) if not isinstance(result, tuple) else float(result[0])
 
             configs[idx].scores.append(float(score))
+            configs[idx].blocks.append(block_key)
             configs[idx].fidelity_scores.setdefault(fidelity_level, []).append(float(score))
             configs[idx].last_budget = budget
             configs[idx].last_budget_map[block_key] = budget
