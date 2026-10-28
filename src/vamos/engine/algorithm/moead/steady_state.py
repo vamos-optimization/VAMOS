@@ -1,9 +1,10 @@
 """Compiled one-offspring MOEA/D step for the numba engine.
 
 MOEA/D's default steady-state mode (``batch_size=1``) creates one child per
-subproblem and updates its neighbourhood at once. With the numba engine and a
-covered configuration, :class:`SteadyStateStep` replaces the per-step Python
-operator stack with compiled calls. Python still draws every random value from
+subproblem and updates its neighbourhood at once. When the kernel backend
+provides ``moead_steady_state_kernels`` (the Numba engine does) and the
+configuration is covered, :class:`SteadyStateStep` replaces the per-step Python
+operator stack with those compiled calls. Python still draws every random value from
 the run's Generator, in the order, shape and conditions of the reference
 ``MOEAD.ask``/``MOEAD.tell``, so populations, results and Generator states are
 bit-identical to the NumPy engine.
@@ -25,6 +26,7 @@ from .neighborhood_kernels import dummy_buffers, get_update_neighborhood_numba
 if TYPE_CHECKING:
     from vamos.foundation.eval import EvaluationBackend, EvaluationResult
     from vamos.foundation.kernel.backend import KernelBackend
+    from vamos.foundation.kernel.moead_kernels import MOEADSteadyStateKernels
     from vamos.foundation.problem.types import ProblemProtocol
 
     from .state import MOEADState
@@ -59,17 +61,6 @@ def _supported_state(st: MOEADState) -> bool:
     return all(_float_matrix(w, pop_size) and w.shape[1] == n_obj for w in (st.weights, st.weights_safe, st.weights_unit))
 
 
-def _compiled_kernels_available() -> bool:
-    # The kernels call the compiled neighbourhood update, so they follow its switch (VAMOS_USE_NUMBA_MOEAD).
-    if get_update_neighborhood_numba() is None:
-        return False
-    try:
-        from . import steady_state_kernels  # noqa: F401
-    except (ImportError, OSError, RuntimeError, AttributeError):
-        return False
-    return True
-
-
 class SteadyStateStep:
     """One-offspring ask/tell that keeps MOEA/D's reference draws and arithmetic.
 
@@ -82,65 +73,52 @@ class SteadyStateStep:
     ``None`` before touching the state, and MOEA/D runs its reference code.
     """
 
-    def __init__(self, st: MOEADState, variation: OneOffspringRealVariation) -> None:
-        from vamos.foundation.kernel._numba_variation import numpy_power_squares
-
-        from . import steady_state_kernels as kernels
-
+    def __init__(self, st: MOEADState, variation: OneOffspringRealVariation, kernels: MOEADSteadyStateKernels) -> None:
         n_var = st.X.shape[1]
         # Compiled dispatchers; several calls spread a shared argument tuple, so they are typed loosely.
         self._de_child: Callable[..., None] = kernels.de_child
         self._sbx_parents: Callable[..., bool] = kernels.sbx_parents
         self._sbx_child: Callable[..., None] = kernels.sbx_child
-        self._replace: Callable[..., int] = kernels.replace_neighbors
+        self._replace: Callable[..., int] = kernels.replace
         self._replace_then_de_child: Callable[..., int] = kernels.replace_then_de_child
         self._replace_then_sbx_parents: Callable[..., int] = kernels.replace_then_sbx_parents
-        self._squares = numpy_power_squares()
         self._f64 = np.dtype(np.float64)
         self._is_de = variation.crossover == "de"
         self._child_shape = (1, n_var)
         self._f_shape = (1, st.F.shape[1])
         self._sbx_prob = float(variation.sbx_prob)
         self._use_var_draws = float(variation.sbx_prob_var) < 1.0
-        bounds = (
-            variation.clip_lower,
-            variation.clip_upper,
-            variation.pm_lower,
-            variation.pm_upper,
-            variation.sbx_lower,
-            variation.sbx_upper,
+        self._params, self._bounds = kernels.pack_variation(
+            de_f=variation.de_f,
+            de_cr=variation.de_cr,
+            sbx_prob_var=variation.sbx_prob_var,
+            sbx_eta=variation.sbx_eta,
+            pm_prob=variation.pm_prob,
+            pm_eta=variation.pm_eta,
+            theta=st.aggregation_theta,
+            rho=st.aggregation_rho,
+            clip_bounds=(variation.clip_lower, variation.clip_upper),
+            mutation_bounds=(variation.pm_lower, variation.pm_upper),
+            crossover_bounds=(variation.sbx_lower, variation.sbx_upper),
         )
-        self._bounds = np.ascontiguousarray(np.stack(bounds), dtype=np.float64)
-        eta = float(variation.sbx_eta)
-        params = (
-            variation.de_f,
-            variation.de_cr,
-            variation.pm_prob,
-            variation.pm_eta,
-            variation.sbx_prob_var,
-            -(eta + 1.0),
-            1.0 / (eta + 1.0),
-        )
-        self._params = np.array([*params, st.aggregation_theta, st.aggregation_rho], dtype=np.float64)
-        self._draws = np.empty((kernels.N_DRAWS, n_var))
-        draws = self._draws
-        # Consecutive draws fill consecutive rows: one fill of several rows consumes the stream like one fill per row.
-        self._var_draws = draws[kernels.VAR_DRAWS : kernels.VAR_DRAWS + 1]
-        self._rand = draws[kernels.RAND : kernels.RAND + 1]
-        self._pm_draws = draws[kernels.PM_MASK : kernels.PM_DELTA + 1]
-        self._sbx_draws = draws[kernels.RAND : kernels.PM_DELTA + 1]
+        workspace = kernels.workspace(n_var, int(st.replace_limit), int(st.aggregation_id))
+        self._draws = workspace.draws
+        # Fill the views in draw order; one fill of consecutive rows draws like one fill per row.
+        self._var_draws = workspace.var_draws
+        self._rand = workspace.rand
+        self._pm_draws = workspace.mutation_draws
+        self._sbx_draws = workspace.sbx_draws
+        self._mating = workspace.mating
+        self._sbx_active = workspace.sbx_active
+        self._slots = workspace.slots
+        self._active = workspace.active
+        self._pairs = workspace.pairs
+        self._flags = workspace.flags
         # 0-d integer bounds skip a conversion inside Generator.integers; the draws are the same.
         self._zero = np.array(0, dtype=np.int64)
         self._bounds_neighbors = (np.array(st.neighbors.shape[1], dtype=np.int64), np.array(st.neighbors.shape[1] - 1, dtype=np.int64))
         self._bounds_population = (np.array(st.pop_size, dtype=np.int64), np.array(st.pop_size - 1, dtype=np.int64))
         self._n_var_bound = np.array(n_var, dtype=np.int64)
-        self._mating = np.empty((1, 3, n_var))
-        self._sbx_active = np.zeros((1, n_var), dtype=np.bool_)
-        self._slots = np.zeros(kernels.N_SLOTS, dtype=np.int64)
-        self._slots[5:7] = (int(st.replace_limit), int(st.aggregation_id))
-        self._active = self._slots[0:1]
-        self._pairs = self._slots[1:3].reshape(1, 2)
-        self._flags = np.zeros(1, dtype=np.bool_)
         self._weights = np.ascontiguousarray(np.stack((st.weights, st.weights_safe, st.weights_unit)), dtype=np.float64)
         self._dummy_g, self._dummy_cv, _ = dummy_buffers()
         self._dummy_children_g = np.empty((1, 0), dtype=np.float64)
@@ -150,17 +128,19 @@ class SteadyStateStep:
     @classmethod
     def build(cls, st: MOEADState, kernel: KernelBackend, cross_is_de: bool) -> SteadyStateStep | None:
         """Return the compiled step for ``st``, or ``None`` when the configuration is not covered."""
-        variation_kernels = kernel.variation_kernels()
-        if variation_kernels is None or getattr(variation_kernels, "name", None) != "numba":
+        factory = getattr(kernel, "moead_steady_state_kernels", None)
+        kernels = factory() if callable(factory) else None
+        if kernels is None:
+            return None
+        # The step embeds the compiled neighbourhood update, so it follows its switch (VAMOS_USE_NUMBA_MOEAD).
+        if get_update_neighborhood_numba() is None:
             return None
         if int(st.batch_size) != 1 or st.track_genealogy or not _supported_state(st):
             return None
         variation = one_offspring_real_variation(st.crossover_fn, st.mutation_fn, st.X.shape[1])
         if variation is None or (variation.crossover == "de") != cross_is_de:
             return None
-        if not _compiled_kernels_available():
-            return None
-        return cls(st, variation)
+        return cls(st, variation, kernels)
 
     def _draw(self, st: MOEADState) -> tuple[int, bool, int, int, int, bool]:
         """Draw the next step's subproblem, parents and variation grids in the reference order.
@@ -194,9 +174,7 @@ class SteadyStateStep:
     def _finish_sbx(self, rng: np.random.Generator, any_active: bool, child: np.ndarray[Any, Any]) -> None:
         # SBX draws its spread and swap grids only when some variable crosses; mutation draws follow.
         rng.random(out=self._sbx_draws if any_active else self._pm_draws)
-        self._sbx_child(
-            any_active, self._draws, self._bounds, self._params, self._squares, self._slots, self._mating, self._sbx_active, child
-        )
+        self._sbx_child(any_active, self._draws, self._bounds, self._params, self._slots, self._mating, self._sbx_active, child)
 
     def _set_pending(self, st: MOEADState, child: np.ndarray[Any, Any]) -> None:
         st.pending_offspring = child
@@ -222,7 +200,6 @@ class SteadyStateStep:
                 self._draws,
                 self._bounds,
                 self._params,
-                self._squares,
                 self._slots,
                 self._flags,
                 self._mating,
@@ -336,7 +313,6 @@ class SteadyStateStep:
                 self._draws,
                 self._bounds,
                 self._params,
-                self._squares,
                 self._slots,
                 self._flags,
                 self._mating,
@@ -355,7 +331,6 @@ class SteadyStateStep:
                     self._draws,
                     self._bounds,
                     self._params,
-                    self._squares,
                     self._slots,
                     self._flags,
                     self._mating,

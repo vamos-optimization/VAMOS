@@ -1,18 +1,19 @@
 """Compiled MOEA/D neighbourhood replacement.
 
-This module imports numba at import time. Load it through
-:func:`vamos.engine.algorithm.moead.neighborhood_kernels.get_update_neighborhood_numba`,
-which keeps numba optional and honours ``VAMOS_USE_NUMBA_MOEAD``.
+This module imports numba at import time. MOEA/D reaches it through
+:func:`vamos.foundation.kernel.moead_kernels.available_moead_neighborhood_kernels`
+(its engine-independent shortcut) and through
+``KernelBackend.moead_steady_state_kernels``; ``agg_id`` takes the aggregation
+ids of :mod:`vamos.foundation.kernel.moead_kernels`.
 """
 
 from __future__ import annotations
 
 import numpy as np
 
-from vamos.foundation.kernel.backend import DecisionArray, FloatArray, IndexArray
-from vamos.foundation.kernel.numba_ops import njit
-
-from .aggregation import AGG_PBI, AGG_TCHEBYCHEFF, AGG_WEIGHTED_SUM
+from .backend import DecisionArray, FloatArray, IndexArray
+from .moead_kernels import AGG_PBI, AGG_TCHEBYCHEFF, AGG_WEIGHTED_SUM
+from .numba_ops import njit
 
 
 @njit(cache=True)

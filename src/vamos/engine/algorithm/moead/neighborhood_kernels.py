@@ -5,6 +5,7 @@ from collections.abc import Callable
 import numpy as np
 
 from vamos.foundation.kernel.backend import DecisionArray, FloatArray, IndexArray
+from vamos.foundation.kernel.moead_kernels import available_moead_neighborhood_kernels
 
 from .aggregation import AGG_PBI, AGG_TCHEBYCHEFF, AGG_WEIGHTED_SUM
 
@@ -45,14 +46,11 @@ def get_update_neighborhood_numba() -> Callable[..., int] | None:
     if not _use_numba_moead():
         _UPDATE_NEIGHBORHOOD_DISABLED = True
         return None
-    try:
-        from .neighborhood_numba import update_neighborhood_batch_numba, update_neighborhood_numba
-    except (ImportError, OSError, RuntimeError, AttributeError):
+    compiled = available_moead_neighborhood_kernels()
+    if compiled is None:
         _UPDATE_NEIGHBORHOOD_DISABLED = True
         return None
-
-    _UPDATE_NEIGHBORHOOD_JIT = update_neighborhood_numba
-    _UPDATE_NEIGHBORHOOD_BATCH_JIT = update_neighborhood_batch_numba
+    _UPDATE_NEIGHBORHOOD_JIT, _UPDATE_NEIGHBORHOOD_BATCH_JIT = compiled
     return _UPDATE_NEIGHBORHOOD_JIT
 
 

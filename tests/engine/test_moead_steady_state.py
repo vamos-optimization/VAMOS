@@ -12,10 +12,11 @@ pytest.importorskip("numba")
 import vamos
 from vamos.engine.algorithm.config import MOEADConfig
 from vamos.engine.algorithm.moead import MOEAD, steady_state
-from vamos.engine.algorithm.moead.steady_state_kernels import clip_row
 from vamos.engine.operators.policies.moead import build_variation_operators, one_offspring_real_variation
 from vamos.foundation.eval import EvaluationResult
 from vamos.foundation.eval.backends import SerialEvalBackend
+from vamos.foundation.kernel._numba_moead_steady_state import clip_row
+from vamos.foundation.kernel.moead_kernels import AGG_MODIFIED_TCHEBYCHEFF, AGG_PBI, AGG_TCHEBYCHEFF, AGG_WEIGHTED_SUM
 from vamos.foundation.kernel.numba_backend import NumbaKernel
 from vamos.foundation.kernel.numpy_backend import NumPyKernel
 from vamos.foundation.problem.constrained_many import CDTLZProblem
@@ -364,3 +365,35 @@ def test_variation_description_reads_the_built_operators() -> None:
     assert one_offspring_real_variation(*build_variation_operators(cfg, "real", 5, xl, xu, rng), 5) is None
     reflect = dict(cfg, repair=("reflect", {}))
     assert one_offspring_real_variation(*build_variation_operators(reflect, "real", 5, xl, xu, rng, variation_kernels=kernels), 5) is None
+
+
+def test_backends_expose_the_compiled_step_only_for_numba() -> None:
+    assert NumPyKernel().moead_steady_state_kernels() is None
+    kernels = NumbaKernel().moead_steady_state_kernels()
+    if NumbaKernel().variation_kernels() is None:
+        assert kernels is None
+    else:
+        assert kernels is not None and kernels.name == "numba"
+        workspace = kernels.workspace(4, replace_limit=2, aggregation_id=AGG_PBI)
+        assert workspace.pairs.base is not None and workspace.active.base is not None
+        assert np.shares_memory(workspace.sbx_draws, workspace.mutation_draws)
+    from vamos.engine.algorithm.moead.aggregation import resolve_aggregation_spec
+
+    ids = [resolve_aggregation_spec(name, {})[0] for name in ("tchebycheff", "weighted_sum", "pbi", "modified_tchebycheff")]
+    assert ids == [AGG_TCHEBYCHEFF, AGG_WEIGHTED_SUM, AGG_PBI, AGG_MODIFIED_TCHEBYCHEFF]
+
+
+def test_moead_package_reaches_compiled_code_only_through_the_backend() -> None:
+    import ast
+    from pathlib import Path
+
+    import vamos.engine.algorithm.moead as package
+
+    for path in Path(package.__file__).parent.glob("*.py"):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            names = [alias.name for alias in node.names] if isinstance(node, ast.Import) else []
+            if isinstance(node, ast.ImportFrom):
+                names = [node.module or ""]
+            for name in names:
+                assert not name.startswith("numba"), (path.name, name)
+                assert "._numba" not in name and not name.startswith("vamos.foundation.kernel.numba"), (path.name, name)

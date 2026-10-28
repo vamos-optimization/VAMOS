@@ -26,14 +26,14 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 712,
-  "files_with_diagnostics": 96,
-  "fingerprint_count": 96,
+  "diagnostic_count": 705,
+  "files_with_diagnostics": 95,
+  "fingerprint_count": 95,
   "error_code_summary": {
-    "type-arg": 712
+    "type-arg": 705
   },
   "layer_summary": {
-    "engine": 360,
+    "engine": 353,
     "experiment": 22,
     "foundation": 268,
     "package-root": 1,
@@ -440,44 +440,6 @@
         {
           "line": 67,
           "column": 49
-        }
-      ]
-    },
-    {
-      "fingerprint": "11D7BEB11E2FC57C84F610489B3B0EFF3940AF0EDA3E5BECF50BA70AD2C03128",
-      "path": "src/vamos/engine/algorithm/moead/aggregation.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 7,
-      "locations": [
-        {
-          "line": 8,
-          "column": 37
-        },
-        {
-          "line": 31,
-          "column": 24
-        },
-        {
-          "line": 38,
-          "column": 25
-        },
-        {
-          "line": 44,
-          "column": 16
-        },
-        {
-          "line": 56,
-          "column": 33
-        },
-        {
-          "line": 74,
-          "column": 25
-        },
-        {
-          "line": 82,
-          "column": 25
         }
       ]
     },
