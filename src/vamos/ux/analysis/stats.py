@@ -1,14 +1,23 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+from numpy.typing import NDArray
 from scipy import stats as spstats  # type: ignore[import-untyped]
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
+
+# Two-tailed Nemenyi critical values q_alpha for k = 2..10 algorithms (Demsar, 2006,
+# Table 5): the studentized range quantile with infinite degrees of freedom over sqrt(2).
+_NEMENYI_Q: dict[float, tuple[float, ...]] = {
+    0.05: (1.960, 2.343, 2.569, 2.728, 2.850, 2.949, 3.031, 3.102, 3.164),
+    0.10: (1.645, 2.052, 2.291, 2.459, 2.589, 2.693, 2.780, 2.855, 2.920),
+}
 
 
 def _require_matplotlib() -> Any:
@@ -26,8 +35,8 @@ def _require_matplotlib() -> Any:
 class FriedmanResult:
     statistic: float
     p_value: float
-    ranks: np.ndarray
-    avg_ranks: np.ndarray
+    ranks: NDArray[np.float64]
+    avg_ranks: NDArray[np.float64]
 
 
 @dataclass
@@ -38,7 +47,7 @@ class WilcoxonResult:
     p_value: float
 
 
-def compute_ranks(scores: np.ndarray, higher_is_better: bool = True) -> np.ndarray:
+def compute_ranks(scores: NDArray[np.float64], higher_is_better: bool = True) -> NDArray[np.float64]:
     """
     Compute per-problem ranks for algorithms.
     """
@@ -55,7 +64,7 @@ def compute_ranks(scores: np.ndarray, higher_is_better: bool = True) -> np.ndarr
     return ranks
 
 
-def friedman_test(scores: np.ndarray, higher_is_better: bool = True) -> FriedmanResult:
+def friedman_test(scores: NDArray[np.float64], higher_is_better: bool = True) -> FriedmanResult:
     """
     Run Friedman test using ranks across problems.
     """
@@ -70,7 +79,7 @@ def friedman_test(scores: np.ndarray, higher_is_better: bool = True) -> Friedman
 
 
 def pairwise_wilcoxon(
-    scores: np.ndarray,
+    scores: NDArray[np.float64],
     algo_names: Sequence[str],
     higher_is_better: bool = True,
     alpha: float = 0.05,
@@ -97,8 +106,28 @@ def pairwise_wilcoxon(
     return results
 
 
+def nemenyi_cd(k: int, n: int, alpha: float = 0.05) -> float | None:
+    """Nemenyi critical difference of average ranks for ``k`` algorithms on ``n`` problems.
+
+    ``q_alpha * sqrt(k (k + 1) / (6 n))``, where ``q_alpha`` is the two-tailed critical
+    value for ``k`` algorithms: Demsar (2006), Table 5, for alpha 0.05 and 0.10 with
+    k <= 10, and otherwise the studentized range quantile with infinite degrees of
+    freedom divided by sqrt(2). ``None`` with fewer than two algorithms or no problem.
+    """
+    if not 0.0 < alpha < 1.0:
+        raise ValueError(f"alpha must lie strictly between 0 and 1; got {alpha}.")
+    if k < 2 or n < 1:
+        return None
+    table = _NEMENYI_Q.get(alpha)
+    if table is not None and k - 2 < len(table):
+        q = table[k - 2]
+    else:
+        q = float(spstats.studentized_range.ppf(1.0 - alpha, k, np.inf)) / math.sqrt(2.0)
+    return q * math.sqrt(k * (k + 1) / (6.0 * n))
+
+
 def plot_critical_distance(
-    avg_ranks: np.ndarray,
+    avg_ranks: NDArray[np.float64],
     algo_names: Sequence[str],
     alpha: float = 0.05,
     n_problems: int | None = None,
@@ -107,7 +136,10 @@ def plot_critical_distance(
     show: bool = False,
 ) -> object:
     """
-    Plot a simple critical distance diagram using Nemenyi CD if n_problems provided.
+    Plot average ranks and, when ``n_problems`` is given, the Nemenyi critical difference.
+
+    The bar length is :func:`nemenyi_cd` for ``len(algo_names)`` algorithms at ``alpha``,
+    which must lie strictly between 0 and 1.
     """
     plt = _require_matplotlib()
     avg_ranks = np.asarray(avg_ranks, dtype=float)
@@ -116,6 +148,7 @@ def plot_critical_distance(
     if len(algo_names) != avg_ranks.shape[0]:
         raise ValueError("algo_names length must match avg_ranks length.")
     k = avg_ranks.shape[0]
+    cd = nemenyi_cd(k, n_problems, alpha) if n_problems is not None else None
     ax = ax or plt.figure().add_subplot(111)
     # avg_ranks from compute_ranks always encode rank 1 = best regardless of
     # higher_is_better; no inversion needed for the CD diagram (lower x = better).
@@ -126,17 +159,7 @@ def plot_critical_distance(
         ax.text(ranks[idx], 0.02, name, rotation=45, ha="center", va="bottom")
     ax.set_yticks([])
     ax.set_xlabel("Average Rank (lower is better)")
-    if n_problems is not None:
-        _Q_ALPHA = {0.10: 2.343, 0.05: 2.569, 0.025: 2.807, 0.01: 3.143}
-        if alpha not in _Q_ALPHA:
-            import warnings
-
-            warnings.warn(
-                f"alpha={alpha} not in supported values {sorted(_Q_ALPHA)}; defaulting to alpha=0.05.",
-                stacklevel=2,
-            )
-        q_alpha = _Q_ALPHA.get(alpha, _Q_ALPHA[0.05])
-        cd = q_alpha * np.sqrt(k * (k + 1) / (6.0 * n_problems))
+    if cd is not None:
         xmin = ranks.min()
         ax.hlines(0.1, xmin, xmin + cd, colors="black")
         ax.vlines([xmin, xmin + cd], 0.08, 0.12, colors="black")

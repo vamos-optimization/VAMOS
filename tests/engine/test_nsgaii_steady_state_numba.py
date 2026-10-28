@@ -37,24 +37,57 @@ class Identity3DProblem:
         out["F"] = np.asarray(X[:, :3], dtype=float).copy()
 
 
-def _steady_state_cfg(pop_size: int) -> dict[str, object]:
-    return (
+def _steady_state_cfg(pop_size: int, repair: str | None = None) -> dict[str, object]:
+    builder = (
         NSGAIIConfig.builder()
         .pop_size(pop_size)
         .steady_state()
         .crossover("sbx", prob=0.9, eta=15.0)
         .mutation("polynomial", prob="1/n", eta=20.0)
         .selection("tournament", size=2)
-        .build()
-        .to_dict()
     )
+    if repair is not None:
+        builder = builder.repair(repair)
+    return builder.build().to_dict()
 
 
 @pytest.mark.numba
-def test_nsgaii_steady_state_numba_uses_full_survival_for_biobjective(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_nsgaii_steady_state_numba_runs_the_compiled_step_for_supported_configs(monkeypatch: pytest.MonkeyPatch) -> None:
     algo = NSGAII(_steady_state_cfg(10), kernel=NumbaKernel())
     problem = Identity2DProblem()
     algo._initialize_run(problem, termination=("max_evaluations", 20), seed=0, eval_strategy=None, live_viz=None)
+    st = algo._st
+    assert st is not None
+    if st.steady_step is None:
+        pytest.skip("compiled pow differs from np.power on this platform; the reference path stays active")
+
+    reference_calls = 0
+
+    def _spy_reference(*args: object, **kwargs: object) -> object:
+        nonlocal reference_calls
+        reference_calls += 1
+        raise AssertionError("the reference survival must not run for a supported configuration")
+
+    monkeypatch.setattr(ask_tell_module, "incremental_insert_fronts", _spy_reference)
+    monkeypatch.setattr(algo.kernel, "nsga2_survival", _spy_reference)
+    monkeypatch.setattr(algo.kernel, "tournament_selection", _spy_reference)
+
+    _ = algo.ask()
+    algo.tell(SimpleNamespace(F=np.array([[-1.0, -1.0]], dtype=float), G=None))
+
+    assert reference_calls == 0
+    assert st.F.shape == (10, 2)
+    assert np.array_equal(st.F[0], [-1.0, -1.0])
+    assert st.ranks is not None and st.ranks[0] == 0
+
+
+@pytest.mark.numba
+def test_nsgaii_steady_state_numba_uses_full_survival_for_unsupported_biobjective(monkeypatch: pytest.MonkeyPatch) -> None:
+    algo = NSGAII(_steady_state_cfg(10, repair="reflect"), kernel=NumbaKernel())
+    problem = Identity2DProblem()
+    algo._initialize_run(problem, termination=("max_evaluations", 20), seed=0, eval_strategy=None, live_viz=None)
+    assert algo._st is not None
+    assert algo._st.steady_step is None
 
     incremental_calls = 0
     original_incremental = ask_tell_module.incremental_insert_fronts
@@ -107,13 +140,15 @@ def test_nsgaii_steady_state_numba_incremental_matches_full_survival_for_three_o
     assert st_inc is not None
     assert st_full is not None
 
-    np.testing.assert_allclose(st_inc.X, st_full.X)
-    np.testing.assert_allclose(st_inc.F, st_full.F)
+    np.testing.assert_array_equal(st_inc.X, st_full.X)
+    np.testing.assert_array_equal(st_inc.F, st_full.F)
 
     ranks_full, crowding_full = algo_full.kernel.nsga2_ranking(st_full.F)
     np.testing.assert_array_equal(st_inc.ranks, ranks_full)
-    np.testing.assert_allclose(st_inc.crowding, crowding_full, equal_nan=True)
-    assert st_inc.fronts == fronts_from_ranks(ranks_full)
+    np.testing.assert_array_equal(st_inc.crowding, crowding_full)
+    # The compiled step caches ranks only; the reference incremental path caches the fronts.
+    fronts = st_inc.fronts if st_inc.fronts is not None else fronts_from_ranks(st_inc.ranks)
+    assert fronts == fronts_from_ranks(ranks_full)
 
 
 @pytest.mark.numba

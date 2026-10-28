@@ -25,6 +25,7 @@ from .helpers import (
     select_nsga2,
 )
 from .state import compute_selection_metrics, track_offspring_genealogy, update_archives
+from .steady_state import ask_steady_state, tell_steady_state
 
 if TYPE_CHECKING:
     from .nsgaii import NSGAII
@@ -133,10 +134,33 @@ def _prefilter_archive_candidates(
     return X[nd_mask], F[nd_mask], None
 
 
+def _update_steady_state_archives(
+    st: NSGAIIState,
+    kernel: Any,
+    replaced: bool,
+    previous: tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]],
+    X_off: np.ndarray[Any, Any],
+    F_off: np.ndarray[Any, Any],
+) -> None:
+    """Archive update of the reference ``tell`` after a compiled steady-state step."""
+    if not replaced:
+        update_archives(st, kernel, X=st.X, F=st.F)
+        return
+    combined_X = np.vstack([previous[0], X_off])
+    combined_F = np.vstack([previous[1], F_off])
+    archive_X, archive_F, archive_G = _prefilter_archive_candidates(st, kernel, combined_X, combined_F, None)
+    update_archives(st, kernel, X=archive_X, F=archive_F, G=archive_G)
+
+
 def ask_nsgaii(algo: NSGAII) -> np.ndarray[Any, Any]:
     st = algo._st
     if st is None:
         raise RuntimeError("ask() called before initialization.")
+
+    if st.steady_step is not None:
+        X_steady = ask_steady_state(st, st.steady_step)
+        if X_steady is not None:
+            return X_steady
 
     if st.incremental_enabled and st.ranks is not None and st.crowding is not None and st.G is None:
         ranks, crowding = st.ranks, st.crowding
@@ -224,6 +248,17 @@ def tell_nsgaii(algo: NSGAII, eval_result: Any) -> bool:
     F_off = eval_result.F
     G_off = eval_result.G if st.constraint_mode != "none" else None
     assert st.hv_tracker is not None
+
+    if st.steady_step is not None:
+        previous = (st.X, st.F)
+        replaced = tell_steady_state(st, st.steady_step, X_off, F_off, G_off)
+        if replaced is not None:
+            if st.archive_manager is not None or st.result_archive is not None:
+                _update_steady_state_archives(st, algo.kernel, replaced, previous, X_off, F_off)
+            return st.hv_tracker.enabled and st.hv_tracker.reached(st.hv_points_fn())
+        if st.incremental_enabled and st.fronts is None and st.ranks is not None:
+            # The compiled step keeps ranks only; the reference path below reads the fronts.
+            st.fronts = fronts_from_ranks(st.ranks)
 
     combined_X = np.vstack([st.X, X_off])
     combined_F = np.vstack([st.F, F_off])
