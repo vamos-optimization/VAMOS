@@ -22,6 +22,12 @@ unsupported behavior rather than future compatibility promises.
 - **Development after 1.1.0:** `cec2009_uf3` searches the CEC2009 domain
   `[0, 1]^n`. VAMOS 1.1.0 and earlier search `[-1, 1]` for variables 2 to n, so
   UF3 results from those versions do not correspond to the CEC2009 instance.
+- **Development after 1.1.0:** `rwa7` and `rwa8` search the normalized domain
+  `[0, 1]^4` of their response surfaces, with the TTmax sign of `re37`, and
+  their packaged reference samples are regenerated. VAMOS 1.1.0 and earlier
+  evaluate the surfaces far outside their fitted region, on the physical design
+  ranges, so RWA7 and RWA8 values, fronts and indicators from those versions do
+  not correspond to the published problems.
 - Independent algorithm-conformance validation for AGE-MOEA, RVEA and SMPSO
   remains pending. Passing API and regression tests does not establish
   convergence equivalence with a reference implementation.

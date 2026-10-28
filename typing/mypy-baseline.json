@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "5afe8446",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 5afe8446",
+  "generation_commit": "1bdee315",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 1bdee315",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.0",
@@ -26,16 +26,16 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 718,
-  "files_with_diagnostics": 97,
-  "fingerprint_count": 97,
+  "diagnostic_count": 713,
+  "files_with_diagnostics": 96,
+  "fingerprint_count": 96,
   "error_code_summary": {
-    "type-arg": 718
+    "type-arg": 713
   },
   "layer_summary": {
     "engine": 360,
     "experiment": 22,
-    "foundation": 268,
+    "foundation": 263,
     "package-root": 1,
     "ux": 67
   },
@@ -2402,36 +2402,6 @@
         {
           "line": 47,
           "column": 18
-        }
-      ]
-    },
-    {
-      "fingerprint": "890DEB042DD05EB58F4E6F94A5FFF1B614E475B7D412EAA8AA1678294A217F86",
-      "path": "src/vamos/foundation/problem/real_world/zapotecas_rwa_7_8.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "foundation",
-      "multiplicity": 5,
-      "locations": [
-        {
-          "line": 6,
-          "column": 22
-        },
-        {
-          "line": 27,
-          "column": 24
-        },
-        {
-          "line": 48,
-          "column": 24
-        },
-        {
-          "line": 90,
-          "column": 27
-        },
-        {
-          "line": 117,
-          "column": 27
         }
       ]
     },
