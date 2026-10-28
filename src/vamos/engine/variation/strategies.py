@@ -62,6 +62,47 @@ class EncodingStrategy(Protocol):
     def build_mutation(self, method: MutationName, params: dict[str, Any]) -> MutationOperator: ...
 
 
+class GroupedRealCrossover:
+    """Apply a real crossover operator to consecutive parent groups.
+
+    ``operator`` is the configured operator instance, exposed so that callers
+    can recognize the operator behind a pipeline.
+    """
+
+    __slots__ = ("group_size", "operator")
+
+    def __init__(self, operator: Any, group_size: int) -> None:
+        self.operator = operator
+        self.group_size = group_size
+
+    def __call__(self, parents: NDArray[np.generic], rng: np.random.Generator) -> NDArray[np.generic]:
+        group_size = self.group_size
+        n_var = parents.shape[1]
+        if parents.shape[0] % group_size != 0:
+            usable = (parents.shape[0] // group_size) * group_size
+            parents = parents[:usable]
+        if parents.size == 0:
+            return parents
+
+        groups = parents.reshape(-1, group_size, n_var)
+        offspring = cast(NDArray[np.generic], self.operator(groups, rng))
+        if offspring.ndim == 3:
+            offspring = offspring.reshape(-1, n_var)
+        return offspring
+
+
+class RealMutation:
+    """Apply a configured real mutation operator; ``operator`` is that instance."""
+
+    __slots__ = ("operator",)
+
+    def __init__(self, operator: Any) -> None:
+        self.operator = operator
+
+    def __call__(self, offspring: NDArray[np.generic], rng: np.random.Generator) -> NDArray[np.generic]:
+        return cast(NDArray[np.generic], self.operator(offspring, rng))
+
+
 @dataclass(frozen=True)
 class RealEncodingStrategy:
     ctx: VariationContext
@@ -103,23 +144,7 @@ class RealEncodingStrategy:
         except TypeError as exc:
             raise ValueError(f"Failed to initialize crossover '{method}' with params {kwargs}. Error: {exc}") from exc
 
-        group_size = self.parents_per_group(method)
-
-        def crossover(parents: NDArray[np.generic], rng: np.random.Generator) -> NDArray[np.generic]:
-            n_var = parents.shape[1]
-            if parents.shape[0] % group_size != 0:
-                usable = (parents.shape[0] // group_size) * group_size
-                parents = parents[:usable]
-            if parents.size == 0:
-                return parents
-
-            groups = parents.reshape(-1, group_size, n_var)
-            offspring = cast(NDArray[np.generic], op(groups, rng))
-            if offspring.ndim == 3:
-                offspring = offspring.reshape(-1, n_var)
-            return offspring
-
-        return crossover
+        return GroupedRealCrossover(op, self.parents_per_group(method))
 
     def build_mutation(self, method: MutationName, params: dict[str, Any]) -> MutationOperator:
         registry = get_operator_registry()
@@ -144,10 +169,7 @@ class RealEncodingStrategy:
         except TypeError as exc:
             raise ValueError(f"Failed to initialize mutation '{method}' with params {kwargs}. Error: {exc}") from exc
 
-        def mutate(offspring: NDArray[np.generic], rng: np.random.Generator) -> NDArray[np.generic]:
-            return cast(NDArray[np.generic], op(offspring, rng))
-
-        return mutate
+        return RealMutation(op)
 
 
 @dataclass(frozen=True)
@@ -303,6 +325,8 @@ def make_encoding_strategy(encoding: Encoding, ctx: VariationContext) -> Encodin
 
 __all__ = [
     "EncodingStrategy",
+    "GroupedRealCrossover",
+    "RealMutation",
     "VariationContext",
     "make_encoding_strategy",
 ]

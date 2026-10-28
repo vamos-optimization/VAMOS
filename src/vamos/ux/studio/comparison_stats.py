@@ -18,12 +18,11 @@ from numpy.typing import ArrayLike, NDArray
 from scipy import stats  # type: ignore[import-untyped]
 
 from vamos.engine.tuning.racing.stats import vargha_delaney_a12
+from vamos.ux.analysis.stats import nemenyi_cd
 
 Correction = Literal["holm", "bh", "none"]
 CORRECTIONS: dict[str, str] = {"holm": "Holm", "bh": "Benjamini-Hochberg", "none": "No correction"}
 
-# Two-tailed Nemenyi critical values q_0.05 for k = 2..10 (Demsar, 2006, Table 5a).
-_NEMENYI_Q05 = (1.960, 2.343, 2.569, 2.728, 2.850, 2.949, 3.031, 3.102, 3.164)
 # Vargha and Delaney (2000) thresholds on |A12 - 0.5|.
 _A12_THRESHOLDS = ((0.06, "negligible"), (0.14, "small"), (0.21, "medium"))
 
@@ -109,17 +108,6 @@ def friedman_p(matrix: NDArray[np.float64]) -> tuple[float, float] | None:
         return 0.0, 1.0
     result = stats.friedmanchisquare(*[data[:, j] for j in range(data.shape[1])])
     return float(result.statistic), float(result.pvalue)
-
-
-def nemenyi_cd(k: int, n: int, alpha: float = 0.05) -> float | None:
-    """Nemenyi critical difference of average ranks for ``k`` algorithms on ``n`` problems."""
-    if k < 2 or n < 1:
-        return None
-    if alpha == 0.05 and k <= 10:
-        q = _NEMENYI_Q05[k - 2]
-    else:
-        q = float(stats.studentized_range.ppf(1.0 - alpha, k, 1e6)) / math.sqrt(2.0)
-    return q * math.sqrt(k * (k + 1) / (6.0 * n))
 
 
 def cd_groups(ranks: ArrayLike, cd: float) -> list[tuple[int, int]]:
