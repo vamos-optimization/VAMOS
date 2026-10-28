@@ -22,6 +22,11 @@ from .racing.tuning_task import EvalContext, Instance, TuningTask
 class ModelBasedTuner:
     """Optional facade for Optuna, BOHB, SMAC3, and irace tuning backends.
 
+    Without ``budget_levels`` there is one fidelity: every evaluation uses ``task.budget_per_run``.
+    With them, ``optuna`` and ``bohb_optuna`` evaluate a trial at each level until a pruner stops
+    it, and ``smac3`` and ``bohb`` run Hyperband between the smallest and the largest level; all
+    four return a configuration evaluated at the full budget.
+
     The ``irace_*`` fields apply only to ``backend="irace"``, which runs the R package irace
     through ``irace_rscript``. By default irace receives every instance/seed pair of the task
     as an instance (``irace_instance_seeds="task"``) and ``max_trials`` times that number of
