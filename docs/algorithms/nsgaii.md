@@ -112,6 +112,8 @@ The initial population still counts towards `max_evaluations`. With `pop_size=10
 
 When comparing generational and steady-state NSGA-II, keep the evaluation budget and seed policy explicit. Changing the replacement schedule changes the search dynamics even when the total number of evaluations is identical.
 
+**Development after 1.1.0:** with `engine="numba"`, the one-offspring step of the real-coded SBX/polynomial-mutation configuration above runs compiled and follows the same trajectory as `engine="numpy"`; see [Numba engine coverage](../reference/algorithms.md#numba-engine-coverage) for the supported configuration.
+
 | Choice | What to consider |
 | --- | --- |
 | `pop_size` | Changes population cardinality and the allocation of a fixed evaluation budget. A larger value is not automatically better. |

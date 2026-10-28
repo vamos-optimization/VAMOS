@@ -172,11 +172,15 @@ def nsga2_steady_offspring(
             params[PARAM_INV_ETA_PLUS_ONE],
             squares_exponent_two,
         )
-    _clip_rows(work, bounds[BOUND_CLIP_LOWER], bounds[BOUND_CLIP_UPPER])
-    rnd_mask = stream[position : position + 2 * n_var].reshape(2, n_var)
-    rnd_delta = stream[position + 2 * n_var : position + 4 * n_var].reshape(2, n_var)
+    # Only the first child survives; clipping and mutation act on each variable independently.
+    for j in range(n_var):
+        child[0, j] = work[0, j]
+    _clip_rows(child, bounds[BOUND_CLIP_LOWER], bounds[BOUND_CLIP_UPPER])
+    # Row 0 of the mutation mask and delta grids drawn for both children.
+    rnd_mask = stream[position : position + n_var].reshape(1, n_var)
+    rnd_delta = stream[position + 2 * n_var : position + 3 * n_var].reshape(1, n_var)
     polynomial_mutation_apply(
-        work,
+        child,
         params[PARAM_PROB_MUTATION],
         params[PARAM_ETA_MUTATION],
         bounds[BOUND_PM_LOWER],
@@ -185,10 +189,33 @@ def nsga2_steady_offspring(
         rnd_delta,
         squares_exponent_two,
     )
-    _clip_rows(work, bounds[BOUND_CLIP_LOWER], bounds[BOUND_CLIP_UPPER])
-    for j in range(n_var):
-        child[0, j] = work[0, j]
+    _clip_rows(child, bounds[BOUND_CLIP_LOWER], bounds[BOUND_CLIP_UPPER])
     return 0
+
+
+@njit(cache=True)
+def nsga2_steady_draws(stream: FloatArray, differing: IntArray, count: int, params: FloatArray) -> int:
+    """Total uniform draws of the step after a tie-free tournament.
+
+    ``stream`` holds at least the pair draw and the variable draws, and
+    ``differing[:count]`` the offsets left by :func:`nsga2_steady_tournament`.
+    SBX consumes its variable draws when the pair is selected and its spread
+    and swap grids only when some variable changes, as the compiled SBX does.
+    """
+    n_var = differing.shape[0]
+    needed = 1 + 4 * n_var
+    if stream[0] <= params[PARAM_PROB_CROSSOVER]:
+        changes = count > 0
+        if params[PARAM_PROB_VAR] < 1.0:
+            needed += n_var
+            changes = False
+            for t in range(count):
+                if stream[differing[t]] <= params[PARAM_PROB_VAR]:
+                    changes = True
+                    break
+        if changes:
+            needed += 2 * n_var
+    return needed
 
 
 class NumbaSteadyStateKernels:
@@ -196,6 +223,7 @@ class NumbaSteadyStateKernels:
 
     name = "numba"
     tournament = staticmethod(nsga2_steady_tournament)
+    draws = staticmethod(nsga2_steady_draws)
     offspring = staticmethod(nsga2_steady_offspring)
     insert = staticmethod(nsga2_steady_insert)
     replace = staticmethod(nsga2_steady_replace)
@@ -245,6 +273,7 @@ def numba_steady_state_kernels() -> NumbaSteadyStateKernels:
 
 __all__ = [
     "NumbaSteadyStateKernels",
+    "nsga2_steady_draws",
     "nsga2_steady_offspring",
     "nsga2_steady_tournament",
     "numba_steady_state_kernels",

@@ -60,14 +60,11 @@ class SteadyStateStep:
         "params",
         "pipeline",
         "pop_size",
-        "prob_crossover",
-        "prob_var",
         "single",
         "spare_orders",
         "split_crowd",
         "stream",
         "tails",
-        "use_var_draws",
         "winners",
         "work",
         "x_shape",
@@ -82,8 +79,6 @@ class SteadyStateStep:
         n_obj: int,
         params: np.ndarray[Any, Any],
         bounds: np.ndarray[Any, Any],
-        prob_crossover: float,
-        prob_var: float,
     ) -> None:
         self.kernels = kernels
         self.pipeline = pipeline
@@ -96,10 +91,6 @@ class SteadyStateStep:
         self.f_child_shape = (1, n_obj)
         self.params = params
         self.bounds = bounds
-        # SBX settings that decide how many uniform draws the compiled SBX consumes.
-        self.prob_crossover = float(prob_crossover)
-        self.prob_var = float(prob_var)
-        self.use_var_draws = self.prob_var < 1.0
         # Tournament winners, then the stream offsets of the variables in which they differ.
         self.winners = np.empty(2, dtype=np.int64)
         self.differing = np.empty(n_var, dtype=np.int64)
@@ -159,7 +150,7 @@ def build_steady_state_step(kernel: Any, st: NSGAIIState) -> SteadyStateStep | N
         repair_bounds=repair_bounds,
         mutation_bounds=(mutation.lower, mutation.upper),
     )
-    return SteadyStateStep(kernels, pipeline, int(st.pop_size), n_var, int(F.shape[1]), params, bounds, crossover.prob, crossover.prob_var)
+    return SteadyStateStep(kernels, pipeline, int(st.pop_size), n_var, int(F.shape[1]), params, bounds)
 
 
 def _state_supported(st: NSGAIIState, step: SteadyStateStep) -> bool:
@@ -215,19 +206,8 @@ def ask_steady_state(st: NSGAIIState, step: SteadyStateStep) -> np.ndarray[Any, 
             kernels.offspring(X, winners, first, second, coins, stream, needed, params, bounds, work, active, X_off)
     else:
         rng.random(out=head)
-        needed = head_size
-        if head[0] <= step.prob_crossover:
-            # The compiled SBX draws its spread and swap grids only when a variable changes.
-            changes = status > 0
-            if step.use_var_draws:
-                needed += step.n_var
-                changes = False
-                for offset in step.differing[:status].tolist():
-                    if head[offset] <= step.prob_var:
-                        changes = True
-                        break
-            if changes:
-                needed += 2 * step.n_var
+        # The compiled SBX draws its spread and swap grids only when a variable changes.
+        needed = kernels.draws(stream, step.differing, status, params)
         if needed > head_size:
             rng.random(out=step.tails[needed])
         if kernels.offspring(X, winners, first, second, step.no_coins, stream, needed, params, bounds, work, active, X_off):

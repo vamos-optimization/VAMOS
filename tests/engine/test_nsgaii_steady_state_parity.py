@@ -98,6 +98,11 @@ def test_steady_state_engines_follow_the_same_trajectory(problem: str, seed: int
 
 
 @pytest.mark.numba
+def test_auto_engine_follows_the_numpy_steady_state_trajectory(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert _run("dtlz2", "auto", 5, monkeypatch) == _run("dtlz2", "numpy", 5, monkeypatch)
+
+
+@pytest.mark.numba
 def test_steady_state_parity_with_an_external_archive(monkeypatch: pytest.MonkeyPatch) -> None:
     archive = ExternalArchiveConfig(capacity=40, pruning="crowding")
     reference = _run("zdt1", "numpy", 3, monkeypatch, external_archive=archive)
@@ -177,3 +182,76 @@ def test_reference_steps_between_compiled_steps_keep_the_trajectory() -> None:
             algorithm.tell(SimpleNamespace(F=F, G=None))
         runs.append((st.X.tobytes(), st.F.tobytes(), np.asarray(st.ranks).tobytes(), deepcopy(st.rng.bit_generator.state)))
     assert runs[0] == runs[1]
+
+
+class _CountingZDT1(ZDT1):
+    def __init__(self, n_var: int) -> None:
+        super().__init__(n_var=n_var)
+        self.rows = 0
+
+    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+        self.rows += X.shape[0]
+        super().evaluate(X, out)
+
+
+@pytest.mark.numba
+@pytest.mark.parametrize("engine", ["numpy", "numba"])
+def test_steady_state_honors_the_exact_budget(engine: str) -> None:
+    problem = _CountingZDT1(n_var=6)
+    config = replace(NSGAIIConfig.default(pop_size=20, n_var=6), steady_state=True)
+    result = vamos.optimize(problem, algorithm="nsgaii", algorithm_config=config, engine=engine, seed=4, max_evaluations=137)
+    assert result.data["evaluations"] == 137
+    assert problem.rows == 137
+
+
+@pytest.mark.numba
+def test_steady_state_hypervolume_termination_matches_between_engines() -> None:
+    config = replace(NSGAIIConfig.default(pop_size=20, n_var=6), steady_state=True).to_dict()
+    termination = ("hv", {"target_value": 23.0, "reference_point": [2.0, 12.0], "max_evaluations": 4000})
+    results = []
+    for kernel_name in ("numpy", "numba"):
+        result = NSGAII(dict(config), kernel=resolve_kernel(kernel_name)).run(ZDT1(n_var=6), termination=termination, seed=6)
+        results.append(result)
+    reference, compiled = results
+    assert reference["hv_reached"] and compiled["hv_reached"]
+    assert compiled["evaluations"] == reference["evaluations"] < 4000
+    for key in ("X", "F"):
+        assert compiled["population"][key].tobytes() == reference["population"][key].tobytes()
+
+
+class _CoarseObjectives:
+    """Objectives on a coarse grid: many equal values, duplicate points and fronts."""
+
+    def __init__(self, n_obj: int) -> None:
+        self.n_var = 6
+        self.n_obj = n_obj
+        self.xl = np.zeros(self.n_var)
+        self.xu = np.ones(self.n_var)
+        self.encoding = "real"
+
+    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+        # DTLZ2-like objectives rounded to a grid of 1/8.
+        g = 1.0 + np.sum((X[:, self.n_obj - 1 :] - 0.5) ** 2, axis=1)
+        angles = 0.5 * np.pi * X[:, : self.n_obj - 1]
+        F = np.repeat(g[:, None], self.n_obj, axis=1)
+        for m in range(self.n_obj):
+            F[:, m] *= np.prod(np.cos(angles[:, : self.n_obj - 1 - m]), axis=1)
+            if m > 0:
+                F[:, m] *= np.sin(angles[:, self.n_obj - 1 - m])
+        out["F"][:] = np.round(F * 8.0) / 8.0
+
+
+@pytest.mark.numba
+@pytest.mark.parametrize("n_obj", [2, 3])
+def test_steady_state_parity_with_tied_objective_values(n_obj: int) -> None:
+    config = replace(NSGAIIConfig.default(pop_size=30, n_var=6), steady_state=True).to_dict()
+    runs = []
+    for kernel_name in ("numpy", "numba"):
+        algorithm = NSGAII(dict(config), kernel=resolve_kernel(kernel_name))
+        result = algorithm.run(_CoarseObjectives(n_obj), termination=("max_evaluations", 1500), seed=12)
+        assert algorithm._st is not None
+        runs.append((result, deepcopy(algorithm._st.rng.bit_generator.state)))
+    (reference, reference_state), (compiled, compiled_state) = runs
+    assert compiled_state == reference_state
+    for key in ("X", "F"):
+        assert compiled["population"][key].tobytes() == reference["population"][key].tobytes()

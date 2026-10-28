@@ -150,6 +150,10 @@ class NSGA2SteadyStateKernels(Protocol):
         """
         ...
 
+    def draws(self, stream: FloatArray, differing: NDArray[np.int64], count: int, params: FloatArray) -> int:
+        """Return how many uniform draws the step consumes after a tie-free tournament."""
+        ...
+
     def offspring(
         self,
         X: FloatArray,
