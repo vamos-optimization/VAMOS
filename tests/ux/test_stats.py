@@ -1,13 +1,22 @@
+import math
+import warnings
+
 import numpy as np
 import pytest
 
 matplotlib = pytest.importorskip("matplotlib")
 matplotlib.use("Agg")
 
+import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
+from matplotlib.collections import LineCollection
+from scipy.stats import studentized_range
+
 from vamos.ux.analysis.stats import (
     FriedmanResult,
     compute_ranks,
     friedman_test,
+    nemenyi_cd,
     pairwise_wilcoxon,
     plot_critical_distance,
 )
@@ -65,3 +74,67 @@ def test_plot_critical_distance_smoke():
 
     # Assert
     assert hasattr(ax, "scatter")
+
+
+# Demsar (2006), "Statistical comparisons of classifiers over multiple data sets",
+# JMLR 7:1-30, Table 5: two-tailed Nemenyi critical values q_alpha for k = 2..10.
+_DEMSAR_Q = {
+    0.05: (1.960, 2.343, 2.569, 2.728, 2.850, 2.949, 3.031, 3.102, 3.164),
+    0.10: (1.645, 2.052, 2.291, 2.459, 2.589, 2.693, 2.780, 2.855, 2.920),
+}
+
+
+def _drawn_critical_difference(ax: Axes) -> float:
+    """Length of the horizontal CD bar that the diagram draws."""
+    bars = [
+        segment
+        for collection in ax.collections
+        if isinstance(collection, LineCollection)
+        for segment in collection.get_segments()
+        if segment[0][1] == segment[-1][1]
+    ]
+    assert len(bars) == 1
+    return float(bars[0][-1][0] - bars[0][0][0])
+
+
+def _drawn_q(k: int, alpha: float, n_problems: int) -> float:
+    ranks = np.linspace(1.0, float(k), k)
+    ax = plot_critical_distance(ranks, [f"A{i}" for i in range(k)], alpha=alpha, n_problems=n_problems, show=False)
+    assert isinstance(ax, Axes)
+    try:
+        return _drawn_critical_difference(ax) / math.sqrt(k * (k + 1) / (6.0 * n_problems))
+    finally:
+        plt.close(ax.figure)
+
+
+@pytest.mark.parametrize("alpha", [0.05, 0.10])
+@pytest.mark.parametrize("k", range(2, 11))
+def test_plot_critical_distance_matches_demsar_table(k: int, alpha: float) -> None:
+    q = _drawn_q(k, alpha, n_problems=10)
+
+    assert q == pytest.approx(_DEMSAR_Q[alpha][k - 2], abs=1e-3)
+
+
+@pytest.mark.parametrize("k", range(11, 21))
+def test_plot_critical_distance_uses_studentized_range_beyond_the_table(k: int) -> None:
+    expected = float(studentized_range.ppf(0.99, k, np.inf)) / math.sqrt(2.0)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        q = _drawn_q(k, 0.01, n_problems=10)
+
+    assert q == pytest.approx(expected, abs=1e-6)
+
+
+@pytest.mark.parametrize("alpha", [0.0, 1.0, -0.05, 1.5, float("nan")])
+def test_critical_difference_rejects_alpha_outside_the_unit_interval(alpha: float) -> None:
+    with pytest.raises(ValueError, match="alpha"):
+        nemenyi_cd(4, 10, alpha)
+    with pytest.raises(ValueError, match="alpha"):
+        plot_critical_distance(np.array([1.0, 2.0]), ["A", "B"], alpha=alpha, n_problems=10, show=False)
+
+
+def test_nemenyi_cd_needs_two_algorithms_and_a_problem() -> None:
+    assert nemenyi_cd(1, 10) is None
+    assert nemenyi_cd(3, 0) is None
+    assert nemenyi_cd(3, 10) == pytest.approx(2.343 * math.sqrt(12 / 60))
