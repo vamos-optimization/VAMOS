@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import math
 import sys
 import threading
 import time
@@ -26,7 +25,7 @@ from ._model_backend_utils import (
     build_optuna_sampler as _build_optuna_sampler,
 )
 from ._model_backend_utils import (
-    estimate_hyperband_evals_per_iteration as _estimate_hyperband_evals_per_iteration,
+    hyperband_brackets as _hyperband_brackets,
 )
 from ._model_backend_utils import (
     sample_from_optuna_trial as _sample_from_optuna_trial,
@@ -57,16 +56,18 @@ class BackendTunerLike(FidelityTunerLike, Protocol):
 
 
 def _resolve_budget_bounds(tuner: BackendTunerLike) -> tuple[int, int]:
+    """Return the smallest and the full per-run budget; they are equal without ``budget_levels``."""
     levels = resolve_budget_levels(tuner)
-    if tuner.budget_levels:
-        min_budget_i = int(levels[0])
-        max_budget_i = int(levels[-1])
-    else:
-        min_budget_i = 1
-        max_budget_i = int(tuner.task.budget_per_run)
-    min_budget_i = max(1, min_budget_i)
-    max_budget_i = max(min_budget_i, max_budget_i)
-    return min_budget_i, max_budget_i
+    min_budget_i = max(1, int(levels[0]))
+    return min_budget_i, max(min_budget_i, int(levels[-1]))
+
+
+def _full_budget_incumbent(history: list[TrialResult], full_budget: int, *, maximize: bool) -> TrialResult:
+    """Return the best run at the full budget, as HpBandSter's ``Result.get_incumbent_id()`` does."""
+    full_runs = [trial for trial in history if trial.details.get("budget") == full_budget]
+    if not full_runs:
+        raise RuntimeError(f"Tuner finished without a configuration evaluated at the full budget ({full_budget}); increase max_trials.")
+    return max(full_runs, key=lambda h: h.score) if maximize else min(full_runs, key=lambda h: h.score)
 
 
 def run_optuna_like(
@@ -79,17 +80,21 @@ def run_optuna_like(
 
     levels = resolve_budget_levels(tuner)
     sampler = _build_optuna_sampler(tuner.optuna_sampler, seed=int(tuner.seed))
+    # A trial reports the score of each level but the last at steps 1, 2, ...; the pruner may
+    # stop it after any of them. With a single level there is nothing to prune.
     pruner: Any
-    if bohb_mode:
+    if len(levels) == 1:
+        pruner = optuna.pruners.NopPruner()
+    elif bohb_mode:
         pruner = optuna.pruners.HyperbandPruner(
             min_resource=1,
-            max_resource=max(1, len(levels)),
+            max_resource=len(levels),
             reduction_factor=max(2, int(tuner.bohb_reduction_factor)),
         )
     else:
         pruner = optuna.pruners.MedianPruner(
             n_startup_trials=max(5, min(40, int(tuner.max_trials // 4) if tuner.max_trials > 0 else 5)),
-            n_warmup_steps=max(1, len(levels) - 1),
+            n_warmup_steps=0,
             interval_steps=1,
         )
 
@@ -129,10 +134,11 @@ def run_optuna_like(
                     "seeds_total": int(fidelity_meta.get("seeds_total", 0)),
                 }
             )
-            trial.report(float(score), step=step_idx)
-            if trial.should_prune():
-                trial.set_user_attr("fidelity_trace", fidelity_trace)
-                raise optuna.TrialPruned(f"Pruned at step {step_idx} (budget={budget}).")
+            if step_idx + 1 < len(levels):
+                trial.report(float(score), step=step_idx + 1)
+                if trial.should_prune():
+                    trial.set_user_attr("fidelity_trace", fidelity_trace)
+                    raise optuna.TrialPruned(f"Pruned after level {step_idx} (budget={budget}).")
         trial.set_user_attr("fidelity_trace", fidelity_trace)
         return float(final_score)
 
@@ -160,14 +166,19 @@ def run_optuna_like(
         history.append(TrialResult(trial_id=int(trial.number), config=dict(cfg), score=float(trial.value), details=details))
     if not history:
         raise RuntimeError("Tuner finished without a valid configuration.")
+    # A pruned trial stays in the history with its last score but never competes for the best:
+    # study.best_trial considers only the trials completed at the full budget.
+    if not any(trial.state == optuna.trial.TrialState.COMPLETE for trial in study.trials):
+        raise RuntimeError("Tuner finished without a configuration evaluated at the full budget; increase max_trials.")
     return active_config(study.best_trial), history
 
 
 def run_smac3(tuner: BackendTunerLike, eval_fn: ScoreEvalFn) -> tuple[dict[str, Any], list[TrialResult]]:
-    from smac import MultiFidelityFacade, Scenario
+    from smac import HyperparameterOptimizationFacade, MultiFidelityFacade, Scenario
 
     cs = _build_configspace(tuner.task.param_space, seed=int(tuner.seed))
     min_budget_i, max_budget_i = _resolve_budget_bounds(tuner)
+    multi_fidelity = min_budget_i < max_budget_i
 
     def target(config: Mapping[str, Any], seed: int = 0, budget: float | None = None) -> float:
         _ = seed
@@ -178,17 +189,22 @@ def run_smac3(tuner: BackendTunerLike, eval_fn: ScoreEvalFn) -> tuple[dict[str, 
         score = eval_config_at_budget(tuner, cfg, eval_fn, budget=b)
         return float(tuner._score_to_loss(score))
 
+    # Hyperband between the smallest and the full budget only when fidelity levels are given;
+    # otherwise every trial runs at the full budget.
     scenario = Scenario(
         configspace=cs,
-        deterministic=False,
+        # The target ignores SMAC's seed: each evaluation already covers the task's seeds, so
+        # repeating a configuration on another SMAC seed would rerun the same runs.
+        deterministic=True,
         n_trials=int(tuner.max_trials),
-        min_budget=float(min_budget_i),
-        max_budget=float(max_budget_i),
+        min_budget=float(min_budget_i) if multi_fidelity else None,
+        max_budget=float(max_budget_i) if multi_fidelity else None,
         n_workers=int(max(1, tuner.n_jobs)),
         seed=int(tuner.seed),
         walltime_limit=float(tuner.timeout_seconds) if tuner.timeout_seconds is not None else np.inf,
     )
-    optimizer = MultiFidelityFacade(
+    facade = MultiFidelityFacade if multi_fidelity else HyperparameterOptimizationFacade
+    optimizer = facade(
         scenario=scenario,
         target_function=target,
         overwrite=True,
@@ -210,13 +226,13 @@ def run_smac3(tuner: BackendTunerLike, eval_fn: ScoreEvalFn) -> tuple[dict[str, 
         else:
             loss = float(raw_cost)
         score = float(-loss if tuner.task.maximize else loss)
-        budget = None if trial_key.budget is None else int(round(float(trial_key.budget)))
-        fidelity_budget = int(max_budget_i if budget is None else budget)
+        # Without budgets SMAC records none: the run used the full budget.
+        fidelity_budget = int(max_budget_i if trial_key.budget is None else round(float(trial_key.budget)))
         _, _, fidelity_meta = resolve_fidelity_slice(tuner, int(fidelity_budget))
         details = {
             "backend": "smac3",
             "seed": None if trial_key.seed is None else int(trial_key.seed),
-            "budget": budget,
+            "budget": fidelity_budget,
             "loss": float(loss),
             "status": str(getattr(trial_value.status, "name", trial_value.status)),
             "time": float(trial_value.time),
@@ -230,7 +246,7 @@ def run_smac3(tuner: BackendTunerLike, eval_fn: ScoreEvalFn) -> tuple[dict[str, 
 
     if not history:
         raise RuntimeError("Tuner finished without a valid configuration.")
-    best = max(history, key=lambda h: h.score) if tuner.task.maximize else min(history, key=lambda h: h.score)
+    best = _full_budget_incumbent(history, max_budget_i, maximize=tuner.task.maximize)
     return dict(best.config), history
 
 
@@ -316,15 +332,29 @@ def run_bohb_native(tuner: BackendTunerLike, eval_fn: ScoreEvalFn) -> tuple[dict
     import hpbandster.core.nameserver as hpns
     from hpbandster.core.worker import Worker
     from hpbandster.optimizers import BOHB
+    from hpbandster.optimizers.iterations import SuccessiveHalving
 
     cs = _build_configspace(tuner.task.param_space, seed=int(tuner.seed))
     eta = max(2, int(tuner.bohb_reduction_factor))
+    # Without budget_levels both bounds are the full budget: each iteration runs one configuration at it.
     min_budget_i, max_budget_i = _resolve_budget_bounds(tuner)
     history: list[TrialResult] = []
     lock = threading.Lock()
     trial_counter = 0
+    brackets: list[list[int]] = []
 
     class _BOHB(BOHB):  # type: ignore[misc]
+        def get_next_iteration(inner_self, iteration: int, iteration_kwargs: dict[str, Any] | None = None) -> Any:
+            # HpBandSter's bracket for this iteration, with the planned number of configurations per rung.
+            num_configs = brackets[iteration]
+            return SuccessiveHalving(
+                HPB_iter=iteration,
+                num_configs=num_configs,
+                budgets=inner_self.budgets[-len(num_configs) :],
+                config_sampler=inner_self.config_generator.get_config,
+                **(iteration_kwargs or {}),
+            )
+
         def _submit_job(inner_self, config_id: Any, config: Mapping[str, Any], budget: float) -> None:
             # ConfigSpace returns NumPy scalars for categorical/boolean parents;
             # HpBandSter's Pyro transport requires plain Python values.
@@ -395,9 +425,8 @@ def run_bohb_native(tuner: BackendTunerLike, eval_fn: ScoreEvalFn) -> tuple[dict
         )
         # A stream apart from the ConfigSpace one, which is seeded with the tuner seed itself.
         _isolate_bohb_random_stream(optimizer.config_generator, np.random.default_rng([int(tuner.seed), 1]))
-        evals_per_iter = _estimate_hyperband_evals_per_iteration(max_budget=int(max_budget_i), eta=int(eta))
-        n_iterations = max(1, int(math.ceil(max(1, int(tuner.max_trials)) / evals_per_iter)))
-        _ = optimizer.run(n_iterations=n_iterations, min_n_workers=max(1, int(tuner.n_jobs)))
+        brackets.extend(_hyperband_brackets(int(optimizer.max_SH_iter), int(eta), int(tuner.max_trials)))
+        _ = optimizer.run(n_iterations=len(brackets), min_n_workers=max(1, int(tuner.n_jobs)))
     finally:
         if optimizer is not None:
             try:
@@ -412,7 +441,7 @@ def run_bohb_native(tuner: BackendTunerLike, eval_fn: ScoreEvalFn) -> tuple[dict
 
     if not history:
         raise RuntimeError("Tuner finished without a valid configuration.")
-    best = max(history, key=lambda h: h.score) if tuner.task.maximize else min(history, key=lambda h: h.score)
+    best = _full_budget_incumbent(history, max_budget_i, maximize=tuner.task.maximize)
     return dict(best.config), history
 
 

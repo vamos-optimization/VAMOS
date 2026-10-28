@@ -121,22 +121,21 @@ def build_configspace(param_space: ParamSpace, seed: int) -> Any:
     return cs
 
 
-def estimate_hyperband_evals_per_iteration(max_budget: int, eta: int) -> int:
-    max_budget = max(1, int(max_budget))
-    eta = max(2, int(eta))
-    if max_budget <= 1:
-        return 1
-    min_budget = 1.0
-    s_max = int(np.floor(np.log(max_budget / min_budget) / np.log(eta)))
-    B = (s_max + 1) * max_budget
-    total = 0
-    for s in range(s_max, -1, -1):
-        n = int(np.ceil((B / max_budget / (s + 1)) * (eta**s)))
-        n = max(1, n)
-        for i in range(s + 1):
-            n_i = int(np.floor(n * (eta ** (-i))))
-            total += max(1, n_i)
-    return max(1, total)
+def hyperband_brackets(max_sh_iter: int, eta: int, max_configs: int) -> list[list[int]]:
+    """Return the configurations per rung of each HpBandSter BOHB iteration, ``max_configs`` in all.
+
+    Iteration ``i`` is HpBandSter's bracket (``BOHB.get_next_iteration``): ``s = max_sh_iter - 1 -
+    i % max_sh_iter`` halvings from ``floor(max_sh_iter / (s + 1)) * eta**s`` configurations. The
+    last bracket starts with the configurations left, so the search samples exactly ``max_configs``.
+    """
+    brackets: list[list[int]] = []
+    remaining = max(1, int(max_configs))
+    while remaining > 0:
+        s = max_sh_iter - 1 - len(brackets) % max_sh_iter
+        n0 = min(remaining, int(np.floor(max_sh_iter / (s + 1)) * eta**s))
+        brackets.append([max(int(n0 * eta ** (-i)), 1) for i in range(s + 1)])
+        remaining -= n0
+    return brackets
 
 
 def build_optuna_sampler(name: str, seed: int) -> Any:
