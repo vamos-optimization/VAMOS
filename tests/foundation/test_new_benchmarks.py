@@ -123,6 +123,34 @@ def test_cec2009_uf3_reaches_its_front_on_the_pareto_set():
     np.testing.assert_allclose(out["F"], np.column_stack([x1, 1.0 - np.sqrt(x1)]), atol=1e-12)
 
 
+def test_cec2009_uf9_matches_reference_values():
+    # UF9 adds the squared distance y_j**2 (CEC2009 report, Zhang et al., 2009; jMetal UF9.java; PlatEMO UF9.m).
+    # The points lie off the Pareto set, where a different distance changes F. Expected values from jMetal 7.9
+    # UF9(30, 0.1); a scalar transcription of the report's formula agrees within 2e-15.
+    from vamos.foundation.problem.cec import CEC2009UF9Problem
+
+    n_var = 30
+    X = np.array(
+        [
+            [0.25, 0.5, *(-1.75 + 0.125 * np.arange(n_var - 2))],
+            [0.5, 0.75, *np.where(np.arange(3, n_var + 1) % 2 == 0, 2.0, -2.0)],
+            [0.875, 0.125, *np.zeros(n_var - 2)],
+        ]
+    )
+    expected = np.array(
+        [
+            [5.4437675254975995, 5.664246413982367, 6.7928843641796055],
+            [11.492059291901317, 11.059321884014635, 10.309938671610556],
+            # f3 = 1 - x2 + 2 * mean(0.25**2 * sin(theta_j)**2) = 0.875 + 0.0625: ten phases spaced by pi/10.
+            [0.17331883118623442, 0.08094956002135972, 0.9375],
+        ]
+    )
+    problem = CEC2009UF9Problem(n_var=n_var)
+    out = {"F": np.empty((X.shape[0], 3))}
+    problem.evaluate(X, out)
+    np.testing.assert_allclose(out["F"], expected, rtol=0.0, atol=1e-12)
+
+
 def test_welded_beam_design_constraints():
     problem = WeldedBeamDesignProblem()
     X = _sample(problem, n=2)
