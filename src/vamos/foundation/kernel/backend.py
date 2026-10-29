@@ -14,6 +14,14 @@ IndexArray: TypeAlias = NDArray[np.int_]
 DecisionArray: TypeAlias = NDArray[np.generic]
 
 
+class SingleChildVariation(Protocol):
+    """Compiled steady-state child generation bound to one real-coded operator chain."""
+
+    def __call__(self, X: FloatArray, first: int, second: int, out: FloatArray, rng: np.random.Generator) -> None:
+        """Write one child of rows ``first`` and ``second`` of ``X`` into ``out`` shaped ``(1, n_var)``."""
+        ...
+
+
 class VariationKernels(Protocol):
     """Compiled variation arithmetic that preserves the NumPy operator contracts.
 
@@ -66,6 +74,86 @@ class VariationKernels(Protocol):
         """
         ...
 
+    def single_child_sbx_polynomial(
+        self,
+        *,
+        sbx_prob: float,
+        sbx_eta: float,
+        sbx_prob_var: float,
+        sbx_lower: FloatArray,
+        sbx_upper: FloatArray,
+        pm_prob: float,
+        pm_eta: float,
+        pm_lower: FloatArray,
+        pm_upper: FloatArray,
+        clip_lower: FloatArray,
+        clip_upper: FloatArray,
+    ) -> SingleChildVariation:
+        """Steady-state child: the first SBX child of one pair, clipped, mutated and clipped.
+
+        The returned callable draws from the given generator exactly like the
+        reference ``SBXCrossover``, ``ClampRepair``, ``PolynomialMutation`` and
+        ``ClampRepair`` chain applied to one mating pair.
+        """
+        ...
+
+
+#: ``SMSEMOASurvival.insert`` status: the child duplicates a row and is discarded.
+SMSEMOA_DISCARDED = -1
+#: ``SMSEMOASurvival.insert`` status: infeasible rows take part, run the reference survival.
+SMSEMOA_DELEGATE = -2
+#: ``SMSEMOASurvival.insert`` status: compute the worst front's contributions, then commit.
+SMSEMOA_CONTRIBUTIONS = -3
+
+
+class SMSEMOASurvival(Protocol):
+    """Compiled steady-state SMS-EMOA survival over cached Pareto ranks and crowding.
+
+    ``insert`` returns ``(status, size)``. A non-negative status is the removed
+    row, already committed (the population size means the child was rejected).
+    With ``SMSEMOA_CONTRIBUTIONS`` the worst front is ``worst[:size]`` (rows of
+    ``F_work``, the population followed by the child) and the caller commits the
+    least contributor that it computes. The population arrays, ranks, crowding
+    and the adaptive reference point are updated in place.
+    """
+
+    F_work: FloatArray
+    worst: NDArray[np.int64]
+
+    def reset(self, F: FloatArray) -> None:
+        """Rebuild the cached objective orders after the population changed outside ``insert``/``commit``."""
+        ...
+
+    def insert(
+        self,
+        X: FloatArray,
+        F: FloatArray,
+        G: FloatArray,
+        x_child: FloatArray,
+        f_child: FloatArray,
+        g_child: FloatArray,
+        ranks: NDArray[np.integer[Any]],
+        crowding: FloatArray,
+        ref_point: FloatArray,
+    ) -> tuple[int, int]:
+        """Insert the child, choose the row to remove and commit it when possible."""
+        ...
+
+    def commit(
+        self,
+        X: FloatArray,
+        F: FloatArray,
+        G: FloatArray,
+        x_child: FloatArray,
+        f_child: FloatArray,
+        g_child: FloatArray,
+        ranks: NDArray[np.integer[Any]],
+        crowding: FloatArray,
+        remove: int,
+    ) -> None:
+        """Remove population row ``remove`` after an ``SMSEMOA_CONTRIBUTIONS`` insertion."""
+        ...
+
 
 class SelectionKernels(Protocol):
     """Compiled survival and truncation loops that reproduce NumPy reference loops.
@@ -99,6 +187,20 @@ class SelectionKernels(Protocol):
 
     def indicator_removal(self, fitness: FloatArray, contrib: FloatArray, target_size: int) -> NDArray[np.int64]:
         """IBEA iterative removal of the lowest fitness, updating ``fitness`` in place."""
+        ...
+
+    def smsemoa_survival(
+        self,
+        *,
+        pop_size: int,
+        n_obj: int,
+        n_constraints: int,
+        ref_offset: float,
+        ref_adaptive: bool,
+        eliminate_duplicates: bool,
+        check_feasibility: bool,
+    ) -> SMSEMOASurvival:
+        """Steady-state SMS-EMOA survival for a population of ``pop_size`` rows."""
         ...
 
 

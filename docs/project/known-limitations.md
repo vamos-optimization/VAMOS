@@ -19,6 +19,11 @@ unsupported behavior rather than future compatibility promises.
 - `welded_beam` is a six-variable mixed design example with its own formulas,
   materials and stiffeners. Its constraint metadata is fixed, but this does
   not certify equivalence to the canonical four-variable welded-beam benchmark.
+- **Development after 1.1.0:** `lsmop1`–`lsmop9` follow the original LSMOP
+  definition (Cheng et al., 2017), as PlatEMO does. VAMOS 1.1.0 and earlier
+  follow jMetal, with the nonlinear linkage in LSMOP1–4 and a larger distance
+  term in LSMOP9. The Pareto fronts are the same, but LSMOP1–4 and LSMOP9
+  results from those versions do not correspond to the original problems.
 - **Development after 1.1.0:** `cec2009_uf3` searches the CEC2009 domain
   `[0, 1]^n`. VAMOS 1.1.0 and earlier search `[-1, 1]` for variables 2 to n, so
   UF3 results from those versions do not correspond to the CEC2009 instance.
@@ -26,6 +31,12 @@ unsupported behavior rather than future compatibility promises.
   `y_j^2`. VAMOS 1.1.0 and earlier use the multimodal distance of UF5, with the
   same Pareto front but a different landscape, so UF9 results from those
   versions do not correspond to the CEC2009 instance.
+- **Development after 1.1.0:** `rwa7` and `rwa8` search the normalized domain
+  `[0, 1]^4` of their response surfaces, with the TTmax sign of `re37`, and
+  their packaged reference samples are regenerated. VAMOS 1.1.0 and earlier
+  evaluate the surfaces far outside their fitted region, on the physical design
+  ranges, so RWA7 and RWA8 values, fronts and indicators from those versions do
+  not correspond to the published problems.
 - Independent algorithm-conformance validation for AGE-MOEA, RVEA and SMPSO
   remains pending. Passing API and regression tests does not establish
   convergence equivalence with a reference implementation.
@@ -54,6 +65,10 @@ unsupported behavior rather than future compatibility promises.
   algorithms.
 - Explicitly selecting an unavailable backend is an error. VAMOS does not
   install dependencies during a run, verification, or replay.
+- **Development after 1.1.0:** hypervolume archive pruning (`pruning: hv` or
+  `mc_hv`) with three or more objectives requires `moocore` and fails without
+  it. VAMOS 1.1.0 and earlier prune by crowding distance instead, with a single
+  warning; see [Stopping and archive](../experiment/stopping_and_archive.md).
 - Optional research frameworks and model-based tuning packages have their own
   Python and operating-system constraints.
 - The release CI claims Python 3.10, 3.11, and 3.12 on Linux, and Python 3.12

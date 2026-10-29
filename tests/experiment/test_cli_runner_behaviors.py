@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+import vamos
 from vamos.engine.algorithm.registry import ALGORITHMS
 from vamos.experiment import cli, runner
 from vamos.foundation.core.experiment_config import ExperimentConfig
@@ -139,3 +140,38 @@ def test_cli_accepts_registered_plugin_algorithm(monkeypatch):
     args = cli.parse_args(default_cfg)
 
     assert args.algorithm == algo_key
+
+
+@pytest.mark.parametrize("problem", ["re21", "rwa1", "zcat1"])
+def test_cli_runs_problems_without_constraint_attribute(monkeypatch, tmp_path, problem):
+    # RE, RWA and ZCAT problems do not declare ``n_constraints``; the CLI runner must treat that as unconstrained.
+    from vamos.experiment.cli.main import main
+
+    output_root = tmp_path / "results"
+    argv = [
+        "prog",
+        "--problem",
+        problem,
+        "--algorithm",
+        "nsgaii",
+        "--engine",
+        "numpy",
+        "--population-size",
+        "6",
+        "--offspring-population-size",
+        "6",
+        "--max-evaluations",
+        "12",
+        "--seed",
+        "1",
+        "--output-root",
+        str(output_root),
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+
+    main()
+
+    manifests = sorted(output_root.rglob("manifest.json"))
+    assert len(manifests) == 1
+    stored = vamos.load_run(manifests[0].parent)
+    assert stored.result.F is not None and stored.result.F.shape[0] > 0
