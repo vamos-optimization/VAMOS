@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "c28dd580",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit c28dd580",
+  "generation_commit": "01fb80e4c56b69d06246b506d981ee65d35c2b78",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 01fb80e4c56b69d06246b506d981ee65d35c2b78",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.0",
@@ -26,14 +26,14 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 707,
-  "files_with_diagnostics": 95,
-  "fingerprint_count": 95,
+  "diagnostic_count": 705,
+  "files_with_diagnostics": 94,
+  "fingerprint_count": 94,
   "error_code_summary": {
-    "type-arg": 707
+    "type-arg": 705
   },
   "layer_summary": {
-    "engine": 360,
+    "engine": 358,
     "experiment": 22,
     "foundation": 263,
     "package-root": 1,
@@ -3218,24 +3218,6 @@
         {
           "line": 289,
           "column": 22
-        }
-      ]
-    },
-    {
-      "fingerprint": "CFA2C89279F2CD815D9EF77E79D938B6B7A13077A4735E06CABAC3BAA3C9E15C",
-      "path": "src/vamos/engine/algorithm/components/termination.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 2,
-      "locations": [
-        {
-          "line": 21,
-          "column": 35
-        },
-        {
-          "line": 29,
-          "column": 31
         }
       ]
     },
