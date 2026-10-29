@@ -326,7 +326,8 @@ comparing them.
 **Development after 1.1.0:** the indicators and their references use only the
 feasible solutions of each run, those whose stored constraint values are all
 `G <= 0`. A run without feasible solutions gets HV 0 and +inf for IGD, IGD+,
-epsilon and Hausdorff, the worst values, and stays in the rank tests. The
+epsilon and Hausdorff, the worst values, and stays in the rank tests; the paired
+signed-rank tests count two such runs, or two such means, as a tie. The
 `n_feasible` column counts the feasible solutions of each run. When a run
 stores no constraint values, `feasibility_known` is `false` and every solution
 counts as feasible: this is the case for unconstrained problems, and for
