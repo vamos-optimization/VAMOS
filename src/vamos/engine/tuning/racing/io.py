@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from typing import Any, cast
 
-from .param_space import ParamSpace
+from .param_space import ParamSpace, _active_assignment
 from .random_search_tuner import TrialResult
 
 
@@ -28,21 +28,15 @@ def _json_default(obj: Any) -> Any:
 
 def filter_active_config(config: dict[str, Any], param_space: ParamSpace) -> dict[str, Any]:
     """
-    Return a copy of `config` containing only parameters that are active
-    according to `param_space.is_active`.
+    Return a copy of `config` containing only parameters that are active.
 
-    Parameters declared in the ParamSpace are kept only when active; keys not
-    declared in the ParamSpace (e.g., population_size, offspring_size, repair)
-    are always preserved.
+    Parameters declared in the ParamSpace are kept only when their conditions hold
+    for the active parents, so descendants of an inactive parameter are dropped, as
+    in ``ParamSpace.sample``. Keys not declared in the ParamSpace (e.g.,
+    population_size, offspring_size, repair) are always preserved.
     """
-    active: dict[str, Any] = {}
-    for name, value in config.items():
-        if name in param_space.params:
-            if param_space.is_active(name, config):
-                active[name] = value
-        else:
-            active[name] = value
-    return active
+    active = _active_assignment(param_space, config)
+    return {name: value for name, value in config.items() if name in active or name not in param_space.params}
 
 
 def history_to_dict(
