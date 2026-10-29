@@ -65,6 +65,10 @@ unsupported behavior rather than future compatibility promises.
   algorithms.
 - Explicitly selecting an unavailable backend is an error. VAMOS does not
   install dependencies during a run, verification, or replay.
+- **Development after 1.1.0:** hypervolume archive pruning (`pruning: hv` or
+  `mc_hv`) with three or more objectives requires `moocore` and fails without
+  it. VAMOS 1.1.0 and earlier prune by crowding distance instead, with a single
+  warning; see [Stopping and archive](../experiment/stopping_and_archive.md).
 - Optional research frameworks and model-based tuning packages have their own
   Python and operating-system constraints.
 - The release CI claims Python 3.10, 3.11, and 3.12 on Linux, and Python 3.12
