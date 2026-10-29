@@ -74,6 +74,19 @@ otherwise `k = 2(M - 1)`, and `l = n - k`; WFG2/3 require an even distance-varia
 count. LSMOP needs enough variables for all groups to remain nonempty.
 Family constructor checks still apply to dimension overrides.
 
+**Development after 1.1.0:** `lsmop1`–`lsmop9` follow the definition of Cheng,
+Jin and Olhofer (2017), as implemented in PlatEMO. For `i >= M`, LSMOP1–4 use
+the linear linkage `(1 + i/n) x_i - 10 x_1` and LSMOP5–9 the nonlinear linkage
+`(1 + cos(0.5 pi i/n)) x_i - 10 x_1`. LSMOP9 divides each group's distance by
+`sublen * nk`, as LSMOP1–8 do. VAMOS 1.1.0 and earlier follow jMetal, which
+differs in two places: it uses the nonlinear linkage in all nine problems, and
+its LSMOP9 divides by `nk` only, so each group adds `sublen` times more to the
+distance (12 to 30 times at the default n = 300 and M = 3). The Pareto fronts and the packaged samples do
+not change, because every linkage term vanishes on the Pareto set. The Pareto
+set of LSMOP1–4 moves to `x_i = 10 x_1 / (1 + i/n)`, and the landscape of
+LSMOP1–4 and LSMOP9 changes, so their results from those versions are not
+comparable with results on the original problems.
+
 ## Explicitly constrained suites
 
 All entries in this table are real-valued. They emit G alongside F; choose an

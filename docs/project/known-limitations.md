@@ -19,6 +19,11 @@ unsupported behavior rather than future compatibility promises.
 - `welded_beam` is a six-variable mixed design example with its own formulas,
   materials and stiffeners. Its constraint metadata is fixed, but this does
   not certify equivalence to the canonical four-variable welded-beam benchmark.
+- **Development after 1.1.0:** `lsmop1`–`lsmop9` follow the original LSMOP
+  definition (Cheng et al., 2017), as PlatEMO does. VAMOS 1.1.0 and earlier
+  follow jMetal, with the nonlinear linkage in LSMOP1–4 and a larger distance
+  term in LSMOP9. The Pareto fronts are the same, but LSMOP1–4 and LSMOP9
+  results from those versions do not correspond to the original problems.
 - **Development after 1.1.0:** `cec2009_uf3` searches the CEC2009 domain
   `[0, 1]^n`. VAMOS 1.1.0 and earlier search `[-1, 1]` for variables 2 to n, so
   UF3 results from those versions do not correspond to the CEC2009 instance.
