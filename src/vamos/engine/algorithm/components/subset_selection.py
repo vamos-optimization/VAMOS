@@ -15,6 +15,11 @@ from vamos.foundation.kernel.numpy_backend import _compute_crowding
 from vamos.foundation.quality_indicators.hypervolume import hypervolume_contributions
 from vamos.foundation.quality_indicators.pareto import pareto_filter
 
+try:  # pragma: no cover - optional dependency
+    import moocore as _moocore
+except ImportError:  # pragma: no cover - optional dependency
+    _moocore = None
+
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
@@ -35,12 +40,17 @@ def _hv_contributions(F: NDArray[np.float64], ref: NDArray[np.float64]) -> NDArr
     Objectives are minimized. Points that do not strictly dominate ``ref``
     and points dominated by another point contribute 0, and they do not change
     the contributions of the others, as in ``moocore.hv_contributions``.
-    Duplicated points contribute 0. The values come from
-    :func:`vamos.foundation.quality_indicators.hypervolume.hypervolume_contributions`,
-    which uses moocore when it is installed and an exact computation otherwise.
+    Duplicated points contribute 0. moocore computes the values when it is
+    installed. Otherwise the non-dominated points inside the reference box go
+    to the exact
+    :func:`vamos.foundation.quality_indicators.hypervolume.hypervolume_contributions`.
     """
     F_arr = np.asarray(F, dtype=float)
     ref_arr = np.asarray(ref, dtype=float)
+    if F_arr.shape[0] == 0:
+        return np.zeros(0, dtype=float)
+    if _moocore is not None:
+        return np.asarray(_moocore.hv_contributions(F_arr, ref=ref_arr), dtype=float)
     contributions = np.zeros(F_arr.shape[0], dtype=float)
     inside = np.flatnonzero(np.all(F_arr < ref_arr, axis=1))
     if inside.size == 0:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-import vamos.foundation.quality_indicators.hypervolume as hv_mod
+import vamos.engine.algorithm.components.subset_selection as ss_mod
 import vamos.foundation.quality_indicators.moocore_indicators as mi_mod
 from vamos.engine.algorithm.components.archive import HypervolumeArchive, MaxMinArchive, ReferenceDirectionsArchive
 from vamos.engine.archive import ExternalArchiveConfig
@@ -15,8 +15,7 @@ def _empty_X(n_rows: int) -> np.ndarray:
 
 
 def _use_fake_moocore(monkeypatch: pytest.MonkeyPatch, fake: type) -> None:
-    monkeypatch.setattr(hv_mod, "_OPTIONAL_LOADED", True)
-    monkeypatch.setattr(hv_mod, "_MOOCORE", fake)
+    monkeypatch.setattr(ss_mod, "_moocore", fake)
     monkeypatch.setattr(mi_mod, "_moocore", fake)
 
 

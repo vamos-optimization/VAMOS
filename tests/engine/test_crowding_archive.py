@@ -3,7 +3,6 @@ import warnings
 import numpy as np
 import pytest
 
-import vamos.engine.algorithm.components.archive as archive_mod
 import vamos.engine.algorithm.components.subset_selection as ss_mod
 import vamos.foundation.quality_indicators.hypervolume as hv_mod
 import vamos.foundation.quality_indicators.moocore_indicators as mi_mod
@@ -234,9 +233,7 @@ def without_moocore(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(hv_mod, "_MOOCORE", None)
     monkeypatch.setattr(hv_mod, "_LIBHV_MODULE", None)
     monkeypatch.setattr(mi_mod, "_moocore", None)
-    # Disable any module-level moocore handle of the archive helpers as well.
-    for module in (ss_mod, archive_mod):
-        monkeypatch.setattr(module, "_moocore", None, raising=False)
+    monkeypatch.setattr(ss_mod, "_moocore", None)
 
 
 def _permuted_zdt1_front() -> np.ndarray:
@@ -290,6 +287,25 @@ def test_hv_contributions_without_moocore_match_moocore(without_moocore: None, n
     expected = np.asarray(moocore.hv_contributions(F, ref=ref), dtype=float)
 
     np.testing.assert_allclose(ss_mod._hv_contributions(F, ref), expected, rtol=1e-12, atol=1e-15)
+
+
+def test_hv_contributions_delegate_to_moocore_without_python_front_filter(monkeypatch: pytest.MonkeyPatch) -> None:
+    moocore = pytest.importorskip("moocore")
+
+    def _python_front_filter(*args: object, **kwargs: object) -> None:
+        raise AssertionError("the pure-Python front filter must not run when moocore is installed")
+
+    monkeypatch.setattr(ss_mod, "pareto_filter", _python_front_filter)
+    front = _sphere_front(12, 3, seed=2)
+    F = np.vstack([front, front[:2] + 0.05, front[2:3] + np.array([2.0, 0.0, 0.0])])
+    ref = np.full(3, 1.2)
+
+    expected = np.asarray(moocore.hv_contributions(F, ref=ref), dtype=float)
+    np.testing.assert_allclose(ss_mod._hv_contributions(F, ref), expected, rtol=1e-12, atol=1e-15)
+
+    archive = HypervolumeArchive(capacity=5, n_var=1, n_obj=3, dtype=float, ref_point=ref)
+    _, kept = archive.update(np.arange(front.shape[0], dtype=float)[:, None], front)
+    assert kept.shape[0] == 5
 
 
 def test_hypervolume_archive_prunes_exactly_without_moocore(without_moocore: None) -> None:
