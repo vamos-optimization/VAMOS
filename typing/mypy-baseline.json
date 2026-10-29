@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "01fb80e4c56b69d06246b506d981ee65d35c2b78",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 01fb80e4c56b69d06246b506d981ee65d35c2b78",
+  "generation_commit": "c3a1279fff7a206ce53aee7269b974b9a207eebd",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit c3a1279fff7a206ce53aee7269b974b9a207eebd",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.0",
@@ -26,16 +26,16 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 705,
-  "files_with_diagnostics": 94,
-  "fingerprint_count": 94,
+  "diagnostic_count": 686,
+  "files_with_diagnostics": 93,
+  "fingerprint_count": 93,
   "error_code_summary": {
-    "type-arg": 705
+    "type-arg": 686
   },
   "layer_summary": {
     "engine": 358,
     "experiment": 22,
-    "foundation": 263,
+    "foundation": 244,
     "package-root": 1,
     "ux": 61
   },
@@ -670,92 +670,6 @@
         {
           "line": 47,
           "column": 18
-        }
-      ]
-    },
-    {
-      "fingerprint": "27FA9DFD369E118FF780FF38AD627B93D4B9FEC7A8827B0C39599F3D22F5C5FA",
-      "path": "src/vamos/foundation/problem/lsmop.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "foundation",
-      "multiplicity": 19,
-      "locations": [
-        {
-          "line": 10,
-          "column": 41
-        },
-        {
-          "line": 14,
-          "column": 16
-        },
-        {
-          "line": 18,
-          "column": 18
-        },
-        {
-          "line": 22,
-          "column": 19
-        },
-        {
-          "line": 26,
-          "column": 20
-        },
-        {
-          "line": 34,
-          "column": 16
-        },
-        {
-          "line": 43,
-          "column": 18
-        },
-        {
-          "line": 66,
-          "column": 29
-        },
-        {
-          "line": 67,
-          "column": 30
-        },
-        {
-          "line": 92,
-          "column": 71
-        },
-        {
-          "line": 107,
-          "column": 27
-        },
-        {
-          "line": 118,
-          "column": 29
-        },
-        {
-          "line": 125,
-          "column": 32
-        },
-        {
-          "line": 140,
-          "column": 31
-        },
-        {
-          "line": 144,
-          "column": 30
-        },
-        {
-          "line": 147,
-          "column": 27
-        },
-        {
-          "line": 156,
-          "column": 30
-        },
-        {
-          "line": 173,
-          "column": 30
-        },
-        {
-          "line": 234,
-          "column": 30
         }
       ]
     },

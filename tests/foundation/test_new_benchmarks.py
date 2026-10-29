@@ -4,7 +4,7 @@ import pytest
 from vamos.foundation.problem.cec import CEC2009CF1Problem, CEC2009UF1Problem, CEC2009UF4Problem, CEC2009UF8Problem
 from vamos.foundation.problem.constrained_many import CDTLZProblem, DCDTLZProblem, MWProblem
 from vamos.foundation.problem.dtlz import DTLZ5Problem, DTLZ6Problem
-from vamos.foundation.problem.lsmop import LSMOP1, LSMOP9
+from vamos.foundation.problem.lsmop import LSMOP1, LSMOP5, LSMOP9
 from vamos.foundation.problem.lz import LZ09F1Problem, LZ09F6Problem
 from vamos.foundation.problem.real_world.engineering import WeldedBeamDesignProblem
 from vamos.foundation.problem.registry import make_problem_selection
@@ -205,6 +205,68 @@ def test_lsmop_smoke():
     problem9.evaluate(X9, out9)
     assert out9["F"].shape == (2, 2)
     assert np.isfinite(out9["F"]).all()
+
+
+def _lsmop_points(n_var: int, n_obj: int) -> np.ndarray:
+    # Three deterministic points off the Pareto set, inside [0, 1]^(M-1) x [0, 10]^(n-M+1).
+    j = np.arange(n_var)
+    unit = np.array([((5 * j + 3 * k + 1) % 17) / 17 for k in range(3)])
+    return unit * np.where(j < n_obj - 1, 1.0, 10.0)
+
+
+@pytest.mark.parametrize(
+    ("problem_cls", "expected"),
+    [
+        # Linear linkage (1 + i/n) * x_i - 10 * x_1 in LSMOP1-4.
+        (
+            LSMOP1,
+            [
+                [0.6861278228096994, 2.246458615730708, 87.51366049257072],
+                [2.418322465807002, 4.344729188800155, 54.75958843600877],
+                [3.5721585123634907, 3.2400921254224375, 29.5796529049913],
+            ],
+        ),
+        # Cosine linkage (1 + cos(0.5 * pi * i/n)) * x_i - 10 * x_1 in LSMOP5-9.
+        (
+            LSMOP5,
+            [
+                [164.98510598178916, 65.30601337179661, 3.8145503498382265],
+                [88.4311943196391, 59.56699505016428, 9.883235556497803],
+                [35.971305093002364, 42.76861176437077, 10.595978207588479],
+            ],
+        ),
+        # LSMOP9 normalizes each group's g by sublen * nk.
+        (
+            LSMOP9,
+            [
+                [0.058823529411764705, 0.35294117647058826, 460.41403331657864],
+                [0.23529411764705882, 0.5294117647058824, 328.4300526773838],
+                [0.4117647058823529, 0.7058823529411765, 229.7716720885702],
+            ],
+        ),
+    ],
+)
+def test_lsmop_matches_platemo_values(problem_cls, expected):
+    # Cheng, Jin and Olhofer (2017), as implemented in PlatEMO LSMOP1.m, LSMOP5.m and LSMOP9.m. Expected values
+    # from a NumPy transcription of those files (n = 300, M = 3, nk = 5); the same transcription with jMetal's
+    # cosine linkage in LSMOP1-4 and without sublen in LSMOP9 matches jMetal 7.9 within 8e-16 (relative).
+    problem = problem_cls(n_var=300, n_obj=3)
+    X = _lsmop_points(problem.n_var, problem.n_obj)
+    out = {"F": np.empty((X.shape[0], problem.n_obj))}
+    problem.evaluate(X, out)
+    np.testing.assert_allclose(out["F"], np.asarray(expected), rtol=1e-12, atol=1e-12)
+
+
+def test_lsmop1_reaches_its_front_on_the_linear_linkage_pareto_set():
+    # With x_i = 10 * x_1 / (1 + i/n) for i >= M, every linkage term vanishes, g = 0 and F lies on sum(f) = 1.
+    problem = LSMOP1(n_var=300, n_obj=3)
+    position = np.array([[0.0, 0.0], [0.2, 0.7], [0.5, 0.5], [0.9, 0.1], [1.0, 1.0]])
+    i = np.arange(problem.n_obj, problem.n_var + 1, dtype=float)
+    tail = 10.0 * position[:, [0]] / (1.0 + i / problem.n_var)[None, :]
+    X = np.hstack([position, tail])
+    out = {"F": np.empty((X.shape[0], problem.n_obj))}
+    problem.evaluate(X, out)
+    np.testing.assert_allclose(out["F"].sum(axis=1), 1.0, rtol=0.0, atol=1e-12)
 
 
 def test_constrained_many_wrappers_smoke():
