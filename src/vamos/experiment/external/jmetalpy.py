@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import logging
+import random
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import contextmanager
 from typing import Any
 
 import numpy as np
@@ -16,8 +18,27 @@ def _logger() -> logging.Logger:
     return logging.getLogger(__name__)
 
 
-MetricsBuilder = Callable[[str, str, float, int, np.ndarray], dict[str, Any]]
+MetricsBuilder = Callable[[str, str, float, int, np.ndarray[Any, Any]], dict[str, Any]]
 Printer = Callable[..., Any]
+
+
+@contextmanager
+def _seeded_global_random_state(seed: int) -> Iterator[None]:
+    """Seed the global ``random`` and NumPy streams for jMetalPy, then restore them.
+
+    jMetalPy takes no generator: its operators and ``create_solution`` draw from the
+    process-wide streams. Seeding them makes the baseline reproducible, and restoring
+    them afterwards leaves the caller's streams where they were.
+    """
+    python_state = random.getstate()
+    numpy_state = np.random.get_state()
+    random.seed(seed)
+    np.random.seed(seed)
+    try:
+        yield
+    finally:
+        random.setstate(python_state)
+        np.random.set_state(numpy_state)
 
 
 def _patch_permutation_swap_mutation_cls(
@@ -53,8 +74,6 @@ def _patch_permutation_swap_mutation_cls(
             super().__init__(probability=probability)
 
         def execute(self, solution: Any) -> Any:
-            import random
-
             if random.random() <= self.probability:
                 perm = solution.variables
                 idx_a, idx_b = random.sample(range(len(perm)), 2)
@@ -98,61 +117,50 @@ def _run_jmetalpy_nsga2(
     except ImportError as exc:  # pragma: no cover
         raise ImportError("jmetalpy is not installed. Install it with 'pip install jmetalpy' to use this baseline.") from exc
 
-    try:
-        from jmetal.util.random_generator import PRNG
+    class _VamosJMetalProblem(FloatProblem):  # type: ignore[misc]
+        def __init__(self, base_problem: Any) -> None:
+            super().__init__()
+            self.base_problem = base_problem
+            n_var = int(base_problem.n_var)
+            self._n_obj = int(base_problem.n_obj)
+            self._name = f"VAMOS-{base_problem.__class__.__name__}"
+            self.lower_bound = np.broadcast_to(np.asarray(base_problem.xl, dtype=float), (n_var,)).tolist()
+            self.upper_bound = np.broadcast_to(np.asarray(base_problem.xu, dtype=float), (n_var,)).tolist()
+            self.obj_directions = [self.MINIMIZE] * self._n_obj
+            self.obj_labels = [f"f{i + 1}" for i in range(self._n_obj)]
 
-        PRNG.seed(config.seed)
-    except Exception:  # pragma: no cover
-        _logger().debug("Could not seed jMetalPy PRNG", exc_info=True)
-    try:
-        import random
+        # ``number_of_variables`` and the random ``create_solution`` come from ``FloatProblem``.
+        def number_of_objectives(self) -> int:
+            return self._n_obj
 
-        random.seed(config.seed)
-        np.random.seed(config.seed)
-    except Exception:  # pragma: no cover
-        _logger().debug("Could not seed random/numpy RNG for jMetalPy NSGA-II", exc_info=True)
+        def number_of_constraints(self) -> int:
+            return 0
 
-    if use_native_problem:
-        jm_problem = ZDT1(number_of_variables=selection.n_var)
-    else:
+        def name(self) -> str:
+            return self._name
 
-        class _VamosJMetalProblem(FloatProblem):  # type: ignore[misc]
-            def __init__(self, base_problem: Any) -> None:
-                super().__init__()
-                self.base_problem = base_problem
-                self.number_of_variables = base_problem.n_var
-                self.number_of_objectives = base_problem.n_obj
-                self.number_of_constraints = 0
-                self.lower_bound = [base_problem.xl] * base_problem.n_var
-                self.upper_bound = [base_problem.xu] * base_problem.n_var
-                self.obj_directions = [self.MINIMIZE] * self.number_of_objectives
-                self.obj_labels = [f"f{i + 1}" for i in range(self.number_of_objectives)]
+        def evaluate(self, solution: FloatSolution) -> FloatSolution:
+            X = np.asarray(solution.variables, dtype=float)[np.newaxis, :]
+            F = np.empty((1, self._n_obj))
+            self.base_problem.evaluate(X, {"F": F})
+            solution.objectives = F[0].tolist()
+            return solution
 
-            def evaluate(self, solution: FloatSolution) -> FloatSolution:
-                X = np.asarray(solution.variables, dtype=float, copy=False)[np.newaxis, :]
-                F = np.empty((1, self.number_of_objectives))
-                self.base_problem.evaluate(X, {"F": F})
-                solution.objectives = F[0].tolist()
-                return solution
-
-            def create_solution(self) -> FloatSolution:
-                return FloatSolution(self.lower_bound, self.upper_bound, self.number_of_objectives)
-
-        jm_problem = _VamosJMetalProblem(problem)
-
-    mutation = PolynomialMutation(probability=1.0 / selection.n_var, distribution_index=20.0)
-    crossover = SBXCrossover(probability=0.9, distribution_index=20.0)
-    algorithm = NSGAII(
-        problem=jm_problem,
-        population_size=config.population_size,
-        offspring_population_size=config.population_size,
-        mutation=mutation,
-        crossover=crossover,
-        termination_criterion=StoppingByEvaluations(max_evaluations=config.max_evaluations),
-    )
-    start = time.perf_counter()
-    algorithm.run()
-    end = time.perf_counter()
+    with _seeded_global_random_state(config.seed):
+        jm_problem = ZDT1(number_of_variables=selection.n_var) if use_native_problem else _VamosJMetalProblem(problem)
+        mutation = PolynomialMutation(probability=1.0 / selection.n_var, distribution_index=20.0)
+        crossover = SBXCrossover(probability=0.9, distribution_index=20.0)
+        algorithm = NSGAII(
+            problem=jm_problem,
+            population_size=config.population_size,
+            offspring_population_size=config.population_size,
+            mutation=mutation,
+            crossover=crossover,
+            termination_criterion=StoppingByEvaluations(max_evaluations=config.max_evaluations),
+        )
+        start = time.perf_counter()
+        algorithm.run()
+        end = time.perf_counter()
     total_time_ms = (end - start) * 1000.0
     get_result_fn = getattr(algorithm, "result", None)
     solutions = get_result_fn() if callable(get_result_fn) else []
@@ -202,14 +210,6 @@ def _run_jmetalpy_perm_nsga2(
             ) from exc
 
     _SwapMutationOp = _patch_permutation_swap_mutation_cls(_SwapMutationCandidate, PermutationSolution, Mutation)
-
-    try:
-        import random
-
-        random.seed(config.seed)
-        np.random.seed(config.seed)
-    except Exception:  # pragma: no cover
-        _logger().debug("Could not seed random/numpy RNG for jMetalPy permutation NSGA-II", exc_info=True)
 
     try:
         from vamos.engine.operators.impl.permutation import order_crossover as _vamos_order_crossover
@@ -276,22 +276,23 @@ def _run_jmetalpy_perm_nsga2(
             sol.variables = self._rng.permutation(self._n_var).tolist()
             return sol
 
-    rng = np.random.default_rng(config.seed)
-    jm_problem = _VamosJMetalPermutationProblem(problem, rng)
-    mutation_prob = min(1.0, 2.0 / max(1, problem.n_var))
-    crossover = _VamosOrderCrossover(probability=0.9, seed=config.seed)
-    mutation = _SwapMutationOp(probability=mutation_prob)
-    algorithm = NSGAII(
-        problem=jm_problem,
-        population_size=config.population_size,
-        offspring_population_size=config.population_size,
-        mutation=mutation,
-        crossover=crossover,
-        termination_criterion=StoppingByEvaluations(max_evaluations=config.max_evaluations),
-    )
-    start = time.perf_counter()
-    algorithm.run()
-    end = time.perf_counter()
+    with _seeded_global_random_state(config.seed):
+        rng = np.random.default_rng(config.seed)
+        jm_problem = _VamosJMetalPermutationProblem(problem, rng)
+        mutation_prob = min(1.0, 2.0 / max(1, problem.n_var))
+        crossover = _VamosOrderCrossover(probability=0.9, seed=config.seed)
+        mutation = _SwapMutationOp(probability=mutation_prob)
+        algorithm = NSGAII(
+            problem=jm_problem,
+            population_size=config.population_size,
+            offspring_population_size=config.population_size,
+            mutation=mutation,
+            crossover=crossover,
+            termination_criterion=StoppingByEvaluations(max_evaluations=config.max_evaluations),
+        )
+        start = time.perf_counter()
+        algorithm.run()
+        end = time.perf_counter()
     total_time_ms = (end - start) * 1000.0
     get_result_fn = getattr(algorithm, "result", None)
     solutions = get_result_fn() if callable(get_result_fn) else []
