@@ -85,6 +85,12 @@ Notes:
   installed, exact higher-dimensional contributions. `mc_hv` uses a Monte Carlo
   estimate. Archive pruning support does not remove the two-objective restriction
   of the convergence monitor.
+- **Development after 1.1.0:** without `moocore`, HV pruning with two objectives
+  uses the exact contributions too, and with three or more objectives the run
+  fails with a `DependencyError` naming the `compute` extra. VAMOS 1.1.0 and
+  earlier prune by crowding distance instead, with a single warning per process.
+  The HV subset selection of `top_k(method="hv_greedy")` is exact with or without
+  `moocore`; without it, it is slow with three or more objectives.
 - For an **algorithm result archive**, use its public configuration builder and
   inspect the resolved `result_mode`; see [Algorithms and backends](../reference/algorithms.md).
   Since VAMOS 1.0.1, the SMPSO search leaders and optional external result archive are

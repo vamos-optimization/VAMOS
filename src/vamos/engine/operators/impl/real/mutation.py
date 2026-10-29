@@ -283,7 +283,17 @@ class UniformMutation(Mutation):
 
 
 class LinkedPolynomialMutation(Mutation):
-    """Polynomial mutation using a shared delta across all mutated variables."""
+    """Linked polynomial mutation (Zille et al., 2016), as jMetal's ``LinkedPolynomialMutation``.
+
+    The bounded polynomial mutation of :class:`PolynomialMutation`, except that each
+    individual draws one random number ``u`` and uses it for all of its mutated
+    variables. The step of each variable still depends on its distance to the bounds,
+    so the linked variables move in the same direction and stay inside the bounds.
+
+    Reference: Zille, H., Ishibuchi, H., Mostaghim, S. & Nojima, Y. (2016). Mutation
+    operators based on variable grouping for multi-objective large-scale optimization.
+    IEEE Symposium Series on Computational Intelligence (SSCI).
+    """
 
     def __init__(
         self,
@@ -308,19 +318,25 @@ class LinkedPolynomialMutation(Mutation):
             arr = arr.reshape(1, -1)
             squeeze = True
         X = self._as_population(arr, name="offspring")
+        self._check_bounds_match(X, self.lower)
         active_rng = rng or self.rng or np.random.default_rng()
         n_ind, n_var = X.shape
-        mask = active_rng.random((n_ind, n_var)) <= self.prob
-        if not np.any(mask):
+        rnd_mask = active_rng.random((n_ind, n_var))
+        if not np.any(rnd_mask <= self.prob):
             return X[0] if squeeze else X
-        u = active_rng.random()
-        if u < 0.5:
-            delta = (2.0 * u) ** (1.0 / (self.eta + 1.0)) - 1.0
-        else:
-            delta = 1.0 - (2.0 * (1.0 - u)) ** (1.0 / (self.eta + 1.0))
-        update = delta * self.span
-        X = X.copy()
-        X += np.where(mask, update, 0.0)
+        # One draw per individual, shared by all of its mutated variables.
+        u = active_rng.random((n_ind, 1))
+        polynomial_mutation_population(
+            X,
+            rng=active_rng,
+            lower=self.lower,
+            upper=self.upper,
+            prob_mutation=self.prob,
+            eta=self.eta,
+            rnd_mask=rnd_mask,
+            rnd_delta=np.broadcast_to(u, (n_ind, n_var)),
+            inplace=True,
+        )
         return X[0] if squeeze else X
 
 
@@ -425,21 +441,22 @@ class LevyFlightMutation(Mutation):
 
 
 class PowerLawMutation(Mutation):
-    """Power-law mutation with heavy-tailed perturbation magnitudes.
+    """Power mutation of Deep and Thakur (2007), as jMetal's ``PowerLawMutation``.
 
-    The perturbation magnitude is drawn from a power-law distribution:
-
-        s = u^{1 / (1 + index)}
-
-    where *u ~ U(0, 1)* and *index* controls the shape.  Higher index
-    values concentrate perturbations near zero (fine-grained search).
+    Each mutated gene draws a strength ``s = u**index`` with ``u ~ U(0, 1)`` and moves
+    by that fraction of its distance to one bound: ``x - s*(x - lower)`` if ``t < r``,
+    else ``x + s*(upper - x)``, with ``r ~ U(0, 1)`` and ``t = (x - lower)/(upper - lower)``.
+    Children never leave the bounds and the expected step is zero. A larger ``index``
+    gives smaller steps; ``index=1`` gives a uniform strength. The paper writes
+    ``t = (x - lower)/(upper - x)``, which drifts towards the upper bound; jMetal and
+    VAMOS use the relative position instead.
 
     Parameters
     ----------
     prob_mutation : float
         Per-gene mutation probability.
     index : float
-        Power-law exponent (>= 0). Default 1.0.
+        Index of mutation ``p`` (> 0) in ``s = u**p``. Default 1.0.
     lower, upper : array-like
         Decision variable bounds.
 
@@ -460,8 +477,11 @@ class PowerLawMutation(Mutation):
     ) -> None:
         self.prob = float(prob_mutation)
         self.index = float(index)
+        if not self.index > 0.0:
+            raise ValueError("PowerLawMutation index must be positive.")
         self.lower, self.upper = _ensure_bounds(lower, upper)
         self.span = self.upper - self.lower
+        self._span_safe = np.where(self.span > 0.0, self.span, 1.0)
 
     def __call__(self, offspring: ArrayLike, rng: np.random.Generator) -> ArrayLike:
         X = self._as_population(offspring, name="offspring")
@@ -474,11 +494,12 @@ class PowerLawMutation(Mutation):
         if not np.any(mask):
             return X
 
-        u = rng.random((n_ind, n_var))
-        s = np.power(u, 1.0 / (1.0 + self.index))
-        direction = np.where(rng.random((n_ind, n_var)) < 0.5, -1.0, 1.0)
-        update = s * direction * self.span
-        X[mask] += update[mask]
+        strength = np.power(rng.random((n_ind, n_var)), self.index)
+        position = (X - self.lower) / self._span_safe
+        downward = position < rng.random((n_ind, n_var))
+        mutated = np.where(downward, X - strength * (X - self.lower), X + strength * (self.upper - X))
+        np.clip(mutated, self.lower, self.upper, out=mutated)
+        X[mask] = mutated[mask]
         return X
 
 
