@@ -85,6 +85,13 @@ Holm or another multiple-comparison correction. If your inferential procedure
 requires multiplicity control, apply the correction explicitly outside this
 helper and report which procedure you used.
 
+**Development after 1.1.0:** `pairwise_wilcoxon(...)` counts two equal scores
+as a tie (Pratt's treatment of zero differences), including two infinite
+penalties such as the +inf IGD+ of runs without feasible solutions. An
+infinite score against a finite one is the largest difference. VAMOS 1.1.0
+dropped a pair of equal infinities from the test and warned about an invalid
+subtraction.
+
 ### Critical-distance plot
 
 `plot_critical_distance(...)` visualizes average ranks and, when

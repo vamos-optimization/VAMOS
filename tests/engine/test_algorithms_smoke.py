@@ -1,7 +1,11 @@
 """Lightweight smoke tests for the algorithm cores."""
 
-import numpy as np
+import warnings
 
+import numpy as np
+import pytest
+
+from vamos.engine.algorithm.components.termination import HVTracker
 from vamos.engine.algorithm.config import (
     IBEAConfig,
     MOEADConfig,
@@ -23,6 +27,92 @@ from vamos.foundation.problem.dtlz import DTLZ2Problem
 from vamos.foundation.problem.tsp import TSPProblem
 from vamos.foundation.problem.zdt1 import ZDT1Problem
 from vamos.foundation.problem.zdt2 import ZDT2Problem
+from vamos.foundation.quality_indicators.hypervolume import hypervolume
+
+HV_STOP_ALGORITHMS = ("nsgaii", "nsgaiii", "moead", "smsemoa", "spea2", "ibea", "smpso")
+
+
+def _hv_stop_algorithm(name: str, pop_size: int, n_var: int):  # noqa: ANN202 - algorithm classes share no base type
+    if name == "nsgaii":
+        return NSGAII(NSGAIIConfig.default(pop_size=pop_size, n_var=n_var).to_dict(), kernel=NumPyKernel())
+    if name == "nsgaiii":
+        cfg = (
+            NSGAIIIConfig.builder()
+            .pop_size(pop_size)
+            .crossover("sbx", prob=1.0, eta=30.0)
+            .mutation("polynomial", prob="1/n", eta=20.0)
+            .selection("tournament", size=2)
+            .reference_directions(divisions=pop_size - 1)
+            .build()
+        )
+        return NSGAIII(cfg.to_dict(), kernel=NumPyKernel())
+    if name == "moead":
+        return MOEAD(MOEADConfig.default(pop_size=pop_size, n_var=n_var, n_obj=2).to_dict(), kernel=NumPyKernel())
+    if name == "smsemoa":
+        return SMSEMOA(SMSEMOAConfig.default(pop_size=pop_size, n_var=n_var).to_dict(), kernel=NumPyKernel())
+    if name == "spea2":
+        return SPEA2(SPEA2Config.default(pop_size=pop_size, n_var=n_var).to_dict(), kernel=NumPyKernel())
+    if name == "ibea":
+        return IBEA(IBEAConfig.default(pop_size=pop_size, n_var=n_var).to_dict(), kernel=NumPyKernel())
+    if name == "smpso":
+        return SMPSO(SMPSOConfig.default(pop_size=pop_size, n_var=n_var).to_dict(), kernel=NumPyKernel())
+    raise AssertionError(name)
+
+
+def _reported_hv_target(result: dict) -> bool:
+    # NSGA-III, SMS-EMOA and IBEA still report the flag as ``hv_converged``.
+    return bool(result.get("hv_reached", result.get("hv_converged", False)))
+
+
+def _hv_inside(F: np.ndarray, ref: np.ndarray) -> float:
+    inside = F[np.all(F <= ref, axis=1)]
+    return hypervolume(inside, ref) if inside.shape[0] else 0.0
+
+
+@pytest.mark.parametrize("name", HV_STOP_ALGORITHMS)
+def test_hv_termination_does_not_stop_before_the_target(name: str) -> None:
+    pop_size, n_var, target = 100, 30, 0.6
+    ref = np.array([1.1, 1.1])
+    algorithm = _hv_stop_algorithm(name, pop_size, n_var)
+    termination = (
+        "hv",
+        {"target_value": target, "reference_point": ref.tolist(), "max_evaluations": 30_000, "allow_ref_expand": True},
+    )
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = algorithm.run(ZDT1Problem(n_var=n_var), termination=termination, seed=11)
+
+    hv = _hv_inside(np.asarray(result["F"], dtype=float), ref)
+    assert result["evaluations"] > pop_size, f"{name} stopped after the initial population with HV {hv:.4f}"
+    assert _reported_hv_target(result) is True
+    assert hv >= target
+    assert any(issubclass(w.category, FutureWarning) and "allow_ref_expand" in str(w.message) for w in caught)
+
+
+@pytest.mark.parametrize("name", HV_STOP_ALGORITHMS)
+def test_hv_termination_ignores_points_outside_the_reference(name: str) -> None:
+    pop_size, n_var, target, budget = 20, 30, 0.6, 400
+    ref = np.array([1.1, 1.1])
+    algorithm = _hv_stop_algorithm(name, pop_size, n_var)
+    termination = ("hv", {"target_value": target, "reference_point": ref.tolist(), "max_evaluations": budget})
+
+    # The random initial ZDT1 population lies far outside [1.1, 1.1].
+    result = algorithm.run(ZDT1Problem(n_var=n_var), termination=termination, seed=11)
+
+    if _reported_hv_target(result):
+        assert _hv_inside(np.asarray(result["F"], dtype=float), ref) >= target
+    else:
+        assert result["evaluations"] == budget
+
+
+def test_hv_tracker_scores_only_points_inside_the_reference() -> None:
+    tracker = HVTracker({"target_value": 0.25, "reference_point": [1.0, 1.0]}, kernel=NumPyKernel())
+
+    assert tracker.reached(np.array([[5.0, 5.0], [2.0, 0.0]])) is False
+    assert tracker.last_value == 0.0
+    assert tracker.reached(np.array([[0.5, 0.5], [2.0, 0.0], [0.0, 3.0]])) is True
+    assert tracker.last_value == pytest.approx(0.25)
 
 
 def test_nsgaii_hv_termination_hits_target():
