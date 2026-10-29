@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "225afef4",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 225afef4",
+  "generation_commit": "c3a1279fff7a206ce53aee7269b974b9a207eebd",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit c3a1279fff7a206ce53aee7269b974b9a207eebd",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.0",
@@ -26,16 +26,16 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 693,
-  "files_with_diagnostics": 95,
-  "fingerprint_count": 95,
+  "diagnostic_count": 686,
+  "files_with_diagnostics": 93,
+  "fingerprint_count": 93,
   "error_code_summary": {
-    "type-arg": 693
+    "type-arg": 686
   },
   "layer_summary": {
-    "engine": 360,
+    "engine": 358,
     "experiment": 22,
-    "foundation": 249,
+    "foundation": 244,
     "package-root": 1,
     "ux": 61
   },
@@ -2320,36 +2320,6 @@
       ]
     },
     {
-      "fingerprint": "890DEB042DD05EB58F4E6F94A5FFF1B614E475B7D412EAA8AA1678294A217F86",
-      "path": "src/vamos/foundation/problem/real_world/zapotecas_rwa_7_8.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "foundation",
-      "multiplicity": 5,
-      "locations": [
-        {
-          "line": 6,
-          "column": 22
-        },
-        {
-          "line": 27,
-          "column": 24
-        },
-        {
-          "line": 48,
-          "column": 24
-        },
-        {
-          "line": 90,
-          "column": 27
-        },
-        {
-          "line": 117,
-          "column": 27
-        }
-      ]
-    },
-    {
       "fingerprint": "8BB0A18F3206B01A677A171536BD8E68041D888772EAAF163CE33D8570EE167E",
       "path": "src/vamos/foundation/problem/zdt5.py",
       "error_code": "type-arg",
@@ -3162,24 +3132,6 @@
         {
           "line": 289,
           "column": 22
-        }
-      ]
-    },
-    {
-      "fingerprint": "CFA2C89279F2CD815D9EF77E79D938B6B7A13077A4735E06CABAC3BAA3C9E15C",
-      "path": "src/vamos/engine/algorithm/components/termination.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 2,
-      "locations": [
-        {
-          "line": 21,
-          "column": 35
-        },
-        {
-          "line": 29,
-          "column": 31
         }
       ]
     },
