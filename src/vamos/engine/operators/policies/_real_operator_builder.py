@@ -13,7 +13,7 @@ from vamos.engine.operators.impl.real.utils import with_variation_kernels
 from vamos.engine.operators.impl.registry import get_operator_registry
 from vamos.engine.operators.policies.real_repair import apply_policy_repair, resolve_policy_repair
 from vamos.engine.variation.helpers import resolve_prob_expression
-from vamos.engine.variation.protocol import CrossoverOperator, MutationOperator, RepairConfigValue
+from vamos.engine.variation.protocol import CrossoverOperator, MutationOperator, RepairConfigValue, RepairOperator
 
 if TYPE_CHECKING:
     from vamos.foundation.kernel.backend import VariationKernels
@@ -46,6 +46,37 @@ def instantiate_operator(
         raise ValueError(f"Failed to initialize {label} '{method}' with params {kwargs}. Error: {exc}") from exc
 
 
+class RepairedRealOperator:
+    """A real-coded crossover or mutation followed by the policy repair.
+
+    Calling it applies ``operator`` and then ``repair`` within ``xl``/``xu``,
+    using the run generator unless another one is passed. The parts stay
+    inspectable so that an algorithm can recognise an operator chain that a
+    compiled shortcut reproduces exactly.
+    """
+
+    __slots__ = ("operator", "repair", "xl", "xu", "rng")
+
+    def __init__(
+        self,
+        operator: CrossoverOperator | MutationOperator,
+        repair: RepairOperator,
+        xl: NDArray[np.generic],
+        xu: NDArray[np.generic],
+        rng: np.random.Generator,
+    ) -> None:
+        self.operator = operator
+        self.repair = repair
+        self.xl = xl
+        self.xu = xu
+        self.rng = rng
+
+    def __call__(self, values: NDArray[np.generic], _rng: np.random.Generator | None = None) -> NDArray[np.generic]:
+        rng = self.rng if _rng is None else _rng
+        varied = np.asarray(self.operator(values, rng))
+        return apply_policy_repair(self.repair, varied, self.xl, self.xu, rng)
+
+
 def build_real_variation_pair(
     *,
     cross_method: str,
@@ -58,10 +89,7 @@ def build_real_variation_pair(
     rng: np.random.Generator,
     repair_cfg: RepairConfigValue,
     variation_kernels: VariationKernels | None = None,
-) -> tuple[
-    Callable[[NDArray[np.generic], np.random.Generator], NDArray[np.generic]],
-    Callable[[NDArray[np.generic], np.random.Generator], NDArray[np.generic]],
-]:
+) -> tuple[RepairedRealOperator, RepairedRealOperator]:
     """Build real-coded crossover and mutation callables with shared defaults."""
     workspace = VariationWorkspace()
     repair_operator = resolve_policy_repair("real", repair_cfg)
@@ -94,15 +122,10 @@ def build_real_variation_pair(
         instantiate_operator(mut_method, mut_kwargs, label="mutation", variation_kernels=variation_kernels),
     )
 
-    def crossover(parents: NDArray[np.generic], _rng: np.random.Generator = rng) -> NDArray[np.generic]:
-        offspring = np.asarray(crossover_operator(parents, _rng))
-        return apply_policy_repair(repair_operator, offspring, xl, xu, _rng)
-
-    def mutation(X_child: NDArray[np.generic], _rng: np.random.Generator = rng) -> NDArray[np.generic]:
-        mutated = np.asarray(mutation_operator(X_child, _rng))
-        return apply_policy_repair(repair_operator, mutated, xl, xu, _rng)
-
-    return crossover, mutation
+    return (
+        RepairedRealOperator(crossover_operator, repair_operator, xl, xu, rng),
+        RepairedRealOperator(mutation_operator, repair_operator, xl, xu, rng),
+    )
 
 
-__all__ = ["build_real_variation_pair", "instantiate_operator"]
+__all__ = ["RepairedRealOperator", "build_real_variation_pair", "instantiate_operator"]

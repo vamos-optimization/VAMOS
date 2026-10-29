@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "c3a1279fff7a206ce53aee7269b974b9a207eebd",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit c3a1279fff7a206ce53aee7269b974b9a207eebd",
+  "generation_commit": "4cb9de7f55ed0e96da758889549a8ba086e71e72",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 4cb9de7f55ed0e96da758889549a8ba086e71e72",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.0",
@@ -26,14 +26,14 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 686,
-  "files_with_diagnostics": 93,
-  "fingerprint_count": 93,
+  "diagnostic_count": 682,
+  "files_with_diagnostics": 92,
+  "fingerprint_count": 92,
   "error_code_summary": {
-    "type-arg": 686
+    "type-arg": 682
   },
   "layer_summary": {
-    "engine": 358,
+    "engine": 354,
     "experiment": 22,
     "foundation": 244,
     "package-root": 1,
@@ -3106,32 +3106,6 @@
         {
           "line": 329,
           "column": 27
-        }
-      ]
-    },
-    {
-      "fingerprint": "CEEAD6747AE2142876F26C6D2C267C10848C8B2682D9100AA9272E732B8F3BFA",
-      "path": "src/vamos/engine/algorithm/smsemoa/smsemoa.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 4,
-      "locations": [
-        {
-          "line": 193,
-          "column": 56
-        },
-        {
-          "line": 234,
-          "column": 12
-        },
-        {
-          "line": 237,
-          "column": 16
-        },
-        {
-          "line": 289,
-          "column": 22
         }
       ]
     },

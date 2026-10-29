@@ -91,8 +91,12 @@ def _build_real_operators(
     repair_cfg: RepairConfigValue,
     variation_kernels: VariationKernels | None = None,
 ) -> tuple[VariationCrossoverFn, VariationMutationFn]:
-    """Build continuous (real) encoding operators via the operator registry."""
-    base_crossover, base_mutation = build_real_variation_pair(
+    """Build continuous (real) encoding operators via the operator registry.
+
+    The callables keep their operators inspectable (``RepairedRealOperator``)
+    and draw from ``rng`` by default.
+    """
+    return build_real_variation_pair(
         cross_method=cross_method,
         cross_params=cross_params,
         mut_method=mut_method,
@@ -104,11 +108,3 @@ def _build_real_operators(
         repair_cfg=repair_cfg,
         variation_kernels=variation_kernels,
     )
-
-    def crossover(parents: NDArray[np.generic]) -> NDArray[np.generic]:
-        return base_crossover(parents, rng)
-
-    def mutation(X_child: NDArray[np.generic]) -> NDArray[np.generic]:
-        return base_mutation(X_child, rng)
-
-    return crossover, mutation

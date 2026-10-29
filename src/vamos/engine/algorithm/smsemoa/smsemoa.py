@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vamos.engine.algorithm.components.hooks import (
     finalize_genealogy,
@@ -24,6 +25,7 @@ from vamos.engine.algorithm.components.termination import HVTracker, remaining_e
 from vamos.engine.algorithm.components.utils import variation_operator_label
 from vamos.foundation.kernel import default_kernel
 
+from .compiled_step import build_compiled_step
 from .helpers import (
     refresh_selection_cache,
     survival_selection,
@@ -143,43 +145,34 @@ class SMSEMOA:
         )
         live_cb.on_start(ctx)
 
+        # Compiled kernels reproduce the generation below when the configuration allows it.
+        compiled = build_compiled_step(st, self.kernel)
         hv_reached = False
         stop_requested = False
-        while st.n_eval < max_eval and not stop_requested:
-            # Generate and evaluate offspring
-            X_child = self._generate_offspring(st)
+        try:
+            while st.n_eval < max_eval and not stop_requested:
+                if compiled is not None:
+                    compiled.step(problem, eval_strategy)
+                else:
+                    self._reference_step(st, problem, eval_strategy)
 
-            # Evaluate using backend or directly
-            F_child, G_child = self._evaluate_offspring(problem, X_child, eval_strategy, st.constraint_mode)
-            st.n_eval += X_child.shape[0]
+                st.generation += 1
 
-            # Survival selection (one child at a time for SMS-EMOA)
-            if X_child.shape[0] == 1:
-                survival_selection(st, X_child, F_child, G_child, self.kernel)
-            else:  # pragma: no cover - steady-state SMS-EMOA typically uses 1 offspring
-                for i in range(X_child.shape[0]):
-                    survival_selection(
-                        st,
-                        X_child[i : i + 1],
-                        F_child[i : i + 1],
-                        G_child[i : i + 1] if G_child is not None else None,
-                        self.kernel,
-                    )
+                # Update archive
+                if st.archive_manager is not None:
+                    st.archive_X, st.archive_F = st.archive_manager.update(st.X, st.F, st.G)
 
-            st.generation += 1
+                # Live callback
+                live_cb.on_generation(st.generation, F=st.F, stats={"evals": st.n_eval})
+                stop_requested = live_should_stop(live_cb)
 
-            # Update archive
-            if st.archive_manager is not None:
-                st.archive_X, st.archive_F = st.archive_manager.update(st.X, st.F, st.G)
-
-            # Live callback
-            live_cb.on_generation(st.generation, F=st.F, stats={"evals": st.n_eval})
-            stop_requested = live_should_stop(live_cb)
-
-            # Check HV threshold
-            if hv_tracker is not None and hv_tracker.enabled and hv_tracker.reached(st.hv_points()):
-                hv_reached = True
-                break
+                # Check HV threshold
+                if hv_tracker is not None and hv_tracker.enabled and hv_tracker.reached(st.hv_points()):
+                    hv_reached = True
+                    break
+        finally:
+            if compiled is not None:
+                compiled.finish()
 
         live_cb.on_end(final_F=st.F)
         result = build_smsemoa_result(st, hv_reached, kernel=self.kernel)
@@ -190,7 +183,26 @@ class SMSEMOA:
     # Generation logic
     # -------------------------------------------------------------------------
 
-    def _generate_offspring(self, st: SMSEMOAState) -> np.ndarray:
+    def _reference_step(self, st: SMSEMOAState, problem: ProblemProtocol, eval_strategy: EvaluationBackend) -> None:
+        """Generate, evaluate and insert one child (the reference for ``CompiledSteadyStep``)."""
+        X_child = self._generate_offspring(st)
+        F_child, G_child = self._evaluate_offspring(problem, X_child, eval_strategy, st.constraint_mode)
+        st.n_eval += X_child.shape[0]
+
+        # Survival selection (one child at a time for SMS-EMOA)
+        if X_child.shape[0] == 1:
+            survival_selection(st, X_child, F_child, G_child, self.kernel)
+        else:  # pragma: no cover - steady-state SMS-EMOA typically uses 1 offspring
+            for i in range(X_child.shape[0]):
+                survival_selection(
+                    st,
+                    X_child[i : i + 1],
+                    F_child[i : i + 1],
+                    G_child[i : i + 1] if G_child is not None else None,
+                    self.kernel,
+                )
+
+    def _generate_offspring(self, st: SMSEMOAState) -> NDArray[Any]:
         """Generate offspring using parent selection and variation."""
         sel_method = st.selection_method
 
@@ -231,10 +243,10 @@ class SMSEMOA:
     def _evaluate_offspring(
         self,
         problem: ProblemProtocol,
-        X: np.ndarray,
+        X: NDArray[Any],
         eval_strategy: EvaluationBackend,
         constraint_mode: str,
-    ) -> tuple[np.ndarray, np.ndarray | None]:
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64] | None]:
         """Evaluate offspring and compute constraints."""
         eval_result = eval_strategy.evaluate(X, problem)
         F, G = eval_result.F, eval_result.G
@@ -286,7 +298,7 @@ class SMSEMOA:
             )
             self._live_cb.on_start(ctx)
 
-    def ask(self) -> np.ndarray:
+    def ask(self) -> NDArray[Any]:
         """Generate offspring for evaluation.
 
         Returns
