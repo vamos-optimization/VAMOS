@@ -89,34 +89,57 @@ def normalize_for_ref_dirs(F: FloatArray) -> FloatArray:
     return np.asarray(normalized, dtype=float)
 
 
-def _pairwise_distances(normalized: FloatArray) -> FloatArray:
-    dist = np.linalg.norm(normalized[:, None, :] - normalized[None, :, :], axis=2)
-    np.fill_diagonal(dist, -np.inf)
-    return np.asarray(dist, dtype=float)
+def _distances_to(normalized: FloatArray, index: int) -> FloatArray:
+    return np.asarray(np.linalg.norm(normalized - normalized[index], axis=1), dtype=float)
 
 
-def _extend_by_maxmin(normalized: FloatArray, dist: FloatArray, selected: list[int], target_size: int) -> list[int]:
+def _farthest_pair(normalized: FloatArray) -> tuple[int, int]:
+    """Return the first pair, in row-major order, at the largest distance.
+
+    It scans one row at a time, so memory stays linear in the number of rows.
+    """
+    best_value = -np.inf
+    pair = (0, 0)
+    for row in range(int(normalized.shape[0])):
+        dist = _distances_to(normalized, row)
+        dist[row] = -np.inf
+        column = int(np.argmax(dist))
+        if dist[column] > best_value:
+            best_value = float(dist[column])
+            pair = (row, column)
+    return pair
+
+
+def _extend_by_maxmin(normalized: FloatArray, selected: list[int], target_size: int) -> list[int]:
     """Add the row farthest from the selected rows until ``target_size`` rows are selected.
 
-    Ties go to the row with the smallest sum of normalized objectives.
+    Ties go to the row with the smallest sum of normalized objectives. The
+    distance of each row to its nearest selected row is updated incrementally,
+    so memory stays linear in the number of rows.
     """
-    n = int(normalized.shape[0])
+    if len(selected) >= target_size:
+        return selected
+    is_selected = np.zeros(int(normalized.shape[0]), dtype=bool)
+    is_selected[np.asarray(selected, dtype=int)] = True
+    nearest = np.full(int(normalized.shape[0]), np.inf)
+    for index in selected:
+        np.minimum(nearest, _distances_to(normalized, index), out=nearest)
+    row_sums = np.sum(normalized, axis=1)
+
     while len(selected) < target_size:
-        remaining_mask = np.ones(n, dtype=bool)
-        remaining_mask[np.asarray(selected, dtype=int)] = False
-        remaining = np.flatnonzero(remaining_mask)
+        remaining = np.flatnonzero(~is_selected)
         if remaining.size == 0:
             break
-
-        min_dist = dist[np.ix_(remaining, np.asarray(selected, dtype=int))].min(axis=1)
+        min_dist = nearest[remaining]
         best_value = float(np.max(min_dist))
         best_candidates = remaining[np.isclose(min_dist, best_value)]
         if best_candidates.size > 1:
-            candidate_scores = np.sum(normalized[best_candidates], axis=1)
-            best_idx = int(best_candidates[np.argmin(candidate_scores)])
+            best_idx = int(best_candidates[np.argmin(row_sums[best_candidates])])
         else:
             best_idx = int(best_candidates[0])
         selected.append(best_idx)
+        is_selected[best_idx] = True
+        np.minimum(nearest, _distances_to(normalized, best_idx), out=nearest)
     return selected
 
 
@@ -134,14 +157,8 @@ def select_maxmin_subset(F: FloatArray, target_size: int) -> IndexArray:
         return np.asarray([best], dtype=np.intp)
 
     normalized = normalize_for_ref_dirs(data)
-    dist = _pairwise_distances(normalized)
-
-    first_pair = np.unravel_index(int(np.argmax(dist)), dist.shape)
-    selected: list[int] = [int(first_pair[0]), int(first_pair[1])]
-    if selected[0] == selected[1]:
-        selected = [selected[0]]
-
-    selected = _extend_by_maxmin(normalized, dist, selected, target_size)
+    first, second = _farthest_pair(normalized)
+    selected = _extend_by_maxmin(normalized, [first, second] if first != second else [first], target_size)
     return np.asarray(selected[:target_size], dtype=np.intp)
 
 
@@ -175,5 +192,5 @@ def select_ref_dirs_subset(
     normalized = normalize_for_ref_dirs(data)
     associations, distances = _associate(normalized, ref_dirs_norm)
     selected = _closest_member_per_direction(associations, distances, ref_dirs_norm.shape[0], rng)
-    selected = _extend_by_maxmin(normalized, _pairwise_distances(normalized), selected, target_size)
+    selected = _extend_by_maxmin(normalized, selected, target_size)
     return np.asarray(selected[:target_size], dtype=np.intp)

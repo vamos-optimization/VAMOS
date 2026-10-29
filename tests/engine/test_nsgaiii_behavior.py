@@ -226,6 +226,20 @@ def test_nsgaiii_rejects_fewer_individuals_than_reference_directions() -> None:
         NSGAIII(cfg, kernel=NumPyKernel()).run(DTLZ2Problem(n_var=12, n_obj=3), termination=("max_evaluations", 200), seed=1)
 
 
+def test_nsgaiii_rejects_an_oversized_lattice_before_generating_it(monkeypatch: pytest.MonkeyPatch) -> None:
+    import vamos.engine.algorithm.nsgaiii.initialization as initialization
+
+    def fail(*_args: object, **_kwargs: object) -> np.ndarray:
+        raise AssertionError("the lattice was generated")
+
+    monkeypatch.setattr(initialization, "load_or_generate_weight_vectors", fail)
+    # 20 objectives and 12 divisions give comb(31, 19) = 141,120,525 directions, over 22 GB.
+    cfg = _make_config(pop_size=100, divisions=12)
+
+    with pytest.raises(ValueError, match="need pop_size >= 141120525"):
+        NSGAIII(cfg, kernel=NumPyKernel()).run(DTLZ2Problem(n_var=29, n_obj=20), termination=("max_evaluations", 200), seed=1)
+
+
 @pytest.mark.parametrize("algorithm", ["nsgaiii", "rvea"])
 def test_nsgaiii_and_rvea_two_objective_defaults(algorithm: str) -> None:
     default = optimize("zdt1", algorithm=algorithm, max_evaluations=200, seed=1, engine="numpy")

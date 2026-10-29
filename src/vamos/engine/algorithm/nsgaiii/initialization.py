@@ -26,6 +26,7 @@ from vamos.engine.algorithm.config.base import normalize_constraint_mode
 from vamos.engine.algorithm.nsgaii.state import compute_selection_metrics
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
 from vamos.engine.operators.policies.nsgaiii import build_variation_operators
+from vamos.engine.reference_directions import lattice_size
 from vamos.foundation.encoding import EncodingLike, normalize_encoding
 
 from .state import NSGAIIIState
@@ -133,8 +134,17 @@ def initialize_nsgaiii_run(
             raise ValueError("Each reference direction must sum to 1.")
         source = f"NSGA-III reference directions in '{ref_path}' ({ref_dirs.shape[0]})"
     elif ref_divisions is not None:
+        source = f"NSGA-III reference directions for divisions={ref_divisions}"
+        if n_obj >= 2:
+            # Reject from the binomial count: an oversized lattice can need gigabytes.
+            n_directions = lattice_size(n_obj, int(ref_divisions))
+            if n_directions > pop_size:
+                raise ValueError(
+                    f"{source} ({n_directions}) need pop_size >= {n_directions} (pop_size={pop_size}). "
+                    "Increase pop_size or choose fewer reference directions."
+                )
         ref_dirs = load_or_generate_weight_vectors(pop_size, n_obj, path=ref_path, divisions=ref_divisions)
-        source = f"NSGA-III reference directions for divisions={ref_divisions} ({ref_dirs.shape[0]})"
+        source = f"{source} ({ref_dirs.shape[0]})"
     else:
         if n_obj >= 2 and pop_size < n_obj:
             raise ValueError(
