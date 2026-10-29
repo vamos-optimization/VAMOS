@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "1bdee315",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 1bdee315",
+  "generation_commit": "225afef4",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 225afef4",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.0",
@@ -26,18 +26,18 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 712,
-  "files_with_diagnostics": 96,
-  "fingerprint_count": 96,
+  "diagnostic_count": 701,
+  "files_with_diagnostics": 95,
+  "fingerprint_count": 95,
   "error_code_summary": {
-    "type-arg": 712
+    "type-arg": 701
   },
   "layer_summary": {
     "engine": 360,
     "experiment": 22,
     "foundation": 268,
     "package-root": 1,
-    "ux": 61
+    "ux": 50
   },
   "installed_mypy": "2.4.0",
   "diagnostics": [
@@ -924,60 +924,6 @@
         {
           "line": 144,
           "column": 12
-        }
-      ]
-    },
-    {
-      "fingerprint": "3591CC5984B343D164809DA3840E7FA2ED2F5B06167ED9E000B1C6E4DC5C4BA2",
-      "path": "src/vamos/ux/analysis/mcdm.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "ux",
-      "multiplicity": 11,
-      "locations": [
-        {
-          "line": 10,
-          "column": 13
-        },
-        {
-          "line": 12,
-          "column": 17
-        },
-        {
-          "line": 15,
-          "column": 24
-        },
-        {
-          "line": 22,
-          "column": 32
-        },
-        {
-          "line": 33,
-          "column": 28
-        },
-        {
-          "line": 42,
-          "column": 8
-        },
-        {
-          "line": 43,
-          "column": 14
-        },
-        {
-          "line": 44,
-          "column": 16
-        },
-        {
-          "line": 59,
-          "column": 31
-        },
-        {
-          "line": 70,
-          "column": 26
-        },
-        {
-          "line": 95,
-          "column": 22
         }
       ]
     },

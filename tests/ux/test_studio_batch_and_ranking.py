@@ -121,3 +121,13 @@ def test_a_method_that_cannot_rank_a_front_reports_it() -> None:
 
     assert ranking.rows == []
     assert "cannot rank" in ranking.warnings[0]
+
+
+def test_ranking_reports_a_front_without_knee() -> None:
+    f1 = np.linspace(0.0, 1.0, 5)
+    fronts = [_front("A", np.column_stack([f1, 1.0 - f1**2]).tolist())]
+
+    ranking = rank_fronts(fronts, method="knee", top_k=1)
+
+    assert len(ranking.rows) == 1
+    assert any("no knee" in warning for warning in ranking.warnings)
