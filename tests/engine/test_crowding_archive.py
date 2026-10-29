@@ -3,7 +3,10 @@ import warnings
 import numpy as np
 import pytest
 
+import vamos.engine.algorithm.components.archive as archive_mod
 import vamos.engine.algorithm.components.subset_selection as ss_mod
+import vamos.foundation.quality_indicators.hypervolume as hv_mod
+import vamos.foundation.quality_indicators.moocore_indicators as mi_mod
 from vamos.engine.algorithm.components.archive import (
     CrowdingDistanceArchive,
     HypervolumeArchive,
@@ -12,8 +15,11 @@ from vamos.engine.algorithm.components.archive import (
     SPEA2Archive,
     UnboundedArchive,
 )
-from vamos.engine.algorithm.components.subset_selection import select_top_k_crowding
+from vamos.engine.algorithm.components.subset_selection import select_top_k_crowding, select_top_k_hv_greedy
 from vamos.engine.algorithm.spea2.helpers import truncate_by_distance
+from vamos.engine.archive import ExternalArchiveConfig
+from vamos.engine.archive.factory import setup_result_archive
+from vamos.foundation.exceptions import DependencyError
 
 
 def _tradeoff_front(n: int) -> np.ndarray:
@@ -221,19 +227,92 @@ def test_objective_space_dedup_collapses_equal_objectives():
     assert kept_F.shape[0] == 1
 
 
-def test_hv_fallback_warns_once(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(ss_mod, "_moocore", None)
-    monkeypatch.setattr(ss_mod, "_HV_FALLBACK_WARNED", False)
-    F = np.array([[0.0, 1.0], [1.0, 0.0]])
-    ref = np.array([2.0, 2.0])
+@pytest.fixture
+def without_moocore(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run the hypervolume helpers as in an installation without moocore."""
+    monkeypatch.setattr(hv_mod, "_OPTIONAL_LOADED", True)
+    monkeypatch.setattr(hv_mod, "_MOOCORE", None)
+    monkeypatch.setattr(hv_mod, "_LIBHV_MODULE", None)
+    monkeypatch.setattr(mi_mod, "_moocore", None)
+    # Disable any module-level moocore handle of the archive helpers as well.
+    for module in (ss_mod, archive_mod):
+        monkeypatch.setattr(module, "_moocore", None, raising=False)
 
-    with pytest.warns(UserWarning, match="moocore"):
-        ss_mod._hv_contributions(F, ref)
 
-    with warnings.catch_warnings(record=True) as rec:
-        warnings.simplefilter("always")
-        ss_mod._hv_contributions(F, ref)
-    assert len(rec) == 0
+def _permuted_zdt1_front() -> np.ndarray:
+    f1 = np.linspace(0.0, 1.0, 21)
+    front = np.column_stack([f1, 1.0 - np.sqrt(f1)])
+    return front[np.random.default_rng(0).permutation(21)]
+
+
+def _sphere_front(n: int, n_obj: int, seed: int) -> np.ndarray:
+    points = np.random.default_rng(seed).random((n, n_obj)) + 0.05
+    return points / np.linalg.norm(points, axis=1, keepdims=True)
+
+
+def _brute_force_contributions(F: np.ndarray, ref: np.ndarray) -> np.ndarray:
+    full = hv_mod._hypervolume_impl(F, ref)
+    return np.array([full - hv_mod._hypervolume_impl(np.delete(F, i, axis=0), ref) for i in range(F.shape[0])])
+
+
+def test_hv_contributions_without_moocore_are_exact(without_moocore: None) -> None:
+    F2 = _permuted_zdt1_front()
+    ref2 = np.array([1.1, 1.1])
+    F3 = _sphere_front(12, 3, seed=1)
+    ref3 = np.full(3, 1.1)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        contrib2 = ss_mod._hv_contributions(F2, ref2)
+        contrib3 = ss_mod._hv_contributions(F3, ref3)
+        selected = select_top_k_hv_greedy(F2, 5, ref_point=ref2)
+
+    np.testing.assert_allclose(contrib2, _brute_force_contributions(F2, ref2), rtol=1e-12, atol=1e-15)
+    np.testing.assert_allclose(contrib3, _brute_force_contributions(F3, ref3), rtol=1e-12, atol=1e-15)
+    # moocore selects these indices on the same front (HV 0.7663).
+    assert selected.tolist() == [14, 4, 17, 0, 1]
+    assert hv_mod._hypervolume_impl(F2[selected], ref2) == pytest.approx(0.7663, abs=1e-4)
+
+
+@pytest.mark.parametrize("n_obj", [2, 3, 4])
+def test_hv_contributions_without_moocore_match_moocore(without_moocore: None, n_obj: int) -> None:
+    moocore = pytest.importorskip("moocore")
+    rng = np.random.default_rng(10 + n_obj)
+    front = _sphere_front(6, n_obj, seed=n_obj)
+    dominated = front[:2] + 0.05
+    outside = front[2:3] + np.eye(n_obj)[0] * 2.0
+    on_boundary = front[3:4].copy()
+    on_boundary[0, -1] = 1.2
+    F = np.vstack([front, dominated, outside, on_boundary, front[4:5]])
+    F = F[rng.permutation(F.shape[0])]
+    ref = np.full(n_obj, 1.2)
+
+    expected = np.asarray(moocore.hv_contributions(F, ref=ref), dtype=float)
+
+    np.testing.assert_allclose(ss_mod._hv_contributions(F, ref), expected, rtol=1e-12, atol=1e-15)
+
+
+def test_hypervolume_archive_prunes_exactly_without_moocore(without_moocore: None) -> None:
+    F = _permuted_zdt1_front()
+    ref = np.array([1.1, 1.1])
+    archive = HypervolumeArchive(capacity=5, n_var=1, n_obj=2, dtype=float, ref_point=ref)
+
+    _, kept = archive.update(np.arange(F.shape[0], dtype=float)[:, None], F)
+
+    keep = list(range(F.shape[0]))
+    while len(keep) > 5:
+        del keep[int(np.argmin(_brute_force_contributions(F[keep], ref)))]
+    expected = F[keep]
+    assert sorted(map(tuple, kept)) == sorted(map(tuple, expected))
+
+
+def test_hypervolume_archive_requires_moocore_above_two_objectives(without_moocore: None) -> None:
+    with pytest.raises(DependencyError, match="'moocore' is required for hypervolume archive pruning with 3 objectives"):
+        HypervolumeArchive(capacity=5, n_var=1, n_obj=3, dtype=float)
+    with pytest.raises(DependencyError, match="moocore"):
+        setup_result_archive(ExternalArchiveConfig(capacity=5, pruning="hv"), n_var=0, n_obj=3, dtype=float)
+
+    assert isinstance(HypervolumeArchive(capacity=5, n_var=1, n_obj=2, dtype=float), HypervolumeArchive)
 
 
 def test_select_top_k_crowding_returns_k_indices():

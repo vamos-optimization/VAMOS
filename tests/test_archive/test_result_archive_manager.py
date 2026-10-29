@@ -3,7 +3,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from vamos.engine.algorithm.components import archive as component_archive
+import vamos.foundation.quality_indicators.hypervolume as hv_mod
+import vamos.foundation.quality_indicators.moocore_indicators as mi_mod
 from vamos.engine.algorithm.components.archive import HypervolumeArchive, MaxMinArchive, ReferenceDirectionsArchive
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.engine.archive.factory import setup_result_archive
@@ -11,6 +12,12 @@ from vamos.engine.archive.factory import setup_result_archive
 
 def _empty_X(n_rows: int) -> np.ndarray:
     return np.empty((n_rows, 0), dtype=float)
+
+
+def _use_fake_moocore(monkeypatch: pytest.MonkeyPatch, fake: type) -> None:
+    monkeypatch.setattr(hv_mod, "_OPTIONAL_LOADED", True)
+    monkeypatch.setattr(hv_mod, "_MOOCORE", fake)
+    monkeypatch.setattr(mi_mod, "_moocore", fake)
 
 
 def test_result_archive_size_cap_and_nondominated_filter():
@@ -95,11 +102,11 @@ def test_result_archive_hv_uses_moocore_for_many_objective_pruning(monkeypatch: 
             return np.ones(F.shape[0], dtype=bool)
 
         @staticmethod
-        def hv_contributions(F: np.ndarray, *, ref: np.ndarray) -> np.ndarray:
+        def hv_contributions(F: np.ndarray, ref: np.ndarray) -> np.ndarray:
             calls.append((F.copy(), ref.copy()))
             return np.array([0.4, 0.1, 0.3, 0.2], dtype=float)
 
-    monkeypatch.setattr(component_archive, "_moocore", _FakeMooCore)
+    _use_fake_moocore(monkeypatch, _FakeMooCore)
 
     cfg = ExternalArchiveConfig(capacity=3, pruning="hv", hv_ref_point=[2.0, 2.0, 2.0])
     archive = setup_result_archive(cfg, n_var=0, n_obj=3, dtype=float)
@@ -127,10 +134,10 @@ def test_result_archive_mc_hv_keeps_monte_carlo_path_even_with_moocore(monkeypat
             return np.ones(F.shape[0], dtype=bool)
 
         @staticmethod
-        def hv_contributions(F: np.ndarray, *, ref: np.ndarray) -> np.ndarray:
+        def hv_contributions(F: np.ndarray, ref: np.ndarray) -> np.ndarray:
             raise AssertionError("mc_hv should not call moocore.hv_contributions")
 
-    monkeypatch.setattr(component_archive, "_moocore", _FakeMooCore)
+    _use_fake_moocore(monkeypatch, _FakeMooCore)
 
     cfg = ExternalArchiveConfig(capacity=3, pruning="mc_hv", hv_ref_point=[2.0, 2.0, 2.0])
     archive = setup_result_archive(cfg, n_var=0, n_obj=3, dtype=float)
