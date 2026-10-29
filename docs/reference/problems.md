@@ -205,6 +205,25 @@ implementation converts maximization goals to negative objective values.
 | `rwa9` — ultra-wideband antenna | 10 / 5 | Fixed passband/stopband response functions | [RWA9–10][rwa910] | 5D |
 | `rwa10` — repellent fabric | 3 / 7 | Fixed fabric performance response functions | [RWA9–10][rwa910] | 7D |
 
+**Development after 1.1.0:** `rwa7` and `rwa8` search `[0, 1]^4`, the
+normalized domain in which Goel et al. (2007) fitted the injector response
+surfaces, as `re37`, Tanabe and Ishibuchi's RE37 and jMetal's RWA7 and RWA8 do.
+The last TTmax term is `-0.281 * dHA * alpha * dOA`, as in `re37`, so `rwa7` is
+`re37` with its objectives in the order Xcc, TFmax, TTmax. VAMOS 1.1.0 and
+earlier evaluate the polynomials on the physical design ranges (`alpha` in
+`[0, 20]`, `dHA` in `[0, 25]`, `dOA` in `[-40, 0]`, `OPTT` in `[0.01, 0.02]`),
+far outside the fitted region, with the opposite sign in that term: TTmax ranges
+from about -2242 to 17093 instead of -0.43 to 1.10. RWA7 and RWA8 values,
+fronts and indicators from those versions are not comparable with the published
+problems.
+
+The packaged `rwa7.csv` (3000 points) and `rwa8.csv` (3999 points) samples are
+regenerated for the normalized formulation. They come from dense sampling of
+`[0, 1]^4` with local refinement, each selected design moved to the front by
+minimizing an achievement function, and a non-dominated filter over all the
+evaluated designs. No point of either sample is dominated by jMetal's RWA7 and
+RWA8 reference fronts or by Tanabe and Ishibuchi's RE37 reference points.
+
 ### Learning and mixed engineering examples
 
 Install `python -m pip install "vamos-optimization[examples]==1.1.0"` for the two
