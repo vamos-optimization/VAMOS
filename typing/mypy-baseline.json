@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "4cb9de7f55ed0e96da758889549a8ba086e71e72",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 4cb9de7f55ed0e96da758889549a8ba086e71e72",
+  "generation_commit": "adf605e2b85ee254d2303e16845720648ba3bf49",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit adf605e2b85ee254d2303e16845720648ba3bf49",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.0",
@@ -11,7 +11,7 @@
     "stub_packages": [],
     "type_affecting_optional_distributions": [],
     "config_path": "pyproject.toml",
-    "config_sha256": "C16219137C6D1399C3DC0F6C3440605582F86F629BCE77A8228DFA07F18C377F",
+    "config_sha256": "6D1ACABE2944045603803588B1C0BE475945EEF4E421E9E6891E124B1ECC1588",
     "mypy_config_sha256": "2D1AAAB5CB687AA8C7871D3AFBE4638A782A12541721A85B770843816611FCAD",
     "constraints_path": "constraints/ci.txt",
     "type_affecting_pins": {
@@ -26,16 +26,16 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 682,
-  "files_with_diagnostics": 92,
-  "fingerprint_count": 92,
+  "diagnostic_count": 674,
+  "files_with_diagnostics": 91,
+  "fingerprint_count": 91,
   "error_code_summary": {
-    "type-arg": 682
+    "type-arg": 674
   },
   "layer_summary": {
     "engine": 354,
     "experiment": 22,
-    "foundation": 244,
+    "foundation": 236,
     "package-root": 1,
     "ux": 61
   },
@@ -1271,48 +1271,6 @@
         },
         {
           "line": 27,
-          "column": 27
-        }
-      ]
-    },
-    {
-      "fingerprint": "4D35CE3F3632F4BA7DD7425DF1CF282D6E87DBF807117E8DBB7A0360BE1F15D8",
-      "path": "src/vamos/foundation/problem/real_world/tanabe_ishibuchi_re2.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "foundation",
-      "multiplicity": 8,
-      "locations": [
-        {
-          "line": 32,
-          "column": 27
-        },
-        {
-          "line": 148,
-          "column": 36
-        },
-        {
-          "line": 159,
-          "column": 27
-        },
-        {
-          "line": 194,
-          "column": 36
-        },
-        {
-          "line": 205,
-          "column": 27
-        },
-        {
-          "line": 242,
-          "column": 27
-        },
-        {
-          "line": 330,
-          "column": 36
-        },
-        {
-          "line": 341,
           "column": 27
         }
       ]
