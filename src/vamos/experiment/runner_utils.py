@@ -22,7 +22,8 @@ def validate_problem(problem: ProblemProtocol) -> None:
             n_var=problem.n_var,
             n_obj=problem.n_obj,
         )
-    if problem.n_constraints < 0:
+    # Registry problems such as RE, RWA and ZCAT do not declare n_constraints; treat them as unconstrained, as optimize() does.
+    if (getattr(problem, "n_constraints", 0) or 0) < 0:
         raise ProblemDimensionError("n_constraints must be >= 0.", n_var=problem.n_var, n_obj=problem.n_obj)
     xl = np.asarray(problem.xl)
     xu = np.asarray(problem.xu)

@@ -203,7 +203,7 @@ never compiles problem evaluation.
 | NSGA-II | Non-dominated ranking and crowding, survival, tournament selection, SBX, polynomial mutation; the whole one-offspring steady-state step in its supported configuration (below) | Feasibility ordering, archives, steady-state front maintenance outside that configuration |
 | NSGA-III | Ranking and crowding, tournament selection, SBX, polynomial mutation | Normalization, association to reference directions, niching (it shuffles with the run generator inside the loop) |
 | MOEA/D | Differential-evolution children, SBX, polynomial mutation, neighbourhood replacement | Parent sampling, repair, weight geometry |
-| SMS-EMOA | SBX, polynomial mutation; ranking and tournament selection where configured | Front insertion, hypervolume contributions (MooCore when installed) |
+| SMS-EMOA | The steady-state step (development after 1.1.0, see below): child variation and clipping, front insertion, two-objective hypervolume contributions, crowding, feasibility-first removal; tournament selection where configured | Parent sampling draws, hypervolume contributions for three or more objectives (MooCore when installed), archives |
 | SPEA2 | SBX, polynomial mutation, k-th-distance truncation | Strength/raw fitness and density (vectorized NumPy) |
 | IBEA | Tournament selection, SBX, polynomial mutation, indicator-based removal | Indicator matrix |
 | SMPSO | Turbulence mutation, leaders-archive crowding truncation | Velocity/position updates (vectorized NumPy), deduplication |
@@ -230,6 +230,24 @@ that compiled `pow` matches `np.power` bit for bit on the platform (some NumPy
 builds use vendor SIMD power). Otherwise the Numba engine keeps the NumPy
 operators. Compiled ranking, survival and archive truncation fall back to NumPy
 for non-finite objective values.
+
+**Development after 1.1.0:** under `engine="numba"`, SMS-EMOA runs each
+steady-state step (one child) in two compiled calls for the child and one for
+survival, instead of per-step NumPy and Python code. Parents and every
+variation draw still come from the run generator in the reference order, and
+the population, the cached ranks and crowding distances and the reference point
+evolve bit for bit as in the NumPy reference. The step covers real encoding
+with SBX, polynomial mutation and the clip repair (`repair="auto"`), random or
+tournament parent selection, duplicate elimination, constraints, fixed or
+adaptive reference points, external archives and live callbacks.
+Two-objective contributions and constraint-violation sums are compiled only
+after a one-time check against the installed reference (MooCore or the NumPy
+fallback, and NumPy's summation order); three or more objectives keep the
+reference contribution call. Other operators and repairs, genealogy tracking,
+kernels that override the ranking or contribution hooks, a platform where
+compiled `pow` differs from `np.power`, and non-finite objective values keep
+the reference step. VAMOS 1.1.0 ran front insertion and contributions in Python
+under every engine.
 
 Two compiled paths depend on whether Numba is installed rather than on the
 engine: the MOEA/D neighbourhood update (disable with

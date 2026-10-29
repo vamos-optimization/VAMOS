@@ -64,6 +64,30 @@ def test_pairwise_wilcoxon_pair_count_and_order():
     assert p_ab <= p_bc
 
 
+def test_pairwise_wilcoxon_ties_shared_infinite_penalties() -> None:
+    # IGD+ of +inf marks a problem where the algorithm found no feasible solution.
+    # 14 finite pairs with mixed signs, so a dropped pair and a tied pair give different p-values.
+    a = [0.10, 0.20, 0.35, 0.30, 0.15, 0.25, 0.48, 0.35, 0.40, 0.12, 0.22, 0.43, 0.18, 0.28]
+    b = [0.20, 0.40, 0.30, 0.60, 0.30, 0.50, 0.40, 0.70, 0.80, 0.24, 0.44, 0.40, 0.36, 0.56]
+    finite = [list(pair) for pair in zip(a, b)]
+    both_failed = np.array([[math.inf, math.inf], *finite])
+    one_failed = np.array([[0.5, math.inf], *finite])
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        (shared,) = pairwise_wilcoxon(both_failed, ["A", "B"], higher_is_better=False)
+        (worst,) = pairwise_wilcoxon(one_failed, ["A", "B"], higher_is_better=False)
+
+    # Both failing is a tie, as two equal finite values would be.
+    (tie,) = pairwise_wilcoxon(np.array([[1.0, 1.0], *finite]), ["A", "B"], higher_is_better=False)
+    assert math.isfinite(shared.p_value)
+    assert (shared.statistic, shared.p_value) == (tie.statistic, tie.p_value)
+    # Failing alone keeps the worst rank, as the largest finite gap would.
+    (largest_gap,) = pairwise_wilcoxon(np.array([[0.5, 100.0], *finite]), ["A", "B"], higher_is_better=False)
+    assert (worst.statistic, worst.p_value) == (largest_gap.statistic, largest_gap.p_value)
+    assert not [warning for warning in caught if issubclass(warning.category, RuntimeWarning)]
+
+
 def test_plot_critical_distance_smoke():
     # Arrange
     avg_ranks = np.array([1.2, 2.5, 2.3])

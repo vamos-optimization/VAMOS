@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from vamos.experiment.benchmark.lab_plots import generate_boxplots
 from vamos.experiment.benchmark.lab_stats import write_summary_tables, write_wilcoxon_tables
 from vamos.experiment.benchmark.lab_summary import build_quality_indicator_summary
@@ -117,10 +119,6 @@ class BenchmarkReport:
 
     def _per_problem_markers(self, dfm: Any, problem: str, best_alg: str, metric: str) -> dict[str, str]:
         markers: dict[str, str] = {}
-        try:
-            from scipy import stats as spstats  # type: ignore[import-untyped]
-        except Exception:  # pragma: no cover - optional
-            return markers
         subset = dfm[dfm["problem"] == problem]
         pivot = subset.pivot_table(index="seed", columns="algorithm", values="value")
         if best_alg not in pivot.columns:
@@ -133,9 +131,12 @@ class BenchmarkReport:
             if best_values.empty or other.empty:
                 continue
             try:
-                stat, p = spstats.wilcoxon(best_values, other, zero_method="pratt", alternative="two-sided")
+                # Seeds pair the runs; runs that both found no feasible solution are ties.
+                pair = np.column_stack([best_values.to_numpy(dtype=float), other.to_numpy(dtype=float)])
+                (result,) = pairwise_wilcoxon(pair, [best_alg, alg], higher_is_better=higher_is_better(metric))
             except ValueError:
                 continue
+            p = result.p_value
             if p < self.config.alpha:
                 higher = higher_is_better(metric)
                 best_mean = best_values.mean()
