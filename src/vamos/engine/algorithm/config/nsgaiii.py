@@ -63,10 +63,16 @@ class NSGAIIIConfig(_SerializableConfig):
         n_var
             Number of variables used for the default mutation probability.
         n_obj
-            Number of objectives used to choose the default reference directions.
+            Number of objectives used to choose the default reference directions:
+            12 divisions for three objectives, 6 for four or more, and with two
+            objectives ``pop_size - 1`` (one direction per individual), or 99
+            without ``pop_size``.
         """
         mut_prob = 1.0 / n_var if n_var else 0.1
-        divisions = 12 if n_obj == 3 else 6
+        if n_obj == 2:
+            divisions = 99 if pop_size is None else max(1, int(pop_size) - 1)
+        else:
+            divisions = 12 if n_obj == 3 else 6
         if pop_size is None:
             pop_size = comb(divisions + n_obj - 1, n_obj - 1)
         return (
@@ -105,7 +111,6 @@ class _NSGAIIIConfigBuilder(
         cfg = NSGAIIIConfig.default(n_obj=3)
         cfg = NSGAIIIConfig.builder().pop_size(92).crossover("sbx", prob=1.0).build()
     """
-
 
     def reference_directions(
         self,

@@ -3,27 +3,28 @@ from __future__ import annotations
 from collections.abc import Callable
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vamos.foundation.problem.base import Problem
 
 
-def _as_float_vector(values: object) -> np.ndarray:
+def _as_float_vector(values: object) -> NDArray[np.float64]:
     return np.asarray(values, dtype=float)
 
 
-def _sphere(x: np.ndarray) -> np.ndarray:
+def _sphere(x: NDArray[np.float64]) -> NDArray[np.float64]:
     return _as_float_vector(np.sum(np.square(x), axis=1))
 
 
-def _schwefel(x: np.ndarray) -> np.ndarray:
+def _schwefel(x: NDArray[np.float64]) -> NDArray[np.float64]:
     return _as_float_vector(np.max(np.abs(x), axis=1))
 
 
-def _rastrigin(x: np.ndarray) -> np.ndarray:
+def _rastrigin(x: NDArray[np.float64]) -> NDArray[np.float64]:
     return _as_float_vector(np.sum(np.square(x) - 10.0 * np.cos(2.0 * np.pi * x) + 10.0, axis=1))
 
 
-def _rosenbrock(x: np.ndarray) -> np.ndarray:
+def _rosenbrock(x: NDArray[np.float64]) -> NDArray[np.float64]:
     if x.shape[1] < 2:
         return np.zeros(x.shape[0], dtype=float)
     a = x[:, :-1]
@@ -31,7 +32,7 @@ def _rosenbrock(x: np.ndarray) -> np.ndarray:
     return _as_float_vector(np.sum(100.0 * np.square(np.square(a) - b) + np.square(a - 1.0), axis=1))
 
 
-def _ackley(x: np.ndarray) -> np.ndarray:
+def _ackley(x: NDArray[np.float64]) -> NDArray[np.float64]:
     d = x.shape[1]
     if d == 0:
         return np.zeros(x.shape[0], dtype=float)
@@ -40,7 +41,7 @@ def _ackley(x: np.ndarray) -> np.ndarray:
     return _as_float_vector(20.0 - 20.0 * np.exp(-0.2 * np.sqrt(sum_sq / d)) - np.exp(sum_cos / d) + np.e)
 
 
-def _griewank(x: np.ndarray) -> np.ndarray:
+def _griewank(x: NDArray[np.float64]) -> NDArray[np.float64]:
     d = x.shape[1]
     if d == 0:
         return np.zeros(x.shape[0], dtype=float)
@@ -54,7 +55,12 @@ class _LSMOPBase(Problem):
     """
     Vectorized implementation of the LSMOP benchmark family.
 
-    Definitions are adapted from the jMetal reference implementation.
+    Definitions follow Cheng, Jin and Olhofer (2017), "Test problems for large-scale multiobjective and
+    many-objective optimization", IEEE Transactions on Cybernetics 47(12), as implemented in PlatEMO
+    (``LSMOP1.m``-``LSMOP9.m``). LSMOP1-4 use the linear linkage ``(1 + i/n) * x_i - 10 * x_1`` and LSMOP5-9 the
+    nonlinear ``(1 + cos(0.5 * pi * i/n)) * x_i - 10 * x_1``, for ``i >= M``. jMetal differs in two places:
+    it uses the nonlinear linkage in all nine problems, and LSMOP9 does not divide each group's ``g`` by
+    ``sublen``.
     """
 
     def __init__(
@@ -63,8 +69,8 @@ class _LSMOPBase(Problem):
         n_var: int = 300,
         n_obj: int = 3,
         nk: int = 5,
-        odd_func: Callable[[np.ndarray], np.ndarray],
-        even_func: Callable[[np.ndarray], np.ndarray],
+        odd_func: Callable[[NDArray[np.float64]], NDArray[np.float64]],
+        even_func: Callable[[NDArray[np.float64]], NDArray[np.float64]],
     ) -> None:
         if n_obj < 2:
             raise ValueError("LSMOP requires at least two objectives.")
@@ -89,7 +95,7 @@ class _LSMOPBase(Problem):
             raise ValueError("Invalid LSMOP partitioning (some subcomponents are empty). Increase n_var, reduce n_obj, or reduce nk.")
 
     @staticmethod
-    def _build_group_layout(n_var: int, n_obj: int, nk: int) -> tuple[np.ndarray, np.ndarray]:
+    def _build_group_layout(n_var: int, n_obj: int, nk: int) -> tuple[NDArray[np.int_], NDArray[np.int_]]:
         c = 3.8 * 0.1 * (1.0 - 0.1)
         c_values = [c]
         total = c
@@ -104,7 +110,7 @@ class _LSMOPBase(Problem):
         offsets = np.concatenate(([0], cum))
         return sub_len, offsets
 
-    def _prepare(self, X: np.ndarray, out: dict[str, np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
+    def _prepare(self, X: NDArray[np.float64], out: dict[str, NDArray[np.float64]]) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         X = np.asarray(X, dtype=float)
         if X.ndim != 2 or X.shape[1] != self.n_var:
             raise ValueError(f"Expected decision matrix of shape (N, {self.n_var}).")
@@ -115,14 +121,18 @@ class _LSMOPBase(Problem):
             out["F"] = F
         return X, F
 
-    def _transform(self, X: np.ndarray) -> np.ndarray:
+    def _linkage_scale(self, ratio: NDArray[np.float64]) -> NDArray[np.float64]:
+        """Nonlinear linkage factor of LSMOP5-9, for ``ratio = i/n`` with ``i = M, ..., n``."""
+        return _as_float_vector(1.0 + np.cos(ratio * np.pi / 2.0))
+
+    def _transform(self, X: NDArray[np.float64]) -> NDArray[np.float64]:
         Y = np.array(X, copy=True, dtype=float)
         idx = np.arange(self.n_obj, self.n_var + 1, dtype=float)
-        scale = 1.0 + np.cos(idx / self.n_var * np.pi / 2.0)
+        scale = self._linkage_scale(idx / self.n_var)
         Y[:, self.n_obj - 1 :] = scale[None, :] * Y[:, self.n_obj - 1 :] - 10.0 * Y[:, [0]]
         return Y
 
-    def _accumulate_g(self, Y: np.ndarray) -> np.ndarray:
+    def _accumulate_g(self, Y: NDArray[np.float64]) -> NDArray[np.float64]:
         n = Y.shape[0]
         G = np.zeros((n, self.n_obj), dtype=float)
 
@@ -137,14 +147,14 @@ class _LSMOPBase(Problem):
 
         return G
 
-    def _normalize_g(self, G: np.ndarray) -> np.ndarray:
+    def _normalize_g(self, G: NDArray[np.float64]) -> NDArray[np.float64]:
         denom = self.sub_len.astype(float) * float(self.nk)
         return G / denom[None, :]
 
-    def _evaluate_f(self, X: np.ndarray, G: np.ndarray) -> np.ndarray:
+    def _evaluate_f(self, X: NDArray[np.float64], G: NDArray[np.float64]) -> NDArray[np.float64]:
         raise NotImplementedError
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: NDArray[np.float64], out: dict[str, NDArray[np.float64]]) -> None:
         X, F = self._prepare(X, out)
         Y = self._transform(X)
         G = self._accumulate_g(Y)
@@ -153,14 +163,17 @@ class _LSMOPBase(Problem):
 
 
 class _LSMOP1To4Base(_LSMOPBase):
-    def _evaluate_f(self, X: np.ndarray, G: np.ndarray) -> np.ndarray:
+    def _linkage_scale(self, ratio: NDArray[np.float64]) -> NDArray[np.float64]:
+        """Linear linkage factor of LSMOP1-4, for ``ratio = i/n`` with ``i = M, ..., n``."""
+        return _as_float_vector(1.0 + ratio)
+
+    def _evaluate_f(self, X: NDArray[np.float64], G: NDArray[np.float64]) -> NDArray[np.float64]:
         G_norm = self._normalize_g(G)
         n = X.shape[0]
 
-        left = np.ones((n, self.n_obj), dtype=float)
+        left: NDArray[np.float64] = np.ones((n, self.n_obj), dtype=float)
         left[:, 1:] = X[:, : self.n_obj - 1]
-        left = np.cumprod(left, axis=1)
-        left = np.flip(left, axis=1)
+        left = _as_float_vector(np.flip(np.cumprod(left, axis=1), axis=1))
 
         right = np.ones((n, self.n_obj), dtype=float)
         right[:, 1:] = 1.0 - np.flip(X[:, : self.n_obj - 1], axis=1)
@@ -170,14 +183,13 @@ class _LSMOP1To4Base(_LSMOPBase):
 
 
 class _LSMOP5To8Base(_LSMOPBase):
-    def _evaluate_f(self, X: np.ndarray, G: np.ndarray) -> np.ndarray:
+    def _evaluate_f(self, X: NDArray[np.float64], G: NDArray[np.float64]) -> NDArray[np.float64]:
         G_norm = self._normalize_g(G)
         n = X.shape[0]
 
-        left = np.ones((n, self.n_obj), dtype=float)
+        left: NDArray[np.float64] = np.ones((n, self.n_obj), dtype=float)
         left[:, 1:] = np.cos(X[:, : self.n_obj - 1] * np.pi / 2.0)
-        left = np.cumprod(left, axis=1)
-        left = np.flip(left, axis=1)
+        left = _as_float_vector(np.flip(np.cumprod(left, axis=1), axis=1))
 
         right = np.ones((n, self.n_obj), dtype=float)
         right[:, 1:] = np.sin(np.flip(X[:, : self.n_obj - 1], axis=1) * np.pi / 2.0)
@@ -231,9 +243,9 @@ class LSMOP9(_LSMOPBase):
     def __init__(self, n_var: int = 300, n_obj: int = 3, nk: int = 5) -> None:
         super().__init__(n_var=n_var, n_obj=n_obj, nk=nk, odd_func=_sphere, even_func=_ackley)
 
-    def _evaluate_f(self, X: np.ndarray, G: np.ndarray) -> np.ndarray:
+    def _evaluate_f(self, X: NDArray[np.float64], G: NDArray[np.float64]) -> NDArray[np.float64]:
         n = X.shape[0]
-        coef_g = 1.0 + np.sum(G / float(self.nk), axis=1)
+        coef_g = 1.0 + np.sum(self._normalize_g(G), axis=1)
 
         F = np.empty((n, self.n_obj), dtype=float)
         F[:, : self.n_obj - 1] = X[:, : self.n_obj - 1]

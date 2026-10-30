@@ -74,6 +74,19 @@ otherwise `k = 2(M - 1)`, and `l = n - k`; WFG2/3 require an even distance-varia
 count. LSMOP needs enough variables for all groups to remain nonempty.
 Family constructor checks still apply to dimension overrides.
 
+**Development after 1.1.0:** `lsmop1`–`lsmop9` follow the definition of Cheng,
+Jin and Olhofer (2017), as implemented in PlatEMO. For `i >= M`, LSMOP1–4 use
+the linear linkage `(1 + i/n) x_i - 10 x_1` and LSMOP5–9 the nonlinear linkage
+`(1 + cos(0.5 pi i/n)) x_i - 10 x_1`. LSMOP9 divides each group's distance by
+`sublen * nk`, as LSMOP1–8 do. VAMOS 1.1.0 and earlier follow jMetal, which
+differs in two places: it uses the nonlinear linkage in all nine problems, and
+its LSMOP9 divides by `nk` only, so each group adds `sublen` times more to the
+distance (12 to 30 times at the default n = 300 and M = 3). The Pareto fronts and the packaged samples do
+not change, because every linkage term vanishes on the Pareto set. The Pareto
+set of LSMOP1–4 moves to `x_i = 10 x_1 / (1 + i/n)`, and the landscape of
+LSMOP1–4 and LSMOP9 changes, so their results from those versions are not
+comparable with results on the original problems.
+
 ## Explicitly constrained suites
 
 All entries in this table are real-valued. They emit G alongside F; choose an
@@ -162,10 +175,10 @@ The default bounds and discrete choices are fixed by the linked implementation.
 | Key / formulation | Encoding | n / M | Violation objective | Default parameters | Source | Reference sample |
 | --- | --- | --- | --- | --- | --- | --- |
 | `re21` — four-bar truss | Real | 4 / 2 | No | Fixed design bounds | [RE2][re2] | 2D |
-| `re22` — reinforced concrete beam | Mixed | 3 / 2 | f₂ | Discrete reinforcement-area choices | [RE2][re2] | None packaged |
+| `re22` — reinforced concrete beam | Mixed | 3 / 2 | f₂ | 76 discrete reinforcement areas (see below) | [RE2][re2] | None packaged |
 | `re23` — pressure vessel | Mixed | 4 / 2 | f₂ | Thickness step 0.0625; two integer counts | [RE2][re2] | None packaged |
-| `re24` — hatch cover | Real | **2 / 2** | f₂ | Bounds `[0.5, 4]` to `[4, 50]` | [RE2][re2] | 2D |
-| `re25` — coil compression spring | Mixed | 3 / 2 | f₂ | Integer coil count, discrete wire diameter | [RE2][re2] | None packaged |
+| `re24` — hatch cover | Real | **2 / 2** | f₂ | `x1` in `[0.5, 4]`, `x2` in `[0.5, 50]` | [RE2][re2] | 2D |
+| `re25` — coil compression spring | Mixed | 3 / 2 | f₂ | Integer coil count; 19 wire diameters from 0.092 to 0.5 | [RE2][re2] | None packaged |
 | `re31` — two-bar truss | Real | 3 / 3 | f₃ | Fixed design bounds | [RE3a][re3a] | 3D |
 | `re32` — welded beam | Real | 4 / 3 | f₃ | Fixed design bounds | [RE3a][re3a] | 3D |
 | `re33` — disc brake | Real | 4 / 3 | f₃ | Fixed design bounds | [RE3a][re3a] | 3D |
@@ -186,6 +199,32 @@ the implementation; inspect `problem.n_var` after instantiation and use
 metadata aligned. Keep RE91's deterministic setting explicit when comparing it
 with stochastic formulations.
 
+**Development after 1.1.0:** `re24` and `re25` use the domains of Tanabe and
+Ishibuchi's reference implementation (`reproblem.py`), which jMetal shares.
+
+- `re24` searches `x2` in `[0.5, 50]`. VAMOS 1.1.0 and earlier start at 4,
+  which removes the low-cost designs that violate the shear-stress constraint:
+  their front only reaches f₁ = 480.5, while the reference front starts at
+  f₁ = 60.5.
+- `re25` chooses among the 19 wire diameters from 0.092 to 0.5. The reference
+  lists 42 diameters, but bounds the variable to `[0.09, 0.5]` and rounds it to
+  the nearest listed value, so the 23 diameters below 0.092 are never used.
+  VAMOS 1.1.0 and earlier allow all 42.
+
+RE24 and RE25 results from those versions are not comparable with results on
+the reference problems.
+
+`re22` differs from the reference implementation in two documented ways:
+
+- **Value list:** its reinforcement areas read the reference's "3,10" as the
+  single value 3.10, while `reproblem.py` and jMetal read two values, 3 and 10.
+  The area 10 never reaches the front, and 3.10 adds a short segment to it, so
+  the two fronts differ by at most 6e-4 after normalization.
+- **Encoding:** `x1` is a categorical index into the 76 areas, while the
+  reference rounds a continuous value in `[0.2, 15]` to the nearest area. Both
+  reach the same areas, but variation operators sample them with different
+  probabilities.
+
 ### RWA: Zapotecas-Martínez and collaborators
 
 All RWA entries use real variables, fixed dimensions and bounds, and **zero
@@ -204,6 +243,25 @@ implementation converts maximization goals to negative objective values.
 | `rwa8` — rocket injector | 4 / 4 | Four response objectives | [RWA7–8][rwa78] | 4D |
 | `rwa9` — ultra-wideband antenna | 10 / 5 | Fixed passband/stopband response functions | [RWA9–10][rwa910] | 5D |
 | `rwa10` — repellent fabric | 3 / 7 | Fixed fabric performance response functions | [RWA9–10][rwa910] | 7D |
+
+**Development after 1.1.0:** `rwa7` and `rwa8` search `[0, 1]^4`, the
+normalized domain in which Goel et al. (2007) fitted the injector response
+surfaces, as `re37`, Tanabe and Ishibuchi's RE37 and jMetal's RWA7 and RWA8 do.
+The last TTmax term is `-0.281 * dHA * alpha * dOA`, as in `re37`, so `rwa7` is
+`re37` with its objectives in the order Xcc, TFmax, TTmax. VAMOS 1.1.0 and
+earlier evaluate the polynomials on the physical design ranges (`alpha` in
+`[0, 20]`, `dHA` in `[0, 25]`, `dOA` in `[-40, 0]`, `OPTT` in `[0.01, 0.02]`),
+far outside the fitted region, with the opposite sign in that term: TTmax ranges
+from about -2242 to 17093 instead of -0.43 to 1.10. RWA7 and RWA8 values,
+fronts and indicators from those versions are not comparable with the published
+problems.
+
+The packaged `rwa7.csv` (3000 points) and `rwa8.csv` (3999 points) samples are
+regenerated for the normalized formulation. They come from dense sampling of
+`[0, 1]^4` with local refinement, each selected design moved to the front by
+minimizing an achievement function, and a non-dominated filter over all the
+evaluated designs. No point of either sample is dominated by jMetal's RWA7 and
+RWA8 reference fronts or by Tanabe and Ishibuchi's RE37 reference points.
 
 ### Learning and mixed engineering examples
 
@@ -265,6 +323,11 @@ compatibility or a certified optimum.
   back to a 2D file.
 - RE/RWA samples have the dimensions shown above. Their presence does not imply
   that every sample point is a certified global Pareto optimum.
+- **Development after 1.1.0:** `re24.csv` is Tanabe and Ishibuchi's approximated
+  front (`reference_points_RE24.dat`, 1000 points). It is redistributed under
+  the MIT license of their repository, whose notice ships next to it as
+  `LICENSE-reproblems.txt`. The 1.1.0 sample covered only designs with
+  `x2 >= 4`.
 - Families marked “None packaged” require a suitable external reference or a
   documented empirical reference construction when using reference-front metrics.
 

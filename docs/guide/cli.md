@@ -313,6 +313,29 @@ Install any required [optional extras](installation.md#optional-extras) first.
 - Problem zoo: `vamos zoo list`, `vamos zoo info zdt1`, `vamos zoo run zdt1 --algorithm nsgaii --budget 3000`
 - Studio (interactive, needs `studio` extra): read the [Studio walkthrough and launcher limitation](studio.md) before starting.
 
+**Development after 1.1.0:** `vamos bench` and `vamos ablation` build the
+indicator references per problem and number of objectives. The HV reference
+point (`hv_reference`, with `hv_source` set to `problem`) and the reference
+front for IGD, IGD+, epsilon and Hausdorff come from the non-dominated union of
+that problem's runs in the same benchmark or ablation. The values are relative
+to those runs, so do not compare them across problems or with another
+benchmark. VAMOS 1.1.0 built one reference for the whole suite, which distorts
+its indicator values and significance tests; rerun those benchmarks before
+comparing them.
+
+**Development after 1.1.0:** the indicators and their references use only the
+feasible solutions of each run, those whose stored constraint values are all
+`G <= 0`. A run without feasible solutions gets HV 0 and +inf for IGD, IGD+,
+epsilon and Hausdorff, the worst values, and stays in the rank tests; the paired
+signed-rank tests count two such runs, or two such means, as a tie. The
+`n_feasible` column counts the feasible solutions of each run. When a run
+stores no constraint values, `feasibility_known` is `false` and every solution
+counts as feasible: this is the case for unconstrained problems, and for
+constrained runs whose result comes from an archive that keeps no constraint
+values, such as SMPSO with `result_mode: non_dominated`. VAMOS 1.1.0 also
+measured infeasible solutions, so its values for constrained problems are not
+valid.
+
 Tuning quick notes (`vamos tune`)
 ---------------------------------
 

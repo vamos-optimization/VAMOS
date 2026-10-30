@@ -290,6 +290,17 @@ fidelity level they reached. VAMOS 1.1.0 and earlier compared every evaluated
 configuration on its own blocks, so a configuration the race had already
 eliminated could be returned.
 
+**Development after 1.1.0:** with elitist restarts
+(`Scenario(use_elitist_restarts=True)`), each configuration spawned to refill
+the race is first evaluated on the blocks the race has already played, so it
+enters the elimination tests on the same blocks as the elites. A restart
+spawns only as many configurations as `max_experiments` leaves room to catch
+up. Neighbours of an elite keep the active assignment of the space: a
+parameter that the perturbation activates is drawn from its own range. In
+VAMOS 1.1.0, restarts failed with a `KeyError` on any conditional space,
+including every built-in one, and with statistical tests no configuration was
+eliminated after the first refill.
+
 ### Conditional parameters
 
 A trial contains only the parameters that are active for the rest of its
@@ -302,6 +313,13 @@ model-based backends kept every parameter, and `random` and `racing` could keep
 a parameter whose own conditions held while its parent was inactive. They now
 still draw every value in declaration order, so their seeded values do not
 change, and keep a parameter only when its parents are kept.
+
+**Development after 1.1.0:** racing's model-based sampler and
+`filter_active_config`, which writes the trial history and
+`best_config_active.json`, apply the same rule. In VAMOS 1.1.0 they could still
+keep a grandchild such as `x_eta` (active when `x_kind == 'b'`) while its
+grandparent `use_x` was false, in spaces with conditions on the direct parent
+only. The built-in spaces were not affected.
 
 `optuna` and `bohb_optuna` suggest parents before the parameters that depend on
 them, whatever their declaration order, and record only active suggestions in
