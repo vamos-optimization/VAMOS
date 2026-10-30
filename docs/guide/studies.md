@@ -94,6 +94,8 @@ Checking the `plan_id` is useful when a workflow has a review or approval step b
 
 VAMOS 1.1.0 executes a durable study sequentially under a single mutating owner. `eval_strategy` belongs to evaluation inside an individual optimization task; it does not make the study itself a concurrent multi-owner scheduler.
 
+**Development after 1.1.0:** a study executes tasks with serial evaluation only. `StudySpec` still accepts `eval_strategy="multiprocessing"` or `"dask"`, but `plan_study` and `create_study` now reject them with `UNSUPPORTED_EVALUATION_BACKEND`, and reject negative seeds with `INVALID_STUDY_SPEC`; nothing is published. In 1.1.0 those plans were reported `ready` and every task then failed. Use `vamos.optimize(..., eval_strategy=...)` for parallel evaluation of a single run.
+
 ## 4. Inspect operational state before interpreting results
 
 ```python

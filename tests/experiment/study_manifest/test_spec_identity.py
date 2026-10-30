@@ -94,6 +94,15 @@ def test_duplicate_canonical_tasks_are_rejected_before_publication() -> None:
         resolve_spec(_spec(seeds=[0, 0]))
 
 
+@pytest.mark.parametrize("seeds", [[-1], [0, -5]])
+def test_negative_seed_is_rejected(seeds: list[int]) -> None:
+    with pytest.raises(InvalidStudySpecError) as caught:
+        resolve_spec(_spec(seeds=seeds))
+    assert caught.value.reason == "INVALID_STUDY_SPEC"
+    assert caught.value.field == f"seeds[{len(seeds) - 1}]"
+    assert caught.value.execution_occurred is False
+
+
 def test_seed_zero_is_a_concrete_scientific_seed() -> None:
     task = resolve_spec(_spec(seeds=[0])).tasks[0]
     assert task.resolved_run_spec["seed"] == 0

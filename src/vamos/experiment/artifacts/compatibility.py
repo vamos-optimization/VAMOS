@@ -75,6 +75,12 @@ def _material_pairs(
             "checkout scientific source state confirmed by the implementation fingerprint",
         ),
         (
+            "$.provenance.source.package_data_sha256",
+            _package_data_value(stored_source, stored_source),
+            _package_data_value(stored_source, current_source),
+            "checkout packaged-data fingerprint",
+        ),
+        (
             "$.environment.python.implementation",
             stored_python.get("implementation"),
             current_python.get("implementation"),
@@ -174,8 +180,20 @@ def _component_name(value: object) -> str | None:
     return value.split(":", 1)[1].split("@", 1)[0]
 
 
+def _git_checkout(source: Mapping[str, Any]) -> bool:
+    """A checkout whose sources Git versions; an editable install without Git has no revision or dirty state."""
+    return source.get("kind") == "checkout" and source.get("reason") != "git_checkout_unavailable"
+
+
 def _checkout_value(source: Mapping[str, Any], key: str) -> object:
-    return source.get(key) if source.get("kind") == "checkout" else "not_applicable"
+    return source.get(key) if _git_checkout(source) else "not_applicable"
+
+
+def _package_data_value(stored_source: Mapping[str, Any], source: Mapping[str, Any]) -> object:
+    # Runs saved before this fingerprint existed, and wheels (whose distribution hash covers their data), skip it.
+    if "package_data_sha256" not in stored_source:
+        return "not_applicable"
+    return source.get("package_data_sha256", "not_applicable") if source.get("kind") == "checkout" else "not_applicable"
 
 
 def _current_dirty_state(
@@ -184,7 +202,7 @@ def _current_dirty_state(
     stored_distribution: Mapping[str, Any],
     current_distribution: Mapping[str, Any],
 ) -> object:
-    if stored_source.get("kind") != "checkout" or current_source.get("kind") != "checkout":
+    if not (_git_checkout(stored_source) and _git_checkout(current_source)):
         return "not_applicable"
     fingerprint_matches = stored_distribution.get("sha256") is not None and stored_distribution.get("sha256") == current_distribution.get(
         "sha256"
