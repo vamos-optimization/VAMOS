@@ -8,12 +8,12 @@ array of length ``min(k, n)`` into *F*.
 
 from __future__ import annotations
 
-import warnings
-
 import numpy as np
 from numpy.typing import NDArray
 
 from vamos.foundation.kernel.numpy_backend import _compute_crowding
+from vamos.foundation.quality_indicators.hypervolume import hypervolume_contributions
+from vamos.foundation.quality_indicators.pareto import pareto_filter
 
 try:  # pragma: no cover - optional dependency
     import moocore as _moocore
@@ -23,8 +23,6 @@ except ImportError:  # pragma: no cover - optional dependency
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
-
-_HV_FALLBACK_WARNED = False
 
 
 def _single_front_crowding(F: NDArray[np.float64]) -> NDArray[np.float64]:
@@ -37,24 +35,30 @@ def _single_front_crowding(F: NDArray[np.float64]) -> NDArray[np.float64]:
 
 def _hv_contributions(F: NDArray[np.float64], ref: NDArray[np.float64]) -> NDArray[np.float64]:
     """
-    Compute hypervolume contribution of each point.
+    Compute the exact exclusive hypervolume contribution of each point.
 
-    Uses moocore when available; otherwise falls back to crowding distance and
-    emits a one-time warning.
+    Objectives are minimized. Points that do not strictly dominate ``ref``
+    and points dominated by another point contribute 0, and they do not change
+    the contributions of the others, as in ``moocore.hv_contributions``.
+    Duplicated points contribute 0. moocore computes the values when it is
+    installed. Otherwise the non-dominated points inside the reference box go
+    to the exact
+    :func:`vamos.foundation.quality_indicators.hypervolume.hypervolume_contributions`.
     """
-    global _HV_FALLBACK_WARNED
-    if F.shape[0] == 0:
-        return np.empty(0, dtype=float)
+    F_arr = np.asarray(F, dtype=float)
+    ref_arr = np.asarray(ref, dtype=float)
+    if F_arr.shape[0] == 0:
+        return np.zeros(0, dtype=float)
     if _moocore is not None:
-        return np.asarray(_moocore.hv_contributions(F, ref=ref), dtype=float)
-    if not _HV_FALLBACK_WARNED:
-        warnings.warn(
-            "Hypervolume contributions requested but 'moocore' is not installed; falling back to crowding distance.",
-            UserWarning,
-            stacklevel=2,
-        )
-        _HV_FALLBACK_WARNED = True
-    return _single_front_crowding(F)
+        return np.asarray(_moocore.hv_contributions(F_arr, ref=ref_arr), dtype=float)
+    contributions = np.zeros(F_arr.shape[0], dtype=float)
+    inside = np.flatnonzero(np.all(F_arr < ref_arr, axis=1))
+    if inside.size == 0:
+        return contributions
+    _, front_local = pareto_filter(F_arr[inside], return_indices=True)
+    front = inside[front_local]
+    contributions[front] = hypervolume_contributions(F_arr[front], ref_arr)
+    return contributions
 
 
 # ---------------------------------------------------------------------------
@@ -198,13 +202,15 @@ def select_top_k_knn(F: NDArray[np.float64], k: int, *, neighbors: int = 1) -> N
 def select_top_k_reference_directions(F: NDArray[np.float64], k: int, *, divisions: int | None = None) -> NDArray[np.int_]:
     """Select the top-*k* solutions via reference-direction association.
 
-    Generates *k* uniformly distributed reference directions on the simplex
-    (Das-Dennis design), normalizes *F* to [0, 1], and associates each solution
-    to its nearest reference direction by perpendicular distance.  Per direction,
-    the closest solution is kept.  If fewer than *k* solutions are selected
-    (because some directions have no nearby solutions), the remaining slots are
+    Generates the complete Das-Dennis lattice of reference directions with the
+    most directions that fit in *k*, normalizes *F* to [0, 1], and associates each
+    solution to its nearest reference direction by perpendicular distance.  Per
+    direction, the closest solution is kept.  The remaining slots (the lattice can
+    be smaller than *k*, and some directions may have no nearby solutions) are
     filled from unselected solutions by smallest perpendicular distance to any
-    direction.
+    direction.  With a single objective, or *k* smaller than the number of
+    objectives, no lattice fits and the selection falls back to greedy max-min
+    distance.
 
     Particularly effective for many-objective problems (3+ objectives).
 
@@ -215,9 +221,9 @@ def select_top_k_reference_directions(F: NDArray[np.float64], k: int, *, divisio
     k:
         Number of solutions to keep.
     divisions:
-        Number of divisions for the Das-Dennis simplex lattice.  If ``None``,
-        the minimum divisions yielding ``>= k`` reference directions are chosen
-        automatically.
+        Number of divisions for the Das-Dennis simplex lattice; its lattice must
+        have at most *k* directions.  If ``None``, the most divisions whose
+        lattice has at most *k* directions are chosen automatically.
 
     Returns
     -------
@@ -231,12 +237,20 @@ def select_top_k_reference_directions(F: NDArray[np.float64], k: int, *, divisio
         return np.arange(n, dtype=int)
 
     from vamos.engine.algorithm.components.utils import normalize_objectives
-    from vamos.engine.algorithm.components.weight_vectors import (
-        load_or_generate_weight_vectors,
-    )
+    from vamos.engine.archive.pruning_selectors import select_maxmin_subset
+    from vamos.engine.reference_directions import das_dennis, largest_lattice_divisions, lattice_size
+
+    n_obj = F.shape[1]
+    if divisions is None:
+        if n_obj < 2 or k < n_obj:
+            return select_maxmin_subset(F, k)
+        divisions = largest_lattice_divisions(k, n_obj)
+    elif (size := lattice_size(n_obj, divisions)) > k:
+        msg = f"divisions={divisions} gives {size} reference directions for {n_obj} objectives, more than k={k}; choose fewer divisions."
+        raise ValueError(msg)
 
     F_norm = normalize_objectives(F)
-    weights = load_or_generate_weight_vectors(k, F.shape[1], divisions=divisions)
+    weights = das_dennis(n_obj, divisions)
 
     # Perpendicular distance from each solution to each reference direction
     # d_perp(x, w) = ||x - (x·w / w·w) * w||
@@ -473,6 +487,11 @@ def select_top_k_hv_greedy(
 
     Greedy inclusion provides a (1 - 1/e) approximation guarantee for the HV
     subset selection problem (Guerreiro & Fonseca, GECCO 2021).
+
+    The contributions are exact with or without moocore. Without it they are
+    computed in pure Python, which is fast with two objectives and slow with
+    more: about 2 s for ``n = 100`` and ``k = 10`` with three objectives, and
+    about 12 s with four.
 
     Parameters
     ----------

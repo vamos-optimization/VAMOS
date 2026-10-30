@@ -101,9 +101,20 @@ def pairwise_wilcoxon(
             if not higher_is_better:
                 a = -a
                 b = -b
-            stat, p = spstats.wilcoxon(a, b, zero_method="pratt", alternative="two-sided")
+            stat, p = spstats.wilcoxon(_paired_differences(a, b), zero_method="pratt", alternative="two-sided")
             results.append(WilcoxonResult(algo_i=algo_names[i], algo_j=algo_names[j], statistic=stat, p_value=p))
     return results
+
+
+def _paired_differences(a: NDArray[np.float64], b: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Return ``a - b`` with equal pairs, a shared infinite penalty included, as ties.
+
+    ``inf - inf`` is NaN, which would drop the pair from the signed-rank test
+    instead of counting it as the tie it is. An infinity against a finite value
+    stays an infinite difference, the largest rank.
+    """
+    with np.errstate(invalid="ignore"):
+        return np.asarray(np.where(a == b, 0.0, a - b), dtype=float)
 
 
 def nemenyi_cd(k: int, n: int, alpha: float = 0.05) -> float | None:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+from numpy.typing import NDArray
 
 from .tanabe_ishibuchi_utils import sum_violations_gte0
 
@@ -29,7 +30,7 @@ class RE21Problem:
         self._E = 2.0e5
         self._L = 200.0
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: NDArray[np.float64], out: dict[str, NDArray[np.float64]]) -> None:
         x1, x2, x3, x4 = X[:, 0], X[:, 1], X[:, 2], X[:, 3]
         L = self._L
         Fconst = self._F
@@ -48,6 +49,11 @@ class RE22Problem:
     Tanabe & Ishibuchi (2020) RE22 / RE2-3-2: Reinforced concrete beam design.
 
     Mixed variable type: x1 is discrete (reinforcement area), x2,x3 are continuous.
+
+    x1 is a categorical index into the 76 reinforcement areas below. Tanabe and Ishibuchi's ``reproblem.py``
+    (and jMetal) search ``x1`` in ``[0.2, 15]`` and round it to the nearest of 77 listed values; their list reads
+    "3,10", that is 3 and 10, where VAMOS reads 3.10. The value 10 never reaches the front, and 3.10 adds a short
+    segment of it, so the two fronts differ by at most 6e-4 after normalization.
 
     Objectives (minimize):
       f1: total cost
@@ -145,7 +151,7 @@ class RE22Problem:
         self.xl = np.array([0.0, 0.0, 0.0], dtype=float)
         self.xu = np.array([float(self._X1_VALUES.size - 1), 20.0, 40.0], dtype=float)
 
-        self.mixed_spec: dict[str, np.ndarray] = {
+        self.mixed_spec: dict[str, NDArray[np.generic]] = {
             "real_idx": np.array([1, 2], dtype=int),
             "int_idx": np.array([], dtype=int),
             "cat_idx": np.array([0], dtype=int),
@@ -156,7 +162,7 @@ class RE22Problem:
             "cat_cardinality": np.array([self._X1_VALUES.size], dtype=int),
         }
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: NDArray[np.float64], out: dict[str, NDArray[np.float64]]) -> None:
         idx = np.clip(np.rint(X[:, 0]), 0, self._X1_VALUES.size - 1).astype(int)
         x1 = self._X1_VALUES[idx]
         x2 = X[:, 1]
@@ -191,7 +197,7 @@ class RE23Problem:
         self.xl = np.array([1.0, 1.0, 10.0, 10.0], dtype=float)
         self.xu = np.array([100.0, 100.0, 200.0, 240.0], dtype=float)
 
-        self.mixed_spec: dict[str, np.ndarray] = {
+        self.mixed_spec: dict[str, NDArray[np.generic]] = {
             "real_idx": np.array([2, 3], dtype=int),
             "int_idx": np.array([0, 1], dtype=int),
             "cat_idx": np.array([], dtype=int),
@@ -202,7 +208,7 @@ class RE23Problem:
             "cat_cardinality": np.array([], dtype=int),
         }
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: NDArray[np.float64], out: dict[str, NDArray[np.float64]]) -> None:
         steps1 = np.clip(np.rint(X[:, 0]), 1, 100).astype(int)
         steps2 = np.clip(np.rint(X[:, 1]), 1, 100).astype(int)
         x1 = 0.0625 * steps1.astype(float)
@@ -225,13 +231,15 @@ class RE23Problem:
 class RE24Problem:
     """
     Tanabe & Ishibuchi (2020) RE24 / RE2-2-4: Hatch cover design.
+
+    Bounds ``x1`` in ``[0.5, 4]`` and ``x2`` in ``[0.5, 50]``, as in the authors' ``reproblem.py`` and jMetal.
     """
 
     def __init__(self) -> None:
         self.n_var = 2
         self.n_obj = 2
         self.encoding = "continuous"
-        self.xl = np.array([0.5, 4.0], dtype=float)
+        self.xl = np.array([0.5, 0.5], dtype=float)
         self.xu = np.array([4.0, 50.0], dtype=float)
 
         self._E = 700000.0
@@ -239,7 +247,7 @@ class RE24Problem:
         self._tau_max = 450.0
         self._delta_max = 1.5
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: NDArray[np.float64], out: dict[str, NDArray[np.float64]]) -> None:
         x1 = X[:, 0]
         x2 = X[:, 1]
         E = self._E
@@ -267,33 +275,14 @@ class RE25Problem:
     Tanabe & Ishibuchi (2020) RE25 / RE2-3-5: Coil compression spring design.
 
     Mixed variable type: x1 is integer, x3 is discrete.
+
+    x3 is a categorical index into the 19 wire diameters from 0.092 to 0.5. The authors' ``reproblem.py`` (and
+    jMetal) list 42 diameters from 0.009, but bound x3 to ``[0.09, 0.5]`` and round it to the nearest listed
+    value, so only these 19 are reachable; their approximated front was computed that way.
     """
 
     _X3_VALUES = np.array(
         [
-            0.009,
-            0.0095,
-            0.0104,
-            0.0118,
-            0.0128,
-            0.0132,
-            0.014,
-            0.015,
-            0.0162,
-            0.0173,
-            0.018,
-            0.02,
-            0.023,
-            0.025,
-            0.028,
-            0.032,
-            0.035,
-            0.041,
-            0.047,
-            0.054,
-            0.063,
-            0.072,
-            0.08,
             0.092,
             0.105,
             0.12,
@@ -327,7 +316,7 @@ class RE25Problem:
         # x2: categorical index into _X3_VALUES
         self.xl = np.array([1.0, 0.6, 0.0], dtype=float)
         self.xu = np.array([70.0, 3.0, float(self._X3_VALUES.size - 1)], dtype=float)
-        self.mixed_spec: dict[str, np.ndarray] = {
+        self.mixed_spec: dict[str, NDArray[np.generic]] = {
             "real_idx": np.array([1], dtype=int),
             "int_idx": np.array([0], dtype=int),
             "cat_idx": np.array([2], dtype=int),
@@ -338,7 +327,7 @@ class RE25Problem:
             "cat_cardinality": np.array([self._X3_VALUES.size], dtype=int),
         }
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: NDArray[np.float64], out: dict[str, NDArray[np.float64]]) -> None:
         x1 = np.clip(np.rint(X[:, 0]), 1, 70).astype(int).astype(float)
         x2 = X[:, 1]
         idx = np.clip(np.rint(X[:, 2]), 0, self._X3_VALUES.size - 1).astype(int)

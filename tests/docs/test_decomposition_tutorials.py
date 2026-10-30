@@ -92,14 +92,14 @@ def test_tutorial_svg_provenance_and_overwrite_refusal(tmp_path, algorithm, scri
 def test_nsgaiii_documented_cardinality_rejection():
     config = (
         NSGAIIIConfig.builder()
-        .pop_size(12)
+        .pop_size(8)
         .crossover("sbx", prob=1.0, eta=30.0)
         .mutation("pm", prob="1/n", eta=20.0)
         .selection("tournament")
         .reference_directions(divisions=3)
         .build()
     )
-    with pytest.raises(ValueError, match="expect 10 points"):
+    with pytest.raises(ValueError, match="need pop_size >= 10"):
         optimize(DTLZ2(n_var=12, n_obj=3), algorithm="nsgaiii", algorithm_config=config, max_evaluations=203, seed=42)
 
 

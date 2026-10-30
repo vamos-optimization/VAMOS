@@ -38,6 +38,16 @@ def test_reference_front_zcat_bundle_packaged_and_accessible():
     assert path_alias.is_file()
 
 
+def test_third_party_reference_fronts_ship_their_license():
+    # Tanabe and Ishibuchi's approximated fronts are MIT-licensed: their notice must travel with the data.
+    notice = resources.files("vamos.resources.reference_fronts").joinpath("LICENSE-reproblems.txt")
+    assert notice.is_file()
+    text = notice.read_text(encoding="utf-8")
+    assert "MIT License" in text
+    assert "Copyright (c) 2026 Ryoji Tanabe" in text
+    assert "- re24.csv: reference_points_RE24.dat" in text
+
+
 def test_reference_front_prefers_override_data_over_packaged(monkeypatch, tmp_path):
     override_data = tmp_path / "override_fronts"
     pkg_data = tmp_path / "pkg_fronts"

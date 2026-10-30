@@ -9,13 +9,16 @@ kernel does not accept (for example non-finite objective values).
 from __future__ import annotations
 
 from functools import cache
-from typing import Any, TypeAlias
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 import numpy as np
 from numpy.typing import NDArray
 
 from ._numba_ranking import _front_crowding
 from .numba_ops import njit
+
+if TYPE_CHECKING:
+    from .backend import SMSEMOASurvival
 
 FloatArray: TypeAlias = NDArray[np.float64]
 IndexArray: TypeAlias = NDArray[np.int64]
@@ -278,6 +281,29 @@ class NumbaSelectionKernels:
 
     def indicator_removal(self, fitness: FloatArray, contrib: FloatArray, target_size: int) -> IndexArray:
         return indicator_removal(fitness, contrib, int(target_size))
+
+    def smsemoa_survival(
+        self,
+        *,
+        pop_size: int,
+        n_obj: int,
+        n_constraints: int,
+        ref_offset: float,
+        ref_adaptive: bool,
+        eliminate_duplicates: bool,
+        check_feasibility: bool,
+    ) -> SMSEMOASurvival:
+        from ._numba_smsemoa import NumbaSMSEMOASurvival
+
+        return NumbaSMSEMOASurvival(
+            pop_size=pop_size,
+            n_obj=n_obj,
+            n_constraints=n_constraints,
+            ref_offset=ref_offset,
+            ref_adaptive=ref_adaptive,
+            eliminate_duplicates=eliminate_duplicates,
+            check_feasibility=check_feasibility,
+        )
 
 
 @cache
