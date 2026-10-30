@@ -357,7 +357,16 @@ base_config:
   offspring_population_size: 60
 variants:
   - name: baseline
+  - name: small_population
+    config_overrides:
+      pop_size: 40
+  - name: sbx_half
+    variations:
+      nsgaii:
+        crossover: {method: sbx, prob: 0.5, eta: 20}
 summary_dir: results/ablation_demo/summary
 ```
 
 The CLI writes a summary CSV by default to `<output_root>/summary/ablation_metrics.csv` (override with `summary_path` or `summary_dir`).
+
+**Development after 1.1.0:** each variant writes its studies to `<output_root>/<variant>/study-NNNN` (`--flat-output` keeps them all in `<output_root>`), and a key of `base_config` or `config_overrides` that is neither an ablation setting nor a field of the algorithm configuration is rejected before any run. See [Ablation planning](../topics/tuning.md#ablation-planning).

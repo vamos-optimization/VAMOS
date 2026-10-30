@@ -6,15 +6,23 @@ import csv
 import os
 import uuid
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any
 
-from vamos.engine.tuning.ablation import AblationPlan, AblationTask
+from vamos.engine.config.spec import _ALGORITHM_BLOCKS
+from vamos.engine.config.variation import ensure_operator_tuple
+from vamos.engine.tuning.ablation import AblationPlan, AblationTask, AblationVariant
 from vamos.experiment._execution_support import VariationConfigs
 from vamos.experiment.study.writing import fsync_directory
 from vamos.experiment.study_analysis import SummarySource, derive_summary_rows
-from vamos.study_artifacts import Study, StudyReport, StudySpec, StudySummary, create_study, plan_study
+from vamos.foundation.exceptions import ConfigurationError, _suggest_names
+from vamos.study_artifacts import Study, StudyPlanReport, StudyReport, StudySpec, StudySummary, create_study, plan_study
+
+# Settings of the ablation itself; every other key of a variant's configuration
+# is a field of the algorithm configuration.
+_ABLATION_KEYS = {"population_size", "offspring_population_size", "eval_strategy", "output_root"}
+_OPERATOR_FIELDS = {"crossover", "mutation", "selection", "repair", "aggregation"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,12 +94,21 @@ def run_ablation_plan(
     variations_by_variant: Mapping[str, VariationConfigs] | None = None,
     engine: str | None = None,
 ) -> AblationResult:
-    """Execute each scientifically homogeneous ablation group as a study."""
+    """Execute each scientifically homogeneous ablation group as a study.
+
+    Every key of ``base_config`` and of a variant's ``config_overrides`` must be
+    an ablation setting (``population_size``, ``offspring_population_size``,
+    ``eval_strategy`` or ``output_root``) or a field of the algorithm
+    configuration, which then reaches the study's ``algorithm_configs``. Any
+    other key raises :class:`~vamos.exceptions.ConfigurationError`. Each study
+    is written to ``<output_root>/study-NNNN``, where ``output_root`` is the
+    variant's setting, or ``output`` when it has none. Every study is planned
+    before the first one runs.
+    """
     groups = _homogeneous_groups(plan)
     root = Path(output).absolute()
-    executions: list[AblationStudy] = []
+    planned_groups: list[tuple[AblationTask, StudySpec, Path, StudyPlanReport]] = []
     for index, tasks in enumerate(groups):
-        first = tasks[0]
         spec = _study_spec(
             plan,
             tasks,
@@ -100,8 +117,12 @@ def run_ablation_plan(
             variations_by_variant=variations_by_variant,
             engine=engine,
         )
-        destination = root / f"study-{index:04d}"
-        planned = plan_study(spec, output=destination)
+        variant_root = tasks[0].variant.apply(base_config).get("output_root")
+        destination = (Path(str(variant_root)).absolute() if variant_root else root) / f"study-{index:04d}"
+        planned_groups.append((tasks[0], spec, destination, plan_study(spec, output=destination)))
+
+    executions: list[AblationStudy] = []
+    for first, spec, destination, planned in planned_groups:
         created = create_study(spec, output=destination)
         if (planned.plan_id, planned.task_ids) != (created.plan_id, tuple(item.task_id for item in created.plan.tasks)):
             raise AssertionError("ablation planning and creation identities differ")
@@ -142,7 +163,7 @@ def _study_spec(
     first = tasks[0]
     config = first.variant.apply(base_config)
     variation = variations_by_variant.get(first.variant.name) if variations_by_variant is not None else None
-    algorithm_config = _algorithm_config(config, variation, algorithm)
+    algorithm_config = _algorithm_config(config, variation, algorithm, variant=first.variant)
     return StudySpec(
         problems=[first.problem],
         algorithms=[algorithm],
@@ -165,16 +186,57 @@ def _study_spec(
     )
 
 
-def _algorithm_config(config: Mapping[str, Any], variation: VariationConfigs | None, algorithm: str) -> dict[str, Any]:
+def _algorithm_config(
+    config: Mapping[str, Any],
+    variation: VariationConfigs | None,
+    algorithm: str,
+    *,
+    variant: AblationVariant,
+) -> dict[str, Any]:
+    key = algorithm.strip().lower()
     result: dict[str, Any] = {}
     offspring = config.get("offspring_population_size")
-    if offspring is not None and algorithm.strip().lower() not in {"moead", "smpso"}:
+    if offspring is not None and key not in {"moead", "smpso"}:
         result["offspring_size"] = _optional_int(offspring, field="offspring_population_size")
+    known = _config_fields(key)
+    for name, value in config.items():
+        if name in _ABLATION_KEYS:
+            continue
+        if known is not None and name not in known:
+            origin = f"variant '{variant.name}' config_overrides" if name in variant.config_overrides else "base_config"
+            raise _unknown_field_error(name, origin=origin, algorithm=key, known=known)
+        result[name] = value
     if variation is not None:
-        selected = variation.copy_field(algorithm.strip().lower())
+        selected = variation.copy_field(key)
         if selected is not None:
             result.update(selected)
+    # The study planner reads operators as (name, params) pairs; the mapping form
+    # {method: ..., <params>} of the CLI configuration is accepted too.
+    for name in _OPERATOR_FIELDS & result.keys():
+        if isinstance(result[name], Mapping):
+            result[name] = ensure_operator_tuple(result[name], key=name)
     return result
+
+
+def _config_fields(algorithm: str) -> frozenset[str] | None:
+    """Fields of a built-in algorithm configuration, or ``None`` for a plugin (the planner checks those)."""
+    config_type = _ALGORITHM_BLOCKS.get(algorithm)
+    return None if config_type is None else frozenset(field.name for field in fields(config_type))
+
+
+def _unknown_field_error(name: str, *, origin: str, algorithm: str, known: frozenset[str]) -> ConfigurationError:
+    matches = _suggest_names(name, sorted(known | _ABLATION_KEYS))
+    if matches:
+        suggestion = f"Did you mean {' or '.join(repr(match) for match in matches)}?"
+    else:
+        suggestion = f"Known fields: {', '.join(sorted(known))}."
+    if name.split("_", 1)[0] in _OPERATOR_FIELDS:
+        suggestion += " Operator parameters go inside the operator, for example crossover: [sbx, {prob: 0.5}]."
+    return ConfigurationError(
+        f"Ablation {origin} sets '{name}', which is neither an ablation setting "
+        f"({', '.join(sorted(_ABLATION_KEYS))}) nor a field of the {algorithm} configuration.",
+        suggestion=suggestion,
+    )
 
 
 def _optional_int(value: object, *, field: str) -> int | None:
