@@ -91,6 +91,18 @@ def initialize_spea2_run(
     n_obj = problem.n_obj
     xl, xu = resolve_bounds(problem, encoding)
 
+    # Build (and validate) variation operators before any evaluation
+    crossover_fn, mutation_fn = build_variation_operators(
+        cfg,
+        encoding,
+        n_var,
+        xl,
+        xu,
+        rng,
+        problem=problem,
+        variation_kernels=kernel.variation_kernels(),
+    )
+
     # Initialize population
     initializer_cfg = cfg.get("initializer")
     X = initialize_population(pop_size, n_var, xl, xu, encoding, rng, problem, initializer=initializer_cfg)
@@ -125,18 +137,6 @@ def initialize_spea2_run(
     # Setup genealogy
     track_genealogy = bool(cfg.get("track_genealogy", False))
     genealogy_tracker, ids = setup_genealogy(pop_size, F, track_genealogy, "spea2")
-
-    # Build variation operators
-    crossover_fn, mutation_fn = build_variation_operators(
-        cfg,
-        encoding,
-        n_var,
-        xl,
-        xu,
-        rng,
-        problem=problem,
-        variation_kernels=kernel.variation_kernels(),
-    )
 
     ctx = RunContext(
         problem=problem,

@@ -10,6 +10,17 @@ unsupported behavior rather than future compatibility promises.
 - A valid population size may depend on an algorithm's reference directions or
   weight lattice. Incompatible sizes fail instead of being adjusted silently.
 - The strict evaluation budget must be at least the resolved population size.
+- **Development after 1.1.0:** NSGA-III, SMS-EMOA and SPEA2 mate parents two by
+  two, so they reject the three-parent crossovers `pcx`, `undx`, `simplex` and
+  `de`; MOEA/D accepts `de` but rejects the other three. NSGA-II, IBEA,
+  AGE-MOEA and RVEA group parents by the crossover's arity and run all four.
+  For real encoding, NSGA-III, SMS-EMOA, SPEA2 and MOEA/D also reject
+  crossovers and mutations of other encodings, as NSGA-II does. The
+  initializers `lhs`, `scatter`, `sobol`, `halton` and `obl` require real
+  encoding in every algorithm. These errors are raised before the first
+  evaluation. VAMOS 1.1.0 failed only at the first generation with a
+  three-parent crossover, ran binary operators on real variables, and gave
+  binary problems fractional initial bits.
 - Deterministic same-environment runs do not imply bitwise equality across
   different kernels, BLAS implementations, operating systems, architectures,
   or optional third-party engines.

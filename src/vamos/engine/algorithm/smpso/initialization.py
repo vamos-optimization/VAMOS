@@ -149,7 +149,8 @@ def initialize_smpso_run(
 
     n_var = int(problem.n_var)
     n_obj = int(problem.n_obj)
-    xl, xu = resolve_bounds(problem, encoding)
+    # Real and mixed encodings have float bounds.
+    xl, xu = (np.asarray(bound, dtype=np.float64) for bound in resolve_bounds(problem, encoding))
 
     span = xu - xl
     if vmax_fraction is None:

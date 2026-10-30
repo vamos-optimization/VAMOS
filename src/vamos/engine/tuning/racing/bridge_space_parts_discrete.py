@@ -1,7 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from .config_space import SpacePart
 from .param_space import Boolean, Categorical, Condition, ConditionalBlock, Int, ParamType, Real
+
+REAL_CROSSOVERS_MEDIUM: tuple[str, ...] = ("sbx", "blx_alpha", "arithmetic", "pcx", "undx", "simplex")
+"""Real crossovers of the medium space, for algorithms that group parents by crossover arity."""
+PAIRWISE_REAL_CROSSOVERS_MEDIUM: tuple[str, ...] = ("sbx", "blx_alpha", "arithmetic")
+"""Two-parent subset, for algorithms that always mate parents two by two."""
 
 
 def real_operator_part_medium(
@@ -11,13 +18,14 @@ def real_operator_part_medium(
     crossover_prob_bounds: tuple[float, float] = (0.6, 1.0),
     include_initializer: bool = True,
     include_repair: bool = True,
+    crossovers: Sequence[str] = REAL_CROSSOVERS_MEDIUM,
 ) -> SpacePart:
     params: list[ParamType] = []
     if include_initializer:
         params.append(Categorical("initializer", ["random", "lhs", "scatter"], role="structural"))
     params.extend(
         [
-            Categorical("crossover", ["sbx", "blx_alpha", "arithmetic", "pcx", "undx", "simplex"], role="operator"),
+            Categorical("crossover", list(crossovers), role="operator"),
             Real("crossover_prob", crossover_prob_bounds[0], crossover_prob_bounds[1], role="operator_rate"),
             Categorical(
                 "mutation",
@@ -41,6 +49,12 @@ def real_operator_part_medium(
                 Categorical("blx_repair", ["clip", "random", "reflect", "round"], role="structural"),
             ],
         ),
+        ConditionalBlock("mutation", "non_uniform", [Real("nonuniform_perturbation", 0.05, 0.5, role="operator_rate")]),
+        ConditionalBlock("mutation", "gaussian", [Real("gaussian_sigma", 0.001, 0.5, role="operator_rate")]),
+        ConditionalBlock("mutation", "cauchy", [Real("cauchy_gamma", 0.001, 0.5, role="operator_rate")]),
+        ConditionalBlock("mutation", "uniform", [Real("uniform_perturb", 0.01, 0.5, role="operator_rate")]),
+    ]
+    multi_parent_blocks = [
         ConditionalBlock(
             "crossover",
             "pcx",
@@ -58,11 +72,8 @@ def real_operator_part_medium(
             ],
         ),
         ConditionalBlock("crossover", "simplex", [Real("simplex_epsilon", 0.1, 1.0, role="operator_rate")]),
-        ConditionalBlock("mutation", "non_uniform", [Real("nonuniform_perturbation", 0.05, 0.5, role="operator_rate")]),
-        ConditionalBlock("mutation", "gaussian", [Real("gaussian_sigma", 0.001, 0.5, role="operator_rate")]),
-        ConditionalBlock("mutation", "cauchy", [Real("cauchy_gamma", 0.001, 0.5, role="operator_rate")]),
-        ConditionalBlock("mutation", "uniform", [Real("uniform_perturb", 0.01, 0.5, role="operator_rate")]),
     ]
+    conditionals.extend(block for block in multi_parent_blocks if block.parent_value in crossovers)
     if include_initializer:
         conditionals.append(
             ConditionalBlock(

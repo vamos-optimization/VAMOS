@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TypeAlias
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vamos.engine.operators.impl.binary import random_binary_population
 from vamos.engine.operators.impl.integer import random_integer_population
@@ -17,8 +18,15 @@ from vamos.engine.operators.impl.real import (
 )
 from vamos.foundation.encoding import EncodingLike, normalize_encoding
 
+DecisionArray: TypeAlias = NDArray[np.generic]
+BoundsArray: TypeAlias = NDArray[np.float64] | NDArray[np.int_]
 
-def resolve_bounds(problem: Any, encoding: EncodingLike) -> tuple[np.ndarray, np.ndarray]:
+# Initializers that sample real-valued decision vectors.
+_REAL_INITIALIZERS = ("lhs", "scatter", "scatter_search", "sobol", "halton", "obl", "opposition")
+
+
+def resolve_bounds(problem: Any, encoding: EncodingLike) -> tuple[BoundsArray, BoundsArray]:
+    """Return the bounds as arrays of length ``n_var``: integers for integer encoding, floats otherwise."""
     normalized = normalize_encoding(encoding)
     bounds_dtype = int if normalized == "integer" else float
     xl = np.asarray(problem.xl, dtype=bounds_dtype)
@@ -36,18 +44,18 @@ def resolve_bounds(problem: Any, encoding: EncodingLike) -> tuple[np.ndarray, np
 def initialize_population(
     pop_size: int,
     n_var: int,
-    xl: np.ndarray,
-    xu: np.ndarray,
+    xl: DecisionArray,
+    xu: DecisionArray,
     encoding: EncodingLike,
     rng: np.random.Generator,
     problem: Any | None = None,
     initializer: Any | None = None,
-) -> np.ndarray:
+) -> DecisionArray:
     normalized = normalize_encoding(encoding)
     if pop_size <= 0:
         raise ValueError("pop_size must be positive.")
 
-    def _validate_custom_population(raw: Any, *, label: str) -> np.ndarray:
+    def _validate_custom_population(raw: Any, *, label: str) -> DecisionArray:
         arr = np.asarray(raw)
         if arr.ndim != 2 or arr.shape != (pop_size, n_var):
             raise ValueError(f"{label} must return an array of shape ({pop_size}, {n_var}), got {arr.shape}.")
@@ -74,6 +82,11 @@ def initialize_population(
         return _validate_custom_population(initializer(), label="custom initializer")
     if initializer is not None and isinstance(initializer, dict):
         init_type = initializer.get("type", "random").lower()
+        if init_type in _REAL_INITIALIZERS and normalized != "real":
+            raise ValueError(
+                f"Initializer '{init_type}' samples real values and supports only real encoding, not {normalized} encoding. "
+                "Use 'random' or a custom initializer."
+            )
         if init_type == "custom":
             custom_fn = initializer.get("fn")
             if callable(custom_fn):
@@ -105,10 +118,10 @@ def initialize_population(
         if spec is None:
             raise ValueError("Mixed-encoding problems must define 'mixed_spec'.")
         return mixed_initialize(pop_size, n_var, spec, rng)
-    return rng.uniform(xl, xu, size=(pop_size, n_var))
+    return rng.uniform(np.asarray(xl, dtype=np.float64), np.asarray(xu, dtype=np.float64), size=(pop_size, n_var))
 
 
-def evaluate_population(problem: Any, X: np.ndarray) -> np.ndarray:
+def evaluate_population(problem: Any, X: DecisionArray) -> NDArray[np.float64]:
     out = {"F": np.empty((X.shape[0], problem.n_obj))}
     problem.evaluate(X, out)
     return out["F"]
