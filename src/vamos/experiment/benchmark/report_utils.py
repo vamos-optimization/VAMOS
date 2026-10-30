@@ -42,11 +42,12 @@ def min_rank_sum_p_value(n_a: int, n_b: int) -> float:
     """Smallest two-sided p-value of an exact rank-sum test with samples of these sizes.
 
     It is reached when the samples do not overlap: ``2 / C(n_a + n_b, n_a)``, so 0.1 with
-    three runs per algorithm and 0.0079 with five.
+    three runs per algorithm and 0.0079 with five. Integer true division keeps the ratio
+    exact; from about 515 runs each it underflows to 0 instead of overflowing a float.
     """
     if n_a < 1 or n_b < 1:
         return 1.0
-    return min(1.0, 2.0 / math.comb(n_a + n_b, n_a))
+    return min(1.0, 2 / math.comb(n_a + n_b, n_a))
 
 
 def holm_adjust(p_values: Sequence[float]) -> list[float]:

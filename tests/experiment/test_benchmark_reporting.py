@@ -293,6 +293,36 @@ def test_too_few_runs_to_reach_alpha_warn_and_note_the_table(tmp_path: Path, cap
     assert any("p1" in record.getMessage() and "0.1" in record.getMessage() for record in caplog.records)
 
 
+@pytest.mark.parametrize(
+    ("n_a", "n_b", "expected"),
+    [(3, 3, 0.1), (5, 5, 2 / 252), (1, 1, 1.0), (0, 5, 1.0), (2000, 3, 2 / 1_337_337_001), (2000, 2000, 0.0)],
+)
+def test_min_rank_sum_p_value_handles_large_run_counts(n_a: int, n_b: int, expected: float):
+    from vamos.experiment.benchmark.report_utils import min_rank_sum_p_value
+
+    assert min_rank_sum_p_value(n_a, n_b) == pytest.approx(expected, rel=1e-12, abs=0.0)
+
+
+def test_min_rank_sum_p_value_does_not_overflow_at_515_runs():
+    from vamos.experiment.benchmark.report_utils import min_rank_sum_p_value
+
+    # C(1030, 515) does not fit in a float; the floor is about 7e-309, not an OverflowError.
+    floor = min_rank_sum_p_value(515, 515)
+    assert 0.0 < floor < 1e-300
+
+
+def test_report_with_many_runs_per_algorithm_marks_differences(tmp_path: Path):
+    pytest.importorskip("pandas")
+    pytest.importorskip("scipy")
+    values = {("p1", "a1"): [0.1 + 1e-4 * seed for seed in range(520)], ("p1", "a2"): [0.2 + 1e-4 * seed for seed in range(520)]}
+    report = _metric_report(tmp_path, "igd_plus", values)
+
+    best, other = _latex_cells(report.generate_latex_tables()["igd_plus"])["p1"]
+
+    assert best.startswith("\\textbf{")
+    assert other.endswith("$^{-}$")
+
+
 def test_holm_adjustment_is_step_down_and_monotone():
     from vamos.experiment.benchmark.report_utils import holm_adjust
 
