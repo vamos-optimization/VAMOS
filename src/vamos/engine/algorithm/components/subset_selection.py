@@ -245,11 +245,9 @@ def select_top_k_reference_directions(F: NDArray[np.float64], k: int, *, divisio
         if n_obj < 2 or k < n_obj:
             return select_maxmin_subset(F, k)
         divisions = largest_lattice_divisions(k, n_obj)
-    elif lattice_size(n_obj, divisions) > k:
-        raise ValueError(
-            f"divisions={divisions} gives {lattice_size(n_obj, divisions)} reference directions for "
-            f"{n_obj} objectives, more than k={k}; choose fewer divisions."
-        )
+    elif (size := lattice_size(n_obj, divisions)) > k:
+        msg = f"divisions={divisions} gives {size} reference directions for {n_obj} objectives, more than k={k}; choose fewer divisions."
+        raise ValueError(msg)
 
     F_norm = normalize_objectives(F)
     weights = das_dennis(n_obj, divisions)
