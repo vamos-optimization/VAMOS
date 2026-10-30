@@ -202,7 +202,7 @@ never compiles problem evaluation.
 | --- | --- | --- |
 | NSGA-II | Non-dominated ranking and crowding, survival, tournament selection, SBX, polynomial mutation; the whole one-offspring steady-state step in its supported configuration (below) | Feasibility ordering, archives, steady-state front maintenance outside that configuration |
 | NSGA-III | Ranking and crowding, tournament selection, SBX, polynomial mutation | Normalization, association to reference directions, niching (it shuffles with the run generator inside the loop) |
-| MOEA/D | Differential-evolution children, SBX, polynomial mutation, neighbourhood replacement | Parent sampling, repair, weight geometry |
+| MOEA/D | Differential-evolution children, SBX, polynomial mutation, neighbourhood replacement; the whole one-offspring step (see below) | Weight geometry; parent sampling and repair outside the compiled one-offspring step |
 | SMS-EMOA | The steady-state step (development after 1.1.0, see below): child variation and clipping, front insertion, two-objective hypervolume contributions, crowding, feasibility-first removal; tournament selection where configured | Parent sampling draws, hypervolume contributions for three or more objectives (MooCore when installed), archives |
 | SPEA2 | SBX, polynomial mutation, k-th-distance truncation | Strength/raw fitness and density (vectorized NumPy) |
 | IBEA | Tournament selection, SBX, polynomial mutation, indicator-based removal | Indicator matrix |
@@ -224,6 +224,18 @@ immigration, parent-selection filters and non-breeding indices keep the
 NumPy/Python steady-state path, as does any step with non-finite objective
 values. External archives and hypervolume termination behave the same on both
 paths.
+
+**Development after 1.1.0:** with `batch_size=1` (the default), MOEA/D under
+`engine="numba"` compiles each whole step: parent selection, DE or SBX,
+polynomial mutation, the clip repair, the ideal point and the neighbourhood
+replacement. Python only draws the random numbers from the run generator, in the
+order of the NumPy step, and evaluates the problem, so trajectories stay
+identical. The compiled step covers real-coded runs with DE or SBX crossover,
+polynomial mutation and the clip repair (the defaults), every aggregation,
+constraints, external archives, live callbacks and HV termination. Genealogy
+tracking, `batch_size > 1`, other operators or repairs, other array types, and
+platforms where compiled variation stays disabled (see below) keep the
+per-operator path described in the table.
 
 Compiled SBX and polynomial mutation are enabled only after a one-time check
 that compiled `pow` matches `np.power` bit for bit on the platform (some NumPy
