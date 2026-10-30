@@ -175,8 +175,8 @@ points and joins the two extreme points of that set with a chord. The knee is
 the point farthest from the chord on the side of the ideal point (Das, 1999;
 Deb and Gupta, 2011), and each score is minus that signed distance. Dominated
 points score `inf`. A concave or linear front has no point on that side, so it
-has no knee: the helper emits a `UserWarning`, the lowest score falls on an
-extreme point, and Studio's Results page shows the warning. VAMOS 1.1.0 and
+has no knee: the helper emits a `UserWarning`, `best_index` is the extreme
+point with the smallest f1, and Studio's Results page shows the warning. VAMOS 1.1.0 and
 earlier use the unsigned distance, which on a concave front picks the point
 farthest from the ideal and can pick a dominated point. The distances use the
 units of `F`, so normalize objectives with different scales first.

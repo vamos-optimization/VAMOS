@@ -92,3 +92,21 @@ def test_knee_point_scores_rank_by_signed_distance_to_the_chord():
 
     distance = np.array([0.0, 0.4, 0.5, 0.4, 0.0]) / np.sqrt(2.0)
     np.testing.assert_allclose(result.scores, -distance, atol=1e-12)
+
+
+@pytest.mark.parametrize(
+    "F",
+    [
+        # Linear front, interior point first: every signed distance is 0.
+        [[0.5, 0.5], [0.0, 1.0], [1.0, 0.0]],
+        [[1.0, 0.0], [0.5, 0.5], [0.0, 1.0]],
+        # Concave front with its rows shuffled.
+        [[0.75, 0.4375], [1.0, 0.0], [0.5, 0.75], [0.0, 1.0], [0.25, 0.9375]],
+    ],
+)
+def test_front_without_knee_falls_back_to_the_smallest_f1_extreme(F):
+    with pytest.warns(UserWarning, match="no knee"):
+        result = knee_point_scores(np.asarray(F))
+
+    assert result.best_point.tolist() == [0.0, 1.0]
+    assert result.scores[result.best_index] == np.min(result.scores)

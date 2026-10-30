@@ -82,8 +82,9 @@ def knee_point_scores(F: NDArray[np.float64]) -> MCDMResult:
     has the lowest score. Dominated points score ``inf``.
 
     A concave or linear front has no point on the ideal side of the chord, and
-    therefore no knee. The function then emits a ``UserWarning`` and the lowest
-    score, and so ``best_index``, falls on an extreme point of the front.
+    therefore no knee. The function then emits a ``UserWarning``, and
+    ``best_index`` is the extreme point with the smallest f1, which has the
+    lowest score, whatever the order of the rows.
 
     Distances are measured in the units of ``F``; normalize the objectives
     first when their scales differ.
@@ -96,11 +97,13 @@ def knee_point_scores(F: NDArray[np.float64]) -> MCDMResult:
     front = F[front_idx]
     order = np.argsort(front[:, 0], kind="stable")
     p_start = front[order[0]]
+    start_idx = int(front_idx[order[0]])
     chord = front[order[-1]] - p_start
     norm = float(np.linalg.norm(chord))
     if norm == 0.0:
         # One distinct non-dominated point: it is the only candidate.
         scores[front_idx] = 0.0
+        best_idx = start_idx
     else:
         # The chord runs from the smallest f1 to the smallest f2; this unit
         # normal points from it towards the ideal point.
@@ -108,14 +111,18 @@ def knee_point_scores(F: NDArray[np.float64]) -> MCDMResult:
         signed = (front - p_start) @ normal
         signed[np.abs(signed) <= 1e-12 * norm] = 0.0
         scores[front_idx] = 0.0 - signed  # 0.0 - x avoids a -0.0 score at the extremes
-        if not np.any(signed > 0.0):
+        if np.any(signed > 0.0):
+            best_idx = int(np.argmin(scores))
+        else:
             warnings.warn(
                 "The front has no knee: no non-dominated point lies on the ideal side of the chord "
                 "between its extreme points (concave or linear front).",
                 UserWarning,
                 stacklevel=2,
             )
-    best_idx = int(np.argmin(scores))
+            # Every score is >= 0 and the extremes score 0; choose one of them
+            # explicitly so that ties on a linear front do not depend on row order.
+            best_idx = start_idx
     return MCDMResult(scores=scores, best_index=best_idx, best_point=F[best_idx].copy())
 
 
