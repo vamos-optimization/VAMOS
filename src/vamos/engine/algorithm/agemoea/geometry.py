@@ -183,6 +183,11 @@ def age_survival(
     truncated one, which is cut by that score. pymoo 0.6.2 leaves the truncated
     front unscored and cuts it by index. AGE-MOEA's mating tournament breaks
     rank ties with these scores.
+
+    Later fronts are measured in the coordinates of the first-front score:
+    translated by the ideal point, then divided by the normalization. PlatEMO
+    and pymoo divide without translating, which makes the proximity depend on
+    where the objectives' origin lies.
     """
     n_survive = min(int(n_survive), F.shape[0])
     ranks, _ = kernel.nsga2_ranking(F)
@@ -210,8 +215,9 @@ def age_survival(
         front_idx = fronts[r]
         if front_idx.size == 0:
             continue
-        front = F[front_idx] / normalization
-        dist = _minkowski_distances(front, ideal_point[None, :], p).squeeze()
+        # Same ideal-centred, normalized coordinates as the first-front score.
+        front = (F[front_idx] - ideal_point) / normalization
+        dist = _minkowski_distances(front, np.zeros((1, F.shape[1])), p).squeeze()
         dist = np.where(dist < 1e-12, 1e-12, dist)
         crowd_dist[front_idx] = 1.0 / dist
 

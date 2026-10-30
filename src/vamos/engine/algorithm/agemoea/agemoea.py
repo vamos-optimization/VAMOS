@@ -155,10 +155,12 @@ class AGEMOEA:
     included, are scored by proximity to the ideal point, and the binary mating
     tournament compares rank, then that survival score, as in the author's
     PlatEMO code. The rest follows pymoo, with PlatEMO's distance
-    normalization: objectives are not rounded to 6 decimals before
-    non-dominated sorting, the geometry exponent ``p`` is capped at 20, a
-    hyperplane with a zero coefficient also falls back to the front maximum,
-    and the default variation is SBX(0.9, 15) with polynomial mutation.
+    normalization: later fronts are measured in the first front's
+    ideal-centred, normalized coordinates (PlatEMO and pymoo do not translate
+    them), objectives are not rounded to 6 decimals before non-dominated
+    sorting, the geometry exponent ``p`` is capped at 20, a hyperplane with a
+    zero coefficient also falls back to the front maximum, and the default
+    variation is SBX(0.9, 15) with polynomial mutation.
 
     Parameters
     ----------

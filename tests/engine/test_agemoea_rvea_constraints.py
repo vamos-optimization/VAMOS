@@ -95,33 +95,36 @@ def test_agemoea_feasibility_survival_keeps_feasible_then_least_violating() -> N
     assert set(survivors.tolist()) == {0, 2, 3, 5}
 
 
+@pytest.mark.parametrize("scale, shift", [((1.0, 1.0), (0.0, 0.0)), ((2.0, 3.0), (10.0, 20.0))])
 @pytest.mark.parametrize("reverse_rows", [False, True])
-def test_age_survival_scores_the_truncated_front(reverse_rows: bool) -> None:
+def test_age_survival_scores_the_truncated_front(reverse_rows: bool, scale: tuple, shift: tuple) -> None:
     # Front 0 holds 3 points and N = 5, so two of the six front-1 points survive.
     # The author's code (PlatEMO EnvironmentalSelection.m, ``for i = 2:MaxFNo``)
     # scores every later front, the truncated one included, by proximity to the
     # ideal point; pymoo 0.6.2 skips the truncated front and cuts it by index.
+    # Shifting and scaling the objectives must not change which rows survive.
     front0 = [(0.0, 1.0), (0.5, 0.5), (1.0, 0.0)]
     front1 = [(0.05, 3.0), (0.3, 2.0), (0.55, 0.6), (1.2, 0.3), (3.0, 0.05), (4.0, 0.04)]
     if reverse_rows:
         front1 = front1[::-1]
-    F = np.array(front0 + front1)
+    base = np.array(front0 + front1)
+    F = base * np.array(scale) + np.array(shift)
 
     survivors, _ = age_survival(F, 5, NumPyKernel())
 
-    kept = {tuple(row) for row in F[survivors].tolist()}
+    kept = {tuple(row) for row in base[survivors].tolist()}
     assert kept == {*front0, (0.55, 0.6), (1.2, 0.3)}
 
 
 def _age_survival_scores(F: np.ndarray) -> np.ndarray:
-    """Score every row as PlatEMO's EnvironmentalSelection does."""
+    """Score every row as AGE-MOEA's survival does (PlatEMO's EnvironmentalSelection, ideal-centred)."""
     kernel = NumPyKernel()
     ranks, _ = kernel.nsga2_ranking(F)
     first = ranks == 0
     ideal = F[first].min(axis=0)
     scores = np.zeros(F.shape[0])
     scores[first], p, normalization = _survival_score(F[first], ideal, kernel.selection_kernels())
-    distance = np.sum(np.abs(F[~first] / normalization - ideal) ** p, axis=1) ** (1.0 / p)
+    distance = np.sum(np.abs((F[~first] - ideal) / normalization) ** p, axis=1) ** (1.0 / p)
     scores[~first] = 1.0 / np.maximum(distance, 1e-12)
     return scores
 
