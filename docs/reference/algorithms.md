@@ -115,6 +115,8 @@ For algorithms with a supported external result archive, enabling it makes that 
 
 NSGA-III and RVEA require a population compatible with the configured reference directions. MOEA/D requires one weight vector per population member. For a simplex lattice with `p` divisions and `m` objectives, use `comb(p + m - 1, m - 1)`; for three objectives and 12 divisions, that is **91**. Explicit incompatible cardinalities fail; they are not warning-only cases. Follow the tutorials before changing objective count or population size.
 
+**Development after 1.1.0:** NSGA-III needs at least one individual per reference direction (N >= H) instead of exactly one, as Deb and Jain, jMetal and pymoo do; 100 individuals with 12 divisions and three objectives run with 91 directions, and fewer than 91 fail. Without `divisions`, NSGA-III uses the complete Das-Dennis lattice with the most directions that fit in `pop_size`; VAMOS 1.1.0 and earlier cut the next larger lattice to `pop_size` directions and lost the extreme direction of the first objective. With two objectives, NSGA-III and RVEA default to `pop_size - 1` divisions, or 99 without `pop_size`, instead of 6. RVEA and MOEA/D still need exactly one individual per vector.
+
 ### Changes included in 1.0.1
 
 - **SMPSO:** `archive_size` controls search leaders, `.external_archive(...)` configures a separate result archive, and explicit `population` mode returns the final swarm. Version 1.0.0 returned the leaders archive without honoring these independent result controls.
@@ -201,7 +203,7 @@ never compiles problem evaluation.
 | NSGA-II | Non-dominated ranking and crowding, survival, tournament selection, SBX, polynomial mutation; the whole one-offspring steady-state step in its supported configuration (below) | Feasibility ordering, archives, steady-state front maintenance outside that configuration |
 | NSGA-III | Ranking and crowding, tournament selection, SBX, polynomial mutation | Normalization, association to reference directions, niching (it shuffles with the run generator inside the loop) |
 | MOEA/D | Differential-evolution children, SBX, polynomial mutation, neighbourhood replacement; the whole one-offspring step (see below) | Weight geometry; parent sampling and repair outside the compiled one-offspring step |
-| SMS-EMOA | SBX, polynomial mutation; ranking and tournament selection where configured | Front insertion, hypervolume contributions (MooCore when installed) |
+| SMS-EMOA | The steady-state step (development after 1.1.0, see below): child variation and clipping, front insertion, two-objective hypervolume contributions, crowding, feasibility-first removal; tournament selection where configured | Parent sampling draws, hypervolume contributions for three or more objectives (MooCore when installed), archives |
 | SPEA2 | SBX, polynomial mutation, k-th-distance truncation | Strength/raw fitness and density (vectorized NumPy) |
 | IBEA | Tournament selection, SBX, polynomial mutation, indicator-based removal | Indicator matrix |
 | SMPSO | Turbulence mutation, leaders-archive crowding truncation | Velocity/position updates (vectorized NumPy), deduplication |
@@ -240,6 +242,24 @@ that compiled `pow` matches `np.power` bit for bit on the platform (some NumPy
 builds use vendor SIMD power). Otherwise the Numba engine keeps the NumPy
 operators. Compiled ranking, survival and archive truncation fall back to NumPy
 for non-finite objective values.
+
+**Development after 1.1.0:** under `engine="numba"`, SMS-EMOA runs each
+steady-state step (one child) in two compiled calls for the child and one for
+survival, instead of per-step NumPy and Python code. Parents and every
+variation draw still come from the run generator in the reference order, and
+the population, the cached ranks and crowding distances and the reference point
+evolve bit for bit as in the NumPy reference. The step covers real encoding
+with SBX, polynomial mutation and the clip repair (`repair="auto"`), random or
+tournament parent selection, duplicate elimination, constraints, fixed or
+adaptive reference points, external archives and live callbacks.
+Two-objective contributions and constraint-violation sums are compiled only
+after a one-time check against the installed reference (MooCore or the NumPy
+fallback, and NumPy's summation order); three or more objectives keep the
+reference contribution call. Other operators and repairs, genealogy tracking,
+kernels that override the ranking or contribution hooks, a platform where
+compiled `pow` differs from `np.power`, and non-finite objective values keep
+the reference step. VAMOS 1.1.0 ran front insertion and contributions in Python
+under every engine.
 
 Two compiled paths depend on whether Numba is installed rather than on the
 engine: the MOEA/D neighbourhood update (disable with

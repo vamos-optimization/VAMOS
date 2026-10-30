@@ -1,13 +1,17 @@
-"""Tests for new racing features: convergence detection and checkpoint I/O."""
+"""Tests for new racing features: convergence detection, checkpoint I/O and elitist restarts."""
 
 import tempfile
 from pathlib import Path
 
 import numpy as np
+import pytest
 
+import vamos.engine.tuning.racing.core as core_module
+from vamos.engine.tuning import build_nsgaii_config_space
 from vamos.engine.tuning.racing.core import RacingTuner
 from vamos.engine.tuning.racing.io import load_checkpoint, save_checkpoint
-from vamos.engine.tuning.racing.param_space import ParamSpace, Real
+from vamos.engine.tuning.racing.param_space import Categorical, Condition, ParamSpace, Real, _active_assignment
+from vamos.engine.tuning.racing.refill import make_neighbor_config
 from vamos.engine.tuning.racing.scenario import Scenario
 from vamos.engine.tuning.racing.tuning_task import Instance, TuningTask
 
@@ -162,3 +166,86 @@ def test_warm_start_with_initial_configs():
     trial_x_values = [t.config["x"] for t in history]
     assert 0.42 in trial_x_values, "Warm start config should be in history"
     assert 0.84 in trial_x_values, "Warm start config should be in history"
+
+
+def _restart_space() -> ParamSpace:
+    # use_x -> x_kind -> x_eta, with conditions on the direct parent only.
+    return ParamSpace(
+        params={
+            "use_x": Categorical("use_x", [True, False]),
+            "x_kind": Categorical("x_kind", ["a", "b"]),
+            "x_eta": Real("x_eta", 1.0, 10.0),
+            "q": Real("q", 0.0, 1.0),
+        },
+        conditions=[Condition("x_kind", "cfg['use_x'] == True"), Condition("x_eta", "cfg['x_kind'] == 'b'")],
+    )
+
+
+def test_neighbor_configs_follow_the_space_conditions():
+    space = _restart_space()
+    rng = np.random.default_rng(0)
+    elites = [{"use_x": False, "q": 0.3}, {"use_x": True, "x_kind": "a", "q": 0.3}, {"use_x": True, "x_kind": "b", "x_eta": 4.0, "q": 0.3}]
+    neighbors = [make_neighbor_config(elite, space, rng) for elite in elites for _ in range(300)]
+
+    for neighbor in neighbors:
+        assert neighbor == _active_assignment(space, neighbor)
+        space.validate(neighbor)
+    # Children that a perturbation activates are drawn from their own range.
+    assert any("x_eta" in neighbor for neighbor in neighbors[:600])
+    # Keys outside the space travel with the elite unchanged.
+    assert make_neighbor_config({"use_x": False, "q": 0.3, "population_size": 40}, space, rng)["population_size"] == 40
+
+
+@pytest.mark.parametrize("use_statistical_tests", [False, True])
+def test_elitist_restarts_with_builtin_space_do_not_crash(use_statistical_tests: bool):
+    space = build_nsgaii_config_space().to_param_space()
+    task = TuningTask(name="t", param_space=space, instances=[Instance("a", 1)], seeds=list(range(10)), budget_per_run=1)
+    scenario = Scenario(max_experiments=300, use_statistical_tests=use_statistical_tests, use_elitist_restarts=True, verbose=False)
+
+    def eval_fn(config, ctx):
+        noise = np.random.default_rng([ctx.seed, int(config["crossover_prob"] * 1e9)]).normal(0.0, 0.05)
+        return float(config["crossover_prob"]) + float(noise)
+
+    best, history = RacingTuner(task, scenario, seed=0).run(eval_fn)
+
+    assert len(history) > 20, "the race should have spawned restart configurations"
+    for config in [best, *(trial.config for trial in history)]:
+        assert config == _active_assignment(space, config)
+        space.validate(config)
+
+
+def test_elitist_restarts_keep_eliminating_after_refill(monkeypatch):
+    task = TuningTask(
+        name="t",
+        param_space=ParamSpace(params={"q": Real("q", 0.0, 1.0)}),
+        instances=[Instance("a", 1)],
+        seeds=list(range(40)),
+        budget_per_run=1,
+        maximize=True,
+    )
+    scenario = Scenario(max_experiments=600, use_statistical_tests=True, use_elitist_restarts=True, verbose=False)
+    evaluations = []
+
+    def eval_fn(config, ctx):
+        evaluations.append(ctx.seed)
+        noise = np.random.default_rng([ctx.seed, int(round(config["q"] * 1e9))]).normal(0.0, 0.2)
+        return config["q"] + float(noise)
+
+    stages = []
+    original = core_module.eliminate_configs
+
+    def spy(configs, *, task, scenario):
+        alive = [state for state in configs if state.alive]
+        eliminated = original(configs, task=task, scenario=scenario)
+        stages.append((len(alive), sum(state.alive for state in configs), {tuple(state.blocks) for state in alive}))
+        return eliminated
+
+    monkeypatch.setattr(core_module, "eliminate_configs", spy)
+    best, history = RacingTuner(task, scenario, seed=3, max_initial_configs=12).run(eval_fn)
+
+    eliminating = [index for index, (before, after, _) in enumerate(stages) if after < before]
+    assert len(history) > 12, "the race should have spawned restart configurations"
+    assert len(eliminating) > 3, f"eliminations stopped after the first refill: stages {eliminating}"
+    # Configurations spawned by a restart are tested on the same blocks as the elites.
+    assert all(len(block_sets) == 1 for _, _, block_sets in stages)
+    assert len(evaluations) <= scenario.max_experiments

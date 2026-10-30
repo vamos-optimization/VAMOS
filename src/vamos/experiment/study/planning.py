@@ -246,14 +246,14 @@ def _validate_nsgaiii_reference_directions(config: Mapping[str, Any], *, populat
             action="Choose a positive reference-direction division count.",
         )
     expected = comb(divisions + n_obj - 1, n_obj - 1)
-    if population != expected:
+    if population < expected:
         raise UnresolvedStudyTaskError(
             operation="resolve study plan",
             reason="REFERENCE_DIRECTION_POPULATION_MISMATCH",
             field=f"$.matrix[{candidate.index}].pop_size",
-            expected=f"{expected} for n_obj={n_obj} and divisions={divisions}",
+            expected=f">= {expected} for n_obj={n_obj} and divisions={divisions}",
             actual=population,
-            action="Use the reference-direction count as pop_size or choose compatible divisions.",
+            action="Use at least the reference-direction count as pop_size or choose fewer divisions.",
         )
 
 

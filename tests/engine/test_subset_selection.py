@@ -121,6 +121,18 @@ class TestSelectTopKReferenceDirections:
         idx = select_top_k_reference_directions(F, 5, divisions=4)
         assert idx.shape == (5,)
 
+    @pytest.mark.parametrize("perm", [(1, 2, 0), (2, 0, 1), (1, 0, 2)])
+    def test_symmetric_between_objectives(self, perm):
+        rng = np.random.default_rng(3)
+        sphere = np.abs(rng.normal(size=(200, 3)))
+        F = np.vstack([np.eye(3), sphere / np.linalg.norm(sphere, axis=1, keepdims=True)])
+
+        idx = select_top_k_reference_directions(F, 20)
+        idx_perm = select_top_k_reference_directions(F[:, list(perm)], 20)
+
+        assert set(idx_perm.tolist()) == set(idx.tolist())
+        assert {0, 1, 2} <= set(idx.tolist())
+
 
 class TestSelectTopKKmeans:
     def test_deterministic_with_seed(self):
