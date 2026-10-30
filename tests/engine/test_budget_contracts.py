@@ -247,15 +247,21 @@ def test_nsgaiii_and_rvea_defaults_choose_compatible_reference_counts() -> None:
     assert rvea.meta["run_artifact_resolved_spec"]["population"]["initial_size"] == 91
 
 
-def test_nsgaiii_and_rvea_reject_incompatible_explicit_pop_size() -> None:
+def test_nsgaiii_accepts_n_at_least_h_and_rvea_rejects_incompatible_pop_size() -> None:
     problem = DTLZ2Problem(n_var=7, n_obj=3)
+
+    # NSGA-III keeps its 91 directions (12 divisions) and admits N >= H, as Deb and Jain, jMetal and pymoo do.
+    larger = optimize(problem, algorithm="nsgaiii", max_evaluations=100, pop_size=100, seed=1, engine="numpy")
+    assert larger.data["evaluations"] == 100
+    assert larger.data["reference_directions"].shape == (91, 3)
+    assert larger.meta["run_artifact_resolved_spec"]["population"]["initial_size"] == 100
 
     with pytest.raises(ValueError, match="pop_size"):
         optimize(
             problem,
             algorithm="nsgaiii",
             max_evaluations=100,
-            pop_size=100,
+            pop_size=90,
             seed=1,
             engine="numpy",
         )

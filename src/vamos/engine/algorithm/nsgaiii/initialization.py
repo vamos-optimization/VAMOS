@@ -11,7 +11,6 @@ This module handles algorithm setup including:
 from __future__ import annotations
 
 import os
-from math import comb
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -27,6 +26,7 @@ from vamos.engine.algorithm.config.base import normalize_constraint_mode
 from vamos.engine.algorithm.nsgaii.state import compute_selection_metrics
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
 from vamos.engine.operators.policies.nsgaiii import build_variation_operators
+from vamos.engine.reference_directions import lattice_size
 from vamos.foundation.encoding import EncodingLike, normalize_encoding
 
 from .state import NSGAIIIState
@@ -116,10 +116,9 @@ def initialize_nsgaiii_run(
     else:
         pressure = 2
 
-    def _handle_refdir_mismatch(expected: int, actual: int, detail: str) -> int:
-        raise ValueError(f"{detail} Configure pop_size={expected} or choose reference directions with exactly {actual} points.")
-
-    # Load reference directions (prefer #ref_dirs == pop_size; warn if mismatched)
+    # Reference directions: a file, the complete lattice for the configured divisions, or, without
+    # either, the complete Das-Dennis lattice with the most directions that fit in pop_size. The
+    # population needs at least one individual per direction (N >= H, as Deb and Jain, jMetal and pymoo).
     dir_cfg = config.get("reference_directions", {}) or {}
     ref_path = dir_cfg.get("path")
     ref_divisions = dir_cfg.get("divisions")
@@ -133,29 +132,30 @@ def initialize_nsgaiii_run(
         row_sums = ref_dirs.sum(axis=1)
         if np.any(np.abs(row_sums - 1.0) > 1e-6):
             raise ValueError("Each reference direction must sum to 1.")
-        if ref_dirs.shape[0] != pop_size:
-            pop_size = _handle_refdir_mismatch(
-                ref_dirs.shape[0],
-                pop_size,
-                f"NSGA-III reference directions ({ref_dirs.shape[0]}) do not match pop_size ({pop_size}).",
-            )
+        source = f"NSGA-III reference directions in '{ref_path}' ({ref_dirs.shape[0]})"
     elif ref_divisions is not None:
-        expected = comb(int(ref_divisions) + n_obj - 1, n_obj - 1)
-        if pop_size != expected:
-            pop_size = _handle_refdir_mismatch(
-                expected,
-                pop_size,
-                f"NSGA-III reference directions for divisions={ref_divisions} expect {expected} points (pop_size={pop_size}).",
-            )
+        source = f"NSGA-III reference directions for divisions={ref_divisions}"
+        if n_obj >= 2:
+            # Reject from the binomial count: an oversized lattice can need gigabytes.
+            n_directions = lattice_size(n_obj, int(ref_divisions))
+            if n_directions > pop_size:
+                raise ValueError(
+                    f"{source} ({n_directions}) need pop_size >= {n_directions} (pop_size={pop_size}). "
+                    "Increase pop_size or choose fewer reference directions."
+                )
         ref_dirs = load_or_generate_weight_vectors(pop_size, n_obj, path=ref_path, divisions=ref_divisions)
+        source = f"{source} ({ref_dirs.shape[0]})"
     else:
-        ref_dirs = load_or_generate_weight_vectors(pop_size, n_obj, path=ref_path, divisions=ref_divisions)
-        if ref_dirs.shape[0] != pop_size:
-            pop_size = _handle_refdir_mismatch(
-                ref_dirs.shape[0],
-                pop_size,
-                f"NSGA-III reference directions ({ref_dirs.shape[0]}) do not match pop_size ({pop_size}).",
+        if n_obj >= 2 and pop_size < n_obj:
+            raise ValueError(
+                f"NSGA-III needs pop_size >= n_obj={n_obj} for its smallest reference-direction lattice (pop_size={pop_size})."
             )
+        ref_dirs = load_or_generate_weight_vectors(pop_size, n_obj, path=ref_path, divisions=None)
+        source = f"NSGA-III reference directions ({ref_dirs.shape[0]})"
+    if ref_dirs.shape[0] > pop_size:
+        raise ValueError(
+            f"{source} need pop_size >= {ref_dirs.shape[0]} (pop_size={pop_size}). Increase pop_size or choose fewer reference directions."
+        )
 
     ref_dirs = np.asarray(ref_dirs, dtype=float)
     validate_initial_budget(max_eval, pop_size, "NSGA-III")

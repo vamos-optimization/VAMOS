@@ -147,6 +147,8 @@ For algorithms with a supported external result archive, enabling it makes that 
 
 NSGA-III and RVEA require a population compatible with the configured reference directions. MOEA/D requires one weight vector per population member. For a simplex lattice with `p` divisions and `m` objectives, use `comb(p + m - 1, m - 1)`; for three objectives and 12 divisions, that is **91**. Explicit incompatible cardinalities fail; they are not warning-only cases. Follow the tutorials before changing objective count or population size.
 
+**Development after 1.1.0:** NSGA-III needs at least one individual per reference direction (N >= H) instead of exactly one, as Deb and Jain, jMetal and pymoo do; 100 individuals with 12 divisions and three objectives run with 91 directions, and fewer than 91 fail. Without `divisions`, NSGA-III uses the complete Das-Dennis lattice with the most directions that fit in `pop_size`; VAMOS 1.1.0 and earlier cut the next larger lattice to `pop_size` directions and lost the extreme direction of the first objective. With two objectives, NSGA-III and RVEA default to `pop_size - 1` divisions, or 99 without `pop_size`, instead of 6. RVEA and MOEA/D still need exactly one individual per vector.
+
 ### Changes included in 1.0.1
 
 - **SMPSO:** `archive_size` controls search leaders, `.external_archive(...)` configures a separate result archive, and explicit `population` mode returns the final swarm. Version 1.0.0 returned the leaders archive without honoring these independent result controls.
@@ -232,7 +234,7 @@ never compiles problem evaluation.
 | --- | --- | --- |
 | NSGA-II | Non-dominated ranking and crowding, survival, tournament selection, SBX, polynomial mutation; the whole one-offspring steady-state step in its supported configuration (below) | Feasibility ordering, archives, steady-state front maintenance outside that configuration |
 | NSGA-III | Ranking and crowding, tournament selection, SBX, polynomial mutation | Normalization, association to reference directions, niching (it shuffles with the run generator inside the loop) |
-| MOEA/D | Differential-evolution children, SBX, polynomial mutation, neighbourhood replacement | Parent sampling, repair, weight geometry |
+| MOEA/D | Differential-evolution children, SBX, polynomial mutation, neighbourhood replacement; the whole one-offspring step (see below) | Weight geometry; parent sampling and repair outside the compiled one-offspring step |
 | SMS-EMOA | The steady-state step (development after 1.1.0, see below): child variation and clipping, front insertion, two-objective hypervolume contributions, crowding, feasibility-first removal; tournament selection where configured | Parent sampling draws, hypervolume contributions for three or more objectives (MooCore when installed), archives |
 | SPEA2 | SBX, polynomial mutation, lexicographic archive truncation | Strength/raw fitness and density (vectorized NumPy) |
 | IBEA | Tournament selection, SBX, polynomial mutation, indicator-based removal | Indicator matrix |
@@ -254,6 +256,18 @@ immigration, parent-selection filters and non-breeding indices keep the
 NumPy/Python steady-state path, as does any step with non-finite objective
 values. External archives and hypervolume termination behave the same on both
 paths.
+
+**Development after 1.1.0:** with `batch_size=1` (the default), MOEA/D under
+`engine="numba"` compiles each whole step: parent selection, DE or SBX,
+polynomial mutation, the clip repair, the ideal point and the neighbourhood
+replacement. Python only draws the random numbers from the run generator, in the
+order of the NumPy step, and evaluates the problem, so trajectories stay
+identical. The compiled step covers real-coded runs with DE or SBX crossover,
+polynomial mutation and the clip repair (the defaults), every aggregation,
+constraints, external archives, live callbacks and HV termination. Genealogy
+tracking, `batch_size > 1`, other operators or repairs, other array types, and
+platforms where compiled variation stays disabled (see below) keep the
+per-operator path described in the table.
 
 Compiled SBX and polynomial mutation are enabled only after a one-time check
 that compiled `pow` matches `np.power` bit for bit on the platform (some NumPy
