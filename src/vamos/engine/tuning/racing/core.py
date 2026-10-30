@@ -74,9 +74,8 @@ def _select_final(configs: list[ConfigState], *, task: TuningTask, multi_fidelit
 
     Survivors are aggregated over the blocks they all share, so a configuration
     cannot win because it was scored on easier instances or on fewer blocks.
-    When survivors share no block (configurations spawned late by elitist
-    restarts), those with the fewest blocks are left out until some block is
-    shared.
+    When survivors share no block, those with the fewest blocks are left out
+    until some block is shared.
     """
     pool = _final_evidence([state for state in configs if state.alive], multi_fidelity=multi_fidelity)
     shared: set[tuple[int, int]] = set()
@@ -165,13 +164,14 @@ class RacingTuner:
         self._next_config_id = config_id_counter
         return configs
 
-    def _current_budget(self) -> int:
+    def _current_budget(self, stage_index: int | None = None) -> int:
         base_budget = self.task.budget_per_run
         if self.scenario.use_adaptive_budget:
             if self.scenario.initial_budget_per_run is not None:
                 base_budget = self.scenario.initial_budget_per_run
 
-            budget = int(round(base_budget * (self.scenario.budget_growth_factor**self._stage_index)))
+            stage = self._stage_index if stage_index is None else stage_index
+            budget = int(round(base_budget * (self.scenario.budget_growth_factor**stage)))
 
             if self.scenario.max_budget_per_run is not None:
                 budget = min(budget, self.scenario.max_budget_per_run)
@@ -257,6 +257,8 @@ class RacingTuner:
                     elite_archive=self._elite_archive,
                 )
                 if self.scenario.use_elitist_restarts:
+                    played = self._played_blocks(configs)
+                    n_before = len(configs)
                     self._next_config_id = refill_population(
                         configs,
                         scenario=self.scenario,
@@ -266,7 +268,10 @@ class RacingTuner:
                         target_population_size=self.scenario.target_population_size or self.max_initial_configs,
                         rng=self.rng,
                         next_config_id=self._next_config_id,
+                        # Only as many as can be evaluated on the blocks already played.
+                        max_new=(self.scenario.max_experiments - num_experiments) // max(1, len(played)),
                     )
+                    num_experiments += self._catch_up(configs, set(range(n_before, len(configs))), played, eval_fn)
             if isinstance(self.sampler, ModelBasedSampler):
                 survivor_configs = [c.config for c in configs if c.alive]
                 self.sampler.update(survivor_configs)
@@ -322,17 +327,20 @@ class RacingTuner:
         seed_idx: int,
         eval_fn: EvalFn,
         max_evals: int | None = None,
+        *,
+        only: set[int] | None = None,
+        budget: int | None = None,
     ) -> int:
         instance = self.instances[inst_idx]
         seed = self.seeds[seed_idx]
         block = (inst_idx, seed_idx)
-        budget = self._current_budget()
+        budget = self._current_budget() if budget is None else budget
 
         # Identify jobs to run
         tasks = []
         indices = []
         for idx, state in enumerate(configs):
-            if not state.alive:
+            if not state.alive or (only is not None and idx not in only):
                 continue
             ctx = EvalContext(instance=instance, seed=seed, budget=budget)
             tasks.append((state.config, ctx))
@@ -375,6 +383,28 @@ class RacingTuner:
                 configs[indices[i]].scores.append(score)
                 configs[indices[i]].blocks.append(block)
         return len(tasks)
+
+    def _played_blocks(self, configs: list[ConfigState]) -> list[tuple[int, int]]:
+        """The blocks the alive configurations have played, in the order they played them."""
+        played: list[tuple[int, int]] = []
+        for state in configs:
+            if state.alive and len(state.blocks) > len(played):
+                played = list(state.blocks)
+        return played
+
+    def _catch_up(self, configs: list[ConfigState], new: set[int], played: list[tuple[int, int]], eval_fn: EvalFn) -> int:
+        """Evaluate configurations spawned by a restart on the blocks the race has played.
+
+        The new configurations then enter the elimination tests on the same blocks as
+        the elites, as in elitist irace (López-Ibáñez et al., 2016, §3.4). Each block is
+        replayed at the budget of the stage that first played it.
+        """
+        if not new:
+            return 0
+        return sum(
+            self._run_stage(configs, inst_idx, seed_idx, eval_fn, only=new, budget=self._current_budget(stage))
+            for stage, (inst_idx, seed_idx) in enumerate(played)
+        )
 
     def _num_alive(self, configs: list[ConfigState]) -> int:
         return sum(1 for c in configs if c.alive)

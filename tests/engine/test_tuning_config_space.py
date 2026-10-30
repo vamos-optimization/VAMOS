@@ -35,14 +35,18 @@ from vamos.engine.tuning.racing.bridge import (
     config_from_assignment,
 )
 from vamos.engine.tuning.racing.config_space import AlgorithmConfigSpace
+from vamos.engine.tuning.racing.io import filter_active_config
 from vamos.engine.tuning.racing.param_space import (
     Boolean,
     Categorical,
     Condition,
     ConditionalBlock,
     Int,
+    ParamSpace,
     Real,
+    _active_assignment,
 )
+from vamos.engine.tuning.racing.sampler import ModelBasedSampler
 
 
 def test_param_round_trip_sampling():
@@ -729,3 +733,26 @@ def test_conditioned_parameters_declared_before_their_parents_are_sampled():
         assert set(decoded) == set(sample)
         assert decoded["op"] == sample["op"] and decoded.get("kind") == sample.get("kind")
         assert decoded.get("eta") == pytest.approx(sample.get("eta"))
+
+
+@pytest.mark.parametrize("parent", [Boolean("use_x"), Categorical("use_x", [True, False])], ids=["boolean", "categorical"])
+def test_model_sampler_and_active_filter_drop_grandchildren(parent):
+    # use_x -> x_kind -> x_eta, with conditions on the direct parent only, as the tuning guide documents.
+    space = ParamSpace(
+        params={"use_x": parent, "x_kind": Categorical("x_kind", ["a", "b"]), "x_eta": Real("x_eta", 1.0, 10.0), "q": Real("q", 0.0, 1.0)},
+        conditions=[Condition("x_kind", "cfg['use_x'] == True"), Condition("x_eta", "cfg['x_kind'] == 'b'")],
+    )
+    good = [{"use_x": True, "x_kind": "b", "x_eta": 2.0 + i, "q": 0.1 * i} for i in range(5)]
+    good += [{"use_x": False, "q": 0.5 + 0.05 * i} for i in range(5)]
+    sampler = ModelBasedSampler(space)
+    sampler.update(good)
+    rng = np.random.default_rng(0)
+
+    draws = [sampler.sample(rng) for _ in range(4000)]
+
+    leaks = [draw for draw in draws if "x_eta" in draw and draw.get("use_x") is not True]
+    assert not leaks, f"{len(leaks)} of 4000 draws keep x_eta under use_x=False, e.g. {leaks[0]}"
+    assert all(draw == _active_assignment(space, draw) for draw in draws)
+
+    raw = {"use_x": False, "x_kind": "b", "x_eta": 3.0, "q": 0.5, "population_size": 40}
+    assert filter_active_config(raw, space) == {"use_x": False, "q": 0.5, "population_size": 40}

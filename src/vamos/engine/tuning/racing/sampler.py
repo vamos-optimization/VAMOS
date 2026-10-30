@@ -7,7 +7,7 @@ from typing import Any, Protocol
 
 import numpy as np
 
-from .param_space import Categorical, Int, ParamSpace, Real
+from .param_space import Categorical, Int, ParamSpace, Real, _active_assignment
 
 
 class Sampler(Protocol):
@@ -120,7 +120,7 @@ class ModelBasedSampler:
                 self.param_space.validate(cfg_dict)
             except ValueError:
                 continue
-            active_cfg = {name: value for name, value in cfg_dict.items() if self.param_space.is_active(name, cfg_dict)}
+            active_cfg = _active_assignment(self.param_space, cfg_dict)
             if active_cfg:
                 self._joint_pool.append(active_cfg)
 
@@ -256,7 +256,7 @@ class ModelBasedSampler:
             if name in tmp:
                 cfg[name] = tmp[name]
 
-        active_cfg = {name: value for name, value in cfg.items() if self.param_space.is_active(name, cfg)}
+        active_cfg = _active_assignment(self.param_space, cfg)
         try:
             self.param_space.validate(active_cfg)
         except ValueError:
@@ -319,7 +319,7 @@ class ModelBasedSampler:
                 cfg[name] = max(int(spec.low), min(int(spec.high), val))
                 continue
 
-        active_cfg = {name: value for name, value in cfg.items() if self.param_space.is_active(name, cfg)}
+        active_cfg = _active_assignment(self.param_space, cfg)
         try:
             self.param_space.validate(active_cfg)
         except ValueError:

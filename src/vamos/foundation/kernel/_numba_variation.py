@@ -9,12 +9,15 @@ to nopython code that reproduces the reference arithmetic element by element.
 from __future__ import annotations
 
 from functools import cache
-from typing import Any, TypeAlias
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 import numpy as np
 from numpy.typing import NDArray
 
 from .numba_ops import njit
+
+if TYPE_CHECKING:
+    from .backend import SingleChildVariation
 
 FloatArray: TypeAlias = NDArray[np.float64]
 BoolArray: TypeAlias = NDArray[np.bool_]
@@ -359,6 +362,37 @@ class NumbaVariationKernels:
         out = np.empty((parents.shape[0], parents.shape[2]), dtype=np.float64)
         differential_crossover_apply(parents, float(f), float(cr), rand, np.asarray(j_rand, dtype=np.int64), out)
         return out
+
+    def single_child_sbx_polynomial(
+        self,
+        *,
+        sbx_prob: float,
+        sbx_eta: float,
+        sbx_prob_var: float,
+        sbx_lower: FloatArray,
+        sbx_upper: FloatArray,
+        pm_prob: float,
+        pm_eta: float,
+        pm_lower: FloatArray,
+        pm_upper: FloatArray,
+        clip_lower: FloatArray,
+        clip_upper: FloatArray,
+    ) -> SingleChildVariation:
+        from ._numba_single_child import NumbaSingleChildVariation
+
+        return NumbaSingleChildVariation(
+            sbx_prob=sbx_prob,
+            sbx_eta=sbx_eta,
+            sbx_prob_var=sbx_prob_var,
+            sbx_lower=sbx_lower,
+            sbx_upper=sbx_upper,
+            pm_prob=pm_prob,
+            pm_eta=pm_eta,
+            pm_lower=pm_lower,
+            pm_upper=pm_upper,
+            clip_lower=clip_lower,
+            clip_upper=clip_upper,
+        )
 
 
 @cache
