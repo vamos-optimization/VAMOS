@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "b971fb71861b333ceb198cb9afb9150d5dd82d03",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit b971fb71861b333ceb198cb9afb9150d5dd82d03",
+  "generation_commit": "df6982f1054eb8a11e11b0d97de64f4d22bd31dd",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit df6982f1054eb8a11e11b0d97de64f4d22bd31dd",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.0",
@@ -26,15 +26,15 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 610,
-  "files_with_diagnostics": 85,
-  "fingerprint_count": 85,
+  "diagnostic_count": 609,
+  "files_with_diagnostics": 84,
+  "fingerprint_count": 84,
   "error_code_summary": {
-    "type-arg": 610
+    "type-arg": 609
   },
   "layer_summary": {
     "engine": 294,
-    "experiment": 18,
+    "experiment": 17,
     "foundation": 236,
     "package-root": 1,
     "ux": 61
@@ -1078,20 +1078,6 @@
         {
           "line": 27,
           "column": 27
-        }
-      ]
-    },
-    {
-      "fingerprint": "4E36B35189933BB9699D995A798890F522C32BCB88F648886947F118B70D99E2",
-      "path": "src/vamos/experiment/external/pygmo.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "experiment",
-      "multiplicity": 1,
-      "locations": [
-        {
-          "line": 23,
-          "column": 51
         }
       ]
     },
