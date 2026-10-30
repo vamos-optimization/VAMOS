@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "60af96be2ab66a456b66158a9cc3f3c01e8c1441",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 60af96be2ab66a456b66158a9cc3f3c01e8c1441",
+  "generation_commit": "089afcfba3326f4b998cb2348b43f709994653ae",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 089afcfba3326f4b998cb2348b43f709994653ae",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.0",
@@ -26,15 +26,15 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 647,
-  "files_with_diagnostics": 88,
-  "fingerprint_count": 88,
+  "diagnostic_count": 643,
+  "files_with_diagnostics": 86,
+  "fingerprint_count": 86,
   "error_code_summary": {
-    "type-arg": 647
+    "type-arg": 643
   },
   "layer_summary": {
     "engine": 327,
-    "experiment": 22,
+    "experiment": 18,
     "foundation": 236,
     "package-root": 1,
     "ux": 61
@@ -1148,20 +1148,6 @@
         {
           "line": 383,
           "column": 10
-        }
-      ]
-    },
-    {
-      "fingerprint": "418E5A2026F56B67ED94502519816B75AAC4677AAB858B84A2FF35F899D2CD01",
-      "path": "src/vamos/experiment/external/jmetalpy.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "experiment",
-      "multiplicity": 1,
-      "locations": [
-        {
-          "line": 19,
-          "column": 50
         }
       ]
     },
@@ -2750,28 +2736,6 @@
         {
           "line": 225,
           "column": 12
-        }
-      ]
-    },
-    {
-      "fingerprint": "C51D0BAC26D7602C4E88211B270D8005A015B0F5F8101E4FD3A1EE8D30FBC459",
-      "path": "src/vamos/experiment/external/pymoo.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "experiment",
-      "multiplicity": 3,
-      "locations": [
-        {
-          "line": 19,
-          "column": 50
-        },
-        {
-          "line": 67,
-          "column": 36
-        },
-        {
-          "line": 135,
-          "column": 32
         }
       ]
     },

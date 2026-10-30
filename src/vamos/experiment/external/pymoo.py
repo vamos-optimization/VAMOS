@@ -16,7 +16,7 @@ def _logger() -> logging.Logger:
     return logging.getLogger(__name__)
 
 
-MetricsBuilder = Callable[[str, str, float, int, np.ndarray], dict[str, Any]]
+MetricsBuilder = Callable[[str, str, float, int, np.ndarray[Any, Any]], dict[str, Any]]
 Printer = Callable[..., None]
 
 
@@ -64,16 +64,17 @@ def _run_pymoo_nsga2(
                 )
                 self._base_problem = base_problem
 
-            def _evaluate(self, X: np.ndarray, out: dict[str, Any], *args: Any, **kwargs: Any) -> None:
+            def _evaluate(self, X: np.ndarray[Any, Any], out: dict[str, Any], *args: Any, **kwargs: Any) -> None:
                 F = np.empty((X.shape[0], self.n_obj))
                 self._base_problem.evaluate(X, {"F": F})
                 out["F"] = F
 
         pymoo_problem = _VamosPymooProblem(problem)
 
-    mutation_prob = 1.0 / selection.n_var
     crossover = SBX(prob=0.9, eta=20)
-    mutation = PM(prob=mutation_prob, eta=20)
+    # pymoo's ``prob`` is the chance of mutating an individual and ``prob_var`` the
+    # per-variable rate; 1/n per variable matches the jMetalPy and pygmo baselines.
+    mutation = PM(prob=1.0, prob_var=1.0 / selection.n_var, eta=20)
     algorithm = NSGA2(
         pop_size=config.population_size,
         sampling=FloatRandomSampling(),
@@ -132,7 +133,7 @@ def _run_pymoo_perm_nsga2(
             )
             self.base_problem = base_problem
 
-        def _evaluate(self, X: np.ndarray, out: dict[str, Any], *args: Any, **kwargs: Any) -> None:
+        def _evaluate(self, X: np.ndarray[Any, Any], out: dict[str, Any], *args: Any, **kwargs: Any) -> None:
             perms = np.asarray(X, dtype=int)
             F = np.empty((perms.shape[0], self.n_obj))
             self.base_problem.evaluate(perms, {"F": F})
