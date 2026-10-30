@@ -501,7 +501,10 @@ output of `vamos tune`.
 the algorithm configuration, such as `pop_size` or
 `crossover: [sbx, {prob: 0.5}]`, which reaches the study's `algorithm_configs`.
 Any other key fails with a `ConfigurationError` that suggests the closest
-field. Operators are accepted as `[name, {params}]` pairs or as mappings with
+field. `pop_size` and `offspring_size` set the same sizes as
+`population_size` and `offspring_population_size`: a variant's value wins over
+`base_config` whichever name each one uses, and one mapping cannot give the
+two names different values. Operators are accepted as `[name, {params}]` pairs or as mappings with
 `method`, in `config_overrides` and in `variations`. Every variant is planned
 before the first one runs, so an invalid variant stops the ablation before any
 run. With `vamos ablation`, each variant writes its studies to

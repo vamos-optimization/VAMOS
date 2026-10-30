@@ -6,7 +6,7 @@ import csv
 import os
 import uuid
 from collections.abc import Mapping
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, replace
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +23,9 @@ from vamos.study_artifacts import Study, StudyPlanReport, StudyReport, StudySpec
 # is a field of the algorithm configuration.
 _ABLATION_KEYS = {"population_size", "offspring_population_size", "eval_strategy", "output_root"}
 _OPERATOR_FIELDS = {"crossover", "mutation", "selection", "repair", "aggregation"}
+# Algorithm fields that are also ablation settings: written under the setting's
+# name before base and variant are merged, so that a variant always wins.
+_SETTING_ALIASES = {"pop_size": "population_size", "offspring_size": "offspring_population_size"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,7 +103,10 @@ def run_ablation_plan(
     an ablation setting (``population_size``, ``offspring_population_size``,
     ``eval_strategy`` or ``output_root``) or a field of the algorithm
     configuration, which then reaches the study's ``algorithm_configs``. Any
-    other key raises :class:`~vamos.exceptions.ConfigurationError`. Each study
+    other key raises :class:`~vamos.exceptions.ConfigurationError`. The fields
+    ``pop_size`` and ``offspring_size`` are read as ``population_size`` and
+    ``offspring_population_size``, so a variant overrides the base size
+    whichever name each one uses. Each study
     is written to ``<output_root>/study-NNNN``, where ``output_root`` is the
     variant's setting, or ``output`` when it has none. Every study is planned
     before the first one runs.
@@ -161,9 +167,9 @@ def _study_spec(
     engine: str | None,
 ) -> StudySpec:
     first = tasks[0]
-    config = first.variant.apply(base_config)
+    variant, config = _variant_config(first.variant, base_config, algorithm)
     variation = variations_by_variant.get(first.variant.name) if variations_by_variant is not None else None
-    algorithm_config = _algorithm_config(config, variation, algorithm, variant=first.variant)
+    algorithm_config = _algorithm_config(config, variation, algorithm, variant=variant)
     return StudySpec(
         problems=[first.problem],
         algorithms=[algorithm],
@@ -215,6 +221,33 @@ def _algorithm_config(
     for name in _OPERATOR_FIELDS & result.keys():
         if isinstance(result[name], Mapping):
             result[name] = ensure_operator_tuple(result[name], key=name)
+    return result
+
+
+def _variant_config(
+    variant: AblationVariant, base_config: Mapping[str, Any] | None, algorithm: str
+) -> tuple[AblationVariant, dict[str, Any]]:
+    """The variant with canonical setting names, and its configuration merged over ``base_config``."""
+    known = _config_fields(algorithm.strip().lower())
+    base = _canonical_settings(base_config or {}, origin="base_config", known=known)
+    overrides = _canonical_settings(variant.config_overrides, origin=f"variant '{variant.name}' config_overrides", known=known)
+    canonical = replace(variant, config_overrides=overrides)
+    return canonical, canonical.apply(base)
+
+
+def _canonical_settings(config: Mapping[str, Any], *, origin: str, known: frozenset[str] | None) -> dict[str, Any]:
+    """``config`` with ``pop_size`` and ``offspring_size`` written as the matching ablation settings."""
+    result = dict(config)
+    for field_name, setting in _SETTING_ALIASES.items():
+        if field_name not in result or known is None or field_name not in known:
+            continue
+        value = result.pop(field_name)
+        if setting in result and result[setting] != value:
+            raise ConfigurationError(
+                f"Ablation {origin} sets both '{field_name}' ({value!r}) and '{setting}' ({result[setting]!r}).",
+                suggestion=f"'{field_name}' and '{setting}' set the same size; keep one of them.",
+            )
+        result[setting] = value
     return result
 
 
