@@ -263,9 +263,15 @@ def _print_summary(results: Iterable[Metrics], hv_ref_point: np.ndarray[Any, Any
     _logger().info("Hypervolume reference point: %s", ref_txt)
 
 
+_FAILURE_TEXT_LIMIT = 500
+
+
 def _record_failure(failures: list[str], problem_key: str, algorithm_name: str, engine_name: str, exc: Exception) -> None:
-    text = str(getattr(exc, "message", None) or exc).strip()
-    reason = f"{type(exc).__name__}: {text.splitlines()[0]}" if text else type(exc).__name__
+    # Keep every line of the message (pybind11 errors put the offending call last), on one bounded line.
+    text = " ".join(line.strip() for line in str(getattr(exc, "message", None) or exc).splitlines() if line.strip())
+    if len(text) > _FAILURE_TEXT_LIMIT:
+        text = text[: _FAILURE_TEXT_LIMIT - 3] + "..."
+    reason = f"{type(exc).__name__}: {text}" if text else type(exc).__name__
     _logger().error("Run failed: %s with %s (%s): %s", problem_key, algorithm_name, engine_name, reason)
     _logger().debug("Traceback of the failed run", exc_info=exc)
     failures.append(f"{problem_key} with {algorithm_name} ({engine_name}): {reason}")

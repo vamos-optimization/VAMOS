@@ -246,7 +246,7 @@ def test_cli_both_continues_after_one_algorithm_fails(monkeypatch, tmp_path, cap
 
     class _FailingAlgorithm:
         def run(self, problem, termination, seed, eval_strategy=None, live_viz=None):
-            raise RuntimeError("deliberate failure")
+            raise RuntimeError("deliberate failure\nInvoked with: seed=1")
 
     if algo_key not in ALGORITHMS:
         ALGORITHMS.register(algo_key, lambda cfg, kernel: _FailingAlgorithm())
@@ -279,7 +279,7 @@ def test_cli_both_continues_after_one_algorithm_fails(monkeypatch, tmp_path, cap
     written = {path.parent.parent.parent.name for path in output_root.rglob("manifest.json")}
     assert written == {"nsgaii", "spea2"}
     assert "Experiment summary" in caplog.text
-    assert algo_key in caplog.text and "deliberate failure" in caplog.text
+    assert algo_key in caplog.text and "deliberate failure Invoked with: seed=1" in caplog.text
 
 
 def test_cli_problem_set_continues_after_one_problem_fails(monkeypatch, tmp_path, caplog):
