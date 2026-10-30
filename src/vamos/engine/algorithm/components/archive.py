@@ -1,47 +1,25 @@
 from __future__ import annotations
 
-import warnings
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from numpy.typing import NDArray
 
 from vamos.engine.algorithm.components.archive_core import DeduplicateIn, _BaseArchive
+from vamos.engine.algorithm.components.subset_selection import _hv_contributions
 from vamos.engine.archive.pruning_selectors import select_maxmin_subset, select_ref_dirs_subset
+from vamos.foundation.exceptions import DependencyError
 from vamos.foundation.kernel.numpy_backend import _compute_crowding
+from vamos.foundation.quality_indicators.moocore_indicators import has_moocore
 
 if TYPE_CHECKING:
     from vamos.foundation.kernel.backend import SelectionKernels
-
-try:  # pragma: no cover - optional dependency
-    import moocore as _moocore
-except ImportError:  # pragma: no cover - optional dependency
-    _moocore = None
-
-_HV_FALLBACK_WARNED = False
 
 
 def _single_front_crowding(F: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     if F.shape[0] == 0:
         return np.empty(0, dtype=float)
     return _compute_crowding(F, [list(range(F.shape[0]))])
-
-
-def _hv_contributions(F: np.ndarray[Any, Any], ref: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
-    """Compute HV contributions while preserving this module's MooCore test hook."""
-    global _HV_FALLBACK_WARNED
-    if F.shape[0] == 0:
-        return np.empty(0, dtype=float)
-    if _moocore is not None:
-        return np.asarray(_moocore.hv_contributions(F, ref=ref), dtype=float)
-    if not _HV_FALLBACK_WARNED:
-        warnings.warn(
-            "Hypervolume contributions requested but 'moocore' is not installed; falling back to crowding distance.",
-            UserWarning,
-            stacklevel=2,
-        )
-        _HV_FALLBACK_WARNED = True
-    return _single_front_crowding(F)
 
 
 class CrowdingDistanceArchive(_BaseArchive):
@@ -55,7 +33,7 @@ class CrowdingDistanceArchive(_BaseArchive):
         dtype: Any,
         *,
         truncate_size: int | None = None,
-        objective_tolerance: float = 1e-10,
+        objective_tolerance: float = 0.0,
         deduplicate_in: DeduplicateIn = "objective",
         decision_tolerance: float = 1e-32,
         n_con: int | None = None,
@@ -95,7 +73,15 @@ class CrowdingDistanceArchive(_BaseArchive):
 
 
 class HypervolumeArchive(_BaseArchive):
-    """Bounded archive with iterative hypervolume-contribution truncation."""
+    """Bounded archive with iterative hypervolume-contribution truncation.
+
+    Each truncation step removes the point with the smallest exact hypervolume
+    contribution. With two objectives the contributions are computed exactly
+    with or without moocore. With more objectives the archive requires moocore,
+    because the exact pure-Python computation is too slow to repeat at every
+    truncation step, and construction raises
+    :class:`~vamos.foundation.exceptions.DependencyError` when it is missing.
+    """
 
     def __init__(
         self,
@@ -107,7 +93,7 @@ class HypervolumeArchive(_BaseArchive):
         ref_offset: float = 1.0,
         ref_point: np.ndarray[Any, Any] | list[float] | None = None,
         truncate_size: int | None = None,
-        objective_tolerance: float = 1e-10,
+        objective_tolerance: float = 0.0,
         deduplicate_in: DeduplicateIn = "objective",
         decision_tolerance: float = 1e-32,
         n_con: int | None = None,
@@ -123,6 +109,12 @@ class HypervolumeArchive(_BaseArchive):
             decision_tolerance=decision_tolerance,
             n_con=n_con,
         )
+        if self._n_obj > 2 and not has_moocore():
+            raise DependencyError(
+                "moocore",
+                f"hypervolume archive pruning with {self._n_obj} objectives",
+                'pip install "vamos-optimization[compute]"',
+            )
         self._ref_offset = float(ref_offset)
         self._global_worst: np.ndarray[Any, Any] | None = None
         self._fixed_ref: np.ndarray[Any, Any] | None = None
@@ -178,7 +170,7 @@ class SPEA2Archive(_BaseArchive):
         dtype: Any,
         *,
         truncate_size: int | None = None,
-        objective_tolerance: float = 1e-10,
+        objective_tolerance: float = 0.0,
         deduplicate_in: DeduplicateIn = "objective",
         decision_tolerance: float = 1e-32,
         n_con: int | None = None,
@@ -239,7 +231,7 @@ class ReferenceDirectionsArchive(_BaseArchive):
         *,
         rng_seed: int = 0,
         truncate_size: int | None = None,
-        objective_tolerance: float = 1e-10,
+        objective_tolerance: float = 0.0,
         deduplicate_in: DeduplicateIn = "objective",
         decision_tolerance: float = 1e-32,
         n_con: int | None = None,
@@ -276,7 +268,7 @@ class UnboundedArchive(_BaseArchive):
         n_obj: int,
         dtype: Any,
         *,
-        objective_tolerance: float = 1e-10,
+        objective_tolerance: float = 0.0,
         deduplicate_in: DeduplicateIn = "objective",
         decision_tolerance: float = 1e-32,
         n_con: int | None = None,
@@ -303,5 +295,4 @@ __all__ = [
     "ReferenceDirectionsArchive",
     "UnboundedArchive",
     "_single_front_crowding",
-    "_hv_contributions",
 ]

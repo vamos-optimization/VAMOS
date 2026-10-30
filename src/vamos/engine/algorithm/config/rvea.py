@@ -87,9 +87,17 @@ class RVEAConfig(_SerializableConfig):
         n_var: int | None = None,
         n_obj: int = 3,
     ) -> RVEAConfig:
-        """Create a default RVEA configuration."""
+        """Create a default RVEA configuration.
+
+        ``n_partitions`` is 12 for three objectives, 6 for four or more, and with
+        two objectives ``pop_size - 1`` (one reference vector per individual), or
+        99 without ``pop_size``.
+        """
         mut_prob = 1.0 / n_var if n_var else 0.1
-        n_partitions = 12 if n_obj == 3 else 6
+        if n_obj == 2:
+            n_partitions = 99 if pop_size is None else max(1, int(pop_size) - 1)
+        else:
+            n_partitions = 12 if n_obj == 3 else 6
         if pop_size is None:
             pop_size = comb(n_partitions + n_obj - 1, n_obj - 1)
         return (
