@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "adf605e2b85ee254d2303e16845720648ba3bf49",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit adf605e2b85ee254d2303e16845720648ba3bf49",
+  "generation_commit": "adf605e2",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit adf605e2",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.0",
@@ -26,18 +26,18 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 671,
-  "files_with_diagnostics": 91,
-  "fingerprint_count": 91,
+  "diagnostic_count": 656,
+  "files_with_diagnostics": 90,
+  "fingerprint_count": 90,
   "error_code_summary": {
-    "type-arg": 671
+    "type-arg": 656
   },
   "layer_summary": {
     "engine": 354,
     "experiment": 22,
     "foundation": 244,
     "package-root": 1,
-    "ux": 50
+    "ux": 35
   },
   "installed_mypy": "2.4.0",
   "diagnostics": [
@@ -70,76 +70,6 @@
         {
           "line": 24,
           "column": 20
-        }
-      ]
-    },
-    {
-      "fingerprint": "0482E97914C3F84DB22B7628494AD4FEC02EDCF26546D7AF5FED405D4F37CADE",
-      "path": "src/vamos/ux/studio/dm.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "ux",
-      "multiplicity": 15,
-      "locations": [
-        {
-          "line": 12,
-          "column": 29
-        },
-        {
-          "line": 15,
-          "column": 26
-        },
-        {
-          "line": 25,
-          "column": 8
-        },
-        {
-          "line": 27,
-          "column": 14
-        },
-        {
-          "line": 28,
-          "column": 22
-        },
-        {
-          "line": 30,
-          "column": 16
-        },
-        {
-          "line": 31,
-          "column": 23
-        },
-        {
-          "line": 57,
-          "column": 19
-        },
-        {
-          "line": 59,
-          "column": 18
-        },
-        {
-          "line": 60,
-          "column": 28
-        },
-        {
-          "line": 67,
-          "column": 14
-        },
-        {
-          "line": 68,
-          "column": 22
-        },
-        {
-          "line": 87,
-          "column": 55
-        },
-        {
-          "line": 95,
-          "column": 73
-        },
-        {
-          "line": 102,
-          "column": 108
         }
       ]
     },

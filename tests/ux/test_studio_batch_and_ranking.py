@@ -17,6 +17,7 @@ from vamos.ux.studio.batch import (
     summary_rows,
 )
 from vamos.ux.studio.data import FrontRecord
+from vamos.ux.studio.dm import build_decision_view, rank_by_score
 from vamos.ux.studio.ranking import front_summary_rows, problems_in, rank_fronts
 
 
@@ -130,4 +131,17 @@ def test_ranking_reports_a_front_without_knee() -> None:
     ranking = rank_fronts(fronts, method="knee", top_k=1)
 
     assert len(ranking.rows) == 1
+    assert any("no knee" in warning for warning in ranking.warnings)
+
+
+def test_knee_ranking_keeps_the_fallback_extreme_of_a_front_without_knee() -> None:
+    # Linear front with the interior point first: every knee score is 0.
+    front = _front("A", [[0.5, 0.5], [0.0, 1.0], [1.0, 0.0]])
+
+    with pytest.warns(UserWarning, match="no knee"):
+        order = rank_by_score(build_decision_view(front, methods=["knee"]), "knee")
+    ranking = rank_fronts([front], method="knee", top_k=1)
+
+    assert order[0] == 1
+    assert (ranking.rows[0]["f1"], ranking.rows[0]["f2"]) == (0.0, 1.0)
     assert any("no knee" in warning for warning in ranking.warnings)
