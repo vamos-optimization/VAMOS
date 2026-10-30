@@ -125,6 +125,8 @@ The custom model changes how candidate solutions are evaluated; it does not requ
 
 Rows correspond across the returned `X`, `F`, and constraint values `G`. For constrained runs, do not treat objective-space non-dominance as a feasibility test: `result.front()` Pareto-filters the current `F` rows, but it does **not** independently remove rows with positive constraint values.
 
+**Development after 1.1.0:** `result.front()`, `best()` and `top_k()` rank the feasible rows first when the result carries `G`: only feasible rows are Pareto-filtered or, when none is feasible, the least violated ones. Pass `feasible_only=False` for the objective-only filter. Checking `G` yourself remains the clearest evidence when feasibility matters to a conclusion.
+
 This maintained example deliberately verifies that every returned row is feasible before calling `front()`:
 
 ```python
