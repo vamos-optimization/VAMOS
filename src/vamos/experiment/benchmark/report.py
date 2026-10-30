@@ -1,10 +1,9 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-
-import numpy as np
 
 from vamos.experiment.benchmark.lab_plots import generate_boxplots
 from vamos.experiment.benchmark.lab_stats import write_summary_tables, write_wilcoxon_tables
@@ -15,10 +14,16 @@ from vamos.experiment.benchmark.report_utils import (
     ensure_dir,
     format_cell,
     higher_is_better,
+    holm_adjust,
     import_pandas,
+    min_rank_sum_p_value,
 )
 from vamos.experiment.benchmark.runner import BenchmarkResult
 from vamos.ux.analysis.stats import friedman_test, pairwise_wilcoxon
+
+
+def _logger() -> logging.Logger:
+    return logging.getLogger(__name__)
 
 
 @dataclass
@@ -94,13 +99,33 @@ class BenchmarkReport:
                 # Friedman requires at least 3 algorithms; skip when not applicable.
                 if scores.shape[1] >= 3:
                     fried = friedman_test(scores, higher_is_better=higher_is_better(metric))
-                    wilc = pairwise_wilcoxon(
-                        scores,
-                        list(pivot_mean.columns),
-                        higher_is_better=higher_is_better(metric),
-                        alpha=self.config.alpha,
-                    )
-            stats[metric] = {"grouped": grouped, "pivot_mean": pivot_mean, "friedman": fried, "wilcoxon": wilc}
+                # Signed-rank tests on the per-problem means, paired by problem; with two
+                # algorithms this is the only test across problems.
+                wilc = pairwise_wilcoxon(
+                    scores,
+                    list(pivot_mean.columns),
+                    higher_is_better=higher_is_better(metric),
+                    alpha=self.config.alpha,
+                )
+            holm = holm_adjust([float(item.p_value) for item in wilc])
+            pairwise = [
+                {
+                    "algorithm_a": item.algo_i,
+                    "algorithm_b": item.algo_j,
+                    "statistic": float(item.statistic),
+                    "p_value": float(item.p_value),
+                    "p_value_holm": adjusted,
+                    "significant": bool(adjusted <= self.config.alpha),
+                }
+                for item, adjusted in zip(wilc, holm, strict=True)
+            ]
+            stats[metric] = {
+                "grouped": grouped,
+                "pivot_mean": pivot_mean,
+                "friedman": fried,
+                "wilcoxon": wilc,
+                "pairwise": pairwise,
+            }
         self._stats_cache = stats
         dump_stats_summary(stats, self.output_dir / "statistics.json")
         return stats
@@ -117,35 +142,38 @@ class BenchmarkReport:
             best[problem] = best_alg
         return best
 
-    def _per_problem_markers(self, dfm: Any, problem: str, best_alg: str, metric: str) -> dict[str, str]:
+    def _per_problem_markers(self, dfm: Any, problem: str, best_alg: str, metric: str) -> tuple[dict[str, str], float | None]:
+        """Mark each algorithm that differs significantly from the row's best on ``problem``.
+
+        Runs of two algorithms are independent even when they share a seed, so the test is
+        the two-sided rank-sum (Mann-Whitney U) test on the two samples of runs, as in
+        ``lab/``; runs without feasible solutions tie with each other. ``-`` marks an
+        algorithm significantly worse than the best and ``+`` one significantly better (its
+        mean can still be worse). The second value is the smallest attainable p-value when
+        the run counts cannot reach ``alpha`` for some algorithm, which is then not tested.
+        """
+        from scipy import stats as spstats  # type: ignore[import-untyped]
+
         markers: dict[str, str] = {}
         subset = dfm[dfm["problem"] == problem]
-        pivot = subset.pivot_table(index="seed", columns="algorithm", values="value")
-        if best_alg not in pivot.columns:
-            return markers
-        best_values = pivot[best_alg].dropna()
-        for alg in pivot.columns:
-            if alg == best_alg:
+        samples = {alg: group["value"].to_numpy(dtype=float) for alg, group in subset.groupby("algorithm")}
+        best = samples.get(best_alg)
+        if best is None or best.size == 0:
+            return markers, None
+        higher = higher_is_better(metric)
+        unattainable: float | None = None
+        for alg, other in samples.items():
+            if alg == best_alg or other.size == 0:
                 continue
-            other = pivot[alg].dropna()
-            if best_values.empty or other.empty:
+            floor = min_rank_sum_p_value(best.size, other.size)
+            if floor > self.config.alpha:
+                unattainable = floor if unattainable is None else min(unattainable, floor)
                 continue
-            try:
-                # Seeds pair the runs; runs that both found no feasible solution are ties.
-                pair = np.column_stack([best_values.to_numpy(dtype=float), other.to_numpy(dtype=float)])
-                (result,) = pairwise_wilcoxon(pair, [best_alg, alg], higher_is_better=higher_is_better(metric))
-            except ValueError:
-                continue
-            p = result.p_value
-            if p < self.config.alpha:
-                higher = higher_is_better(metric)
-                best_mean = best_values.mean()
-                other_mean = other.mean()
-                if (higher and other_mean > best_mean) or ((not higher) and other_mean < best_mean):
-                    markers[alg] = "+"
-                else:
-                    markers[alg] = "-"
-        return markers
+            result = spstats.mannwhitneyu(other, best, alternative="two-sided")
+            if result.pvalue <= self.config.alpha:
+                other_larger = result.statistic > other.size * best.size / 2
+                markers[alg] = "+" if other_larger == higher else "-"
+        return markers, unattainable
 
     def generate_latex_tables(self) -> dict[str, Path]:
         pd = import_pandas()
@@ -164,9 +192,12 @@ class BenchmarkReport:
             rows = []
             problems = mean_table.index.tolist()
             algorithms = mean_table.columns.tolist()
+            unattainable: dict[str, float] = {}
             for problem in problems:
                 row_cells = {"Problem": problem}
-                markers = self._per_problem_markers(dfm, problem, best_map[problem], metric)
+                markers, floor = self._per_problem_markers(dfm, problem, best_map[problem], metric)
+                if floor is not None:
+                    unattainable[str(problem)] = floor
                 for alg in algorithms:
                     mean = mean_table.loc[problem, alg]
                     std = std_table.loc[problem, alg]
@@ -177,6 +208,10 @@ class BenchmarkReport:
             table_df = pd.DataFrame(rows)
             latex_path = tables_dir / f"{self.result.suite.name}_{metric}.tex"
             caption = f"{self.config.table_caption_prefix}{metric} results for {self.result.suite.name}"
+            if unattainable:
+                note = self._unattainable_note(metric, unattainable)
+                _logger().warning("%s", note)
+                caption = f"{caption}. {note}"
             label = f"{self.config.table_label_prefix}{self.result.suite.name}_{metric}"
             table_df.to_latex(
                 latex_path,
@@ -194,6 +229,14 @@ class BenchmarkReport:
             )
             created["all"] = master
         return created
+
+    def _unattainable_note(self, metric: str, unattainable: dict[str, float]) -> str:
+        floor = min(unattainable.values())
+        problems = ", ".join(unattainable)
+        return (
+            f"{metric}: too few runs per algorithm to mark significant differences on {problems}; "
+            f"the smallest attainable p-value is {floor:.3g}, above alpha = {self.config.alpha:g}"
+        )
 
     def generate_plots(self) -> dict[str, list[Path]]:
         tidy = self.aggregate_metrics()
