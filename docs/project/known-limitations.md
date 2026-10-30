@@ -9,6 +9,16 @@ unsupported behavior rather than future compatibility promises.
   objectives themselves.
 - A valid population size may depend on an algorithm's reference directions or
   weight lattice. Incompatible sizes fail instead of being adjusted silently.
+  - **Development after 1.1.0:** NSGA-III accepts a population at least as
+    large as its reference directions (N >= H), as Deb and Jain, jMetal and
+    pymoo do, and fails only below that. Without `divisions` it uses the
+    complete Das-Dennis lattice with the most directions that fit in
+    `pop_size`: 91 directions for 100 individuals and three objectives.
+    VAMOS 1.1.0 and earlier truncated the next larger lattice to `pop_size`
+    directions, which dropped the corner of the first objective; the `ref_dirs`
+    archive pruning and `top_k(method="reference_directions")` had the same
+    bias. NSGA-III and RVEA with two objectives default to 100 directions, or
+    `pop_size`, instead of 7.
 - The strict evaluation budget must be at least the resolved population size.
 - Deterministic same-environment runs do not imply bitwise equality across
   different kernels, BLAS implementations, operating systems, architectures,
@@ -27,6 +37,13 @@ unsupported behavior rather than future compatibility promises.
 - **Development after 1.1.0:** `cec2009_uf3` searches the CEC2009 domain
   `[0, 1]^n`. VAMOS 1.1.0 and earlier search `[-1, 1]` for variables 2 to n, so
   UF3 results from those versions do not correspond to the CEC2009 instance.
+- **Development after 1.1.0:** `re24` searches `x2` in `[0.5, 50]` and `re25`
+  uses the 19 wire diameters from 0.092, as Tanabe and Ishibuchi's reference
+  implementation does, and `re24.csv` is the authors' approximated front.
+  VAMOS 1.1.0 and earlier use `x2 >= 4` in RE24, which cuts its front at
+  f₁ = 480.5, and all 42 listed diameters in RE25. RE24 and RE25 results from
+  those versions do not correspond to the reference problems. `re22` keeps its
+  documented reading of the reference's "3,10" as 3.10.
 - **Development after 1.1.0:** `cec2009_uf9` uses the CEC2009 squared distance
   `y_j^2`. VAMOS 1.1.0 and earlier use the multimodal distance of UF5, with the
   same Pareto front but a different landscape, so UF9 results from those
