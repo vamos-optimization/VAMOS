@@ -99,6 +99,11 @@ Notes:
   earlier prune by crowding distance instead, with a single warning per process.
   The HV subset selection of `top_k(method="hv_greedy")` is exact with or without
   `moocore`; without it, it is slow with three or more objectives.
+- **Development after 1.1.0:** `pruning: knn` applies the SPEA2 truncation
+  operator: it repeatedly removes the point whose distances to the others,
+  sorted in ascending order, are lexicographically smallest. VAMOS 1.1.0 and
+  earlier rank points by the distance to their second-nearest neighbour alone,
+  with ties broken by row order, which can remove an extreme point.
 - For an **algorithm result archive**, use its public configuration builder and
   inspect the resolved `result_mode`; see [Algorithms and backends](../reference/algorithms.md).
   Since VAMOS 1.0.1, the SMPSO search leaders and optional external result archive are
