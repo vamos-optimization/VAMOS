@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "b14df594a22f96e2ec033fcf7fd5a5b9ebcf6852",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit b14df594a22f96e2ec033fcf7fd5a5b9ebcf6852",
+  "generation_commit": "60af96be2ab66a456b66158a9cc3f3c01e8c1441",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 60af96be2ab66a456b66158a9cc3f3c01e8c1441",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.0",
@@ -26,14 +26,14 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 654,
-  "files_with_diagnostics": 89,
-  "fingerprint_count": 89,
+  "diagnostic_count": 647,
+  "files_with_diagnostics": 88,
+  "fingerprint_count": 88,
   "error_code_summary": {
-    "type-arg": 654
+    "type-arg": 647
   },
   "layer_summary": {
-    "engine": 334,
+    "engine": 327,
     "experiment": 22,
     "foundation": 236,
     "package-root": 1,
@@ -440,44 +440,6 @@
         {
           "line": 67,
           "column": 49
-        }
-      ]
-    },
-    {
-      "fingerprint": "11D7BEB11E2FC57C84F610489B3B0EFF3940AF0EDA3E5BECF50BA70AD2C03128",
-      "path": "src/vamos/engine/algorithm/moead/aggregation.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 7,
-      "locations": [
-        {
-          "line": 8,
-          "column": 37
-        },
-        {
-          "line": 31,
-          "column": 24
-        },
-        {
-          "line": 38,
-          "column": 25
-        },
-        {
-          "line": 44,
-          "column": 16
-        },
-        {
-          "line": 56,
-          "column": 33
-        },
-        {
-          "line": 74,
-          "column": 25
-        },
-        {
-          "line": 82,
-          "column": 25
         }
       ]
     },
