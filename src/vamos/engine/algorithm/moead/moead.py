@@ -34,12 +34,13 @@ from vamos.foundation.kernel import default_kernel
 from .helpers import update_neighborhood, update_neighborhood_batch
 from .initialization import initialize_moead_run
 from .state import MOEADState, build_moead_result
+from .steady_state import SteadyStateStep
 
 if TYPE_CHECKING:
     from vamos.foundation.eval.backends import EvaluationBackend
     from vamos.foundation.kernel.backend import KernelBackend
     from vamos.foundation.problem.types import ProblemProtocol
-from vamos.engine.hooks.live_viz import LiveVisualization
+from vamos.engine.hooks.live_viz import LiveVisualization, NoOpLiveVisualization
 
 
 class MOEAD:
@@ -53,6 +54,7 @@ class MOEAD:
         self._candidate_orders: np.ndarray[Any, Any] | None = None
         self._parent_pairs: np.ndarray[Any, Any] | None = None
         self._row_index: np.ndarray[Any, Any] = np.empty(0, dtype=np.int64)
+        self._steady: SteadyStateStep | None = None
 
     def run(
         self,
@@ -79,12 +81,22 @@ class MOEAD:
         live_cb.on_generation(generation, F=st.F, stats={"evals": st.n_eval})
         stop_requested = live_should_stop(live_cb)
         hv_reached = hv_tracker.enabled and hv_tracker.reached(st.hv_points())
+        # notify_generation ignores no-op callbacks, so the loop skips the call for them.
+        notify = not isinstance(live_cb, NoOpLiveVisualization)
+        # The compiled one-offspring step (numba engine) is called directly; None defers to ask()/tell().
+        steady = self._steady
+        if steady is not None and not notify and not hv_tracker.enabled and st.archive_manager is None and not stop_requested:
+            # Nothing observes single steps, so the compiled step runs the whole budget.
+            generation = steady.run(st, problem, eval_strategy, generation, lambda result: self.tell(result, problem))
 
         while st.n_eval < max_eval and not hv_reached and not stop_requested:
             st.generation = generation
-            X_off = self.ask()
+            X_off = steady.ask(st) if steady is not None else None
+            if X_off is None:
+                X_off = self.ask()
             eval_result = eval_strategy.evaluate(X_off, problem)
-            hv_reached = self.tell(eval_result, problem)
+            told = steady.tell(st, eval_result) if steady is not None else None
+            hv_reached = self.tell(eval_result, problem) if told is None else told
 
             if hv_tracker.enabled and hv_tracker.reached(st.hv_points()):
                 hv_reached = True
@@ -92,7 +104,8 @@ class MOEAD:
 
             generation += 1
             st.generation = generation
-            stop_requested = notify_generation(live_cb, self.kernel, generation, st.F, stats={"evals": st.n_eval})
+            if notify:
+                stop_requested = notify_generation(live_cb, self.kernel, generation, st.F, stats={"evals": st.n_eval})
 
         result = build_moead_result(st, hv_reached, kernel=self.kernel)
         result["checkpoint"] = {
@@ -139,6 +152,7 @@ class MOEAD:
         cross_method = str(self.cfg.get("crossover", ("sbx", {}))[0]).lower()
         self._cross_is_de = cross_method in {"de", "differential", "differential_evolution"}
         self._op_label = variation_operator_label(self.cfg, "sbx+pm")
+        self._steady = SteadyStateStep.build(self._st, self.kernel, self._cross_is_de)
         return live_cb, eval_strategy, max_eval, hv_tracker
 
     def _ensure_parent_pair_buffer(self, batch_size: int) -> np.ndarray[Any, Any]:
@@ -240,6 +254,10 @@ class MOEAD:
             raise RuntimeError("ask() called before initialization.")
         if st.crossover_fn is None or st.mutation_fn is None:
             raise RuntimeError("MOEA/D variation operators are not initialized.")
+        if self._steady is not None:
+            child = self._steady.ask(st)
+            if child is not None:
+                return child
 
         pop_size = st.pop_size
         max_eval = st.max_evals
@@ -284,6 +302,10 @@ class MOEAD:
         st = self._st
         if st is None:
             raise RuntimeError("tell() called before initialization.")
+        if self._steady is not None:
+            hv_reached = self._steady.tell(st, eval_result)
+            if hv_reached is not None:
+                return hv_reached
 
         children = st.pending_offspring
         active = st.pending_active_indices

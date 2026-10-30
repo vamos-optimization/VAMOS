@@ -1,18 +1,17 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from typing import TypeAlias
+from typing import Any, TypeAlias
 
 import numpy as np
 
-AggregatorFn: TypeAlias = Callable[[np.ndarray, np.ndarray, np.ndarray], np.ndarray]
+# The compiled neighbourhood replacement owns the aggregation ids.
+from vamos.foundation.kernel.moead_kernels import AGG_MODIFIED_TCHEBYCHEFF, AGG_PBI, AGG_TCHEBYCHEFF, AGG_WEIGHTED_SUM
+
+Array: TypeAlias = np.ndarray[Any, Any]
+AggregatorFn: TypeAlias = Callable[[Array, Array, Array], Array]
 
 ZERO_WEIGHT_EPS: float = 1e-4
-
-AGG_TCHEBYCHEFF = 0
-AGG_WEIGHTED_SUM = 1
-AGG_PBI = 2
-AGG_MODIFIED_TCHEBYCHEFF = 3
 
 _AGGREGATION_IDS: dict[str, int] = {
     "tchebycheff": AGG_TCHEBYCHEFF,
@@ -28,20 +27,20 @@ _AGGREGATION_IDS: dict[str, int] = {
 }
 
 
-def tchebycheff(fvals: np.ndarray, weights: np.ndarray, ideal: np.ndarray) -> np.ndarray:
+def tchebycheff(fvals: Array, weights: Array, ideal: Array) -> Array:
     """Tchebycheff aggregation: max(w * |f - z*|)."""
     diff = np.abs(fvals - ideal)
     weighted = np.where(weights == 0, ZERO_WEIGHT_EPS * diff, weights * diff)
     return np.asarray(np.max(weighted, axis=-1), dtype=float)
 
 
-def weighted_sum(fvals: np.ndarray, weights: np.ndarray, ideal: np.ndarray) -> np.ndarray:
+def weighted_sum(fvals: Array, weights: Array, ideal: Array) -> Array:
     """Weighted sum aggregation: sum(w * f)."""
     _ = ideal
     return np.asarray(np.sum(weights * fvals, axis=-1), dtype=float)
 
 
-def pbi(fvals: np.ndarray, weights: np.ndarray, ideal: np.ndarray, theta: float = 5.0) -> np.ndarray:
+def pbi(fvals: Array, weights: Array, ideal: Array, theta: float = 5.0) -> Array:
     """Penalty boundary intersection (PBI) aggregation."""
     diff = fvals - ideal
     norm_w = np.linalg.norm(weights, axis=-1, keepdims=True)
@@ -53,7 +52,7 @@ def pbi(fvals: np.ndarray, weights: np.ndarray, ideal: np.ndarray, theta: float 
     return np.asarray(d1 + theta * d2, dtype=float)
 
 
-def modified_tchebycheff(fvals: np.ndarray, weights: np.ndarray, ideal: np.ndarray, rho: float = 0.001) -> np.ndarray:
+def modified_tchebycheff(fvals: Array, weights: Array, ideal: Array, rho: float = 0.001) -> Array:
     """Modified Tchebycheff: max component plus weighted L1 term."""
     diff = np.abs(fvals - ideal)
     weighted = np.where(weights == 0, ZERO_WEIGHT_EPS * diff, weights * diff)
@@ -71,7 +70,7 @@ def build_aggregator(name: str, params: Mapping[str, object]) -> AggregatorFn:
         theta_raw = params.get("theta", 5.0)
         theta = float(theta_raw) if isinstance(theta_raw, (int, float, str)) else 5.0
 
-        def _agg(fvals: np.ndarray, weights: np.ndarray, ideal: np.ndarray) -> np.ndarray:
+        def _agg(fvals: Array, weights: Array, ideal: Array) -> Array:
             return pbi(fvals, weights, ideal, theta)
 
         return _agg
@@ -79,7 +78,7 @@ def build_aggregator(name: str, params: Mapping[str, object]) -> AggregatorFn:
         rho_raw = params.get("rho", 0.001)
         rho = float(rho_raw) if isinstance(rho_raw, (int, float, str)) else 0.001
 
-        def _agg(fvals: np.ndarray, weights: np.ndarray, ideal: np.ndarray) -> np.ndarray:
+        def _agg(fvals: Array, weights: Array, ideal: Array) -> Array:
             return modified_tchebycheff(fvals, weights, ideal, rho)
 
         return _agg
