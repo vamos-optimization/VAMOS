@@ -120,23 +120,60 @@ def test_jmetalpy_vamos_problem_wrapper_runs(monkeypatch: pytest.MonkeyPatch, tm
     assert X0.min() >= 0.0 and X0.max() <= 1.0
 
 
-def test_jmetalpy_baseline_restores_global_random_state() -> None:
-    pytest.importorskip("jmetal")
+def _known_global_streams() -> tuple[Any, Any]:
     random.seed(123)
     np.random.seed(456)
-    python_state = random.getstate()
-    numpy_state = np.random.get_state()
+    return random.getstate(), np.random.get_state()
 
-    first = _quiet_external("jmetalpy_nsga2", seed=7, max_evaluations=300)
 
-    assert random.getstate() == python_state, "the jMetalPy baseline left the global random stream reseeded"
+def _assert_global_streams_unchanged(python_state: Any, numpy_state: Any) -> None:
+    assert random.getstate() == python_state, "the global random stream was left reseeded"
     restored = np.random.get_state()
     assert restored[0] == numpy_state[0]
     assert np.array_equal(restored[1], numpy_state[1])
-    assert restored[2:] == numpy_state[2:], "the jMetalPy baseline left the global NumPy stream reseeded"
+    assert restored[2:] == numpy_state[2:], "the global NumPy stream was left reseeded"
 
+
+def test_jmetalpy_baseline_restores_global_random_state() -> None:
+    pytest.importorskip("jmetal")
+    python_state, numpy_state = _known_global_streams()
+
+    first = _quiet_external("jmetalpy_nsga2", seed=7, max_evaluations=300)
+
+    _assert_global_streams_unchanged(python_state, numpy_state)
     second = _quiet_external("jmetalpy_nsga2", seed=7, max_evaluations=300)
     assert np.array_equal(first, second), "the baseline seed no longer reproduces the run"
+
+
+@pytest.mark.parametrize("seed", [2**32, 2**40])
+def test_jmetalpy_baseline_accepts_seeds_wider_than_32_bits(seed: int) -> None:
+    # The CLI draws 64-bit seeds when --seed is omitted; NumPy's global seed takes 32 bits.
+    pytest.importorskip("jmetal")
+    python_state, numpy_state = _known_global_streams()
+
+    first = _quiet_external("jmetalpy_nsga2", seed=seed, max_evaluations=300)
+
+    _assert_global_streams_unchanged(python_state, numpy_state)
+    assert first.shape[0] > 0
+    second = _quiet_external("jmetalpy_nsga2", seed=seed, max_evaluations=300)
+    assert np.array_equal(first, second), "a wide seed does not reproduce the run"
+
+
+def test_global_streams_are_restored_when_seeding_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    from vamos.experiment.external.jmetalpy import _seeded_global_random_state
+
+    python_state, numpy_state = _known_global_streams()
+
+    def rejecting_seed(seed: object) -> None:
+        raise ValueError("seed rejected")
+
+    monkeypatch.setattr(np.random, "seed", rejecting_seed)
+    with pytest.raises(ValueError, match="seed rejected"):
+        with _seeded_global_random_state(9):
+            pytest.fail("the baseline must not run when seeding fails")
+    monkeypatch.undo()
+
+    _assert_global_streams_unchanged(python_state, numpy_state)
 
 
 @pytest.mark.slow

@@ -28,17 +28,35 @@ def _seeded_global_random_state(seed: int) -> Iterator[None]:
 
     jMetalPy takes no generator: its operators and ``create_solution`` draw from the
     process-wide streams. Seeding them makes the baseline reproducible, and restoring
-    them afterwards leaves the caller's streams where they were.
+    them afterwards leaves the caller's streams where they were, also when seeding fails.
     """
     python_state = random.getstate()
     numpy_state = np.random.get_state()
-    random.seed(seed)
-    np.random.seed(seed)
     try:
+        random.seed(seed)
+        np.random.seed(_global_numpy_seed(seed))
         yield
     finally:
         random.setstate(python_state)
         np.random.set_state(numpy_state)
+
+
+def _global_numpy_seed(seed: int) -> int | list[int]:
+    """Return ``seed`` in the form ``np.random.seed`` accepts, without dropping bits.
+
+    NumPy's global seed takes an integer in ``[0, 2**32)`` or a sequence of such words.
+    Seeds in that range are passed unchanged, so existing runs keep their streams; wider
+    seeds (the CLI draws 64-bit seeds when ``--seed`` is omitted) are split into 32-bit
+    words of their magnitude, the same magnitude that ``random.seed`` uses.
+    """
+    if 0 <= seed <= 0xFFFF_FFFF:
+        return seed
+    magnitude = abs(seed)
+    words: list[int] = []
+    while magnitude:
+        words.append(magnitude & 0xFFFF_FFFF)
+        magnitude >>= 32
+    return words
 
 
 def _patch_permutation_swap_mutation_cls(
