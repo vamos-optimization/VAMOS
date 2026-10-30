@@ -90,14 +90,16 @@ def _survival_score(
     front = np.round(front, 12, out=front.copy())
     m, n = front.shape
     crowd_dist = np.zeros(m, dtype=float)
+    front = front - ideal_point
 
     if m < n:
+        # No hyperplane: normalize by the spread above the ideal point, which
+        # does not depend on the objectives' origin (PlatEMO takes the raw maxima).
         p = 1.0
         normalization = np.max(front, axis=0)
         normalization[normalization == 0.0] = 1.0
         return crowd_dist, p, normalization
 
-    front = front - ideal_point
     extreme = _find_corner_solutions(front)
     front, normalization = _normalize_front(front, extreme)
 

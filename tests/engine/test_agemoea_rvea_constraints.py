@@ -116,6 +116,18 @@ def test_age_survival_scores_the_truncated_front(reverse_rows: bool, scale: tupl
     assert kept == {*front0, (0.55, 0.6), (1.2, 0.3)}
 
 
+@pytest.mark.parametrize("shift", [(0.0, 0.0), (100.0, 0.0), (0.0, -50.0)])
+def test_age_survival_with_fewer_first_front_points_than_objectives_ignores_the_origin(shift: tuple) -> None:
+    # With fewer first-front points than objectives there is no hyperplane, and
+    # the later fronts are normalized by the first front's spread above its
+    # ideal point. Translating the objectives must not change the survivors.
+    base = np.array([[0.0, 0.0], [1.0, 3.0], [3.0, 2.0]])
+
+    survivors, _ = age_survival(base + np.array(shift), 2, NumPyKernel())
+
+    assert {tuple(row) for row in base[survivors].tolist()} == {(0.0, 0.0), (1.0, 3.0)}
+
+
 def _age_survival_scores(F: np.ndarray) -> np.ndarray:
     """Score every row as AGE-MOEA's survival does (PlatEMO's EnvironmentalSelection, ideal-centred)."""
     kernel = NumPyKernel()
