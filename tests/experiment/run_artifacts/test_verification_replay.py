@@ -4,7 +4,9 @@ import dataclasses
 import importlib
 import json
 import shutil
+import subprocess
 import sys
+from importlib import metadata as importlib_metadata
 from pathlib import Path
 from typing import Any
 
@@ -184,6 +186,140 @@ def test_verification_does_not_execute_or_discover_plugins(monkeypatch: pytest.M
     monkeypatch.setattr(provenance_module.subprocess, "run", lambda *args, **kwargs: pytest.fail("shell command"))
 
     assert vamos.verify_run(source.root).effective_replayability == "exact"
+
+
+_PROVENANCE = importlib.import_module("vamos.experiment.artifacts.provenance")
+needs_git = pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+
+
+def _git(root: Path, *args: str) -> str:
+    identity = ("-c", "user.name=VAMOS tests", "-c", "user.email=tests@example.invalid", "-c", "commit.gpgsign=false")
+    completed = subprocess.run(["git", *identity, *args], cwd=root, check=True, capture_output=True, text=True)
+    return completed.stdout.strip()
+
+
+def _commit_all(root: Path, message: str) -> str:
+    _git(root, "add", "-A")
+    _git(root, "commit", "-q", "-m", message)
+    return _git(root, "rev-parse", "HEAD")
+
+
+class _InstalledVamos:
+    """Installed ``vamos-optimization`` metadata of a wheel or of an editable install."""
+
+    files = None
+
+    def __init__(self, *, editable: bool) -> None:
+        self._direct_url = json.dumps({"dir_info": {"editable": True}, "url": "file:///vamos"}) if editable else None
+
+    def read_text(self, name: str) -> str | None:
+        return self._direct_url if name == "direct_url.json" else None
+
+
+class _Metadata:
+    def __init__(self, installed: _InstalledVamos) -> None:
+        self._installed = installed
+
+    def distribution(self, name: str) -> Any:
+        return self._installed if name == "vamos-optimization" else importlib_metadata.distribution(name)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(importlib_metadata, name)
+
+
+def _relocate_vamos(monkeypatch: pytest.MonkeyPatch, package_root: Path, *, editable: bool) -> Path:
+    """Make provenance see the imported ``vamos`` package at ``package_root``."""
+    module_path = package_root / "experiment" / "artifacts" / "provenance.py"
+    module_path.parent.mkdir(parents=True)
+    module_path.write_text("# stand-in for the imported module\n", encoding="utf-8")
+    monkeypatch.setattr(_PROVENANCE, "__file__", str(module_path))
+    monkeypatch.setattr(_PROVENANCE, "importlib_metadata", _Metadata(_InstalledVamos(editable=editable)))
+    return package_root
+
+
+def _blocking_fields(report: VerificationReport) -> list[str]:
+    return [item.field for item in report.environment.findings if item.blocks_exact]
+
+
+@needs_git
+def test_wheel_inside_user_repository_records_wheel_source(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    # A wheel installed in a .venv inside the user's own Git project: the project is not a VAMOS checkout.
+    project = tmp_path / "project"
+    _relocate_vamos(monkeypatch, project / ".venv" / "Lib" / "site-packages" / "vamos", editable=False)
+    (project / ".gitignore").write_text(".venv/\n", encoding="utf-8")
+    (project / "analysis.py").write_text("print('user code')\n", encoding="utf-8")
+    _git(project, "init", "-q")
+    _commit_all(project, "user project")
+    commands: list[Any] = []
+    real_run = subprocess.run
+
+    def recording_run(*args: Any, **kwargs: Any) -> Any:
+        commands.append(args[0] if args else kwargs.get("args"))
+        return real_run(*args, **kwargs)
+
+    with monkeypatch.context() as patched:
+        patched.setattr(_PROVENANCE.subprocess, "run", recording_run)
+        source = _save_source(tmp_path / "run")
+
+    stored = _read_manifest(source.root)["provenance"]["source"]
+    assert stored["kind"] == "wheel"
+    assert stored["git_sha"] is None
+    assert not [command for command in commands if command and command[0] == "git"]
+
+    (project / "notes.txt").write_text("unrelated\n", encoding="utf-8")
+    _commit_all(project, "unrelated user commit")
+    report = vamos.verify_run(source.root)
+    assert report.effective_replayability == "exact", _blocking_fields(report)
+
+
+@needs_git
+def test_vamos_checkout_records_checkout_source(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    checkout = tmp_path / "VAMOS"
+    _relocate_vamos(monkeypatch, checkout / "src" / "vamos", editable=False)
+    _git(checkout, "init", "-q")
+    head = _commit_all(checkout, "checkout")
+
+    source = _save_source(tmp_path / "run")
+
+    stored = _read_manifest(source.root)["provenance"]["source"]
+    assert stored["kind"] == "checkout"
+    assert stored["git_sha"] == head
+    assert stored["dirty"] is False
+    report = vamos.verify_run(source.root)
+    assert report.effective_replayability == "exact", _blocking_fields(report)
+
+
+def test_editable_install_without_git_round_trips_exact(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    # For example, a "Download ZIP" source tree installed with ``pip install -e .``.
+    package = tmp_path / "download" / "src" / "vamos"
+    if _PROVENANCE._find_git_root(package / "__init__.py") is not None:
+        pytest.skip("the temporary directory is inside a Git repository")
+    _relocate_vamos(monkeypatch, package, editable=True)
+
+    source = _save_source(tmp_path / "run")
+
+    assert _read_manifest(source.root)["provenance"]["source"]["kind"] == "checkout"
+    report = vamos.verify_run(source.root)
+    assert report.effective_replayability == "exact", _blocking_fields(report)
+
+
+@needs_git
+def test_modified_package_data_blocks_exact(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    checkout = tmp_path / "VAMOS"
+    package = _relocate_vamos(monkeypatch, checkout / "src" / "vamos", editable=False)
+    data = package / "resources" / "tsplib" / "demo.tsp"
+    data.parent.mkdir(parents=True)
+    data.write_text("1 1380 939\n", encoding="utf-8")
+    _git(checkout, "init", "-q")
+    _commit_all(checkout, "checkout")
+    source = _save_source(tmp_path / "run")
+    assert vamos.verify_run(source.root).effective_replayability == "exact"
+
+    data.write_text("1 1381 939\n", encoding="utf-8")
+
+    report = vamos.verify_run(source.root)
+    assert report.effective_replayability == "compatible"
+    assert "$.provenance.source.package_data_sha256" in _blocking_fields(report)
 
 
 def test_malicious_component_string_is_inert(tmp_path: Path) -> None:
