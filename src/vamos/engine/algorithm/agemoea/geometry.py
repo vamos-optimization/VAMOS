@@ -169,8 +169,22 @@ def _survival_score(
     return crowd_dist, p, normalization
 
 
-def age_survival(F: np.ndarray[Any, Any], n_survive: int, kernel: KernelBackend) -> np.ndarray[Any, Any]:
-    """Select AGE-MOEA survivors from a combined parent-offspring front."""
+def age_survival(
+    F: np.ndarray[Any, Any],
+    n_survive: int,
+    kernel: KernelBackend,
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
+    """Select AGE-MOEA survivors from a combined parent-offspring front.
+
+    Returns the survivor indices in ascending order and their survival scores,
+    as PlatEMO's ``EnvironmentalSelection`` (Panichella's own code) defines
+    them: the diversity/proximity score on the first front and the inverse
+    Minkowski distance to the ideal point on every later front up to the
+    truncated one, which is cut by that score. pymoo 0.6.2 leaves the truncated
+    front unscored and cuts it by index. AGE-MOEA's mating tournament breaks
+    rank ties with these scores.
+    """
+    n_survive = min(int(n_survive), F.shape[0])
     ranks, _ = kernel.nsga2_ranking(F)
     max_rank = int(ranks.max()) if ranks.size else 0
 
@@ -192,7 +206,7 @@ def age_survival(F: np.ndarray[Any, Any], n_survive: int, kernel: KernelBackend)
     ideal_point = np.min(front0, axis=0)
     crowd_dist[ranks == 0], p, normalization = _survival_score(front0, ideal_point, kernel.selection_kernels())
 
-    for r in range(1, last_rank):
+    for r in range(1, last_rank + 1):
         front_idx = fronts[r]
         if front_idx.size == 0:
             continue
@@ -207,7 +221,8 @@ def age_survival(F: np.ndarray[Any, Any], n_survive: int, kernel: KernelBackend)
         remaining = n_survive - int(np.sum(selected))
         selected[last[order[:remaining]]] = True
 
-    return np.flatnonzero(selected)
+    survivors = np.flatnonzero(selected)
+    return survivors, crowd_dist[survivors]
 
 
 __all__ = ["age_survival"]

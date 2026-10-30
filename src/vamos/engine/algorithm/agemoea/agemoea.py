@@ -29,7 +29,6 @@ from vamos.engine.variation.helpers import (
 )
 from vamos.engine.variation.pipeline import VariationPipeline
 from vamos.engine.variation.protocol import RepairConfigValue
-from vamos.foundation.constraints.utils import compute_violation, is_feasible
 from vamos.foundation.encoding import normalize_encoding
 from vamos.foundation.eval.backends import EvaluationBackend, SerialEvalBackend
 from vamos.foundation.kernel import default_kernel
@@ -37,8 +36,8 @@ from vamos.foundation.kernel.backend import KernelBackend, VariationKernels
 from vamos.foundation.observer import RunContext
 from vamos.foundation.problem.types import ProblemProtocol
 
-from .geometry import age_survival
 from .state import AGEMOEAState, build_agemoea_result
+from .survival import constraint_aware_age_survival, population_selection_metrics, selection_metrics
 
 
 def _logger() -> logging.Logger:
@@ -148,63 +147,18 @@ def _combine_constraints(
     return np.asarray(np.vstack([current, offspring]), dtype=float)
 
 
-def _constraint_aware_age_survival(
-    F: np.ndarray[Any, Any],
-    G: np.ndarray[Any, Any] | None,
-    n_survive: int,
-    kernel: KernelBackend,
-    constraint_mode: str,
-) -> np.ndarray[Any, Any]:
-    """Apply feasibility-first ordering, then AGE geometry among feasible points."""
-    if G is None or constraint_mode == "none":
-        return np.asarray(age_survival(F, n_survive, kernel), dtype=int)
-
-    feasible = is_feasible(G, n=G.shape[0])
-    feasible_idx = np.flatnonzero(feasible)
-    target = min(int(n_survive), F.shape[0])
-    if feasible_idx.size >= target:
-        local = np.asarray(age_survival(F[feasible_idx], target, kernel), dtype=int)
-        return np.asarray(feasible_idx[local], dtype=int)
-
-    violation = compute_violation(G, n=G.shape[0])
-    infeasible_idx = np.flatnonzero(~feasible)
-    needed = target - feasible_idx.size
-    order = np.argsort(violation[infeasible_idx], kind="stable")
-    fill = infeasible_idx[order[:needed]]
-    return np.asarray(np.concatenate([feasible_idx, fill]), dtype=int)
-
-
-def _selection_metrics(
-    kernel: KernelBackend,
-    F: np.ndarray[Any, Any],
-    G: np.ndarray[Any, Any] | None,
-    constraint_mode: str,
-) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
-    """Build tournament ranks/crowding with feasibility-first constraint ordering."""
-    ranks, crowding = kernel.nsga2_ranking(F)
-    if G is None or constraint_mode == "none":
-        return np.asarray(ranks, dtype=int), np.asarray(crowding, dtype=float)
-    violation = compute_violation(G, n=G.shape[0])
-    feasible = is_feasible(G, n=G.shape[0])
-    if feasible.any():
-        feasible_idx = np.flatnonzero(feasible)
-        feasible_ranks, feasible_crowding = kernel.nsga2_ranking(F[feasible_idx])
-        ranks = np.full(F.shape[0], int(feasible_ranks.max(initial=0)) + 1, dtype=int)
-        crowding = np.zeros(F.shape[0], dtype=float)
-        ranks[feasible_idx] = feasible_ranks
-        crowding[feasible_idx] = feasible_crowding
-        crowding[~feasible] = -violation[~feasible]
-    else:
-        ranks = np.zeros(F.shape[0], dtype=int)
-        crowding = -violation
-    return np.asarray(ranks, dtype=int), np.asarray(crowding, dtype=float)
-
-
 class AGEMOEA:
     """AGE-MOEA: Adaptive Geometry Estimation MOEA.
 
-    Implements adaptive geometry estimation for survival selection as in the
-    original AGE-MOEA paper.
+    Survival estimates the geometry of the first front and scores its points by
+    diversity and proximity (Panichella, 2019). Later fronts, the truncated one
+    included, are scored by proximity to the ideal point, and the binary mating
+    tournament compares rank, then that survival score, as in the author's
+    PlatEMO code. The rest follows pymoo, with PlatEMO's distance
+    normalization: objectives are not rounded to 6 decimals before
+    non-dominated sorting, the geometry exponent ``p`` is capped at 20, a
+    hyperplane with a zero coefficient also falls back to the front maximum,
+    and the default variation is SBX(0.9, 15) with polynomial mutation.
 
     Parameters
     ----------
@@ -238,9 +192,9 @@ class AGEMOEA:
         self._live_cb: LiveVisualization | None = None
 
     def _refresh_selection_metrics(self, st: AGEMOEAState) -> None:
-        ranks, crowding = _selection_metrics(self.kernel, st.F, st.G, st.constraint_mode)
+        ranks, scores = population_selection_metrics(self.kernel, st.F, st.G, st.constraint_mode)
         st.selection_ranks = ranks
-        st.selection_crowding = crowding
+        st.selection_crowding = scores
 
     # -------------------------------------------------------------------------
     # Main run method (batch mode)
@@ -333,7 +287,7 @@ class AGEMOEA:
             ext_cfg,
             G,
         )
-        selection_ranks, selection_crowding = _selection_metrics(self.kernel, F, G, constraint_mode)
+        selection_ranks, selection_crowding = population_selection_metrics(self.kernel, F, G, constraint_mode)
 
         result_mode = str(self.cfg.get("result_mode", "non_dominated")).strip().lower()
         if result_mode not in {"non_dominated", "population"}:
@@ -449,12 +403,12 @@ class AGEMOEA:
         F_combined = np.vstack([st.F, F_off])
         G_combined = _combine_constraints(st.G, G_off, st.constraint_mode)
 
-        survivors = _constraint_aware_age_survival(F_combined, G_combined, st.pop_size, self.kernel, st.constraint_mode)
+        survivors, survival_scores = constraint_aware_age_survival(F_combined, G_combined, st.pop_size, self.kernel, st.constraint_mode)
         st.X = X_combined[survivors]
         st.F = F_combined[survivors]
         st.G = G_combined[survivors] if G_combined is not None else None
         st.n_eval += X_off.shape[0]
-        self._refresh_selection_metrics(st)
+        st.selection_ranks, st.selection_crowding = selection_metrics(self.kernel, st.F, st.G, st.constraint_mode, survival_scores)
         if st.archive_manager is not None:
             st.archive_X, st.archive_F = st.archive_manager.update(st.X, st.F, st.G)
 

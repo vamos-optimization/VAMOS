@@ -4,7 +4,8 @@ import numpy as np
 import pytest
 
 from vamos.engine.algorithm.agemoea import AGEMOEA
-from vamos.engine.algorithm.agemoea.agemoea import _constraint_aware_age_survival
+from vamos.engine.algorithm.agemoea.geometry import _survival_score, age_survival
+from vamos.engine.algorithm.agemoea.survival import constraint_aware_age_survival
 from vamos.engine.algorithm.config import AGEMOEAConfig, RVEAConfig
 from vamos.engine.algorithm.rvea import RVEA
 from vamos.engine.algorithm.rvea.rvea import (
@@ -89,9 +90,58 @@ def test_agemoea_feasibility_survival_keeps_feasible_then_least_violating() -> N
     )
     G = np.array([[-0.1], [0.4], [-0.2], [0.1], [0.3], [0.2]])
 
-    survivors = _constraint_aware_age_survival(F, G, 4, NumPyKernel(), "feasibility")
+    survivors, _ = constraint_aware_age_survival(F, G, 4, NumPyKernel(), "feasibility")
 
     assert set(survivors.tolist()) == {0, 2, 3, 5}
+
+
+@pytest.mark.parametrize("reverse_rows", [False, True])
+def test_age_survival_scores_the_truncated_front(reverse_rows: bool) -> None:
+    # Front 0 holds 3 points and N = 5, so two of the six front-1 points survive.
+    # The author's code (PlatEMO EnvironmentalSelection.m, ``for i = 2:MaxFNo``)
+    # scores every later front, the truncated one included, by proximity to the
+    # ideal point; pymoo 0.6.2 skips the truncated front and cuts it by index.
+    front0 = [(0.0, 1.0), (0.5, 0.5), (1.0, 0.0)]
+    front1 = [(0.05, 3.0), (0.3, 2.0), (0.55, 0.6), (1.2, 0.3), (3.0, 0.05), (4.0, 0.04)]
+    if reverse_rows:
+        front1 = front1[::-1]
+    F = np.array(front0 + front1)
+
+    survivors, _ = age_survival(F, 5, NumPyKernel())
+
+    kept = {tuple(row) for row in F[survivors].tolist()}
+    assert kept == {*front0, (0.55, 0.6), (1.2, 0.3)}
+
+
+def _age_survival_scores(F: np.ndarray) -> np.ndarray:
+    """Score every row as PlatEMO's EnvironmentalSelection does."""
+    kernel = NumPyKernel()
+    ranks, _ = kernel.nsga2_ranking(F)
+    first = ranks == 0
+    ideal = F[first].min(axis=0)
+    scores = np.zeros(F.shape[0])
+    scores[first], p, normalization = _survival_score(F[first], ideal, kernel.selection_kernels())
+    distance = np.sum(np.abs(F[~first] / normalization - ideal) ** p, axis=1) ** (1.0 / p)
+    scores[~first] = 1.0 / np.maximum(distance, 1e-12)
+    return scores
+
+
+def test_agemoea_tournament_uses_the_survival_score() -> None:
+    # PlatEMO (AGEMOEA.m, ``TournamentSelection(2, N, FrontNo, -CrowdDis)``) and
+    # pymoo break rank ties with the survival score, not NSGA-II crowding.
+    algorithm = AGEMOEA(_agemoea_config(constraint_mode="none"), NumPyKernel())
+    algorithm.initialize(_UnconstrainedIdentityProblem(), termination=("max_evaluations", 18), seed=5)
+    state = algorithm.state
+    assert state is not None
+    np.testing.assert_allclose(state.selection_crowding, _age_survival_scores(state.F))
+
+    parents_F = state.F.copy()
+    offspring_F = algorithm.ask()[:, :2].copy()
+    algorithm.tell(offspring_F)
+
+    union = np.vstack([parents_F, offspring_F])
+    rows = [int(np.flatnonzero(np.all(union == row, axis=1))[0]) for row in state.F]
+    np.testing.assert_allclose(state.selection_crowding, _age_survival_scores(union)[rows])
 
 
 def test_rvea_feasibility_survival_keeps_feasible_then_least_violating() -> None:
