@@ -290,7 +290,7 @@ markers = [
 
 [tool.setuptools.package-data]
 "vamos" = ["py.typed"]
-"vamos.resources" = ["reference_fronts/*.csv", "weights/*.csv", "weights/*.dat", "tsplib/*.tsp"]
+"vamos.resources" = ["reference_fronts/*.csv", "reference_fronts/LICENSE-*.txt", "weights/*.csv", "weights/*.dat", "tsplib/*.tsp"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}

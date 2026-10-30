@@ -175,10 +175,10 @@ The default bounds and discrete choices are fixed by the linked implementation.
 | Key / formulation | Encoding | n / M | Violation objective | Default parameters | Source | Reference sample |
 | --- | --- | --- | --- | --- | --- | --- |
 | `re21` — four-bar truss | Real | 4 / 2 | No | Fixed design bounds | [RE2][re2] | 2D |
-| `re22` — reinforced concrete beam | Mixed | 3 / 2 | f₂ | Discrete reinforcement-area choices | [RE2][re2] | None packaged |
+| `re22` — reinforced concrete beam | Mixed | 3 / 2 | f₂ | 76 discrete reinforcement areas (see below) | [RE2][re2] | None packaged |
 | `re23` — pressure vessel | Mixed | 4 / 2 | f₂ | Thickness step 0.0625; two integer counts | [RE2][re2] | None packaged |
-| `re24` — hatch cover | Real | **2 / 2** | f₂ | Bounds `[0.5, 4]` to `[4, 50]` | [RE2][re2] | 2D |
-| `re25` — coil compression spring | Mixed | 3 / 2 | f₂ | Integer coil count, discrete wire diameter | [RE2][re2] | None packaged |
+| `re24` — hatch cover | Real | **2 / 2** | f₂ | `x1` in `[0.5, 4]`, `x2` in `[0.5, 50]` | [RE2][re2] | 2D |
+| `re25` — coil compression spring | Mixed | 3 / 2 | f₂ | Integer coil count; 19 wire diameters from 0.092 to 0.5 | [RE2][re2] | None packaged |
 | `re31` — two-bar truss | Real | 3 / 3 | f₃ | Fixed design bounds | [RE3a][re3a] | 3D |
 | `re32` — welded beam | Real | 4 / 3 | f₃ | Fixed design bounds | [RE3a][re3a] | 3D |
 | `re33` — disc brake | Real | 4 / 3 | f₃ | Fixed design bounds | [RE3a][re3a] | 3D |
@@ -198,6 +198,32 @@ the implementation; inspect `problem.n_var` after instantiation and use
 `make_problem_selection("re24", n_var=2)` to keep this selection's dimension
 metadata aligned. Keep RE91's deterministic setting explicit when comparing it
 with stochastic formulations.
+
+**Development after 1.1.0:** `re24` and `re25` use the domains of Tanabe and
+Ishibuchi's reference implementation (`reproblem.py`), which jMetal shares.
+
+- `re24` searches `x2` in `[0.5, 50]`. VAMOS 1.1.0 and earlier start at 4,
+  which removes the low-cost designs that violate the shear-stress constraint:
+  their front only reaches f₁ = 480.5, while the reference front starts at
+  f₁ = 60.5.
+- `re25` chooses among the 19 wire diameters from 0.092 to 0.5. The reference
+  lists 42 diameters, but bounds the variable to `[0.09, 0.5]` and rounds it to
+  the nearest listed value, so the 23 diameters below 0.092 are never used.
+  VAMOS 1.1.0 and earlier allow all 42.
+
+RE24 and RE25 results from those versions are not comparable with results on
+the reference problems.
+
+`re22` differs from the reference implementation in two documented ways:
+
+- **Value list:** its reinforcement areas read the reference's "3,10" as the
+  single value 3.10, while `reproblem.py` and jMetal read two values, 3 and 10.
+  The area 10 never reaches the front, and 3.10 adds a short segment to it, so
+  the two fronts differ by at most 6e-4 after normalization.
+- **Encoding:** `x1` is a categorical index into the 76 areas, while the
+  reference rounds a continuous value in `[0.2, 15]` to the nearest area. Both
+  reach the same areas, but variation operators sample them with different
+  probabilities.
 
 ### RWA: Zapotecas-Martínez and collaborators
 
@@ -297,6 +323,11 @@ compatibility or a certified optimum.
   back to a 2D file.
 - RE/RWA samples have the dimensions shown above. Their presence does not imply
   that every sample point is a certified global Pareto optimum.
+- **Development after 1.1.0:** `re24.csv` is Tanabe and Ishibuchi's approximated
+  front (`reference_points_RE24.dat`, 1000 points). It is redistributed under
+  the MIT license of their repository, whose notice ships next to it as
+  `LICENSE-reproblems.txt`. The 1.1.0 sample covered only designs with
+  `x2 >= 4`.
 - Families marked “None packaged” require a suitable external reference or a
   documented empirical reference construction when using reference-front metrics.
 
