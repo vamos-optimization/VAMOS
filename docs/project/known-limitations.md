@@ -100,6 +100,24 @@ unsupported behavior rather than future compatibility promises.
 - Custom Python, plugins, cross-backend execution, and best-effort environment
   matches are not exact-replay targets.
 - SHA-256 evidence detects modification; it is not an authenticity signature.
+- **Development after 1.1.0:** saving and verification classify the installed
+  VAMOS sources with the same rule.
+  - **Wheel inside another Git project:** a Git repository counts as a VAMOS
+    checkout only when its `src/vamos` is the imported package, or when VAMOS
+    is installed in editable mode. A wheel installed in a virtual environment
+    inside another Git project is recorded as a wheel, and VAMOS no longer runs
+    `git status` or `git diff` on that project.
+  - **Runs saved by 1.1.0 in that layout:** they recorded the project's
+    revision as their source, so a later commit to the project blocks their
+    exact replay and the resumption of their studies. Rerun them.
+  - **Editable install without Git:** an example is a downloaded source tree
+    installed with `pip install -e .`. Its runs now verify as `exact` while the
+    sources are unchanged; 1.1.0 recorded them as wheels and never verified
+    them as exact.
+  - **Packaged data:** checkouts and editable installs also record a
+    fingerprint of the packaged data under `vamos/resources`. Changing a TSPLIB
+    instance or a weight file after saving a run therefore blocks its exact
+    replay. Runs saved by 1.1.0 have no such fingerprint and verify as before.
 
 ## Durable studies
 
@@ -107,6 +125,9 @@ unsupported behavior rather than future compatibility promises.
   concurrently from multiple processes.
 - Study execution is sequential in 1.1.0. Distributed workers, multiprocess
   ownership, and cross-process cancellation are unsupported.
+- **Development after 1.1.0:** study tasks run with serial evaluation only;
+  planning and creation reject `eval_strategy="multiprocessing"` or `"dask"`
+  with `UNSUPPORTED_EVALUATION_BACKEND`.
 - Cancellation is cooperative and local to the process that owns execution.
   Studio's token-addressed worker stop ends the worker and requires reconciliation
   on resume; it is not durable cross-process cancellation of the study API.
