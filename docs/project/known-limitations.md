@@ -75,6 +75,9 @@ unsupported behavior rather than future compatibility promises.
   concurrently from multiple processes.
 - Study execution is sequential in 1.1.0. Distributed workers, multiprocess
   ownership, and cross-process cancellation are unsupported.
+- **Development after 1.1.0:** study tasks run with serial evaluation only;
+  planning and creation reject `eval_strategy="multiprocessing"` or `"dask"`
+  with `UNSUPPORTED_EVALUATION_BACKEND`.
 - Cancellation is cooperative and local to the process that owns execution.
   Studio's token-addressed worker stop ends the worker and requires reconciliation
   on resume; it is not durable cross-process cancellation of the study API.

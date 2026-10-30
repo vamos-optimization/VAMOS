@@ -31,7 +31,7 @@ and byte-stable refusal. Persistent locks, live cross-process ownership, leases,
 heartbeats, and fencing remain Goal 6 work.
 
 Read-only planning has its own contiguous
-[PL-001 through PL-021 acceptance specification](study_plan_acceptance_tests.md)
+[PL-001 through PL-022 acceptance specification](study_plan_acceptance_tests.md)
 and does not alter or renumber this persisted-state inventory.
 
 Module paths describe intended ownership; implemented rows use their current
