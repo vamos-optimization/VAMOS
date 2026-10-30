@@ -15,7 +15,6 @@ from vamos.engine.algorithm.components.archive import (
     UnboundedArchive,
 )
 from vamos.engine.algorithm.components.subset_selection import select_top_k_crowding, select_top_k_hv_greedy
-from vamos.engine.algorithm.spea2.helpers import truncate_by_distance
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.engine.archive.factory import setup_result_archive
 from vamos.foundation.exceptions import DependencyError
@@ -72,32 +71,6 @@ def test_spea2_archive_truncates_to_target_size():
     archive.update(X, F)
     _, kept_F = archive.contents()
     assert kept_F.shape[0] == 5
-
-
-def _reference_truncate_by_distance(dist_matrix: np.ndarray, keep: int) -> np.ndarray:
-    candidates = list(range(dist_matrix.shape[0]))
-    if len(candidates) <= keep:
-        return np.asarray(candidates, dtype=int)
-
-    dist = np.asarray(dist_matrix, dtype=float)
-    while len(candidates) > keep:
-        sub = dist[np.ix_(candidates, candidates)]
-        np.fill_diagonal(sub, np.inf)
-        second_neighbor = np.partition(sub, 1, axis=1)[:, 1]
-        remove_pos = int(np.argmin(second_neighbor))
-        del candidates[remove_pos]
-
-    return np.asarray(candidates, dtype=int)
-
-
-def test_truncate_by_distance_matches_reference_selection_rule():
-    rng = np.random.default_rng(0)
-    for n, keep in [(8, 4), (11, 5), (14, 6)]:
-        F = rng.random((n, 3))
-        dist = np.linalg.norm(F[:, None, :] - F[None, :, :], axis=2)
-        expected = _reference_truncate_by_distance(dist, keep)
-        actual = truncate_by_distance(dist, keep)
-        np.testing.assert_array_equal(actual, expected)
 
 
 def test_spea2_archive_skips_strength_ranking_for_nondominated_front(monkeypatch: pytest.MonkeyPatch):

@@ -69,6 +69,38 @@ VAMOS 1.1.0 includes the following constraint corrections.
 Runs of constrained problems with these algorithms therefore differ from 1.0.2
 runs with the same seed. Unconstrained runs are unchanged.
 
+### SPEA2 environmental selection
+
+**Development after 1.1.0:** SPEA2's environmental selection and mating follow
+Zitzler, Laumanns and Thiele (2001) and jMetal.
+
+- When the non-dominated solutions exceed the archive, the truncation operator
+  repeatedly removes the solution whose distances to the others, sorted in
+  ascending order, are lexicographically smallest. VAMOS 1.1.0 compared only the
+  distance to the k-th nearest neighbour and broke ties by row order, so it
+  could remove an extreme solution of a crowded pair.
+- When they fall short, the dominated solutions with the best fitness
+  `F = R + 1 / (sigma_k + 2)` fill the archive. VAMOS 1.1.0 added whole raw
+  fitness levels and truncated the last one by distance.
+- The mating tournament compares the raw fitness and the k-th nearest-neighbour
+  distance that each archive member had among the previous archive and the
+  offspring, not values recomputed over the new archive.
+- With `result_mode="non_dominated"` and no external archive, the result keeps
+  only the non-dominated members of the archive, feasible ones first. VAMOS
+  1.1.0 returned the whole archive, dominated solutions included.
+
+`k_neighbors` defaults to 1, as in jMetal; the paper uses the square root of
+the population plus archive size. The `knn` pruning of external archives uses
+the same truncation operator.
+
+With jMetal's settings (population and archive 100, SBX 0.9, 30 000
+evaluations, 10 seeds), the hypervolume goes from 0.7259 to 0.7326 on DTLZ2 and
+from 0.6665 to 0.6832 on C2-DTLZ2, against 0.7354 and 0.6837 for jMetal 7.9's
+SPEA2; ZDT1 does not change significantly. The remaining DTLZ2 gap comes from
+jMetal's mating tournament, which compares by dominance alone and picks at random
+between non-dominated solutions, whereas VAMOS compares the paper's fitness.
+SPEA2 results from VAMOS 1.1.0 and earlier differ with the same seed.
+
 ### IBEA indicator corrections in 1.1.0
 
 - With `indicator="hypervolume"`, IBEA used the hypervolume-difference
@@ -202,7 +234,7 @@ never compiles problem evaluation.
 | NSGA-III | Ranking and crowding, tournament selection, SBX, polynomial mutation | Normalization, association to reference directions, niching (it shuffles with the run generator inside the loop) |
 | MOEA/D | Differential-evolution children, SBX, polynomial mutation, neighbourhood replacement | Parent sampling, repair, weight geometry |
 | SMS-EMOA | The steady-state step (development after 1.1.0, see below): child variation and clipping, front insertion, two-objective hypervolume contributions, crowding, feasibility-first removal; tournament selection where configured | Parent sampling draws, hypervolume contributions for three or more objectives (MooCore when installed), archives |
-| SPEA2 | SBX, polynomial mutation, k-th-distance truncation | Strength/raw fitness and density (vectorized NumPy) |
+| SPEA2 | SBX, polynomial mutation, lexicographic archive truncation | Strength/raw fitness and density (vectorized NumPy) |
 | IBEA | Tournament selection, SBX, polynomial mutation, indicator-based removal | Indicator matrix |
 | SMPSO | Turbulence mutation, leaders-archive crowding truncation | Velocity/position updates (vectorized NumPy), deduplication |
 | AGE-MOEA | Ranking and crowding, tournament selection, SBX, polynomial mutation, greedy survival scores | Front normalization and pairwise Minkowski distances |
