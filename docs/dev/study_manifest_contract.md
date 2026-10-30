@@ -182,7 +182,10 @@ contains exactly `on_error` and `max_attempts_per_task`; `labels` and
 
 Resolution occurs once, before output publication. Every plan task contains the
 requested run input and the complete resolved run specification required by the
-canonical run writer. Plan tasks are serialized in ascending `task_id` order.
+canonical run writer. Resolution rejects a task that sequential execution cannot
+run: an evaluation backend other than serial (`UNSUPPORTED_EVALUATION_BACKEND`,
+the predicate exact reconstruction applies) and a negative seed
+(`INVALID_STUDY_SPEC`). Plan tasks are serialized in ascending `task_id` order.
 This is the sole pre-execution owner of resolved run input inside the study;
 StudyManifest, TaskRecord, and AttemptRecord refer to its hash rather than copy
 it. A produced RunManifest independently owns the actual run's requested and
@@ -817,4 +820,4 @@ reconciles the ended prior single-process owner immediately; no lease expiry is
 modeled. SA-038 is limited to detectable same-process reentry refusal. Durable
 locks and live cross-process ownership remain Goal 6 work.
 Read-only planning uses the same resolver as creation and is governed by the separate
-[PL-001 through PL-021 specification](study_plan_acceptance_tests.md).
+[PL-001 through PL-022 specification](study_plan_acceptance_tests.md).

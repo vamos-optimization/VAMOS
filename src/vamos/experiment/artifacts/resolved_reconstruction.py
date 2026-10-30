@@ -304,10 +304,19 @@ def _engine(resolved: Mapping[str, Any], root: Path) -> str:
     if engine not in {"numpy", "numba", "moocore"} or resolution.get("name") != engine:
         raise _component_error(root, "$.resolved_spec.backend.kernel", kernel)
     evaluation = _mapping(backend.get("evaluation"))
-    evaluation_name = _component_name(evaluation.get("component_id"), "vamos.evaluation")
-    if evaluation_name != "serial" or evaluation.get("config") not in ({}, {"ordered": True, "workers": 1}):
+    if not is_reconstructable_evaluation_backend(evaluation):
         raise _component_error(root, "$.resolved_spec.backend.evaluation", evaluation)
     return engine
+
+
+def is_reconstructable_evaluation_backend(evaluation: Mapping[str, Any]) -> bool:
+    """Return whether exact reconstruction, and so study execution, supports ``evaluation``.
+
+    Only ordered serial evaluation is reconstructed; study planning applies the same
+    predicate so that a published plan never contains a task ``Study.run()`` rejects.
+    """
+    evaluation_name = _component_name(evaluation.get("component_id"), "vamos.evaluation")
+    return evaluation_name == "serial" and evaluation.get("config") in ({}, {"ordered": True, "workers": 1})
 
 
 def _evaluation_strategy(resolved: Mapping[str, Any]) -> str | None:
@@ -356,4 +365,9 @@ def _component_error(root: Path, field: str, actual: object) -> ComponentNotReco
     )
 
 
-__all__ = ["ReconstructedRun", "instantiate_reconstructed_problem", "reconstruct_resolved_run"]
+__all__ = [
+    "ReconstructedRun",
+    "instantiate_reconstructed_problem",
+    "is_reconstructable_evaluation_backend",
+    "reconstruct_resolved_run",
+]

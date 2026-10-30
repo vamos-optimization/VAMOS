@@ -32,6 +32,7 @@ state. The IDs are contiguous and must not be renumbered.
 | PL-019 | Installed wheel | Python and console command in a clean environment | Both preflight paths succeed without repository imports | Packaging includes the complete feature |
 | PL-020 | Plan/create equivalence | Same `StudySpec` | Exact plan ID, task IDs, ordering, specs, seeds, operators, backend, population and budget | No second resolver exists |
 | PL-021 | Architecture quality | Public API, typing, architecture and remnant checks | All development ratchets pass | No legacy path, dependency, or typing debt is added |
+| PL-022 | Executability validation | `eval_strategy` `multiprocessing` or `dask`, or a negative seed | `UNSUPPORTED_EVALUATION_BACKEND` or `INVALID_STUDY_SPEC` from plan and create; nothing is published; every plannable `eval_strategy` runs to completion | A plan never promises a task that `Study.run()` cannot execute |
 
 ## Stable JSON envelope
 

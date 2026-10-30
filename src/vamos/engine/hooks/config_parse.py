@@ -67,7 +67,7 @@ def build_archive_cfg(d: Mapping[str, object] | None) -> ExternalArchiveConfig:
     if not isinstance(pruning, str):
         raise TypeError("archive.pruning must be a string.")
 
-    objective_tolerance = data.get("objective_tolerance", 1e-10)
+    objective_tolerance = data.get("objective_tolerance", 0.0)
     if not isinstance(objective_tolerance, (int, float)):
         raise TypeError("archive.objective_tolerance must be numeric.")
 

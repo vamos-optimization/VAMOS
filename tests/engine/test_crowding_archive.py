@@ -15,10 +15,14 @@ from vamos.engine.algorithm.components.archive import (
     UnboundedArchive,
 )
 from vamos.engine.algorithm.components.subset_selection import select_top_k_crowding, select_top_k_hv_greedy
+from vamos.engine.algorithm.config import SMPSOConfig
+from vamos.engine.algorithm.smpso import SMPSO
 from vamos.engine.algorithm.spea2.helpers import truncate_by_distance
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.engine.archive.factory import setup_result_archive
 from vamos.foundation.exceptions import DependencyError
+from vamos.foundation.kernel.numpy_backend import NumPyKernel
+from vamos.foundation.problem.zdt1 import ZDT1Problem
 
 
 def _tradeoff_front(n: int) -> np.ndarray:
@@ -445,3 +449,58 @@ def test_nsgaii_runs_with_new_external_archive_policies(pruning: str):
     assert result["F"].shape[0] > 0
     assert "archive" in result
     assert result["archive"]["F"].shape[0] > 0
+
+
+class _ScaledZDT1(ZDT1Problem):
+    def __init__(self, n_var: int, scale: float) -> None:
+        super().__init__(n_var)
+        self.scale = float(scale)
+
+    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+        super().evaluate(X, out)
+        out["F"] *= self.scale
+
+
+def _zdt1_front_points(n: int) -> tuple[np.ndarray, np.ndarray]:
+    f1 = np.linspace(0.0, 1.0, n)
+    F = np.column_stack([f1, 1.0 - np.sqrt(f1)])
+    X = np.column_stack([f1, np.zeros(n), np.zeros(n)])
+    return X, F
+
+
+@pytest.mark.parametrize("scale", [1.0, 1e-8, 1e-10, 1e-12])
+def test_crowding_archive_keeps_distinct_points_at_tiny_scales(scale):
+    X, F = _zdt1_front_points(10)
+    archive = CrowdingDistanceArchive(20, 3, 2, float)
+    archive.update(X, F * scale)
+    _, kept_F = archive.contents()
+    assert kept_F.shape[0] == 10, f"archive keeps {kept_F.shape[0]} of 10 distinct points at scale {scale}"
+
+
+def test_archives_deduplicate_identical_objectives_exactly():
+    X, F = _zdt1_front_points(5)
+    X_dup = np.vstack([X, X + 0.5])
+    F_dup = np.vstack([F, F])
+    for archive in (
+        CrowdingDistanceArchive(20, 3, 2, float),
+        UnboundedArchive(n_var=3, n_obj=2, dtype=float),
+        HypervolumeArchive(20, 3, 2, float),
+        SPEA2Archive(20, 3, 2, float),
+        MaxMinArchive(20, 3, 2, float),
+    ):
+        archive.update(X_dup, F_dup)
+        assert archive.contents()[1].shape[0] == 5, type(archive).__name__
+    assert ExternalArchiveConfig().objective_tolerance == 0.0
+
+
+def test_smpso_leaders_do_not_depend_on_the_objective_scale():
+    cfg = SMPSOConfig.builder().pop_size(20).archive_size(20).mutation("polynomial", prob=0.1, eta=20.0).build().to_dict()
+
+    def run(scale: float) -> dict:
+        problem = _ScaledZDT1(n_var=6, scale=scale)
+        return SMPSO(cfg, kernel=NumPyKernel()).run(problem, termination=("max_evaluations", 600), seed=3)
+
+    reference = run(1.0)
+    scaled = run(1e-11)
+    assert scaled["X"].shape == reference["X"].shape
+    assert np.array_equal(scaled["X"], reference["X"])
