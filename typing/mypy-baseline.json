@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "adf605e2b85ee254d2303e16845720648ba3bf49",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit adf605e2b85ee254d2303e16845720648ba3bf49",
+  "generation_commit": "b14df594a22f96e2ec033fcf7fd5a5b9ebcf6852",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit b14df594a22f96e2ec033fcf7fd5a5b9ebcf6852",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.0",
@@ -26,14 +26,14 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 674,
-  "files_with_diagnostics": 91,
-  "fingerprint_count": 91,
+  "diagnostic_count": 654,
+  "files_with_diagnostics": 89,
+  "fingerprint_count": 89,
   "error_code_summary": {
-    "type-arg": 674
+    "type-arg": 654
   },
   "layer_summary": {
-    "engine": 354,
+    "engine": 334,
     "experiment": 22,
     "foundation": 236,
     "package-root": 1,
@@ -2604,40 +2604,6 @@
       ]
     },
     {
-      "fingerprint": "97928A502FCDB7001D3CF2489429EB4E5AD2F78F0AFCA0056E530E2C781D0BDA",
-      "path": "src/vamos/engine/algorithm/components/weight_vectors.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 6,
-      "locations": [
-        {
-          "line": 15,
-          "column": 6
-        },
-        {
-          "line": 45,
-          "column": 62
-        },
-        {
-          "line": 54,
-          "column": 111
-        },
-        {
-          "line": 116,
-          "column": 36
-        },
-        {
-          "line": 129,
-          "column": 101
-        },
-        {
-          "line": 178,
-          "column": 72
-        }
-      ]
-    },
-    {
       "fingerprint": "9DE21832AEDC25C10A39891E88FFCFEDE2ADB09560C89CDC6D6ED58CB01CB735",
       "path": "src/vamos/engine/algorithm/components/utils.py",
       "error_code": "type-arg",
@@ -2880,72 +2846,6 @@
         {
           "line": 57,
           "column": 12
-        }
-      ]
-    },
-    {
-      "fingerprint": "CBE979753B3B6BD72E1AF96928BAF10708C87BF5DE4A6A62A6ED7E92B237F7E3",
-      "path": "src/vamos/engine/archive/pruning_selectors.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 14,
-      "locations": [
-        {
-          "line": 19,
-          "column": 72
-        },
-        {
-          "line": 45,
-          "column": 66
-        },
-        {
-          "line": 52,
-          "column": 28
-        },
-        {
-          "line": 65,
-          "column": 38
-        },
-        {
-          "line": 81,
-          "column": 30
-        },
-        {
-          "line": 94,
-          "column": 12
-        },
-        {
-          "line": 96,
-          "column": 19
-        },
-        {
-          "line": 97,
-          "column": 19
-        },
-        {
-          "line": 98,
-          "column": 16
-        },
-        {
-          "line": 100,
-          "column": 6
-        },
-        {
-          "line": 140,
-          "column": 31
-        },
-        {
-          "line": 163,
-          "column": 29
-        },
-        {
-          "line": 206,
-          "column": 8
-        },
-        {
-          "line": 209,
-          "column": 6
         }
       ]
     },
