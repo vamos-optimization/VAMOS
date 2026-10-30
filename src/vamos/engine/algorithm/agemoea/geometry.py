@@ -87,10 +87,11 @@ def _survival_score(
     ideal_point: np.ndarray[Any, Any],
     selection_kernels: SelectionKernels | None = None,
 ) -> tuple[np.ndarray[Any, Any], float, np.ndarray[Any, Any]]:
-    front = np.round(front, 12, out=front.copy())
     m, n = front.shape
     crowd_dist = np.zeros(m, dtype=float)
-    front = front - ideal_point
+    # Translate first, so the ideal point's own coordinates round to exactly 0;
+    # rounding to 12 decimals (as pymoo does) settles near-ties between points.
+    front = np.round(front - ideal_point, 12)
 
     if m < n:
         # No hyperplane: normalize by the spread above the ideal point, which
@@ -189,7 +190,10 @@ def age_survival(
     Later fronts are measured in the coordinates of the first-front score:
     translated by the ideal point, then divided by the normalization. PlatEMO
     and pymoo divide without translating, which makes the proximity depend on
-    where the objectives' origin lies.
+    where the objectives' origin lies; here the survivors do not depend on it.
+    They can depend on the objectives' units: as in PlatEMO, pymoo and jMetal,
+    the extreme points are searched before normalizing, and a single
+    first-front point leaves nothing to normalize by.
     """
     n_survive = min(int(n_survive), F.shape[0])
     ranks, _ = kernel.nsga2_ranking(F)

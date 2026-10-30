@@ -116,7 +116,7 @@ def test_age_survival_scores_the_truncated_front(reverse_rows: bool, scale: tupl
     assert kept == {*front0, (0.55, 0.6), (1.2, 0.3)}
 
 
-@pytest.mark.parametrize("shift", [(0.0, 0.0), (100.0, 0.0), (0.0, -50.0)])
+@pytest.mark.parametrize("shift", [(0.0, 0.0), (100.0, 0.0), (0.0, -50.0), (0.0, 0.1234567890123)])
 def test_age_survival_with_fewer_first_front_points_than_objectives_ignores_the_origin(shift: tuple) -> None:
     # With fewer first-front points than objectives there is no hyperplane, and
     # the later fronts are normalized by the first front's spread above its
@@ -126,6 +126,37 @@ def test_age_survival_with_fewer_first_front_points_than_objectives_ignores_the_
     survivors, _ = age_survival(base + np.array(shift), 2, NumPyKernel())
 
     assert {tuple(row) for row in base[survivors].tolist()} == {(0.0, 0.0), (1.0, 3.0)}
+
+
+def _random_population(rng: np.random.Generator, trial: int, n_obj: int) -> tuple[np.ndarray, int]:
+    n = int(rng.integers(6, 40))
+    W = rng.random((n, n_obj))
+    if trial % 4 == 0:
+        F = W / W.sum(axis=1, keepdims=True) + rng.random((n, 1)) * 0.5  # several fronts
+    elif trial % 4 == 1:
+        F = W
+    elif trial % 4 == 2:
+        F = W**3
+    else:
+        F = W.copy()
+        F[0] = W.min(axis=0) * rng.random(n_obj)  # a single point dominates the rest
+    return F, int(rng.integers(2, n))
+
+
+@pytest.mark.parametrize("n_obj", [2, 3])
+def test_age_survival_does_not_depend_on_the_objectives_origin(n_obj: int) -> None:
+    # Every score is measured from the first front's ideal point, so a
+    # translation of the objectives, round or not, keeps the same survivors.
+    # Per-objective scaling is not covered: the extreme-point search runs on
+    # unnormalized objectives with axes offset by 1e-6, as in PlatEMO, pymoo
+    # and jMetal, so it can pick other corners when the units change.
+    kernel = NumPyKernel()
+    rng = np.random.default_rng(40 + n_obj)
+    for trial in range(60):
+        F, keep = _random_population(rng, trial, n_obj)
+        expected, _ = age_survival(F, keep, kernel)
+        shifted, _ = age_survival(F + rng.uniform(-100.0, 100.0, n_obj), keep, kernel)
+        np.testing.assert_array_equal(shifted, expected, err_msg=f"trial {trial}")
 
 
 def _age_survival_scores(F: np.ndarray) -> np.ndarray:
