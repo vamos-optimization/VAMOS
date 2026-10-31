@@ -342,8 +342,8 @@ comparing them.
 **Development after 1.1.0:** the indicators and their references use only the
 feasible solutions of each run, those whose stored constraint values are all
 `G <= 0`. A run without feasible solutions gets HV 0 and +inf for IGD, IGD+,
-epsilon and Hausdorff, the worst values, and stays in the rank tests; the paired
-signed-rank tests count two such runs, or two such means, as a tie. The
+epsilon and Hausdorff, the worst values, and stays in the rank tests, which
+count two such runs, or two such means, as a tie. The
 `n_feasible` column counts the feasible solutions of each run. When a run
 stores no constraint values, `feasibility_known` is `false` and every solution
 counts as feasible: this is the case for unconstrained problems, and for
@@ -351,6 +351,36 @@ constrained runs whose result comes from an archive that keeps no constraint
 values, such as SMPSO with `result_mode: non_dominated`. VAMOS 1.1.0 also
 measured infeasible solutions, so its values for constrained problems are not
 valid.
+
+**Development after 1.1.0:** the statistics of `vamos bench` changed:
+
+- The LaTeX tables bold the best mean of each problem. They mark an algorithm
+  whose runs differ from those of the best in a two-sided rank-sum
+  (Mann-Whitney U) test at `alpha`: `-` if it is significantly worse and
+  `+` if it is significantly better. Runs with the same seed are independent,
+  so they are not paired. VAMOS 1.1.0 paired them in a signed-rank test, which
+  cannot reach p < 0.05 with five seeds, so its tables carried no marks.
+- Few runs cannot show a significant difference: without ties, the smallest
+  two-sided p-value of the exact test is 0.1 with three runs per algorithm and
+  0.0079 with five. When such a pair cannot reach `alpha`, the table caption
+  says so and a warning is logged. With ties SciPy uses the asymptotic test,
+  as `lab/` does, and its p-value can fall below that floor.
+- Only the hypervolume family is maximized. IGD, IGD+, the epsilon indicators
+  and the Hausdorff distances are minimized under every alias (`eps`,
+  `epsilon_add`, `hausdorff`, `avg_hausdorff`), in the tables, the rank tests
+  and `lab/`. VAMOS 1.1.0 put the worst value in bold for some of these aliases.
+- `statistics.json` gains a `pairwise` list per indicator: a signed-rank test
+  on the per-problem means for every pair of algorithms, also when there are
+  only two, with its Holm-adjusted p-value (`p_value_holm`) and whether it is
+  `significant` at `alpha`.
+- A mean of +inf, from a run without feasible solutions, shows as `inf` with no
+  spread.
+
+In `lab/wilcoxon/Wilcoxon-<indicator>.csv`, each cell holds one character per
+problem, from a rank-sum test of the row algorithm against the column
+algorithm: `+` means the row algorithm is significantly better, `o`
+significantly worse, and `-` no significant difference. There, unlike in the
+LaTeX tables, `-` does not mean worse.
 
 Tuning quick notes (`vamos tune`)
 ---------------------------------

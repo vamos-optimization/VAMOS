@@ -65,6 +65,20 @@ unsupported behavior rather than future compatibility promises.
   evaluate the surfaces far outside their fitted region, on the physical design
   ranges, so RWA7 and RWA8 values, fronts and indicators from those versions do
   not correspond to the published problems.
+- **Development after 1.1.0:** the inaccurate packaged reference fronts are
+  regenerated. IGD, IGD+, epsilon and normalized HV values that VAMOS 1.1.0
+  and earlier computed with them are not comparable with later ones:
+  - **Analytic samples:** ZDT, DTLZ, WFG1, WFG2, LSMOP9, UF6, UF9, C1-DTLZ3
+    and DC2-DTLZ;
+  - **Authors' fronts:** the RE fronts that Tanabe and Ishibuchi published;
+  - **Dense sampling with polishing:** RE91, RWA3, RWA9 and RWA10.
+
+  The [reference fronts](../reference/problems.md#reference-fronts) section
+  lists the origin of each file.
+- DC-DTLZ's constraints use pymoo's constants, which cite no source. PlatEMO,
+  citing Li et al. (2019), uses different constants and a different scale for
+  `g`. Until the primary definition is checked, DC-DTLZ results may not
+  correspond to the published problems.
 - Independent algorithm-conformance validation for AGE-MOEA, RVEA and SMPSO
   remains pending. Passing API and regression tests does not establish
   convergence equivalence with a reference implementation.
@@ -168,6 +182,12 @@ unsupported behavior rather than future compatibility promises.
   earlier pick the point farthest from the ideal on a concave front and can
   pick a dominated point; see
   [MCDM](../topics/analysis.md#mcdm-selecting-one-solution-from-a-front).
+- **Development after 1.1.0:** the LaTeX tables of `vamos bench` mark
+  differences with a rank-sum test per problem and say when the number of runs
+  cannot reach `alpha`. VAMOS 1.1.0 paired runs by seed in a signed-rank test,
+  so with five or fewer seeds its tables showed no significant difference, and
+  it put the worst value in bold for some aliases of the epsilon and Hausdorff
+  indicators; see [Other subcommands](../guide/cli.md#other-subcommands).
 
 ## Studio and generated code
 
