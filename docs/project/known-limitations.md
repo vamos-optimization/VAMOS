@@ -151,6 +151,18 @@ unsupported behavior rather than future compatibility promises.
   use the four-algorithm value for every count, which understates the critical
   difference with more than four algorithms; see
   [Critical-distance plot](../topics/analysis.md#critical-distance-plot).
+- **Development after 1.1.0:** `knee_point_scores` and Studio's "Knee point"
+  ranking measure the signed distance to the extreme-point chord among the
+  non-dominated points, and warn when the front has no knee. VAMOS 1.1.0 and
+  earlier pick the point farthest from the ideal on a concave front and can
+  pick a dominated point; see
+  [MCDM](../topics/analysis.md#mcdm-selecting-one-solution-from-a-front).
+- **Development after 1.1.0:** the LaTeX tables of `vamos bench` mark
+  differences with a rank-sum test per problem and say when the number of runs
+  cannot reach `alpha`. VAMOS 1.1.0 paired runs by seed in a signed-rank test,
+  so with five or fewer seeds its tables showed no significant difference, and
+  it put the worst value in bold for some aliases of the epsilon and Hausdorff
+  indicators; see [Other subcommands](../guide/cli.md#other-subcommands).
 
 ## Studio and generated code
 
