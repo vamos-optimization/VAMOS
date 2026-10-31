@@ -65,7 +65,7 @@ def main() -> None:
     if result.X is None or result.F is None:
         raise RuntimeError("Expected decision and objective matrices from the custom-problem journey.")
 
-    # front() Pareto-filters F; it does not apply a separate feasibility filter.
+    # front() ranks feasible rows first; this journey also requires every returned row to be feasible.
     require_feasible_returned_set(result)
     front_F, front_indices = result.front(return_indices=True)
     front_X = result.X[front_indices]

@@ -108,7 +108,8 @@ class SPEA2:
         - archive_size (int, optional): Internal archive size (default: pop_size)
         - crossover (dict): Crossover operator config
         - mutation (dict): Mutation operator config
-        - k_neighbors (int, optional): k for density estimation (default: sqrt(N))
+        - k_neighbors (int, optional): k of the k-th nearest-neighbour density
+          (default: 1, as in jMetal; the SPEA2 paper uses sqrt(N + archive_size))
         - constraint_mode (str, optional): "none" or "feasibility"
     kernel : KernelBackend
         Backend for vectorized operations.
@@ -207,7 +208,7 @@ class SPEA2:
             assert st.env_F is not None
             stop_requested = notify_generation(live_cb, self.kernel, generation, st.env_F, stats={"evals": st.n_eval})
 
-        result = build_spea2_result(st, hv_reached)
+        result = build_spea2_result(st, hv_reached, self.kernel)
         finalize_genealogy(result, st, self.kernel)
         live_cb.on_end(final_F=st.env_F)
         return result
@@ -360,8 +361,8 @@ class SPEA2:
         F_union = np.vstack([st.env_F, F])
         G_union = combine_constraints(st.env_G, G, st.constraint_mode, algorithm="SPEA2")
 
-        # Environmental selection
-        st.env_X, st.env_F, st.env_G = environmental_selection(
+        # Environmental selection; mating uses the fitness each survivor had in the union.
+        st.env_X, st.env_F, st.env_G, st.selection_raw_fitness, st.selection_density = environmental_selection(
             X_union,
             F_union,
             G_union,
@@ -370,7 +371,6 @@ class SPEA2:
             st.constraint_mode,
             self.kernel.selection_kernels(),
         )
-        self._refresh_selection_metrics(st)
 
         # Update population reference
         st.X = st.env_X
@@ -414,7 +414,7 @@ class SPEA2:
             and self._st.env_F is not None
             and self._hv_tracker.reached(self._st.env_F)
         )
-        return build_spea2_result(self._st, hv_reached)
+        return build_spea2_result(self._st, hv_reached, self.kernel)
 
 
 __all__ = ["SPEA2"]

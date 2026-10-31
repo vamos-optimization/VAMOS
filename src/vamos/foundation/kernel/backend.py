@@ -184,8 +184,8 @@ class SelectionKernels(Protocol):
         """AGE-MOEA greedy diversity scores written into ``crowd_dist``."""
         ...
 
-    def kth_distance_truncation(self, dist: FloatArray, keep: int, k: int) -> NDArray[np.int64]:
-        """SPEA2 truncation by the current k-th nearest-neighbour distance."""
+    def lexicographic_truncation(self, dist: FloatArray, keep: int) -> NDArray[np.int64]:
+        """SPEA2 truncation operator: drop the lexicographically closest row until ``keep`` remain."""
         ...
 
     def indicator_removal(self, fitness: FloatArray, contrib: FloatArray, target_size: int) -> NDArray[np.int64]:

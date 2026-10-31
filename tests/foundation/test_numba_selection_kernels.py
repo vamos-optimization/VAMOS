@@ -13,7 +13,7 @@ import vamos
 from vamos.engine.algorithm.agemoea.geometry import _survival_score
 from vamos.engine.algorithm.components.archive import CrowdingDistanceArchive
 from vamos.engine.algorithm.ibea.helpers import environmental_selection as ibea_environmental_selection
-from vamos.engine.algorithm.spea2.helpers import truncate_by_kth_distance
+from vamos.engine.algorithm.spea2.helpers import truncate_lexicographic
 from vamos.foundation.kernel import _numba_survival
 from vamos.foundation.kernel.numba_backend import NumbaKernel
 from vamos.foundation.kernel.numpy_backend import NumPyKernel
@@ -150,16 +150,16 @@ def _reference_greedy(
 
 
 @pytest.mark.numba
-@pytest.mark.parametrize("k", [1, 2, 3, 5])
-def test_spea2_kth_truncation_matches_reference_order(k: int) -> None:
-    rng = np.random.default_rng(10 + k)
+@pytest.mark.parametrize("seed", [11, 12, 13, 15])
+def test_spea2_lexicographic_truncation_matches_reference_order(seed: int) -> None:
+    rng = np.random.default_rng(seed)
     for trial in range(300):
         n = int(rng.integers(2, 70))
         F = _front(rng, trial, n, int(rng.integers(1, 5)))
         dist = np.linalg.norm(F[:, None, :] - F[None, :, :], axis=2)
         keep = int(rng.integers(1, n + 1))
-        expected = truncate_by_kth_distance(dist, keep, k)
-        actual = truncate_by_kth_distance(dist, keep, k, KERNELS)
+        expected = truncate_lexicographic(dist, keep)
+        actual = truncate_lexicographic(dist, keep, KERNELS)
         np.testing.assert_array_equal(actual, expected)
         assert actual.dtype == expected.dtype
 
@@ -189,14 +189,14 @@ def test_selection_kernels_are_nopython() -> None:
     F = rng.random((8, 2))
     KERNELS.iterative_crowding_truncation(F, 4)
     dist = np.linalg.norm(F[:, None, :] - F[None, :, :], axis=2)
-    KERNELS.kth_distance_truncation(dist, 4, 1)
+    KERNELS.lexicographic_truncation(dist, 4)
     KERNELS.indicator_removal(rng.random(8), rng.random((8, 8)), 4)
     remaining = np.arange(2, 8)
     best = dist[2:, 0].copy()
     KERNELS.greedy_two_nearest_selection(dist, remaining, best, np.zeros(6), best.copy(), 1, np.zeros(8))
     for dispatcher in (
         _numba_survival.iterative_crowding_truncation,
-        _numba_survival.kth_distance_truncation,
+        _numba_survival.lexicographic_truncation,
         _numba_survival.indicator_removal,
         _numba_survival.greedy_two_nearest_selection,
     ):
@@ -209,7 +209,7 @@ def test_selection_kernels_are_nopython() -> None:
     "algorithm,method",
     [
         ("agemoea", "greedy_two_nearest_selection"),
-        ("spea2", "kth_distance_truncation"),
+        ("spea2", "lexicographic_truncation"),
         ("ibea", "indicator_removal"),
         ("smpso", "iterative_crowding_truncation"),
     ],
