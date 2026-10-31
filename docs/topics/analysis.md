@@ -90,7 +90,9 @@ as a tie (Pratt's treatment of zero differences), including two infinite
 penalties such as the +inf IGD+ of runs without feasible solutions. An
 infinite score against a finite one is the largest difference. VAMOS 1.1.0
 dropped a pair of equal infinities from the test and warned about an invalid
-subtraction.
+subtraction. Two algorithms equal on every problem, for example infeasible
+everywhere, get statistic 0 and p-value 1 without calling SciPy, whose
+`wilcoxon` raises on that input up to version 1.12 and divides by zero after it.
 
 ### Critical-distance plot
 

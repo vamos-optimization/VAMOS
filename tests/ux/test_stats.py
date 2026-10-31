@@ -88,6 +88,42 @@ def test_pairwise_wilcoxon_ties_shared_infinite_penalties() -> None:
     assert not [warning for warning in caught if issubclass(warning.category, RuntimeWarning)]
 
 
+def scipy_112_wilcoxon(real):
+    """``scipy.stats.wilcoxon`` as SciPy 1.12 and earlier behave on an all-zero sample.
+
+    ``_morestats.wilcoxon`` in 1.12 switches an exact test with zeros to the normal
+    approximation and then raises for ``zero_method`` "wilcox" or "pratt" when every
+    difference is zero; ``pyproject.toml`` allows ``scipy>=1.10``.
+    """
+
+    def wilcoxon(d, *args, zero_method="wilcox", **kwargs):
+        values = np.asarray(d, dtype=float)
+        if zero_method in ("wilcox", "pratt") and values.size and np.all(values == 0):
+            raise ValueError("zero_method 'wilcox' and 'pratt' do not work if x - y is zero for all elements.")
+        return real(d, *args, zero_method=zero_method, **kwargs)
+
+    return wilcoxon
+
+
+@pytest.mark.parametrize("shared", [[0.3, 0.5, 0.2, 0.9], [math.inf] * 4])
+def test_pairwise_wilcoxon_identical_algorithms_are_not_different(monkeypatch: pytest.MonkeyPatch, shared: list[float]) -> None:
+    import vamos.ux.analysis.stats as stats_module
+
+    # A and B are equal on every problem: equal values, or both infeasible (+inf) everywhere.
+    monkeypatch.setattr(stats_module.spstats, "wilcoxon", scipy_112_wilcoxon(stats_module.spstats.wilcoxon))
+    other = [0.1, 0.25, 0.4, 0.6]
+    scores = np.array([[value, value, extra] for value, extra in zip(shared, other)])
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        results = pairwise_wilcoxon(scores, ["A", "B", "C"], higher_is_better=False)
+
+    identical = next(result for result in results if (result.algo_i, result.algo_j) == ("A", "B"))
+    assert (identical.statistic, identical.p_value) == (0.0, 1.0)
+    assert len(results) == 3
+    assert not [warning for warning in caught if issubclass(warning.category, RuntimeWarning)]
+
+
 def test_plot_critical_distance_smoke():
     # Arrange
     avg_ranks = np.array([1.2, 2.5, 2.3])
