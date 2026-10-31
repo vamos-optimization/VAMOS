@@ -24,7 +24,7 @@ from .limits import StudyLoadLimits
 from .models import DocumentReference, Study, StudyManifest, StudySpec
 from .paths import confined_study_path
 from .record_loading import ObserveRunReference, RunVerification, load_records
-from .serialization import load_json, stored_document_bytes
+from .serialization import read_json, stored_document_bytes
 
 
 @dataclass(slots=True)
@@ -210,19 +210,9 @@ def _read(
             action="Restore the canonical document and its permissions.",
         ) from exc
     budget.account(size, role=role, path=relative)
-    value = load_json(target, operation="load study", role=role, max_bytes=max_bytes, max_depth=budget.limits.max_json_depth)
-    try:
-        payload = target.read_bytes()
-    except OSError as exc:
-        raise MalformedStudyError(
-            operation="load study",
-            reason="UNREADABLE_DOCUMENT",
-            document_role=role,
-            path=relative,
-            expected="readable canonical bytes",
-            actual=type(exc).__name__,
-            action="Restore the canonical document and its permissions.",
-        ) from exc
+    # One read: parsing and the canonical-bytes check must see the same replacement, and a
+    # concurrent writer on Windows cannot replace the file while it is open.
+    value, payload = read_json(target, operation="load study", role=role, max_bytes=max_bytes, max_depth=budget.limits.max_json_depth)
     expected_bytes = stored_document_bytes(value)
     if payload != expected_bytes:
         raise StudyIntegrityError(

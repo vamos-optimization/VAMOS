@@ -246,6 +246,8 @@ A retry creates new attempt evidence for the same planned task; it does not quie
 
 VAMOS 1.1.0 permits one mutating owner per study. Do not run `run`, `resume`, or `retry` concurrently against the same directory. Execution is sequential; distributed workers, multiprocess ownership, and cross-process cancellation are unsupported. See [Known limitations](../project/known-limitations.md).
 
+**Development after 1.1.0:** reading a study while another process runs it (`load_study`, `inspect()`, `summarize()`, `vamos study inspect`, or Studio's Batch Comparison page) no longer fails on the files that process is writing. On Windows, the running process waits for a concurrent read to finish instead of stopping with `CHECKPOINT_WRITE_FAILED`, and the reader waits for a replace to finish instead of failing. A process killed in the middle of a write leaves a `.tmp-` file next to the document; loading ignores it and `resume` deletes it. VAMOS 1.1.0 refused to load such a study until the file was removed by hand.
+
 ## Next steps
 
 - [Run artifacts & replay](run-artifacts.md) — inspect and verify the canonical evidence behind an individual task.

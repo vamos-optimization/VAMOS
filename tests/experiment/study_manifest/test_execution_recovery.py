@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import collections
 import json
+import os
+import time
 from pathlib import Path
 from typing import Any
 
@@ -298,3 +301,149 @@ def test_gapped_broken_and_duplicate_event_chains_are_rejected(tmp_path: Path, m
     _rewrite(second_path, {"event_id": first["event_id"]})
     with pytest.raises(StudyIntegrityError, match="EVENT_HASH_CHAIN_BROKEN"):
         vamos.load_study(duplicate.root)
+
+
+def _crash_after_run_publication(root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Leave a two-task study ``running`` with an unfinished attempt, as a killed process does."""
+    import vamos.experiment.study.execution as execution
+
+    created = vamos.create_study(_spec(seeds=(0, 1)), output=root)
+
+    def execute(reconstructed: Any, *, root: Path) -> OptimizationResult:
+        return _result(reconstructed)
+
+    def die(observed: str) -> None:
+        # SystemExit escapes the runner's handlers, so nothing is recorded after it.
+        if observed == "after_canonical_run_publication":
+            raise SystemExit("injected process death")
+
+    monkeypatch.setattr(execution, "_execute_optimization", execute)
+    monkeypatch.setattr(execution, "_execution_phase", die)
+    with pytest.raises(SystemExit):
+        created.run()
+    monkeypatch.setattr(execution, "_execution_phase", lambda observed: None)
+
+
+@pytest.mark.parametrize("location", ["events", "task", "attempts", "root"])
+def test_orphan_writer_temporary_does_not_block_loading(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, location: str) -> None:
+    root = tmp_path / "study"
+    _crash_after_run_publication(root, monkeypatch)
+    digest = vamos.load_study(root).attempts[0].task_id.removeprefix("sha256:")
+    directory = {
+        "events": root / "events",
+        "task": root / "tasks" / digest,
+        "attempts": root / "tasks" / digest / "attempts",
+        "root": root,
+    }[location]
+    # The process died between creating its temporary and replacing the destination.
+    orphan = directory / ".tmp-0123abcd"
+    orphan.write_bytes(b'{"partial":')
+
+    loaded = vamos.load_study(root)
+
+    assert loaded.status == "running"
+    assert orphan.exists(), "loading must stay write-free"
+    resumed = loaded.resume()
+    assert resumed.status == "completed"
+    assert [task.state for task in resumed.tasks] == ["succeeded", "succeeded"]
+    assert not orphan.exists(), "reconciliation removes the writer's orphaned temporaries"
+
+
+def test_reader_names_outside_the_writer_pattern_still_break_the_layout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    root = tmp_path / "study"
+    _crash_after_run_publication(root, monkeypatch)
+    digest = vamos.load_study(root).attempts[0].task_id.removeprefix("sha256:")
+    (root / "tasks" / digest / ".tmp-not-hex!").write_bytes(b"")
+
+    with pytest.raises(StudyIntegrityError, match="UNEXPECTED_LAYOUT"):
+        vamos.load_study(root)
+
+
+def test_atomic_replace_retries_sharing_violation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from vamos.experiment.study import writing
+
+    real_replace = os.replace
+    calls: list[str] = []
+
+    def busy_then_free(source: Any, target: Any) -> None:
+        calls.append(os.fspath(target))
+        if len(calls) <= 2:
+            # What Windows raises while another process has the destination open.
+            raise PermissionError(13, "The process cannot access the file because it is being used by another process")
+        real_replace(source, target)
+
+    monkeypatch.setattr(writing, "_RETRY_SHARING_VIOLATIONS", True, raising=False)
+    monkeypatch.setattr(os, "replace", busy_then_free)
+    monkeypatch.setattr(time, "sleep", lambda seconds: None)
+    target = tmp_path / "study-manifest.json"
+
+    writing.write_bytes_atomic(target, b"published")
+
+    assert target.read_bytes() == b"published"
+    assert len(calls) == 3
+    assert [path.name for path in tmp_path.iterdir()] == ["study-manifest.json"]
+
+
+def test_atomic_replace_gives_up_after_bounded_retries(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from vamos.experiment.study import writing
+
+    calls: list[str] = []
+
+    def always_busy(source: Any, target: Any) -> None:
+        calls.append(os.fspath(target))
+        raise PermissionError(13, "busy")
+
+    monkeypatch.setattr(writing, "_RETRY_SHARING_VIOLATIONS", True, raising=False)
+    monkeypatch.setattr(os, "replace", always_busy)
+    monkeypatch.setattr(time, "sleep", lambda seconds: None)
+
+    with pytest.raises(PermissionError):
+        writing.write_bytes_atomic(tmp_path / "task.json", b"x")
+    assert 1 < len(calls) <= 50
+    assert list(tmp_path.iterdir()) == []
+
+    calls.clear()
+    monkeypatch.setattr(writing, "_RETRY_SHARING_VIOLATIONS", False)
+    with pytest.raises(PermissionError):
+        writing.write_bytes_atomic(tmp_path / "task.json", b"x")
+    assert len(calls) == 1, "outside Windows a PermissionError is a real permission problem"
+
+
+def test_loading_reads_each_study_document_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    root = _run_mocked(tmp_path, monkeypatch).root
+    real_read_bytes = Path.read_bytes
+    reads: collections.Counter[str] = collections.Counter()
+
+    def counting_read_bytes(self: Path) -> bytes:
+        reads[self.resolve().relative_to(root.resolve()).as_posix()] += 1
+        return real_read_bytes(self)
+
+    monkeypatch.setattr(Path, "read_bytes", counting_read_bytes)
+    vamos.load_study(root)
+
+    study_documents = {name: count for name, count in reads.items() if not name.startswith("runs/")}
+    assert "study-manifest.json" in study_documents
+    # One read per document: a second read could see a newer replacement than the one parsed.
+    assert set(study_documents.values()) == {1}, study_documents
+
+
+def test_document_read_retries_sharing_violation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from vamos.experiment.study import writing
+
+    root = _run_mocked(tmp_path, monkeypatch).root
+    real_read_bytes = Path.read_bytes
+    refused: list[str] = []
+
+    def replaced_meanwhile(self: Path) -> bytes:
+        # Windows refuses to open a document for a moment while its owner replaces it.
+        if self.name == "study-manifest.json" and len(refused) < 2:
+            refused.append(self.name)
+            raise PermissionError(13, "Access is denied")
+        return real_read_bytes(self)
+
+    monkeypatch.setattr(writing, "_RETRY_SHARING_VIOLATIONS", True)
+    monkeypatch.setattr(Path, "read_bytes", replaced_meanwhile)
+    monkeypatch.setattr(time, "sleep", lambda seconds: None)
+
+    assert vamos.load_study(root).status == "completed"
+    assert len(refused) == 2
