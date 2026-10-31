@@ -304,3 +304,33 @@ class TestRVEAAskTell:
 
         np.testing.assert_array_equal(result_a["F"], result_b["F"])
         np.testing.assert_array_equal(result_a["X"], result_b["X"])
+
+
+# ---------------------------------------------------------------------------
+# Probability expressions (review finding VR-021)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("algorithm", ["agemoea", "rvea"])
+@pytest.mark.parametrize(
+    ("problem_name", "n_obj", "encoding", "operators"),
+    [
+        ("zdt1", 2, "real", {"mutation": ("pm", {"prob": "1/n", "eta": 20.0})}),
+        ("dtlz2", 3, "real", {"mutation": ("pm", {"prob": "1/n", "eta": 20.0})}),
+        ("bin_knapsack", 2, "binary", {"crossover": ("hux", {"prob": 0.9}), "mutation": ("bitflip", {"prob": "1/n"})}),
+    ],
+)
+def test_agemoea_and_rvea_resolve_one_over_n(algorithm, problem_name, n_obj, encoding, operators) -> None:
+    from dataclasses import replace
+
+    import vamos
+    from vamos.engine.algorithm.config.defaults import build_default_algorithm_config
+
+    problem = vamos.make_problem_selection(problem_name).instantiate()
+    config = build_default_algorithm_config(algorithm, pop_size=None, n_var=problem.n_var, n_obj=n_obj, encoding=encoding)
+    config = replace(config, **operators)
+
+    result = vamos.optimize(problem, algorithm=algorithm, algorithm_config=config, max_evaluations=3 * config.pop_size, seed=1)
+
+    assert result.data["evaluations"] == 3 * config.pop_size
+    assert np.isfinite(result.F).all()
