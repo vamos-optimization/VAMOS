@@ -26,7 +26,7 @@
       "review_condition": "Re-review when the reference-front catalog or resolver semantics change."
     },
     {
-      "path": "src/vamos/resources/reference_fronts/cec2009_uf9.csv",
+      "path": "src/vamos/resources/reference_fronts/cec2009_uf10.csv",
       "category": "semantic_duplicate_package_resource",
       "owner": "src/vamos/resources",
       "reason": "The named CEC2009 problem requires a stable resource path even though this frozen front is byte-identical to related problem fronts.",
@@ -34,11 +34,27 @@
       "review_condition": "Re-review when the reference-front catalog or resolver semantics change."
     },
     {
-      "path": "src/vamos/resources/reference_fronts/cec2009_uf10.csv",
+      "path": "src/vamos/resources/reference_fronts/dtlz2.csv",
       "category": "semantic_duplicate_package_resource",
       "owner": "src/vamos/resources",
-      "reason": "The named CEC2009 problem requires a stable resource path even though this frozen front is byte-identical to related problem fronts.",
-      "size": 386325,
+      "reason": "DTLZ2, DTLZ3 and DTLZ4 share the unit-sphere Pareto front; each named problem requires a stable resource path even though the analytic samples are byte-identical.",
+      "size": 378750,
+      "review_condition": "Re-review when the reference-front catalog or resolver semantics change."
+    },
+    {
+      "path": "src/vamos/resources/reference_fronts/dtlz3.csv",
+      "category": "semantic_duplicate_package_resource",
+      "owner": "src/vamos/resources",
+      "reason": "DTLZ2, DTLZ3 and DTLZ4 share the unit-sphere Pareto front; each named problem requires a stable resource path even though the analytic samples are byte-identical.",
+      "size": 378750,
+      "review_condition": "Re-review when the reference-front catalog or resolver semantics change."
+    },
+    {
+      "path": "src/vamos/resources/reference_fronts/dtlz4.csv",
+      "category": "semantic_duplicate_package_resource",
+      "owner": "src/vamos/resources",
+      "reason": "DTLZ2, DTLZ3 and DTLZ4 share the unit-sphere Pareto front; each named problem requires a stable resource path even though the analytic samples are byte-identical.",
+      "size": 378750,
       "review_condition": "Re-review when the reference-front catalog or resolver semantics change."
     },
     {

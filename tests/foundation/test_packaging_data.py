@@ -45,7 +45,9 @@ def test_third_party_reference_fronts_ship_their_license():
     text = notice.read_text(encoding="utf-8")
     assert "MIT License" in text
     assert "Copyright (c) 2026 Ryoji Tanabe" in text
-    assert "- re24.csv: reference_points_RE24.dat" in text
+    # RE91 is not listed: VAMOS evaluates it deterministically, so the authors' stochastic front does not apply.
+    for number in (21, 24, 31, 32, 33, 34, 37, 41, 42, 61):
+        assert f"- re{number}.csv: reference_points_RE{number}.dat" in text
 
 
 def test_reference_front_prefers_override_data_over_packaged(monkeypatch, tmp_path):

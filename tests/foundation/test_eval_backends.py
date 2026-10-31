@@ -8,7 +8,7 @@ from vamos.foundation.eval.backends import (
     resolve_eval_strategy,
 )
 from vamos.foundation.eval.population import evaluate_population_with_constraints
-from vamos.foundation.exceptions import EvaluationError
+from vamos.foundation.exceptions import ConfigurationError, EvaluationError
 
 
 class DummyProblem:
@@ -87,6 +87,34 @@ def test_dask_backend_requires_explicit_fallback_when_not_connected(monkeypatch)
 
     with pytest.raises(EvaluationError, match="fallback_to_serial=True"):
         backend.evaluate(np.zeros((2, 2)), DummyProblem())
+
+
+def test_dask_backend_errors_suggest_a_scheduler(monkeypatch):
+    distributed = pytest.importorskip("dask.distributed")
+
+    def _no_client():
+        raise ValueError("no active client")
+
+    monkeypatch.setattr(distributed, "get_client", _no_client)
+    backend = DaskEvalBackend(client=None)
+
+    with pytest.raises(EvaluationError) as excinfo:
+        backend.evaluate(np.zeros((2, 2)), DummyProblem())
+    assert "evaluate()" not in (excinfo.value.suggestion or "")
+    assert "Dask" in (excinfo.value.suggestion or "")
+
+
+def test_dask_backend_reports_an_unreachable_scheduler(monkeypatch):
+    distributed = pytest.importorskip("dask.distributed")
+
+    def _unreachable(address):
+        raise OSError(f"Timed out trying to connect to {address}")
+
+    monkeypatch.setattr(distributed, "Client", _unreachable)
+
+    with pytest.raises(ConfigurationError, match="tcp://127.0.0.1:1") as excinfo:
+        DaskEvalBackend(address="tcp://127.0.0.1:1")
+    assert "Dask" in (excinfo.value.suggestion or "")
 
 
 def test_dask_backend_serial_fallback_is_opt_in(monkeypatch):

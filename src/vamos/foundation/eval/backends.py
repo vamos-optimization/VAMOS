@@ -101,6 +101,13 @@ class MultiprocessingEvalBackend(EvaluationBackend):
         return EvaluationResult(F=F, G=G_out)
 
 
+_DASK_SCHEDULER_SUGGESTION = (
+    "Start a Dask scheduler with workers and pass its address (vamos --eval-strategy dask --dask-address tcp://HOST:8786), "
+    "or create a dask.distributed.Client before calling optimize(..., eval_strategy='dask')."
+)
+_DASK_INSTALL_SUGGESTION = 'Install with: pip install "vamos-optimization[compute]".'
+
+
 class DaskEvalBackend(EvaluationBackend):
     """Experimental distributed evaluation using Dask.
 
@@ -177,7 +184,13 @@ class DaskEvalBackend(EvaluationBackend):
                 suggestion='Install with: pip install "vamos-optimization[compute]" or pass fallback_to_serial=True.',
             ) from exc
 
-        self.client = cast(Any, Client)(self.address)
+        try:
+            self.client = cast(Any, Client)(self.address)
+        except OSError as exc:
+            raise ConfigurationError(
+                f"Cannot connect to the Dask scheduler at {self.address!r}: {exc}",
+                suggestion=_DASK_SCHEDULER_SUGGESTION,
+            ) from exc
         self._owns_client = True
         self._connected = True
 
@@ -202,7 +215,9 @@ class DaskEvalBackend(EvaluationBackend):
                 try:
                     from dask.distributed import Client
                 except ImportError as exc:
-                    return self._fallback_or_raise(X, problem, "'dask.distributed' is required to connect by address.", exc)
+                    return self._fallback_or_raise(
+                        X, problem, "'dask.distributed' is required to connect by address.", exc, suggestion=_DASK_INSTALL_SUGGESTION
+                    )
 
                 self.client = cast(Any, Client)(self.address)
                 self._owns_client = True
@@ -260,7 +275,8 @@ class DaskEvalBackend(EvaluationBackend):
             return EvaluationResult(F=F, G=G)
 
         except Exception as exc:
-            return self._fallback_or_raise(X, problem, "DaskEvalBackend evaluation failed.", exc)
+            # The scheduler answered, so a failure here usually comes from the problem's evaluate().
+            return self._fallback_or_raise(X, problem, "DaskEvalBackend evaluation failed.", exc, suggestion=None)
 
     def _fallback_or_raise(
         self,
@@ -268,13 +284,18 @@ class DaskEvalBackend(EvaluationBackend):
         problem: Any,
         message: str,
         exc: Exception | None = None,
+        *,
+        suggestion: str | None = _DASK_SCHEDULER_SUGGESTION,
     ) -> EvaluationResult:
         if self.fallback_to_serial:
             if not self._logged_fallback:
                 _logger().warning("%s Falling back to SerialEvalBackend.", message, exc_info=exc is not None)
                 self._logged_fallback = True
             return SerialEvalBackend().evaluate(X, problem)
-        raise EvaluationError(f"{message} Pass fallback_to_serial=True to allow serial fallback.") from exc
+        raise EvaluationError(
+            f"{message} Pass fallback_to_serial=True to allow serial fallback.",
+            suggestion=suggestion,
+        ) from exc
 
 
 def resolve_eval_strategy(

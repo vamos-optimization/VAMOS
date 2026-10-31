@@ -1,3 +1,5 @@
+import json
+import logging
 import math
 import re
 import warnings
@@ -186,11 +188,11 @@ def test_report_ties_infeasible_means_shared_by_two_algorithms(tmp_path: Path):
 def test_report_latex_marks_tie_seeds_where_no_algorithm_is_feasible(tmp_path: Path):
     pytest.importorskip("pandas")
     pytest.importorskip("scipy")
-    # a1 - a2 per seed: a1 is better in eight seeds and worse in one.
+    # a1 minus a2 for the nine feasible runs: a1 is better in eight and worse in one.
     gaps = [-0.09, -0.015, -0.034, -0.137, 0.133, -0.127, -0.083, -0.199, -0.196]
 
     def values(penalty: float) -> dict[tuple[str, str], list[float]]:
-        # Neither algorithm finds a feasible solution in the first two seeds.
+        # Neither algorithm finds a feasible solution in two of its runs.
         a2 = [0.5 + 0.01 * seed for seed in range(len(gaps))]
         return {("p1", "a1"): [penalty, penalty, *(x + gap for x, gap in zip(a2, gaps))], ("p1", "a2"): [penalty, penalty, *a2]}
 
@@ -202,10 +204,194 @@ def test_report_latex_marks_tie_seeds_where_no_algorithm_is_feasible(tmp_path: P
         warnings.simplefilter("always")
         shared = marks(_igd_plus_report(tmp_path / "inf", values(math.inf)))
 
-    # Two tied seeds plus nine paired seeds make a2 significantly worse (p = 0.035);
-    # dropping the tied seeds instead would leave p = 0.055 and no mark.
+    # The rank-sum test ranks the four runs without feasible solutions as ties at the
+    # worst rank, as it would an equal finite penalty: a2 is significantly worse (p = 0.041).
     assert shared == marks(_igd_plus_report(tmp_path / "tied", values(9.0))) == {"p1": ["-"]}
     assert not _runtime_warnings(caught)
+
+
+def _metric_report(output_dir: Path, metric: str, values: dict[tuple[str, str], list[float]], *, alpha: float = 0.05) -> BenchmarkReport:
+    rows = tuple(
+        {"problem": problem, "algorithm": algorithm, "engine": "numpy", "seed": seed, f"indicator_{metric}": value}
+        for (problem, algorithm), seed_values in values.items()
+        for seed, value in enumerate(seed_values)
+    )
+
+    class _SummaryResult:
+        suite = get_benchmark_suite("ZDT_small")
+
+        def summary_rows(self):
+            return rows
+
+    return BenchmarkReport(
+        result=_SummaryResult(),
+        config=BenchmarkReportConfig(metrics=[metric], alpha=alpha, emit_lab_outputs=False),
+        output_dir=output_dir,
+    )
+
+
+def _latex_cells(path: Path) -> dict[str, list[str]]:
+    cells: dict[str, list[str]] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if re.match(r"^p\d+ &", line):
+            parts = [part.strip() for part in line.rstrip().removesuffix("\\\\").split("&")]
+            cells[parts[0]] = parts[1:]
+    return cells
+
+
+def test_per_problem_markers_use_rank_sum_test(tmp_path: Path):
+    pytest.importorskip("pandas")
+    pytest.importorskip("scipy")
+    # Runs with the same seed are independent: every a1 run beats every a2 run, which
+    # the rank-sum test finds (exact p = 2/252); a signed-rank test on 5 pairs cannot.
+    values = {("p1", "a1"): [0.10, 0.11, 0.12, 0.13, 0.14], ("p1", "a2"): [0.24, 0.20, 0.23, 0.21, 0.22]}
+    report = _metric_report(tmp_path, "igd_plus", values)
+
+    best, other = _latex_cells(report.generate_latex_tables()["igd_plus"])["p1"]
+
+    assert best.startswith("\\textbf{") and "$^" not in best
+    assert other.endswith("$^{-}$")
+
+
+@pytest.mark.parametrize("metric", ["avg_hausdorff", "hausdorff", "eps", "epsilon_add"])
+def test_lower_is_better_for_every_distance_indicator(tmp_path: Path, metric: str):
+    pytest.importorskip("pandas")
+    pytest.importorskip("scipy")
+    values = {("p1", "a1"): [0.10, 0.11, 0.12, 0.13, 0.14], ("p1", "a2"): [0.20, 0.21, 0.22, 0.23, 0.24]}
+    report = _metric_report(tmp_path, metric, values)
+
+    smaller, larger = _latex_cells(report.generate_latex_tables()[metric])["p1"]
+
+    assert smaller.startswith("\\textbf{")
+    assert "textbf" not in larger
+
+
+def test_report_and_lab_share_one_indicator_orientation():
+    from vamos.experiment.benchmark.lab_summary import _INDICATOR_ALIASES
+    from vamos.experiment.benchmark.report_utils import higher_is_better
+
+    for alias, lab_name in _INDICATOR_ALIASES.items():
+        assert higher_is_better(alias) is higher_is_better(lab_name) is (lab_name == "HV"), alias
+    for name in ("hv", "HV", "hypervolume", "hv_approx", "whv_rect", "weighted_hv"):
+        assert higher_is_better(name), name
+    for name in ("hausdorff", "epsilon_add", "IGD", "AVGHD", "Time", "spread"):
+        assert not higher_is_better(name), name
+
+
+def test_too_few_runs_to_reach_alpha_warn_and_note_the_table(tmp_path: Path, caplog: pytest.LogCaptureFixture):
+    pytest.importorskip("pandas")
+    pytest.importorskip("scipy")
+    # With 3 runs per algorithm the smallest two-sided rank-sum p-value is 2/20 = 0.1.
+    values = {("p1", "a1"): [0.10, 0.11, 0.12], ("p1", "a2"): [0.20, 0.21, 0.22]}
+    report = _metric_report(tmp_path, "igd_plus", values)
+
+    with caplog.at_level(logging.WARNING, logger="vamos.experiment.benchmark.report"):
+        table = report.generate_latex_tables()["igd_plus"].read_text(encoding="utf-8")
+
+    assert "$^" not in table
+    assert "smallest attainable p-value is 0.1" in table
+    assert any("p1" in record.getMessage() and "0.1" in record.getMessage() for record in caplog.records)
+
+
+@pytest.mark.parametrize(
+    ("n_a", "n_b", "expected"),
+    [(3, 3, 0.1), (5, 5, 2 / 252), (1, 1, 1.0), (0, 5, 1.0), (2000, 3, 2 / 1_337_337_001), (2000, 2000, 0.0)],
+)
+def test_min_rank_sum_p_value_handles_large_run_counts(n_a: int, n_b: int, expected: float):
+    from vamos.experiment.benchmark.report_utils import min_rank_sum_p_value
+
+    assert min_rank_sum_p_value(n_a, n_b) == pytest.approx(expected, rel=1e-12, abs=0.0)
+
+
+def test_min_rank_sum_p_value_does_not_overflow_at_515_runs():
+    from vamos.experiment.benchmark.report_utils import min_rank_sum_p_value
+
+    # C(1030, 515) does not fit in a float; the floor is about 7e-309, not an OverflowError.
+    floor = min_rank_sum_p_value(515, 515)
+    assert 0.0 < floor < 1e-300
+
+
+def test_report_with_many_runs_per_algorithm_marks_differences(tmp_path: Path):
+    pytest.importorskip("pandas")
+    pytest.importorskip("scipy")
+    values = {("p1", "a1"): [0.1 + 1e-4 * seed for seed in range(520)], ("p1", "a2"): [0.2 + 1e-4 * seed for seed in range(520)]}
+    report = _metric_report(tmp_path, "igd_plus", values)
+
+    best, other = _latex_cells(report.generate_latex_tables()["igd_plus"])["p1"]
+
+    assert best.startswith("\\textbf{")
+    assert other.endswith("$^{-}$")
+
+
+def test_holm_adjustment_is_step_down_and_monotone():
+    from vamos.experiment.benchmark.report_utils import holm_adjust
+
+    assert holm_adjust([0.01, 0.04, 0.03]) == pytest.approx([0.03, 0.06, 0.06])
+    assert holm_adjust([0.5, 0.01]) == pytest.approx([0.5, 0.02])
+    adjusted = holm_adjust([0.02, math.nan, 0.6])
+    assert adjusted[0] == pytest.approx(0.04) and math.isnan(adjusted[1]) and adjusted[2] == pytest.approx(0.6)
+    assert holm_adjust([]) == []
+
+
+@pytest.mark.parametrize("algorithms", [("a1", "a2", "a3"), ("a1", "a2")])
+def test_statistics_json_records_holm_adjusted_pairwise_tests(tmp_path: Path, algorithms: tuple[str, ...]):
+    pytest.importorskip("pandas")
+    pytest.importorskip("scipy")
+    from vamos.experiment.benchmark.report_utils import holm_adjust
+
+    values = {
+        (f"p{problem}", algorithm): [0.1 * (index + 1) + 0.013 * problem * (index % 2) + 0.001 * seed for seed in range(2)]
+        for problem in range(8)
+        for index, algorithm in enumerate(algorithms)
+    }
+    report = _metric_report(tmp_path, "igd_plus", values)
+    report.compute_statistics()
+
+    pairwise = json.loads((tmp_path / "statistics.json").read_text(encoding="utf-8"))["igd_plus"]["pairwise"]
+
+    pairs = [(a, b) for i, a in enumerate(algorithms) for b in algorithms[i + 1 :]]
+    assert [(entry["algorithm_a"], entry["algorithm_b"]) for entry in pairwise] == pairs
+    raw = [entry["p_value"] for entry in pairwise]
+    assert [entry["p_value_holm"] for entry in pairwise] == pytest.approx(holm_adjust(raw))
+    assert all(entry["p_value_holm"] >= entry["p_value"] for entry in pairwise)
+    assert [entry["significant"] for entry in pairwise] == [entry["p_value_holm"] <= 0.05 for entry in pairwise]
+
+
+def test_two_algorithms_tied_on_every_problem_do_not_abort_the_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    pytest.importorskip("pandas")
+    scipy_stats = pytest.importorskip("scipy.stats")
+
+    def scipy_112_wilcoxon(d, *args, zero_method="wilcox", **kwargs):
+        # SciPy 1.12 and earlier raise on an all-zero sample with zero_method "pratt".
+        if zero_method == "pratt" and np.all(np.asarray(d, dtype=float) == 0):
+            raise ValueError("zero_method 'wilcox' and 'pratt' do not work if x - y is zero for all elements.")
+        return real_wilcoxon(d, *args, zero_method=zero_method, **kwargs)
+
+    real_wilcoxon = scipy_stats.wilcoxon
+    monkeypatch.setattr(scipy_stats, "wilcoxon", scipy_112_wilcoxon)
+    # Both algorithms find no feasible solution anywhere, so every per-problem mean is +inf.
+    values = {(f"p{problem}", algorithm): [math.inf] * 5 for problem in range(3) for algorithm in ("a1", "a2")}
+    report = _metric_report(tmp_path, "igd_plus", values)
+
+    report.compute_statistics()
+    table = report.generate_latex_tables()["igd_plus"].read_text(encoding="utf-8")
+
+    (pairwise,) = json.loads((tmp_path / "statistics.json").read_text(encoding="utf-8"))["igd_plus"]["pairwise"]
+    assert (pairwise["p_value"], pairwise["p_value_holm"], pairwise["significant"]) == (1.0, 1.0, False)
+    assert "$^" not in table
+
+
+def test_latex_cell_with_an_infeasible_run_shows_inf_without_nan(tmp_path: Path):
+    pytest.importorskip("pandas")
+    pytest.importorskip("scipy")
+    # One run without feasible solutions has IGD+ +inf, so the mean is +inf and the std undefined.
+    values = {("p1", "a1"): [0.10, 0.11, math.inf, 0.13, 0.14], ("p1", "a2"): [0.20, 0.21, 0.22, 0.23, 0.24]}
+    report = _metric_report(tmp_path, "igd_plus", values)
+
+    with_inf, _ = _latex_cells(report.generate_latex_tables()["igd_plus"])["p1"]
+
+    assert "inf" in with_inf
+    assert "nan" not in with_inf
 
 
 def test_run_benchmark_suite_returns_traceable_canonical_studies(tmp_path: Path):
@@ -248,3 +434,21 @@ def test_run_benchmark_suite_returns_traceable_canonical_studies(tmp_path: Path)
     after = {path.relative_to(result.base_output_dir): path.read_bytes() for path in result.base_output_dir.rglob("*") if path.is_file()}
     assert loaded.study_ids == result.study_ids
     assert before == after
+
+
+def test_tied_samples_are_tested_like_lab_instead_of_hitting_the_exact_floor(tmp_path: Path):
+    pytest.importorskip("pandas")
+    stats = pytest.importorskip("scipy.stats")
+    # With ties SciPy runs the asymptotic rank-sum test, whose p-value (about 0.047 here) can fall
+    # below the exact test's floor of 0.1 for three runs each; lab/ calls the same test.
+    values = {("p1", "a1"): [0.0, 0.0, 0.0], ("p1", "a2"): [0.5, 0.5, 0.5]}
+    expected_p = stats.mannwhitneyu(values[("p1", "a2")], values[("p1", "a1")], alternative="two-sided").pvalue
+    assert expected_p < 0.05
+    report = _metric_report(tmp_path, "hv", values)
+
+    path = report.generate_latex_tables()["hv"]
+    worse, best = _latex_cells(path)["p1"]
+
+    assert best.startswith("\\textbf{")
+    assert worse.endswith("$^{-}$")
+    assert "smallest attainable p-value" not in path.read_text(encoding="utf-8")

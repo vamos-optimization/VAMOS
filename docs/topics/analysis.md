@@ -90,7 +90,9 @@ as a tie (Pratt's treatment of zero differences), including two infinite
 penalties such as the +inf IGD+ of runs without feasible solutions. An
 infinite score against a finite one is the largest difference. VAMOS 1.1.0
 dropped a pair of equal infinities from the test and warned about an invalid
-subtraction.
+subtraction. Two algorithms equal on every problem, for example infeasible
+everywhere, get statistic 0 and p-value 1 without calling SciPy, whose
+`wilcoxon` raises on that input up to version 1.12 and divides by zero after it.
 
 ### Critical-distance plot
 
@@ -169,6 +171,17 @@ The public MCDM helpers in `vamos.ux.api` are:
 They return an `MCDMResult` containing `scores`, `best_index`, and `best_point`.
 The scoring convention is minimization: the selected index is the one preferred
 by the helper under the supplied objectives/preferences.
+
+**Development after 1.1.0:** `knee_point_scores` keeps only the non-dominated
+points and joins the two extreme points of that set with a chord. The knee is
+the point farthest from the chord on the side of the ideal point (Das, 1999;
+Deb and Gupta, 2011), and each score is minus that signed distance. Dominated
+points score `inf`. A concave or linear front has no point on that side, so it
+has no knee: the helper emits a `UserWarning`, `best_index` is the extreme
+point with the smallest f1, and Studio's Results page shows the warning. VAMOS 1.1.0 and
+earlier use the unsigned distance, which on a concave front picks the point
+farthest from the ideal and can pick a dominated point. The distances use the
+units of `F`, so normalize objectives with different scales first.
 
 Weighted methods are sensitive to objective scale. If objectives use different
 units or magnitudes, normalize them deliberately before applying weights and

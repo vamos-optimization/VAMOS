@@ -3,11 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from vamos.experiment.benchmark.report_utils import ensure_dir, import_pandas
-
-
-def _indicator_is_minimization(indicator: str) -> bool:
-    return indicator.strip().upper() != "HV"
+from vamos.experiment.benchmark.report_utils import ensure_dir, higher_is_better, import_pandas
 
 
 def _group_stats(summary: Any, agg: str) -> Any:
@@ -89,7 +85,7 @@ def write_wilcoxon_tables(summary: Any, output_dir: Path, *, alpha: float = 0.05
                         median2 = data2.median()
                         stat, p = spstats.mannwhitneyu(data1, data2)
                         if p <= alpha:
-                            if _indicator_is_minimization(indicator):
+                            if not higher_is_better(indicator):
                                 line.append("+" if median1 <= median2 else "o")
                             else:
                                 line.append("+" if median1 >= median2 else "o")
