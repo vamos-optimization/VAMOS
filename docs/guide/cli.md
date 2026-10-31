@@ -344,10 +344,11 @@ valid.
   `+` if it is significantly better. Runs with the same seed are independent,
   so they are not paired. VAMOS 1.1.0 paired them in a signed-rank test, which
   cannot reach p < 0.05 with five seeds, so its tables carried no marks.
-- Few runs cannot show a significant difference: the smallest two-sided p-value
-  is 0.1 with three runs per algorithm and 0.0079 with five. When the runs
-  cannot reach `alpha`, the pair is not tested, the table caption says so, and
-  a warning is logged.
+- Few runs cannot show a significant difference: without ties, the smallest
+  two-sided p-value of the exact test is 0.1 with three runs per algorithm and
+  0.0079 with five. When such a pair cannot reach `alpha`, the table caption
+  says so and a warning is logged. With ties SciPy uses the asymptotic test,
+  as `lab/` does, and its p-value can fall below that floor.
 - Only the hypervolume family is maximized. IGD, IGD+, the epsilon indicators
   and the Hausdorff distances are minimized under every alias (`eps`,
   `epsilon_add`, `hausdorff`, `avg_hausdorff`), in the tables, the rank tests

@@ -434,3 +434,21 @@ def test_run_benchmark_suite_returns_traceable_canonical_studies(tmp_path: Path)
     after = {path.relative_to(result.base_output_dir): path.read_bytes() for path in result.base_output_dir.rglob("*") if path.is_file()}
     assert loaded.study_ids == result.study_ids
     assert before == after
+
+
+def test_tied_samples_are_tested_like_lab_instead_of_hitting_the_exact_floor(tmp_path: Path):
+    pytest.importorskip("pandas")
+    stats = pytest.importorskip("scipy.stats")
+    # With ties SciPy runs the asymptotic rank-sum test, whose p-value (about 0.047 here) can fall
+    # below the exact test's floor of 0.1 for three runs each; lab/ calls the same test.
+    values = {("p1", "a1"): [0.0, 0.0, 0.0], ("p1", "a2"): [0.5, 0.5, 0.5]}
+    expected_p = stats.mannwhitneyu(values[("p1", "a2")], values[("p1", "a1")], alternative="two-sided").pvalue
+    assert expected_p < 0.05
+    report = _metric_report(tmp_path, "hv", values)
+
+    path = report.generate_latex_tables()["hv"]
+    worse, best = _latex_cells(path)["p1"]
+
+    assert best.startswith("\\textbf{")
+    assert worse.endswith("$^{-}$")
+    assert "smallest attainable p-value" not in path.read_text(encoding="utf-8")

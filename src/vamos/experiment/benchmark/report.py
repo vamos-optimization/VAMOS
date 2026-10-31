@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from vamos.experiment.benchmark.lab_plots import generate_boxplots
 from vamos.experiment.benchmark.lab_stats import write_summary_tables, write_wilcoxon_tables
 from vamos.experiment.benchmark.lab_summary import build_quality_indicator_summary
@@ -149,8 +151,9 @@ class BenchmarkReport:
         the two-sided rank-sum (Mann-Whitney U) test on the two samples of runs, as in
         ``lab/``; runs without feasible solutions tie with each other. ``-`` marks an
         algorithm significantly worse than the best and ``+`` one significantly better (its
-        mean can still be worse). The second value is the smallest attainable p-value when
-        the run counts cannot reach ``alpha`` for some algorithm, which is then not tested.
+        mean can still be worse). The second value is the smallest attainable p-value when,
+        for some algorithm, the exact test (no ties) cannot reach ``alpha`` with these run
+        counts.
         """
         from scipy import stats as spstats  # type: ignore[import-untyped]
 
@@ -165,14 +168,17 @@ class BenchmarkReport:
         for alg, other in samples.items():
             if alg == best_alg or other.size == 0:
                 continue
-            floor = min_rank_sum_p_value(best.size, other.size)
-            if floor > self.config.alpha:
-                unattainable = floor if unattainable is None else min(unattainable, floor)
-                continue
+            # The same test as lab/: SciPy's default picks the exact distribution only without ties.
             result = spstats.mannwhitneyu(other, best, alternative="two-sided")
             if result.pvalue <= self.config.alpha:
                 other_larger = result.statistic > other.size * best.size / 2
                 markers[alg] = "+" if other_larger == higher else "-"
+                continue
+            # The floor bounds only the exact test; with ties the asymptotic p-value can fall below it.
+            floor = min_rank_sum_p_value(best.size, other.size)
+            has_ties = np.unique(np.concatenate([best, other])).size < best.size + other.size
+            if floor > self.config.alpha and not has_ties:
+                unattainable = floor if unattainable is None else min(unattainable, floor)
         return markers, unattainable
 
     def generate_latex_tables(self) -> dict[str, Path]:
