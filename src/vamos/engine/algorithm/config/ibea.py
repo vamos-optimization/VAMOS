@@ -6,14 +6,17 @@ from dataclasses import dataclass
 from typing import Any, cast, overload
 
 from vamos.engine.archive import ExternalArchiveConfig
+from vamos.foundation.encoding import EncodingLike
 
 from .base import (
+    DEFAULT_POP_SIZE,
     ConstraintModeStr,
     IndicatorType,
     ResultMode,
     _ConfigBuilderState,
     _ConstraintModeBuilder,
     _CrossoverBuilder,
+    _encoding_operators,
     _InitializerBuilder,
     _MutationBuilder,
     _MutationProbFactorBuilder,
@@ -48,16 +51,24 @@ class IBEAConfig(_SerializableConfig):
     @classmethod
     def default(
         cls,
-        pop_size: int = 100,
+        pop_size: int | None = None,
         n_var: int | None = None,
+        encoding: EncodingLike | None = None,
     ) -> IBEAConfig:
-        """Create a default IBEA configuration."""
+        """Create a default IBEA configuration.
+
+        ``pop_size=None`` means 100. Discrete and mixed ``encoding`` values take
+        their crossover and mutation from the shared encoding table.
+        """
         mut_prob = 1.0 / n_var if n_var else 0.1
+        crossover, mutation = _encoding_operators(
+            encoding, mut_prob, real=(("sbx", {"prob": 1.0, "eta": 20.0}), ("pm", {"prob": mut_prob, "eta": 20.0}))
+        )
         return (
             cls.builder()
-            .pop_size(pop_size)
-            .crossover("sbx", prob=1.0, eta=20.0)
-            .mutation("pm", prob=mut_prob, eta=20.0)
+            .pop_size(DEFAULT_POP_SIZE if pop_size is None else pop_size)
+            .crossover(crossover[0], **crossover[1])
+            .mutation(mutation[0], **mutation[1])
             .selection("tournament")
             .indicator("eps")
             .kappa(0.05)

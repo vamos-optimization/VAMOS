@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import comb
 from typing import Any
 
 from vamos.engine.archive import ExternalArchiveConfig
+from vamos.engine.reference_directions import lattice_size
+from vamos.foundation.encoding import EncodingLike
 
 from .base import (
     ConstraintModeStr,
@@ -14,7 +15,9 @@ from .base import (
     _ConfigBuilderState,
     _ConstraintModeBuilder,
     _CrossoverBuilder,
+    _encoding_operators,
     _InitializerBuilder,
+    _lattice_divisions_within,
     _MutationBuilder,
     _MutationProbFactorBuilder,
     _PopSizeBuilder,
@@ -52,6 +55,7 @@ class NSGAIIIConfig(_SerializableConfig):
         pop_size: int | None = None,
         n_var: int | None = None,
         n_obj: int = 3,
+        encoding: EncodingLike | None = None,
     ) -> NSGAIIIConfig:
         """
         Create a default NSGA-III configuration.
@@ -63,23 +67,29 @@ class NSGAIIIConfig(_SerializableConfig):
         n_var
             Number of variables used for the default mutation probability.
         n_obj
-            Number of objectives used to choose the default reference directions:
-            12 divisions for three objectives, 6 for four or more, and with two
-            objectives ``pop_size - 1`` (one direction per individual), or 99
-            without ``pop_size``.
+            Number of objectives used to choose the reference directions. With
+            ``pop_size``, the complete Das-Dennis lattice with the most directions
+            that fit in it (``pop_size - 1`` divisions with two objectives).
+            Without it, 99 divisions for two objectives, 12 for three and 6 for
+            four or more, and ``pop_size`` is the direction count.
+        encoding
+            Problem encoding. Discrete and mixed encodings take their crossover and
+            mutation from the shared encoding table.
         """
         mut_prob = 1.0 / n_var if n_var else 0.1
-        if n_obj == 2:
-            divisions = 99 if pop_size is None else max(1, int(pop_size) - 1)
-        else:
-            divisions = 12 if n_obj == 3 else 6
         if pop_size is None:
-            pop_size = comb(divisions + n_obj - 1, n_obj - 1)
+            divisions = 99 if n_obj == 2 else (12 if n_obj == 3 else 6)
+            pop_size = lattice_size(n_obj, divisions)
+        else:
+            divisions = _lattice_divisions_within(pop_size, n_obj, algorithm="NSGA-III")
+        crossover, mutation = _encoding_operators(
+            encoding, mut_prob, real=(("sbx", {"prob": 1.0, "eta": 30.0}), ("pm", {"prob": mut_prob, "eta": 20.0}))
+        )
         return (
             cls.builder()
             .pop_size(pop_size)
-            .crossover("sbx", prob=1.0, eta=30.0)
-            .mutation("pm", prob=mut_prob, eta=20.0)
+            .crossover(crossover[0], **crossover[1])
+            .mutation(mutation[0], **mutation[1])
             .selection("tournament")
             .reference_directions(divisions=divisions)
             .pop_size_auto(True)

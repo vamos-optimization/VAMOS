@@ -8,6 +8,7 @@ from itertools import product
 from math import comb
 from typing import Any
 
+from vamos.engine.algorithm.config.base import ReferenceDirectionPopulationError
 from vamos.experiment.artifacts.models import deep_freeze, deep_thaw
 from vamos.experiment.artifacts.resolved_reconstruction import is_reconstructable_evaluation_backend
 from vamos.experiment.artifacts.specs import RunSpecInputs, build_run_specs
@@ -75,7 +76,17 @@ def _resolve_candidate(spec: StudySpec, candidate: _Candidate) -> PlanTask:
         population_size = spec.pop_size or _compute_pop_size(n_var, n_obj)
         budget = spec.max_evaluations or _compute_max_evaluations(n_var, n_obj)
         engine, engine_source = resolve_engine_details(spec.engine, algorithm=algorithm)
-        config = _resolved_algorithm_config(spec, candidate.algorithm, algorithm, population_size, n_var, n_obj, encoding)
+        try:
+            config = _resolved_algorithm_config(spec, candidate.algorithm, algorithm, population_size, n_var, n_obj, encoding)
+        except ReferenceDirectionPopulationError as exc:
+            raise UnresolvedStudyTaskError(
+                operation="resolve study plan",
+                reason="REFERENCE_DIRECTION_POPULATION_MISMATCH",
+                field=f"$.matrix[{candidate.index}].pop_size",
+                expected=f"a population that fits a complete reference-direction lattice for n_obj={n_obj}",
+                actual=population_size,
+                action=exc.message,
+            ) from exc
         resolved_population_size = _validate_execution_shape(
             algorithm=algorithm,
             config=config,
@@ -152,9 +163,14 @@ def _resolved_algorithm_config(
     n_obj: int,
     encoding: str,
 ) -> dict[str, Any]:
+    overrides = _algorithm_overrides(spec, requested_algorithm, algorithm)
     config_pop_size: int | None = population_size
     if spec.pop_size is None and algorithm.lower() in {"moead", "nsgaiii", "rvea"}:
         config_pop_size = None
+    # A per-algorithm population replaces the shared one before the default derives its lattice from it.
+    override_pop_size = overrides.get("pop_size")
+    if isinstance(override_pop_size, int) and not isinstance(override_pop_size, bool):
+        config_pop_size = override_pop_size
     built = _build_algorithm_config(
         algorithm,
         pop_size=config_pop_size,
@@ -163,7 +179,6 @@ def _resolved_algorithm_config(
         encoding=encoding,
     )
     config = dict(built.to_dict())
-    overrides = _algorithm_overrides(spec, requested_algorithm, algorithm)
     unknown = sorted(set(overrides) - set(config))
     if unknown:
         raise UnresolvedStudyTaskError(

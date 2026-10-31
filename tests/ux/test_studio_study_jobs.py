@@ -332,8 +332,8 @@ def test_runner_actions_follow_the_study_and_its_runner() -> None:
 
 
 def test_plan_check_explains_an_impossible_population(tmp_path: Path) -> None:
-    # NSGA-III needs at least its 91 reference directions on three-objective DTLZ2.
-    spec = batch_spec(problems=["dtlz2"], algorithms=["nsgaiii"], seeds=[0], max_evaluations=100, pop_size=50, on_error="continue")
+    # RVEA needs one individual per reference vector: no three-objective lattice has 50 (45 or 55 do).
+    spec = batch_spec(problems=["dtlz2"], algorithms=["rvea"], seeds=[0], max_evaluations=100, pop_size=50, on_error="continue")
 
     plan = check_plan(spec, tmp_path / "batch")
 

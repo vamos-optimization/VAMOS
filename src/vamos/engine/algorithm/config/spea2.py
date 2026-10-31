@@ -6,14 +6,17 @@ from dataclasses import dataclass
 from typing import Any
 
 from vamos.engine.archive import ExternalArchiveConfig
+from vamos.foundation.encoding import EncodingLike
 
 from .base import (
+    DEFAULT_POP_SIZE,
     ConstraintModeStr,
     ResultMode,
     _build_external_archive_config,
     _ConfigBuilderState,
     _ConstraintModeBuilder,
     _CrossoverBuilder,
+    _encoding_operators,
     _InitializerBuilder,
     _MutationBuilder,
     _MutationProbFactorBuilder,
@@ -48,17 +51,26 @@ class SPEA2Config(_SerializableConfig):
     @classmethod
     def default(
         cls,
-        pop_size: int = 100,
+        pop_size: int | None = None,
         n_var: int | None = None,
+        encoding: EncodingLike | None = None,
     ) -> SPEA2Config:
-        """Create a default SPEA2 configuration."""
+        """Create a default SPEA2 configuration.
+
+        ``pop_size=None`` means 100. Discrete and mixed ``encoding`` values take
+        their crossover and mutation from the shared encoding table.
+        """
         mut_prob = 1.0 / n_var if n_var else 0.1
+        size = DEFAULT_POP_SIZE if pop_size is None else pop_size
+        crossover, mutation = _encoding_operators(
+            encoding, mut_prob, real=(("sbx", {"prob": 1.0, "eta": 20.0}), ("pm", {"prob": mut_prob, "eta": 20.0}))
+        )
         return (
             cls.builder()
-            .pop_size(pop_size)
-            .archive_size(pop_size)
-            .crossover("sbx", prob=1.0, eta=20.0)
-            .mutation("pm", prob=mut_prob, eta=20.0)
+            .pop_size(size)
+            .archive_size(size)
+            .crossover(crossover[0], **crossover[1])
+            .mutation(mutation[0], **mutation[1])
             .selection("tournament")
             .build()
         )
@@ -96,6 +108,7 @@ class _SPEA2ConfigBuilder(
     def k_neighbors(self, value: int) -> _SPEA2ConfigBuilder:
         self._cfg["k_neighbors"] = value
         return self
+
     def external_archive(self, capacity: int | None = None, **kwargs: Any) -> _SPEA2ConfigBuilder:
         """Configure an external archive for result storage.
 

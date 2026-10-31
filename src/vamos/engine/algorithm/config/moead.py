@@ -7,6 +7,7 @@ from math import comb
 from typing import Any, overload
 
 from vamos.engine.archive import ExternalArchiveConfig
+from vamos.foundation.encoding import EncodingLike
 
 from .base import (
     ConstraintModeStr,
@@ -14,6 +15,7 @@ from .base import (
     _ConfigBuilderState,
     _ConstraintModeBuilder,
     _CrossoverBuilder,
+    _encoding_operators,
     _InitializerBuilder,
     _MutationBuilder,
     _MutationProbFactorBuilder,
@@ -54,14 +56,24 @@ class MOEADConfig(_SerializableConfig):
         pop_size: int | None = None,
         n_var: int | None = None,
         n_obj: int = 3,
+        encoding: EncodingLike | None = None,
     ) -> MOEADConfig:
-        """Create a default MOEA/D configuration with sensible defaults."""
+        """Create a default MOEA/D configuration with sensible defaults.
+
+        Without ``pop_size``, the population is the weight-vector lattice: 99
+        divisions with two objectives, 12 with three and 6 with more. Discrete
+        and mixed ``encoding`` values take their crossover and mutation from the
+        shared encoding table.
+        """
         divisions = 99 if n_obj == 2 else (12 if n_obj == 3 else 6)
         if pop_size is not None and n_obj == 2:
             divisions = max(1, int(pop_size) - 1)
         if pop_size is None:
             pop_size = divisions + 1 if n_obj == 2 else comb(divisions + n_obj - 1, n_obj - 1)
         mut_prob = 1.0 / n_var if n_var else 0.1
+        crossover, mutation = _encoding_operators(
+            encoding, mut_prob, real=(("de", {"cr": 1.0, "f": 0.5}), ("pm", {"prob": mut_prob, "eta": 20.0}))
+        )
         return (
             cls.builder()
             .pop_size(pop_size)
@@ -69,8 +81,8 @@ class MOEADConfig(_SerializableConfig):
             .neighbor_size(20)
             .delta(0.9)
             .replace_limit(2)
-            .crossover("de", cr=1.0, f=0.5)
-            .mutation("pm", prob=mut_prob, eta=20.0)
+            .crossover(crossover[0], **crossover[1])
+            .mutation(mutation[0], **mutation[1])
             .aggregation("pbi", theta=5.0)
             .weight_vectors(divisions=divisions)
             .build()
