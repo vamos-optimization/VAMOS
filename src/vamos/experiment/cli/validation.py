@@ -24,8 +24,6 @@ _SHARED_ALGORITHM_OPTIONS: dict[str, tuple[str, ...]] = {
     "external_archive_size": ("nsgaii", "spea2", "smpso"),
 }
 _VARIATION_FLAG_PREFIXES: dict[str, str] = {"nsgaiii": "nsga3"}
-# Algorithms whose tournament reads --selection-pressure ("both" runs them too).
-_TOURNAMENT_ALGORITHMS = ("nsgaii", "nsgaiii", "spea2", "ibea", "both")
 _EXAMPLE_METHODS: dict[str, str] = {"crossover": "sbx", "mutation": "polynomial"}
 
 
@@ -136,8 +134,6 @@ def finalize_args(
         parser.error("--offspring-population-size must be positive.")
     if args.selection_pressure <= 0:
         parser.error("--selection-pressure must be a positive integer.")
-    if getattr(args, "algorithm", None) in _TOURNAMENT_ALGORITHMS and args.selection_pressure > args.population_size:
-        parser.error(f"--selection-pressure ({args.selection_pressure}) cannot exceed --population-size ({args.population_size}).")
     if getattr(args, "track_genealogy", False) and getattr(args, "algorithm", None) != "nsgaii":
         parser.error("--track-genealogy is supported only with --algorithm nsgaii.")
     if args.external_archive_size is not None and args.external_archive_size <= 0:

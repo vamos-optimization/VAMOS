@@ -16,8 +16,12 @@ from vamos.experiment.execution import execute_problem_suite, raise_run_failures
 from vamos.experiment.services.orchestrator import run_single
 from vamos.foundation.core.experiment_config import ExperimentConfig
 from vamos.foundation.core.hv_stop import build_hv_stop_config
-from vamos.foundation.problem.registry import make_problem_selection
+from vamos.foundation.exceptions import ConfigurationError
+from vamos.foundation.problem.registry import ProblemSelection, make_problem_selection
 from vamos.foundation.problem.resolver import resolve_problem_selections
+
+# Algorithms whose tournament reads the selection pressure ("both" runs them too).
+_TOURNAMENT_ALGORITHMS = ("nsgaii", "nsgaiii", "spea2", "ibea", "both")
 
 
 def _logger() -> logging.Logger:
@@ -36,6 +40,26 @@ def _override_mapping(override: SpecBlock, key: str) -> VariationOverrides | Non
     return cast(VariationOverrides, value) if isinstance(value, dict) else None
 
 
+def _check_selection_pressure(
+    args: Namespace, config: ExperimentConfig, selections: list[ProblemSelection], overrides: ProblemOverrides
+) -> None:
+    """Reject, before any run starts, a tournament larger than the population a problem runs with.
+
+    The check uses each problem's effective values, after its ``problems.<name>`` overrides.
+    """
+    for selection in selections:
+        raw = overrides.get(selection.spec.key)
+        override: SpecBlock = raw if isinstance(raw, dict) else {}
+        algorithm = override.get("algorithm", args.algorithm)
+        pressure = int(cast(int, override.get("selection_pressure", args.selection_pressure)))
+        population = int(cast(int, override.get("population_size", config.population_size)))
+        if algorithm in _TOURNAMENT_ALGORITHMS and pressure > population:
+            raise ConfigurationError(
+                f"selection_pressure ({pressure}) cannot exceed population_size ({population}) for problem '{selection.spec.key}'.",
+                suggestion="Lower --selection-pressure (selection_pressure in a config) or raise the population size.",
+            )
+
+
 def run_from_args(
     args: Namespace,
     config: ExperimentConfig,
@@ -49,6 +73,7 @@ def run_from_args(
     overrides: ProblemOverrides = getattr(args, "problem_overrides", {}) or {}
     config_source = getattr(args, "config_path", None)
     config_spec: ExperimentSpec | None = getattr(args, "config_spec", None)
+    _check_selection_pressure(args, config, selections, overrides)
     # With several problems, a failed run is reported after the whole series instead of stopping it.
     failures: list[str] | None = [] if multiple else None
 

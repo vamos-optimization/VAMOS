@@ -184,7 +184,6 @@ def test_partial_operator_option_is_completed_or_rejected(monkeypatch, capsys, a
         (("--seed", "-1"), "--seed"),
         (("--n-var", "0"), "--n-var"),
         (("--problem", "zdt1", "--n-obj", "3"), "fixed number of objectives"),
-        (("--population-size", "20", "--max-evaluations", "40", "--selection-pressure", "50"), "--selection-pressure"),
         (("--algorithm", "smsemoa", "--track-genealogy"), "--track-genealogy"),
     ],
 )
@@ -226,3 +225,53 @@ def test_config_blocks_of_other_algorithms_do_not_warn(monkeypatch, tmp_path, ca
     _parse(monkeypatch, "--config", str(config_path))
 
     assert "Ignoring" not in " ".join(record.getMessage() for record in caplog.records)
+
+
+def _write_spec(tmp_path, spec):
+    config_file = tmp_path / "spec.json"
+    config_file.write_text(json.dumps({"version": "1", **spec}), encoding="utf-8")
+    return config_file
+
+
+def test_selection_pressure_is_checked_against_each_problems_own_population(monkeypatch, tmp_path):
+    from vamos.experiment.cli.main import main
+
+    defaults = {"algorithm": "nsgaii", "engine": "numpy", "population_size": 20, "selection_pressure": 50, "max_evaluations": 200}
+    spec = {"defaults": {**defaults, "output_root": str(tmp_path / "results")}, "problems": {"zdt1": {"population_size": 100}}}
+    monkeypatch.setattr(sys, "argv", ["prog", "--config", str(_write_spec(tmp_path, spec)), "--problem", "zdt1"])
+
+    main()
+
+    assert list((tmp_path / "results").rglob("manifest.json"))
+
+
+def test_selection_pressure_above_a_problems_population_stops_before_any_run(monkeypatch, tmp_path, capsys):
+    from vamos.experiment.cli.main import main
+
+    output_root = tmp_path / "results"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "prog",
+            "--problem",
+            "zdt1",
+            "--population-size",
+            "20",
+            "--max-evaluations",
+            "40",
+            "--selection-pressure",
+            "50",
+            "--output-root",
+            str(output_root),
+        ],
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+
+    err = capsys.readouterr().err
+    assert excinfo.value.code == 2, err
+    assert "selection_pressure (50) cannot exceed population_size (20)" in err
+    assert "Traceback" not in err
+    assert not output_root.exists()

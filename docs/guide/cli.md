@@ -275,7 +275,7 @@ operator parameter such as `--nsgaii-crossover-prob` needs the operator it
 configures (`--nsgaii-crossover sbx`). Before running, the CLI also rejects a
 negative `--seed`, a `--n-var` or `--n-obj` below 1, `--n-obj` on a problem
 with a fixed number of objectives, a `--selection-pressure` larger than the
-population, and `--track-genealogy` with an algorithm other than NSGA-II. It
+population a problem runs with (after its `problems.<name>` overrides), and `--track-genealogy` with an algorithm other than NSGA-II. It
 warns about algorithm-specific flags that the selected algorithm ignores.
 
 Config files (YAML/JSON)
