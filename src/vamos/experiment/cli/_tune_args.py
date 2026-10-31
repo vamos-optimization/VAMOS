@@ -1,11 +1,20 @@
 from __future__ import annotations
 
 import argparse
+import logging
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 from ._tune_irace import add_irace_arguments, validate_irace_arguments
+
+# Options of racing's statistical race, which multi-fidelity racing does not use.
+_RACE_OPTION_DEFAULTS: dict[str, Any] = {
+    "alpha": 0.05,
+    "use_statistical_tests": True,
+    "elimination_fraction": 0.25,
+    "min_blocks_before_elimination": 3,
+}
 
 
 def build_parser(
@@ -67,17 +76,36 @@ def build_parser(
         help="Score used when an evaluation fails.",
     )
 
-    parser.add_argument("--multi-fidelity", action=argparse.BooleanOptionalAction, default=True, help="Enable multi-fidelity schedule.")
+    parser.add_argument(
+        "--multi-fidelity",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help=(
+            "Enable the multi-fidelity schedule. Off by default for racing, which then runs its statistical race; "
+            "on by default for the other backends."
+        ),
+    )
     parser.add_argument("--fidelity-levels", type=str, default=None, help="Comma budgets, e.g. 500,1000,1500.")
     parser.add_argument("--fidelity-promotion-ratio", type=float, default=0.3, help="Promotion ratio for racing multi-fidelity.")
     parser.add_argument("--fidelity-min-configs", type=int, default=3, help="Minimum promoted configs per fidelity level.")
     parser.add_argument("--fidelity-warm-start", dest="fidelity_warm_start", action=argparse.BooleanOptionalAction, default=True)
 
     parser.add_argument("--initial-configs", type=int, default=20, help="Initial sampled configs for racing.")
-    parser.add_argument("--elimination-fraction", type=float, default=0.25, help="Racing elimination fraction.")
-    parser.add_argument("--min-blocks-before-elimination", type=int, default=3, help="Racing grace blocks before pruning.")
-    parser.add_argument("--use-statistical-tests", action=argparse.BooleanOptionalAction, default=True)
-    parser.add_argument("--alpha", type=float, default=0.05, help="Significance for racing statistical elimination.")
+    parser.add_argument(
+        "--elimination-fraction", type=float, default=_RACE_OPTION_DEFAULTS["elimination_fraction"], help="Racing elimination fraction."
+    )
+    parser.add_argument(
+        "--min-blocks-before-elimination",
+        type=int,
+        default=_RACE_OPTION_DEFAULTS["min_blocks_before_elimination"],
+        help="Racing grace blocks before pruning.",
+    )
+    parser.add_argument(
+        "--use-statistical-tests", action=argparse.BooleanOptionalAction, default=_RACE_OPTION_DEFAULTS["use_statistical_tests"]
+    )
+    parser.add_argument(
+        "--alpha", type=float, default=_RACE_OPTION_DEFAULTS["alpha"], help="Significance for racing statistical elimination."
+    )
 
     parser.add_argument("--bohb-reduction-factor", type=int, default=3, help="Reduction factor for BOHB/Hyperband-style backends.")
     parser.add_argument("--timeout-seconds", type=float, default=0.0, help="Optional wallclock timeout. 0 disables.")
@@ -161,6 +189,35 @@ def build_parser(
     parser.add_argument("--output-dir", type=Path, default=Path("results") / "tuning")
     parser.add_argument("--name", type=str, default="", help="Optional run name (otherwise auto-generated).")
     return parser
+
+
+def prepare_racing(args: argparse.Namespace, *, n_blocks: int, logger: logging.Logger) -> None:
+    """Resolve ``--multi-fidelity`` for the effective backend and check multi-fidelity racing's budget.
+
+    Racing runs its statistical race unless ``--multi-fidelity`` is given. Multi-fidelity
+    racing evaluates every initial configuration on every training block at its first
+    level, so a level that exceeds ``--tune-budget`` fails here, before any output is
+    written, instead of after evaluating nothing.
+    """
+    if args.multi_fidelity is None:
+        args.multi_fidelity = str(args.backend) != "racing"
+    if str(args.backend) != "racing" or not args.multi_fidelity:
+        return
+    unused = [f"--{name.replace('_', '-')}" for name, default in _RACE_OPTION_DEFAULTS.items() if getattr(args, name) != default]
+    if unused:
+        logger.warning(
+            "Multi-fidelity racing promotes configurations by mean score at each fidelity level; it ignores %s. "
+            "Use --no-multi-fidelity for the statistical race.",
+            ", ".join(unused),
+        )
+    first_level = int(args.initial_configs) * int(n_blocks)
+    if first_level > int(args.tune_budget):
+        raise SystemExit(
+            f"Multi-fidelity racing evaluates {int(args.initial_configs)} configurations on {int(n_blocks)} training "
+            f"instance/seed blocks at its first fidelity level ({first_level} runs), more than --tune-budget "
+            f"{int(args.tune_budget)}. Raise --tune-budget, lower --initial-configs, or drop --multi-fidelity "
+            "for the statistical race."
+        )
 
 
 def parse_args(

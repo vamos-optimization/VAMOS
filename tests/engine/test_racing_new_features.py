@@ -249,3 +249,39 @@ def test_elitist_restarts_keep_eliminating_after_refill(monkeypatch):
     # Configurations spawned by a restart are tested on the same blocks as the elites.
     assert all(len(block_sets) == 1 for _, _, block_sets in stages)
     assert len(evaluations) <= scenario.max_experiments
+
+
+def test_warm_start_never_receives_another_blocks_checkpoint():
+    task = TuningTask(
+        name="w",
+        param_space=ParamSpace(params={"q": Real("q", 0.0, 1.0)}),
+        instances=[Instance("zdt1", 1), Instance("dtlz2", 1)],
+        seeds=[0, 1],
+        budget_per_run=300,
+    )
+    scenario = Scenario(
+        max_experiments=100,
+        use_multi_fidelity=True,
+        fidelity_levels=(100, 300),
+        fidelity_min_configs=1,
+        fidelity_promotion_ratio=1.0,
+        instance_order_random=False,
+        seed_order_random=False,
+        verbose=False,
+    )
+    received = {}
+
+    def eval_fn(config, ctx):
+        block = f"{ctx.instance.name}/seed{ctx.seed}"
+        if ctx.fidelity_level == 0 and block == "zdt1/seed0":
+            raise RuntimeError("run failed")
+        if ctx.fidelity_level == 1:
+            received[block] = (ctx.checkpoint, ctx.previous_budget)
+        return config["q"], f"checkpoint-of-{block}"
+
+    RacingTuner(task, scenario, seed=0, max_initial_configs=1).run(eval_fn)
+
+    # The failed block starts again from scratch; every other block resumes its own run.
+    assert received["zdt1/seed0"] == (None, None)
+    for block in ("zdt1/seed1", "dtlz2/seed0", "dtlz2/seed1"):
+        assert received[block] == (f"checkpoint-of-{block}", 100)
