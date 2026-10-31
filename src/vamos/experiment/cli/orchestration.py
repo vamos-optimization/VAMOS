@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import secrets
 from argparse import Namespace
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from copy import deepcopy
 from typing import TypeVar, cast
 
@@ -44,9 +44,9 @@ def _override_mapping(override: SpecBlock, key: str) -> VariationOverrides | Non
     return cast(VariationOverrides, value) if isinstance(value, dict) else None
 
 
-def _effective_variation(args: Namespace, override: SpecBlock, name: str) -> VariationOverrides:
+def _effective_variation(args: Namespace, override: SpecBlock, name: str) -> Mapping[str, object]:
     """The variation options ``name`` runs with for one problem: CLI and config defaults, then its override."""
-    return merge_variation_overrides(getattr(args, f"{name}_variation", None), _override_mapping(override, name)) or {}
+    return merge_variation_overrides(getattr(args, f"{name}_variation", None), _override_mapping(override, name))
 
 
 def _check_unnamed_operators(args: Namespace, override: SpecBlock, algorithm: object, problem_key: str) -> None:
