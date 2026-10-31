@@ -179,7 +179,8 @@ of those runs consumes its own algorithm budget.
 
 ### Racing has its own fidelity-budget schedule
 
-`racing` is a special case. The CLI enables multi-fidelity racing by default.
+`racing` is a special case. In VAMOS 1.1.0, the CLI enables multi-fidelity
+racing by default; see the note at the end of this section.
 If `--fidelity-levels` is omitted, the current racing schedule is
 **`1000,3000,10000` evaluations**. Those values are passed directly as the
 candidate-run budgets at successive fidelity levels; they are not capped by
@@ -215,6 +216,21 @@ budget schedule while multi-fidelity racing is enabled. `--fidelity-promotion-ra
 and `--fidelity-min-configs` additionally affect how many configurations reach
 each level, so compute estimates should account for the schedule and promotion
 policy together.
+
+**Development after 1.1.0:** `--backend racing` runs the statistical race by
+default, at `--budget` per run, with `--alpha`, `--use-statistical-tests`,
+`--elimination-fraction` and `--min-blocks-before-elimination`; pass
+`--multi-fidelity` for the schedule above. The other backends keep
+`--multi-fidelity` on by default. Multi-fidelity racing is successive halving:
+at each level it keeps the configurations with the best mean score and runs no
+statistical test, so it ignores those four options and warns when one of them
+is set. Its first level evaluates every initial configuration on every training
+instance/seed block; when that exceeds `--tune-budget`, the command now fails
+before writing any output and names the options to change. In VAMOS 1.1.0 it
+wrote the splits and then stopped with `RuntimeError` without evaluating
+anything, as the split-based example below did with `--backend racing`. With
+warm starts, each block now resumes only its own run: a block whose run failed
+starts again from scratch, where it used to receive another block's checkpoint.
 
 ### Model-based backends run one fidelity unless given levels
 
@@ -270,8 +286,8 @@ The current backend families are:
 
 - `random` — built-in random search;
 - `racing` — built-in racing that progressively allocates experiments and can
-  eliminate weak candidates; the CLI enables its multi-fidelity schedule by
-  default;
+  eliminate weak candidates; since the development after 1.1.0, the CLI runs
+  its statistical race unless `--multi-fidelity` is given;
 - `optuna` — current CLI default; requires the tuning extra;
 - `bohb_optuna`, `smac3`, and `bohb` — optional model-based backends from the
   tuning extra;
@@ -456,7 +472,8 @@ The key controls include:
 - `--irace-rscript`, `--irace-instance-seeds`, `--irace-work-dir`,
   `--irace-option`: irace settings; see [The irace backend](#the-irace-backend);
 - `--multi-fidelity` / `--no-multi-fidelity`: enable or disable racing
-  multi-fidelity execution;
+  multi-fidelity execution (off by default for racing since the development
+  after 1.1.0);
 - `--fidelity-levels`: explicit increasing candidate-run budgets for the
   multi-fidelity schedule;
 - `--aggregate-mode`: aggregation across instance/seed scores;

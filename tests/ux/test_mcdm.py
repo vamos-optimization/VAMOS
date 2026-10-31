@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from vamos.ux.analysis.mcdm import (
     knee_point_scores,
@@ -59,4 +60,53 @@ def test_knee_point_scores_2d():
 
     # Assert
     assert result.best_index in {1, 2, 3}
+    assert result.scores[result.best_index] == np.min(result.scores)
+
+
+_CONVEX_FRONT = np.array([[0.0, 1.0], [0.1, 0.5], [0.25, 0.25], [0.5, 0.1], [1.0, 0.0]])
+
+
+def test_knee_point_uses_signed_distance():
+    result = knee_point_scores(_CONVEX_FRONT)
+    assert result.best_point.tolist() == [0.25, 0.25]
+
+    # A dominated point far above the chord is neither the knee nor ranked.
+    with_dominated = np.vstack([_CONVEX_FRONT, [[0.6, 0.99]]])
+    result = knee_point_scores(with_dominated)
+    assert result.best_point.tolist() == [0.25, 0.25]
+    assert result.scores[-1] == np.inf
+    assert result.scores[result.best_index] == np.min(result.scores)
+
+    # On a concave front (ZDT2 shape) every point lies on the far side of the
+    # chord: there is no knee, and the point farthest from the ideal is not chosen.
+    f1 = np.array([0.0, 0.25, 0.5, 0.75, 1.0])
+    concave = np.column_stack([f1, 1.0 - f1**2])
+    with pytest.warns(UserWarning, match="no knee"):
+        result = knee_point_scores(concave)
+    assert result.best_point.tolist() != [0.5, 0.75]
+    assert result.scores[result.best_index] == np.min(result.scores)
+
+
+def test_knee_point_scores_rank_by_signed_distance_to_the_chord():
+    result = knee_point_scores(_CONVEX_FRONT)
+
+    distance = np.array([0.0, 0.4, 0.5, 0.4, 0.0]) / np.sqrt(2.0)
+    np.testing.assert_allclose(result.scores, -distance, atol=1e-12)
+
+
+@pytest.mark.parametrize(
+    "F",
+    [
+        # Linear front, interior point first: every signed distance is 0.
+        [[0.5, 0.5], [0.0, 1.0], [1.0, 0.0]],
+        [[1.0, 0.0], [0.5, 0.5], [0.0, 1.0]],
+        # Concave front with its rows shuffled.
+        [[0.75, 0.4375], [1.0, 0.0], [0.5, 0.75], [0.0, 1.0], [0.25, 0.9375]],
+    ],
+)
+def test_front_without_knee_falls_back_to_the_smallest_f1_extreme(F):
+    with pytest.warns(UserWarning, match="no knee"):
+        result = knee_point_scores(np.asarray(F))
+
+    assert result.best_point.tolist() == [0.0, 1.0]
     assert result.scores[result.best_index] == np.min(result.scores)

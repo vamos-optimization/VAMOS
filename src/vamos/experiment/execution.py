@@ -29,7 +29,7 @@ from vamos.experiment._execution_support import (
 )
 from vamos.experiment.observers.console import ConsoleObserver
 from vamos.experiment.observers.storage import StorageObserver
-from vamos.experiment.runner_abstractions import resolve_evaluator, resolve_termination
+from vamos.experiment.runner_abstractions import EvaluatorSpec, resolve_evaluator, resolve_termination
 from vamos.experiment.runner_utils import run_output_dir, validate_problem
 from vamos.experiment.runtime.catalog import (
     EXPERIMENT_BACKENDS,
@@ -56,6 +56,15 @@ Metrics = dict[str, Any]
 
 def _default_weight_path(problem_name: str, n_obj: int, pop_size: int) -> str:
     return _default_weight_path_impl(problem_name, n_obj, pop_size)
+
+
+def _evaluator_creates_backend(evaluator: Any | None) -> bool:
+    """Whether resolving *evaluator* builds a new backend, which the run then owns and closes."""
+    if evaluator is None or isinstance(evaluator, str):
+        return True
+    if isinstance(evaluator, EvaluatorSpec):
+        return evaluator.backend is None or isinstance(evaluator.backend, str)
+    return False
 
 
 def run_single(
@@ -159,6 +168,7 @@ def run_single(
     main_observer.on_start(ctx)
 
     eval_strategy = resolve_evaluator(evaluator, config)
+    owns_eval_strategy = _evaluator_creates_backend(evaluator)
 
     kernel_backend = getattr(algorithm, "kernel", None)
 
@@ -179,14 +189,20 @@ def run_single(
             )
 
     # 4. Execute
-    exec_result = execute_algorithm(
-        algorithm,
-        problem,
-        termination=termination_spec,
-        seed=config.seed,
-        eval_strategy=eval_strategy,
-        live_viz=LiveVizAdapter(main_observer),
-    )
+    try:
+        exec_result = execute_algorithm(
+            algorithm,
+            problem,
+            termination=termination_spec,
+            seed=config.seed,
+            eval_strategy=eval_strategy,
+            live_viz=LiveVizAdapter(main_observer),
+        )
+    finally:
+        # Release only what resolution built here (for example the Dask client opened for --dask-address). A backend
+        # instance the caller supplies, directly, in an EvaluatorSpec or through its own resolver, stays open.
+        if owns_eval_strategy:
+            eval_strategy.close()
 
     payload = exec_result.payload
     total_time_ms = exec_result.elapsed_ms
@@ -352,6 +368,8 @@ def execute_problem_suite(
     keep_going = failures is not None or len(engines) * len(runnable_algorithms) + len(external_algorithms) > 1
     problem_key = problem_selection.spec.key
     _variations = variations or VariationConfigs.from_namespace(args)
+    # The strategy and worker count come from the (per-problem) config; the Dask scheduler address only from the CLI.
+    evaluator = EvaluatorSpec(dask_address=getattr(args, "dask_address", None))
 
     results: list[Metrics] = []
     for engine in engines:
@@ -375,6 +393,7 @@ def execute_problem_suite(
                     selection_pressure=args.selection_pressure,
                     variations=_variations,
                     hv_stop_config=hv_stop_config if algorithm_name == "nsgaii" else None,
+                    evaluator=evaluator,
                     config_source=config_source,
                     config_spec=config_spec,
                     problem_override=problem_override,

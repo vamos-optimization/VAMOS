@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
@@ -37,11 +38,21 @@ def rank_fronts(fronts: Sequence[FrontRecord], *, method: str, top_k: int, probl
     """Rank the solutions of every front of ``problem`` by ``method``.
 
     Objectives are normalized per front before scoring, so ranks compare the
-    solutions of one front, not solutions of different algorithms.
+    solutions of one front, not solutions of different algorithms. Warnings
+    raised while scoring a front, such as a front without a knee, are reported
+    in ``Ranking.warnings``.
     """
     ranking = Ranking()
     for front in fronts_for(fronts, problem):
-        view = build_decision_view(front, methods=[method])
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", UserWarning)
+            view = build_decision_view(front, methods=[method])
+        label = algorithm_label(front.algorithm_name)
+        for item in caught:
+            if issubclass(item.category, UserWarning):
+                ranking.warnings.append(f"{label}: {item.message}")
+            else:
+                warnings.warn_explicit(item.message, item.category, item.filename, item.lineno)
         try:
             order = rank_by_score(view, method)
         except ValueError:
