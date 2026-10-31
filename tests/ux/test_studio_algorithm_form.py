@@ -136,12 +136,13 @@ def test_default_configuration_runs_with_the_studio_population_size(problem_name
     assert result["F"].shape[1] == problem.n_obj
 
 
-def test_binary_operators_can_replace_a_default_that_does_not_fit_the_encoding() -> None:
+def test_binary_problems_start_from_binary_operators_that_can_be_replaced() -> None:
     problem = make_problem_selection("zdt5").instantiate()
     form = build_algorithm_form("nsgaiii", encoding=problem.encoding, n_var=problem.n_var, n_obj=problem.n_obj, pop_size=100)
     assert form is not None
     crossover = next(parameter for parameter in form.parameters if parameter.name == "crossover")
-    assert crossover.start == VAMOS_DEFAULT_CHOICE
+    # The default configuration follows the encoding, so the form starts from a binary crossover.
+    assert crossover.start == "uniform"
 
     resolved = form.resolve({**form.start_values(), "crossover": "hux", "mutation": "bitflip"})
     result = _run_algorithm(

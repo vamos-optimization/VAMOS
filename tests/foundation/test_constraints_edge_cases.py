@@ -1,10 +1,10 @@
 """
-Edge-case tests for constraint handling utilities and strategies.
+Edge-case tests for the constraint violation helpers.
 
-Covers the behaviour of ``compute_violation``, ``is_feasible``,
-``compute_constraint_info``, and all four constraint-handling strategies
-when the constraint matrix *G* is ``None`` (unconstrained problems) or
-when solutions sit exactly on the constraint boundary.
+Covers the behaviour of ``compute_violation``, ``is_feasible`` and
+``compute_constraint_info`` when the constraint matrix *G* is ``None``
+(unconstrained problems) or when solutions sit exactly on the constraint
+boundary.
 """
 
 from __future__ import annotations
@@ -12,14 +12,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from vamos.foundation.constraints import (
-    ConstraintInfo,
-    CVAsObjectiveStrategy,
-    EpsilonConstraintStrategy,
-    FeasibilityFirstStrategy,
-    PenaltyCVStrategy,
-    compute_constraint_info,
-)
+from vamos.foundation.constraints import ConstraintInfo, compute_constraint_info
 from vamos.foundation.constraints.utils import compute_violation, is_feasible
 
 # ------------------------------------------------------------------ #
@@ -227,110 +220,6 @@ class TestComputeConstraintInfoGNone:
 
 
 # ------------------------------------------------------------------ #
-#  All four strategies with G=None                                    #
-# ------------------------------------------------------------------ #
-
-
-class TestStrategiesWithGNone:
-    """Every strategy.rank(F, G=None) must return only the aggregated
-    objectives, unmodified by any constraint penalty."""
-
-    @pytest.fixture()
-    def F(self) -> np.ndarray:
-        return np.array(
-            [
-                [1.0, 2.0],
-                [0.5, 0.3],
-                [3.0, 4.0],
-            ]
-        )
-
-    def test_feasibility_first_g_none(self, F: np.ndarray):
-        # Arrange
-        strategy = FeasibilityFirstStrategy(objective_aggregator="sum")
-        expected = np.sum(F, axis=1)
-
-        # Act
-        scores = strategy.rank(F, G=None)
-
-        # Assert
-        np.testing.assert_array_almost_equal(scores, expected)
-
-    def test_penalty_cv_g_none(self, F: np.ndarray):
-        # Arrange
-        strategy = PenaltyCVStrategy(penalty_lambda=1e6, objective_aggregator="sum")
-        expected = np.sum(F, axis=1)
-
-        # Act
-        scores = strategy.rank(F, G=None)
-
-        # Assert
-        np.testing.assert_array_almost_equal(scores, expected)
-
-    def test_cv_as_objective_g_none(self, F: np.ndarray):
-        # Arrange
-        strategy = CVAsObjectiveStrategy(objective_aggregator="sum")
-        expected = np.sum(F, axis=1)
-
-        # Act
-        scores = strategy.rank(F, G=None)
-
-        # Assert
-        np.testing.assert_array_almost_equal(scores, expected)
-
-    def test_epsilon_constraint_g_none(self, F: np.ndarray):
-        # Arrange
-        strategy = EpsilonConstraintStrategy(epsilon=0.5, objective_aggregator="sum")
-        expected = np.sum(F, axis=1)
-
-        # Act
-        scores = strategy.rank(F, G=None)
-
-        # Assert
-        np.testing.assert_array_almost_equal(scores, expected)
-
-    def test_all_strategies_consistent_with_g_none(self, F: np.ndarray):
-        """All strategies must produce the same ranking when unconstrained."""
-        # Arrange
-        strategies = [
-            FeasibilityFirstStrategy(objective_aggregator="sum"),
-            PenaltyCVStrategy(penalty_lambda=500.0, objective_aggregator="sum"),
-            CVAsObjectiveStrategy(objective_aggregator="sum"),
-            EpsilonConstraintStrategy(epsilon=0.0, objective_aggregator="sum"),
-        ]
-
-        # Act
-        rankings = [np.argsort(s.rank(F, G=None)) for s in strategies]
-
-        # Assert -- all orderings must be identical
-        for ranking in rankings[1:]:
-            np.testing.assert_array_equal(rankings[0], ranking)
-
-    def test_max_aggregator_g_none(self, F: np.ndarray):
-        """Ensure the 'max' aggregator works with G=None as well."""
-        # Arrange
-        strategy = FeasibilityFirstStrategy(objective_aggregator="max")
-        expected = np.max(F, axis=1)
-
-        # Act
-        scores = strategy.rank(F, G=None)
-
-        # Assert
-        np.testing.assert_array_almost_equal(scores, expected)
-
-    def test_none_aggregator_g_none(self, F: np.ndarray):
-        """The 'none' aggregator should return zeros when unconstrained."""
-        # Arrange
-        strategy = PenaltyCVStrategy(penalty_lambda=1.0, objective_aggregator="none")
-
-        # Act
-        scores = strategy.rank(F, G=None)
-
-        # Assert
-        np.testing.assert_array_equal(scores, np.zeros(F.shape[0]))
-
-
-# ------------------------------------------------------------------ #
 #  Constraint boundary: solutions exactly at g(x) = 0                 #
 # ------------------------------------------------------------------ #
 
@@ -407,53 +296,3 @@ class TestConstraintBoundary:
         # Assert
         np.testing.assert_array_equal(cv, np.zeros(3))
         assert feas.all()
-
-    def test_feasibility_first_boundary_uses_objective(self):
-        """When all solutions are on the boundary (feasible), ranking
-        should be determined purely by objective aggregation."""
-        # Arrange
-        F = np.array([[3.0], [1.0], [2.0]])
-        G = np.array([[0.0], [0.0], [0.0]])
-        strategy = FeasibilityFirstStrategy(objective_aggregator="sum")
-
-        # Act
-        scores = strategy.rank(F, G)
-        order = np.argsort(scores)
-
-        # Assert -- ranked by objective: 1.0 < 2.0 < 3.0
-        np.testing.assert_array_equal(order, [1, 2, 0])
-
-    def test_penalty_cv_boundary_matches_unconstrained(self):
-        """On the boundary, PenaltyCVStrategy should produce the same
-        scores as the unconstrained (G=None) case."""
-        # Arrange
-        F = np.array([[1.0, 2.0], [3.0, 4.0]])
-        G_boundary = np.array([[0.0], [0.0]])
-        strategy = PenaltyCVStrategy(penalty_lambda=1e6, objective_aggregator="sum")
-
-        # Act
-        scores_boundary = strategy.rank(F, G_boundary)
-        scores_none = strategy.rank(F, G=None)
-
-        # Assert
-        np.testing.assert_array_almost_equal(scores_boundary, scores_none)
-
-    def test_epsilon_strategy_boundary_within_epsilon(self):
-        """Slightly positive g(x) values should be feasible if within
-        the epsilon tolerance."""
-        # Arrange
-        F = np.array([[1.0], [2.0], [3.0]])
-        G = np.array([[0.05], [0.1], [0.15]])
-        strategy = EpsilonConstraintStrategy(epsilon=0.1, objective_aggregator="sum")
-
-        # Act
-        scores = strategy.rank(F, G)
-        info = compute_constraint_info(G, eps=0.1)
-
-        # Assert -- first two within epsilon, third is not
-        assert info.feasible_mask[0] is np.bool_(True)
-        assert info.feasible_mask[1] is np.bool_(True)
-        assert info.feasible_mask[2] is np.bool_(False)
-        # Feasible solutions ranked by objective; infeasible penalised
-        assert scores[0] < scores[1]
-        assert scores[2] > scores[1]

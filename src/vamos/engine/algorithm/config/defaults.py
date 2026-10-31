@@ -4,12 +4,8 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Callable
-from math import comb
-
-from vamos.foundation.encoding import normalize_encoding
 
 from .agemoea import AGEMOEAConfig
-from .base import _default_operators_for_encoding
 from .ibea import IBEAConfig
 from .moead import MOEADConfig
 from .nsgaii import NSGAIIConfig
@@ -22,130 +18,16 @@ from .types import AlgorithmConfigProtocol
 
 DefaultConfigBuilder = Callable[[int | None, int | None, int | None, str | None], AlgorithmConfigProtocol]
 
-
-def _mutation_prob(n_var: int | None) -> float:
-    return 1.0 / n_var if n_var else 0.1
-
-
-def _call_default(default_fn: Callable[..., AlgorithmConfigProtocol], **kwargs: int | str | None) -> AlgorithmConfigProtocol:
-    accepted = inspect.signature(default_fn).parameters
-    return default_fn(**{key: value for key, value in kwargs.items() if key in accepted})
-
-
-def _nsgaii_default(
-    pop_size: int | None,
-    n_var: int | None,
-    _n_obj: int | None,
-    encoding: str | None,
-) -> AlgorithmConfigProtocol:
-    return _call_default(NSGAIIConfig.default, pop_size=pop_size, n_var=n_var, encoding=encoding)
-
-
-def _moead_default(
-    pop_size: int | None,
-    n_var: int | None,
-    n_obj: int | None,
-    encoding: str | None,
-) -> AlgorithmConfigProtocol:
-    n_obj_value = 3 if n_obj is None else n_obj
-    normalized = normalize_encoding(encoding, default="real")
-    if normalized == "real":
-        return _call_default(MOEADConfig.default, pop_size=pop_size, n_var=n_var, n_obj=n_obj_value)
-
-    cx, mt = _default_operators_for_encoding(normalized, _mutation_prob(n_var))
-    if n_obj_value == 2:
-        divisions = max(1, int(pop_size) - 1) if pop_size is not None else 99
-    else:
-        divisions = 12 if n_obj_value == 3 else 6
-    default_pop_size = comb(divisions + n_obj_value - 1, n_obj_value - 1)
-
-    builder = MOEADConfig.builder()
-    builder.pop_size(default_pop_size if pop_size is None else pop_size)
-    builder.neighbor_size(20)
-    builder.delta(0.9)
-    builder.replace_limit(2)
-    builder.crossover(cx[0], **cx[1])
-    builder.mutation(mt[0], **mt[1])
-    builder.aggregation("pbi", theta=5.0)
-    builder.weight_vectors(divisions=divisions)
-    return builder.build()
-
-
-def _smsemoa_default(
-    pop_size: int | None,
-    n_var: int | None,
-    _n_obj: int | None,
-    encoding: str | None,
-) -> AlgorithmConfigProtocol:
-    return _call_default(SMSEMOAConfig.default, pop_size=pop_size, n_var=n_var)
-
-
-def _nsgaiii_default(
-    pop_size: int | None,
-    n_var: int | None,
-    n_obj: int | None,
-    encoding: str | None,
-) -> AlgorithmConfigProtocol:
-    n_obj_value = 3 if n_obj is None else n_obj
-    return _call_default(NSGAIIIConfig.default, pop_size=pop_size, n_var=n_var, n_obj=n_obj_value)
-
-
-def _spea2_default(
-    pop_size: int | None,
-    n_var: int | None,
-    _n_obj: int | None,
-    encoding: str | None,
-) -> AlgorithmConfigProtocol:
-    return _call_default(SPEA2Config.default, pop_size=100 if pop_size is None else pop_size, n_var=n_var)
-
-
-def _ibea_default(
-    pop_size: int | None,
-    n_var: int | None,
-    _n_obj: int | None,
-    encoding: str | None,
-) -> AlgorithmConfigProtocol:
-    return _call_default(IBEAConfig.default, pop_size=100 if pop_size is None else pop_size, n_var=n_var)
-
-
-def _smpso_default(
-    pop_size: int | None,
-    n_var: int | None,
-    _n_obj: int | None,
-    encoding: str | None,
-) -> AlgorithmConfigProtocol:
-    return _call_default(SMPSOConfig.default, pop_size=100 if pop_size is None else pop_size, n_var=n_var)
-
-
-def _agemoea_default(
-    pop_size: int | None,
-    n_var: int | None,
-    _n_obj: int | None,
-    encoding: str | None,
-) -> AlgorithmConfigProtocol:
-    return _call_default(AGEMOEAConfig.default, pop_size=100 if pop_size is None else pop_size, n_var=n_var)
-
-
-def _rvea_default(
-    pop_size: int | None,
-    n_var: int | None,
-    n_obj: int | None,
-    encoding: str | None,
-) -> AlgorithmConfigProtocol:
-    n_obj_value = 3 if n_obj is None else n_obj
-    return _call_default(RVEAConfig.default, pop_size=pop_size, n_var=n_var, n_obj=n_obj_value)
-
-
-_DEFAULT_BUILDERS: dict[str, DefaultConfigBuilder] = {
-    "nsgaii": _nsgaii_default,
-    "moead": _moead_default,
-    "smsemoa": _smsemoa_default,
-    "nsgaiii": _nsgaiii_default,
-    "spea2": _spea2_default,
-    "ibea": _ibea_default,
-    "smpso": _smpso_default,
-    "agemoea": _agemoea_default,
-    "rvea": _rvea_default,
+_DEFAULT_FACTORIES: dict[str, Callable[..., AlgorithmConfigProtocol]] = {
+    "nsgaii": NSGAIIConfig.default,
+    "moead": MOEADConfig.default,
+    "smsemoa": SMSEMOAConfig.default,
+    "nsgaiii": NSGAIIIConfig.default,
+    "spea2": SPEA2Config.default,
+    "ibea": IBEAConfig.default,
+    "smpso": SMPSOConfig.default,
+    "agemoea": AGEMOEAConfig.default,
+    "rvea": RVEAConfig.default,
 }
 
 
@@ -157,10 +39,20 @@ def build_default_algorithm_config(
     n_obj: int | None,
     encoding: str | None = None,
 ) -> AlgorithmConfigProtocol | None:
-    builder = _DEFAULT_BUILDERS.get(algorithm.lower())
-    if builder is None:
+    """The ``default()`` configuration of a built-in algorithm for a problem.
+
+    ``pop_size=None`` leaves the size to the algorithm: 100, or the size of its
+    reference lattice for MOEA/D, NSGA-III and RVEA. ``n_obj`` (3 when unknown)
+    reaches the algorithms that use it, and ``encoding`` selects the operators of
+    discrete and mixed problems. Returns ``None`` for an algorithm that is not
+    built in.
+    """
+    factory = _DEFAULT_FACTORIES.get(algorithm.lower())
+    if factory is None:
         return None
-    return builder(pop_size, n_var, n_obj, encoding)
+    arguments = {"pop_size": pop_size, "n_var": n_var, "n_obj": 3 if n_obj is None else n_obj, "encoding": encoding}
+    accepted = inspect.signature(factory).parameters
+    return factory(**{name: value for name, value in arguments.items() if name in accepted})
 
 
 __all__ = ["build_default_algorithm_config", "DefaultConfigBuilder"]

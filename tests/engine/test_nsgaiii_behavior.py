@@ -249,3 +249,24 @@ def test_nsgaiii_and_rvea_two_objective_defaults(algorithm: str) -> None:
     assert explicit.meta["run_artifact_resolved_spec"]["population"]["initial_size"] == 100
     if algorithm == "nsgaiii":
         assert explicit.data["reference_directions"].shape == (100, 2)
+
+
+def test_nsgaiii_default_derives_divisions_from_pop_size() -> None:
+    # Five objectives: the fixed 6 divisions give 210 directions, more than 100 individuals.
+    result = optimize("dtlz2", n_obj=5, algorithm="nsgaiii", pop_size=100, max_evaluations=200, seed=1, engine="numpy")
+
+    assert result.data["reference_directions"].shape == (comb(4 + 4, 4), 5)
+    assert NSGAIIIConfig.default(pop_size=100, n_obj=5).reference_directions["divisions"] == 4
+    assert NSGAIIIConfig.default(pop_size=91, n_obj=3).reference_directions["divisions"] == 12
+    assert NSGAIIIConfig.default(n_obj=3).pop_size == 91
+
+
+def test_rvea_default_derives_partitions_or_names_valid_populations() -> None:
+    from vamos.engine.algorithm.config import RVEAConfig
+    from vamos.foundation.exceptions import ConfigurationError
+
+    assert RVEAConfig.default(pop_size=91, n_obj=3).n_partitions == 12
+    assert RVEAConfig.default(pop_size=105, n_obj=3).n_partitions == 13
+    assert RVEAConfig.default(n_obj=3).pop_size == 91
+    with pytest.raises(ConfigurationError, match=r"(?s)one individual per reference vector.*91.*105"):
+        RVEAConfig.default(pop_size=100, n_obj=3)

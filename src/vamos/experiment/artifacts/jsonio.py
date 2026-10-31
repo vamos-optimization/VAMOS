@@ -6,7 +6,7 @@ import hashlib
 import json
 import math
 import unicodedata
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -123,6 +123,23 @@ def load_json_file(
     max_depth: int,
 ) -> dict[str, Any]:
     """Read JSON with byte/depth limits, duplicate rejection, and no constants."""
+    value, _ = read_json_file(path, operation=operation, artifact_role=artifact_role, max_bytes=max_bytes, max_depth=max_depth)
+    return value
+
+
+def read_json_file(
+    path: Path,
+    *,
+    operation: str,
+    artifact_role: str,
+    max_bytes: int,
+    max_depth: int,
+    read_bytes: Callable[[Path], bytes] | None = None,
+) -> tuple[dict[str, Any], bytes]:
+    """Like :func:`load_json_file`, also returning the exact bytes parsed, from a single read.
+
+    ``read_bytes`` replaces ``Path.read_bytes`` for that one read.
+    """
     try:
         observed_bytes = path.stat().st_size
     except OSError as exc:
@@ -146,7 +163,7 @@ def load_json_file(
             action="Inspect the source and pass explicit trusted LoadLimits only if this size is expected.",
         )
     try:
-        payload = path.read_bytes()
+        payload = path.read_bytes() if read_bytes is None else read_bytes(path)
     except OSError as exc:
         raise ManifestValidationError(
             operation=operation,
@@ -245,7 +262,7 @@ def load_json_file(
             path=path,
             action="Inspect the source and pass explicit trusted LoadLimits only if this nesting is expected.",
         )
-    return value
+    return value, payload
 
 
 def _json_depth(value: Any) -> int:
@@ -266,6 +283,7 @@ __all__ = [
     "load_json_file",
     "manifest_self_hash",
     "normalize_json",
+    "read_json_file",
     "sha256_bytes",
     "sha256_file",
     "stored_json_bytes",

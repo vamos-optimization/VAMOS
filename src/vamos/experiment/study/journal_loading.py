@@ -14,6 +14,7 @@ from .models import StudyEvent, StudyManifest
 from .paths import confined_study_path
 from .record_decoding import decode_event
 from .record_loading import ReadDocument
+from .writing import is_writer_temporary
 
 _EVENT_FILE_PATTERN = r"(\d{20})\.json"
 
@@ -27,7 +28,8 @@ def load_event_journal(
     """Load the complete journal, including valid events newer than checkpoints."""
     directory = confined_study_path(root, "events", role="events", must_exist=True)
     try:
-        names = {entry.name for entry in directory.iterdir()}
+        # A writer temporary is in flight or orphaned by a dead writer, never an event.
+        names = {entry.name for entry in directory.iterdir() if not is_writer_temporary(entry.name)}
     except OSError as exc:
         _integrity("UNREADABLE_DOCUMENT_DIRECTORY", "events", "readable event directory", type(exc).__name__, cause=exc)
     parsed: dict[int, str] = {}

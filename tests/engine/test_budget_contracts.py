@@ -256,17 +256,12 @@ def test_nsgaiii_accepts_n_at_least_h_and_rvea_rejects_incompatible_pop_size() -
     assert larger.data["reference_directions"].shape == (91, 3)
     assert larger.meta["run_artifact_resolved_spec"]["population"]["initial_size"] == 100
 
-    with pytest.raises(ValueError, match="pop_size"):
-        optimize(
-            problem,
-            algorithm="nsgaiii",
-            max_evaluations=100,
-            pop_size=90,
-            seed=1,
-            engine="numpy",
-        )
+    # Below 91, the default divisions follow the population: the largest lattice that fits (78 directions).
+    smaller = optimize(problem, algorithm="nsgaiii", max_evaluations=100, pop_size=90, seed=1, engine="numpy")
+    assert smaller.data["reference_directions"].shape == (78, 3)
+    assert smaller.meta["run_artifact_resolved_spec"]["population"]["initial_size"] == 90
 
-    with pytest.raises(ValueError, match="RVEA requires pop_size"):
+    with pytest.raises(ValueError, match="no Das-Dennis lattice for n_obj=3 has 100 vectors"):
         optimize(
             problem,
             algorithm="rvea",

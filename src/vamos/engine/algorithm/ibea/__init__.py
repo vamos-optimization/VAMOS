@@ -18,7 +18,6 @@ from vamos.engine.operators.policies.ibea import build_variation_pipeline
 
 from .helpers import (
     apply_constraint_penalty,
-    combine_constraints,
     compute_indicator_matrix,
     environmental_selection,
     epsilon_indicator,
@@ -33,7 +32,6 @@ __all__ = [
     "IBEA",
     # Helpers
     "apply_constraint_penalty",
-    "combine_constraints",
     "compute_indicator_matrix",
     "environmental_selection",
     "epsilon_indicator",

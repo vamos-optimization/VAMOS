@@ -22,6 +22,8 @@ from vamos.algorithms import (
 )
 from vamos.engine.algorithm.ibea.helpers import environmental_selection
 from vamos.engine.algorithm.nsgaiii.helpers import nsgaiii_survival
+from vamos.engine.algorithm.registry import resolve_algorithm
+from vamos.foundation.eval.backends import SerialEvalBackend
 from vamos.foundation.kernel.registry import resolve_kernel
 
 CONFIG_CLASSES: dict[str, Any] = {
@@ -260,3 +262,91 @@ def test_non_dominated_result_mode_has_no_dominated_rows(name: str, problem_name
     if G is not None and np.all(np.asarray(G) <= 0.0, axis=1).any():
         assert np.all(np.asarray(G) <= 0.0)
     assert _dominated_rows(F) == 0, f"{_dominated_rows(F)} of {F.shape[0]} result rows are dominated"
+
+
+# ---- ask/tell input -----------------------------------------------------------
+
+TELL_ALGORITHMS = ("agemoea", "ibea", "nsgaii", "rvea", "smpso", "spea2")
+
+
+def _started(name: str, constraint_mode: str = "feasibility") -> tuple[Any, Any]:
+    """An initialized algorithm on C2-DTLZ2 (one constraint) and its problem."""
+    problem = vamos.make_problem_selection("c2dtlz2", n_var=12, n_obj=3).instantiate()
+    cls = CONFIG_CLASSES[name]
+    config = cls.default(n_var=12, n_obj=3) if name in REFERENCE_DIRECTION_ALGORITHMS else cls.default(pop_size=20, n_var=12)
+    config = dataclasses.replace(config, constraint_mode=constraint_mode)
+    algorithm = resolve_algorithm(name)(config.to_dict(), resolve_kernel("numpy"))
+    termination = ("max_evaluations", 20 * int(config.to_dict()["pop_size"]))
+    if hasattr(algorithm, "initialize"):
+        algorithm.initialize(problem, termination, seed=1)
+    else:
+        algorithm._initialize_run(problem, termination, 1, None, None)
+    return algorithm, problem
+
+
+def _state_counters(algorithm: Any) -> tuple[int, Any]:
+    st = algorithm._st
+    return int(st.n_eval), None if st.pending_offspring is None else st.pending_offspring.copy()
+
+
+@pytest.mark.parametrize("name", TELL_ALGORITHMS)
+def test_tell_without_G_on_a_constrained_problem_fails_clearly(name: str) -> None:
+    algorithm, problem = _started(name)
+    X = algorithm.ask()
+    evaluated = SerialEvalBackend().evaluate(X, problem)
+    before = _state_counters(algorithm)
+
+    with pytest.raises(ValueError, match="constraint values G"):
+        algorithm.tell(np.asarray(evaluated.F))
+
+    after = _state_counters(algorithm)
+    assert after[0] == before[0]
+    np.testing.assert_array_equal(after[1], before[1])
+    algorithm.tell(evaluated)
+
+
+@pytest.mark.parametrize("name", TELL_ALGORITHMS)
+def test_tell_ignores_G_when_constraint_handling_is_off(name: str) -> None:
+    algorithm, problem = _started(name, constraint_mode="none")
+    X = algorithm.ask()
+    evaluated = SerialEvalBackend().evaluate(X, problem)
+    assert evaluated.G is not None
+
+    algorithm.tell(evaluated)
+    algorithm.ask()  # the state stays usable
+
+
+@pytest.mark.parametrize("bad_rows", [-1, 1])
+@pytest.mark.parametrize("name", TELL_ALGORITHMS)
+def test_tell_rejects_bad_shapes_without_advancing(name: str, bad_rows: int) -> None:
+    algorithm, problem = _started(name)
+    X = algorithm.ask()
+    evaluated = SerialEvalBackend().evaluate(X, problem)
+    before = _state_counters(algorithm)
+    if bad_rows < 0:
+        bad = {"F": evaluated.F[:-1], "G": evaluated.G[:-1]}
+    else:
+        bad = {"F": np.vstack([evaluated.F, evaluated.F[:1]]), "G": np.vstack([evaluated.G, evaluated.G[:1]])}
+
+    with pytest.raises(ValueError, match="rows"):
+        algorithm.tell(bad)
+
+    after = _state_counters(algorithm)
+    assert after[0] == before[0]
+    np.testing.assert_array_equal(after[1], before[1])
+    algorithm.tell({"F": evaluated.F, "G": evaluated.G})
+
+
+@pytest.mark.parametrize("payload", ["array", "dict"])
+def test_nsgaii_tell_accepts_arrays_and_dicts(payload: str) -> None:
+    problem = vamos.make_problem_selection("zdt1", n_var=6).instantiate()
+    config = NSGAIIConfig.default(pop_size=10, n_var=6)
+    algorithm = resolve_algorithm("nsgaii")(config.to_dict(), resolve_kernel("numpy"))
+    algorithm._initialize_run(problem, ("max_evaluations", 40), 1, None, None)
+    X = algorithm.ask()
+    F = SerialEvalBackend().evaluate(X, problem).F
+
+    algorithm.tell(np.asarray(F) if payload == "array" else {"F": F})
+
+    assert algorithm._st.n_eval == 20
+    assert algorithm._st.pending_offspring is None

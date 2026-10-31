@@ -21,10 +21,12 @@ from .failure_policy import complete_running, pause_after_task_failure, pause_wi
 from .loading import load_study
 from .models import AttemptRecord, AttemptReference, PlanTask, Study, TaskRecord
 from .serialization import stored_document_bytes
+from .writing import remove_writer_temporaries
 
 
 def reconcile_study(snapshot: Study) -> Study:
     """Write only proven checkpoint/outcome corrections; loading stays inert."""
+    _remove_orphaned_temporaries(snapshot)
     current = _refresh_lagging_checkpoints(snapshot)
     if current.status != "running":
         return current
@@ -45,6 +47,20 @@ def reconcile_study(snapshot: Study) -> Study:
         _reconcile_attempt(current, attempt)
         current = _refresh_lagging_checkpoints(load_study(current.root))
     return _settle_reconciled_execution(current, trigger_task_id=trigger_task_id)
+
+
+def _remove_orphaned_temporaries(study: Study) -> None:
+    """Delete the temporaries a writer that died before its replace left behind.
+
+    They never hold published state and loading already ignores them; the reconciling
+    process is the single owner of the study, so none of them is in flight.
+    """
+    directories = [study.root, study.root / "events"]
+    for plan_task in study.plan.tasks:
+        task_directory = study.root / "tasks" / plan_task.task_id.removeprefix("sha256:")
+        directories.extend((task_directory, task_directory / "attempts"))
+    for directory in directories:
+        remove_writer_temporaries(directory)
 
 
 def _ensure_running_attempt(study: Study, attempt: AttemptRecord) -> tuple[Study, AttemptRecord]:

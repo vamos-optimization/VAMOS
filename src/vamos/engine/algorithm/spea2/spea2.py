@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
+from vamos.engine.algorithm.components.evaluation import combine_constraints, extract_evaluation_arrays
 from vamos.engine.algorithm.components.hooks import (
     finalize_genealogy,
     live_should_stop,
@@ -124,8 +125,8 @@ class SPEA2:
     >>> spea2.initialize(problem, ("max_evaluations", 10000), seed=42)
     >>> while not spea2.should_terminate():
     ...     X_off = spea2.ask()
-    ...     F_off = problem.evaluate(X_off)
-    ...     spea2.tell(EvalResult(F=F_off, G=None))
+    ...     F_off, G_off = evaluate(X_off)
+    ...     spea2.tell({"F": F_off, "G": G_off})  # G is required for constrained problems
     >>> result = spea2.result()
     """
 
@@ -341,18 +342,16 @@ class SPEA2:
         if st.env_X is None or st.env_F is None:
             raise RuntimeError("SPEA2 internal archive is not initialized.")
 
-        # Extract F and G from result
-        if hasattr(eval_result, "F"):
-            F = eval_result.F
-            G = getattr(eval_result, "G", None)
-        elif isinstance(eval_result, dict):
-            F = eval_result.get("F")
-            G = eval_result.get("G")
-        else:
-            F = eval_result
-            G = None
-        if st.constraint_mode == "none":
-            G = None  # The archive carries no constraint values in this mode.
+        # Validate F and G before any state changes; the archive carries no G with constraint_mode="none".
+        active_n_constraints = st.env_G.shape[1] if st.env_G is not None and st.constraint_mode != "none" else 0
+        F, G = extract_evaluation_arrays(
+            eval_result,
+            st.constraint_mode,
+            active_n_constraints,
+            algorithm="SPEA2",
+            n_rows=offspring_X.shape[0],
+            n_obj=st.env_F.shape[1],
+        )
 
         # Update evaluation count
         st.n_eval += len(F)
@@ -360,16 +359,7 @@ class SPEA2:
         # Combine archive and offspring for environmental selection
         X_union = np.vstack([st.env_X, offspring_X])
         F_union = np.vstack([st.env_F, F])
-
-        if G is not None:
-            if st.env_G is not None:
-                G_union = np.vstack([st.env_G, G])
-            else:
-                G_union = G
-        elif st.env_G is not None:
-            G_union = np.vstack([st.env_G, np.zeros((len(F), st.env_G.shape[1]))])
-        else:
-            G_union = None
+        G_union = combine_constraints(st.env_G, G, st.constraint_mode, algorithm="SPEA2")
 
         # Environmental selection; mating uses the fitness each survivor had in the union.
         st.env_X, st.env_F, st.env_G, st.selection_raw_fitness, st.selection_density = environmental_selection(

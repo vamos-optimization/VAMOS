@@ -7,15 +7,20 @@ from math import comb
 from typing import Any
 
 from vamos.engine.archive import ExternalArchiveConfig
+from vamos.engine.reference_directions import lattice_size
+from vamos.foundation.encoding import EncodingLike
 from vamos.foundation.exceptions import ConfigurationError
 
 from .base import (
     ConstraintModeStr,
+    ReferenceDirectionPopulationError,
     ResultMode,
     _ConfigBuilderState,
     _ConstraintModeBuilder,
     _CrossoverBuilder,
+    _encoding_operators,
     _InitializerBuilder,
+    _lattice_divisions_within,
     _MutationBuilder,
     _MutationProbFactorBuilder,
     _PopSizeBuilder,
@@ -86,28 +91,41 @@ class RVEAConfig(_SerializableConfig):
         pop_size: int | None = None,
         n_var: int | None = None,
         n_obj: int = 3,
+        encoding: EncodingLike | None = None,
     ) -> RVEAConfig:
         """Create a default RVEA configuration.
 
-        ``n_partitions`` is 12 for three objectives, 6 for four or more, and with
-        two objectives ``pop_size - 1`` (one reference vector per individual), or
-        99 without ``pop_size``.
+        RVEA needs one individual per reference vector. With ``pop_size``,
+        ``n_partitions`` is the Das-Dennis lattice of exactly that size, and a size
+        that matches no lattice raises :class:`~vamos.exceptions.ConfigurationError`
+        naming the nearest valid ones. Without it, ``n_partitions`` is 99 for two
+        objectives, 12 for three and 6 for four or more. Discrete and mixed
+        ``encoding`` values take their crossover and mutation from the shared
+        encoding table.
         """
         mut_prob = 1.0 / n_var if n_var else 0.1
-        if n_obj == 2:
-            n_partitions = 99 if pop_size is None else max(1, int(pop_size) - 1)
-        else:
-            n_partitions = 12 if n_obj == 3 else 6
         if pop_size is None:
-            pop_size = comb(n_partitions + n_obj - 1, n_obj - 1)
+            n_partitions = 99 if n_obj == 2 else (12 if n_obj == 3 else 6)
+            pop_size = lattice_size(n_obj, n_partitions)
+        else:
+            n_partitions = _lattice_divisions_within(pop_size, n_obj, algorithm="RVEA")
+            if lattice_size(n_obj, n_partitions) != pop_size:
+                raise ReferenceDirectionPopulationError(
+                    f"RVEA needs one individual per reference vector, and no Das-Dennis lattice for n_obj={n_obj} "
+                    f"has {pop_size} vectors. Use pop_size={lattice_size(n_obj, n_partitions)} ({n_partitions} partitions) "
+                    f"or pop_size={lattice_size(n_obj, n_partitions + 1)} ({n_partitions + 1} partitions)."
+                )
+        crossover, mutation = _encoding_operators(
+            encoding, mut_prob, real=(("sbx", {"prob": 1.0, "eta": 30.0}), ("pm", {"prob": mut_prob, "eta": 20.0}))
+        )
         return (
             cls.builder()
             .pop_size(pop_size)
             .n_partitions(n_partitions)
             .alpha(2.0)
             .adapt_freq(0.1)
-            .crossover("sbx", prob=1.0, eta=30.0)
-            .mutation("pm", prob=mut_prob, eta=20.0)
+            .crossover(crossover[0], **crossover[1])
+            .mutation(mutation[0], **mutation[1])
             .build()
         )
 

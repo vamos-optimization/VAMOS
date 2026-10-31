@@ -6,13 +6,16 @@ from dataclasses import dataclass
 from typing import Any
 
 from vamos.engine.archive import ExternalArchiveConfig
+from vamos.foundation.encoding import EncodingLike
 
 from .base import (
+    DEFAULT_POP_SIZE,
     ConstraintModeStr,
     ResultMode,
     _build_external_archive_config,
     _ConfigBuilderState,
     _ConstraintModeBuilder,
+    _encoding_operators,
     _InitializerBuilder,
     _MutationBuilder,
     _PopSizeBuilder,
@@ -45,12 +48,19 @@ class SMPSOConfig(_SerializableConfig):
     @classmethod
     def default(
         cls,
-        pop_size: int = 100,
+        pop_size: int | None = None,
         n_var: int | None = None,
+        encoding: EncodingLike | None = None,
     ) -> SMPSOConfig:
-        """Create a default SMPSO configuration."""
+        """Create a default SMPSO configuration.
+
+        ``pop_size=None`` means 100. A mixed ``encoding`` takes its mutation from
+        the shared encoding table; SMPSO supports real and mixed encodings.
+        """
         mut_prob = 1.0 / n_var if n_var else 0.1
-        return cls.builder().pop_size(pop_size).archive_size(pop_size).mutation("polynomial", prob=mut_prob, eta=20.0).build()
+        size = DEFAULT_POP_SIZE if pop_size is None else pop_size
+        _, mutation = _encoding_operators(encoding, mut_prob, real=(("sbx", {}), ("polynomial", {"prob": mut_prob, "eta": 20.0})))
+        return cls.builder().pop_size(size).archive_size(size).mutation(mutation[0], **mutation[1]).build()
 
     @classmethod
     def builder(cls) -> _SMPSOConfigBuilder:

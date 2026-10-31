@@ -392,30 +392,6 @@ def indicator_selection(
     return X[selected], F[selected], G[selected] if G is not None else None, fitness[selected]
 
 
-def combine_constraints(G: np.ndarray[Any, Any] | None, G_off: np.ndarray[Any, Any] | None) -> np.ndarray[Any, Any] | None:
-    """Combine parent and offspring constraints.
-
-    Parameters
-    ----------
-    G : np.ndarray[Any, Any] | None
-        Parent constraints.
-    G_off : np.ndarray[Any, Any] | None
-        Offspring constraints.
-
-    Returns
-    -------
-    np.ndarray[Any, Any] | None
-        Combined constraints.
-    """
-    if G is None and G_off is None:
-        return None
-    if G is None:
-        return G_off
-    if G_off is None:
-        return G
-    return np.vstack([G, G_off])
-
-
 __all__ = [
     "epsilon_indicator",
     "hypervolume_indicator",
@@ -424,5 +400,4 @@ __all__ = [
     "apply_constraint_penalty",
     "environmental_selection",
     "indicator_selection",
-    "combine_constraints",
 ]
