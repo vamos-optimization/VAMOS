@@ -13,8 +13,8 @@ from typing import Any, NoReturn
 from vamos.experiment.artifacts.errors import ArtifactResourceLimitError, DuplicateJSONKeyError, RunArtifactError
 from vamos.experiment.artifacts.jsonio import (
     canonical_json_bytes,
-    load_json_file,
     normalize_json,
+    read_json_file,
     sha256_bytes,
     stored_json_bytes,
 )
@@ -80,9 +80,22 @@ def stored_document_bytes(value: Mapping[str, Any]) -> bytes:
 
 def load_json(path: Path, *, operation: str, role: str, max_bytes: int, max_depth: int) -> dict[str, Any]:
     """Load bounded JSON and translate shared parser failures to study errors."""
+    value, _ = read_json(path, operation=operation, role=role, max_bytes=max_bytes, max_depth=max_depth)
+    return value
+
+
+def read_json(path: Path, *, operation: str, role: str, max_bytes: int, max_depth: int) -> tuple[dict[str, Any], bytes]:
+    """Like :func:`load_json`, also returning the exact bytes parsed, from a single read.
+
+    Callers that check canonical bytes must not read the file again: a concurrent writer
+    may have replaced it in between.
+    """
+    from .writing import read_bytes_shared
+
     try:
-        return load_json_file(
+        return read_json_file(
             path,
+            read_bytes=read_bytes_shared,
             operation=operation,
             artifact_role=role,
             max_bytes=max_bytes,

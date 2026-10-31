@@ -511,6 +511,15 @@ must document when a platform cannot fsync a directory; semantic recovery still
 depends on atomic replace and the journal. No valid manifest ever claims
 success before its referenced run is terminal and verified.
 
+The temporary is named `.tmp-` followed by eight lowercase hexadecimal digits.
+Readers ignore names of that form: such a file is either in flight or left by a
+process that died before its replace, and it never holds published state.
+Reconciliation, run by the process that owns the study, deletes the orphaned
+ones. Readers read each document once and close it before parsing. On Windows,
+where a file another process holds open cannot be replaced, the writer retries
+the replace for about 1.5 seconds before failing, and a reader likewise retries
+an open that fails while the owner replaces the document.
+
 Study creation builds a sibling staging directory, writes spec/plan/tasks and
 the initial event, writes the terminal root manifest last, fsyncs, then renames
 to an absent destination. Every existing destination, including an empty or
@@ -524,7 +533,8 @@ partial directory, raises `StudyOutputCollisionError` without execution.
 | During canonical run staging | Run writer owns/removes only its staging path; no success is inferred. |
 | After run publication, before success event | Reconcile expected run ID/path/hash, verify it, then publish outcome once. |
 | After event, before task/root checkpoint | Data-only load derives the event-authoritative view; a later recovery Goal may refresh checkpoints. |
-| During checkpoint replace | Reader sees an old or new complete checkpoint and derives from the event head without writing. |
+| During checkpoint replace | Reader sees an old or new complete checkpoint, ignores the writer's temporary, and derives from the event head without writing. |
+| After temporary creation, before replace | The orphaned temporary is ignored by loading and deleted by reconciliation; the destination keeps its previous complete content. |
 | During derived summary write | Delete the incomplete derived file and regenerate; canonical state is unchanged. |
 
 ## 15. Local concurrency, locks, and leases
