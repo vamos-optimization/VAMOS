@@ -209,7 +209,8 @@ def _build_algorithm_config(
     encoding: str | None,
 ) -> AlgorithmConfigProtocol:
     algorithm = algorithm.lower()
-    result_mode: ResultMode = "population"
+    # SMPSO's swarm is not elitist: its result is the leaders archive, as in SMPSOConfig.default().
+    result_mode: ResultMode = "non_dominated" if algorithm == "smpso" else "population"
 
     from vamos.engine.algorithm.config import GenericAlgorithmConfig
     from vamos.engine.algorithm.config.defaults import build_default_algorithm_config

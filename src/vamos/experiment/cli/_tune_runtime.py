@@ -107,6 +107,9 @@ NON_MODEL_BACKENDS = ("racing", "random")
 ALL_BACKENDS = NON_MODEL_BACKENDS + MODEL_BACKENDS
 _ARCHIVE_TUNING_PARAMS = {"use_external_archive", "archive_unbounded", "archive_prune_policy"}
 _OPTUNA_CLI_STUDY_SUFFIX = "__vamos_cli_final_population_hv_v1"
+# SMPSO is scored on its leaders archive instead of its final swarm, a separate scoring contract.
+_OPTUNA_CLI_LEADERS_SUFFIX = "__vamos_cli_leaders_hv_v1"
+_LEADER_SCORED_ALGORITHMS = ("smpso",)
 
 
 def supports_warm_start(name: str) -> bool:
@@ -142,7 +145,15 @@ def _versioned_optuna_study_name(args: Any, task: TuningTask) -> str:
     if not raw:
         raw = f"{task.name}_{args.backend}_{int(args.seed)}"
         raw = "".join(ch if (ch.isalnum() or ch in "-_.") else "_" for ch in raw)
-    return f"{raw}{_OPTUNA_CLI_STUDY_SUFFIX}"
+    leaders = canonical_algorithm_name(str(getattr(args, "algorithm", ""))) in _LEADER_SCORED_ALGORITHMS
+    return f"{raw}{_OPTUNA_CLI_LEADERS_SUFFIX if leaders else _OPTUNA_CLI_STUDY_SUFFIX}"
+
+
+def _tuning_config(config: Any, algorithm_name: str) -> Any:
+    """The config a tuning run uses: the final population scores, except SMPSO's leaders archive."""
+    if canonical_algorithm_name(algorithm_name) in _LEADER_SCORED_ALGORITHMS:
+        return config
+    return _tune_scoring._force_population_result_mode(config)
 
 
 def make_evaluator(
@@ -175,7 +186,7 @@ def make_evaluator(
             elif "pop_size" not in start_config:
                 start_config["pop_size"] = fixed_pop_size
 
-            cfg = _tune_scoring._force_population_result_mode(config_from_assignment(algorithm_name, start_config))
+            cfg = _tuning_config(config_from_assignment(algorithm_name, start_config), algorithm_name)
             algo_name = canonical_algorithm_name(algorithm_name)
             problem_name = str(getattr(ctx.instance, "name", problem_key))
             problem_kwargs = dict(getattr(ctx.instance, "kwargs", {}) or {})
@@ -200,6 +211,8 @@ def make_evaluator(
             if isinstance(payload, dict):
                 payload["_elapsed_s"] = elapsed_s
                 payload["_tuning_n_constraints"] = n_constraints
+                if algo_name in _LEADER_SCORED_ALGORITHMS:
+                    payload["_tuning_score_source"] = "result"
             checkpoint_payload = result.data.get("checkpoint")
             return result, cast(CheckpointPayload | None, checkpoint_payload)
         except _tune_scoring._UnsupportedConstrainedTuningError:

@@ -150,3 +150,32 @@ def test_cli_tuning_task_excludes_external_archive_controls() -> None:
     assert "archive_prune_policy" not in task.param_space.params
     sample = task.param_space.sample(np.random.default_rng(7))
     assert not {"use_external_archive", "archive_unbounded", "archive_prune_policy"} & sample.keys()
+
+
+def test_smpso_tuning_scores_the_leaders_archive() -> None:
+    leaders = np.array([[0.1, 0.9], [0.5, 0.5], [0.9, 0.1]])
+    swarm = np.array([[0.2, 1.5], [1.5, 0.2], [2.0, 2.0]])
+    result = SimpleNamespace(
+        F=leaders,
+        data={"F": leaders.copy(), "population": {"F": swarm}, "_tuning_n_constraints": 0, "_tuning_score_source": "result"},
+    )
+
+    front = _population_front_for_scoring(result)
+
+    assert np.array_equal(front[np.lexsort(front.T)], leaders[np.lexsort(leaders.T)])
+
+
+def test_smpso_tuning_keeps_its_leaders_result_mode() -> None:
+    from vamos.algorithms import SMPSOConfig
+
+    cfg = SMPSOConfig.default(pop_size=20, n_var=10)
+
+    assert tune_runtime._tuning_config(cfg, "smpso").to_dict()["result_mode"] == "non_dominated"
+    assert tune_runtime._tuning_config(NSGAIIConfig.default(pop_size=20, n_var=10), "nsgaii").to_dict()["result_mode"] == "population"
+
+
+def test_persistent_optuna_study_name_separates_smpso_leader_scoring() -> None:
+    args = SimpleNamespace(optuna_study_name="study", backend="optuna", seed=7, algorithm="smpso")
+    task = SimpleNamespace(name="tune_zdt1_smpso_optuna")
+
+    assert tune_runtime._versioned_optuna_study_name(args, task) == "study__vamos_cli_leaders_hv_v1"
