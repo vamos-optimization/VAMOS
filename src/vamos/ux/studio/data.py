@@ -8,6 +8,8 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
+from vamos.engine.algorithm.components.results import feasible_result_indices
+from vamos.foundation.quality_indicators.pareto import pareto_filter
 from vamos.run_artifacts import load_run
 from vamos.study_artifacts import load_study
 
@@ -127,14 +129,27 @@ def build_fronts(
 
     fronts: list[FrontRecord] = []
     for (problem, algorithm), records in grouped.items():
-        F = np.vstack([r.fun for r in records if r.fun.size])
-        X = None
-        if any(r.var is not None for r in records):
-            X = np.vstack([r.var for r in records if r.var is not None])
-        constraints = None
         with_points = [r for r in records if r.fun.size]
+        F = np.vstack([r.fun for r in with_points])
+        extra: dict[str, Any] = {
+            "seeds": [r.seed for r in records],
+            "config": records[0].metadata.get("resolved_spec") if records else None,
+        }
+        # X stays row-aligned with F only when every run stores it.
+        X = None
+        if all(r.var is not None and len(r.var) == len(r.fun) for r in with_points):
+            X = np.vstack([r.var for r in with_points if r.var is not None])
+        elif any(r.var is not None for r in with_points):
+            extra["note"] = "Some runs store no decision variables, so the merged front has none."
+        constraints = None
         if with_points and all(r.constraints is not None for r in with_points):
             constraints = np.vstack([r.constraints for r in with_points if r.constraints is not None])
+        if len(with_points) > 1:
+            # A merged front keeps the solutions no other seed dominates, among the feasible ones.
+            keep = _merged_front_rows(F, constraints)
+            F = F[keep]
+            X = None if X is None else X[keep]
+            constraints = None if constraints is None else constraints[keep]
         fronts.append(
             FrontRecord(
                 problem_name=problem,
@@ -142,13 +157,21 @@ def build_fronts(
                 points_F=F,
                 points_X=X,
                 constraints=constraints,
-                extra={
-                    "seeds": [r.seed for r in records],
-                    "config": records[0].metadata.get("resolved_spec") if records else None,
-                },
+                extra=extra,
             )
         )
     return fronts
+
+
+def _merged_front_rows(F: NDArray[Any], constraints: NDArray[Any] | None) -> NDArray[np.int_]:
+    """Rows that are non-dominated among the feasible rows (the least violated ones when none is feasible)."""
+    F = np.asarray(F, dtype=float)
+    G = None if constraints is None else np.asarray(constraints, dtype=float).reshape(F.shape[0], -1)
+    candidates = feasible_result_indices(F, G, constraint_mode="feasibility")
+    if candidates.size == 0:
+        return candidates
+    _, positions = pareto_filter(F[candidates], return_indices=True)
+    return np.asarray(np.sort(candidates[np.asarray(positions, dtype=int)]), dtype=int)
 
 
 def normalize_objectives(F: NDArray[Any]) -> NDArray[np.float64]:

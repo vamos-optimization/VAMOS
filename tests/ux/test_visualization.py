@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 
@@ -35,3 +37,33 @@ def test_plot_hv_convergence_smoke():
     hv = np.array([0.1, 0.2, 0.3])
     ax = plot_hv_convergence(evals, hv, show=False)
     assert hasattr(ax, "plot")
+
+
+def test_explore_result_front_hover_matches_solution():
+    pytest.importorskip("plotly")
+    from vamos.ux.results import explore_result_front
+
+    # The second solution is dominated; each X row identifies its solution.
+    F = np.array([[0.2, 0.6], [0.5, 0.5], [0.4, 0.4], [0.6, 0.2]])
+    X = np.array([[0.0], [111.0], [222.0], [333.0]])
+    result = SimpleNamespace(F=F, X=X, G=None, meta={})
+
+    fig = explore_result_front(result)
+
+    texts = {(round(x, 4), round(y, 4)): text for x, y, text in zip(fig.data[0].x, fig.data[0].y, fig.data[0].hovertext, strict=True)}
+    assert "x1: 222.0000" in texts[(0.4, 0.4)]
+    assert len(texts) == 3
+
+
+def test_explore_result_front_keeps_only_feasible_solutions():
+    pytest.importorskip("plotly")
+    from vamos.ux.results import explore_result_front
+
+    F = np.array([[0.1, 0.1], [0.4, 0.4], [0.6, 0.2]])
+    X = np.array([[1.0], [2.0], [3.0]])
+    G = np.array([[1.0], [0.0], [-1.0]])  # the first solution dominates the others but is infeasible
+    result = SimpleNamespace(F=F, X=X, G=G, meta={})
+
+    fig = explore_result_front(result)
+
+    assert sorted(zip(fig.data[0].x, fig.data[0].y, strict=True)) == [(0.4, 0.4), (0.6, 0.2)]

@@ -45,7 +45,7 @@ class ResultsState(param.Parameterized):
     problem = param.Selector(default=None, objects=[], allow_None=True, doc="Problem whose fronts are shown.")
     mcdm_method = param.Selector(default="weighted_sum", objects=list(MCDM_METHODS), doc="MCDM ranking method.")
     top_k = param.Integer(default=10, bounds=(1, 1000), doc="Solutions shown per front.")
-    feasible_only = param.Boolean(default=False, doc="Keep only the solutions that satisfy every constraint.")
+    feasible_only = param.Boolean(default=True, doc="Keep only the solutions that satisfy every constraint.")
     objective_ranges = param.List(default=[], doc="(low, high) per objective; None leaves that side open.")
     rerun = param.Selector(default=None, objects=[], allow_None=True, doc="Run of the problem to run again.")
 
@@ -133,7 +133,9 @@ class ResultsState(param.Parameterized):
         return filter_fronts(fronts_for(self.fronts, self.problem), feasible_only=self.feasible_only, ranges=self.objective_ranges)
 
     def ranking(self) -> Any:
-        return rank_fronts(self.filtered_fronts(), method=self.mcdm_method, top_k=self.top_k, problem=self.problem)
+        return rank_fronts(
+            self.filtered_fronts(), method=self.mcdm_method, top_k=self.top_k, problem=self.problem, feasible_only=self.feasible_only
+        )
 
     def run_again(self, event: Any = None) -> None:
         """Open the chosen run's settings in Run Experiment."""

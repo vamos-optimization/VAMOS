@@ -8,7 +8,8 @@ from dataclasses import dataclass, field
 
 from vamos.ux.studio.algorithm_catalog import algorithm_label
 from vamos.ux.studio.data import FrontRecord
-from vamos.ux.studio.dm import build_decision_view, rank_by_score
+from vamos.ux.studio.dm import build_decision_view, feasible_indices, rank_by_score
+from vamos.ux.studio.front_filters import filter_front
 
 MCDM_METHODS: dict[str, str] = {
     "weighted_sum": "Weighted sum (equal weights)",
@@ -34,7 +35,9 @@ def fronts_for(fronts: Sequence[FrontRecord], problem: str | None) -> list[Front
     return [front for front in fronts if problem is None or front.problem_name == problem]
 
 
-def rank_fronts(fronts: Sequence[FrontRecord], *, method: str, top_k: int, problem: str | None = None) -> Ranking:
+def rank_fronts(
+    fronts: Sequence[FrontRecord], *, method: str, top_k: int, problem: str | None = None, feasible_only: bool = True
+) -> Ranking:
     """Rank the solutions of every front of ``problem`` by ``method``.
 
     Objectives are normalized per front before scoring, so ranks compare the
@@ -44,6 +47,11 @@ def rank_fronts(fronts: Sequence[FrontRecord], *, method: str, top_k: int, probl
     """
     ranking = Ranking()
     for front in fronts_for(fronts, problem):
+        if feasible_only and front.constraints is not None:
+            front = filter_front(front, feasible_only=True)
+            if not front.points_F.shape[0]:
+                ranking.warnings.append(f"{algorithm_label(front.algorithm_name)} has no feasible solutions to rank.")
+                continue
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always", UserWarning)
             view = build_decision_view(front, methods=[method])
@@ -61,6 +69,7 @@ def rank_fronts(fronts: Sequence[FrontRecord], *, method: str, top_k: int, probl
             )
             continue
         scores = view.mcdm_scores[method]
+        feasible = set(feasible_indices(view).tolist()) if front.constraints is not None else None
         for rank, index in enumerate(order[: max(int(top_k), 1)], start=1):
             row: dict[str, object] = {
                 "Problem": front.problem_name,
@@ -68,6 +77,8 @@ def rank_fronts(fronts: Sequence[FrontRecord], *, method: str, top_k: int, probl
                 "Rank": rank,
                 "Score": float(scores[index]),
             }
+            if feasible is not None:
+                row["Feasible"] = int(index) in feasible
             for objective, value in enumerate(front.points_F[index], start=1):
                 row[f"f{objective}"] = float(value)
             ranking.rows.append(row)

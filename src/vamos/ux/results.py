@@ -11,6 +11,7 @@ from typing import Any, Protocol, cast
 import numpy as np
 from numpy.typing import NDArray
 
+from vamos.engine.algorithm.components.results import feasible_result_indices
 from vamos.foundation.quality_indicators.pareto import pareto_filter
 
 
@@ -22,6 +23,24 @@ class ResultLike(Protocol):
 
 def _logger() -> logging.Logger:
     return logging.getLogger(__name__)
+
+
+def _front_rows(result: ResultLike) -> NDArray[np.int_]:
+    """Rows of ``result`` that form its front: non-dominated among the feasible rows.
+
+    With constraint values, only feasible rows are candidates (the least violated ones when none
+    is feasible), as in ``OptimizationResult.front()``. The indices keep each point aligned with its X row.
+    """
+    F = np.asarray(result.F, dtype=float)
+    if F.ndim != 2 or F.shape[0] == 0:
+        return np.array([], dtype=int)
+    G = getattr(result, "G", None)
+    G_arr = None if G is None else np.asarray(G, dtype=float).reshape(F.shape[0], -1)
+    candidates = feasible_result_indices(F, G_arr, constraint_mode="feasibility")
+    if candidates.size == 0:
+        return candidates
+    _, positions = pareto_filter(F[candidates], return_indices=True)
+    return np.asarray(candidates[np.asarray(positions, dtype=int)], dtype=int)
 
 
 def result_summary_text(result: ResultLike) -> str:
@@ -89,11 +108,11 @@ def plot_result_front(
     except ImportError as exc:
         raise ImportError("matplotlib is required for plotting. Install with: pip install matplotlib") from exc
 
-    F_plot = pareto_filter(result.F, return_indices=False)
-    if F_plot is None or len(F_plot) == 0:
+    rows = _front_rows(result)
+    if rows.size == 0:
         raise ValueError("No solutions to plot")
 
-    F_plot = np.asarray(F_plot, dtype=float)
+    F_plot = np.asarray(result.F, dtype=float)[rows]
     n_obj = int(F_plot.shape[1]) if F_plot.ndim == 2 else 0
     plot_title = "Pareto Front" if title is None else title
     ax3d: Any | None = None
@@ -157,14 +176,14 @@ def explore_result_front(result: ResultLike, title: str = "Pareto Front Explorer
     except ImportError as exc:
         raise ImportError("plotly is required for explore_result_front(). Install with: pip install plotly") from exc
 
-    F_plot = pareto_filter(result.F, return_indices=False)
-    if F_plot is None or len(F_plot) == 0:
+    rows = _front_rows(result)
+    if rows.size == 0:
         raise ValueError("No solutions to explore")
 
-    F_plot = np.asarray(F_plot, dtype=float)
+    F_plot = np.asarray(result.F, dtype=float)[rows]
     n_obj = int(F_plot.shape[1]) if F_plot.ndim == 2 else 0
     n_solutions = len(F_plot)
-    X = result.X
+    X = None if result.X is None else np.asarray(result.X)[rows]
 
     hover_texts = []
     for i in range(n_solutions):
