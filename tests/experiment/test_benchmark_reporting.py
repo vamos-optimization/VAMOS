@@ -357,6 +357,30 @@ def test_statistics_json_records_holm_adjusted_pairwise_tests(tmp_path: Path, al
     assert [entry["significant"] for entry in pairwise] == [entry["p_value_holm"] <= 0.05 for entry in pairwise]
 
 
+def test_two_algorithms_tied_on_every_problem_do_not_abort_the_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    pytest.importorskip("pandas")
+    scipy_stats = pytest.importorskip("scipy.stats")
+
+    def scipy_112_wilcoxon(d, *args, zero_method="wilcox", **kwargs):
+        # SciPy 1.12 and earlier raise on an all-zero sample with zero_method "pratt".
+        if zero_method == "pratt" and np.all(np.asarray(d, dtype=float) == 0):
+            raise ValueError("zero_method 'wilcox' and 'pratt' do not work if x - y is zero for all elements.")
+        return real_wilcoxon(d, *args, zero_method=zero_method, **kwargs)
+
+    real_wilcoxon = scipy_stats.wilcoxon
+    monkeypatch.setattr(scipy_stats, "wilcoxon", scipy_112_wilcoxon)
+    # Both algorithms find no feasible solution anywhere, so every per-problem mean is +inf.
+    values = {(f"p{problem}", algorithm): [math.inf] * 5 for problem in range(3) for algorithm in ("a1", "a2")}
+    report = _metric_report(tmp_path, "igd_plus", values)
+
+    report.compute_statistics()
+    table = report.generate_latex_tables()["igd_plus"].read_text(encoding="utf-8")
+
+    (pairwise,) = json.loads((tmp_path / "statistics.json").read_text(encoding="utf-8"))["igd_plus"]["pairwise"]
+    assert (pairwise["p_value"], pairwise["p_value_holm"], pairwise["significant"]) == (1.0, 1.0, False)
+    assert "$^" not in table
+
+
 def test_latex_cell_with_an_infeasible_run_shows_inf_without_nan(tmp_path: Path):
     pytest.importorskip("pandas")
     pytest.importorskip("scipy")

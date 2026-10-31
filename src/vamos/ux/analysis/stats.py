@@ -101,7 +101,14 @@ def pairwise_wilcoxon(
             if not higher_is_better:
                 a = -a
                 b = -b
-            stat, p = spstats.wilcoxon(_paired_differences(a, b), zero_method="pratt", alternative="two-sided")
+            differences = _paired_differences(a, b)
+            if np.all(differences == 0.0):
+                # Equal on every problem, including both infeasible everywhere: no evidence of a
+                # difference. SciPy 1.12 and earlier raise on an all-zero sample under Pratt's
+                # zero method, and later versions divide by zero.
+                stat, p = 0.0, 1.0
+            else:
+                stat, p = spstats.wilcoxon(differences, zero_method="pratt", alternative="two-sided")
             results.append(WilcoxonResult(algo_i=algo_names[i], algo_j=algo_names[j], statistic=stat, p_value=p))
     return results
 
