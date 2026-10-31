@@ -88,8 +88,11 @@ def test_pl_008_nsgaiii_reference_direction_cardinality_is_preflighted() -> None
     larger = vamos.plan_study(_spec(problems=["dtlz2"], algorithms=["nsgaiii"], seeds=[0], n_obj=3, pop_size=100, max_evaluations=100))
     assert larger.population_sizes == (100,)
 
+    # A smaller population derives fewer divisions; only one below n_obj has no lattice at all.
+    smaller = vamos.plan_study(_spec(problems=["dtlz2"], algorithms=["nsgaiii"], seeds=[0], n_obj=3, pop_size=8, max_evaluations=100))
+    assert smaller.population_sizes == (8,)
     with pytest.raises(UnresolvedStudyTaskError) as caught:
-        vamos.plan_study(_spec(problems=["dtlz2"], algorithms=["nsgaiii"], seeds=[0], n_obj=3, pop_size=8))
+        vamos.plan_study(_spec(problems=["dtlz2"], algorithms=["nsgaiii"], seeds=[0], n_obj=3, pop_size=2))
     assert caught.value.reason == "REFERENCE_DIRECTION_POPULATION_MISMATCH"
     assert caught.value.execution_occurred is False
 

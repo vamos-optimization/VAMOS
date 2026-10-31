@@ -13,6 +13,7 @@ from vamos.foundation.exceptions import ConfigurationError
 
 from .base import (
     ConstraintModeStr,
+    ReferenceDirectionPopulationError,
     ResultMode,
     _ConfigBuilderState,
     _ConstraintModeBuilder,
@@ -109,7 +110,7 @@ class RVEAConfig(_SerializableConfig):
         else:
             n_partitions = _lattice_divisions_within(pop_size, n_obj, algorithm="RVEA")
             if lattice_size(n_obj, n_partitions) != pop_size:
-                raise ConfigurationError(
+                raise ReferenceDirectionPopulationError(
                     f"RVEA needs one individual per reference vector, and no Das-Dennis lattice for n_obj={n_obj} "
                     f"has {pop_size} vectors. Use pop_size={lattice_size(n_obj, n_partitions)} ({n_partitions} partitions) "
                     f"or pop_size={lattice_size(n_obj, n_partitions + 1)} ({n_partitions + 1} partitions)."

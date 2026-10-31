@@ -8,6 +8,7 @@ from itertools import product
 from math import comb
 from typing import Any
 
+from vamos.engine.algorithm.config.base import ReferenceDirectionPopulationError
 from vamos.experiment.artifacts.models import deep_freeze, deep_thaw
 from vamos.experiment.artifacts.resolved_reconstruction import is_reconstructable_evaluation_backend
 from vamos.experiment.artifacts.specs import RunSpecInputs, build_run_specs
@@ -75,7 +76,17 @@ def _resolve_candidate(spec: StudySpec, candidate: _Candidate) -> PlanTask:
         population_size = spec.pop_size or _compute_pop_size(n_var, n_obj)
         budget = spec.max_evaluations or _compute_max_evaluations(n_var, n_obj)
         engine, engine_source = resolve_engine_details(spec.engine, algorithm=algorithm)
-        config = _resolved_algorithm_config(spec, candidate.algorithm, algorithm, population_size, n_var, n_obj, encoding)
+        try:
+            config = _resolved_algorithm_config(spec, candidate.algorithm, algorithm, population_size, n_var, n_obj, encoding)
+        except ReferenceDirectionPopulationError as exc:
+            raise UnresolvedStudyTaskError(
+                operation="resolve study plan",
+                reason="REFERENCE_DIRECTION_POPULATION_MISMATCH",
+                field=f"$.matrix[{candidate.index}].pop_size",
+                expected=f"a population that fits a complete reference-direction lattice for n_obj={n_obj}",
+                actual=population_size,
+                action=exc.message,
+            ) from exc
         resolved_population_size = _validate_execution_shape(
             algorithm=algorithm,
             config=config,

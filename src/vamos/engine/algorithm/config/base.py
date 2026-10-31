@@ -453,6 +453,10 @@ def _encoding_operators(encoding: EncodingLike | None, mut_prob: float, *, real:
     return real if normalized == "real" else _default_operators_for_encoding(normalized, mut_prob)
 
 
+class ReferenceDirectionPopulationError(ConfigurationError):
+    """No complete Das-Dennis lattice of reference directions matches the requested population."""
+
+
 def _lattice_divisions_within(pop_size: int, n_obj: int, *, algorithm: str) -> int:
     """Divisions of the complete Das-Dennis lattice with the most directions that fit in ``pop_size``."""
     from vamos.engine.reference_directions import largest_lattice_divisions
@@ -460,7 +464,7 @@ def _lattice_divisions_within(pop_size: int, n_obj: int, *, algorithm: str) -> i
     try:
         return largest_lattice_divisions(int(pop_size), int(n_obj))
     except ValueError as exc:
-        raise ConfigurationError(f"{algorithm} cannot build reference directions for pop_size={pop_size}: {exc}") from exc
+        raise ReferenceDirectionPopulationError(f"{algorithm} cannot build reference directions for pop_size={pop_size}: {exc}") from exc
 
 
 def _require_fields(cfg: dict[str, Any], fields: tuple[str, ...], name: str) -> None:
