@@ -234,3 +234,29 @@ def test_non_dominated_results_contain_only_feasible_solutions_when_any_exist(na
     population_feasible = _constraints(population)[:, 0] <= 0.0
     assert population_feasible.any() and not population_feasible.all(), "the final population must mix both kinds"
     assert np.all(_constraints(np.asarray(result.X))[:, 0] <= 0.0)
+
+
+def _dominated_rows(F: np.ndarray) -> int:
+    less_equal = np.all(F[:, None, :] <= F[None, :, :], axis=2)
+    strictly_less = np.any(F[:, None, :] < F[None, :, :], axis=2)
+    return int(np.any(less_equal & strictly_less, axis=0).sum())
+
+
+@pytest.mark.parametrize("problem_name, n_var, n_obj", [("dtlz1", 7, 3), ("mw1", 15, 2)])
+@pytest.mark.parametrize("name", sorted(CONFIG_CLASSES))
+def test_non_dominated_result_mode_has_no_dominated_rows(name: str, problem_name: str, n_var: int, n_obj: int) -> None:
+    cls = CONFIG_CLASSES[name]
+    if name in REFERENCE_DIRECTION_ALGORITHMS:
+        config = cls.default(n_var=n_var, n_obj=n_obj)
+    else:
+        config = cls.default(pop_size=100, n_var=n_var)
+    config = dataclasses.replace(config, result_mode="non_dominated")
+    problem = vamos.make_problem_selection(problem_name, n_var=n_var, n_obj=n_obj).instantiate()
+
+    result = vamos.optimize(problem, algorithm=name, algorithm_config=config, max_evaluations=1000, seed=1, engine="numpy")
+
+    F = np.asarray(result.F)
+    G = result.data.get("G")
+    if G is not None and np.all(np.asarray(G) <= 0.0, axis=1).any():
+        assert np.all(np.asarray(G) <= 0.0)
+    assert _dominated_rows(F) == 0, f"{_dominated_rows(F)} of {F.shape[0]} result rows are dominated"

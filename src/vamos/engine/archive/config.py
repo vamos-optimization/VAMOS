@@ -19,13 +19,18 @@ def normalize_prune_policy(policy: str) -> PrunePolicy:
 
 @dataclass(frozen=True)
 class ExternalArchiveConfig:
-    """Configuration for the single external result archive path."""
+    """Configuration for the single external result archive path.
+
+    ``objective_tolerance`` is the Chebyshev distance under which two objective
+    vectors count as duplicates. It is absolute, so the default is 0: only identical
+    vectors are merged, whatever the scale of the objectives.
+    """
 
     capacity: int | None = None
     pruning: PrunePolicy = "crowding"
     hv_ref_point: list[float] | None = None
     rng_seed: int = 0
-    objective_tolerance: float = 1e-10
+    objective_tolerance: float = 0.0
     truncate_size: int | None = None
     deduplicate_in: DeduplicateIn = "objective"
     decision_tolerance: float = 1e-32

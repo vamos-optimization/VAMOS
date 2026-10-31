@@ -33,7 +33,7 @@ class CrowdingDistanceArchive(_BaseArchive):
         dtype: Any,
         *,
         truncate_size: int | None = None,
-        objective_tolerance: float = 1e-10,
+        objective_tolerance: float = 0.0,
         deduplicate_in: DeduplicateIn = "objective",
         decision_tolerance: float = 1e-32,
         n_con: int | None = None,
@@ -93,7 +93,7 @@ class HypervolumeArchive(_BaseArchive):
         ref_offset: float = 1.0,
         ref_point: np.ndarray[Any, Any] | list[float] | None = None,
         truncate_size: int | None = None,
-        objective_tolerance: float = 1e-10,
+        objective_tolerance: float = 0.0,
         deduplicate_in: DeduplicateIn = "objective",
         decision_tolerance: float = 1e-32,
         n_con: int | None = None,
@@ -170,7 +170,7 @@ class SPEA2Archive(_BaseArchive):
         dtype: Any,
         *,
         truncate_size: int | None = None,
-        objective_tolerance: float = 1e-10,
+        objective_tolerance: float = 0.0,
         deduplicate_in: DeduplicateIn = "objective",
         decision_tolerance: float = 1e-32,
         n_con: int | None = None,
@@ -196,14 +196,14 @@ class SPEA2Archive(_BaseArchive):
         G: np.ndarray[Any, Any] | None = None,
     ) -> np.ndarray[Any, Any]:
         _ = G
-        from vamos.engine.algorithm.spea2.helpers import truncate_by_distance
+        from vamos.engine.algorithm.spea2.helpers import truncate_lexicographic
 
         n = int(F.shape[0])
         if n <= target_size:
             return np.arange(n, dtype=int)
 
         dist_matrix = np.linalg.norm(F[:, None, :] - F[None, :, :], axis=2)
-        return truncate_by_distance(dist_matrix, target_size)
+        return truncate_lexicographic(dist_matrix, target_size)
 
 
 class MaxMinArchive(_BaseArchive):
@@ -231,7 +231,7 @@ class ReferenceDirectionsArchive(_BaseArchive):
         *,
         rng_seed: int = 0,
         truncate_size: int | None = None,
-        objective_tolerance: float = 1e-10,
+        objective_tolerance: float = 0.0,
         deduplicate_in: DeduplicateIn = "objective",
         decision_tolerance: float = 1e-32,
         n_con: int | None = None,
@@ -268,7 +268,7 @@ class UnboundedArchive(_BaseArchive):
         n_obj: int,
         dtype: Any,
         *,
-        objective_tolerance: float = 1e-10,
+        objective_tolerance: float = 0.0,
         deduplicate_in: DeduplicateIn = "objective",
         decision_tolerance: float = 1e-32,
         n_con: int | None = None,

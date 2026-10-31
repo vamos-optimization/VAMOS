@@ -66,7 +66,7 @@ archive:
     pruning: crowding          # crowding|hv|mc_hv|knn|maxmin|ref_dirs
     hv_ref_point: null         # optional; required for hv-based policies
     rng_seed: 0
-    objective_tolerance: 1.0e-10
+    objective_tolerance: 0.0
     deduplicate_in: objective  # objective|decision|both
     decision_tolerance: 1.0e-32
 ```
@@ -81,6 +81,14 @@ Notes:
   not inherit population size from a tuning space.
 - The hook stores objective vectors, not a decision-aligned result archive.
   Use `deduplicate_in: objective` for this observation workflow.
+- `objective_tolerance` is an absolute Chebyshev distance: two objective
+  vectors within that distance count as duplicates and only the first is kept. Set it
+  in objective units, if at all.
+- **Development after 1.1.0:** `objective_tolerance` defaults to `0.0`, exact
+  equality, as in jMetal; it was `1.0e-10`. The same default applies to the
+  SMPSO leader archive and to the algorithm result archives. With objectives on
+  a scale of about `1e-9` or smaller, the old tolerance merged distinct
+  non-dominated points; at ordinary scales the archive contents are unchanged.
 - `pruning: hv` uses exact HV contributions in 2D and, when `moocore` is
   installed, exact higher-dimensional contributions. `mc_hv` uses a Monte Carlo
   estimate. Archive pruning support does not remove the two-objective restriction
@@ -91,6 +99,11 @@ Notes:
   earlier prune by crowding distance instead, with a single warning per process.
   The HV subset selection of `top_k(method="hv_greedy")` is exact with or without
   `moocore`; without it, it is slow with three or more objectives.
+- **Development after 1.1.0:** `pruning: knn` applies the SPEA2 truncation
+  operator: it repeatedly removes the point whose distances to the others,
+  sorted in ascending order, are lexicographically smallest. VAMOS 1.1.0 and
+  earlier rank points by the distance to their second-nearest neighbour alone,
+  with ties broken by row order, which can remove an extreme point.
 - For an **algorithm result archive**, use its public configuration builder and
   inspect the resolved `result_mode`; see [Algorithms and backends](../reference/algorithms.md).
   Since VAMOS 1.0.1, the SMPSO search leaders and optional external result archive are

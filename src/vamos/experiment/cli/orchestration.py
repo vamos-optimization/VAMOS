@@ -12,7 +12,7 @@ from vamos.engine.config.spec import ExperimentSpec, ProblemOverrides, SpecBlock
 from vamos.engine.config.variation import VariationOverrides, merge_variation_overrides
 from vamos.engine.hooks import LiveVisualization
 from vamos.experiment._execution_support import VariationConfigs
-from vamos.experiment.execution import execute_problem_suite
+from vamos.experiment.execution import execute_problem_suite, raise_run_failures
 from vamos.experiment.services.orchestrator import run_single
 from vamos.foundation.core.experiment_config import ExperimentConfig
 from vamos.foundation.core.hv_stop import build_hv_stop_config
@@ -49,6 +49,8 @@ def run_from_args(
     overrides: ProblemOverrides = getattr(args, "problem_overrides", {}) or {}
     config_source = getattr(args, "config_path", None)
     config_spec: ExperimentSpec | None = getattr(args, "config_spec", None)
+    # With several problems, a failed run is reported after the whole series instead of stopping it.
+    failures: list[str] | None = [] if multiple else None
 
     for idx, selection in enumerate(selections, start=1):
         override_raw = overrides.get(selection.spec.key)
@@ -181,7 +183,10 @@ def run_from_args(
             track_genealogy=effective_args.track_genealogy,
             live_viz_factory=live_viz_factory,
             plotter=plotter,
+            failures=failures,
         )
+    if failures:
+        raise_run_failures(failures)
 
 
 __all__ = ["run_from_args"]

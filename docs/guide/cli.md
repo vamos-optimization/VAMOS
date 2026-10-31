@@ -216,6 +216,15 @@ Include Experimental third-party baselines (ZDT1 example; requires the
 vamos --problem zdt1 --algorithm both --include-external --external-problem-source native
 ```
 
+**Development after 1.1.0:** a failed run no longer stops `--algorithm both`
+or `--problem-set`. The error is logged, the remaining runs and the summary
+complete, and the command then exits with a nonzero status that lists the
+failed runs. RVEA derives its reference-vector partitions from
+`--population-size`, so the default population of 100 runs on two objectives.
+A population with no exact Das-Dennis lattice for the problem's objectives,
+such as 100 on three objectives, is rejected before optimizing, and the error
+names the nearest valid sizes (91 or 105).
+
 Walkthrough: run and inspect outputs
 ------------------------------------
 
@@ -387,7 +396,16 @@ base_config:
   offspring_population_size: 60
 variants:
   - name: baseline
+  - name: small_population
+    config_overrides:
+      pop_size: 40
+  - name: sbx_half
+    variations:
+      nsgaii:
+        crossover: {method: sbx, prob: 0.5, eta: 20}
 summary_dir: results/ablation_demo/summary
 ```
 
 The CLI writes a summary CSV by default to `<output_root>/summary/ablation_metrics.csv` (override with `summary_path` or `summary_dir`).
+
+**Development after 1.1.0:** each variant writes its studies to `<output_root>/<variant>/study-NNNN` (`--flat-output` keeps them all in `<output_root>`), and a key of `base_config` or `config_overrides` that is neither an ablation setting nor a field of the algorithm configuration is rejected before any run. See [Ablation planning](../topics/tuning.md#ablation-planning).

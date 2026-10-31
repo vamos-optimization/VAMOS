@@ -27,7 +27,7 @@ from vamos.engine.operators.policies.spea2 import build_variation_operators
 from vamos.foundation.encoding import normalize_encoding
 from vamos.foundation.eval.population import evaluate_population_with_constraints
 
-from .helpers import environmental_selection, selection_fitness_density
+from .helpers import environmental_selection
 from .state import SPEA2State
 
 if TYPE_CHECKING:
@@ -103,8 +103,9 @@ def initialize_spea2_run(
     n_eval = pop_size
 
     # Environmental selection for initial internal archive
-    env_X, env_F, env_G = environmental_selection(X, F, G, env_archive_size, k_neighbors, constraint_mode, kernel.selection_kernels())
-    selection_raw_fitness, selection_density = selection_fitness_density(env_F, env_G, constraint_mode, k_neighbors)
+    env_X, env_F, env_G, selection_raw_fitness, selection_density = environmental_selection(
+        X, F, G, env_archive_size, k_neighbors, constraint_mode, kernel.selection_kernels()
+    )
 
     # Setup external archive (optional, separate from internal)
     ext_cfg = resolve_external_archive(cfg)

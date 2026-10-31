@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping
-from typing import Any, Literal, Protocol, TypeAlias, overload
+from typing import TYPE_CHECKING, Any, Literal, Protocol, TypeAlias, overload
 
 import numpy as np
 from numpy.typing import NDArray
+
+if TYPE_CHECKING:
+    from .moead_kernels import MOEADSteadyStateKernels
 
 FloatArray: TypeAlias = NDArray[np.float64]
 RealArray: TypeAlias = NDArray[np.floating[Any]]
@@ -181,8 +184,8 @@ class SelectionKernels(Protocol):
         """AGE-MOEA greedy diversity scores written into ``crowd_dist``."""
         ...
 
-    def kth_distance_truncation(self, dist: FloatArray, keep: int, k: int) -> NDArray[np.int64]:
-        """SPEA2 truncation by the current k-th nearest-neighbour distance."""
+    def lexicographic_truncation(self, dist: FloatArray, keep: int) -> NDArray[np.int64]:
+        """SPEA2 truncation operator: drop the lexicographically closest row until ``keep`` remain."""
         ...
 
     def indicator_removal(self, fitness: FloatArray, contrib: FloatArray, target_size: int) -> NDArray[np.int64]:
@@ -380,6 +383,16 @@ class KernelBackend(ABC):
         ``None`` means NSGA-II keeps its reference steady-state ask/tell path. A
         backend that returns kernels guarantees the same offspring, survivors,
         ranks and crowding distances as that path for the same draws.
+        """
+        return None
+
+    def moead_steady_state_kernels(self) -> MOEADSteadyStateKernels | None:
+        """
+        Optional compiled one-offspring MOEA/D step (see :mod:`.moead_kernels`).
+
+        ``None`` means MOEA/D keeps its reference ``batch_size=1`` ask/tell
+        path. A backend that returns kernels guarantees the same children,
+        ideal point and replacements as that path for the same draws.
         """
         return None
 

@@ -2,17 +2,19 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Mapping
 from typing import Any, Literal, TypeAlias
 
 import numpy as np
 from numpy.typing import NDArray
 
+from vamos.engine.algorithm.components.results import feasible_result_indices
 from vamos.foundation.exceptions import NoSolutionsError, ResultSelectionError
 from vamos.foundation.quality_indicators.pareto import pareto_filter
 
 BestMethod: TypeAlias = Literal["balanced_sum", "knee", "min_f1", "min_f2", "balanced"]
-RankingSource: TypeAlias = Literal["result", "archive", "population"]
+RankingSource: TypeAlias = Literal["auto", "result", "archive", "population"]
 RankingMethod: TypeAlias = Literal[
     "balanced_sum",
     "knee",
@@ -40,7 +42,12 @@ _RANKING_METHODS = _BEST_METHODS | {
     "angle",
     "hv_greedy",
 }
-_RANKING_SOURCES = {"result", "archive", "population"}
+_RANKING_SOURCES = {"auto", "result", "archive", "population"}
+_KNEE_ALIAS_WARNING = (
+    "method='knee' is an alias of 'balanced_sum' (the smallest sum of normalized objectives), not a knee point; "
+    "it will be removed in VAMOS 2.0. Use method='balanced_sum' for the same selection, or "
+    "vamos.ux.api.knee_point_scores for a geometric knee."
+)
 
 
 def normalize_best_method(method: BestMethod | str) -> BestMethod:
@@ -60,11 +67,33 @@ def normalize_ranking_method(method: RankingMethod | str) -> RankingMethod:
     return key  # type: ignore[return-value]
 
 
+def warn_if_knee_alias(method: str) -> None:
+    """Warn the caller of an ``OptimizationResult`` method that ``'knee'`` names the normalized-sum rule."""
+    if str(method).strip().lower() == "knee":
+        warnings.warn(_KNEE_ALIAS_WARNING, FutureWarning, stacklevel=3)
+
+
 def normalize_ranking_source(source: RankingSource | str) -> RankingSource:
     key = str(source).strip().lower()
     if key not in _RANKING_SOURCES:
-        raise ResultSelectionError("source must be one of: result, archive, population")
+        raise ResultSelectionError("source must be one of: auto, result, archive, population")
     return key  # type: ignore[return-value]
+
+
+def selection_candidates(F: NDArray[np.float64], G: object, *, feasible_only: bool) -> NDArray[np.int_]:
+    """Rows of ``F`` that a selection helper ranks.
+
+    With ``feasible_only`` and constraint values ``G`` row-aligned with ``F``, these
+    are the feasible rows or, when none is feasible, the least violated ones, the
+    rule algorithms use for their non-dominated results. Otherwise every row.
+    """
+    rows = np.arange(F.shape[0], dtype=int)
+    if not feasible_only or G is None:
+        return rows
+    G_arr = np.asarray(G, dtype=float)
+    if G_arr.ndim != 2 or G_arr.shape[0] != F.shape[0]:
+        return rows
+    return feasible_result_indices(F, G_arr, constraint_mode="feasibility")
 
 
 def top_k(
@@ -75,26 +104,28 @@ def top_k(
     method: RankingMethod | str,
     nondominated_only: bool,
     weights: NDArray[np.float64] | None,
+    feasible_only: bool = True,
 ) -> dict[str, Any]:
     if k <= 0:
         raise ResultSelectionError("k must be a positive integer.")
-    F_src, X_src = _extract_source(result, source)
-    idx_src = np.arange(F_src.shape[0], dtype=int)
+    key = normalize_ranking_method(method)
+    src = resolve_ranking_source(result, source)
+    F_src, X_src, G_src = _extract_source(result, src)
+    idx_src = selection_candidates(F_src, G_src, feasible_only=feasible_only)
     if nondominated_only:
-        front = pareto_filter(F_src, return_indices=True)
+        front = pareto_filter(F_src[idx_src], return_indices=True)
         if front is None:
             raise NoSolutionsError("No solutions available after Pareto filtering.")
-        F_rank, idx_rank = front
-        idx_rank = np.asarray(idx_rank, dtype=int)
+        F_rank, local_idx = front
+        idx_rank = idx_src[np.asarray(local_idx, dtype=int)]
         if F_rank.size == 0:
             raise NoSolutionsError("No solutions available after Pareto filtering.")
     else:
-        F_rank = F_src
+        F_rank = F_src[idx_src]
         idx_rank = idx_src
 
-    key = normalize_ranking_method(method)
     if key in {"crowding", "farthest", "knn", "reference_directions", "kmeans", "angle", "hv_greedy"}:
-        return _top_k_subset_method(F_src, X_src, F_rank, idx_rank, k=int(k), source=source, method=key)
+        return _top_k_subset_method(F_src, X_src, F_rank, idx_rank, k=int(k), source=src, method=key)
 
     scores = _ranking_scores(F_rank, method=key, weights=weights)
     order = np.argsort(scores)[: min(int(k), scores.shape[0])]
@@ -104,7 +135,7 @@ def top_k(
         "F": F_src[selected_idx],
         "indices": np.asarray(selected_idx, dtype=int),
         "scores": np.asarray(scores[order], dtype=float),
-        "source": str(source).strip().lower(),
+        "source": src,
         "method": key,
     }
 
@@ -117,8 +148,17 @@ def top_k_report(
     method: RankingMethod | str,
     nondominated_only: bool,
     weights: NDArray[np.float64] | None,
+    feasible_only: bool = True,
 ) -> list[dict[str, Any]]:
-    top = top_k(result, k=k, source=source, method=method, nondominated_only=nondominated_only, weights=weights)
+    top = top_k(
+        result,
+        k=k,
+        source=source,
+        method=method,
+        nondominated_only=nondominated_only,
+        weights=weights,
+        feasible_only=feasible_only,
+    )
     F = np.asarray(top["F"], dtype=float)
     X = top["X"]
     idx = np.asarray(top["indices"], dtype=int)
@@ -143,26 +183,35 @@ def top_k_report(
     return rows
 
 
+def resolve_ranking_source(result: Any, source: RankingSource | str) -> RankingSource:
+    """The concrete source: ``'auto'`` is the archive when the result has one, else the result."""
+    src = normalize_ranking_source(source)
+    if src != "auto":
+        return src
+    return "archive" if isinstance(result.data.get("archive"), Mapping) else "result"
+
+
 def _extract_source(
     result: Any,
-    source: RankingSource | str,
-) -> tuple[NDArray[np.float64], NDArray[np.generic] | None]:
-    src = normalize_ranking_source(source)
+    src: RankingSource,
+) -> tuple[NDArray[np.float64], NDArray[np.generic] | None, object]:
     if src == "result":
         F = result.F
         X = result.X
+        G = result.data.get("G")
     else:
         payload = result.data.get("archive" if src == "archive" else "population")
         if not isinstance(payload, Mapping):
             raise ResultSelectionError(f"{src.title()} data is not available in this result.")
         F = payload.get("F")
         X = payload.get("X")
+        G = payload.get("G")
     if F is None:
         raise NoSolutionsError(f"No objective values available for source='{src}'.")
     F_arr = np.asarray(F, dtype=float)
     if F_arr.ndim != 2 or F_arr.shape[0] == 0:
         raise NoSolutionsError(f"Empty or invalid objective array for source='{src}'.")
-    return F_arr, None if X is None else np.asarray(X)
+    return F_arr, None if X is None else np.asarray(X), G
 
 
 def _normalize_front(F: NDArray[np.float64]) -> NDArray[np.float64]:
@@ -283,6 +332,9 @@ __all__ = [
     "normalize_best_method",
     "normalize_ranking_method",
     "normalize_ranking_source",
+    "resolve_ranking_source",
+    "selection_candidates",
     "top_k",
     "top_k_report",
+    "warn_if_knee_alias",
 ]

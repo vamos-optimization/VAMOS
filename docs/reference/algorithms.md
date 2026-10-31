@@ -69,6 +69,38 @@ VAMOS 1.1.0 includes the following constraint corrections.
 Runs of constrained problems with these algorithms therefore differ from 1.0.2
 runs with the same seed. Unconstrained runs are unchanged.
 
+### SPEA2 environmental selection
+
+**Development after 1.1.0:** SPEA2's environmental selection and mating follow
+Zitzler, Laumanns and Thiele (2001) and jMetal.
+
+- When the non-dominated solutions exceed the archive, the truncation operator
+  repeatedly removes the solution whose distances to the others, sorted in
+  ascending order, are lexicographically smallest. VAMOS 1.1.0 compared only the
+  distance to the k-th nearest neighbour and broke ties by row order, so it
+  could remove an extreme solution of a crowded pair.
+- When they fall short, the dominated solutions with the best fitness
+  `F = R + 1 / (sigma_k + 2)` fill the archive. VAMOS 1.1.0 added whole raw
+  fitness levels and truncated the last one by distance.
+- The mating tournament compares the raw fitness and the k-th nearest-neighbour
+  distance that each archive member had among the previous archive and the
+  offspring, not values recomputed over the new archive.
+- With `result_mode="non_dominated"` and no external archive, the result keeps
+  only the non-dominated members of the archive, feasible ones first. VAMOS
+  1.1.0 returned the whole archive, dominated solutions included.
+
+`k_neighbors` defaults to 1, as in jMetal; the paper uses the square root of
+the population plus archive size. The `knn` pruning of external archives uses
+the same truncation operator.
+
+With jMetal's settings (population and archive 100, SBX 0.9, 30 000
+evaluations, 10 seeds), the hypervolume goes from 0.7259 to 0.7326 on DTLZ2 and
+from 0.6665 to 0.6832 on C2-DTLZ2, against 0.7354 and 0.6837 for jMetal 7.9's
+SPEA2; ZDT1 does not change significantly. The remaining DTLZ2 gap comes from
+jMetal's mating tournament, which compares by dominance alone and picks at random
+between non-dominated solutions, whereas VAMOS compares the paper's fitness.
+SPEA2 results from VAMOS 1.1.0 and earlier differ with the same seed.
+
 ### IBEA indicator corrections in 1.1.0
 
 - With `indicator="hypervolume"`, IBEA used the hypervolume-difference
@@ -89,6 +121,31 @@ runs with the same seed. Unconstrained runs are unchanged.
   than floating-point resolution are ordered as in runs without overflow, and
   as in jMetal and jMetalPy. The epsilon indicator remains unscaled, as in
   jMetalPy, and runs without overflow are unchanged.
+
+### AGE-MOEA survival score
+
+**Development after 1.1.0:** AGE-MOEA follows its author's PlatEMO code in two
+places.
+
+- The binary mating tournament compares rank, then the survival score: the
+  diversity and proximity score on the first front and the inverse distance to
+  the ideal point on later fronts. VAMOS 1.1.0 used NSGA-II crowding distance
+  instead.
+- The front that is truncated to fill the population is scored by proximity to
+  the ideal point and cut by that score. VAMOS 1.1.0, like pymoo 0.6.2, left it
+  unscored and kept its last rows, which are usually offspring.
+
+The rest follows pymoo, with PlatEMO's distance normalization. Unlike PlatEMO,
+later fronts are measured from the ideal point in the same translated and
+normalized coordinates as the first front, so the selection does not depend on
+where the objectives' origin lies; objectives are not rounded to 6 decimals
+before non-dominated sorting, the geometry exponent is capped at 20 and the
+default variation is SBX (probability 0.9, eta 15) with polynomial mutation.
+
+Over 30 seeds with population 100, the hypervolume goes from 0.8496 to 0.8545
+on ZDT1, from 0.7426 to 0.7443 on DTLZ2 and from 0.1880 to 0.1892 on DTLZ1,
+within seed variation of jMetal 7.9's AGE-MOEA (0.8545, 0.7446 and 0.1890).
+AGE-MOEA results from VAMOS 1.1.0 and earlier differ with the same seed.
 
 ### Choose an initial experiment
 
@@ -202,12 +259,12 @@ never compiles problem evaluation.
 | --- | --- | --- |
 | NSGA-II | Non-dominated ranking and crowding, survival, tournament selection, SBX, polynomial mutation; the whole one-offspring steady-state step in its supported configuration (below) | Feasibility ordering, archives, steady-state front maintenance outside that configuration |
 | NSGA-III | Ranking and crowding, tournament selection, SBX, polynomial mutation | Normalization, association to reference directions, niching (it shuffles with the run generator inside the loop) |
-| MOEA/D | Differential-evolution children, SBX, polynomial mutation, neighbourhood replacement | Parent sampling, repair, weight geometry |
+| MOEA/D | Differential-evolution children, SBX, polynomial mutation, neighbourhood replacement; the whole one-offspring step (see below) | Weight geometry; parent sampling and repair outside the compiled one-offspring step |
 | SMS-EMOA | The steady-state step (development after 1.1.0, see below): child variation and clipping, front insertion, two-objective hypervolume contributions, crowding, feasibility-first removal; tournament selection where configured | Parent sampling draws, hypervolume contributions for three or more objectives (MooCore when installed), archives |
-| SPEA2 | SBX, polynomial mutation, k-th-distance truncation | Strength/raw fitness and density (vectorized NumPy) |
+| SPEA2 | SBX, polynomial mutation, lexicographic archive truncation | Strength/raw fitness and density (vectorized NumPy) |
 | IBEA | Tournament selection, SBX, polynomial mutation, indicator-based removal | Indicator matrix |
 | SMPSO | Turbulence mutation, leaders-archive crowding truncation | Velocity/position updates (vectorized NumPy), deduplication |
-| AGE-MOEA | Ranking and crowding, tournament selection, SBX, polynomial mutation, greedy survival scores | Front normalization and pairwise Minkowski distances |
+| AGE-MOEA | Non-dominated ranking, tournament selection, SBX, polynomial mutation, greedy survival scores | Front normalization and pairwise Minkowski distances |
 | RVEA | SBX, polynomial mutation | Angle-penalized survival and reference-vector adaptation (vectorized NumPy) |
 
 **Development after 1.1.0:** steady-state NSGA-II (`.steady_state()`, one
@@ -224,6 +281,18 @@ immigration, parent-selection filters and non-breeding indices keep the
 NumPy/Python steady-state path, as does any step with non-finite objective
 values. External archives and hypervolume termination behave the same on both
 paths.
+
+**Development after 1.1.0:** with `batch_size=1` (the default), MOEA/D under
+`engine="numba"` compiles each whole step: parent selection, DE or SBX,
+polynomial mutation, the clip repair, the ideal point and the neighbourhood
+replacement. Python only draws the random numbers from the run generator, in the
+order of the NumPy step, and evaluates the problem, so trajectories stay
+identical. The compiled step covers real-coded runs with DE or SBX crossover,
+polynomial mutation and the clip repair (the defaults), every aggregation,
+constraints, external archives, live callbacks and HV termination. Genealogy
+tracking, `batch_size > 1`, other operators or repairs, other array types, and
+platforms where compiled variation stays disabled (see below) keep the
+per-operator path described in the table.
 
 Compiled SBX and polynomial mutation are enabled only after a one-time check
 that compiled `pow` matches `np.power` bit for bit on the platform (some NumPy
@@ -261,6 +330,18 @@ Numba when you need a pure NumPy timing reference.
 - Operator probabilities accept either a numeric value or the string literal `"1/n"`.
 - `"1/n"` resolves to `1.0 / n_var` in supported variation paths. RVEA in 1.1.0 still requires the numeric equivalent, as noted above.
 - Example: `NSGAIIConfig.builder().mutation("pm", prob="1/n", eta=20.0)`
+
+**Development after 1.1.0:** every algorithm, AGE-MOEA and RVEA included,
+resolves operator probabilities with one interpreter. It accepts a number in
+[0, 1] or an expression `"k/n"`, which means `k / n_var` capped at 1; case and
+spaces do not matter (`"1/N"`, `" 2 / n "`). Anything else, a number outside
+[0, 1] included, raises `ValueError` when the algorithm builds its
+operators. A mutation `prob_factor` sets `factor / n_var` and must be
+positive. In VAMOS 1.1.0,
+AGE-MOEA and RVEA failed on `"1/n"` after evaluating the initial population;
+NSGA-II, IBEA and SMPSO rejected `"1/N"`; MOEA/D and the binary, integer and
+permutation builders replaced an unreadable string such as `"0,5"` with
+`1/n` and clipped numbers to [0, 1]; and `prob_factor` made NSGA-II fail.
 
 For a measured first-call/subsequent-call example, follow [Measure backend performance](../tutorials/measure-performance.md).
 

@@ -3,12 +3,18 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import FrozenInstanceError
+from importlib import metadata as importlib_metadata
 from pathlib import Path
 
 import pytest
 
 import vamos
-from vamos.experiment.study.errors import DuplicateStudyTaskError, StudyOutputCollisionError, UnresolvedStudyTaskError
+from vamos.experiment.study.errors import (
+    DuplicateStudyTaskError,
+    InvalidStudySpecError,
+    StudyOutputCollisionError,
+    UnresolvedStudyTaskError,
+)
 from vamos.foundation.problem.zdt1 import ZDT1Problem
 
 
@@ -130,11 +136,63 @@ def test_pl_009_010_011_012_invalid_inputs_are_typed_and_side_effect_free(monkey
         vamos.plan_study(_spec(seeds=[0], engine="not-a-backend"))
     assert backend.value.execution_occurred is False
 
-    monkeypatch.setattr("vamos.experiment.study.planning.find_spec", lambda _name: None)
+    installed_version = importlib_metadata.version
+
+    def version_without_numba(package: str) -> str:
+        if package == "numba":
+            raise importlib_metadata.PackageNotFoundError(package)
+        return installed_version(package)
+
+    monkeypatch.setattr(importlib_metadata, "version", version_without_numba)
     with pytest.raises(UnresolvedStudyTaskError) as unavailable:
-        vamos.plan_study(_spec(seeds=[0], eval_strategy="dask"))
+        vamos.plan_study(_spec(seeds=[0], engine="numba"))
     assert unavailable.value.reason == "BACKEND_UNAVAILABLE"
     assert unavailable.value.execution_occurred is False
+
+
+@pytest.mark.parametrize("eval_strategy", ["multiprocessing", "dask"])
+def test_pl_022_plan_blocks_non_serial_eval_strategy(tmp_path: Path, eval_strategy: str) -> None:
+    spec = _spec(seeds=[0], eval_strategy=eval_strategy)
+    output = tmp_path / "study"
+
+    with pytest.raises(UnresolvedStudyTaskError) as planned:
+        vamos.plan_study(spec, output=output)
+    assert planned.value.reason == "UNSUPPORTED_EVALUATION_BACKEND"
+    assert planned.value.field == "$.matrix[0].backend.evaluation"
+    assert planned.value.execution_occurred is False
+
+    with pytest.raises(UnresolvedStudyTaskError) as created:
+        vamos.create_study(spec, output=output)
+    assert created.value.reason == "UNSUPPORTED_EVALUATION_BACKEND"
+    assert not output.exists()
+
+
+def test_pl_022_plan_and_create_reject_negative_seeds(tmp_path: Path) -> None:
+    spec = _spec(seeds=[0, -1])
+    output = tmp_path / "study"
+
+    with pytest.raises(InvalidStudySpecError) as planned:
+        vamos.plan_study(spec, output=output)
+    assert planned.value.field == "seeds[1]"
+
+    with pytest.raises(InvalidStudySpecError):
+        vamos.create_study(spec, output=output)
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("eval_strategy", ["serial", "multiprocessing", "dask"])
+def test_pl_022_every_plannable_eval_strategy_runs(tmp_path: Path, eval_strategy: str) -> None:
+    spec = _spec(seeds=[0, 1], eval_strategy=eval_strategy)
+    try:
+        report = vamos.plan_study(spec)
+    except UnresolvedStudyTaskError as exc:
+        assert exc.reason == "UNSUPPORTED_EVALUATION_BACKEND"
+        return
+
+    assert report.status == "ready"
+    completed = vamos.create_study(spec, output=tmp_path / "study").run()
+    assert completed.status == "completed"
+    assert [task.state for task in completed.tasks] == ["succeeded", "succeeded"]
 
 
 def test_pl_013_absent_output_is_advisory_and_not_created(tmp_path: Path) -> None:
@@ -222,7 +280,7 @@ def test_pl_acceptance_inventory_is_contiguous_and_populated() -> None:
     path = Path(__file__).resolve().parents[3] / "docs" / "dev" / "study_plan_acceptance_tests.md"
     rows = [line for line in path.read_text(encoding="utf-8").splitlines() if re.match(r"^\| PL-\d{3} \|", line)]
     cells = [[cell.strip() for cell in row.strip().strip("|").split("|")] for row in rows]
-    assert [row[0] for row in cells] == [f"PL-{number:03d}" for number in range(1, 22)]
+    assert [row[0] for row in cells] == [f"PL-{number:03d}" for number in range(1, 23)]
     assert all(len(row) == 5 and all(row) for row in cells)
 
 

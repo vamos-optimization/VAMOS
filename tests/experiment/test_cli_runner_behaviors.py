@@ -320,3 +320,143 @@ def test_run_closes_the_backend_it_creates(monkeypatch, tmp_path):
     runner.run_single("numpy", "nsgaii", selection, config, evaluator=EvaluatorSpec(backend="serial", dask_address=None))
 
     assert [backend.closed for backend in created] == [1]
+
+
+def _run_cli(monkeypatch, argv):
+    from vamos.experiment.cli.main import main
+
+    monkeypatch.setattr(sys, "argv", ["prog", *argv])
+    main()
+
+
+def test_cli_rvea_runs_with_default_population(monkeypatch, tmp_path):
+    # The CLI default population (100) has no 12-partition lattice on two objectives; RVEA must derive the partitions.
+    output_root = tmp_path / "results"
+    _run_cli(
+        monkeypatch,
+        [
+            "--problem",
+            "zdt1",
+            "--algorithm",
+            "rvea",
+            "--engine",
+            "numpy",
+            "--max-evaluations",
+            "300",
+            "--seed",
+            "1",
+            "--output-root",
+            str(output_root),
+        ],
+    )
+
+    manifests = sorted(output_root.rglob("manifest.json"))
+    assert len(manifests) == 1
+    stored = vamos.load_run(manifests[0].parent)
+    config = stored.manifest.resolved_spec["algorithm"]["config"]
+    assert config["pop_size"] == 100
+    assert config["n_partitions"] == 99
+
+
+def test_cli_rvea_population_without_lattice_fails_before_optimizing(monkeypatch, tmp_path, capsys):
+    output_root = tmp_path / "results"
+    with pytest.raises(SystemExit) as excinfo:
+        _run_cli(
+            monkeypatch,
+            [
+                "--problem",
+                "dtlz2",
+                "--algorithm",
+                "rvea",
+                "--engine",
+                "numpy",
+                "--max-evaluations",
+                "300",
+                "--output-root",
+                str(output_root),
+            ],
+        )
+
+    assert excinfo.value.code == 2
+    err = capsys.readouterr().err
+    assert "pop_size=100" in err
+    assert "91" in err and "105" in err
+    assert not output_root.exists()
+
+
+def test_cli_both_continues_after_one_algorithm_fails(monkeypatch, tmp_path, caplog):
+    from vamos.experiment import execution
+
+    algo_key = "_cli_failing_algo"
+
+    class _FailingAlgorithm:
+        def run(self, problem, termination, seed, eval_strategy=None, live_viz=None):
+            raise RuntimeError("deliberate failure\nInvoked with: seed=1")
+
+    if algo_key not in ALGORITHMS:
+        ALGORITHMS.register(algo_key, lambda cfg, kernel: _FailingAlgorithm())
+    monkeypatch.setattr(execution, "ENABLED_ALGORITHMS", ("nsgaii", algo_key, "spea2"))
+    caplog.set_level("INFO")
+    output_root = tmp_path / "results"
+
+    with pytest.raises(SystemExit) as excinfo:
+        _run_cli(
+            monkeypatch,
+            [
+                "--problem",
+                "zdt1",
+                "--algorithm",
+                "both",
+                "--engine",
+                "numpy",
+                "--population-size",
+                "6",
+                "--max-evaluations",
+                "12",
+                "--seed",
+                "1",
+                "--output-root",
+                str(output_root),
+            ],
+        )
+
+    assert excinfo.value.code != 0
+    written = {path.parent.parent.parent.name for path in output_root.rglob("manifest.json")}
+    assert written == {"nsgaii", "spea2"}
+    assert "Experiment summary" in caplog.text
+    assert algo_key in caplog.text and "deliberate failure Invoked with: seed=1" in caplog.text
+
+
+def test_cli_problem_set_continues_after_one_problem_fails(monkeypatch, tmp_path, caplog):
+    from vamos.foundation.problem import resolver
+
+    # SMPSO rejects the permutation problem in the middle; the problems around it must still run.
+    monkeypatch.setitem(resolver.PROBLEM_SET_PRESETS, "families", ("zdt1", "tsp6", "zdt2"))
+    caplog.set_level("INFO")
+    output_root = tmp_path / "results"
+
+    with pytest.raises(SystemExit) as excinfo:
+        _run_cli(
+            monkeypatch,
+            [
+                "--problem-set",
+                "families",
+                "--algorithm",
+                "smpso",
+                "--engine",
+                "numpy",
+                "--population-size",
+                "6",
+                "--max-evaluations",
+                "12",
+                "--seed",
+                "1",
+                "--output-root",
+                str(output_root),
+            ],
+        )
+
+    assert excinfo.value.code != 0
+    written = {path.parents[3].name for path in output_root.rglob("manifest.json")}
+    assert len(written) == 2 and all(name.startswith("ZDT") for name in written)
+    assert "tsp6 with smpso" in caplog.text

@@ -6,6 +6,7 @@ from typing import Any, Literal, overload
 import numpy as np
 from numpy.typing import NDArray
 
+from ._numba_moead_steady_state import numba_moead_steady_state_kernels
 from ._numba_ranking import compute_crowding_numba, fast_non_dominated_sort_ranks, nsga2_survival_split
 from ._numba_selection import binary_tournament_winners_numba
 from ._numba_steady_state import numba_steady_state_kernels
@@ -22,6 +23,7 @@ from .backend import (
     SelectionKernels,
     VariationKernels,
 )
+from .moead_kernels import MOEADSteadyStateKernels
 from .numba_ops import tournament_winners_numba
 from .numpy_backend import NumPyKernel as _NumPyKernel
 from .numpy_backend import _as_float, _sample_tournament_candidates, _sbx_crossover_flat
@@ -123,6 +125,12 @@ class NumbaKernel(KernelBackend):
             # The step embeds compiled SBX and polynomial mutation: keep the reference path.
             return None
         return numba_steady_state_kernels()
+
+    def moead_steady_state_kernels(self) -> MOEADSteadyStateKernels | None:
+        if self.variation_kernels() is None:
+            # The step embeds compiled DE, SBX and polynomial mutation: keep the reference path.
+            return None
+        return numba_moead_steady_state_kernels()
 
     def nsga2_ranking(self, F: RealArray) -> tuple[IndexArray, FloatArray]:
         return self._rank_and_crowding(F)
