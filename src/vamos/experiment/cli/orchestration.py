@@ -44,16 +44,22 @@ def _override_mapping(override: SpecBlock, key: str) -> VariationOverrides | Non
     return cast(VariationOverrides, value) if isinstance(value, dict) else None
 
 
+def _effective_variation(args: Namespace, override: SpecBlock, name: str) -> VariationOverrides:
+    """The variation options ``name`` runs with for one problem: CLI and config defaults, then its override."""
+    return merge_variation_overrides(getattr(args, f"{name}_variation", None), _override_mapping(override, name)) or {}
+
+
 def _check_unnamed_operators(args: Namespace, override: SpecBlock, algorithm: object, problem_key: str) -> None:
     """Reject operator parameters (``--nsgaii-crossover-prob`` ...) that still lack their operator for this problem."""
     for name in _VARIATION_ALGORITHMS:
         if algorithm not in (name, "both"):
             continue
-        variation = merge_variation_overrides(getattr(args, f"{name}_variation", None), _override_mapping(override, name)) or {}
+        variation = _effective_variation(args, override, name)
         flag = _VARIATION_FLAGS.get(name, name)
         for operator in ("crossover", "mutation"):
             block = variation.get(operator)
-            if not isinstance(block, dict) or block.get("method"):
+            # Operator specs name the operator under "method" or "name".
+            if not isinstance(block, dict) or block.get("method") or block.get("name"):
                 continue
             given = ", ".join(f"--{flag}-{operator}-{key.replace('_', '-')}" for key in block)
             raise ConfigurationError(
@@ -79,7 +85,10 @@ def _check_effective_settings(
         algorithm = override.get("algorithm", args.algorithm)
         pressure = int(cast(int, override.get("selection_pressure", args.selection_pressure)))
         population = int(cast(int, override.get("population_size", config.population_size)))
-        if algorithm in _TOURNAMENT_ALGORITHMS and pressure > population:
+        # An explicit selection operator sets its own tournament size; the fallback pressure is then unused.
+        selector = "nsgaii" if algorithm == "both" else str(algorithm)
+        explicit_selection = isinstance(_effective_variation(args, override, selector).get("selection"), dict)
+        if algorithm in _TOURNAMENT_ALGORITHMS and not explicit_selection and pressure > population:
             raise ConfigurationError(
                 f"selection_pressure ({pressure}) cannot exceed population_size ({population}) for problem '{key}'.",
                 suggestion="Lower --selection-pressure (selection_pressure in a config) or raise the population size.",

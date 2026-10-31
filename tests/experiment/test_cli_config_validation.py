@@ -312,3 +312,30 @@ def test_selection_pressure_above_a_problems_population_stops_before_any_run(mon
     assert "selection_pressure (50) cannot exceed population_size (20)" in err
     assert "Traceback" not in err
     assert not output_root.exists()
+
+
+def test_problem_operator_named_with_name_key_completes_an_unnamed_cli_operator(monkeypatch, tmp_path):
+    spec = {"problems": {"zdt1": {"nsgaii": {"crossover": {"name": "sbx", "prob": 0.8}}}}}
+    config = tmp_path / "spec.json"
+    config.write_text(json.dumps({"version": "1", **spec}), encoding="utf-8")
+
+    stored = _run_and_load(monkeypatch, tmp_path, "--config", str(config), "--algorithm", "nsgaii", "--nsgaii-crossover-prob", "0.5")
+
+    assert stored.manifest.resolved_spec["operators"]["crossover"]["config"]["prob"] == 0.8
+
+
+def test_explicit_selection_operator_replaces_the_pressure_check(monkeypatch, tmp_path):
+    from vamos.experiment.cli.main import main
+
+    defaults = {"algorithm": "nsgaii", "engine": "numpy", "population_size": 20, "selection_pressure": 50, "max_evaluations": 40}
+    spec = {
+        "defaults": {**defaults, "output_root": str(tmp_path / "results")},
+        "problems": {"zdt1": {"nsgaii": {"selection": {"method": "tournament", "size": 2}}}},
+    }
+    config = tmp_path / "spec.json"
+    config.write_text(json.dumps({"version": "1", **spec}), encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["prog", "--config", str(config), "--problem", "zdt1"])
+
+    main()
+
+    assert list((tmp_path / "results").rglob("manifest.json"))
