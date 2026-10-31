@@ -58,6 +58,15 @@ def _default_weight_path(problem_name: str, n_obj: int, pop_size: int) -> str:
     return _default_weight_path_impl(problem_name, n_obj, pop_size)
 
 
+def _evaluator_creates_backend(evaluator: Any | None) -> bool:
+    """Whether resolving *evaluator* builds a new backend, which the run then owns and closes."""
+    if evaluator is None or isinstance(evaluator, str):
+        return True
+    if isinstance(evaluator, EvaluatorSpec):
+        return evaluator.backend is None or isinstance(evaluator.backend, str)
+    return False
+
+
 def run_single(
     engine_name: str,
     algorithm_name: str,
@@ -159,6 +168,7 @@ def run_single(
     main_observer.on_start(ctx)
 
     eval_strategy = resolve_evaluator(evaluator, config)
+    owns_eval_strategy = _evaluator_creates_backend(evaluator)
 
     kernel_backend = getattr(algorithm, "kernel", None)
 
@@ -189,9 +199,9 @@ def run_single(
             live_viz=LiveVizAdapter(main_observer),
         )
     finally:
-        # Release what this run created (for example the Dask client opened for --dask-address); a backend
-        # instance passed in by the caller stays open.
-        if eval_strategy is not evaluator:
+        # Release only what resolution built here (for example the Dask client opened for --dask-address). A backend
+        # instance the caller supplies, directly, in an EvaluatorSpec or through its own resolver, stays open.
+        if owns_eval_strategy:
             eval_strategy.close()
 
     payload = exec_result.payload

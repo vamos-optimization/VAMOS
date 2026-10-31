@@ -267,3 +267,56 @@ def test_cli_runs_problems_without_constraint_attribute(monkeypatch, tmp_path, p
     assert len(manifests) == 1
     stored = vamos.load_run(manifests[0].parent)
     assert stored.result.F is not None and stored.result.F.shape[0] > 0
+
+
+class _CountingBackend:
+    """Serial evaluation that records how many times the run closes it."""
+
+    def __init__(self):
+        from vamos.foundation.eval.backends import SerialEvalBackend
+
+        self._serial = SerialEvalBackend()
+        self.closed = 0
+
+    def evaluate(self, X, problem):
+        return self._serial.evaluate(X, problem)
+
+    def close(self):
+        self.closed += 1
+
+
+@pytest.mark.parametrize("wrap", ["instance", "spec", "resolver"], ids=["instance", "evaluator-spec", "custom-resolver"])
+def test_run_keeps_caller_supplied_backends_open(wrap, tmp_path):
+    from vamos.experiment.runner_abstractions import EvaluatorSpec
+
+    backend = _CountingBackend()
+
+    class _Resolver:
+        def resolve(self, config):
+            return backend
+
+    evaluator = {"instance": backend, "spec": EvaluatorSpec(backend=backend), "resolver": _Resolver()}[wrap]
+    selection = make_problem_selection("zdt1", n_var=6)
+    for seed in (1, 2):
+        config = ExperimentConfig(population_size=6, offspring_population_size=6, max_evaluations=12, seed=seed, output_root=str(tmp_path))
+        runner.run_single("numpy", "nsgaii", selection, config, evaluator=evaluator)
+
+    assert backend.closed == 0
+
+
+def test_run_closes_the_backend_it_creates(monkeypatch, tmp_path):
+    from vamos.experiment import runner_abstractions
+    from vamos.experiment.runner_abstractions import EvaluatorSpec
+
+    created = []
+
+    def _fake_resolve(name, **kwargs):
+        created.append(_CountingBackend())
+        return created[-1]
+
+    monkeypatch.setattr(runner_abstractions, "resolve_eval_strategy", _fake_resolve)
+    selection = make_problem_selection("zdt1", n_var=6)
+    config = ExperimentConfig(population_size=6, offspring_population_size=6, max_evaluations=12, seed=1, output_root=str(tmp_path))
+    runner.run_single("numpy", "nsgaii", selection, config, evaluator=EvaluatorSpec(backend="serial", dask_address=None))
+
+    assert [backend.closed for backend in created] == [1]
