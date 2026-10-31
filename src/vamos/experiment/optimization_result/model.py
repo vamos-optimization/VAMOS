@@ -9,7 +9,7 @@ from numpy.typing import NDArray
 from vamos.foundation.exceptions import NoSolutionsError, ResultSelectionError
 from vamos.foundation.quality_indicators.pareto import pareto_filter
 
-from .ranking import BestMethod, RankingMethod, RankingSource, normalize_best_method
+from .ranking import BestMethod, RankingMethod, RankingSource, normalize_best_method, selection_candidates, warn_if_knee_alias
 from .ranking import top_k as rank_top_k
 from .ranking import top_k_report as build_top_k_report
 
@@ -76,32 +76,54 @@ class OptimizationResult:
         return self._manifest
 
     @overload
-    def front(self, *, return_indices: Literal[False] = False) -> NDArray[np.float64] | None: ...
+    def front(self, *, return_indices: Literal[False] = False, feasible_only: bool = True) -> NDArray[np.float64] | None: ...
 
     @overload
-    def front(self, *, return_indices: Literal[True]) -> tuple[NDArray[np.float64], NDArray[np.int_]]: ...
+    def front(self, *, return_indices: Literal[True], feasible_only: bool = True) -> tuple[NDArray[np.float64], NDArray[np.int_]]: ...
 
     def front(
         self,
         *,
         return_indices: bool = False,
+        feasible_only: bool = True,
     ) -> NDArray[np.float64] | tuple[NDArray[np.float64], NDArray[np.int_]] | None:
-        if return_indices:
-            return pareto_filter(self.F, return_indices=True)
-        return pareto_filter(self.F, return_indices=False)
+        """Non-dominated rows of the top-level ``F``, feasible solutions first.
 
-    def best(self, method: BestMethod = "balanced_sum") -> BestResult:
+        When the result carries constraint values ``G`` for its rows, only the
+        feasible rows are Pareto-filtered or, when none is feasible, the least
+        violated ones: the rule the algorithms use for their non-dominated
+        results. ``feasible_only=False`` filters every row by ``F`` alone, as
+        VAMOS 1.1.0 and earlier did. The indices refer to the top-level
+        ``X``/``F`` arrays.
+        """
+        if self.F is None:
+            return pareto_filter(None, return_indices=True) if return_indices else None
+        F = np.asarray(self.F, dtype=float)
+        candidates = selection_candidates(F, self.data.get("G"), feasible_only=feasible_only)
+        front_F, local_idx = pareto_filter(F[candidates], return_indices=True)
+        front_idx = np.asarray(candidates[np.asarray(local_idx, dtype=int)], dtype=int)
+        if return_indices:
+            return front_F, front_idx
+        return front_F
+
+    def best(self, method: BestMethod = "balanced_sum", *, feasible_only: bool = True) -> BestResult:
+        """One solution of :meth:`front`, chosen by ``method``.
+
+        ``balanced_sum`` (default) minimizes the sum of objectives normalized over
+        the front; ``balanced`` minimizes their maximum; ``min_f1`` and ``min_f2``
+        minimize one objective. ``knee`` is a deprecated alias of ``balanced_sum``,
+        not a knee point; use :func:`vamos.ux.api.knee_point_scores` for a
+        geometric knee. ``feasible_only`` is passed to :meth:`front`.
+        """
         if self.F is None or len(self.F) == 0:
             raise NoSolutionsError("No solutions available.")
 
-        front = self.front(return_indices=True)
-        if front is None:
-            raise NoSolutionsError("No solutions available.")
-        front_F, front_idx = front
+        resolved_method = normalize_best_method(method)
+        warn_if_knee_alias(resolved_method)
+        front_F, front_idx = self.front(return_indices=True, feasible_only=feasible_only)
         if len(front_F) == 0:
             raise NoSolutionsError("No solutions available.")
 
-        resolved_method = normalize_best_method(method)
         if resolved_method in {"balanced_sum", "knee"}:
             F_norm = (front_F - front_F.min(axis=0)) / (np.ptp(front_F, axis=0) + 1e-12)
             front_pos = int(np.argmin(F_norm.sum(axis=1)))
@@ -129,11 +151,23 @@ class OptimizationResult:
         self,
         k: int = 100,
         *,
-        source: RankingSource = "archive",
+        source: RankingSource = "auto",
         method: RankingMethod = "balanced_sum",
         nondominated_only: bool = True,
         weights: NDArray[np.float64] | None = None,
+        feasible_only: bool = True,
     ) -> TopKResult:
+        """Up to ``k`` solutions of ``source``, ranked by ``method``.
+
+        ``source="auto"`` (default) ranks the external archive when the result has
+        one and the top-level result otherwise; ``"result"``, ``"archive"`` and
+        ``"population"`` select one explicitly. When the source carries
+        constraint values ``G`` for its rows, only its feasible rows are ranked
+        or, when none is feasible, the least violated ones; ``feasible_only=False``
+        ranks every row. ``method="knee"`` is a deprecated alias of
+        ``"balanced_sum"``.
+        """
+        warn_if_knee_alias(method)
         return cast(
             TopKResult,
             rank_top_k(
@@ -143,6 +177,7 @@ class OptimizationResult:
                 method=method,
                 nondominated_only=nondominated_only,
                 weights=weights,
+                feasible_only=feasible_only,
             ),
         )
 
@@ -150,11 +185,14 @@ class OptimizationResult:
         self,
         k: int = 100,
         *,
-        source: RankingSource = "archive",
+        source: RankingSource = "auto",
         method: RankingMethod = "balanced_sum",
         nondominated_only: bool = True,
         weights: NDArray[np.float64] | None = None,
+        feasible_only: bool = True,
     ) -> list[dict[str, Any]]:
+        """The :meth:`top_k` selection as one row per solution, with its objectives and variables."""
+        warn_if_knee_alias(method)
         return build_top_k_report(
             result=self,
             k=k,
@@ -162,6 +200,7 @@ class OptimizationResult:
             method=method,
             nondominated_only=nondominated_only,
             weights=weights,
+            feasible_only=feasible_only,
         )
 
     def explain_defaults(self) -> dict[str, object]:
