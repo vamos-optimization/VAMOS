@@ -15,12 +15,29 @@ def _logger() -> logging.Logger:
     return logging.getLogger(__name__)
 
 
+def _pygmo_seed(seed: int) -> int:
+    """Return ``seed`` as the unsigned 32-bit integer pygmo's constructors accept.
+
+    Seeds in ``[0, 2**32)`` pass unchanged, so existing runs keep their streams. Wider
+    seeds (the CLI draws 64-bit seeds when ``--seed`` is omitted) are folded by XOR of
+    the 32-bit words of their magnitude, so every bit still affects the result.
+    """
+    if 0 <= seed <= 0xFFFF_FFFF:
+        return seed
+    magnitude = abs(seed)
+    folded = 0
+    while magnitude:
+        folded ^= magnitude & 0xFFFF_FFFF
+        magnitude >>= 32
+    return folded
+
+
 def _run_pygmo_nsga2(
     selection: ProblemSelection,
     *,
     use_native_problem: bool,
     config: ExperimentConfig,
-    make_metrics: Callable[[str, str, float, int, np.ndarray], dict[str, Any]],
+    make_metrics: Callable[[str, str, float, int, np.ndarray[Any, Any]], dict[str, Any]],
     print_banner: Callable[[Any, ProblemSelection, str, str], None],
     print_results: Callable[[dict[str, Any]], None],
 ) -> dict[str, Any]:
@@ -34,9 +51,10 @@ def _run_pygmo_nsga2(
         raise ImportError("pygmo is not installed. Install it with 'pip install pygmo' to use this baseline.") from exc
 
     generations = config.max_evaluations // config.population_size - 1
+    seed = _pygmo_seed(int(config.seed))
     uda = pg.nsga2(
         gen=generations,
-        seed=config.seed,
+        seed=seed,
         cr=0.9,
         eta_c=20.0,
         m=1.0 / selection.n_var,
@@ -44,7 +62,8 @@ def _run_pygmo_nsga2(
     )
     algo = pg.algorithm(uda)
     if use_native_problem:
-        base_problem = pg.zdt(prob_id=1, dim=selection.n_var)
+        # pygmo names the ZDT dimension ``param``: zdt(prob_id=1, param=30).
+        base_problem = pg.zdt(prob_id=1, param=selection.n_var)
     else:
 
         class _VamosPyGMOProblem:
@@ -71,7 +90,7 @@ def _run_pygmo_nsga2(
         base_problem = _VamosPyGMOProblem(problem)
 
     pg_problem = pg.problem(base_problem)
-    pop = pg.population(pg_problem, size=config.population_size, seed=config.seed)
+    pop = pg.population(pg_problem, size=config.population_size, seed=seed)
     start = time.perf_counter()
     pop = algo.evolve(pop)
     end = time.perf_counter()
