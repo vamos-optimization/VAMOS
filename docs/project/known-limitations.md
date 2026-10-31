@@ -57,6 +57,13 @@ unsupported behavior rather than future compatibility promises.
 - Independent algorithm-conformance validation for AGE-MOEA, RVEA and SMPSO
   remains pending. Passing API and regression tests does not establish
   convergence equivalence with a reference implementation.
+- **Development after 1.1.0:** AGE-MOEA's hypervolume on ZDT1, DTLZ2 and DTLZ1
+  is statistically indistinguishable from jMetal 7.9's over 30 seeds, and a
+  reference test checks it on ZDT1. VAMOS 1.1.0's AGE-MOEA was significantly
+  worse, mainly because its mating tournament used NSGA-II crowding instead of
+  the survival score; see
+  [AGE-MOEA survival score](../reference/algorithms.md#age-moea-survival-score).
+  RVEA and SMPSO remain pending.
 - IBEA normalizes the objectives over the population for both indicators,
   as adaptive IBEA does.
   - **Effect on multimodal problems:** far-dominated solutions in early

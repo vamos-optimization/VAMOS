@@ -216,6 +216,15 @@ Include Experimental third-party baselines (ZDT1 example; requires the
 vamos --problem zdt1 --algorithm both --include-external --external-problem-source native
 ```
 
+**Development after 1.1.0:** a failed run no longer stops `--algorithm both`
+or `--problem-set`. The error is logged, the remaining runs and the summary
+complete, and the command then exits with a nonzero status that lists the
+failed runs. RVEA derives its reference-vector partitions from
+`--population-size`, so the default population of 100 runs on two objectives.
+A population with no exact Das-Dennis lattice for the problem's objectives,
+such as 100 on three objectives, is rejected before optimizing, and the error
+names the nearest valid sizes (91 or 105).
+
 Walkthrough: run and inspect outputs
 ------------------------------------
 

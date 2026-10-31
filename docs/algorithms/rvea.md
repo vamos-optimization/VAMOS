@@ -176,6 +176,8 @@ Evaluations: 400
 | `adapt_freq(0.1)` | Configures reference-vector adaptation frequency. |
 | Numeric mutation probability `1/12` | Required in this 1.0.1 variation path; do not substitute the `"1/n"` shorthand. |
 
+**Development after 1.1.0:** RVEA and AGE-MOEA resolve `"1/n"` like the other algorithms, so `prob="1/n"` is equivalent to `1/12` here.
+
 ## Interpret the result and its limits
 
 Each `X` row aligns with the same `F` row. This lesson explicitly requests `population` mode, then computes the feasible non-dominated subset separately. All objectives are minimized. A non-dominated row is only non-dominated among the available rows; it need not be Pareto optimal. The retained [observations](../assets/coverage/observations.json) contain the actual arrays and configuration.
