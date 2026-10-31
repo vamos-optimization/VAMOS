@@ -6,7 +6,7 @@ This module contains the core SPEA2 selection functions:
 - Dominance matrix computation
 - SPEA2 fitness (strength + density)
 - Environmental selection
-- Distance-based truncation
+- The SPEA2 truncation operator
 """
 
 from __future__ import annotations
@@ -129,19 +129,18 @@ def strength_raw_fitness(dom: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
 
 def knn_density(F: np.ndarray[Any, Any], k: int = 1) -> np.ndarray[Any, Any]:
     """Compute k-th nearest neighbor distance for each solution (higher is better)."""
-    n = F.shape[0]
+    return _kth_neighbour_distance(np.linalg.norm(F[:, None, :] - F[None, :, :], axis=2), k)
+
+
+def _kth_neighbour_distance(dist: np.ndarray[Any, Any], k: int) -> np.ndarray[Any, Any]:
+    n = dist.shape[0]
     if n == 0:
         return np.empty(0, dtype=float)
     if n == 1:
         return np.full(1, np.inf, dtype=float)
-    k = int(k)
-    if k < 1:
-        k = 1
-    if k >= n:
-        k = n - 1
-    dist = np.linalg.norm(F[:, None, :] - F[None, :, :], axis=2)
-    kth = np.partition(dist, kth=k, axis=1)[:, k]
-    return kth
+    k = min(max(int(k), 1), n - 1)
+    # Each row's zero self-distance sorts first, so position k is the k-th neighbour.
+    return np.asarray(np.partition(dist, kth=k, axis=1)[:, k], dtype=float)
 
 
 def selection_fitness_density(
@@ -160,55 +159,19 @@ def selection_fitness_density(
     return raw_fitness, density
 
 
-def truncate_by_kth_distance(
+def truncate_lexicographic(
     dist_matrix: np.ndarray[Any, Any],
     keep: int,
-    k: int,
     selection_kernels: SelectionKernels | None = None,
 ) -> np.ndarray[Any, Any]:
-    """Sequentially truncate by the current k-th nearest-neighbor distance."""
-    n = int(dist_matrix.shape[0])
-    if n <= keep:
-        return np.arange(n, dtype=int)
-    if keep <= 0:
-        return np.empty(0, dtype=int)
+    """Apply the SPEA2 truncation operator and return the kept rows in ascending order.
 
-    dist = np.asarray(dist_matrix, dtype=float)
-    if dist.ndim != 2 or dist.shape[1] != n:
-        raise ValueError("dist_matrix must be a square 2D array.")
-
-    kth_neighbor = max(1, int(k))
-    if selection_kernels is not None and bool(np.isfinite(dist).all()):
-        # Same k-th statistics, stable descending order and removal as the loop below.
-        return np.asarray(selection_kernels.kth_distance_truncation(dist, keep, kth_neighbor), dtype=int)
-
-    active: NDArray[np.int_] = np.arange(n, dtype=int)
-    while active.size > keep:
-        active_dist = dist[np.ix_(active, active)]
-        active_k = min(kth_neighbor, active_dist.shape[0] - 1)
-        kth = np.partition(active_dist, kth=active_k, axis=1)[:, active_k]
-        order = np.argsort(-kth, kind="mergesort")
-        active = active[order[:-1]]
-
-    return active
-
-
-def truncate_by_distance(dist_matrix: np.ndarray[Any, Any], keep: int) -> np.ndarray[Any, Any]:
-    """Truncate by iteratively removing solution with smallest distance.
-
-    This is the SPEA2 truncation procedure that preserves boundary solutions.
-
-    Parameters
-    ----------
-    dist_matrix : np.ndarray[Any, Any]
-        Distance matrix, shape (N, N).
-    keep : int
-        Number of solutions to keep.
-
-    Returns
-    -------
-    np.ndarray[Any, Any]
-        Indices of retained solutions.
+    Each step removes the solution whose distances to the remaining ones, sorted
+    in ascending order, are lexicographically smallest: the smallest
+    nearest-neighbour distance, ties broken by the second nearest, then the
+    third, and so on (the ``<=_d`` relation of Zitzler, Laumanns and Thiele,
+    2001, as in jMetal's ``EnvironmentalSelection``). Rows with identical sorted
+    distances remove the first one.
     """
     n = int(dist_matrix.shape[0])
     if n <= keep:
@@ -220,47 +183,23 @@ def truncate_by_distance(dist_matrix: np.ndarray[Any, Any], keep: int) -> np.nda
     if dist.ndim != 2 or dist.shape[1] != n:
         raise ValueError("dist_matrix must be a square 2D array.")
 
-    order = np.argsort(dist, axis=1, kind="mergesort")
-    active = np.ones(n, dtype=bool)
-    first_ptr = np.full(n, -1, dtype=int)
-    second_ptr = np.full(n, -1, dtype=int)
-    second_neighbor = np.full(n, np.inf, dtype=float)
+    if selection_kernels is not None and bool(np.isfinite(dist).all()):
+        # Same candidates, lexicographic comparison and first-row ties as the loop below.
+        return np.asarray(selection_kernels.lexicographic_truncation(dist, keep), dtype=int)
 
-    def _refresh_neighbors(i: int) -> None:
-        first = -1
-        second = -1
-        for pos in range(n):
-            idx = int(order[i, pos])
-            if idx == i or not active[idx]:
-                continue
-            if first < 0:
-                first = pos
-            else:
-                second = pos
-                break
-        first_ptr[i] = first
-        second_ptr[i] = second
-        second_neighbor[i] = dist[i, int(order[i, second])] if second >= 0 else np.inf
+    active: NDArray[np.int_] = np.arange(n, dtype=int)
+    while active.size > keep:
+        sub = dist[np.ix_(active, active)]
+        np.fill_diagonal(sub, np.inf)
+        nearest = sub.min(axis=1)
+        candidates = np.flatnonzero(nearest == nearest.min())
+        if candidates.size > 1:
+            # The self-distance sorts last in every row, so it never decides the order.
+            rows = np.sort(sub[candidates], axis=1)
+            candidates = candidates[np.lexsort(rows.T[::-1])]
+        active = np.delete(active, int(candidates[0]))
 
-    for i in range(n):
-        _refresh_neighbors(i)
-
-    remaining = n
-    while remaining > keep:
-        ranking = second_neighbor.copy()
-        ranking[~active] = np.inf
-        remove_idx = int(np.argmin(ranking))
-        active[remove_idx] = False
-        second_neighbor[remove_idx] = np.inf
-        remaining -= 1
-
-        for active_idx in np.flatnonzero(active):
-            if (first_ptr[active_idx] >= 0 and int(order[active_idx, first_ptr[active_idx]]) == remove_idx) or (
-                second_ptr[active_idx] >= 0 and int(order[active_idx, second_ptr[active_idx]]) == remove_idx
-            ):
-                _refresh_neighbors(int(active_idx))
-
-    return np.flatnonzero(active)
+    return active
 
 
 def environmental_selection(
@@ -271,10 +210,19 @@ def environmental_selection(
     k_neighbors: int | None,
     constraint_mode: str,
     selection_kernels: SelectionKernels | None = None,
-) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any] | None]:
-    """SPEA2 environmental selection (sequential truncation).
+) -> tuple[
+    np.ndarray[Any, Any],
+    np.ndarray[Any, Any],
+    np.ndarray[Any, Any] | None,
+    np.ndarray[Any, Any],
+    np.ndarray[Any, Any],
+]:
+    """SPEA2 environmental selection (Zitzler, Laumanns and Thiele, 2001, step 3).
 
-    Select solutions for the next generation archive based on fitness.
+    The non-dominated solutions (raw fitness 0) form the new archive. If they
+    exceed ``archive_size``, the truncation operator removes the most crowded
+    ones; if they fall short, the dominated solutions with the best fitness
+    ``F = R + 1 / (sigma_k + 2)`` fill it, in that order.
 
     Parameters
     ----------
@@ -287,7 +235,7 @@ def environmental_selection(
     archive_size : int
         Target archive size.
     k_neighbors : int | None
-        k for density estimation.
+        k of the k-th nearest-neighbour density (1 when ``None``).
     constraint_mode : str
         Constraint handling mode.
     selection_kernels : SelectionKernels | None
@@ -295,40 +243,36 @@ def environmental_selection(
 
     Returns
     -------
-    tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any] | None]
-        (X_selected, F_selected, G_selected)
+    tuple
+        ``(X, F, G, raw_fitness, kth_distance)`` of the new archive. The raw
+        fitness ``R`` and the k-th nearest-neighbour distance are those of each
+        member in the whole input, which SPEA2's mating tournament uses.
     """
     n = F.shape[0]
-    if n == 0:
-        return X, F, G
-    if n <= archive_size:
-        return X, F, G
-
+    dist = np.linalg.norm(F[:, None, :] - F[None, :, :], axis=2)
+    kth_distance = _kth_neighbour_distance(dist, int(k_neighbors) if k_neighbors is not None else 1)
     dom, _, _ = dominance_matrix(F, G, constraint_mode)
     raw_fitness = strength_raw_fitness(dom)
-    k = int(k_neighbors) if k_neighbors is not None else 1
 
-    unique_fitness = np.unique(raw_fitness)
-    fronts = [np.flatnonzero(raw_fitness == fit) for fit in np.sort(unique_fitness)]
+    nondominated = np.flatnonzero(raw_fitness == 0.0)
+    if n <= archive_size:
+        selected: NDArray[np.int_] = np.arange(n, dtype=int)
+    elif nondominated.size > archive_size:
+        keep = truncate_lexicographic(dist[np.ix_(nondominated, nondominated)], archive_size, selection_kernels)
+        selected = nondominated[keep]
+    else:
+        dominated = np.flatnonzero(raw_fitness > 0.0)
+        fitness = raw_fitness[dominated] + 1.0 / (kth_distance[dominated] + 2.0)
+        fill = dominated[np.argsort(fitness, kind="stable")[: archive_size - nondominated.size]]
+        selected = np.concatenate([nondominated, fill])
 
-    selected: list[int] = []
-    for front in fronts:
-        if len(selected) + front.size <= archive_size:
-            selected.extend(front.tolist())
-            continue
-
-        remaining = archive_size - len(selected)
-        if remaining <= 0:
-            break
-
-        front_F = F[front]
-        dist_matrix = np.linalg.norm(front_F[:, None, :] - front_F[None, :, :], axis=2)
-        keep_idx = truncate_by_kth_distance(dist_matrix, remaining, k, selection_kernels)
-        selected.extend(front[keep_idx].tolist())
-        break
-
-    selected_idx = np.asarray(selected, dtype=int)
-    return X[selected_idx], F[selected_idx], G[selected_idx] if G is not None else None
+    return (
+        X[selected],
+        F[selected],
+        G[selected] if G is not None else None,
+        raw_fitness[selected],
+        kth_distance[selected],
+    )
 
 
 def compute_selection_metrics(
@@ -384,8 +328,7 @@ __all__ = [
     "strength_raw_fitness",
     "knn_density",
     "selection_fitness_density",
-    "truncate_by_distance",
-    "truncate_by_kth_distance",
+    "truncate_lexicographic",
     "environmental_selection",
     "compute_selection_metrics",
 ]

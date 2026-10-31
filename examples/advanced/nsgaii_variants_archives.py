@@ -9,7 +9,7 @@ This advanced example runs DTLZ2 (3 objectives) with four configurations:
 
 For the unbounded archive run, the script reports two top-100 selections:
 - **crowding**: the most spread solutions selected by iterative crowding distance
-- **knee**: compromise solutions ranked by normalized objective sum (lower is better)
+- **balanced_sum**: compromise solutions ranked by normalized objective sum (lower is better)
 
 Usage:
     python examples/advanced/nsgaii_variants_archives.py
@@ -30,7 +30,6 @@ import numpy as np
 from vamos import optimize
 from vamos.algorithms import NSGAIIConfig
 from vamos.problems import DTLZ2
-
 
 ENGINE = os.environ.get("VAMOS_ADV_ENGINE", "numba")
 MAX_EVALUATIONS = int(os.environ.get("VAMOS_ADV_EVALS", "40000"))
@@ -121,7 +120,7 @@ def _print_summary(entry: dict[str, Any]) -> None:
         print("  Archive size: n/a")
 
     if result.F is not None and len(result.F) > 0:
-        top1 = result.top_k(k=1, source="result", method="knee", nondominated_only=False)
+        top1 = result.top_k(k=1, source="result", method="balanced_sum", nondominated_only=False)
         best_idx = int(top1["indices"][0])
         print(f"  Best compromise in result (index={best_idx}): {result.F[best_idx]}")
 
@@ -144,17 +143,17 @@ def _report_top_100_unbounded(entry: dict[str, Any]) -> None:
     if top_cd_f.shape[0] > 10:
         print(f"  ... ({top_cd_f.shape[0] - 10} more rows)")
 
-    # --- Top-100 by knee (best compromise solutions) ---
+    # --- Top-100 by balanced_sum (best compromise solutions) ---
     try:
-        top_knee = result.top_k(k=100, source="archive", method="knee", nondominated_only=True)
+        top_balanced = result.top_k(k=100, source="archive", method="balanced_sum", nondominated_only=True)
     except ValueError:
         return
 
-    top_f = np.asarray(top_knee["F"], dtype=float)
-    top_scores = np.asarray(top_knee["scores"], dtype=float)
-    top_x = top_knee["X"]
+    top_f = np.asarray(top_balanced["F"], dtype=float)
+    top_scores = np.asarray(top_balanced["scores"], dtype=float)
+    top_x = top_balanced["X"]
 
-    print(f"\n[unbounded_archive] Top {top_f.shape[0]} best compromise solutions (knee)")
+    print(f"\n[unbounded_archive] Top {top_f.shape[0]} best compromise solutions (balanced_sum)")
     print("  rank | score | objectives")
     for i in range(min(10, top_f.shape[0])):
         print(f"  {i + 1:4d} | {top_scores[i]:.6f} | {np.array2string(top_f[i], precision=6, suppress_small=True)}")
@@ -162,7 +161,7 @@ def _report_top_100_unbounded(entry: dict[str, Any]) -> None:
         print(f"  ... ({top_f.shape[0] - 10} more rows)")
 
     if top_x is not None and top_f.shape[0] > 0:
-        print("\n  Best decision vector (knee, rank=1):")
+        print("\n  Best decision vector (balanced_sum, rank=1):")
         print(f"  {np.array2string(np.asarray(top_x)[0], precision=6, suppress_small=True)}")
 
 

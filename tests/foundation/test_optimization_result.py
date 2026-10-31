@@ -117,7 +117,8 @@ class TestOptimizationResultBest:
         X = np.array([[1, 2], [3, 4], [5, 6]])
         result = OptimizationResult({"F": F, "X": X})
 
-        best = result.best("knee")
+        with pytest.warns(FutureWarning, match="alias of 'balanced_sum'"):
+            best = result.best("knee")
 
         assert "F" in best
         assert "X" in best
@@ -152,7 +153,8 @@ class TestOptimizationResultBest:
         X = np.arange(F.shape[0] * 2).reshape(F.shape[0], 2)
         result = OptimizationResult({"F": F, "X": X})
 
-        best = result.best("knee")
+        with pytest.warns(FutureWarning):
+            best = result.best("knee")
 
         assert best["index"] == 2
         assert np.allclose(best["F"], F[2])
@@ -301,7 +303,8 @@ class TestOptimizationResultTopK:
         archive_X = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
         result = OptimizationResult({"F": F, "archive": {"F": archive_F, "X": archive_X}})
 
-        top = result.top_k(k=2, source="archive", method="knee", nondominated_only=True)
+        with pytest.warns(FutureWarning):
+            top = result.top_k(k=2, source="archive", method="knee", nondominated_only=True)
 
         assert top["F"].shape == (2, 2)
         assert top["X"] is not None and top["X"].shape == (2, 2)
@@ -331,7 +334,7 @@ class TestOptimizationResultTopK:
         archive_F = np.array([[0.0, 1.0], [1.0, 0.0], [1.2, 1.2]])
         result = OptimizationResult({"F": archive_F, "archive": {"F": archive_F, "X": None}})
 
-        top = result.top_k(k=3, source="archive", method="knee", nondominated_only=True)
+        top = result.top_k(k=3, source="archive", method="balanced_sum", nondominated_only=True)
 
         assert top["F"].shape[0] == 2
         assert set(top["indices"].tolist()) == {0, 1}
@@ -353,7 +356,7 @@ class TestOptimizationResultTopK:
         result = OptimizationResult({"F": F})
 
         with pytest.raises(ResultSelectionError, match="source must be one of"):
-            result.top_k(k=1, source="invalid", method="knee")
+            result.top_k(k=1, source="invalid", method="balanced_sum")
 
     def test_best_empty_result_raises_no_solutions(self):
         from vamos.experiment.optimization_result import OptimizationResult
@@ -362,7 +365,7 @@ class TestOptimizationResultTopK:
         result = OptimizationResult({"F": np.empty((0, 2))})
 
         with pytest.raises(NoSolutionsError, match="No solutions available"):
-            result.best("knee")
+            result.best("balanced_sum")
 
     def test_top_k_crowding_method(self):
         from vamos.experiment.optimization_result import OptimizationResult
@@ -384,10 +387,103 @@ class TestOptimizationResultTopK:
         archive_X = np.array([[10.0, 11.0], [12.0, 13.0], [14.0, 15.0]])
         result = OptimizationResult({"F": archive_F, "archive": {"F": archive_F, "X": archive_X}})
 
-        rows = result.top_k_report(k=2, source="archive", method="knee", nondominated_only=False)
+        rows = result.top_k_report(k=2, source="archive", method="balanced_sum", nondominated_only=False)
 
         assert len(rows) == 2
         assert rows[0]["rank"] == 1
         assert "score" in rows[0]
         assert "f1" in rows[0] and "f2" in rows[0]
         assert "x1" in rows[0] and "x2" in rows[0]
+
+
+def _constrained_population_result():
+    import vamos
+    from vamos import make_problem
+
+    problem = make_problem(
+        lambda x: [x[0], x[1]],
+        n_var=2,
+        n_obj=2,
+        xl=0,
+        xu=1,
+        constraints=lambda x: [0.8 - (x[0] + x[1])],
+        n_constraints=1,
+        encoding="real",
+    )
+    # One generation: the returned population still mixes feasible and infeasible rows.
+    return vamos.optimize(problem, algorithm="nsgaii", pop_size=20, max_evaluations=20, seed=7)
+
+
+class TestOptimizationResultFeasibility:
+    """Selection helpers rank feasible solutions first (review finding VR-015)."""
+
+    def test_front_and_best_prefer_feasible_solutions(self):
+        result = _constrained_population_result()
+        feasible = np.all(result.data["G"] <= 0.0, axis=1)
+        assert 0 < feasible.sum() < len(result), "the scenario needs both feasible and infeasible rows"
+
+        front_F, front_idx = result.front(return_indices=True)
+        assert feasible[front_idx].all()
+        assert np.array_equal(front_F, result.F[front_idx])
+        assert np.array_equal(result.front(), front_F)
+        assert feasible[result.best()["index"]]
+        assert feasible[result.top_k(k=5)["indices"]].all()
+        assert all(feasible[row["index"]] for row in result.top_k_report(k=5))
+
+        # feasible_only=False restores the objective-only selection.
+        _, unfiltered_idx = result.front(return_indices=True, feasible_only=False)
+        assert not feasible[unfiltered_idx].all()
+
+    def test_selection_without_feasible_rows_uses_the_least_violated(self):
+        from vamos.experiment.optimization_result import OptimizationResult
+
+        F = np.array([[0.0, 1.0], [1.0, 0.0], [0.5, 0.5], [0.2, 0.2]])
+        G = np.array([[0.3], [0.1], [0.1], [0.4]])
+        result = OptimizationResult({"F": F, "X": None, "G": G})
+
+        _, front_idx = result.front(return_indices=True)
+        assert sorted(front_idx.tolist()) == [1, 2]
+        assert result.best()["index"] in {1, 2}
+
+    def test_result_without_constraints_is_unchanged(self):
+        from vamos.experiment.optimization_result import OptimizationResult
+
+        F = np.array([[0.0, 1.0], [1.0, 0.0], [0.5, 0.5], [0.6, 0.6]])
+        result = OptimizationResult({"F": F, "X": None})
+
+        _, front_idx = result.front(return_indices=True)
+        assert sorted(front_idx.tolist()) == [0, 1, 2]
+
+    def test_top_k_defaults_work_without_archive(self):
+        result = _constrained_population_result()
+        assert "archive" not in result.data
+
+        top = result.top_k(k=3)
+        rows = result.top_k_report(k=3)
+
+        assert top["source"] == "result"
+        assert len(rows) == 3 and rows[0]["source"] == "result"
+
+    def test_top_k_auto_source_prefers_the_archive(self):
+        from vamos.experiment.optimization_result import OptimizationResult
+
+        F = np.array([[0.3, 0.7], [0.5, 0.5]])
+        archive_F = np.array([[0.1, 0.9], [0.9, 0.1], [0.5, 0.5]])
+        result = OptimizationResult({"F": F, "archive": {"F": archive_F, "X": None}})
+
+        top = result.top_k(k=3)
+
+        assert top["source"] == "archive"
+        assert top["F"].shape == (3, 2)
+
+    def test_knee_is_a_deprecated_alias_of_balanced_sum(self):
+        from vamos.experiment.optimization_result import OptimizationResult
+
+        F = np.array([[0.1, 0.9], [0.5, 0.5], [0.9, 0.1]])
+        result = OptimizationResult({"F": F, "archive": {"F": F, "X": None}})
+
+        with pytest.warns(FutureWarning, match="balanced_sum"):
+            knee = result.best("knee")
+        assert knee["index"] == result.best("balanced_sum")["index"]
+        with pytest.warns(FutureWarning, match="knee_point_scores"):
+            result.top_k(k=2, method="knee")

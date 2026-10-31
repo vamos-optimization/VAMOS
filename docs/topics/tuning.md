@@ -505,6 +505,35 @@ already chosen variants, the stable study lifecycle is preferable: represent
 each scientifically distinct configuration explicitly, plan the matrix before
 execution, and retain canonical run provenance.
 
+What VAMOS calls an ablation is a comparison of predefined variants: every
+variant runs on every problem and seed as its own study. It is not the
+ablation analysis of Fawcett and Hoos (2016), which walks a path from a source
+configuration (the default) to a target configuration (a tuned one), greedily
+choosing at each step the parameter change that helps most, and uses racing to
+make the steps cheaper. VAMOS neither builds that path nor connects it to the
+output of `vamos tune`.
+
+**Development after 1.1.0:** every key of `base_config` and of a variant's
+`config_overrides` is either an ablation setting (`population_size`,
+`offspring_population_size`, `eval_strategy` and `output_root`) or a field of
+the algorithm configuration, such as `pop_size` or
+`crossover: [sbx, {prob: 0.5}]`, which reaches the study's `algorithm_configs`.
+Any other key fails with a `ConfigurationError` that suggests the closest
+field. `pop_size` and `offspring_size` set the same sizes as
+`population_size` and `offspring_population_size`: a variant's value wins over
+`base_config` whichever name each one uses, and one mapping cannot give the
+two names different values. Operators are accepted as `[name, {params}]` pairs or as mappings with
+`method`, in `config_overrides` and in `variations`. Every variant is planned
+before the first one runs, so an invalid variant stops the ablation before any
+run. With `vamos ablation`, each variant writes its studies to
+`<output_root>/<variant>/study-NNNN` unless `--flat-output` or
+`per_variant_output_root: false` is given, and `output_root_by_variant` moves
+one variant elsewhere. VAMOS 1.1.0 kept only `population_size`,
+`offspring_population_size` and `eval_strategy`, so a variant that changed any
+other key silently ran the base configuration; it wrote every study to
+`<output_root>/study-NNNN`, and the mapping form of an operator in `variations`
+failed after the earlier variants had already run.
+
 ```python
 from pathlib import Path
 

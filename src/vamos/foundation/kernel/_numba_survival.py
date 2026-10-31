@@ -142,84 +142,65 @@ def greedy_two_nearest_selection(
 
 
 @njit(cache=True)
-def kth_distance_truncation(dist: FloatArray, keep: int, k: int) -> IndexArray:
-    """SPEA2 truncation by the current k-th nearest-neighbour distance (finite distances).
+def _sorted_distances(dist: FloatArray, active: IndexArray, size: int, i: int, out: FloatArray) -> None:
+    """Sorted distances from active row ``i`` to the other active rows, written to ``out[: size - 1]``."""
+    row = active[i]
+    count = 0
+    for j in range(size):
+        if j == i:
+            continue
+        value = dist[row, active[j]]
+        pos = count
+        while pos > 0 and out[pos - 1] > value:
+            out[pos] = out[pos - 1]
+            pos -= 1
+        out[pos] = value
+        count += 1
 
-    Each step computes the k-th smallest distance of every active row (the zero
-    self-distance included, as in the reference ``np.partition``), orders the
-    active rows by a stable descending sort of that value, and drops the last one.
+
+@njit(cache=True)
+def lexicographic_truncation(dist: FloatArray, keep: int) -> IndexArray:
+    """SPEA2 truncation operator on finite distances; returns the kept rows in ascending order.
+
+    Each step finds the active rows with the smallest nearest-neighbour distance
+    and removes the one whose sorted distances to the other active rows are
+    lexicographically smallest, the first such row on exact ties.
     """
     n = dist.shape[0]
     active = np.arange(n, dtype=np.int64)
     size = n
-    kth_values = np.empty(n, dtype=np.float64)
-    smallest = np.empty(k + 1, dtype=np.float64)
-    order = np.empty(n, dtype=np.int64)
-    temp = np.empty(n, dtype=np.int64)
-    keys = np.empty(n, dtype=np.float64)
-    reordered = np.empty(n, dtype=np.int64)
+    nearest = np.empty(n, dtype=np.float64)
+    best_row = np.empty(n, dtype=np.float64)
+    other_row = np.empty(n, dtype=np.float64)
     while size > keep:
-        active_k = k if k < size - 1 else size - 1
+        smallest = np.inf
         for i in range(size):
-            row = active[i]
-            count = 0
+            value = np.inf
             for j in range(size):
-                value = dist[row, active[j]]
-                if count < active_k + 1:
-                    pos = count
-                    count += 1
-                elif value < smallest[active_k]:
-                    pos = active_k
-                else:
-                    continue
-                while pos > 0 and smallest[pos - 1] > value:
-                    smallest[pos] = smallest[pos - 1]
-                    pos -= 1
-                smallest[pos] = value
-            kth_values[i] = smallest[active_k]
+                if j != i and dist[active[i], active[j]] < value:
+                    value = dist[active[i], active[j]]
+            nearest[i] = value
+            if value < smallest:
+                smallest = value
+        chosen = -1
         for i in range(size):
-            keys[i] = -kth_values[i]
-            order[i] = i
-        _stable_sort_ascending(keys, order, temp, size)
-        for i in range(size - 1):
-            reordered[i] = active[order[i]]
+            if nearest[i] != smallest:
+                continue
+            if chosen < 0:
+                chosen = i
+                _sorted_distances(dist, active, size, i, best_row)
+                continue
+            _sorted_distances(dist, active, size, i, other_row)
+            for pos in range(size - 1):
+                if other_row[pos] != best_row[pos]:
+                    if other_row[pos] < best_row[pos]:
+                        chosen = i
+                        best_row[: size - 1] = other_row[: size - 1]
+                    break
+        for i in range(chosen, size - 1):
+            active[i] = active[i + 1]
         size -= 1
-        for i in range(size):
-            active[i] = reordered[i]
     return active[:size].copy()
-
-
-@njit(cache=True)
-def _stable_sort_ascending(values: FloatArray, order: IndexArray, temp: IndexArray, length: int) -> None:
-    width = 1
-    while width < length:
-        left = 0
-        while left < length:
-            mid = min(left + width, length)
-            right = min(left + 2 * width, length)
-            i = left
-            j = mid
-            out = left
-            while i < mid and j < right:
-                if values[order[j]] < values[order[i]]:
-                    temp[out] = order[j]
-                    j += 1
-                else:
-                    temp[out] = order[i]
-                    i += 1
-                out += 1
-            while i < mid:
-                temp[out] = order[i]
-                i += 1
-                out += 1
-            while j < right:
-                temp[out] = order[j]
-                j += 1
-                out += 1
-            for pos in range(left, right):
-                order[pos] = temp[pos]
-            left += 2 * width
-        width *= 2
 
 
 @njit(cache=True)
@@ -276,8 +257,8 @@ class NumbaSelectionKernels:
             crowd_dist,
         )
 
-    def kth_distance_truncation(self, dist: FloatArray, keep: int, k: int) -> IndexArray:
-        return kth_distance_truncation(np.ascontiguousarray(dist, dtype=np.float64), int(keep), int(k))
+    def lexicographic_truncation(self, dist: FloatArray, keep: int) -> IndexArray:
+        return lexicographic_truncation(np.ascontiguousarray(dist, dtype=np.float64), int(keep))
 
     def indicator_removal(self, fitness: FloatArray, contrib: FloatArray, target_size: int) -> IndexArray:
         return indicator_removal(fitness, contrib, int(target_size))
@@ -317,6 +298,6 @@ __all__ = [
     "greedy_two_nearest_selection",
     "indicator_removal",
     "iterative_crowding_truncation",
-    "kth_distance_truncation",
+    "lexicographic_truncation",
     "numba_selection_kernels",
 ]
