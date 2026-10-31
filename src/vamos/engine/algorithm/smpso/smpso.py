@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
+from vamos.engine.algorithm.components.evaluation import extract_evaluation_arrays
 from vamos.engine.algorithm.components.hooks import (
     finalize_genealogy,
     live_should_stop,
@@ -25,10 +26,7 @@ from vamos.engine.algorithm.components.subset_selection import _single_front_cro
 from vamos.engine.algorithm.components.termination import HVTracker, capped_offspring_size
 from vamos.foundation.kernel import default_kernel
 
-from .helpers import (
-    extract_eval_arrays,
-    update_personal_bests,
-)
+from .helpers import update_personal_bests
 from .initialization import initialize_smpso_run
 from .state import SMPSOState, build_smpso_result
 
@@ -43,11 +41,11 @@ __all__ = ["SMPSO"]
 
 
 def _select_global_best(
-    arch_X: np.ndarray,
-    crowding: np.ndarray,
+    arch_X: np.ndarray[Any, Any],
+    crowding: np.ndarray[Any, Any],
     rng: np.random.Generator,
     n_select: int,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
     """Select leaders using crowding-distance binary tournaments.
 
     Returns the selected leaders and their indices in the archive.
@@ -247,7 +245,7 @@ class SMPSO:
             self._live_cb.on_start(ctx)
             self._live_cb.on_generation(0, F=self._st.hv_points())
 
-    def ask(self) -> np.ndarray:
+    def ask(self) -> np.ndarray[Any, Any]:
         """Generate offspring positions for evaluation.
 
         Updates particle velocities using PSO update rule with cognitive
@@ -273,8 +271,8 @@ class SMPSO:
         # Select leaders from archive using crowding-based binary tournament
         arch_X = st.archive_X
         arch_F = st.archive_F
-        leaders: np.ndarray
-        leader_idx: np.ndarray
+        leaders: np.ndarray[Any, Any]
+        leader_idx: np.ndarray[Any, Any]
         if arch_X is None or arch_F is None or arch_F.size == 0:
             leader_idx = np.asarray(st.rng.integers(0, st.X.shape[0], size=st.X.shape[0]), dtype=int)
             leaders = st.X[leader_idx]
@@ -336,7 +334,7 @@ class SMPSO:
             parent_pairs = np.column_stack([self_idx, leader_idx[pending_idx]]).flatten()
             track_offspring_genealogy(st, parent_pairs, request_size, "pso_update", "smpso")
 
-        return cast(np.ndarray, st.pending_offspring.copy())
+        return cast(np.ndarray[Any, Any], st.pending_offspring.copy())
 
     def tell(
         self,
@@ -368,15 +366,20 @@ class SMPSO:
 
         X_new = st.pending_offspring
         assert X_new is not None
+        active_n_constraints = st.G.shape[1] if st.G is not None and st.constraint_mode != "none" else 0
+        F, G = extract_evaluation_arrays(
+            eval_result,
+            st.constraint_mode,
+            active_n_constraints,
+            algorithm="SMPSO",
+            n_rows=X_new.shape[0],
+            n_obj=st.F.shape[1],
+        )
         particle_idx = st.pending_particle_indices
         if particle_idx is None:
             particle_idx = np.arange(X_new.shape[0], dtype=int)
         st.pending_offspring = None
         st.pending_particle_indices = None
-
-        F, G = extract_eval_arrays(eval_result)
-        if st.constraint_mode == "none":
-            G = None
 
         st.n_eval += X_new.shape[0]
         st.generation += 1
