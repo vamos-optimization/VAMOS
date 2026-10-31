@@ -95,6 +95,7 @@ def _build_real_operators(
             xu=xu,
             rng=rng,
             repair_cfg=repair_cfg,
+            algorithm_label="SPEA2",
             variation_kernels=variation_kernels,
         ),
     )

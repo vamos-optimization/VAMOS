@@ -30,6 +30,13 @@ or lease-expiry protocol. SA-038 covers only detectable same-process ownership
 and byte-stable refusal. Persistent locks, live cross-process ownership, leases,
 heartbeats, and fencing remain Goal 6 work.
 
+Writer temporaries (`.tmp-` plus eight lowercase hexadecimal digits) are not
+part of the canonical tree. The layout rules, including SA-034's event-file
+rule, apply to every other name. A process that dies between writing a
+temporary and replacing its destination (SA-031), or a reader that lists a
+directory during a write, therefore sees the same study, and reconciliation
+deletes the orphaned temporaries.
+
 Read-only planning has its own contiguous
 [PL-001 through PL-022 acceptance specification](study_plan_acceptance_tests.md)
 and does not alter or renumber this persisted-state inventory.

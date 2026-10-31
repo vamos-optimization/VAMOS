@@ -27,6 +27,7 @@ from .limits import StudyLoadLimits
 from .models import AttemptRecord, AttemptReference, PlanTask, StudyManifest, TaskRecord
 from .paths import confined_study_path
 from .record_decoding import decode_attempt, decode_task
+from .writing import is_writer_temporary
 
 _ATTEMPT_FILE_PATTERN = r"([0-9a-f-]{36})\.json"
 _RUN_ID_PATTERN = r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
@@ -420,7 +421,8 @@ def _entry_names(root: Path, relative: str, role: str) -> set[str]:
     try:
         if not directory.is_dir():
             raise OSError("not a directory")
-        return {entry.name for entry in directory.iterdir()}
+        # A writer temporary is in flight or orphaned by a dead writer, never a record.
+        return {entry.name for entry in directory.iterdir() if not is_writer_temporary(entry.name)}
     except OSError as exc:
         raise MalformedStudyError(
             operation="load study",

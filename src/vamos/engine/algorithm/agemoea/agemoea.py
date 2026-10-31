@@ -13,6 +13,7 @@ from typing import Any
 
 import numpy as np
 
+from vamos.engine.algorithm.components.evaluation import combine_constraints, extract_evaluation_arrays
 from vamos.engine.algorithm.components.hooks import get_live_viz, live_should_stop
 from vamos.engine.algorithm.components.population import initialize_population, resolve_bounds
 from vamos.engine.algorithm.components.termination import capped_offspring_size, validate_initial_budget
@@ -82,69 +83,6 @@ def _build_variation(
         problem=problem,
         variation_kernels=variation_kernels,
     )
-
-
-def _extract_evaluation_arrays(
-    eval_result: Any,
-    constraint_mode: str,
-    n_constraints: int | None = None,
-) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any] | None]:
-    """Normalize evaluation payloads and enforce declared active constraints."""
-    raw_g: Any = None
-    if hasattr(eval_result, "F"):
-        raw_f = eval_result.F
-        raw_g = getattr(eval_result, "G", None)
-    elif isinstance(eval_result, dict):
-        raw_f = eval_result["F"]
-        raw_g = eval_result.get("G")
-    else:
-        raw_f = eval_result
-
-    F = np.asarray(raw_f, dtype=float)
-    if F.ndim == 1:
-        F = F.reshape(1, -1)
-    if F.ndim != 2:
-        raise ValueError(f"AGE-MOEA expected 2-D objective values, got shape {F.shape}.")
-
-    if constraint_mode == "none":
-        return F, None
-    if n_constraints is not None and n_constraints <= 0:
-        return F, None
-    if raw_g is None:
-        if n_constraints is not None and n_constraints > 0:
-            raise ValueError(
-                "AGE-MOEA requires constraint values G when constraint handling is active "
-                f"for a problem declaring {n_constraints} constraint(s)."
-            )
-        return F, None
-
-    G = np.asarray(raw_g, dtype=float)
-    if G.ndim == 1:
-        G = G.reshape(-1, 1)
-    if G.ndim != 2 or G.shape[0] != F.shape[0]:
-        raise ValueError("AGE-MOEA constraint values G must align row-wise with objective values F.")
-    if n_constraints is not None and n_constraints > 0 and G.shape[1] != n_constraints:
-        raise ValueError(f"AGE-MOEA expected {n_constraints} constraint column(s) in G, got {G.shape[1]}.")
-    return F, G
-
-
-def _combine_constraints(
-    current: np.ndarray[Any, Any] | None,
-    offspring: np.ndarray[Any, Any] | None,
-    constraint_mode: str,
-) -> np.ndarray[Any, Any] | None:
-    if constraint_mode == "none":
-        return None
-    if current is None and offspring is None:
-        return None
-    if current is None or offspring is None:
-        raise ValueError(
-            "AGE-MOEA received inconsistent constraint data across generations. "
-            "When constraint handling is active, constrained ask/tell evaluations must provide G."
-        )
-    if current.shape[1] != offspring.shape[1]:
-        raise ValueError("AGE-MOEA constraint column count changed between generations.")
-    return np.asarray(np.vstack([current, offspring]), dtype=float)
 
 
 class AGEMOEA:
@@ -271,10 +209,11 @@ class AGEMOEA:
         encoding = normalize_encoding(getattr(problem, "encoding", "real"))
         xl, xu = resolve_bounds(problem, encoding)
         X = initialize_population(pop_size, problem.n_var, xl, xu, encoding, rng, problem, self.cfg.get("initializer"))
-        F, G = _extract_evaluation_arrays(
+        F, G = extract_evaluation_arrays(
             backend.evaluate(X, problem),
             constraint_mode,
             n_constraints,
+            algorithm="AGE-MOEA",
         )
 
         variation = _build_variation(self.cfg, encoding, xl, xu, problem, self.kernel.variation_kernels())
@@ -393,17 +332,18 @@ class AGEMOEA:
         X_off = st.pending_offspring
         assert X_off is not None
         active_n_constraints = st.G.shape[1] if st.G is not None and st.constraint_mode != "none" else 0
-        F_off, G_off = _extract_evaluation_arrays(
+        F_off, G_off = extract_evaluation_arrays(
             eval_result,
             st.constraint_mode,
             active_n_constraints,
+            algorithm="AGE-MOEA",
+            n_rows=X_off.shape[0],
+            n_obj=st.F.shape[1],
         )
-        if F_off.shape[0] != X_off.shape[0]:
-            raise ValueError("AGE-MOEA offspring objective rows must match the pending decision vectors.")
 
         X_combined = np.vstack([st.X, X_off])
         F_combined = np.vstack([st.F, F_off])
-        G_combined = _combine_constraints(st.G, G_off, st.constraint_mode)
+        G_combined = combine_constraints(st.G, G_off, st.constraint_mode, algorithm="AGE-MOEA")
 
         survivors, survival_scores = constraint_aware_age_survival(F_combined, G_combined, st.pop_size, self.kernel, st.constraint_mode)
         st.X = X_combined[survivors]
