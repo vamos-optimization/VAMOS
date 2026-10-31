@@ -48,6 +48,22 @@ def test_knn_prune_policy_name_is_accepted():
     assert ExternalArchiveConfig(capacity=10, pruning="knn").pruning == "knn"
 
 
+def test_knn_archive_pruning_keeps_extremes():
+    # The two interior points crowd each other, so the SPEA2 truncation operator
+    # removes one of them. Ranking by the second-nearest distance alone ties
+    # (0, 1, 0) with both of them and removed that corner instead.
+    cfg = ExternalArchiveConfig(capacity=4, pruning="knn")
+    archive = setup_result_archive(cfg, n_var=0, n_obj=3, dtype=float)
+    assert archive is not None
+    F = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [0.1, 0.7, 0.2], [0.2, 0.7, 0.1]])
+
+    _, archive_F = archive.update(_empty_X(F.shape[0]), F)
+
+    kept = {tuple(row) for row in archive_F.tolist()}
+    assert {(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)} <= kept
+    assert len(kept) == 4
+
+
 def test_maxmin_and_ref_dirs_prune_policy_names_are_accepted():
     assert ExternalArchiveConfig(capacity=10, pruning="maxmin").pruning == "maxmin"
     assert ExternalArchiveConfig(capacity=10, pruning="ref_dirs").pruning == "ref_dirs"

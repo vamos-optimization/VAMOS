@@ -11,6 +11,7 @@ from numpy.typing import NDArray
 
 from vamos.engine.operators.impl.registry import get_operator_registry
 from vamos.engine.variation.helpers import (
+    resolve_prob_expression,
     validate_operator_support,
 )
 from vamos.engine.variation.protocol import (
@@ -51,6 +52,10 @@ class VariationPipeline:
         variation_kernels: VariationKernels | None = None,
     ) -> None:
         self.encoding = normalize_encoding(encoding)
+        n_var = int(getattr(problem, "n_var", None) or np.asarray(xl).size)
+        # Operators receive numeric probabilities: "k/n" expressions are resolved here.
+        cross_params = _with_resolved_prob(cross_params, n_var)
+        mut_params = _with_resolved_prob(mut_params, n_var)
         self.cross_method = cross_method
         self.cross_params = cross_params
         self.mut_method = mut_method
@@ -123,6 +128,13 @@ class VariationPipeline:
             offspring = self.repair_op(offspring, self.xl, self.xu, rng)
 
         return offspring
+
+
+def _with_resolved_prob(params: dict[str, Any], n_var: int) -> dict[str, Any]:
+    """``params`` with a numeric ``prob``; ``"k/n"`` becomes ``k / n_var``."""
+    if params.get("prob") is None:
+        return params
+    return {**params, "prob": resolve_prob_expression(params["prob"], n_var, default=0.0)}
 
 
 __all__ = ["VariationPipeline"]

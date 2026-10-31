@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from numpy.typing import NDArray
 
-from vamos.engine.algorithm.components.utils import resolve_prob_expression
 from vamos.engine.operators.impl.binary import one_point_crossover
 from vamos.engine.operators.impl.real import ClampRepair, PolynomialMutation, SBXCrossover, VariationWorkspace
 from vamos.engine.operators.policies._discrete_variation_builder import (
@@ -27,6 +26,7 @@ from vamos.engine.operators.policies.discrete_operator_maps import (
     PERM_MUTATION_COMMON,
 )
 from vamos.engine.operators.policies.real_repair import apply_policy_repair, resolve_policy_repair
+from vamos.engine.variation.helpers import resolve_prob_expression
 from vamos.engine.variation.protocol import RepairConfigValue, RepairOperator
 from vamos.foundation.encoding import EncodingLike
 

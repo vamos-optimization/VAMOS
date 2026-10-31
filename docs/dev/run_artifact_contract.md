@@ -198,6 +198,22 @@ evidence blocks exact replay. A dirty checkout qualifies only with a matching
 reproducible content fingerprint. Current evidence capture uses no Git command,
 shell, network, installation, or mutation.
 
+**Development after 1.1.0:** saving and verification classify the source kind
+with one rule.
+
+- **Checkout:** the nearest Git repository above the imported package counts
+  only when its `src/vamos` is that package, or when the distribution is an
+  editable install. Otherwise the installed distribution decides:
+  - a regular install is a `wheel`;
+  - an editable install without Git is a `checkout` with
+    `reason: "git_checkout_unavailable"`. It has no revision or dirty state,
+    and its fingerprints identify it.
+- **Packaged data:** checkouts and editable installs also record
+  `source.package_data_sha256`, a SHA-256 of the data files under
+  `vamos/resources`. The implementation fingerprint does not cover these files:
+  for those installs it hashes `*.py` files only. Verification compares this
+  field when the stored run has it, and a difference blocks exact replay.
+
 ## 9. Loading, verification, and errors
 
 Loading is data-only. It performs no optimization, dynamic import, plugin

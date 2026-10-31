@@ -61,7 +61,6 @@ from vamos.engine.algorithm.components.utils import (
     normalize_objectives,
     parse_operator_config,
     resolve_bounds_array,
-    resolve_prob_expression,
     validate_termination,
 )
 
@@ -106,7 +105,6 @@ __all__ = [
     # termination
     "HVTracker",
     # utils
-    "resolve_prob_expression",
     "resolve_bounds_array",
     "validate_termination",
     "parse_operator_config",
