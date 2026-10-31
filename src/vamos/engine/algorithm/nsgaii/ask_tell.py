@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from vamos.engine.algorithm.components.evaluation import extract_evaluation_arrays
 from vamos.engine.algorithm.components.termination import capped_offspring_size
 
 
@@ -241,12 +242,18 @@ def tell_nsgaii(algo: NSGAII, eval_result: Any) -> bool:
         raise RuntimeError("tell() called before initialization.")
 
     X_off = st.pending_offspring
-    st.pending_offspring = None
     if X_off is None:
         raise ValueError("tell() called without a pending ask().")
-
-    F_off = eval_result.F
-    G_off = eval_result.G if st.constraint_mode != "none" else None
+    active_n_constraints = st.G.shape[1] if st.G is not None and st.constraint_mode != "none" else 0
+    F_off, G_off = extract_evaluation_arrays(
+        eval_result,
+        st.constraint_mode,
+        active_n_constraints,
+        algorithm="NSGA-II",
+        n_rows=X_off.shape[0],
+        n_obj=st.F.shape[1],
+    )
+    st.pending_offspring = None
     assert st.hv_tracker is not None
 
     if st.steady_step is not None:

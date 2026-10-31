@@ -4,7 +4,6 @@ This module contains utility functions for SMPSO:
 - Repair strategy resolution
 - Dominance comparison for personal best updates
 - Personal best update logic with constraint handling
-- Evaluation result extraction
 """
 
 from __future__ import annotations
@@ -21,7 +20,6 @@ __all__ = [
     "resolve_repair",
     "dominates",
     "update_personal_bests",
-    "extract_eval_arrays",
 ]
 
 
@@ -91,7 +89,7 @@ def resolve_repair(cfg: Any | None) -> Any | None:
     return cls(**params)
 
 
-def dominates(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+def dominates(a: np.ndarray[Any, Any], b: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     """Check Pareto dominance (a dominates b).
 
     Parameters
@@ -112,12 +110,12 @@ def dominates(a: np.ndarray, b: np.ndarray) -> np.ndarray:
 
 
 def update_personal_bests(
-    X: np.ndarray,
-    F: np.ndarray,
-    G: np.ndarray | None,
-    pbest_X: np.ndarray,
-    pbest_F: np.ndarray,
-    pbest_G: np.ndarray | None,
+    X: np.ndarray[Any, Any],
+    F: np.ndarray[Any, Any],
+    G: np.ndarray[Any, Any] | None,
+    pbest_X: np.ndarray[Any, Any],
+    pbest_F: np.ndarray[Any, Any],
+    pbest_G: np.ndarray[Any, Any] | None,
     constraint_mode: str,
 ) -> None:
     """Update personal best positions based on dominance.
@@ -166,34 +164,3 @@ def update_personal_bests(
     pbest_F[update_idx] = F[update_idx]
     if pbest_G is not None and G is not None:
         pbest_G[update_idx] = G[update_idx]
-
-
-def extract_eval_arrays(eval_result: Any) -> tuple[np.ndarray, np.ndarray | None]:
-    """Extract F and G arrays from evaluation result.
-
-    Parameters
-    ----------
-    eval_result : Any
-        Evaluation result. Can be:
-        - Object with .F and optional .G attributes
-        - dict with "F" and optional "G" keys
-        - ndarray (treated as F only)
-
-    Returns
-    -------
-    tuple
-        (F, G) objective and constraint arrays.
-    """
-    if hasattr(eval_result, "F"):
-        F_val = getattr(eval_result, "F", None)
-        if F_val is None:
-            raise ValueError("Evaluation result is missing F.")
-        G_val = getattr(eval_result, "G", None)
-        return np.asarray(F_val, dtype=float), np.asarray(G_val, dtype=float) if G_val is not None else None
-    if isinstance(eval_result, dict):
-        F_val = eval_result.get("F")
-        if F_val is None:
-            raise ValueError("Evaluation result dict is missing 'F'.")
-        G_val = eval_result.get("G")
-        return np.asarray(F_val, dtype=float), np.asarray(G_val, dtype=float) if G_val is not None else None
-    return np.asarray(eval_result, dtype=float), None

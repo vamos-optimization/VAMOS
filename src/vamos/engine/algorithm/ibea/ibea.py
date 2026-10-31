@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
+from vamos.engine.algorithm.components.evaluation import combine_constraints, extract_evaluation_arrays
 from vamos.engine.algorithm.components.hooks import (
     finalize_genealogy,
     live_should_stop,
@@ -30,7 +31,7 @@ from vamos.engine.algorithm.components.utils import variation_operator_label
 from vamos.engine.algorithm.nsgaii.helpers import build_mating_pool
 from vamos.foundation.kernel import default_kernel
 
-from .helpers import combine_constraints, environmental_selection
+from .helpers import environmental_selection
 from .initialization import initialize_ibea_run
 from .state import IBEAState, build_ibea_result
 
@@ -139,7 +140,7 @@ class IBEA:
             # Environmental selection
             X_comb = np.vstack([st.X, X_off])
             F_comb = np.vstack([st.F, F_off])
-            G_comb = combine_constraints(st.G, G_off)
+            G_comb = combine_constraints(st.G, G_off, st.constraint_mode, algorithm="IBEA")
 
             st.X, st.F, st.G, st.fitness = environmental_selection(
                 X_comb, F_comb, G_comb, st.pop_size, st.indicator, st.kappa, self.kernel.selection_kernels()
@@ -290,22 +291,21 @@ class IBEA:
         st = self._st
         X_off = st.pending_offspring
         assert X_off is not None
+        active_n_constraints = st.G.shape[1] if st.G is not None and st.constraint_mode != "none" else 0
+        F, G = extract_evaluation_arrays(
+            eval_result,
+            st.constraint_mode,
+            active_n_constraints,
+            algorithm="IBEA",
+            n_rows=X_off.shape[0],
+            n_obj=st.F.shape[1],
+        )
         st.pending_offspring = None
-
-        if hasattr(eval_result, "F"):
-            F = np.asarray(eval_result.F, dtype=float)
-            G = getattr(eval_result, "G", None)
-        elif isinstance(eval_result, dict):
-            F = np.asarray(eval_result["F"], dtype=float)
-            G = eval_result.get("G")
-        else:
-            F = np.asarray(eval_result, dtype=float)
-            G = None
 
         # Environmental selection
         X_comb = np.vstack([st.X, X_off])
         F_comb = np.vstack([st.F, F])
-        G_comb = combine_constraints(st.G, G)
+        G_comb = combine_constraints(st.G, G, st.constraint_mode, algorithm="IBEA")
 
         st.X, st.F, st.G, st.fitness = environmental_selection(
             X_comb, F_comb, G_comb, st.pop_size, st.indicator, st.kappa, self.kernel.selection_kernels()

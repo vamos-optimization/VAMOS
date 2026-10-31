@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "b971fb71861b333ceb198cb9afb9150d5dd82d03",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit b971fb71861b333ceb198cb9afb9150d5dd82d03",
+  "generation_commit": "b91e7243d0833032499e62ced2e281b8a88e484c",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit b91e7243d0833032499e62ced2e281b8a88e484c",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.0",
@@ -26,14 +26,14 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 610,
-  "files_with_diagnostics": 85,
-  "fingerprint_count": 85,
+  "diagnostic_count": 595,
+  "files_with_diagnostics": 83,
+  "fingerprint_count": 83,
   "error_code_summary": {
-    "type-arg": 610
+    "type-arg": 595
   },
   "layer_summary": {
-    "engine": 294,
+    "engine": 279,
     "experiment": 18,
     "foundation": 236,
     "package-root": 1,
@@ -3170,44 +3170,6 @@
       ]
     },
     {
-      "fingerprint": "F1E73AFB063A92A21570418C432521E7830A6EFCB1C0D50C18329A72C3B40F1C",
-      "path": "src/vamos/engine/algorithm/smpso/smpso.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 7,
-      "locations": [
-        {
-          "line": 46,
-          "column": 13
-        },
-        {
-          "line": 47,
-          "column": 15
-        },
-        {
-          "line": 50,
-          "column": 12
-        },
-        {
-          "line": 250,
-          "column": 22
-        },
-        {
-          "line": 276,
-          "column": 18
-        },
-        {
-          "line": 277,
-          "column": 21
-        },
-        {
-          "line": 339,
-          "column": 21
-        }
-      ]
-    },
-    {
       "fingerprint": "F44E57CBBEB73409F06DA457F61388E20EB80AC6EBE483D7F4CC59F3F3BBF1F0",
       "path": "src/vamos/foundation/problem/real_world/zapotecas_rwa_9_10.py",
       "error_code": "type-arg",
@@ -3222,48 +3184,6 @@
         {
           "line": 87,
           "column": 27
-        }
-      ]
-    },
-    {
-      "fingerprint": "F71816B3E99B3C5AACC4A131F752C7D2BABC2F4981A0C3C2DD75ED2070FE1505",
-      "path": "src/vamos/engine/algorithm/smpso/helpers.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 8,
-      "locations": [
-        {
-          "line": 94,
-          "column": 18
-        },
-        {
-          "line": 115,
-          "column": 8
-        },
-        {
-          "line": 116,
-          "column": 8
-        },
-        {
-          "line": 117,
-          "column": 8
-        },
-        {
-          "line": 118,
-          "column": 14
-        },
-        {
-          "line": 119,
-          "column": 14
-        },
-        {
-          "line": 120,
-          "column": 14
-        },
-        {
-          "line": 171,
-          "column": 52
         }
       ]
     },

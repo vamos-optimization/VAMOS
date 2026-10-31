@@ -17,7 +17,7 @@ References:
 
 from vamos.engine.operators.policies.smpso import build_mutation_operator
 
-from .helpers import extract_eval_arrays, update_personal_bests
+from .helpers import update_personal_bests
 from .initialization import initialize_smpso_run
 from .smpso import SMPSO
 from .state import SMPSOState, build_smpso_result
@@ -25,7 +25,6 @@ from .state import SMPSOState, build_smpso_result
 __all__ = [
     "SMPSO",
     # Helpers
-    "extract_eval_arrays",
     "update_personal_bests",
     # Operators
     "build_mutation_operator",

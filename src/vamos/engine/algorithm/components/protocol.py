@@ -142,6 +142,10 @@ class InteractiveAlgorithmProtocol(AlgorithmProtocol, Protocol):
             - ``np.ndarray[Any, Any]`` of objectives, shape ``(n_offspring, n_obj)``
             - ``dict`` with ``"F"`` key (and optionally ``"G"``)
             - Object with ``.F`` attribute (and optionally ``.G``)
+
+            ``F`` needs one row per pending offspring. ``G`` is required when
+            constraint handling is active on a constrained problem, and ignored
+            with ``constraint_mode="none"``.
         problem : ProblemProtocol, optional
             Problem instance (unused by most algorithms, kept for interface
             consistency).
@@ -155,6 +159,10 @@ class InteractiveAlgorithmProtocol(AlgorithmProtocol, Protocol):
         ------
         RuntimeError
             If called before initialization or without pending ask().
+        ValueError
+            If ``F`` or ``G`` has the wrong shape or a required ``G`` is
+            missing. The pending offspring and the evaluation count are left
+            unchanged, so ``tell`` can be called again with a valid result.
         """
         ...
 
