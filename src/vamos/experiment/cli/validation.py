@@ -23,8 +23,6 @@ _VARIATION_OPTION_PREFIXES: dict[str, str] = {
 _SHARED_ALGORITHM_OPTIONS: dict[str, tuple[str, ...]] = {
     "external_archive_size": ("nsgaii", "spea2", "smpso"),
 }
-_VARIATION_FLAG_PREFIXES: dict[str, str] = {"nsgaiii": "nsga3"}
-_EXAMPLE_METHODS: dict[str, str] = {"crossover": "sbx", "mutation": "polynomial"}
 
 
 def _algorithm_options(parser: argparse.ArgumentParser) -> dict[str, tuple[str, frozenset[str]]]:
@@ -63,26 +61,6 @@ def _warn_ignored_algorithm_options(parser: argparse.ArgumentParser, args: argpa
             "s" if len(algorithms) == 1 else "",
             algorithm,
         )
-
-
-def _reject_unnamed_operators(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
-    """Reject operator parameters (``--nsgaii-crossover-prob`` ...) given without the operator they configure."""
-    algorithm = getattr(args, "algorithm", None)
-    for name in _VARIATION_OPTION_PREFIXES:
-        if algorithm not in (name, "both"):
-            continue
-        variation = getattr(args, f"{name}_variation", None) or {}
-        flag = _VARIATION_FLAG_PREFIXES.get(name, name)
-        for operator in ("crossover", "mutation"):
-            block = variation.get(operator)
-            if not isinstance(block, dict) or block.get("method"):
-                continue
-            given = ", ".join(f"--{flag}-{operator}-{key.replace('_', '-')}" for key in block)
-            parser.error(
-                f"{given} configure{'s' if len(block) == 1 else ''} an operator that is not named; "
-                f"pass --{flag}-{operator} too (for example --{flag}-{operator} {_EXAMPLE_METHODS[operator]}), "
-                f"or 'method' under {name}.{operator} in the config file."
-            )
 
 
 def _validate_problem_dimensions(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
@@ -134,8 +112,6 @@ def finalize_args(
         parser.error("--offspring-population-size must be positive.")
     if args.selection_pressure <= 0:
         parser.error("--selection-pressure must be a positive integer.")
-    if getattr(args, "track_genealogy", False) and getattr(args, "algorithm", None) != "nsgaii":
-        parser.error("--track-genealogy is supported only with --algorithm nsgaii.")
     if args.external_archive_size is not None and args.external_archive_size <= 0:
         parser.error("--external-archive-size must be a positive integer.")
     if args.external_archive_size is not None:
@@ -179,6 +155,5 @@ def finalize_args(
     args.smpso_variation = spec_defaults.experiment_defaults.get("smpso", {})
     args.agemoea_variation = _collect_generic_variation(args, "agemoea")
     args.rvea_variation = _collect_generic_variation(args, "rvea")
-    _reject_unnamed_operators(parser, args)
 
     return args

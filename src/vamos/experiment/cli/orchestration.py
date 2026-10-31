@@ -22,6 +22,10 @@ from vamos.foundation.problem.resolver import resolve_problem_selections
 
 # Algorithms whose tournament reads the selection pressure ("both" runs them too).
 _TOURNAMENT_ALGORITHMS = ("nsgaii", "nsgaiii", "spea2", "ibea", "both")
+# Algorithms with CLI variation options, and their flag spelling when it differs from the name.
+_VARIATION_ALGORITHMS = ("nsgaii", "moead", "smsemoa", "nsgaiii", "agemoea", "rvea")
+_VARIATION_FLAGS = {"nsgaiii": "nsga3"}
+_EXAMPLE_METHODS = {"crossover": "sbx", "mutation": "polynomial"}
 
 
 def _logger() -> logging.Logger:
@@ -40,24 +44,52 @@ def _override_mapping(override: SpecBlock, key: str) -> VariationOverrides | Non
     return cast(VariationOverrides, value) if isinstance(value, dict) else None
 
 
-def _check_selection_pressure(
+def _check_unnamed_operators(args: Namespace, override: SpecBlock, algorithm: object, problem_key: str) -> None:
+    """Reject operator parameters (``--nsgaii-crossover-prob`` ...) that still lack their operator for this problem."""
+    for name in _VARIATION_ALGORITHMS:
+        if algorithm not in (name, "both"):
+            continue
+        variation = merge_variation_overrides(getattr(args, f"{name}_variation", None), _override_mapping(override, name)) or {}
+        flag = _VARIATION_FLAGS.get(name, name)
+        for operator in ("crossover", "mutation"):
+            block = variation.get(operator)
+            if not isinstance(block, dict) or block.get("method"):
+                continue
+            given = ", ".join(f"--{flag}-{operator}-{key.replace('_', '-')}" for key in block)
+            raise ConfigurationError(
+                f"{given} configure{'s' if len(block) == 1 else ''} an operator that is not named (problem '{problem_key}').",
+                suggestion=(
+                    f"Pass --{flag}-{operator} too (for example --{flag}-{operator} {_EXAMPLE_METHODS[operator]}), "
+                    f"or 'method' under {name}.{operator} in the config file."
+                ),
+            )
+
+
+def _check_effective_settings(
     args: Namespace, config: ExperimentConfig, selections: list[ProblemSelection], overrides: ProblemOverrides
 ) -> None:
-    """Reject, before any run starts, a tournament larger than the population a problem runs with.
+    """Reject, before any run starts, settings a selected problem cannot run with.
 
-    The check uses each problem's effective values, after its ``problems.<name>`` overrides.
+    Each problem is checked with its effective values, after its ``problems.<name>`` overrides.
     """
     for selection in selections:
-        raw = overrides.get(selection.spec.key)
+        key = selection.spec.key
+        raw = overrides.get(key)
         override: SpecBlock = raw if isinstance(raw, dict) else {}
         algorithm = override.get("algorithm", args.algorithm)
         pressure = int(cast(int, override.get("selection_pressure", args.selection_pressure)))
         population = int(cast(int, override.get("population_size", config.population_size)))
         if algorithm in _TOURNAMENT_ALGORITHMS and pressure > population:
             raise ConfigurationError(
-                f"selection_pressure ({pressure}) cannot exceed population_size ({population}) for problem '{selection.spec.key}'.",
+                f"selection_pressure ({pressure}) cannot exceed population_size ({population}) for problem '{key}'.",
                 suggestion="Lower --selection-pressure (selection_pressure in a config) or raise the population size.",
             )
+        if override.get("track_genealogy", getattr(args, "track_genealogy", False)) and algorithm != "nsgaii":
+            raise ConfigurationError(
+                f"track_genealogy is supported only with the nsgaii algorithm; problem '{key}' runs '{algorithm}'.",
+                suggestion="Drop --track-genealogy (track_genealogy in a config) or select nsgaii for that problem.",
+            )
+        _check_unnamed_operators(args, override, algorithm, key)
 
 
 def run_from_args(
@@ -73,7 +105,7 @@ def run_from_args(
     overrides: ProblemOverrides = getattr(args, "problem_overrides", {}) or {}
     config_source = getattr(args, "config_path", None)
     config_spec: ExperimentSpec | None = getattr(args, "config_spec", None)
-    _check_selection_pressure(args, config, selections, overrides)
+    _check_effective_settings(args, config, selections, overrides)
     # With several problems, a failed run is reported after the whole series instead of stopping it.
     failures: list[str] | None = [] if multiple else None
 

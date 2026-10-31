@@ -171,11 +171,49 @@ def test_nsga3_probability_is_range_checked(monkeypatch, capsys):
     assert "--nsga3-crossover-prob must be within [0, 1]" in err
 
 
+def _run_error(monkeypatch, capsys, tmp_path, *argv):
+    """Run the CLI and return stderr of a configuration error that stopped it before any run."""
+    from vamos.experiment.cli.main import main
+
+    output_root = tmp_path / "results"
+    base = ["prog", "--problem", "zdt1", "--engine", "numpy", "--population-size", "13", "--max-evaluations", "26"]
+    monkeypatch.setattr(sys, "argv", [*base, "--output-root", str(output_root), *argv])
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    err = capsys.readouterr().err
+    assert excinfo.value.code == 2, err
+    assert "Traceback" not in err
+    assert not output_root.exists()
+    return err
+
+
 @pytest.mark.parametrize(("algorithm", "flag"), _VARIATION_FLAG_PREFIXES)
-def test_partial_operator_option_is_completed_or_rejected(monkeypatch, capsys, algorithm, flag):
-    err = _usage_error(monkeypatch, capsys, "--algorithm", algorithm, f"--{flag}-crossover-prob", "0.5")
+def test_partial_operator_option_is_completed_or_rejected(monkeypatch, capsys, tmp_path, algorithm, flag):
+    err = _run_error(monkeypatch, capsys, tmp_path, "--algorithm", algorithm, f"--{flag}-crossover-prob", "0.5")
     assert f"--{flag}-crossover-prob" in err
     assert f"--{flag}-crossover " in err
+
+
+def test_problem_operator_override_completes_an_unnamed_cli_operator(monkeypatch, tmp_path):
+    spec = {"problems": {"zdt1": {"nsgaii": {"crossover": {"method": "sbx", "prob": 0.8}}}}}
+    config = tmp_path / "spec.json"
+    config.write_text(json.dumps({"version": "1", **spec}), encoding="utf-8")
+
+    stored = _run_and_load(monkeypatch, tmp_path, "--config", str(config), "--algorithm", "nsgaii", "--nsgaii-crossover-prob", "0.5")
+
+    assert stored.manifest.resolved_spec["operators"]["crossover"]["config"]["prob"] == 0.8
+
+
+def test_genealogy_is_checked_against_each_problems_algorithm(monkeypatch, capsys, tmp_path):
+    spec = {"defaults": {"algorithm": "smsemoa", "track_genealogy": True}, "problems": {"zdt1": {"algorithm": "nsgaii"}}}
+    config = tmp_path / "spec.json"
+    config.write_text(json.dumps({"version": "1", **spec}), encoding="utf-8")
+
+    stored = _run_and_load(monkeypatch, tmp_path, "--config", str(config))
+    assert stored.result.F is not None
+
+    err = _run_error(monkeypatch, capsys, tmp_path / "other", "--algorithm", "smsemoa", "--track-genealogy")
+    assert "track_genealogy" in err
 
 
 @pytest.mark.parametrize(
@@ -184,7 +222,6 @@ def test_partial_operator_option_is_completed_or_rejected(monkeypatch, capsys, a
         (("--seed", "-1"), "--seed"),
         (("--n-var", "0"), "--n-var"),
         (("--problem", "zdt1", "--n-obj", "3"), "fixed number of objectives"),
-        (("--algorithm", "smsemoa", "--track-genealogy"), "--track-genealogy"),
     ],
 )
 def test_invalid_cli_inputs_exit_with_usage_error(monkeypatch, capsys, argv, message):
