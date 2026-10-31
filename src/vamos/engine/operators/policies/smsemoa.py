@@ -106,5 +106,6 @@ def _build_real_operators(
         xu=xu,
         rng=rng,
         repair_cfg=repair_cfg,
+        algorithm_label="SMS-EMOA",
         variation_kernels=variation_kernels,
     )

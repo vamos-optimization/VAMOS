@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "89b57935f51ab4962b5a7d1b515038289083d88e",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 89b57935f51ab4962b5a7d1b515038289083d88e",
+  "generation_commit": "f9b667ebfcc26d959fb96dfe07531321b65bf3c9",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit f9b667ebfcc26d959fb96dfe07531321b65bf3c9",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.0",
@@ -26,14 +26,14 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 562,
-  "files_with_diagnostics": 79,
-  "fingerprint_count": 79,
+  "diagnostic_count": 556,
+  "files_with_diagnostics": 78,
+  "fingerprint_count": 78,
   "error_code_summary": {
-    "type-arg": 562
+    "type-arg": 556
   },
   "layer_summary": {
-    "engine": 273,
+    "engine": 267,
     "experiment": 17,
     "foundation": 236,
     "package-root": 1,
@@ -322,40 +322,6 @@
         {
           "line": 441,
           "column": 28
-        }
-      ]
-    },
-    {
-      "fingerprint": "107C04E5EA582F58069993DE5B4C6645490D0AC2E91A2CA4BC7558CD83C1EB26",
-      "path": "src/vamos/engine/algorithm/components/population.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 6,
-      "locations": [
-        {
-          "line": 21,
-          "column": 67
-        },
-        {
-          "line": 39,
-          "column": 9
-        },
-        {
-          "line": 40,
-          "column": 9
-        },
-        {
-          "line": 45,
-          "column": 6
-        },
-        {
-          "line": 50,
-          "column": 65
-        },
-        {
-          "line": 111,
-          "column": 42
         }
       ]
     },

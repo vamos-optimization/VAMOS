@@ -11,7 +11,16 @@ approximated_Pareto_fronts, commit 7876b4e465eac381a256e461d1310b8bb2b92846.
 The values are unchanged; only the column separator was changed from
 whitespace to a comma.
 
+- re21.csv: reference_points_RE21.dat
 - re24.csv: reference_points_RE24.dat
+- re31.csv: reference_points_RE31.dat
+- re32.csv: reference_points_RE32.dat
+- re33.csv: reference_points_RE33.dat
+- re34.csv: reference_points_RE34.dat
+- re37.csv: reference_points_RE37.dat
+- re41.csv: reference_points_RE41.dat
+- re42.csv: reference_points_RE42.dat
+- re61.csv: reference_points_RE61.dat
 
 These files are distributed under the license of that repository:
 

@@ -103,3 +103,34 @@ def test_functional_problem_preserves_discrete_dtype(encoding: str) -> None:
 
     assert np.issubdtype(seen[0], np.integer)
     assert np.issubdtype(out["F"].dtype, np.floating)
+
+
+@pytest.mark.parametrize("problem_name", ["zdt5", "tsp6", "int_alloc", "mixed_design"])
+@pytest.mark.parametrize("initializer", ["lhs", "scatter", "sobol", "halton", "obl"])
+def test_real_initializers_reject_non_real_encodings(problem_name: str, initializer: str) -> None:
+    from vamos.engine.algorithm.components.population import resolve_bounds
+    from vamos.foundation.problem.registry import make_problem_selection
+
+    problem = make_problem_selection(problem_name).instantiate()
+    encoding = getattr(problem, "encoding", "real")
+    xl, xu = resolve_bounds(problem, encoding)
+    with pytest.raises(ValueError, match="real encoding"):
+        initialize_population(
+            pop_size=8,
+            n_var=problem.n_var,
+            xl=xl,
+            xu=xu,
+            encoding=encoding,
+            rng=np.random.default_rng(0),
+            problem=problem,
+            initializer={"type": initializer},
+        )
+
+
+def test_binary_run_with_real_initializer_fails_before_evaluation() -> None:
+    from vamos import optimize
+    from vamos.engine.algorithm.config import NSGAIIConfig
+
+    cfg = NSGAIIConfig.builder().pop_size(10).crossover("one_point", prob=0.9).mutation("bitflip", prob="1/n").initializer("lhs").build()
+    with pytest.raises(ValueError, match="real encoding"):
+        optimize("zdt5", algorithm="nsgaii", algorithm_config=cfg, max_evaluations=40, seed=1, engine="numpy")
