@@ -8,11 +8,13 @@ import json
 import sys
 import warnings
 from dataclasses import asdict
+from numbers import Integral
 from typing import Any, Literal, TypeAlias, cast, overload
 
 from vamos.engine.algorithm.config.types import CrossoverName, InitializerName, MutationName, RepairName, SelectionName
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.foundation.encoding import EncodingLike
+from vamos.foundation.exceptions import ConfigurationError
 
 if sys.version_info >= (3, 11):
     from typing import Self
@@ -128,7 +130,9 @@ class _PopSizeBuilder:
     _cfg: dict[str, Any]
 
     def pop_size(self, value: int) -> Self:
-        self._cfg["pop_size"] = value
+        if isinstance(value, bool) or not isinstance(value, Integral) or int(value) < 1:
+            raise ConfigurationError(f"pop_size must be a positive integer, got {value!r}.")
+        self._cfg["pop_size"] = int(value)
         return self
 
 
@@ -433,6 +437,30 @@ def _default_operators_for_encoding(
         return ("mixed", {"prob": 0.9}), ("mixed", {"prob": mut_prob})
     # real (default)
     return ("sbx", {"prob": 1.0, "eta": 20.0}), ("polynomial", {"prob": mut_prob, "eta": 20.0})
+
+
+OperatorPair: TypeAlias = tuple[tuple[str, dict[str, Any]], tuple[str, dict[str, Any]]]
+
+# Population of a default configuration without lattice-derived sizes.
+DEFAULT_POP_SIZE = 100
+
+
+def _encoding_operators(encoding: EncodingLike | None, mut_prob: float, *, real: OperatorPair) -> OperatorPair:
+    """Default (crossover, mutation): ``real`` for real-coded problems, the shared encoding table otherwise."""
+    from vamos.foundation.encoding import normalize_encoding
+
+    normalized = normalize_encoding(encoding, default="real")
+    return real if normalized == "real" else _default_operators_for_encoding(normalized, mut_prob)
+
+
+def _lattice_divisions_within(pop_size: int, n_obj: int, *, algorithm: str) -> int:
+    """Divisions of the complete Das-Dennis lattice with the most directions that fit in ``pop_size``."""
+    from vamos.engine.reference_directions import largest_lattice_divisions
+
+    try:
+        return largest_lattice_divisions(int(pop_size), int(n_obj))
+    except ValueError as exc:
+        raise ConfigurationError(f"{algorithm} cannot build reference directions for pop_size={pop_size}: {exc}") from exc
 
 
 def _require_fields(cfg: dict[str, Any], fields: tuple[str, ...], name: str) -> None:

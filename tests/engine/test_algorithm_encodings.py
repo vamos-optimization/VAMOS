@@ -149,3 +149,28 @@ def test_agemoea_pipeline_run_integration(mock_kernel):
         # Should default to binary operators
         assert kwargs["encoding"] == "binary"
         assert kwargs["mut_method"] == "bitflip"
+
+
+_ALGORITHMS = ("nsgaii", "moead", "smsemoa", "nsgaiii", "spea2", "ibea", "smpso", "agemoea", "rvea")
+_DISCRETE_PROBLEMS = ("bin_knapsack", "tsp6", "int_alloc", "mixed_design")
+
+
+@pytest.mark.parametrize(
+    ("algorithm", "problem_name"),
+    [
+        (algorithm, problem_name)
+        for problem_name in _DISCRETE_PROBLEMS
+        for algorithm in _ALGORITHMS
+        # SMPSO supports real and mixed encodings only.
+        if algorithm != "smpso" or problem_name == "mixed_design"
+    ],
+)
+def test_default_config_follows_problem_encoding(algorithm, problem_name):
+    import vamos
+
+    problem = vamos.make_problem_selection(problem_name).instantiate()
+
+    result = vamos.optimize(problem, algorithm=algorithm, max_evaluations=300, seed=1, engine="numpy")
+
+    assert result.data["evaluations"] == 300
+    assert len(result) > 0

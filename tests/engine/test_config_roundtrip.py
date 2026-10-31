@@ -49,3 +49,24 @@ class TestConfigRoundtrip:
         cfg = config_cls.default()
         d = cfg.to_dict()
         assert isinstance(d, dict)
+
+
+@pytest.mark.parametrize("algorithm", ["nsgaii", "moead", "smsemoa", "nsgaiii", "spea2", "ibea", "smpso", "agemoea", "rvea"])
+@pytest.mark.parametrize("n_obj", [2, 3])
+def test_none_pop_size_is_uniform(algorithm, n_obj):
+    from vamos.engine.algorithm.config.defaults import build_default_algorithm_config
+
+    config = build_default_algorithm_config(algorithm, pop_size=None, n_var=10, n_obj=n_obj, encoding="real")
+
+    assert isinstance(config.pop_size, int) and config.pop_size > 0
+
+
+@pytest.mark.parametrize("config_cls", ALL_CONFIGS)
+def test_default_accepts_none_pop_size_and_builders_reject_invalid_sizes(config_cls):
+    from vamos.foundation.exceptions import ConfigurationError
+
+    config = config_cls.default(pop_size=None)
+    assert isinstance(config.pop_size, int) and config.pop_size > 0
+    for invalid in (0, -3, 2.5, None, True):
+        with pytest.raises(ConfigurationError, match="pop_size"):
+            config_cls.builder().pop_size(invalid)

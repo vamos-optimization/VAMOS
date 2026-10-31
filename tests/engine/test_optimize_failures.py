@@ -27,22 +27,9 @@ def test_invalid_pop_size_errors():
 
 
 def test_invalid_algorithm_config_pop_size_errors():
-    cfg = (
-        NSGAIIConfig.builder()
-        .pop_size(-4)
-        .crossover("sbx", prob=1.0, eta=20.0)
-        .mutation("polynomial", prob=0.1, eta=20.0)
-        .selection("tournament")
-        .build()
-    )
-    with pytest.raises(ConfigurationError, match=r"algorithm_config\.pop_size"):
-        optimize(
-            ZDT1Problem(n_var=4),
-            algorithm="nsgaii",
-            algorithm_config=cfg,
-            max_evaluations=4,
-            seed=0,
-        )
+    # The builder rejects a non-positive population as soon as it is set.
+    with pytest.raises(ConfigurationError, match="pop_size must be a positive integer"):
+        NSGAIIConfig.builder().pop_size(-4)
 
 
 def test_invalid_eval_strategy_errors():

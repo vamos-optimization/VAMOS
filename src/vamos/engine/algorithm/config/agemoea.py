@@ -6,13 +6,16 @@ from dataclasses import dataclass
 from typing import Any
 
 from vamos.engine.archive import ExternalArchiveConfig
+from vamos.foundation.encoding import EncodingLike
 
 from .base import (
+    DEFAULT_POP_SIZE,
     ConstraintModeStr,
     ResultMode,
     _ConfigBuilderState,
     _ConstraintModeBuilder,
     _CrossoverBuilder,
+    _encoding_operators,
     _InitializerBuilder,
     _MutationBuilder,
     _MutationProbFactorBuilder,
@@ -80,12 +83,26 @@ class AGEMOEAConfig(_SerializableConfig):
     @classmethod
     def default(
         cls,
-        pop_size: int = 100,
+        pop_size: int | None = None,
         n_var: int | None = None,
+        encoding: EncodingLike | None = None,
     ) -> AGEMOEAConfig:
-        """Create a default AGE-MOEA configuration."""
+        """Create a default AGE-MOEA configuration.
+
+        ``pop_size=None`` means 100. Discrete and mixed ``encoding`` values take
+        their crossover and mutation from the shared encoding table.
+        """
         mut_prob = 1.0 / n_var if n_var else 0.1
-        return cls.builder().pop_size(pop_size).crossover("sbx", prob=0.9, eta=15.0).mutation("pm", prob=mut_prob, eta=20.0).build()
+        crossover, mutation = _encoding_operators(
+            encoding, mut_prob, real=(("sbx", {"prob": 0.9, "eta": 15.0}), ("pm", {"prob": mut_prob, "eta": 20.0}))
+        )
+        return (
+            cls.builder()
+            .pop_size(DEFAULT_POP_SIZE if pop_size is None else pop_size)
+            .crossover(crossover[0], **crossover[1])
+            .mutation(mutation[0], **mutation[1])
+            .build()
+        )
 
     @classmethod
     def builder(cls) -> _AGEMOEAConfigBuilder:
