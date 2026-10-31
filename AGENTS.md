@@ -53,7 +53,7 @@ replay = vamos.reproduce(path)
 
 VAMOS supports one run schema: `vamos.run-manifest` version `1.0.0`. A successful run contains `manifest.json`, `result.npz`, and `environment.json`. Writers and readers live under `src/vamos/experiment/artifacts/`; `src/vamos/run_artifacts.py` and the top-level facade expose the public surface.
 
-The durable study schema is `vamos.study-manifest` version `1.0.0`, governed by `docs/dev/study_manifest_contract.md`, the complete SA-001 through SA-074 acceptance inventory, and the separate PL-001 through PL-021 planning inventory. Atomic create/data-only load, bounded sequential `Study.run()`, persisted failure policy, single-process graceful cancellation, explicit reconciliation, resume, bounded retry, immutable data-only `Study.inspect()`/`Study.summarize()` projections, the complete single-owner study CLI, and canonical package/research callers are implemented. Local multi-process ownership and coordination remain the next contract Goal. RunManifest remains the sole owner of resolved per-run truth and arrays.
+The durable study schema is `vamos.study-manifest` version `1.0.0`, governed by `docs/dev/study_manifest_contract.md`, the complete SA-001 through SA-074 acceptance inventory, and the separate PL-001 through PL-022 planning inventory. Atomic create/data-only load, bounded sequential `Study.run()`, persisted failure policy, single-process graceful cancellation, explicit reconciliation, resume, bounded retry, immutable data-only `Study.inspect()`/`Study.summarize()` projections, the complete single-owner study CLI, and canonical package/research callers are implemented. Local multi-process ownership and coordination remain the next contract Goal. RunManifest remains the sole owner of resolved per-run truth and arrays.
 
 Shared algorithm variation pipelines live only in `src/vamos/engine/variation/`; concrete operator implementations and their registry live under `src/vamos/engine/operators/`. The external archive model is `ExternalArchiveConfig` in `src/vamos/engine/archive/config.py`, and experiment-spec parsing accepts the single `archive.external` block through `build_archive_cfg`.
 
@@ -138,7 +138,7 @@ Follow at most one scoped `AGENTS.md` plus the linked canonical guide. Search th
 - Termination honors exact evaluation budgets; do not hide overshoot in orchestration.
 - Stochastic production paths receive and own an explicit `numpy.random.Generator`; do not use global random state.
 - Problems, operators, and algorithms must agree on real, integer, binary, permutation, or mixed encoding.
-- Reference-direction algorithms preserve their population/reference-direction cardinality contract.
+- Reference-direction algorithms keep at least one individual per reference direction (N >= H) and never truncate a reference-direction lattice.
 - An unavailable backend fails clearly; never substitute another backend silently.
 - Exact replay uses the stored resolved configuration, effective backend, and resolved seed, and refuses unsupported reconstruction.
 

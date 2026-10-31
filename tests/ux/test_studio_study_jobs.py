@@ -332,7 +332,8 @@ def test_runner_actions_follow_the_study_and_its_runner() -> None:
 
 
 def test_plan_check_explains_an_impossible_population(tmp_path: Path) -> None:
-    spec = batch_spec(problems=["zdt1"], algorithms=["nsgaiii"], seeds=[0], max_evaluations=100, pop_size=100, on_error="continue")
+    # NSGA-III needs at least its 91 reference directions on three-objective DTLZ2.
+    spec = batch_spec(problems=["dtlz2"], algorithms=["nsgaiii"], seeds=[0], max_evaluations=100, pop_size=50, on_error="continue")
 
     plan = check_plan(spec, tmp_path / "batch")
 

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, TypeAlias
 
 import numpy as np
+from numpy.typing import NDArray
 from scipy.spatial import cKDTree  # type: ignore[import-untyped]
 
 try:  # pragma: no cover - optional dependency
@@ -14,9 +15,13 @@ from vamos.foundation.constraints.utils import compute_violation, is_feasible
 from vamos.foundation.quality_indicators.pareto import pareto_filter
 
 DeduplicateIn = Literal["objective", "decision", "both"]
+FloatArray: TypeAlias = NDArray[np.float64]
+DecisionArray: TypeAlias = NDArray[np.generic]
+IndexArray: TypeAlias = NDArray[np.intp]
+BoolArray: TypeAlias = NDArray[np.bool_]
 
 
-def _nondominated_mask(F: np.ndarray) -> np.ndarray:
+def _nondominated_mask(F: FloatArray) -> BoolArray:
     if F.shape[0] == 0:
         return np.zeros(0, dtype=bool)
     if _moocore is not None:
@@ -27,7 +32,7 @@ def _nondominated_mask(F: np.ndarray) -> np.ndarray:
     return mask
 
 
-def _unique_rows_with_tolerance_bucket(values: np.ndarray, tol: float) -> np.ndarray:
+def _unique_rows_with_tolerance_bucket(values: FloatArray, tol: float) -> IndexArray:
     n = int(values.shape[0])
     if n <= 1 or tol < 0.0:
         return np.arange(n, dtype=int)
@@ -67,7 +72,7 @@ def _unique_rows_with_tolerance_bucket(values: np.ndarray, tol: float) -> np.nda
     return np.asarray(keep_idx, dtype=int)
 
 
-def _unique_rows_with_tolerance(values: np.ndarray, tol: float) -> np.ndarray:
+def _unique_rows_with_tolerance(values: FloatArray, tol: float) -> IndexArray:
     n = int(values.shape[0])
     if n <= 1 or tol < 0.0:
         return np.arange(n, dtype=int)
@@ -110,11 +115,11 @@ def _unique_rows_with_tolerance(values: np.ndarray, tol: float) -> np.ndarray:
 
 
 def _subset_arrays(
-    X: np.ndarray,
-    F: np.ndarray,
-    G: np.ndarray | None,
-    idx: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
+    X: DecisionArray,
+    F: FloatArray,
+    G: FloatArray | None,
+    idx: IndexArray,
+) -> tuple[DecisionArray, FloatArray, FloatArray | None]:
     if idx.size == 0:
         return X[:0], F[:0], G[:0] if G is not None else None
     return X[idx], F[idx], G[idx] if G is not None else None
@@ -126,6 +131,11 @@ class _BaseArchive:
 
     Update is batch-based: merge existing + incoming, feasibility filter,
     non-dominated extraction, deduplication, then (if needed) truncation.
+
+    Deduplication drops a row whose objective (or decision) vector is within the
+    Chebyshev distance ``objective_tolerance`` (or ``decision_tolerance``) of a kept
+    row. The default objective tolerance is 0, exact equality as in jMetal, so the
+    archive does not depend on the scale of the objectives.
     """
 
     def __init__(
@@ -136,7 +146,7 @@ class _BaseArchive:
         dtype: Any,
         *,
         truncate_size: int | None = None,
-        objective_tolerance: float = 1e-10,
+        objective_tolerance: float = 0.0,
         deduplicate_in: DeduplicateIn = "objective",
         decision_tolerance: float = 1e-32,
         n_con: int | None = None,
@@ -183,10 +193,10 @@ class _BaseArchive:
 
     def update(
         self,
-        population_X: np.ndarray,
-        population_F: np.ndarray,
-        population_G: np.ndarray | None = None,
-    ) -> tuple[np.ndarray, np.ndarray]:
+        population_X: DecisionArray,
+        population_F: NDArray[np.generic],
+        population_G: NDArray[np.generic] | None = None,
+    ) -> tuple[DecisionArray, FloatArray]:
         pop_X = np.asarray(population_X, dtype=self._dtype, order="C")
         pop_F = np.asarray(population_F, dtype=float, order="C")
         if pop_X.ndim != 2:
@@ -202,7 +212,7 @@ class _BaseArchive:
         if pop_X.shape[0] == 0:
             return self._snapshot()
 
-        pop_G: np.ndarray | None = None
+        pop_G: FloatArray | None = None
         if population_G is not None:
             pop_G = np.asarray(population_G, dtype=float, order="C")
             if pop_G.ndim != 2:
@@ -234,18 +244,18 @@ class _BaseArchive:
         self._replace_contents(X_nd, F_nd, G_nd)
         return self._snapshot()
 
-    def contents(self) -> tuple[np.ndarray, np.ndarray]:
+    def contents(self) -> tuple[DecisionArray, FloatArray]:
         return self._snapshot()
 
-    def _snapshot(self) -> tuple[np.ndarray, np.ndarray]:
+    def _snapshot(self) -> tuple[DecisionArray, FloatArray]:
         return self._X[: self._size].copy(), self._F[: self._size].copy()
 
     def _merge_with_existing(
         self,
-        pop_X: np.ndarray,
-        pop_F: np.ndarray,
-        pop_G: np.ndarray | None,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
+        pop_X: DecisionArray,
+        pop_F: FloatArray,
+        pop_G: FloatArray | None,
+    ) -> tuple[DecisionArray, FloatArray, FloatArray | None]:
         if self._size == 0:
             return pop_X, pop_F, pop_G
 
@@ -280,10 +290,10 @@ class _BaseArchive:
 
     @staticmethod
     def _apply_feasibility_filter(
-        X: np.ndarray,
-        F: np.ndarray,
-        G: np.ndarray | None,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
+        X: DecisionArray,
+        F: FloatArray,
+        G: FloatArray | None,
+    ) -> tuple[DecisionArray, FloatArray, FloatArray | None]:
         if G is None or G.shape[0] == 0:
             return X, F, G
 
@@ -299,10 +309,10 @@ class _BaseArchive:
 
     def _dedupe(
         self,
-        X: np.ndarray,
-        F: np.ndarray,
-        G: np.ndarray | None,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
+        X: DecisionArray,
+        F: FloatArray,
+        G: FloatArray | None,
+    ) -> tuple[DecisionArray, FloatArray, FloatArray | None]:
         mode = self._deduplicate_in
         out_X, out_F, out_G = X, F, G
 
@@ -318,9 +328,9 @@ class _BaseArchive:
 
     def _replace_contents(
         self,
-        X: np.ndarray,
-        F: np.ndarray,
-        G: np.ndarray | None,
+        X: DecisionArray,
+        F: FloatArray,
+        G: FloatArray | None,
     ) -> None:
         new_size = int(F.shape[0])
         self._ensure_storage(new_size)
@@ -377,10 +387,10 @@ class _BaseArchive:
 
     def _select_subset(
         self,
-        F: np.ndarray,
+        F: FloatArray,
         target_size: int,
-        G: np.ndarray | None = None,
-    ) -> np.ndarray:
+        G: FloatArray | None = None,
+    ) -> IndexArray:
         raise NotImplementedError
 
 

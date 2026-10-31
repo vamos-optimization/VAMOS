@@ -2,21 +2,21 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from importlib.util import find_spec
 from itertools import product
 from math import comb
 from typing import Any
 
 from vamos.experiment.artifacts.models import deep_freeze, deep_thaw
+from vamos.experiment.artifacts.resolved_reconstruction import is_reconstructable_evaluation_backend
 from vamos.experiment.artifacts.specs import RunSpecInputs, build_run_specs
 from vamos.experiment.auto import _compute_max_evaluations, _compute_pop_size, _resolve_problem, _select_algorithm
 from vamos.experiment.optimize import _build_algorithm_config
 from vamos.experiment.runtime.catalog import resolve_engine_details
 from vamos.foundation.encoding import normalize_encoding
 
-from .errors import DuplicateStudyTaskError, StudyError, UnresolvedStudyTaskError
+from .errors import DuplicateStudyTaskError, InvalidStudySpecError, StudyError, UnresolvedStudyTaskError
 from .identity import compute_plan_id, compute_task_digest, compute_task_id
 from .models import SCHEMA_VERSION, PlanTask, ResolvedStudyPlan, StudySpec
 from .serialization import document_self_hash
@@ -32,6 +32,7 @@ class _Candidate:
 
 def resolve_spec(spec: StudySpec) -> ResolvedStudyPlan:
     """Resolve every matrix candidate and freeze one immutable sorted plan."""
+    _reject_negative_seeds(spec.seeds)
     candidates = (
         _Candidate(index, problem, algorithm, seed)
         for index, (problem, algorithm, seed) in enumerate(product(spec.problems, spec.algorithms, spec.seeds))
@@ -42,6 +43,21 @@ def resolve_spec(spec: StudySpec) -> ResolvedStudyPlan:
     plan_id = compute_plan_id(task.task_id for task in sorted_tasks)
     provisional = ResolvedStudyPlan(plan_id=plan_id, tasks=sorted_tasks, document_sha256="")
     return ResolvedStudyPlan(plan_id=plan_id, tasks=sorted_tasks, document_sha256=_plan_hash(provisional))
+
+
+def _reject_negative_seeds(seeds: Sequence[int]) -> None:
+    # Validated here rather than in StudySpec so that studies published before this
+    # check still load; their negative-seed tasks could never run.
+    for index, seed in enumerate(seeds):
+        if seed < 0:
+            raise InvalidStudySpecError(
+                operation="resolve study plan",
+                reason="INVALID_STUDY_SPEC",
+                field=f"seeds[{index}]",
+                expected="non-negative integer seed",
+                actual=seed,
+                action="Use seeds >= 0; no study directory was published.",
+            )
 
 
 def _resolve_candidate(spec: StudySpec, candidate: _Candidate) -> PlanTask:
@@ -246,14 +262,14 @@ def _validate_nsgaiii_reference_directions(config: Mapping[str, Any], *, populat
             action="Choose a positive reference-direction division count.",
         )
     expected = comb(divisions + n_obj - 1, n_obj - 1)
-    if population != expected:
+    if population < expected:
         raise UnresolvedStudyTaskError(
             operation="resolve study plan",
             reason="REFERENCE_DIRECTION_POPULATION_MISMATCH",
             field=f"$.matrix[{candidate.index}].pop_size",
-            expected=f"{expected} for n_obj={n_obj} and divisions={divisions}",
+            expected=f">= {expected} for n_obj={n_obj} and divisions={divisions}",
             actual=population,
-            action="Use the reference-direction count as pop_size or choose compatible divisions.",
+            action="Use at least the reference-direction count as pop_size or choose fewer divisions.",
         )
 
 
@@ -323,14 +339,14 @@ def _validate_resolved_backends(backends: Mapping[str, object], *, candidate: _C
                 action="Install the requested backend dependency or choose an available built-in backend.",
             )
     evaluation = backends.get("evaluation")
-    if isinstance(evaluation, Mapping) and evaluation.get("component_id") == "vamos.evaluation:dask@1" and find_spec("dask") is None:
+    if isinstance(evaluation, Mapping) and not is_reconstructable_evaluation_backend(evaluation):
         raise UnresolvedStudyTaskError(
             operation="resolve study plan",
-            reason="BACKEND_UNAVAILABLE",
+            reason="UNSUPPORTED_EVALUATION_BACKEND",
             field=f"$.matrix[{candidate.index}].backend.evaluation",
-            expected="installed dask evaluation backend",
-            actual="dask is not installed",
-            action="Install the compute extra or choose serial/multiprocessing evaluation.",
+            expected="serial evaluation, the only backend Study.run() executes",
+            actual=evaluation.get("component_id"),
+            action="Use eval_strategy='serial' in the StudySpec; run multiprocessing or Dask evaluation with vamos.optimize().",
         )
 
 
