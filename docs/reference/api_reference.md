@@ -146,12 +146,12 @@ Old section and symbol bookmarks are forwarded to their new page within the same
 <li><a id="constraint-handling" data-api-legacy href="../api/internal/constraints/">constraint-handling</a></li>
 <li><a id="vamos.foundation.constraints" data-api-legacy href="../api/internal/constraints/">vamos.foundation.constraints</a></li>
 <li><a id="vamos.foundation.constraints.ConstraintInfo" data-api-legacy href="../api/internal/constraints/#vamos.foundation.constraints.ConstraintInfo">vamos.foundation.constraints.ConstraintInfo</a></li>
-<li><a id="vamos.foundation.constraints.FeasibilityFirstStrategy" data-api-legacy href="../api/internal/constraints/#vamos.foundation.constraints.FeasibilityFirstStrategy">vamos.foundation.constraints.FeasibilityFirstStrategy</a></li>
-<li><a id="vamos.foundation.constraints.PenaltyCVStrategy" data-api-legacy href="../api/internal/constraints/#vamos.foundation.constraints.PenaltyCVStrategy">vamos.foundation.constraints.PenaltyCVStrategy</a></li>
-<li><a id="vamos.foundation.constraints.CVAsObjectiveStrategy" data-api-legacy href="../api/internal/constraints/#vamos.foundation.constraints.CVAsObjectiveStrategy">vamos.foundation.constraints.CVAsObjectiveStrategy</a></li>
-<li><a id="vamos.foundation.constraints.EpsilonConstraintStrategy" data-api-legacy href="../api/internal/constraints/#vamos.foundation.constraints.EpsilonConstraintStrategy">vamos.foundation.constraints.EpsilonConstraintStrategy</a></li>
+<li><a id="vamos.foundation.constraints.FeasibilityFirstStrategy" data-api-legacy href="../api/internal/constraints/">vamos.foundation.constraints.FeasibilityFirstStrategy</a></li>
+<li><a id="vamos.foundation.constraints.PenaltyCVStrategy" data-api-legacy href="../api/internal/constraints/">vamos.foundation.constraints.PenaltyCVStrategy</a></li>
+<li><a id="vamos.foundation.constraints.CVAsObjectiveStrategy" data-api-legacy href="../api/internal/constraints/">vamos.foundation.constraints.CVAsObjectiveStrategy</a></li>
+<li><a id="vamos.foundation.constraints.EpsilonConstraintStrategy" data-api-legacy href="../api/internal/constraints/">vamos.foundation.constraints.EpsilonConstraintStrategy</a></li>
 <li><a id="vamos.foundation.constraints.compute_constraint_info" data-api-legacy href="../api/internal/constraints/#vamos.foundation.constraints.compute_constraint_info">vamos.foundation.constraints.compute_constraint_info</a></li>
-<li><a id="vamos.foundation.constraints.get_constraint_strategy" data-api-legacy href="../api/internal/constraints/#vamos.foundation.constraints.get_constraint_strategy">vamos.foundation.constraints.get_constraint_strategy</a></li>
+<li><a id="vamos.foundation.constraints.get_constraint_strategy" data-api-legacy href="../api/internal/constraints/">vamos.foundation.constraints.get_constraint_strategy</a></li>
 <li><a id="vamos.foundation.constraints.utils" data-api-legacy href="../api/internal/constraints/">vamos.foundation.constraints.utils</a></li>
 <li><a id="vamos.foundation.constraints.utils.compute_violation" data-api-legacy href="../api/internal/constraints/#vamos.foundation.constraints.utils.compute_violation">vamos.foundation.constraints.utils.compute_violation</a></li>
 <li><a id="vamos.foundation.constraints.utils.is_feasible" data-api-legacy href="../api/internal/constraints/#vamos.foundation.constraints.utils.is_feasible">vamos.foundation.constraints.utils.is_feasible</a></li>
