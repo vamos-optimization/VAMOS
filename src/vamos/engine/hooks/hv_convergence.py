@@ -51,7 +51,6 @@ class HVConvergenceMonitor:
         self.cfg = cfg
         self._evals: list[int] = []
         self._hv: list[float] = []
-        self._last_checked_idx: int = -1
         self._bad_streak: int = 0
         self._stopped: bool = False
         self._rng = random.Random(cfg.rng_seed)
@@ -69,11 +68,6 @@ class HVConvergenceMonitor:
         if len(self._hv) < self.cfg.min_points:
             return HVDecision(False, "warming_up", evals, hv, None, {"points": len(self._hv)})
 
-        # Avoid double-checking the same idx
-        if idx == self._last_checked_idx:
-            return HVDecision(False, "no_new_point", evals, hv, None)
-
-        self._last_checked_idx = idx
         delta = self._window_delta(idx)
 
         eps_abs = self._epsilon_abs(hv_ref=self._hv[idx])

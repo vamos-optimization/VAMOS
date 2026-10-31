@@ -19,7 +19,7 @@ uses the same constraints rather than overriding the API renderer.
 ## Test placement
 
 - `tests/foundation/`: problems, evaluation, kernels, indicators, resources, and base contracts.
-- `tests/engine/`: algorithms, operators, archives, hooks, hyperheuristics, and tuning.
+- `tests/engine/`: algorithms, operators, archives, hooks, and tuning.
 - `tests/experiment/`: orchestration, CLI, studies, artifacts, and diagnostics.
 - `tests/ux/`: analysis, visualization, and Studio behavior.
 - `tests/integration/` and `tests/e2e/`: cross-layer and command workflows.

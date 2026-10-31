@@ -2,7 +2,7 @@
 
 !!! info "Stable problem-definition API"
     `make_problem` and `optimize` are Stable in VAMOS 1.1.0. The symbolic
-    constraint DSL and low-level strategy classes are Internal. See
+    constraint DSL and the violation helpers are Internal. See
     [Stability and versioning](../project/stability-and-versioning.md).
 
 ## Define inequality constraints

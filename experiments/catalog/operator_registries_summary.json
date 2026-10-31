@@ -1,9 +1,8 @@
 {
-  "total_registries": 93,
+  "total_registries": 92,
   "kinds": {
     "crossover": 46,
-    "mutation": 46,
-    "operator/variation": 1
+    "mutation": 46
   },
   "top10_by_size": [
     {

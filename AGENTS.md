@@ -17,7 +17,7 @@ Do not add readers, migrations, aliases, or deprecation cycles for internal pre-
 ## Repository map and dependency direction
 
 - `src/vamos/foundation/`: base abstractions, problems, kernels, evaluation, indicators, shared data, and errors.
-- `src/vamos/engine/`: algorithms, canonical variation pipelines, operator implementations, archives, hooks, hyperheuristics, and tuning.
+- `src/vamos/engine/`: algorithms, canonical variation pipelines, operator implementations, archives, hooks, and tuning.
 - `src/vamos/experiment/`: orchestration, CLI, studies, diagnostics, artifacts, and external integrations.
 - `src/vamos/ux/`: public analysis, visualization, and Studio surfaces.
 - `src/vamos/assist/`: assisted workflows built on foundation, engine, and experiment.

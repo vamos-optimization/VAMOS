@@ -9,10 +9,6 @@ from typing import Any, Literal, TypeAlias, TypedDict
 
 from vamos.foundation.encoding import normalize_encoding
 
-# =============================================================================
-# Operator Registry by Encoding
-# =============================================================================
-
 OperatorParams: TypeAlias = dict[str, Any]
 OperatorTuple: TypeAlias = tuple[str, OperatorParams]
 
@@ -48,93 +44,6 @@ class VariationOverrides(TypedDict, total=False):
 
 
 VariationConfig: TypeAlias = dict[str, object]
-
-OPERATORS_BY_ENCODING: dict[str, dict[str, list[OperatorTuple]]] = {
-    "real": {
-        "crossover": [
-            ("sbx", {"prob": 1.0, "eta": 20.0}),
-            ("arithmetic", {"prob": 0.9}),
-            ("blx_alpha", {"prob": 0.9, "alpha": 0.5}),
-            ("pcx", {"prob": 0.9}),
-            ("undx", {"prob": 0.9}),
-            ("simplex", {"prob": 0.9}),
-        ],
-        "mutation": [
-            ("polynomial", {"prob": "1/n", "eta": 20.0}),
-            ("gaussian", {"prob": 0.1, "sigma": 0.1}),
-            ("uniform_reset", {"prob": 0.1}),
-        ],
-    },
-    "binary": {
-        "crossover": [
-            ("hux", {"prob": 0.9}),
-            ("uniform", {"prob": 0.9}),
-            ("one_point", {"prob": 0.9}),
-            ("two_point", {"prob": 0.9}),
-        ],
-        "mutation": [
-            ("bitflip", {"prob": "1/n"}),
-            ("segment_inversion", {"prob": 0.1}),
-        ],
-    },
-    "integer": {
-        "crossover": [
-            ("uniform", {"prob": 0.9}),
-            ("arithmetic", {"prob": 0.9}),
-        ],
-        "mutation": [
-            ("reset", {"prob": "1/n"}),
-            ("creep", {"prob": 0.1}),
-            ("polynomial", {"prob": "1/n", "eta": 20.0}),
-            ("gaussian", {"prob": 0.1, "sigma": 1.0}),
-            ("boundary", {"prob": 0.1}),
-        ],
-    },
-    "permutation": {
-        "crossover": [
-            ("ox", {"prob": 0.9}),
-            ("pmx", {"prob": 0.9}),
-            ("edge", {"prob": 0.9}),
-            ("cycle", {"prob": 0.9}),
-            ("position", {"prob": 0.9}),
-            ("aex", {"prob": 0.9}),
-        ],
-        "mutation": [
-            ("swap", {"prob": 0.1}),
-            ("inversion", {"prob": 0.1}),
-            ("scramble", {"prob": 0.1}),
-            ("insert", {"prob": 0.1}),
-            ("displacement", {"prob": 0.1}),
-            ("two_opt", {"prob": 0.1}),
-        ],
-    },
-    "mixed": {
-        "crossover": [
-            ("mixed", {"prob": 0.9}),
-        ],
-        "mutation": [
-            ("mixed", {"prob": "1/n"}),
-        ],
-    },
-}
-
-
-def get_operators_for_encoding(encoding: str) -> dict[str, list[OperatorTuple]]:
-    """Return available operators for the given encoding type."""
-    normalized = normalize_encoding(encoding)
-    return OPERATORS_BY_ENCODING.get(normalized, OPERATORS_BY_ENCODING["real"])
-
-
-def get_crossover_names(encoding: str) -> list[str]:
-    """Return list of crossover operator names for given encoding."""
-    ops = get_operators_for_encoding(encoding)
-    return [op[0] for op in ops.get("crossover", [])]
-
-
-def get_mutation_names(encoding: str) -> list[str]:
-    """Return list of mutation operator names for given encoding."""
-    ops = get_operators_for_encoding(encoding)
-    return [op[0] for op in ops.get("mutation", [])]
 
 
 def normalize_operator_tuple(spec: object) -> OperatorTuple | None:

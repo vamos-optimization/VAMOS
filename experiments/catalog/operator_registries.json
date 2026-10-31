@@ -1000,20 +1000,6 @@
     }
   },
   {
-    "module": "vamos.engine.config.variation",
-    "attr": "OPERATORS_BY_ENCODING",
-    "summary": {
-      "n_keys": 5,
-      "sample_keys": [
-        "binary",
-        "integer",
-        "mixed",
-        "permutation",
-        "real"
-      ]
-    }
-  },
-  {
     "module": "vamos.engine.operators.policies._discrete_variation_builder",
     "attr": "INT_CROSSOVER_COMMON",
     "summary": {
