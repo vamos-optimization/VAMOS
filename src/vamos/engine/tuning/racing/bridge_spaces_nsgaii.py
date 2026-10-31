@@ -114,7 +114,7 @@ def _real_operator_part() -> SpacePart:
             "undx",
             [Real("undx_zeta", 0.1, 1.0), Real("undx_eta", 0.1, 1.0)],
         ),
-        ConditionalBlock("crossover", "simplex", [Real("simplex_epsilon", 0.1, 1.0)]),
+        ConditionalBlock("crossover", "simplex", [Real("simplex_epsilon", 1.0, 3.0)]),
         ConditionalBlock("mutation", "non_uniform", [Real("nonuniform_perturbation", 0.05, 0.5)]),
         ConditionalBlock("mutation", "gaussian", [Real("gaussian_sigma", 0.001, 0.5)]),
         ConditionalBlock("mutation", "cauchy", [Real("cauchy_gamma", 0.001, 0.5)]),

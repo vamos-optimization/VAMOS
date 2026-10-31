@@ -103,7 +103,8 @@ def capture_provenance(
 def capture_runtime_evidence(*, backend: str) -> tuple[dict[str, Any], dict[str, Any]]:
     """Capture comparison evidence without invoking Git, shell, or network."""
     distribution_sha, distribution_reason = _distribution_hash()
-    source_root = _find_git_root(Path(__file__).resolve())
+    kind = _installed_source_kind()
+    source_root = _source_checkout_root() if kind == "checkout" else None
     implementation: dict[str, Any] = {
         "vamos_version": get_version(),
         "distribution": {
@@ -114,15 +115,17 @@ def capture_runtime_evidence(*, backend: str) -> tuple[dict[str, Any], dict[str,
     }
     if distribution_reason is not None:
         implementation["distribution"]["hash_unavailable_reason"] = distribution_reason
-    evidence = {
-        "implementation": implementation,
-        "source": {
-            "kind": _installed_source_kind(),
-            "git_sha": _read_git_head(source_root),
-            "dirty": None,
-            "package_sha256": distribution_sha,
-        },
+    source: dict[str, Any] = {
+        "kind": kind,
+        "git_sha": _read_git_head(source_root),
+        "dirty": None,
+        "package_sha256": distribution_sha,
     }
+    if kind == "checkout":
+        if source_root is None:
+            source["reason"] = "git_checkout_unavailable"
+        source["package_data_sha256"] = _package_data_hash()
+    evidence = {"implementation": implementation, "source": source}
     return evidence, capture_environment(backend=backend)
 
 
@@ -178,16 +181,20 @@ def replayability_from_provenance(
 
 
 def _source_metadata() -> dict[str, Any]:
-    root = _find_git_root(Path(__file__).resolve())
+    kind = _installed_source_kind()
+    root = _source_checkout_root() if kind == "checkout" else None
     if root is None:
-        return {
-            "kind": "wheel",
+        source: dict[str, Any] = {
+            "kind": kind,
             "git_sha": None,
             "dirty": False,
             "diff_sha256": None,
             "tree_hash": None,
             "reason": "git_checkout_unavailable",
         }
+        if kind == "checkout":
+            source["package_data_sha256"] = _package_data_hash()
+        return source
     revision = _git_output(root, ("rev-parse", "HEAD"), text=True)
     status = _git_output(root, ("status", "--porcelain=v1", "-z"), text=False)
     if revision is None or status is None:
@@ -198,6 +205,7 @@ def _source_metadata() -> dict[str, Any]:
             "diff_sha256": None,
             "tree_hash": None,
             "reason": "git_provenance_command_failed",
+            "package_data_sha256": _package_data_hash(),
         }
     status_bytes = status if isinstance(status, bytes) else status.encode("utf-8")
     dirty = bool(status_bytes)
@@ -220,7 +228,29 @@ def _source_metadata() -> dict[str, Any]:
         "diff_sha256": diff_hash,
         "tree_hash": tree_hash,
         "tree_hash_algorithm": "sha256-git-ls-tree" if tree_hash is not None else None,
+        "package_data_sha256": _package_data_hash(),
     }
+
+
+def _package_root() -> Path:
+    """Directory of the imported ``vamos`` package."""
+    return Path(__file__).resolve().parents[2]
+
+
+def _source_checkout_root() -> Path | None:
+    """Git root that versions the imported ``vamos`` sources, or ``None``.
+
+    The nearest ``.git`` above the package counts only when it is a VAMOS checkout, whose ``src/vamos`` is the
+    imported package, or when the distribution is an editable install of sources inside that repository. A wheel
+    installed in a virtual environment inside another Git project must not take that project's revision.
+    """
+    package_root = _package_root()
+    root = _find_git_root(package_root / "__init__.py")
+    if root is None:
+        return None
+    if (root / "src" / "vamos").resolve() == package_root or _editable_install() is True:
+        return root
+    return None
 
 
 def _find_git_root(start: Path) -> Path | None:
@@ -292,21 +322,30 @@ def _distribution_hash() -> tuple[str | None, str | None]:
 
 
 def _installed_source_kind() -> str:
-    if _find_git_root(Path(__file__).resolve()) is not None:
+    """Classify the imported sources; saving and verification both use this one classification."""
+    if _source_checkout_root() is not None:
         return "checkout"
+    editable = _editable_install()
+    if editable is None:
+        return "unavailable"
+    return "checkout" if editable else "wheel"
+
+
+def _editable_install() -> bool | None:
+    """Whether ``vamos-optimization`` is installed in editable mode; ``None`` when its metadata is unusable."""
     try:
         distribution = importlib_metadata.distribution("vamos-optimization")
     except importlib_metadata.PackageNotFoundError:
-        return "unavailable"
+        return None
     direct_url = distribution.read_text("direct_url.json")
     if not direct_url:
-        return "wheel"
+        return False
     try:
         value = json.loads(direct_url)
     except json.JSONDecodeError:
-        return "unavailable"
+        return None
     directory_info = value.get("dir_info") if isinstance(value, dict) else None
-    return "checkout" if isinstance(directory_info, dict) and directory_info.get("editable") is True else "wheel"
+    return isinstance(directory_info, dict) and directory_info.get("editable") is True
 
 
 def _read_git_head(root: Path | None) -> str | None:
@@ -377,8 +416,36 @@ def _is_git_digest(value: str) -> bool:
     return len(value) in {40, 64} and all(character in "0123456789abcdef" for character in value)
 
 
+def _package_data_hash() -> str | None:
+    """SHA-256 of the packaged data under ``vamos/resources`` for a checkout or an editable install.
+
+    ``_source_package_hash`` covers only ``*.py`` files, and stored runs compare it, so its scope stays fixed.
+    This separate fingerprint lets verification notice changed data files, such as TSPLIB instances or weight
+    vectors, which change results without changing any source file.
+    """
+    package_root = _package_root()
+    data_root = package_root / "resources"
+    files = sorted(
+        (
+            path
+            for path in (data_root.rglob("*") if data_root.is_dir() else ())
+            if path.is_file() and "__pycache__" not in path.relative_to(data_root).parts and path.suffix not in {".py", ".pyc", ".pyo"}
+        ),
+        key=lambda item: item.relative_to(package_root).as_posix(),
+    )
+    digest = hashlib.sha256()
+    try:
+        for path in files:
+            digest.update(path.relative_to(package_root).as_posix().encode("utf-8"))
+            digest.update(b"\x00")
+            digest.update(path.read_bytes())
+    except OSError:
+        return None
+    return digest.hexdigest()
+
+
 def _source_package_hash() -> tuple[str | None, str | None]:
-    package_root = Path(__file__).resolve().parents[2]
+    package_root = _package_root()
     files = sorted(package_root.rglob("*.py"), key=lambda item: item.relative_to(package_root).as_posix())
     if not files:
         return None, "source_package_inventory_unavailable"

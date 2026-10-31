@@ -57,7 +57,7 @@ def real_operator_part_medium(
                 Real("undx_eta", 0.1, 1.0, role="operator_rate"),
             ],
         ),
-        ConditionalBlock("crossover", "simplex", [Real("simplex_epsilon", 0.1, 1.0, role="operator_rate")]),
+        ConditionalBlock("crossover", "simplex", [Real("simplex_epsilon", 1.0, 3.0, role="operator_rate")]),
         ConditionalBlock("mutation", "non_uniform", [Real("nonuniform_perturbation", 0.05, 0.5, role="operator_rate")]),
         ConditionalBlock("mutation", "gaussian", [Real("gaussian_sigma", 0.001, 0.5, role="operator_rate")]),
         ConditionalBlock("mutation", "cauchy", [Real("cauchy_gamma", 0.001, 0.5, role="operator_rate")]),

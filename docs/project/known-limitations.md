@@ -54,9 +54,30 @@ unsupported behavior rather than future compatibility promises.
   evaluate the surfaces far outside their fitted region, on the physical design
   ranges, so RWA7 and RWA8 values, fronts and indicators from those versions do
   not correspond to the published problems.
+- **Development after 1.1.0:** the inaccurate packaged reference fronts are
+  regenerated. IGD, IGD+, epsilon and normalized HV values that VAMOS 1.1.0
+  and earlier computed with them are not comparable with later ones:
+  - **Analytic samples:** ZDT, DTLZ, WFG1, WFG2, LSMOP9, UF6, UF9, C1-DTLZ3
+    and DC2-DTLZ;
+  - **Authors' fronts:** the RE fronts that Tanabe and Ishibuchi published;
+  - **Dense sampling with polishing:** RE91, RWA3, RWA9 and RWA10.
+
+  The [reference fronts](../reference/problems.md#reference-fronts) section
+  lists the origin of each file.
+- DC-DTLZ's constraints use pymoo's constants, which cite no source. PlatEMO,
+  citing Li et al. (2019), uses different constants and a different scale for
+  `g`. Until the primary definition is checked, DC-DTLZ results may not
+  correspond to the published problems.
 - Independent algorithm-conformance validation for AGE-MOEA, RVEA and SMPSO
   remains pending. Passing API and regression tests does not establish
   convergence equivalence with a reference implementation.
+- **Development after 1.1.0:** AGE-MOEA's hypervolume on ZDT1, DTLZ2 and DTLZ1
+  is statistically indistinguishable from jMetal 7.9's over 30 seeds, and a
+  reference test checks it on ZDT1. VAMOS 1.1.0's AGE-MOEA was significantly
+  worse, mainly because its mating tournament used NSGA-II crowding instead of
+  the survival score; see
+  [AGE-MOEA survival score](../reference/algorithms.md#age-moea-survival-score).
+  RVEA and SMPSO remain pending.
 - IBEA normalizes the objectives over the population for both indicators,
   as adaptive IBEA does.
   - **Effect on multimodal problems:** far-dominated solutions in early
@@ -100,6 +121,24 @@ unsupported behavior rather than future compatibility promises.
 - Custom Python, plugins, cross-backend execution, and best-effort environment
   matches are not exact-replay targets.
 - SHA-256 evidence detects modification; it is not an authenticity signature.
+- **Development after 1.1.0:** saving and verification classify the installed
+  VAMOS sources with the same rule.
+  - **Wheel inside another Git project:** a Git repository counts as a VAMOS
+    checkout only when its `src/vamos` is the imported package, or when VAMOS
+    is installed in editable mode. A wheel installed in a virtual environment
+    inside another Git project is recorded as a wheel, and VAMOS no longer runs
+    `git status` or `git diff` on that project.
+  - **Runs saved by 1.1.0 in that layout:** they recorded the project's
+    revision as their source, so a later commit to the project blocks their
+    exact replay and the resumption of their studies. Rerun them.
+  - **Editable install without Git:** an example is a downloaded source tree
+    installed with `pip install -e .`. Its runs now verify as `exact` while the
+    sources are unchanged; 1.1.0 recorded them as wheels and never verified
+    them as exact.
+  - **Packaged data:** checkouts and editable installs also record a
+    fingerprint of the packaged data under `vamos/resources`. Changing a TSPLIB
+    instance or a weight file after saving a run therefore blocks its exact
+    replay. Runs saved by 1.1.0 have no such fingerprint and verify as before.
 
 ## Durable studies
 
@@ -107,6 +146,9 @@ unsupported behavior rather than future compatibility promises.
   concurrently from multiple processes.
 - Study execution is sequential in 1.1.0. Distributed workers, multiprocess
   ownership, and cross-process cancellation are unsupported.
+- **Development after 1.1.0:** study tasks run with serial evaluation only;
+  planning and creation reject `eval_strategy="multiprocessing"` or `"dask"`
+  with `UNSUPPORTED_EVALUATION_BACKEND`.
 - Cancellation is cooperative and local to the process that owns execution.
   Studio's token-addressed worker stop ends the worker and requires reconciliation
   on resume; it is not durable cross-process cancellation of the study API.
@@ -123,6 +165,18 @@ unsupported behavior rather than future compatibility promises.
   use the four-algorithm value for every count, which understates the critical
   difference with more than four algorithms; see
   [Critical-distance plot](../topics/analysis.md#critical-distance-plot).
+- **Development after 1.1.0:** `knee_point_scores` and Studio's "Knee point"
+  ranking measure the signed distance to the extreme-point chord among the
+  non-dominated points, and warn when the front has no knee. VAMOS 1.1.0 and
+  earlier pick the point farthest from the ideal on a concave front and can
+  pick a dominated point; see
+  [MCDM](../topics/analysis.md#mcdm-selecting-one-solution-from-a-front).
+- **Development after 1.1.0:** the LaTeX tables of `vamos bench` mark
+  differences with a rank-sum test per problem and say when the number of runs
+  cannot reach `alpha`. VAMOS 1.1.0 paired runs by seed in a signed-rank test,
+  so with five or fewer seeds its tables showed no significant difference, and
+  it put the worst value in bold for some aliases of the epsilon and Hausdorff
+  indicators; see [Other subcommands](../guide/cli.md#other-subcommands).
 
 ## Studio and generated code
 
