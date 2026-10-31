@@ -163,9 +163,14 @@ def _resolved_algorithm_config(
     n_obj: int,
     encoding: str,
 ) -> dict[str, Any]:
+    overrides = _algorithm_overrides(spec, requested_algorithm, algorithm)
     config_pop_size: int | None = population_size
     if spec.pop_size is None and algorithm.lower() in {"moead", "nsgaiii", "rvea"}:
         config_pop_size = None
+    # A per-algorithm population replaces the shared one before the default derives its lattice from it.
+    override_pop_size = overrides.get("pop_size")
+    if isinstance(override_pop_size, int) and not isinstance(override_pop_size, bool):
+        config_pop_size = override_pop_size
     built = _build_algorithm_config(
         algorithm,
         pop_size=config_pop_size,
@@ -174,7 +179,6 @@ def _resolved_algorithm_config(
         encoding=encoding,
     )
     config = dict(built.to_dict())
-    overrides = _algorithm_overrides(spec, requested_algorithm, algorithm)
     unknown = sorted(set(overrides) - set(config))
     if unknown:
         raise UnresolvedStudyTaskError(

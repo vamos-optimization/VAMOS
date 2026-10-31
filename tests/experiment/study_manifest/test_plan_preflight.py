@@ -101,6 +101,20 @@ def test_pl_008_nsgaiii_reference_direction_cardinality_is_preflighted() -> None
     assert rvea.value.reason == "REFERENCE_DIRECTION_POPULATION_MISMATCH"
 
 
+def test_pl_008_per_algorithm_population_replaces_the_shared_one_before_the_lattice_is_derived() -> None:
+    spec = _spec(
+        problems=["dtlz2"],
+        algorithms=["rvea"],
+        seeds=[0],
+        n_obj=3,
+        pop_size=100,
+        max_evaluations=200,
+        algorithm_configs={"rvea": {"pop_size": 91, "n_partitions": 12}},
+    )
+
+    assert vamos.plan_study(spec).population_sizes == (91,)
+
+
 def test_pl_008_external_reference_direction_path_is_not_followed(tmp_path: Path) -> None:
     external = tmp_path / "directions.csv"
     external.write_text("not read", encoding="utf-8")
