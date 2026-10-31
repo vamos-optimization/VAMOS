@@ -415,3 +415,75 @@ def test_all_operator_pairs_run(algo_name: str, encoding: str, builder):
         )
 
     assert not crashes, f"{len(crashes)}/{total} unexpected failures for {algo_name}:\n" + "\n".join(f"  {p}: {e}" for p, e in crashes[:20])
+
+
+# ---------------------------------------------------------------------------
+# Encoding and parent-arity validation of the pair-based real builders
+# ---------------------------------------------------------------------------
+
+
+def _pair_based_builders() -> dict[str, Any]:
+    from vamos.engine.algorithm.config import MOEADConfig, NSGAIIIConfig, SMSEMOAConfig, SPEA2Config
+
+    return {
+        "nsgaiii": lambda: NSGAIIIConfig.builder().pop_size(20).selection("tournament"),
+        "smsemoa": lambda: SMSEMOAConfig.builder().pop_size(20).selection("tournament"),
+        "spea2": lambda: SPEA2Config.builder().pop_size(20).archive_size(20).selection("tournament"),
+        "moead": lambda: MOEADConfig.builder().pop_size(20).neighbor_size(5).delta(0.9).replace_limit(2).aggregation("tchebycheff"),
+    }
+
+
+def _counting_zdt1(n_var: int = 6) -> Any:
+    from vamos.foundation.problem.zdt1 import ZDT1Problem
+
+    class CountingZDT1(ZDT1Problem):
+        def __init__(self) -> None:
+            super().__init__(n_var)
+            self.n_evaluated = 0
+
+        def evaluate(self, X: Any, out: dict[str, Any]) -> None:
+            self.n_evaluated += int(X.shape[0])
+            super().evaluate(X, out)
+
+    return CountingZDT1()
+
+
+_THREE_PARENT_CASES = [
+    (algorithm, crossover) for algorithm in ("nsgaiii", "smsemoa", "spea2") for crossover in ("pcx", "undx", "simplex", "de")
+] + [("moead", crossover) for crossover in ("pcx", "undx", "simplex")]
+
+
+@pytest.mark.parametrize("algorithm,crossover", _THREE_PARENT_CASES)
+def test_pair_based_algorithms_reject_three_parent_crossovers(algorithm: str, crossover: str) -> None:
+    from vamos import optimize
+
+    problem = _counting_zdt1()
+    cfg = _pair_based_builders()[algorithm]().crossover(crossover, prob=0.9).mutation("pm", prob="1/n", eta=20.0).build()
+    with pytest.raises(ValueError, match="three parents"):
+        optimize(problem, algorithm=algorithm, algorithm_config=cfg, max_evaluations=200, seed=1, engine="numpy")
+    assert problem.n_evaluated == 0
+
+
+@pytest.mark.parametrize("algorithm", ["nsgaiii", "smsemoa", "spea2", "moead"])
+@pytest.mark.parametrize(
+    "crossover,mutation",
+    [("hux", "pm"), ("one_point", "pm"), ("sbx", "bitflip"), ("sbx", "swap"), ("int_sbx", "pm")],
+)
+def test_real_builders_reject_operators_of_other_encodings(algorithm: str, crossover: str, mutation: str) -> None:
+    from vamos import optimize
+
+    problem = _counting_zdt1()
+    cfg = _pair_based_builders()[algorithm]().crossover(crossover, prob=0.9).mutation(mutation, prob=0.1).build()
+    with pytest.raises(ValueError, match="real encoding"):
+        optimize(problem, algorithm=algorithm, algorithm_config=cfg, max_evaluations=200, seed=1, engine="numpy")
+    assert problem.n_evaluated == 0
+
+
+@pytest.mark.parametrize("algorithm", ["nsgaiii", "smsemoa", "spea2", "moead"])
+def test_pair_based_algorithms_still_run_pairwise_real_operators(algorithm: str) -> None:
+    from vamos import optimize
+
+    crossover = "de" if algorithm == "moead" else "blx_alpha"
+    cfg = _pair_based_builders()[algorithm]().crossover(crossover, prob=0.9).mutation("pm", prob="1/n", eta=20.0).build()
+    result = optimize(_counting_zdt1(), algorithm=algorithm, algorithm_config=cfg, max_evaluations=100, seed=1, engine="numpy")
+    assert result.F.shape[1] == 2

@@ -5,6 +5,7 @@ NSGA-III configuration space builders for tuning.
 from __future__ import annotations
 
 from .bridge_space_parts_discrete import (
+    PAIRWISE_REAL_CROSSOVERS_MEDIUM,
     binary_operator_part_full,
     external_archive_part,
     integer_operator_part_full,
@@ -35,7 +36,8 @@ def _core_part() -> SpacePart:
 
 
 def _real_operator_part() -> SpacePart:
-    return real_operator_part_medium()
+    # Parents are mated two by two, so three-parent crossovers cannot run.
+    return real_operator_part_medium(crossovers=PAIRWISE_REAL_CROSSOVERS_MEDIUM)
 
 
 def _mixed_operator_part() -> SpacePart:

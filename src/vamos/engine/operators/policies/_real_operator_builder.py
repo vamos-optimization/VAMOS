@@ -12,7 +12,7 @@ from vamos.engine.operators.impl.real import VariationWorkspace
 from vamos.engine.operators.impl.real.utils import with_variation_kernels
 from vamos.engine.operators.impl.registry import get_operator_registry
 from vamos.engine.operators.policies.real_repair import apply_policy_repair, resolve_policy_repair
-from vamos.engine.variation.helpers import resolve_prob_expression
+from vamos.engine.variation.helpers import resolve_prob_expression, validate_pairwise_real_operators
 from vamos.engine.variation.protocol import CrossoverOperator, MutationOperator, RepairConfigValue, RepairOperator
 
 if TYPE_CHECKING:
@@ -88,9 +88,14 @@ def build_real_variation_pair(
     xu: NDArray[np.generic],
     rng: np.random.Generator,
     repair_cfg: RepairConfigValue,
+    algorithm_label: str,
     variation_kernels: VariationKernels | None = None,
 ) -> tuple[RepairedRealOperator, RepairedRealOperator]:
-    """Build real-coded crossover and mutation callables with shared defaults."""
+    """Build real-coded crossover and mutation callables for a two-parent mating scheme.
+
+    Operators of other encodings and three-parent crossovers raise ``ValueError``.
+    """
+    validate_pairwise_real_operators(cross_method, mut_method, algorithm_label=algorithm_label)
     workspace = VariationWorkspace()
     repair_operator = resolve_policy_repair("real", repair_cfg)
     assert repair_operator is not None

@@ -77,6 +77,18 @@ def initialize_moead_run(
     n_var = problem.n_var
     n_obj = problem.n_obj
 
+    # Build (and validate) variation operators before any evaluation.
+    crossover_fn, mutation_fn = build_variation_operators(
+        cfg,
+        encoding,
+        n_var,
+        xl,
+        xu,
+        rng,
+        mixed_spec=getattr(problem, "mixed_spec", None),
+        variation_kernels=kernel.variation_kernels(),
+    )
+
     X: NDArray[np.generic]
     F: NDArray[np.generic]
     G: NDArray[np.generic] | None
@@ -203,17 +215,6 @@ def initialize_moead_run(
     numba_variation = cfg.get("use_numba_variation")
     if numba_variation is not None:
         set_numba_variation(bool(numba_variation))
-
-    crossover_fn, mutation_fn = build_variation_operators(
-        cfg,
-        encoding,
-        n_var,
-        xl,
-        xu,
-        rng,
-        mixed_spec=getattr(problem, "mixed_spec", None),
-        variation_kernels=kernel.variation_kernels(),
-    )
 
     ext_cfg = resolve_external_archive(cfg)
     archive_X, archive_F, archive_manager = setup_archive(kernel, X, F, n_var, n_obj, X.dtype, ext_cfg, G)
