@@ -41,9 +41,13 @@ Notes:
 - This hook computes HV for **exactly two objectives**. For more objectives it
   records an unavailable-HV reason and cannot apply HV-convergence stopping;
   installing another backend does not change this hook's dimensionality guard.
-- `ref_point: "auto"` derives a reference point from the currently observed set.
-  Use an explicit fixed reference point for an interpretable convergence trace
-  and comparisons across runs. A changing reference point changes the metric.
+- `ref_point: "auto"` derives a reference point from the observed set. Use an
+  explicit fixed reference point for comparisons across runs.
+  **Development after 1.1.0:** the automatic reference is fixed at the first
+  sample (its nadir plus 10% of its range in each objective) and recorded as
+  `reference_point` in the stopping metadata; later points outside it count as
+  zero. VAMOS 1.1.0 and earlier recomputed it from every sample, so the series
+  was not comparable and convergence was declared too early.
 - The trace uses the hook archive when enabled, otherwise the observed objective
   vectors. Sampling occurs at generation/checkpoint boundaries; `every_k` is a
   sampling interval, not a request for extra objective evaluations.

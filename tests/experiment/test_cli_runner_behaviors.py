@@ -460,3 +460,20 @@ def test_cli_problem_set_continues_after_one_problem_fails(monkeypatch, tmp_path
     written = {path.parents[3].name for path in output_root.rglob("manifest.json")}
     assert len(written) == 2 and all(name.startswith("ZDT") for name in written)
     assert "tsp6 with smpso" in caplog.text
+
+
+def test_hv_threshold_is_not_met_by_a_random_population():
+    from vamos.foundation.problem.zdt1 import ZDT1Problem
+    from vamos.foundation.quality_indicators.hypervolume import hypervolume
+
+    cfg = build_hv_stop_config(0.5, None, "zdt1")
+    problem = ZDT1Problem(n_var=30)
+    X = np.random.default_rng(1).random((100, 30))
+    F = np.empty((100, 2))
+    problem.evaluate(X, {"F": F})
+    ref = np.asarray(cfg["reference_point"], dtype=float)
+    inside = F[np.all(F <= ref, axis=1)]
+
+    hv = hypervolume(inside, ref) if len(inside) else 0.0
+
+    assert hv < cfg["target_value"]

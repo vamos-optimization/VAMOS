@@ -10,6 +10,7 @@ import numpy as np
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.engine.archive.factory import ResultArchiveManager, setup_result_archive
 from vamos.engine.hooks.hv_convergence import HVConvergenceConfig, HVConvergenceMonitor, HVDecision
+from vamos.foundation.core.hv_stop import near_nadir_reference
 from vamos.foundation.observer import RunContext
 from vamos.foundation.quality_indicators.hypervolume import compute_hypervolume
 
@@ -47,8 +48,12 @@ def _try_compute_hv(F: np.ndarray[Any, Any], ref: list[float] | None = None) -> 
     if ref is None:
         mx = np.max(F, axis=0)
         ref = [float(mx[0] + 1.0), float(mx[1] + 1.0)]
+    # Points outside the reference box contribute nothing, as in the HV termination.
+    inside = F[np.all(F <= np.asarray(ref, dtype=float), axis=1)]
+    if inside.size == 0:
+        return 0.0
     try:
-        return float(compute_hypervolume(F, ref))
+        return float(compute_hypervolume(inside, ref))
     except Exception:
         return None
 
@@ -84,6 +89,8 @@ class HookManager:
         self._archive_total_pruned = 0
 
         self._last_hv: float | None = None
+        # With an automatic reference, the first sample fixes it so the HV series stays comparable.
+        self._auto_ref: list[float] | None = None
         self._last_sample_evals: int | None = None
         self._stop_decision: HVDecision | None = None
 
@@ -171,7 +178,12 @@ class HookManager:
         if self._archive_F is not None and self._archive_F.size > 0:
             hv_set = self._archive_F
 
-        hv = _try_compute_hv(hv_set, ref=self.cfg.hv_ref_point)
+        ref = self.cfg.hv_ref_point
+        if ref is None:
+            if self._auto_ref is None and hv_set.ndim == 2 and hv_set.shape[0] > 0:
+                self._auto_ref = [float(value) for value in near_nadir_reference(hv_set)]
+            ref = self._auto_ref
+        hv = _try_compute_hv(hv_set, ref=ref)
         hv_delta = None
         stop_flag = False
         stop_reason = ""
@@ -225,6 +237,7 @@ class HookManager:
                 "triggered": bool(dec.stop) if dec else False,
                 "evals_stop": int(dec.evals) if (dec and dec.stop) else None,
                 "reason": str(dec.reason) if dec else None,
+                "reference_point": list(self.cfg.hv_ref_point) if self.cfg.hv_ref_point is not None else self._auto_ref,
                 "trace": list(self._hv_trace),
             }
 
