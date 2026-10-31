@@ -756,3 +756,24 @@ def test_model_sampler_and_active_filter_drop_grandchildren(parent):
 
     raw = {"use_x": False, "x_kind": "b", "x_eta": 3.0, "q": 0.5, "population_size": 40}
     assert filter_active_config(raw, space) == {"use_x": False, "q": 0.5, "population_size": 40}
+
+
+def test_real_spaces_offer_only_runnable_crossovers():
+    from vamos.engine.tuning.racing.bridge import (
+        build_ibea_config_space,
+        build_nsgaiii_config_space,
+        build_smsemoa_config_space,
+        build_spea2_config_space,
+    )
+
+    three_parent = {"pcx", "undx", "simplex", "de"}
+    for builder in (build_nsgaiii_config_space, build_smsemoa_config_space, build_spea2_config_space):
+        param_space = builder().to_param_space()
+        crossovers = set(param_space.params["crossover"].choices)
+        assert crossovers.isdisjoint(three_parent), (builder.__name__, sorted(crossovers & three_parent))
+        assert not {"pcx_sigma_eta", "undx_zeta", "simplex_epsilon"} & set(param_space.params), builder.__name__
+    moead_crossovers = set(build_moead_config_space().to_param_space().params["crossover"].choices)
+    assert moead_crossovers.isdisjoint({"pcx", "undx", "simplex"})
+    # Algorithms that group parents through VariationPipeline keep the multi-parent crossovers.
+    for builder in (build_ibea_config_space, build_agemoea_config_space, build_rvea_config_space):
+        assert {"pcx", "undx", "simplex"} <= set(builder().to_param_space().params["crossover"].choices)

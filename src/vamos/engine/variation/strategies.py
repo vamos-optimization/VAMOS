@@ -25,6 +25,7 @@ from vamos.engine.variation.helpers import (
     MIXED_MUTATION,
     PERM_CROSSOVER,
     PERM_MUTATION,
+    THREE_PARENT_REAL_CROSSOVERS,
 )
 from vamos.engine.variation.protocol import (
     CrossoverName,
@@ -109,7 +110,7 @@ class RealEncodingStrategy:
     encoding: Encoding = "real"
 
     def parents_per_group(self, cross_method: CrossoverName) -> int:
-        return 3 if cross_method in {"pcx", "undx", "simplex", "de"} else 2
+        return 3 if cross_method in THREE_PARENT_REAL_CROSSOVERS else 2
 
     def children_per_group(self, cross_method: CrossoverName) -> int:
         if cross_method == "de":

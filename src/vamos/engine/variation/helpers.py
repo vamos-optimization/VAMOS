@@ -5,7 +5,7 @@ Shared helpers and operator registries for variation pipelines.
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from numbers import Real
 from typing import TYPE_CHECKING, Any, cast
 
@@ -47,6 +47,41 @@ _REAL_MUTATION_KEYS = (
     "levy_flight",
     "power_law",
 )
+
+REAL_CROSSOVER_METHODS: tuple[str, ...] = _REAL_CROSSOVER_KEYS
+"""Real-coded crossover names, the table used by :func:`validate_operator_support`."""
+REAL_MUTATION_METHODS: tuple[str, ...] = (*_REAL_MUTATION_KEYS, "pm")
+"""Real-coded mutation names, including the ``pm`` alias of ``polynomial``."""
+THREE_PARENT_REAL_CROSSOVERS: tuple[str, ...] = ("pcx", "undx", "simplex", "de")
+"""Real crossovers that take three parents per mating group."""
+
+
+def validate_pairwise_real_operators(
+    cross_method: str,
+    mut_method: str,
+    *,
+    algorithm_label: str,
+    three_parent_allowed: Collection[str] = (),
+) -> None:
+    """Reject operators that a real-coded, two-parent mating scheme cannot run.
+
+    Both names must be real-coded operators, and the crossover must take two
+    parents unless it is listed in ``three_parent_allowed``. Algorithms that group
+    parents by the crossover's arity use :class:`~vamos.engine.variation.VariationPipeline`
+    instead.
+    """
+    cross = cross_method.lower()
+    if cross not in REAL_CROSSOVER_METHODS:
+        supported = ", ".join(name for name in REAL_CROSSOVER_METHODS if name not in THREE_PARENT_REAL_CROSSOVERS)
+        raise ValueError(f"Unsupported crossover '{cross_method}' for real encoding in {algorithm_label}. Supported: {supported}.")
+    if cross in THREE_PARENT_REAL_CROSSOVERS and cross not in three_parent_allowed:
+        raise ValueError(
+            f"{algorithm_label} mates parents two by two, but crossover '{cross_method}' needs three parents per group. "
+            "Use a two-parent crossover, or NSGA-II, IBEA, AGE-MOEA or RVEA, which group parents by crossover arity."
+        )
+    if mut_method.lower() not in REAL_MUTATION_METHODS:
+        supported = ", ".join(REAL_MUTATION_METHODS)
+        raise ValueError(f"Unsupported mutation '{mut_method}' for real encoding in {algorithm_label}. Supported: {supported}.")
 
 
 def _per_variable_numerator(text: str) -> float | None:
@@ -288,6 +323,10 @@ def __getattr__(name: str) -> Registry[Any]:
 
 
 __all__ = [
+    "REAL_CROSSOVER_METHODS",
+    "REAL_MUTATION_METHODS",
+    "THREE_PARENT_REAL_CROSSOVERS",
+    "validate_pairwise_real_operators",
     "resolve_prob_expression",
     "prepare_mutation_params",
     "validate_operator_support",

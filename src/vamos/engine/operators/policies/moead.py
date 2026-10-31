@@ -26,7 +26,7 @@ from vamos.engine.operators.policies.discrete_operator_maps import (
     PERM_MUTATION_COMMON,
 )
 from vamos.engine.operators.policies.real_repair import apply_policy_repair, resolve_policy_repair
-from vamos.engine.variation.helpers import resolve_prob_expression
+from vamos.engine.variation.helpers import resolve_prob_expression, validate_pairwise_real_operators
 from vamos.engine.variation.protocol import RepairConfigValue, RepairOperator
 from vamos.foundation.encoding import EncodingLike
 
@@ -93,12 +93,20 @@ def _build_continuous_operators(
 ) -> tuple[VariationCrossoverFn, VariationMutationFn]:
     """Build variation operators for continuous/real encoding."""
     method = (cross_method or "sbx").lower()
+    de_aliases = {"de", "differential", "differential_evolution"}
+    # MOEA/D feeds DE three parents (the subproblem and two neighbours); other crossovers get pairs.
+    validate_pairwise_real_operators(
+        "de" if method in de_aliases else method,
+        mut_method or "polynomial",
+        algorithm_label="MOEA/D",
+        three_parent_allowed={"de"},
+    )
     workspace = VariationWorkspace()
     repair_operator = resolve_policy_repair("real", repair_cfg)
     assert repair_operator is not None
 
     crossover: DifferentialCrossoverStep | RepairedOperatorStep
-    if method in {"de", "differential", "differential_evolution"}:
+    if method in de_aliases:
         crossover = DifferentialCrossoverStep(
             f=float(cross_params.get("f", cross_params.get("F", 0.5))),
             cr=float(cross_params.get("cr", cross_params.get("CR", 1.0))),
