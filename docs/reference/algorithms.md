@@ -122,6 +122,31 @@ SPEA2 results from VAMOS 1.1.0 and earlier differ with the same seed.
   as in jMetal and jMetalPy. The epsilon indicator remains unscaled, as in
   jMetalPy, and runs without overflow are unchanged.
 
+### AGE-MOEA survival score
+
+**Development after 1.1.0:** AGE-MOEA follows its author's PlatEMO code in two
+places.
+
+- The binary mating tournament compares rank, then the survival score: the
+  diversity and proximity score on the first front and the inverse distance to
+  the ideal point on later fronts. VAMOS 1.1.0 used NSGA-II crowding distance
+  instead.
+- The front that is truncated to fill the population is scored by proximity to
+  the ideal point and cut by that score. VAMOS 1.1.0, like pymoo 0.6.2, left it
+  unscored and kept its last rows, which are usually offspring.
+
+The rest follows pymoo, with PlatEMO's distance normalization. Unlike PlatEMO,
+later fronts are measured from the ideal point in the same translated and
+normalized coordinates as the first front, so the selection does not depend on
+where the objectives' origin lies; objectives are not rounded to 6 decimals
+before non-dominated sorting, the geometry exponent is capped at 20 and the
+default variation is SBX (probability 0.9, eta 15) with polynomial mutation.
+
+Over 30 seeds with population 100, the hypervolume goes from 0.8496 to 0.8545
+on ZDT1, from 0.7426 to 0.7443 on DTLZ2 and from 0.1880 to 0.1892 on DTLZ1,
+within seed variation of jMetal 7.9's AGE-MOEA (0.8545, 0.7446 and 0.1890).
+AGE-MOEA results from VAMOS 1.1.0 and earlier differ with the same seed.
+
 ### Choose an initial experiment
 
 | Need | Starting point | Check before increasing the budget |
@@ -239,7 +264,7 @@ never compiles problem evaluation.
 | SPEA2 | SBX, polynomial mutation, lexicographic archive truncation | Strength/raw fitness and density (vectorized NumPy) |
 | IBEA | Tournament selection, SBX, polynomial mutation, indicator-based removal | Indicator matrix |
 | SMPSO | Turbulence mutation, leaders-archive crowding truncation | Velocity/position updates (vectorized NumPy), deduplication |
-| AGE-MOEA | Ranking and crowding, tournament selection, SBX, polynomial mutation, greedy survival scores | Front normalization and pairwise Minkowski distances |
+| AGE-MOEA | Non-dominated ranking, tournament selection, SBX, polynomial mutation, greedy survival scores | Front normalization and pairwise Minkowski distances |
 | RVEA | SBX, polynomial mutation | Angle-penalized survival and reference-vector adaptation (vectorized NumPy) |
 
 **Development after 1.1.0:** steady-state NSGA-II (`.steady_state()`, one
