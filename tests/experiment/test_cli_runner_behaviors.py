@@ -1,3 +1,4 @@
+import json
 import sys
 from dataclasses import dataclass
 from types import SimpleNamespace
@@ -58,6 +59,97 @@ def test_cli_external_archive_bounded_configuration(monkeypatch):
     assert args.external_archive is not None
     assert args.external_archive.capacity == 64
     assert args.external_archive.pruning == "knn"
+
+
+def _run_small_cli(monkeypatch, output_root, *extra):
+    from vamos.experiment.cli.main import main
+
+    argv = ["prog", "--engine", "numpy", "--population-size", "6", "--max-evaluations", "12", "--seed", "1"]
+    monkeypatch.setattr(sys, "argv", [*argv, "--output-root", str(output_root), *extra])
+    main()
+
+
+def _record_eval_strategies(monkeypatch):
+    from vamos.experiment import runner_abstractions
+    from vamos.foundation.eval.backends import SerialEvalBackend
+
+    calls = []
+
+    def _fake_resolve(name, **kwargs):
+        calls.append((name, kwargs.get("dask_address")))
+        return SerialEvalBackend()
+
+    monkeypatch.setattr(runner_abstractions, "resolve_eval_strategy", _fake_resolve)
+    return calls
+
+
+def test_cli_dask_address_reaches_eval_backend(monkeypatch, tmp_path):
+    calls = _record_eval_strategies(monkeypatch)
+    output_root = tmp_path / "results"
+
+    _run_small_cli(
+        monkeypatch,
+        output_root,
+        *("--problem", "zdt1", "--algorithm", "nsgaii", "--eval-strategy", "dask", "--dask-address", "tcp://127.0.0.1:8786"),
+    )
+
+    assert calls == [("dask", "tcp://127.0.0.1:8786")]
+    manifest = next(output_root.rglob("manifest.json"))
+    # The scheduler address is infrastructure, not part of the run: only the strategy is recorded.
+    assert "8786" not in manifest.read_text(encoding="utf-8")
+    stored = vamos.load_run(manifest.parent)
+    assert stored.manifest.resolved_spec["backend"]["evaluation"]["component_id"].startswith("vamos.evaluation:dask")
+
+
+def test_cli_dask_address_runs_on_a_local_cluster(monkeypatch, tmp_path):
+    distributed = pytest.importorskip("dask.distributed")
+    output_root = tmp_path / "results"
+
+    with distributed.LocalCluster(n_workers=1, threads_per_worker=1, processes=False, dashboard_address=None) as cluster:
+        _run_small_cli(
+            monkeypatch,
+            output_root,
+            *("--problem", "zdt1", "--algorithm", "nsgaii", "--eval-strategy", "dask", "--dask-address", cluster.scheduler_address),
+        )
+
+    stored = vamos.load_run(next(output_root.rglob("manifest.json")).parent)
+    assert stored.result.F is not None and stored.result.F.shape == (6, 2)
+
+
+def test_cli_problem_block_selects_dask_strategy_and_address(monkeypatch, tmp_path):
+    calls = _record_eval_strategies(monkeypatch)
+    config_path = tmp_path / "experiment.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "version": "1",
+                "defaults": {"problem": "zdt1", "algorithm": "nsgaii"},
+                "problems": {"zdt1": {"eval_strategy": "dask", "dask_address": "tcp://127.0.0.1:8787"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    _run_small_cli(monkeypatch, tmp_path / "results", "--config", str(config_path))
+
+    assert calls == [("dask", "tcp://127.0.0.1:8787")]
+
+
+def test_hv_threshold_with_other_algorithm_warns(monkeypatch, tmp_path, caplog):
+    caplog.set_level("INFO")
+
+    _run_small_cli(monkeypatch, tmp_path / "results", *("--problem", "zdt1", "--algorithm", "smsemoa", "--hv-threshold", "0.5"))
+
+    warnings = [record.getMessage() for record in caplog.records if record.levelname == "WARNING"]
+    assert any("--hv-threshold" in message and "smsemoa" in message for message in warnings), warnings
+
+
+def test_hv_threshold_with_nsgaii_does_not_warn(monkeypatch, tmp_path, caplog):
+    caplog.set_level("INFO")
+
+    _run_small_cli(monkeypatch, tmp_path / "results", *("--problem", "zdt1", "--algorithm", "nsgaii", "--hv-threshold", "0.5"))
+
+    assert not [record for record in caplog.records if record.levelname == "WARNING" and "--hv-threshold" in record.getMessage()]
 
 
 def test_build_hv_stop_config_uses_builtin_front():
@@ -175,6 +267,59 @@ def test_cli_runs_problems_without_constraint_attribute(monkeypatch, tmp_path, p
     assert len(manifests) == 1
     stored = vamos.load_run(manifests[0].parent)
     assert stored.result.F is not None and stored.result.F.shape[0] > 0
+
+
+class _CountingBackend:
+    """Serial evaluation that records how many times the run closes it."""
+
+    def __init__(self):
+        from vamos.foundation.eval.backends import SerialEvalBackend
+
+        self._serial = SerialEvalBackend()
+        self.closed = 0
+
+    def evaluate(self, X, problem):
+        return self._serial.evaluate(X, problem)
+
+    def close(self):
+        self.closed += 1
+
+
+@pytest.mark.parametrize("wrap", ["instance", "spec", "resolver"], ids=["instance", "evaluator-spec", "custom-resolver"])
+def test_run_keeps_caller_supplied_backends_open(wrap, tmp_path):
+    from vamos.experiment.runner_abstractions import EvaluatorSpec
+
+    backend = _CountingBackend()
+
+    class _Resolver:
+        def resolve(self, config):
+            return backend
+
+    evaluator = {"instance": backend, "spec": EvaluatorSpec(backend=backend), "resolver": _Resolver()}[wrap]
+    selection = make_problem_selection("zdt1", n_var=6)
+    for seed in (1, 2):
+        config = ExperimentConfig(population_size=6, offspring_population_size=6, max_evaluations=12, seed=seed, output_root=str(tmp_path))
+        runner.run_single("numpy", "nsgaii", selection, config, evaluator=evaluator)
+
+    assert backend.closed == 0
+
+
+def test_run_closes_the_backend_it_creates(monkeypatch, tmp_path):
+    from vamos.experiment import runner_abstractions
+    from vamos.experiment.runner_abstractions import EvaluatorSpec
+
+    created = []
+
+    def _fake_resolve(name, **kwargs):
+        created.append(_CountingBackend())
+        return created[-1]
+
+    monkeypatch.setattr(runner_abstractions, "resolve_eval_strategy", _fake_resolve)
+    selection = make_problem_selection("zdt1", n_var=6)
+    config = ExperimentConfig(population_size=6, offspring_population_size=6, max_evaluations=12, seed=1, output_root=str(tmp_path))
+    runner.run_single("numpy", "nsgaii", selection, config, evaluator=EvaluatorSpec(backend="serial", dask_address=None))
+
+    assert [backend.closed for backend in created] == [1]
 
 
 def _run_cli(monkeypatch, argv):

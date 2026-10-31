@@ -12,6 +12,7 @@ from vamos.engine.tuning.racing.eval_types import EvalFn
 
 from ._tune_args import build_parser as _build_parser_impl
 from ._tune_args import parse_args as _parse_args_impl
+from ._tune_args import prepare_racing as _prepare_racing
 from ._tune_flow import (
     run_test_stage as _run_test_stage,
 )
@@ -242,6 +243,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         train_seeds, validation_seeds, test_seeds = _resolve_split_seeds(args)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
+    _prepare_racing(args, n_blocks=len(train_instances) * len(train_seeds), logger=logger)
 
     warm_start_enabled = bool(args.multi_fidelity) and bool(args.fidelity_warm_start)
     if warm_start_enabled and not _supports_warm_start(str(args.algorithm)):

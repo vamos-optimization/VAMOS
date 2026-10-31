@@ -277,7 +277,7 @@ Use `--config path/to/spec.yaml`; CLI flags override file values.
 version: "1"
 defaults:
   title: My run
-  algorithm: moead
+  algorithm: nsgaii
   engine: numpy
   population_size: 120
   max_evaluations: 20000
@@ -294,6 +294,13 @@ problems:
       crossover: {method: uniform}
       mutation: {method: bitflip, prob: "1/n"}
 ```
+
+The `moead` block applies only when MOEA/D is selected, for example with
+`--algorithm moead`.
+
+**Development after 1.1.0:** `hv_threshold` (or `--hv-threshold`) stops only
+NSGA-II early. With another algorithm the run logs a warning and uses its full
+evaluation budget; with `--algorithm both`, only the NSGA-II run can stop early.
 
 Validate a config without running:
 

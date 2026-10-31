@@ -71,7 +71,7 @@ def real_operator_part_medium(
                 Real("undx_eta", 0.1, 1.0, role="operator_rate"),
             ],
         ),
-        ConditionalBlock("crossover", "simplex", [Real("simplex_epsilon", 0.1, 1.0, role="operator_rate")]),
+        ConditionalBlock("crossover", "simplex", [Real("simplex_epsilon", 1.0, 3.0, role="operator_rate")]),
     ]
     conditionals.extend(block for block in multi_parent_blocks if block.parent_value in crossovers)
     if include_initializer:

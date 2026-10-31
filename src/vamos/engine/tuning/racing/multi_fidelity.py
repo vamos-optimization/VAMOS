@@ -167,8 +167,9 @@ def _run_stage_with_budget(
         if not state.alive:
             continue
         if warm_start:
-            checkpoint = state.checkpoint_map.get(block_key, state.checkpoint)
-            prev_budget = state.last_budget_map.get(block_key, state.last_budget)
+            # Only this block's own earlier run; a block whose run failed starts again from scratch.
+            checkpoint = state.checkpoint_map.get(block_key)
+            prev_budget = state.last_budget_map.get(block_key)
         else:
             checkpoint = None
             prev_budget = None
@@ -201,16 +202,15 @@ def _run_stage_with_budget(
 
             if warm_start and isinstance(result, tuple) and len(result) == 2:
                 score, checkpoint = result
-                configs[idx].checkpoint = checkpoint
+                # A checkpoint and the budget that produced it are kept together.
                 configs[idx].checkpoint_map[block_key] = checkpoint
+                configs[idx].last_budget_map[block_key] = budget
             else:
                 score = float(result) if not isinstance(result, tuple) else float(result[0])
 
             configs[idx].scores.append(float(score))
             configs[idx].blocks.append(block_key)
             configs[idx].fidelity_scores.setdefault(fidelity_level, []).append(float(score))
-            configs[idx].last_budget = budget
-            configs[idx].last_budget_map[block_key] = budget
     else:
         results = Parallel(n_jobs=tuner.scenario.n_jobs)(
             delayed(_eval_worker_warmstart)(eval_fn, cfg, ctx, tuner.task.maximize) for cfg, ctx, _ in tasks
@@ -219,16 +219,15 @@ def _run_stage_with_budget(
             idx = tasks[i][2]
             if warm_start and isinstance(result, tuple) and len(result) == 2:
                 score, checkpoint = result
-                configs[idx].checkpoint = checkpoint
+                # A checkpoint and the budget that produced it are kept together.
                 configs[idx].checkpoint_map[block_key] = checkpoint
+                configs[idx].last_budget_map[block_key] = budget
             else:
                 score = float(result) if not isinstance(result, tuple) else float(result[0])
 
             configs[idx].scores.append(float(score))
             configs[idx].blocks.append(block_key)
             configs[idx].fidelity_scores.setdefault(fidelity_level, []).append(float(score))
-            configs[idx].last_budget = budget
-            configs[idx].last_budget_map[block_key] = budget
 
 
 __all__ = ["_run_multi_fidelity", "_run_stage_with_budget"]
