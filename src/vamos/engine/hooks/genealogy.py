@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 import numpy as np
+from numpy.typing import NDArray
 
 IndividualID = int
 
@@ -15,7 +16,7 @@ class GenealogyRecord:
     parents: list[IndividualID]
     operator_name: str | None
     algorithm_name: str | None
-    fitness: np.ndarray | None = None
+    fitness: NDArray[np.float64] | None = None
     is_final_front: bool = False
 
 
@@ -29,7 +30,7 @@ class GenealogyTracker(Protocol):
         parents: list[IndividualID],
         operator_name: str | None,
         algorithm_name: str | None,
-        fitness: np.ndarray | None = None,
+        fitness: NDArray[np.float64] | None = None,
     ) -> IndividualID: ...
 
     def mark_final_front(self, ids: list[IndividualID]) -> None: ...
@@ -46,7 +47,7 @@ class DefaultGenealogyTracker:
         parents: list[IndividualID],
         operator_name: str | None,
         algorithm_name: str | None,
-        fitness: np.ndarray | None = None,
+        fitness: NDArray[np.float64] | None = None,
     ) -> IndividualID:
         idx = self.next_id
         self.next_id += 1
@@ -64,24 +65,6 @@ class DefaultGenealogyTracker:
         for i in ids:
             if i in self.records:
                 self.records[i].is_final_front = True
-
-
-class NoOpGenealogyTracker:
-    records: dict[IndividualID, GenealogyRecord] = {}
-    next_id: int = 0
-
-    def new_individual(
-        self,
-        generation: int,
-        parents: list[IndividualID],
-        operator_name: str | None,
-        algorithm_name: str | None,
-        fitness: np.ndarray | None = None,
-    ) -> IndividualID:
-        return -1
-
-    def mark_final_front(self, ids: list[IndividualID]) -> None:
-        return None
 
 
 def get_lineage(tracker: GenealogyTracker, individual_id: IndividualID) -> list[GenealogyRecord]:
@@ -174,7 +157,6 @@ __all__ = [
     "GenealogyRecord",
     "GenealogyTracker",
     "DefaultGenealogyTracker",
-    "NoOpGenealogyTracker",
     "get_lineage",
     "operator_success_stats",
     "generation_contributions",

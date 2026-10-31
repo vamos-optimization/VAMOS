@@ -1,3 +1,3 @@
 """
-Engine layer: evolutionary algorithms, operators, hyperheuristics, tuning pipelines, and algorithm configs.
+Engine layer: evolutionary algorithms, operators, tuning pipelines, and algorithm configs.
 """

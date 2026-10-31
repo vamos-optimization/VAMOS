@@ -62,46 +62,6 @@ class HookManagerConfig:
     hv_ref_point: list[float] | None = None
 
 
-class CompositeLiveVisualization:
-    """Fan-out live visualization events to multiple callbacks."""
-
-    def __init__(self, callbacks: list[Any]) -> None:
-        self._callbacks = [cb for cb in callbacks if cb is not None]
-
-    def on_start(self, ctx: RunContext) -> None:
-        for cb in self._callbacks:
-            cb.on_start(ctx)
-
-    def on_generation(
-        self,
-        generation: int,
-        F: np.ndarray[Any, Any] | None = None,
-        X: np.ndarray[Any, Any] | None = None,
-        stats: dict[str, Any] | None = None,
-    ) -> None:
-        for cb in self._callbacks:
-            cb.on_generation(generation, F=F, X=X, stats=stats)
-
-    def on_end(
-        self,
-        final_F: np.ndarray[Any, Any] | None = None,
-        final_stats: dict[str, Any] | None = None,
-    ) -> None:
-        for cb in self._callbacks:
-            cb.on_end(final_F=final_F, final_stats=final_stats)
-
-    def should_stop(self) -> bool:
-        for cb in self._callbacks:
-            should_stop = getattr(cb, "should_stop", None)
-            if callable(should_stop):
-                try:
-                    if should_stop():
-                        return True
-                except Exception:
-                    continue
-        return False
-
-
 class HookManager:
     """
     Orchestrates:

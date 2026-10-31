@@ -25,7 +25,7 @@ Run:
 
 ```bash
 python -m pytest -q tests/foundation/test_moocore_indicators.py tests/foundation/test_hypervolume_fallback.py
-python -m pytest -q tests/engine/test_hyperheuristic_indicators.py tests/engine/test_tuning_hypervolume_nd.py
+python -m pytest -q tests/engine/test_tuning_hypervolume_nd.py
 ```
 
 ```agent-docs
@@ -34,11 +34,10 @@ path: src/vamos/foundation/quality_indicators/moocore_indicators.py
 path: src/vamos/foundation/kernel/backend.py
 path: tests/foundation/test_moocore_indicators.py
 path: tests/foundation/test_hypervolume_fallback.py
-path: tests/engine/test_hyperheuristic_indicators.py
 path: tests/engine/test_tuning_hypervolume_nd.py
 symbol: vamos.foundation.quality_indicators.moocore_indicators:QualityIndicator
 symbol: vamos.foundation.quality_indicators.moocore_indicators:IndicatorResult
 symbol: vamos.foundation.quality_indicators.moocore_indicators:get_indicator
 command: python -m pytest -q tests/foundation/test_moocore_indicators.py tests/foundation/test_hypervolume_fallback.py
-command: python -m pytest -q tests/engine/test_hyperheuristic_indicators.py tests/engine/test_tuning_hypervolume_nd.py
+command: python -m pytest -q tests/engine/test_tuning_hypervolume_nd.py
 ```

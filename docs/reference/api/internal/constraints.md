@@ -1,6 +1,6 @@
 # Constraint implementation
 
-Low-level constraint strategies and violation helpers. For user-defined constrained problems, use the public problem-definition workflow instead.
+Low-level constraint violation helpers. For user-defined constrained problems, use the public problem-definition workflow instead.
 
 !!! warning "Internal implementation API"
     These deep modules are not stable public imports. Documentation does not create a compatibility guarantee. See the [stability policy](../../../project/stability-and-versioning.md).
@@ -16,11 +16,6 @@ Low-level constraint strategies and violation helpers. For user-defined constrai
       members:
         - ConstraintInfo
         - compute_constraint_info
-        - FeasibilityFirstStrategy
-        - PenaltyCVStrategy
-        - CVAsObjectiveStrategy
-        - EpsilonConstraintStrategy
-        - get_constraint_strategy
 
 ::: vamos.foundation.constraints.utils
     options:
