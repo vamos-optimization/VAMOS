@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from dataclasses import replace
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vamos.ux.studio.data import FrontRecord, normalize_objectives
 from vamos.ux.studio.dm import DecisionView, feasible_indices, filter_by_objective_ranges
@@ -33,7 +34,7 @@ def filter_front(front: FrontRecord, *, feasible_only: bool = False, ranges: Seq
     if not n_points:
         return front
     view = DecisionView(front=front, normalized_F=normalize_objectives(front.points_F), decoded_X=None, constraints=front.constraints)
-    keep = np.arange(n_points)
+    keep: NDArray[np.intp] = np.arange(n_points)
     if feasible_only:
         keep = np.intersect1d(keep, feasible_indices(view))
     if any(bound is not None for pair in ranges for bound in pair):

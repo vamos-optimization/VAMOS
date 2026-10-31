@@ -1,25 +1,29 @@
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 
 import numpy as np
+from numpy.typing import NDArray
+
+from vamos.foundation.quality_indicators.pareto import pareto_filter
 
 
 @dataclass
 class MCDMResult:
-    scores: np.ndarray
+    scores: NDArray[np.float64]
     best_index: int
-    best_point: np.ndarray
+    best_point: NDArray[np.float64]
 
 
-def _validate_front(F: np.ndarray) -> np.ndarray:
+def _validate_front(F: NDArray[np.float64]) -> NDArray[np.float64]:
     F = np.asarray(F, dtype=float)
     if F.ndim != 2 or F.shape[0] == 0 or F.shape[1] == 0:
         raise ValueError("F must be a 2D array with at least one point and one objective.")
     return F
 
 
-def _validate_weights(weights: np.ndarray, n_obj: int) -> np.ndarray:
+def _validate_weights(weights: NDArray[np.float64], n_obj: int) -> NDArray[np.float64]:
     w = np.asarray(weights, dtype=float)
     if w.ndim != 1 or w.shape[0] != n_obj:
         raise ValueError("weights must be 1D with length equal to number of objectives.")
@@ -30,7 +34,7 @@ def _validate_weights(weights: np.ndarray, n_obj: int) -> np.ndarray:
     return np.asarray(w / w.sum(), dtype=float)
 
 
-def weighted_sum_scores(F: np.ndarray, weights: np.ndarray) -> MCDMResult:
+def weighted_sum_scores(F: NDArray[np.float64], weights: NDArray[np.float64]) -> MCDMResult:
     F = _validate_front(F)
     w = _validate_weights(weights, F.shape[1])
     scores = F @ w
@@ -39,9 +43,9 @@ def weighted_sum_scores(F: np.ndarray, weights: np.ndarray) -> MCDMResult:
 
 
 def tchebycheff_scores(
-    F: np.ndarray,
-    weights: np.ndarray,
-    reference: np.ndarray | None = None,
+    F: NDArray[np.float64],
+    weights: NDArray[np.float64],
+    reference: NDArray[np.float64] | None = None,
 ) -> MCDMResult:
     F = _validate_front(F)
     w = _validate_weights(weights, F.shape[1])
@@ -56,7 +60,7 @@ def tchebycheff_scores(
     return MCDMResult(scores=scores, best_index=best_idx, best_point=F[best_idx].copy())
 
 
-def reference_point_scores(F: np.ndarray, reference: np.ndarray) -> MCDMResult:
+def reference_point_scores(F: NDArray[np.float64], reference: NDArray[np.float64]) -> MCDMResult:
     F = _validate_front(F)
     ref = np.asarray(reference, dtype=float)
     if ref.shape != (F.shape[1],):
@@ -67,32 +71,62 @@ def reference_point_scores(F: np.ndarray, reference: np.ndarray) -> MCDMResult:
     return MCDMResult(scores=scores, best_index=best_idx, best_point=F[best_idx].copy())
 
 
-def knee_point_scores(F: np.ndarray) -> MCDMResult:
+def knee_point_scores(F: NDArray[np.float64]) -> MCDMResult:
+    """
+    Score a two-objective front by its knee.
+
+    The knee is the non-dominated point farthest from the chord between the two
+    extreme points of the non-dominated set, on the side of the ideal point
+    (Das, 1999; Deb and Gupta, 2011). Each non-dominated point scores minus its
+    signed distance to that chord, positive towards the ideal point, so the knee
+    has the lowest score. Dominated points score ``inf``.
+
+    A concave or linear front has no point on the ideal side of the chord, and
+    therefore no knee. The function then emits a ``UserWarning``, and
+    ``best_index`` is the extreme point with the smallest f1, which has the
+    lowest score, whatever the order of the rows.
+
+    Distances are measured in the units of ``F``; normalize the objectives
+    first when their scales differ.
+    """
     F = _validate_front(F)
     if F.shape[1] != 2:
         raise ValueError("knee_point_scores currently supports only 2D fronts.")
-    order = np.argsort(F[:, 0])
-    sorted_F = F[order]
-    p_start = sorted_F[0]
-    p_end = sorted_F[-1]
-    vec = p_end - p_start
-    norm = np.linalg.norm(vec)
+    scores = np.full(F.shape[0], np.inf, dtype=float)
+    _, front_idx = pareto_filter(F, return_indices=True)
+    front = F[front_idx]
+    order = np.argsort(front[:, 0], kind="stable")
+    p_start = front[order[0]]
+    start_idx = int(front_idx[order[0]])
+    chord = front[order[-1]] - p_start
+    norm = float(np.linalg.norm(chord))
     if norm == 0.0:
-        scores = np.zeros(F.shape[0], dtype=float)
-        return MCDMResult(scores=scores, best_index=0, best_point=F[0].copy())
-    vec /= norm
-    diffs = sorted_F - p_start
-    proj = diffs @ vec
-    # proj_point = np.outer(proj, vec) + p_start  # projection onto the line (debug)
-    distances = np.linalg.norm(diffs - (proj[:, None] * vec), axis=1)
-    best_local_idx = int(np.argmax(distances))
-    best_global_idx = int(order[best_local_idx])
-    scores = np.empty(F.shape[0], dtype=float)
-    scores[order] = -distances  # more negative is better knee
-    return MCDMResult(scores=scores, best_index=best_global_idx, best_point=F[best_global_idx].copy())
+        # One distinct non-dominated point: it is the only candidate.
+        scores[front_idx] = 0.0
+        best_idx = start_idx
+    else:
+        # The chord runs from the smallest f1 to the smallest f2; this unit
+        # normal points from it towards the ideal point.
+        normal = np.array([chord[1], -chord[0]]) / norm
+        signed = (front - p_start) @ normal
+        signed[np.abs(signed) <= 1e-12 * norm] = 0.0
+        scores[front_idx] = 0.0 - signed  # 0.0 - x avoids a -0.0 score at the extremes
+        if np.any(signed > 0.0):
+            best_idx = int(np.argmin(scores))
+        else:
+            warnings.warn(
+                "The front has no knee: no non-dominated point lies on the ideal side of the chord "
+                "between its extreme points (concave or linear front).",
+                UserWarning,
+                stacklevel=2,
+            )
+            # Every score is >= 0 and the extremes score 0; choose one of them
+            # explicitly so that ties on a linear front do not depend on row order.
+            best_idx = start_idx
+    return MCDMResult(scores=scores, best_index=best_idx, best_point=F[best_idx].copy())
 
 
-def topsis_scores(F: np.ndarray, weights: np.ndarray) -> MCDMResult:
+def topsis_scores(F: NDArray[np.float64], weights: NDArray[np.float64]) -> MCDMResult:
     """
     Calculate TOPSIS scores (closeness coefficient to ideal solution).
     Scores are relative closeness C_i = S_minus / (S_plus + S_minus).

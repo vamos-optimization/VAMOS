@@ -4,7 +4,8 @@ import numpy as np
 import pytest
 
 from vamos.engine.algorithm.agemoea import AGEMOEA
-from vamos.engine.algorithm.agemoea.agemoea import _constraint_aware_age_survival
+from vamos.engine.algorithm.agemoea.geometry import _survival_score, age_survival
+from vamos.engine.algorithm.agemoea.survival import constraint_aware_age_survival
 from vamos.engine.algorithm.config import AGEMOEAConfig, RVEAConfig
 from vamos.engine.algorithm.rvea import RVEA
 from vamos.engine.algorithm.rvea.rvea import (
@@ -89,9 +90,104 @@ def test_agemoea_feasibility_survival_keeps_feasible_then_least_violating() -> N
     )
     G = np.array([[-0.1], [0.4], [-0.2], [0.1], [0.3], [0.2]])
 
-    survivors = _constraint_aware_age_survival(F, G, 4, NumPyKernel(), "feasibility")
+    survivors, _ = constraint_aware_age_survival(F, G, 4, NumPyKernel(), "feasibility")
 
     assert set(survivors.tolist()) == {0, 2, 3, 5}
+
+
+@pytest.mark.parametrize("scale, shift", [((1.0, 1.0), (0.0, 0.0)), ((2.0, 3.0), (10.0, 20.0))])
+@pytest.mark.parametrize("reverse_rows", [False, True])
+def test_age_survival_scores_the_truncated_front(reverse_rows: bool, scale: tuple, shift: tuple) -> None:
+    # Front 0 holds 3 points and N = 5, so two of the six front-1 points survive.
+    # The author's code (PlatEMO EnvironmentalSelection.m, ``for i = 2:MaxFNo``)
+    # scores every later front, the truncated one included, by proximity to the
+    # ideal point; pymoo 0.6.2 skips the truncated front and cuts it by index.
+    # Shifting and scaling the objectives must not change which rows survive.
+    front0 = [(0.0, 1.0), (0.5, 0.5), (1.0, 0.0)]
+    front1 = [(0.05, 3.0), (0.3, 2.0), (0.55, 0.6), (1.2, 0.3), (3.0, 0.05), (4.0, 0.04)]
+    if reverse_rows:
+        front1 = front1[::-1]
+    base = np.array(front0 + front1)
+    F = base * np.array(scale) + np.array(shift)
+
+    survivors, _ = age_survival(F, 5, NumPyKernel())
+
+    kept = {tuple(row) for row in base[survivors].tolist()}
+    assert kept == {*front0, (0.55, 0.6), (1.2, 0.3)}
+
+
+@pytest.mark.parametrize("shift", [(0.0, 0.0), (100.0, 0.0), (0.0, -50.0), (0.0, 0.1234567890123)])
+def test_age_survival_with_fewer_first_front_points_than_objectives_ignores_the_origin(shift: tuple) -> None:
+    # With fewer first-front points than objectives there is no hyperplane, and
+    # the later fronts are normalized by the first front's spread above its
+    # ideal point. Translating the objectives must not change the survivors.
+    base = np.array([[0.0, 0.0], [1.0, 3.0], [3.0, 2.0]])
+
+    survivors, _ = age_survival(base + np.array(shift), 2, NumPyKernel())
+
+    assert {tuple(row) for row in base[survivors].tolist()} == {(0.0, 0.0), (1.0, 3.0)}
+
+
+def _random_population(rng: np.random.Generator, trial: int, n_obj: int) -> tuple[np.ndarray, int]:
+    n = int(rng.integers(6, 40))
+    W = rng.random((n, n_obj))
+    if trial % 4 == 0:
+        F = W / W.sum(axis=1, keepdims=True) + rng.random((n, 1)) * 0.5  # several fronts
+    elif trial % 4 == 1:
+        F = W
+    elif trial % 4 == 2:
+        F = W**3
+    else:
+        F = W.copy()
+        F[0] = W.min(axis=0) * rng.random(n_obj)  # a single point dominates the rest
+    return F, int(rng.integers(2, n))
+
+
+@pytest.mark.parametrize("n_obj", [2, 3])
+def test_age_survival_does_not_depend_on_the_objectives_origin(n_obj: int) -> None:
+    # Every score is measured from the first front's ideal point, so a
+    # translation of the objectives, round or not, keeps the same survivors.
+    # Per-objective scaling is not covered: the extreme-point search runs on
+    # unnormalized objectives with axes offset by 1e-6, as in PlatEMO, pymoo
+    # and jMetal, so it can pick other corners when the units change.
+    kernel = NumPyKernel()
+    rng = np.random.default_rng(40 + n_obj)
+    for trial in range(60):
+        F, keep = _random_population(rng, trial, n_obj)
+        expected, _ = age_survival(F, keep, kernel)
+        shifted, _ = age_survival(F + rng.uniform(-100.0, 100.0, n_obj), keep, kernel)
+        np.testing.assert_array_equal(shifted, expected, err_msg=f"trial {trial}")
+
+
+def _age_survival_scores(F: np.ndarray) -> np.ndarray:
+    """Score every row as AGE-MOEA's survival does (PlatEMO's EnvironmentalSelection, ideal-centred)."""
+    kernel = NumPyKernel()
+    ranks, _ = kernel.nsga2_ranking(F)
+    first = ranks == 0
+    ideal = F[first].min(axis=0)
+    scores = np.zeros(F.shape[0])
+    scores[first], p, normalization = _survival_score(F[first], ideal, kernel.selection_kernels())
+    distance = np.sum(np.abs((F[~first] - ideal) / normalization) ** p, axis=1) ** (1.0 / p)
+    scores[~first] = 1.0 / np.maximum(distance, 1e-12)
+    return scores
+
+
+def test_agemoea_tournament_uses_the_survival_score() -> None:
+    # PlatEMO (AGEMOEA.m, ``TournamentSelection(2, N, FrontNo, -CrowdDis)``) and
+    # pymoo break rank ties with the survival score, not NSGA-II crowding.
+    algorithm = AGEMOEA(_agemoea_config(constraint_mode="none"), NumPyKernel())
+    algorithm.initialize(_UnconstrainedIdentityProblem(), termination=("max_evaluations", 18), seed=5)
+    state = algorithm.state
+    assert state is not None
+    np.testing.assert_allclose(state.selection_crowding, _age_survival_scores(state.F))
+
+    parents_F = state.F.copy()
+    offspring_F = algorithm.ask()[:, :2].copy()
+    algorithm.tell(offspring_F)
+
+    union = np.vstack([parents_F, offspring_F])
+    rows = [int(np.flatnonzero(np.all(union == row, axis=1))[0]) for row in state.F]
+    np.testing.assert_allclose(state.selection_crowding, _age_survival_scores(union)[rows])
 
 
 def test_rvea_feasibility_survival_keeps_feasible_then_least_violating() -> None:
