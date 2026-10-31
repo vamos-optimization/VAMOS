@@ -12,6 +12,7 @@ from vamos.engine.algorithm._builder_common import (
     resolve_variation_config,
 )
 from vamos.engine.algorithm.config import AlgorithmConfigProtocol, MOEADConfig, NSGAIIIConfig, RVEAConfig
+from vamos.engine.algorithm.config.rvea import rvea_partitions_for_population
 from vamos.foundation.kernel.backend import KernelBackend
 from vamos.foundation.problem.types import ProblemProtocol
 from vamos.resources import weight_path
@@ -116,7 +117,9 @@ def build_rvea_algorithm(
 
     builder = RVEAConfig.builder()
     builder.pop_size(pop_size)
-    builder.n_partitions(int(rvea_overrides.get("n_partitions", 12)))
+    partitions = rvea_overrides.get("n_partitions")
+    # RVEA needs one reference vector per individual: derive the lattice from the population unless it is given.
+    builder.n_partitions(int(partitions) if partitions is not None else rvea_partitions_for_population(pop_size, problem.n_obj))
     builder.alpha(float(rvea_overrides.get("alpha", 2.0)))
     builder.adapt_freq(rvea_overrides["adapt_freq"] if "adapt_freq" in rvea_overrides else 0.1)
     apply_operator_config(builder, method_name="crossover", operator_cfg=var_cfg["crossover"], key="crossover")

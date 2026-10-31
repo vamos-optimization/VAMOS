@@ -87,17 +87,20 @@ def _survival_score(
     ideal_point: np.ndarray[Any, Any],
     selection_kernels: SelectionKernels | None = None,
 ) -> tuple[np.ndarray[Any, Any], float, np.ndarray[Any, Any]]:
-    front = np.round(front, 12, out=front.copy())
     m, n = front.shape
     crowd_dist = np.zeros(m, dtype=float)
+    # Translate first, so the ideal point's own coordinates round to exactly 0;
+    # rounding to 12 decimals (as pymoo does) settles near-ties between points.
+    front = np.round(front - ideal_point, 12)
 
     if m < n:
+        # No hyperplane: normalize by the spread above the ideal point, which
+        # does not depend on the objectives' origin (PlatEMO takes the raw maxima).
         p = 1.0
         normalization = np.max(front, axis=0)
         normalization[normalization == 0.0] = 1.0
         return crowd_dist, p, normalization
 
-    front = front - ideal_point
     extreme = _find_corner_solutions(front)
     front, normalization = _normalize_front(front, extreme)
 
@@ -169,8 +172,30 @@ def _survival_score(
     return crowd_dist, p, normalization
 
 
-def age_survival(F: np.ndarray[Any, Any], n_survive: int, kernel: KernelBackend) -> np.ndarray[Any, Any]:
-    """Select AGE-MOEA survivors from a combined parent-offspring front."""
+def age_survival(
+    F: np.ndarray[Any, Any],
+    n_survive: int,
+    kernel: KernelBackend,
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
+    """Select AGE-MOEA survivors from a combined parent-offspring front.
+
+    Returns the survivor indices in ascending order and their survival scores,
+    as PlatEMO's ``EnvironmentalSelection`` (Panichella's own code) defines
+    them: the diversity/proximity score on the first front and the inverse
+    Minkowski distance to the ideal point on every later front up to the
+    truncated one, which is cut by that score. pymoo 0.6.2 leaves the truncated
+    front unscored and cuts it by index. AGE-MOEA's mating tournament breaks
+    rank ties with these scores.
+
+    Later fronts are measured in the coordinates of the first-front score:
+    translated by the ideal point, then divided by the normalization. PlatEMO
+    and pymoo divide without translating, which makes the proximity depend on
+    where the objectives' origin lies; here the survivors do not depend on it.
+    They can depend on the objectives' units: as in PlatEMO, pymoo and jMetal,
+    the extreme points are searched before normalizing, and a single
+    first-front point leaves nothing to normalize by.
+    """
+    n_survive = min(int(n_survive), F.shape[0])
     ranks, _ = kernel.nsga2_ranking(F)
     max_rank = int(ranks.max()) if ranks.size else 0
 
@@ -192,12 +217,13 @@ def age_survival(F: np.ndarray[Any, Any], n_survive: int, kernel: KernelBackend)
     ideal_point = np.min(front0, axis=0)
     crowd_dist[ranks == 0], p, normalization = _survival_score(front0, ideal_point, kernel.selection_kernels())
 
-    for r in range(1, last_rank):
+    for r in range(1, last_rank + 1):
         front_idx = fronts[r]
         if front_idx.size == 0:
             continue
-        front = F[front_idx] / normalization
-        dist = _minkowski_distances(front, ideal_point[None, :], p).squeeze()
+        # Same ideal-centred, normalized coordinates as the first-front score.
+        front = (F[front_idx] - ideal_point) / normalization
+        dist = _minkowski_distances(front, np.zeros((1, F.shape[1])), p).squeeze()
         dist = np.where(dist < 1e-12, 1e-12, dist)
         crowd_dist[front_idx] = 1.0 / dist
 
@@ -207,7 +233,8 @@ def age_survival(F: np.ndarray[Any, Any], n_survive: int, kernel: KernelBackend)
         remaining = n_survive - int(np.sum(selected))
         selected[last[order[:remaining]]] = True
 
-    return np.flatnonzero(selected)
+    survivors = np.flatnonzero(selected)
+    return survivors, crowd_dist[survivors]
 
 
 __all__ = ["age_survival"]
