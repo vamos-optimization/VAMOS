@@ -53,7 +53,7 @@ class SPEA2State(AlgorithmState):
     selection_density: np.ndarray[Any, Any] | None = field(default=None, repr=False, compare=False)
 
 
-def build_spea2_result(state: SPEA2State, hv_reached: bool = False) -> dict[str, Any]:
+def build_spea2_result(state: SPEA2State, hv_reached: bool = False, kernel: Any = None) -> dict[str, Any]:
     """Build final result dictionary from SPEA2 state.
 
     Parameters
@@ -62,6 +62,9 @@ def build_spea2_result(state: SPEA2State, hv_reached: bool = False) -> dict[str,
         The algorithm state.
     hv_reached : bool
         Whether HV termination was triggered.
+    kernel : KernelBackend, optional
+        Ranks the environmental archive, which may hold dominated solutions,
+        so that ``non_dominated`` mode returns only its first front.
 
     Returns
     -------
@@ -80,12 +83,11 @@ def build_spea2_result(state: SPEA2State, hv_reached: bool = False) -> dict[str,
     else:
         assert state.env_X is not None
         assert state.env_F is not None
-        if state.env_G is not None and state.constraint_mode != "none":
-            # The environmental archive is the result; keep its feasible members when it has any.
-            selected = feasible_result_indices(state.env_F, state.env_G, state.constraint_mode)
-            result_X, result_F, result_G = state.env_X[selected], state.env_F[selected], state.env_G[selected]
-        else:
-            result_X, result_F, result_G = state.env_X, state.env_F, None
+        # The environmental archive also holds dominated solutions when the first front
+        # does not fill it; return its non-dominated members, feasible ones first.
+        selected = feasible_result_indices(state.env_F, state.env_G, state.constraint_mode, kernel)
+        result_X, result_F = state.env_X[selected], state.env_F[selected]
+        result_G = state.env_G[selected] if state.env_G is not None and state.constraint_mode != "none" else None
 
     result: dict[str, Any] = {
         "X": result_X,

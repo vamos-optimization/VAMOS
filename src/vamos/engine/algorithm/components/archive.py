@@ -196,14 +196,14 @@ class SPEA2Archive(_BaseArchive):
         G: np.ndarray[Any, Any] | None = None,
     ) -> np.ndarray[Any, Any]:
         _ = G
-        from vamos.engine.algorithm.spea2.helpers import truncate_by_distance
+        from vamos.engine.algorithm.spea2.helpers import truncate_lexicographic
 
         n = int(F.shape[0])
         if n <= target_size:
             return np.arange(n, dtype=int)
 
         dist_matrix = np.linalg.norm(F[:, None, :] - F[None, :, :], axis=2)
-        return truncate_by_distance(dist_matrix, target_size)
+        return truncate_lexicographic(dist_matrix, target_size)
 
 
 class MaxMinArchive(_BaseArchive):
