@@ -1,8 +1,9 @@
 """
 Shared utility functions for algorithm implementations.
 
-Centralizes common operations like probability expression parsing,
-bounds resolution, and other helpers used across multiple algorithms.
+Centralizes common operations like bounds resolution, termination
+validation, and other helpers used across multiple algorithms.
+Probability expressions are parsed by ``vamos.engine.variation.helpers``.
 """
 
 from __future__ import annotations
@@ -10,6 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vamos.foundation.encoding import EncodingLike, normalize_encoding
 
@@ -17,62 +19,10 @@ if TYPE_CHECKING:
     from vamos.foundation.problem.types import ProblemProtocol
 
 
-def resolve_prob_expression(
-    value: str | float | None,
-    n_var: int,
-    default: float = 0.1,
-) -> float:
-    """
-    Parse probability expressions like "1/n" or direct float values.
-
-    Parameters
-    ----------
-    value : str | float | None
-        Probability value. Can be:
-        - None: returns default
-        - float: returned as-is (clamped to [0, 1])
-        - str ending with "/n": numerator divided by n_var (e.g., "1/n" -> 1/n_var)
-    n_var : int
-        Number of decision variables (used for "X/n" expressions).
-    default : float
-        Default value if value is None.
-
-    Returns
-    -------
-    float
-        Probability value in [0, 1].
-
-    Examples
-    --------
-    >>> resolve_prob_expression("1/n", 30)
-    0.0333...
-    >>> resolve_prob_expression(0.5, 30)
-    0.5
-    >>> resolve_prob_expression(None, 30, default=0.1)
-    0.1
-    """
-    if value is None:
-        return default
-
-    if isinstance(value, str):
-        value_lower = value.lower().strip()
-        if value_lower.endswith("/n"):
-            numerator_str = value_lower[:-2].strip()
-            numerator = float(numerator_str) if numerator_str else 1.0
-            return min(1.0, max(0.0, numerator / n_var))
-        # Try to parse as float
-        try:
-            return min(1.0, max(0.0, float(value)))
-        except ValueError:
-            return default
-
-    return min(1.0, max(0.0, float(value)))
-
-
 def resolve_bounds_array(
     problem: ProblemProtocol,
     encoding: EncodingLike = "real",
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[NDArray[np.generic], NDArray[np.generic]]:
     """
     Resolve problem bounds to numpy arrays with correct dtype.
 
@@ -197,7 +147,7 @@ def variation_operator_label(config: dict[str, Any], default: str = "variation")
     return default
 
 
-def compute_ideal_nadir(F: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def compute_ideal_nadir(F: NDArray[np.float64]) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """
     Compute ideal and nadir points from objective values.
 
@@ -217,11 +167,11 @@ def compute_ideal_nadir(F: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 
 
 def normalize_objectives(
-    F: np.ndarray,
-    ideal: np.ndarray | None = None,
-    nadir: np.ndarray | None = None,
+    F: NDArray[np.float64],
+    ideal: NDArray[np.float64] | None = None,
+    nadir: NDArray[np.float64] | None = None,
     eps: float = 1e-10,
-) -> np.ndarray:
+) -> NDArray[np.float64]:
     """
     Normalize objective values to [0, 1] range.
 
@@ -252,7 +202,6 @@ def normalize_objectives(
 
 
 __all__ = [
-    "resolve_prob_expression",
     "resolve_bounds_array",
     "validate_termination",
     "parse_operator_config",

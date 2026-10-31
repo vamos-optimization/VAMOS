@@ -4,7 +4,9 @@ Shared helpers and operator registries for variation pipelines.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
+from numbers import Real
 from typing import TYPE_CHECKING, Any, cast
 
 from vamos.engine.operators.impl.mixed import mixed_crossover, mixed_mutation
@@ -47,13 +49,48 @@ _REAL_MUTATION_KEYS = (
 )
 
 
-def resolve_prob_expression(value: float | int | str | None, n_var: int, default: float) -> float:
+def _per_variable_numerator(text: str) -> float | None:
+    """``k`` of a ``"k/n"`` expression, ignoring case and spaces; ``None`` for anything else."""
+    head, slash, tail = text.partition("/")
+    if not slash or tail.strip().lower() != "n":
+        return None
+    head = head.strip()
+    if not head:
+        return 1.0
+    try:
+        numerator = float(head)
+    except ValueError:
+        return None
+    return numerator if math.isfinite(numerator) and numerator >= 0.0 else None
+
+
+def resolve_prob_expression(value: object, n_var: int, default: float) -> float:
+    """Probability from a number in [0, 1] or a ``"k/n"`` expression.
+
+    ``"k/n"`` means ``k / n_var``, capped at 1; case and spaces do not matter, so
+    ``"1/N"`` and ``" 1 / n "`` equal ``"1/n"``. ``None`` gives ``default``.
+    Anything else, including a number outside [0, 1], raises ``ValueError``.
+    """
     if value is None:
         return default
-    if isinstance(value, str) and value.endswith("/n"):
-        numerator = value[:-2]
-        num = float(numerator) if numerator else 1.0
-        return min(1.0, max(num, 0.0) / n_var)
+    if isinstance(value, str):
+        numerator = _per_variable_numerator(value)
+        if numerator is not None:
+            return min(1.0, numerator / max(1, n_var))
+    elif isinstance(value, bool) or not isinstance(value, Real):
+        raise ValueError(f"Invalid probability {value!r}: use a number in [0, 1] or an expression 'k/n'.")
+    try:
+        probability = float(value)
+    except ValueError:
+        raise ValueError(f"Invalid probability {value!r}: use a number in [0, 1] or an expression 'k/n'.") from None
+    if not 0.0 <= probability <= 1.0:
+        raise ValueError(f"Invalid probability {value!r}: it must lie in [0, 1].")
+    return probability
+
+
+def _mutation_prob_factor(value: object) -> float:
+    if isinstance(value, bool) or not isinstance(value, Real) or not math.isfinite(float(value)) or float(value) <= 0.0:
+        raise ValueError(f"Invalid mutation prob_factor {value!r}: it must be a positive number.")
     return float(value)
 
 
@@ -63,11 +100,21 @@ def prepare_mutation_params(
     n_var: int,
     prob_factor: float | None = None,
 ) -> dict[str, float | int | str | None]:
+    """Mutation parameters with ``prob`` resolved for ``n_var`` variables.
+
+    A ``prob_factor`` (argument, ``prob_factor`` or ``mutation_prob_factor`` key)
+    sets ``prob = factor / n_var``, capped at 1, and is removed from the
+    parameters; it must be positive. Otherwise ``prob`` goes through
+    :func:`resolve_prob_expression`, and a missing one becomes ``1/n``
+    (``2/n`` for permutations).
+    """
     normalized = normalize_encoding(encoding)
     params = dict(mut_params)
-    factor = prob_factor if prob_factor is not None else params.get("prob_factor") or params.get("mutation_prob_factor")
+    keyed_factor = params.pop("prob_factor", None)
+    aliased_factor = params.pop("mutation_prob_factor", None)
+    factor = next((value for value in (prob_factor, keyed_factor, aliased_factor) if value is not None), None)
     if factor is not None:
-        params["prob"] = float(factor) / max(1, n_var)
+        params["prob"] = min(1.0, _mutation_prob_factor(factor) / max(1, n_var))
     elif "prob" in params:
         params["prob"] = resolve_prob_expression(params["prob"], n_var, 1.0)
     else:

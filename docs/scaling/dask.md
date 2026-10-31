@@ -87,6 +87,17 @@ with Client("tcp://scheduler.example.com:8786"):
     )
 ```
 
+## From the Command Line
+
+**Development after 1.1.0:** the `vamos` command connects to a running
+scheduler with `--dask-address`; a `problems.<name>` block of a config file can
+set `eval_strategy: dask` and `dask_address` for one problem. The run artifact
+records the `dask` evaluation strategy, not the scheduler address.
+
+```bash
+vamos --problem zdt1 --algorithm nsgaii --max-evaluations 10000 --eval-strategy dask --dask-address tcp://scheduler.example.com:8786
+```
+
 ## Failure Behavior
 
 The maintained public Dask path does **not** silently fall back to serial

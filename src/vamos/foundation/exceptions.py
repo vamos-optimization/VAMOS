@@ -215,9 +215,8 @@ class ConvergenceError(OptimizationError):
 class EvaluationError(OptimizationError):
     """Raised when objective evaluation fails."""
 
-    def __init__(self, message: str, solution: Any = None) -> None:
-        suggestion = "Check your problem's evaluate() function for errors"
-        super().__init__(message, suggestion, {"solution": solution})
+    def __init__(self, message: str, solution: Any = None, *, suggestion: str | None = None) -> None:
+        super().__init__(message, suggestion or "Check your problem's evaluate() function for errors", {"solution": solution})
 
 
 class ConstraintViolationError(OptimizationError):

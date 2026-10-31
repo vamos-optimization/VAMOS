@@ -72,7 +72,8 @@ def test_tuning_docs_match_current_contract() -> None:
     assert "--test-seeds" in text
 
     assert "Racing has its own fidelity-budget schedule" in text
-    assert "enables multi-fidelity racing by default" in text
+    assert "In VAMOS 1.1.0, the CLI enables multi-fidelity\nracing by default" in text
+    assert "`--backend racing` runs the statistical race by\ndefault" in text
     assert "**`1000,3000,10000` evaluations**" in text
     assert "they are not capped by\n`--budget`" in text
     assert "--no-multi-fidelity" in text
