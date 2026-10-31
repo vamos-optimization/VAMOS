@@ -268,6 +268,16 @@ Key flags
   - `--moead-crossover sbx --moead-mutation polynomial --moead-aggregation pbi`
   - `--smsemoa-mutation polynomial --nsga3-crossover sbx`
 
+**Development after 1.1.0:** the `--nsga3-*` options and a `defaults.nsgaiii`
+block of a config file reach NSGA-III; before, NSGA-III ignored them and used
+SBX (probability 1.0, eta 20) and polynomial mutation (1/n, eta 20). An
+operator parameter such as `--nsgaii-crossover-prob` needs the operator it
+configures (`--nsgaii-crossover sbx`). Before running, the CLI also rejects a
+negative `--seed`, a `--n-var` or `--n-obj` below 1, `--n-obj` on a problem
+with a fixed number of objectives, a `--selection-pressure` larger than the
+population a problem runs with (after its `problems.<name>` overrides), and `--track-genealogy` with an algorithm other than NSGA-II. It
+warns about algorithm-specific flags that the selected algorithm ignores.
+
 Config files (YAML/JSON)
 ------------------------
 

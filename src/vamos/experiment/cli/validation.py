@@ -5,10 +5,73 @@ import logging
 
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.experiment.runtime.catalog import EXPERIMENT_TYPES
-from vamos.foundation.problem.resolver import PROBLEM_SET_PRESETS, resolve_reference_front_path
+from vamos.foundation.problem.resolver import PROBLEM_SET_PRESETS, resolve_problem_selections, resolve_reference_front_path
 
 from .common import _collect_generic_variation, _collect_moead_variation, _normalize_operator_args, collect_nsgaii_variation_args
 from .types import SpecDefaults
+
+# Algorithm-specific options: the destination prefix of each algorithm's variation flags, and the
+# options that several algorithms read. Any other selected algorithm ignores them.
+_VARIATION_OPTION_PREFIXES: dict[str, str] = {
+    "nsgaii": "nsgaii_",
+    "moead": "moead_",
+    "smsemoa": "smsemoa_",
+    "nsgaiii": "nsgaiii_",
+    "agemoea": "agemoea_",
+    "rvea": "rvea_",
+}
+_SHARED_ALGORITHM_OPTIONS: dict[str, tuple[str, ...]] = {
+    "external_archive_size": ("nsgaii", "spea2", "smpso"),
+}
+
+
+def _algorithm_options(parser: argparse.ArgumentParser) -> dict[str, tuple[str, frozenset[str]]]:
+    """Map each algorithm-specific option destination to its flag and the algorithms that read it."""
+    options: dict[str, tuple[str, frozenset[str]]] = {}
+    for action in parser._actions:
+        if not action.option_strings:
+            continue
+        shared = _SHARED_ALGORITHM_OPTIONS.get(action.dest)
+        if shared is not None:
+            algorithms = frozenset(shared)
+        else:
+            algorithms = frozenset(name for name, prefix in _VARIATION_OPTION_PREFIXES.items() if action.dest.startswith(prefix))
+        if algorithms:
+            options[action.dest] = (action.option_strings[0], algorithms)
+    return options
+
+
+def _warn_ignored_algorithm_options(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
+    """Warn about algorithm-specific flags given on the command line that the selected algorithm ignores.
+
+    A value equal to the parser default (which includes config-file defaults) is not reported: a config
+    may carry blocks for several algorithms.
+    """
+    algorithm = getattr(args, "algorithm", None)
+    if not algorithm or algorithm == "both":
+        return
+    for dest, (flag, algorithms) in _algorithm_options(parser).items():
+        value = getattr(args, dest, None)
+        if algorithm in algorithms or value is None or value == parser.get_default(dest):
+            continue
+        logging.getLogger(__name__).warning(
+            "Ignoring %s: only %s use%s it (selected algorithm is '%s').",
+            flag,
+            ", ".join(sorted(algorithms)),
+            "s" if len(algorithms) == 1 else "",
+            algorithm,
+        )
+
+
+def _validate_problem_dimensions(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
+    if args.n_var is not None and args.n_var <= 0:
+        parser.error("--n-var must be a positive integer.")
+    if args.n_obj is not None and args.n_obj <= 0:
+        parser.error("--n-obj must be a positive integer.")
+    try:
+        resolve_problem_selections(args)
+    except ValueError as exc:
+        parser.error(str(exc))
 
 
 def finalize_args(
@@ -24,6 +87,7 @@ def finalize_args(
     args.problem_overrides = spec_defaults.problem_overrides
     args.experiment_defaults = spec_defaults.experiment_defaults
 
+    _warn_ignored_algorithm_options(parser, args)
     _normalize_operator_args(parser, args)
 
     if getattr(args, "quiet", False) and getattr(args, "verbose", False):
@@ -37,6 +101,9 @@ def finalize_args(
     if getattr(args, "experiment", None) is not None and args.experiment not in EXPERIMENT_TYPES:
         parser.error(f"--experiment must be one of: {', '.join(EXPERIMENT_TYPES)}.")
 
+    if args.seed is not None and args.seed < 0:
+        parser.error("--seed must be a non-negative integer.")
+    _validate_problem_dimensions(parser, args)
     if args.population_size <= 0:
         parser.error("--population-size must be a positive integer.")
     if args.offspring_population_size is None:
@@ -78,31 +145,6 @@ def finalize_args(
                 parser.error("--hv-reference-front is required for non-ZDT/ZCAT problems when --hv-threshold is set.")
     elif args.hv_reference_front:
         parser.error("--hv-reference-front requires --hv-threshold to be set.")
-
-    # Warn when algorithm-specific args don't match the selected algorithm
-    _algo = getattr(args, "algorithm", None)
-    if _algo and _algo != "both":
-        _prefixes = {
-            "nsgaii": "nsgaii_",
-            "moead": "moead_",
-            "smsemoa": "smsemoa_",
-            "nsgaiii": "nsgaiii_",
-            "spea2": "spea2_",
-            "ibea": "ibea_",
-            "smpso": "smpso_",
-            "agemoea": "agemoea_",
-            "rvea": "rvea_",
-        }
-        for algo_key, prefix in _prefixes.items():
-            if algo_key == _algo:
-                continue
-            for attr_name in vars(args):
-                if attr_name.startswith(prefix) and getattr(args, attr_name, None) is not None:
-                    logging.getLogger(__name__).warning(
-                        "Ignoring --%s (selected algorithm is '%s').",
-                        attr_name.replace("_", "-"),
-                        _algo,
-                    )
 
     args.nsgaii_variation = collect_nsgaii_variation_args(args)
     args.moead_variation = _collect_moead_variation(args)
