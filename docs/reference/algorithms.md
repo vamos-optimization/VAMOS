@@ -274,6 +274,18 @@ Numba when you need a pure NumPy timing reference.
 - `"1/n"` resolves to `1.0 / n_var` in supported variation paths. RVEA in 1.1.0 still requires the numeric equivalent, as noted above.
 - Example: `NSGAIIConfig.builder().mutation("pm", prob="1/n", eta=20.0)`
 
+**Development after 1.1.0:** every algorithm, AGE-MOEA and RVEA included,
+resolves operator probabilities with one interpreter. It accepts a number in
+[0, 1] or an expression `"k/n"`, which means `k / n_var` capped at 1; case and
+spaces do not matter (`"1/N"`, `" 2 / n "`). Anything else, a number outside
+[0, 1] included, raises `ValueError` when the algorithm builds its
+operators. A mutation `prob_factor` sets `factor / n_var` and must be
+positive. In VAMOS 1.1.0,
+AGE-MOEA and RVEA failed on `"1/n"` after evaluating the initial population;
+NSGA-II, IBEA and SMPSO rejected `"1/N"`; MOEA/D and the binary, integer and
+permutation builders replaced an unreadable string such as `"0,5"` with
+`1/n` and clipped numbers to [0, 1]; and `prob_factor` made NSGA-II fail.
+
 For a measured first-call/subsequent-call example, follow [Measure backend performance](../tutorials/measure-performance.md).
 
 ## Comparative benchmarking
