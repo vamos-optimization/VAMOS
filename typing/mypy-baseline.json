@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "b91e7243d0833032499e62ced2e281b8a88e484c",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit b91e7243d0833032499e62ced2e281b8a88e484c",
+  "generation_commit": "ff29f96ce48b9e6608b1b30f67d22b047949d86f",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit ff29f96ce48b9e6608b1b30f67d22b047949d86f",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.0",
@@ -26,15 +26,15 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 604,
-  "files_with_diagnostics": 84,
-  "fingerprint_count": 84,
+  "diagnostic_count": 597,
+  "files_with_diagnostics": 82,
+  "fingerprint_count": 82,
   "error_code_summary": {
-    "type-arg": 604
+    "type-arg": 597
   },
   "layer_summary": {
-    "engine": 288,
-    "experiment": 18,
+    "engine": 282,
+    "experiment": 17,
     "foundation": 236,
     "package-root": 1,
     "ux": 61
@@ -1044,20 +1044,6 @@
         {
           "line": 27,
           "column": 27
-        }
-      ]
-    },
-    {
-      "fingerprint": "4E36B35189933BB9699D995A798890F522C32BCB88F648886947F118B70D99E2",
-      "path": "src/vamos/experiment/external/pygmo.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "experiment",
-      "multiplicity": 1,
-      "locations": [
-        {
-          "line": 23,
-          "column": 51
         }
       ]
     },
@@ -2372,40 +2358,6 @@
         {
           "line": 112,
           "column": 27
-        }
-      ]
-    },
-    {
-      "fingerprint": "9DE21832AEDC25C10A39891E88FFCFEDE2ADB09560C89CDC6D6ED58CB01CB735",
-      "path": "src/vamos/engine/algorithm/components/utils.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 6,
-      "locations": [
-        {
-          "line": 75,
-          "column": 12
-        },
-        {
-          "line": 200,
-          "column": 28
-        },
-        {
-          "line": 220,
-          "column": 8
-        },
-        {
-          "line": 221,
-          "column": 12
-        },
-        {
-          "line": 222,
-          "column": 12
-        },
-        {
-          "line": 224,
-          "column": 6
         }
       ]
     },

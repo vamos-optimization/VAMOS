@@ -41,7 +41,7 @@ from vamos.foundation.core.execution import execute_algorithm
 from vamos.foundation.core.experiment_config import ExperimentConfig
 from vamos.foundation.core.hv_stop import compute_hv_reference
 from vamos.foundation.encoding import normalize_encoding
-from vamos.foundation.exceptions import ConfigurationError
+from vamos.foundation.exceptions import ConfigurationError, OptimizationError
 from vamos.foundation.observer import Observer, RunContext
 from vamos.foundation.problem.registry import ProblemSelection
 from vamos.foundation.quality_indicators.hypervolume import hypervolume
@@ -263,6 +263,43 @@ def _print_summary(results: Iterable[Metrics], hv_ref_point: np.ndarray[Any, Any
     _logger().info("Hypervolume reference point: %s", ref_txt)
 
 
+_FAILURE_TEXT_LIMIT = 500
+
+
+def _record_failure(failures: list[str], problem_key: str, algorithm_name: str, engine_name: str, exc: Exception) -> None:
+    # Keep every line of the message (pybind11 errors put the offending call last), on one bounded line.
+    text = " ".join(line.strip() for line in str(getattr(exc, "message", None) or exc).splitlines() if line.strip())
+    if len(text) > _FAILURE_TEXT_LIMIT:
+        text = text[: _FAILURE_TEXT_LIMIT - 3] + "..."
+    reason = f"{type(exc).__name__}: {text}" if text else type(exc).__name__
+    _logger().error("Run failed: %s with %s (%s): %s", problem_key, algorithm_name, engine_name, reason)
+    _logger().debug("Traceback of the failed run", exc_info=exc)
+    failures.append(f"{problem_key} with {algorithm_name} ({engine_name}): {reason}")
+
+
+def raise_run_failures(failures: list[str]) -> None:
+    """Log the failed runs of a series and raise one error that names them.
+
+    Parameters
+    ----------
+    failures : list[str]
+        One description per failed run, as recorded by ``execute_problem_suite``.
+
+    Raises
+    ------
+    OptimizationError
+        Always, so the CLI exits with a nonzero status after the remaining runs finished.
+    """
+    _logger().error("%d run(s) failed:", len(failures))
+    for failure in failures:
+        _logger().error("  %s", failure)
+    raise OptimizationError(
+        f"{len(failures)} run(s) failed: " + "; ".join(failures),
+        suggestion="Run a failed algorithm on its own with --traceback to see the full error.",
+        details={"failures": list(failures)},
+    )
+
+
 def execute_problem_suite(
     args: Namespace,
     problem_selection: ProblemSelection,
@@ -278,10 +315,18 @@ def execute_problem_suite(
     track_genealogy: bool = False,
     live_viz_factory: Callable[..., LiveVisualization | None] | None = None,
     plotter: Callable[..., Any] | None = None,
+    failures: list[str] | None = None,
 ) -> None:
+    """Run every selected algorithm (and engine) on one problem and report them together.
+
+    When more than one run is planned, or ``failures`` is given, a run that raises is
+    logged and recorded, and the remaining runs continue. Recorded failures are appended
+    to ``failures`` when the caller passes a list (it reports them after its own series);
+    otherwise ``raise_run_failures`` raises them once the summary of the other runs is printed.
+    """
     from vamos.experiment import external  # local import to keep runner decoupled
 
-    engines: Iterable[str | None]
+    engines: tuple[str | None, ...]
     if args.experiment in EXPERIMENT_TYPES:
         engines = EXPERIMENT_BACKENDS
     else:
@@ -303,6 +348,9 @@ def execute_problem_suite(
     external_algorithms = [a for a in algorithms if a in EXTERNAL_ALGORITHM_NAMES]
 
     _track_genealogy: bool = getattr(args, "track_genealogy", False)
+    run_failures: list[str] = failures if failures is not None else []
+    keep_going = failures is not None or len(engines) * len(runnable_algorithms) + len(external_algorithms) > 1
+    problem_key = problem_selection.spec.key
     _variations = variations or VariationConfigs.from_namespace(args)
 
     results: list[Metrics] = []
@@ -333,31 +381,43 @@ def execute_problem_suite(
                     track_genealogy=_track_genealogy,
                     live_viz=live_viz,
                 )
-            except ImportError as exc:
+            except Exception as exc:
                 # Backends experiment should be resilient to missing optional deps.
-                if args.experiment in EXPERIMENT_TYPES and f"Kernel '{engine_name}' requires" in str(exc):
+                if isinstance(exc, ImportError) and args.experiment in EXPERIMENT_TYPES and f"Kernel '{engine_name}' requires" in str(exc):
                     _logger().warning("Skipping engine '%s': %s", engine_name, exc)
                     continue
-                raise
+                if not keep_going:
+                    raise
+                _record_failure(run_failures, problem_key, algorithm_name, engine_name, exc)
+                continue
             results.append(metrics)
 
     for algorithm_name in external_algorithms:
         from vamos.experiment.external.reporting import build_metrics, print_run_banner, print_run_results
 
-        metrics = external.run_external(
-            algorithm_name,
-            problem_selection,
-            use_native_problem=use_native_external_problem,
-            config=config,
-            make_metrics=build_metrics,
-            print_banner=lambda problem, selection, label, backend: print_run_banner(problem, selection, label, backend, config),
-            print_results=print_run_results,
-        )
+        try:
+            metrics = external.run_external(
+                algorithm_name,
+                problem_selection,
+                use_native_problem=use_native_external_problem,
+                config=config,
+                make_metrics=build_metrics,
+                print_banner=lambda problem, selection, label, backend: print_run_banner(problem, selection, label, backend, config),
+                print_results=print_run_results,
+            )
+        except Exception as exc:
+            if not keep_going:
+                raise
+            _record_failure(run_failures, problem_key, algorithm_name, "external", exc)
+            continue
         if metrics is not None:
             results.append(metrics)
 
     if not results:
-        _logger().info("No runs were executed. Check algorithm selection or install missing dependencies.")
+        if run_failures and failures is None:
+            raise_run_failures(run_failures)
+        if not run_failures:
+            _logger().info("No runs were executed. Check algorithm selection or install missing dependencies.")
         return
 
     fronts = [res["F"] for res in results if res.get("F") is not None]
@@ -386,3 +446,5 @@ def execute_problem_suite(
 
     if plotter is not None:
         plotter(results, problem_selection, output_root=config.output_root, title=config.title)
+    if run_failures and failures is None:
+        raise_run_failures(run_failures)

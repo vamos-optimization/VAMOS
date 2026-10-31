@@ -21,7 +21,7 @@ from .helpers import (
     dominance_matrix,
     environmental_selection,
     spea2_fitness,
-    truncate_by_distance,
+    truncate_lexicographic,
 )
 from .initialization import initialize_spea2_run
 from .spea2 import SPEA2
@@ -34,7 +34,7 @@ __all__ = [
     "dominance_matrix",
     "environmental_selection",
     "spea2_fitness",
-    "truncate_by_distance",
+    "truncate_lexicographic",
     # Operators
     "build_variation_operators",
     # Setup

@@ -12,6 +12,8 @@ from vamos import OptimizationResult, StudyResult
 
 Do not infer the number or source of returned solutions from population size alone. `OptimizationResult.front()` Pareto-filters the current top-level `F`; it does not switch result sources. Consult the [algorithm/result-mode contract](../algorithms.md) when choosing between a population, non-dominated results, and an external archive.
 
+**Development after 1.1.0:** `front()`, `best()`, `top_k()` and `top_k_report()` rank feasible solutions first when the selected rows carry constraint values `G` (the least violated ones when none is feasible), with `feasible_only=False` for the objective-only selection. `top_k()` and `top_k_report()` default to `source="auto"`, and the `knee` method is a deprecated alias of `balanced_sum` that emits a `FutureWarning`. See [Understand an optimization result](../../guide/understanding-results.md#separate-the-returned-set-from-its-non-dominated-subset).
+
 ::: vamos.OptimizationResult
     options:
       heading_level: 2

@@ -7,6 +7,7 @@ from math import comb
 from typing import Any
 
 from vamos.engine.archive import ExternalArchiveConfig
+from vamos.foundation.exceptions import ConfigurationError
 
 from .base import (
     ConstraintModeStr,
@@ -26,6 +27,41 @@ from .base import (
     _validate_operators,
 )
 from .types import RepairConfigValue
+
+
+def rvea_partitions_for_population(pop_size: int, n_obj: int) -> int:
+    """Return the Das-Dennis partitions whose lattice has exactly ``pop_size`` vectors.
+
+    RVEA keeps one reference vector per individual, so ``pop_size`` must equal
+    ``comb(n_partitions + n_obj - 1, n_obj - 1)``. With two objectives the
+    answer is ``pop_size - 1``.
+
+    Raises
+    ------
+    ConfigurationError
+        If no lattice for ``n_obj`` objectives has ``pop_size`` vectors. The
+        message names the nearest valid population sizes.
+    """
+    if n_obj < 2:
+        raise ConfigurationError(f"RVEA needs at least two objectives, got n_obj={n_obj}.")
+    if pop_size < 1:
+        raise ConfigurationError(f"RVEA needs a positive pop_size, got {pop_size}.")
+    partitions = 1
+    size = comb(partitions + n_obj - 1, n_obj - 1)
+    while size < pop_size:
+        partitions += 1
+        size = comb(partitions + n_obj - 1, n_obj - 1)
+    if size == pop_size:
+        return partitions
+    nearest = [f"{size} (n_partitions={partitions})"]
+    if partitions > 1:
+        nearest.insert(0, f"{comb(partitions + n_obj - 2, n_obj - 1)} (n_partitions={partitions - 1})")
+    raise ConfigurationError(
+        f"RVEA keeps one reference vector per individual, and no Das-Dennis lattice for n_obj={n_obj} "
+        f"has exactly pop_size={pop_size} vectors.",
+        suggestion=f"Use a population size of {' or '.join(nearest)}, or set n_partitions explicitly.",
+        details={"pop_size": pop_size, "n_obj": n_obj},
+    )
 
 
 @dataclass(frozen=True)

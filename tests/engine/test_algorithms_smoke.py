@@ -268,7 +268,9 @@ def test_spea2_smoke_runs_with_archive():
 
     result = algorithm.run(problem, termination=("max_evaluations", pop_size + 12), seed=7)
 
-    assert result["F"].shape[0] == cfg.archive_size
+    # The environmental archive is full; the non_dominated result keeps its first front.
+    assert result["archive"]["F"].shape[0] == cfg.archive_size
+    assert 0 < result["F"].shape[0] <= cfg.archive_size
     assert result["F"].shape[1] == problem.n_obj
     assert np.isfinite(result["F"]).all()
 

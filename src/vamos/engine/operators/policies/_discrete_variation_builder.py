@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, Any, TypeAlias, cast
 import numpy as np
 from numpy.typing import NDArray
 
-from vamos.engine.algorithm.components.utils import resolve_prob_expression
 from vamos.engine.operators.impl.integer import (
     creep_mutation,
     gaussian_integer_mutation,
@@ -30,6 +29,7 @@ from vamos.engine.operators.policies.discrete_operator_maps import (
     PermCrossoverOp,
     PermMutationOp,
 )
+from vamos.engine.variation.helpers import resolve_prob_expression
 from vamos.engine.variation.protocol import RepairConfigValue
 from vamos.foundation.encoding import EncodingLike, normalize_encoding
 
@@ -85,8 +85,6 @@ def build_discrete_variation_operators(
     variation_kernels: VariationKernels | None = None,
 ) -> tuple[VariationFn, VariationFn]:
     cross_method, cross_params, mut_method, mut_params = unpack_variation_methods(config)
-    if mut_params.get("prob") == "1/n":
-        mut_params["prob"] = 1.0 / n_var
 
     normalized = normalize_encoding(encoding)
     repair_cfg = cast(RepairConfigValue, config.get("repair", "auto"))
