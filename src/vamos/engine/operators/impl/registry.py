@@ -105,7 +105,6 @@ def _get_registry() -> Registry[object]:
     reg.register("two_point", TwoPointCrossover)
     reg.register("binary_uniform", BinaryUniformCrossover)
     reg.register("hux", HuxCrossover)
-    reg.register("spx", SPXCrossover)
     reg.register("segment_inversion", SegmentInversionMutation)
 
     # Permutation operators
