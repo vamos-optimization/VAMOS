@@ -29,7 +29,7 @@ from vamos.experiment._execution_support import (
 )
 from vamos.experiment.observers.console import ConsoleObserver
 from vamos.experiment.observers.storage import StorageObserver
-from vamos.experiment.runner_abstractions import resolve_evaluator, resolve_termination
+from vamos.experiment.runner_abstractions import EvaluatorSpec, resolve_evaluator, resolve_termination
 from vamos.experiment.runner_utils import run_output_dir, validate_problem
 from vamos.experiment.runtime.catalog import (
     EXPERIMENT_BACKENDS,
@@ -179,14 +179,20 @@ def run_single(
             )
 
     # 4. Execute
-    exec_result = execute_algorithm(
-        algorithm,
-        problem,
-        termination=termination_spec,
-        seed=config.seed,
-        eval_strategy=eval_strategy,
-        live_viz=LiveVizAdapter(main_observer),
-    )
+    try:
+        exec_result = execute_algorithm(
+            algorithm,
+            problem,
+            termination=termination_spec,
+            seed=config.seed,
+            eval_strategy=eval_strategy,
+            live_viz=LiveVizAdapter(main_observer),
+        )
+    finally:
+        # Release what this run created (for example the Dask client opened for --dask-address); a backend
+        # instance passed in by the caller stays open.
+        if eval_strategy is not evaluator:
+            eval_strategy.close()
 
     payload = exec_result.payload
     total_time_ms = exec_result.elapsed_ms
@@ -304,6 +310,8 @@ def execute_problem_suite(
 
     _track_genealogy: bool = getattr(args, "track_genealogy", False)
     _variations = variations or VariationConfigs.from_namespace(args)
+    # The strategy and worker count come from the (per-problem) config; the Dask scheduler address only from the CLI.
+    evaluator = EvaluatorSpec(dask_address=getattr(args, "dask_address", None))
 
     results: list[Metrics] = []
     for engine in engines:
@@ -327,6 +335,7 @@ def execute_problem_suite(
                     selection_pressure=args.selection_pressure,
                     variations=_variations,
                     hv_stop_config=hv_stop_config if algorithm_name == "nsgaii" else None,
+                    evaluator=evaluator,
                     config_source=config_source,
                     config_spec=config_spec,
                     problem_override=problem_override,

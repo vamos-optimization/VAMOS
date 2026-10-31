@@ -107,6 +107,7 @@ def run_from_args(
         effective_args.n_var = override.get("n_var", args.n_var)
         effective_args.n_obj = override.get("n_obj", args.n_obj)
         effective_args.eval_strategy = override.get("eval_strategy", args.eval_strategy)
+        effective_args.dask_address = override.get("dask_address", getattr(args, "dask_address", None))
         effective_args.n_workers = override.get("n_workers", args.n_workers)
         effective_args.live_viz = override.get("live_viz", args.live_viz)
         effective_args.live_viz_interval = override.get("live_viz_interval", args.live_viz_interval)
@@ -152,6 +153,13 @@ def run_from_args(
 
         hv_stop_config = None
         if effective_args.hv_threshold is not None:
+            if effective_args.algorithm != "nsgaii":
+                # Only NSGA-II stops on the hypervolume target; keep the option accepted but never silent.
+                _logger().warning(
+                    "--hv-threshold/hv_threshold applies only to NSGA-II; %s on %s runs its full evaluation budget.",
+                    "the other algorithms" if effective_args.algorithm == "both" else effective_args.algorithm,
+                    effective_selection.spec.key,
+                )
             hv_stop_config = build_hv_stop_config(
                 effective_args.hv_threshold,
                 effective_args.hv_reference_front,
