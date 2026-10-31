@@ -20,12 +20,12 @@ _VARIATION_OPTION_PREFIXES: dict[str, str] = {
     "agemoea": "agemoea_",
     "rvea": "rvea_",
 }
-_SHARED_ALGORITHM_OPTIONS: dict[str, frozenset[str]] = {
-    "external_archive_size": frozenset({"nsgaii", "spea2", "smpso"}),
+_SHARED_ALGORITHM_OPTIONS: dict[str, tuple[str, ...]] = {
+    "external_archive_size": ("nsgaii", "spea2", "smpso"),
 }
 _VARIATION_FLAG_PREFIXES: dict[str, str] = {"nsgaiii": "nsga3"}
 # Algorithms whose tournament reads --selection-pressure ("both" runs them too).
-_TOURNAMENT_ALGORITHMS = frozenset({"nsgaii", "nsgaiii", "spea2", "ibea", "both"})
+_TOURNAMENT_ALGORITHMS = ("nsgaii", "nsgaiii", "spea2", "ibea", "both")
 _EXAMPLE_METHODS: dict[str, str] = {"crossover": "sbx", "mutation": "polynomial"}
 
 
@@ -35,8 +35,10 @@ def _algorithm_options(parser: argparse.ArgumentParser) -> dict[str, tuple[str, 
     for action in parser._actions:
         if not action.option_strings:
             continue
-        algorithms = _SHARED_ALGORITHM_OPTIONS.get(action.dest)
-        if algorithms is None:
+        shared = _SHARED_ALGORITHM_OPTIONS.get(action.dest)
+        if shared is not None:
+            algorithms = frozenset(shared)
+        else:
             algorithms = frozenset(name for name, prefix in _VARIATION_OPTION_PREFIXES.items() if action.dest.startswith(prefix))
         if algorithms:
             options[action.dest] = (action.option_strings[0], algorithms)
