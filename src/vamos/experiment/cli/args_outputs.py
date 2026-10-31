@@ -70,7 +70,7 @@ def add_output_arguments(
         "--external-archive-size",
         type=int,
         default=experiment_defaults.get("external_archive_size"),
-        help="Size of the optional external archive (applies to NSGA-II only).",
+        help="Size of the optional external archive (used by NSGA-II, SPEA2 and SMPSO).",
     )
     add_spec_argument(
         parser,
