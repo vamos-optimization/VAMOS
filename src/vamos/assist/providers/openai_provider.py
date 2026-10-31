@@ -5,11 +5,11 @@ import os
 import random
 import time
 from collections.abc import Mapping
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from vamos.experiment.cli.quickstart import generate_quickstart_config
 
-from .protocol import ProviderResponse
+from .protocol import PlanResponse, ProviderResponse, QuestionsResponse
 
 _OPENAI_SETUP_HINT = (
     "OpenAI provider setup required: install dependencies with "
@@ -21,6 +21,7 @@ _DEFAULT_TEMPERATURE = 0.2
 _DEFAULT_MAX_OUTPUT_TOKENS = 900
 _PROBLEM_TYPES: tuple[str, ...] = ("real", "int", "binary")
 _LIST_LIMIT = 50
+_MAX_QUESTIONS = 3
 _MAX_ATTEMPTS = 3
 _BACKOFF_SECONDS: tuple[float, ...] = (0.5, 1.0, 2.0)
 _TRANSIENT_ERROR_HINTS: tuple[str, ...] = (
@@ -112,56 +113,99 @@ def _build_compact_catalog_context(catalog: Mapping[str, object]) -> tuple[dict[
     return context, notes
 
 
-def _response_schema(templates: list[str]) -> dict[str, object]:
+def _nullable_enum(values: list[str]) -> dict[str, object]:
+    return {"type": ["string", "null"], "enum": [*values, None]}
+
+
+def _response_schema(templates: list[str], override_keys: list[str]) -> dict[str, object]:
+    """Return the plan schema in the form OpenAI Structured Outputs accepts in strict mode.
+
+    Strict mode needs a single object at the root, ``additionalProperties: false``
+    on every object and every property listed in ``required``. A plan and a
+    questions reply therefore share one object: ``kind`` selects the reply, and
+    the fields of the other kind are ``null``. Overrides are a list of
+    ``{key, value}`` pairs whose keys are the announced override keys, because a
+    strict object cannot have open-ended properties.
+    """
+    overrides: dict[str, object]
+    if override_keys:
+        overrides = {
+            "type": ["array", "null"],
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "key": {"type": "string", "enum": list(override_keys)},
+                    "value": {"anyOf": [{"type": "string"}, {"type": "number"}, {"type": "boolean"}]},
+                },
+                "required": ["key", "value"],
+            },
+        }
+    else:
+        overrides = {"type": "null"}
+    properties: dict[str, object] = {
+        "kind": {"type": "string", "enum": ["plan", "questions"]},
+        "template": _nullable_enum(templates),
+        "problem_type": _nullable_enum(list(_PROBLEM_TYPES)),
+        "questions": {"type": ["array", "null"], "items": {"type": "string"}},
+        "overrides": overrides,
+        "warnings": {"type": "array", "items": {"type": "string"}},
+    }
     return {
         "type": "object",
-        "anyOf": [
-            {
-                "type": "object",
-                "additionalProperties": False,
-                "properties": {
-                    "kind": {"type": "string", "const": "plan"},
-                    "template": {"type": "string", "enum": templates},
-                    "problem_type": {"type": "string", "enum": list(_PROBLEM_TYPES)},
-                    "overrides": {"type": "object", "additionalProperties": True},
-                    "warnings": {"type": "array", "items": {"type": "string"}},
-                },
-                "required": ["kind", "template", "problem_type"],
-            },
-            {
-                "type": "object",
-                "additionalProperties": False,
-                "properties": {
-                    "kind": {"type": "string", "const": "questions"},
-                    "questions": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "minItems": 1,
-                        "maxItems": 3,
-                    },
-                    "warnings": {"type": "array", "items": {"type": "string"}},
-                },
-                "required": ["kind", "questions"],
-            },
-        ],
+        "additionalProperties": False,
+        "properties": properties,
+        "required": list(properties),
     }
 
 
+def _response_strings(raw: object, field: str) -> list[str]:
+    if raw is None:
+        return []
+    if not isinstance(raw, list) or any(not isinstance(item, str) for item in raw):
+        raise RuntimeError(f"OpenAI response {field} must be a list of strings.")
+    return list(raw)
+
+
+def _overrides_from_pairs(raw: object) -> dict[str, object]:
+    if raw is None:
+        return {}
+    if not isinstance(raw, list):
+        raise RuntimeError("OpenAI plan response overrides must be a list of key/value pairs.")
+    overrides: dict[str, object] = {}
+    for item in raw:
+        if not isinstance(item, dict) or not isinstance(item.get("key"), str) or "value" not in item:
+            raise RuntimeError("OpenAI plan response overrides must be objects with a string 'key' and a 'value'.")
+        overrides[item["key"]] = item["value"]
+    return overrides
+
+
 def _coerce_provider_response(raw: object) -> ProviderResponse:
+    """Convert a reply in the strict schema into the provider protocol's response."""
     if not isinstance(raw, dict):
         raise RuntimeError("OpenAI response is not a JSON object.")
+    warnings = _response_strings(raw.get("warnings"), "warnings")
     kind = raw.get("kind")
     if kind == "plan":
         template = raw.get("template")
         problem_type = raw.get("problem_type")
-        if not isinstance(template, str) or not isinstance(problem_type, str):
+        if not isinstance(template, str) or problem_type not in _PROBLEM_TYPES:
             raise RuntimeError("OpenAI plan response is missing template/problem_type.")
-        return cast(ProviderResponse, raw)
+        return PlanResponse(
+            kind="plan",
+            template=template,
+            problem_type=cast(Literal["real", "int", "binary"], problem_type),
+            overrides=_overrides_from_pairs(raw.get("overrides")),
+            warnings=warnings,
+        )
     if kind == "questions":
-        questions = raw.get("questions")
-        if not isinstance(questions, list) or any(not isinstance(item, str) for item in questions):
+        questions = _response_strings(raw.get("questions"), "questions")
+        if not questions:
             raise RuntimeError("OpenAI questions response is missing a valid questions list.")
-        return cast(ProviderResponse, raw)
+        if len(questions) > _MAX_QUESTIONS:
+            warnings.append(f"OpenAI asked {len(questions)} questions; only the first {_MAX_QUESTIONS} are kept.")
+            questions = questions[:_MAX_QUESTIONS]
+        return QuestionsResponse(kind="questions", questions=questions, warnings=warnings)
     raise RuntimeError("OpenAI response kind must be 'plan' or 'questions'.")
 
 
@@ -233,8 +277,8 @@ class OpenAIPlanProvider:
     ) -> ProviderResponse:
         if not templates:
             raise RuntimeError("OpenAI provider failed: no templates available.")
-        schema = _response_schema(templates)
         allowed_keys = _allowed_override_keys(templates)
+        schema = _response_schema(templates, allowed_keys)
         compact_catalog, catalog_notes = _build_compact_catalog_context(catalog)
         allowed_keys_limited, allowed_keys_truncated = _truncate_list(allowed_keys)
         if allowed_keys_truncated:
@@ -245,9 +289,12 @@ class OpenAIPlanProvider:
             "Return exactly one JSON object that matches the provided schema.\n"
             "Choose the best template from the provided list.\n"
             "Use problem_type in {real,int,binary}.\n"
-            "If you have enough information, return kind='plan'.\n"
-            "If clarifications are necessary, return kind='questions' with at most 3 short questions.\n"
-            "Keep overrides minimal and only use keys listed in allowed_override_keys."
+            "If you have enough information, return kind='plan' with template and problem_type, "
+            "and set questions to null.\n"
+            "If clarifications are necessary, return kind='questions' with at most 3 short questions, "
+            "and set template, problem_type and overrides to null.\n"
+            "Give overrides as a list of {key, value} pairs, or null when none are needed. "
+            "Keep them minimal and only use keys listed in allowed_override_keys."
         )
         user_payload: dict[str, object] = {
             "prompt": prompt,

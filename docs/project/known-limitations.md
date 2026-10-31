@@ -209,6 +209,10 @@ unsupported behavior rather than future compatibility promises.
 - Plugin descriptors, custom component interfaces, and LLM-provider
   integrations are experimental and are not covered by the 1.x stable API.
 - Loading and verification never import recorded plugins or contact providers.
+- **Development after 1.1.0:** `vamos assist --provider openai` sends a
+  response schema that OpenAI accepts in strict mode. VAMOS 1.1.0 sends one
+  that strict mode rejects, so its OpenAI provider cannot produce a plan; see
+  [Assist](../assist.md). The automated tests use a stand-in for the API.
 
 ## Static typing
 
