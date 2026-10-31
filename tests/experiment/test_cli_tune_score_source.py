@@ -179,3 +179,9 @@ def test_persistent_optuna_study_name_separates_smpso_leader_scoring() -> None:
     task = SimpleNamespace(name="tune_zdt1_smpso_optuna")
 
     assert tune_runtime._versioned_optuna_study_name(args, task) == "study__vamos_cli_leaders_hv_v1"
+
+
+@pytest.mark.parametrize(("algorithm_name", "n_constraints", "expected"), [("smpso", 0, True), ("smpso", 2, False), ("nsgaii", 0, False)])
+def test_only_unconstrained_smpso_runs_are_scored_on_their_leaders(algorithm_name: str, n_constraints: int, expected: bool) -> None:
+    # The leaders archive carries no constraint values, so constrained SMPSO keeps scoring its swarm with population G.
+    assert tune_runtime._scores_leaders(algorithm_name, n_constraints) is expected

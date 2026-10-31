@@ -149,6 +149,15 @@ def _versioned_optuna_study_name(args: Any, task: TuningTask) -> str:
     return f"{raw}{_OPTUNA_CLI_LEADERS_SUFFIX if leaders else _OPTUNA_CLI_STUDY_SUFFIX}"
 
 
+def _scores_leaders(algorithm_name: str, n_constraints: int) -> bool:
+    """Whether a tuning run is scored on its leaders archive (unconstrained SMPSO) instead of its final population.
+
+    The leaders archive carries no constraint values, so constrained SMPSO keeps scoring its swarm with the
+    population's constraint values.
+    """
+    return canonical_algorithm_name(algorithm_name) in _LEADER_SCORED_ALGORITHMS and n_constraints == 0
+
+
 def _tuning_config(config: Any, algorithm_name: str) -> Any:
     """The config a tuning run uses: the final population scores, except SMPSO's leaders archive."""
     if canonical_algorithm_name(algorithm_name) in _LEADER_SCORED_ALGORITHMS:
@@ -211,7 +220,7 @@ def make_evaluator(
             if isinstance(payload, dict):
                 payload["_elapsed_s"] = elapsed_s
                 payload["_tuning_n_constraints"] = n_constraints
-                if algo_name in _LEADER_SCORED_ALGORITHMS:
+                if _scores_leaders(algo_name, n_constraints):
                     payload["_tuning_score_source"] = "result"
             checkpoint_payload = result.data.get("checkpoint")
             return result, cast(CheckpointPayload | None, checkpoint_payload)
