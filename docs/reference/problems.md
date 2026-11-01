@@ -94,7 +94,7 @@ algorithm with the required constraint support in the [matrix](algorithms.md).
 
 | Registered keys | Default n | Default M | G | Default parameters / objective count | Source | Reference sample |
 | --- | ---: | ---: | ---: | --- | --- | --- |
-| `cec2009_cf1` | 30 | 2 | 1 | Fixed M and constraint function | [CEC2009][cec] | None packaged |
+| `cec2009_cf1` | 10 | 2 | 1 | Fixed M and constraint function | [CEC2009][cec] | None packaged |
 | `c1dtlz1` | 12 | 3 | 1 | Configurable M; n remains 12 unless supplied | [C-DTLZ][constrained] | **2D only** |
 | `c1dtlz3` | 12 | 3 | 1 | Default radius `r = 9` at M = 3; varies with M | [C-DTLZ][constrained] | **2D only** |
 | `c2dtlz2` | 12 | 3 | 1 | Default radius `r = 0.4` at M = 3; varies with M | [C-DTLZ][constrained] | **2D only** |
@@ -108,9 +108,18 @@ algorithm with the required constraint support in the [matrix](algorithms.md).
 | `mw11` | 15 | 2 | 4 | Actual M fixed at 2 | [MW][constrained] | None packaged |
 | `mw4`, `mw8`, `mw14` | 15 | 3 | 1 | Configurable M | [MW][constrained] | None packaged |
 
-In 1.1.0, the registry accepts an objective override for every MW key, but only
-MW4, MW8 and MW14 actually change their objective count. Use the instantiated
-problem's `n_obj` and keep the other MW cases at two objectives.
+**Development after 1.1.0:** only MW4, MW8 and MW14 accept an objective
+override; the other MW keys reject a different `n_obj` with `ValueError`.
+VAMOS 1.1.0 accepted an override for every MW key and kept those problems at
+two objectives, so the selection reported an objective count that the problem
+did not have.
+
+**Development after 1.1.0:** `cec2009_cf1` and `vamos.problems.CEC2009CF1`
+default to n = 10, the dimension of the CF problems in the CEC2009 technical
+report and in PlatEMO; `n_var` still selects another one. The
+`CEC2009_UF_CF_curved` benchmark suite also runs CF1 with 10 variables.
+VAMOS 1.1.0 and earlier default to 30, so their default CF1 runs are not
+comparable with CEC2009 results.
 
 In 1.0.2, `cec2009_cf1` did not declare its constraint, so algorithms ran it as
 an unconstrained problem; it also stored the CEC2009 constraint `c(x) >= 0`
@@ -160,8 +169,9 @@ constructing `TSP()` without arguments uses a separate asymmetric six-city toy.
 
 ZDT5 requires `n >= 35` and `(n - 30)` divisible by 5. Changing its number of
 tail blocks changes its front, so the packaged 80-bit reference is not universal.
-The TSPLIB factories have fixed dimensions; supplying `n_var` does not resize
-their coordinate files.
+The TSPLIB factories have fixed dimensions. **Development after 1.1.0:** a
+different `n_var` is rejected with `ValueError`; VAMOS 1.1.0 ignored it while
+the selection reported it.
 
 ## Application-inspired benchmarks
 
@@ -191,13 +201,16 @@ The default bounds and discrete choices are fixed by the linked implementation.
 | `re61` — water resource planning | Real | 3 / 6 | f₆ | Fixed design bounds | [RE6/9][re69] | 6D |
 | `re91` — car cab | Real | 7 / 9 | No separate violation objective | **Deterministic** mean-value evaluation (`stochastic=False`) | [RE6/9][re69] | 9D |
 
-Version 1.1.0 has stale descriptive labels for several RE registry entries.
-In particular, the `re24` selection metadata reports four variables while its
-factory creates the two-variable hatch-cover formulation. The table follows
-the implementation; inspect `problem.n_var` after instantiation and use
-`make_problem_selection("re24", n_var=2)` to keep this selection's dimension
-metadata aligned. Keep RE91's deterministic setting explicit when comparing it
-with stochastic formulations.
+**Development after 1.1.0:** the RE and RWA entries, the TSPLIB instances and
+the application examples `welded_beam`, `fs_real` and `ml_tuning` reject an
+`n_var` other than the listed one with `ValueError`, as they already did for
+`n_obj`, and the RE registry labels name the formulations in this table.
+VAMOS 1.1.0 ignored such an `n_var` while the selection reported it:
+`make_problem_selection("re21", n_var=10)` reported 10 variables for a
+four-variable problem. Several RE labels named other formulations, and the
+`re24` selection reported four variables for the two-variable hatch cover.
+Keep RE91's deterministic setting explicit when comparing it with stochastic
+formulations.
 
 **Development after 1.1.0:** `re24` and `re25` use the domains of Tanabe and
 Ishibuchi's reference implementation (`reproblem.py`), which jMetal shares.

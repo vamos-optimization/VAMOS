@@ -285,8 +285,9 @@ block of a config file reach NSGA-III; before, NSGA-III ignored them and used
 SBX (probability 1.0, eta 20) and polynomial mutation (1/n, eta 20). An
 operator parameter such as `--nsgaii-crossover-prob` needs the operator it
 configures (`--nsgaii-crossover sbx`). Before running, the CLI also rejects a
-negative `--seed`, a `--n-var` or `--n-obj` below 1, `--n-obj` on a problem
-with a fixed number of objectives, a `--selection-pressure` larger than the
+negative `--seed`, a `--n-var` or `--n-obj` below 1, a different `--n-obj` or
+`--n-var` on a problem with a fixed number of objectives or variables (see the
+[problem catalog](../reference/problems.md)), a `--selection-pressure` larger than the
 population a problem runs with (after its `problems.<name>` overrides), and `--track-genealogy` with an algorithm other than NSGA-II. It
 warns about algorithm-specific flags that the selected algorithm ignores.
 
