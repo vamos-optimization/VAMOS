@@ -36,8 +36,12 @@ def notify_generation(
     F: np.ndarray[Any, Any],
     problem: Any | None = None,
     evals: int | None = None,
+    eval_strategy: EvaluationBackend | None = None,
 ) -> bool:
-    """Notify live visualization of generation progress."""
+    """Notify live visualization of generation progress.
+
+    With a ``problem``, immigration runs first; its evaluations go through ``eval_strategy``.
+    """
     st = algo._st
     nd_mask = None
     ranks = None
@@ -48,8 +52,11 @@ def notify_generation(
                 state=st,
                 problem=problem,
                 kernel=algo.kernel,
+                eval_strategy=eval_strategy,
             )
         )
+        if evals is not None:
+            evals = int(st.n_eval)
         if changed:
             F = st.F
             if st.incremental_mode:
@@ -221,6 +228,7 @@ def run_nsgaii(
         st.F,
         problem=problem,
         evals=n_eval,
+        eval_strategy=eval_strategy,
     )
     hv_reached = hv_tracker.enabled and hv_tracker.reached(st.hv_points_fn())
 
@@ -253,6 +261,7 @@ def run_nsgaii(
                         st.F,
                         problem=problem,
                         evals=n_eval,
+                        eval_strategy=eval_strategy,
                     )
                     if hv_tracker.enabled and hv_tracker.reached(st.hv_points_fn()):
                         hv_reached = True
@@ -269,6 +278,7 @@ def run_nsgaii(
                     st.F,
                     problem=problem,
                     evals=n_eval,
+                    eval_strategy=eval_strategy,
                 )
                 if hv_tracker.enabled and hv_tracker.reached(st.hv_points_fn()):
                     hv_reached = True
