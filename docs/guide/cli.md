@@ -265,7 +265,7 @@ Key flags
 - `--engine`: numpy | numba | moocore | auto. The deterministic default is `numpy`; `auto` prefers available Numba with a NumPy fallback. See the [automatic engine policy](../reference/algorithms.md#automatic-engine-selection) for the selection and replay rules in VAMOS 1.1.0.
 - `--problem`: any registry key (see [Problems](../reference/problems.md))
 - `--problem-set`: predefined sets (e.g., `families`)
-- `--validate-config`: validate `--config` and exit
+- `--validate-config`: validate `--config` with the checks that precede a run and exit
 - `--output-root`: directory for run artifacts (default: `results/`)
 - `--no-preflight`: skip optional dependency warnings
 - `--population-size`, `--offspring-population-size`
@@ -356,6 +356,16 @@ Validate a config without running:
 ```bash
 vamos --config configs/experiment.yaml --validate-config
 ```
+
+**Development after 1.1.0:** `--validate-config` runs every check that precedes
+the first run: the option values (for example a negative `max_evaluations` or
+a crossover `prob` above 1), each selected problem's settings after its
+`problems.<name>` overrides, its algorithm fields, and its `stopping` and
+`archive` hooks. It prints `Config OK.` and exits with code 0 only when they
+pass; otherwise it exits with code 2 and the error. An error about an option
+whose value comes from the config file names its key, such as
+`defaults.nsgaii.crossover.prob`. In VAMOS 1.1.0 it checked only the keys, so a
+config could pass and then fail when run.
 
 Run a config with a CLI override:
 

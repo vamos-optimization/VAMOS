@@ -58,6 +58,57 @@ def _default_weight_path(problem_name: str, n_obj: int, pop_size: int) -> str:
     return _default_weight_path_impl(problem_name, n_obj, pop_size)
 
 
+def build_hook_manager(config_spec: ExperimentSpec | None, problem_key: str) -> HookManager | None:
+    """Build the stopping and archive hooks that a config file enables for one problem.
+
+    Parameters
+    ----------
+    config_spec : ExperimentSpec or None
+        The loaded config file, or None when the run has none.
+    problem_key : str
+        Registry key of the problem, which selects its ``problems.<key>`` overrides.
+
+    Returns
+    -------
+    HookManager or None
+        The hooks, or None when the config enables neither.
+
+    Raises
+    ------
+    ConfigurationError
+        When a ``stopping.hv_convergence`` or ``archive.external`` block cannot be built. The run
+        never continues without hooks that the config asked for.
+    """
+    if config_spec is None:
+        return None
+    # Parsing builds the archive configuration; the stopping values are checked when the monitor is built.
+    try:
+        hook_cfg = parse_stopping_archive(config_spec, problem_key=problem_key)
+    except (TypeError, ValueError) as exc:
+        raise _hook_error("archive.external", problem_key, exc) from exc
+    if not (hook_cfg["stopping_enabled"] or hook_cfg["archive_enabled"]):
+        return None
+    try:
+        return HookManager(
+            cfg=HookManagerConfig(
+                stopping_enabled=hook_cfg["stopping_enabled"],
+                stop_cfg=hook_cfg["stop_cfg"],
+                archive_enabled=hook_cfg["archive_enabled"],
+                archive_cfg=hook_cfg["archive_cfg"],
+                hv_ref_point=hook_cfg["hv_ref_point"],
+            ),
+        )
+    except (TypeError, ValueError) as exc:
+        raise _hook_error("stopping.hv_convergence", problem_key, exc) from exc
+
+
+def _hook_error(block: str, problem_key: str, exc: Exception) -> ConfigurationError:
+    return ConfigurationError(
+        f"{block} block of problem '{problem_key}': {exc}",
+        suggestion=f"Fix {block} in the config file (at the top level, in defaults or under problems.{problem_key}).",
+    )
+
+
 def _evaluator_creates_backend(evaluator: Any | None) -> bool:
     """Whether resolving *evaluator* builds a new backend, which the run then owns and closes."""
     if evaluator is None or isinstance(evaluator, str):
@@ -137,28 +188,9 @@ def run_single(
     observers.append(storage)
 
     # Hooks
-    hook_mgr = None
-    if config_spec is not None:
-        try:
-            hook_cfg = parse_stopping_archive(config_spec, problem_key=selection.spec.key)
-            if hook_cfg["stopping_enabled"] or hook_cfg["archive_enabled"]:
-                hook_mgr = HookManager(
-                    cfg=HookManagerConfig(
-                        stopping_enabled=hook_cfg["stopping_enabled"],
-                        stop_cfg=hook_cfg["stop_cfg"],
-                        archive_enabled=hook_cfg["archive_enabled"],
-                        archive_cfg=hook_cfg["archive_cfg"],
-                        hv_ref_point=hook_cfg["hv_ref_point"],
-                    ),
-                )
-                observers.append(hook_mgr)
-        except Exception as exc:
-            _logger().warning(
-                "Hook setup failed for problem '%s'; hooks disabled. Reason: %s",
-                selection.spec.key,
-                exc,
-            )
-            hook_mgr = None
+    hook_mgr = build_hook_manager(config_spec, selection.spec.key)
+    if hook_mgr is not None:
+        observers.append(hook_mgr)
 
     # User Viz (LiveVisualization uses RunContext)
     if live_viz:
