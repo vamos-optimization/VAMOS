@@ -8,6 +8,7 @@ import logging
 import os
 import shutil
 import socket
+import stat
 import uuid
 from collections.abc import Mapping
 from datetime import datetime, timezone
@@ -83,7 +84,10 @@ def _store_terminal_run(
                 handle.flush()
                 os.fsync(handle.fileno())
             acquired_lock = True
-        except FileExistsError as exc:
+        except (FileExistsError, PermissionError) as exc:
+            # Windows refuses exclusive creation over an existing directory with PermissionError.
+            if isinstance(exc, PermissionError) and not os.path.lexists(lock):
+                raise
             raise _lock_collision(destination, lock) from exc
         _reject_existing(destination)
         staging.mkdir(exist_ok=False)
@@ -247,15 +251,36 @@ def _lock_record(token: str) -> bytes:
     return json.dumps(record, sort_keys=True).encode("utf-8")
 
 
+# A lock VAMOS writes is a few hundred bytes of JSON.
+_LOCK_READ_LIMIT = 4096
+
+
+def _read_lock_holder(lock: Path) -> object:
+    """The JSON of an existing lock, read only from a small regular file; ``None`` otherwise.
+
+    The path is untrusted: a link, a FIFO or a large file is never followed, opened or read whole.
+    """
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0)
+    try:
+        info = os.lstat(lock)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > _LOCK_READ_LIMIT:
+            return None
+        descriptor = os.open(lock, flags)
+        try:
+            data = os.read(descriptor, _LOCK_READ_LIMIT + 1)
+        finally:
+            os.close(descriptor)
+        return json.loads(data.decode("utf-8")) if len(data) <= _LOCK_READ_LIMIT else None
+    except (OSError, ValueError):
+        return None
+
+
 def _lock_collision(destination: Path, lock: Path) -> OutputCollisionError:
     """The destination's save lock exists: name it, its holder and any unfinished staging directories.
 
     A process that dies while saving leaves its lock and staging behind; VAMOS never removes them itself.
     """
-    try:
-        holder = json.loads(lock.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        holder = None
+    holder = _read_lock_holder(lock)
     reason = "is locked by another save"
     if isinstance(holder, dict) and {"pid", "host", "created_at"} <= holder.keys():
         reason += f" (process {holder['pid']} on host {holder['host']}, since {holder['created_at']})"
