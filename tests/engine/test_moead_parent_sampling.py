@@ -116,3 +116,19 @@ def test_batch_neighbour_replacement_order_is_random(monkeypatch: pytest.MonkeyP
     assert all(tuple(item) in neighbour_sets for item in as_sets)
     neighbour_rows = {tuple(row.tolist()) for row in rows[0][1]}
     assert any(tuple(order.tolist()) not in neighbour_rows for order, _ in rows)
+
+
+def test_neighbourhoods_break_distance_ties_by_index() -> None:
+    from vamos.engine.algorithm.moead.neighborhood import compute_neighbors
+
+    # Dyadic weights make the distances exact: each interior vector has two equidistant neighbours at every
+    # distance, and the default (unstable) sort orders such ties differently from one platform to another.
+    steps = np.arange(65) / 64.0
+    weights = np.column_stack([steps, 1.0 - steps])
+
+    neighbors = compute_neighbors(weights, 20)
+
+    np.testing.assert_array_equal(neighbors[32][:6], [32, 31, 33, 30, 34, 29])
+    distances = np.abs(np.arange(65)[:, None] - neighbors)
+    for row, dist in zip(neighbors, distances, strict=True):
+        assert all((dist[i], row[i]) < (dist[i + 1], row[i + 1]) for i in range(len(row) - 1))

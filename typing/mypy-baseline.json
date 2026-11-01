@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "fa25107020b83384214d3fccd750a6c3a4ab3778",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit fa25107020b83384214d3fccd750a6c3a4ab3778",
+  "generation_commit": "0cc678667fc679bd13db5af833bfdeee1c206836",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 0cc678667fc679bd13db5af833bfdeee1c206836",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.0",
@@ -26,14 +26,14 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 490,
-  "files_with_diagnostics": 66,
-  "fingerprint_count": 66,
+  "diagnostic_count": 479,
+  "files_with_diagnostics": 65,
+  "fingerprint_count": 65,
   "error_code_summary": {
-    "type-arg": 490
+    "type-arg": 479
   },
   "layer_summary": {
-    "engine": 245,
+    "engine": 234,
     "experiment": 11,
     "foundation": 216,
     "package-root": 1,
@@ -1152,60 +1152,6 @@
         {
           "line": 195,
           "column": 27
-        }
-      ]
-    },
-    {
-      "fingerprint": "66312843E9F117D804B867D4C1A04BEEE82DA3327781F8A93ED2DB0ADA6B41E1",
-      "path": "src/vamos/engine/algorithm/moead/neighborhood.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 11,
-      "locations": [
-        {
-          "line": 21,
-          "column": 32
-        },
-        {
-          "line": 31,
-          "column": 12
-        },
-        {
-          "line": 32,
-          "column": 14
-        },
-        {
-          "line": 33,
-          "column": 14
-        },
-        {
-          "line": 35,
-          "column": 22
-        },
-        {
-          "line": 83,
-          "column": 15
-        },
-        {
-          "line": 84,
-          "column": 17
-        },
-        {
-          "line": 85,
-          "column": 17
-        },
-        {
-          "line": 86,
-          "column": 18
-        },
-        {
-          "line": 87,
-          "column": 23
-        },
-        {
-          "line": 88,
-          "column": 24
         }
       ]
     },
