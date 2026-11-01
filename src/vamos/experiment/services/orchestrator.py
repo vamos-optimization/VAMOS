@@ -29,6 +29,7 @@ def run_single(
     problem_override: SpecBlock | None = None,
     track_genealogy: bool = False,
     live_viz: LiveVisualization | None = None,
+    seed_chosen_by_vamos: bool = False,
 ) -> dict[str, object]:
     problem = selection.instantiate()
     if track_genealogy and algorithm_name.lower() != "nsgaii":
@@ -74,4 +75,5 @@ def run_single(
         problem_override=problem_override,
         track_genealogy=track_genealogy,
         live_viz=live_viz,
+        seed_chosen_by_vamos=seed_chosen_by_vamos,
     )

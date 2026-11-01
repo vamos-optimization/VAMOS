@@ -143,6 +143,9 @@ def run_from_args(
             live_viz_max_points=_override_value(override, "live_viz_max_points", getattr(config, "live_viz_max_points", 1000)),
         )
         effective_args = deepcopy(args)
+        # None when the user asked VAMOS to choose the seed (main resolves args.seed before this point);
+        # the artifact records that request.
+        effective_args.requested_seed = override["seed"] if "seed" in override else getattr(args, "seed", None)
         for key in (
             "algorithm",
             "engine",

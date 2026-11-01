@@ -40,6 +40,7 @@ class StorageObserver(Observer):
         config_source: str | None = None,
         config_spec: ExperimentSpec | None = None,
         problem_override: Mapping[str, Any] | None = None,
+        seed_chosen_by_vamos: bool = False,
         hv_stop_config: Mapping[str, Any] | None = None,
         selection_pressure: int = 2,
         external_archive: ExternalArchiveConfig | None = None,
@@ -50,6 +51,7 @@ class StorageObserver(Observer):
         self.config_source = config_source
         self.config_spec = config_spec
         self.problem_override = problem_override
+        self.seed_chosen_by_vamos = seed_chosen_by_vamos
         self.hv_stop_config = hv_stop_config
         self.selection_pressure = selection_pressure
         self.external_archive = external_archive
@@ -153,7 +155,7 @@ class StorageObserver(Observer):
                 engine_requested=ctx.engine_name,
                 engine=ctx.engine_name,
                 eval_strategy=ctx.config.eval_strategy,
-                seed_requested=ctx.config.seed,
+                seed_requested=None if self.seed_chosen_by_vamos else ctx.config.seed,
                 seed=ctx.config.seed,
                 default_sources=defaults,
             )

@@ -87,6 +87,7 @@ def run_single(
     problem_override: SpecBlock | None = None,
     track_genealogy: bool = False,
     live_viz: LiveVisualization | None = None,
+    seed_chosen_by_vamos: bool = False,
 ) -> Metrics:
     problem = problem or selection.instantiate()
 
@@ -126,6 +127,7 @@ def run_single(
         config_source=config_source,
         config_spec=config_spec,
         problem_override=problem_override,
+        seed_chosen_by_vamos=seed_chosen_by_vamos,
         hv_stop_config=hv_stop_config,
         selection_pressure=selection_pressure,
         external_archive=external_archive,
@@ -399,6 +401,7 @@ def execute_problem_suite(
                     problem_override=problem_override,
                     track_genealogy=_track_genealogy,
                     live_viz=live_viz,
+                    seed_chosen_by_vamos=hasattr(args, "requested_seed") and args.requested_seed is None,
                 )
             except Exception as exc:
                 # Backends experiment should be resilient to missing optional deps.

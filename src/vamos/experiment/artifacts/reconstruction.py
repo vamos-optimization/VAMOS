@@ -60,6 +60,9 @@ class ReplayPlan:
 def build_replay_plan(stored: StoredRun, verification: VerificationReport, output: str | Path | None) -> ReplayPlan:
     """Construct and semantically prove a plan before any optimization begins."""
     _ensure_components(stored)
+    if any(reason.code == "component_not_reconstructable" for reason in verification.reasons):
+        # Raise the reconstruction's own error (for example a resolved-spec mismatch), not the generic level.
+        reconstruct_resolved_run(stored.manifest.resolved_spec, root=stored.root)
     if verification.effective_replayability != "exact":
         raise ReplayUnavailableError(
             operation="reproduce run",
