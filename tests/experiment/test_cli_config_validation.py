@@ -443,6 +443,9 @@ def test_cli_yaml_steady_state_runs_with_one_offspring(monkeypatch, capsys, tmp_
         ({"moead": {"delta": 1.5}}, "delta"),
         ({"moead": {"neighbor_size": 50}}, "neighbor_size"),
         ({"ibea": {"indicator": "hv"}}, "indicator"),
+        ({"nsgaii": {"constraint_mode": "invalid"}}, "constraint_mode"),
+        ({"nsgaii": {"live_callback_mode": "all"}}, "live_callback_mode"),
+        ({"nsgaii": {"steady_state": True}}, "steady_state"),
     ],
 )
 def test_invalid_algorithm_field_of_a_later_problem_stops_before_any_run(monkeypatch, capsys, tmp_path, block, message):
