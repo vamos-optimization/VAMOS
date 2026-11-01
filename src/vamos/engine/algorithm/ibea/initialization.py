@@ -21,6 +21,7 @@ from vamos.engine.algorithm.components.population import (
 )
 from vamos.engine.algorithm.components.termination import parse_termination, validate_initial_budget
 from vamos.engine.algorithm.config.base import normalize_constraint_mode
+from vamos.engine.algorithm.config.validation import normalize_ibea_indicator, normalize_ibea_kappa
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
 from vamos.engine.operators.policies.ibea import build_variation_pipeline
 from vamos.foundation.encoding import normalize_encoding
@@ -86,6 +87,8 @@ def initialize_ibea_run(
     n_obj = problem.n_obj
     xl, xu = resolve_bounds(problem, encoding)
     constraint_mode = normalize_constraint_mode(cfg.get("constraint_mode", "feasibility"))
+    indicator = normalize_ibea_indicator(cfg.get("indicator", "eps"))
+    kappa = normalize_ibea_kappa(cfg.get("kappa", 0.05))
 
     # Initialize population
     initializer_cfg = cfg.get("initializer")
@@ -105,12 +108,6 @@ def initialize_ibea_run(
 
     # Build variation pipeline
     variation = build_variation_pipeline(cfg, encoding, n_var, xl, xu, problem, variation_kernels=kernel.variation_kernels())
-
-    # IBEA parameters
-    indicator = cfg.get("indicator", "eps").lower()
-    if indicator in ("eps", "epsilon", "additive_epsilon"):
-        indicator = "epsilon"
-    kappa = float(cfg.get("kappa", 0.05))
 
     # Compute initial fitness
     _, _, _, fitness = environmental_selection(

@@ -88,7 +88,7 @@ def build_nsgaii_config(assignment: dict[str, Any], *, mixed: bool = False) -> N
 def build_moead_config(assignment: dict[str, Any], *, mixed: bool = False) -> MOEADConfig:
     builder = MOEADConfig.builder()
     builder.pop_size(int(assignment["pop_size"]))
-    builder.neighbor_size(int(assignment["neighbor_size"]))
+    builder.neighbor_size(min(int(assignment["neighbor_size"]), int(assignment["pop_size"])))
     builder.delta(float(assignment["delta"]))
     builder.replace_limit(int(assignment["replace_limit"]))
     cross = str(assignment["crossover"])
@@ -120,7 +120,7 @@ def build_moead_config(assignment: dict[str, Any], *, mixed: bool = False) -> MO
 def build_moead_permutation_config(assignment: dict[str, Any]) -> MOEADConfig:
     builder = MOEADConfig.builder()
     builder.pop_size(int(assignment["pop_size"]))
-    builder.neighbor_size(int(assignment["neighbor_size"]))
+    builder.neighbor_size(min(int(assignment["neighbor_size"]), int(assignment["pop_size"])))
     builder.delta(float(assignment["delta"]))
     builder.replace_limit(int(assignment["replace_limit"]))
     builder.crossover(str(assignment["crossover"]), prob=float(assignment.get("crossover_prob", 0.9)))

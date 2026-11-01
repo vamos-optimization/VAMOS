@@ -42,7 +42,7 @@ def build_moead_algorithm(
 
     builder = MOEADConfig.builder()
     builder.pop_size(pop_size)
-    builder.neighbor_size(20)
+    builder.neighbor_size(min(20, pop_size))
     builder.delta(0.9)
     builder.replace_limit(2)
     weight_cfg = moead_overrides.get("weight_vectors")

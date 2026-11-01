@@ -8,6 +8,7 @@ from typing import Any, overload
 
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.foundation.encoding import EncodingLike
+from vamos.foundation.exceptions import ConfigurationError
 
 from .base import (
     ConstraintModeStr,
@@ -78,7 +79,7 @@ class MOEADConfig(_SerializableConfig):
             cls.builder()
             .pop_size(pop_size)
             .batch_size(1)
-            .neighbor_size(20)
+            .neighbor_size(min(20, pop_size))
             .delta(0.9)
             .replace_limit(2)
             .crossover(crossover[0], **crossover[1])
@@ -165,6 +166,7 @@ class _MOEADConfigBuilder(
             "MOEA/D",
         )
         _validate_operators(self._cfg)
+        _check_neighbourhood(self._cfg["neighbor_size"], self._cfg["pop_size"])
         return MOEADConfig(
             pop_size=self._cfg["pop_size"],
             batch_size=int(self._cfg.get("batch_size", 1)),
@@ -184,3 +186,9 @@ class _MOEADConfigBuilder(
             result_mode=self._cfg.get("result_mode", "non_dominated"),
             external_archive=self._cfg.get("external_archive"),
         )
+
+
+def _check_neighbourhood(neighbor_size: object, pop_size: int) -> None:
+    """Reject a neighbourhood larger than the population; MOEA/D would shrink it to the population silently."""
+    if isinstance(neighbor_size, int) and not isinstance(neighbor_size, bool) and neighbor_size > pop_size:
+        raise ConfigurationError(f"neighbor_size must not exceed pop_size ({pop_size}); got {neighbor_size}.")

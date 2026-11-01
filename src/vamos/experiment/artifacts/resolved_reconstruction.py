@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any, cast
 
@@ -164,6 +164,10 @@ def _reconstruct_algorithm_config(algorithm: str, resolved: Mapping[str, Any], r
             raise _component_error(root, f"$.resolved_spec.operators.{role}", descriptor)
         _restore_operator(config, str(role), descriptor, root)
     config_type = _CONFIG_TYPES[algorithm]
+    # from_dict rejects unknown keys. Operator roles the configuration has no field for, and fields
+    # of another version, are left to the semantic comparison, which reports them as a mismatch.
+    known = {field.name for field in fields(config_type)}
+    config = {key: value for key, value in config.items() if key in known}
     try:
         return cast(AlgorithmConfigProtocol, cast(Any, config_type).from_dict(config))
     except (TypeError, ValueError) as exc:
