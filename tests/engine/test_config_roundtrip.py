@@ -103,6 +103,7 @@ _OUT_OF_DOMAIN = {
     "de_cr_above_one": (_replaced(MOEADConfig, crossover=("de", {"cr": 1.5, "f": 0.5})), "cr"),
     "tournament_size_0": (_replaced(NSGAIIConfig, selection=("tournament", {"size": 0})), "size"),
     "result_mode_xyz": (_replaced(NSGAIIConfig, result_mode="xyz"), "result_mode"),
+    "live_callback_mode_all": (_replaced(NSGAIIConfig, live_callback_mode="all"), "live_callback_mode"),
     "mutation_prob_factor_0": (_replaced(NSGAIIConfig, mutation_prob_factor=0.0), "mutation_prob_factor"),
     "kappa_0": (
         lambda: IBEAConfig.builder().pop_size(40).crossover("sbx").mutation("pm").selection("tournament").indicator("eps").kappa(0).build(),

@@ -73,7 +73,16 @@ def build_smpso_algorithm(
         key="repair",
         encoding=encoding,
     )
-    return cast("tuple[SMPSO, AlgorithmConfigProtocol]", finalize_algorithm(algorithm_name="smpso", builder=builder, kernel=kernel))
+    return cast(
+        "tuple[SMPSO, AlgorithmConfigProtocol]",
+        finalize_algorithm(
+            algorithm_name="smpso",
+            builder=builder,
+            kernel=kernel,
+            block=smpso_variation,
+            handled=("inertia", "c1", "c2", "vmax_fraction"),
+        ),
+    )
 
 
 def build_agemoea_algorithm(
@@ -103,7 +112,10 @@ def build_agemoea_algorithm(
         key="repair",
         encoding=encoding,
     )
-    return cast("tuple[AGEMOEA, AlgorithmConfigProtocol]", finalize_algorithm(algorithm_name="agemoea", builder=builder, kernel=kernel))
+    return cast(
+        "tuple[AGEMOEA, AlgorithmConfigProtocol]",
+        finalize_algorithm(algorithm_name="agemoea", builder=builder, kernel=kernel, block=agemoea_overrides),
+    )
 
 
 __all__ = [

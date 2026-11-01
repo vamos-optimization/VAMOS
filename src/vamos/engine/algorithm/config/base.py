@@ -509,5 +509,5 @@ def _normalize_tournament_selection_kwargs(method: str, kwargs: dict[str, Any]) 
 
     unexpected = sorted(set(kwargs) - {"size"})
     if unexpected:
-        raise ValueError(f"Unsupported tournament selection options: {', '.join(unexpected)}")
+        raise ConfigurationError(f"Unsupported tournament selection options: {', '.join(unexpected)}; the tournament size is 'size'.")
     return dict(kwargs)
