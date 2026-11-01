@@ -407,3 +407,55 @@ def test_noncanonical_layout_is_actionably_rejected_without_mutation(tmp_path: P
     with pytest.raises(UnsupportedArtifactLayoutError, match="pre-1.0 development format; regenerate"):
         vamos.load_run(run)
     assert {item.name: item.read_bytes() for item in run.iterdir()} == before
+
+
+def test_stale_save_lock_error_names_the_lock(tmp_path: Path) -> None:
+    destination = tmp_path / "locked"
+    lock = tmp_path / ".locked.vamos-save.lock"
+    holder = {"token": "0" * 32, "pid": 999999, "host": "elsewhere", "created_at": "2026-01-01T00:00:00Z"}
+    lock.write_text(json.dumps(holder), encoding="utf-8")
+    orphan = tmp_path / f".locked.vamos-staging-{'1' * 32}"
+    orphan.mkdir()
+
+    with pytest.raises(OutputCollisionError) as caught:
+        vamos.save_result(_result(), destination)
+
+    error = caught.value
+    assert str(lock) in error.action
+    assert str(orphan) in error.action
+    assert "999999" in error.reason and "elsewhere" in error.reason
+    assert lock.exists() and orphan.exists()
+    assert not destination.exists()
+
+
+def test_save_lock_from_an_earlier_version_is_named_too(tmp_path: Path) -> None:
+    lock = tmp_path / ".locked.vamos-save.lock"
+    lock.write_bytes(b"0" * 32)
+
+    with pytest.raises(OutputCollisionError) as caught:
+        vamos.save_result(_result(), tmp_path / "locked")
+
+    assert str(lock) in caught.value.action
+    assert lock.read_bytes() == b"0" * 32
+
+
+def test_save_lock_records_its_holder(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import os
+    import socket
+
+    from vamos.experiment.artifacts import storage
+
+    seen: dict[str, Any] = {}
+    real_write = storage.write_result_bundle
+
+    def read_lock_then_write(*args: Any, **kwargs: Any) -> Any:
+        seen.update(json.loads((tmp_path / ".held.vamos-save.lock").read_text(encoding="utf-8")))
+        return real_write(*args, **kwargs)
+
+    monkeypatch.setattr(storage, "write_result_bundle", read_lock_then_write)
+    vamos.save_result(_result(), tmp_path / "held")
+
+    assert seen["pid"] == os.getpid()
+    assert seen["host"] == socket.gethostname()
+    assert seen["created_at"].endswith("Z")
+    assert not (tmp_path / ".held.vamos-save.lock").exists()

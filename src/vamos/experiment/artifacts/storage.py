@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import glob
+import json
 import logging
 import os
 import shutil
+import socket
 import uuid
 from collections.abc import Mapping
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -75,12 +79,12 @@ def _store_terminal_run(
     try:
         try:
             with lock.open("xb") as handle:
-                handle.write(token.encode("ascii"))
+                handle.write(_lock_record(token))
                 handle.flush()
                 os.fsync(handle.fileno())
             acquired_lock = True
         except FileExistsError as exc:
-            raise _collision(destination, "another save currently owns the destination") from exc
+            raise _lock_collision(destination, lock) from exc
         _reject_existing(destination)
         staging.mkdir(exist_ok=False)
         owns_staging = True
@@ -233,6 +237,39 @@ def _collision(path: Path, reason: str) -> OutputCollisionError:
         expected="a destination path that does not exist",
         actual="occupied output path",
         action="Choose another output directory; VAMOS never overwrites or merges run artifacts.",
+    )
+
+
+def _lock_record(token: str) -> bytes:
+    """Who holds a save lock: the token, process, host and UTC start time."""
+    created_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    record = {"token": token, "pid": os.getpid(), "host": socket.gethostname(), "created_at": created_at}
+    return json.dumps(record, sort_keys=True).encode("utf-8")
+
+
+def _lock_collision(destination: Path, lock: Path) -> OutputCollisionError:
+    """The destination's save lock exists: name it, its holder and any unfinished staging directories.
+
+    A process that dies while saving leaves its lock and staging behind; VAMOS never removes them itself.
+    """
+    try:
+        holder = json.loads(lock.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        holder = None
+    reason = "is locked by another save"
+    if isinstance(holder, dict) and {"pid", "host", "created_at"} <= holder.keys():
+        reason += f" (process {holder['pid']} on host {holder['host']}, since {holder['created_at']})"
+    action = f"Wait for that save to finish. If its process is no longer running, delete {lock} and save again"
+    staging = sorted(destination.parent.glob(f".{glob.escape(destination.name)}.vamos-staging-*"))
+    if staging:
+        action += f"; its unfinished staging directories can be deleted too: {', '.join(str(path) for path in staging)}"
+    return OutputCollisionError(
+        operation="save result",
+        path=destination,
+        reason=reason,
+        expected="no other save of the destination in progress",
+        actual=f"save lock {lock}",
+        action=f"{action}. VAMOS never removes save locks automatically.",
     )
 
 

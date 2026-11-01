@@ -40,6 +40,16 @@ The directory may be moved as a unit. All references are relative and confined
 to it. The destination passed to `save_result` must not exist; VAMOS never
 overwrites or merges a run.
 
+**Development after 1.1.0:** while it saves, VAMOS writes the run into a
+sibling `.<name>.vamos-staging-<token>` directory and holds a
+`.<name>.vamos-save.lock` file. The lock records the process ID, host and UTC
+start time of the save. Both disappear when the save ends, but a process that
+dies while saving leaves them behind, and VAMOS never removes them itself. A
+later save to that destination then fails with `OutputCollisionError`. The
+error names the lock, its holder and any staging directories of that
+destination, and says to delete them if that process is no longer running.
+In VAMOS 1.1.0 the error said only that another save owned the destination.
+
 ## Requested and generated seeds
 
 An explicit seed, including zero, is used unchanged:
