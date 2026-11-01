@@ -19,7 +19,13 @@ def apd_survival(
     n_max_gen: int,
     alpha: float,
 ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any] | None]:
-    """Select survivors using RVEA's angle-penalized distance criterion."""
+    """Select survivors using RVEA's angle-penalized distance criterion.
+
+    One survivor per non-empty reference vector, the one with the smallest APD, as in Cheng
+    et al. (2016), PlatEMO and pymoo; vectors without a solution leave the population smaller
+    than ``n_survive``. As in pymoo, two objectives use M = 1 in the penalty and the ideal point
+    accumulates across generations.
+    """
     if F.size == 0:
         return np.empty(0, dtype=int), ideal, None
 
@@ -46,15 +52,7 @@ def apd_survival(
     first_in_niche = np.empty(sorted_niches.shape[0], dtype=bool)
     first_in_niche[0] = True
     first_in_niche[1:] = sorted_niches[1:] != sorted_niches[:-1]
-    survivors = order[first_in_niche]
-    target = min(int(n_survive), F.shape[0])
-    if survivors.size < target:
-        selected = np.zeros(F.shape[0], dtype=bool)
-        selected[survivors] = True
-        fill = order[~selected[order]][: target - survivors.size]
-        survivors = np.concatenate([survivors, fill])
-    elif survivors.size > target:
-        survivors = survivors[:target]
+    survivors = order[first_in_niche][: min(int(n_survive), F.shape[0])]
 
     nadir = F[survivors].max(axis=0) if survivors.size else None
     return survivors, ideal, nadir
