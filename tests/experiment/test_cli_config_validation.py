@@ -461,3 +461,18 @@ def test_invalid_algorithm_field_of_a_later_problem_stops_before_any_run(monkeyp
     assert excinfo.value.code == 2, err
     assert message in err and "zdt2" in err
     assert not output_root.exists()
+
+
+def test_cli_yaml_defaults_selection_is_applied_and_validated(monkeypatch, capsys, tmp_path):
+    spec = {"defaults": {"algorithm": "nsgaii", "nsgaii": {"selection": {"method": "tournament", "size": 3}}}}
+
+    stored = _run_and_load(monkeypatch, tmp_path, "--config", str(_write_spec(tmp_path, spec)))
+
+    assert stored.manifest.resolved_spec["operators"]["selection"]["config"]["size"] == 3
+
+    invalid = {"defaults": {"algorithm": "nsgaii", "nsgaii": {"selection": {"method": "tournament", "pressure": 2}}}}
+    with pytest.raises(SystemExit) as excinfo:
+        _run_and_load(monkeypatch, tmp_path / "invalid", "--config", str(_write_spec(tmp_path, invalid)))
+    err = capsys.readouterr().err
+    assert excinfo.value.code == 2, err
+    assert "pressure" in err and "'size'" in err and "Traceback" not in err
