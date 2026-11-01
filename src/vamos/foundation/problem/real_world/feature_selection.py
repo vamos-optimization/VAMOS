@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
+
+from ._training import TRAINING_ERRORS, report_training_failures
 
 
 class FeatureSelectionProblem:
@@ -53,13 +57,15 @@ class FeatureSelectionProblem:
         self.xl = 0.0
         self.xu = 1.0
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         try:
             from sklearn.linear_model import LogisticRegression
         except ImportError as exc:  # pragma: no cover - should be prevented by __init__
             raise ImportError("scikit-learn is required for evaluation.") from exc
 
         F = out["F"]
+        failures: list[Exception] = []
+        trained = 0
         for i, row in enumerate(X):
             mask = row > 0.5
             selected = int(np.sum(mask))
@@ -67,15 +73,18 @@ class FeatureSelectionProblem:
                 F[i, 0] = 1.0
                 F[i, 1] = float(self.n_var)
                 continue
+            trained += 1
             try:
                 clf = LogisticRegression(max_iter=200, solver="liblinear")
                 clf.fit(self._X_train[:, mask], self._y_train)
                 acc = clf.score(self._X_val[:, mask], self._y_val)
                 err = 1.0 - float(acc)
-            except Exception:  # pragma: no cover - robustness guard
+            except TRAINING_ERRORS as exc:
+                failures.append(exc)
                 err = 1.0
             F[i, 0] = err
             F[i, 1] = float(selected)
+        report_training_failures(type(self).__name__, failures, trained)
 
 
 __all__ = ["FeatureSelectionProblem"]
