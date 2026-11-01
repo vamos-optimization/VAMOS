@@ -143,3 +143,16 @@ def test_profile_csv_leaves_missing_hv_empty(tmp_path, caplog):
     (row,) = _read_csv(output)
     assert row["hypervolume"] == ""
     assert "--hv-reference" in caplog.text
+
+
+def test_profile_reports_a_problem_that_cannot_be_built(monkeypatch):
+    from vamos.foundation.problem.registry.selection import ProblemSelection
+
+    def missing_dependency(self):  # type: ignore[no-untyped-def]
+        raise ImportError("ml_tuning requires scikit-learn")
+
+    monkeypatch.setattr(ProblemSelection, "instantiate", missing_dependency)
+
+    report = runner.run_profile("ml_tuning", engines=("numpy",), budget=200, repeats=1)
+
+    assert [result.engine for result in report.failed] == ["numpy"]

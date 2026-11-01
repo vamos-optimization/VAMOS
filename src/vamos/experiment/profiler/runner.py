@@ -117,7 +117,9 @@ def check_engines(engines: Sequence[str]) -> None:
 
 def _hv_reference(problem: str, explicit: Sequence[float] | None) -> np.ndarray[Any, Any] | None:
     """The hypervolume reference point: the explicit one, or the near-nadir point of the problem's reference front."""
-    n_obj = int(make_problem_selection(problem).instantiate().n_obj)
+    # The registry knows n_obj without building the problem, which may need an optional dependency;
+    # a problem that cannot be built is reported as a failed engine run.
+    n_obj = int(make_problem_selection(problem).n_obj)
     if explicit is not None:
         ref = np.asarray(explicit, dtype=float)
         if ref.shape != (n_obj,) or not np.isfinite(ref).all():
