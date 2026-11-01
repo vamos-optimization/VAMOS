@@ -21,6 +21,8 @@ Use [Solve your own problem](custom-problem.md) to define objectives, bounds, en
 
 Use the **Experimental** `vamos create-problem` command when you prefer a generated file scaffold. Adding a reusable built-in problem to VAMOS is a contributor workflow and is documented separately in [Adding a problem](../dev/add_problem.md).
 
+**Development after 1.1.0:** `vamos create-problem` refuses to overwrite an existing file unless you pass `--force`, and rejects a `--n-var`, `--n-obj` or `--budget` below 1. A default file name that would hide an installed or standard module, such as `numpy.py`, gets a `_problem` suffix. Any problem name produces a valid script, and the script prints `result.front()`, the non-dominated solutions. In VAMOS 1.1.0, the command overwrote the file and accepted any dimension. A quote in the name broke the script, and the script labelled the whole final population as non-dominated.
+
 ## Run a reproducible study
 
 Follow [T06: plan and run](../tutorials/t06-fair-study.md),

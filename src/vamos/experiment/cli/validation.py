@@ -4,6 +4,7 @@ import argparse
 import logging
 
 from vamos.engine.archive import ExternalArchiveConfig
+from vamos.engine.config.variation import merge_variation_overrides
 from vamos.experiment.runtime.catalog import EXPERIMENT_TYPES
 from vamos.foundation.problem.resolver import PROBLEM_SET_PRESETS, resolve_problem_selections, resolve_reference_front_path
 
@@ -72,6 +73,18 @@ def _validate_problem_dimensions(parser: argparse.ArgumentParser, args: argparse
         resolve_problem_selections(args)
     except ValueError as exc:
         parser.error(str(exc))
+
+
+def _with_defaults_block(collected: dict[str, object] | None, defaults: dict[str, object], name: str) -> dict[str, object] | None:
+    """The config's ``defaults.<name>`` block with the operators the command line resolved on top.
+
+    The command-line options take their defaults from the block's crossover and mutation; its
+    other fields reach the algorithm from here.
+    """
+    block = defaults.get(name)
+    if not isinstance(block, dict) or not block:
+        return collected
+    return dict(merge_variation_overrides(block, collected))
 
 
 def finalize_args(
@@ -146,14 +159,15 @@ def finalize_args(
     elif args.hv_reference_front:
         parser.error("--hv-reference-front requires --hv-threshold to be set.")
 
-    args.nsgaii_variation = collect_nsgaii_variation_args(args)
-    args.moead_variation = _collect_moead_variation(args)
-    args.smsemoa_variation = _collect_generic_variation(args, "smsemoa")
-    args.nsgaiii_variation = _collect_generic_variation(args, "nsgaiii")
-    args.spea2_variation = spec_defaults.experiment_defaults.get("spea2", {})
-    args.ibea_variation = spec_defaults.experiment_defaults.get("ibea", {})
-    args.smpso_variation = spec_defaults.experiment_defaults.get("smpso", {})
-    args.agemoea_variation = _collect_generic_variation(args, "agemoea")
-    args.rvea_variation = _collect_generic_variation(args, "rvea")
+    defaults = spec_defaults.experiment_defaults
+    args.nsgaii_variation = _with_defaults_block(collect_nsgaii_variation_args(args), defaults, "nsgaii")
+    args.moead_variation = _with_defaults_block(_collect_moead_variation(args), defaults, "moead")
+    args.smsemoa_variation = _with_defaults_block(_collect_generic_variation(args, "smsemoa"), defaults, "smsemoa")
+    args.nsgaiii_variation = _with_defaults_block(_collect_generic_variation(args, "nsgaiii"), defaults, "nsgaiii")
+    args.spea2_variation = defaults.get("spea2", {})
+    args.ibea_variation = defaults.get("ibea", {})
+    args.smpso_variation = defaults.get("smpso", {})
+    args.agemoea_variation = _with_defaults_block(_collect_generic_variation(args, "agemoea"), defaults, "agemoea")
+    args.rvea_variation = _with_defaults_block(_collect_generic_variation(args, "rvea"), defaults, "rvea")
 
     return args
