@@ -3,12 +3,21 @@ from __future__ import annotations
 import argparse
 
 from vamos.engine.config.spec import SpecBlock
+from vamos.engine.config.variation import normalize_operator_tuple
 
 from .types import SpecDefaults
 
 
 def _as_block(value: object) -> SpecBlock:
-    return value if isinstance(value, dict) else {}
+    """A config block as a mapping; an operator in list form (``[name, {params}]``) becomes ``{method: name, **params}``."""
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, (list, tuple)):
+        operator = normalize_operator_tuple(value)
+        if operator is not None:
+            name, params = operator
+            return {"method": name, **params}
+    return {}
 
 
 def _as_str(value: object) -> str | None:

@@ -143,6 +143,12 @@ def run_from_args(
             live_viz_max_points=_override_value(override, "live_viz_max_points", getattr(config, "live_viz_max_points", 1000)),
         )
         effective_args = deepcopy(args)
+        # What the user asked for, before main resolves a null seed: recorded as the run's request.
+        effective_args.cli_request = {
+            "seed": override["seed"] if "seed" in override else getattr(args, "seed", None),
+            "n_var": override.get("n_var", getattr(args, "n_var", None)),
+            "n_obj": override.get("n_obj", getattr(args, "n_obj", None)),
+        }
         for key in (
             "algorithm",
             "engine",
