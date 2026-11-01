@@ -94,12 +94,13 @@ def build_agemoea_algorithm(
 ) -> tuple[AGEMOEA, AlgorithmConfigProtocol]:
     encoding = resolve_problem_encoding(problem)
     agemoea_overrides = agemoea_variation or {}
-    var_cfg = resolve_variation_config(encoding=encoding, overrides=agemoea_overrides)
-    if encoding == "real":
-        if "crossover" not in agemoea_overrides:
-            var_cfg["crossover"] = ("sbx", {"prob": 0.9, "eta": 15.0})
-        if "mutation" not in agemoea_overrides:
-            var_cfg["mutation"] = ("polynomial", {"prob": 1.0 / problem.n_var, "eta": 20.0})
+    real_defaults = {
+        "crossover": ("sbx", {"prob": 0.9, "eta": 15.0}),
+        "mutation": ("polynomial", {"prob": 1.0 / problem.n_var, "eta": 20.0}),
+    }
+    var_cfg = resolve_variation_config(
+        encoding=encoding, overrides=agemoea_overrides, defaults=real_defaults if encoding == "real" else None
+    )
 
     builder = AGEMOEAConfig.builder()
     builder.pop_size(pop_size)

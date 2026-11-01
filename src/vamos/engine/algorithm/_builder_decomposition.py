@@ -36,12 +36,11 @@ def build_moead_algorithm(
 ) -> tuple[MOEAD, AlgorithmConfigProtocol]:
     encoding = resolve_problem_encoding(problem)
     moead_overrides = moead_variation or {}
-    var_cfg = resolve_variation_config(encoding=encoding, overrides=moead_overrides)
-    if encoding == "real":
-        if "crossover" not in moead_overrides:
-            var_cfg["crossover"] = ("de", {"cr": 1.0, "f": 0.5})
-        if "mutation" not in moead_overrides:
-            var_cfg["mutation"] = ("polynomial", {"prob": 1.0 / problem.n_var, "eta": 20.0})
+    real_defaults = {
+        "crossover": ("de", {"cr": 1.0, "f": 0.5}),
+        "mutation": ("polynomial", {"prob": 1.0 / problem.n_var, "eta": 20.0}),
+    }
+    var_cfg = resolve_variation_config(encoding=encoding, overrides=moead_overrides, defaults=real_defaults if encoding == "real" else None)
     var_cfg.setdefault("aggregation", ("pbi", {"theta": 5.0}))
 
     builder = MOEADConfig.builder()
@@ -121,12 +120,11 @@ def build_rvea_algorithm(
 ) -> tuple[RVEA, AlgorithmConfigProtocol]:
     encoding = resolve_problem_encoding(problem)
     rvea_overrides = rvea_variation or {}
-    var_cfg = resolve_variation_config(encoding=encoding, overrides=rvea_overrides)
-    if encoding == "real":
-        if "crossover" not in rvea_overrides:
-            var_cfg["crossover"] = ("sbx", {"prob": 1.0, "eta": 30.0})
-        if "mutation" not in rvea_overrides:
-            var_cfg["mutation"] = ("polynomial", {"prob": 1.0 / problem.n_var, "eta": 20.0})
+    real_defaults = {
+        "crossover": ("sbx", {"prob": 0.9, "eta": 30.0}),
+        "mutation": ("polynomial", {"prob": 1.0 / problem.n_var, "eta": 20.0}),
+    }
+    var_cfg = resolve_variation_config(encoding=encoding, overrides=rvea_overrides, defaults=real_defaults if encoding == "real" else None)
 
     builder = RVEAConfig.builder()
     builder.pop_size(pop_size)

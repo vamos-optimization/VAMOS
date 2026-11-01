@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "0aef481c8a01df6c5c0d3498755bb1deeccafd11",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 0aef481c8a01df6c5c0d3498755bb1deeccafd11",
+  "generation_commit": "fa25107020b83384214d3fccd750a6c3a4ab3778",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit fa25107020b83384214d3fccd750a6c3a4ab3778",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.0",
@@ -26,35 +26,21 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 493,
-  "files_with_diagnostics": 68,
-  "fingerprint_count": 68,
+  "diagnostic_count": 490,
+  "files_with_diagnostics": 66,
+  "fingerprint_count": 66,
   "error_code_summary": {
-    "type-arg": 493
+    "type-arg": 490
   },
   "layer_summary": {
     "engine": 245,
     "experiment": 11,
-    "foundation": 219,
+    "foundation": 216,
     "package-root": 1,
     "ux": 17
   },
   "installed_mypy": "2.4.0",
   "diagnostics": [
-    {
-      "fingerprint": "0107C8053CF4B4341ED80D87312358EA7B53B9EA609AE7CBB38A5ABC880FFE5A",
-      "path": "src/vamos/foundation/problem/real_world/feature_selection.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "foundation",
-      "multiplicity": 1,
-      "locations": [
-        {
-          "line": 56,
-          "column": 27
-        }
-      ]
-    },
     {
       "fingerprint": "03024CC60B8758BD24ABFFD8779F6753CF329A58A4DA9501C399418AEB739E88",
       "path": "src/vamos/foundation/constraints/utils.py",
@@ -624,24 +610,6 @@
         {
           "line": 144,
           "column": 12
-        }
-      ]
-    },
-    {
-      "fingerprint": "360EA310924CE6FCA41EE7EA3C2D57FE576D291214A82D7EB85B42B7DD819613",
-      "path": "src/vamos/foundation/problem/real_world/hyperparam.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "foundation",
-      "multiplicity": 2,
-      "locations": [
-        {
-          "line": 81,
-          "column": 33
-        },
-        {
-          "line": 107,
-          "column": 27
         }
       ]
     },
