@@ -214,6 +214,18 @@ These are implementation fixes under the existing stability policy. Record the p
 | `numba` | Optional backend | JIT implementations of supported kernels; includes compilation cost on first use. |
 | `moocore` | Optional backend | Native non-dominated sorting/hypervolume operations where available; not every algorithm step is accelerated. |
 
+**Development after 1.1.0:** the three backends follow the same trajectory for
+every built-in algorithm with the same seed. The tests compare NumPy with Numba
+and NumPy with MooCore.
+- **Tournaments:** with a tournament size above two, the tournament keeps the
+  best rank when crowding distances are NaN or -inf, and uses fractional ranks
+  as given. VAMOS 1.1.0 could let a worse rank win in NumPy and truncated ranks
+  to integers in both NumPy and Numba.
+- **MooCore survival:** it returns arrays the caller owns; it returned views of
+  buffers that the next survival overwrote. The undocumented
+  `VAMOS_MOOCORE_HV_CONTRIB` variable, which switched it to
+  hypervolume-contribution truncation, is removed.
+
 ### Automatic engine selection
 
 VAMOS 1.1.0 expands the automatic Numba preference to all nine built-in
