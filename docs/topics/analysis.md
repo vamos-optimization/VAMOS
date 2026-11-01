@@ -157,6 +157,13 @@ ax.figure.savefig("front.png", dpi=200, bbox_inches="tight")
 The same facade also exposes `plot_pareto_front_3d`,
 `plot_parallel_coordinates`, and `plot_hv_convergence`.
 
+**Development after 1.1.0:** `plot_pareto_front_2d` and `plot_pareto_front_3d`
+draw minimization axes, with values increasing away from the origin, so the
+ideal corner is at the lower left as in the other VAMOS front plots. Pass
+`invert_axes=True` for the reversed view. VAMOS 1.1.0 and earlier always
+inverted every axis, which put the ideal corner at the upper right and made a
+convex front look concave.
+
 ## MCDM: selecting one solution from a front
 
 The public MCDM helpers in `vamos.ux.api` are:
