@@ -34,7 +34,11 @@ def _front_rows(result: ResultLike) -> NDArray[np.int_]:
     F = np.asarray(result.F, dtype=float)
     if F.ndim != 2 or F.shape[0] == 0:
         return np.array([], dtype=int)
+    # OptimizationResult keeps constraint values in its payload; other result objects may expose G directly.
     G = getattr(result, "G", None)
+    if G is None:
+        payload = getattr(result, "data", None)
+        G = payload.get("G") if isinstance(payload, Mapping) else None
     G_arr = None if G is None else np.asarray(G, dtype=float).reshape(F.shape[0], -1)
     candidates = feasible_result_indices(F, G_arr, constraint_mode="feasibility")
     if candidates.size == 0:

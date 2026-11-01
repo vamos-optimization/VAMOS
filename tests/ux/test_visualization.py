@@ -67,3 +67,19 @@ def test_explore_result_front_keeps_only_feasible_solutions():
     fig = explore_result_front(result)
 
     assert sorted(zip(fig.data[0].x, fig.data[0].y, strict=True)) == [(0.4, 0.4), (0.6, 0.2)]
+
+
+def test_explore_result_front_reads_constraints_from_an_optimization_result():
+    pytest.importorskip("plotly")
+    from vamos.experiment.optimization_result.model import OptimizationResult
+    from vamos.ux.results import explore_result_front
+
+    # OptimizationResult keeps constraint values in its payload, not in a G attribute.
+    F = np.array([[0.1, 0.1], [0.4, 0.4], [0.6, 0.2]])
+    result = OptimizationResult({"F": F, "X": np.array([[1.0], [2.0], [3.0]]), "G": np.array([[1.0], [0.0], [-1.0]])})
+
+    fig = explore_result_front(result)
+
+    shown = sorted(zip(fig.data[0].x, fig.data[0].y, strict=True))
+    assert shown == [(0.4, 0.4), (0.6, 0.2)]
+    assert shown == sorted(map(tuple, np.asarray(result.front())))
