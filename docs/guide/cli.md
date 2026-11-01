@@ -401,6 +401,25 @@ Install any required [optional extras](installation.md#optional-extras) first.
 - Problem zoo: `vamos zoo list`, `vamos zoo info zdt1`, `vamos zoo run zdt1 --algorithm nsgaii --budget 3000`
 - Studio (interactive, needs `studio` extra): read the [Studio walkthrough and launcher limitation](studio.md) before starting.
 
+**Development after 1.1.0:** `vamos profile` runs each engine once untimed, to
+pay one-time costs such as Numba compilation, then `--repeats` timed runs
+(default 3). It reports their median, which the speedups use, and their range.
+An unknown engine or problem stops the command with exit code 2 before any run.
+An engine whose run fails is listed with its error, with empty cells in the
+CSV, and the command exits with code 1. The hypervolume uses the feasible
+solutions inside a reference point: the nadir of the problem's reference front
+plus 10% of its range, or `--hv-reference`. It works with any number of
+objectives. Without a matching reference front and without `--hv-reference`, it
+is not computed and a warning says so. The CSV has the columns `engine`,
+`time_seconds` (median), `time_min`, `time_max`, `repeats`, `n_solutions`,
+`hypervolume` and `error`, and leaves a missing value empty. VAMOS 1.1.0 timed
+a single cold run per engine, so the first Numba run measured mostly
+compilation. It recorded a failed engine with time 0 and exit code 0. Its
+hypervolume used the reference `[1.1, ..., 1.1]` whatever the problem's scale,
+so the value was meaningless for a front outside the unit range (ZDT3,
+DTLZ1, WFG) and for problems without a reference front. It was missing with
+three or more objectives, and the CSV stored 0.0 where the table said N/A.
+
 **Development after 1.1.0:** `vamos bench` and `vamos ablation` build the
 indicator references per problem and number of objectives. The HV reference
 point (`hv_reference`, with `hv_source` set to `problem`) and the reference
