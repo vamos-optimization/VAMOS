@@ -191,6 +191,13 @@ def _run_standard_cli(argv: Sequence[str] | None = None) -> int:
         _configure_cli_logging(logging.DEBUG)
 
     config = _build_runtime_config(args=args, default_config=default_config)
+    if getattr(args, "validate_config", False):
+        from vamos.experiment.cli.orchestration import check_run_settings
+
+        # The checks that precede the first run, so a config that passes would also start.
+        check_run_settings(args, config)
+        print("Config OK.", file=sys.stderr)
+        raise SystemExit(0)
     if not getattr(args, "no_preflight", False):
         run_preflight_checks(args)
     run_experiments_from_args(args, config)

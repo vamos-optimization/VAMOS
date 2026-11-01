@@ -10,6 +10,12 @@ A [complete NSGA-II/ZDT1 configuration](https://github.com/vamos-optimization/VA
 shows both together. Start with two-objective, unconstrained runs: the hook
 observes objective vectors and does not independently enforce feasibility.
 
+**Development after 1.1.0:** a block whose values cannot be built (for example
+`window: 1` or `pruning: hypervolume`) stops the command with exit code 2
+before any run, and `--validate-config` reports it. VAMOS 1.1.0 and earlier
+disabled both hooks with a warning and ran the full evaluation budget without
+them.
+
 ## stopping.hv_convergence
 
 Enable HV-based convergence stopping driven by a hypervolume trace sampled during the run.

@@ -479,3 +479,93 @@ def test_cli_yaml_defaults_selection_is_applied_and_validated(monkeypatch, capsy
     err = capsys.readouterr().err
     assert excinfo.value.code == 2, err
     assert "pressure" in err and "'size'" in err and "Traceback" not in err
+
+
+_SMALL_RUN = {"algorithm": "nsgaii", "engine": "numpy", "population_size": 13, "max_evaluations": 26}
+_INVALID_HOOKS = [
+    pytest.param({"stopping": {"hv_convergence": {"enabled": True, "window": 1}}}, "window must be > 1", id="stopping"),
+    pytest.param({"archive": {"external": {"enabled": True, "pruning": "hypervolume"}}}, "hypervolume", id="archive"),
+]
+
+
+def _exit_of_main(monkeypatch, capsys, *argv):
+    """Run ``vamos`` with ``argv``; return its exit code, stdout and stderr."""
+    from vamos.experiment.cli.main import main
+
+    monkeypatch.setattr(sys, "argv", ["prog", *argv])
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    captured = capsys.readouterr()
+    return excinfo.value.code, captured.out, captured.err
+
+
+@pytest.mark.parametrize(("hooks", "reason"), _INVALID_HOOKS)
+def test_invalid_hook_config_aborts_run(monkeypatch, capsys, tmp_path, hooks, reason):
+    output_root = tmp_path / "results"
+    spec = {"defaults": {**_SMALL_RUN, "output_root": str(output_root)}, **hooks}
+
+    code, _, err = _exit_of_main(monkeypatch, capsys, "--config", str(_write_spec(tmp_path, spec)), "--problem", "zdt1")
+
+    assert code == 2, err
+    assert reason in err and f"{next(iter(hooks))}." in err and "zdt1" in err
+    assert "Traceback" not in err
+    assert not output_root.exists()
+
+
+@pytest.mark.parametrize(
+    ("defaults", "key"),
+    [
+        ({"max_evaluations": -48}, "defaults.max_evaluations"),
+        ({"nsgaii": {"crossover": {"method": "sbx", "prob": 1.7}}}, "defaults.nsgaii.crossover.prob"),
+    ],
+)
+def test_validate_config_rejects_invalid_values(monkeypatch, capsys, tmp_path, defaults, key):
+    spec = {"defaults": {**_SMALL_RUN, **defaults}}
+
+    code, _, err = _exit_of_main(monkeypatch, capsys, "--config", str(_write_spec(tmp_path, spec)), "--validate-config")
+
+    assert code == 2, err
+    assert key in err
+    assert "Config OK." not in err
+
+
+def test_cli_value_error_does_not_name_the_config_file(monkeypatch, capsys, tmp_path):
+    config = _write_spec(tmp_path, {"defaults": _SMALL_RUN})
+
+    code, _, err = _exit_of_main(monkeypatch, capsys, "--config", str(config), "--max-evaluations", "-5", "--validate-config")
+
+    assert code == 2, err
+    assert "--max-evaluations must be a positive integer" in err
+    assert "defaults.max_evaluations" not in err
+
+
+@pytest.mark.parametrize(
+    ("extra", "message"),
+    [
+        *_INVALID_HOOKS,
+        pytest.param({"problems": {"zdt1": {"population_size": 4, "selection_pressure": 8}}}, "selection_pressure (8)", id="pressure"),
+        pytest.param({"problems": {"zdt1": {"algorithm": "moead", "moead": {"neighbor_size": 50}}}}, "neighbor_size", id="field"),
+    ],
+)
+def test_validate_config_runs_the_pre_run_checks(monkeypatch, capsys, tmp_path, extra, message):
+    output_root = tmp_path / "results"
+    spec = {"defaults": {**_SMALL_RUN, "output_root": str(output_root)}, **extra}
+    argv = ("--config", str(_write_spec(tmp_path, spec)), "--problem", "zdt1", "--validate-config")
+
+    code, _, err = _exit_of_main(monkeypatch, capsys, *argv)
+
+    assert code == 2, err
+    assert message in err and "Config OK." not in err
+    assert not output_root.exists()
+
+
+def test_validate_config_accepts_a_valid_config_without_running(monkeypatch, capsys, tmp_path):
+    output_root = tmp_path / "results"
+    hooks = {"stopping": {"hv_convergence": {"enabled": True}}, "archive": {"external": {"enabled": True, "capacity": 20}}}
+    spec = {"defaults": {**_SMALL_RUN, "output_root": str(output_root)}, **hooks}
+
+    code, _, err = _exit_of_main(monkeypatch, capsys, "--config", str(_write_spec(tmp_path, spec)), "--validate-config")
+
+    assert code == 0, err
+    assert "Config OK." in err
+    assert not output_root.exists()
