@@ -75,8 +75,11 @@ class MOEADConfig(_SerializableConfig):
             pop_size = divisions + 1 if n_obj == 2 else comb(divisions + n_obj - 1, n_obj - 1)
         elif n_obj == 2:
             divisions = max(1, int(pop_size) - 1)
-        else:
+        elif n_obj > 2:
             divisions = _exact_lattice_divisions(n_obj, int(pop_size))
+        else:
+            # One objective: every weight vector is (1,), whatever the divisions.
+            divisions = 6
         mut_prob = 1.0 / n_var if n_var else 0.1
         crossover, mutation = _encoding_operators(
             encoding, mut_prob, real=(("de", {"cr": 1.0, "f": 0.5}), ("pm", {"prob": mut_prob, "eta": 20.0}))
@@ -196,6 +199,8 @@ class _MOEADConfigBuilder(
 
 def _exact_lattice_divisions(n_obj: int, pop_size: int) -> int | None:
     """Divisions of the complete Das-Dennis lattice with exactly ``pop_size`` vectors, or ``None``."""
+    if n_obj < 2:
+        return None
     divisions = 1
     while (size := comb(divisions + n_obj - 1, n_obj - 1)) < pop_size:
         divisions += 1

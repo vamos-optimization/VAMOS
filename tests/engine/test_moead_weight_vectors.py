@@ -62,3 +62,17 @@ def test_optimize_moead_three_objectives_pop_100_uses_packaged_weights() -> None
 
     result = vamos.optimize(DTLZ2Problem(n_var=12, n_obj=3), algorithm="moead", pop_size=100, max_evaluations=300, seed=1)
     assert result.F.shape[1] == 3
+
+
+def test_moead_default_single_objective_returns() -> None:
+    import threading
+
+    from vamos.engine.algorithm.config import MOEADConfig
+
+    result: dict[str, object] = {}
+    worker = threading.Thread(target=lambda: result.update(config=MOEADConfig.default(pop_size=20, n_obj=1)), daemon=True)
+    worker.start()
+    worker.join(10)
+
+    assert "config" in result, "MOEADConfig.default(pop_size=20, n_obj=1) did not return"
+    assert result["config"].pop_size == 20  # type: ignore[attr-defined]
