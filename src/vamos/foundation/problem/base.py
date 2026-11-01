@@ -4,12 +4,15 @@ Base class for class-based custom optimization problems.
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 
 from vamos.foundation.encoding import EncodingLike, normalize_encoding
+from vamos.foundation.exceptions import EvaluationError
 
 
-def _coerce_decision_matrix(X: np.ndarray, encoding: EncodingLike) -> np.ndarray:
+def _coerce_decision_matrix(X: np.ndarray[Any, Any], encoding: EncodingLike) -> np.ndarray[Any, Any]:
     normalized = normalize_encoding(encoding)
     if normalized in {"binary", "integer", "permutation"}:
         return np.asarray(X)
@@ -74,8 +77,8 @@ class Problem:
 
     n_var: int
     n_obj: int
-    xl: float | int | np.ndarray
-    xu: float | int | np.ndarray
+    xl: float | int | np.ndarray[Any, Any]
+    xu: float | int | np.ndarray[Any, Any]
 
     # ------------------------------------------------------------------
     # Class-level defaults — override at class body level, not in __init__
@@ -92,7 +95,7 @@ class Problem:
     # User-overridable interface
     # ------------------------------------------------------------------
 
-    def objectives(self, X: np.ndarray) -> np.ndarray:
+    def objectives(self, X: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
         """Compute objective values for a batch of solutions.
 
         Override this method in your subclass.
@@ -110,7 +113,7 @@ class Problem:
         """
         raise NotImplementedError(f"{type(self).__name__} must implement objectives(self, X).")
 
-    def constraints(self, X: np.ndarray) -> np.ndarray | None:
+    def constraints(self, X: np.ndarray[Any, Any]) -> np.ndarray[Any, Any] | None:
         """Compute constraint violations for a batch of solutions.
 
         Override this method when your problem has inequality constraints.
@@ -132,7 +135,7 @@ class Problem:
     # Framework entry point — do not override
     # ------------------------------------------------------------------
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         """Framework evaluation entry point.  Override :meth:`objectives`
         (and optionally :meth:`constraints`) instead of this method."""
         X = _coerce_decision_matrix(X, self.encoding)
@@ -155,6 +158,14 @@ class Problem:
             out["F"] = F_computed
 
         # --- constraints ---
+        if self.n_constraints <= 0 and type(self).constraints is not Problem.constraints:
+            # An overridden constraints() without n_constraints would be ignored: the problem would run unconstrained.
+            G_undeclared = self.constraints(X)
+            if G_undeclared is not None and np.size(G_undeclared) > 0:
+                raise EvaluationError(
+                    f"{type(self).__name__}.constraints() returned values but n_constraints=0, so VAMOS would optimize "
+                    "it as unconstrained. Set the class attribute n_constraints to the number of constraints."
+                )
         if self.n_constraints > 0:
             G_computed = self.constraints(X)
             if G_computed is None:

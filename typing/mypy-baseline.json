@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "5e531458eb6348159be8c18fb5aa364b84bf20a6",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 5e531458eb6348159be8c18fb5aa364b84bf20a6",
+  "generation_commit": "c50d53e26549f2b43c6449ddcb4a94fb71fe4209",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit c50d53e26549f2b43c6449ddcb4a94fb71fe4209",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.0",
@@ -26,16 +26,16 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 528,
-  "files_with_diagnostics": 72,
-  "fingerprint_count": 72,
+  "diagnostic_count": 522,
+  "files_with_diagnostics": 71,
+  "fingerprint_count": 71,
   "error_code_summary": {
-    "type-arg": 528
+    "type-arg": 522
   },
   "layer_summary": {
     "engine": 256,
     "experiment": 11,
-    "foundation": 225,
+    "foundation": 219,
     "package-root": 1,
     "ux": 35
   },
@@ -1472,40 +1472,6 @@
         {
           "line": 281,
           "column": 33
-        }
-      ]
-    },
-    {
-      "fingerprint": "78A41D01943DA29CAD4A8AF0E1C84961928ADBE008A8EF7EE7D6AC2C4417E954",
-      "path": "src/vamos/foundation/problem/base.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "foundation",
-      "multiplicity": 6,
-      "locations": [
-        {
-          "line": 12,
-          "column": 32
-        },
-        {
-          "line": 77,
-          "column": 23
-        },
-        {
-          "line": 78,
-          "column": 23
-        },
-        {
-          "line": 95,
-          "column": 29
-        },
-        {
-          "line": 113,
-          "column": 30
-        },
-        {
-          "line": 135,
-          "column": 27
         }
       ]
     },
