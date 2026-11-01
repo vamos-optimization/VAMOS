@@ -188,6 +188,33 @@ def test_sa_017_failure_before_rename_leaves_no_destination_or_staging(tmp_path:
     assert list(tmp_path.glob(".study.vamos-study-staging-*")) == []
 
 
+def test_create_study_reports_publication_failure_cause(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from vamos.experiment.artifacts import paths
+
+    spec = _spec()
+    plan = resolve_spec(spec)
+    long_path = "C:\\" + "d" * 257
+
+    def fail_at(observed: str) -> None:
+        if observed == "tasks_written":
+            raise FileNotFoundError(2, "The system cannot find the path specified", long_path)
+
+    monkeypatch.setattr(paths, "_WINDOWS", False)
+    with pytest.raises(StudyInfrastructureError) as caught:
+        publish_study(spec, plan=plan, destination=tmp_path / "study", phase_hook=fail_at)
+    assert caught.value.reason == "ATOMIC_PUBLICATION_FAILED"
+    assert "The system cannot find the path specified" in caught.value.actual
+    assert repr(long_path) in caught.value.actual
+    assert "LongPathsEnabled" not in caught.value.actual
+
+    monkeypatch.setattr(paths, "_WINDOWS", True)
+    with pytest.raises(StudyInfrastructureError) as caught:
+        publish_study(spec, plan=plan, destination=tmp_path / "study", phase_hook=fail_at)
+    assert caught.value.reason == "ATOMIC_PUBLICATION_FAILED"
+    assert "260 characters" in caught.value.actual and "LongPathsEnabled" in caught.value.actual
+    assert not (tmp_path / "study").exists()
+
+
 def test_sa_018_relocated_study_retains_all_identities(tmp_path: Path) -> None:
     original = tmp_path / "original"
     moved = tmp_path / "elsewhere" / "moved"

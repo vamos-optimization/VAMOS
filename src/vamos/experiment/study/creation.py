@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from vamos.experiment.artifacts.jsonio import sha256_bytes
+from vamos.experiment.artifacts.paths import windows_path_length_error
 
 from .documents import (
     initial_event_document,
@@ -58,7 +59,7 @@ def create_study(
             reason="ATOMIC_PUBLICATION_FAILED",
             path=destination.parent,
             expected="writable parent directory for sibling staging",
-            actual=type(exc).__name__,
+            actual=_failure(exc),
             action="Choose a writable output parent; no study directory was published.",
         ) from exc
     _reject_existing(destination)
@@ -109,7 +110,7 @@ def publish_study(
             reason="ATOMIC_PUBLICATION_FAILED",
             path=destination,
             expected="complete study directory published once or no destination",
-            actual=type(exc).__name__,
+            actual=_failure(exc),
             published=published,
             action=(
                 "Load the destination to verify it; publication completed before the infrastructure error."
@@ -120,6 +121,15 @@ def publish_study(
     finally:
         if owns_staging and not published:
             _remove_owned_staging(staging, parent=destination.parent, token=token)
+
+
+def _failure(exc: Exception) -> str:
+    """The failure's type and message, with the path-length explanation of a Windows long-path failure."""
+    shown: Exception = exc
+    if isinstance(exc, OSError):
+        shown = windows_path_length_error(exc) or exc
+    message = str(shown)
+    return f"{type(shown).__name__}: {message}" if message else type(shown).__name__
 
 
 def _populate_staging(staging: Path, *, spec: StudySpec, plan: ResolvedStudyPlan, hook: _PhaseHook) -> None:

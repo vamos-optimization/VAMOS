@@ -6,10 +6,10 @@ import glob
 import json
 import logging
 import os
+import secrets
 import shutil
 import socket
 import stat
-import uuid
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,6 +22,7 @@ from .errors import ArtifactResourceLimitError, OutputCollisionError
 from .jsonio import sha256_file, stored_json_bytes
 from .manifest import build_terminal_manifest
 from .models import ArtifactDescriptor, LoadLimits, RunManifest
+from .paths import windows_path_length_error
 
 
 def store_succeeded_run(
@@ -69,9 +70,16 @@ def _store_terminal_run(
 ) -> RunManifest:
     destination = destination.absolute()
     parent = destination.parent
-    parent.mkdir(parents=True, exist_ok=True)
+    try:
+        parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        explained = windows_path_length_error(exc)
+        if explained is None:
+            raise
+        raise explained from exc
     _reject_existing(destination)
-    token = uuid.uuid4().hex
+    # 128 random bits in 22 characters rather than 32 hex digits, to keep staging paths short on Windows.
+    token = secrets.token_urlsafe(16)
     staging = parent / f".{destination.name}.vamos-staging-{token}"
     lock = parent / f".{destination.name}.vamos-save.lock"
     acquired_lock = False
@@ -124,6 +132,11 @@ def _store_terminal_run(
         return terminal
     except FileExistsError as exc:
         raise _collision(destination, "already exists") from exc
+    except OSError as exc:
+        explained = windows_path_length_error(exc)
+        if explained is None:
+            raise
+        raise explained from exc
     finally:
         if not published and owns_staging:
             _remove_owned_staging(staging, parent=parent, token=token)
