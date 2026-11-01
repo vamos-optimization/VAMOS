@@ -220,6 +220,14 @@ def _sample_tournament_candidates(
     return candidates
 
 
+def _as_numeric_keys(values: NumericArray) -> NDArray[np.int64] | NDArray[np.float64]:
+    """Pass integer and floating sort keys to the kernel without changing their values."""
+    arr = np.asarray(values)
+    if arr.dtype.kind in "iu":
+        return arr.astype(np.int64, copy=False)
+    return arr.astype(np.float64, copy=False)
+
+
 def _tournament_winners_numpy(
     ranks: NumericArray,
     crowding: RealArray,
@@ -234,7 +242,8 @@ def _tournament_winners_numpy(
     candidate_crowding = np.nan_to_num(crowding[candidates], nan=-np.inf)
     filtered_crowding = np.where(best_rank_mask, candidate_crowding, -np.inf)
     best_crowding = filtered_crowding.max(axis=1, keepdims=True)
-    best_mask = filtered_crowding == best_crowding
+    # A NaN crowding becomes -inf, the value worse ranks are filtered to: only the best rank may tie.
+    best_mask = (filtered_crowding == best_crowding) & best_rank_mask
 
     tie_keys = np.where(best_mask, tie_break, np.inf)
     winner_pos = np.argmin(tie_keys, axis=1)
@@ -377,7 +386,7 @@ class NumPyKernel(KernelBackend):
         row_index = self._ensure_row_index(n_parents)
         tie_break = rng.random((candidates.shape[0], candidates.shape[1]))
         return _tournament_winners_numpy(
-            np.asarray(ranks, dtype=np.int64),
+            _as_numeric_keys(ranks),
             np.asarray(crowding, dtype=np.float64),
             candidates,
             tie_break,

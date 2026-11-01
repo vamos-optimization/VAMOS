@@ -300,7 +300,10 @@ def test_active_constraint_mode_exposes_population_aligned_g(algorithm_cls, conf
 
     assert "G" in result
     assert "G" in result["population"]
-    assert result["population"]["G"].shape == (6, 1)
+    # RVEA keeps one survivor per non-empty reference vector, so its population can be smaller.
+    n_rows = result["population"]["X"].shape[0]
+    assert result["population"]["G"].shape == (n_rows, 1)
+    assert n_rows == 6 if algorithm_cls is AGEMOEA else 1 <= n_rows <= 6
     np.testing.assert_array_equal(result["G"], result["population"]["G"])
     expected_g = (0.5 - result["population"]["X"][:, 0])[:, None]
     np.testing.assert_allclose(result["population"]["G"], expected_g)
@@ -367,3 +370,38 @@ def test_constrained_ask_tell_rejects_missing_offspring_g(algorithm_cls, config)
 
     with pytest.raises(ValueError, match="requires constraint values G"):
         algorithm.tell(F)
+
+
+def test_apd_survival_keeps_one_survivor_per_vector() -> None:
+    from vamos.engine.algorithm.rvea.survival import apd_survival
+
+    V = _calc_V(np.array([[0.0, 1.0], [1.0, 1.0], [1.0, 0.0]]))
+    gamma = _calc_gamma(V)
+    F = np.array([[0.01, 5.0], [0.02, 9.0], [1.0, 1.0], [1.1, 1.1]])
+
+    survivors, _, _ = apd_survival(F, V, gamma, np.full(2, np.inf), 3, 1, 10, 2.0)
+
+    assert sorted(survivors.tolist()) == [0, 2]
+
+
+def test_rvea_parents_are_a_permutation() -> None:
+    from vamos.foundation.problem.zdt1 import ZDT1Problem
+
+    cfg = RVEAConfig.default(pop_size=20, n_var=6, n_obj=2)
+    algorithm = RVEA(cfg.to_dict(), kernel=NumPyKernel())
+    algorithm.initialize(ZDT1Problem(n_var=6), termination=("max_evaluations", 100), seed=4)
+    st = algorithm._st
+    assert st is not None
+    seen: list[np.ndarray] = []
+    produce = st.variation.produce_offspring
+
+    def spy(parents, rng):  # type: ignore[no-untyped-def]
+        seen.append(np.array(parents))
+        return produce(parents, rng)
+
+    st.variation.produce_offspring = spy
+    population = st.X.copy()
+    algorithm.ask()
+
+    rows = [int(np.flatnonzero(np.all(population == parent, axis=1))[0]) for parent in seen[0]]
+    assert sorted(rows) == list(range(population.shape[0]))

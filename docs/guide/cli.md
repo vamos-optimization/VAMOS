@@ -139,6 +139,12 @@ document in JSON mode. Creation and execution are separate. `inspect` and an
 in-memory `summarize` are read-only; JSON/CSV summary files are written only
 when `--output` is explicit and never overwrite an existing path.
 
+**Development after 1.1.0:** without `--json`, `vamos study summarize` prints
+its task table: one row per task with its index, state, problem, algorithm,
+seed and evaluations. Its suggested next step reads
+`vamos study inspect STUDY_DIR`. In VAMOS 1.1.0 it printed only the study
+header, without the table, and suggested a bare `inspect`.
+
 Use `vamos study resume STUDY_DIR` for eligible pending/interrupted work and
 `vamos study retry STUDY_DIR --failed` for explicit bounded failed-task retry.
 Concurrent mutation is unsupported: one process must remain the only mutation
@@ -259,7 +265,7 @@ Key flags
 - `--engine`: numpy | numba | moocore | auto. The deterministic default is `numpy`; `auto` prefers available Numba with a NumPy fallback. See the [automatic engine policy](../reference/algorithms.md#automatic-engine-selection) for the selection and replay rules in VAMOS 1.1.0.
 - `--problem`: any registry key (see [Problems](../reference/problems.md))
 - `--problem-set`: predefined sets (e.g., `families`)
-- `--validate-config`: validate `--config` and exit
+- `--validate-config`: validate `--config` with the checks that precede a run and exit
 - `--output-root`: directory for run artifacts (default: `results/`)
 - `--no-preflight`: skip optional dependency warnings
 - `--population-size`, `--offspring-population-size`
@@ -363,6 +369,16 @@ Validate a config without running:
 ```bash
 vamos --config configs/experiment.yaml --validate-config
 ```
+
+**Development after 1.1.0:** `--validate-config` runs every check that precedes
+the first run: the option values (for example a negative `max_evaluations` or
+a crossover `prob` above 1), each selected problem's settings after its
+`problems.<name>` overrides, its algorithm fields, and its `stopping` and
+`archive` hooks. It prints `Config OK.` and exits with code 0 only when they
+pass; otherwise it exits with code 2 and the error. An error about an option
+whose value comes from the config file names its key, such as
+`defaults.nsgaii.crossover.prob`. In VAMOS 1.1.0 it checked only the keys, so a
+config could pass and then fail when run.
 
 Run a config with a CLI override:
 

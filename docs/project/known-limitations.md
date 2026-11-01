@@ -7,6 +7,11 @@ unsupported behavior rather than future compatibility promises.
 
 - VAMOS minimizes every objective. Users must transform maximization
   objectives themselves.
+- Objective and constraint values must be finite: a NaN or an infinity stops
+  the run with `EvaluationError`. Give failed evaluations a large finite penalty
+  or a violated constraint.
+  - **Development after 1.1.0:** constraint values from a problem that does not
+    declare `n_constraints` raise `EvaluationError`; they were ignored.
 - A valid population size may depend on an algorithm's reference directions or
   weight lattice. Incompatible sizes fail instead of being adjusted silently.
   - **Development after 1.1.0:** NSGA-III accepts a population at least as
@@ -132,6 +137,11 @@ unsupported behavior rather than future compatibility promises.
 - Custom Python, plugins, cross-backend execution, and best-effort environment
   matches are not exact-replay targets.
 - SHA-256 evidence detects modification; it is not an authenticity signature.
+- On Windows without long paths enabled, a run or study cannot be written when
+  its staging paths reach 260 characters (248 for a directory), and the Numba
+  cache fails in deeply nested installations. **Development after 1.1.0:** the
+  error gives the path length and the ways out; see
+  [Troubleshooting](../guide/troubleshooting.md#saving-fails-on-windows-with-a-long-path).
 - **Development after 1.1.0:** saving and verification classify the installed
   VAMOS sources with the same rule.
   - **Wheel inside another Git project:** a Git repository counts as a VAMOS

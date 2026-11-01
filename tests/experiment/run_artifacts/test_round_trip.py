@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
@@ -325,3 +326,33 @@ def test_manifest_and_environment_are_recursively_immutable(tmp_path: Path) -> N
     with pytest.raises(TypeError):
         stored.environment["python"] = {}  # type: ignore[index]
     assert json.loads((stored.root / "manifest.json").read_text(encoding="utf-8"))["status"] == "succeeded"
+
+
+def test_save_result_explains_windows_path_length_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from vamos.experiment.artifacts import paths
+
+    result = vamos.optimize("zdt1", algorithm="nsgaii", pop_size=6, max_evaluations=6, engine="numpy", seed=4)
+    long_path = "C:\\" + "d" * 257
+    assert len(long_path) == 260
+    real_mkdir = Path.mkdir
+
+    def mkdir(self: Path, *args: Any, **kwargs: Any) -> None:
+        if ".vamos-staging-" in self.name:
+            raise FileNotFoundError(2, "The system cannot find the path specified", long_path)
+        real_mkdir(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "mkdir", mkdir)
+    monkeypatch.setattr(paths, "_WINDOWS", True)
+    with pytest.raises(FileNotFoundError) as caught:
+        vamos.save_result(result, tmp_path / "run")
+
+    message = str(caught.value)
+    assert "The system cannot find the path specified" in message
+    assert "260 characters" in message and "LongPathsEnabled" in message
+    assert caught.value.filename == long_path
+    assert not (tmp_path / "run").exists() and not list(tmp_path.glob(".run.vamos-save.lock"))
+
+    monkeypatch.setattr(paths, "_WINDOWS", False)
+    with pytest.raises(FileNotFoundError) as caught:
+        vamos.save_result(result, tmp_path / "run")
+    assert "LongPathsEnabled" not in str(caught.value)

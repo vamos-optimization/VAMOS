@@ -6,9 +6,10 @@ from __future__ import annotations
 
 import json
 import math
-from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
+
+from vamos.ux.analysis.stats import holm_adjust
 
 
 def ensure_dir(path: Path) -> Path:
@@ -48,21 +49,6 @@ def min_rank_sum_p_value(n_a: int, n_b: int) -> float:
     if n_a < 1 or n_b < 1:
         return 1.0
     return min(1.0, 2 / math.comb(n_a + n_b, n_a))
-
-
-def holm_adjust(p_values: Sequence[float]) -> list[float]:
-    """Holm step-down adjusted p-values, in the input order.
-
-    A NaN p-value (a test that could not be computed) stays NaN and does not count as a
-    hypothesis.
-    """
-    ordered = sorted((p, index) for index, p in enumerate(p_values) if not math.isnan(p))
-    adjusted = [math.nan] * len(p_values)
-    running = 0.0
-    for rank, (p, index) in enumerate(ordered):
-        running = max(running, min(1.0, (len(ordered) - rank) * p))
-        adjusted[index] = running
-    return adjusted
 
 
 def format_cell(fmt: str, mean: float, std: float, is_best: bool, marker: str) -> str:

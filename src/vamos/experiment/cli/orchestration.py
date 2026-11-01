@@ -16,7 +16,7 @@ from vamos.engine.config.spec import ExperimentSpec, ProblemOverrides, SpecBlock
 from vamos.engine.config.variation import VariationOverrides, merge_variation_overrides
 from vamos.engine.hooks import LiveVisualization
 from vamos.experiment._execution_support import VariationConfigs
-from vamos.experiment.execution import execute_problem_suite, raise_run_failures
+from vamos.experiment.execution import build_hook_manager, execute_problem_suite, raise_run_failures
 from vamos.experiment.services.orchestrator import run_single
 from vamos.foundation.core.experiment_config import ExperimentConfig
 from vamos.foundation.core.hv_stop import build_hv_stop_config
@@ -113,8 +113,10 @@ def _check_effective_settings(
 ) -> None:
     """Reject, before any run starts, settings a selected problem cannot run with.
 
-    Each problem is checked with its effective values, after its ``problems.<name>`` overrides.
+    Each problem is checked with its effective values, after its ``problems.<name>`` overrides,
+    and with the stopping and archive hooks its runs build.
     """
+    config_spec: ExperimentSpec | None = getattr(args, "config_spec", None)
     for selection in selections:
         key = selection.spec.key
         raw = overrides.get(key)
@@ -138,6 +140,28 @@ def _check_effective_settings(
         _check_unnamed_operators(args, override, algorithm, key)
         offspring = override.get("offspring_population_size", config.offspring_population_size)
         _check_algorithm_fields(args, override, algorithm, key, population, offspring)
+        build_hook_manager(config_spec, key)
+
+
+def check_run_settings(args: Namespace, config: ExperimentConfig) -> None:
+    """Run the checks that precede the first run of ``vamos`` without running anything.
+
+    ``--validate-config`` calls it after parsing, so a config that passes would also start.
+
+    Parameters
+    ----------
+    args : Namespace
+        Parsed and finalized command-line arguments.
+    config : ExperimentConfig
+        Runtime configuration built from ``args``.
+
+    Raises
+    ------
+    ConfigurationError
+        When a selected problem cannot run with its effective settings or hooks.
+    """
+    overrides: ProblemOverrides = getattr(args, "problem_overrides", {}) or {}
+    _check_effective_settings(args, config, list(resolve_problem_selections(args)), overrides)
 
 
 def run_from_args(
@@ -300,4 +324,4 @@ def run_from_args(
         raise_run_failures(failures)
 
 
-__all__ = ["run_from_args"]
+__all__ = ["check_run_settings", "run_from_args"]
