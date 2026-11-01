@@ -61,7 +61,9 @@ def test_algorithms_honor_budget_and_return_aligned_fronts(lessons, algorithm):
     data = lessons[f"run_{algorithm}"](budget=80)
     result = data["result"]
     assert result.data["evaluations"] == 80
-    assert len(result.X) == len(result.F) == (10 if algorithm == "rvea" else 40)
+    assert len(result.X) == len(result.F)
+    # RVEA keeps at most one solution per reference vector (10 here); the others keep the population.
+    assert 1 <= len(result.F) <= 10 if algorithm == "rvea" else len(result.F) == 40
     assert np.isfinite(result.F).all()
     np.testing.assert_array_equal(data["front"], result.F[data["front_rows"]])
 

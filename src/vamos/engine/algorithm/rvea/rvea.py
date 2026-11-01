@@ -335,7 +335,9 @@ class RVEA:
         assert st.variation is not None
         request_size = capped_offspring_size(st.n_eval, st.max_evals, st.pop_size, "RVEA")
         parent_count = int(np.ceil(request_size / st.variation.children_per_group) * st.variation.parents_per_group)
-        parents_idx = st.rng.integers(0, len(st.X), size=parent_count)
+        # Parents are drawn without replacement, by random permutations of the population, as in pymoo.
+        n_pop = len(st.X)
+        parents_idx = np.concatenate([st.rng.permutation(n_pop) for _ in range(-(-parent_count // n_pop))])[:parent_count]
         X_off = st.variation.produce_offspring(st.X[parents_idx], st.rng)
         if X_off.shape[0] > request_size:
             X_off = X_off[:request_size]
@@ -396,12 +398,7 @@ class RVEA:
             st.constraint_mode,
         )
         if survivors.size == 0:
-            st.pending_offspring = None
-            st.generation += 1
-            if self._live_cb is not None:
-                self._live_cb.on_generation(st.generation, F=st.F, stats={"evals": st.n_eval})
-                return live_should_stop(self._live_cb)
-            return False
+            raise RuntimeError("RVEA selected no survivors from a non-empty population.")
 
         st.X = X_combined[survivors]
         st.F = F_combined[survivors]
