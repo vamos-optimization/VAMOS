@@ -249,7 +249,7 @@ class SteadyStateStep:
         if G_child is not None and (G_child.dtype is not f64 or G_child.ndim != 2 or G_child.shape[0] != 1):
             return None
         st.n_eval += 1
-        order = st.neighbors[active[0]] if use_neighbors[0] else st.rng.permutation(st.pop_size)
+        order = st.rng.permutation(st.neighbors[active[0]]) if use_neighbors[0] else st.rng.permutation(st.pop_size)
         G = st.G
         if G is None or G_child is None:
             return (

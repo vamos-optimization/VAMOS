@@ -68,6 +68,11 @@ def _load_or_generate_jmetalpy_weights(pop_size: int, n_obj: int, path: str | No
         return np.column_stack([vals, 1.0 - vals])
 
     weight_path = _resolve_jmetalpy_weight_path(path, n_obj, pop_size)
+    if weight_path is None and divisions is None and _exact_divisions(pop_size, n_obj) is None:
+        # No complete lattice has pop_size vectors: use the jMetal weights VAMOS ships for it, if any.
+        packaged = _packaged_weights(n_obj, pop_size)
+        if packaged is not None:
+            return packaged
     if weight_path is not None and os.path.exists(weight_path):
         weights = _load_weights(weight_path, delimiter=None)
         _assert_valid_weights(weights, n_obj)
@@ -107,6 +112,32 @@ def _load_or_generate_jmetalpy_weights(pop_size: int, n_obj: int, path: str | No
             )
         return weights
     return weights
+
+
+def _exact_divisions(pop_size: int, n_obj: int) -> int | None:
+    try:
+        return _choose_exact_divisions(pop_size, n_obj)
+    except ValueError:
+        return None
+
+
+def _packaged_weights(n_obj: int, pop_size: int) -> FloatArray | None:
+    """The jMetal weights VAMOS ships for ``pop_size`` vectors, renormalized; ``None`` without a matching file.
+
+    jMetal's files round each component, so their rows sum to 1 only within about 2e-6.
+    """
+    from vamos.resources import weight_path
+
+    try:
+        path = weight_path(f"W{n_obj}D_{pop_size}.dat")
+    except ValueError:
+        return None
+    weights = _load_weights(str(path), delimiter=None)
+    if weights.shape != (pop_size, n_obj):
+        return None
+    normalized: FloatArray = weights / weights.sum(axis=1, keepdims=True)
+    _assert_valid_weights(normalized, n_obj)
+    return normalized
 
 
 def _resolve_jmetalpy_weight_path(path: str | None, n_obj: int, pop_size: int) -> str | None:
