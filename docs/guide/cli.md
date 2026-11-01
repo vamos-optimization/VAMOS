@@ -322,8 +322,9 @@ SMS-EMOA's `reference_point` and `eliminate_duplicates`, SMPSO's
 `archive_size`, NSGA-II's `steady_state` (with
 `offspring_population_size: 1`), and `constraint_mode`, `result_mode`,
 `initializer` and `mutation_prob_factor` for every algorithm. They are
-validated as in the Python configurations, and an invalid value stops the
-command before any run.
+validated as in the Python configurations: an out-of-domain value in any
+problem stops the command before any run, and fields that conflict with each
+other stop it, with exit code 2, when the configuration is built.
 
 Fields that the config sets elsewhere are rejected:
 - `pop_size` and `pop_size_auto`: use `population_size`;
