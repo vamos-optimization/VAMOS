@@ -47,3 +47,33 @@ def test_normalize_objectives():
     norm = normalize_objectives(F)
     assert np.allclose(norm[0], [0.0, 0.0])
     assert np.allclose(norm[1], [1.0, 1.0])
+
+
+def test_build_fronts_merges_seeds_without_dominated_points():
+    # Seed 1's (0.5, 0.5) is dominated by seed 0's (0.4, 0.4); X rows name each point.
+    runs = [
+        RunRecord(None, "e0", "prob", "algo", 0, np.array([[0.2, 0.6], [0.4, 0.4]]), np.array([[20.0], [40.0]])),
+        RunRecord(None, "e1", "prob", "algo", 1, np.array([[0.5, 0.5], [0.6, 0.1]]), np.array([[50.0], [60.0]])),
+    ]
+
+    (front,) = build_fronts(runs, merge_seeds=True)
+
+    assert sorted(map(tuple, front.points_F)) == [(0.2, 0.6), (0.4, 0.4), (0.6, 0.1)]
+    assert front.points_X is not None
+    assert {tuple(f): float(x[0]) for f, x in zip(front.points_F, front.points_X, strict=True)} == {
+        (0.2, 0.6): 20.0,
+        (0.4, 0.4): 40.0,
+        (0.6, 0.1): 60.0,
+    }
+
+
+def test_build_fronts_drops_x_when_a_run_lacks_it():
+    runs = [
+        RunRecord(None, "e0", "prob", "algo", 0, np.array([[0.2, 0.6]]), np.array([[20.0]])),
+        RunRecord(None, "e1", "prob", "algo", 1, np.array([[0.6, 0.1]]), None),
+    ]
+
+    (front,) = build_fronts(runs, merge_seeds=True)
+
+    assert front.points_X is None
+    assert "decision variables" in front.extra.get("note", "")

@@ -145,3 +145,16 @@ def test_knee_ranking_keeps_the_fallback_extreme_of_a_front_without_knee() -> No
     assert order[0] == 1
     assert (ranking.rows[0]["f1"], ranking.rows[0]["f2"]) == (0.0, 1.0)
     assert any("no knee" in warning for warning in ranking.warnings)
+
+
+@pytest.mark.parametrize("method", ["weighted_sum", "tchebycheff", "knee", "topsis"])
+def test_ranking_excludes_infeasible_by_default(method: str) -> None:
+    # The infeasible (0.05, 0.05) would win every method.
+    points = np.array([[0.05, 0.05], [0.1, 0.9], [0.5, 0.4], [0.9, 0.1]])
+    constraints = np.array([[1.0], [0.0], [0.0], [0.0]])
+    front = FrontRecord("p", "A", points, None, constraints=constraints, extra={"seeds": [0]})
+
+    ranking = rank_fronts([front], method=method, top_k=1)
+
+    assert (ranking.rows[0]["f1"], ranking.rows[0]["f2"]) != (0.05, 0.05)
+    assert ranking.rows[0]["Feasible"] is True
