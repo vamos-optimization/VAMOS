@@ -135,9 +135,9 @@ def _packaged_weights(n_obj: int, pop_size: int) -> FloatArray | None:
     weights = _load_weights(str(path), delimiter=None)
     if weights.shape != (pop_size, n_obj):
         return None
-    weights = weights / weights.sum(axis=1, keepdims=True)
-    _assert_valid_weights(weights, n_obj)
-    return weights
+    normalized: FloatArray = weights / weights.sum(axis=1, keepdims=True)
+    _assert_valid_weights(normalized, n_obj)
+    return normalized
 
 
 def _resolve_jmetalpy_weight_path(path: str | None, n_obj: int, pop_size: int) -> str | None:
