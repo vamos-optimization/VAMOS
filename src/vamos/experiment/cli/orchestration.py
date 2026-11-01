@@ -5,8 +5,12 @@ import secrets
 from argparse import Namespace
 from collections.abc import Callable, Mapping
 from copy import deepcopy
+from types import SimpleNamespace
 from typing import TypeVar, cast
 
+from vamos.engine.algorithm.catalog import ENABLED_ALGORITHMS
+from vamos.engine.algorithm.config.base import normalize_constraint_mode
+from vamos.engine.algorithm.config.validation import validate_config_fields
 from vamos.engine.archive import ExternalArchiveConfig, normalize_prune_policy
 from vamos.engine.config.spec import ExperimentSpec, ProblemOverrides, SpecBlock
 from vamos.engine.config.variation import VariationOverrides, merge_variation_overrides
@@ -71,6 +75,39 @@ def _check_unnamed_operators(args: Namespace, override: SpecBlock, algorithm: ob
             )
 
 
+# Operator fields of an algorithm block, which the CLI builders check when they apply them.
+_OPERATOR_FIELDS = ("crossover", "mutation", "selection", "repair", "aggregation", "initializer")
+
+
+def _check_algorithm_fields(
+    args: Namespace, override: SpecBlock, algorithm: object, problem_key: str, population: int, offspring: object
+) -> None:
+    """Reject the out-of-domain fields of the algorithm blocks a problem runs with.
+
+    Building the configuration checks them again, with the fields that depend on each other.
+    """
+    for name in ENABLED_ALGORITHMS if algorithm == "both" else (str(algorithm),):
+        block = _effective_variation(args, override, name)
+        values = {key: value for key, value in block.items() if key not in _OPERATOR_FIELDS and value is not None}
+        try:
+            validate_config_fields(SimpleNamespace(**values), values)
+            if "constraint_mode" in values:
+                normalize_constraint_mode(values["constraint_mode"])
+        except ValueError as exc:
+            raise ConfigurationError(f"{name} block of problem '{problem_key}': {exc}") from exc
+        if name == "nsgaii" and values.get("steady_state") and offspring != 1:
+            raise ConfigurationError(
+                f"nsgaii.steady_state needs offspring_population_size: 1 for problem '{problem_key}'; it is {offspring or population}.",
+                suggestion="Set offspring_population_size: 1 in defaults or the problem block, or drop steady_state.",
+            )
+        neighbourhood = values.get("neighbor_size")
+        if name == "moead" and isinstance(neighbourhood, int) and neighbourhood > population:
+            raise ConfigurationError(
+                f"moead.neighbor_size ({neighbourhood}) cannot exceed population_size ({population}) for problem '{problem_key}'.",
+                suggestion="Lower neighbor_size or raise the population size.",
+            )
+
+
 def _check_effective_settings(
     args: Namespace, config: ExperimentConfig, selections: list[ProblemSelection], overrides: ProblemOverrides
 ) -> None:
@@ -99,6 +136,8 @@ def _check_effective_settings(
                 suggestion="Drop --track-genealogy (track_genealogy in a config) or select nsgaii for that problem.",
             )
         _check_unnamed_operators(args, override, algorithm, key)
+        offspring = override.get("offspring_population_size", config.offspring_population_size)
+        _check_algorithm_fields(args, override, algorithm, key, population, offspring)
 
 
 def run_from_args(

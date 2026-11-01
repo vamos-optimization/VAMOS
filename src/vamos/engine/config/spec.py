@@ -51,6 +51,17 @@ _ALGORITHM_BLOCKS: dict[str, type] = {
 }
 
 _OPERATOR_SPEC_KEYS = ("crossover", "mutation", "selection", "repair", "aggregation")
+# Algorithm fields a CLI config sets elsewhere, or that only the Python API can provide.
+_CLI_SET_ELSEWHERE = {
+    "pop_size": "set population_size in defaults or the problem block",
+    "pop_size_auto": "set population_size in defaults or the problem block",
+    "offspring_size": "set offspring_population_size in defaults or the problem block",
+    "external_archive": "use the archive block",
+    "track_genealogy": "set track_genealogy in defaults or the problem block",
+    "generation_callback": "it is available only in the Python API",
+    "generation_callback_copy": "it is available only in the Python API",
+    "parent_selection_filter": "it is available only in the Python API",
+}
 _HOOK_ARCHIVE_KEYS = {
     "enabled",
     "capacity",
@@ -146,6 +157,9 @@ def _validate_algorithm_block(block: SpecBlock, *, config_cls: type, path: str) 
     unknown = _unknown_keys(block, allowed)
     if unknown:
         raise ValueError(f"Unknown keys in '{path}': {', '.join(unknown)}")
+    for key, hint in _CLI_SET_ELSEWHERE.items():
+        if key in block:
+            raise ValueError(f"'{path}.{key}' cannot be set in an algorithm block: {hint}.")
 
     for op_key in _OPERATOR_SPEC_KEYS:
         if op_key not in block:

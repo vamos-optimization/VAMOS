@@ -407,3 +407,99 @@ def test_noncanonical_layout_is_actionably_rejected_without_mutation(tmp_path: P
     with pytest.raises(UnsupportedArtifactLayoutError, match="pre-1.0 development format; regenerate"):
         vamos.load_run(run)
     assert {item.name: item.read_bytes() for item in run.iterdir()} == before
+
+
+def test_stale_save_lock_error_names_the_lock(tmp_path: Path) -> None:
+    destination = tmp_path / "locked"
+    lock = tmp_path / ".locked.vamos-save.lock"
+    holder = {"token": "0" * 32, "pid": 999999, "host": "elsewhere", "created_at": "2026-01-01T00:00:00Z"}
+    lock.write_text(json.dumps(holder), encoding="utf-8")
+    orphan = tmp_path / f".locked.vamos-staging-{'1' * 32}"
+    orphan.mkdir()
+
+    with pytest.raises(OutputCollisionError) as caught:
+        vamos.save_result(_result(), destination)
+
+    error = caught.value
+    assert str(lock) in error.action
+    assert str(orphan) in error.action
+    assert "999999" in error.reason and "elsewhere" in error.reason
+    assert lock.exists() and orphan.exists()
+    assert not destination.exists()
+
+
+def test_save_lock_from_an_earlier_version_is_named_too(tmp_path: Path) -> None:
+    lock = tmp_path / ".locked.vamos-save.lock"
+    lock.write_bytes(b"0" * 32)
+
+    with pytest.raises(OutputCollisionError) as caught:
+        vamos.save_result(_result(), tmp_path / "locked")
+
+    assert str(lock) in caught.value.action
+    assert lock.read_bytes() == b"0" * 32
+
+
+def test_save_lock_records_its_holder(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import os
+    import socket
+
+    from vamos.experiment.artifacts import storage
+
+    seen: dict[str, Any] = {}
+    real_write = storage.write_result_bundle
+
+    def read_lock_then_write(*args: Any, **kwargs: Any) -> Any:
+        seen.update(json.loads((tmp_path / ".held.vamos-save.lock").read_text(encoding="utf-8")))
+        return real_write(*args, **kwargs)
+
+    monkeypatch.setattr(storage, "write_result_bundle", read_lock_then_write)
+    vamos.save_result(_result(), tmp_path / "held")
+
+    assert seen["pid"] == os.getpid()
+    assert seen["host"] == socket.gethostname()
+    assert seen["created_at"].endswith("Z")
+    assert not (tmp_path / ".held.vamos-save.lock").exists()
+
+
+def _lock_holder_json() -> str:
+    return json.dumps({"token": "0" * 32, "pid": 4242, "host": "elsewhere", "created_at": "2026-01-01T00:00:00Z"})
+
+
+def test_existing_lock_is_read_only_as_a_small_regular_file(tmp_path: Path) -> None:
+    import os
+
+    lock = tmp_path / ".locked.vamos-save.lock"
+    lock.write_text(_lock_holder_json() + " " * 100_000, encoding="utf-8")
+    with pytest.raises(OutputCollisionError) as caught:
+        vamos.save_result(_result(), tmp_path / "locked")
+    assert str(lock) in caught.value.action and "4242" not in caught.value.reason
+
+    lock.unlink()
+    lock.mkdir()
+    with pytest.raises(OutputCollisionError) as caught:
+        vamos.save_result(_result(), tmp_path / "locked")
+    assert str(lock) in caught.value.action
+
+    lock.rmdir()
+    target = tmp_path / "holder.json"
+    target.write_text(_lock_holder_json(), encoding="utf-8")
+    try:
+        os.symlink(target, lock)
+    except (OSError, NotImplementedError):
+        return  # symbolic links need privileges on this platform
+    with pytest.raises(OutputCollisionError) as caught:
+        vamos.save_result(_result(), tmp_path / "locked")
+    assert str(lock) in caught.value.action and "4242" not in caught.value.reason
+
+
+@pytest.mark.skipif(not hasattr(__import__("os"), "mkfifo"), reason="FIFOs are POSIX only")
+def test_fifo_at_the_lock_path_does_not_block(tmp_path: Path) -> None:
+    import os
+
+    lock = tmp_path / ".locked.vamos-save.lock"
+    os.mkfifo(lock)
+
+    with pytest.raises(OutputCollisionError) as caught:
+        vamos.save_result(_result(), tmp_path / "locked")
+
+    assert str(lock) in caught.value.action
