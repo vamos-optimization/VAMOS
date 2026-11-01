@@ -124,6 +124,12 @@ SPEA2 results from VAMOS 1.1.0 and earlier differ with the same seed.
   as in jMetal and jMetalPy. The epsilon indicator remains unscaled, as in
   jMetalPy, and runs without overflow are unchanged.
 
+**Development after 1.1.0:** IBEA accepts the `indicator` values `"eps"`,
+`"epsilon"`, `"additive_epsilon"` and `"hypervolume"`, in any letter case, and
+rejects any other value with `ConfigurationError`. VAMOS 1.1.0 ran every other
+value with the epsilon indicator without warning, `"hv"` and `"HV"` included,
+so runs configured with `"hv"` used the epsilon indicator.
+
 ### AGE-MOEA survival score
 
 **Development after 1.1.0:** AGE-MOEA follows its author's PlatEMO code in two
@@ -348,6 +354,32 @@ AGE-MOEA and RVEA failed on `"1/n"` after evaluating the initial population;
 NSGA-II, IBEA and SMPSO rejected `"1/N"`; MOEA/D and the binary, integer and
 permutation builders replaced an unreadable string such as `"0,5"` with
 `1/n` and clipped numbers to [0, 1]; and `prob_factor` made NSGA-II fail.
+
+**Development after 1.1.0:** the typed configurations check their values
+whenever they are built (`builder().build()`, `from_dict()` or the
+constructor) and raise `ConfigurationError`, a `ValueError`, before anything
+is evaluated:
+
+- operator probabilities (`prob`, `cr`) as above, `eta` finite and at least 0,
+  `prob_factor` and `mutation_prob_factor` positive, and a tournament `size`
+  that is a positive integer;
+- population, archive, batch and partition sizes, `neighbor_size`,
+  `replace_limit`, `k_neighbors` and `offspring_size` positive integers;
+- IBEA's `kappa` finite and positive, MOEA/D's `delta` in [0, 1], RVEA's
+  `alpha` at least 0 and `adapt_freq` in [0, 1], SMPSO's `inertia`, `c1` and
+  `c2` at least 0 and `vmax_fraction` positive, `result_mode` either
+  `non_dominated` or `population`, and a MOEA/D aggregation MOEA/D implements.
+
+The MOEA/D builder also rejects a `neighbor_size` larger than `pop_size`.
+`MOEADConfig.default()`, the CLI and the tuning space now use
+`min(20, pop_size)` and `min(neighbor_size, pop_size)`, which is the
+neighbourhood MOEA/D already used. `from_dict()` rejects unknown keys with a
+suggestion (`pop_sise` → `pop_size`) instead of ignoring them, and restores the
+operator pairs that JSON turns into lists, so
+`from_dict(json.loads(cfg.to_json())) == cfg`. In VAMOS 1.1.0, SBX with
+probability 1.7 or `eta=-5`, `kappa` at or below 0 (which inverts IBEA's
+selection) and `delta=1.5` ran without warning, and a `result_mode` or
+aggregation typo failed only after the initial population was evaluated.
 
 For a measured first-call/subsequent-call example, follow [Measure backend performance](../tutorials/measure-performance.md).
 

@@ -27,6 +27,11 @@ _AGGREGATION_IDS: dict[str, int] = {
 }
 
 
+def aggregation_methods() -> tuple[str, ...]:
+    """Aggregation names MOEA/D accepts, in lower case, aliases included."""
+    return tuple(_AGGREGATION_IDS)
+
+
 def tchebycheff(fvals: Array, weights: Array, ideal: Array) -> Array:
     """Tchebycheff aggregation: max(w * |f - z*|)."""
     diff = np.abs(fvals - ideal)
@@ -106,6 +111,7 @@ __all__ = [
     "AGG_WEIGHTED_SUM",
     "AggregatorFn",
     "ZERO_WEIGHT_EPS",
+    "aggregation_methods",
     "build_aggregator",
     "modified_tchebycheff",
     "pbi",

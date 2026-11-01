@@ -12,6 +12,7 @@ from numbers import Integral
 from typing import Any, Literal, TypeAlias, cast, overload
 
 from vamos.engine.algorithm.config.types import CrossoverName, InitializerName, MutationName, RepairName, SelectionName
+from vamos.engine.algorithm.config.validation import OPERATOR_PAIR_FIELDS, did_you_mean, operator_pair, validate_config_fields
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.foundation.encoding import EncodingLike
 from vamos.foundation.exceptions import ConfigurationError
@@ -279,9 +280,14 @@ class _SerializableConfig:
     __dataclass_fields__: dict[str, Any]
 
     def __post_init__(self) -> None:
-        if "constraint_mode" in self.__dataclass_fields__:
-            config = cast(Any, self)
+        fields = self.__dataclass_fields__
+        config = cast(Any, self)
+        if "constraint_mode" in fields:
             object.__setattr__(self, "constraint_mode", normalize_constraint_mode(config.constraint_mode))
+        for name in OPERATOR_PAIR_FIELDS:
+            if name in fields:
+                object.__setattr__(self, name, operator_pair(getattr(config, name)))
+        validate_config_fields(config, fields)
 
     def to_dict(self) -> dict[str, object]:
         payload = cast(dict[str, object], asdict(cast(Any, self)))
@@ -292,12 +298,18 @@ class _SerializableConfig:
 
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> Self:
-        """Reconstruct a config from a serialised dict (inverse of ``to_dict()``)."""
-        field_names = {f.name for f in dataclasses.fields(cls)}  # type: ignore[arg-type]
+        """Reconstruct a config from a serialised dict (inverse of ``to_dict()``).
+
+        Unknown keys raise ``ConfigurationError``; ``[name, params]`` lists, as JSON
+        returns operator pairs, become tuples.
+        """
+        field_names = tuple(f.name for f in dataclasses.fields(cls))  # type: ignore[arg-type]
+        unknown = [key for key in data if key not in field_names]
+        if unknown:
+            hints = "".join(did_you_mean(key, field_names) for key in unknown)
+            raise ConfigurationError(f"Unknown {cls.__name__} field(s): {', '.join(map(repr, unknown))}.{hints}")
         filtered: dict[str, object] = {}
         for key, value in data.items():
-            if key not in field_names:
-                continue
             # Reconstruct nested ExternalArchiveConfig from plain dict
             if key == "external_archive" and isinstance(value, dict):
                 value = ExternalArchiveConfig(**value)
