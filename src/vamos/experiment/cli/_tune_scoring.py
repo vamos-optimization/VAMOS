@@ -48,6 +48,9 @@ def _population_front_for_scoring(result: Any) -> NDArray[np.float64]:
     if not isinstance(payload, dict):
         raise RuntimeError("Tuning evaluator requires OptimizationResult.data with a final population payload.")
     population = payload.get("population")
+    if payload.get("_tuning_score_source") == "result":
+        # SMPSO is scored on its leaders archive, the result of its non_dominated mode, not its swarm.
+        population = {"F": payload.get("F"), "G": payload.get("G")}
     if not isinstance(population, Mapping):
         raise RuntimeError("Tuning evaluator requires result.data['population'] for source-consistent scoring.")
     raw_f = population.get("F")
@@ -72,9 +75,7 @@ def _population_front_for_scoring(result: Any) -> NDArray[np.float64]:
                 raise RuntimeError("Constrained tuning requires population-aligned constraint values G.")
             top_f = np.asarray(raw_top_f, dtype=float)
             if top_f.shape != F.shape or not np.array_equal(top_f, F, equal_nan=True):
-                raise RuntimeError(
-                    "Constrained tuning requires top-level F to align with population F when population G is unavailable."
-                )
+                raise RuntimeError("Constrained tuning requires top-level F to align with population F when population G is unavailable.")
             raw_g = payload.get("G")
             constraint_source = "top-level"
             if raw_g is None:

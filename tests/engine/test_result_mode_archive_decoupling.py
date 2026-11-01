@@ -333,3 +333,15 @@ def test_population_result_mode_exposes_aligned_constraints_for_ibea_and_spea2(a
     assert result["G"].shape[0] == result["F"].shape[0]
     assert result["G"].shape[0] == result["population"]["F"].shape[0]
     np.testing.assert_allclose(result["F"], result["population"]["F"])
+
+
+def test_optimize_smpso_returns_the_leaders_archive() -> None:
+    from vamos import optimize
+
+    result = optimize("zdt1", algorithm="smpso", max_evaluations=10000, seed=1)
+
+    F = np.asarray(result.F)
+    dominated = [i for i in range(len(F)) if any(np.all(F[j] <= F[i]) and np.any(F[j] < F[i]) for j in range(len(F)) if j != i)]
+    assert dominated == []
+    leaders = np.asarray(result.data["archive"]["F"])
+    assert np.array_equal(F[np.lexsort(F.T)], leaders[np.lexsort(leaders.T)])
