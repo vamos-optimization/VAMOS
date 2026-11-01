@@ -116,3 +116,14 @@ def test_compiled_variation_runs_only_for_the_numba_engine(monkeypatch: pytest.M
     vamos.optimize("zdt1", algorithm="nsgaii", engine="numba", seed=1, pop_size=20, max_evaluations=100)
     assert calls["sbx"] > 0
     assert calls["pm"] > 0
+
+
+@pytest.mark.parametrize("problem,kwargs", PROBLEMS, ids=[name for name, _ in PROBLEMS])
+@pytest.mark.parametrize("algorithm", ALGORITHMS)
+def test_numpy_and_moocore_engines_follow_the_same_trajectory(algorithm: str, problem: str, kwargs: dict[str, int]) -> None:
+    pytest.importorskip("moocore")
+    X_np, F_np = _final_arrays(problem, algorithm, "numpy", kwargs)
+    X_mc, F_mc = _final_arrays(problem, algorithm, "moocore", kwargs)
+
+    np.testing.assert_array_equal(X_mc, X_np)
+    np.testing.assert_array_equal(F_mc, F_np)

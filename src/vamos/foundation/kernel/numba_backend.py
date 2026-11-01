@@ -4,7 +4,6 @@ from collections.abc import Iterable, Mapping
 from typing import Any, Literal, overload
 
 import numpy as np
-from numpy.typing import NDArray
 
 from ._numba_moead_steady_state import numba_moead_steady_state_kernels
 from ._numba_ranking import compute_crowding_numba, fast_non_dominated_sort_ranks, nsga2_survival_split
@@ -26,15 +25,7 @@ from .backend import (
 from .moead_kernels import MOEADSteadyStateKernels
 from .numba_ops import tournament_winners_numba
 from .numpy_backend import NumPyKernel as _NumPyKernel
-from .numpy_backend import _as_float, _sample_tournament_candidates, _sbx_crossover_flat
-
-
-def _as_numeric_keys(values: NumericArray) -> NDArray[np.int64] | NDArray[np.float64]:
-    """Pass integer and floating sort keys to the kernel without changing their values."""
-    arr = np.asarray(values)
-    if arr.dtype.kind in "iu":
-        return arr.astype(np.int64, copy=False)
-    return arr.astype(np.float64, copy=False)
+from .numpy_backend import _as_float, _as_numeric_keys, _sample_tournament_candidates, _sbx_crossover_flat
 
 
 def _nsga2_survivors(F: FloatArray, pop_size: int) -> IndexArray:
@@ -179,7 +170,7 @@ class NumbaKernel(KernelBackend):
         )
         tie_break_keys = rng.random(candidates.shape)
         return tournament_winners_numba(
-            np.asarray(ranks, dtype=np.int64),
+            _as_numeric_keys(ranks),
             np.asarray(crowding, dtype=np.float64),
             np.asarray(candidates, dtype=np.int64),
             np.asarray(tie_break_keys, dtype=np.float64),
