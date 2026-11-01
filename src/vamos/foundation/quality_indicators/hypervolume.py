@@ -1,15 +1,30 @@
+"""Exact hypervolume for minimization fronts, with MooCore or libhv when installed.
+
+Every path follows one contract. Points and the reference point must be finite
+(``ValueError`` otherwise), the reference point is required, and points that do
+not lie inside the reference box (``point <= reference`` in every objective)
+are ignored: they add no volume and their contribution is 0, as in MooCore.
+Contributions follow MooCore's ``ignore_dominated`` semantics: a dominated or
+duplicated point contributes 0, and the others are measured against the
+non-dominated points only.
+"""
+
 from __future__ import annotations
 
+import warnings
 from collections.abc import Sequence
 
 import numpy as np
+from numpy.typing import ArrayLike, NDArray
+
+FloatArray = NDArray[np.float64]
 
 
-def _is_finite_array(arr: np.ndarray) -> bool:
+def _is_finite_array(arr: FloatArray) -> bool:
     return bool(np.isfinite(arr).all())
 
 
-def compute_hypervolume(F: np.ndarray, ref_point: Sequence[float]) -> float:
+def compute_hypervolume(F: ArrayLike, ref_point: Sequence[float]) -> float:
     """Compute (exact) hypervolume for 2D minimization fronts.
 
     Parameters
@@ -21,21 +36,21 @@ def compute_hypervolume(F: np.ndarray, ref_point: Sequence[float]) -> float:
 
     Notes
     - This implementation supports 2-objective minimization problems only.
-    - For higher-dimensional hypervolume, use a dedicated backend (e.g., Moocore)
-      via the `vamos.foundation.quality_indicators.moocore_indicators` helpers.
+    - Points outside the reference box are ignored, as in :func:`hypervolume`.
+    - For higher-dimensional hypervolume, use :func:`hypervolume`.
     """
-    F = np.asarray(F)
+    points = np.asarray(F, dtype=float)
     ref = np.asarray(ref_point, dtype=float)
 
-    if F.ndim != 2 or F.shape[1] != 2:
+    if points.ndim != 2 or points.shape[1] != 2:
         raise ValueError("compute_hypervolume currently supports 2D fronts only")
 
-    if not _is_finite_array(F) or not np.isfinite(ref).all():
+    if not _is_finite_array(points) or not _is_finite_array(ref):
         raise ValueError("F and ref_point must contain finite numbers")
 
     # Filter points inside the reference box (dominated by ref in ALL objectives)
-    mask = np.all(F <= ref, axis=1)
-    pts = F[mask]
+    mask = np.all(points <= ref, axis=1)
+    pts = points[mask]
 
     if pts.size == 0:
         return 0.0
@@ -112,53 +127,74 @@ def _load_optional_backends() -> None:
     _LIBHV_CLASS = hv_cls
 
 
-def hypervolume(points: np.ndarray, reference_point: np.ndarray, *, allow_ref_expand: bool = False) -> float:
-    points = np.asarray(points, dtype=float)
-    if points.ndim != 2:
-        raise ValueError("points must be a 2D array.")
-    if points.shape[0] == 0:
-        ref = np.asarray(reference_point, dtype=float)
-        if ref.ndim != 1 or not np.isfinite(ref).all():
-            raise ValueError("reference_point must be a finite 1D array.")
-        return 0.0
+def hypervolume(points: ArrayLike, reference_point: ArrayLike, *, allow_ref_expand: bool = False) -> float:
+    """Exact hypervolume of ``points`` (minimization) bounded by ``reference_point``.
 
-    ref = _validate_reference_point(points, reference_point, allow_ref_expand=allow_ref_expand)
+    Points outside the reference box are ignored. ``allow_ref_expand`` is accepted
+    for compatibility only: it is ignored with a ``FutureWarning`` and will be removed
+    in VAMOS 2.0.
+    """
+    data = _validated_points(points)
+    ref = _validate_reference_point(data, reference_point, allow_ref_expand=allow_ref_expand)
+    inside = data[_inside_mask(data, ref)]
+    if inside.shape[0] == 0:
+        return 0.0
     _load_optional_backends()
     if _MOOCORE is not None:
-        data = np.ascontiguousarray(points, dtype=np.float64)
-        return float(_MOOCORE.hypervolume(data, ref))
+        return float(_MOOCORE.hypervolume(np.ascontiguousarray(inside, dtype=np.float64), ref))
     if _LIBHV_MODULE is not None:
-        return float(_hypervolume_with_libhv(points, ref))
-    return _hypervolume_impl(points, ref)
+        return float(_hypervolume_with_libhv(inside, ref))
+    return _hypervolume_impl(inside, ref)
 
 
 def hypervolume_contributions(
-    points: np.ndarray,
-    reference_point: np.ndarray,
+    points: ArrayLike,
+    reference_point: ArrayLike,
     *,
     allow_ref_expand: bool = False,
-) -> np.ndarray:
-    points = np.asarray(points, dtype=float)
-    if points.ndim != 2:
-        raise ValueError("points must be a 2D array.")
-    if points.shape[0] == 0:
-        ref = np.asarray(reference_point, dtype=float)
-        if ref.ndim != 1 or not np.isfinite(ref).all():
-            raise ValueError("reference_point must be a finite 1D array.")
-        return np.zeros(points.shape[0], dtype=float)
+) -> FloatArray:
+    """Exclusive hypervolume of each point, with MooCore's ``ignore_dominated`` semantics.
 
-    ref = _validate_reference_point(points, reference_point, allow_ref_expand=allow_ref_expand)
+    A point outside the reference box, a dominated point and a duplicated point
+    contribute 0; the other contributions are measured against the non-dominated
+    points inside the box. ``allow_ref_expand`` is ignored with a ``FutureWarning``.
+    """
+    data = _validated_points(points)
+    ref = _validate_reference_point(data, reference_point, allow_ref_expand=allow_ref_expand)
+    contributions = np.zeros(data.shape[0], dtype=float)
+    mask = _inside_mask(data, ref)
+    if not mask.any():
+        return contributions
+    inside = data if mask.all() else data[mask]
     _load_optional_backends()
     if _MOOCORE is not None:
-        data = np.ascontiguousarray(points, dtype=np.float64)
-        return np.asarray(_MOOCORE.hv_contributions(data, ref), dtype=float)
-    if points.shape[1] == 2:
-        return _hypervolume_contributions_2d(points, ref)
+        values = np.asarray(_MOOCORE.hv_contributions(np.ascontiguousarray(inside, dtype=np.float64), ref), dtype=float)
+    elif inside.shape[1] == 2:
+        values = _hypervolume_contributions_2d(inside, ref)
+    else:
+        values = _hypervolume_contributions_generic(inside, ref)
+    if mask.all():
+        return values
+    contributions[mask] = values
+    return contributions
 
-    return _hypervolume_contributions_generic(points, ref)
+
+def _validated_points(points: ArrayLike) -> FloatArray:
+    data = np.asarray(points, dtype=float)
+    if data.ndim != 2:
+        raise ValueError("points must be a 2D array.")
+    if not _is_finite_array(data):
+        raise ValueError("points must contain finite numbers.")
+    return data
 
 
-def _hypervolume_with_libhv(points: np.ndarray, ref: np.ndarray) -> float:
+def _inside_mask(points: FloatArray, ref: FloatArray) -> NDArray[np.bool_]:
+    if points.shape[0] == 0:
+        return np.zeros(0, dtype=bool)
+    return np.asarray(np.all(points <= ref, axis=1), dtype=bool)
+
+
+def _hypervolume_with_libhv(points: FloatArray, ref: FloatArray) -> float:
     data = np.ascontiguousarray(points, dtype=np.float64)
     ref_arr = np.asarray(ref, dtype=np.float64)
     if _LIBHV_HV_FN is not None:
@@ -173,7 +209,7 @@ def _hypervolume_with_libhv(points: np.ndarray, ref: np.ndarray) -> float:
     return float(compute(data))
 
 
-def _hypervolume_impl(points: np.ndarray, reference_point: np.ndarray) -> float:
+def _hypervolume_impl(points: FloatArray, reference_point: ArrayLike) -> float:
     if points.shape[0] == 0:
         return 0.0
     ref = np.asarray(reference_point, dtype=float)
@@ -189,29 +225,29 @@ def _hypervolume_impl(points: np.ndarray, reference_point: np.ndarray) -> float:
 
 
 def _validate_reference_point(
-    points: np.ndarray,
-    reference_point: np.ndarray,
+    points: FloatArray,
+    reference_point: ArrayLike,
     *,
     allow_ref_expand: bool = False,
-) -> np.ndarray:
+) -> FloatArray:
+    if allow_ref_expand:
+        warnings.warn(
+            "allow_ref_expand is ignored: points outside the reference box are left out of the hypervolume. "
+            "The argument will be removed in VAMOS 2.0.",
+            FutureWarning,
+            stacklevel=3,
+        )
     ref = np.asarray(reference_point, dtype=float)
-    if not np.isfinite(points).all():
-        raise ValueError("points must contain finite numbers.")
-    if not np.isfinite(ref).all():
-        raise ValueError("reference_point must contain finite numbers.")
     if ref.ndim != 1:
         raise ValueError("reference_point must be a 1D array.")
-    if ref.shape[0] != points.shape[1]:
+    if not _is_finite_array(ref):
+        raise ValueError("reference_point must contain finite numbers.")
+    if points.shape[0] and ref.shape[0] != points.shape[1]:
         raise ValueError("reference_point dimensionality mismatch.")
-    if np.any(points > ref):
-        if not allow_ref_expand:
-            raise ValueError("reference_point must dominate all points.")
-        # Expand reference point to dominate all points to avoid runtime errors.
-        ref = np.maximum(ref, points.max(axis=0) + 1e-9)
     return ref
 
 
-def _hypervolume_2d(points: np.ndarray, ref: np.ndarray) -> float:
+def _hypervolume_2d(points: FloatArray, ref: FloatArray) -> float:
     if points.shape[0] == 0:
         return 0.0
     order = np.argsort(points[:, 0], kind="mergesort")
@@ -222,7 +258,7 @@ def _hypervolume_2d(points: np.ndarray, ref: np.ndarray) -> float:
     return float(np.sum(widths * heights))
 
 
-def _hypervolume_3d(points: np.ndarray, ref: np.ndarray) -> float:
+def _hypervolume_3d(points: FloatArray, ref: FloatArray) -> float:
     order = np.argsort(points[:, 2])
     sorted_points = points[order]
     hv = 0.0
@@ -236,10 +272,10 @@ def _hypervolume_3d(points: np.ndarray, ref: np.ndarray) -> float:
         slab = _hypervolume_2d(slice_points, ref[:2])
         hv += slab * height
         prev_f3 = f3
-    return hv
+    return float(hv)
 
 
-def _hypervolume_recursive(points: np.ndarray, ref: np.ndarray) -> float:
+def _hypervolume_recursive(points: FloatArray, ref: FloatArray) -> float:
     """
     Recursive slicing algorithm that works for >= 4 objectives.
     """
@@ -248,7 +284,7 @@ def _hypervolume_recursive(points: np.ndarray, ref: np.ndarray) -> float:
     n_obj = points.shape[1]
     if n_obj == 1:
         widths = np.maximum(ref[0] - points[:, 0], 0.0)
-        return np.max(widths) if widths.size else 0.0
+        return float(np.max(widths)) if widths.size else 0.0
 
     order = np.argsort(points[:, n_obj - 1])
     sorted_points = points[order]
@@ -263,14 +299,15 @@ def _hypervolume_recursive(points: np.ndarray, ref: np.ndarray) -> float:
             hv += _hypervolume_recursive(reduced, ref[: n_obj - 1]) * height
             bound = current
         sorted_points = sorted_points[:-1]
-    return hv
+    return float(hv)
 
 
-def _hypervolume_contributions_2d(points: np.ndarray, ref: np.ndarray) -> np.ndarray:
+def _hypervolume_contributions_2d(points: FloatArray, ref: FloatArray) -> FloatArray:
     if points.shape[0] == 0:
         return np.empty(0, dtype=float)
 
     unique_points, inverse, counts = np.unique(points, axis=0, return_inverse=True, return_counts=True)
+    inverse = np.asarray(inverse).reshape(-1)
     unique_contribs = np.zeros(unique_points.shape[0], dtype=float)
 
     if unique_points.shape[0]:
@@ -294,11 +331,18 @@ def _hypervolume_contributions_2d(points: np.ndarray, ref: np.ndarray) -> np.nda
     return contributions
 
 
-def _hypervolume_contributions_generic(points: np.ndarray, ref: np.ndarray) -> np.ndarray:
-    contributions = np.empty(points.shape[0], dtype=float)
-    hv_full = _hypervolume_impl(points, ref)
-    for i in range(points.shape[0]):
-        without_i = np.delete(points, i, axis=0)
-        hv_without = _hypervolume_impl(without_i, ref)
-        contributions[i] = hv_full - hv_without
+def _hypervolume_contributions_generic(points: FloatArray, ref: FloatArray) -> FloatArray:
+    """Contributions for three or more objectives without MooCore, with MooCore's semantics.
+
+    Dominated points contribute 0 and do not shrink the others' exclusive volume;
+    duplicates contribute 0 because each covers the other. Rounding noise is clipped at 0.
+    """
+    from .pareto import pareto_filter
+
+    contributions = np.zeros(points.shape[0], dtype=float)
+    front, front_idx = pareto_filter(points, return_indices=True)
+    hv_full = _hypervolume_impl(front, ref)
+    for position, index in enumerate(front_idx):
+        hv_without = _hypervolume_impl(np.delete(front, position, axis=0), ref)
+        contributions[index] = max(hv_full - hv_without, 0.0)
     return contributions

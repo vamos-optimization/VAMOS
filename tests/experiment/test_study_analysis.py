@@ -236,3 +236,24 @@ def test_derive_summary_rows_scores_a_stored_empty_result_as_infeasible(
     assert len(other) == 1
     assert other[0]["hv"] > 0.0
     assert math.isfinite(other[0]["indicator_igd_plus"])
+
+
+_ALIAS_FRONT = np.array([[1.0, 2.5], [2.0, 1.5], [3.0, 1.2]])
+_ALIAS_REFERENCE_FRONT = np.array([[1.0, 2.0], [1.5, 1.5], [2.0, 1.0]])
+_ALIAS_REFERENCE_POINT = np.array([4.0, 3.0])
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["eps", "epsilon", "EPSILON_ADDITIVE", "eps_mult", "epsilon_mult", "hausdorff", "IGD", "igd+", "hv_approx", "hypervolume"],
+)
+def test_indicator_aliases_receive_reference_front(name: str) -> None:
+    value = study_analysis._row_indicator(name, _ALIAS_FRONT, _ALIAS_REFERENCE_FRONT, _ALIAS_REFERENCE_POINT)
+    assert value is not None
+    assert math.isfinite(float(np.asarray(value)))
+
+
+def test_hv_contribution_columns_use_the_problem_reference_point() -> None:
+    value = study_analysis._row_indicator("hv_contributions", _ALIAS_FRONT, _ALIAS_REFERENCE_FRONT, _ALIAS_REFERENCE_POINT)
+    assert value is not None
+    assert np.asarray(value) == pytest.approx([0.5, 1.0, 0.3])
