@@ -141,6 +141,12 @@ vamos studio --address 0.0.0.0 --allow-remote-binding --no-browser --allow-webso
 - **Explore Results** loads a study, overlays the fronts of each problem,
   filters them, ranks solutions with MCDM methods, exports the ranking as CSV,
   and opens a run in Run Experiment to run it again.
+  **Development after 1.1.0:** **Feasible solutions only** is on by default,
+  the ranking and its CSV mark each solution as feasible or not, and a front
+  that merges several seeds keeps only the solutions no other seed dominates,
+  among the feasible ones, with each row's decision variables. VAMOS 1.1.0
+  merged every row of every seed, ranked infeasible solutions too, and could
+  pair a point with another solution's variables.
 
 The **Environment** panel at the bottom of the sidebar lists the VAMOS and
 Python versions, the installed kernel backends, and which optional extras are
