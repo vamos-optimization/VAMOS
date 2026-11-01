@@ -334,3 +334,42 @@ def test_cli_parser_contains_no_study_transition_logic() -> None:
     assert "experiment.study.loading" not in source
     assert "current_state" not in source
     assert "transition" not in source
+
+
+def test_study_summarize_human_output_lists_tasks(tmp_path: Path) -> None:
+    config = tmp_path / "study.json"
+    root = tmp_path / "study"
+    _write_spec(config, seeds=[0, 1])
+    assert _run("create", str(config), "--output", str(root), "--json").returncode == 0
+    assert _run("run", str(root), "--json").returncode == 0
+
+    human = _run("summarize", str(root))
+
+    assert human.returncode == 0, human.stderr
+    assert "Tasks:" in human.stdout
+    assert sum(" succeeded " in line for line in human.stdout.splitlines()) == 2
+    assert "Next: vamos study inspect STUDY_DIR" in human.stdout
+
+
+def test_every_study_operation_prints_human_output(tmp_path: Path) -> None:
+    config = tmp_path / "study.json"
+    root = tmp_path / "study"
+    _write_spec(config)
+    commands = [
+        ("plan", ["plan", str(config)]),
+        ("create", ["create", str(config), "--output", str(root)]),
+        ("inspect", ["inspect", str(root)]),
+        ("run", ["run", str(root)]),
+        ("resume", ["resume", str(root)]),
+        ("summarize", ["summarize", str(root)]),
+    ]
+
+    for operation, argv in commands:
+        proc = _run(*argv)
+        assert proc.returncode == 0, (operation, proc.stdout, proc.stderr)
+        assert f"Study {operation}:" in proc.stdout, (operation, proc.stdout)
+        assert "Traceback" not in proc.stdout + proc.stderr
+    # A completed study has no failed task to retry: a refusal, reported without a traceback.
+    retry = _run("retry", str(root), "--failed")
+    assert retry.returncode == 4
+    assert "Error [study_retry_not_allowed]" in retry.stderr and "Traceback" not in retry.stderr

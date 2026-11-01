@@ -722,3 +722,58 @@ class TestMakeProblemEncodingValidation:
         """make_problem must require the encoding keyword argument."""
         with pytest.raises(TypeError, match="encoding"):
             make_problem(lambda x: [x[0]], n_var=1, n_obj=1)  # type: ignore[call-arg]
+
+
+class _ProtocolProblemWithUndeclaredG:
+    """A pymoo-style problem: it names its constraints n_ieq_constr, which VAMOS does not read."""
+
+    n_var = 2
+    n_obj = 2
+    n_ieq_constr = 1
+    xl = np.zeros(2)
+    xu = np.ones(2)
+    encoding = "real"
+
+    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+        out["F"] = X.copy()
+        out["G"] = X[:, :1] - 0.5
+
+
+class _ConstraintsWithoutDeclaration(Problem):
+    def __init__(self) -> None:
+        self.n_var = 2
+        self.n_obj = 2
+        self.xl = np.zeros(2)
+        self.xu = np.ones(2)
+
+    def objectives(self, X: np.ndarray) -> np.ndarray:
+        return X.copy()
+
+    def constraints(self, X: np.ndarray) -> np.ndarray:
+        return X[:, :1] - 0.5
+
+
+def test_undeclared_constraint_output_raises() -> None:
+    from vamos.foundation.eval.population import evaluate_population_with_constraints
+    from vamos.foundation.exceptions import EvaluationError
+
+    X = np.full((3, 2), 0.25)
+    with pytest.raises(EvaluationError, match=r"n_constraints.*n_ieq_constr"):
+        evaluate_population_with_constraints(_ProtocolProblemWithUndeclaredG(), X)
+    with pytest.raises(EvaluationError, match="n_constraints"):
+        evaluate_population_with_constraints(_ConstraintsWithoutDeclaration(), X)
+
+
+def test_non_finite_output_message_names_the_possible_causes() -> None:
+    from vamos.foundation.eval.population import evaluate_population_with_constraints
+    from vamos.foundation.exceptions import EvaluationError
+
+    class NaNProblem(_ConstraintsWithoutDeclaration):
+        def constraints(self, X: np.ndarray) -> None:
+            return None
+
+        def objectives(self, X: np.ndarray) -> np.ndarray:
+            return np.full_like(X, np.nan)
+
+    with pytest.raises(EvaluationError, match=r"finite.*penalty.*operator"):
+        evaluate_population_with_constraints(NaNProblem(), np.full((2, 2), 0.5))

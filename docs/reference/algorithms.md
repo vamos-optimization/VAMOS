@@ -182,7 +182,7 @@ For algorithms with a supported external result archive, enabling it makes that 
 
 NSGA-III and RVEA require a population compatible with the configured reference directions. MOEA/D requires one weight vector per population member. For a simplex lattice with `p` divisions and `m` objectives, use `comb(p + m - 1, m - 1)`; for three objectives and 12 divisions, that is **91**. Explicit incompatible cardinalities fail; they are not warning-only cases. Follow the tutorials before changing objective count or population size.
 
-**Development after 1.1.0:** NSGA-III needs at least one individual per reference direction (N >= H) instead of exactly one, as Deb and Jain, jMetal and pymoo do; 100 individuals with 12 divisions and three objectives run with 91 directions, and fewer than 91 fail. Without `divisions`, NSGA-III uses the complete Das-Dennis lattice with the most directions that fit in `pop_size`; VAMOS 1.1.0 and earlier cut the next larger lattice to `pop_size` directions and lost the extreme direction of the first objective. With two objectives, NSGA-III and RVEA default to `pop_size - 1` divisions, or 99 without `pop_size`, instead of 6. RVEA and MOEA/D still need exactly one individual per vector.
+**Development after 1.1.0:** NSGA-III needs at least one individual per reference direction (N >= H) instead of exactly one, as Deb and Jain, jMetal and pymoo do; 100 individuals with 12 divisions and three objectives run with 91 directions, and fewer than 91 fail. Without `divisions`, NSGA-III uses the complete Das-Dennis lattice with the most directions that fit in `pop_size`; VAMOS 1.1.0 and earlier cut the next larger lattice to `pop_size` directions and lost the extreme direction of the first objective. With two objectives, NSGA-III and RVEA default to `pop_size - 1` divisions, or 99 without `pop_size`, instead of 6. RVEA and MOEA/D still need exactly one individual per vector; RVEA then keeps one survivor per occupied vector, so its population can end smaller than `pop_size` (see [RVEA](../algorithms/rvea.md)).
 
 **Development after 1.1.0:** with `pop_size`, `NSGAIIIConfig.default()` uses the complete lattice with the most directions that fit in it, for any number of objectives (four divisions, 70 directions, for 100 individuals and five objectives, which used to fail with six divisions and 210 directions); `RVEAConfig.default()` uses the lattice of exactly `pop_size` vectors and otherwise fails at once naming the nearest valid sizes, such as 91 or 105 for three objectives. Without `pop_size`, both still use 12 divisions for three objectives and 6 for four or more.
 
@@ -213,6 +213,18 @@ These are implementation fixes under the existing stability policy. Record the p
 | `numpy` | Stable | Exact reference backend and deterministic default. |
 | `numba` | Optional backend | JIT implementations of supported kernels; includes compilation cost on first use. |
 | `moocore` | Optional backend | Native non-dominated sorting/hypervolume operations where available; not every algorithm step is accelerated. |
+
+**Development after 1.1.0:** the three backends follow the same trajectory for
+every built-in algorithm with the same seed. The tests compare NumPy with Numba
+and NumPy with MooCore.
+- **Tournaments:** with a tournament size above two, the tournament keeps the
+  best rank when crowding distances are NaN or -inf, and uses fractional ranks
+  as given. VAMOS 1.1.0 could let a worse rank win in NumPy and truncated ranks
+  to integers in both NumPy and Numba.
+- **MooCore survival:** it returns arrays the caller owns; it returned views of
+  buffers that the next survival overwrote. The undocumented
+  `VAMOS_MOOCORE_HV_CONTRIB` variable, which switched it to
+  hypervolume-contribution truncation, is removed.
 
 ### Automatic engine selection
 

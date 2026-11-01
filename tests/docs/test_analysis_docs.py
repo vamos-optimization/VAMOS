@@ -11,8 +11,8 @@ def test_analysis_docs_match_public_contract() -> None:
 
     assert "Experimental surface in VAMOS 1.1.0" in text
     assert "(n_problems, n_algorithms)" in text
-    assert "raw Wilcoxon p-values" in text
-    assert "does not apply\nHolm" in text
+    assert "raw Wilcoxon p-value" in text
+    assert "`p_adjusted`, Holm's step-down adjustment" in text
     assert "MCDMResult" in text
     assert "knee_point_scores(F)" in text
 

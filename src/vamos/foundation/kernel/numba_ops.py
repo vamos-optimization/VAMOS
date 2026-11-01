@@ -17,7 +17,7 @@ def njit(*args: Any, **kwargs: Any) -> Callable[[_F], _F]:
 
 @njit(cache=True)
 def tournament_winners_numba(
-    ranks: NDArray[np.int64],
+    ranks: NDArray[np.int64] | NDArray[np.float64],
     crowding: NDArray[np.float64],
     candidates: NDArray[np.int64],
     tie_break: NDArray[np.float64],
