@@ -209,6 +209,12 @@ Early stop when hypervolume reaches a target fraction:
 vamos --problem zdt1 --algorithm nsgaii --max-evaluations 15000 --hv-threshold 0.9
 ```
 
+**Development after 1.1.0:** the target is a fraction of the reference front's
+hypervolume measured against the front's nadir plus 10% of its range in each
+objective (1.1 after normalization, as in pymoo and jMetal). VAMOS 1.1.0 and
+earlier added at least 5 to every objective, so a target of 0.5 was met by a
+random ZDT1 population; thresholds from those versions are not comparable.
+
 Include Experimental third-party baselines (ZDT1 example; requires the
 [`research` extra](installation.md#optional-extras)):
 

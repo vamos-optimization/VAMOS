@@ -7,6 +7,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vamos.foundation.core.experiment_config import HV_REFERENCE_OFFSET
 from vamos.foundation.problem.resolver import resolve_reference_front_path
@@ -30,11 +31,7 @@ def build_hv_stop_config(
     reference_front = np.loadtxt(front_path, delimiter=",")
     if reference_front.ndim != 2 or reference_front.shape[1] < 2:
         raise ValueError(f"Reference front '{front_path}' must be a 2D array with at least two objectives.")
-    max_vals = reference_front.max(axis=0)
-    margin = np.maximum(0.1 * np.maximum(np.abs(max_vals), 1.0), 5.0)
-    if problem_key.lower() == "zdt6":
-        margin = np.maximum(margin, 10.0)
-    ref_point = max_vals + margin
+    ref_point = near_nadir_reference(reference_front)
     hv_full = hypervolume(reference_front, ref_point)
     if hv_full <= 0.0:
         raise ValueError(f"Reference front '{front_path}' produced a non-positive hypervolume; check the data.")
@@ -47,7 +44,19 @@ def build_hv_stop_config(
     }
 
 
-def compute_hv_reference(fronts: Iterable[np.ndarray]) -> np.ndarray:
+def near_nadir_reference(front: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Nadir of ``front`` plus 10 % of its range per objective, 1.1 after normalization as in pymoo and jMetal.
+
+    An objective without range (a single point, or a flat front) takes 10 % of its nadir's magnitude, at least 0.1.
+    """
+    F = np.asarray(front, dtype=float)
+    nadir = F.max(axis=0)
+    span = nadir - F.min(axis=0)
+    span = np.where(span > 0.0, span, np.maximum(np.abs(nadir), 1.0))
+    return np.asarray(nadir + 0.1 * span, dtype=float)
+
+
+def compute_hv_reference(fronts: Iterable[NDArray[np.float64]]) -> NDArray[np.float64]:
     """
     Build a hypervolume reference point that weakly dominates all supplied fronts.
     A small margin (HV_REFERENCE_OFFSET) is added to keep the reference outside
@@ -78,4 +87,4 @@ def compute_hv_reference(fronts: Iterable[np.ndarray]) -> np.ndarray:
     return np.asarray(max_vals + margin, dtype=float)
 
 
-__all__ = ["build_hv_stop_config", "compute_hv_reference"]
+__all__ = ["build_hv_stop_config", "compute_hv_reference", "near_nadir_reference"]

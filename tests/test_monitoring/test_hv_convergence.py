@@ -62,3 +62,29 @@ def test_hv_monitor_does_not_stop_while_improving():
     for i, v in enumerate(hv):
         dec = mon.add_sample(evals=100 * (i + 1), hv=v)
         assert not dec.stop
+
+
+def test_auto_reference_point_is_frozen_at_the_first_sample():
+    import numpy as np
+
+    from vamos.engine.archive import ExternalArchiveConfig
+    from vamos.engine.hooks import HookManager, HookManagerConfig
+
+    manager = HookManager(
+        HookManagerConfig(
+            stopping_enabled=True,
+            stop_cfg=HVConvergenceConfig(every_k=1, min_points=100),
+            archive_enabled=False,
+            archive_cfg=ExternalArchiveConfig(capacity=None),
+        )
+    )
+    first = np.array([[0.0, 4.0], [2.0, 2.0], [4.0, 0.0]])
+    # The second sample dominates the first but spans a smaller box, so a reference
+    # recomputed from it would shrink and report a lower hypervolume.
+    second = np.array([[0.0, 1.0], [0.5, 0.5], [1.0, 0.0]])
+    manager.on_checkpoint(evals=10, F=first)
+    manager.on_checkpoint(evals=20, F=second)
+
+    hv_first, hv_second = (entry["hv"] for entry in manager.metadata_payload()["stopping"]["trace"])
+    assert hv_second >= hv_first
+    assert manager.metadata_payload()["stopping"]["reference_point"] == [4.4, 4.4]

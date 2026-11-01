@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "0a0bb88f1c701c65c0c753b7d9d8e0cc72761f5f",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 0a0bb88f1c701c65c0c753b7d9d8e0cc72761f5f",
+  "generation_commit": "5e531458eb6348159be8c18fb5aa364b84bf20a6",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 5e531458eb6348159be8c18fb5aa364b84bf20a6",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.0",
@@ -26,16 +26,16 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 529,
-  "files_with_diagnostics": 73,
-  "fingerprint_count": 73,
+  "diagnostic_count": 528,
+  "files_with_diagnostics": 72,
+  "fingerprint_count": 72,
   "error_code_summary": {
-    "type-arg": 529
+    "type-arg": 528
   },
   "layer_summary": {
     "engine": 256,
     "experiment": 11,
-    "foundation": 226,
+    "foundation": 225,
     "package-root": 1,
     "ux": 35
   },
@@ -922,20 +922,6 @@
         {
           "line": 198,
           "column": 31
-        }
-      ]
-    },
-    {
-      "fingerprint": "54170F41026645E98AD3E4A4781D3369A01C7EA604FDBACDBBF4E5EBC039608E",
-      "path": "src/vamos/foundation/core/hv_stop.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "foundation",
-      "multiplicity": 1,
-      "locations": [
-        {
-          "line": 50,
-          "column": 43
         }
       ]
     },
