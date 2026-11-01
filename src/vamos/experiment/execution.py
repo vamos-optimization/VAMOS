@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from argparse import Namespace
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from typing import Any
 
 import numpy as np
@@ -87,7 +87,7 @@ def run_single(
     problem_override: SpecBlock | None = None,
     track_genealogy: bool = False,
     live_viz: LiveVisualization | None = None,
-    seed_chosen_by_vamos: bool = False,
+    cli_request: Mapping[str, Any] | None = None,
 ) -> Metrics:
     problem = problem or selection.instantiate()
 
@@ -127,7 +127,7 @@ def run_single(
         config_source=config_source,
         config_spec=config_spec,
         problem_override=problem_override,
-        seed_chosen_by_vamos=seed_chosen_by_vamos,
+        cli_request=cli_request,
         hv_stop_config=hv_stop_config,
         selection_pressure=selection_pressure,
         external_archive=external_archive,
@@ -401,7 +401,7 @@ def execute_problem_suite(
                     problem_override=problem_override,
                     track_genealogy=_track_genealogy,
                     live_viz=live_viz,
-                    seed_chosen_by_vamos=hasattr(args, "requested_seed") and args.requested_seed is None,
+                    cli_request=getattr(args, "cli_request", None),
                 )
             except Exception as exc:
                 # Backends experiment should be resilient to missing optional deps.

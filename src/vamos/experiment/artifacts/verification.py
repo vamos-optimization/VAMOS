@@ -33,7 +33,9 @@ def verify_run(
     bundle_status = _inspect_numerical_bundle(stored, active_limits)
     environment = compare_current_environment(stored.manifest, stored.environment)
     component_status, component_reasons = component_reconstructability(stored.manifest)
-    if component_status == "reconstructable":
+    # The reconstruction proof compares descriptors with the installed versions, so it only applies to an exact
+    # environment; drift is already reported, and graded, by the environment comparison.
+    if component_status == "reconstructable" and environment.level == "exact":
         component_status, component_reasons = _reconstruction_status(stored, component_reasons)
     reasons = (*component_reasons, *_effective_reasons(stored, environment.level, bundle_status))
     effective = _effective_level(stored, environment.level, component_status, bundle_status)

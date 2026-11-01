@@ -250,3 +250,37 @@ def test_cli_config_accepts_the_operator_list_form(tmp_path: Path, monkeypatch: 
 
     crossover = vamos.load_run(run).manifest.resolved_spec["operators"]["crossover"]["config"]
     assert crossover["prob"] == 0.8 and crossover["eta"] == 15
+
+
+def test_cli_requested_spec_keeps_dimensions_from_config_defaults(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    spec = {"defaults": {"algorithm": "nsgaii", "engine": "numpy", "population_size": 10, "max_evaluations": 20, "seed": 1, "n_var": 7}}
+    run = _cli_run(tmp_path, monkeypatch, spec, "--problem", "zdt1")
+
+    requested = vamos.load_run(run).manifest.requested_spec
+    assert requested["problems"]["zdt1"]["n_var"] == 7
+
+
+def test_verify_keeps_compatible_runs_compatible_after_environment_drift(tmp_path: Path) -> None:
+    from vamos.experiment.artifacts.identity import resolved_spec_task_id
+
+    source = _source(tmp_path)
+    # Pretend the run was saved with another NumPy release: the kernel descriptor and the recorded environment differ.
+    environment_path = source / "environment.json"
+    environment = json.loads(environment_path.read_text(encoding="utf-8"))
+    environment["packages"]["numpy"] = "1.0.0"
+    environment_path.write_bytes(stored_json_bytes(environment))
+    manifest_path = source / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["resolved_spec"]["backend"]["kernel"]["resolution"]["version"] = "1.0.0"
+    manifest["task_id"] = resolved_spec_task_id(manifest["resolved_spec"])
+    descriptor = next(item for item in manifest["artifacts"] if item["role"] == "environment")
+    descriptor["bytes"] = environment_path.stat().st_size
+    descriptor["sha256"] = sha256_file(environment_path)
+    manifest["integrity"]["manifest_sha256"] = manifest_self_hash(manifest)
+    manifest_path.write_bytes(stored_json_bytes(manifest))
+
+    report = vamos.verify_run(source)
+
+    assert report.environment.level != "exact"
+    assert report.component_reconstructability == "reconstructable"
+    assert not any(reason.code == "component_not_reconstructable" for reason in report.reasons)

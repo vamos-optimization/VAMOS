@@ -40,7 +40,7 @@ class StorageObserver(Observer):
         config_source: str | None = None,
         config_spec: ExperimentSpec | None = None,
         problem_override: Mapping[str, Any] | None = None,
-        seed_chosen_by_vamos: bool = False,
+        cli_request: Mapping[str, Any] | None = None,
         hv_stop_config: Mapping[str, Any] | None = None,
         selection_pressure: int = 2,
         external_archive: ExternalArchiveConfig | None = None,
@@ -51,7 +51,7 @@ class StorageObserver(Observer):
         self.config_source = config_source
         self.config_spec = config_spec
         self.problem_override = problem_override
-        self.seed_chosen_by_vamos = seed_chosen_by_vamos
+        self.cli_request = cli_request
         self.hv_stop_config = hv_stop_config
         self.selection_pressure = selection_pressure
         self.external_archive = external_archive
@@ -131,16 +131,16 @@ class StorageObserver(Observer):
             "engine": "explicit",
             "algorithm_config": "explicit",
         }
-        # Only n_var and n_obj of a problems.<name> block build the problem; the rest configures the run.
-        override = self.problem_override or {}
-        problem_kwargs = {key: override[key] for key in ("n_var", "n_obj") if override.get(key) is not None}
+        # A CLI run records what was asked for: the seed (None when VAMOS chose it) and the dimensions from the
+        # problem block, the config defaults or the command line. Other problem-block keys configure the run.
+        request = self.cli_request or {}
         generated_requested, resolved = build_run_specs(
             RunSpecInputs(
                 problem_built_in=ctx.problem.__class__.__module__.startswith("vamos."),
                 problem_label=ctx.selection.spec.key,
-                problem_kwargs=problem_kwargs,
-                n_var_requested=None,
-                n_obj_requested=None,
+                problem_kwargs=None,
+                n_var_requested=request.get("n_var"),
+                n_obj_requested=request.get("n_obj"),
                 n_var=ctx.selection.n_var,
                 n_obj=ctx.selection.n_obj,
                 encoding=encoding,
@@ -155,7 +155,7 @@ class StorageObserver(Observer):
                 engine_requested=ctx.engine_name,
                 engine=ctx.engine_name,
                 eval_strategy=ctx.config.eval_strategy,
-                seed_requested=None if self.seed_chosen_by_vamos else ctx.config.seed,
+                seed_requested=request["seed"] if "seed" in request else ctx.config.seed,
                 seed=ctx.config.seed,
                 default_sources=defaults,
             )
