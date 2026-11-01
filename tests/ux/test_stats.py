@@ -198,3 +198,35 @@ def test_nemenyi_cd_needs_two_algorithms_and_a_problem() -> None:
     assert nemenyi_cd(1, 10) is None
     assert nemenyi_cd(3, 0) is None
     assert nemenyi_cd(3, 10) == pytest.approx(2.343 * math.sqrt(12 / 60))
+
+
+def test_pairwise_wilcoxon_reports_holm_adjusted_p_values() -> None:
+    rng = np.random.default_rng(3)
+    base = rng.normal(size=(12, 1))
+    scores = np.hstack([base, base + 0.3 + 0.05 * rng.normal(size=(12, 1)), base + 0.01 * rng.normal(size=(12, 1))])
+
+    strict = pairwise_wilcoxon(scores, ["a", "b", "c"], alpha=1e-9)
+    loose = pairwise_wilcoxon(scores, ["a", "b", "c"], alpha=0.05)
+
+    raw = np.array([item.p_value for item in loose])
+    order = np.argsort(raw)
+    expected = np.empty(3)
+    expected[order] = np.minimum(1.0, np.maximum.accumulate((3 - np.arange(3)) * raw[order]))
+    np.testing.assert_allclose([item.p_adjusted for item in loose], expected)
+    assert [item.p_value for item in strict] == list(raw)
+    assert [item.significant for item in loose] == [bool(p <= 0.05) for p in expected]
+    assert not any(item.significant for item in strict)
+    assert any(item.significant for item in loose)
+
+
+@pytest.mark.parametrize(
+    ("scores", "message"),
+    [
+        (np.array([[1.0, 2.0], [2.0, 3.0], [3.0, 1.0]]), "at least 3 algorithms"),
+        (np.array([[1.0, 2.0, 3.0]]), "at least 2 problems"),
+        (np.array([[1.0, 2.0, 3.0], [2.0, np.nan, 1.0], [3.0, 1.0, 2.0]]), "NaN"),
+    ],
+)
+def test_friedman_test_validates_shape_and_nan(scores: np.ndarray, message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        friedman_test(scores)
