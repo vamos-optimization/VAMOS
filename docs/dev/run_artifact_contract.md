@@ -99,6 +99,14 @@ termination, provenance, or seed from array shapes.
 omitted. A requested seed may be `null` when the user explicitly asks VAMOS to
 choose one.
 
+**Development after 1.1.0:** for a CLI run, `requested_spec` is the effective
+request for that run, with the command-line overrides and the problem's
+`problems.<name>` block applied; the config file it came from is kept under
+`config_file` as provenance. The problem configuration holds only what built
+the problem (`n_var`, `n_obj`). `results verify` proves the resolved spec with
+the reconstruction `reproduce` uses, without running the optimization, so it
+no longer reports `exact` for a run that `reproduce` rejects.
+
 `resolved_spec` has identity `vamos.resolved-run-spec/1` and records the actual
 execution state:
 

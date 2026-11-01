@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
+from typing import Any
+
 from vamos.engine.algorithm.config.types import AlgorithmConfigProtocol
 from vamos.engine.algorithm.factory import build_algorithm
 from vamos.engine.archive import ExternalArchiveConfig
@@ -29,6 +32,7 @@ def run_single(
     problem_override: SpecBlock | None = None,
     track_genealogy: bool = False,
     live_viz: LiveVisualization | None = None,
+    cli_request: Mapping[str, Any] | None = None,
 ) -> dict[str, object]:
     problem = selection.instantiate()
     if track_genealogy and algorithm_name.lower() != "nsgaii":
@@ -74,4 +78,5 @@ def run_single(
         problem_override=problem_override,
         track_genealogy=track_genealogy,
         live_viz=live_viz,
+        cli_request=cli_request,
     )

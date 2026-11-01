@@ -40,6 +40,7 @@ class StorageObserver(Observer):
         config_source: str | None = None,
         config_spec: ExperimentSpec | None = None,
         problem_override: Mapping[str, Any] | None = None,
+        cli_request: Mapping[str, Any] | None = None,
         hv_stop_config: Mapping[str, Any] | None = None,
         selection_pressure: int = 2,
         external_archive: ExternalArchiveConfig | None = None,
@@ -50,6 +51,7 @@ class StorageObserver(Observer):
         self.config_source = config_source
         self.config_spec = config_spec
         self.problem_override = problem_override
+        self.cli_request = cli_request
         self.hv_stop_config = hv_stop_config
         self.selection_pressure = selection_pressure
         self.external_archive = external_archive
@@ -129,13 +131,16 @@ class StorageObserver(Observer):
             "engine": "explicit",
             "algorithm_config": "explicit",
         }
+        # A CLI run records what was asked for: the seed (None when VAMOS chose it) and the dimensions from the
+        # problem block, the config defaults or the command line. Other problem-block keys configure the run.
+        request = self.cli_request or {}
         generated_requested, resolved = build_run_specs(
             RunSpecInputs(
                 problem_built_in=ctx.problem.__class__.__module__.startswith("vamos."),
                 problem_label=ctx.selection.spec.key,
-                problem_kwargs=self.problem_override,
-                n_var_requested=None,
-                n_obj_requested=None,
+                problem_kwargs=None,
+                n_var_requested=request.get("n_var"),
+                n_obj_requested=request.get("n_obj"),
                 n_var=ctx.selection.n_var,
                 n_obj=ctx.selection.n_obj,
                 encoding=encoding,
@@ -150,12 +155,16 @@ class StorageObserver(Observer):
                 engine_requested=ctx.engine_name,
                 engine=ctx.engine_name,
                 eval_strategy=ctx.config.eval_strategy,
-                seed_requested=ctx.config.seed,
+                seed_requested=request["seed"] if "seed" in request else ctx.config.seed,
                 seed=ctx.config.seed,
                 default_sources=defaults,
             )
         )
-        requested = dict(self.config_spec) if self.config_spec is not None else generated_requested
+        # The request is what the run effectively asked for, with CLI and problem-block overrides; the
+        # config file it came from is kept as provenance.
+        requested = dict(generated_requested)
+        if self.config_spec is not None:
+            requested["config_file"] = dict(self.config_spec)
         return requested, resolved
 
     def _metrics(self, final_stats: Mapping[str, Any]) -> dict[str, Any]:
