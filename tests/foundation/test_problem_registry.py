@@ -90,8 +90,14 @@ def test_fixed_dimension_problems_accept_their_own_dimensions(name: str) -> None
     assert (explicit.n_var, explicit.n_obj) == (default.n_var, default.n_obj)
 
 
+# Problems whose constructor needs an optional dependency that the dev and docs extras do not install.
+_OPTIONAL_DEPENDENCIES = {"fs_real": "sklearn", "ml_tuning": "sklearn"}
+
+
 @pytest.mark.parametrize("name", available_problem_names())
 def test_registry_default_dimensions_match_instances(name: str) -> None:
+    if name in _OPTIONAL_DEPENDENCIES:
+        pytest.importorskip(_OPTIONAL_DEPENDENCIES[name])
     selection = make_problem_selection(name)
     problem = selection.instantiate()
     assert (problem.n_var, problem.n_obj) == (selection.n_var, selection.n_obj)
