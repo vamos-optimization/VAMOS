@@ -352,3 +352,26 @@ def test_immigrants_without_objectives_wait_for_budget() -> None:
     result = NSGAII(cfg, NumPyKernel()).run(CountingZDT1(n_var=6), termination=("max_evaluations", 20), seed=3)
 
     assert CountingZDT1.rows == result["evaluations"] == 20
+
+
+def test_checkpoint_records_immigrant_evaluations(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from vamos.foundation.checkpoint import load_checkpoint
+    from vamos.foundation.problem.zdt1 import ZDT1Problem
+
+    cfg = {**_base_cfg(), "pop_size": 20, "offspring_size": 20}
+    cfg["immigration"] = {
+        "enabled": True,
+        "start_generation": 1,
+        "every": 1,
+        "max_in_pop": 1,
+        "max_insert_per_event": 1,
+        "static_candidates": [{"X": np.full(6, 0.5)}],
+    }
+
+    result = NSGAII(cfg, NumPyKernel()).run(
+        ZDT1Problem(n_var=6), termination=("max_evaluations", 41), seed=3, checkpoint_dir=str(tmp_path), checkpoint_interval=1
+    )
+
+    assert result["evaluations"] == 41
+    checkpoint = load_checkpoint(tmp_path / "nsgaii_seed3_gen1.ckpt", trusted=True)
+    assert checkpoint["n_eval"] == 41

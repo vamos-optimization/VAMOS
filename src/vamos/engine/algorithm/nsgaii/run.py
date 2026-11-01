@@ -267,7 +267,7 @@ def run_nsgaii(
                         hv_reached = True
 
                     if checkpoint_dir and generation % checkpoint_interval == 0:
-                        save_checkpoint(algo, checkpoint_dir, seed, generation, n_eval)
+                        save_checkpoint(algo, checkpoint_dir, seed, generation, st.n_eval)
             else:
                 generation += 1
                 st.generation = generation
@@ -284,7 +284,7 @@ def run_nsgaii(
                     hv_reached = True
 
                 if checkpoint_dir and generation % checkpoint_interval == 0:
-                    save_checkpoint(algo, checkpoint_dir, seed, generation, n_eval)
+                    save_checkpoint(algo, checkpoint_dir, seed, generation, st.n_eval)
     finally:
         if main_thread_signals and original_handler is not None:
             signal.signal(signal.SIGINT, original_handler)
