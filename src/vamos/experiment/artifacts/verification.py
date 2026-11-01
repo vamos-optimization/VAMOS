@@ -9,11 +9,12 @@ from typing import Literal, cast
 from .bundle import inspect_result_bundle
 from .compatibility import compare_current_environment
 from .component_support import component_reconstructability
-from .errors import EnvironmentIncompatibilityError, VerificationRequirementError
+from .errors import EnvironmentIncompatibilityError, ReplayUnavailableError, VerificationRequirementError
 from .models import LoadLimits, StoredRun
 from .paths import confined_artifact_path
 from .reader import read_run, verify_artifact
 from .reports import ReplayabilityLevel, VerificationReason, VerificationReport
+from .resolved_reconstruction import reconstruct_resolved_run
 
 RequiredLevel = Literal["exact", "compatible", "best_effort", "manual", "unavailable"]
 _LEVEL_RANK = {"unavailable": 0, "manual": 1, "best_effort": 2, "compatible": 3, "exact": 4}
@@ -32,6 +33,10 @@ def verify_run(
     bundle_status = _inspect_numerical_bundle(stored, active_limits)
     environment = compare_current_environment(stored.manifest, stored.environment)
     component_status, component_reasons = component_reconstructability(stored.manifest)
+    # The reconstruction proof compares descriptors with the installed versions, so it only applies to an exact
+    # environment; drift is already reported, and graded, by the environment comparison.
+    if component_status == "reconstructable" and environment.level == "exact":
+        component_status, component_reasons = _reconstruction_status(stored, component_reasons)
     reasons = (*component_reasons, *_effective_reasons(stored, environment.level, bundle_status))
     effective = _effective_level(stored, environment.level, component_status, bundle_status)
     report = VerificationReport(
@@ -50,6 +55,18 @@ def verify_run(
     )
     _enforce_requirement(report, require_level)
     return report
+
+
+def _reconstruction_status(
+    stored: StoredRun, reasons: tuple[VerificationReason, ...]
+) -> tuple[Literal["reconstructable", "unavailable"], tuple[VerificationReason, ...]]:
+    """Prove the resolved spec with the reconstruction ``reproduce`` uses, without running the optimization."""
+    try:
+        reconstruct_resolved_run(stored.manifest.resolved_spec, root=stored.root)
+    except ReplayUnavailableError as exc:
+        field = exc.field or "$.resolved_spec"
+        return "unavailable", (*reasons, _reason("component_not_reconstructable", field, str(exc)))
+    return "reconstructable", reasons
 
 
 def _verify_every_artifact(stored: StoredRun, limits: LoadLimits) -> None:
