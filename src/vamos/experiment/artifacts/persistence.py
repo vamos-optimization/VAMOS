@@ -23,6 +23,8 @@ from .provenance import capture_provenance, replayability_from_provenance
 from .reader import read_run
 from .storage import store_failed_run, store_succeeded_run
 
+_LOADED_RESULT_ENTRY_POINT = {"kind": "python_api", "python": {"callable": "vamos.save_result", "arguments_source": "loaded_result"}}
+
 
 class ResultLike(Protocol):
     F: NDArray[Any] | None
@@ -38,7 +40,11 @@ def save_result(
     labels: Mapping[str, str] | None = None,
     limits: LoadLimits | None = None,
 ) -> StoredRun:
-    """Persist a result as one immutable, relocatable v1 run directory."""
+    """Persist a result as one immutable, relocatable v1 run directory.
+
+    A result from ``load_result`` is saved as a manual copy: its arrays may have changed after
+    loading, so the new run carries the time and entry point of this save, not of the execution.
+    """
     active_limits = limits if limits is not None else LoadLimits()
     arrays = snapshot_result_arrays(result, limits=active_limits)
     meta = _result_meta_mapping(result)
@@ -47,9 +53,11 @@ def save_result(
         requested_spec=requested_spec,
         resolved_spec=resolved_spec,
     )
-    timestamps, runtime_ms = _timestamps(meta)
+    loaded_run_id = meta.get("run_artifact_loaded_run_id")
+    saved_again = isinstance(loaded_run_id, str) and not caller_supplied
+    timestamps, runtime_ms = _timestamps({} if saved_again else meta)
     backend = _kernel_name(resolved)
-    entry_point = meta.get("run_artifact_entry_point")
+    entry_point = _LOADED_RESULT_ENTRY_POINT if saved_again else meta.get("run_artifact_entry_point")
     provenance, environment = capture_provenance(
         backend=backend,
         timestamps=timestamps,
@@ -70,6 +78,12 @@ def save_result(
                 }
             ],
         }
+    if saved_again:
+        replayability = _manual_replayability(
+            deterministic,
+            "loaded_result_saved_again",
+            f"Saved again from loaded run {loaded_run_id}; its arrays may have changed after loading.",
+        )
     if caller_supplied:
         provenance["entry_point"] = {
             "kind": "python_api",
@@ -392,6 +406,15 @@ def _scalar(value: object) -> bool | int | float | str | None:
     return None
 
 
+def _manual_replayability(deterministic: bool, code: str, message: str) -> dict[str, Any]:
+    return {
+        "declared_level": "manual",
+        "deterministic": deterministic,
+        "exact_requirements": [],
+        "reasons": [{"code": code, "message": message}],
+    }
+
+
 def _find_unavailable_reason(value: object) -> str | None:
     if isinstance(value, Mapping):
         reason = value.get("unavailable_reason")
@@ -400,6 +423,8 @@ def _find_unavailable_reason(value: object) -> str | None:
         provider_type = value.get("type")
         if provider_type == "unavailable" and "distribution" in value:
             return "A required component provider is unavailable for automatic reconstruction."
+        if provider_type == "custom_python" and "distribution" in value:
+            return "Custom Python code is not reconstructed automatically; supply it manually for replay."
         for item in value.values():
             found = _find_unavailable_reason(item)
             if found is not None:

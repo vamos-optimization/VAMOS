@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from typing import overload
 
 from vamos.engine.algorithm.config.types import AlgorithmConfigProtocol, AlgorithmName, EngineName
-from vamos.experiment.artifacts.specs import RunSpecInputs, build_run_specs
+from vamos.experiment.artifacts.specs import RunSpecInputs, build_run_specs, custom_problem_code, is_registry_problem
 from vamos.experiment.auto import _compute_max_evaluations, _compute_pop_size, _resolve_problem, _select_algorithm
 from vamos.experiment.optimization_result import OptimizationResult, StudyResult
 from vamos.experiment.optimize import _build_algorithm_config, _OptimizeConfig, _run_config
@@ -415,9 +415,11 @@ def _run_single(
         "engine": engine_source,
         "algorithm_config": "auto" if algorithm_config is None else "explicit",
     }
+    # Built in only when replay can rebuild it from the registry: never user code under a registry name.
+    problem_built_in = is_registry_problem(problem, problem_instance, problem_label)
     requested_spec, resolved_spec = build_run_specs(
         RunSpecInputs(
-            problem_built_in=problem_instance.__class__.__module__.startswith("vamos."),
+            problem_built_in=problem_built_in,
             problem_label=problem_label,
             problem_kwargs=problem_kwargs,
             n_var_requested=requested_n_var,
@@ -439,6 +441,7 @@ def _run_single(
             seed_requested=requested_seed,
             seed=seed,
             default_sources=result.meta["default_sources"],
+            problem_code=None if problem_built_in else custom_problem_code(problem_instance),
         )
     )
     result.meta["run_artifact_requested_spec"] = requested_spec
