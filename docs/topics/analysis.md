@@ -80,10 +80,12 @@ for comparison in comparisons:
 `ranks`, and `avg_ranks`. `pairwise_wilcoxon(...)` returns a list of
 `WilcoxonResult` objects with `algo_i`, `algo_j`, `statistic`, and `p_value`.
 
-The pairwise p-values are **raw Wilcoxon p-values**. The helper does not apply
-Holm or another multiple-comparison correction. If your inferential procedure
-requires multiplicity control, apply the correction explicitly outside this
-helper and report which procedure you used.
+`p_value` is each pair's **raw Wilcoxon p-value**.
+
+**Development after 1.1.0:**
+- **Holm adjustment:** each `WilcoxonResult` also has `p_adjusted`, Holm's step-down adjustment over all the pairs of the call, and `significant`, which is `p_adjusted <= alpha`. `vamos bench` writes the same values to `statistics.json` (`p_value_holm` and `significant`). Report the procedure you use; for another correction, start from the raw `p_value`.
+- **Friedman input:** `friedman_test(...)` raises `ValueError` for fewer than 3 algorithms, fewer than 2 problems, or a NaN score.
+- **Before:** in VAMOS 1.1.0, `pairwise_wilcoxon` ignored `alpha` and returned only raw p-values. `friedman_test` let SciPy's error through for two algorithms and returned NaN for a NaN score.
 
 **Development after 1.1.0:** `pairwise_wilcoxon(...)` counts two equal scores
 as a tie (Pratt's treatment of zero differences), including two infinite
@@ -156,6 +158,13 @@ ax.figure.savefig("front.png", dpi=200, bbox_inches="tight")
 
 The same facade also exposes `plot_pareto_front_3d`,
 `plot_parallel_coordinates`, and `plot_hv_convergence`.
+
+**Development after 1.1.0:** `plot_pareto_front_2d` and `plot_pareto_front_3d`
+draw minimization axes, with values increasing away from the origin, so the
+ideal corner is at the lower left as in the other VAMOS front plots. Pass
+`invert_axes=True` for the reversed view. VAMOS 1.1.0 and earlier always
+inverted every axis, which put the ideal corner at the upper right and made a
+convex front look concave.
 
 ## MCDM: selecting one solution from a front
 

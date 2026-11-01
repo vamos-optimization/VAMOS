@@ -26,6 +26,27 @@ def test_plot_pareto_front_3d_smoke():
     assert hasattr(ax, "scatter")
 
 
+def _ascending(limits):
+    return limits[0] < limits[1]
+
+
+def test_pareto_front_plots_do_not_invert_axes():
+    # Objectives are minimized: the ideal corner is at the lower left, as in every other VAMOS front plot.
+    ax2 = plot_pareto_front_2d(np.array([[0.2, 0.9], [0.5, 0.5], [0.9, 0.1]]))
+    ax3 = plot_pareto_front_3d(np.array([[0.2, 0.9, 0.4], [0.5, 0.5, 0.1], [0.9, 0.1, 0.7]]))
+
+    assert _ascending(ax2.get_xlim()) and _ascending(ax2.get_ylim())
+    assert _ascending(ax3.get_xlim()) and _ascending(ax3.get_ylim()) and _ascending(ax3.get_zlim())
+
+
+def test_pareto_front_plots_invert_axes_on_request():
+    ax2 = plot_pareto_front_2d(np.array([[0.2, 0.9], [0.9, 0.1]]), invert_axes=True)
+    ax3 = plot_pareto_front_3d(np.array([[0.2, 0.9, 0.4], [0.9, 0.1, 0.7]]), invert_axes=True)
+
+    assert not _ascending(ax2.get_xlim()) and not _ascending(ax2.get_ylim())
+    assert not _ascending(ax3.get_zlim())
+
+
 def test_plot_parallel_coordinates_smoke():
     F = np.array([[1.0, 2.0, 3.0], [0.5, 1.5, 2.5]])
     ax = plot_parallel_coordinates(F, show=False)

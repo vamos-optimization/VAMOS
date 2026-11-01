@@ -116,7 +116,7 @@ class RVEAConfig(_SerializableConfig):
                     f"or pop_size={lattice_size(n_obj, n_partitions + 1)} ({n_partitions + 1} partitions)."
                 )
         crossover, mutation = _encoding_operators(
-            encoding, mut_prob, real=(("sbx", {"prob": 1.0, "eta": 30.0}), ("pm", {"prob": mut_prob, "eta": 20.0}))
+            encoding, mut_prob, real=(("sbx", {"prob": 0.9, "eta": 30.0}), ("pm", {"prob": mut_prob, "eta": 20.0}))
         )
         return (
             cls.builder()

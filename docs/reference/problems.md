@@ -282,6 +282,14 @@ held-out test estimates. Both public classes also accept the wine dataset,
 which changes `fs_real` to 13 decision variables; named registry selection uses
 the defaults above.
 
+**Development after 1.1.0:** when the classifier of `fs_real` or `ml_tuning`
+fails to train on a candidate with a data error (`ValueError` or
+`LinAlgError`), that candidate gets validation error 1 and the evaluation warns
+with the number of failed models. If every model of an evaluation fails, it
+raises `EvaluationError`, and any other exception propagates. VAMOS 1.1.0
+turned every exception into error 1 without warning, so a bug in the model
+looked like a poor candidate.
+
 **VAMOS 1.1.0 constraint metadata:** `WeldedBeamDesignProblem` declares its
 four constraint columns, so registry-created problems enforce them. In 1.0.2,
 an explicit `problem.n_constraints = 4` was required; that assignment remains

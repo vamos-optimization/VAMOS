@@ -16,7 +16,6 @@ from vamos.experiment.benchmark.report_utils import (
     ensure_dir,
     format_cell,
     higher_is_better,
-    holm_adjust,
     import_pandas,
     min_rank_sum_p_value,
 )
@@ -98,8 +97,8 @@ class BenchmarkReport:
             wilc = []
             if pivot_mean.shape[1] > 1 and pivot_mean.shape[0] > 1:
                 scores = pivot_mean.values
-                # Friedman requires at least 3 algorithms; skip when not applicable.
-                if scores.shape[1] >= 3:
+                # Friedman requires at least 3 algorithms and no missing mean; skip it otherwise.
+                if scores.shape[1] >= 3 and not np.isnan(scores).any():
                     fried = friedman_test(scores, higher_is_better=higher_is_better(metric))
                 # Signed-rank tests on the per-problem means, paired by problem; with two
                 # algorithms this is the only test across problems.
@@ -109,17 +108,16 @@ class BenchmarkReport:
                     higher_is_better=higher_is_better(metric),
                     alpha=self.config.alpha,
                 )
-            holm = holm_adjust([float(item.p_value) for item in wilc])
             pairwise = [
                 {
                     "algorithm_a": item.algo_i,
                     "algorithm_b": item.algo_j,
                     "statistic": float(item.statistic),
                     "p_value": float(item.p_value),
-                    "p_value_holm": adjusted,
-                    "significant": bool(adjusted <= self.config.alpha),
+                    "p_value_holm": item.p_adjusted,
+                    "significant": item.significant,
                 }
-                for item, adjusted in zip(wilc, holm, strict=True)
+                for item in wilc
             ]
             stats[metric] = {
                 "grouped": grouped,

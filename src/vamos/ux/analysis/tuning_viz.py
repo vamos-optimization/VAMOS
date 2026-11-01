@@ -1,20 +1,21 @@
 """
 Notebook-friendly helpers for inspecting tuning results and fronts.
-Uses only NumPy/Pandas/Matplotlib.
+Uses only NumPy/Pandas/Matplotlib; Pandas and Matplotlib are imported when a helper needs them.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Any, Protocol, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 from numpy.typing import NDArray
 
 from vamos.study_artifacts import StudySummary
 from vamos.ux.analysis.core_objective_reduction import reduce_objectives
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 class TuningResultLike(Protocol):
@@ -27,6 +28,8 @@ def tuning_result_to_dataframe(tuning_result: TuningResultLike, param_names: Seq
 
     Expected keys/attributes: unit_vectors (X), objectives (F), assignments/configs (optional).
     """
+    import pandas as pd
+
     X_attr = getattr(tuning_result, "unit_vectors", None)
     if X_attr is None:
         X_attr = getattr(tuning_result, "X_nd", None)
@@ -62,6 +65,8 @@ def tuning_result_to_dataframe(tuning_result: TuningResultLike, param_names: Seq
 
 def plot_tuning_scatter(df: pd.DataFrame, x_param: str, y_param: str, color_by: str = "obj_0") -> object:
     """Scatter plot of hyperparameters colored by an objective/metric."""
+    import matplotlib.pyplot as plt
+
     plt.figure()
     sc = plt.scatter(df[x_param], df[y_param], c=df[color_by], cmap="viridis", edgecolor="k", alpha=0.8)
     plt.xlabel(x_param)
@@ -74,6 +79,8 @@ def plot_tuning_scatter(df: pd.DataFrame, x_param: str, y_param: str, color_by: 
 
 def plot_objective_tradeoff(df: pd.DataFrame, obj_x: str = "obj_0", obj_y: str = "obj_1") -> object:
     """Plot objective trade-off scatter."""
+    import matplotlib.pyplot as plt
+
     plt.figure()
     plt.scatter(df[obj_x], df[obj_y], color="tab:blue", edgecolor="k", alpha=0.8)
     plt.xlabel(obj_x)
@@ -90,9 +97,15 @@ def plot_reduced_front(
 ) -> object:
     """
     Reduce a front to 2D/3D and plot it.
+
+    The axes are labelled with the kept objectives: their entries of ``labels`` or, without
+    ``labels``, ``f1``, ``f2``, ... numbered from 1 by their position in ``F``.
     """
-    F_red, _selected = reduce_objectives(F, method=method, target_dim=target_dim)
-    labels = labels or [f"f{i}" for i in range(F_red.shape[1])]
+    import matplotlib.pyplot as plt
+
+    F_red, selected = reduce_objectives(F, method=method, target_dim=target_dim)
+    indices = [int(i) for i in selected]
+    labels = [labels[i] for i in indices] if labels else [f"f{i + 1}" for i in indices]
     if F_red.shape[1] == 2:
         plt.figure()
         plt.scatter(F_red[:, 0], F_red[:, 1], color="tab:orange", edgecolor="k", alpha=0.8)
@@ -114,6 +127,8 @@ def plot_reduced_front(
 
 def study_summary_to_dataframe(summary: StudySummary) -> pd.DataFrame:
     """Convert one canonical summary to a traceable analysis DataFrame."""
+    import pandas as pd
+
     rows: list[dict[str, object]] = []
     for source in summary.rows:
         record = source.as_dict()

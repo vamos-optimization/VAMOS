@@ -41,10 +41,29 @@ class FriedmanResult:
 
 @dataclass
 class WilcoxonResult:
+    """A paired signed-rank test; ``p_adjusted`` is Holm's over all the pairs of the call."""
+
     algo_i: str
     algo_j: str
     statistic: float
     p_value: float
+    p_adjusted: float = math.nan
+    significant: bool = False
+
+
+def holm_adjust(p_values: Sequence[float]) -> list[float]:
+    """Holm step-down adjusted p-values, in the input order.
+
+    A NaN p-value (a test that could not be computed) stays NaN and does not count as a
+    hypothesis.
+    """
+    ordered = sorted((p, index) for index, p in enumerate(p_values) if not math.isnan(p))
+    adjusted = [math.nan] * len(p_values)
+    running = 0.0
+    for rank, (p, index) in enumerate(ordered):
+        running = max(running, min(1.0, (len(ordered) - rank) * p))
+        adjusted[index] = running
+    return adjusted
 
 
 def compute_ranks(scores: NDArray[np.float64], higher_is_better: bool = True) -> NDArray[np.float64]:
@@ -67,10 +86,18 @@ def compute_ranks(scores: NDArray[np.float64], higher_is_better: bool = True) ->
 def friedman_test(scores: NDArray[np.float64], higher_is_better: bool = True) -> FriedmanResult:
     """
     Run Friedman test using ranks across problems.
+
+    ``scores`` needs at least 2 problems (rows), at least 3 algorithms (columns) and no NaN.
     """
     scores = np.asarray(scores, dtype=float)
     if scores.ndim != 2:
         raise ValueError("scores must be 2-dimensional (n_problems, n_algorithms).")
+    if scores.shape[1] < 3:
+        raise ValueError(f"The Friedman test needs at least 3 algorithms; got {scores.shape[1]}. Use pairwise_wilcoxon for two.")
+    if scores.shape[0] < 2:
+        raise ValueError(f"The Friedman test needs at least 2 problems; got {scores.shape[0]}.")
+    if np.isnan(scores).any():
+        raise ValueError("The Friedman test cannot rank NaN scores; drop or impute them first.")
     ranks = compute_ranks(scores, higher_is_better=higher_is_better)
     avg_ranks = np.mean(ranks, axis=0)
     # scipy expects columns; we run on raw scores as in classic use
@@ -86,6 +113,9 @@ def pairwise_wilcoxon(
 ) -> list[WilcoxonResult]:
     """
     Pairwise Wilcoxon signed-rank tests across algorithms.
+
+    ``p_value`` is each test's raw p-value; ``p_adjusted`` corrects it with Holm's method over
+    all the pairs, and ``significant`` is ``p_adjusted <= alpha``.
     """
     scores = np.asarray(scores, dtype=float)
     if scores.ndim != 2:
@@ -110,6 +140,9 @@ def pairwise_wilcoxon(
             else:
                 stat, p = spstats.wilcoxon(differences, zero_method="pratt", alternative="two-sided")
             results.append(WilcoxonResult(algo_i=algo_names[i], algo_j=algo_names[j], statistic=stat, p_value=p))
+    for item, adjusted in zip(results, holm_adjust([float(item.p_value) for item in results]), strict=True):
+        item.p_adjusted = adjusted
+        item.significant = bool(adjusted <= alpha)
     return results
 
 

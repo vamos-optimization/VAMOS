@@ -96,6 +96,8 @@ VAMOS 1.1.0 executes a durable study sequentially under a single mutating owner.
 
 **Development after 1.1.0:** a study executes tasks with serial evaluation only. `StudySpec` still accepts `eval_strategy="multiprocessing"` or `"dask"`, but `plan_study` and `create_study` now reject them with `UNSUPPORTED_EVALUATION_BACKEND`, and reject negative seeds with `INVALID_STUDY_SPEC`; nothing is published. In 1.1.0 those plans were reported `ready` and every task then failed. Use `vamos.optimize(..., eval_strategy=...)` for parallel evaluation of a single run.
 
+On Windows without long paths enabled, keep the output path short: the staging directory and the `tasks/<task hash>/` folders add about 130 characters to it. **Development after 1.1.0:** when the path length makes creation fail, the `actual` field of the `ATOMIC_PUBLICATION_FAILED` error says so; see [Troubleshooting](troubleshooting.md#saving-fails-on-windows-with-a-long-path).
+
 ## 4. Inspect operational state before interpreting results
 
 ```python

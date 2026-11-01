@@ -11,6 +11,8 @@ from vamos.experiment.cli.loaders import load_spec_defaults
 from vamos.experiment.cli.spec_args import parser_spec_keys
 from vamos.foundation.core.experiment_config import ExperimentConfig
 
+from ._output_dir import prepare_output_dir
+
 _REQUIRED_PLAN_FILES: tuple[str, ...] = ("config.json", "plan.json")
 _OPTIONAL_PLAN_FILES: tuple[str, ...] = ("prompt.txt", "catalog.json")
 
@@ -60,14 +62,6 @@ def _validate_config(config_data: object) -> None:
         raise ValueError(f"Invalid plan config: {exc}") from exc
 
 
-def _prepare_project_dir(project_dir: Path, *, overwrite: bool) -> None:
-    if project_dir.exists():
-        if not overwrite:
-            raise ValueError(f"Project directory already exists: {project_dir}")
-        shutil.rmtree(project_dir)
-    project_dir.mkdir(parents=True, exist_ok=False)
-
-
 def _copy_plan_files(plan_dir: Path, project_dir: Path) -> None:
     for name in (*_REQUIRED_PLAN_FILES, *_OPTIONAL_PLAN_FILES):
         src = plan_dir / name
@@ -83,7 +77,8 @@ def apply_plan(plan_dir: Path, out_dir: Path | None = None, overwrite: bool = Fa
     _validate_config(config_data)
 
     project_dir = Path(out_dir) if out_dir is not None else resolved_plan_dir / "project"
-    _prepare_project_dir(project_dir, overwrite=overwrite)
+    owned = (*_REQUIRED_PLAN_FILES, *_OPTIONAL_PLAN_FILES, "README_run.md")
+    prepare_output_dir(project_dir, plan_dir=resolved_plan_dir, overwrite=overwrite, owned=owned, kind="Project")
     _copy_plan_files(resolved_plan_dir, project_dir)
     (project_dir / "README_run.md").write_text(_README_CONTENT, encoding="utf-8")
     return project_dir

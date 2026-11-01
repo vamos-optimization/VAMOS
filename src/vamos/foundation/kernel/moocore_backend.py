@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING, Any, Literal, cast, overload
 
@@ -99,26 +98,13 @@ class MooCoreKernel(KernelBackend):
 
     name = "moocore"
 
-    CROWDING_DIM_THRESHOLD = 3
-    HV_SIZE_THRESHOLD = 256
-
-    def __init__(self, use_hv_contrib: bool | None = None) -> None:
+    def __init__(self) -> None:
         self._numpy_ops = cast(Any, _NumPyKernel)()
-        if use_hv_contrib is None:
-            env_flag = os.environ.get("VAMOS_MOOCORE_HV_CONTRIB", "0").strip().lower()
-            use_hv_contrib = env_flag in {"1", "true", "yes", "on"}
-        self._use_hv_contrib = bool(use_hv_contrib)
         self._X_buffer: DecisionArray | None = None
         self._F_buffer: FloatArray | None = None
         self._keep_buffer: IntArray | None = None
-        self._X_output: DecisionArray | None = None
-        self._F_output: FloatArray | None = None
         self._archive_manager: _IncrementalArchive | None = None
-        self._stats: dict[str, int] = {
-            "hv_calls": 0,
-            "crowding_fallbacks": 0,
-            "buffer_resizes": 0,
-        }
+        self._stats: dict[str, int] = {"buffer_resizes": 0}
 
     def capabilities(self) -> Iterable[str]:
         return ("c_backend",)
@@ -205,14 +191,6 @@ class MooCoreKernel(KernelBackend):
             self._keep_buffer = np.empty(size, dtype=np.int64)
         return self._keep_buffer[:size]
 
-    def _ensure_output_buffers(self, size: int, n_var: int, n_obj: int, dtype: Any) -> None:
-        dtype = np.dtype(dtype)
-        if self._X_output is None or self._X_output.shape[0] < size or self._X_output.shape[1] != n_var or self._X_output.dtype != dtype:
-            self._X_output = np.empty((size, n_var), dtype=dtype, order="C")
-            self._stats["buffer_resizes"] += 1
-        if self._F_output is None or self._F_output.shape[0] < size or self._F_output.shape[1] != n_obj:
-            self._F_output = np.empty((size, n_obj), dtype=np.float64, order="C")
-
     @staticmethod
     def _crowding_single(front: RealArray) -> FloatArray:
         if front.shape[0] == 0:
@@ -221,20 +199,9 @@ class MooCoreKernel(KernelBackend):
         return _compute_crowding(front, fronts)
 
     def _select_partial_front(self, F_comb: RealArray, front_idx: IndexArray, remaining: int) -> IntArray:
-        front = F_comb[front_idx]
-        use_crowding = front.shape[1] > self.CROWDING_DIM_THRESHOLD or front_idx.size > self.HV_SIZE_THRESHOLD or not self._use_hv_contrib
-        if use_crowding:
-            self._stats["crowding_fallbacks"] += 1
-            crowded = self._crowding_single(front)
-            order = np.argsort(crowded)[::-1][:remaining]
-        else:
-            self._stats["hv_calls"] += 1
-            ref_point = np.max(front, axis=0) + 1.0
-            hv_contrib = cast(
-                FloatArray,
-                moocore.hv_contributions(front, ref=ref_point),
-            )
-            order = np.argsort(hv_contrib)[::-1][:remaining]
+        """The ``remaining`` members of the splitting front with the largest crowding distance, as NumPy picks them."""
+        crowded = self._crowding_single(F_comb[front_idx])
+        order = np.argsort(crowded)[::-1][:remaining]
         return front_idx[order]
 
     def _survive(
@@ -267,16 +234,10 @@ class MooCoreKernel(KernelBackend):
                 keep[taken : taken + selected.size] = selected
                 taken += selected.size
         sel = keep[:target_size].copy()
-        n_var = X_comb.shape[1]
-        n_obj = F_comb.shape[1]
-        self._ensure_output_buffers(target_size, n_var, n_obj, X_comb.dtype)
-        assert self._X_output is not None
-        assert self._F_output is not None
-        np.copyto(self._X_output[:target_size], X_comb[sel])
-        np.copyto(self._F_output[:target_size], F_comb[sel])
+        # Fancy indexing copies: the caller owns the survivors, as with the NumPy and Numba kernels.
         if return_indices:
-            return self._X_output[:target_size], self._F_output[:target_size], sel
-        return self._X_output[:target_size], self._F_output[:target_size]
+            return X_comb[sel], F_comb[sel], sel
+        return X_comb[sel], F_comb[sel]
 
     @overload
     def nsga2_survival(

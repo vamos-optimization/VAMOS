@@ -172,6 +172,10 @@ Check at least these properties for your own model:
 - all values are finite over the allowed bounds;
 - stochastic simulators use randomness intentionally and reproducibly.
 
+Objective and constraint values must be finite. A NaN or an infinity stops the run with `EvaluationError`. When an evaluation fails, for example a simulator that does not converge, return a large finite penalty or a violated constraint instead. A NaN can also come from NaN decision variables, for example produced by invalid operator parameters.
+
+**Development after 1.1.0:** a problem that writes constraint values without declaring `n_constraints` stops with `EvaluationError` instead of being optimized as unconstrained. This covers `out["G"]` in a protocol problem (pymoo's `n_ieq_constr` is not read) and an overridden `Problem.constraints()` with `n_constraints = 0`. In VAMOS 1.1.0 the constraints were ignored without warning.
+
 A seed controls the optimizer. It does not automatically make randomness inside your own evaluator reproducible.
 
 ## Vectorize only when your model is already batched

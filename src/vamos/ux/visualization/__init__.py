@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 
 def _require_matplotlib() -> Any:
@@ -27,12 +28,18 @@ def _get_ax(ax: Any | None, projection: str | None = None) -> Any:
 
 
 def plot_pareto_front_2d(
-    F: np.ndarray,
+    F: NDArray[Any],
     ax: Any | None = None,
     labels: tuple[str, str] | None = None,
     title: str | None = None,
     show: bool = False,
+    *,
+    invert_axes: bool = False,
 ) -> Any:
+    """Scatter a two-objective front with minimization axes: the ideal corner is at the lower left.
+
+    ``invert_axes=True`` reverses both axes, which puts the ideal corner at the upper right.
+    """
     plt = _require_matplotlib()
     F = np.asarray(F, dtype=float)
     if F.ndim != 2 or F.shape[1] != 2:
@@ -44,20 +51,24 @@ def plot_pareto_front_2d(
         ax.set_ylabel(labels[1])
     if title:
         ax.set_title(title)
-    ax.invert_xaxis()
-    ax.invert_yaxis()
+    if invert_axes:
+        ax.invert_xaxis()
+        ax.invert_yaxis()
     if show:
         plt.show()
     return ax
 
 
 def plot_pareto_front_3d(
-    F: np.ndarray,
+    F: NDArray[Any],
     ax: Any | None = None,
     labels: tuple[str, str, str] | None = None,
     title: str | None = None,
     show: bool = False,
+    *,
+    invert_axes: bool = False,
 ) -> Any:
+    """Scatter a three-objective front with minimization axes; ``invert_axes=True`` reverses all three."""
     plt = _require_matplotlib()
     F = np.asarray(F, dtype=float)
     if F.ndim != 2 or F.shape[1] != 3:
@@ -70,16 +81,17 @@ def plot_pareto_front_3d(
         ax.set_zlabel(labels[2])
     if title:
         ax.set_title(title)
-    ax.invert_xaxis()
-    ax.invert_yaxis()
-    ax.invert_zaxis()
+    if invert_axes:
+        ax.invert_xaxis()
+        ax.invert_yaxis()
+        ax.invert_zaxis()
     if show:
         plt.show()
     return ax
 
 
 def plot_parallel_coordinates(
-    F: np.ndarray,
+    F: NDArray[Any],
     labels: list[str] | None = None,
     ax: Any | None = None,
     title: str | None = None,
@@ -110,8 +122,8 @@ def plot_parallel_coordinates(
 
 
 def plot_hv_convergence(
-    evals: np.ndarray,
-    hv_values: np.ndarray,
+    evals: NDArray[Any],
+    hv_values: NDArray[Any],
     ax: Any | None = None,
     label: str | None = None,
     title: str | None = "Hypervolume convergence",

@@ -76,6 +76,34 @@ Canonical run writers do not overwrite or merge an existing result. Use a new
 or a new `--output` for replay. Keep existing runs intact when comparing
 settings. See [Run artifacts](run-artifacts.md).
 
+## Saving fails on Windows with a long path
+
+Unless long paths are enabled, Windows rejects a path of 260 characters or
+more (248 for a directory) and reports it as a missing path, with a
+`FileNotFoundError`. Saving a run (`save_result`, `reproduce`,
+`vamos quickstart`) writes through a staging directory next to the
+destination, which adds about 60 characters to its path. Creating a study adds
+about 130, because each task lives in `tasks/<64-character task hash>/`.
+
+**Development after 1.1.0:** when the path is long enough to be the cause, the
+error gives its length and the ways out listed below. A study reports them in
+the `actual` field of its `ATOMIC_PUBLICATION_FAILED` error, which now also
+carries the original message. In VAMOS 1.1.0 the error named only the missing
+path, and a study reported only `FileNotFoundError`.
+
+- Enable long paths: set `LongPathsEnabled` to `1` under
+  `HKLM\SYSTEM\CurrentControlSet\Control\FileSystem` (administrator rights
+  needed). The "Disable path length limit" option of the Python installer sets
+  it too.
+- Choose a shorter destination.
+- Give the destination as an absolute path with the `\\?\` prefix, for example
+  `r"\\?\C:\long\path\to\run"`.
+
+Numba writes its compiled-kernel cache next to the installed package, so in a
+deeply nested environment its file names can reach the limit too. Set
+`NUMBA_CACHE_DIR` to a short directory, such as `C:\nbc`, before starting
+Python.
+
 ## Replay is refused
 
 First inspect and verify the source run:

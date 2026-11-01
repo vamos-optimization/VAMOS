@@ -448,7 +448,7 @@ def _default_operators_for_encoding(
     if enc == "mixed":
         return ("mixed", {"prob": 0.9}), ("mixed", {"prob": mut_prob})
     # real (default)
-    return ("sbx", {"prob": 1.0, "eta": 20.0}), ("polynomial", {"prob": mut_prob, "eta": 20.0})
+    return ("sbx", {"prob": 0.9, "eta": 20.0}), ("polynomial", {"prob": mut_prob, "eta": 20.0})
 
 
 OperatorPair: TypeAlias = tuple[tuple[str, dict[str, Any]], tuple[str, dict[str, Any]]]

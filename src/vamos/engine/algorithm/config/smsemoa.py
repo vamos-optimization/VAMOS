@@ -61,7 +61,7 @@ class SMSEMOAConfig(_SerializableConfig):
         """
         mut_prob = 1.0 / n_var if n_var else 0.1
         crossover, mutation = _encoding_operators(
-            encoding, mut_prob, real=(("sbx", {"prob": 1.0, "eta": 20.0}), ("pm", {"prob": mut_prob, "eta": 20.0}))
+            encoding, mut_prob, real=(("sbx", {"prob": 0.9, "eta": 20.0}), ("pm", {"prob": mut_prob, "eta": 20.0}))
         )
         return (
             cls.builder()

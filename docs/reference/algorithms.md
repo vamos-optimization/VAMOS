@@ -42,6 +42,8 @@ This table describes the **VAMOS 1.1.0 package**. Changes since 1.0.0 are listed
 
 **Development after 1.1.0:** every `XConfig.default()` takes an optional `encoding`, and `optimize(problem, algorithm=...)` passes the problem's encoding to it. Discrete and mixed problems then get the operators of the shared encoding table: uniform crossover and bit-flip mutation for binary, OX and swap for permutations, SBX (probability 0.9) and polynomial mutation for integers, and the mixed operators for mixed problems. In VAMOS 1.1.0 only NSGA-II and MOEA/D did this, so 22 of the 33 supported combinations of the nine algorithms with `bin_knapsack`, `tsp6`, `int_alloc` and `mixed_design` failed with an error about `sbx` or `pm`; integer runs of IBEA, AGE-MOEA and RVEA, which worked, now use the table's SBX(0.9, 20) instead of their real-coded crossover. Every `default()` also accepts `pop_size=None` (100, or the lattice size for MOEA/D, NSGA-III and RVEA), and `builder().pop_size()` rejects anything but a positive integer.
 
+**Development after 1.1.0:** the default real-coded crossover of every algorithm that uses SBX is SBX with probability 0.9, as in Deb et al. (2002), jMetal and pymoo, in `XConfig.default()`, in the CLI and in `build_algorithm`. Each algorithm keeps its distribution index: 20, 30 for NSGA-III and RVEA, and 15 for AGE-MOEA. VAMOS 1.1.0 used probability 1.0 in NSGA-II, NSGA-III, SMS-EMOA, SPEA2, IBEA and RVEA, so their default runs follow a different trajectory now; `.crossover("sbx", prob=1.0, eta=...)` reproduces the earlier setting. MOEA/D (differential evolution by default) and SMPSO are unchanged.
+
 Constraints use `G <= 0`, with positive residuals representing violation. Consult the [constraint reference](constraints.md) for residual construction; an accepted `constraint_mode` field alone does not establish constraint enforcement. NSGA-III now uses the same feasibility-first contract in both survival and parent selection.
 
 ### Constraint handling in 1.1.0
@@ -182,7 +184,7 @@ For algorithms with a supported external result archive, enabling it makes that 
 
 NSGA-III and RVEA require a population compatible with the configured reference directions. MOEA/D requires one weight vector per population member. For a simplex lattice with `p` divisions and `m` objectives, use `comb(p + m - 1, m - 1)`; for three objectives and 12 divisions, that is **91**. Explicit incompatible cardinalities fail; they are not warning-only cases. Follow the tutorials before changing objective count or population size.
 
-**Development after 1.1.0:** NSGA-III needs at least one individual per reference direction (N >= H) instead of exactly one, as Deb and Jain, jMetal and pymoo do; 100 individuals with 12 divisions and three objectives run with 91 directions, and fewer than 91 fail. Without `divisions`, NSGA-III uses the complete Das-Dennis lattice with the most directions that fit in `pop_size`; VAMOS 1.1.0 and earlier cut the next larger lattice to `pop_size` directions and lost the extreme direction of the first objective. With two objectives, NSGA-III and RVEA default to `pop_size - 1` divisions, or 99 without `pop_size`, instead of 6. RVEA and MOEA/D still need exactly one individual per vector.
+**Development after 1.1.0:** NSGA-III needs at least one individual per reference direction (N >= H) instead of exactly one, as Deb and Jain, jMetal and pymoo do; 100 individuals with 12 divisions and three objectives run with 91 directions, and fewer than 91 fail. Without `divisions`, NSGA-III uses the complete Das-Dennis lattice with the most directions that fit in `pop_size`; VAMOS 1.1.0 and earlier cut the next larger lattice to `pop_size` directions and lost the extreme direction of the first objective. With two objectives, NSGA-III and RVEA default to `pop_size - 1` divisions, or 99 without `pop_size`, instead of 6. RVEA and MOEA/D still need exactly one individual per vector; RVEA then keeps one survivor per occupied vector, so its population can end smaller than `pop_size` (see [RVEA](../algorithms/rvea.md)).
 
 **Development after 1.1.0:** with `pop_size`, `NSGAIIIConfig.default()` uses the complete lattice with the most directions that fit in it, for any number of objectives (four divisions, 70 directions, for 100 individuals and five objectives, which used to fail with six divisions and 210 directions); `RVEAConfig.default()` uses the lattice of exactly `pop_size` vectors and otherwise fails at once naming the nearest valid sizes, such as 91 or 105 for three objectives. Without `pop_size`, both still use 12 divisions for three objectives and 6 for four or more.
 
@@ -213,6 +215,18 @@ These are implementation fixes under the existing stability policy. Record the p
 | `numpy` | Stable | Exact reference backend and deterministic default. |
 | `numba` | Optional backend | JIT implementations of supported kernels; includes compilation cost on first use. |
 | `moocore` | Optional backend | Native non-dominated sorting/hypervolume operations where available; not every algorithm step is accelerated. |
+
+**Development after 1.1.0:** the three backends follow the same trajectory for
+every built-in algorithm with the same seed. The tests compare NumPy with Numba
+and NumPy with MooCore.
+- **Tournaments:** with a tournament size above two, the tournament keeps the
+  best rank when crowding distances are NaN or -inf, and uses fractional ranks
+  as given. VAMOS 1.1.0 could let a worse rank win in NumPy and truncated ranks
+  to integers in both NumPy and Numba.
+- **MooCore survival:** it returns arrays the caller owns; it returned views of
+  buffers that the next survival overwrote. The undocumented
+  `VAMOS_MOOCORE_HV_CONTRIB` variable, which switched it to
+  hypervolume-contribution truncation, is removed.
 
 ### Automatic engine selection
 
@@ -391,3 +405,10 @@ For a measured first-call/subsequent-call example, follow [Measure backend perfo
 ## Live visualization
 
 The visualization surface is **Experimental**. Enable `--live-viz` to stream Pareto fronts during runs (`--live-viz-interval`, `--live-viz-max-points`). Saves a `live_pareto.png` at run end.
+
+**Development after 1.1.0:** the live window plots the current population,
+dominated and infeasible solutions included, and its title says so. It rescales
+its axes at every update, labels them with the plotted objectives, and samples
+the populations larger than `--live-viz-max-points` with a seeded generator
+instead of the global `random` state. VAMOS 1.1.0 and earlier kept the axes of
+the first generation, so a converging population soon moved out of view.

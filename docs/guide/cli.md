@@ -139,6 +139,12 @@ document in JSON mode. Creation and execution are separate. `inspect` and an
 in-memory `summarize` are read-only; JSON/CSV summary files are written only
 when `--output` is explicit and never overwrite an existing path.
 
+**Development after 1.1.0:** without `--json`, `vamos study summarize` prints
+its task table: one row per task with its index, state, problem, algorithm,
+seed and evaluations. Its suggested next step reads
+`vamos study inspect STUDY_DIR`. In VAMOS 1.1.0 it printed only the study
+header, without the table, and suggested a bare `inspect`.
+
 Use `vamos study resume STUDY_DIR` for eligible pending/interrupted work and
 `vamos study retry STUDY_DIR --failed` for explicit bounded failed-task retry.
 Concurrent mutation is unsupported: one process must remain the only mutation
@@ -259,7 +265,7 @@ Key flags
 - `--engine`: numpy | numba | moocore | auto. The deterministic default is `numpy`; `auto` prefers available Numba with a NumPy fallback. See the [automatic engine policy](../reference/algorithms.md#automatic-engine-selection) for the selection and replay rules in VAMOS 1.1.0.
 - `--problem`: any registry key (see [Problems](../reference/problems.md))
 - `--problem-set`: predefined sets (e.g., `families`)
-- `--validate-config`: validate `--config` and exit
+- `--validate-config`: validate `--config` with the checks that precede a run and exit
 - `--output-root`: directory for run artifacts (default: `results/`)
 - `--no-preflight`: skip optional dependency warnings
 - `--population-size`, `--offspring-population-size`
@@ -314,6 +320,19 @@ problems:
 The `moead` block applies only when MOEA/D is selected, for example with
 `--algorithm moead`.
 
+**Development after 1.1.0:** an operator that names the algorithm's default
+operator keeps the default parameters it does not set. With NSGA-II,
+`crossover: {method: sbx, eta: 5}` is SBX with probability 0.9 and eta 5, and
+MOEA/D's `crossover: {method: de, f: 0.7}` keeps `cr: 1.0`. An operator with
+another name gets exactly the parameters given, completed by that operator's
+own defaults. Inside an operator, a
+parameter set to `null` takes its default. A `problems.<name>` operator
+replaces the `defaults` one whole, and an entry set to `null` there, or
+`repair: auto`, keeps the value already in effect. In VAMOS 1.1.0 every
+operator override replaced the default operator, so changing only `eta` also
+lowered the SBX probability from 1.0 to 0.9, and the saved configuration did
+not record it.
+
 **Development after 1.1.0:** every field of an algorithm block reaches the
 algorithm configuration, in `defaults` and in `problems.<name>` (which wins).
 Examples include MOEA/D's `neighbor_size`, `delta`, `replace_limit` and
@@ -351,6 +370,16 @@ Validate a config without running:
 vamos --config configs/experiment.yaml --validate-config
 ```
 
+**Development after 1.1.0:** `--validate-config` runs every check that precedes
+the first run: the option values (for example a negative `max_evaluations` or
+a crossover `prob` above 1), each selected problem's settings after its
+`problems.<name>` overrides, its algorithm fields, and its `stopping` and
+`archive` hooks. It prints `Config OK.` and exits with code 0 only when they
+pass; otherwise it exits with code 2 and the error. An error about an option
+whose value comes from the config file names its key, such as
+`defaults.nsgaii.crossover.prob`. In VAMOS 1.1.0 it checked only the keys, so a
+config could pass and then fail when run.
+
 Run a config with a CLI override:
 
 ```bash
@@ -371,6 +400,25 @@ Install any required [optional extras](installation.md#optional-extras) first.
 - Profiling: `vamos profile --problem zdt1 --engines numpy,numba --budget 2000 --output report/profile.csv`
 - Problem zoo: `vamos zoo list`, `vamos zoo info zdt1`, `vamos zoo run zdt1 --algorithm nsgaii --budget 3000`
 - Studio (interactive, needs `studio` extra): read the [Studio walkthrough and launcher limitation](studio.md) before starting.
+
+**Development after 1.1.0:** `vamos profile` runs each engine once untimed, to
+pay one-time costs such as Numba compilation, then `--repeats` timed runs
+(default 3). It reports their median, which the speedups use, and their range.
+An unknown engine or problem stops the command with exit code 2 before any run.
+An engine whose run fails is listed with its error, with empty cells in the
+CSV, and the command exits with code 1. The hypervolume uses the feasible
+solutions inside a reference point: the nadir of the problem's reference front
+plus 10% of its range, or `--hv-reference`. It works with any number of
+objectives. Without a matching reference front and without `--hv-reference`, it
+is not computed and a warning says so. The CSV has the columns `engine`,
+`time_seconds` (median), `time_min`, `time_max`, `repeats`, `n_solutions`,
+`hypervolume` and `error`, and leaves a missing value empty. VAMOS 1.1.0 timed
+a single cold run per engine, so the first Numba run measured mostly
+compilation. It recorded a failed engine with time 0 and exit code 0. Its
+hypervolume used the reference `[1.1, ..., 1.1]` whatever the problem's scale,
+so the value was meaningless for a front outside the unit range (ZDT3,
+DTLZ1, WFG) and for problems without a reference front. It was missing with
+three or more objectives, and the CSV stored 0.0 where the table said N/A.
 
 **Development after 1.1.0:** `vamos bench` and `vamos ablation` build the
 indicator references per problem and number of objectives. The HV reference

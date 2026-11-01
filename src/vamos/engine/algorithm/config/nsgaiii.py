@@ -83,7 +83,7 @@ class NSGAIIIConfig(_SerializableConfig):
         else:
             divisions = _lattice_divisions_within(pop_size, n_obj, algorithm="NSGA-III")
         crossover, mutation = _encoding_operators(
-            encoding, mut_prob, real=(("sbx", {"prob": 1.0, "eta": 30.0}), ("pm", {"prob": mut_prob, "eta": 20.0}))
+            encoding, mut_prob, real=(("sbx", {"prob": 0.9, "eta": 30.0}), ("pm", {"prob": mut_prob, "eta": 20.0}))
         )
         return (
             cls.builder()
