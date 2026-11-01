@@ -43,3 +43,29 @@ def test_apply_plan_materializes_project(tmp_path) -> None:
     readme = (project_dir / "README_run.md").read_text(encoding="utf-8")
     assert "vamos --config config.json" in readme
     assert "python -m vamos.experiment.cli.main --config config.json" in readme
+
+
+def test_apply_overwrite_refuses_unmarked_or_plan_folder(tmp_path) -> None:
+    import pytest
+
+    plan_dir = create_plan(prompt="Overwrite safety.", template="demo", problem_type="real", out_dir=tmp_path / "plan")
+    plan_files = {path.name: path.read_bytes() for path in plan_dir.iterdir() if path.is_file()}
+
+    for target in (plan_dir, tmp_path):
+        with pytest.raises(ValueError, match="plan directory"):
+            apply_plan(plan_dir, out_dir=target, overwrite=True)
+    assert {path.name: path.read_bytes() for path in plan_dir.iterdir() if path.is_file()} == plan_files
+
+    foreign = tmp_path / "foreign"
+    foreign.mkdir()
+    (foreign / "thesis.tex").write_text("keep me", encoding="utf-8")
+    with pytest.raises(ValueError, match=r"\.vamos-assist"):
+        apply_plan(plan_dir, out_dir=foreign, overwrite=True)
+    assert (foreign / "thesis.tex").read_text(encoding="utf-8") == "keep me"
+
+    project = apply_plan(plan_dir, out_dir=tmp_path / "project")
+    (project / "notes.md").write_text("mine", encoding="utf-8")
+    (project / "config.json").write_text("{}", encoding="utf-8")
+    apply_plan(plan_dir, out_dir=project, overwrite=True)
+    assert (project / "notes.md").read_text(encoding="utf-8") == "mine"
+    assert (project / "config.json").read_bytes() == plan_files["config.json"]
