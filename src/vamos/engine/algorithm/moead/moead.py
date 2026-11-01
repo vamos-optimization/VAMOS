@@ -233,17 +233,14 @@ class MOEAD:
         if batch_size == 0:
             return candidate_orders, candidate_lengths
 
-        neighbor_mask = np.asarray(use_neighbors, dtype=bool)
-        if bool(np.any(neighbor_mask)):
-            neighbor_rows = st.neighbors[active[neighbor_mask]]
-            neighbor_size = neighbor_rows.shape[1]
-            candidate_orders[neighbor_mask, :neighbor_size] = neighbor_rows
-            candidate_lengths[neighbor_mask] = neighbor_size
-
-        global_positions = np.flatnonzero(~neighbor_mask)
-        for pos in global_positions:
-            candidate_orders[pos, : st.pop_size] = st.rng.permutation(st.pop_size)
-            candidate_lengths[pos] = st.pop_size
+        # Each child tries its neighbours, or the whole population, in random order (MOEA/D-DE, jMetal).
+        for pos in range(batch_size):
+            if bool(use_neighbors[pos]):
+                order = st.rng.permutation(st.neighbors[active[pos]])
+            else:
+                order = st.rng.permutation(st.pop_size)
+            candidate_orders[pos, : order.shape[0]] = order
+            candidate_lengths[pos] = order.shape[0]
 
         return candidate_orders, candidate_lengths
 
@@ -334,8 +331,9 @@ class MOEAD:
             child_f = F_child[0]
             child_g = G_child[0] if G_child is not None else None
             cv_penalty = float(cv_child[0]) if cv_child is not None else 0.0
+            # Neighbours are tried in random order, as in MOEA/D-DE and jMetal.
             if use_neighbors[0]:
-                candidate_order = st.neighbors[active[0]]
+                candidate_order = st.rng.permutation(st.neighbors[active[0]])
             else:
                 candidate_order = st.rng.permutation(pop_size)
             update_neighborhood(

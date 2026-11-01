@@ -145,7 +145,7 @@ def _init_default_suites() -> None:
         BenchmarkExperiment("cec2009_uf5", {"n_var": 30}, evaluation_budget=50000),
         BenchmarkExperiment("cec2009_uf6", {"n_var": 30}, evaluation_budget=50000),
         BenchmarkExperiment("cec2009_uf7", {"n_var": 30}, evaluation_budget=50000),
-        BenchmarkExperiment("cec2009_cf1", {"n_var": 30}, evaluation_budget=50000),
+        BenchmarkExperiment("cec2009_cf1", {"n_var": 10}, evaluation_budget=50000),
     ]
     _register_suite(
         BenchmarkSuite(
