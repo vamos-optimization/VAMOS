@@ -19,8 +19,22 @@ def _validate_output_matrix(
         raise EvaluationError(f"Problem evaluation wrote {name} with shape {arr.shape}; expected {expected_shape}.")
     if not np.isfinite(arr).all():
         bad_count = int(np.size(arr) - np.count_nonzero(np.isfinite(arr)))
-        raise EvaluationError(f"Problem evaluation wrote {name} with {bad_count} non-finite value(s).")
+        raise EvaluationError(
+            f"Problem evaluation wrote {name} with {bad_count} non-finite value(s). Objectives and constraints must be "
+            "finite: give a failed evaluation a large finite penalty or a violated constraint. A NaN can also come "
+            "from NaN decision variables, for example produced by invalid operator parameters."
+        )
     return arr
+
+
+def _reject_undeclared_constraints(problem: Any, G: object) -> None:
+    """Reject constraint values from a problem that declares no constraints; they would be ignored."""
+    if G is None or np.size(np.asarray(G)) == 0:
+        return
+    raise EvaluationError(
+        f"{type(problem).__name__} wrote constraint values G but declares n_constraints=0, so VAMOS would optimize it "
+        "as unconstrained. Set n_constraints to the number of constraints (pymoo's n_ieq_constr is not read)."
+    )
 
 
 def evaluate_population_with_constraints(
@@ -42,6 +56,7 @@ def evaluate_population_with_constraints(
     if n_constraints and n_constraints > 0:
         G = _validate_output_matrix("G", G_raw, expected_shape=(n, int(n_constraints)))
     else:
+        _reject_undeclared_constraints(problem, G_raw)
         G = None
     return F, G
 

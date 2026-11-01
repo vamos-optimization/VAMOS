@@ -7,6 +7,11 @@ unsupported behavior rather than future compatibility promises.
 
 - VAMOS minimizes every objective. Users must transform maximization
   objectives themselves.
+- Objective and constraint values must be finite: a NaN or an infinity stops
+  the run with `EvaluationError`. Give failed evaluations a large finite penalty
+  or a violated constraint.
+  - **Development after 1.1.0:** constraint values from a problem that does not
+    declare `n_constraints` raise `EvaluationError`; they were ignored.
 - A valid population size may depend on an algorithm's reference directions or
   weight lattice. Incompatible sizes fail instead of being adjusted silently.
   - **Development after 1.1.0:** NSGA-III accepts a population at least as

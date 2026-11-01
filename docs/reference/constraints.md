@@ -69,6 +69,12 @@ Declare `n_constraints` explicitly. In a custom `Problem.evaluate(X, out)`
 implementation, put the constraint matrix in `out["G"]` using the same sign
 convention.
 
+**Development after 1.1.0:** constraint values from a problem that declares
+`n_constraints = 0` raise `EvaluationError`. This covers a `G` written by
+`evaluate` and an overridden `Problem.constraints()`. VAMOS 1.1.0 ignored them
+and optimized the problem as unconstrained. Constraint values, like objectives,
+must be finite.
+
 For an equality `h(x) = 0`, choose a meaningful numerical tolerance and encode
 `abs(h(x)) - tolerance <= 0`. State that tolerance and any scaling of constraint
 values in the experiment: they affect what counts as feasible and how violations
