@@ -435,3 +435,29 @@ def test_cli_yaml_steady_state_runs_with_one_offspring(monkeypatch, capsys, tmp_
     err = capsys.readouterr().err
     assert excinfo.value.code == 2, err
     assert "steady_state" in err and "Traceback" not in err
+
+
+@pytest.mark.parametrize(
+    ("block", "message"),
+    [
+        ({"moead": {"delta": 1.5}}, "delta"),
+        ({"moead": {"neighbor_size": 50}}, "neighbor_size"),
+        ({"ibea": {"indicator": "hv"}}, "indicator"),
+    ],
+)
+def test_invalid_algorithm_field_of_a_later_problem_stops_before_any_run(monkeypatch, capsys, tmp_path, block, message):
+    from vamos.experiment.cli.main import main
+
+    output_root = tmp_path / "results"
+    algorithm = next(iter(block))
+    defaults = {"algorithm": algorithm, "engine": "numpy", "population_size": 13, "max_evaluations": 26, "output_root": str(output_root)}
+    spec = {"defaults": defaults, "problems": {"zdt1": {}, "zdt2": block}}
+    monkeypatch.setattr(sys, "argv", ["prog", "--config", str(_write_spec(tmp_path, spec)), "--problem-set", "zdt"])
+
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+
+    err = capsys.readouterr().err
+    assert excinfo.value.code == 2, err
+    assert message in err and "zdt2" in err
+    assert not output_root.exists()
