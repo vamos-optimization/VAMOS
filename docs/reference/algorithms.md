@@ -405,3 +405,10 @@ For a measured first-call/subsequent-call example, follow [Measure backend perfo
 ## Live visualization
 
 The visualization surface is **Experimental**. Enable `--live-viz` to stream Pareto fronts during runs (`--live-viz-interval`, `--live-viz-max-points`). Saves a `live_pareto.png` at run end.
+
+**Development after 1.1.0:** the live window plots the current population,
+dominated and infeasible solutions included, and its title says so. It rescales
+its axes at every update, labels them with the plotted objectives, and samples
+the populations larger than `--live-viz-max-points` with a seeded generator
+instead of the global `random` state. VAMOS 1.1.0 and earlier kept the axes of
+the first generation, so a converging population soon moved out of view.

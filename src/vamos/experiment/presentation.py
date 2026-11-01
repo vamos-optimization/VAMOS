@@ -26,7 +26,7 @@ def build_live_viz(
     return LiveParetoPlot(
         update_interval=getattr(config, "live_viz_interval", 5),
         max_points=getattr(config, "live_viz_max_points", 1000),
-        title=f"{selection.spec.label} (live)",
+        title=f"{selection.spec.label} population (live)",
     )
 
 
