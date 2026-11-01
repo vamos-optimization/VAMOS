@@ -12,6 +12,47 @@ from .errors import UnsafeArtifactPathError
 
 _ENCODED_SEPARATOR_PATTERN = r"%(?:2f|5c)"
 
+# Without LongPathsEnabled, Windows rejects a path of MAX_PATH (260) characters or more, and a
+# directory path of 248 or more, as a missing path rather than as a long one.
+_WINDOWS = os.name == "nt"
+_WINDOWS_MAX_PATH = 260
+_WINDOWS_MAX_DIRECTORY_PATH = 248
+
+
+def windows_path_length_error(exc: OSError) -> OSError | None:
+    """On Windows, ``exc`` with an explanation when a missing path is long enough to be the cause.
+
+    The returned error keeps the type, error number, file names and original message, and adds the
+    path length, the limit and the ways around it. Off Windows, for another error, for a shorter
+    path or for a ``\\\\?\\`` path, the result is ``None``.
+    """
+    if not _WINDOWS or not isinstance(exc, FileNotFoundError):
+        return None
+    names = [name for name in (exc.filename, exc.filename2) if isinstance(name, str)]
+    if not names:
+        return None
+    path = max(names, key=len)
+    if len(path) < _WINDOWS_MAX_DIRECTORY_PATH or path.startswith("\\\\?\\"):
+        return None
+    hint = (
+        f"The path is {len(path)} characters long. Unless long paths are enabled, Windows rejects paths of "
+        f"{_WINDOWS_MAX_PATH} characters or more ({_WINDOWS_MAX_DIRECTORY_PATH} for a directory), and VAMOS "
+        "writes through a staging directory next to the destination, which lengthens the path. Set "
+        "LongPathsEnabled to 1 under HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem, choose a shorter "
+        "destination, or give the destination as an absolute path with the \\\\?\\ prefix. Path"
+    )
+    original = (exc.strerror or "").rstrip(". ")
+    message = f"{original}. {hint}" if original else hint
+    winerror = getattr(exc, "winerror", None)
+    # str() shows the file names after the message, so the hint ends by introducing them.
+    args: tuple[object, ...] = (exc.errno, message, exc.filename)
+    if winerror is not None:
+        args += (winerror,)
+    rewritten = type(exc)(*args)
+    if exc.filename2 is not None:
+        rewritten.filename2 = exc.filename2
+    return rewritten
+
 
 def validate_relative_artifact_path(value: object, *, role: str, operation: str) -> str:
     """Validate and return a normalized POSIX relative artifact path."""
@@ -139,4 +180,4 @@ def _raise_unsafe(value: object, *, role: str, operation: str, reason: str) -> N
     )
 
 
-__all__ = ["confined_artifact_path", "validate_relative_artifact_path"]
+__all__ = ["confined_artifact_path", "validate_relative_artifact_path", "windows_path_length_error"]

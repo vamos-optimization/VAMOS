@@ -132,6 +132,11 @@ unsupported behavior rather than future compatibility promises.
 - Custom Python, plugins, cross-backend execution, and best-effort environment
   matches are not exact-replay targets.
 - SHA-256 evidence detects modification; it is not an authenticity signature.
+- On Windows without long paths enabled, a run or study cannot be written when
+  its staging paths reach 260 characters (248 for a directory), and the Numba
+  cache fails in deeply nested installations. **Development after 1.1.0:** the
+  error gives the path length and the ways out; see
+  [Troubleshooting](../guide/troubleshooting.md#saving-fails-on-windows-with-a-long-path).
 - **Development after 1.1.0:** saving and verification classify the installed
   VAMOS sources with the same rule.
   - **Wheel inside another Git project:** a Git repository counts as a VAMOS
