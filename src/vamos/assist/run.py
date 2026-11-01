@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 import sys
+from collections.abc import Callable
 from copy import deepcopy
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -16,6 +16,8 @@ from vamos.experiment.cli.args import build_parser, build_pre_parser
 from vamos.experiment.cli.loaders import load_spec_defaults
 from vamos.experiment.cli.spec_args import parser_spec_keys
 from vamos.foundation.core.experiment_config import ExperimentConfig
+
+from ._output_dir import prepare_output_dir
 
 _EVAL_KEYS: tuple[str, ...] = ("max_evaluations", "max_evals", "evaluations")
 _GEN_KEYS: tuple[str, ...] = ("max_generations", "generations")
@@ -75,11 +77,8 @@ def prepare_run_dir(plan_dir: Path, out_dir: Path | None, smoke: bool, overwrite
         suffix = "_smoke" if smoke else ""
         run_dir = plan_dir / "runs" / f"run_{_timestamp()}{suffix}"
 
-    if run_dir.exists():
-        if not overwrite:
-            raise ValueError(f"Run directory already exists: {run_dir}")
-        shutil.rmtree(run_dir)
-    run_dir.mkdir(parents=True, exist_ok=False)
+    owned = ("execution_config.json", "run_report.json", "results")
+    prepare_output_dir(run_dir, plan_dir=Path(plan_dir), overwrite=overwrite, owned=owned, kind="Run")
     return run_dir
 
 
@@ -120,13 +119,25 @@ def _run_with_subprocess(config_path: Path) -> int:
     return int(proc.returncode)
 
 
-def _run_with_config_path_detailed(config_path: Path) -> tuple[int, str]:
-    from vamos.experiment.cli.main import run_from_config_path
-
+def _in_process_runner() -> Callable[[str], int] | None:
+    """The CLI entry point, or ``None`` when it cannot be imported in this environment."""
     try:
-        return int(run_from_config_path(str(config_path))), "in_process"
-    except Exception:
+        from vamos.experiment.cli.main import run_from_config_path
+    except ImportError:
+        return None
+    return run_from_config_path
+
+
+def _run_with_config_path_detailed(config_path: Path) -> tuple[int, str]:
+    """Run in this process; only a CLI that cannot be imported runs in a subprocess.
+
+    An exception of the run itself propagates: repeating the run would hide its cause and
+    spend its budget twice.
+    """
+    runner = _in_process_runner()
+    if runner is None:
         return _run_with_subprocess(config_path), "subprocess"
+    return int(runner(str(config_path))), "in_process"
 
 
 def run_with_config_path(config_path: Path) -> int:
@@ -173,11 +184,18 @@ def run_plan(
     try:
         exit_code = run_with_config_path(execution_config_path)
         execution_mode = _LAST_EXECUTION_MODE
-    except Exception as exc:  # pragma: no cover - defensive
+    except SystemExit as exc:
+        # The CLI exits on usage errors; the report is written all the same.
+        exit_code = exc.code if isinstance(exc.code, int) else (0 if exc.code is None else 1)
+        if exit_code != 0:
+            status = "error"
+            error_message = f"The run exited with code {exit_code}" + ("" if isinstance(exc.code, int) else f": {exc.code}")
+            warnings.append(f"Execution failed: {error_message}")
+    except Exception as exc:
         exit_code = 1
         status = "error"
-        error_message = str(exc)
-        warnings.append(f"Execution failed: {exc}")
+        error_message = f"{type(exc).__name__}: {exc}"
+        warnings.append(f"Execution failed: {error_message}")
     else:
         if exit_code != 0:
             status = "error"

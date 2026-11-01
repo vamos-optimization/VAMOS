@@ -313,3 +313,73 @@ def test_numba_survival_returns_arrays_owned_by_the_caller():
         kernel.nsga2_survival(X_next[:20], F_next[:20], X_next[20:], F_next[20:], 20)
     np.testing.assert_array_equal(X_first, expected[0])
     np.testing.assert_array_equal(F_first, expected[1])
+
+
+def test_numpy_tournament_never_lets_a_worse_rank_win_a_crowding_tie() -> None:
+    from vamos.foundation.kernel.numpy_backend import _tournament_winners_numpy
+
+    # A NaN crowding becomes -inf, the value worse-ranked candidates are filtered to.
+    ranks = np.array([0, 1, 1])
+    crowding = np.full(3, np.nan)
+    candidates = np.array([[1, 0, 2]])
+    tie_break = np.array([[0.1, 0.9, 0.5]])
+
+    winners = _tournament_winners_numpy(ranks, crowding, candidates, tie_break, np.arange(1))
+
+    assert winners.tolist() == [0]
+
+
+@pytest.mark.numba
+@pytest.mark.parametrize("pressure", [3, 4])
+def test_tournament_pressure_above_two_never_prefers_worse_rank(pressure: int) -> None:
+    rng = np.random.default_rng(11)
+    for trial in range(60):
+        n = 12
+        ranks = rng.integers(0, 3, size=n)
+        crowding = rng.random(n)
+        crowding[rng.random(n) < 0.4] = -np.inf if trial % 2 else np.nan
+        expected = NumPyKernel().tournament_selection(ranks, crowding, pressure, np.random.default_rng(trial), 8)
+        actual = NumbaKernel().tournament_selection(ranks, crowding, pressure, np.random.default_rng(trial), 8)
+        np.testing.assert_array_equal(actual, expected)
+
+
+@pytest.mark.numba
+@pytest.mark.parametrize("kernel_cls", [NumPyKernel, NumbaKernel])
+def test_tournament_pressure_above_two_preserves_fractional_ranks(kernel_cls) -> None:  # type: ignore[no-untyped-def]
+    ranks = np.array([0.9, 0.1, 0.5])
+    crowding = np.array([10.0, 0.0, 5.0])
+
+    winners = kernel_cls().tournament_selection(ranks, crowding, 3, np.random.default_rng(0), 4)
+
+    assert winners.tolist() == [1, 1, 1, 1]
+
+
+def test_moocore_survival_returns_arrays_owned_by_the_caller() -> None:
+    pytest.importorskip("moocore")
+    from vamos.foundation.kernel.moocore_backend import MooCoreKernel
+
+    rng = np.random.default_rng(5)
+    kernel = MooCoreKernel()
+    X, F = rng.random((40, 3)), rng.random((40, 3))
+    X_first, F_first = kernel.nsga2_survival(X[:20], F[:20], X[20:], F[20:], 20)
+    expected = (X_first.copy(), F_first.copy())
+    for _ in range(5):
+        X_next, F_next = rng.random((40, 3)), rng.random((40, 3))
+        kernel.nsga2_survival(X_next[:20], F_next[:20], X_next[20:], F_next[20:], 20)
+    np.testing.assert_array_equal(X_first, expected[0])
+    np.testing.assert_array_equal(F_first, expected[1])
+
+
+def test_moocore_survival_ignores_hv_contrib_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    pytest.importorskip("moocore")
+    from vamos.foundation.kernel.moocore_backend import MooCoreKernel
+
+    rng = np.random.default_rng(8)
+    t = np.sort(rng.random(60))
+    F = np.column_stack([t, 1.0 - np.sqrt(t)]) + 0.01 * rng.random((60, 2))
+    X = rng.random((60, 4))
+    baseline = MooCoreKernel().nsga2_survival(X[:30], F[:30], X[30:], F[30:], 30, return_indices=True)[2]
+    monkeypatch.setenv("VAMOS_MOOCORE_HV_CONTRIB", "1")
+    flagged = MooCoreKernel().nsga2_survival(X[:30], F[:30], X[30:], F[30:], 30, return_indices=True)[2]
+
+    np.testing.assert_array_equal(np.sort(flagged), np.sort(baseline))

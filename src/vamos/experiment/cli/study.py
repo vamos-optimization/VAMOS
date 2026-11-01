@@ -136,7 +136,8 @@ def _render_summary(payload: Mapping[str, Any]) -> None:
     if not isinstance(summary, Mapping):
         return
     rows = summary.get("rows")
-    if not isinstance(rows, list):
+    # The payload is frozen, so its lists arrive as tuples.
+    if not isinstance(rows, Sequence) or isinstance(rows, str):
         return
     print("Tasks:")
     print("index  state       problem  algorithm  seed  evaluations")

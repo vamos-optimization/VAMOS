@@ -121,25 +121,72 @@ def test_run_with_config_path_prefers_in_process(monkeypatch: MonkeyPatch, tmp_p
     assert calls == {"in_process": 1, "subprocess": 0}
 
 
-def test_run_with_config_path_falls_back_to_subprocess(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
+def test_run_with_config_path_falls_back_to_subprocess_only_without_the_cli(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
     config_path = tmp_path / "execution_config.json"
     config_path.write_text("{}", encoding="utf-8")
-
-    calls = {"in_process": 0, "subprocess": 0}
-
-    def _fake_in_process(path: str) -> int:
-        assert path == str(config_path)
-        calls["in_process"] += 1
-        raise RuntimeError("forced in-process failure")
+    calls = {"subprocess": 0}
 
     def _fake_subprocess(path: Path) -> int:
         assert path == config_path
         calls["subprocess"] += 1
         return 0
 
-    monkeypatch.setattr("vamos.experiment.cli.main.run_from_config_path", _fake_in_process)
+    monkeypatch.setattr("vamos.assist.run._in_process_runner", lambda: None)
     monkeypatch.setattr("vamos.assist.run._run_with_subprocess", _fake_subprocess)
 
-    exit_code = run_with_config_path(config_path)
-    assert exit_code == 0
-    assert calls == {"in_process": 1, "subprocess": 1}
+    assert run_with_config_path(config_path) == 0
+    assert calls == {"subprocess": 1}
+
+
+def test_run_plan_reports_in_process_error_without_rerun(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
+    plan_dir, _ = _materialized_plan(tmp_path)
+    calls = {"in_process": 0}
+
+    def _failing_run(path: str) -> int:
+        calls["in_process"] += 1
+        raise RuntimeError("objective raised")
+
+    def _no_subprocess(path: Path) -> int:
+        raise AssertionError("the run must not be repeated in a subprocess")
+
+    monkeypatch.setattr("vamos.experiment.cli.main.run_from_config_path", _failing_run)
+    monkeypatch.setattr("vamos.assist.run._run_with_subprocess", _no_subprocess)
+
+    report = run_plan(plan_dir, smoke=True, smoke_evals=20)
+
+    assert calls == {"in_process": 1}
+    assert report["status"] == "error"
+    assert "objective raised" in str(report["error_message"])
+    assert any("objective raised" in warning for warning in report["warnings"])
+    assert json.loads(Path(str(report["run_report_path"])).read_text(encoding="utf-8"))["status"] == "error"
+
+
+def test_run_plan_writes_report_on_systemexit(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
+    plan_dir, _ = _materialized_plan(tmp_path)
+
+    def _exiting_run(path: str) -> int:
+        raise SystemExit(2)
+
+    monkeypatch.setattr("vamos.experiment.cli.main.run_from_config_path", _exiting_run)
+
+    report = run_plan(plan_dir, smoke=True, smoke_evals=20)
+
+    stored = json.loads(Path(str(report["run_report_path"])).read_text(encoding="utf-8"))
+    assert stored["status"] == "error"
+    assert stored["exit_code"] == 2
+
+
+def test_run_plan_overwrite_refuses_unmarked_or_plan_folder(tmp_path: Path) -> None:
+    import pytest
+
+    plan_dir, _ = _materialized_plan(tmp_path)
+    foreign = tmp_path / "foreign"
+    foreign.mkdir()
+    (foreign / "data.csv").write_text("keep", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="plan directory"):
+        run_plan(plan_dir, out_dir=plan_dir, overwrite=True, smoke=True)
+    with pytest.raises(ValueError, match=r"\.vamos-assist"):
+        run_plan(plan_dir, out_dir=foreign, overwrite=True, smoke=True)
+    assert (foreign / "data.csv").read_text(encoding="utf-8") == "keep"
+    assert (plan_dir / "plan.json").is_file()

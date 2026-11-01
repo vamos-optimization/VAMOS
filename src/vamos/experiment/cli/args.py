@@ -9,6 +9,7 @@ from .args_benchmarks import add_benchmark_arguments
 from .args_core import add_core_arguments
 from .args_outputs import add_output_arguments
 from .args_tuning import add_tuning_arguments
+from .spec_args import SpecArgumentParser
 from .types import SpecDefaults
 
 
@@ -22,7 +23,9 @@ def build_pre_parser() -> argparse.ArgumentParser:
     pre_parser.add_argument(
         "--validate-config",
         action="store_true",
-        help="Validate --config and exit (does not run any experiments; exits with status 0).",
+        help=(
+            "Validate --config with the checks that precede a run and exit without running (status 0 when valid, 2 with the first error)."
+        ),
     )
     return pre_parser
 
@@ -32,9 +35,9 @@ def build_parser(
     default_config: ExperimentConfig,
     pre_parser: argparse.ArgumentParser,
     spec_defaults: SpecDefaults,
-) -> argparse.ArgumentParser:
+) -> SpecArgumentParser:
     """Construct the full CLI parser with defaults applied."""
-    parser = argparse.ArgumentParser(
+    parser = SpecArgumentParser(
         description="Vectorized multi-objective optimization demo across benchmark problems.",
         parents=[pre_parser],
     )
