@@ -229,7 +229,9 @@ def test_profile_smoke_executes_and_writes_csv(tmp_path):
         "--engines",
         "numpy",
         "--budget",
-        "16",
+        "200",
+        "--repeats",
+        "1",
         "--seed",
         "3",
         "--no-hv",
@@ -241,7 +243,7 @@ def test_profile_smoke_executes_and_writes_csv(tmp_path):
     assert proc.returncode == 0, proc.stderr.decode()
     assert output_csv.exists()
     content = output_csv.read_text(encoding="utf-8")
-    assert "engine,time_seconds,n_solutions,hypervolume" in content
+    assert "engine,time_seconds,time_min,time_max,repeats,n_solutions,hypervolume,error" in content
     assert "numpy" in content
 
 

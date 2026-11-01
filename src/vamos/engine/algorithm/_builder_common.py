@@ -8,7 +8,7 @@ from typing import Any, cast
 
 from vamos.engine.algorithm.config import AlgorithmConfigProtocol
 from vamos.engine.algorithm.registry import resolve_algorithm
-from vamos.engine.config.variation import ensure_operator_tuple, normalize_operator_tuple, resolve_default_variation_config
+from vamos.engine.config.variation import ensure_operator_tuple, resolve_default_variation_config
 from vamos.engine.variation.helpers import ensure_supported_repair_name
 from vamos.foundation.encoding import EncodingLike, normalize_encoding
 from vamos.foundation.exceptions import ConfigurationError
@@ -25,18 +25,21 @@ def resolve_variation_config(
     encoding: EncodingLike,
     overrides: dict[str, Any] | None,
     extra_exclude: set[str] | None = None,
+    defaults: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """The variation an algorithm runs with: its ``defaults`` (or the encoding's) merged with ``overrides``.
+
+    An operator override that names the default operator keeps the default parameters it does not
+    set; see :func:`resolve_default_variation_config`.
+    """
     normalized_overrides = dict(overrides or {})
     for key in ("crossover", "mutation", "selection", "repair", "aggregation"):
         value = normalized_overrides.get(key)
         if isinstance(value, (tuple, list)):
             # The list form ([name, {params}]) that ablations use is the same operator as {method: name, **params}.
-            operator = normalize_operator_tuple(value)
-            if operator is None:
-                raise TypeError(f"Variation '{key}' must be a mapping with a 'method' field or a [name, params] pair.")
-            name, params = operator
+            name, params = ensure_operator_tuple(value, key=key)
             normalized_overrides[key] = {"method": name, **params}
-    var_cfg = resolve_default_variation_config(encoding, normalized_overrides)
+    var_cfg = resolve_default_variation_config(encoding, normalized_overrides, defaults=defaults)
     excluded = extra_exclude or set()
     for key, value in normalized_overrides.items():
         if key not in var_cfg and key not in excluded:

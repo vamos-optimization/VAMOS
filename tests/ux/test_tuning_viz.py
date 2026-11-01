@@ -38,6 +38,40 @@ def test_plot_helpers_do_not_crash():
     plot_reduced_front(F, target_dim=2)
 
 
+def _select(indices):
+    def fake_reduce(F, method, target_dim):  # noqa: ARG001
+        return F[:, indices], np.array(indices)
+
+    return fake_reduce
+
+
+def test_plot_reduced_front_labels_selected_objectives(monkeypatch):
+    from vamos.ux.analysis import tuning_viz
+
+    F = np.random.default_rng(0).random((12, 4))
+    labels = ["cost", "cost_dup", "quality", "risk"]
+
+    monkeypatch.setattr(tuning_viz, "reduce_objectives", _select([1, 2]))
+    ax = plot_reduced_front(F, labels=labels, target_dim=2)
+    assert (ax.get_xlabel(), ax.get_ylabel()) == ("cost_dup", "quality")
+    unlabelled = plot_reduced_front(F, target_dim=2)
+    assert (unlabelled.get_xlabel(), unlabelled.get_ylabel()) == ("f2", "f3")
+
+    monkeypatch.setattr(tuning_viz, "reduce_objectives", _select([0, 2, 3]))
+    ax3 = plot_reduced_front(F, labels=labels, target_dim=3)
+    assert (ax3.get_xlabel(), ax3.get_ylabel(), ax3.get_zlabel()) == ("cost", "quality", "risk")
+
+
+def test_tuning_viz_imports_matplotlib_and_pandas_lazily():
+    import subprocess
+    import sys
+
+    code = "import sys, vamos.ux.analysis.tuning_viz; print('matplotlib.pyplot' in sys.modules, 'pandas' in sys.modules)"
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
+
+    assert proc.stdout.split() == ["False", "False"]
+
+
 def test_study_df_and_summary(tmp_path):
     from vamos import StudySpec, create_study
 

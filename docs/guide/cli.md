@@ -320,6 +320,19 @@ problems:
 The `moead` block applies only when MOEA/D is selected, for example with
 `--algorithm moead`.
 
+**Development after 1.1.0:** an operator that names the algorithm's default
+operator keeps the default parameters it does not set. With NSGA-II,
+`crossover: {method: sbx, eta: 5}` is SBX with probability 0.9 and eta 5, and
+MOEA/D's `crossover: {method: de, f: 0.7}` keeps `cr: 1.0`. An operator with
+another name gets exactly the parameters given, completed by that operator's
+own defaults. Inside an operator, a
+parameter set to `null` takes its default. A `problems.<name>` operator
+replaces the `defaults` one whole, and an entry set to `null` there, or
+`repair: auto`, keeps the value already in effect. In VAMOS 1.1.0 every
+operator override replaced the default operator, so changing only `eta` also
+lowered the SBX probability from 1.0 to 0.9, and the saved configuration did
+not record it.
+
 **Development after 1.1.0:** every field of an algorithm block reaches the
 algorithm configuration, in `defaults` and in `problems.<name>` (which wins).
 Examples include MOEA/D's `neighbor_size`, `delta`, `replace_limit` and
@@ -387,6 +400,25 @@ Install any required [optional extras](installation.md#optional-extras) first.
 - Profiling: `vamos profile --problem zdt1 --engines numpy,numba --budget 2000 --output report/profile.csv`
 - Problem zoo: `vamos zoo list`, `vamos zoo info zdt1`, `vamos zoo run zdt1 --algorithm nsgaii --budget 3000`
 - Studio (interactive, needs `studio` extra): read the [Studio walkthrough and launcher limitation](studio.md) before starting.
+
+**Development after 1.1.0:** `vamos profile` runs each engine once untimed, to
+pay one-time costs such as Numba compilation, then `--repeats` timed runs
+(default 3). It reports their median, which the speedups use, and their range.
+An unknown engine or problem stops the command with exit code 2 before any run.
+An engine whose run fails is listed with its error, with empty cells in the
+CSV, and the command exits with code 1. The hypervolume uses the feasible
+solutions inside a reference point: the nadir of the problem's reference front
+plus 10% of its range, or `--hv-reference`. It works with any number of
+objectives. Without a matching reference front and without `--hv-reference`, it
+is not computed and a warning says so. The CSV has the columns `engine`,
+`time_seconds` (median), `time_min`, `time_max`, `repeats`, `n_solutions`,
+`hypervolume` and `error`, and leaves a missing value empty. VAMOS 1.1.0 timed
+a single cold run per engine, so the first Numba run measured mostly
+compilation. It recorded a failed engine with time 0 and exit code 0. Its
+hypervolume used the reference `[1.1, ..., 1.1]` whatever the problem's scale,
+so the value was meaningless for a front outside the unit range (ZDT3,
+DTLZ1, WFG) and for problems without a reference front. It was missing with
+three or more objectives, and the CSV stored 0.0 where the table said N/A.
 
 **Development after 1.1.0:** `vamos bench` and `vamos ablation` build the
 indicator references per problem and number of objectives. The HV reference

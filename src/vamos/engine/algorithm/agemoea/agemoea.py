@@ -61,7 +61,8 @@ def _build_variation(
     if "repair" in config and config["repair"] != "auto":
         explicit_overrides["repair"] = config["repair"]
 
-    var_cfg = resolve_default_variation_config(encoding, explicit_overrides)
+    # The configuration already holds the resolved operators: they replace the encoding defaults whole.
+    var_cfg = {**resolve_default_variation_config(encoding, None), **explicit_overrides}
     c_name, c_kwargs = ensure_operator_tuple(var_cfg.get("crossover", ("sbx", {})), key="crossover")
     m_name, m_kwargs = ensure_operator_tuple(var_cfg.get("mutation", ("polynomial", {})), key="mutation")
     repair_cfg: RepairConfigValue = "auto"
