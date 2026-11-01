@@ -139,7 +139,7 @@ def build_spea2_algorithm(
     apply_operator_config(
         builder,
         method_name="crossover",
-        operator_cfg=var_cfg.get("crossover", ("sbx", {"prob": 1.0, "eta": 20.0})),
+        operator_cfg=var_cfg.get("crossover", ("sbx", {"prob": 0.9, "eta": 20.0})),
         key="crossover",
     )
     apply_operator_config(
@@ -185,7 +185,7 @@ def build_ibea_algorithm(
     apply_operator_config(
         builder,
         method_name="crossover",
-        operator_cfg=var_cfg.get("crossover", ("sbx", {"prob": 1.0, "eta": 20.0})),
+        operator_cfg=var_cfg.get("crossover", ("sbx", {"prob": 0.9, "eta": 20.0})),
         key="crossover",
     )
     apply_operator_config(

@@ -314,6 +314,19 @@ problems:
 The `moead` block applies only when MOEA/D is selected, for example with
 `--algorithm moead`.
 
+**Development after 1.1.0:** an operator that names the algorithm's default
+operator keeps the default parameters it does not set. With NSGA-II,
+`crossover: {method: sbx, eta: 5}` is SBX with probability 0.9 and eta 5, and
+MOEA/D's `crossover: {method: de, f: 0.7}` keeps `cr: 1.0`. An operator with
+another name gets exactly the parameters given, completed by that operator's
+own defaults. Inside an operator, a
+parameter set to `null` takes its default. A `problems.<name>` operator
+replaces the `defaults` one whole, and an entry set to `null` there, or
+`repair: auto`, keeps the value already in effect. In VAMOS 1.1.0 every
+operator override replaced the default operator, so changing only `eta` also
+lowered the SBX probability from 1.0 to 0.9, and the saved configuration did
+not record it.
+
 **Development after 1.1.0:** every field of an algorithm block reaches the
 algorithm configuration, in `defaults` and in `problems.<name>` (which wins).
 Examples include MOEA/D's `neighbor_size`, `delta`, `replace_limit` and
