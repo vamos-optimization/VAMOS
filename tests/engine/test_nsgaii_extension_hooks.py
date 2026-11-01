@@ -302,3 +302,76 @@ def test_freeze_reinsert_reinjects_missing_active_candidate() -> None:
 
     has_reinserted = np.any(np.all(np.isclose(state.X, np.array([0.0, 0.0]), atol=1e-9), axis=1))
     assert has_reinserted
+
+
+def test_immigration_counts_evaluations_against_the_budget() -> None:
+    from vamos.foundation.problem.zdt1 import ZDT1Problem
+
+    class CountingZDT1(ZDT1Problem):
+        rows = 0
+
+        def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+            CountingZDT1.rows += X.shape[0]
+            super().evaluate(X, out)
+
+    cfg = {**_base_cfg(), "pop_size": 20, "offspring_size": 20}
+    cfg["immigration"] = {
+        "enabled": True,
+        "start_generation": 0,
+        "every": 1,
+        "max_in_pop": 1,
+        "max_insert_per_event": 1,
+        "static_candidates": [{"X": np.full(6, 0.5)}],
+    }
+
+    result = NSGAII(cfg, NumPyKernel()).run(CountingZDT1(n_var=6), termination=("max_evaluations", 400), seed=3)
+
+    assert CountingZDT1.rows == result["evaluations"] == 400
+
+
+def test_immigrants_without_objectives_wait_for_budget() -> None:
+    from vamos.foundation.problem.zdt1 import ZDT1Problem
+
+    class CountingZDT1(ZDT1Problem):
+        rows = 0
+
+        def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+            CountingZDT1.rows += X.shape[0]
+            super().evaluate(X, out)
+
+    cfg = {**_base_cfg(), "pop_size": 20, "offspring_size": 20}
+    cfg["immigration"] = {
+        "enabled": True,
+        "start_generation": 0,
+        "every": 1,
+        "max_in_pop": 5,
+        "max_insert_per_event": 5,
+        "static_candidates": [{"X": np.full(6, value)} for value in (0.1, 0.2, 0.3, 0.4, 0.5)],
+    }
+
+    result = NSGAII(cfg, NumPyKernel()).run(CountingZDT1(n_var=6), termination=("max_evaluations", 20), seed=3)
+
+    assert CountingZDT1.rows == result["evaluations"] == 20
+
+
+def test_checkpoint_records_immigrant_evaluations(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from vamos.foundation.checkpoint import load_checkpoint
+    from vamos.foundation.problem.zdt1 import ZDT1Problem
+
+    cfg = {**_base_cfg(), "pop_size": 20, "offspring_size": 20}
+    cfg["immigration"] = {
+        "enabled": True,
+        "start_generation": 1,
+        "every": 1,
+        "max_in_pop": 1,
+        "max_insert_per_event": 1,
+        "static_candidates": [{"X": np.full(6, 0.5)}],
+    }
+
+    result = NSGAII(cfg, NumPyKernel()).run(
+        ZDT1Problem(n_var=6), termination=("max_evaluations", 41), seed=3, checkpoint_dir=str(tmp_path), checkpoint_interval=1
+    )
+
+    assert result["evaluations"] == 41
+    checkpoint = load_checkpoint(tmp_path / "nsgaii_seed3_gen1.ckpt", trusted=True)
+    assert checkpoint["n_eval"] == 41

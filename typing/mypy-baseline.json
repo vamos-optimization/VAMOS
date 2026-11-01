@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "5672c8d07ffd2a349e9533b1b220f66446ffd489",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 5672c8d07ffd2a349e9533b1b220f66446ffd489",
+  "generation_commit": "6ad1615fc595f14fad5ae7a16fab37187a6440f5",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 6ad1615fc595f14fad5ae7a16fab37187a6440f5",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.0",
@@ -26,14 +26,14 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 525,
-  "files_with_diagnostics": 70,
-  "fingerprint_count": 70,
+  "diagnostic_count": 514,
+  "files_with_diagnostics": 69,
+  "fingerprint_count": 69,
   "error_code_summary": {
-    "type-arg": 525
+    "type-arg": 514
   },
   "layer_summary": {
-    "engine": 256,
+    "engine": 245,
     "experiment": 11,
     "foundation": 222,
     "package-root": 1,
@@ -1634,60 +1634,6 @@
         {
           "line": 453,
           "column": 27
-        }
-      ]
-    },
-    {
-      "fingerprint": "824823B8170E913E08BA4A0FCEC4D679E81951140F0698130982D554866C7495",
-      "path": "src/vamos/engine/algorithm/nsgaii/injection.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 11,
-      "locations": [
-        {
-          "line": 30,
-          "column": 8
-        },
-        {
-          "line": 31,
-          "column": 8
-        },
-        {
-          "line": 32,
-          "column": 8
-        },
-        {
-          "line": 38,
-          "column": 8
-        },
-        {
-          "line": 39,
-          "column": 8
-        },
-        {
-          "line": 40,
-          "column": 8
-        },
-        {
-          "line": 121,
-          "column": 30
-        },
-        {
-          "line": 204,
-          "column": 33
-        },
-        {
-          "line": 207,
-          "column": 35
-        },
-        {
-          "line": 282,
-          "column": 20
-        },
-        {
-          "line": 371,
-          "column": 66
         }
       ]
     },
