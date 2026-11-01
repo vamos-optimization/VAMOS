@@ -222,6 +222,8 @@ def test_genealogy_is_checked_against_each_problems_algorithm(monkeypatch, capsy
         (("--seed", "-1"), "--seed"),
         (("--n-var", "0"), "--n-var"),
         (("--problem", "zdt1", "--n-obj", "3"), "fixed number of objectives"),
+        (("--problem", "re21", "--n-var", "10"), "fixed number of variables"),
+        (("--problem", "mw1", "--n-obj", "3"), "fixed number of objectives"),
     ],
 )
 def test_invalid_cli_inputs_exit_with_usage_error(monkeypatch, capsys, argv, message):

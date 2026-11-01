@@ -341,7 +341,7 @@ class CEC2009_CF1(_CEC2009UF2ObjBase):
 
     n_constraints = 1
 
-    def __init__(self, n_var: int = 30) -> None:
+    def __init__(self, n_var: int = 10) -> None:
         super().__init__(n_var=n_var, lower_rest=0.0, upper_rest=1.0)
 
     def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:

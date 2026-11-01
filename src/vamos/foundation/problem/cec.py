@@ -192,7 +192,7 @@ class CEC2009UF10Problem(_BaseCEC2009):
 
 
 class CEC2009CF1Problem(_BaseCEC2009):
-    def __init__(self, n_var: int = 30) -> None:
+    def __init__(self, n_var: int = 10) -> None:
         _load_pymoo()
         super().__init__(CEC2009_CF1, _FallbackCF1, n_var=n_var)
 
