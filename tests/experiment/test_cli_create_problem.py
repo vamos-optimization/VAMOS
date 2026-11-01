@@ -218,3 +218,65 @@ class TestCLI:
         out_file = tmp_path / "subdir" / "problem.py"
         run_create_problem(["--yes", "--output", str(out_file)])
         assert out_file.exists()
+
+
+# ======================================================================
+# Overwrites, inputs and names
+# ======================================================================
+
+
+def test_create_problem_refuses_to_overwrite(tmp_path, capsys) -> None:
+    import pytest
+
+    target = tmp_path / "mine.py"
+    target.write_text("# my edits\n", encoding="utf-8")
+
+    with pytest.raises(SystemExit) as excinfo:
+        run_create_problem(["--yes", "--output", str(target)])
+
+    assert excinfo.value.code != 0
+    assert "--force" in capsys.readouterr().err
+    assert target.read_text(encoding="utf-8") == "# my edits\n"
+
+    run_create_problem(["--yes", "--output", str(target), "--force"])
+    assert "make_problem" in target.read_text(encoding="utf-8")
+
+
+def test_create_problem_rejects_non_positive_dimensions(tmp_path, capsys) -> None:
+    import pytest
+
+    for flag, value in (("--n-var", "0"), ("--n-obj", "-1"), ("--budget", "0")):
+        target = tmp_path / f"p{flag.strip('-')}.py"
+        with pytest.raises(SystemExit) as excinfo:
+            run_create_problem(["--yes", "--output", str(target), flag, value])
+        assert excinfo.value.code == 2
+        assert flag in capsys.readouterr().err
+        assert not target.exists()
+
+
+def test_create_problem_escapes_name(tmp_path) -> None:
+    import ast
+
+    for style in ("functional", "class"):
+        for name in ('a"b', 'tri"""ple', "back\\slash", "end\\", "3d problem", "class"):
+            target = tmp_path / f"{style}-{abs(hash(name))}.py"
+            run_create_problem(["--yes", "--style", style, "--name", name, "--output", str(target)])
+            source = target.read_text(encoding="utf-8")
+            ast.parse(source)
+            if style == "functional":
+                assert f"name={name!r}," in source
+
+
+def test_create_problem_default_file_does_not_shadow_a_module(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    run_create_problem(["--yes", "--name", "numpy"])
+
+    assert not (tmp_path / "numpy.py").exists()
+    assert (tmp_path / "numpy_problem.py").exists()
+
+
+def test_generated_script_reports_the_front_not_the_population() -> None:
+    code = _generate_functional(name="p", n_var=2, n_obj=2, bounds=[(0.0, 1.0)] * 2, budget=100)
+
+    assert "result.front()" in code

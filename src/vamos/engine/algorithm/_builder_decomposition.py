@@ -23,6 +23,10 @@ if TYPE_CHECKING:
     from vamos.engine.algorithm.rvea import RVEA
 
 
+# MOEA/D fields its builder below reads from the algorithm block.
+_MOEAD_BUILDER_FIELDS = ("neighbor_size", "delta", "replace_limit", "batch_size", "weight_vectors", "use_numba_variation")
+
+
 def build_moead_algorithm(
     *,
     kernel: KernelBackend,
@@ -42,9 +46,12 @@ def build_moead_algorithm(
 
     builder = MOEADConfig.builder()
     builder.pop_size(pop_size)
-    builder.neighbor_size(min(20, pop_size))
-    builder.delta(0.9)
-    builder.replace_limit(2)
+    # Set through the builder, which checks the neighbourhood against the population.
+    builder.neighbor_size(moead_overrides.get("neighbor_size", min(20, pop_size)))
+    builder.delta(moead_overrides.get("delta", 0.9))
+    builder.replace_limit(moead_overrides.get("replace_limit", 2))
+    if "batch_size" in moead_overrides:
+        builder.batch_size(moead_overrides["batch_size"])
     weight_cfg = moead_overrides.get("weight_vectors")
     if weight_cfg is None:
         builder.weight_vectors(path=str(weight_path("W3D_91.dat").parent))
@@ -65,7 +72,10 @@ def build_moead_algorithm(
         key="repair",
         encoding=encoding,
     )
-    return cast("tuple[MOEAD, AlgorithmConfigProtocol]", finalize_algorithm(algorithm_name="moead", builder=builder, kernel=kernel))
+    return cast(
+        "tuple[MOEAD, AlgorithmConfigProtocol]",
+        finalize_algorithm(algorithm_name="moead", builder=builder, kernel=kernel, block=moead_overrides, handled=_MOEAD_BUILDER_FIELDS),
+    )
 
 
 def build_nsgaiii_algorithm(
@@ -96,7 +106,10 @@ def build_nsgaiii_algorithm(
         key="repair",
         encoding=encoding,
     )
-    return cast("tuple[NSGAIII, AlgorithmConfigProtocol]", finalize_algorithm(algorithm_name="nsgaiii", builder=builder, kernel=kernel))
+    return cast(
+        "tuple[NSGAIII, AlgorithmConfigProtocol]",
+        finalize_algorithm(algorithm_name="nsgaiii", builder=builder, kernel=kernel, block=nsgaiii_variation),
+    )
 
 
 def build_rvea_algorithm(
@@ -131,7 +144,12 @@ def build_rvea_algorithm(
         key="repair",
         encoding=encoding,
     )
-    return cast("tuple[RVEA, AlgorithmConfigProtocol]", finalize_algorithm(algorithm_name="rvea", builder=builder, kernel=kernel))
+    return cast(
+        "tuple[RVEA, AlgorithmConfigProtocol]",
+        finalize_algorithm(
+            algorithm_name="rvea", builder=builder, kernel=kernel, block=rvea_overrides, handled=("n_partitions", "alpha", "adapt_freq")
+        ),
+    )
 
 
 __all__ = [
