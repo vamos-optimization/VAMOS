@@ -7,9 +7,14 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
+
+from vamos.engine.algorithm.components.lifecycle import evaluate_batch, get_eval_strategy
+
+if TYPE_CHECKING:
+    from vamos.foundation.eval.backends import EvaluationBackend
 
 
 def _logger() -> logging.Logger:
@@ -27,17 +32,17 @@ class ImmigrationStats:
 
 @dataclass(frozen=True)
 class ImmigrantCandidate:
-    X: np.ndarray
-    F: np.ndarray | None = None
-    G: np.ndarray | None = None
+    X: np.ndarray[Any, Any]
+    F: np.ndarray[Any, Any] | None = None
+    G: np.ndarray[Any, Any] | None = None
     tag: str | None = None
 
 
 @dataclass
 class _ActiveImmigrant:
-    X: np.ndarray
-    F: np.ndarray | None
-    G: np.ndarray | None
+    X: np.ndarray[Any, Any]
+    F: np.ndarray[Any, Any] | None
+    G: np.ndarray[Any, Any] | None
     tag: str | None
 
 
@@ -118,7 +123,7 @@ def _safe_call_provider(provider: Any, generation: int, state: Any) -> Any:
     return provider()
 
 
-def _match_active_indices(X: np.ndarray, active: Sequence[_ActiveImmigrant]) -> np.ndarray:
+def _match_active_indices(X: np.ndarray[Any, Any], active: Sequence[_ActiveImmigrant]) -> np.ndarray[Any, Any]:
     if X.size == 0 or not active:
         return np.zeros(0, dtype=int)
     used = np.zeros(X.shape[0], dtype=bool)
@@ -201,10 +206,10 @@ class ImmigrationManager:
                 totals.replaced_pages.extend(int(p) for p in st.replaced_pages)
         return totals
 
-    def active_indices(self) -> np.ndarray:
+    def active_indices(self) -> np.ndarray[Any, Any]:
         return self._active_indices.copy()
 
-    def excluded_indices(self) -> np.ndarray:
+    def excluded_indices(self) -> np.ndarray[Any, Any]:
         if self.breeding_mode in {"exclude", "freeze_reinsert"}:
             return self._active_indices.copy()
         return np.zeros(0, dtype=int)
@@ -236,28 +241,31 @@ class ImmigrationManager:
         problem: Any,
         candidates: list[ImmigrantCandidate],
         state: Any,
+        eval_strategy: EvaluationBackend,
     ) -> list[ImmigrantCandidate]:
+        """Evaluate the candidates without objectives through the run's backend, within its budget.
+
+        The evaluations count in ``state.n_eval``. Candidates beyond the remaining budget keep
+        ``F=None`` and are not inserted.
+        """
         if not candidates:
             return []
         needs_eval = [i for i, c in enumerate(candidates) if c.F is None]
         if not needs_eval:
             return candidates
+        needs_eval = needs_eval[: max(0, int(state.max_evals) - int(state.n_eval))]
+        if not needs_eval:
+            return candidates
         X_batch = np.vstack([candidates[i].X.reshape(1, -1) for i in needs_eval])
-        n_obj = int(state.F.shape[1]) if isinstance(getattr(state, "F", None), np.ndarray) else 1
-        out: dict[str, Any] = {"F": np.zeros((X_batch.shape[0], n_obj), dtype=float)}
-        g_state = getattr(state, "G", None)
-        if isinstance(g_state, np.ndarray) and g_state.ndim == 2 and g_state.shape[1] > 0:
-            out["G"] = np.zeros((X_batch.shape[0], g_state.shape[1]), dtype=float)
-        problem.evaluate(X_batch, out)
-        F = np.asarray(out.get("F"))
+        constraint_mode = str(getattr(state, "constraint_mode", "feasibility"))
+        F_raw, G = evaluate_batch(problem, eval_strategy, X_batch, constraint_mode)
+        state.n_eval += len(needs_eval)
+        F = np.asarray(F_raw)
         if F.ndim != 2 or F.shape[0] != len(needs_eval):
             return candidates
-        G_raw = out.get("G")
-        G = np.asarray(G_raw) if isinstance(G_raw, np.ndarray) else None
-        constraint_mode = str(getattr(state, "constraint_mode", "feasibility"))
         result = list(candidates)
         for j, idx in enumerate(needs_eval):
-            g_i = np.asarray(G[j], dtype=float).copy() if isinstance(G, np.ndarray) and G.ndim == 2 and constraint_mode != "none" else None
+            g_i = np.asarray(G[j], dtype=float).copy() if isinstance(G, np.ndarray) and G.ndim == 2 else None
             result[idx] = ImmigrantCandidate(
                 X=np.asarray(candidates[idx].X, dtype=float).copy(),
                 F=np.asarray(F[j], dtype=float).copy(),
@@ -279,7 +287,7 @@ class ImmigrationManager:
         *,
         state: Any,
         kernel: Any,
-        protected: np.ndarray,
+        protected: np.ndarray[Any, Any],
     ) -> int | None:
         X = getattr(state, "X", None)
         F = getattr(state, "F", None)
@@ -368,7 +376,7 @@ class ImmigrationManager:
             st.inserted += int(inserted)
         return inserted
 
-    def record_parent_indices(self, generation: int, parent_idx: np.ndarray) -> None:
+    def record_parent_indices(self, generation: int, parent_idx: np.ndarray[Any, Any]) -> None:
         if parent_idx.size == 0 or self._active_indices.size == 0:
             return
         part = int(np.count_nonzero(np.isin(parent_idx, self._active_indices)))
@@ -383,6 +391,7 @@ class ImmigrationManager:
         state: Any,
         problem: Any,
         kernel: Any,
+        eval_strategy: EvaluationBackend | None = None,
     ) -> bool:
         if not self.enabled or self.max_in_pop <= 0:
             self._active_indices = np.zeros(0, dtype=int)
@@ -429,19 +438,21 @@ class ImmigrationManager:
 
         if do_inject:
             candidates = self._fetch_candidates(generation, state)
-            candidates = self._evaluate_missing_FG(
-                problem=problem,
-                candidates=candidates,
-                state=state,
-            )
             slots = max(0, self.max_in_pop - len(self._active))
+            # Only the candidates that can enter are evaluated.
             n_take = min(slots, self.max_insert_per_event, len(candidates))
             if n_take > 0:
+                candidates = self._evaluate_missing_FG(
+                    problem=problem,
+                    candidates=candidates[:n_take],
+                    state=state,
+                    eval_strategy=get_eval_strategy(eval_strategy),
+                )
                 inserted = self._inject_records(
                     generation=generation,
                     state=state,
                     kernel=kernel,
-                    records=candidates[:n_take],
+                    records=candidates,
                 )
                 changed = changed or inserted > 0
 

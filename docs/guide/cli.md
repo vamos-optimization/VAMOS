@@ -320,6 +320,33 @@ problems:
 The `moead` block applies only when MOEA/D is selected, for example with
 `--algorithm moead`.
 
+**Development after 1.1.0:** every field of an algorithm block reaches the
+algorithm configuration, in `defaults` and in `problems.<name>` (which wins).
+Examples include MOEA/D's `neighbor_size`, `delta`, `replace_limit` and
+`batch_size`, NSGA-III's `reference_directions` and `enforce_ref_dirs`,
+SMS-EMOA's `reference_point` and `eliminate_duplicates`, SMPSO's
+`archive_size`, NSGA-II's `steady_state` (with
+`offspring_population_size: 1`), and `constraint_mode`, `result_mode`,
+`initializer` and `mutation_prob_factor` for every algorithm. They are
+validated as in the Python configurations: an out-of-domain value in any
+problem stops the command before any run, and fields that conflict with each
+other stop it, with exit code 2, when the configuration is built.
+
+Fields that the config sets elsewhere are rejected:
+- `pop_size` and `pop_size_auto`: use `population_size`;
+- `offspring_size`: use `offspring_population_size`;
+- `external_archive`: use the `archive` block;
+- `track_genealogy`: set it in `defaults` or the problem block;
+- the Python callbacks `generation_callback`, `generation_callback_copy` and
+  `parent_selection_filter`.
+
+In VAMOS 1.1.0, `--validate-config` accepted all of these fields and the run
+ignored most of them without warning: for example, `moead: {neighbor_size: 7}`
+ran with 20. For NSGA-II, MOEA/D, SMS-EMOA, NSGA-III, AGE-MOEA and RVEA, a
+`defaults` block also lost every field that no command-line option reads (a
+command-line option reads crossover and mutation, plus NSGA-II's repair and
+MOEA/D's aggregation), its `selection` and `repair` included.
+
 **Development after 1.1.0:** `hv_threshold` (or `--hv-threshold`) stops only
 NSGA-II early. With another algorithm the run logs a warning and uses its full
 evaluation budget; with `--algorithm both`, only the NSGA-II run can stop early.

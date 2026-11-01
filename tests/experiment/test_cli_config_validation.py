@@ -339,3 +339,143 @@ def test_explicit_selection_operator_replaces_the_pressure_check(monkeypatch, tm
     main()
 
     assert list((tmp_path / "results").rglob("manifest.json"))
+
+
+_YAML_ALGORITHM_FIELDS = [
+    ("moead", {"neighbor_size": 7, "delta": 0.5, "replace_limit": 5, "batch_size": 2}),
+    ("nsgaiii", {"reference_directions": {"divisions": 6}, "enforce_ref_dirs": False}),
+    ("smsemoa", {"eliminate_duplicates": True, "reference_point": {"vector": None, "offset": 2.0, "adaptive": True}}),
+    ("smpso", {"archive_size": 7}),
+    ("nsgaii", {"result_mode": "non_dominated", "live_callback_mode": "population"}),
+    ("spea2", {"constraint_mode": "none", "mutation_prob_factor": 2.0}),
+    ("ibea", {"constraint_mode": "none", "result_mode": "population"}),
+    ("agemoea", {"constraint_mode": "none"}),
+    ("rvea", {"mutation_prob_factor": 2.0}),
+]
+
+
+@pytest.mark.parametrize(("algorithm", "fields"), _YAML_ALGORITHM_FIELDS, ids=[case[0] for case in _YAML_ALGORITHM_FIELDS])
+def test_cli_yaml_algorithm_fields_reach_the_resolved_config(monkeypatch, tmp_path, algorithm, fields):
+    config = _write_spec(tmp_path, {"defaults": {"algorithm": algorithm, algorithm: fields}})
+
+    stored = _run_and_load(monkeypatch, tmp_path, "--config", str(config))
+
+    resolved = stored.manifest.resolved_spec["algorithm"]["config"]
+    for name, value in fields.items():
+        if isinstance(value, dict):
+            assert {key: resolved[name][key] for key in value} == value, name
+        else:
+            assert resolved[name] == value, name
+
+
+def test_cli_problem_block_algorithm_fields_override_the_defaults_block(monkeypatch, tmp_path):
+    spec = {"defaults": {"algorithm": "moead", "moead": {"delta": 0.5}}, "problems": {"zdt1": {"moead": {"delta": 0.7}}}}
+
+    stored = _run_and_load(monkeypatch, tmp_path, "--config", str(_write_spec(tmp_path, spec)))
+
+    assert stored.manifest.resolved_spec["algorithm"]["config"]["delta"] == 0.7
+
+
+@pytest.mark.parametrize(
+    ("algorithm", "field", "value", "hint"),
+    [
+        ("nsgaii", "pop_size", 50, "population_size"),
+        ("nsgaii", "offspring_size", 10, "offspring_population_size"),
+        ("spea2", "external_archive", {"capacity": 10}, "archive"),
+        ("nsgaii", "track_genealogy", True, "track_genealogy"),
+        ("nsgaii", "generation_callback", "module.fn", "Python API"),
+        ("nsgaii", "parent_selection_filter", "module.fn", "Python API"),
+        ("nsgaiii", "pop_size_auto", True, "population_size"),
+    ],
+)
+def test_cli_yaml_rejects_algorithm_fields_the_cli_sets_elsewhere(monkeypatch, capsys, tmp_path, algorithm, field, value, hint):
+    config = _write_spec(tmp_path, {"defaults": {"algorithm": algorithm, algorithm: {field: value}}})
+
+    err = _usage_error(monkeypatch, capsys, "--config", str(config))
+
+    assert f"{algorithm}.{field}" in err
+    assert hint in err
+
+
+def test_cli_yaml_out_of_domain_algorithm_field_stops_before_any_run(monkeypatch, capsys, tmp_path):
+    from vamos.experiment.cli.main import main
+
+    output_root = tmp_path / "results"
+    spec = {"defaults": {"algorithm": "moead", "moead": {"neighbor_size": 50}}}
+    base = ["prog", "--problem", "zdt1", "--population-size", "13", "--max-evaluations", "26", "--output-root", str(output_root)]
+    monkeypatch.setattr(sys, "argv", [*base, "--config", str(_write_spec(tmp_path, spec))])
+
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+
+    err = capsys.readouterr().err
+    assert excinfo.value.code == 2, err
+    assert "neighbor_size" in err
+    assert not output_root.exists()
+
+
+def test_cli_yaml_initializer_reaches_the_resolved_operators(monkeypatch, tmp_path):
+    config = _write_spec(tmp_path, {"defaults": {"algorithm": "ibea", "ibea": {"initializer": {"type": "lhs"}}}})
+
+    stored = _run_and_load(monkeypatch, tmp_path, "--config", str(config))
+
+    assert stored.manifest.resolved_spec["operators"]["initializer"]["component_id"] == "vamos.operator:lhs@1"
+
+
+def test_cli_yaml_steady_state_runs_with_one_offspring(monkeypatch, capsys, tmp_path):
+    spec = {"defaults": {"algorithm": "nsgaii", "offspring_population_size": 1, "nsgaii": {"steady_state": True}}}
+
+    stored = _run_and_load(monkeypatch, tmp_path, "--config", str(_write_spec(tmp_path, spec)))
+
+    assert stored.manifest.resolved_spec["algorithm"]["config"]["steady_state"] is True
+
+    conflicting = _write_spec(tmp_path, {"defaults": {"algorithm": "nsgaii", "nsgaii": {"steady_state": True}}})
+    with pytest.raises(SystemExit) as excinfo:
+        _run_and_load(monkeypatch, tmp_path / "conflict", "--config", str(conflicting))
+    err = capsys.readouterr().err
+    assert excinfo.value.code == 2, err
+    assert "steady_state" in err and "Traceback" not in err
+
+
+@pytest.mark.parametrize(
+    ("block", "message"),
+    [
+        ({"moead": {"delta": 1.5}}, "delta"),
+        ({"moead": {"neighbor_size": 50}}, "neighbor_size"),
+        ({"ibea": {"indicator": "hv"}}, "indicator"),
+        ({"nsgaii": {"constraint_mode": "invalid"}}, "constraint_mode"),
+        ({"nsgaii": {"live_callback_mode": "all"}}, "live_callback_mode"),
+        ({"nsgaii": {"steady_state": True}}, "steady_state"),
+    ],
+)
+def test_invalid_algorithm_field_of_a_later_problem_stops_before_any_run(monkeypatch, capsys, tmp_path, block, message):
+    from vamos.experiment.cli.main import main
+
+    output_root = tmp_path / "results"
+    algorithm = next(iter(block))
+    defaults = {"algorithm": algorithm, "engine": "numpy", "population_size": 13, "max_evaluations": 26, "output_root": str(output_root)}
+    spec = {"defaults": defaults, "problems": {"zdt1": {}, "zdt2": block}}
+    monkeypatch.setattr(sys, "argv", ["prog", "--config", str(_write_spec(tmp_path, spec)), "--problem-set", "zdt"])
+
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+
+    err = capsys.readouterr().err
+    assert excinfo.value.code == 2, err
+    assert message in err and "zdt2" in err
+    assert not output_root.exists()
+
+
+def test_cli_yaml_defaults_selection_is_applied_and_validated(monkeypatch, capsys, tmp_path):
+    spec = {"defaults": {"algorithm": "nsgaii", "nsgaii": {"selection": {"method": "tournament", "size": 3}}}}
+
+    stored = _run_and_load(monkeypatch, tmp_path, "--config", str(_write_spec(tmp_path, spec)))
+
+    assert stored.manifest.resolved_spec["operators"]["selection"]["config"]["size"] == 3
+
+    invalid = {"defaults": {"algorithm": "nsgaii", "nsgaii": {"selection": {"method": "tournament", "pressure": 2}}}}
+    with pytest.raises(SystemExit) as excinfo:
+        _run_and_load(monkeypatch, tmp_path / "invalid", "--config", str(_write_spec(tmp_path, invalid)))
+    err = capsys.readouterr().err
+    assert excinfo.value.code == 2, err
+    assert "pressure" in err and "'size'" in err and "Traceback" not in err

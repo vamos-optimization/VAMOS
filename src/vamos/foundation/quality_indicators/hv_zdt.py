@@ -5,9 +5,15 @@ from numpy.typing import NDArray
 
 from vamos.foundation.quality_indicators.hypervolume import hypervolume
 
+# Smallest f1 of ZDT6: the minimum over x1 in [0, 1] of 1 - exp(-4 x1) sin^6(6 pi x1).
+_ZDT6_MIN_F1 = 0.28077531881536977
+
 
 def get_zdt_reference_front(name: str, n_points: int = 1000) -> NDArray[np.float64]:
-    """Return an approximate Pareto front for ZDT problems (analytic for 1,2,3,4,6)."""
+    """Return an approximate Pareto front for ZDT problems (analytic for 1,2,3,4,6).
+
+    ZDT3's front is the non-dominated part of its curve, sampled ten times as densely.
+    """
     name = name.lower()
     f1: NDArray[np.float64]
     f2: NDArray[np.float64]
@@ -23,15 +29,18 @@ def get_zdt_reference_front(name: str, n_points: int = 1000) -> NDArray[np.float
         f1 = t
         f2 = 1.0 - np.square(t)
     elif name == "zdt3":
-        f1 = t
-        g = 1.0 + 9.0 * np.sum(np.zeros_like(t), axis=0)
-        f2 = 1.0 - np.sqrt(f1) - f1 * np.sin(10.0 * np.pi * f1) / g
+        f1 = np.linspace(0.0, 1.0, num=10 * n_points, dtype=np.float64)
+        f2 = 1.0 - np.sqrt(f1) - f1 * np.sin(10.0 * np.pi * f1)
+        # With f1 increasing, a point is non-dominated when its f2 is below every earlier one.
+        earlier_min = np.concatenate(([np.inf], np.minimum.accumulate(f2)[:-1]))
+        keep = f2 < earlier_min
+        return np.column_stack((f1[keep], f2[keep]))
     elif name == "zdt4":
         f1 = t
         f2 = 1.0 - np.sqrt(f1)
     elif name == "zdt6":
-        f1 = 1.0 - np.exp(-4.0 * t) * np.power(np.sin(6.0 * np.pi * t), 6)
-        f2 = 1.0 - np.square(1.0 - f1)
+        f1 = np.linspace(_ZDT6_MIN_F1, 1.0, num=n_points, dtype=np.float64)
+        f2 = 1.0 - np.square(f1)
     else:
         raise ValueError(f"Unsupported ZDT problem '{name}'.")
     return np.vstack((f1, f2)).T
