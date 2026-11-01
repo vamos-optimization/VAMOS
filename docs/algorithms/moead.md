@@ -70,6 +70,11 @@ The default real-coded configuration uses differential evolution (`cr=1.0`, `f=0
 
 For two objectives, `MOEADConfig.default(pop_size=100, n_obj=2, ...)` requests 99 divisions and therefore 100 uniformly spaced weights. For `m` objectives and a simplex lattice with `p` divisions, the count is `comb(p + m - 1, m - 1)`. For example, three objectives and 12 divisions give **91**, not 100. Explicit files must also contain exactly one vector per population member. Incompatible cardinalities raise an error; budget reduction is not a way to repair a mismatched configuration.
 
+**Development after 1.1.0:**
+- **Replacement order:** a new solution tries its neighbours in random order, as MOEA/D-DE and jMetal do; VAMOS 1.1.0 always tried them from the nearest weight vector, the subproblem itself first. The results of every MOEA/D run change.
+- **Packaged weights:** with three or more objectives and a `pop_size` that no complete lattice matches, `MOEADConfig.default(pop_size=...)` and `optimize` use the weight file VAMOS packages for that size, as jMetal does (for example `W3D_100.dat`, so 100 individuals with three objectives work). In VAMOS 1.1.0 this failed with a lattice-size error.
+- **Defaults:** the default DE crossover with PBI aggregation is a VAMOS choice; `aggregation("tchebycheff")` with the other defaults reproduces jMetal's MOEA/D-DE.
+
 The `n_obj` argument matters: the default factory otherwise assumes three objectives. Supply the real problem dimension and objective count as above. Its default operators are real-coded; for discrete problems, choose compatible operators through the builder or the encoding-aware optimization setup. See the [capability matrix](../reference/algorithms.md#capability-matrix).
 
 ## Constraints, archives and reproducibility

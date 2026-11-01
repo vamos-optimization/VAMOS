@@ -62,15 +62,21 @@ class MOEADConfig(_SerializableConfig):
         """Create a default MOEA/D configuration with sensible defaults.
 
         Without ``pop_size``, the population is the weight-vector lattice: 99
-        divisions with two objectives, 12 with three and 6 with more. Discrete
-        and mixed ``encoding`` values take their crossover and mutation from the
-        shared encoding table.
+        divisions with two objectives, 12 with three and 6 with more. With
+        ``pop_size`` and three or more objectives, the weights are the lattice
+        with exactly ``pop_size`` vectors or, without one, the packaged
+        ``W{n_obj}D_{pop_size}.dat`` file (as jMetal uses). Discrete and mixed
+        ``encoding`` values take their crossover and mutation from the shared
+        encoding table.
         """
-        divisions = 99 if n_obj == 2 else (12 if n_obj == 3 else 6)
-        if pop_size is not None and n_obj == 2:
-            divisions = max(1, int(pop_size) - 1)
+        divisions: int | None
         if pop_size is None:
+            divisions = 99 if n_obj == 2 else (12 if n_obj == 3 else 6)
             pop_size = divisions + 1 if n_obj == 2 else comb(divisions + n_obj - 1, n_obj - 1)
+        elif n_obj == 2:
+            divisions = max(1, int(pop_size) - 1)
+        else:
+            divisions = _exact_lattice_divisions(n_obj, int(pop_size))
         mut_prob = 1.0 / n_var if n_var else 0.1
         crossover, mutation = _encoding_operators(
             encoding, mut_prob, real=(("de", {"cr": 1.0, "f": 0.5}), ("pm", {"prob": mut_prob, "eta": 20.0}))
@@ -186,6 +192,14 @@ class _MOEADConfigBuilder(
             result_mode=self._cfg.get("result_mode", "non_dominated"),
             external_archive=self._cfg.get("external_archive"),
         )
+
+
+def _exact_lattice_divisions(n_obj: int, pop_size: int) -> int | None:
+    """Divisions of the complete Das-Dennis lattice with exactly ``pop_size`` vectors, or ``None``."""
+    divisions = 1
+    while (size := comb(divisions + n_obj - 1, n_obj - 1)) < pop_size:
+        divisions += 1
+    return divisions if size == pop_size else None
 
 
 def _check_neighbourhood(neighbor_size: object, pop_size: int) -> None:

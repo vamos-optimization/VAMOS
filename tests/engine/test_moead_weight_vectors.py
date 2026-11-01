@@ -44,3 +44,21 @@ def test_optimize_moead_rejects_incompatible_explicit_pop_size() -> None:
 
     with pytest.raises(ValueError, match="Das-Dennis|pop_size"):
         optimize(problem, algorithm="moead", pop_size=40, max_evaluations=40, seed=1, engine="numpy")
+
+
+def test_optimize_moead_three_objectives_pop_100_uses_packaged_weights() -> None:
+    import numpy as np
+
+    import vamos
+    from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors
+    from vamos.engine.algorithm.config import MOEADConfig
+    from vamos.foundation.problem.dtlz import DTLZ2Problem
+    from vamos.resources import weight_path
+
+    config = MOEADConfig.default(pop_size=100, n_var=12, n_obj=3)
+    assert config.weight_vectors == {"path": None, "divisions": None}
+    weights = load_or_generate_weight_vectors(100, 3, mode="jmetalpy")
+    np.testing.assert_array_equal(weights, np.loadtxt(weight_path("W3D_100.dat")))
+
+    result = vamos.optimize(DTLZ2Problem(n_var=12, n_obj=3), algorithm="moead", pop_size=100, max_evaluations=300, seed=1)
+    assert result.F.shape[1] == 3
