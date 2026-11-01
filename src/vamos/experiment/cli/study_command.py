@@ -135,7 +135,7 @@ def _summarize(request: StudyCommandRequest) -> StudyCommandResult:
         payload=payload,
         warnings=(),
         errors=tuple(item.as_dict() for item in projection.summary.issues),
-        next_actions=("inspect",),
+        next_actions=("vamos study inspect STUDY_DIR",),
     )
 
 

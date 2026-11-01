@@ -139,6 +139,12 @@ document in JSON mode. Creation and execution are separate. `inspect` and an
 in-memory `summarize` are read-only; JSON/CSV summary files are written only
 when `--output` is explicit and never overwrite an existing path.
 
+**Development after 1.1.0:** without `--json`, `vamos study summarize` prints
+its task table: one row per task with its index, state, problem, algorithm,
+seed and evaluations. Its suggested next step reads
+`vamos study inspect STUDY_DIR`. In VAMOS 1.1.0 it printed only the study
+header, without the table, and suggested a bare `inspect`.
+
 Use `vamos study resume STUDY_DIR` for eligible pending/interrupted work and
 `vamos study retry STUDY_DIR --failed` for explicit bounded failed-task retry.
 Concurrent mutation is unsupported: one process must remain the only mutation
