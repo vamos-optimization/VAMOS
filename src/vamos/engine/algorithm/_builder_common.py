@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+from collections.abc import Mapping
 from typing import Any, cast
 
 from vamos.engine.algorithm.config import AlgorithmConfigProtocol
@@ -9,6 +11,7 @@ from vamos.engine.algorithm.registry import resolve_algorithm
 from vamos.engine.config.variation import ensure_operator_tuple, normalize_operator_tuple, resolve_default_variation_config
 from vamos.engine.variation.helpers import ensure_supported_repair_name
 from vamos.foundation.encoding import EncodingLike, normalize_encoding
+from vamos.foundation.exceptions import ConfigurationError
 from vamos.foundation.kernel.backend import KernelBackend
 from vamos.foundation.problem.types import ProblemProtocol
 
@@ -76,18 +79,49 @@ def apply_optional_operator_config(
     )
 
 
+# Operators, which the builders apply themselves through ``apply_operator_config``.
+_OPERATOR_KEYS = ("crossover", "mutation", "selection", "repair", "aggregation")
+
+
+def apply_block_fields(
+    config: AlgorithmConfigProtocol, block: Mapping[str, Any] | None, *, handled: tuple[str, ...] = ()
+) -> AlgorithmConfigProtocol:
+    """``config`` with the other fields of its dataclass that an algorithm block sets.
+
+    The builders apply the operators and the ``handled`` fields themselves. The result goes
+    through ``from_dict``, which validates every field.
+    """
+    names = {field.name for field in dataclasses.fields(cast(Any, config))}
+    fields = {
+        key: value
+        for key, value in (block or {}).items()
+        if key in names and key not in _OPERATOR_KEYS and key not in handled and value is not None
+    }
+    if not fields:
+        return config
+    try:
+        return cast(AlgorithmConfigProtocol, cast(Any, type(config)).from_dict({**config.to_dict(), **fields}))
+    except ConfigurationError:
+        raise
+    except (TypeError, ValueError) as exc:
+        raise ConfigurationError(f"Invalid algorithm field(s) {', '.join(sorted(fields))}: {exc}") from exc
+
+
 def finalize_algorithm(
     *,
     algorithm_name: str,
     builder: Any,
     kernel: KernelBackend,
+    block: Mapping[str, Any] | None = None,
+    handled: tuple[str, ...] = (),
 ) -> tuple[Any, AlgorithmConfigProtocol]:
-    cfg_data = cast(AlgorithmConfigProtocol, builder.build())
+    cfg_data = apply_block_fields(cast(AlgorithmConfigProtocol, builder.build()), block, handled=handled)
     algo_ctor = resolve_algorithm(algorithm_name)
     return algo_ctor(cfg_data.to_dict(), kernel), cfg_data
 
 
 __all__ = [
+    "apply_block_fields",
     "apply_operator_config",
     "apply_optional_operator_config",
     "finalize_algorithm",
