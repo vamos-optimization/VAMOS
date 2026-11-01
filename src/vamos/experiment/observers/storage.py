@@ -129,11 +129,14 @@ class StorageObserver(Observer):
             "engine": "explicit",
             "algorithm_config": "explicit",
         }
+        # Only n_var and n_obj of a problems.<name> block build the problem; the rest configures the run.
+        override = self.problem_override or {}
+        problem_kwargs = {key: override[key] for key in ("n_var", "n_obj") if override.get(key) is not None}
         generated_requested, resolved = build_run_specs(
             RunSpecInputs(
                 problem_built_in=ctx.problem.__class__.__module__.startswith("vamos."),
                 problem_label=ctx.selection.spec.key,
-                problem_kwargs=self.problem_override,
+                problem_kwargs=problem_kwargs,
                 n_var_requested=None,
                 n_obj_requested=None,
                 n_var=ctx.selection.n_var,
@@ -155,7 +158,11 @@ class StorageObserver(Observer):
                 default_sources=defaults,
             )
         )
-        requested = dict(self.config_spec) if self.config_spec is not None else generated_requested
+        # The request is what the run effectively asked for, with CLI and problem-block overrides; the
+        # config file it came from is kept as provenance.
+        requested = dict(generated_requested)
+        if self.config_spec is not None:
+            requested["config_file"] = dict(self.config_spec)
         return requested, resolved
 
     def _metrics(self, final_stats: Mapping[str, Any]) -> dict[str, Any]:

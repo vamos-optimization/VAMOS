@@ -180,3 +180,73 @@ def test_cli_usage_and_exact_mismatch_exit_codes(
     assert mismatch.value.code == 7
     assert payload["error"]["category"] == "replay_result_mismatch"
     assert payload["error"]["optimization_executed"] is True
+
+
+def _cli_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, spec: dict[str, Any], *argv: str) -> Path:
+    import sys
+
+    from vamos.experiment.cli.main import main
+
+    config = tmp_path / "spec.json"
+    config.write_text(json.dumps({"version": "1", **spec}), encoding="utf-8")
+    output_root = tmp_path / "results"
+    monkeypatch.setattr(sys, "argv", ["prog", "--config", str(config), "--output-root", str(output_root), *argv])
+    main()
+    return next(output_root.rglob("manifest.json")).parent
+
+
+def test_cli_problem_block_round_trips_through_reproduce(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    spec = {
+        "defaults": {"algorithm": "nsgaii", "engine": "numpy", "population_size": 10, "max_evaluations": 60, "seed": 1},
+        "problems": {"zdt1": {"n_var": 10, "population_size": 20, "nsgaii": {"crossover": {"method": "sbx", "prob": 0.8, "eta": 15}}}},
+    }
+    run = _cli_run(tmp_path, monkeypatch, spec, "--problem", "zdt1")
+
+    problem_config = vamos.load_run(run).manifest.resolved_spec["problem"]["config"]
+    assert "nsgaii" not in problem_config and "population_size" not in problem_config
+    replay = vamos.reproduce(run, output=tmp_path / "replay")
+    assert replay.exact is True
+
+
+def test_cli_requested_spec_includes_cli_overrides(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    spec = {"defaults": {"algorithm": "nsgaii", "engine": "numpy", "population_size": 10, "max_evaluations": 20, "seed": 4}}
+    run = _cli_run(tmp_path, monkeypatch, spec, "--problem", "zdt1", "--seed", "9")
+
+    requested = vamos.load_run(run).manifest.requested_spec
+    assert requested["defaults"]["seed"] == 9
+    assert requested["config_file"]["defaults"]["seed"] == 4
+
+
+def test_verify_matches_reproduce_reconstructability(tmp_path: Path) -> None:
+    from vamos.experiment.artifacts.identity import resolved_spec_task_id
+
+    source = _source(tmp_path)
+    manifest_path = source / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    # CLI artifacts before this fix stored the whole problems.<name> block as problem configuration.
+    manifest["resolved_spec"]["problem"]["config"]["nsgaii"] = {"crossover": {"method": "sbx"}}
+    manifest["task_id"] = resolved_spec_task_id(manifest["resolved_spec"])
+    manifest["integrity"]["manifest_sha256"] = manifest_self_hash(manifest)
+    manifest_path.write_bytes(stored_json_bytes(manifest))
+
+    report = vamos.verify_run(source)
+
+    assert report.effective_replayability != "exact"
+    assert any("problem.config" in reason.field for reason in report.reasons)
+
+
+def test_cli_config_accepts_the_operator_list_form(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    spec = {
+        "defaults": {
+            "algorithm": "nsgaii",
+            "engine": "numpy",
+            "population_size": 10,
+            "max_evaluations": 20,
+            "seed": 1,
+            "nsgaii": {"crossover": ["sbx", {"prob": 0.8, "eta": 15}]},
+        }
+    }
+    run = _cli_run(tmp_path, monkeypatch, spec, "--problem", "zdt1")
+
+    crossover = vamos.load_run(run).manifest.resolved_spec["operators"]["crossover"]["config"]
+    assert crossover["prob"] == 0.8 and crossover["eta"] == 15
