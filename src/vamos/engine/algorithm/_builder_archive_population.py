@@ -77,7 +77,10 @@ def build_nsgaii_algorithm(
     _apply_external_archive(builder, external_archive)
     if track_genealogy:
         builder.track_genealogy(True)
-    return cast("tuple[NSGAII, AlgorithmConfigProtocol]", finalize_algorithm(algorithm_name="nsgaii", builder=builder, kernel=kernel))
+    return cast(
+        "tuple[NSGAII, AlgorithmConfigProtocol]",
+        finalize_algorithm(algorithm_name="nsgaii", builder=builder, kernel=kernel, block=nsgaii_variation),
+    )
 
 
 def build_smsemoa_algorithm(
@@ -107,7 +110,10 @@ def build_smsemoa_algorithm(
         key="repair",
         encoding=encoding,
     )
-    return cast("tuple[SMSEMOA, AlgorithmConfigProtocol]", finalize_algorithm(algorithm_name="smsemoa", builder=builder, kernel=kernel))
+    return cast(
+        "tuple[SMSEMOA, AlgorithmConfigProtocol]",
+        finalize_algorithm(algorithm_name="smsemoa", builder=builder, kernel=kernel, block=smsemoa_variation),
+    )
 
 
 def build_spea2_algorithm(
@@ -155,7 +161,12 @@ def build_spea2_algorithm(
         key="repair",
         encoding=encoding,
     )
-    return cast("tuple[SPEA2, AlgorithmConfigProtocol]", finalize_algorithm(algorithm_name="spea2", builder=builder, kernel=kernel))
+    return cast(
+        "tuple[SPEA2, AlgorithmConfigProtocol]",
+        finalize_algorithm(
+            algorithm_name="spea2", builder=builder, kernel=kernel, block=spea2_variation, handled=("archive_size", "k_neighbors")
+        ),
+    )
 
 
 def build_ibea_algorithm(
@@ -204,7 +215,10 @@ def build_ibea_algorithm(
         key="repair",
         encoding=encoding,
     )
-    return cast("tuple[IBEA, AlgorithmConfigProtocol]", finalize_algorithm(algorithm_name="ibea", builder=builder, kernel=kernel))
+    return cast(
+        "tuple[IBEA, AlgorithmConfigProtocol]",
+        finalize_algorithm(algorithm_name="ibea", builder=builder, kernel=kernel, block=ibea_variation, handled=("indicator", "kappa")),
+    )
 
 
 __all__ = [

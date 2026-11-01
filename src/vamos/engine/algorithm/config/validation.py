@@ -11,6 +11,7 @@ from vamos.foundation.exceptions import ConfigurationError
 
 _IBEA_EPSILON_NAMES = ("eps", "epsilon", "additive_epsilon")
 _RESULT_MODES = ("non_dominated", "population")
+_LIVE_CALLBACK_MODES = ("nd_only", "population", "population_archive")
 OPERATOR_PAIR_FIELDS = ("crossover", "mutation", "selection", "aggregation", "repair")
 # Operator parameters that are probabilities and distribution indices.
 _PROBABILITY_PARAMS = ("prob", "cr", "CR")
@@ -127,6 +128,8 @@ def validate_config_fields(config: Any, fields: dict[str, Any]) -> None:
         raise ConfigurationError(f"result_mode must be 'non_dominated' or 'population'; got {config.result_mode!r}.")
     if "indicator" in fields:
         normalize_ibea_indicator(config.indicator)
+    if "live_callback_mode" in fields and str(config.live_callback_mode).lower() not in _LIVE_CALLBACK_MODES:
+        raise ConfigurationError(f"live_callback_mode must be one of {', '.join(_LIVE_CALLBACK_MODES)}; got {config.live_callback_mode!r}.")
     for name in OPERATOR_PAIR_FIELDS:
         pair = getattr(config, name, None) if name in fields else None
         if isinstance(pair, tuple) and len(pair) == 2 and isinstance(pair[0], str) and isinstance(pair[1], dict):
