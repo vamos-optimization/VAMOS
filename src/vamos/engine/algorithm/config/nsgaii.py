@@ -229,7 +229,7 @@ class NSGAIIConfig(_SerializableConfig):
         if normalized == "mixed":
             return builder.crossover("mixed", prob=0.9).mutation("mixed", prob=mut_prob).build()
 
-        return builder.crossover("sbx", prob=1.0, eta=20.0).mutation("pm", prob=mut_prob, eta=20.0).build()
+        return builder.crossover("sbx", prob=0.9, eta=20.0).mutation("pm", prob=mut_prob, eta=20.0).build()
 
     @classmethod
     def builder(cls) -> _NSGAIIConfigBuilder:

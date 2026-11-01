@@ -5,6 +5,8 @@ from typing import Any
 
 import numpy as np
 
+from ._training import TRAINING_ERRORS, report_training_failures
+
 
 class HyperparameterTuningProblem:
     """
@@ -78,7 +80,7 @@ class HyperparameterTuningProblem:
             "cat_cardinality": np.array([len(self._kernels)], dtype=int),
         }
 
-    def _decode_params(self, X: np.ndarray) -> list[dict[str, Any]]:
+    def _decode_params(self, X: np.ndarray[Any, Any]) -> list[dict[str, Any]]:
         C = 10.0 ** (X[:, 0] * 4.0 - 2.0)  # 1e-2 .. 1e2
         gamma = 10.0 ** (X[:, 1] * 4.0 - 3.0)  # 1e-3 .. 1e1
         kernel_idx = np.clip(np.rint(X[:, 2]), 0, len(self._kernels) - 1).astype(int)
@@ -94,7 +96,7 @@ class HyperparameterTuningProblem:
     def _complexity(model: Any, params: dict[str, Any]) -> float:
         try:
             svc = model[-1]
-        except Exception:  # pragma: no cover - defensive
+        except (TypeError, IndexError, KeyError):  # not a pipeline
             svc = getattr(model, "steps", [[None, model]])[-1][-1]
         complexity = float(params.get("C", 1.0))
         if hasattr(svc, "n_support_"):
@@ -104,9 +106,10 @@ class HyperparameterTuningProblem:
         complexity += 0.1 * float(params.get("degree", 2))
         return complexity
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         params_list = self._decode_params(X)
         F = out["F"]
+        failures: list[Exception] = []
 
         for i, params in enumerate(params_list):
             err = 1.0
@@ -117,11 +120,13 @@ class HyperparameterTuningProblem:
                 acc = model.score(self._X_val, self._y_val)
                 err = 1.0 - float(acc)
                 complexity = self._complexity(model, params)
-            except Exception:  # pragma: no cover - keeps evaluation robust
+            except TRAINING_ERRORS as exc:
+                failures.append(exc)
                 err = 1.0
                 complexity = float(self._n_features)
             F[i, 0] = err
             F[i, 1] = complexity
+        report_training_failures(type(self).__name__, failures, len(params_list))
 
 
 __all__ = ["HyperparameterTuningProblem"]

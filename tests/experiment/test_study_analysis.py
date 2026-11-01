@@ -87,8 +87,8 @@ def mw2(tmp_path_factory: pytest.TempPathFactory) -> dict[str, SummarySource]:
         "feasible": _run_study(root, "feasible", "mw2"),
         # The random initial population (budget = population) has no feasible solution.
         "infeasible": _run_study(root, "infeasible", "mw2", pop_size=10, max_evaluations=10),
-        # SPEA2 after 400 evaluations keeps 2 and 4 feasible solutions out of 20.
-        "partial": _run_study(root, "partial", "mw2", algorithm="spea2", max_evaluations=400),
+        # IBEA after 320 evaluations keeps 3 and 2 feasible solutions out of 20.
+        "partial": _run_study(root, "partial", "mw2", algorithm="ibea", max_evaluations=320),
     }
 
 

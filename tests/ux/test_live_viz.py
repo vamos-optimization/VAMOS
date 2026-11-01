@@ -104,6 +104,61 @@ def test_rvea_live_viz_callbacks_invoked(monkeypatch):
     assert recorder.gens >= 1
 
 
+def _contains(limits, low, high):
+    return limits[0] <= low and limits[1] >= high
+
+
+def test_live_plot_rescales_axes_when_population_moves(monkeypatch):
+    monkeypatch.setenv("MPLBACKEND", "Agg")
+    viz = LiveParetoPlot(update_interval=1, interactive_backend="Agg")
+    viz.on_start()
+    rng = np.random.default_rng(0)
+    first = np.column_stack([rng.random(20), 2.0 + 3.0 * rng.random(20)])
+    f1 = np.linspace(0.0, 1.0, 20)
+    converged = np.column_stack([f1, 1.0 - np.sqrt(f1)])  # ZDT1 front
+
+    viz.on_generation(0, F=first)
+    viz.on_generation(5, F=converged)
+
+    assert _contains(viz.axes.get_ylim(), 0.0, 1.0)
+    assert _contains(viz.axes.get_xlim(), 0.0, 1.0)
+
+
+def test_live_plot_rescales_3d_axes(monkeypatch):
+    monkeypatch.setenv("MPLBACKEND", "Agg")
+    viz = LiveParetoPlot(update_interval=1, interactive_backend="Agg", objectives_to_plot=(0, 1, 2))
+    viz.on_start()
+    viz.on_generation(0, F=np.full((5, 3), 4.0) + np.arange(5)[:, None])
+    viz.on_generation(1, F=np.eye(3))
+
+    assert _contains(viz.axes.get_zlim(), 0.0, 1.0) and viz.axes.get_zlim()[1] < 4.0
+
+
+def test_live_plot_labels_the_plotted_objectives(monkeypatch):
+    monkeypatch.setenv("MPLBACKEND", "Agg")
+    viz = LiveParetoPlot(interactive_backend="Agg", objectives_to_plot=(2, 0))
+    viz.on_start()
+    viz.on_generation(0, F=np.array([[0.1, 0.5, 0.9], [0.4, 0.2, 0.3]]))
+
+    assert (viz.axes.get_xlabel(), viz.axes.get_ylabel()) == ("Objective 3", "Objective 1")
+    assert "population" in viz.axes.get_title().lower()
+    np.testing.assert_allclose(viz.scatter.get_xdata(), [0.9, 0.3])
+
+
+def test_live_plot_subsample_uses_its_own_generator(monkeypatch):
+    import random
+
+    monkeypatch.setenv("MPLBACKEND", "Agg")
+    F = np.arange(200, dtype=float).reshape(100, 2)
+    state = random.getstate()
+
+    picks = [LiveParetoPlot(max_points=10, rng_seed=3)._maybe_subsample(F) for _ in range(2)]
+
+    assert random.getstate() == state
+    np.testing.assert_array_equal(picks[0], picks[1])
+    assert picks[0].shape == (10, 2)
+
+
 def test_live_pareto_plot_saves_file(monkeypatch, tmp_path):
     monkeypatch.setenv("MPLBACKEND", "Agg")
     viz = LiveParetoPlot(save_final_path=tmp_path / "live.png", update_interval=1, max_points=10)
