@@ -392,6 +392,44 @@ def test_unsupported_components_and_providers_refuse_before_execution(
     assert not (tmp_path / "replay").exists()
 
 
+def _zdt1_lookalike(x: np.ndarray) -> list[float]:
+    # User code under a registry name: not the registered ZDT1.
+    return [float(x[0]), float(1.0 + x[1] - x[0] ** 0.5)]
+
+
+def test_make_problem_named_like_registry_is_not_exact(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    problem = vamos.make_problem(_zdt1_lookalike, n_var=6, n_obj=2, bounds=[(0.0, 1.0)] * 6, encoding="real", name="zdt1")
+    result = vamos.optimize(problem, algorithm="nsgaii", pop_size=8, max_evaluations=16, engine="numpy", seed=7)
+    stored = vamos.save_result(result, tmp_path / "custom")
+    replay_module = importlib.import_module("vamos.experiment.artifacts.replay")
+    monkeypatch.setattr(replay_module, "_run_config", lambda *args, **kwargs: pytest.fail("optimization executed"))
+
+    descriptor = stored.manifest.resolved_spec["problem"]
+    assert descriptor["provider"]["type"] == "custom_python"
+    assert descriptor["component_id"] != "vamos.problem:zdt1@1"
+    assert descriptor["resolution"]["qualified_name"] == "_zdt1_lookalike"
+    assert stored.manifest["replayability"]["declared_level"] == "manual"
+    report = vamos.verify_run(stored.root)
+    assert report.effective_replayability == "manual"
+    with pytest.raises(UnsupportedReplayProviderError):
+        vamos.reproduce(stored.root, output=tmp_path / "replay")
+    assert not (tmp_path / "replay").exists()
+    # The same dimensions, seed and configuration on the registered ZDT1 are a different task.
+    assert _save_source(tmp_path / "registry", seed=7).manifest.task_id != stored.manifest.task_id
+
+
+def test_registry_problem_instance_stays_exact(tmp_path: Path) -> None:
+    # A WFG instance carries its registry key as its name; its class is the registered one.
+    runs = {}
+    for label, problem in (("instance", vamos.make_problem_selection("wfg4").instantiate()), ("name", "wfg4")):
+        result = vamos.optimize(problem, algorithm="nsgaii", pop_size=8, max_evaluations=16, engine="numpy", seed=7)
+        runs[label] = vamos.save_result(result, tmp_path / label)
+
+    assert runs["instance"].manifest.resolved_spec["problem"]["provider"]["type"] == "built_in"
+    assert runs["instance"].manifest.task_id == runs["name"].manifest.task_id
+    assert vamos.verify_run(runs["instance"].root).effective_replayability == "exact"
+
+
 def test_exact_replay_preserves_source_and_records_lineage(tmp_path: Path) -> None:
     source = _save_source(tmp_path / "source", seed=0)
     before = _snapshot(source.root)

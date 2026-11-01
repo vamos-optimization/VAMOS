@@ -89,6 +89,24 @@ stored = vamos.save_result(
 Without both mappings, saving raises `vamos.IncompleteRunMetadataError`. VAMOS
 does not invent a seed or execution configuration from arrays.
 
+**Development after 1.1.0:** a run's problem is built in only when it was
+requested by registry name, or when it is an instance of the class that the
+registry builds for its name. A problem from `vamos.make_problem`, or any other
+user code, is recorded with provider `custom_python`, a component ID taken from
+the module and qualified name of its function or class (such as
+`custom.problem:__main__.my_objective`), and replayability `manual`, whatever
+its `name`. VAMOS 1.1.0 recorded such a problem as a built-in component named
+after its `name` with `exact` replayability. One named `zdt1` then shared the
+task ID of the registered ZDT1, and `reproduce` ran the registered ZDT1
+instead of the user's function.
+
+**Development after 1.1.0:** saving a result returned by `load_result` again
+records a manual copy: replayability `manual` with the reason
+`loaded_result_saved_again`, the entry point `vamos.save_result`, and the time
+of the new save, with `runtime_ms` 0. The loaded arrays can be changed before
+saving, so the copy no longer claims to be the original execution. VAMOS 1.1.0
+saved it as an `exact` run of `vamos.optimize` with the original timestamps.
+
 ## Loading and verification
 
 Loading is data-only. It does not rerun optimization, resolve plugins, import
