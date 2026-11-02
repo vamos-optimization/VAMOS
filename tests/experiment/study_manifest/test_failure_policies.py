@@ -106,10 +106,34 @@ def test_failed_task_records_sanitized_cause(tmp_path: Path, monkeypatch: pytest
     assert paused.attempts[0].failure == reason
     run = vamos.load_run(paused.root / "runs" / str(paused.attempts[0].run_reference["run_id"]), verify="all")
     assert "non-finite" in run.manifest["failure"]["message"]
-    assert any(record.exc_info and "non-finite" in str(record.exc_info[1]) for record in caplog.records)
+    assert any("non-finite" in record.getMessage() and "in execute" in record.getMessage() for record in caplog.records)
     with pytest.raises(RetryNotAllowedError) as caught:
         paused.retry()
     assert caught.value.reason == "NONRETRYABLE_FAILURE"
+
+
+def test_failure_log_keeps_uncontrolled_text_and_paths_out(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    import vamos.experiment.study.execution as execution
+
+    def execute(reconstructed: Any, *, root: Path) -> OptimizationResult:
+        try:
+            raise ValueError(f"inner secret-token in {root}")
+        except ValueError as inner:
+            raise RuntimeError(f"secret-token at {root}") from inner
+
+    created = vamos.create_study(_spec(), output=tmp_path / "study")
+    monkeypatch.setattr(execution, "_execute_optimization", execute)
+    with caplog.at_level(logging.DEBUG, logger="vamos"):
+        created.run()
+
+    logged = [record for record in caplog.records if record.name.startswith("vamos.experiment.study")]
+    text = "\n".join(record.getMessage() for record in logged)
+    assert "RuntimeError" in text and "in execute" in text and "ValueError" in text
+    assert "secret-token" not in text and str(tmp_path) not in text
+    # No record carries the exception itself: a handler would format its message and chain verbatim.
+    assert all(record.exc_info is None and record.exc_text is None for record in logged)
 
 
 def test_failure_message_hides_absolute_paths_and_names_the_typed_field() -> None:
@@ -137,6 +161,28 @@ def test_failure_message_hides_absolute_paths_and_names_the_typed_field() -> Non
     assert posix == "private failure at <path> see https://example.org/a 1/n"
     assert "$.resolved_spec.backend.evaluation" in typed
     assert len(sanitized_message(ValueError("x" * 2000))) == 500
+
+
+def test_failure_message_redacts_paths_with_spaces() -> None:
+    from vamos.experiment.artifacts.errors import ComponentNotReconstructableError, sanitized_message
+
+    typed = sanitized_message(
+        ComponentNotReconstructableError(
+            operation="reconstruct",
+            reason="is unsupported",
+            expected="serial",
+            actual="dask",
+            action="Use a serial evaluation backend.",
+            path=r"D:\Lab Data\private-study\runs\1",
+        )
+    )
+    windows = sanitized_message(OSError(r"cannot open D:\Lab Data\private study\x.json: denied"))
+    posix = sanitized_message(RuntimeError("cannot read /srv/Lab Data/private study/x.json, giving up"))
+
+    for message in (typed, windows, posix):
+        assert "private" not in message and "Lab Data" not in message and "<path>" in message
+    assert windows == "cannot open <path> denied"
+    assert posix == "cannot read <path> giving up"
 
 
 def test_sa_028_continue_runs_later_tasks_and_completes_with_failures(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

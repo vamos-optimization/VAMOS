@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import traceback
 from collections.abc import Callable, Mapping
 from dataclasses import replace
 from pathlib import Path
@@ -127,9 +128,15 @@ def commit_task_failure(
     """Persist one verified failed run and its terminal task evidence."""
     completed_at = now_utc()
     failure = _attempt_failure(exc, objective_began)
-    # The traceback stays in the executing process's log; the durable records keep the sanitized message.
+    # Logs follow the same rule as the records: the sanitized message and where each exception was raised,
+    # never the exception itself, whose text and chain a handler would print verbatim.
     _logger().error(
-        "Study %s task %s attempt %s failed: %s", state.study_id, task.task_id, attempt.attempt_id, failure["message"], exc_info=exc
+        "Study %s task %s attempt %s failed: %s Raised at: %s",
+        state.study_id,
+        task.task_id,
+        attempt.attempt_id,
+        failure["message"],
+        _raise_sites(exc),
     )
     run_root = state.root / "runs" / run_id
     try:
@@ -242,15 +249,34 @@ def _is_deterministic_failure(exc: Exception) -> bool:
     return isinstance(exc, EvaluationError) and str(exc).startswith(_INVALID_EVALUATION_OUTPUT)
 
 
+def _raise_sites(exc: BaseException, *, frames: int = 3, depth: int = 4) -> str:
+    """Where ``exc`` and its causes were raised: exception types, file names, lines and functions.
+
+    No exception text and no directories, so nothing uncontrolled or personal reaches the log.
+    """
+    sites: list[str] = []
+    current: BaseException | None = exc
+    while current is not None and len(sites) < depth:
+        stack = traceback.extract_tb(current.__traceback__)[-frames:]
+        where = " < ".join(f"{Path(frame.filename).name}:{frame.lineno} in {frame.name}" for frame in reversed(stack))
+        sites.append(f"{type(current).__name__} at {where or 'an unknown location'}")
+        current = current.__cause__ or (None if current.__suppress_context__ else current.__context__)
+    return "; caused by ".join(sites)
+
+
 def _failure_message(exc: Exception) -> str:
     """The cause to persist: the sanitized text of VAMOS's own errors, only the type of any other exception.
 
-    The text of other exceptions is not controlled by VAMOS and may carry credentials or tokens, which the
-    StudyManifest contract keeps out of failure records; the executing process logs it with the traceback.
+    The text of other exceptions is not controlled by VAMOS and may carry credentials, tokens or personal
+    paths, which the StudyManifest contract and AGENTS.md keep out of records and logs; the executing
+    process logs where it was raised instead.
     """
     if isinstance(exc, (VAMOSError, RunArtifactError, StudyError)):
         return f"{type(exc).__name__}: {sanitized_message(exc)}"
-    return f"{type(exc).__name__}; its message is not recorded (not a VAMOS error); see the log of the executing process."
+    return (
+        f"{type(exc).__name__}; its message is neither recorded nor logged (not a VAMOS error); "
+        "the log of the executing process names where it was raised."
+    )
 
 
 def _attempt_failure(exc: Exception, objective_began: bool) -> dict[str, Any]:

@@ -7,18 +7,28 @@ from pathlib import Path
 from typing import Any
 
 MESSAGE_LIMIT = 500
-# Windows drive (not inside a word, so not the ``s:/`` of ``https://``) or UNC paths, and POSIX paths
-# not preceded by a word character, dot, colon or slash (so ``1/n``, ``a/b`` and URLs are kept).
-_ABSOLUTE_PATH_PATTERN = r"""(?<!\w)[A-Za-z]:[\\/][^\s'"<>|]*|\\\\[^\s'"<>|]+|(?<![\w.~:/\\])/[^\s'"<>|]+"""
+# Absolute paths: a Windows drive (not inside a word, so not the ``s:/`` of ``https://``), a UNC share, or a
+# POSIX root not preceded by a word character, dot, colon or slash (so ``1/n``, ``a/b`` and URLs are kept).
+# Directory names may contain spaces, so each directory runs to the next separator; only the last component
+# ends at whitespace. A comma or semicolon ends a directory name, which keeps prose after a path.
+_ABSOLUTE_PATH_PATTERN = (
+    r"""(?<!\w)[A-Za-z]:[\\/](?:[^\\/'"<>|,;\r\n]*[\\/])*[^\s\\/'"<>|]*"""
+    r"""|\\\\(?:[^\\/'"<>|,;\r\n]*[\\/])*[^\s\\/'"<>|]*"""
+    r"""|(?<![\w.~:/\\])/(?:[^/'"<>|,;\r\n]*/)*[^\s/'"<>|]+"""
+)
 
 
 def sanitized_message(exc: BaseException, *, empty: str = "The error has no message.") -> str:
     """One bounded line describing ``exc``, safe to persist.
 
-    Line breaks are collapsed, absolute paths are replaced by ``<path>`` and the text is cut to
-    ``MESSAGE_LIMIT`` characters. A typed error's ``field`` is added when its message omits it.
+    Line breaks are collapsed, absolute paths are replaced by ``<path>`` (a typed error's whole ``path``
+    first, whatever characters it holds) and the text is cut to ``MESSAGE_LIMIT`` characters. A typed
+    error's ``field`` is added when its message omits it.
     """
     message = " ".join(str(exc).split())
+    path = getattr(exc, "path", None)
+    if isinstance(path, (str, Path)) and str(path):
+        message = message.replace(" ".join(str(path).split()), "<path>")
     field = getattr(exc, "field", None)
     if isinstance(field, str) and field and field not in message:
         message = f"{message} (field {field})" if message else f"field {field}"
