@@ -444,6 +444,28 @@ values, such as SMPSO with `result_mode: non_dominated`. VAMOS 1.1.0 also
 measured infeasible solutions, so its values for constrained problems are not
 valid.
 
+**Development after 1.1.0:** `vamos bench` checks its inputs before any run:
+
+- `--config` takes a JSON or YAML mapping with the keys `population_size`,
+  `offspring_population_size`, `max_evaluations`, `seeds`, `engine` and
+  `eval_strategy`. `max_evaluations` and `seeds` replace the budget and the
+  seeds of every experiment of the suite, also with `--smoke`. Any other key,
+  or an invalid value, stops the command with exit code 2. VAMOS 1.1.0 ignored
+  `max_evaluations`, `seeds` and unknown keys without a warning.
+- An unknown suite name exits with code 2 and suggests the closest names.
+- Every study of the suite is planned before the first one runs. If a
+  `study-NNNN` directory of the suite already exists under `--output`, the
+  command exits with code 5, as `vamos study create` does, and runs nothing.
+  VAMOS 1.1.0 stopped with a traceback, after running the studies before the
+  occupied one.
+- `--only-report` also rewrites `summary/metrics.csv` with the `--metrics` it
+  is given, so it can recompute the indicators of a finished benchmark. Without
+  studies of the suite under `--output` it exits with code 2. VAMOS 1.1.0 left
+  `metrics.csv` as the run wrote it, which could disagree with the tables.
+- The report draws its figures without `pyplot`, so it no longer switches the
+  process-wide matplotlib backend to `Agg`, and its plots work with every
+  matplotlib version that VAMOS supports (3.7 or newer).
+
 **Development after 1.1.0:** the statistics of `vamos bench` changed:
 
 - The LaTeX tables bold the best mean of each problem. They mark an algorithm
