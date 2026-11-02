@@ -151,6 +151,13 @@ def notify_generation(
     return live_should_stop(live_cb)
 
 
+def _archive_constraints(st: Any) -> np.ndarray[Any, Any] | None:
+    """Constraint values of the archive rows, aligned with ``st.archive_F``, or ``None``."""
+    manager = getattr(st, "archive_manager", None)
+    constraint_values = getattr(manager, "constraint_values", None)
+    return constraint_values() if callable(constraint_values) else None
+
+
 def save_checkpoint(algo: NSGAII, checkpoint_dir: str, seed: int, generation: int, n_eval: int) -> None:
     """Save current state to checkpoint file."""
     from pathlib import Path
@@ -172,6 +179,7 @@ def save_checkpoint(algo: NSGAII, checkpoint_dir: str, seed: int, generation: in
         G=st.G,
         archive_X=st.archive_X,
         archive_F=st.archive_F,
+        archive_G=_archive_constraints(st),
         extra={
             "step": st.step,
             "replacements": st.replacements,
@@ -302,6 +310,7 @@ def run_nsgaii(
         "rng_state": cast(dict[str, Any], st.rng.bit_generator.state),
         "archive_X": st.archive_X,
         "archive_F": st.archive_F,
+        "archive_G": _archive_constraints(st),
         "extra": {
             "step": st.step,
             "replacements": st.replacements,

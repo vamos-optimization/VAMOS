@@ -479,3 +479,66 @@ def test_smpso_leaders_do_not_depend_on_the_objective_scale():
     scaled = run(1e-11)
     assert scaled["X"].shape == reference["X"].shape
     assert np.array_equal(scaled["X"], reference["X"])
+
+
+def test_archive_rejects_rows_without_constraints_when_it_has_them():
+    X = np.array([[0.0], [1.0]])
+    F = np.array([[0.0, 1.0], [1.0, 0.0]])
+    G = np.array([[-1.0], [0.5]])
+
+    constrained = CrowdingDistanceArchive(capacity=10, n_var=1, n_obj=2, dtype=float)
+    constrained.update(X, F, G)
+    with pytest.raises(ValueError, match="constraint"):
+        constrained.update(np.array([[2.0]]), np.array([[0.5, 0.5]]))
+
+    unconstrained = CrowdingDistanceArchive(capacity=10, n_var=1, n_obj=2, dtype=float)
+    unconstrained.update(X, F)
+    with pytest.raises(ValueError, match="constraint"):
+        unconstrained.update(np.array([[2.0]]), np.array([[0.5, 0.5]]), np.array([[-1.0]]))
+
+
+class _InfeasibleZDT1:
+    """ZDT1 with one constraint that every point violates by 1, so the archive holds only infeasible rows."""
+
+    def __init__(self) -> None:
+        self._base = ZDT1Problem(n_var=6)
+        self.n_var = 6
+        self.n_obj = 2
+        self.n_constraints = 1
+        self.xl = self._base.xl
+        self.xu = self._base.xu
+        self.encoding = "real"
+
+    def evaluate(self, X, out) -> None:  # noqa: ANN001 - problem protocol
+        self._base.evaluate(X, out)
+        out["G"] = np.ones((X.shape[0], 1))
+
+
+def test_checkpoint_restores_archive_constraints():
+    from vamos.engine.algorithm.nsgaii import NSGAII
+
+    cfg = {
+        "pop_size": 12,
+        "offspring_size": 12,
+        "crossover": ("sbx", {"prob": 0.9, "eta": 15.0}),
+        "mutation": ("polynomial", {"prob": "1/n", "eta": 20.0}),
+        "selection": ("tournament", {"size": 2}),
+        "external_archive": {"capacity": 30},
+    }
+    problem = _InfeasibleZDT1()
+    stage = NSGAII(cfg, NumPyKernel())
+    checkpoint = stage.run(problem, termination=("max_evaluations", 120), seed=4)["checkpoint"]
+    assert stage._st is not None and stage._st.archive_manager is not None
+    expected_G = stage._st.archive_manager.constraint_values()
+    assert expected_G is not None and expected_G.shape[0] > 0
+    np.testing.assert_array_equal(checkpoint["archive_G"], expected_G)
+
+    resumed = NSGAII(cfg, NumPyKernel())
+    resumed.run(problem, termination=("max_evaluations", 120), seed=4, checkpoint=checkpoint)
+    assert resumed._st is not None and resumed._st.archive_manager is not None
+    restored_X, _ = resumed._st.archive_manager.contents()
+    restored_G = resumed._st.archive_manager.constraint_values()
+    # Every restored row is still infeasible; without archive_G they came back with G = 0.
+    assert restored_G is not None
+    np.testing.assert_array_equal(restored_G, np.ones((restored_X.shape[0], 1)))
+    assert sorted(map(tuple, restored_X.tolist())) == sorted(map(tuple, np.asarray(checkpoint["archive_X"]).tolist()))

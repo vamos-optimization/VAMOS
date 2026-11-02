@@ -144,6 +144,16 @@ continue an interrupted algorithm at its last in-memory generation. Pickling
 algorithm objects is not a supported VAMOS checkpoint format. Internal
 checkpoint/state payloads have no public persistence guarantee.
 
+**Development after 1.1.0:** within one process, `optimize(..., checkpoint=...)`
+resumes NSGA-II and MOEA/D from `result.data["checkpoint"]`. With the same
+configuration and seed, the resumed run continues exactly as the uninterrupted
+one, and the external archive keeps its constraint values. A checkpoint that
+cannot be restored, such as one with a different population size, missing
+arrays or an unknown random state, raises `ConfigurationError`. VAMOS 1.1.0
+logged a warning and started a fresh run instead. It also restored archives
+without their constraint values, so those rows counted as feasible, and a
+default MOEA/D run drifted from the uninterrupted one after resuming.
+
 ## 5. Using Numba
 
 **Stable backend selection; optional dependency.** Install the `compute` extra
