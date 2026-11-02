@@ -350,6 +350,12 @@ def raise_run_failures(failures: list[str]) -> None:
     )
 
 
+def planned_engines_and_algorithms(args: Namespace) -> tuple[tuple[str | None, ...], list[str]]:
+    """The engines and the algorithms (before external baselines are added) that one problem runs with."""
+    engines: tuple[str | None, ...] = EXPERIMENT_BACKENDS if args.experiment in EXPERIMENT_TYPES else (getattr(args, "engine", None),)
+    return engines, list(ENABLED_ALGORITHMS) if args.algorithm == "both" else [args.algorithm]
+
+
 def execute_problem_suite(
     args: Namespace,
     problem_selection: ProblemSelection,
@@ -376,12 +382,7 @@ def execute_problem_suite(
     """
     from vamos.experiment import external  # local import to keep runner decoupled
 
-    engines: tuple[str | None, ...]
-    if args.experiment in EXPERIMENT_TYPES:
-        engines = EXPERIMENT_BACKENDS
-    else:
-        engines = (getattr(args, "engine", None),)
-    algorithms = list(ENABLED_ALGORITHMS) if args.algorithm == "both" else [args.algorithm]
+    engines, algorithms = planned_engines_and_algorithms(args)
     registered_algorithms = set(get_algorithms_registry().keys())
     use_native_external_problem = args.external_problem_source == "native"
 

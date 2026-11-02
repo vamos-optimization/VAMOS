@@ -8,7 +8,7 @@ import sys
 import pytest
 
 from vamos.engine.config.spec import EXPERIMENT_SPEC_VERSION
-from vamos.experiment.cli import quickstart
+from vamos.experiment.cli import quickstart, quickstart_output
 
 
 def test_quickstart_template_demo_exists() -> None:
@@ -27,7 +27,7 @@ def test_quickstart_template_list_smoke(capsys) -> None:
 
 def test_quickstart_write_spec(tmp_path) -> None:
     template = quickstart.get_template("demo")
-    spec_path = quickstart._write_spec(
+    spec_path = quickstart_output._write_spec(
         title="Quickstart: Demo",
         problem=template.defaults.problem,
         algorithm=template.defaults.algorithm,
@@ -82,3 +82,42 @@ def test_quickstart_subprocess_smoke(tmp_path) -> None:
     run_dir = output_root / "ZDT1" / "nsgaii" / "numpy" / "seed_42"
     assert {path.name for path in run_dir.iterdir()} == {"manifest.json", "result.npz", "environment.json"}
     assert b"Quickstart complete." in proc.stdout
+
+
+def _quickstart(output_root, *extra):
+    from vamos.experiment.cli import quickstart
+
+    base = ["--template", "demo", "--yes", "--no-plot", "--budget", "12", "--pop-size", "6", "--no-preflight"]
+    quickstart.run_quickstart([*base, "--output-root", str(output_root), *extra])
+
+
+def test_quickstart_twice_does_not_fail(tmp_path, capsys) -> None:
+    output_root = tmp_path / "results"
+    _quickstart(output_root)
+    first = capsys.readouterr().out
+
+    _quickstart(output_root)
+
+    second = capsys.readouterr().out
+    assert "seed_42" in first and "seed_43" in second
+    assert "Seed 42 already has a run" in second
+    assert len(list(output_root.rglob("manifest.json"))) == 2
+    assert len(list(output_root.glob("quickstart_*.json"))) == 2
+    # The suggested re-run command uses a free seed, so it works.
+    rerun = next(line for line in second.splitlines() if line.startswith("Re-run:"))
+    assert "--seed 44" in rerun
+    assert "disabled by --no-plot" in second
+
+
+def test_quickstart_with_a_taken_explicit_seed_stops_before_writing(tmp_path, capsys) -> None:
+    output_root = tmp_path / "results"
+    _quickstart(output_root, "--seed", "5")
+    capsys.readouterr()
+
+    with pytest.raises(SystemExit) as excinfo:
+        _quickstart(output_root, "--seed", "5")
+
+    out = capsys.readouterr().out
+    assert excinfo.value.code == 8
+    assert "already exists" in out and "--seed 6" in out
+    assert len(list(output_root.glob("quickstart_*.json"))) == 1

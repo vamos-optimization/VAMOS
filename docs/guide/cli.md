@@ -55,6 +55,13 @@ Template keys (short list):
 
 The config is saved under `results/quickstart/` and can be re-run with `vamos --config <path>`.
 
+**Development after 1.1.0:** a seed whose run directory already exists cannot
+be reused. Without `--seed`, quickstart takes the first free seed from the
+template's (42, then 43, ...) and says so. With a taken `--seed`, it stops with
+exit code 8 before writing its config. Its closing `Re-run:` line adds a free
+`--seed` to the command. VAMOS 1.1.0 always used seed 42, so a second run, or
+its own `Re-run:` command, optimized and then failed when saving.
+
 Results helpers
 ---------------
 
@@ -252,11 +259,20 @@ vamos --problem zdt1 --algorithm nsgaii --max-evaluations 5000 --population-size
 - `result.npz`: objective, decision, constraint, population, and archive arrays
 - `environment.json`: bounded runtime environment details
 
-3) Save plots as presentation output outside the canonical run leaf:
+3) Save plots as presentation output outside the canonical run leaf. Use
+another seed (or another `--output-root`): the run of step 1 already holds
+`results/ZDT1/nsgaii/numpy/seed_7`, and a run directory is never overwritten.
 
 ```bash
-vamos --problem zdt1 --algorithm nsgaii --max-evaluations 5000 --population-size 80 --seed 7 --plot
+vamos --problem zdt1 --algorithm nsgaii --max-evaluations 5000 --population-size 80 --seed 8 --plot
 ```
+
+**Development after 1.1.0:** every run directory of the command is checked
+before the first optimization. If one already exists, or two runs of the
+command would share one, the command exits with code 8, the output-collision
+code of `vamos results` and `vamos reproduce`, without optimizing anything.
+VAMOS 1.1.0 optimized first and then stopped with a traceback and exit code 1
+when saving, and a series stopped at the first collision.
 
 Key flags
 ---------
