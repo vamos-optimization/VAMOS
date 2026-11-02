@@ -59,7 +59,7 @@ def test_ml_problems_warn_about_expected_training_failures(monkeypatch: pytest.M
         return _FailingModel(ValueError("singular data")) if calls["n"] == 1 else LogisticRegression(max_iter=200, solver="liblinear")
 
     problem = _feature_selection_with(monkeypatch, flaky)
-    with pytest.warns(RuntimeWarning, match=r"1 of 2 .*singular data"):
+    with pytest.warns(RuntimeWarning, match=r"1 of 2 models failed to train \(1 ValueError\)"):
         F = _evaluate(problem, np.ones((2, problem.n_var)))
 
     assert F[0, 0] == 1.0
@@ -68,10 +68,33 @@ def test_ml_problems_warn_about_expected_training_failures(monkeypatch: pytest.M
 
 def test_ml_problems_fail_when_every_model_fails(monkeypatch: pytest.MonkeyPatch) -> None:
     problem = _feature_selection_with(monkeypatch, lambda: _FailingModel(ValueError("singular data")))
-    with pytest.raises(EvaluationError, match="singular data"):
+    with pytest.raises(EvaluationError, match=r"failed to train \(3 ValueError\)"):
         _evaluate(problem, np.ones((3, problem.n_var)))
 
     tuning = HyperparameterTuningProblem()
     tuning._make_model = lambda params: _FailingModel(np.linalg.LinAlgError("not positive definite"))
-    with pytest.raises(EvaluationError, match="not positive definite"):
+    with pytest.raises(EvaluationError, match=r"failed to train \(2 LinAlgError\)"):
         _evaluate(tuning, np.array([[0.5, 0.5, 0.0, 3.0], [0.1, 0.9, 1.0, 2.0]]))
+
+
+def test_ml_training_failures_report_types_and_counts_not_text(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A training error's text is third-party and may hold secrets; it must not reach VAMOS's messages.
+    from sklearn.linear_model import LogisticRegression
+
+    secret = "access_token=abc123"
+    problem = _feature_selection_with(monkeypatch, lambda: _FailingModel(ValueError(secret)))
+    with pytest.raises(EvaluationError) as caught:
+        _evaluate(problem, np.ones((3, problem.n_var)))
+    assert "3 ValueError" in str(caught.value) and secret not in str(caught.value)
+
+    calls = {"n": 0}
+
+    def flaky() -> object:
+        calls["n"] += 1
+        return _FailingModel(ValueError(secret)) if calls["n"] == 1 else LogisticRegression(max_iter=200, solver="liblinear")
+
+    problem = _feature_selection_with(monkeypatch, flaky)
+    with pytest.warns(RuntimeWarning) as warned:
+        _evaluate(problem, np.ones((2, problem.n_var)))
+    text = " ".join(str(item.message) for item in warned)
+    assert "1 of 2" in text and "1 ValueError" in text and secret not in text
