@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "2b30654e5bf9894b656994531e9f4850f77bf5b3",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 2b30654e5bf9894b656994531e9f4850f77bf5b3",
+  "generation_commit": "6a928d44c1900a6cd41ee25baacd7f04785ad56c",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 6a928d44c1900a6cd41ee25baacd7f04785ad56c",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.0",
@@ -26,14 +26,14 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 421,
-  "files_with_diagnostics": 62,
-  "fingerprint_count": 62,
+  "diagnostic_count": 392,
+  "files_with_diagnostics": 61,
+  "fingerprint_count": 61,
   "error_code_summary": {
-    "type-arg": 421
+    "type-arg": 392
   },
   "layer_summary": {
-    "engine": 225,
+    "engine": 196,
     "experiment": 11,
     "foundation": 167,
     "package-root": 1,
@@ -1530,132 +1530,6 @@
         {
           "line": 17,
           "column": 27
-        }
-      ]
-    },
-    {
-      "fingerprint": "94303E45AB4A7621F1FB666F6703196E64D43B3FE6A005E0C5CFB5FFCA882B64",
-      "path": "src/vamos/engine/algorithm/smsemoa/helpers.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 29,
-      "locations": [
-        {
-          "line": 41,
-          "column": 31
-        },
-        {
-          "line": 48,
-          "column": 8
-        },
-        {
-          "line": 50,
-          "column": 12
-        },
-        {
-          "line": 69,
-          "column": 16
-        },
-        {
-          "line": 70,
-          "column": 12
-        },
-        {
-          "line": 72,
-          "column": 6
-        },
-        {
-          "line": 78,
-          "column": 30
-        },
-        {
-          "line": 85,
-          "column": 31
-        },
-        {
-          "line": 110,
-          "column": 25
-        },
-        {
-          "line": 123,
-          "column": 12
-        },
-        {
-          "line": 124,
-          "column": 8
-        },
-        {
-          "line": 204,
-          "column": 62
-        },
-        {
-          "line": 211,
-          "column": 28
-        },
-        {
-          "line": 216,
-          "column": 8
-        },
-        {
-          "line": 217,
-          "column": 8
-        },
-        {
-          "line": 220,
-          "column": 12
-        },
-        {
-          "line": 265,
-          "column": 12
-        },
-        {
-          "line": 274,
-          "column": 75
-        },
-        {
-          "line": 286,
-          "column": 6
-        },
-        {
-          "line": 298,
-          "column": 14
-        },
-        {
-          "line": 299,
-          "column": 14
-        },
-        {
-          "line": 300,
-          "column": 14
-        },
-        {
-          "line": 326,
-          "column": 14
-        },
-        {
-          "line": 327,
-          "column": 14
-        },
-        {
-          "line": 328,
-          "column": 14
-        },
-        {
-          "line": 352,
-          "column": 13
-        },
-        {
-          "line": 416,
-          "column": 8
-        },
-        {
-          "line": 417,
-          "column": 12
-        },
-        {
-          "line": 422,
-          "column": 20
         }
       ]
     },
