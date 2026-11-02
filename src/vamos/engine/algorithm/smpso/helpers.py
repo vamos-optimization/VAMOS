@@ -118,12 +118,13 @@ def update_personal_bests(
     pbest_G: np.ndarray[Any, Any] | None,
     constraint_mode: str,
 ) -> None:
-    """Update personal best positions based on dominance.
+    """Update personal bests as jMetal does: replace each one unless it is better than the new position.
 
-    For constrained problems, uses feasibility-first approach:
-    1. Feasible always beats infeasible
-    2. Among feasible, dominance applies
-    3. Among infeasible, lower constraint violation wins
+    The personal best is better when it is feasible and the new position is not, when
+    both are infeasible and it has the smaller constraint violation, or when it
+    dominates the new position and both are feasible, both have the same violation
+    or there are no constraints. A new position that neither dominates nor is
+    dominated by the personal best replaces it, with or without constraints.
 
     Parameters
     ----------
@@ -148,14 +149,10 @@ def update_personal_bests(
         cv_new = compute_violation(G)
         cv_old = compute_violation(pbest_G)
 
-        better = np.zeros(X.shape[0], dtype=bool)
-        # Feasible beats infeasible
-        better |= feas_new & ~feas_old
-        # Among feasible, dominance wins
-        better |= feas_new & feas_old & dominates(F, pbest_F)
-        # Among infeasible, lower violation wins
-        better |= (~feas_new) & (~feas_old) & (cv_new < cv_old)
-        update_idx = better
+        both_infeasible = ~feas_new & ~feas_old
+        same_violation = (feas_new & feas_old) | (both_infeasible & (cv_new == cv_old))
+        old_better = (feas_old & ~feas_new) | (both_infeasible & (cv_old < cv_new)) | (same_violation & dominates(pbest_F, F))
+        update_idx = ~old_better
     else:
         # Without constraints, update if current is not dominated by personal best
         update_idx = ~dominates(pbest_F, F)

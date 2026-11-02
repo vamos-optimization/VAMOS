@@ -284,10 +284,11 @@ class SMPSO:
 
         # PSO velocity update (SMPSO with constriction)
         pop_size, n_var = st.X.shape
-        r1 = np.round(st.rng.uniform(st.r1_min, st.r1_max, size=(pop_size, 1)), 1)
-        r2 = np.round(st.rng.uniform(st.r2_min, st.r2_max, size=(pop_size, 1)), 1)
-        c1 = np.round(st.rng.uniform(st.c1_min, st.c1_max, size=(pop_size, 1)), 1)
-        c2 = np.round(st.rng.uniform(st.c2_min, st.c2_max, size=(pop_size, 1)), 1)
+        # Drawn per particle and used as drawn, as in jMetal (jMetalPy rounds them to one decimal).
+        r1 = st.rng.uniform(st.r1_min, st.r1_max, size=(pop_size, 1))
+        r2 = st.rng.uniform(st.r2_min, st.r2_max, size=(pop_size, 1))
+        c1 = st.rng.uniform(st.c1_min, st.c1_max, size=(pop_size, 1))
+        c2 = st.rng.uniform(st.c2_min, st.c2_max, size=(pop_size, 1))
         rho = c1 + c2
         disc = np.maximum(rho * rho - 4.0 * rho, 0.0)
         constriction = np.where(
