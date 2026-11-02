@@ -46,7 +46,7 @@ def test_supported_toolchain_is_accepted() -> None:
     assert (
         typecheck.supported_version_errors(
             (3, 12),
-            "2.4.0",
+            "2.4.1",
             "compiled",
             "4.16.0",
             (),

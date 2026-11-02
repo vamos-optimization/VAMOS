@@ -28,7 +28,7 @@ BASELINE_PATH = REPO_ROOT / "typing" / "mypy-baseline.json"
 MYPY_POLICY_BASELINE_PATH = REPO_ROOT / "typing" / "mypy-policy-baseline.json"
 
 SUPPORTED_PYTHON = (3, 12)
-SUPPORTED_MYPY = "2.4.0"
+SUPPORTED_MYPY = "2.4.1"
 SUPPORTED_TYPING_EXTENSIONS = "4.16.0"
 EXPECTED_MYPY_BUILD = "compiled"
 EXPECTED_STUB_PACKAGES: tuple[str, ...] = ()

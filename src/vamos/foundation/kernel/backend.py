@@ -117,7 +117,8 @@ class SMSEMOASurvival(Protocol):
     With ``SMSEMOA_CONTRIBUTIONS`` the worst front is ``worst[:size]`` (rows of
     ``F_work``, the population followed by the child) and the caller commits the
     least contributor that it computes. The population arrays, ranks, crowding
-    and the adaptive reference point are updated in place.
+    and the adaptive reference point (``nadir + ref_offset * (nadir - ideal)`` of
+    ``F_work``) are updated in place.
     """
 
     F_work: FloatArray
