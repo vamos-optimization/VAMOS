@@ -2,20 +2,30 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from collections.abc import Callable, Mapping
 from dataclasses import replace
 from pathlib import Path
 from typing import Any, Protocol
 
+from vamos.experiment.artifacts.errors import RunArtifactError, sanitized_message
 from vamos.experiment.artifacts.jsonio import canonical_json_bytes
 from vamos.experiment.artifacts.models import StoredRun, deep_freeze, deep_thaw
 from vamos.experiment.artifacts.persistence import load_run, save_failed_execution, save_result
 from vamos.experiment.artifacts.verification import verify_run
+from vamos.foundation.exceptions import ConfigurationError, EvaluationError, ProblemError, VAMOSError
 
 from .commits import append_event, checkpoint_attempt, checkpoint_manifest, checkpoint_task, now_utc, run_reference
-from .errors import StudyRunPublicationError, StudyRunVerificationError
+from .errors import StudyError, StudyRunPublicationError, StudyRunVerificationError
 from .models import AttemptRecord, PlanTask, StudyEvent, StudyManifest, TaskRecord
+
+# Prefix of the EvaluationError that vamos.foundation.eval raises for non-finite or misshaped outputs.
+_INVALID_EVALUATION_OUTPUT = "Problem evaluation wrote "
+
+
+def _logger() -> logging.Logger:
+    return logging.getLogger(__name__)
 
 
 class ExecutionState(Protocol):
@@ -117,6 +127,10 @@ def commit_task_failure(
     """Persist one verified failed run and its terminal task evidence."""
     completed_at = now_utc()
     failure = _attempt_failure(exc, objective_began)
+    # The traceback stays in the executing process's log; the durable records keep the sanitized message.
+    _logger().error(
+        "Study %s task %s attempt %s failed: %s", state.study_id, task.task_id, attempt.attempt_id, failure["message"], exc_info=exc
+    )
     run_root = state.root / "runs" / run_id
     try:
         stored = save_failed_execution(
@@ -130,6 +144,8 @@ def commit_task_failure(
                 "message": failure["message"],
                 "traceback": None,
                 "optimization_executed": objective_began,
+                # Read back when reconciliation recovers this run without the attempt's failure event.
+                "retryable": failure["retryable"],
             },
             outcome=_failed_outcome(plan_task, objective_began),
             timestamps={"started_at": started_at, "completed_at": completed_at},
@@ -218,18 +234,36 @@ def _validate_published_run(stored: StoredRun, bundle_status: str, task: PlanTas
         raise ValueError("published run identity, status, resolved spec, or required arrays differ")
 
 
+def _is_deterministic_failure(exc: Exception) -> bool:
+    """Failures that the same resolved task would repeat, so retry cannot help (StudyManifest contract, retry policy)."""
+    if isinstance(exc, (ConfigurationError, ProblemError)):
+        return True
+    # The evaluation wrote invalid objectives or constraints (non-finite values or a wrong shape).
+    return isinstance(exc, EvaluationError) and str(exc).startswith(_INVALID_EVALUATION_OUTPUT)
+
+
+def _failure_message(exc: Exception) -> str:
+    """The cause to persist: the sanitized text of VAMOS's own errors, only the type of any other exception.
+
+    The text of other exceptions is not controlled by VAMOS and may carry credentials or tokens, which the
+    StudyManifest contract keeps out of failure records; the executing process logs it with the traceback.
+    """
+    if isinstance(exc, (VAMOSError, RunArtifactError, StudyError)):
+        return f"{type(exc).__name__}: {sanitized_message(exc)}"
+    return f"{type(exc).__name__}; its message is not recorded (not a VAMOS error); see the log of the executing process."
+
+
 def _attempt_failure(exc: Exception, objective_began: bool) -> dict[str, Any]:
-    del exc
-    phase = "objective evaluation" if objective_began else "resolved-spec reconstruction"
+    retryable = objective_began and not _is_deterministic_failure(exc)
     return {
-        "category": "execution" if objective_began else "configuration",
+        "category": "execution" if retryable else "configuration",
         "code": "OBJECTIVE_EXECUTION_FAILED" if objective_began else "RESOLVED_SPEC_RECONSTRUCTION_FAILED",
-        "message": f"Built-in task {phase} failed; inspect the chained exception in the current process.",
-        "retryable": objective_began,
+        "message": _failure_message(exc),
+        "retryable": retryable,
         "safe_action": (
             "Correct the transient execution cause, then explicitly retry this task."
-            if objective_began
-            else "Create a new study after correcting the deterministic resolved configuration."
+            if retryable
+            else "Create a new study after correcting the deterministic cause; a retry would repeat it."
         ),
     }
 

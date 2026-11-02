@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -9,7 +10,7 @@ import pytest
 
 import vamos
 from vamos.experiment.optimization_result import OptimizationResult
-from vamos.experiment.study.errors import StudyInfrastructureError, StudyRunPublicationError
+from vamos.experiment.study.errors import RetryNotAllowedError, StudyInfrastructureError, StudyRunPublicationError
 from vamos.experiment.study.models import StudyEvent
 
 
@@ -79,6 +80,63 @@ def test_sa_027_fail_fast_pauses_after_durable_second_task_failure(tmp_path: Pat
     assert "private" not in repr(paused.tasks[1].reason)
     assert _immutable_inputs(root) == immutable
     _verify_terminal_runs(paused)
+
+
+def test_failed_task_records_sanitized_cause(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    import vamos.experiment.study.execution as execution
+    from vamos.foundation.eval.population import _validate_output_matrix
+
+    def execute(reconstructed: Any, *, root: Path) -> OptimizationResult:
+        # The objective writes non-finite values (as WFG1 with two variables did): retry would repeat the failure.
+        _validate_output_matrix("F", np.full((4, 2), np.nan), expected_shape=(4, 2))
+        raise AssertionError("unreachable")
+
+    created = vamos.create_study(_spec(), output=tmp_path / "study")
+    monkeypatch.setattr(execution, "_execute_optimization", execute)
+    with caplog.at_level(logging.ERROR, logger="vamos.experiment.study"):
+        paused = created.run()
+
+    task = paused.tasks[0]
+    assert task.state == "failed"
+    reason = task.reason
+    assert reason is not None
+    assert reason["message"].startswith("EvaluationError: ") and "non-finite" in reason["message"]
+    assert reason["retryable"] is False and task.retryability.retryable is False
+    assert str(tmp_path) not in repr(reason)
+    assert paused.attempts[0].failure == reason
+    run = vamos.load_run(paused.root / "runs" / str(paused.attempts[0].run_reference["run_id"]), verify="all")
+    assert "non-finite" in run.manifest["failure"]["message"]
+    assert any(record.exc_info and "non-finite" in str(record.exc_info[1]) for record in caplog.records)
+    with pytest.raises(RetryNotAllowedError) as caught:
+        paused.retry()
+    assert caught.value.reason == "NONRETRYABLE_FAILURE"
+
+
+def test_failure_message_hides_absolute_paths_and_names_the_typed_field() -> None:
+    from vamos.experiment.artifacts.errors import ComponentNotReconstructableError, sanitized_message
+
+    windows = sanitized_message(OSError(r"cannot open D:\lab42\study\runs\x.json: denied"))
+    posix = sanitized_message(RuntimeError("private failure at /srv/lab42/study, see https://example.org/a 1/n"))
+    typed = sanitized_message(
+        ComponentNotReconstructableError(
+            operation="reconstruct",
+            reason="is unsupported",
+            expected="serial",
+            actual="dask",
+            action="Use a serial evaluation backend.",
+            field="$.resolved_spec.backend.evaluation",
+            path="/srv/lab42/study/runs/1",
+        )
+    )
+
+    unc = sanitized_message(OSError(r"lost \\lab42-server\share\study"))
+
+    assert "lab42" not in windows + posix + typed + unc
+    assert unc == "lost <path>"
+    assert windows == "cannot open <path> denied"
+    assert posix == "private failure at <path> see https://example.org/a 1/n"
+    assert "$.resolved_spec.backend.evaluation" in typed
+    assert len(sanitized_message(ValueError("x" * 2000))) == 500
 
 
 def test_sa_028_continue_runs_later_tasks_and_completes_with_failures(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
