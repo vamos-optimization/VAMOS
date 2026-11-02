@@ -2,8 +2,28 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
+
+MESSAGE_LIMIT = 500
+# Windows drive (not inside a word, so not the ``s:/`` of ``https://``) or UNC paths, and POSIX paths
+# not preceded by a word character, dot, colon or slash (so ``1/n``, ``a/b`` and URLs are kept).
+_ABSOLUTE_PATH_PATTERN = r"""(?<!\w)[A-Za-z]:[\\/][^\s'"<>|]*|\\\\[^\s'"<>|]+|(?<![\w.~:/\\])/[^\s'"<>|]+"""
+
+
+def sanitized_message(exc: BaseException, *, empty: str = "The error has no message.") -> str:
+    """One bounded line describing ``exc``, safe to persist.
+
+    Line breaks are collapsed, absolute paths are replaced by ``<path>`` and the text is cut to
+    ``MESSAGE_LIMIT`` characters. A typed error's ``field`` is added when its message omits it.
+    """
+    message = " ".join(str(exc).split())
+    field = getattr(exc, "field", None)
+    if isinstance(field, str) and field and field not in message:
+        message = f"{message} (field {field})" if message else f"field {field}"
+    message = re.sub(_ABSOLUTE_PATH_PATTERN, "<path>", message)
+    return message[:MESSAGE_LIMIT] if message else empty
 
 
 class RunArtifactError(Exception):
@@ -286,4 +306,5 @@ __all__ = [
     "UnsupportedReplayProviderError",
     "UnsupportedSchemaError",
     "VerificationRequirementError",
+    "sanitized_message",
 ]

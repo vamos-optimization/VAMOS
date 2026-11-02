@@ -12,7 +12,7 @@ from vamos.experiment.optimize import _OptimizeConfig, _run_config
 
 from .bundle import snapshot_result_arrays
 from .comparison import compare_array_collections, comparisons_are_exact
-from .errors import EnvironmentIncompatibilityError, ReplayExecutionError, ReplayResultMismatchError
+from .errors import EnvironmentIncompatibilityError, ReplayExecutionError, ReplayResultMismatchError, sanitized_message
 from .models import LoadLimits, deep_thaw
 from .persistence import load_run, save_failed_replay, save_result
 from .reconstruction import ReconstructedRun, ReplayPlan, build_replay_plan, instantiate_reconstructed_problem
@@ -226,8 +226,7 @@ def _result_mode(plan: ReplayPlan) -> str:
 
 
 def _sanitized_message(exc: Exception) -> str:
-    message = str(exc).replace("\r", " ").replace("\n", " ").strip()
-    return message[:500] if message else "Built-in replay execution failed without a message."
+    return sanitized_message(exc, empty="Built-in replay execution failed without a message.")
 
 
 def _now() -> str:

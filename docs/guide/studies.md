@@ -246,6 +246,8 @@ Retry is explicit and bounded by `max_attempts_per_task`. VAMOS does not mutate 
 
 A retry creates new attempt evidence for the same planned task; it does not quietly turn the study into a different experimental matrix. When analyzing a retried study, retain the selected-attempt and run provenance recorded by the summary.
 
+**Development after 1.1.0:** a failed task records its cause. For a VAMOS error, its `message` (in the task, the attempt and the failed run) is the error type and its text on one line, up to 500 characters. Absolute paths are replaced by `<path>`, and the field of a typed artifact error is included. For any other exception, only its type is recorded, because its text may hold credentials or tokens. The process that runs the study logs the full traceback at error level under `vamos.experiment.study`. A failure that the same task would repeat is not retryable, and `retry` refuses it with `NONRETRYABLE_FAILURE`: a `ConfigurationError` or problem error, an evaluation that writes non-finite or misshaped objectives or constraints, or a failed reconstruction. Other failures after the optimization starts stay retryable. In VAMOS 1.1.0 every failure stored the same fixed text with no cause, and any failure after the optimization started counted as retryable, so `retry` repeated deterministic failures until `max_attempts_per_task`.
+
 ## Ownership boundary
 
 VAMOS 1.1.0 permits one mutating owner per study. Do not run `run`, `resume`, or `retry` concurrently against the same directory. Execution is sequential; distributed workers, multiprocess ownership, and cross-process cancellation are unsupported. See [Known limitations](../project/known-limitations.md).
