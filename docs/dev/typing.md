@@ -7,7 +7,7 @@ VAMOS uses one reproducible typecheck entry point: `tools/typecheck.py`. Direct 
 The canonical typing environment is:
 
 - Python 3.12;
-- compiled mypy 2.4.0;
+- compiled mypy 2.4.1;
 - typing-extensions 4.16.0;
 - `pyproject.toml` as the only mypy configuration;
 - `constraints/ci.txt` as the dependency constraint set;

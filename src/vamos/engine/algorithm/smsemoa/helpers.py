@@ -13,7 +13,9 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 import numpy as np
+from numpy.typing import NDArray
 
+from vamos.engine.algorithm.components.hv_reference import relative_reference_point
 from vamos.foundation.constraints.utils import compute_violation, is_feasible
 
 if TYPE_CHECKING:
@@ -22,10 +24,14 @@ if TYPE_CHECKING:
 
     from .state import SMSEMOAState
 
+FloatArray = NDArray[np.float64]
+IntArray = NDArray[np.int_]
+AnyArray = NDArray[np.generic]
 
 __all__ = [
     "initialize_reference_point",
     "update_reference_point",
+    "least_contributor",
     "fronts_from_ranks",
     "compute_front_crowding",
     "compute_crowding",
@@ -38,51 +44,74 @@ __all__ = [
 ]
 
 
-def _is_duplicate_row(matrix: np.ndarray, row: np.ndarray) -> bool:
+def _is_duplicate_row(matrix: AnyArray, row: AnyArray) -> bool:
     if matrix.size == 0:
         return False
     return bool(np.any(np.all(matrix == row, axis=1)))
 
 
 def initialize_reference_point(
-    F: np.ndarray,
+    F: FloatArray,
     ref_cfg: Mapping[str, object],
-) -> tuple[np.ndarray, float, bool]:
-    """Initialize reference point for HV computation."""
+) -> tuple[FloatArray, float, bool]:
+    """Initial reference point, offset and adaptivity for the hypervolume contributions.
+
+    A user ``vector`` is the reference as given and stays fixed: ``adaptive`` does not
+    apply to it, and points outside its box contribute 0. Otherwise the reference is
+    ``nadir + offset * (nadir - ideal)`` of ``F`` (see :func:`relative_reference_point`),
+    recomputed at every step when ``adaptive`` (the default).
+    """
     offset_raw = ref_cfg.get("offset", 1.0)
     offset = float(offset_raw) if isinstance(offset_raw, (int, float, str)) else 1.0
-    adaptive = bool(ref_cfg.get("adaptive", True))
     vector = ref_cfg.get("vector")
 
     if vector is not None:
-        ref = np.asarray(vector, dtype=float)
-        if ref.shape[0] != F.shape[1]:
+        ref = np.array(vector, dtype=float)
+        if ref.ndim != 1 or ref.shape[0] != F.shape[1]:
             raise ValueError("reference_point vector dimensionality mismatch.")
-        ref = np.maximum(ref, F.max(axis=0) + offset)
-    else:
-        ref = F.max(axis=0) + offset
+        if not bool(np.isfinite(ref).all()):
+            raise ValueError("reference_point vector must contain finite values.")
+        return ref, offset, False
 
-    return ref, offset, adaptive
+    adaptive_raw = ref_cfg.get("adaptive", True)
+    adaptive = True if adaptive_raw is None else bool(adaptive_raw)
+    return relative_reference_point(F, offset), offset, adaptive
 
 
 def update_reference_point(
-    ref_point: np.ndarray,
-    F_new: np.ndarray,
+    ref_point: FloatArray,
+    F_new: FloatArray,
     ref_offset: float,
-) -> np.ndarray:
-    """Update reference point from current objective values."""
+) -> FloatArray:
+    """The adaptive reference of the population and the child: ``nadir + offset * range``."""
     del ref_point
-    return np.asarray(F_new.max(axis=0) + ref_offset, dtype=float)
+    return relative_reference_point(F_new, ref_offset)
 
 
-def fronts_from_ranks(ranks: np.ndarray) -> list[list[int]]:
+def least_contributor(kernel: KernelBackend, points: FloatArray, ref_point: FloatArray) -> int:
+    """Row of ``points`` with the smallest hypervolume contribution (the first on ties).
+
+    Points outside the reference box (a fixed user reference) contribute 0; the
+    others are measured among themselves with the kernel's contribution hook.
+    """
+    inside = np.all(points <= ref_point, axis=1)
+    if bool(inside.all()):
+        contributions = kernel.hypervolume_contributions(points, ref_point)
+    else:
+        contributions = np.zeros(points.shape[0], dtype=float)
+        if bool(inside.any()):
+            contributions[inside] = kernel.hypervolume_contributions(points[inside], ref_point)
+    return int(np.argmin(contributions))
+
+
+def fronts_from_ranks(ranks: IntArray) -> list[list[int]]:
     if ranks.size == 0:
         return []
     max_rank = int(ranks.max(initial=-1))
     return [np.flatnonzero(ranks == rank).tolist() for rank in range(max_rank + 1)]
 
 
-def compute_front_crowding(F: np.ndarray, front: np.ndarray | list[int]) -> np.ndarray:
+def compute_front_crowding(F: FloatArray, front: IntArray | list[int]) -> FloatArray:
     """Compute crowding distance for a single front."""
     front_arr = np.asarray(front, dtype=int)
     if front_arr.size == 0:
@@ -107,7 +136,7 @@ def compute_front_crowding(F: np.ndarray, front: np.ndarray | list[int]) -> np.n
     return crowding
 
 
-def compute_crowding(F: np.ndarray, fronts: list[list[int]]) -> np.ndarray:
+def compute_crowding(F: FloatArray, fronts: list[list[int]]) -> FloatArray:
     """Compute crowding distances for the provided fronts."""
     crowding = np.zeros(F.shape[0], dtype=float)
     for front in fronts:
@@ -120,8 +149,8 @@ def compute_crowding(F: np.ndarray, fronts: list[list[int]]) -> np.ndarray:
 
 def incremental_insert_fronts(
     fronts: list[list[int]],
-    ranks: np.ndarray,
-    F: np.ndarray,
+    ranks: IntArray,
+    F: FloatArray,
     new_idx: int,
 ) -> list[int]:
     """Incrementally insert one solution into existing non-dominated fronts."""
@@ -201,23 +230,23 @@ def reindex_fronts(fronts: list[list[int]], removed_idx: int) -> list[list[int]]
     return new_fronts
 
 
-def ranks_from_fronts(fronts: list[list[int]], size: int) -> np.ndarray:
+def ranks_from_fronts(fronts: list[list[int]], size: int) -> IntArray:
     ranks = np.empty(size, dtype=int)
     for rank, front in enumerate(fronts):
         ranks[np.asarray(front, dtype=int)] = rank
     return ranks
 
 
-def _constraints_active(G: np.ndarray | None, constraint_mode: str) -> bool:
+def _constraints_active(G: FloatArray | None, constraint_mode: str) -> bool:
     return G is not None and constraint_mode != "none" and G.size > 0
 
 
 def _build_selection_cache(
-    F: np.ndarray,
-    G: np.ndarray | None,
+    F: FloatArray,
+    G: FloatArray | None,
     constraint_mode: str,
     kernel: KernelBackend,
-) -> tuple[np.ndarray, np.ndarray, list[list[int]] | None]:
+) -> tuple[IntArray, FloatArray, list[list[int]] | None]:
     if F.shape[0] == 0:
         return np.empty(0, dtype=int), np.empty(0, dtype=float), []
 
@@ -262,7 +291,7 @@ def _build_selection_cache(
 def refresh_selection_cache(
     st: SMSEMOAState,
     kernel: KernelBackend,
-) -> tuple[np.ndarray, np.ndarray, list[list[int]] | None]:
+) -> tuple[IntArray, FloatArray, list[list[int]] | None]:
     """Refresh cached ranks/crowding/fronts for parent selection and steady-state updates."""
     ranks, crowding, fronts = _build_selection_cache(st.F, st.G, st.constraint_mode, kernel)
     st.ranks = ranks
@@ -271,7 +300,7 @@ def refresh_selection_cache(
     return ranks, crowding, fronts
 
 
-def _ensure_objective_buffer(st: SMSEMOAState, pop_n: int, n_obj: int) -> np.ndarray:
+def _ensure_objective_buffer(st: SMSEMOAState, pop_n: int, n_obj: int) -> FloatArray:
     F_work = st._survival_F
     if F_work is None or F_work.shape != (pop_n + 1, n_obj):
         F_work = np.empty((pop_n + 1, n_obj), dtype=st.F.dtype)
@@ -283,7 +312,7 @@ def _ensure_constraint_buffer(
     st: SMSEMOAState,
     pop_n: int,
     n_constraints: int,
-) -> np.ndarray:
+) -> FloatArray:
     if st.G is None:
         raise ValueError("Constraint buffer requested without state.G.")
     G_work = st._survival_G
@@ -295,9 +324,9 @@ def _ensure_constraint_buffer(
 
 def _write_child_survivor(
     st: SMSEMOAState,
-    X_child: np.ndarray,
-    F_child: np.ndarray,
-    G_child: np.ndarray | None,
+    X_child: AnyArray,
+    F_child: FloatArray,
+    G_child: FloatArray | None,
     pop_n: int,
     remove_idx: int,
 ) -> None:
@@ -323,9 +352,9 @@ def _write_child_survivor(
 
 def survival_selection(
     st: SMSEMOAState,
-    X_child: np.ndarray,
-    F_child: np.ndarray,
-    G_child: np.ndarray | None,
+    X_child: AnyArray,
+    F_child: FloatArray,
+    G_child: FloatArray | None,
     kernel: KernelBackend,
 ) -> None:
     """Perform steady-state SMS-EMOA survival selection."""
@@ -349,7 +378,7 @@ def survival_selection(
     if st.ref_adaptive:
         st.ref_point = update_reference_point(st.ref_point, F_work, st.ref_offset)
 
-    G_work: np.ndarray | None = None
+    G_work: FloatArray | None = None
     constraints_active = _constraints_active(st.G, st.constraint_mode)
     if constraints_active:
         if G_child is None:
@@ -380,8 +409,7 @@ def survival_selection(
         if worst_idx.size == 1:
             remove_idx = int(worst_idx[0])
         else:
-            contribs = kernel.hypervolume_contributions(F_work[worst_idx], st.ref_point)
-            remove_idx = int(worst_idx[int(np.argmin(contribs))])
+            remove_idx = int(worst_idx[least_contributor(kernel, F_work[worst_idx], st.ref_point)])
         if remove_idx == pop_n:
             return
         _write_child_survivor(st, X_child, F_child, G_child, pop_n, remove_idx)
@@ -398,8 +426,7 @@ def survival_selection(
     if worst_front.size == 1:
         remove_idx = int(worst_front[0])
     else:
-        contribs = kernel.hypervolume_contributions(F_work[worst_front], st.ref_point)
-        remove_idx = int(worst_front[int(np.argmin(contribs))])
+        remove_idx = int(worst_front[least_contributor(kernel, F_work[worst_front], st.ref_point)])
 
     if remove_idx == pop_n:
         return
@@ -413,13 +440,13 @@ def survival_selection(
 
 def evaluate_population_with_constraints(
     problem: ProblemProtocol,
-    X: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray | None]:
+    X: AnyArray,
+) -> tuple[FloatArray, FloatArray | None]:
     """Evaluate population and compute constraints if present."""
     n_obj = problem.n_obj
     n_constraints = getattr(problem, "n_constraints", 0) or 0
 
-    out: dict[str, np.ndarray] = {"F": np.empty((X.shape[0], n_obj), dtype=np.float64)}
+    out: dict[str, FloatArray] = {"F": np.empty((X.shape[0], n_obj), dtype=np.float64)}
     if n_constraints > 0:
         out["G"] = np.empty((X.shape[0], n_constraints), dtype=np.float64)
 
