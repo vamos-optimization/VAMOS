@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "2b30654e5bf9894b656994531e9f4850f77bf5b3",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 2b30654e5bf9894b656994531e9f4850f77bf5b3",
+  "generation_commit": "6a928d44c1900a6cd41ee25baacd7f04785ad56c",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 6a928d44c1900a6cd41ee25baacd7f04785ad56c",
   "environment": {
     "python": "3.12",
-    "mypy": "2.4.0",
+    "mypy": "2.4.1",
     "mypy_build": "compiled",
     "typing_extensions": "4.16.0",
     "stub_packages": [],
@@ -16,7 +16,7 @@
     "constraints_path": "constraints/ci.txt",
     "type_affecting_pins": {
       "joblib": "1.6.0",
-      "mypy": "2.4.0",
+      "mypy": "2.4.1",
       "numpy": "2.2.6",
       "pyyaml": "6.0.3",
       "scipy": "1.15.3",
@@ -39,7 +39,7 @@
     "package-root": 1,
     "ux": 17
   },
-  "installed_mypy": "2.4.0",
+  "installed_mypy": "2.4.1",
   "diagnostics": [
     {
       "fingerprint": "03024CC60B8758BD24ABFFD8779F6753CF329A58A4DA9501C399418AEB739E88",
