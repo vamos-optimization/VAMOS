@@ -375,3 +375,52 @@ def test_checkpoint_records_immigrant_evaluations(tmp_path) -> None:  # type: ig
     assert result["evaluations"] == 41
     checkpoint = load_checkpoint(tmp_path / "nsgaii_seed3_gen1.ckpt", trusted=True)
     assert checkpoint["n_eval"] == 41
+
+
+class _UserCallbackError(Exception):
+    pass
+
+
+def _raise_user_error(*_args: object, **_kwargs: object) -> bool:
+    raise _UserCallbackError("user callback failed")
+
+
+class _StopRaises:
+    """A live callback whose ``should_stop`` raises."""
+
+    def on_start(self, ctx: object = None) -> None:
+        return None
+
+    def on_generation(self, generation: int, F: object = None, X: object = None, stats: object = None) -> None:
+        return None
+
+    def on_end(self, final_F: object = None, final_stats: object = None) -> None:
+        return None
+
+    def should_stop(self) -> bool:
+        raise _UserCallbackError("user callback failed")
+
+
+@pytest.mark.parametrize("hook", ["generation_callback", "should_stop", "parent_selection_filter", "skip_if"])
+def test_failing_user_callback_is_not_silenced(hook: str) -> None:
+    cfg = _base_cfg()
+    live_viz = None
+    if hook == "generation_callback":
+        cfg["generation_callback"] = _raise_user_error
+    elif hook == "should_stop":
+        live_viz = _StopRaises()
+    elif hook == "parent_selection_filter":
+        cfg["parent_selection_filter"] = _raise_user_error
+    else:
+        cfg["immigration"] = {
+            "enabled": True,
+            "start_generation": 0,
+            "every": 1,
+            "max_in_pop": 1,
+            "max_insert_per_event": 1,
+            "skip_if": _raise_user_error,
+            "static_candidates": [{"X": np.array([0.0, 0.0], dtype=float), "F": np.array([0.0, 0.0], dtype=float)}],
+        }
+    algo = NSGAII(cfg, NumPyKernel())
+    with pytest.raises(_UserCallbackError, match="user callback failed"):
+        algo.run(IdentityProblem(), termination=("max_evaluations", 120), seed=11, live_viz=live_viz)

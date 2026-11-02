@@ -109,44 +109,42 @@ def notify_generation(
         live_cb.on_generation(generation, F=live_F, X=live_X, stats=None)
 
     if st is not None and callable(st.generation_callback):
-        try:
-            copy_arrays = bool(st.generation_callback_copy)
-            payload: dict[str, Any] = {
-                "generation": int(generation),
-                "evaluations": int(evals) if evals is not None else None,
-                "population": {
-                    "X": np.asarray(st.X).copy() if copy_arrays else np.asarray(st.X),
-                    "F": np.asarray(st.F).copy() if copy_arrays else np.asarray(st.F),
-                    "G": (
-                        np.asarray(st.G).copy()
-                        if copy_arrays and isinstance(st.G, np.ndarray)
-                        else np.asarray(st.G)
-                        if isinstance(st.G, np.ndarray)
-                        else None
-                    ),
-                },
-                "nondominated": None,
-                "archive": None,
-                "stats": stats or None,
+        # A user callback that raises stops the run with its exception.
+        copy_arrays = bool(st.generation_callback_copy)
+        payload: dict[str, Any] = {
+            "generation": int(generation),
+            "evaluations": int(evals) if evals is not None else None,
+            "population": {
+                "X": np.asarray(st.X).copy() if copy_arrays else np.asarray(st.X),
+                "F": np.asarray(st.F).copy() if copy_arrays else np.asarray(st.F),
+                "G": (
+                    np.asarray(st.G).copy()
+                    if copy_arrays and isinstance(st.G, np.ndarray)
+                    else np.asarray(st.G)
+                    if isinstance(st.G, np.ndarray)
+                    else None
+                ),
+            },
+            "nondominated": None,
+            "archive": None,
+            "stats": stats or None,
+        }
+        if nd_mask is not None:
+            payload["nondominated"] = {
+                "X": (np.asarray(st.X[nd_mask]).copy() if copy_arrays else np.asarray(st.X[nd_mask])),
+                "F": (np.asarray(st.F[nd_mask]).copy() if copy_arrays else np.asarray(st.F[nd_mask])),
             }
-            if nd_mask is not None:
-                payload["nondominated"] = {
-                    "X": (np.asarray(st.X[nd_mask]).copy() if copy_arrays else np.asarray(st.X[nd_mask])),
-                    "F": (np.asarray(st.F[nd_mask]).copy() if copy_arrays else np.asarray(st.F[nd_mask])),
-                }
-            archive_payload = get_archive_contents(st)
-            if archive_payload is not None:
-                x_arch = np.asarray(archive_payload.get("X"))
-                f_arch = np.asarray(archive_payload.get("F"))
-                payload["archive"] = {
-                    "X": x_arch.copy() if copy_arrays else x_arch,
-                    "F": f_arch.copy() if copy_arrays else f_arch,
-                }
-            callback_stop = bool(st.generation_callback(payload))
-            if callback_stop:
-                return True
-        except Exception as exc:
-            _logger().debug("generation_callback failed: %s", exc)
+        archive_payload = get_archive_contents(st)
+        if archive_payload is not None:
+            x_arch = np.asarray(archive_payload.get("X"))
+            f_arch = np.asarray(archive_payload.get("F"))
+            payload["archive"] = {
+                "X": x_arch.copy() if copy_arrays else x_arch,
+                "F": f_arch.copy() if copy_arrays else f_arch,
+            }
+        callback_stop = bool(st.generation_callback(payload))
+        if callback_stop:
+            return True
 
     return live_should_stop(live_cb)
 
