@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -18,21 +18,23 @@ if TYPE_CHECKING:
     from .state import MOEADState
 
 
-def compute_neighbors(weights: np.ndarray, neighbor_size: int) -> np.ndarray:
+def compute_neighbors(weights: np.ndarray[Any, Any], neighbor_size: int) -> np.ndarray[Any, Any]:
     """Compute neighborhood indices based on weight vector distances."""
     dist = np.linalg.norm(weights[:, None, :] - weights[None, :, :], axis=2)
-    order = np.argsort(dist, axis=1)
+    # Lattice weights have many equidistant neighbours; a stable sort breaks those ties by index, so the
+    # neighbourhoods, and the trajectory, are the same on every platform.
+    order = np.argsort(dist, axis=1, kind="stable")
     return order[:, :neighbor_size]
 
 
 def update_neighborhood(
     st: MOEADState,
     idx: int,
-    child: np.ndarray,
-    child_f: np.ndarray,
-    child_g: np.ndarray | None,
+    child: np.ndarray[Any, Any],
+    child_f: np.ndarray[Any, Any],
+    child_g: np.ndarray[Any, Any] | None,
     cv_penalty: float,
-    candidate_order: np.ndarray | None = None,
+    candidate_order: np.ndarray[Any, Any] | None = None,
 ) -> None:
     """Update neighborhood with a new offspring using aggregation comparison."""
     constraint_mode = st.constraint_mode
@@ -80,12 +82,12 @@ def update_neighborhood(
 
 def update_neighborhood_batch(
     st: MOEADState,
-    children: np.ndarray,
-    children_f: np.ndarray,
-    children_g: np.ndarray | None,
-    children_cv: np.ndarray | None,
-    candidate_orders: np.ndarray,
-    candidate_lengths: np.ndarray,
+    children: np.ndarray[Any, Any],
+    children_f: np.ndarray[Any, Any],
+    children_g: np.ndarray[Any, Any] | None,
+    children_cv: np.ndarray[Any, Any] | None,
+    candidate_orders: np.ndarray[Any, Any],
+    candidate_lengths: np.ndarray[Any, Any],
 ) -> None:
     """Update neighborhoods for a batch of offspring using precomputed candidate orders."""
     if children.shape[0] == 0:

@@ -16,13 +16,15 @@ from vamos.experiment.study.report_models import StudySummaryRow
 from vamos.foundation.core.hv_stop import compute_hv_reference
 from vamos.foundation.kernel.numpy_backend import _fast_non_dominated_sort
 from vamos.foundation.quality_indicators.hypervolume import hypervolume
-from vamos.foundation.quality_indicators.moocore_indicators import HVIndicator, QualityIndicator, get_indicator, has_moocore
+from vamos.foundation.quality_indicators.moocore_indicators import (
+    REFERENCE_FRONT_INDICATORS,
+    REFERENCE_POINT_INDICATORS,
+    canonical_indicator_name,
+    get_indicator,
+    has_moocore,
+)
 from vamos.run_artifacts import load_result
 from vamos.study_artifacts import StudySummary
-
-# Indicators measured against the problem's reference front. They are distances
-# where lower is better, so a run without feasible solutions gets +inf.
-_REFERENCE_FRONT_INDICATORS = {"igd", "igd+", "igd_plus", "epsilon_additive", "epsilon_mult", "avg_hausdorff"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,7 +132,7 @@ def _attach_indicators(
     reference: NDArray[np.float64] | None,
     indicators: Sequence[str],
 ) -> None:
-    requested = tuple(name for name in indicators if name.lower() not in {"hv", "hypervolume"})
+    requested = tuple(name for name in indicators if _canonical_name(name) != "hv")
     if not requested or not has_moocore():
         return
     reference_front = _nondominated_union(fronts) if fronts else None
@@ -148,8 +150,9 @@ def _row_indicator(
     reference: NDArray[np.float64] | None,
 ) -> float | NDArray[np.float64] | None:
     if reference_front is None or reference is None or not front.size:
-        # Without feasible solutions the distance to the reference front is +inf, the worst value.
-        return math.inf if name in _REFERENCE_FRONT_INDICATORS else None
+        # The reference-front indicators are distances where lower is better: without
+        # feasible solutions the distance to the reference front is +inf, the worst value.
+        return math.inf if _canonical_name(name) in REFERENCE_FRONT_INDICATORS else None
     try:
         return _indicator_value(name, front, reference_front, reference)
     except Exception as exc:
@@ -163,13 +166,23 @@ def _indicator_value(
     reference_front: NDArray[np.float64],
     reference: NDArray[np.float64],
 ) -> float | NDArray[np.float64] | None:
-    if name in {"hv", "hypervolume"}:
-        return HVIndicator(reference_point=reference).compute(front).value
-    if name in _REFERENCE_FRONT_INDICATORS:
-        indicator: QualityIndicator = get_indicator(name, reference_front=reference_front)
-    else:
-        indicator = get_indicator(name)
-    return indicator.compute(front).value
+    """The indicator ``name`` (any alias of ``get_indicator``) with the problem's references.
+
+    The hypervolume family receives the problem's reference point and the others its
+    reference front.
+    """
+    canonical = canonical_indicator_name(name)
+    if canonical in REFERENCE_POINT_INDICATORS:
+        return get_indicator(canonical, reference_point=reference).compute(front).value
+    return get_indicator(canonical, reference_front=reference_front).compute(front).value
+
+
+def _canonical_name(name: str) -> str:
+    """The canonical indicator name, or ``name`` lower-cased when no indicator has it."""
+    try:
+        return canonical_indicator_name(name)
+    except ValueError:
+        return name.strip().lower()
 
 
 def _nondominated_union(fronts: list[NDArray[np.float64]]) -> NDArray[np.float64]:

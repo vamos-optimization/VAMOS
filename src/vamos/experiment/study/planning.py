@@ -11,7 +11,7 @@ from typing import Any
 from vamos.engine.algorithm.config.base import ReferenceDirectionPopulationError
 from vamos.experiment.artifacts.models import deep_freeze, deep_thaw
 from vamos.experiment.artifacts.resolved_reconstruction import is_reconstructable_evaluation_backend
-from vamos.experiment.artifacts.specs import RunSpecInputs, build_run_specs
+from vamos.experiment.artifacts.specs import RunSpecInputs, build_run_specs, is_registry_problem
 from vamos.experiment.auto import _compute_max_evaluations, _compute_pop_size, _resolve_problem, _select_algorithm
 from vamos.experiment.optimize import _build_algorithm_config
 from vamos.experiment.runtime.catalog import resolve_engine_details
@@ -96,7 +96,7 @@ def _resolve_candidate(spec: StudySpec, candidate: _Candidate) -> PlanTask:
         )
         requested, resolved = build_run_specs(
             RunSpecInputs(
-                problem_built_in=problem.__class__.__module__.startswith("vamos."),
+                problem_built_in=is_registry_problem(candidate.problem, problem, candidate.problem),
                 problem_label=candidate.problem,
                 problem_kwargs=deep_thaw(spec.problem_kwargs),
                 n_var_requested=spec.n_var,

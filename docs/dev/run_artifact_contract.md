@@ -191,6 +191,18 @@ available, the environment artifact role, and the same timestamps as the
 manifest. Python saves identify `vamos.optimize`; CLI saves identify a
 sanitized CLI entry point. A caller-supplied manual context is marked as such.
 
+**Development after 1.1.0:** saving a result that `load_result` returned is a
+manual copy. It has entry point `vamos.save_result` with `arguments_source`
+`loaded_result`, the timestamps of the new save, runtime 0, and replayability
+`manual` with the reason `loaded_result_saved_again`. No new schema field
+records the source run; replay lineage stays reserved for `reproduce`. A
+problem is a built-in component only when it was requested by registry name,
+or when it is an instance of the exact class the registry builds for its name.
+Other problems, including every `make_problem` problem, get provider
+`custom_python` and a `custom.problem:<module>.<qualified name>` component ID,
+never one derived from their free `name`. Their resolution records `module`,
+`qualified_name` and `label`, and their replayability is `manual`.
+
 Replayability levels are `exact`, `compatible`, `best_effort`, `manual`, and
 `unavailable`. They are evidence declarations, not an execution API. An exact
 claim requires the same resolved spec, implementation, backend, materially

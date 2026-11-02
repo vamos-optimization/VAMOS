@@ -307,6 +307,8 @@ def _result_meta(manifest: RunManifest) -> dict[str, Any]:
         "run_artifact_requested_spec": dict(manifest.requested_spec),
         "run_artifact_resolved_spec": resolved.as_dict(),
         "run_artifact_timestamps": run_artifact_timestamps,
+        # Marks a loaded result: saving it again records a manual copy, not this execution.
+        "run_artifact_loaded_run_id": manifest.run_id,
         "default_sources": default_sources,
     }
 
