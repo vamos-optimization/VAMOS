@@ -44,17 +44,63 @@ __all__ = [
 ]
 
 
+def insert_leaders(
+    leaders: Any,
+    X: np.ndarray[Any, Any],
+    F: np.ndarray[Any, Any],
+    G: np.ndarray[Any, Any] | None = None,
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
+    """Insert particles into the leaders archive one at a time, as jMetal's ``leaders.add``.
+
+    Each insertion keeps the non-dominated points and, when the archive overflows,
+    removes the most crowded one, so the result depends on the particle order as in
+    jMetal. A batch update instead truncates the union once.
+    """
+    contents = cast(tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]], leaders.contents())
+    # Without constraints, a particle that a leader dominates or equals leaves the archive
+    # unchanged, as jMetal's ``add`` rejects it, so it is skipped without a full update. A
+    # particle rejected by the leaders at the start of the batch stays rejected until a
+    # capacity truncation removes a leader: until then every removed leader was dominated
+    # by a newer one, which dominates the particle too.
+    rejected = _covered_by(contents[1], F) if G is None else np.zeros(X.shape[0], dtype=bool)
+    truncated = False
+    for row in range(X.shape[0]):
+        if rejected[row] and not truncated:
+            continue
+        leaders_F = contents[1]
+        if G is None and truncated and bool(_covered_by(leaders_F, F[row : row + 1])[0]):
+            continue
+        expected = leaders_F.shape[0] + 1
+        if G is None and leaders_F.shape[0]:
+            expected -= int(np.count_nonzero(np.all(F[row] <= leaders_F, axis=1) & np.any(F[row] < leaders_F, axis=1)))
+        rows = slice(row, row + 1)
+        contents = cast(
+            tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]],
+            leaders.update(X[rows], F[rows], None if G is None else G[rows]),
+        )
+        truncated = truncated or contents[1].shape[0] < expected
+    return contents
+
+
+def _covered_by(leaders_F: np.ndarray[Any, Any], F: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
+    """Rows of ``F`` that a row of ``leaders_F`` dominates or equals."""
+    if leaders_F.shape[0] == 0 or F.shape[0] == 0:
+        return np.zeros(F.shape[0], dtype=bool)
+    no_worse = np.all(leaders_F[None, :, :] <= F[:, None, :], axis=2)
+    better_or_equal = np.any(leaders_F[None, :, :] < F[:, None, :], axis=2) | np.all(leaders_F[None, :, :] == F[:, None, :], axis=2)
+    return np.asarray(np.any(no_worse & better_or_equal, axis=1), dtype=bool)
+
+
 class _SMPSOArchiveFanout:
-    """Keep the algorithmic leaders archive and result archive synchronized.
+    """SMPSO's leaders archive, updated particle by particle, and an optional result archive.
 
     SMPSO's internal crowding archive drives leader selection and HV stopping.
-    A user-configured external archive is result storage only. The algorithm
-    already updates ``archive_manager`` after every evaluated particle batch, so
-    this small adapter forwards those inserts to the result archive while
-    preserving the internal leaders as the manager's visible contents.
+    A user-configured external archive is result storage only: it receives each
+    evaluated batch at once, while the internal leaders stay the manager's
+    visible contents.
     """
 
-    def __init__(self, leaders: Any, result_archive: Any) -> None:
+    def __init__(self, leaders: Any, result_archive: Any | None) -> None:
         self._leaders = leaders
         self._result_archive = result_archive
 
@@ -64,11 +110,9 @@ class _SMPSOArchiveFanout:
         F: np.ndarray[Any, Any],
         G: np.ndarray[Any, Any] | None = None,
     ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
-        self._result_archive.update(X, F, G)
-        return cast(
-            tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]],
-            self._leaders.update(X, F, G),
-        )
+        if self._result_archive is not None:
+            self._result_archive.update(X, F, G)
+        return insert_leaders(self._leaders, X, F, G)
 
     def contents(self) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
         return cast(
@@ -180,7 +224,7 @@ def initialize_smpso_run(
     # Leader archive: this is part of SMPSO's runtime semantics and remains
     # independent from any external result archive.
     leader_archive = CrowdingDistanceArchive(archive_size, n_var, n_obj, X.dtype, selection_kernels=kernel.selection_kernels())
-    archive_X, archive_F = leader_archive.update(X, F, G)
+    archive_X, archive_F = insert_leaders(leader_archive, X, F, G)
     archive_crowding = None
     if archive_F is not None and archive_F.size:
         from vamos.engine.algorithm.components.subset_selection import _single_front_crowding
@@ -200,9 +244,7 @@ def initialize_smpso_run(
         ext_cfg,
         G,
     )
-    archive_manager: Any = leader_archive
-    if result_archive is not None:
-        archive_manager = _SMPSOArchiveFanout(leader_archive, result_archive)
+    archive_manager = _SMPSOArchiveFanout(leader_archive, result_archive)
 
     # Genealogy tracking
     track_genealogy = bool(config.get("track_genealogy", False))
