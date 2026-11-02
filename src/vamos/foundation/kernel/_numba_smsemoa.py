@@ -194,12 +194,20 @@ def survival_step(
     for c in range(m):
         F_work[n, c] = f_child[c]
     if settings[_ADAPTIVE] != 0.0:
+        # relative_reference_point: nadir + offset * (nadir - ideal), with a range of 1 when there is no spread.
         for c in range(m):
             top = F_work[0, c]
+            bottom = F_work[0, c]
             for p in range(1, n + 1):
-                if F_work[p, c] > top:
-                    top = F_work[p, c]
-            ref_point[c] = top + settings[_OFFSET]
+                value = F_work[p, c]
+                if value > top:
+                    top = value
+                if value < bottom:
+                    bottom = value
+            span = top - bottom
+            if not span > 0.0:
+                span = 1.0
+            ref_point[c] = top + settings[_OFFSET] * span
     child_pos = iwork[_CHILD_POS]
     for c in range(m):
         child_pos[c] = _upper_bound(F, orders[c], n, c, f_child[c])

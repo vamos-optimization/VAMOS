@@ -158,19 +158,21 @@ def test_archive_feasibility_keeps_least_violating_when_no_feasible():
     assert not np.any(np.all(kept_F == np.array([0.0, 0.0]), axis=1))
 
 
-def test_hypervolume_reference_is_stable():
-    archive = HypervolumeArchive(capacity=2, n_var=1, n_obj=2, dtype=float, ref_offset=1.0)
-    X0 = np.array([[0.0], [1.0], [2.0]])
-    F0 = np.array([[10.0, 1.0], [1.0, 10.0], [6.0, 6.0]])
-    archive.update(X0, F0)
-    assert archive._global_worst is not None  # internal monotone reference tracker
-    first_ref = archive._global_worst.copy()
+def test_hypervolume_archive_is_scale_invariant():
+    rng = np.random.default_rng(3)
+    f1 = rng.random(60)
+    F = np.column_stack([f1, 1.0 - np.sqrt(f1)])  # mutually non-dominated points of the ZDT1 front
+    X = np.arange(60, dtype=float).reshape(-1, 1)
+    kept: dict[float, list[float]] = {}
+    for scale in (1.0, 100.0):
+        archive = HypervolumeArchive(capacity=20, n_var=1, n_obj=2, dtype=float)
+        for start in range(0, 60, 10):
+            archive.update(X[start : start + 10], F[start : start + 10] * np.array([1.0, scale]))
+        kept_X, _ = archive.contents()
+        kept[scale] = sorted(kept_X[:, 0].tolist())
 
-    X1 = np.array([[3.0]])
-    F1 = np.array([[0.1, 0.1]])
-    archive.update(X1, F1)
-    assert archive._global_worst is not None
-    assert np.all(archive._global_worst >= first_ref)
+    assert kept[100.0] == kept[1.0]
+    assert float(np.argmin(f1)) in kept[100.0] and float(np.argmax(f1)) in kept[100.0]
 
 
 def test_decision_space_dedup_keeps_equal_objectives_with_distinct_decisions():

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -108,12 +109,26 @@ class _SMSEMOAConfigBuilder(
         *,
         vector: Any = None,
         offset: float = 1.0,
-        adaptive: bool = True,
+        adaptive: bool | None = None,
     ) -> _SMSEMOAConfigBuilder:
+        """Reference point of the hypervolume contributions.
+
+        Without ``vector`` the reference is ``nadir + offset * (nadir - ideal)`` of the
+        population and the new child, so ``offset`` is a fraction of each objective's
+        range and the selection does not depend on objective units; it is recomputed
+        at every step unless ``adaptive=False``. A ``vector`` is used as given and stays
+        fixed, so it cannot be combined with ``adaptive=True``; points outside its box
+        contribute 0.
+        """
+        offset_value = float(offset)
+        if not math.isfinite(offset_value) or offset_value < 0.0:
+            raise ValueError(f"reference_point offset must be a finite number >= 0, got {offset!r}.")
+        if vector is not None and adaptive:
+            raise ValueError("A reference_point vector is fixed; do not combine vector= with adaptive=True.")
         self._cfg["reference_point"] = {
             "vector": vector,
-            "offset": offset,
-            "adaptive": adaptive,
+            "offset": offset_value,
+            "adaptive": vector is None if adaptive is None else bool(adaptive),
         }
         return self
 
