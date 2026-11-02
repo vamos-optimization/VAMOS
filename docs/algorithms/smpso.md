@@ -172,6 +172,8 @@ Evaluations: 400
 | `vmax_fraction(0.5)` | Bounds velocity relative to each variable’s range. |
 | Polynomial mutation | Additional real-valued perturbation, probability `1/10`. |
 
+**Development after 1.1.0:** three details follow jMetal, the authors' implementation, instead of jMetalPy. The random factors r1 and r2 and the coefficients drawn from `[c1, c1 + 1]` and `[c2, c2 + 1]` are used as drawn; VAMOS 1.1.0 rounded them to one decimal, which put 5% of the draws at r = 0. A personal best is replaced unless it is better than the new position: feasible against infeasible, a smaller constraint violation, or dominance when both are feasible or equally infeasible. VAMOS 1.1.0 required strict dominance whenever constraints were present. The leaders archive receives the particles one at a time, removing the most crowded leader whenever it overflows, as jMetal's `leaders.add`; VAMOS 1.1.0 truncated the whole batch at once. SMPSO runs change trajectory: with 10 000 evaluations, the mean HV on ZDT4 goes from 0.8636 (standard deviation 0.0162) to 0.8701 (0.0007) over 10 seeds.
+
 ## Interpret the result and its limits
 
 Each `X` row aligns with the same `F` row. This lesson explicitly requests `population` mode, then computes the feasible non-dominated subset separately. All objectives are minimized. A non-dominated row is only non-dominated among the available rows; it need not be Pareto optimal. The retained [observations](../assets/coverage/observations.json) contain the actual arrays and configuration.
