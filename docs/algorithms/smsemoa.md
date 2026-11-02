@@ -169,6 +169,8 @@ Evaluations: 400
 | SBX + polynomial mutation | Real-coded variation; mutation probability is explicitly `1/10`. |
 | `selection("random")` | Parent selection is separate from hypervolume-based environmental selection. |
 
+**Development after 1.1.0:** a `vector` is used as given and stays fixed, so it cannot be combined with `adaptive=True`; points outside its box contribute nothing to the hypervolume and are removed first. Without `vector`, the reference is `nadir + offset * (nadir - ideal)` of the population and the new child, recomputed at every step unless `adaptive=False`. `offset` (default 1.0) is therefore a fraction of each objective's range, the reference 1 + `offset` of the normalized objectives, and the selection does not depend on the objective units. In VAMOS 1.1.0 and earlier, `offset` was added to the maximum in objective units, so rescaling one objective changed which solutions survived. A `vector` was raised to that maximum plus `offset` and, with the default `adaptive=True`, replaced after the first step. The recorded output above comes from VAMOS 1.0.1, which raised this lesson's reference in that way.
+
 ## Interpret the result and its limits
 
 Each `X` row aligns with the same `F` row. This lesson explicitly requests `population` mode, then computes the feasible non-dominated subset separately. All objectives are minimized. A non-dominated row is only non-dominated among the available rows; it need not be Pareto optimal. The retained [observations](../assets/coverage/observations.json) contain the actual arrays and configuration.

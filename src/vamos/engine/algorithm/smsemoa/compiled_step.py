@@ -33,7 +33,7 @@ from vamos.engine.operators.policies._real_operator_builder import RepairedRealO
 from vamos.foundation.constraints.utils import is_feasible
 from vamos.foundation.kernel.backend import SMSEMOA_CONTRIBUTIONS, SMSEMOA_DELEGATE, KernelBackend
 
-from .helpers import fronts_from_ranks, survival_selection
+from .helpers import fronts_from_ranks, least_contributor, survival_selection
 
 if TYPE_CHECKING:
     from vamos.foundation.eval.backends import EvaluationBackend
@@ -215,8 +215,7 @@ class CompiledSteadyStep:
             self._reference(X_child, F_child, G_child)
         elif status == SMSEMOA_CONTRIBUTIONS:
             worst = self._survival.worst[:size]
-            contributions = self._kernel.hypervolume_contributions(self._survival.F_work[worst], st.ref_point)
-            remove = int(worst[int(np.argmin(contributions))])
+            remove = int(worst[least_contributor(self._kernel, self._survival.F_work[worst], st.ref_point)])
             if remove != self._n:
                 self._survival.commit(st.X, st.F, G, X_child[0], F_child[0], g_child, st.ranks, st.crowding, remove)
 

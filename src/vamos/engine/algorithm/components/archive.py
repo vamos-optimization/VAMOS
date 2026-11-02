@@ -6,6 +6,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from vamos.engine.algorithm.components.archive_core import DeduplicateIn, _BaseArchive
+from vamos.engine.algorithm.components.hv_reference import relative_reference_point
 from vamos.engine.algorithm.components.subset_selection import _hv_contributions
 from vamos.engine.archive.pruning_selectors import select_maxmin_subset, select_ref_dirs_subset
 from vamos.foundation.exceptions import DependencyError
@@ -81,6 +82,12 @@ class HypervolumeArchive(_BaseArchive):
     because the exact pure-Python computation is too slow to repeat at every
     truncation step, and construction raises
     :class:`~vamos.foundation.exceptions.DependencyError` when it is missing.
+
+    Without ``ref_point``, each truncation measures the contributions against
+    ``nadir + ref_offset * (nadir - ideal)`` of the points being truncated, so the
+    result does not depend on the objective units. The default ``ref_offset=1.0``
+    is the reference 2 of the objectives normalized to ``[0, 1]``, as in SMS-EMOA;
+    it keeps the extreme points. A ``ref_point`` is used as given, in objective units.
     """
 
     def __init__(
@@ -116,7 +123,6 @@ class HypervolumeArchive(_BaseArchive):
                 'pip install "vamos-optimization[compute]"',
             )
         self._ref_offset = float(ref_offset)
-        self._global_worst: np.ndarray[Any, Any] | None = None
         self._fixed_ref: np.ndarray[Any, Any] | None = None
         if ref_point is not None:
             ref = np.asarray(ref_point, dtype=float)
@@ -124,18 +130,10 @@ class HypervolumeArchive(_BaseArchive):
                 raise ValueError(f"hv_ref_point must be 1D with length {self._n_obj}, got shape {ref.shape}.")
             self._fixed_ref = ref.copy()
 
-    def _stable_ref(self, F: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
-        current_max = np.max(F, axis=0)
-        if self._global_worst is None:
-            self._global_worst = current_max.copy()
-        else:
-            np.maximum(self._global_worst, current_max, out=self._global_worst)
-        return self._global_worst + self._ref_offset
-
     def _reference(self, F: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
         if self._fixed_ref is not None:
             return self._fixed_ref
-        return self._stable_ref(F)
+        return relative_reference_point(F, self._ref_offset)
 
     def _select_subset(
         self,
@@ -145,9 +143,9 @@ class HypervolumeArchive(_BaseArchive):
     ) -> np.ndarray[Any, Any]:
         _ = G
         keep: NDArray[np.int_] = np.arange(F.shape[0], dtype=int)
+        ref = self._reference(F)
         while keep.size > target_size:
             F_keep = F[keep]
-            ref = self._reference(F_keep)
             contrib = _hv_contributions(F_keep, ref)
             worst_local = int(np.argmin(contrib))
             keep = np.delete(keep, worst_local)

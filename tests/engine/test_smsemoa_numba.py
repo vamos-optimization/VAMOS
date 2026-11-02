@@ -187,3 +187,52 @@ def test_smsemoa_numba_seeded_run_is_repeatable():
 
     np.testing.assert_allclose(result_a["population"]["F"], result_b["population"]["F"])
     np.testing.assert_allclose(result_a["F"], result_b["F"])
+
+
+class _ScaledZDT1:
+    """ZDT1 with the second objective multiplied by ``factor``."""
+
+    def __init__(self, factor: float) -> None:
+        self._base = ZDT1Problem(n_var=6)
+        self.n_var = self._base.n_var
+        self.n_obj = self._base.n_obj
+        self.xl = self._base.xl
+        self.xu = self._base.xu
+        self.encoding = "real"
+        self._factor = factor
+
+    def evaluate(self, X, out) -> None:  # noqa: ANN001 - protocol-style test double
+        self._base.evaluate(X, out)
+        out["F"][:, 1] *= self._factor
+
+
+def _smsemoa_config(vector: list[float] | None = None) -> SMSEMOAConfig:
+    builder = (
+        SMSEMOAConfig.builder()
+        .pop_size(12)
+        .crossover("sbx", prob=0.9, eta=20.0)
+        .mutation("polynomial", prob="1/n", eta=20.0)
+        .selection("tournament", size=2)
+    )
+    if vector is not None:
+        builder = builder.reference_point(vector=vector)
+    return builder.build()
+
+
+def test_smsemoa_selection_is_invariant_to_objective_units() -> None:
+    cfg = _smsemoa_config()
+    runs = {
+        factor: SMSEMOA(cfg.to_dict(), kernel=NumPyKernel()).run(_ScaledZDT1(factor), termination=("max_evaluations", 400), seed=3)
+        for factor in (1.0, 2.0**10, 2.0**-6)
+    }
+    base = runs[1.0]["population"]["X"]
+    for factor, result in runs.items():
+        assert result["population"]["X"].tobytes() == base.tobytes(), factor
+
+
+def test_user_reference_vector_is_kept() -> None:
+    cfg = _smsemoa_config(vector=[1.1, 1.1])
+    result = SMSEMOA(cfg.to_dict(), kernel=NumPyKernel()).run(ZDT1Problem(n_var=6), termination=("max_evaluations", 400), seed=3)
+
+    np.testing.assert_array_equal(result["reference_point"], [1.1, 1.1])
+    assert np.all(result["population"]["F"] <= 1.1, axis=1).any()

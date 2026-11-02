@@ -125,6 +125,8 @@ VARIANTS: dict[str, Callable[[Any], Any]] = {
     "tournament3": lambda b: b.selection("tournament", size=3),
     "duplicates": lambda b: b.eliminate_duplicates(True),
     "fixed_reference": lambda b: b.reference_point(vector=[1.0e4] * 3, adaptive=False),
+    # A reference inside the population's range: points outside its box contribute 0.
+    "user_reference": lambda b: b.reference_point(vector=[1.1] * 3),
     "offset": lambda b: b.reference_point(offset=0.25, adaptive=True),
     "partial_crossover": lambda b: b.crossover("sbx", prob=0.7, eta=15.0).mutation("pm", prob=0.2, eta=10.0),
     "archive": lambda b: b.external_archive(30),
@@ -138,6 +140,8 @@ def test_compiled_step_matches_the_reference_step(monkeypatch, problem, kwargs, 
     config = _config(VARIANTS[variant])
     if variant == "fixed_reference" and problem == "zdt1":
         config = _config(lambda b: b.reference_point(vector=[1.0e4] * 2, adaptive=False))
+    if variant == "user_reference" and problem == "zdt1":
+        config = _config(lambda b: b.reference_point(vector=[1.1] * 2))
     counter = _StepCounter(monkeypatch)
     run_kwargs = dict(seed=7, max_evaluations=1237, algorithm_config=config, **kwargs)
     reference = _run(monkeypatch, problem, "numba", compiled=False, **run_kwargs)

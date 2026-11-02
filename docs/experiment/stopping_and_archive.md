@@ -74,7 +74,7 @@ archive:
     capacity: 200
     truncate_size: 200
     pruning: crowding          # crowding|hv|mc_hv|knn|maxmin|ref_dirs
-    hv_ref_point: null         # optional; required for hv-based policies
+    hv_ref_point: null         # optional; hv-based policies use a relative reference without it
     rng_seed: 0
     objective_tolerance: 0.0
     deduplicate_in: objective  # objective|decision|both
@@ -100,9 +100,18 @@ Notes:
   a scale of about `1e-9` or smaller, the old tolerance merged distinct
   non-dominated points; at ordinary scales the archive contents are unchanged.
 - `pruning: hv` uses exact HV contributions in 2D and, when `moocore` is
-  installed, exact higher-dimensional contributions. `mc_hv` uses a Monte Carlo
-  estimate. Archive pruning support does not remove the two-objective restriction
-  of the convergence monitor.
+  installed, exact higher-dimensional contributions. Archive pruning support does
+  not remove the two-objective restriction of the convergence monitor.
+- **Development after 1.1.0:** `mc_hv` is an alias of `hv`: both compute the
+  exact contributions; VAMOS 1.1.0 documented `mc_hv` as a Monte Carlo estimate,
+  but it never was one. `hv_ref_point` is optional. Without it, each truncation
+  measures the contributions against `nadir + (nadir - ideal)` of the archived
+  points, the reference 2 of the objectives normalized to `[0, 1]`, so the pruning
+  does not depend on the objective units and keeps the extreme points. A given
+  `hv_ref_point` is used as is, in objective units. VAMOS 1.1.0 and earlier used
+  the largest value seen in each objective plus 1, in objective units: with one
+  objective in hundreds, the archive dropped extreme points that it keeps with
+  the objective in units.
 - **Development after 1.1.0:** without `moocore`, HV pruning with two objectives
   uses the exact contributions too, and with three or more objectives the run
   fails with a `DependencyError` naming the `compute` extra. VAMOS 1.1.0 and
