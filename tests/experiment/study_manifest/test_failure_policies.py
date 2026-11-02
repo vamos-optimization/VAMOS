@@ -163,6 +163,48 @@ def test_failure_message_hides_absolute_paths_and_names_the_typed_field() -> Non
     assert len(sanitized_message(ValueError("x" * 2000))) == 500
 
 
+@pytest.mark.parametrize("wrapper", ["configuration", "artifact"])
+def test_vamos_error_wrapping_foreign_text_records_only_its_type(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, wrapper: str
+) -> None:
+    import vamos.experiment.study.execution as execution
+    from vamos.experiment.artifacts.errors import ComponentNotReconstructableError
+    from vamos.foundation.exceptions import ConfigurationError
+
+    secret = "access_token=abc123"
+
+    def execute(reconstructed: Any, *, root: Path) -> OptimizationResult:
+        try:
+            raise ValueError(secret)
+        except ValueError as foreign:
+            if wrapper == "configuration":
+                raise ConfigurationError(f"invalid setting ({foreign})") from foreign
+            raise ComponentNotReconstructableError(
+                operation="reconstruct",
+                reason="is unsupported",
+                expected="serial",
+                actual=str(foreign),
+                action="Use a serial evaluation backend.",
+                field="$.resolved_spec.backend.evaluation",
+            ) from foreign
+
+    created = vamos.create_study(_spec(), output=tmp_path / "study")
+    monkeypatch.setattr(execution, "_execute_optimization", execute)
+    with caplog.at_level(logging.DEBUG, logger="vamos"):
+        paused = created.run()
+
+    reason = paused.tasks[0].reason
+    assert reason is not None
+    run = vamos.load_run(paused.root / "runs" / str(paused.attempts[0].run_reference["run_id"]), verify="all")
+    logged = "\n".join(record.getMessage() for record in caplog.records)
+    for text in (repr(reason), repr(run.manifest["failure"]), logged):
+        assert secret not in text
+    expected_type = "ConfigurationError" if wrapper == "configuration" else "ComponentNotReconstructableError"
+    assert reason["message"].startswith(expected_type) and "ValueError" in reason["message"]
+    if wrapper == "artifact":
+        assert "$.resolved_spec.backend.evaluation" in reason["message"]
+
+
 def test_failure_message_redacts_paths_with_spaces() -> None:
     from vamos.experiment.artifacts.errors import ComponentNotReconstructableError, sanitized_message
 

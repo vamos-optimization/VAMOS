@@ -23,6 +23,8 @@ from .models import AttemptRecord, PlanTask, StudyEvent, StudyManifest, TaskReco
 
 # Prefix of the EvaluationError that vamos.foundation.eval raises for non-finite or misshaped outputs.
 _INVALID_EVALUATION_OUTPUT = "Problem evaluation wrote "
+# Errors whose text VAMOS controls.
+_VAMOS_ERRORS = (VAMOSError, RunArtifactError, StudyError)
 
 
 def _logger() -> logging.Logger:
@@ -264,19 +266,36 @@ def _raise_sites(exc: BaseException, *, frames: int = 3, depth: int = 4) -> str:
     return "; caused by ".join(sites)
 
 
+def _foreign_causes(exc: BaseException) -> list[str]:
+    """Types of the non-VAMOS exceptions in the cause or context chain of ``exc``."""
+    names: list[str] = []
+    seen: set[int] = set()
+    current = exc.__cause__ or (None if exc.__suppress_context__ else exc.__context__)
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if not isinstance(current, _VAMOS_ERRORS):
+            names.append(type(current).__name__)
+        current = current.__cause__ or (None if current.__suppress_context__ else current.__context__)
+    return names
+
+
 def _failure_message(exc: Exception) -> str:
     """The cause to persist: the sanitized text of VAMOS's own errors, only the type of any other exception.
 
     The text of other exceptions is not controlled by VAMOS and may carry credentials, tokens or personal
     paths, which the StudyManifest contract and AGENTS.md keep out of records and logs; the executing
-    process logs where it was raised instead.
+    process logs where it was raised instead. A VAMOS error raised from such an exception may quote it,
+    so only its type, its typed ``field`` and the types of the exceptions it wraps are kept.
     """
-    if isinstance(exc, (VAMOSError, RunArtifactError, StudyError)):
+    unrecorded = "neither recorded nor logged (not a VAMOS error); the log of the executing process names where it was raised."
+    if not isinstance(exc, _VAMOS_ERRORS):
+        return f"{type(exc).__name__}; its message is {unrecorded}"
+    foreign = _foreign_causes(exc)
+    if not foreign:
         return f"{type(exc).__name__}: {sanitized_message(exc)}"
-    return (
-        f"{type(exc).__name__}; its message is neither recorded nor logged (not a VAMOS error); "
-        "the log of the executing process names where it was raised."
-    )
+    field = getattr(exc, "field", None)
+    where = f" (field {field})" if isinstance(field, str) and field else ""
+    return f"{type(exc).__name__}{where}, raised from {', '.join(foreign)}; its message is {unrecorded}"
 
 
 def _attempt_failure(exc: Exception, objective_began: bool) -> dict[str, Any]:
