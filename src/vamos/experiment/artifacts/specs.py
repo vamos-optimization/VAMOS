@@ -10,6 +10,9 @@ from dataclasses import dataclass
 from importlib import metadata as importlib_metadata
 from typing import Any
 
+from vamos.foundation.problem.builder import FunctionalProblem
+from vamos.foundation.problem.registry import get_problem_specs, make_problem_selection
+
 from .jsonio import normalize_json
 from .manifest import RESOLVED_SPEC_VERSION
 
@@ -69,6 +72,42 @@ class RunSpecInputs:
     seed_requested: int | None
     seed: int
     default_sources: Mapping[str, str]
+    #: Module and qualified name of the user code behind a problem that is not a registry problem.
+    problem_code: tuple[str, str] | None = None
+
+
+def is_registry_problem(requested: object, instance: object, label: str) -> bool:
+    """Whether a run's problem is the registry problem its label names, which replay rebuilds by that name.
+
+    A problem requested by registry name qualifies. An instance (or a class) qualifies only when its label is a
+    registry key and its class is exactly the one the registry builds for that key; user code, such as a
+    ``make_problem`` function or a subclass, never does, whatever its name.
+    """
+    if isinstance(requested, str):
+        return True
+    key = _slug(label)
+    if key not in get_problem_specs() or isinstance(instance, FunctionalProblem):
+        return False
+    try:
+        reference = make_problem_selection(
+            key,
+            n_var=getattr(instance, "n_var", None),
+            n_obj=getattr(instance, "n_obj", None),
+        ).instantiate()
+    except (KeyError, TypeError, ValueError):
+        return False
+    return type(reference) is type(instance)
+
+
+def custom_problem_code(instance: object) -> tuple[str, str]:
+    """Module and qualified name of the user code behind a problem: a ``make_problem`` function, else the class."""
+    code: object = instance._fn if isinstance(instance, FunctionalProblem) else type(instance)
+    module = getattr(code, "__module__", None)
+    qualified_name = getattr(code, "__qualname__", None) or getattr(code, "__name__", None)
+    return (
+        module if isinstance(module, str) else "unknown",
+        qualified_name if isinstance(qualified_name, str) else type(code).__name__,
+    )
 
 
 def build_run_specs(inputs: RunSpecInputs) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -139,12 +178,7 @@ def _resolved_spec(inputs: RunSpecInputs) -> dict[str, Any]:
     )
     result: dict[str, Any] = {
         "spec_version": RESOLVED_SPEC_VERSION,
-        "problem": _component(
-            "problem",
-            f"vamos.problem:{_slug(inputs.problem_label)}@1",
-            problem_config,
-            built_in=inputs.problem_built_in,
-        ),
+        "problem": _problem_component(inputs, problem_config),
         "algorithm": _component(
             "algorithm",
             f"vamos.algorithm:{_slug(inputs.algorithm)}@1",
@@ -268,6 +302,25 @@ def _termination_component(termination: tuple[str, object]) -> dict[str, Any]:
     return _component("termination", f"vamos.termination:{_slug(name)}@1", config, built_in=True)
 
 
+def _problem_component(inputs: RunSpecInputs, config: Mapping[str, Any]) -> dict[str, Any]:
+    if inputs.problem_built_in:
+        return _component("problem", f"vamos.problem:{_slug(inputs.problem_label)}@1", config, built_in=True)
+    # User code: identified by where it lives, never by its free name, which may match a registry key.
+    module, qualified_name = inputs.problem_code or ("unknown", "unknown")
+    return {
+        "kind": "problem",
+        "component_id": f"custom.problem:{_slug(f'{module}.{qualified_name}')}",
+        "provider": {"type": "custom_python", "distribution": None},
+        "config": dict(config),
+        "resolution": {
+            "contract_version": 1,
+            "module": module,
+            "qualified_name": qualified_name,
+            "label": inputs.problem_label,
+        },
+    }
+
+
 def _component(kind: str, component_id: str, config: Mapping[str, Any], *, built_in: bool) -> dict[str, Any]:
     return {
         "kind": kind,
@@ -329,4 +382,4 @@ def _contains_executable(value: object) -> bool:
     return False
 
 
-__all__ = ["RunSpecInputs", "build_run_specs"]
+__all__ = ["RunSpecInputs", "build_run_specs", "custom_problem_code", "is_registry_problem"]

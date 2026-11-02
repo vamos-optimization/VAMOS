@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vamos.foundation.quality_indicators.hypervolume import hypervolume
 
@@ -30,21 +31,21 @@ class ConvergenceProfile:
         total_generations: Number of generations observed.
     """
 
-    hv_curve: np.ndarray
+    hv_curve: NDArray[np.float64]
     hv_velocity: float
     convergence_gen: int | None
     stagnation_ratio: float
     final_hv: float
     total_generations: int
-    diversity_curve: np.ndarray | None = None
+    diversity_curve: NDArray[np.float64] | None = None
 
 
 def compute_profile(
-    hv_curve: np.ndarray,
+    hv_curve: NDArray[np.float64],
     *,
     plateau_window: int = 10,
     plateau_threshold: float = 1e-4,
-    diversity_curve: np.ndarray | None = None,
+    diversity_curve: NDArray[np.float64] | None = None,
 ) -> ConvergenceProfile:
     """Build a ConvergenceProfile from raw HV trace.
 
@@ -124,7 +125,7 @@ class TuningCallback:
 
     def __init__(
         self,
-        ref_point: list[float] | np.ndarray,
+        ref_point: list[float] | NDArray[np.float64],
         *,
         compute_diversity: bool = False,
         early_stop_stagnation: float = 0.0,
@@ -149,8 +150,8 @@ class TuningCallback:
     def on_generation(
         self,
         generation: int,
-        F: np.ndarray | None = None,
-        X: np.ndarray | None = None,
+        F: NDArray[np.float64] | None = None,
+        X: NDArray[np.float64] | None = None,
         stats: dict[str, Any] | None = None,
     ) -> None:
         self._generation_count = generation
@@ -160,12 +161,14 @@ class TuningCallback:
 
         F_arr = np.asarray(F, dtype=float)
 
-        # Compute HV when the supplied reference point is valid for this front.
+        # Record HV once a point lies inside the reference box: before that the front has no
+        # measurable volume, and a run of zeros would look like stagnation.
         hv_available = False
         try:
-            hv = float(hypervolume(F_arr, np.asarray(self._ref_point, dtype=float)))
-            self._hv_values.append(hv)
-            hv_available = True
+            ref = np.asarray(self._ref_point, dtype=float)
+            if bool(np.all(F_arr <= ref, axis=1).any()):
+                self._hv_values.append(float(hypervolume(F_arr, ref)))
+                hv_available = True
         except ValueError:
             hv_available = False
 
@@ -187,7 +190,7 @@ class TuningCallback:
 
     def on_end(
         self,
-        final_F: np.ndarray | None = None,
+        final_F: NDArray[np.float64] | None = None,
         final_stats: dict[str, Any] | None = None,
     ) -> None:
         pass
@@ -292,7 +295,7 @@ def diagnose(profile: ConvergenceProfile) -> ConvergenceDiagnostic:
     return ConvergenceDiagnostic("good", "operator_rate", 0.3)
 
 
-def _compute_spread(F: np.ndarray) -> float:
+def _compute_spread(F: NDArray[np.float64]) -> float:
     """Compute a simple spread metric: max extent of the Pareto front."""
     if F.shape[0] < 2:
         return 0.0

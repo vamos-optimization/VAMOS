@@ -356,3 +356,23 @@ def test_save_result_explains_windows_path_length_failure(tmp_path: Path, monkey
     with pytest.raises(FileNotFoundError) as caught:
         vamos.save_result(result, tmp_path / "run")
     assert "LongPathsEnabled" not in str(caught.value)
+
+
+def test_resaved_loaded_result_is_manual(tmp_path: Path) -> None:
+    result = vamos.optimize("zdt1", algorithm="nsgaii", pop_size=8, max_evaluations=16, engine="numpy", seed=7)
+    original = vamos.save_result(result, tmp_path / "run")
+    loaded = vamos.load_result(original.root)
+    loaded.F[:] = loaded.F * 0.5
+
+    resaved = vamos.save_result(loaded, tmp_path / "resaved")
+
+    manifest = resaved.manifest
+    assert manifest["replayability"]["declared_level"] == "manual"
+    assert manifest["replayability"]["reasons"][0]["code"] == "loaded_result_saved_again"
+    assert manifest["provenance"]["entry_point"]["python"]["callable"] == "vamos.save_result"
+    assert manifest["timestamps"]["started_at"] != original.manifest["timestamps"]["started_at"]
+    assert manifest["outcome"]["runtime_ms"] == 0.0
+    assert manifest.run_id != original.manifest.run_id
+    assert vamos.verify_run(resaved.root).effective_replayability == "manual"
+    # The original stays exact, and saving a fresh result is unchanged.
+    assert vamos.verify_run(original.root).effective_replayability == "exact"

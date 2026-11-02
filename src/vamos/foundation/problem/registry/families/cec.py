@@ -116,7 +116,7 @@ def get_specs() -> dict[str, ProblemSpec]:
             "cec2009_cf1": ProblemSpec(
                 key="cec2009_cf1",
                 label="CEC2009 CF1",
-                default_n_var=30,
+                default_n_var=10,
                 default_n_obj=2,
                 allow_n_obj_override=False,
                 description="CEC2009 constrained function CF1.",
