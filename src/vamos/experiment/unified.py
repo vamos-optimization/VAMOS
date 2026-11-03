@@ -28,6 +28,7 @@ from vamos.foundation.eval import EvaluationBackend
 from vamos.foundation.exceptions import ConfigurationError
 from vamos.foundation.logging import configure_vamos_logging
 from vamos.foundation.problem.types import ProblemProtocol
+from vamos.foundation.problem.validation import validate_problem
 
 
 def _logger() -> logging.Logger:
@@ -180,7 +181,10 @@ def optimize(
     ------
     ConfigurationError
         If inputs are invalid or the algorithm/engine combination is not
-        supported.
+        supported. A problem object is checked before any evaluation: integer
+        ``n_var`` and ``n_obj``, finite ``xl`` and ``xu`` (scalars or arrays of
+        shape ``(n_var,)``) with ``xl <= xu``, a known ``encoding`` and a
+        callable ``evaluate``.
 
     Examples:
         # AutoML mode - zero config
@@ -300,10 +304,11 @@ def _run_single(
 
     # Resolve problem
     problem_instance = _resolve_problem(problem, n_var=n_var, n_obj=n_obj, problem_kwargs=problem_kwargs)
+    validate_problem(problem_instance)
 
     # Extract metadata
-    n_var = getattr(problem_instance, "n_var", 10)
-    n_obj = getattr(problem_instance, "n_obj", 2)
+    n_var = int(problem_instance.n_var)
+    n_obj = int(problem_instance.n_obj)
     try:
         encoding = normalize_encoding(getattr(problem_instance, "encoding", "real"))
     except ValueError as exc:

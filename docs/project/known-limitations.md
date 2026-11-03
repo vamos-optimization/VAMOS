@@ -25,6 +25,15 @@ unsupported behavior rather than future compatibility promises.
     bias. NSGA-III and RVEA with two objectives default to 100 directions, or
     `pop_size`, instead of 7.
 - The strict evaluation budget must be at least the resolved population size.
+  **Development after 1.1.0:** with the opposition-based initializer
+  (`initializer: obl`), it must be at least twice the population size: the
+  `2 * pop_size` candidates (random points and their opposites) count against
+  the budget, and the chosen ones keep their objective and constraint values
+  instead of being evaluated again. The initializer keeps feasible candidates
+  first, then the best by non-domination rank and crowding distance. VAMOS
+  1.1.0 evaluated the candidates outside the budget, so a run evaluated
+  `2 * pop_size` more rows than it reported, and chose them by objectives alone,
+  discarding feasible candidates for infeasible ones.
 - **Development after 1.1.0:** NSGA-III, SMS-EMOA and SPEA2 mate parents two by
   two, so they reject the three-parent crossovers `pcx`, `undx`, `simplex` and
   `de`; MOEA/D accepts `de` but rejects the other three. NSGA-II, IBEA,

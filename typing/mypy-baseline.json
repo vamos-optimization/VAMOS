@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "f2ea4bf3f5bfc1a620550f9a8c602009d4b630bf",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit f2ea4bf3f5bfc1a620550f9a8c602009d4b630bf",
+  "generation_commit": "b5a19a2edff9d797651d97e4efc88ccde5a778dd",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit b5a19a2edff9d797651d97e4efc88ccde5a778dd",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.1",
@@ -26,16 +26,16 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 374,
-  "files_with_diagnostics": 58,
-  "fingerprint_count": 58,
+  "diagnostic_count": 285,
+  "files_with_diagnostics": 52,
+  "fingerprint_count": 52,
   "error_code_summary": {
-    "type-arg": 374
+    "type-arg": 285
   },
   "layer_summary": {
-    "engine": 183,
+    "engine": 164,
     "experiment": 11,
-    "foundation": 162,
+    "foundation": 92,
     "package-root": 1,
     "ux": 17
   },
@@ -118,196 +118,6 @@
         {
           "line": 71,
           "column": 23
-        }
-      ]
-    },
-    {
-      "fingerprint": "0CC8BCF5AA8D800009FC51B1B004671C88297A20227F9022B422E7F3CCDBACCE",
-      "path": "src/vamos/foundation/problem/wfg.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "foundation",
-      "multiplicity": 45,
-      "locations": [
-        {
-          "line": 13,
-          "column": 23
-        },
-        {
-          "line": 25,
-          "column": 41
-        },
-        {
-          "line": 29,
-          "column": 40
-        },
-        {
-          "line": 36,
-          "column": 42
-        },
-        {
-          "line": 43,
-          "column": 34
-        },
-        {
-          "line": 48,
-          "column": 34
-        },
-        {
-          "line": 53,
-          "column": 8
-        },
-        {
-          "line": 54,
-          "column": 6
-        },
-        {
-          "line": 60,
-          "column": 40
-        },
-        {
-          "line": 72,
-          "column": 32
-        },
-        {
-          "line": 76,
-          "column": 40
-        },
-        {
-          "line": 80,
-          "column": 27
-        },
-        {
-          "line": 97,
-          "column": 23
-        },
-        {
-          "line": 109,
-          "column": 22
-        },
-        {
-          "line": 121,
-          "column": 22
-        },
-        {
-          "line": 133,
-          "column": 21
-        },
-        {
-          "line": 139,
-          "column": 28
-        },
-        {
-          "line": 185,
-          "column": 24
-        },
-        {
-          "line": 192,
-          "column": 29
-        },
-        {
-          "line": 195,
-          "column": 28
-        },
-        {
-          "line": 198,
-          "column": 27
-        },
-        {
-          "line": 212,
-          "column": 16
-        },
-        {
-          "line": 217,
-          "column": 16
-        },
-        {
-          "line": 222,
-          "column": 16
-        },
-        {
-          "line": 227,
-          "column": 16
-        },
-        {
-          "line": 238,
-          "column": 28
-        },
-        {
-          "line": 257,
-          "column": 16
-        },
-        {
-          "line": 270,
-          "column": 16
-        },
-        {
-          "line": 277,
-          "column": 28
-        },
-        {
-          "line": 295,
-          "column": 28
-        },
-        {
-          "line": 311,
-          "column": 16
-        },
-        {
-          "line": 315,
-          "column": 16
-        },
-        {
-          "line": 321,
-          "column": 28
-        },
-        {
-          "line": 336,
-          "column": 16
-        },
-        {
-          "line": 339,
-          "column": 28
-        },
-        {
-          "line": 354,
-          "column": 16
-        },
-        {
-          "line": 360,
-          "column": 28
-        },
-        {
-          "line": 375,
-          "column": 16
-        },
-        {
-          "line": 381,
-          "column": 28
-        },
-        {
-          "line": 397,
-          "column": 16
-        },
-        {
-          "line": 404,
-          "column": 28
-        },
-        {
-          "line": 421,
-          "column": 16
-        },
-        {
-          "line": 429,
-          "column": 16
-        },
-        {
-          "line": 435,
-          "column": 16
-        },
-        {
-          "line": 441,
-          "column": 28
         }
       ]
     },
@@ -700,80 +510,6 @@
       ]
     },
     {
-      "fingerprint": "4F9A8814E08B070915599CC743590B728B138A0F457501191FB71112C24ECD97",
-      "path": "src/vamos/engine/operators/impl/real/initialize.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 16,
-      "locations": [
-        {
-          "line": 18,
-          "column": 16
-        },
-        {
-          "line": 19,
-          "column": 16
-        },
-        {
-          "line": 34,
-          "column": 27
-        },
-        {
-          "line": 54,
-          "column": 16
-        },
-        {
-          "line": 55,
-          "column": 16
-        },
-        {
-          "line": 71,
-          "column": 27
-        },
-        {
-          "line": 94,
-          "column": 16
-        },
-        {
-          "line": 95,
-          "column": 16
-        },
-        {
-          "line": 112,
-          "column": 27
-        },
-        {
-          "line": 130,
-          "column": 16
-        },
-        {
-          "line": 131,
-          "column": 16
-        },
-        {
-          "line": 148,
-          "column": 27
-        },
-        {
-          "line": 167,
-          "column": 16
-        },
-        {
-          "line": 168,
-          "column": 16
-        },
-        {
-          "line": 185,
-          "column": 27
-        },
-        {
-          "line": 198,
-          "column": 31
-        }
-      ]
-    },
-    {
       "fingerprint": "543C13E313BD769F4088B47A3BF1EAD29CBCB1124F799A684EF1CC6BA57464ED",
       "path": "src/vamos/foundation/problem/zdt2.py",
       "error_code": "type-arg",
@@ -798,106 +534,6 @@
         {
           "line": 153,
           "column": 27
-        }
-      ]
-    },
-    {
-      "fingerprint": "56806BE241287261615782C1022CDCE50441B67585CAB4B50560F123871E6C86",
-      "path": "src/vamos/foundation/problem/lz.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "foundation",
-      "multiplicity": 11,
-      "locations": [
-        {
-          "line": 38,
-          "column": 28
-        },
-        {
-          "line": 81,
-          "column": 28
-        },
-        {
-          "line": 94,
-          "column": 29
-        },
-        {
-          "line": 107,
-          "column": 29
-        },
-        {
-          "line": 130,
-          "column": 32
-        },
-        {
-          "line": 152,
-          "column": 27
-        },
-        {
-          "line": 163,
-          "column": 25
-        },
-        {
-          "line": 164,
-          "column": 25
-        },
-        {
-          "line": 194,
-          "column": 25
-        },
-        {
-          "line": 195,
-          "column": 25
-        },
-        {
-          "line": 196,
-          "column": 25
-        }
-      ]
-    },
-    {
-      "fingerprint": "5B71FD37D484710C9B798A90E82535F670617328C0E8DE3E82BABF31F0BBC88D",
-      "path": "src/vamos/foundation/problem/dtlz.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "foundation",
-      "multiplicity": 9,
-      "locations": [
-        {
-          "line": 15,
-          "column": 28
-        },
-        {
-          "line": 18,
-          "column": 27
-        },
-        {
-          "line": 37,
-          "column": 28
-        },
-        {
-          "line": 79,
-          "column": 28
-        },
-        {
-          "line": 113,
-          "column": 28
-        },
-        {
-          "line": 156,
-          "column": 28
-        },
-        {
-          "line": 193,
-          "column": 28
-        },
-        {
-          "line": 236,
-          "column": 28
-        },
-        {
-          "line": 279,
-          "column": 28
         }
       ]
     },
@@ -1802,28 +1438,6 @@
       ]
     },
     {
-      "fingerprint": "CB8C88272E03DED0B5844FADE1D9AFE140E5DDC37CECBF05260D4E57EB40AA44",
-      "path": "src/vamos/engine/algorithm/components/lifecycle.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 3,
-      "locations": [
-        {
-          "line": 22,
-          "column": 8
-        },
-        {
-          "line": 24,
-          "column": 12
-        },
-        {
-          "line": 57,
-          "column": 12
-        }
-      ]
-    },
-    {
       "fingerprint": "CD816FF8710C707741080F9744376392F3B082939C1E7CCF10D92D63E6CE26EC",
       "path": "src/vamos/foundation/problem/constrained_many.py",
       "error_code": "type-arg",
@@ -1938,36 +1552,6 @@
         {
           "line": 329,
           "column": 27
-        }
-      ]
-    },
-    {
-      "fingerprint": "DB1AF3F93494B1CFF3A963832D6AB35790815C6194D53E87850255F025674EF8",
-      "path": "src/vamos/foundation/problem/builder.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "foundation",
-      "multiplicity": 5,
-      "locations": [
-        {
-          "line": 43,
-          "column": 13
-        },
-        {
-          "line": 44,
-          "column": 13
-        },
-        {
-          "line": 66,
-          "column": 27
-        },
-        {
-          "line": 130,
-          "column": 35
-        },
-        {
-          "line": 131,
-          "column": 35
         }
       ]
     },

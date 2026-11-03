@@ -266,6 +266,14 @@ A script generated from a customized configuration rebuilds it with the
 configuration class's `from_dict`; otherwise the script uses the default
 configuration and the chosen population size.
 
+**Development after 1.1.0:** the Problem Builder's script always rebuilds the
+configuration Studio runs with `from_dict`, default or customized, uses the
+seed of the form, and imports `math` and `numpy as np`, the names the
+objective code can use in Studio. It reports the number of returned
+solutions, which need not be non-dominated. VAMOS 1.1.0 scripts failed with
+`NameError` for code that used `np` or `math`, always used seed 42 and could
+run another default configuration than Studio.
+
 ## Batch hypervolume
 
 Batch Comparison computes the hypervolume of each run's feasible final front on
@@ -322,6 +330,15 @@ regenerating that code clears the acknowledgement.
 
 > Trusted local Python code executes with the permissions of your current
 > operating-system user. Review the complete code before opting in.
+
+**Development after 1.1.0:** the answer of every provider goes through one
+check before the form changes: a surrounding Markdown code fence is removed,
+the answer must be a JSON object, and `objective_code`, `constraint_code` and
+`bounds` must be strings, `n_var` an integer from 1 to 100 and `n_obj` from
+2 to 10. A rejected answer leaves the form as it was. The request runs in the
+background and is abandoned after 120 seconds, and an unknown provider name is
+refused before any request. VAMOS 1.1.0 rejected a fenced OpenAI answer, could
+fill part of the form before failing, and sent an unknown provider to OpenAI.
 
 Generated code is never executed automatically. Syntax-tree validation,
 restricted built-ins, a child process, timeouts, and best-effort resource

@@ -8,7 +8,12 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from vamos.engine.algorithm.components.population import initialize_population, resolve_bounds
+from vamos.engine.algorithm.components.population import (
+    DecisionArray,
+    FloatArray,
+    initialize_evaluated_population,
+    resolve_bounds,
+)
 from vamos.foundation.encoding import normalize_encoding
 from vamos.foundation.eval.backends import EvaluationBackend, SerialEvalBackend
 
@@ -19,9 +24,9 @@ if TYPE_CHECKING:
 def evaluate_batch(
     problem: ProblemProtocol,
     eval_strategy: EvaluationBackend,
-    X: np.ndarray,
+    X: DecisionArray,
     constraint_mode: str,
-) -> tuple[np.ndarray, np.ndarray | None]:
+) -> tuple[FloatArray, FloatArray | None]:
     """
     Evaluate a decision batch through the configured backend.
 
@@ -54,7 +59,10 @@ def setup_initial_population(
     pop_size: int,
     constraint_mode: str,
     initializer_cfg: dict[str, Any] | None = None,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, int]:
+    *,
+    max_evaluations: int | None = None,
+    algorithm: str = "The algorithm",
+) -> tuple[DecisionArray, FloatArray, FloatArray | None, int]:
     """
     Initialize and evaluate the starting population.
 
@@ -72,20 +80,32 @@ def setup_initial_population(
         Constraint handling mode ('none', 'feasibility', etc.).
     initializer_cfg : dict[str, Any] | None
         Optional initializer configuration.
+    max_evaluations : int | None
+        Evaluation budget of the run; the opposition-based initializer needs ``2 * pop_size``.
+    algorithm : str
+        Algorithm name for error messages.
 
     Returns
     -------
     tuple[np.ndarray, np.ndarray, np.ndarray | None, int]
-        (X, F, G, n_eval) - decision variables, objectives, constraints, evaluation count.
+        (X, F, G, n_eval) - decision variables, objectives, constraints, and every
+        evaluation the initialization took.
     """
     encoding = normalize_encoding(getattr(problem, "encoding", "real"))
-    n_var = problem.n_var
     xl, xu = resolve_bounds(problem, encoding)
-
-    X = initialize_population(pop_size, n_var, xl, xu, encoding, rng, problem, initializer=initializer_cfg)
-    F, G = evaluate_batch(problem, eval_strategy, X, constraint_mode)
-
-    return X, F, G, X.shape[0]
+    return initialize_evaluated_population(
+        pop_size,
+        problem.n_var,
+        xl,
+        xu,
+        encoding,
+        rng,
+        problem,
+        initializer_cfg,
+        evaluate=lambda X: evaluate_batch(problem, eval_strategy, X, constraint_mode),
+        max_evaluations=max_evaluations,
+        algorithm=algorithm,
+    )
 
 
 def get_eval_strategy(

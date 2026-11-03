@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 
 from vamos.foundation.problem.base import Problem
@@ -21,8 +23,8 @@ class LZ09Problem(Problem):
         dtype: int,
         ltype: int,
     ) -> None:
-        if n_var <= 1:
-            raise ValueError("n_var must be greater than 1 for LZ09 problems.")
+        if n_var < 3:
+            raise ValueError(f"LZ09 problems need at least 3 variables (their distance terms divide by n_var - 2); got n_var={n_var}.")
         if n_obj not in (2, 3):
             raise ValueError("LZ09 problems support 2 or 3 objectives.")
         self.n_var = int(n_var)
@@ -35,7 +37,7 @@ class LZ09Problem(Problem):
         self.xu = 1.0
 
     # --- Helper functions translated from the reference implementations (vectorized) ---
-    def _ps_func2(self, x: np.ndarray, t1: np.ndarray, dim: int, css: int) -> np.ndarray:
+    def _ps_func2(self, x: np.ndarray[Any, Any], t1: np.ndarray[Any, Any], dim: int, css: int) -> np.ndarray[Any, Any]:
         dim = dim + 1
         xy = 2.0 * (x - 0.5)
         if self.ltype == 21:
@@ -78,7 +80,7 @@ class LZ09Problem(Problem):
             raise ValueError(f"Unsupported ltype '{self.ltype}' for 2D LZ09 PS function.")
         return np.asarray(beta, dtype=float)
 
-    def _ps_func3(self, x: np.ndarray, t1: np.ndarray, t2: np.ndarray, dim: int) -> np.ndarray:
+    def _ps_func3(self, x: np.ndarray[Any, Any], t1: np.ndarray[Any, Any], t2: np.ndarray[Any, Any], dim: int) -> np.ndarray[Any, Any]:
         dim = dim + 1
         xy = 4.0 * (x - 0.5)
         if self.ltype == 31:
@@ -91,7 +93,7 @@ class LZ09Problem(Problem):
             raise ValueError(f"Unsupported ltype '{self.ltype}' for 3D LZ09 PS function.")
         return np.asarray(beta, dtype=float)
 
-    def _alpha_2d(self, x0: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def _alpha_2d(self, x0: np.ndarray[Any, Any]) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
         if self.ptype == 21:
             return x0, 1.0 - np.sqrt(x0)
         if self.ptype == 22:
@@ -104,7 +106,9 @@ class LZ09Problem(Problem):
             return x0, 1.0 - x0 - 0.05 * np.sin(4.0 * np.pi * x0)
         raise ValueError(f"Unsupported ptype '{self.ptype}' for 2D alpha.")
 
-    def _alpha_3d(self, x0: np.ndarray, x1: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def _alpha_3d(
+        self, x0: np.ndarray[Any, Any], x1: np.ndarray[Any, Any]
+    ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any]]:
         if self.ptype == 31:
             return (
                 np.cos(x0 * np.pi / 2.0) * np.cos(x1 * np.pi / 2.0),
@@ -127,7 +131,7 @@ class LZ09Problem(Problem):
             return (x0 - x1, x0 * (1.0 - x1), 1.0 - x0)
         raise ValueError(f"Unsupported ptype '{self.ptype}' for 3D alpha.")
 
-    def _beta_func(self, vals: np.ndarray) -> np.ndarray:
+    def _beta_func(self, vals: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
         # vals shape: (N, dim)
         dim = vals.shape[1]
         if dim == 0:
@@ -149,7 +153,7 @@ class LZ09Problem(Problem):
             raise ValueError(f"Unsupported dtype '{self.dtype}' for beta function.")
         return np.asarray(beta, dtype=float)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         X = np.asarray(X)
         if X.ndim != 2 or X.shape[1] != self.n_var:
             raise ValueError(f"Expected decision matrix of shape (N, {self.n_var}).")
@@ -160,8 +164,8 @@ class LZ09Problem(Problem):
             out["F"] = F
 
         if self.n_obj == 2:
-            aa_2d: list[np.ndarray] = []
-            bb_2d: list[np.ndarray] = []
+            aa_2d: list[np.ndarray[Any, Any]] = []
+            bb_2d: list[np.ndarray[Any, Any]] = []
             if self.ltype in (21, 22, 23, 24, 26):
                 for idx in range(1, self.n_var):
                     xj = X[:, idx]
@@ -191,9 +195,9 @@ class LZ09Problem(Problem):
             F[:, 0] = alpha0 + h
             F[:, 1] = alpha1 + g
         else:
-            aa_3d: list[np.ndarray] = []
-            bb_3d: list[np.ndarray] = []
-            cc_3d: list[np.ndarray] = []
+            aa_3d: list[np.ndarray[Any, Any]] = []
+            bb_3d: list[np.ndarray[Any, Any]] = []
+            cc_3d: list[np.ndarray[Any, Any]] = []
             for idx in range(2, self.n_var):
                 xj = X[:, idx]
                 res = self._ps_func3(xj, X[:, 0], X[:, 1], idx)
