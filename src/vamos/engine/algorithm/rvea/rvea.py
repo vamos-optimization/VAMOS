@@ -17,7 +17,7 @@ import numpy as np
 
 from vamos.engine.algorithm.components.evaluation import combine_constraints, extract_evaluation_arrays
 from vamos.engine.algorithm.components.hooks import get_live_viz, live_should_stop
-from vamos.engine.algorithm.components.population import initialize_population, resolve_bounds
+from vamos.engine.algorithm.components.population import initialize_evaluated_population, resolve_bounds
 from vamos.engine.algorithm.components.termination import capped_offspring_size, validate_initial_budget
 from vamos.engine.algorithm.config.base import normalize_constraint_mode
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
@@ -248,11 +248,17 @@ class RVEA:
 
         encoding = normalize_encoding(getattr(problem, "encoding", "real"))
         xl, xu = resolve_bounds(problem, encoding)
-        X = initialize_population(pop_size, problem.n_var, xl, xu, encoding, rng, problem, self.cfg.get("initializer"))
-        F, G = extract_evaluation_arrays(
-            backend.evaluate(X, problem),
-            constraint_mode,
-            n_constraints,
+        X, F, G, n_eval = initialize_evaluated_population(
+            pop_size,
+            problem.n_var,
+            xl,
+            xu,
+            encoding,
+            rng,
+            problem,
+            self.cfg.get("initializer"),
+            evaluate=lambda X: extract_evaluation_arrays(backend.evaluate(X, problem), constraint_mode, n_constraints, algorithm="RVEA"),
+            max_evaluations=max_evals,
             algorithm="RVEA",
         )
 
@@ -284,7 +290,7 @@ class RVEA:
             G=G,
             rng=rng,
             pop_size=pop_size,
-            n_eval=X.shape[0],
+            n_eval=n_eval,
             generation=1,
             max_evals=max_evals,
             max_gen=max_gen,
