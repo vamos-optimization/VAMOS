@@ -19,6 +19,27 @@ def _coerce_decision_matrix(X: np.ndarray[Any, Any], encoding: EncodingLike) -> 
     return np.asarray(X, dtype=float)
 
 
+def _output_matrix(values: object, n_rows: int, n_cols: int, *, source: str) -> np.ndarray[Any, Any]:
+    """Return ``values`` as an ``(n_rows, n_cols)`` float matrix or raise ``ValueError``.
+
+    A 1-D result is accepted only when its layout is unambiguous: one column (length ``n_rows``)
+    or one row (length ``n_cols``). A flat array of length ``n_rows * n_cols``, such as
+    ``np.hstack([f1, f2])``, is rejected, because reshaping it would mix the values of
+    different solutions.
+    """
+    array = np.asarray(values, dtype=float)
+    if array.ndim == 0:
+        array = array.reshape(1, 1)
+    elif array.ndim == 1 and ((n_cols == 1 and array.shape[0] == n_rows) or (n_rows == 1 and array.shape[0] == n_cols)):
+        array = array.reshape(n_rows, n_cols)
+    if array.shape != (n_rows, n_cols):
+        hint = ""
+        if array.ndim == 1 and array.shape[0] == n_rows * n_cols:
+            hint = " A flat array is ambiguous: return one column per value, for example np.column_stack([f1, f2])."
+        raise ValueError(f"{source} returned shape {array.shape}, expected ({n_rows}, {n_cols}).{hint}")
+    return array
+
+
 class Problem:
     """Base class for class-based custom optimization problems.
 
@@ -109,7 +130,8 @@ class Problem:
         -------
         np.ndarray
             Objective array of shape ``(N, n_obj)`` to minimize. A
-            single-objective problem may return a 1-D array of length ``N``.
+            single-objective problem may return a 1-D array of length ``N``;
+            a flat array of length ``N * n_obj`` is rejected.
         """
         raise NotImplementedError(f"{type(self).__name__} must implement objectives(self, X).")
 
@@ -144,13 +166,7 @@ class Problem:
 
         # --- objectives ---
         N = X.shape[0]
-        F_computed = np.asarray(self.objectives(X), dtype=float)
-        if F_computed.ndim == 0:
-            F_computed = F_computed.reshape(1, 1)
-        elif F_computed.ndim == 1:
-            F_computed = F_computed.reshape(-1, self.n_obj)
-        if F_computed.shape != (N, self.n_obj):
-            raise ValueError(f"{type(self).__name__}.objectives() returned shape {F_computed.shape}, expected ({N}, {self.n_obj}).")
+        F_computed = _output_matrix(self.objectives(X), N, self.n_obj, source=f"{type(self).__name__}.objectives()")
         F_buf = out.get("F")
         if F_buf is not None and F_buf.shape == F_computed.shape:
             F_buf[:] = F_computed
@@ -174,15 +190,7 @@ class Problem:
                     f"n_constraints={self.n_constraints}. Override constraints() "
                     "to return an array of shape (N, n_constraints)."
                 )
-            G_computed = np.asarray(G_computed, dtype=float)
-            if G_computed.ndim == 0:
-                G_computed = G_computed.reshape(1, 1)
-            elif G_computed.ndim == 1:
-                G_computed = G_computed.reshape(-1, self.n_constraints)
-            if G_computed.shape != (N, self.n_constraints):
-                raise ValueError(
-                    f"{type(self).__name__}.constraints() returned shape {G_computed.shape}, expected ({N}, {self.n_constraints})."
-                )
+            G_computed = _output_matrix(G_computed, N, self.n_constraints, source=f"{type(self).__name__}.constraints()")
             G_buf = out.get("G")
             if G_buf is not None and G_buf.shape == G_computed.shape:
                 G_buf[:] = G_computed

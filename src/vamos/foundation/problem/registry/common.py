@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import numbers
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -29,8 +30,11 @@ class ProblemSpec:
 
         A problem with a fixed number of objectives or variables rejects a different
         ``n_obj`` or ``n_var`` with ``ValueError``, so the selection always reports the
-        dimensions of the instance it creates.
+        dimensions of the instance it creates. A dimension that is not an integer
+        (a float, a string or a boolean) is rejected with ``ValueError``.
         """
+        n_var = _optional_dimension("n_var", n_var)
+        n_obj = _optional_dimension("n_obj", n_obj)
         if self.allow_n_obj_override:
             actual_n_obj = n_obj if n_obj is not None else self.default_n_obj
             if actual_n_obj <= 0:
@@ -54,6 +58,14 @@ class ProblemSpec:
             raise ValueError("n_var must be a positive integer.")
 
         return actual_n_var, actual_n_obj
+
+
+def _optional_dimension(name: str, value: object) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, numbers.Integral):
+        raise ValueError(f"{name} must be an integer; got {value!r}.")
+    return int(value)
 
 
 __all__ = ["ProblemSpec", "ProblemFactory"]

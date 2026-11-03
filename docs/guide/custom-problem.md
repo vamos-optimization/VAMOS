@@ -218,9 +218,13 @@ problem = make_problem(
 
 Do not set `vectorized=True` just because VAMOS itself works with populations. If your simulator accepts one design at a time, leave the default `vectorized=False`; VAMOS performs the row-by-row adaptation for you.
 
+**Development after 1.1.0:** a 1-D result is accepted only when its layout is unambiguous: length `N` for one objective (or one constraint), or length `n_obj` for a single solution. A flat array such as `np.hstack([f1, f2])`, of length `N * n_obj`, stops the evaluation with a `ValueError` that points to `np.column_stack`; the same applies to constraints and to `Problem.objectives()` and `Problem.constraints()`. VAMOS 1.1.0 reshaped it to `(N, n_obj)`, which mixes the objectives of different solutions without an error.
+
 ## Bounds and encodings
 
 Use `bounds=[(lower, upper), ...]` when variables have different limits. When every variable shares the same limits, `xl` and `xu` can be scalars. Do not pass `bounds` together with `xl` or `xu`.
+
+**Development after 1.1.0:** `optimize` checks any problem object before the first evaluation and raises `ConfigurationError` naming the attribute at fault: `n_var` and `n_obj` must be positive integers, `n_constraints` (default 0) a non-negative integer, `encoding` (default `"real"`) a known encoding, `evaluate` callable, and `xl` and `xu` finite scalars or arrays of shape `(n_var,)` with `xl <= xu`. VAMOS 1.1.0 failed later with an `AttributeError` or a NumPy error, or used `n_var = 10` and `n_obj = 2` when they were missing.
 
 `make_problem(...)` accepts the public encoding names `"real"`, `"binary"`, `"integer"`, `"permutation"`, and `"mixed"`. The encoding describes the decision variables; the selected algorithm and operators must support it. Consult [Algorithms & Backends](../reference/algorithms.md) before assuming that every algorithm supports every encoding.
 

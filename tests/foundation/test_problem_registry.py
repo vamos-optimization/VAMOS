@@ -113,3 +113,32 @@ def test_cec2009_cf1_defaults_to_ten_variables() -> None:
     assert CEC2009CF1().n_var == 10
     assert make_problem_selection("cec2009_cf1").instantiate().n_var == 10
     assert CEC2009CF1(n_var=30).n_var == 30
+
+
+@pytest.mark.parametrize(
+    ("name", "overrides", "message"),
+    [
+        ("wfg1", {"n_var": 3}, r"n_var must be at least 5"),
+        ("wfg1", {"n_var": 4}, r"n_var must be at least 5"),
+        ("wfg4", {"n_var": 4}, r"n_var must be at least 5"),
+        ("wfg1", {"n_obj": 13}, r"n_var must be at least 25"),
+        ("dtlz2", {"n_obj": 3, "n_var": 1}, r"n_var >= n_obj"),
+        ("dtlz7", {"n_obj": 3, "n_var": 2}, r"n_var >= n_obj"),
+        ("lz09_f1", {"n_var": 2}, r"at least 3 variables"),
+        ("lz09_f1", {"n_var": 2.5}, r"n_var must be an integer"),
+        ("zdt1", {"n_var": True}, r"n_var must be an integer"),
+        ("dtlz2", {"n_obj": 3.0}, r"n_obj must be an integer"),
+    ],
+)
+def test_registry_rejects_impossible_dimensions(name: str, overrides: dict[str, object], message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        make_problem_selection(name, **overrides).instantiate()
+
+
+@pytest.mark.parametrize("name", available_problem_names())
+def test_registry_problems_satisfy_the_optimize_contract(name: str) -> None:
+    from vamos.foundation.problem.validation import validate_problem
+
+    if name in _OPTIONAL_DEPENDENCIES:
+        pytest.importorskip(_OPTIONAL_DEPENDENCIES[name])
+    validate_problem(make_problem_selection(name).instantiate())
