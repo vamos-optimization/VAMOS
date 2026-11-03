@@ -12,7 +12,7 @@ Run from a checkout, with VAMOS importable and pymoo installed (0.6.2 was used):
     PYTHONPATH=src python tools/problem_reference_values.py --classpath "<jars>"
 
 ``--classpath`` lists, separated by the platform's path separator, the jmetal-core and
-jmetal-problem 7.8 jars with commons-lang3 and commons-math3; ``tools/jmetal/JMetalValues.java``
+jmetal-problem 7.8 jars with commons-lang3 and commons-math3; ``tools/jmetal_values/JMetalValues.java``
 runs with Java 17 or later. Constraints are stored in the VAMOS convention, ``g <= 0`` feasible:
 pymoo uses it too, and jMetal's values (``>= 0`` feasible) are negated.
 """
@@ -31,7 +31,7 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "tests" / "foundation" / "data" / "problem_reference_values.json"
-JAVA_HELPER = ROOT / "tools" / "jmetal" / "JMetalValues.java"
+JAVA_HELPER = ROOT / "tools" / "jmetal_values" / "JMetalValues.java"
 N_POINTS = 3
 
 # VAMOS key -> pymoo name and the VAMOS attributes passed as keyword arguments (with the same name,
