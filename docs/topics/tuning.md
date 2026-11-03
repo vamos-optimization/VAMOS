@@ -47,6 +47,13 @@ advanced evaluation and contributors under the
 but those deep imports are not a compatibility commitment or a copy-paste
 learning path.
 
+**Development after 1.1.0:** the helpers without internal use are removed from
+`vamos.engine.tuning`: the `convergence` module (`ConvergenceProfile`,
+`ConvergenceDiagnostic`, `TuningCallback`, `diagnose`, `score_with_profile`),
+`save_checkpoint` and `load_checkpoint` of the racing I/O (a race cannot be
+resumed from them), and `AlgorithmConfigSpace.to_unit_vector` and
+`from_unit_vector`. `TwoPhaseTuner` stays.
+
 ## What a tuning experiment must define
 
 Before tuning, fix the experimental protocol just as you would for an algorithm
@@ -473,6 +480,16 @@ Reusing the same base study name resumes only studies from this contract
 version. A future incompatible scoring/search-space change must use a new
 namespace rather than mixing historical trial values.
 
+**Development after 1.1.0:** a resumed study runs only the trials that
+`--tune-budget` still allows: its finished trials (complete, pruned or failed)
+count, so running the same command again after an interruption completes the
+budget instead of adding `--tune-budget` trials each time, as VAMOS 1.1.0 did.
+Every study also has a name without `--optuna-storage` (the task, backend and
+seed), because `bohb_optuna`'s Hyperband pruner assigns each trial to a bracket
+from a hash of that name; with one worker, `bohb_optuna` is now reproducible
+for a seed, as the other backends were. VAMOS 1.1.0 let Optuna draw a random
+name, so the same seed gave different searches.
+
 ## Split-based tuning
 
 For a larger campaign, use explicit instance splitting and post-tuning stages:
@@ -535,6 +552,20 @@ Tuning output includes:
 - `tuning_summary.json`;
 - `split_instances.csv` and `split_seeds.json`;
 - optional finisher/validation/test artifacts when those stages are enabled.
+
+**Development after 1.1.0:** `best_score` in `tuning_summary.json` is the
+score of the returned configuration (`best_config_*.json`): racing's final
+choice, the statistical finisher's winner or irace's first elite, which need
+not be the highest score of the history; `best_history_score` is that highest
+score. VAMOS 1.1.0 wrote the highest history score as `best_score`. In
+`selected_configs_validation.json`, `champion_global` is the validated
+candidate with the best tuning score, `champion_robust` has the best 25th
+percentile and `champion_fast` the best mean validation score; "fast" does not
+refer to runtime. Ties keep the candidate with the better tuning score. In racing, `start_instances`
+only sets how many instances the first stages use; the schedule interleaves the
+other, already shuffled, instances, so it changes little. Rank elimination
+breaks ties by position, so with identical scores (identical failure scores,
+for example) the configurations sampled first survive.
 
 Keep these together with the command/configuration and environment used for the
 campaign. A best configuration without its search space, seeds, HV reference

@@ -47,7 +47,7 @@ from .bridge import (
 )
 from .config_space import AlgorithmConfigSpace
 from .core import RacingTuner
-from .io import filter_active_config, history_to_dict, load_checkpoint, save_checkpoint, save_history_csv, save_history_json
+from .io import filter_active_config, history_to_dict, save_history_csv, save_history_json
 from .param_space import (
     Boolean,
     BooleanParam,
@@ -118,8 +118,6 @@ __all__ = [
     "history_to_dict",
     "save_history_json",
     "save_history_csv",
-    "save_checkpoint",
-    "load_checkpoint",
     # Config space builders
     "build_spea2_config_space",
     "build_spea2_permutation_config_space",
