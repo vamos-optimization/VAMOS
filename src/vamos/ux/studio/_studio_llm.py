@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, cast
+import threading
+from collections.abc import Callable
+from typing import Any
 
 _VAMOS_CODE_SYSTEM_PROMPT = """\
 You are a code generator for the VAMOS multi-objective optimization framework.
@@ -38,8 +40,13 @@ Example — beam design (minimise cost and deflection, stress <= 100):
 Return ONLY the JSON object, nothing else.
 """
 
+# The ranges of the Problem Builder form, so that a draft never leaves it half updated.
+N_VAR_RANGE = (1, 100)
+N_OBJ_RANGE = (2, 10)
+DEFAULT_TIMEOUT_SECONDS = 120.0
 
-def _llm_generate_gemini(description: str, *, api_key: str = "") -> dict[str, Any]:
+
+def _gemini_text(description: str, *, api_key: str = "") -> str:
     key = api_key or os.getenv("GEMINI_API_KEY", "")
     if not key:
         raise RuntimeError("No Gemini API key provided. Paste it in the API Key field or set GEMINI_API_KEY.")
@@ -55,18 +62,10 @@ def _llm_generate_gemini(description: str, *, api_key: str = "") -> dict[str, An
         model=os.getenv("VAMOS_ASSIST_GEMINI_MODEL", "gemini-2.0-flash"),
         contents=f"{_VAMOS_CODE_SYSTEM_PROMPT}\n\nUser request:\n{description}",
     )
-    raw = response.text
-    if not raw or not raw.strip():
-        raise RuntimeError("Empty response from Gemini.")
-    text = raw.strip()
-    if text.startswith("```"):
-        text = text.split("\n", 1)[1] if "\n" in text else text[3:]
-        if text.endswith("```"):
-            text = text[:-3]
-    return cast(dict[str, Any], json.loads(text.strip()))
+    return _response_text(response.text, "Gemini")
 
 
-def _llm_generate_openai(description: str, *, api_key: str = "") -> dict[str, Any]:
+def _openai_text(description: str, *, api_key: str = "") -> str:
     key = api_key or os.getenv("OPENAI_API_KEY", "")
     if not key:
         raise RuntimeError("No OpenAI API key provided. Paste it in the API Key field or set OPENAI_API_KEY.")
@@ -85,13 +84,10 @@ def _llm_generate_openai(description: str, *, api_key: str = "") -> dict[str, An
         temperature=0.2,
         max_output_tokens=1500,
     )
-    raw = getattr(response, "output_text", None)
-    if not isinstance(raw, str) or not raw.strip():
-        raise RuntimeError("Empty response from OpenAI.")
-    return cast(dict[str, Any], json.loads(raw))
+    return _response_text(getattr(response, "output_text", None), "OpenAI")
 
 
-def _llm_generate_anthropic(description: str, *, api_key: str = "") -> dict[str, Any]:
+def _anthropic_text(description: str, *, api_key: str = "") -> str:
     try:
         from anthropic import Anthropic  # type: ignore[import-not-found]
     except ImportError as exc:
@@ -105,35 +101,104 @@ def _llm_generate_anthropic(description: str, *, api_key: str = "") -> dict[str,
         system=_VAMOS_CODE_SYSTEM_PROMPT,
         messages=[{"role": "user", "content": description}],
     )
-    raw = message.content[0].text
-    if not raw.strip():
-        raise RuntimeError("Empty response from Anthropic.")
-    text = raw.strip()
-    if text.startswith("```"):
-        text = text.split("\n", 1)[1] if "\n" in text else text[3:]
-        if text.endswith("```"):
-            text = text[:-3]
-    return cast(dict[str, Any], json.loads(text))
+    return _response_text(message.content[0].text, "Anthropic")
+
+
+_PROVIDERS: dict[str, Callable[..., str]] = {
+    "gemini": _gemini_text,
+    "openai": _openai_text,
+    "anthropic": _anthropic_text,
+}
+
+
+def _response_text(raw: object, provider: str) -> str:
+    if not isinstance(raw, str) or not raw.strip():
+        raise RuntimeError(f"Empty response from {provider}.")
+    return raw
+
+
+def parse_problem_draft(text: str) -> dict[str, Any]:
+    """Parse a provider's answer into a checked Problem Builder draft, or raise ``ValueError``.
+
+    One parser for every provider: a surrounding Markdown code fence is removed, the
+    answer must be a JSON object, and each field must have the type and range the
+    Problem Builder form accepts.
+    """
+    body = text.strip()
+    if body.startswith("```"):
+        body = body.split("\n", 1)[1] if "\n" in body else ""
+        body = body.rstrip()
+        if body.endswith("```"):
+            body = body[:-3]
+    try:
+        payload = json.loads(body)
+    except ValueError as exc:
+        raise ValueError(f"The LLM answer is not valid JSON: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError(f"The LLM answer must be a JSON object, not a {type(payload).__name__}.")
+    for name in ("objective_code", "n_var", "n_obj", "bounds"):
+        if name not in payload:
+            raise ValueError(f"The LLM answer has no '{name}' field.")
+    draft: dict[str, Any] = {
+        "objective_code": _text_field(payload, "objective_code", required=True),
+        "constraint_code": _text_field(payload, "constraint_code", required=False),
+        "n_var": _int_field(payload, "n_var", N_VAR_RANGE),
+        "n_obj": _int_field(payload, "n_obj", N_OBJ_RANGE),
+        "bounds": _text_field(payload, "bounds", required=True),
+    }
+    return draft
+
+
+def _text_field(payload: dict[str, Any], name: str, *, required: bool) -> str:
+    value = payload.get(name, "")
+    if value is None and not required:
+        return ""
+    if not isinstance(value, str) or (required and not value.strip()):
+        raise ValueError(f"The LLM answer's '{name}' must be a {'non-empty ' if required else ''}string; got {value!r}.")
+    return value
+
+
+def _int_field(payload: dict[str, Any], name: str, bounds: tuple[int, int]) -> int:
+    value = payload.get(name)
+    low, high = bounds
+    if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
+        raise ValueError(f"The LLM answer's '{name}' must be an integer from {low} to {high}; got {value!r}.")
+    return value
 
 
 def llm_generate_problem_code(
     description: str,
     provider: str = "openai",
     api_key: str = "",
+    *,
+    timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
 ) -> dict[str, Any]:
-    """Generate VAMOS problem code from a natural-language description using an LLM."""
-    if provider == "gemini":
-        result = _llm_generate_gemini(description, api_key=api_key)
-    elif provider == "anthropic":
-        result = _llm_generate_anthropic(description, api_key=api_key)
-    else:
-        result = _llm_generate_openai(description, api_key=api_key)
+    """Generate a checked Problem Builder draft from a natural-language description.
 
-    for key in ("objective_code", "n_var", "n_obj", "bounds"):
-        if key not in result:
-            raise RuntimeError(f"LLM response missing required field: {key}")
-    result.setdefault("constraint_code", "")
-    return result
+    ``provider`` is ``"gemini"``, ``"openai"`` or ``"anthropic"``; another name raises
+    ``ValueError`` before any request. A provider that does not answer within
+    ``timeout_seconds`` raises ``TimeoutError``; its request is abandoned, not cancelled.
+    """
+    request = _PROVIDERS.get(provider)
+    if request is None:
+        raise ValueError(f"Unknown LLM provider '{provider}'. Choose one of: {', '.join(_PROVIDERS)}.")
+    outcome: dict[str, object] = {}
+
+    def call() -> None:
+        try:
+            outcome["text"] = request(description, api_key=api_key)
+        except BaseException as exc:  # Re-raised in the caller's thread.
+            outcome["error"] = exc
+
+    worker = threading.Thread(target=call, name=f"vamos-studio-{provider}", daemon=True)
+    worker.start()
+    worker.join(timeout_seconds)
+    if worker.is_alive():
+        raise TimeoutError(f"The {provider} request did not answer within {timeout_seconds:g} s.")
+    error = outcome.get("error")
+    if isinstance(error, BaseException):
+        raise error
+    return parse_problem_draft(str(outcome.get("text", "")))
 
 
 __all__ = ["llm_generate_problem_code"]

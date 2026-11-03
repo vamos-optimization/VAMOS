@@ -12,7 +12,7 @@ import panel as pn
 import param
 
 from vamos.ux.panel.components.algorithm_config import AlgorithmConfigurator
-from vamos.ux.panel.components.background import BackgroundRun
+from vamos.ux.panel.components.background import BackgroundRun, BackgroundWork
 from vamos.ux.panel.components.plots import front_figure
 from vamos.ux.panel.pages.problem_builder_ai import build_ai_generation_tab, build_trusted_code_controls
 from vamos.ux.studio.algorithm_form import algorithm_label
@@ -82,6 +82,7 @@ class ProblemBuilderState(param.Parameterized):
         self._mode = "preview"
         self._started = time.monotonic()
         self._runner: BackgroundRun[dict[str, Any]] = BackgroundRun(on_tick=self._tick, on_done=self._done)
+        self._ai_work: BackgroundWork[dict[str, Any]] = BackgroundWork()
         self._apply_template()
         self._sync_configurator()
 
@@ -243,6 +244,7 @@ class ProblemBuilderState(param.Parameterized):
             resolved = self.configurator.resolve()
             pop_size = self.configurator.effective_pop_size()
             customized = bool(resolved.differences)
+            # The script rebuilds the configuration Studio runs, default or customized, with the form's seed.
             self.generated_script = generate_script(
                 self.objective_code,
                 name=self.template_name,
@@ -254,8 +256,9 @@ class ProblemBuilderState(param.Parameterized):
                 constraint_code=self.constraint_code,
                 n_constraints=self._constraint_count(),
                 pop_size=pop_size,
-                algorithm_config=dict(resolved.config.to_dict()) if customized else None,
-                config_class=type(resolved.config).__name__ if customized else None,
+                seed=self.seed,
+                algorithm_config=dict(resolved.config.to_dict()),
+                config_class=type(resolved.config).__name__,
             )
             self.status_text = "Script generated with the customized configuration." if customized else "Script generated."
         except Exception as exc:
@@ -267,17 +270,25 @@ class ProblemBuilderState(param.Parameterized):
             self.ai_status = "Please enter a problem description."
             return
         self.ai_status = f"Generating with {self.ai_provider}..."
-        try:
-            result = llm_generate_problem_code(self.ai_description, provider=self.ai_provider, api_key=self.ai_api_key)
-            self.objective_code = result["objective_code"]
-            self.constraint_code = result.get("constraint_code", "")
-            self.n_var = int(result["n_var"])
-            self.n_obj = int(result["n_obj"])
-            self.bounds_text = str(result["bounds"])
-            self.trusted_local_code = False
-            self.ai_status = "Code generated but not executed. Review it in Problem Definition, then opt in explicitly."
-        except Exception as exc:
-            self.ai_status = f"Error: {exc}"
+        description, provider, api_key = self.ai_description, self.ai_provider, self.ai_api_key
+        # Off the event loop, so the page stays responsive while the provider answers.
+        self._ai_work.submit(
+            lambda: llm_generate_problem_code(description, provider=provider, api_key=api_key),
+            self._apply_ai_draft,
+        )
+
+    def _apply_ai_draft(self, result: dict[str, Any] | Exception) -> None:
+        """Fill the form from a checked draft; an error leaves the form as it was."""
+        if isinstance(result, Exception):
+            self.ai_status = f"Error: {result}"
+            return
+        self.objective_code = result["objective_code"]
+        self.constraint_code = result["constraint_code"]
+        self.n_var = result["n_var"]
+        self.n_obj = result["n_obj"]
+        self.bounds_text = result["bounds"]
+        self.trusted_local_code = False
+        self.ai_status = "Code generated but not executed. Review it in Problem Definition, then opt in explicitly."
 
 
 def render_problem_builder(on_exit: Callable[[Callable[[], None]], None] | None = None) -> pn.Column:

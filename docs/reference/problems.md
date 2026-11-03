@@ -74,6 +74,13 @@ otherwise `k = 2(M - 1)`, and `l = n - k`; WFG2/3 require an even distance-varia
 count. LSMOP needs enough variables for all groups to remain nonempty.
 Family constructor checks still apply to dimension overrides.
 
+**Development after 1.1.0:** impossible dimensions are rejected with
+`ValueError` when the problem is built: WFG needs at least one distance variable
+(`n >= k + 1`, so `wfg1` with M = 13 needs `n_var >= 25`), DTLZ needs
+`n >= M`, and LZ09 needs `n >= 3`. `n_var` and `n_obj` must be integers; a
+float or a boolean is rejected. VAMOS 1.1.0 accepted these settings and failed
+later with NaN objectives, an `IndexError` or a `ZeroDivisionError`.
+
 **Development after 1.1.0:** `lsmop1`–`lsmop9` follow the definition of Cheng,
 Jin and Olhofer (2017), as implemented in PlatEMO. For `i >= M`, LSMOP1–4 use
 the linear linkage `(1 + i/n) x_i - 10 x_1` and LSMOP5–9 the nonlinear linkage
