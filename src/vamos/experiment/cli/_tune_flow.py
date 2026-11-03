@@ -77,7 +77,10 @@ def run_tuning_with_finisher(
 
     finisher_summary_updates: dict[str, Any] | None = None
     if ledger is not None:
-        evaluations, failures = (ledger.evaluations - before[0], ledger.failures - before[1])
+        # Racing with n_jobs > 1 evaluates in worker processes, which count in their own copy of the
+        # evaluator; its trials record their evaluations, so those records are counted instead.
+        recorded = _recorded_evaluations(history)
+        evaluations, failures = recorded if recorded is not None else (ledger.evaluations - before[0], ledger.failures - before[1])
         if evaluations and failures == evaluations:
             raise SystemExit(_every_evaluation_failed_message(f"every one of the {evaluations} tuning evaluations failed", ledger))
         finisher_summary_updates = {"evaluations": evaluations, "failed_evaluations": failures}
@@ -130,6 +133,24 @@ def run_tuning_with_finisher(
                 finisher_result["method"],
             )
     return best_config, history, elapsed, finisher_summary_updates, finisher_artifacts
+
+
+def _recorded_evaluations(history: list[TrialResult]) -> tuple[int, int] | None:
+    """Evaluations and failures that every trial of ``history`` records, or ``None`` if some does not.
+
+    Racing records ``num_evals``, and random search and irace ``evaluations``, each with
+    ``failed_evaluations``; the model-based backends record neither and evaluate in this process.
+    """
+    evaluations = failures = 0
+    for trial in history:
+        details = getattr(trial, "details", None) or {}
+        count = details.get("num_evals", details.get("evaluations"))
+        failed = details.get("failed_evaluations")
+        if not isinstance(count, int) or not isinstance(failed, int):
+            return None
+        evaluations += count
+        failures += failed
+    return (evaluations, failures) if history else None
 
 
 def _every_evaluation_failed_message(reason: str, ledger: Any) -> str:

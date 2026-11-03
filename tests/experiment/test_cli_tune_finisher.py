@@ -274,3 +274,55 @@ def test_tuning_summary_counts_failed_evaluations(tmp_path: Path, monkeypatch):
     summary = json.loads(summaries[0].read_text(encoding="utf-8"))
     assert summary["evaluations"] == 6
     assert summary["failed_evaluations"] == 3
+
+
+def _fail_for_half_the_configurations(config, ctx):
+    # Fails for about half of the configurations, the same ones in every process.
+    import json
+    import zlib
+
+    return float("nan") if zlib.crc32(json.dumps(config, sort_keys=True, default=str).encode()) % 2 else 1.0
+
+
+def test_tuning_summary_counts_evaluations_run_in_worker_processes(tmp_path: Path, monkeypatch):
+    # With --n-jobs 2, racing evaluates in joblib worker processes, which count in their own copy of
+    # the evaluator; the summary must still count every evaluation.
+    import json
+
+    from vamos.experiment.cli import _tune_runtime
+
+    real = _tune_runtime.make_evaluator
+
+    def odd_seed_evaluator(**kwargs):
+        inner = real(**kwargs)
+        inner.inner = _fail_for_half_the_configurations
+        return inner
+
+    monkeypatch.setattr(tune_cli, "make_evaluator", odd_seed_evaluator)
+    out = tmp_path / "out"
+    tune_cli.main(
+        [
+            "--instances",
+            "zdt1",
+            "--algorithm",
+            "nsgaii",
+            "--backend",
+            "racing",
+            "--tune-budget",
+            "8",
+            "--n-seeds",
+            "2",
+            "--n-jobs",
+            "2",
+            "--no-run-validation",
+            "--no-run-test",
+            "--no-run-statistical-finisher",
+            "--output-dir",
+            str(out),
+        ]
+    )
+
+    (summary_path,) = out.rglob("tuning_summary.json")
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert summary["evaluations"] > 0
+    assert 0 < summary["failed_evaluations"] < summary["evaluations"]
