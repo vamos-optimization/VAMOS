@@ -25,7 +25,7 @@ else:
 # ── Shared Literal type aliases ──────────────────────────────────────
 ResultMode = Literal["non_dominated", "population"]
 ConstraintModeStr = Literal["none", "feasibility"]
-LiveCallbackMode = Literal["nd_only", "all"]
+LiveCallbackMode = Literal["nd_only", "population", "population_archive"]
 IndicatorType = Literal["eps", "hypervolume"]
 OperatorCategory: TypeAlias = Literal["crossover", "mutation", "selection", "repair", "initializer"]
 

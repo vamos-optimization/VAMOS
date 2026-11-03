@@ -318,14 +318,19 @@ def _commit_recovered_run(study: Study, attempt: AttemptRecord, stored: StoredRu
 
 def _recovered_failure(stored: StoredRun) -> Mapping[str, Any]:
     source = stored.manifest.get("failure")
-    retryable = isinstance(source, Mapping) and source.get("phase") == "optimization"
+    began = isinstance(source, Mapping) and source.get("phase") == "optimization"
+    # The publishing attempt recorded whether its failure was transient; without that flag, any optimization failure is.
+    recorded = source.get("retryable") if isinstance(source, Mapping) else None
+    retryable = began and (recorded if isinstance(recorded, bool) else True)
+    cause = source.get("message") if isinstance(source, Mapping) else None
     return cast(
         Mapping[str, Any],
         deep_freeze(
             {
                 "category": "execution" if retryable else "configuration",
-                "code": "OBJECTIVE_EXECUTION_FAILED" if retryable else "RESOLVED_SPEC_RECONSTRUCTION_FAILED",
-                "message": "Recovered the verified failed canonical run published by the prior attempt.",
+                "code": "OBJECTIVE_EXECUTION_FAILED" if began else "RESOLVED_SPEC_RECONSTRUCTION_FAILED",
+                "message": "Recovered the verified failed canonical run published by the prior attempt"
+                + (f": {cause}" if isinstance(cause, str) else "."),
                 "retryable": retryable,
                 "safe_action": (
                     "Correct the transient cause, then explicitly retry the task."

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -9,7 +10,7 @@ import pytest
 
 import vamos
 from vamos.experiment.optimization_result import OptimizationResult
-from vamos.experiment.study.errors import StudyInfrastructureError, StudyRunPublicationError
+from vamos.experiment.study.errors import RetryNotAllowedError, StudyInfrastructureError, StudyRunPublicationError
 from vamos.experiment.study.models import StudyEvent
 
 
@@ -79,6 +80,151 @@ def test_sa_027_fail_fast_pauses_after_durable_second_task_failure(tmp_path: Pat
     assert "private" not in repr(paused.tasks[1].reason)
     assert _immutable_inputs(root) == immutable
     _verify_terminal_runs(paused)
+
+
+def test_failed_task_records_sanitized_cause(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    import vamos.experiment.study.execution as execution
+    from vamos.foundation.eval.population import _validate_output_matrix
+
+    def execute(reconstructed: Any, *, root: Path) -> OptimizationResult:
+        # The objective writes non-finite values (as WFG1 with two variables did): retry would repeat the failure.
+        _validate_output_matrix("F", np.full((4, 2), np.nan), expected_shape=(4, 2))
+        raise AssertionError("unreachable")
+
+    created = vamos.create_study(_spec(), output=tmp_path / "study")
+    monkeypatch.setattr(execution, "_execute_optimization", execute)
+    with caplog.at_level(logging.ERROR, logger="vamos.experiment.study"):
+        paused = created.run()
+
+    task = paused.tasks[0]
+    assert task.state == "failed"
+    reason = task.reason
+    assert reason is not None
+    assert reason["message"].startswith("EvaluationError: ") and "non-finite" in reason["message"]
+    assert reason["retryable"] is False and task.retryability.retryable is False
+    assert str(tmp_path) not in repr(reason)
+    assert paused.attempts[0].failure == reason
+    run = vamos.load_run(paused.root / "runs" / str(paused.attempts[0].run_reference["run_id"]), verify="all")
+    assert "non-finite" in run.manifest["failure"]["message"]
+    assert any("non-finite" in record.getMessage() and "in execute" in record.getMessage() for record in caplog.records)
+    with pytest.raises(RetryNotAllowedError) as caught:
+        paused.retry()
+    assert caught.value.reason == "NONRETRYABLE_FAILURE"
+
+
+def test_failure_log_keeps_uncontrolled_text_and_paths_out(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    import vamos.experiment.study.execution as execution
+
+    def execute(reconstructed: Any, *, root: Path) -> OptimizationResult:
+        try:
+            raise ValueError(f"inner secret-token in {root}")
+        except ValueError as inner:
+            raise RuntimeError(f"secret-token at {root}") from inner
+
+    created = vamos.create_study(_spec(), output=tmp_path / "study")
+    monkeypatch.setattr(execution, "_execute_optimization", execute)
+    with caplog.at_level(logging.DEBUG, logger="vamos"):
+        created.run()
+
+    logged = [record for record in caplog.records if record.name.startswith("vamos.experiment.study")]
+    text = "\n".join(record.getMessage() for record in logged)
+    assert "RuntimeError" in text and "in execute" in text and "ValueError" in text
+    assert "secret-token" not in text and str(tmp_path) not in text
+    # No record carries the exception itself: a handler would format its message and chain verbatim.
+    assert all(record.exc_info is None and record.exc_text is None for record in logged)
+
+
+def test_failure_message_hides_absolute_paths_and_names_the_typed_field() -> None:
+    from vamos.experiment.artifacts.errors import ComponentNotReconstructableError, sanitized_message
+
+    windows = sanitized_message(OSError(r"cannot open D:\lab42\study\runs\x.json: denied"))
+    posix = sanitized_message(RuntimeError("private failure at /srv/lab42/study, see https://example.org/a 1/n"))
+    typed = sanitized_message(
+        ComponentNotReconstructableError(
+            operation="reconstruct",
+            reason="is unsupported",
+            expected="serial",
+            actual="dask",
+            action="Use a serial evaluation backend.",
+            field="$.resolved_spec.backend.evaluation",
+            path="/srv/lab42/study/runs/1",
+        )
+    )
+
+    unc = sanitized_message(OSError(r"lost \\lab42-server\share\study"))
+
+    assert "lab42" not in windows + posix + typed + unc
+    assert unc == "lost <path>"
+    assert windows == "cannot open <path> denied"
+    assert posix == "private failure at <path> see https://example.org/a 1/n"
+    assert "$.resolved_spec.backend.evaluation" in typed
+    assert len(sanitized_message(ValueError("x" * 2000))) == 500
+
+
+@pytest.mark.parametrize("wrapper", ["configuration", "artifact"])
+def test_vamos_error_wrapping_foreign_text_records_only_its_type(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, wrapper: str
+) -> None:
+    import vamos.experiment.study.execution as execution
+    from vamos.experiment.artifacts.errors import ComponentNotReconstructableError
+    from vamos.foundation.exceptions import ConfigurationError
+
+    secret = "access_token=abc123"
+
+    def execute(reconstructed: Any, *, root: Path) -> OptimizationResult:
+        try:
+            raise ValueError(secret)
+        except ValueError as foreign:
+            if wrapper == "configuration":
+                raise ConfigurationError(f"invalid setting ({foreign})") from foreign
+            raise ComponentNotReconstructableError(
+                operation="reconstruct",
+                reason="is unsupported",
+                expected="serial",
+                actual=str(foreign),
+                action="Use a serial evaluation backend.",
+                field="$.resolved_spec.backend.evaluation",
+            ) from foreign
+
+    created = vamos.create_study(_spec(), output=tmp_path / "study")
+    monkeypatch.setattr(execution, "_execute_optimization", execute)
+    with caplog.at_level(logging.DEBUG, logger="vamos"):
+        paused = created.run()
+
+    reason = paused.tasks[0].reason
+    assert reason is not None
+    run = vamos.load_run(paused.root / "runs" / str(paused.attempts[0].run_reference["run_id"]), verify="all")
+    logged = "\n".join(record.getMessage() for record in caplog.records)
+    for text in (repr(reason), repr(run.manifest["failure"]), logged):
+        assert secret not in text
+    expected_type = "ConfigurationError" if wrapper == "configuration" else "ComponentNotReconstructableError"
+    assert reason["message"].startswith(expected_type) and "ValueError" in reason["message"]
+    if wrapper == "artifact":
+        assert "$.resolved_spec.backend.evaluation" in reason["message"]
+
+
+def test_failure_message_redacts_paths_with_spaces() -> None:
+    from vamos.experiment.artifacts.errors import ComponentNotReconstructableError, sanitized_message
+
+    typed = sanitized_message(
+        ComponentNotReconstructableError(
+            operation="reconstruct",
+            reason="is unsupported",
+            expected="serial",
+            actual="dask",
+            action="Use a serial evaluation backend.",
+            path=r"D:\Lab Data\private-study\runs\1",
+        )
+    )
+    windows = sanitized_message(OSError(r"cannot open D:\Lab Data\private study\x.json: denied"))
+    posix = sanitized_message(RuntimeError("cannot read /srv/Lab Data/private study/x.json, giving up"))
+
+    for message in (typed, windows, posix):
+        assert "private" not in message and "Lab Data" not in message and "<path>" in message
+    assert windows == "cannot open <path> denied"
+    assert posix == "cannot read <path> giving up"
 
 
 def test_sa_028_continue_runs_later_tasks_and_completes_with_failures(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

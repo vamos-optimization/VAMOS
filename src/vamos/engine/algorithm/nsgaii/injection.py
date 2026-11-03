@@ -431,10 +431,8 @@ class ImmigrationManager:
 
         do_inject = self._schedule_active(generation)
         if callable(self.skip_if):
-            try:
-                do_inject = do_inject and (not bool(self.skip_if(generation, state)))
-            except Exception:
-                _logger().debug("skip_if callback raised; proceeding with injection", exc_info=True)
+            # A user callback that raises stops the run with its exception.
+            do_inject = do_inject and (not bool(self.skip_if(generation, state)))
 
         if do_inject:
             candidates = self._fetch_candidates(generation, state)

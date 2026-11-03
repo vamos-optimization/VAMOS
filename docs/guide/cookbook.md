@@ -132,6 +132,17 @@ assert progress.generations and progress.finished
 Observe the supplied arrays without modifying them. Custom callbacks are not
 covered by the built-in exact-replay contract.
 
+**Development after 1.1.0:** every algorithm first calls `on_generation` with
+generation 0, the evaluated initial population, and then once per generation.
+NSGA-III, SMS-EMOA, IBEA, AGE-MOEA and RVEA used to start at generation 1, and
+RVEA at 2. An exception raised by `on_generation` or by an optional
+`should_stop()` stops the run with that exception, in every algorithm. The same
+applies to NSGA-II's `generation_callback`, `parent_selection_filter` and
+immigration `skip_if`. VAMOS 1.1.0 logged most of these failures at debug level
+and carried on; MOEA/D, SPEA2 and SMPSO then called `on_generation` a second
+time with the whole population. NSGA-II's `live_callback_mode` accepts
+`nd_only`, `population` and `population_archive`.
+
 ## 4. Saving work and resuming a study
 
 **Stable:** save completed results with `save_result` (recipe 13), and use the

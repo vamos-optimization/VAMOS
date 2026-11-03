@@ -462,6 +462,56 @@ def test_cli_problem_set_continues_after_one_problem_fails(monkeypatch, tmp_path
     assert "tsp6 with smpso" in caplog.text
 
 
+def _count_optimizations(monkeypatch):
+    from vamos.experiment import execution
+
+    calls = []
+    real = execution.execute_algorithm
+
+    def counting(*args, **kwargs):
+        calls.append(1)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(execution, "execute_algorithm", counting)
+    return calls
+
+
+def test_cli_collision_is_reported_before_optimizing(monkeypatch, tmp_path, capsys):
+    output_root = tmp_path / "results"
+    argv = ["--problem", "zdt1", "--algorithm", "nsgaii", "--population-size", "6", "--max-evaluations", "12", "--seed", "7"]
+    _run_small_cli(monkeypatch, output_root, *argv)
+    capsys.readouterr()
+    calls = _count_optimizations(monkeypatch)
+
+    with pytest.raises(SystemExit) as excinfo:
+        _run_small_cli(monkeypatch, output_root, *argv)
+
+    err = capsys.readouterr().err
+    assert excinfo.value.code == 8, err
+    assert "already exists" in err and "seed_7" in err
+    assert "Traceback" not in err
+    assert calls == []
+
+
+def test_cli_series_checks_every_destination_before_the_first_run(monkeypatch, tmp_path, capsys):
+    from vamos.foundation.problem import resolver
+
+    monkeypatch.setitem(resolver.PROBLEM_SET_PRESETS, "families", ("zdt1", "zdt2"))
+    output_root = tmp_path / "results"
+    _run_small_cli(monkeypatch, output_root, "--problem", "zdt2", "--algorithm", "nsgaii")
+    capsys.readouterr()
+    calls = _count_optimizations(monkeypatch)
+
+    # ZDT1 runs first and is free; ZDT2's destination is taken, so nothing may run.
+    with pytest.raises(SystemExit) as excinfo:
+        _run_small_cli(monkeypatch, output_root, "--problem-set", "families", "--algorithm", "nsgaii")
+
+    assert excinfo.value.code == 8
+    assert "ZDT2" in capsys.readouterr().err
+    assert calls == []
+    assert not (output_root / "ZDT1").exists()
+
+
 def test_hv_threshold_is_not_met_by_a_random_population():
     from vamos.foundation.problem.zdt1 import ZDT1Problem
     from vamos.foundation.quality_indicators.hypervolume import hypervolume
