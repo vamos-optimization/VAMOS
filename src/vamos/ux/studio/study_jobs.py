@@ -6,14 +6,17 @@ The worker owns the study for its whole lifetime, exactly like
 The job files live outside the study, in
 ``<parent>/.vamos-studio/jobs/<study-id>/``:
 
-- ``job.json``: operation, study path and start time, written by Studio;
+- ``job.json``: operation, study path, start time and the worker's unique token, written by Studio;
+- ``start.lock``: held while Studio checks and starts a worker, so concurrent starts launch one;
 - ``heartbeat.json``: the worker's process id, unique token and a timestamp, refreshed every
   few seconds while it runs;
 - ``stop.json``: a stop request addressed to one worker's unique token;
-- ``outcome.json``: how the worker ended, written by the worker;
+- ``outcome.json``: how the worker ended, with its token, written by the worker;
 - ``worker.log``: the worker's output.
 
-A fresh heartbeat indicates recent activity, not process identity. Studio
+Only the heartbeat and outcome that carry the token of ``job.json`` describe the
+current worker; the files of an earlier worker are ignored. A fresh heartbeat
+indicates recent activity, not process identity. Studio
 requests a stop using the worker's unique token; the matching worker exits
 itself. Studio never sends a signal to a PID read from a file.
 Stopping a worker unwinds its owning thread before acknowledging the stop,
@@ -29,6 +32,9 @@ import subprocess
 import sys
 import threading
 import time
+import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import BinaryIO, Literal
@@ -48,6 +54,7 @@ HEARTBEAT_FILE = "heartbeat.json"
 OUTCOME_FILE = "outcome.json"
 STOP_FILE = "stop.json"
 LOG_FILE = "worker.log"
+START_LOCK_FILE = "start.lock"
 
 
 class JobConflictError(RuntimeError):
@@ -102,13 +109,14 @@ def job_status(job_dir: Path, *, now: float | None = None) -> JobStatus:
         return JobStatus("none")
     operation = str(job.get("operation", "")) or None
     started_at = _number(job.get("started_at"))
-    outcome = _read_json(job_dir / OUTCOME_FILE)
+    worker_id = job.get("worker_id")
+    outcome = _current_worker_file(job_dir / OUTCOME_FILE, worker_id)
     if outcome is not None:
         status = str(outcome.get("status", "failed"))
         phase: JobPhase = "finished" if status == "finished" else "stopped" if status == "stopped" else "failed"
         return JobStatus(phase, operation, started_at=started_at, message=str(outcome.get("message", "")))
     current = time.time() if now is None else now
-    heartbeat = _read_json(job_dir / HEARTBEAT_FILE)
+    heartbeat = _current_worker_file(job_dir / HEARTBEAT_FILE, worker_id)
     beat = _number(heartbeat.get("time")) if heartbeat else None
     if beat is not None:
         age = max(0.0, current - beat)
@@ -125,24 +133,31 @@ def job_status(job_dir: Path, *, now: float | None = None) -> JobStatus:
 
 
 def start_job(study_root: Path, study_id: str, operation: JobOperation, *, retry_failed: bool = False) -> JobStatus:
-    """Start a detached worker for ``operation`` on the study at ``study_root``."""
+    """Start a detached worker for ``operation`` on the study at ``study_root``.
+
+    The check and the start happen under ``start.lock``, so of two concurrent calls, from
+    Studio sessions in one process or in several, one starts the worker and the other
+    raises ``JobConflictError``.
+    """
     job_dir = job_dir_for(study_root, study_id)
-    if job_status(job_dir).active:
-        raise JobConflictError("A Studio runner is already working on this study.")
     job_dir.mkdir(parents=True, exist_ok=True)
-    for name in (HEARTBEAT_FILE, OUTCOME_FILE, STOP_FILE):
-        (job_dir / name).unlink(missing_ok=True)
-    write_json(
-        job_dir / JOB_FILE, {"operation": operation, "study": str(study_root), "started_at": time.time(), "retry_failed": retry_failed}
-    )
-    command = [sys.executable, "-m", WORKER_MODULE, "--study", str(study_root), "--job-dir", str(job_dir), "--operation", operation]
-    if retry_failed:
-        command.append("--retry-failed")
-    with (job_dir / LOG_FILE).open("ab") as log:
-        log.write(f"\n=== {time.strftime('%Y-%m-%d %H:%M:%S')} {operation} ===\n".encode())
-        log.flush()
-        process = _spawn_detached(command, log)
-    threading.Thread(target=process.wait, name="vamos-studio-reaper", daemon=True).start()
+    with _start_lock(job_dir):
+        if job_status(job_dir).active:
+            raise JobConflictError("A Studio runner is already working on this study.")
+        for name in (HEARTBEAT_FILE, OUTCOME_FILE, STOP_FILE):
+            (job_dir / name).unlink(missing_ok=True)
+        worker_id = uuid.uuid4().hex
+        job = {"operation": operation, "study": str(study_root), "started_at": time.time(), "retry_failed": retry_failed}
+        write_json(job_dir / JOB_FILE, {**job, "worker_id": worker_id})
+        command = [sys.executable, "-m", WORKER_MODULE, "--study", str(study_root), "--job-dir", str(job_dir), "--operation", operation]
+        command += ["--worker-id", worker_id]
+        if retry_failed:
+            command.append("--retry-failed")
+        with (job_dir / LOG_FILE).open("ab") as log:
+            log.write(f"\n=== {time.strftime('%Y-%m-%d %H:%M:%S')} {operation} ===\n".encode())
+            log.flush()
+            process = _spawn_detached(command, log)
+        threading.Thread(target=process.wait, name="vamos-studio-reaper", daemon=True).start()
     return job_status(job_dir)
 
 
@@ -178,7 +193,8 @@ def log_tail(job_dir: Path, *, max_bytes: int = 16_384) -> str:
 
 def write_json(path: Path, payload: dict[str, object]) -> None:
     """Write ``payload`` atomically, so readers never see a partial file."""
-    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    # A unique name per write: Studio sessions are threads of one process and share its pid.
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp")
     temporary.write_text(json.dumps(payload), encoding="utf-8")
     os.replace(temporary, path)
 
@@ -189,6 +205,38 @@ def _read_json(path: Path) -> dict[str, object] | None:
     except (OSError, ValueError):
         return None
     return payload if isinstance(payload, dict) else None
+
+
+@contextmanager
+def _start_lock(job_dir: Path) -> Iterator[None]:
+    """Hold ``start.lock`` for one start; a lock older than the startup grace is abandoned."""
+    lock = job_dir / START_LOCK_FILE
+    for attempt in range(2):
+        try:
+            descriptor = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            try:
+                abandoned = time.time() - lock.stat().st_mtime > STARTUP_GRACE_SECONDS
+            except OSError:
+                abandoned = True
+            if attempt == 0 and abandoned:
+                lock.unlink(missing_ok=True)
+                continue
+            raise JobConflictError("Another Studio session is starting a runner for this study.") from None
+        os.close(descriptor)
+        break
+    try:
+        yield
+    finally:
+        lock.unlink(missing_ok=True)
+
+
+def _current_worker_file(path: Path, worker_id: object) -> dict[str, object] | None:
+    """The job file at ``path``, if it belongs to the worker that ``job.json`` names."""
+    payload = _read_json(path)
+    if payload is None or (isinstance(worker_id, str) and worker_id and payload.get("worker_id") != worker_id):
+        return None
+    return payload
 
 
 def _number(value: object) -> float | None:
@@ -210,6 +258,7 @@ __all__ = [
     "JobConflictError",
     "JobOperation",
     "JobStatus",
+    "START_LOCK_FILE",
     "job_dir_for",
     "job_status",
     "jobs_root",

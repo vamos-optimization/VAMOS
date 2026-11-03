@@ -136,6 +136,13 @@ vamos studio --address 0.0.0.0 --allow-remote-binding --no-browser --allow-webso
 - **Batch Comparison** runs several algorithms on several problems for
   consecutive seeds as a durable study in a background process, follows its
   progress, and reports hypervolume with CSV and LaTeX downloads.
+  **Development after 1.1.0:** every algorithm it offers for an integer
+  problem runs. In VAMOS 1.1.0 the tasks of MOEA/D, SMS-EMOA, NSGA-III and
+  SPEA2 on an integer problem failed although the plan was valid, and so did
+  `vamos reproduce` of their integer runs. Two Studio sessions that start the
+  same study at once now start one runner, and the other is told that a
+  runner is already starting; Studio reads only the heartbeat and outcome of
+  the runner it started last.
 - **Statistical Comparison** tests whether the algorithms of a study differ and
   exports the evidence as LaTeX tables, CSV, and SAES files.
 - **Explore Results** loads a study, overlays the fronts of each problem,

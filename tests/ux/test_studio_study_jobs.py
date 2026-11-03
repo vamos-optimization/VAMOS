@@ -233,6 +233,80 @@ def test_a_starting_runner_cannot_be_stopped_or_doubled(tmp_path: Path) -> None:
         start_job(study.root, study.study_id, "run")
 
 
+def test_concurrent_start_job_launches_one_worker(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    study = create_study(_tiny_spec(), output=tmp_path / "study")
+    spawned: list[list[str]] = []
+
+    class _Process:
+        def wait(self) -> int:
+            return 0
+
+    def spawn(command: list[str], _log: object) -> _Process:
+        spawned.append(command)
+        return _Process()
+
+    # Both callers read the job files before either writes job.json: the window of the race.
+    barrier = threading.Barrier(2)
+    original_status = study_jobs.job_status
+
+    def racing_status(job_dir: Path, *, now: float | None = None) -> JobStatus:
+        status = original_status(job_dir, now=now)
+        try:
+            barrier.wait(timeout=2.0)
+        except threading.BrokenBarrierError:
+            pass
+        return status
+
+    monkeypatch.setattr(study_jobs, "_spawn_detached", spawn)
+    monkeypatch.setattr(study_jobs, "job_status", racing_status)
+    outcomes: list[object] = []
+
+    def start() -> None:
+        try:
+            outcomes.append(start_job(study.root, study.study_id, "run"))
+        except JobConflictError as exc:
+            outcomes.append(exc)
+
+    threads = [threading.Thread(target=start) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=30)
+
+    assert len(spawned) == 1
+    assert sorted(type(item).__name__ for item in outcomes) == ["JobConflictError", "JobStatus"]
+
+
+def test_job_status_ignores_the_files_of_a_previous_worker(tmp_path: Path) -> None:
+    now = 1_000_000.0
+    current = {"operation": "run", "started_at": now - 5, "worker_id": "new"}
+
+    finished_elsewhere = job_status(_job(tmp_path / "a", job=current, outcome={"status": "finished", "worker_id": "old"}), now=now)
+    beating_elsewhere = job_status(_job(tmp_path / "b", job=current, heartbeat={"pid": 7, "worker_id": "old", "time": now - 1}), now=now)
+    finished = job_status(_job(tmp_path / "c", job=current, outcome={"status": "finished", "worker_id": "new"}), now=now)
+
+    assert finished_elsewhere.phase == "starting"
+    assert beating_elsewhere.phase == "starting"
+    assert finished.phase == "finished"
+
+
+def test_start_job_gives_the_worker_its_identity(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    study = create_study(_tiny_spec(), output=tmp_path / "study")
+    spawned: list[list[str]] = []
+
+    class _Process:
+        def wait(self) -> int:
+            return 0
+
+    monkeypatch.setattr(study_jobs, "_spawn_detached", lambda command, _log: spawned.append(command) or _Process())
+    start_job(study.root, study.study_id, "run")
+
+    job = json.loads((job_dir_for(study.root, study.study_id) / "job.json").read_text(encoding="utf-8"))
+    assert isinstance(job["worker_id"], str) and job["worker_id"]
+    assert spawned[0][spawned[0].index("--worker-id") + 1] == job["worker_id"]
+    assert not (job_dir_for(study.root, study.study_id) / study_jobs.START_LOCK_FILE).exists()
+
+
 def test_worker_runs_the_study_and_records_its_outcome(tmp_path: Path) -> None:
     study = create_study(_tiny_spec(), output=tmp_path / "study")
     job_dir = tmp_path / "job"
