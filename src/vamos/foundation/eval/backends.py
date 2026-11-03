@@ -4,6 +4,7 @@ import logging
 import math
 import os
 from concurrent.futures import FIRST_EXCEPTION, ProcessPoolExecutor, wait
+from concurrent.futures.process import BrokenProcessPool
 from typing import Any, cast
 
 import numpy as np
@@ -128,25 +129,31 @@ class MultiprocessingEvalBackend(EvaluationBackend):
         G_parts: list[tuple[int, NDArray[np.float64] | None]] = []
 
         pool = self._pool()
-        future_map = {pool.submit(_eval_chunk, problem, X[start:end]): (start, end) for start, end in slices}
+        try:
+            future_map = {pool.submit(_eval_chunk, problem, X[start:end]): (start, end) for start, end in slices}
+        except BrokenProcessPool:
+            # A worker of an earlier call died; the next call starts a new pool.
+            self._abort()
+            raise
         done, pending = wait(future_map, timeout=self.timeout, return_when=FIRST_EXCEPTION)
-        if pending and not any(fut.exception() is not None for fut in done):
+        failed = next((fut for fut in future_map if fut in done and fut.exception() is not None), None)
+        if failed is not None:
+            # The first failed chunk is raised now, whatever the other chunks are doing. Chunks still
+            # running would hold the pool, and a dead worker breaks it, so either way it is replaced.
+            if pending or isinstance(failed.exception(), BrokenProcessPool):
+                self._abort()
+            failed.result()
+        if pending:
             self._abort()
             raise EvaluationError(
                 f"MultiprocessingEvalBackend: {len(pending)} of {len(future_map)} chunks did not finish within the "
                 f"timeout of {self.timeout} s; the worker pool was stopped.",
                 suggestion="Raise timeout, or check the problem's evaluate() for a hang.",
             )
-        try:
-            for fut, (start, _end) in future_map.items():
-                F_chunk, G_chunk = fut.result()
-                F_parts.append((start, F_chunk))
-                G_parts.append((start, G_chunk))
-        except BaseException:
-            # A chunk failed: drop the chunks that have not started, so the pool is free for the next call.
-            for fut in pending:
-                fut.cancel()
-            raise
+        for fut, (start, _end) in future_map.items():
+            F_chunk, G_chunk = fut.result()
+            F_parts.append((start, F_chunk))
+            G_parts.append((start, G_chunk))
 
         # Restore original order
         if not F_parts:

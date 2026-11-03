@@ -223,6 +223,58 @@ def test_multiprocessing_backend_timeout_raises():
     assert elapsed < 1.5
 
 
+class SlowFirstFailingSecondProblem(DummyProblem):
+    """The chunk holding the first row hangs for 3 s; the other chunk raises at once."""
+
+    def evaluate(self, X, out):
+        import time
+
+        if X[0, 0] == 0.0:
+            time.sleep(3.0)
+            out["F"] = np.sum(X * X, axis=1, keepdims=True)
+            return
+        raise ValueError("problem failed on its second chunk")
+
+
+def test_multiprocessing_backend_raises_a_failed_chunk_without_waiting_for_a_hanging_one():
+    import time
+
+    backend = MultiprocessingEvalBackend(n_workers=2, timeout=10.0)
+    X = np.array([[0.0, 0.0], [1.0, 1.0]])
+
+    start = time.perf_counter()
+    with pytest.raises(ValueError, match="second chunk"):
+        backend.evaluate(X, SlowFirstFailingSecondProblem())
+    elapsed = time.perf_counter() - start
+    backend.close()
+
+    # The error of the second chunk was available at once, but the first chunk's result was awaited first.
+    assert elapsed < 2.0
+
+
+class CrashingProblem(DummyProblem):
+    """Ends its worker process abruptly, as a crash of a native evaluator would."""
+
+    def evaluate(self, X, out):
+        import os
+
+        os._exit(1)
+
+
+def test_multiprocessing_backend_replaces_a_pool_whose_worker_died():
+    from concurrent.futures.process import BrokenProcessPool
+
+    backend = MultiprocessingEvalBackend(n_workers=2)
+    X = np.array([[1.0, 2.0], [0.5, -0.5]])
+    with pytest.raises(BrokenProcessPool):
+        backend.evaluate(X, CrashingProblem())
+
+    # The next evaluation of a healthy problem gets a new pool instead of the broken one.
+    result = backend.evaluate(X, DummyProblem())
+    backend.close()
+    np.testing.assert_allclose(result.F, np.sum(X * X, axis=1, keepdims=True))
+
+
 @pytest.mark.parametrize("n_workers", [0, -1, 1.5, True])
 def test_multiprocessing_backend_rejects_non_positive_workers(n_workers):
     # VAMOS 1.1.0 read n_workers=0 as every core and a negative count as one worker.
