@@ -163,9 +163,12 @@ class _Evaluations:
         run_seed = int(irace_seed) if seed is None else seed
         ctx = EvalContext(instance=instance, seed=run_seed, budget=self.budget, fidelity_level=0, previous_budget=None)
         result = self.eval_fn(dict(assignment), ctx)
-        score = float(result[0] if isinstance(result, tuple) else result)
+        # A non-finite score is a failed evaluation; irace receives the task's failure value.
+        score, failed = self.tuner.task.checked_score(result[0] if isinstance(result, tuple) else result)
         with self.lock:
-            self.records.append(dict(config_id=int(config_id), config=assignment, instance=instance.name, seed=run_seed, score=score))
+            self.records.append(
+                dict(config_id=int(config_id), config=assignment, instance=instance.name, seed=run_seed, score=score, failed=failed)
+            )
         return self.tuner._score_to_loss(score)
 
 
@@ -239,6 +242,7 @@ def _history(tuner: IraceTunerLike, records: list[dict[str, Any]], elites: list[
             details={
                 "state": "COMPLETE",
                 "evaluations": len(rows),
+                "failed_evaluations": sum(bool(row.get("failed")) for row in rows),
                 "irace_elite_rank": elites.index(config_id) + 1 if config_id in elites else None,
             },
         )
