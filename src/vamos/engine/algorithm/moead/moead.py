@@ -15,6 +15,7 @@ References:
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -43,6 +44,55 @@ if TYPE_CHECKING:
 from vamos.engine.hooks.live_viz import LiveVisualization, NoOpLiveVisualization
 
 
+def _advance_generation(st: MOEADState, kernel: Any, live_cb: Any, hv_tracker: Any, notify: bool) -> tuple[bool, bool]:
+    """After a told batch: ``(stop_requested, hv_reached)``; a batch that misses the HV target counts as a generation."""
+    if hv_tracker.enabled and hv_tracker.reached(st.hv_points()):
+        return False, True
+    st.generation += 1
+    if notify:
+        return notify_generation(live_cb, kernel, st.generation, st.F, stats={"evals": st.n_eval}), False
+    return False, False
+
+
+def _finish_run(st: MOEADState, kernel: Any, hv_reached: bool, live_cb: Any | None) -> dict[str, Any]:
+    """Build the result and the checkpoint of the current state; ``live_cb`` (when given) is told the run ended."""
+    result = build_moead_result(st, hv_reached, kernel=kernel)
+    result["checkpoint"] = {
+        "version": 1,
+        "algorithm": "moead",
+        "X": st.X,
+        "F": st.F,
+        "G": st.G,
+        "generation": st.generation,
+        "n_eval": st.n_eval,
+        "rng_state": st.rng.bit_generator.state,
+        "archive_X": st.archive_X,
+        "archive_F": st.archive_F,
+        "archive_G": st.archive_manager.constraint_values() if st.archive_manager is not None else None,
+        "extra": {
+            "subproblem_order": st.subproblem_order,
+            "subproblem_cursor": st.subproblem_cursor,
+            "ideal": st.ideal,
+        },
+    }
+    finalize_genealogy(result, st, kernel)
+    if live_cb is not None:
+        live_cb.on_end(final_F=st.F)
+    return result
+
+
+@dataclass
+class _AskTellSession:
+    """What a run driven by ``initialize``/``ask``/``tell`` keeps between calls, as ``run`` keeps it in its loop."""
+
+    live_cb: Any
+    hv_tracker: Any
+    notify: bool
+    stop_requested: bool = False
+    hv_reached: bool = False
+    ended: bool = False
+
+
 class MOEAD:
     """Multi-Objective Evolutionary Algorithm based on Decomposition."""
 
@@ -55,6 +105,7 @@ class MOEAD:
         self._parent_pairs: np.ndarray[Any, Any] | None = None
         self._row_index: np.ndarray[Any, Any] = np.empty(0, dtype=np.int64)
         self._steady: SteadyStateStep | None = None
+        self._session: _AskTellSession | None = None
 
     def run(
         self,
@@ -66,6 +117,7 @@ class MOEAD:
         checkpoint: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Run MOEA/D until the termination criterion is met."""
+        self._session = None
         live_cb, eval_strategy, max_eval, hv_tracker = self._initialize_run(
             problem,
             termination,
@@ -98,37 +150,60 @@ class MOEAD:
             told = steady.tell(st, eval_result) if steady is not None else None
             hv_reached = self.tell(eval_result, problem) if told is None else told
 
-            if hv_tracker.enabled and hv_tracker.reached(st.hv_points()):
+            generation_stop, generation_hv_reached = _advance_generation(st, self.kernel, live_cb, hv_tracker, notify)
+            if generation_hv_reached:
                 hv_reached = True
                 break
+            generation = st.generation
+            stop_requested = stop_requested or generation_stop
 
-            generation += 1
-            st.generation = generation
-            if notify:
-                stop_requested = notify_generation(live_cb, self.kernel, generation, st.F, stats={"evals": st.n_eval})
+        return _finish_run(st, self.kernel, hv_reached, live_cb)
 
-        result = build_moead_result(st, hv_reached, kernel=self.kernel)
-        result["checkpoint"] = {
-            "version": 1,
-            "algorithm": "moead",
-            "X": st.X,
-            "F": st.F,
-            "G": st.G,
-            "generation": st.generation,
-            "n_eval": st.n_eval,
-            "rng_state": st.rng.bit_generator.state,
-            "archive_X": st.archive_X,
-            "archive_F": st.archive_F,
-            "archive_G": st.archive_manager.constraint_values() if st.archive_manager is not None else None,
-            "extra": {
-                "subproblem_order": st.subproblem_order,
-                "subproblem_cursor": st.subproblem_cursor,
-                "ideal": st.ideal,
-            },
-        }
-        finalize_genealogy(result, st, self.kernel)
-        live_cb.on_end(final_F=st.F)
-        return result
+    def initialize(
+        self,
+        problem: ProblemProtocol,
+        termination: tuple[str, Any] = ("max_evaluations", 25000),
+        seed: int = 0,
+        eval_strategy: EvaluationBackend | None = None,
+        live_viz: LiveVisualization | None = None,
+        checkpoint: dict[str, Any] | None = None,
+    ) -> None:
+        """Start a run driven by ``ask``/``tell``, with the arguments of ``run``.
+
+        The initial population is evaluated and reported as generation 0. Then
+        repeat ``ask``, evaluate the decision vectors, and ``tell`` the result
+        until ``should_terminate``; ``result`` returns what ``run`` would.
+        """
+        live_cb, _backend, _max_eval, hv_tracker = self._initialize_run(
+            problem, termination, seed, eval_strategy, live_viz, checkpoint=checkpoint
+        )
+        st = self._st
+        assert st is not None, "State not initialized"
+        live_cb.on_generation(st.generation, F=st.F, stats={"evals": st.n_eval})
+        self._session = _AskTellSession(
+            live_cb=live_cb,
+            hv_tracker=hv_tracker,
+            notify=not isinstance(live_cb, NoOpLiveVisualization),
+            stop_requested=live_should_stop(live_cb),
+            hv_reached=bool(hv_tracker.enabled and hv_tracker.reached(st.hv_points())),
+        )
+
+    def should_terminate(self) -> bool:
+        """Whether the budget is spent, the HV target reached, or the live callback asked to stop."""
+        st = self._st
+        if st is None:
+            return True
+        session = self._session
+        return st.n_eval >= st.max_evals or (session is not None and (session.hv_reached or session.stop_requested))
+
+    def result(self) -> dict[str, Any]:
+        """The result of a run started with ``initialize``, as ``run`` returns it."""
+        session = self._session
+        if self._st is None or session is None:
+            raise RuntimeError("Call initialize() before result().")
+        live_cb = None if session.ended else session.live_cb
+        session.ended = True
+        return _finish_run(self._st, self.kernel, session.hv_reached, live_cb)
 
     def _initialize_run(
         self,
@@ -296,7 +371,22 @@ class MOEAD:
         return children
 
     def tell(self, eval_result: Any, problem: ProblemProtocol | None = None) -> bool:
-        """Receive evaluated offspring and update the current MOEA/D state."""
+        """Receive evaluated offspring and update the current MOEA/D state.
+
+        Returns ``True`` once the HV target of an ``("hv", ...)`` termination is reached.
+        """
+        hv_reached = self._tell(eval_result, problem)
+        session = self._session
+        if session is None:
+            return hv_reached
+        st = self._st
+        assert st is not None
+        stop_requested, generation_hv_reached = _advance_generation(st, self.kernel, session.live_cb, session.hv_tracker, session.notify)
+        session.stop_requested = session.stop_requested or stop_requested
+        session.hv_reached = session.hv_reached or hv_reached or generation_hv_reached
+        return session.hv_reached
+
+    def _tell(self, eval_result: Any, problem: ProblemProtocol | None = None) -> bool:
         st = self._st
         if st is None:
             raise RuntimeError("tell() called before initialization.")

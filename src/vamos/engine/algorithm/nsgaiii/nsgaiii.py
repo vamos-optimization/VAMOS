@@ -22,7 +22,7 @@ from vamos.engine.algorithm.components.hooks import (
     track_offspring_genealogy,
 )
 from vamos.engine.algorithm.components.lifecycle import evaluate_batch
-from vamos.engine.algorithm.components.termination import HVTracker, capped_offspring_size
+from vamos.engine.algorithm.components.termination import HVTracker, capped_offspring_size, hv_target_reached
 from vamos.engine.algorithm.components.utils import variation_operator_label
 from vamos.engine.algorithm.nsgaii.state import compute_selection_metrics
 from vamos.foundation.kernel import default_kernel
@@ -333,10 +333,8 @@ class NSGAIII:
         if self._live_cb is not None:
             self._live_cb.on_generation(st.generation, F=st.F)
 
-        if st.hv_tracker is not None and st.hv_tracker.enabled:
-            st.hv_tracker.reached(st.hv_points())
-
-        return False
+        # True once the HV target of an ("hv", ...) termination is reached, as in the other algorithms.
+        return hv_target_reached(st)
 
     def should_terminate(self) -> bool:
         """Check whether the current run should terminate."""

@@ -21,7 +21,7 @@ from vamos.engine.algorithm.components.hooks import (
     live_should_stop,
     track_offspring_genealogy,
 )
-from vamos.engine.algorithm.components.termination import HVTracker, remaining_evaluations
+from vamos.engine.algorithm.components.termination import HVTracker, hv_target_reached, remaining_evaluations
 from vamos.engine.algorithm.components.utils import variation_operator_label
 from vamos.foundation.kernel import default_kernel
 
@@ -385,10 +385,8 @@ class SMSEMOA:
             self._live_cb.on_generation(st.generation, F=st.F)
 
         # Check HV tracker
-        if st.hv_tracker is not None and st.hv_tracker.enabled:
-            st.hv_tracker.reached(st.hv_points())
-
-        return False
+        # True once the HV target of an ("hv", ...) termination is reached, as in the other algorithms.
+        return hv_target_reached(st)
 
     def should_terminate(self) -> bool:
         """Check if termination criterion is met.
