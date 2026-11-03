@@ -2,15 +2,84 @@ from __future__ import annotations
 
 import math
 import random
-from dataclasses import dataclass, field
-from typing import Any, Literal
+from dataclasses import dataclass, field, fields
+from typing import Any, Literal, cast
 
 Statistic = Literal["mean", "median", "min"]
 EpsilonMode = Literal["abs", "rel"]
 
+_STATISTICS = ("mean", "median", "min")
+_EPSILON_MODES = ("abs", "rel")
+# Smallest value of each integer field; ``window`` compares samples ``window`` apart, so it needs 2.
+_INTEGER_MINIMUMS = {"every_k": 1, "window": 2, "patience": 1, "min_points": 1, "bootstrap_samples": 1}
+_FLOAT_FIELDS = ("epsilon", "confidence")
+
+
+def _is_integer(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _is_real(value: object) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def coerce_hv_convergence_field(name: str, value: object) -> object:
+    """Return the value that a config-file entry for field ``name`` stands for.
+
+    YAML 1.1, which PyYAML reads, takes a float without a dot such as ``1e-4`` for
+    a string, so a string that parses as a float becomes that float in the float
+    fields. Every other value is returned unchanged.
+    """
+    if name in _FLOAT_FIELDS and isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return value
+    return value
+
+
+def check_hv_convergence_field(name: str, value: object) -> None:
+    """Raise when ``value`` is not valid for the :class:`HVConvergenceConfig` field ``name``.
+
+    Only the field itself is checked: ``min_points >= window + 2`` relates two
+    fields and is checked when the monitor is built. Wrong types raise
+    ``TypeError`` and out-of-range values ``ValueError``; both name the field.
+    """
+    if name in _INTEGER_MINIMUMS:
+        minimum = _INTEGER_MINIMUMS[name]
+        if not _is_integer(value):
+            raise TypeError(f"{name} must be an integer, got {value!r}.")
+        if cast(int, value) < minimum:
+            raise ValueError(f"{name} must be >= {minimum}, got {value!r}.")
+    elif name == "rng_seed":
+        if not _is_integer(value):
+            raise TypeError(f"rng_seed must be an integer, got {value!r}.")
+    elif name == "epsilon":
+        if not _is_real(value):
+            raise TypeError(f"epsilon must be a number, got {value!r}.")
+        if not math.isfinite(cast(float, value)) or cast(float, value) < 0:
+            raise ValueError(f"epsilon must be a finite number >= 0, got {value!r}.")
+    elif name == "confidence":
+        if value is None:
+            return
+        if not _is_real(value):
+            raise TypeError(f"confidence must be a number or null, got {value!r}.")
+        if not 0.0 < cast(float, value) < 1.0:
+            raise ValueError(f"confidence must be between 0 and 1 (for example 0.95), got {value!r}.")
+    elif name == "epsilon_mode":
+        if value not in _EPSILON_MODES:
+            raise ValueError(f"epsilon_mode must be one of {', '.join(_EPSILON_MODES)}, got {value!r}.")
+    elif name == "statistic":
+        if value not in _STATISTICS:
+            raise ValueError(f"statistic must be one of {', '.join(_STATISTICS)}, got {value!r}.")
+    else:
+        raise TypeError(f"Unknown hv_convergence field {name!r}.")
+
 
 @dataclass(frozen=True)
 class HVConvergenceConfig:
+    """Settings of :class:`HVConvergenceMonitor`; each field is validated when the configuration is built."""
+
     every_k: int = 200
     window: int = 10
     patience: int = 5
@@ -21,6 +90,10 @@ class HVConvergenceConfig:
     confidence: float | None = None  # e.g., 0.95
     bootstrap_samples: int = 300
     rng_seed: int = 0
+
+    def __post_init__(self) -> None:
+        for item in fields(self):
+            check_hv_convergence_field(item.name, getattr(self, item.name))
 
 
 @dataclass

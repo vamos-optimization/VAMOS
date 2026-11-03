@@ -83,3 +83,90 @@ def test_validate_experiment_spec_rejects_unknown_archive_block() -> None:
     }
     with pytest.raises(ValueError, match="Unknown keys in 'archive'"):
         validate_experiment_spec(spec, allowed_overrides=_allowed_override_keys())
+
+
+@pytest.mark.parametrize(
+    ("suffix", "text"),
+    [
+        (
+            ".yaml",
+            "version: '1'\nstopping:\n  hv_convergence: {enabled: true, ref_point: [2, 2]}\nstopping:\n  hv_convergence: {patience: 9}\n",
+        ),
+        (".yaml", "version: '1'\ndefaults:\n  max_evaluations: 100\n  max_evaluations: 200\n"),
+        (".json", '{"version": "1", "defaults": {"max_evaluations": 100}, "defaults": {"max_evaluations": 200}}'),
+    ],
+)
+def test_spec_loader_rejects_duplicate_keys(tmp_path, suffix: str, text: str) -> None:
+    from vamos.engine.config.loader import load_experiment_spec
+
+    path = tmp_path / f"spec{suffix}"
+    path.write_text(text, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Duplicate key"):
+        load_experiment_spec(str(path))
+
+
+def test_spec_loader_keeps_yaml_merge_keys(tmp_path) -> None:
+    from vamos.engine.config.loader import load_experiment_spec
+
+    path = tmp_path / "spec.yaml"
+    path.write_text(
+        "version: '1'\nbase: &base {max_evaluations: 100, population_size: 20}\ndefaults:\n  <<: *base\n  max_evaluations: 300\n",
+        encoding="utf-8",
+    )
+
+    assert load_experiment_spec(str(path))["defaults"] == {"max_evaluations": 300, "population_size": 20}
+
+
+_INVALID_HOOK_VALUES = [
+    ({"stopping": {"hv_convergence": {"window": 1}}}, "window"),
+    ({"stopping": {"hv_convergence": {"every_k": "200"}}}, "every_k"),
+    ({"stopping": {"hv_convergence": {"statistic": "medain"}}}, "statistic"),
+    ({"stopping": {"hv_convergence": {"epsilon_mode": "relative"}}}, "epsilon_mode"),
+    ({"stopping": {"hv_convergence": {"confidence": 95}}}, "confidence"),
+    ({"stopping": {"hv_convergence": {"enabled": "yes please"}}}, "enabled"),
+    ({"stopping": {"hv_convergence": {"ref_point": [1.1, 1.1, 1.1]}}}, "ref_point"),
+    ({"archive": {"external": {"deduplicate_in": "decision"}}}, "deduplicate_in"),
+    ({"archive": {"external": {"capacity": True}}}, "capacity"),
+    ({"archive": {"external": {"capacity": 10.7}}}, "capacity"),
+    ({"archive": {"external": {"pruning": "hypervolume"}}}, "pruning"),
+    ({"archive": {"external": {"objective_tolerance": float("nan")}}}, "objective_tolerance"),
+    ({"problems": {"zdt1": {"stopping": {"hv_convergence": {"window": 1}}}}}, "problems.zdt1.stopping"),
+]
+
+
+@pytest.mark.parametrize(("blocks", "field"), _INVALID_HOOK_VALUES)
+def test_spec_rejects_invalid_hook_values(blocks: dict[str, object], field: str) -> None:
+    spec = {"version": "1", **blocks}
+
+    with pytest.raises(ValueError, match=field):
+        validate_experiment_spec(spec, allowed_overrides=_allowed_override_keys())
+
+
+def test_spec_accepts_an_unbounded_hook_archive() -> None:
+    spec = {"version": "1", "archive": {"external": {"enabled": True, "capacity": None}}}
+
+    validated = validate_experiment_spec(spec, allowed_overrides=_allowed_override_keys())
+
+    assert validated["archive"]["external"]["capacity"] is None
+
+
+def test_cli_problem_overrides_are_case_insensitive(tmp_path) -> None:
+    path = tmp_path / "spec.yaml"
+    path.write_text("version: '1'\nproblems:\n  ZDT1:\n    max_evaluations: 400\n", encoding="utf-8")
+
+    spec_defaults = load_spec_defaults(str(path))
+
+    assert spec_defaults.problem_overrides["zdt1"] == {"max_evaluations": 400}
+    assert spec_defaults.spec["problems"] == {"zdt1": {"max_evaluations": 400}}
+
+
+def test_problem_keys_that_differ_only_in_case_are_rejected(tmp_path) -> None:
+    path = tmp_path / "spec.yaml"
+    path.write_text(
+        "version: '1'\nproblems:\n  ZDT1: {max_evaluations: 400}\n  zdt1: {max_evaluations: 800}\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="zdt1"):
+        load_spec_defaults(str(path))
