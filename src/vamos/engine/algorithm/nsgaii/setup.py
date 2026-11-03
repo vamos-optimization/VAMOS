@@ -4,12 +4,12 @@ Initialization helpers for NSGA-II.
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
+from vamos.engine.algorithm.components.evaluation import extract_evaluation_arrays
 from vamos.engine.algorithm.components.population import resolve_bounds
 from vamos.engine.algorithm.components.termination import HVTracker, validate_initial_budget
 from vamos.engine.algorithm.config.base import normalize_constraint_mode
@@ -22,6 +22,7 @@ from vamos.engine.variation import prepare_mutation_params
 from vamos.foundation.checkpoint import restore_rng
 from vamos.foundation.encoding import normalize_encoding
 from vamos.foundation.eval.backends import EvaluationBackend, SerialEvalBackend
+from vamos.foundation.exceptions import ConfigurationError
 from vamos.foundation.observer import RunContext
 
 from .helpers import fronts_from_ranks
@@ -43,10 +44,6 @@ if TYPE_CHECKING:
 
 def _resolve_archive_settings(cfg: dict[str, Any]) -> ExternalArchiveConfig | None:
     return resolve_external_archive(cfg)
-
-
-def _logger() -> logging.Logger:
-    return logging.getLogger(__name__)
 
 
 def initialize_run(
@@ -93,22 +90,25 @@ def initialize_run(
 
     checkpoint_archive_X: np.ndarray[Any, Any] | None = None
     checkpoint_archive_F: np.ndarray[Any, Any] | None = None
+    checkpoint_archive_G: np.ndarray[Any, Any] | None = None
 
     if checkpoint is not None:
+        # A checkpoint that cannot be restored is an error: silently starting over would
+        # present a fresh run as a continuation.
         try:
             X = np.asarray(checkpoint["X"])
-            F = np.asarray(checkpoint["F"])
-            if X.ndim != 2 or F.ndim != 2:
-                raise ValueError("Checkpoint X and F must be 2D arrays.")
-            if X.shape[0] != pop_size:
-                raise ValueError(f"Checkpoint pop_size={X.shape[0]} does not match config pop_size={pop_size}.")
-            if F.shape[0] != X.shape[0]:
-                raise ValueError("Checkpoint F row count must match X.")
-
-            G_raw = checkpoint.get("G")
-            G = np.asarray(G_raw) if G_raw is not None else None
-            if constraint_mode == "none":
-                G = None
+            if X.ndim != 2 or X.shape != (pop_size, problem.n_var):
+                raise ValueError(f"Checkpoint X has shape {X.shape}; expected ({pop_size}, {problem.n_var}).")
+            # The population's F and G follow the rules of an evaluation handed to tell():
+            # a constrained problem needs G, so its infeasible rows cannot come back as feasible.
+            F, G = extract_evaluation_arrays(
+                {"F": checkpoint["F"], "G": checkpoint.get("G")},
+                constraint_mode,
+                int(getattr(problem, "n_constraints", 0) or 0),
+                algorithm="NSGA-II checkpoint",
+                n_rows=pop_size,
+                n_obj=problem.n_obj,
+            )
 
             n_eval = int(checkpoint.get("n_eval", X.shape[0]))
             if n_eval < X.shape[0]:
@@ -116,10 +116,7 @@ def initialize_run(
 
             rng_state = checkpoint.get("rng_state")
             if rng_state is not None:
-                try:
-                    restore_rng(rng, cast(dict[str, Any], rng_state))
-                except Exception as exc:  # pragma: no cover - defensive
-                    _logger().warning("Failed to restore RNG state from checkpoint: %s", exc)
+                restore_rng(rng, cast(dict[str, Any], rng_state))
 
             generation = int(checkpoint.get("generation", 0))
             extra = checkpoint.get("extra", {})
@@ -134,12 +131,13 @@ def initialize_run(
             if archive_x_raw is not None and archive_f_raw is not None:
                 checkpoint_archive_X = np.asarray(archive_x_raw)
                 checkpoint_archive_F = np.asarray(archive_f_raw)
+                archive_g_raw = checkpoint.get("archive_G")
+                checkpoint_archive_G = np.asarray(archive_g_raw) if archive_g_raw is not None else None
         except Exception as exc:
-            _logger().warning("Invalid checkpoint provided, reinitializing population: %s", exc)
-            X, F, G, n_eval = setup_population(problem, eval_strategy, rng, pop_size, constraint_mode, initializer_cfg)
-            generation = 0
-            step = 0
-            replacements = 0
+            raise ConfigurationError(
+                f"Cannot resume NSGA-II from the checkpoint: {exc}",
+                suggestion="Pass a checkpoint saved by an NSGA-II run with the same pop_size, or omit checkpoint.",
+            ) from exc
     else:
         X, F, G, n_eval = setup_population(problem, eval_strategy, rng, pop_size, constraint_mode, initializer_cfg)
 
@@ -178,14 +176,21 @@ def initialize_run(
     )
 
     if checkpoint_archive_X is not None and checkpoint_archive_F is not None and ext_cfg is not None:
-        try:
-            if archive_manager is not None:
-                archive_X, archive_F = archive_manager.update(checkpoint_archive_X, checkpoint_archive_F)
-            else:
-                archive_X = checkpoint_archive_X
-                archive_F = checkpoint_archive_F
-        except Exception as exc:  # pragma: no cover - defensive
-            _logger().warning("Failed to restore archive from checkpoint: %s", exc)
+        if archive_manager is not None:
+            if checkpoint_archive_G is None and G is not None and checkpoint_archive_F.shape[0]:
+                raise ConfigurationError(
+                    "Cannot resume NSGA-II from the checkpoint: its archive has no constraint values (archive_G).",
+                    suggestion="Resume from a checkpoint saved by this version, or omit checkpoint.",
+                )
+            try:
+                archive_X, archive_F = archive_manager.update(
+                    checkpoint_archive_X, checkpoint_archive_F, checkpoint_archive_G if G is not None else None
+                )
+            except ValueError as exc:
+                raise ConfigurationError(f"Cannot restore the NSGA-II archive from the checkpoint: {exc}") from exc
+        else:
+            archive_X = checkpoint_archive_X
+            archive_F = checkpoint_archive_F
 
     track_genealogy = bool(algo.cfg.get("track_genealogy", False))
     genealogy_tracker, ids = setup_genealogy(pop_size, F, track_genealogy)

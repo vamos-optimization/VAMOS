@@ -4,7 +4,9 @@ Ask/tell operations for NSGA-II.
 
 from __future__ import annotations
 
+import inspect
 import logging
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -39,6 +41,17 @@ def combine_ids(st: NSGAIIState) -> np.ndarray[Any, Any] | None:
     current_ids = st.ids if st.ids is not None else np.array([], dtype=int)
     pending_ids = st.pending_offspring_ids if st.pending_offspring_ids is not None else np.array([], dtype=int)
     return np.asarray(np.concatenate([current_ids, pending_ids]), dtype=int)
+
+
+def _accepts_three_arguments(fn: Callable[..., Any]) -> bool:
+    """Whether ``fn`` accepts ``(state, ranks, crowding)``; a callable without a signature is called that way."""
+    try:
+        inspect.signature(fn).bind(None, None, None)
+    except TypeError:
+        return False
+    except ValueError:
+        return True
+    return True
 
 
 def _coerce_parent_candidates(raw: Any, size: int) -> np.ndarray[Any, Any] | None:
@@ -185,18 +198,9 @@ def ask_nsgaii(algo: NSGAII) -> np.ndarray[Any, Any]:
     candidate_indices: np.ndarray[Any, Any] | None = None
     filter_fn = st.parent_selection_filter
     if callable(filter_fn):
-        selected_raw: Any | None = None
-        try:
-            selected_raw = filter_fn(st, ranks, crowding)
-        except TypeError:
-            try:
-                selected_raw = filter_fn(st)
-            except Exception:
-                _logger().debug("parent_selection_filter(state) failed; using default selection", exc_info=True)
-                selected_raw = None
-        except Exception:
-            _logger().debug("parent_selection_filter failed; using default selection", exc_info=True)
-            selected_raw = None
+        # ``filter(state, ranks, crowding)``, or ``filter(state)`` when it takes one argument;
+        # a filter that raises stops the run with its exception.
+        selected_raw = filter_fn(st, ranks, crowding) if _accepts_three_arguments(filter_fn) else filter_fn(st)
         selected_idx = _coerce_parent_candidates(selected_raw, st.X.shape[0])
         if selected_idx is not None and selected_idx.size > 0:
             candidate_indices = selected_idx

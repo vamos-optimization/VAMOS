@@ -16,6 +16,21 @@ before any run, and `--validate-config` reports it. VAMOS 1.1.0 and earlier
 disabled both hooks with a warning and ran the full evaluation budget without
 them.
 
+**Development after 1.1.0:** both blocks merge key by key, nested mappings
+included: first `defaults`, then the top-level block, then `problems.<name>`.
+A key set to `null` replaces the inherited value, so
+`problems.zdt1.stopping.hv_convergence: {patience: 10}` changes only `patience`.
+Problem keys are case-insensitive: `ZDT1` is `zdt1`, and two keys that differ
+only in case are an error. Each value is checked when the spec is validated,
+before any run; the values that conflict only after merging (such as
+`min_points` below `window + 2`) are checked when each problem's hooks are
+built, also before any run. In VAMOS 1.1.0 a partial problem override replaced
+the whole block, so that example turned the stop off and lost `ref_point`; a
+top-level block replaced the `defaults` one; `problems.ZDT1` was accepted but
+never applied; and misspelled or out-of-range values ran as something else
+(`statistic: medain` as the median, `epsilon_mode: relative` as `rel`,
+`confidence: 95` as 1).
+
 ## stopping.hv_convergence
 
 Enable HV-based convergence stopping driven by a hypervolume trace sampled during the run.
@@ -35,8 +50,18 @@ stopping:
     min_points: 25
     confidence: null      # e.g. 0.95 to enable bootstrap CI
     bootstrap_samples: 300
-    ref_point: [2.0, 2.0] # must match n_obj (or use "auto")
+    ref_point: [2.0, 2.0] # two values (the monitor is two-objective), or "auto"
 ```
+
+**Development after 1.1.0:** `every_k`, `patience`, `min_points` and
+`bootstrap_samples` are positive integers and `window` is an integer of at
+least 2; `epsilon` is a finite number `>= 0`; `epsilon_mode` is `abs` or `rel`
+and `statistic` is `mean`, `median` or `min`; `confidence` is `null` or
+strictly between 0 and 1; `enabled` is `true` or `false`; and `ref_point` is
+`auto` or two finite numbers. PyYAML reads a float without a dot, such as
+`1e-4`, as a string, so `epsilon` and `confidence` also accept a string that
+is a number. In VAMOS 1.1.0 a `ref_point` without two values made every HV
+sample fail silently, and the stop never triggered.
 
 Canonical record:
 
@@ -77,7 +102,7 @@ archive:
     hv_ref_point: null         # optional; hv-based policies use a relative reference without it
     rng_seed: 0
     objective_tolerance: 0.0
-    deduplicate_in: objective  # objective|decision|both
+    deduplicate_in: objective  # the only value the hook archive accepts
     decision_tolerance: 1.0e-32
 ```
 
@@ -89,8 +114,21 @@ Notes:
 
 - Set a finite `capacity` explicitly; the hook parser defaults to 200. It does
   not inherit population size from a tuning space.
+  **Development after 1.1.0:** `capacity: null` keeps every non-dominated
+  objective vector; VAMOS 1.1.0 rejected it.
 - The hook stores objective vectors, not a decision-aligned result archive.
-  Use `deduplicate_in: objective` for this observation workflow.
+  **Development after 1.1.0:** `deduplicate_in` must therefore be `objective`;
+  `decision` and `both` are rejected when the spec is validated. VAMOS 1.1.0
+  accepted them and the run aborted with an `IndexError` at the first archive
+  update.
+- **Development after 1.1.0:** `capacity` and `truncate_size` are positive
+  integers (not `true` or `10.7`), `rng_seed` is an integer, the tolerances are
+  finite numbers `>= 0` and `hv_ref_point` is a list of finite numbers. The same
+  rules apply to `ExternalArchiveConfig` in Python, which also warns about a
+  field that the chosen pruning does not use: `hv_ref_point` without HV
+  pruning, `rng_seed` without `ref_dirs`, or a pruning other than `crowding`
+  without a `capacity`. VAMOS 1.1.0 truncated `10.7` to 10, read `true` as 1 and
+  failed at the first duplicate with a `NaN` tolerance.
 - `objective_tolerance` is an absolute Chebyshev distance: two objective
   vectors within that distance count as duplicates and only the first is kept. Set it
   in objective units, if at all.

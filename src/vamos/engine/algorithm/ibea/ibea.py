@@ -126,9 +126,11 @@ class IBEA:
         st = self._st
         if st is None:
             raise RuntimeError("State not initialized")
+        # Generation 0 is the evaluated initial population, as in every algorithm.
+        live_cb.on_generation(0, F=st.F, stats={"evals": st.n_eval})
 
         hv_reached = False
-        stop_requested = False
+        stop_requested = live_should_stop(live_cb)
         while st.n_eval < max_eval and not stop_requested:
             # Generate offspring
             X_off = self._generate_offspring(st)
@@ -239,6 +241,7 @@ class IBEA:
         self._problem = problem
         if self._st is not None:
             self._st.pending_offspring = None
+            self._live_cb.on_generation(0, F=self._st.F, stats={"evals": self._st.n_eval})
 
     def ask(self) -> np.ndarray[Any, Any]:
         """Generate offspring for evaluation.

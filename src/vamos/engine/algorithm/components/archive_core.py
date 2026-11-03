@@ -247,6 +247,12 @@ class _BaseArchive:
     def contents(self) -> tuple[DecisionArray, FloatArray]:
         return self._snapshot()
 
+    def constraint_values(self) -> FloatArray | None:
+        """Constraint values of the archived rows, aligned with ``contents()``, or ``None`` without constraints."""
+        if self._G is None:
+            return None
+        return self._G[: self._size].copy()
+
     def _snapshot(self) -> tuple[DecisionArray, FloatArray]:
         return self._X[: self._size].copy(), self._F[: self._size].copy()
 
@@ -258,6 +264,11 @@ class _BaseArchive:
     ) -> tuple[DecisionArray, FloatArray, FloatArray | None]:
         if self._size == 0:
             return pop_X, pop_F, pop_G
+        if (self._G is None) != (pop_G is None):
+            # Filling the missing side with zeros would count those rows as feasible.
+            held = "holds constraint values" if self._G is not None else "holds no constraint values"
+            given = "without" if pop_G is None else "with"
+            raise ValueError(f"The archive {held}; it cannot take rows {given} constraint values.")
 
         total = self._size + pop_X.shape[0]
         X_comb = np.empty((total, self._n_var), dtype=self._dtype)
@@ -281,11 +292,10 @@ class _BaseArchive:
         if pop_G is not None and pop_G.shape[1] != n_con:
             raise ValueError("population_G has an incompatible number of constraint columns.")
 
-        G_comb = np.zeros((total, n_con), dtype=float)
-        if self._G is not None and self._size > 0:
-            G_comb[: self._size] = self._G[: self._size]
-        if pop_G is not None:
-            G_comb[self._size :] = pop_G
+        assert self._G is not None and pop_G is not None
+        G_comb = np.empty((total, n_con), dtype=float)
+        G_comb[: self._size] = self._G[: self._size]
+        G_comb[self._size :] = pop_G
         return X_comb, F_comb, G_comb
 
     @staticmethod
