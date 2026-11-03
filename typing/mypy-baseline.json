@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "8b236f5e3940cd13f7f14b688b22b06fe1d9c8f2",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 8b236f5e3940cd13f7f14b688b22b06fe1d9c8f2",
+  "generation_commit": "f95660636aa9a51d17501f7dade87921013276b1",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit f95660636aa9a51d17501f7dade87921013276b1",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.1",
@@ -26,16 +26,16 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 384,
-  "files_with_diagnostics": 60,
-  "fingerprint_count": 60,
+  "diagnostic_count": 379,
+  "files_with_diagnostics": 59,
+  "fingerprint_count": 59,
   "error_code_summary": {
-    "type-arg": 384
+    "type-arg": 379
   },
   "layer_summary": {
     "engine": 188,
     "experiment": 11,
-    "foundation": 167,
+    "foundation": 162,
     "package-root": 1,
     "ux": 17
   },
@@ -1016,36 +1016,6 @@
         {
           "line": 17,
           "column": 6
-        }
-      ]
-    },
-    {
-      "fingerprint": "693A549B3C4BFEA8BC016B2FE8382CC5926D53B735D10BD008BC1C5C1FF93273",
-      "path": "src/vamos/foundation/checkpoint.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "foundation",
-      "multiplicity": 5,
-      "locations": [
-        {
-          "line": 20,
-          "column": 8
-        },
-        {
-          "line": 21,
-          "column": 8
-        },
-        {
-          "line": 25,
-          "column": 8
-        },
-        {
-          "line": 26,
-          "column": 16
-        },
-        {
-          "line": 27,
-          "column": 16
         }
       ]
     },
