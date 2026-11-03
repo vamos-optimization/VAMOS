@@ -2,20 +2,33 @@
 
 from __future__ import annotations
 
+import logging
 import os
+import traceback
 from collections.abc import Callable, Mapping
 from dataclasses import replace
 from pathlib import Path
 from typing import Any, Protocol
 
+from vamos.experiment.artifacts.errors import RunArtifactError, sanitized_message
 from vamos.experiment.artifacts.jsonio import canonical_json_bytes
 from vamos.experiment.artifacts.models import StoredRun, deep_freeze, deep_thaw
 from vamos.experiment.artifacts.persistence import load_run, save_failed_execution, save_result
 from vamos.experiment.artifacts.verification import verify_run
+from vamos.foundation.exceptions import ConfigurationError, EvaluationError, ProblemError, VAMOSError
 
 from .commits import append_event, checkpoint_attempt, checkpoint_manifest, checkpoint_task, now_utc, run_reference
-from .errors import StudyRunPublicationError, StudyRunVerificationError
+from .errors import StudyError, StudyRunPublicationError, StudyRunVerificationError
 from .models import AttemptRecord, PlanTask, StudyEvent, StudyManifest, TaskRecord
+
+# Prefix of the EvaluationError that vamos.foundation.eval raises for non-finite or misshaped outputs.
+_INVALID_EVALUATION_OUTPUT = "Problem evaluation wrote "
+# Errors whose text VAMOS controls.
+_VAMOS_ERRORS = (VAMOSError, RunArtifactError, StudyError)
+
+
+def _logger() -> logging.Logger:
+    return logging.getLogger(__name__)
 
 
 class ExecutionState(Protocol):
@@ -117,6 +130,16 @@ def commit_task_failure(
     """Persist one verified failed run and its terminal task evidence."""
     completed_at = now_utc()
     failure = _attempt_failure(exc, objective_began)
+    # Logs follow the same rule as the records: the sanitized message and where each exception was raised,
+    # never the exception itself, whose text and chain a handler would print verbatim.
+    _logger().error(
+        "Study %s task %s attempt %s failed: %s Raised at: %s",
+        state.study_id,
+        task.task_id,
+        attempt.attempt_id,
+        failure["message"],
+        _raise_sites(exc),
+    )
     run_root = state.root / "runs" / run_id
     try:
         stored = save_failed_execution(
@@ -130,6 +153,8 @@ def commit_task_failure(
                 "message": failure["message"],
                 "traceback": None,
                 "optimization_executed": objective_began,
+                # Read back when reconciliation recovers this run without the attempt's failure event.
+                "retryable": failure["retryable"],
             },
             outcome=_failed_outcome(plan_task, objective_began),
             timestamps={"started_at": started_at, "completed_at": completed_at},
@@ -218,18 +243,72 @@ def _validate_published_run(stored: StoredRun, bundle_status: str, task: PlanTas
         raise ValueError("published run identity, status, resolved spec, or required arrays differ")
 
 
+def _is_deterministic_failure(exc: Exception) -> bool:
+    """Failures that the same resolved task would repeat, so retry cannot help (StudyManifest contract, retry policy)."""
+    if isinstance(exc, (ConfigurationError, ProblemError)):
+        return True
+    # The evaluation wrote invalid objectives or constraints (non-finite values or a wrong shape).
+    return isinstance(exc, EvaluationError) and str(exc).startswith(_INVALID_EVALUATION_OUTPUT)
+
+
+def _raise_sites(exc: BaseException, *, frames: int = 3, depth: int = 4) -> str:
+    """Where ``exc`` and its causes were raised: exception types, file names, lines and functions.
+
+    No exception text and no directories, so nothing uncontrolled or personal reaches the log.
+    """
+    sites: list[str] = []
+    current: BaseException | None = exc
+    while current is not None and len(sites) < depth:
+        stack = traceback.extract_tb(current.__traceback__)[-frames:]
+        where = " < ".join(f"{Path(frame.filename).name}:{frame.lineno} in {frame.name}" for frame in reversed(stack))
+        sites.append(f"{type(current).__name__} at {where or 'an unknown location'}")
+        current = current.__cause__ or (None if current.__suppress_context__ else current.__context__)
+    return "; caused by ".join(sites)
+
+
+def _foreign_causes(exc: BaseException) -> list[str]:
+    """Types of the non-VAMOS exceptions in the cause or context chain of ``exc``."""
+    names: list[str] = []
+    seen: set[int] = set()
+    current = exc.__cause__ or (None if exc.__suppress_context__ else exc.__context__)
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if not isinstance(current, _VAMOS_ERRORS):
+            names.append(type(current).__name__)
+        current = current.__cause__ or (None if current.__suppress_context__ else current.__context__)
+    return names
+
+
+def _failure_message(exc: Exception) -> str:
+    """The cause to persist: the sanitized text of VAMOS's own errors, only the type of any other exception.
+
+    The text of other exceptions is not controlled by VAMOS and may carry credentials, tokens or personal
+    paths, which the StudyManifest contract and AGENTS.md keep out of records and logs; the executing
+    process logs where it was raised instead. A VAMOS error raised from such an exception may quote it,
+    so only its type, its typed ``field`` and the types of the exceptions it wraps are kept.
+    """
+    unrecorded = "neither recorded nor logged (not a VAMOS error); the log of the executing process names where it was raised."
+    if not isinstance(exc, _VAMOS_ERRORS):
+        return f"{type(exc).__name__}; its message is {unrecorded}"
+    foreign = _foreign_causes(exc)
+    if not foreign:
+        return f"{type(exc).__name__}: {sanitized_message(exc)}"
+    field = getattr(exc, "field", None)
+    where = f" (field {field})" if isinstance(field, str) and field else ""
+    return f"{type(exc).__name__}{where}, raised from {', '.join(foreign)}; its message is {unrecorded}"
+
+
 def _attempt_failure(exc: Exception, objective_began: bool) -> dict[str, Any]:
-    del exc
-    phase = "objective evaluation" if objective_began else "resolved-spec reconstruction"
+    retryable = objective_began and not _is_deterministic_failure(exc)
     return {
-        "category": "execution" if objective_began else "configuration",
+        "category": "execution" if retryable else "configuration",
         "code": "OBJECTIVE_EXECUTION_FAILED" if objective_began else "RESOLVED_SPEC_RECONSTRUCTION_FAILED",
-        "message": f"Built-in task {phase} failed; inspect the chained exception in the current process.",
-        "retryable": objective_began,
+        "message": _failure_message(exc),
+        "retryable": retryable,
         "safe_action": (
             "Correct the transient execution cause, then explicitly retry this task."
-            if objective_began
-            else "Create a new study after correcting the deterministic resolved configuration."
+            if retryable
+            else "Create a new study after correcting the deterministic cause; a retry would repeat it."
         ),
     }
 

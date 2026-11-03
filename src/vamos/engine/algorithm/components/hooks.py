@@ -8,6 +8,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vamos.engine.algorithm.components.matching import match_ids_by_tolerance
 
@@ -21,6 +22,10 @@ if TYPE_CHECKING:
     from vamos.engine.hooks.genealogy import GenealogyTracker
     from vamos.engine.hooks.live_viz import LiveVisualization
     from vamos.foundation.kernel.backend import KernelBackend
+
+FloatArray = NDArray[np.float64]
+IntArray = NDArray[np.int_]
+AnyArray = NDArray[np.generic]
 
 
 def get_live_viz(
@@ -48,11 +53,14 @@ def notify_generation(
     live_cb: LiveVisualization,
     kernel: KernelBackend,
     generation: int,
-    F: np.ndarray,
+    F: FloatArray,
     stats: dict[str, Any] | None = None,
 ) -> bool:
     """
-    Notify live visualization of generation progress.
+    Notify live visualization of generation progress with the non-dominated rows of ``F``.
+
+    An exception raised by the callback, or by its ``should_stop``, propagates to the
+    caller; only a failure to rank ``F`` falls back to notifying all its rows.
 
     Parameters
     ----------
@@ -79,30 +87,29 @@ def notify_generation(
 
     try:
         ranks, _ = kernel.nsga2_ranking(F)
-        nd_mask = ranks == ranks.min(initial=0)
-        live_cb.on_generation(generation, F=F[nd_mask], stats=stats)
     except (ValueError, IndexError) as exc:
         _logger().debug("Failed to compute non-dominated front for viz: %s", exc)
-        live_cb.on_generation(generation, F=F, stats=stats)
+        front = F
+    else:
+        front = F[ranks == ranks.min(initial=0)]
+    live_cb.on_generation(generation, F=front, stats=stats)
     return live_should_stop(live_cb)
 
 
 def live_should_stop(live_cb: LiveVisualization) -> bool:
+    """Whether the callback's optional ``should_stop`` asks to stop; its exceptions propagate."""
     should_stop = getattr(live_cb, "should_stop", None)
     if not callable(should_stop):
         return False
-    try:
-        return bool(should_stop())
-    except Exception:
-        return False
+    return bool(should_stop())
 
 
 def setup_genealogy(
     pop_size: int,
-    F: np.ndarray,
+    F: AnyArray,
     track_genealogy: bool,
     algorithm_name: str = "algorithm",
-) -> tuple[GenealogyTracker | None, np.ndarray | None]:
+) -> tuple[GenealogyTracker | None, IntArray | None]:
     """
     Initialize genealogy tracking if enabled.
 
@@ -142,7 +149,7 @@ def setup_genealogy(
 
 def track_offspring_genealogy(
     state: AlgorithmState,
-    parent_idx: np.ndarray,
+    parent_idx: IntArray,
     offspring_count: int,
     operator_name: str = "variation",
     algorithm_name: str = "algorithm",
@@ -228,10 +235,10 @@ def finalize_genealogy(
 
 
 def match_ids(
-    new_X: np.ndarray,
-    combined_X: np.ndarray,
-    combined_ids: np.ndarray,
-) -> np.ndarray:
+    new_X: AnyArray,
+    combined_X: AnyArray,
+    combined_ids: IntArray,
+) -> IntArray:
     """
     Match IDs after survival selection by finding matching rows.
 

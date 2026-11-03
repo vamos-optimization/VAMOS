@@ -5,15 +5,24 @@ import json
 import logging
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, NoReturn
 
 from vamos.experiment.benchmark.report import BenchmarkReport, BenchmarkReportConfig
-from vamos.experiment.benchmark.runner import load_benchmark_result, run_benchmark_suite
+from vamos.experiment.benchmark.runner import (
+    load_benchmark_result,
+    run_benchmark_suite,
+    validate_config_overrides,
+    write_benchmark_summary,
+)
 from vamos.experiment.benchmark.suites import BenchmarkSuite, get_benchmark_suite
+from vamos.experiment.study.errors import InvalidStudySpecError, StudyOutputCollisionError, UnresolvedStudyTaskError
 
 _SMOKE_POP_SIZE = 8
 _SMOKE_BUDGET = 24
 _SMOKE_SEED = 0
+# Exit codes: 2 for a usage or configuration error, 5 for an occupied output path (as `vamos study create`).
+_USAGE_EXIT = 2
+_COLLISION_EXIT = 5
 
 
 def _logger() -> logging.Logger:
@@ -42,9 +51,18 @@ def _load_config(path: str | None) -> dict[str, Any]:
         except ImportError as exc:  # pragma: no cover - optional dep
             raise ImportError("PyYAML is required to read YAML configs.") from exc
         with cfg_path.open("r", encoding="utf-8") as fh:
-            return cast(dict[str, Any], yaml.safe_load(fh) or {})
-    with cfg_path.open("r", encoding="utf-8") as fh:
-        return cast(dict[str, Any], json.load(fh))
+            try:
+                data = yaml.safe_load(fh)
+            except yaml.YAMLError as exc:
+                raise ValueError(f"Config file '{cfg_path}' is not valid YAML: {exc}") from exc
+    else:
+        with cfg_path.open("r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    if data is None:
+        return {}
+    if not isinstance(data, dict):
+        raise ValueError(f"Config file '{cfg_path}' must hold a mapping of overrides, not {type(data).__name__}.")
+    return data
 
 
 def _apply_smoke_mode(suite: BenchmarkSuite, overrides: dict[str, Any]) -> tuple[BenchmarkSuite, dict[str, Any]]:
@@ -70,20 +88,34 @@ def _apply_smoke_mode(suite: BenchmarkSuite, overrides: dict[str, Any]) -> tuple
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run benchmark suites and generate paper-ready reports.")
+    parser = argparse.ArgumentParser(prog="vamos bench", description="Run benchmark suites and generate paper-ready reports.")
     parser.add_argument("suite", help="Benchmark suite name (see list with --list).", nargs="?")
     parser.add_argument("--list", action="store_true", help="List available benchmark suites.")
     parser.add_argument("--algorithms", nargs="+", help="Algorithms to run (default: suite defaults).")
     parser.add_argument("--metrics", nargs="+", help="Metrics to compute (default: suite defaults).")
     parser.add_argument("--output", required=False, help="Output directory for reports and runs.")
-    parser.add_argument("--config", help="JSON/YAML with ExperimentConfig overrides (population size, budgets, etc.).")
-    parser.add_argument("--only-report", action="store_true", help="Skip execution and regenerate reports from existing outputs.")
+    parser.add_argument(
+        "--config",
+        help=(
+            "JSON/YAML mapping of overrides: population_size, offspring_population_size, max_evaluations, seeds, "
+            "engine and eval_strategy. Other keys are rejected."
+        ),
+    )
+    parser.add_argument(
+        "--only-report",
+        action="store_true",
+        help="Skip execution and regenerate summary/metrics.csv and the reports from existing outputs.",
+    )
     parser.add_argument(
         "--smoke",
         action="store_true",
         help="Run a tiny benchmark slice (first experiment, one seed, small population/budget) for fast verification.",
     )
     return parser
+
+
+def _fail(parser: argparse.ArgumentParser, code: int, message: str) -> NoReturn:
+    parser.exit(code, f"{parser.prog}: error: {message}\n")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -97,20 +129,26 @@ def main(argv: list[str] | None = None) -> int:
         _logger().info("Available benchmark suites: %s", ", ".join(list_benchmark_suites()))
         return 0
 
-    suite = get_benchmark_suite(args.suite)
+    try:
+        suite = get_benchmark_suite(args.suite)
+    except KeyError as exc:
+        parser.error(str(exc.args[0]) if exc.args else f"Unknown benchmark suite '{args.suite}'.")
     algorithms = args.algorithms or suite.default_algorithms
     metrics = args.metrics or suite.default_metrics
     if not args.output:
         parser.error("--output is required unless --list is used.")
     base_output_dir = Path(args.output).expanduser().resolve()
-    overrides = _load_config(args.config)
+    try:
+        overrides = validate_config_overrides(_load_config(args.config))
+    except (OSError, ValueError) as exc:
+        parser.error(f"--config: {exc}")
     if args.smoke:
         suite, overrides = _apply_smoke_mode(suite, overrides)
         _logger().info(
             "[Benchmark] Smoke mode enabled: suite=%s, experiment=%s, seeds=%s, population_size=%s.",
             suite.name,
             suite.experiments[0].problem_name if suite.experiments else "-",
-            suite.experiments[0].seeds if suite.experiments else [],
+            overrides.get("seeds", suite.experiments[0].seeds if suite.experiments else []),
             overrides.get("population_size"),
         )
 
@@ -121,14 +159,22 @@ def main(argv: list[str] | None = None) -> int:
             metrics=metrics,
             base_output_dir=base_output_dir,
         )
+        if not result.studies:
+            _fail(parser, _USAGE_EXIT, f"No benchmark studies of suite '{suite.name}' under {base_output_dir}; run the suite first.")
+        write_benchmark_summary(result)
     else:
-        result = run_benchmark_suite(
-            suite=suite,
-            algorithms=algorithms,
-            metrics=metrics,
-            base_output_dir=base_output_dir,
-            global_config_overrides=overrides,
-        )
+        try:
+            result = run_benchmark_suite(
+                suite=suite,
+                algorithms=algorithms,
+                metrics=metrics,
+                base_output_dir=base_output_dir,
+                global_config_overrides=overrides,
+            )
+        except StudyOutputCollisionError as exc:
+            _fail(parser, _COLLISION_EXIT, str(exc))
+        except (InvalidStudySpecError, UnresolvedStudyTaskError) as exc:
+            _fail(parser, _USAGE_EXIT, str(exc))
 
     report_output = base_output_dir / "summary"
     report = BenchmarkReport(
