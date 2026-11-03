@@ -178,13 +178,11 @@ class RVEA:
         backend = eval_strategy or SerialEvalBackend()
 
         assert self._st is not None
-        stop_requested = False
-        while not self.should_terminate():
+        stop_requested = live_should_stop(self._live_cb) if self._live_cb is not None else False
+        while not stop_requested and not self.should_terminate():
             X_off = self.ask()
             eval_result = backend.evaluate(X_off, problem)
             stop_requested = self.tell(eval_result)
-            if stop_requested:
-                break
 
         return self.result()
 
@@ -319,6 +317,8 @@ class RVEA:
                 engine_name=str(self.kernel.name),
             )
         )
+        # Generation 0 is the evaluated initial population, as in every algorithm.
+        live_cb.on_generation(0, F=self._st.F, stats={"evals": self._st.n_eval})
 
     def ask(self) -> np.ndarray[Any, Any]:
         """Generate offspring for external evaluation.
@@ -423,7 +423,8 @@ class RVEA:
         st.pending_offspring = None
         st.generation += 1
         if self._live_cb is not None:
-            self._live_cb.on_generation(st.generation, F=st.F, stats={"evals": st.n_eval})
+            # ``st.generation`` starts at 1 for the APD penalty; callbacks count completed generations.
+            self._live_cb.on_generation(st.generation - 1, F=st.F, stats={"evals": st.n_eval})
             return live_should_stop(self._live_cb)
         return False
 

@@ -1,5 +1,8 @@
 """
 Plot helpers for benchmark reporting.
+
+Figures are built with ``matplotlib.figure.Figure`` and never through ``pyplot``, so writing a
+report leaves the process-wide matplotlib backend and figure registry untouched.
 """
 
 from __future__ import annotations
@@ -8,25 +11,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-_MATPLOTLIB_CACHE: tuple[Any | None, Any | None] | None = None
-
 from vamos.ux.analysis.stats import plot_critical_distance
-
-
-def _load_matplotlib() -> tuple[Any | None, Any | None]:
-    global _MATPLOTLIB_CACHE
-    if _MATPLOTLIB_CACHE is not None:
-        return _MATPLOTLIB_CACHE
-    try:  # pragma: no cover - optional heavy dep
-        import matplotlib
-
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-    except Exception:  # pragma: no cover
-        _MATPLOTLIB_CACHE = (None, None)
-    else:
-        _MATPLOTLIB_CACHE = (matplotlib, plt)
-    return _MATPLOTLIB_CACHE
 
 
 def generate_plots(
@@ -38,8 +23,9 @@ def generate_plots(
     output_dir: Path,
     higher_is_better: Callable[[str], bool],
 ) -> dict[str, list[Path]]:
-    _, plt = _load_matplotlib()
-    if plt is None:
+    try:  # pragma: no cover - optional heavy dep
+        from matplotlib.figure import Figure
+    except ImportError:  # pragma: no cover
         return {}
     plots_dir = Path(output_dir)
     plots_dir.mkdir(parents=True, exist_ok=True)
@@ -51,7 +37,8 @@ def generate_plots(
         if fried and getattr(fried, "p_value", 1.0) is not None and fried.p_value < alpha:
             pivot_mean = payload.get("pivot_mean")
             if pivot_mean is not None:
-                fig, ax = plt.subplots()
+                fig = Figure()
+                ax = fig.add_subplot(111)
                 plot_critical_distance(
                     avg_ranks=fried.avg_ranks,
                     algo_names=list(pivot_mean.columns),
@@ -64,22 +51,23 @@ def generate_plots(
                 cd_path = plots_dir / f"cd_{metric}.pdf"
                 fig.tight_layout()
                 fig.savefig(cd_path)
-                plt.close(fig)
                 metric_paths.append(cd_path)
         dfm = tidy[tidy["metric"] == metric]
         problems = sorted(dfm["problem"].unique())
         for problem in problems:
             subset = dfm[dfm["problem"] == problem]
-            fig, ax = plt.subplots()
-            data = [subset[subset["algorithm"] == alg]["value"].dropna().values for alg in subset["algorithm"].unique()]
+            fig = Figure()
+            ax = fig.add_subplot(111)
             labels = list(subset["algorithm"].unique())
-            ax.boxplot(data, tick_labels=labels, patch_artist=True)
+            data = [subset[subset["algorithm"] == alg]["value"].dropna().values for alg in labels]
+            ax.boxplot(data, patch_artist=True)
+            # Label the ticks separately: the boxplot keyword changed name in matplotlib 3.9.
+            ax.set_xticks(range(1, len(labels) + 1), labels)
             ax.set_title(f"{metric} | {problem}")
             ax.set_ylabel(metric)
             fig.tight_layout()
             path = plots_dir / f"boxplot_{metric}_{problem}.pdf"
             fig.savefig(path)
-            plt.close(fig)
             metric_paths.append(path)
         if metric_paths:
             created[metric] = metric_paths

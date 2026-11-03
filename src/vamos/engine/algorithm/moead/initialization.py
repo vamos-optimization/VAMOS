@@ -8,13 +8,13 @@ weight vectors, neighborhoods, and other setup tasks.
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 from numpy.typing import NDArray
 
+from vamos.engine.algorithm.components.evaluation import extract_evaluation_arrays
 from vamos.engine.algorithm.components.hooks import get_live_viz, setup_genealogy
 from vamos.engine.algorithm.components.lifecycle import get_eval_strategy
 from vamos.engine.algorithm.components.metrics import setup_hv_tracker
@@ -30,6 +30,7 @@ from vamos.foundation.checkpoint import restore_rng
 from vamos.foundation.constraints.utils import compute_violation
 from vamos.foundation.encoding import EncodingLike, normalize_encoding
 from vamos.foundation.eval.population import evaluate_population_with_constraints
+from vamos.foundation.exceptions import ConfigurationError
 
 from .helpers import build_aggregator, compute_neighbors, resolve_aggregation_spec
 from .state import MOEADState
@@ -41,10 +42,6 @@ if TYPE_CHECKING:
     from vamos.foundation.problem.types import ProblemProtocol
 from vamos.engine.hooks.live_viz import LiveVisualization
 from vamos.foundation.observer import RunContext
-
-
-def _logger() -> logging.Logger:
-    return logging.getLogger(__name__)
 
 
 def initialize_moead_run(
@@ -97,22 +94,25 @@ def initialize_moead_run(
     ideal_override: NDArray[np.generic] | None = None
     checkpoint_archive_X: NDArray[np.generic] | None = None
     checkpoint_archive_F: NDArray[np.generic] | None = None
+    checkpoint_archive_G: NDArray[np.generic] | None = None
 
     if checkpoint is not None:
+        # A checkpoint that cannot be restored is an error: silently starting over would
+        # present a fresh run as a continuation.
         try:
             X = np.asarray(checkpoint["X"])
-            F = np.asarray(checkpoint["F"])
-            if X.ndim != 2 or F.ndim != 2:
-                raise ValueError("Checkpoint X and F must be 2D arrays.")
-            if X.shape[0] != pop_size:
-                raise ValueError(f"Checkpoint pop_size={X.shape[0]} does not match config pop_size={pop_size}.")
-            if F.shape[0] != X.shape[0]:
-                raise ValueError("Checkpoint F row count must match X.")
-
-            G_raw = checkpoint.get("G")
-            G = np.asarray(G_raw) if G_raw is not None else None
-            if constraint_mode == "none":
-                G = None
+            if X.ndim != 2 or X.shape != (pop_size, n_var):
+                raise ValueError(f"Checkpoint X has shape {X.shape}; expected ({pop_size}, {n_var}).")
+            # The population's F and G follow the rules of an evaluation handed to tell():
+            # a constrained problem needs G, so its infeasible rows cannot come back as feasible.
+            F, G = extract_evaluation_arrays(
+                {"F": checkpoint["F"], "G": checkpoint.get("G")},
+                constraint_mode,
+                int(getattr(problem, "n_constraints", 0) or 0),
+                algorithm="MOEA/D checkpoint",
+                n_rows=pop_size,
+                n_obj=n_obj,
+            )
 
             n_eval = int(checkpoint.get("n_eval", X.shape[0]))
             if n_eval < X.shape[0]:
@@ -120,10 +120,7 @@ def initialize_moead_run(
 
             rng_state = checkpoint.get("rng_state")
             if rng_state is not None:
-                try:
-                    restore_rng(rng, cast(dict[str, Any], rng_state))
-                except Exception as exc:  # pragma: no cover - defensive
-                    _logger().warning("Failed to restore RNG state from checkpoint: %s", exc)
+                restore_rng(rng, cast(dict[str, Any], rng_state))
 
             generation = int(checkpoint.get("generation", 0))
             extra = checkpoint.get("extra", {})
@@ -131,18 +128,19 @@ def initialize_moead_run(
                 order_raw = extra.get("subproblem_order")
                 if order_raw is not None:
                     subproblem_order = np.asarray(order_raw, dtype=int)
-                    if subproblem_order.ndim != 1 or subproblem_order.shape[0] != pop_size:
-                        subproblem_order = rng.permutation(pop_size).astype(int, copy=False)
+                    if subproblem_order.ndim != 1 or not np.array_equal(np.sort(subproblem_order), np.arange(pop_size)):
+                        raise ValueError(f"Checkpoint subproblem_order is not a permutation of {pop_size} subproblems.")
                 else:
                     subproblem_order = rng.permutation(pop_size).astype(int, copy=False)
                 subproblem_cursor = int(extra.get("subproblem_cursor", 0))
-                if subproblem_cursor < 0 or subproblem_cursor >= pop_size:
-                    subproblem_cursor = 0
+                # A cursor equal to pop_size means the order is used up: the next step draws a new one.
+                if subproblem_cursor < 0 or subproblem_cursor > pop_size:
+                    raise ValueError(f"Checkpoint subproblem_cursor={subproblem_cursor} is outside [0, {pop_size}].")
                 ideal_raw = extra.get("ideal")
                 if ideal_raw is not None:
                     ideal_override = np.asarray(ideal_raw, dtype=float)
                     if ideal_override.ndim != 1 or ideal_override.shape[0] != n_obj:
-                        ideal_override = None
+                        raise ValueError(f"Checkpoint ideal point has shape {ideal_override.shape}; expected ({n_obj},).")
             else:
                 subproblem_order = rng.permutation(pop_size).astype(int, copy=False)
 
@@ -151,23 +149,13 @@ def initialize_moead_run(
             if archive_x_raw is not None and archive_f_raw is not None:
                 checkpoint_archive_X = np.asarray(archive_x_raw)
                 checkpoint_archive_F = np.asarray(archive_f_raw)
+                archive_g_raw = checkpoint.get("archive_G")
+                checkpoint_archive_G = np.asarray(archive_g_raw) if archive_g_raw is not None else None
         except Exception as exc:
-            _logger().warning("Invalid checkpoint provided, reinitializing population: %s", exc)
-            X, F, G, n_eval = initialize_population(
-                encoding,
-                pop_size,
-                n_var,
-                xl,
-                xu,
-                rng,
-                problem,
-                constraint_mode,
-                initializer=cfg.get("initializer"),
-                max_evaluations=max_eval,
-            )
-            generation = 0
-            subproblem_order = rng.permutation(pop_size).astype(int, copy=False)
-            subproblem_cursor = 0
+            raise ConfigurationError(
+                f"Cannot resume MOEA/D from the checkpoint: {exc}",
+                suggestion="Pass a checkpoint saved by a MOEA/D run with the same pop_size, or omit checkpoint.",
+            ) from exc
     else:
         X, F, G, n_eval = initialize_population(
             encoding,
@@ -281,13 +269,20 @@ def initialize_moead_run(
     state.generation = generation
 
     if checkpoint_archive_X is not None and checkpoint_archive_F is not None and ext_cfg:
-        try:
-            if state.archive_manager is not None:
-                state.archive_X, state.archive_F = state.archive_manager.update(checkpoint_archive_X, checkpoint_archive_F)
-            else:
-                state.archive_X, state.archive_F = checkpoint_archive_X, checkpoint_archive_F
-        except Exception as exc:  # pragma: no cover - defensive
-            _logger().warning("Failed to restore archive from checkpoint: %s", exc)
+        if state.archive_manager is not None:
+            if checkpoint_archive_G is None and state.G is not None and checkpoint_archive_F.shape[0]:
+                raise ConfigurationError(
+                    "Cannot resume MOEA/D from the checkpoint: its archive has no constraint values (archive_G).",
+                    suggestion="Resume from a checkpoint saved by this version, or omit checkpoint.",
+                )
+            try:
+                state.archive_X, state.archive_F = state.archive_manager.update(
+                    checkpoint_archive_X, checkpoint_archive_F, checkpoint_archive_G if state.G is not None else None
+                )
+            except ValueError as exc:
+                raise ConfigurationError(f"Cannot restore the MOEA/D archive from the checkpoint: {exc}") from exc
+        else:
+            state.archive_X, state.archive_F = checkpoint_archive_X, checkpoint_archive_F
 
     return state, live_cb, eval_strategy, max_eval, hv_tracker
 
