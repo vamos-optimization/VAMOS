@@ -1,23 +1,23 @@
 from __future__ import annotations
 
 import argparse
-import json
+import os
 import sys
 from collections.abc import Mapping, Sequence
-from datetime import datetime
-from pathlib import Path
+from functools import partial
 
 from vamos.engine.algorithm.catalog import ENABLED_ALGORITHMS
 from vamos.engine.config.spec import EXPERIMENT_SPEC_VERSION
+from vamos.experiment.artifacts.errors import RunArtifactError
 from vamos.experiment.presentation import run_experiments_from_args
-from vamos.experiment.runner_utils import problem_output_dir, run_output_dir
-from vamos.experiment.runtime.catalog import EXPERIMENT_BACKENDS, resolve_engine
+from vamos.experiment.runner_utils import problem_output_dir
+from vamos.experiment.runtime.catalog import EXPERIMENT_BACKENDS
 from vamos.foundation.core.experiment_config import ExperimentConfig
-from vamos.foundation.core.io_utils import ensure_dir
 from vamos.foundation.problem.registry import available_problem_names, make_problem_selection
 
 from .parser import parse_args
 from .preflight import run_preflight_checks
+from .quickstart_output import _latest_plot_path, _summary, _write_spec_data, free_seed, run_destination
 from .quickstart_templates import (
     QuickstartTemplate,
     extra_hint,
@@ -26,6 +26,7 @@ from .quickstart_templates import (
     missing_extras,
     template_keys,
 )
+from .run_artifact_cli import run_artifact_exit_code
 
 DEFAULT_QUICKSTART_OUTPUT_ROOT = "results/quickstart"
 
@@ -204,77 +205,6 @@ def _pick_plot(plot: bool, *, interactive: bool) -> bool:
     return True
 
 
-def _write_spec(
-    *,
-    title: str,
-    problem: str,
-    algorithm: str,
-    engine: str,
-    budget: int,
-    pop_size: int,
-    seed: int,
-    output_root: str,
-    plot: bool,
-    config_path: str | None,
-) -> Path:
-    spec: dict[str, object] = {
-        "version": EXPERIMENT_SPEC_VERSION,
-        "defaults": {
-            "title": title,
-            "problem": problem,
-            "algorithm": algorithm,
-            "engine": engine,
-            "max_evaluations": budget,
-            "population_size": pop_size,
-            "seed": seed,
-            "output_root": output_root,
-            "plot": plot,
-        },
-    }
-    return _write_spec_data(spec=spec, output_root=output_root, config_path=config_path)
-
-
-def _write_spec_data(*, spec: Mapping[str, object], output_root: str, config_path: str | None) -> Path:
-    ensure_dir(output_root)
-    if config_path:
-        path = Path(config_path)
-        ensure_dir(path.parent)
-    else:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        path = Path(output_root) / f"quickstart_{timestamp}.json"
-    path.write_text(json.dumps(dict(spec), indent=2, sort_keys=True), encoding="utf-8")
-    return path
-
-
-def _latest_plot_path(problem_dir: str) -> str | None:
-    paths = sorted(Path(problem_dir).glob("pareto_front_*.png"))
-    if not paths:
-        return None
-    latest = max(paths, key=lambda p: p.stat().st_mtime)
-    return str(latest)
-
-
-def _summary(
-    *,
-    output_dir: str,
-    config_path: Path,
-    problem_dir: str,
-    plot_path: str | None,
-    template: QuickstartTemplate,
-) -> None:
-    print("\nQuickstart complete.")
-    print(f"Template: {template.label}")
-    print(f"Results folder: {output_dir}")
-    print(f"Config saved: {config_path}")
-    print(f"Run manifest: {Path(output_dir) / 'manifest.json'}")
-    if plot_path:
-        print(f"Plot: {plot_path}")
-    else:
-        print("Plot: not created (install the 'analysis' extra to enable plotting).")
-    print(f"Re-run: vamos --config {config_path}")
-    print(f"Browse outputs: {problem_dir}")
-
-
 def _select_template(key: str | None, *, interactive: bool) -> QuickstartTemplate:
     if key and key.lower() == "list":
         _print_templates()
@@ -338,8 +268,18 @@ def run_quickstart(argv: Sequence[str] | None = None) -> None:
     engine = _pick_engine(args.engine, default=defaults.engine, interactive=interactive)
     budget = _pick_budget(args.budget, default=defaults.budget, interactive=interactive)
     pop_size = _pick_pop_size(args.pop_size, default=defaults.pop_size, interactive=interactive)
-    seed = _pick_seed(args.seed, default=defaults.seed, interactive=interactive)
     output_root = _resolve_output_root(args.output_root)
+    # A run directory is never overwritten: default to a free seed, and stop before writing anything on a taken one.
+    destination = partial(run_destination, problem, algorithm, engine, output_root=output_root)
+    default_seed = free_seed(destination, defaults.seed)
+    if args.seed is None and default_seed != defaults.seed:
+        print(f"Seed {defaults.seed} already has a run in {destination(defaults.seed)}; using seed {default_seed}.")
+    seed = _pick_seed(args.seed, default=default_seed, interactive=interactive)
+    taken = destination(seed)
+    if taken is not None and os.path.lexists(taken):
+        print(f"Quickstart stopped: {taken} already exists; a run is never overwritten.")
+        print(f"Use another seed (--seed {free_seed(destination, seed + 1)}) or another --output-root.")
+        raise SystemExit(8)
     plot_default = defaults.plot if not args.no_plot else False
     plot = _pick_plot(plot_default, interactive=interactive)
 
@@ -381,6 +321,9 @@ def run_quickstart(argv: Sequence[str] | None = None) -> None:
         run_preflight_checks(parsed_args)
     try:
         run_experiments_from_args(parsed_args, config)
+    except RunArtifactError as exc:
+        print(f"Quickstart failed: {exc}")
+        raise SystemExit(run_artifact_exit_code(exc)) from exc
     except ImportError as exc:
         print(f"Quickstart failed: {exc}")
         print("Install missing extras and try again.")
@@ -390,16 +333,21 @@ def run_quickstart(argv: Sequence[str] | None = None) -> None:
         raise SystemExit(1) from exc
 
     selection = make_problem_selection(problem)
-    resolved_engine = resolve_engine(engine, algorithm=algorithm)
-    output_dir = run_output_dir(selection, algorithm, resolved_engine, seed, config)
     problem_dir = problem_output_dir(selection, config)
     plot_path = _latest_plot_path(problem_dir) if plot else None
+    if plot:
+        plot_note = "not created (install the 'analysis' extra to enable plotting)."
+    else:
+        plot_note = "not requested (disabled by --no-plot)." if args.no_plot else "not requested."
     _summary(
-        output_dir=output_dir,
+        output_dir=str(destination(seed)),
         config_path=config_path,
         problem_dir=problem_dir,
         plot_path=plot_path,
+        plot_note=plot_note,
         template=template,
+        seed=seed,
+        rerun_seed=free_seed(destination, seed + 1),
     )
 
 

@@ -113,9 +113,11 @@ class NSGAIII:
             engine_name=str(self.kernel.name),
         )
         live_cb.on_start(ctx)
+        # Generation 0 is the evaluated initial population, as in every algorithm.
+        live_cb.on_generation(0, F=st.F, stats={"evals": st.n_eval})
 
         hv_reached = False
-        stop_requested = False
+        stop_requested = live_should_stop(live_cb)
         while st.n_eval < max_eval and not stop_requested:
             X_off = self._generate_offspring(st)
             F_off, G_off = self._evaluate_offspring(problem, X_off, eval_strategy, st.constraint_mode)
@@ -252,6 +254,7 @@ class NSGAIII:
                 engine_name=str(self.kernel.name),
             )
             self._live_cb.on_start(ctx)
+            self._live_cb.on_generation(0, F=self._st.F, stats={"evals": self._st.n_eval})
 
     def ask(self) -> DecisionArray:
         """Generate offspring for evaluation."""

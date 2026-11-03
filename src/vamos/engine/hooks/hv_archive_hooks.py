@@ -8,7 +8,8 @@ from typing import Any
 import numpy as np
 
 from vamos.engine.archive import ExternalArchiveConfig
-from vamos.engine.archive.factory import ResultArchiveManager, setup_result_archive
+from vamos.engine.archive.factory import ArchiveManager, setup_result_archive
+from vamos.engine.hooks.config_parse import HOOK_ARCHIVE_DEDUPLICATE_IN, check_hook_reference_point
 from vamos.engine.hooks.hv_convergence import HVConvergenceConfig, HVConvergenceMonitor, HVDecision
 from vamos.foundation.core.hv_stop import near_nadir_reference
 from vamos.foundation.observer import RunContext
@@ -29,9 +30,9 @@ def _hv_logger() -> _logging.Logger:
 
 def _try_compute_hv(F: np.ndarray[Any, Any], ref: list[float] | None = None) -> float | None:
     """
-    Best-effort HV computation:
+    HV computation of the hooks:
       - For 2D minimization: exact via compute_hypervolume
-      - Otherwise: returns None
+      - With another number of objectives: warns and returns None
     """
     F = np.asarray(F, dtype=float)
     if F.size == 0:
@@ -48,14 +49,15 @@ def _try_compute_hv(F: np.ndarray[Any, Any], ref: list[float] | None = None) -> 
     if ref is None:
         mx = np.max(F, axis=0)
         ref = [float(mx[0] + 1.0), float(mx[1] + 1.0)]
+    if len(ref) != 2:
+        raise ValueError(f"The HV reference point must have 2 values, one per objective; got {len(ref)}.")
     # Points outside the reference box contribute nothing, as in the HV termination.
     inside = F[np.all(F <= np.asarray(ref, dtype=float), axis=1)]
     if inside.size == 0:
         return 0.0
-    try:
-        return float(compute_hypervolume(inside, ref))
-    except Exception:
-        return None
+    # Errors propagate: a reference point or objective values that cannot be measured are a
+    # configuration error, not a sample to skip while the stop silently never triggers.
+    return float(compute_hypervolume(inside, ref))
 
 
 @dataclass
@@ -78,12 +80,20 @@ class HookManager:
     """
 
     def __init__(self, cfg: HookManagerConfig):
+        if cfg.hv_ref_point is not None:
+            # Raises for a point that the two-objective monitor cannot use, before the run starts.
+            check_hook_reference_point(cfg.hv_ref_point)
+        if cfg.archive_enabled and cfg.archive_cfg.deduplicate_in != HOOK_ARCHIVE_DEDUPLICATE_IN:
+            raise ValueError(
+                f"The hook archive stores objective vectors only, so deduplicate_in must be "
+                f"{HOOK_ARCHIVE_DEDUPLICATE_IN!r}; got {cfg.archive_cfg.deduplicate_in!r}."
+            )
         self.cfg = cfg
         self._hv_trace: list[dict[str, Any]] = []
         self._archive_stats: list[dict[str, Any]] = []
 
         self.monitor = HVConvergenceMonitor(cfg.stop_cfg) if cfg.stopping_enabled else None
-        self.archive: ResultArchiveManager | None = None
+        self.archive: ArchiveManager | None = None
         self._archive_F: np.ndarray[Any, Any] | None = None
         self._archive_total_inserted = 0
         self._archive_total_pruned = 0
@@ -97,10 +107,21 @@ class HookManager:
     def _ensure_archive(self, F: np.ndarray[Any, Any]) -> None:
         if not self.cfg.archive_enabled or self.archive is not None:
             return
-        archive = setup_result_archive(self.cfg.archive_cfg, n_var=0, n_obj=F.shape[1], dtype=np.dtype(float))
-        if archive is None:
-            raise ValueError("Hook archive requires a finite archive.external.capacity.")
-        self.archive = archive
+        archive_cfg = self.cfg.archive_cfg
+        if archive_cfg.capacity is None:
+            # ``capacity: null`` keeps every non-dominated objective vector.
+            from vamos.engine.algorithm.components.archive import UnboundedArchive
+
+            self.archive = UnboundedArchive(
+                n_var=0,
+                n_obj=F.shape[1],
+                dtype=np.dtype(float),
+                objective_tolerance=archive_cfg.objective_tolerance,
+                deduplicate_in=archive_cfg.deduplicate_in,
+                decision_tolerance=archive_cfg.decision_tolerance,
+            )
+            return
+        self.archive = setup_result_archive(archive_cfg, n_var=0, n_obj=F.shape[1], dtype=np.dtype(float))
 
     def on_start(self, ctx: RunContext) -> None:
         return None

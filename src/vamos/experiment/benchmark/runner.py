@@ -10,8 +10,11 @@ from pathlib import Path
 from typing import Any
 
 from vamos.experiment.benchmark.suites import BenchmarkExperiment, BenchmarkSuite
+from vamos.experiment.study.errors import StudyOutputCollisionError
 from vamos.experiment.study_analysis import SummarySource, derive_summary_rows
 from vamos.study_artifacts import Study, StudyReport, StudySpec, StudySummary, create_study, load_study, plan_study
+
+CONFIG_OVERRIDE_KEYS = ("population_size", "offspring_population_size", "max_evaluations", "seeds", "engine", "eval_strategy")
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,6 +25,15 @@ class BenchmarkStudy:
     study: Study
     report: StudyReport
     summary: StudySummary
+
+
+@dataclass(frozen=True, slots=True)
+class _PlannedStudy:
+    experiment_index: int
+    spec: StudySpec
+    destination: Path
+    plan_id: str
+    task_ids: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,22 +64,54 @@ def run_benchmark_suite(
     algorithms: Sequence[str] | None,
     metrics: Sequence[str] | None,
     base_output_dir: Path,
-    global_config_overrides: dict[str, Any] | None = None,
+    global_config_overrides: Mapping[str, Any] | None = None,
 ) -> BenchmarkResult:
-    """Run each benchmark experiment as one homogeneous canonical study."""
+    """Run each benchmark experiment as one homogeneous canonical study.
+
+    Every study is planned, and its destination checked, before the first one runs, so an
+    invalid override or an occupied ``study-NNNN`` path stops the suite before any run.
+    """
     algos = tuple(algorithms) if algorithms else tuple(suite.default_algorithms)
     metric_names = tuple(metrics) if metrics else tuple(suite.default_metrics)
     root = base_output_dir.absolute()
-    overrides = dict(global_config_overrides or {})
-    executions = tuple(
-        _run_experiment_study(suite, experiment, index, algos, root, overrides) for index, experiment in enumerate(suite.experiments)
+    overrides = validate_config_overrides(global_config_overrides or {})
+    planned = tuple(
+        _plan_experiment_study(suite, experiment, index, algos, root, overrides) for index, experiment in enumerate(suite.experiments)
     )
-    provisional = BenchmarkResult(suite, algos, metric_names, root, None, executions)
-    summary_dir = root / "summary"
-    summary_path = summary_dir / "metrics.csv"
-    _write_summary(provisional.summary_rows(), summary_path)
-    _write_suite_metadata(provisional, summary_dir / "suite.json", overrides)
-    return BenchmarkResult(suite, algos, metric_names, root, summary_path, executions)
+    executions = tuple(_run_planned_study(item) for item in planned)
+    result = BenchmarkResult(suite, algos, metric_names, root, root / "summary" / "metrics.csv", executions)
+    write_benchmark_summary(result)
+    _write_suite_metadata(result, root / "summary" / "suite.json", overrides)
+    return result
+
+
+def validate_config_overrides(overrides: Mapping[str, Any]) -> dict[str, Any]:
+    """Return a copy of ``overrides`` after checking its keys and values; raise ``ValueError`` otherwise.
+
+    The supported keys are ``CONFIG_OVERRIDE_KEYS``. ``max_evaluations`` and ``seeds`` replace the
+    budget and the seeds of every experiment of the suite.
+    """
+    if not isinstance(overrides, Mapping):
+        raise ValueError(f"benchmark config overrides must be a mapping, not {type(overrides).__name__}.")
+    unknown = sorted(str(key) for key in overrides if key not in CONFIG_OVERRIDE_KEYS)
+    if unknown:
+        raise ValueError(f"unknown benchmark config keys: {', '.join(unknown)}. Supported keys: {', '.join(CONFIG_OVERRIDE_KEYS)}.")
+    for field in ("population_size", "offspring_population_size", "max_evaluations"):
+        _optional_int(overrides.get(field), field=field)
+    _optional_seeds(overrides.get("seeds"))
+    _optional_string(overrides.get("engine"), field="engine")
+    _optional_string(overrides.get("eval_strategy"), field="eval_strategy")
+    return dict(overrides)
+
+
+def write_benchmark_summary(result: BenchmarkResult) -> Path | None:
+    """Write ``result.summary_rows()`` to ``summary/metrics.csv``; return its path, or ``None`` without rows."""
+    rows = result.summary_rows()
+    if not rows:
+        return None
+    path = result.base_output_dir / "summary" / "metrics.csv"
+    _write_summary(rows, path)
+    return path
 
 
 def load_benchmark_result(
@@ -100,24 +144,22 @@ def load_benchmark_result(
     )
 
 
-def _run_experiment_study(
+def _plan_experiment_study(
     suite: BenchmarkSuite,
     experiment: BenchmarkExperiment,
     index: int,
     algorithms: tuple[str, ...],
     root: Path,
     overrides: Mapping[str, Any],
-) -> BenchmarkStudy:
-    pop_size = _optional_int(overrides.get("population_size"), field="population_size")
-    budget = experiment.resolved_budget(population_size=pop_size)
+) -> _PlannedStudy:
     problem_kwargs = {key: value for key, value in experiment.problem_params.items() if key not in {"n_var", "n_obj"}}
     spec = StudySpec(
         problems=[experiment.problem_name],
         algorithms=algorithms,
-        seeds=experiment.seeds or suite.default_seeds,
-        max_evaluations=budget,
-        pop_size=pop_size,
-        engine=_optional_string(overrides.get("engine")),
+        seeds=_experiment_seeds(suite, experiment, overrides),
+        max_evaluations=_experiment_budget(experiment, overrides),
+        pop_size=_optional_int(overrides.get("population_size"), field="population_size"),
+        engine=_optional_string(overrides.get("engine"), field="engine"),
         eval_strategy=str(overrides.get("eval_strategy", "serial")),
         n_var=_optional_int(experiment.problem_params.get("n_var"), field="n_var"),
         n_obj=_optional_int(experiment.problem_params.get("n_obj"), field="n_obj"),
@@ -129,11 +171,38 @@ def _run_experiment_study(
     )
     destination = root / f"study-{index:04d}"
     planned = plan_study(spec, output=destination)
-    created = create_study(spec, output=destination)
+    if planned.status != "ready":
+        raise StudyOutputCollisionError(
+            operation="run benchmark",
+            reason="OUTPUT_COLLISION",
+            path=destination,
+            expected="destination path that does not exist",
+            actual=planned.output.status,
+            action="Choose another --output directory; no benchmark study was run. VAMOS never overwrites, reuses, or merges studies.",
+        )
+    return _PlannedStudy(index, spec, destination, planned.plan_id, planned.task_ids)
+
+
+def _run_planned_study(planned: _PlannedStudy) -> BenchmarkStudy:
+    created = create_study(planned.spec, output=planned.destination)
     if (planned.plan_id, planned.task_ids) != (created.plan_id, tuple(item.task_id for item in created.plan.tasks)):
         raise AssertionError("benchmark planning and creation identities differ")
     completed = created.run()
-    return BenchmarkStudy(index, completed, completed.inspect(), completed.summarize())
+    return BenchmarkStudy(planned.experiment_index, completed, completed.inspect(), completed.summarize())
+
+
+def _experiment_budget(experiment: BenchmarkExperiment, overrides: Mapping[str, Any]) -> int:
+    budget = _optional_int(overrides.get("max_evaluations"), field="max_evaluations")
+    if budget is not None:
+        return budget
+    return experiment.resolved_budget(population_size=_optional_int(overrides.get("population_size"), field="population_size"))
+
+
+def _experiment_seeds(suite: BenchmarkSuite, experiment: BenchmarkExperiment, overrides: Mapping[str, Any]) -> list[int]:
+    seeds = _optional_seeds(overrides.get("seeds"))
+    if seeds is not None:
+        return seeds
+    return list(experiment.seeds or suite.default_seeds)
 
 
 def _algorithm_configs(algorithms: tuple[str, ...], overrides: Mapping[str, Any]) -> dict[str, dict[str, int]]:
@@ -162,14 +231,15 @@ def _write_suite_metadata(result: BenchmarkResult, path: Path, overrides: Mappin
         "metrics": list(result.metrics),
         "study_ids": list(result.study_ids),
         "plan_ids": [item.study.plan_id for item in result.studies],
-        "config_overrides": {key: value for key, value in overrides.items() if key != "output_root"},
+        "config_overrides": dict(overrides),
         "experiments": [
             {
                 "problem": experiment.problem_name,
                 "params": experiment.problem_params,
                 "evaluation_budget": experiment.evaluation_budget,
                 "max_generations": experiment.max_generations,
-                "seeds": list(experiment.seeds or result.suite.default_seeds),
+                "max_evaluations": _experiment_budget(experiment, overrides),
+                "seeds": _experiment_seeds(result.suite, experiment, overrides),
             }
             for experiment in result.suite.experiments
         ],
@@ -186,12 +256,28 @@ def _optional_int(value: object, *, field: str) -> int | None:
     return value
 
 
-def _optional_string(value: object) -> str | None:
+def _optional_seeds(value: object) -> list[int] | None:
+    if value is None:
+        return None
+    if not isinstance(value, list) or not value or any(isinstance(seed, bool) or not isinstance(seed, int) or seed < 0 for seed in value):
+        raise ValueError("seeds must be a non-empty list of non-negative integers when provided.")
+    return list(value)
+
+
+def _optional_string(value: object, *, field: str) -> str | None:
     if value is None:
         return None
     if not isinstance(value, str) or not value.strip():
-        raise ValueError("engine must be a non-empty string when provided.")
+        raise ValueError(f"{field} must be a non-empty string when provided.")
     return value
 
 
-__all__ = ["BenchmarkResult", "BenchmarkStudy", "load_benchmark_result", "run_benchmark_suite"]
+__all__ = [
+    "CONFIG_OVERRIDE_KEYS",
+    "BenchmarkResult",
+    "BenchmarkStudy",
+    "load_benchmark_result",
+    "run_benchmark_suite",
+    "validate_config_overrides",
+    "write_benchmark_summary",
+]
