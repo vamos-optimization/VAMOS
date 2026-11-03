@@ -30,6 +30,24 @@ _DEFAULT_FACTORIES: dict[str, Callable[..., AlgorithmConfigProtocol]] = {
     "rvea": RVEAConfig.default,
 }
 
+# The built-in algorithm each configuration class configures.
+_CONFIG_ALGORITHMS: dict[type, str] = {
+    NSGAIIConfig: "nsgaii",
+    MOEADConfig: "moead",
+    SMSEMOAConfig: "smsemoa",
+    NSGAIIIConfig: "nsgaiii",
+    SPEA2Config: "spea2",
+    IBEAConfig: "ibea",
+    SMPSOConfig: "smpso",
+    AGEMOEAConfig: "agemoea",
+    RVEAConfig: "rvea",
+}
+
+
+def config_algorithm(config: object) -> str | None:
+    """The built-in algorithm that ``config``'s class configures, or ``None`` for another class."""
+    return _CONFIG_ALGORITHMS.get(type(config))
+
 
 def build_default_algorithm_config(
     algorithm: str,
@@ -55,4 +73,4 @@ def build_default_algorithm_config(
     return factory(**{name: value for name, value in arguments.items() if name in accepted})
 
 
-__all__ = ["build_default_algorithm_config", "DefaultConfigBuilder"]
+__all__ = ["config_algorithm", "build_default_algorithm_config", "DefaultConfigBuilder"]

@@ -8,7 +8,7 @@ from itertools import product
 from math import comb
 from typing import Any
 
-from vamos.engine.algorithm.catalog import minimum_violation
+from vamos.engine.algorithm.catalog import ENABLED_ALGORITHMS, minimum_violation
 from vamos.engine.algorithm.config.base import ReferenceDirectionPopulationError
 from vamos.experiment.artifacts.models import deep_freeze, deep_thaw
 from vamos.experiment.artifacts.resolved_reconstruction import is_reconstructable_evaluation_backend
@@ -35,6 +35,7 @@ class _Candidate:
 def resolve_spec(spec: StudySpec) -> ResolvedStudyPlan:
     """Resolve every matrix candidate and freeze one immutable sorted plan."""
     _reject_negative_seeds(spec.seeds)
+    _reject_unused_inputs(spec)
     candidates = (
         _Candidate(index, problem, algorithm, seed)
         for index, (problem, algorithm, seed) in enumerate(product(spec.problems, spec.algorithms, spec.seeds))
@@ -45,6 +46,22 @@ def resolve_spec(spec: StudySpec) -> ResolvedStudyPlan:
     plan_id = compute_plan_id(task.task_id for task in sorted_tasks)
     provisional = ResolvedStudyPlan(plan_id=plan_id, tasks=sorted_tasks, document_sha256="")
     return ResolvedStudyPlan(plan_id=plan_id, tasks=sorted_tasks, document_sha256=_plan_hash(provisional))
+
+
+def _reject_unused_inputs(spec: StudySpec) -> None:
+    # Validated when planning, so that studies published before this check still load.
+    # An empty matrix (for example seeds=[]) stays a valid, ready zero-task plan (PL-002, SA-002).
+    usable = set(spec.algorithms) | (set(ENABLED_ALGORITHMS) if "auto" in spec.algorithms else set())
+    unused = sorted(str(key) for key in (spec.algorithm_configs or {}) if key not in usable)
+    if unused:
+        raise InvalidStudySpecError(
+            operation="resolve study plan",
+            reason="INVALID_STUDY_SPEC",
+            field=f"algorithm_configs.{unused[0]}",
+            expected=f"a configuration for one of the study algorithms {sorted(spec.algorithms)}",
+            actual=unused,
+            action="Key algorithm_configs by the algorithm names of the study (case matters); no study directory was published.",
+        )
 
 
 def _reject_negative_seeds(seeds: Sequence[int]) -> None:
