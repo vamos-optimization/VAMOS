@@ -184,8 +184,10 @@ Resolution occurs once, before output publication. Every plan task contains the
 requested run input and the complete resolved run specification required by the
 canonical run writer. Resolution rejects a task that sequential execution cannot
 run: an evaluation backend other than serial (`UNSUPPORTED_EVALUATION_BACKEND`,
-the predicate exact reconstruction applies) and a negative seed
-(`INVALID_STUDY_SPEC`). Plan tasks are serialized in ascending `task_id` order.
+the predicate exact reconstruction applies), a negative seed
+(`INVALID_STUDY_SPEC`), and a population or number of objectives below the
+algorithm's minimum (`INVALID_POPULATION_SIZE`, `UNSUPPORTED_OBJECTIVE_COUNT`).
+Plan tasks are serialized in ascending `task_id` order.
 This is the sole pre-execution owner of resolved run input inside the study;
 StudyManifest, TaskRecord, and AttemptRecord refer to its hash rather than copy
 it. A produced RunManifest independently owns the actual run's requested and
