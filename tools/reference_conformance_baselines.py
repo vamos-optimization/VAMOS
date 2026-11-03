@@ -59,13 +59,17 @@ def _pymoo_front(case: dict[str, Any], seed: int) -> np.ndarray:
 
     problem = get_problem(case["problem"], n_var=case["n_var"], **({"n_obj": case["n_obj"]} if case["n_obj"] > 2 else {}))
     crossover = SBX(prob=case["crossover"]["prob"], eta=case["crossover"]["eta"])
-    mutation = PM(eta=case["mutation"]["eta"])  # probability 1/n per variable, pymoo's default
+    # VAMOS mutates every offspring, each variable with probability 1/n; pymoo's PM also gates each
+    # individual with prob=0.9 unless told otherwise.
+    mutation = PM(prob=1.0, prob_var=1.0 / case["n_var"], eta=case["mutation"]["eta"])
     # VAMOS, like Deb et al. and jMetal, keeps duplicates; pymoo removes them unless told otherwise.
     if "divisions" in case:
         directions = get_reference_directions("das-dennis", case["n_obj"], n_partitions=case["divisions"])
         algorithm = NSGA3(directions, pop_size=case["pop_size"], crossover=crossover, mutation=mutation, eliminate_duplicates=False)
     else:
         algorithm = NSGA2(pop_size=case["pop_size"], crossover=crossover, mutation=mutation, eliminate_duplicates=False)
+        # VAMOS's binary tournament compares rank, then crowding; pymoo's default compares dominance first.
+        algorithm.tournament_type = "comp_by_rank_and_crowding"
     result = minimize(problem, algorithm, ("n_evals", case["max_evaluations"]), seed=seed, verbose=False)
     return np.asarray(result.F, dtype=float)
 
