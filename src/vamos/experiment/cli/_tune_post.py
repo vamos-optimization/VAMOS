@@ -63,13 +63,11 @@ def evaluate_config_split(
             ctx = EvalContext(instance=inst, seed=int(seed), budget=int(budget))
             try:
                 result = eval_fn(config, ctx)
-                if isinstance(result, tuple):
-                    score = float(result[0])
-                else:
-                    score = float(result)
-                rows_ok += 1
+                score = float(result[0]) if isinstance(result, tuple) else float(result)
             except Exception:
                 score = float("nan")
+            # A failed run scores NaN (see make_evaluator), so only finite scores are successful rows.
+            rows_ok += int(np.isfinite(score))
             scores.append(score)
     valid = [s for s in scores if np.isfinite(s)]
     agg = float(aggregator(valid)) if valid else float("nan")

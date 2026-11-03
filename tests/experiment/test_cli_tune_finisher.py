@@ -161,3 +161,116 @@ def test_backend_fallback_error_mode_raises(monkeypatch):
                 "--no-run-statistical-finisher",
             ]
         )
+
+
+def test_cli_validation_reports_failed_runs():
+    from vamos.experiment.cli._tune_post import evaluate_config_split
+    from vamos.experiment.cli._tune_runtime import make_evaluator
+
+    # pop_size=150 cannot run within 100 evaluations: every validation run fails.
+    eval_fn = make_evaluator(
+        problem_key="zdt1",
+        n_var=6,
+        n_obj=2,
+        algorithm_name="nsgaii",
+        fixed_pop_size=150,
+        ref_point_str=None,
+        warm_start=False,
+        runtime_penalty=0.0,
+        failure_score=0.0,
+        logger=lambda: __import__("logging").getLogger("test"),
+    )
+
+    metrics = evaluate_config_split(
+        config={},
+        eval_fn=eval_fn,
+        instances=[Instance(name="zdt1", n_var=6, kwargs={})],
+        seeds=[1, 2, 3],
+        budget=100,
+        aggregator=lambda vals: float(np.mean(vals)),
+    )
+
+    assert (metrics["rows_total"], metrics["rows_ok"], metrics["fail_rate"]) == (3, 0, 1.0)
+    assert np.isnan(metrics["score_agg"])
+
+
+@pytest.mark.parametrize("backend", ["random", "racing"])
+def test_cli_tune_exits_nonzero_when_every_evaluation_fails(tmp_path: Path, backend: str):
+    # A budget of 10 evaluations cannot run any population the NSGA-II space samples.
+    argv = [
+        "--instances",
+        "zdt1",
+        "--algorithm",
+        "nsgaii",
+        "--backend",
+        backend,
+        "--budget",
+        "10",
+        "--tune-budget",
+        "4",
+        "--n-seeds",
+        "1",
+        "--n-jobs",
+        "1",
+        "--no-run-validation",
+        "--no-run-test",
+        "--no-run-statistical-finisher",
+        "--output-dir",
+        str(tmp_path / "out"),
+    ]
+
+    with pytest.raises(SystemExit) as caught:
+        tune_cli.main(argv)
+
+    assert caught.value.code not in (0, None)
+    assert "every one of the" in str(caught.value.code)
+    assert "failed" in str(caught.value.code)
+
+
+def test_tuning_summary_counts_failed_evaluations(tmp_path: Path, monkeypatch):
+    import json
+
+    from vamos.experiment.cli import _tune_runtime
+
+    calls = {"n": 0}
+    real = _tune_runtime.make_evaluator
+
+    def flaky_evaluator(**kwargs):
+        inner = real(**kwargs)
+
+        def eval_fn(config, ctx):
+            calls["n"] += 1
+            return float("nan") if calls["n"] % 2 else 1.0
+
+        inner.inner = eval_fn
+        return inner
+
+    monkeypatch.setattr(tune_cli, "make_evaluator", flaky_evaluator)
+    out = tmp_path / "out"
+    tune_cli.main(
+        [
+            "--instances",
+            "zdt1",
+            "--algorithm",
+            "nsgaii",
+            "--backend",
+            "random",
+            "--tune-budget",
+            "3",
+            "--n-seeds",
+            "2",
+            "--n-jobs",
+            "1",
+            "--no-run-validation",
+            "--no-run-test",
+            "--no-run-statistical-finisher",
+            "--output-dir",
+            str(out),
+        ]
+    )
+
+    summaries = list(out.rglob("tuning_summary.json"))
+    assert len(summaries) == 1
+    summary = json.loads(summaries[0].read_text(encoding="utf-8"))
+    assert summary["evaluations"] == 6
+    assert summary["failed_evaluations"] == 3

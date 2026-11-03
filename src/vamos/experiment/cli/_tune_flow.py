@@ -10,6 +10,7 @@ from typing import Any
 
 from vamos.engine.tuning import Instance, TrialResult, TuningTask, filter_active_config
 from vamos.engine.tuning.racing.eval_types import EvalFn
+from vamos.engine.tuning.racing.tuning_task import TuningFailedError
 
 from ._tune_post import (
     append_summary,
@@ -17,6 +18,7 @@ from ._tune_post import (
     rank_history_topk,
     run_statistical_finisher,
 )
+from ._tune_scoring import evaluation_ledger
 
 
 def write_split_artifacts(
@@ -59,11 +61,26 @@ def run_tuning_with_finisher(
     run_backend_fn: Any,
     logger: logging.Logger,
 ) -> tuple[dict[str, Any], list[TrialResult], float, dict[str, Any] | None, dict[str, str] | None]:
+    """Run the backend and the optional statistical finisher.
+
+    The summary updates count the tuning evaluations and how many failed. When every one of
+    them failed, the command stops with a nonzero exit code instead of reporting a configuration.
+    """
+    ledger = evaluation_ledger(eval_fn)
+    before = ledger.counts() if ledger is not None else (0, 0)
     t0 = time.perf_counter()
-    best_config, history = run_backend_fn(args, task, eval_fn, resolved_jobs=resolved_jobs)
+    try:
+        best_config, history = run_backend_fn(args, task, eval_fn, resolved_jobs=resolved_jobs)
+    except TuningFailedError as exc:
+        raise SystemExit(_every_evaluation_failed_message(str(exc), ledger)) from exc
     elapsed = time.perf_counter() - t0
 
     finisher_summary_updates: dict[str, Any] | None = None
+    if ledger is not None:
+        evaluations, failures = (ledger.evaluations - before[0], ledger.failures - before[1])
+        if evaluations and failures == evaluations:
+            raise SystemExit(_every_evaluation_failed_message(f"every one of the {evaluations} tuning evaluations failed", ledger))
+        finisher_summary_updates = {"evaluations": evaluations, "failed_evaluations": failures}
     finisher_artifacts: dict[str, str] | None = None
     if bool(args.run_statistical_finisher):
         finisher_budget = int(args.finisher_budget) if int(args.finisher_budget) > 0 else int(args.budget)
@@ -97,6 +114,7 @@ def run_tuning_with_finisher(
                 writer.writeheader()
                 writer.writerows(block_rows)
             finisher_summary_updates = {
+                **(finisher_summary_updates or {}),
                 "statistical_finisher_ran": True,
                 "statistical_finisher_method": str(finisher_result["method"]),
                 "statistical_finisher_budget": int(finisher_budget),
@@ -112,6 +130,11 @@ def run_tuning_with_finisher(
                 finisher_result["method"],
             )
     return best_config, history, elapsed, finisher_summary_updates, finisher_artifacts
+
+
+def _every_evaluation_failed_message(reason: str, ledger: Any) -> str:
+    cause = f" First failure: {ledger.first_failure}." if ledger is not None and ledger.first_failure else ""
+    return f"vamos tune: {reason}; no configuration was selected.{cause} The log shows each failure."
 
 
 def run_validation_stage(

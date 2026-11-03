@@ -182,10 +182,9 @@ def eval_config_at_budget(
                 previous_budget=(None if previous_budget is None else int(previous_budget)),
             )
             result = eval_fn(config, ctx)
-            if isinstance(result, tuple):
-                scores.append(float(result[0]))
-            else:
-                scores.append(float(result))
+            # A non-finite score is a failed evaluation; the model sees the task's failure value.
+            score, _failed = tuner.task.checked_score(result[0] if isinstance(result, tuple) else result)
+            scores.append(score)
     if not scores:
         raise RuntimeError("No scores computed for configuration.")
     return float(tuner.task.aggregator(scores))
