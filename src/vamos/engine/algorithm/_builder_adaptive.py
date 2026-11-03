@@ -39,6 +39,7 @@ def build_smpso_algorithm(
     pop_size: int,
     external_archive: ExternalArchiveConfig | None,
     smpso_variation: dict[str, Any] | None,
+    track_genealogy: bool = False,
 ) -> tuple[SMPSO, AlgorithmConfigProtocol]:
     encoding = resolve_problem_encoding(problem)
     mut_cfg = merge_variation_overrides(
@@ -73,6 +74,8 @@ def build_smpso_algorithm(
         key="repair",
         encoding=encoding,
     )
+    if track_genealogy:
+        builder.track_genealogy(True)
     return cast(
         "tuple[SMPSO, AlgorithmConfigProtocol]",
         finalize_algorithm(

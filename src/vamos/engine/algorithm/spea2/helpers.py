@@ -248,6 +248,32 @@ def environmental_selection(
         fitness ``R`` and the k-th nearest-neighbour distance are those of each
         member in the whole input, which SPEA2's mating tournament uses.
     """
+    selected, raw_fitness, kth_distance = environmental_selection_indices(
+        F, G, archive_size, k_neighbors, constraint_mode, selection_kernels
+    )
+    return (
+        X[selected],
+        F[selected],
+        G[selected] if G is not None else None,
+        raw_fitness,
+        kth_distance,
+    )
+
+
+def environmental_selection_indices(
+    F: np.ndarray[Any, Any],
+    G: np.ndarray[Any, Any] | None,
+    archive_size: int,
+    k_neighbors: int | None,
+    constraint_mode: str,
+    selection_kernels: SelectionKernels | None = None,
+) -> tuple[NDArray[np.int_], np.ndarray[Any, Any], np.ndarray[Any, Any]]:
+    """Rows that SPEA2's environmental selection keeps, with their raw fitness and k-th distance.
+
+    Same selection as :func:`environmental_selection`, which returns the kept rows
+    themselves; these indices let a caller carry per-row data, such as genealogy
+    ids, through the selection.
+    """
     n = F.shape[0]
     dist = np.linalg.norm(F[:, None, :] - F[None, :, :], axis=2)
     kth_distance = _kth_neighbour_distance(dist, int(k_neighbors) if k_neighbors is not None else 1)
@@ -266,13 +292,7 @@ def environmental_selection(
         fill = dominated[np.argsort(fitness, kind="stable")[: archive_size - nondominated.size]]
         selected = np.concatenate([nondominated, fill])
 
-    return (
-        X[selected],
-        F[selected],
-        G[selected] if G is not None else None,
-        raw_fitness[selected],
-        kth_distance[selected],
-    )
+    return selected, raw_fitness[selected], kth_distance[selected]
 
 
 def compute_selection_metrics(
@@ -330,5 +350,6 @@ __all__ = [
     "selection_fitness_density",
     "truncate_lexicographic",
     "environmental_selection",
+    "environmental_selection_indices",
     "compute_selection_metrics",
 ]

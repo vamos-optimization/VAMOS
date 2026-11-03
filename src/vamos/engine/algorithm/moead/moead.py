@@ -326,6 +326,7 @@ class MOEAD:
         pop_size = st.pop_size
 
         st.ideal = np.minimum(st.ideal, F_child.min(axis=0))
+        X_before = st.X.copy() if st.track_genealogy and st.ids is not None else None
 
         if batch_size == 1:
             child = children[0]
@@ -357,10 +358,27 @@ class MOEAD:
                 candidate_orders=candidate_orders,
                 candidate_lengths=candidate_lengths,
             )
+        if X_before is not None:
+            self._record_replacements(st, X_before, children)
 
         update_archive(st, st.X, st.F, st.G)
 
         return st.hv_tracker is not None and st.hv_tracker.enabled and st.hv_tracker.reached(st.hv_points())
+
+    @staticmethod
+    def _record_replacements(st: MOEADState, X_before: np.ndarray[Any, Any], children: np.ndarray[Any, Any]) -> None:
+        """Give each subproblem whose solution a child replaced the genealogy id of that child.
+
+        The neighbourhood update copies a child into every subproblem it improves; a
+        subproblem replaced twice in one batch keeps the later child, as the update does.
+        """
+        if st.ids is None or st.pending_offspring_ids is None:
+            return
+        for row in np.flatnonzero(np.any(st.X != X_before, axis=1)):
+            match = np.flatnonzero(np.all(children == st.X[row], axis=1))
+            if match.size:
+                st.ids[row] = st.pending_offspring_ids[match[-1]]
+        st.pending_offspring_ids = None
 
     @staticmethod
     def _next_active_indices(st: MOEADState, batch_size: int) -> np.ndarray[Any, Any]:

@@ -191,3 +191,95 @@ class TestGenealogyTracking:
 
         # Should not have genealogy when disabled
         assert result.get("genealogy") is None or "genealogy" not in result
+
+
+# --- Lineages through survival, in every algorithm that tracks genealogy ---
+
+_GENEALOGY_ALGORITHMS = ["nsgaii", "moead", "smsemoa", "nsgaiii", "spea2", "ibea", "smpso"]
+_SBX_ALGORITHMS = ["nsgaii", "smsemoa", "nsgaiii", "spea2", "ibea"]
+
+
+def _tracked_run(algorithm: str, pop_size: int, max_evaluations: int):
+    import dataclasses
+
+    from vamos.engine.algorithm import config as configs
+    from vamos.engine.algorithm.registry import resolve_algorithm
+
+    cls = {
+        "nsgaii": configs.NSGAIIConfig,
+        "moead": configs.MOEADConfig,
+        "smsemoa": configs.SMSEMOAConfig,
+        "nsgaiii": configs.NSGAIIIConfig,
+        "spea2": configs.SPEA2Config,
+        "ibea": configs.IBEAConfig,
+        "smpso": configs.SMPSOConfig,
+    }[algorithm]
+    kwargs = {"pop_size": pop_size, "n_var": 30}
+    if algorithm in {"moead", "nsgaiii"}:
+        kwargs["n_obj"] = 2
+    cfg = dataclasses.replace(cls.default(**kwargs), track_genealogy=True)
+    instance = resolve_algorithm(algorithm)(cfg.to_dict(), NumPyKernel())
+    result = instance.run(ZDT1Problem(n_var=30), termination=("max_evaluations", max_evaluations), seed=1)
+    return instance, result
+
+
+@pytest.mark.parametrize("algorithm", _GENEALOGY_ALGORITHMS)
+def test_offspring_reach_final_lineages(algorithm):
+    _instance, result = _tracked_run(algorithm, pop_size=40, max_evaluations=2000)
+
+    genealogy = result["genealogy"]
+    # In VAMOS 1.1.0, IBEA, MOEA/D and SPEA2 kept the initial population's ids after survival, so the
+    # final front was marked on generation 0 and no offspring appeared in a final lineage.
+    assert sum(int(row["uses_in_final_lineages"]) for row in genealogy["operator_stats"]) > 0
+    generations_with_final_members = [row["generation"] for row in genealogy["generation_contributions"] if row["final_lineage"]]
+    assert len(generations_with_final_members) > 1
+    assert max(generations_with_final_members) > 0
+
+
+@pytest.mark.parametrize("algorithm", _SBX_ALGORITHMS)
+def test_sbx_offspring_record_two_parents(algorithm):
+    instance, _result = _tracked_run(algorithm, pop_size=12, max_evaluations=60)
+
+    offspring = [record for record in instance._st.genealogy_tracker.records.values() if record.generation > 0]
+    assert offspring
+    # In VAMOS 1.1.0, NSGA-III and IBEA recorded one parent per SBX child.
+    assert {len(record.parents) for record in offspring} == {2}
+
+
+@pytest.mark.parametrize("algorithm", _GENEALOGY_ALGORITHMS)
+def test_build_algorithm_passes_track_genealogy(algorithm):
+    from vamos.engine.algorithm.factory import build_algorithm
+    from vamos.foundation.core.experiment_config import ExperimentConfig
+
+    problem = ZDT1Problem(n_var=6)
+    config = ExperimentConfig(population_size=20, offspring_population_size=20, max_evaluations=60)
+
+    instance, _cfg = build_algorithm(algorithm, "numpy", problem, config, track_genealogy=True)
+    result = instance.run(problem, termination=("max_evaluations", 60), seed=1)
+
+    # In VAMOS 1.1.0 only NSGA-II received track_genealogy from build_algorithm.
+    assert "genealogy" in result
+
+
+@pytest.mark.parametrize("algorithm", ["agemoea", "rvea"])
+def test_build_algorithm_rejects_genealogy_where_it_is_not_tracked(algorithm):
+    from vamos.engine.algorithm.factory import build_algorithm
+    from vamos.foundation.core.experiment_config import ExperimentConfig
+    from vamos.foundation.exceptions import ConfigurationError
+
+    config = ExperimentConfig(population_size=20, offspring_population_size=20, max_evaluations=60)
+
+    with pytest.raises(ConfigurationError, match="track_genealogy"):
+        build_algorithm(algorithm, "numpy", ZDT1Problem(n_var=6), config, track_genealogy=True)
+
+
+@pytest.mark.parametrize("max_evaluations", [20, 60])
+def test_spea2_genealogy_follows_an_archive_smaller_than_the_population(max_evaluations):
+    import dataclasses
+
+    cfg = dataclasses.replace(SPEA2Config.default(pop_size=20, n_var=6), track_genealogy=True, archive_size=10)
+
+    result = SPEA2(cfg.to_dict(), NumPyKernel()).run(ZDT1Problem(n_var=6), termination=("max_evaluations", max_evaluations), seed=1)
+
+    # The ids follow the 10-row archive, also when no generation runs after the initial population.
+    assert result["genealogy"]["generation_contributions"]
