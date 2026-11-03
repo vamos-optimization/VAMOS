@@ -101,6 +101,33 @@ def test_pl_008_nsgaiii_reference_direction_cardinality_is_preflighted() -> None
     assert rvea.value.reason == "REFERENCE_DIRECTION_POPULATION_MISMATCH"
 
 
+@pytest.mark.parametrize(
+    ("changes", "reason", "message"),
+    [
+        ({"algorithms": ["nsgaii"], "pop_size": 1}, "INVALID_POPULATION_SIZE", "NSGA-II needs pop_size >= 2"),
+        ({"algorithms": ["ibea"], "pop_size": 1}, "INVALID_POPULATION_SIZE", "IBEA needs pop_size >= 2"),
+        (
+            {"problems": ["dtlz2"], "algorithms": ["smsemoa"], "n_obj": 1, "n_var": 3},
+            "UNSUPPORTED_OBJECTIVE_COUNT",
+            "SMS-EMOA needs at least 2",
+        ),
+        (
+            {"problems": ["dtlz2"], "algorithms": ["agemoea"], "n_obj": 1, "n_var": 3},
+            "UNSUPPORTED_OBJECTIVE_COUNT",
+            "AGE-MOEA needs at least 2",
+        ),
+    ],
+)
+def test_plan_rejects_tasks_below_the_algorithm_minimums(changes: dict[str, object], reason: str, message: str) -> None:
+    settings: dict[str, object] = {"seeds": [0], "max_evaluations": 20}
+    settings.update(changes)
+    with pytest.raises(UnresolvedStudyTaskError) as caught:
+        vamos.plan_study(_spec(**settings))
+    assert caught.value.reason == reason
+    assert message in str(caught.value)
+    assert caught.value.execution_occurred is False
+
+
 def test_pl_008_per_algorithm_population_replaces_the_shared_one_before_the_lattice_is_derived() -> None:
     spec = _spec(
         problems=["dtlz2"],
