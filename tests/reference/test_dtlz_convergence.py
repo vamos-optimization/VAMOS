@@ -10,7 +10,7 @@ from vamos.foundation.quality_indicators.hypervolume import hypervolume
 def test_dtlz2_nsgaii_convergence():
     """
     Verify NSGA-III solves DTLZ2 (3 objectives).
-    Baseline: HV > 0.50 (Normalized)
+    Baseline: HV > 0.67 (seed 42 reaches 0.7192; the front's maximum is 0.8074)
     Budget: 5,000 evals
     """
     # 3-objective problem
@@ -44,4 +44,4 @@ def test_dtlz2_nsgaii_convergence():
     )
 
     hv = hypervolume(result.F, ref_point)
-    assert hv > 0.50, f"DTLZ2 NSGA-III failed to converge. HV={hv:.4f} < 0.50"
+    assert hv > 0.67, f"DTLZ2 NSGA-III failed to converge. HV={hv:.4f} < 0.67"
