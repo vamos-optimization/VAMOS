@@ -182,6 +182,63 @@ class TestVectorizedEvaluation:
         np.testing.assert_allclose(out["F"][:, 0], [0.2, 0.8])
         np.testing.assert_allclose(out["F"][:, 1], [0.8, 0.2])
 
+    def test_vectorized_flat_output_is_rejected(self) -> None:
+        # np.hstack gives (N * n_obj,): reshaping it to (N, n_obj) would mix the objectives of different solutions.
+        problem = make_problem(
+            lambda X: np.hstack([X[:, 0], 1 - X[:, 0]]),
+            n_var=2,
+            n_obj=2,
+            bounds=[(0, 1), (0, 1)],
+            vectorized=True,
+        )
+        X = np.random.default_rng(0).random((10, 2))
+
+        with pytest.raises(ValueError, match=r"returned shape \(20,\), expected \(10, 2\).*np\.column_stack"):
+            problem.evaluate(X, {})
+
+    def test_vectorized_flat_constraints_are_rejected(self) -> None:
+        problem = make_problem(
+            lambda X: np.column_stack([X[:, 0], X[:, 1]]),
+            n_var=2,
+            n_obj=2,
+            bounds=[(0, 1), (0, 1)],
+            vectorized=True,
+            constraints=lambda X: np.hstack([X[:, 0] - 0.5, X[:, 1] - 0.5]),
+            n_constraints=2,
+        )
+        X = np.random.default_rng(0).random((6, 2))
+
+        with pytest.raises(ValueError, match=r"constraints fn returned shape \(12,\), expected \(6, 2\)"):
+            problem.evaluate(X, {})
+
+    def test_vectorized_one_dimensional_output_is_kept_when_unambiguous(self) -> None:
+        single = make_problem(lambda X: X[:, 0] + X[:, 1], n_var=2, n_obj=1, xl=0.0, xu=1.0, vectorized=True)
+        X = np.array([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]])
+        out: dict[str, np.ndarray] = {}
+        single.evaluate(X, out)
+        np.testing.assert_allclose(out["F"], [[0.3], [0.7], [1.1]])
+
+        one_row = make_problem(lambda X: np.array([X[0, 0], 1 - X[0, 0]]), n_var=1, n_obj=2, xl=0.0, xu=1.0, vectorized=True)
+        out = {}
+        one_row.evaluate(np.array([[0.25]]), out)
+        np.testing.assert_allclose(out["F"], [[0.25, 0.75]])
+
+    def test_problem_subclass_flat_objectives_are_rejected(self) -> None:
+        from vamos.foundation.problem.base import Problem
+
+        class FlatObjectives(Problem):
+            def __init__(self) -> None:
+                self.n_var = 2
+                self.n_obj = 2
+                self.xl = np.zeros(2)
+                self.xu = np.ones(2)
+
+            def objectives(self, X: np.ndarray) -> np.ndarray:
+                return np.hstack([X[:, 0], 1 - X[:, 0]])
+
+        with pytest.raises(ValueError, match=r"objectives\(\) returned shape \(8,\), expected \(4, 2\)"):
+            FlatObjectives().evaluate(np.full((4, 2), 0.5), {})
+
 
 # ======================================================================
 # Constraints
