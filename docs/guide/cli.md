@@ -321,6 +321,15 @@ problems:
 The `moead` block applies only when MOEA/D is selected, for example with
 `--algorithm moead`.
 
+**Development after 1.1.0:** a key repeated in the same mapping of a YAML or
+JSON config file is an error; VAMOS 1.1.0 kept the last value without warning.
+Keys under `problems` are case-insensitive, like the problem registry:
+`ZDT1` applies to `zdt1`, and two keys that differ only in case are an error.
+In VAMOS 1.1.0 `problems.ZDT1` passed validation but none of its overrides
+reached the run. The `stopping` and `archive` blocks merge key by key across
+`defaults`, the top level and `problems.<name>`; see
+[Stopping and archive](../experiment/stopping_and_archive.md).
+
 **Development after 1.1.0:** an operator that names the algorithm's default
 operator keeps the default parameters it does not set. With NSGA-II,
 `crossover: {method: sbx, eta: 5}` is SBX with probability 0.9 and eta 5, and

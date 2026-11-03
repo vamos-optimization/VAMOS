@@ -88,3 +88,40 @@ def test_auto_reference_point_is_frozen_at_the_first_sample():
     hv_first, hv_second = (entry["hv"] for entry in manager.metadata_payload()["stopping"]["trace"])
     assert hv_second >= hv_first
     assert manager.metadata_payload()["stopping"]["reference_point"] == [4.4, 4.4]
+
+
+def test_hv_convergence_config_rejects_invalid_values():
+    import pytest
+
+    # Before VAMOS validated these values, a misspelled statistic ran as the median, an unknown
+    # epsilon mode as "rel" and a confidence of 95 was clipped to 1.
+    for kwargs, field in (
+        ({"statistic": "medain"}, "statistic"),
+        ({"epsilon_mode": "relative"}, "epsilon_mode"),
+        ({"confidence": 95}, "confidence"),
+        ({"every_k": "200"}, "every_k"),
+        ({"window": True}, "window"),
+        ({"epsilon": float("nan")}, "epsilon"),
+    ):
+        with pytest.raises((TypeError, ValueError), match=field):
+            HVConvergenceConfig(**kwargs)
+
+
+def test_hook_manager_rejects_reference_point_of_wrong_length():
+    import pytest
+
+    from vamos.engine.archive import ExternalArchiveConfig
+    from vamos.engine.hooks import HookManager, HookManagerConfig
+
+    for ref in ([1.1, 1.1, 1.1], [1.1]):
+        # Before, every HV computation failed silently and the stop never triggered.
+        with pytest.raises(ValueError, match="ref_point"):
+            HookManager(
+                HookManagerConfig(
+                    stopping_enabled=True,
+                    stop_cfg=HVConvergenceConfig(),
+                    archive_enabled=False,
+                    archive_cfg=ExternalArchiveConfig(capacity=None),
+                    hv_ref_point=ref,
+                )
+            )
