@@ -23,10 +23,9 @@ from vamos.engine.algorithm.components.archive import (
     SPEA2Archive,
     UnboundedArchive,
 )
-from vamos.engine.algorithm.components.population import initialize_population, resolve_bounds
+from vamos.engine.algorithm.components.lifecycle import setup_initial_population
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.engine.hooks.genealogy import DefaultGenealogyTracker, GenealogyTracker
-from vamos.foundation.encoding import normalize_encoding
 from vamos.foundation.eval.backends import EvaluationBackend
 from vamos.foundation.kernel.backend import KernelBackend
 from vamos.foundation.problem.types import ProblemProtocol
@@ -76,6 +75,7 @@ def setup_population(
     pop_size: int,
     constraint_mode: str,
     initializer_cfg: dict[str, Any] | None = None,
+    max_evaluations: int | None = None,
 ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any] | None, int]:
     """Initialize and evaluate the starting population.
 
@@ -93,21 +93,18 @@ def setup_population(
         Constraint handling mode ('none', 'feasibility', etc.).
     initializer_cfg : dict[str, Any] | None
         Optional initializer configuration.
+    max_evaluations : int | None
+        Evaluation budget of the run; the opposition-based initializer needs ``2 * pop_size``.
 
     Returns
     -------
     tuple[np.ndarray, np.ndarray, np.ndarray | None, int]
-        (X, F, G, n_eval) - decision variables, objectives, constraints, evaluation count.
+        (X, F, G, n_eval) - decision variables, objectives, constraints, and every
+        evaluation the initialization took.
     """
-    encoding = normalize_encoding(getattr(problem, "encoding", "real"))
-    n_var = problem.n_var
-    xl, xu = resolve_bounds(problem, encoding)
-    X = initialize_population(pop_size, n_var, xl, xu, encoding, rng, problem, initializer=initializer_cfg)
-    eval_result = eval_strategy.evaluate(X, problem)
-    F = eval_result.F
-    G = eval_result.G if constraint_mode != "none" else None
-    assert X.shape[0] == F.shape[0], "Population and objectives must align"
-    return X, F, G, X.shape[0]
+    return setup_initial_population(
+        problem, eval_strategy, rng, pop_size, constraint_mode, initializer_cfg, max_evaluations=max_evaluations, algorithm="NSGA-II"
+    )
 
 
 def setup_archive(
