@@ -452,3 +452,144 @@ def test_tied_samples_are_tested_like_lab_instead_of_hitting_the_exact_floor(tmp
     assert best.startswith("\\textbf{")
     assert worse.endswith("$^{-}$")
     assert "smallest attainable p-value" not in path.read_text(encoding="utf-8")
+
+
+def _bench(argv: list[str]) -> int:
+    from vamos.experiment.benchmark.cli import main as bench_main
+
+    try:
+        return bench_main(argv)
+    except SystemExit as exc:
+        return int(exc.code or 0)
+
+
+def _two_experiment_suite() -> BenchmarkSuite:
+    return BenchmarkSuite(
+        name="tiny_pair",
+        experiments=[
+            BenchmarkExperiment("zdt1", {"n_var": 3, "n_obj": 2}, evaluation_budget=8, seeds=[3]),
+            BenchmarkExperiment("zdt2", {"n_var": 3, "n_obj": 2}, evaluation_budget=8, seeds=[3]),
+        ],
+        default_algorithms=["nsgaii"],
+        default_metrics=["hv"],
+    )
+
+
+def test_bench_only_report_rewrites_metrics_csv(tmp_path: Path):
+    pytest.importorskip("pandas")
+    output = tmp_path / "report"
+    base = ["ZDT_small", "--algorithms", "nsgaii", "--output", str(output), "--smoke"]
+    assert _bench([*base, "--metrics", "igd_plus"]) == 0
+    metrics_csv = output / "summary" / "metrics.csv"
+    assert "indicator_igd_plus" in metrics_csv.read_text(encoding="utf-8").splitlines()[0]
+
+    assert _bench([*base, "--only-report", "--metrics", "igd"]) == 0
+
+    header = metrics_csv.read_text(encoding="utf-8").splitlines()[0].split(",")
+    assert "indicator_igd" in header
+    assert "indicator_igd_plus" not in header
+
+
+def test_bench_only_report_without_studies_fails_clearly(tmp_path: Path, capsys: pytest.CaptureFixture[str]):
+    code = _bench(["ZDT_small", "--output", str(tmp_path / "empty"), "--only-report"])
+
+    assert code == 2
+    assert "No benchmark studies of suite 'ZDT_small'" in capsys.readouterr().err
+
+
+def test_bench_config_rejects_unknown_keys(tmp_path: Path, capsys: pytest.CaptureFixture[str]):
+    config = tmp_path / "overrides.json"
+    config.write_text(json.dumps({"population_size": 10, "foo": 1}), encoding="utf-8")
+    output = tmp_path / "report"
+
+    code = _bench(["ZDT_small", "--algorithms", "nsgaii", "--output", str(output), "--smoke", "--config", str(config)])
+
+    assert code == 2
+    assert "foo" in capsys.readouterr().err
+    assert not output.exists()
+
+
+def test_bench_config_applies_budget_and_seeds(tmp_path: Path):
+    from vamos.study_artifacts import load_study
+
+    config = tmp_path / "overrides.json"
+    config.write_text(json.dumps({"population_size": 4, "max_evaluations": 12, "seeds": [7]}), encoding="utf-8")
+    output = tmp_path / "report"
+
+    code = _bench(["ZDT_small", "--algorithms", "nsgaii", "--output", str(output), "--smoke", "--config", str(config), "--metrics", "hv"])
+
+    assert code == 0
+    spec = load_study(output / "study-0000").spec
+    assert spec.max_evaluations == 12
+    assert tuple(spec.seeds) == (7,)
+    assert spec.pop_size == 4
+
+
+def test_bench_unknown_suite_exits_with_usage_error(tmp_path: Path, capsys: pytest.CaptureFixture[str]):
+    code = _bench(["ZDT_smal", "--output", str(tmp_path / "x")])
+
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "Unknown benchmark suite 'ZDT_smal'" in err
+    assert "Did you mean 'ZDT_small'?" in err
+
+
+def test_bench_rejects_occupied_output_before_running(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
+    import vamos.experiment.benchmark.cli as bench_cli
+
+    monkeypatch.setattr(bench_cli, "get_benchmark_suite", lambda name: _two_experiment_suite())
+    output = tmp_path / "report"
+    occupied = output / "study-0001"
+    occupied.mkdir(parents=True)
+    (occupied / "notes.txt").write_text("keep", encoding="utf-8")
+
+    code = _bench(["tiny_pair", "--output", str(output), "--config", str(_population_config(tmp_path))])
+
+    assert code == 5
+    assert "study-0001" in capsys.readouterr().err
+    assert not (output / "study-0000").exists()
+    assert sorted(path.name for path in output.iterdir()) == ["study-0001"]
+
+
+def _population_config(tmp_path: Path) -> Path:
+    config = tmp_path / "population.json"
+    config.write_text(json.dumps({"population_size": 4, "engine": "numpy"}), encoding="utf-8")
+    return config
+
+
+def test_bench_report_keeps_matplotlib_backend(tmp_path: Path):
+    pd = pytest.importorskip("pandas")
+    matplotlib = pytest.importorskip("matplotlib")
+    pytest.importorskip("scipy")
+    rows = [
+        {"problem": problem, "algorithm": algorithm, "engine": "numpy", "seed": seed, "n_obj": 2, "hv": 0.5 + 0.1 * index + 0.01 * seed}
+        for problem in ("p1", "p2", "p3")
+        for index, algorithm in enumerate(("a1", "a2", "a3"))
+        for seed in range(3)
+    ]
+
+    class _SummaryResult:
+        suite = BenchmarkSuite(name="fake", experiments=[], default_algorithms=[], default_metrics=["hv"])
+
+        def summary_rows(self):
+            return tuple(pd.DataFrame(rows).to_dict(orient="records"))
+
+    original = matplotlib.get_backend()
+    matplotlib.use("svg", force=True)
+    try:
+        report = BenchmarkReport(
+            result=_SummaryResult(), config=BenchmarkReportConfig(metrics=["hv"], alpha=0.5), output_dir=tmp_path / "summary"
+        )
+        plots = report.generate_plots()
+        lab = report.generate_lab_outputs()
+        backend = matplotlib.get_backend()
+    finally:
+        matplotlib.use(original, force=True)
+
+    assert backend == "svg"
+    assert plots["hv"]
+    assert any(Path(lab["boxplots"]).iterdir())
+
+
+def test_wfg_suite_description_does_not_claim_pymoo():
+    assert "pymoo" not in get_benchmark_suite("WFG_heavy").description
