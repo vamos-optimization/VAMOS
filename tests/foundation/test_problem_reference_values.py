@@ -17,6 +17,7 @@ import pytest
 
 from vamos.foundation.eval.population import evaluate_population_with_constraints
 from vamos.foundation.problem.registry import available_problem_names, make_problem_selection
+from vamos.resources import reference_front_path
 
 _FIXTURE: dict[str, Any] = json.loads((Path(__file__).parent / "data" / "problem_reference_values.json").read_text(encoding="utf-8"))
 _PROBLEMS: dict[str, Any] = _FIXTURE["problems"]
@@ -40,7 +41,6 @@ _REFERENCED_FAMILIES = (
     "re",
     "rwa",
 )
-_REFERENCE_FRONTS = Path(__file__).resolve().parents[2] / "src" / "vamos" / "resources" / "reference_fronts"
 
 
 @pytest.mark.parametrize("key", sorted(_PROBLEMS))
@@ -101,7 +101,8 @@ def test_pareto_set_points_lie_on_the_analytical_and_packaged_fronts(key: str) -
     F, _ = evaluate_population_with_constraints(problem, X)
 
     np.testing.assert_allclose(_ANALYTICAL_FRONTS[key](F), 0.0, atol=1e-9)
-    front = np.loadtxt(_REFERENCE_FRONTS / f"{key}.csv", delimiter=",", ndmin=2)
+    # The packaged lookup, which also finds ZDT1.csv on case-sensitive filesystems.
+    front = np.loadtxt(reference_front_path(key), delimiter=",", ndmin=2)
     # ZDT3's Pareto set also maps to dominated parts of its curve; the packaged front holds only the
     # non-dominated ones, so only those points are checked against it.
     if key == "zdt3":
