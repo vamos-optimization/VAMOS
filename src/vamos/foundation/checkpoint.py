@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
+from numpy.typing import NDArray
 
 if TYPE_CHECKING:
     from numpy.random import Generator
@@ -17,14 +18,15 @@ if TYPE_CHECKING:
 def save_checkpoint(
     path: str | Path,
     *,
-    X: np.ndarray,
-    F: np.ndarray,
+    X: NDArray[np.generic],
+    F: NDArray[np.generic],
     generation: int,
     n_eval: int,
     rng_state: dict[str, Any],
-    G: np.ndarray | None = None,
-    archive_X: np.ndarray | None = None,
-    archive_F: np.ndarray | None = None,
+    G: NDArray[np.generic] | None = None,
+    archive_X: NDArray[np.generic] | None = None,
+    archive_F: NDArray[np.generic] | None = None,
+    archive_G: NDArray[np.generic] | None = None,
     extra: dict[str, Any] | None = None,
 ) -> Path:
     """
@@ -42,8 +44,8 @@ def save_checkpoint(
         Total number of evaluations performed so far.
     rng_state : dict[str, Any]
         State from ``rng.bit_generator.state``.
-    G, archive_X, archive_F : np.ndarray | None, optional
-        Optional constraint and archive arrays.
+    G, archive_X, archive_F, archive_G : np.ndarray | None, optional
+        Optional constraint and archive arrays; ``archive_G`` holds the archived rows' constraint values.
     extra : dict[str, Any] | None, optional
         Algorithm-specific checkpoint payload.
 
@@ -68,6 +70,7 @@ def save_checkpoint(
         "rng_state": rng_state,
         "archive_X": archive_X,
         "archive_F": archive_F,
+        "archive_G": archive_G,
         "extra": extra or {},
     }
 

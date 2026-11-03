@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "6a928d44c1900a6cd41ee25baacd7f04785ad56c",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 6a928d44c1900a6cd41ee25baacd7f04785ad56c",
+  "generation_commit": "f95660636aa9a51d17501f7dade87921013276b1",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit f95660636aa9a51d17501f7dade87921013276b1",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.1",
@@ -26,16 +26,16 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 392,
-  "files_with_diagnostics": 61,
-  "fingerprint_count": 61,
+  "diagnostic_count": 379,
+  "files_with_diagnostics": 59,
+  "fingerprint_count": 59,
   "error_code_summary": {
-    "type-arg": 392
+    "type-arg": 379
   },
   "layer_summary": {
-    "engine": 196,
+    "engine": 188,
     "experiment": 11,
-    "foundation": 167,
+    "foundation": 162,
     "package-root": 1,
     "ux": 17
   },
@@ -964,48 +964,6 @@
       ]
     },
     {
-      "fingerprint": "6515F64EEAE1426506397A4EB94874975DD8EE7DF24C96586D065E3D9116EEF9",
-      "path": "src/vamos/engine/algorithm/components/hooks.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 8,
-      "locations": [
-        {
-          "line": 51,
-          "column": 8
-        },
-        {
-          "line": 102,
-          "column": 8
-        },
-        {
-          "line": 105,
-          "column": 37
-        },
-        {
-          "line": 145,
-          "column": 17
-        },
-        {
-          "line": 231,
-          "column": 12
-        },
-        {
-          "line": 232,
-          "column": 17
-        },
-        {
-          "line": 233,
-          "column": 19
-        },
-        {
-          "line": 234,
-          "column": 6
-        }
-      ]
-    },
-    {
       "fingerprint": "659FFCD24052030DAD7E5ECAEEC775BE6E3FCE0D6A54428056670B39B98D4BB3",
       "path": "src/vamos/engine/tuning/racing/stats.py",
       "error_code": "type-arg",
@@ -1058,36 +1016,6 @@
         {
           "line": 17,
           "column": 6
-        }
-      ]
-    },
-    {
-      "fingerprint": "693A549B3C4BFEA8BC016B2FE8382CC5926D53B735D10BD008BC1C5C1FF93273",
-      "path": "src/vamos/foundation/checkpoint.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "foundation",
-      "multiplicity": 5,
-      "locations": [
-        {
-          "line": 20,
-          "column": 8
-        },
-        {
-          "line": 21,
-          "column": 8
-        },
-        {
-          "line": 25,
-          "column": 8
-        },
-        {
-          "line": 26,
-          "column": 16
-        },
-        {
-          "line": 27,
-          "column": 16
         }
       ]
     },

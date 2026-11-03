@@ -164,8 +164,11 @@ def optimize(
     live_viz : LiveVisualization | None, optional
         Live visualization callback.
     checkpoint : CheckpointPayload | None, optional
-        Warm-start checkpoint for compatible algorithms. Multi-seed runs do not
-        accept checkpoints.
+        Warm-start checkpoint (``result.data["checkpoint"]``) for NSGA-II and
+        MOEA/D. Resumed with the same configuration and seed, both continue
+        exactly as the uninterrupted run, archive constraints included. A
+        checkpoint that cannot be restored raises ``ConfigurationError``.
+        Multi-seed runs do not accept checkpoints.
 
     Returns
     -------
