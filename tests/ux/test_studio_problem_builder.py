@@ -460,3 +460,133 @@ class TestGenerateScriptConfiguration:
                 algorithm_config={"generation_callback": object()},
                 config_class="NSGAIIConfig",
             )
+
+
+# ======================================================================
+# Generated script and LLM drafts run what Studio runs
+# ======================================================================
+
+
+def test_generated_script_runs_a_numpy_objective(tmp_path: Any) -> None:
+    import subprocess
+    import sys
+
+    from vamos.algorithms import NSGAIIConfig
+
+    config = NSGAIIConfig.default(pop_size=8, n_var=3)
+    # Studio evaluates this code with math and numpy (as np) in scope; the script must too.
+    code = "f0 = float(np.sum(x ** 2))\nf1 = math.fsum((v - 1.0) ** 2 for v in x)\nreturn [f0, f1]"
+    script = generate_script(
+        code,
+        name="numpy objective",
+        n_var=3,
+        n_obj=2,
+        bounds=[(0.0, 1.0)] * 3,
+        algorithm="nsgaii",
+        budget=24,
+        seed=7,
+        algorithm_config=dict(config.to_dict()),
+        config_class="NSGAIIConfig",
+    )
+    path = tmp_path / "problem.py"
+    path.write_text(script, encoding="utf-8")
+
+    proc = subprocess.run([sys.executable, str(path)], capture_output=True, text=True, timeout=240)
+
+    assert proc.returncode == 0, proc.stderr
+    assert "seed=7," in script
+    assert "seed=42" not in script
+    assert "non-dominated" not in script
+    assert "solutions" in proc.stdout
+
+
+def _install_fake_provider(monkeypatch: pytest.MonkeyPatch, provider: str, text: str) -> list[str]:
+    import sys
+    from types import ModuleType, SimpleNamespace
+
+    calls: list[str] = []
+
+    class FakeAnthropic:
+        def __init__(self, **_kwargs: object) -> None:
+            self.messages = SimpleNamespace(
+                create=lambda **_kw: calls.append("anthropic") or SimpleNamespace(content=[SimpleNamespace(text=text)])
+            )
+
+    class FakeOpenAI:
+        def __init__(self, **_kwargs: object) -> None:
+            self.responses = SimpleNamespace(create=lambda **_kw: calls.append("openai") or SimpleNamespace(output_text=text))
+
+    module = ModuleType(provider)
+    module.Anthropic = FakeAnthropic  # type: ignore[attr-defined]
+    module.OpenAI = FakeOpenAI  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, provider, module)
+    return calls
+
+
+_DRAFT = '{"objective_code": "return [x[0], 1 - x[0]]", "constraint_code": "", "n_var": 3, "n_obj": 2, "bounds": "0.0, 1.0"}'
+
+
+@pytest.mark.parametrize("provider", ["openai", "anthropic"])
+def test_llm_draft_in_a_code_fence_is_accepted_from_every_provider(monkeypatch: pytest.MonkeyPatch, provider: str) -> None:
+    from vamos.ux.studio import _studio_llm
+
+    _install_fake_provider(monkeypatch, provider, "```json\n" + _DRAFT + "\n```")
+
+    draft = _studio_llm.llm_generate_problem_code("a problem", provider=provider, api_key="test-key")
+
+    assert draft["n_var"] == 3
+    assert draft["objective_code"] == "return [x[0], 1 - x[0]]"
+
+
+@pytest.mark.parametrize(
+    ("text", "message"),
+    [
+        ('"return [x[0], x[1]]"', "JSON object"),
+        ('{"objective_code": "return [x[0]]", "n_var": "three", "n_obj": 2, "bounds": "0, 1"}', "n_var"),
+        ('{"objective_code": "return [x[0]]", "n_var": 2, "n_obj": 1, "bounds": "0, 1"}', "n_obj"),
+        ('{"objective_code": 5, "n_var": 2, "n_obj": 2, "bounds": "0, 1"}', "objective_code"),
+        ('{"objective_code": "return [x[0]]", "n_var": 2, "n_obj": 2, "bounds": [0, 1]}', "bounds"),
+    ],
+)
+def test_llm_draft_parsing_rejects_strings_and_wrong_types_without_touching_the_form(
+    monkeypatch: pytest.MonkeyPatch, text: str, message: str
+) -> None:
+    pytest.importorskip("panel")
+    from vamos.ux.panel.pages import problem_builder
+
+    _install_fake_provider(monkeypatch, "openai", text)
+    state = problem_builder.ProblemBuilderState()
+    before = (state.objective_code, state.constraint_code, state.n_var, state.n_obj, state.bounds_text)
+    state.ai_provider = "openai"
+    state.ai_api_key = "test-key"
+    state.ai_description = "a problem"
+
+    state.ai_generate()
+
+    assert (state.objective_code, state.constraint_code, state.n_var, state.n_obj, state.bounds_text) == before
+    assert state.ai_status.startswith("Error:")
+    assert message in state.ai_status
+
+
+def test_llm_unknown_provider_is_rejected_before_any_request(monkeypatch: pytest.MonkeyPatch) -> None:
+    from vamos.ux.studio import _studio_llm
+
+    calls = _install_fake_provider(monkeypatch, "openai", _DRAFT)
+
+    with pytest.raises(ValueError, match="gemni"):
+        _studio_llm.llm_generate_problem_code("a problem", provider="gemni", api_key="test-key")
+    assert calls == []
+
+
+def test_llm_request_that_does_not_answer_times_out(monkeypatch: pytest.MonkeyPatch) -> None:
+    import threading
+
+    from vamos.ux.studio import _studio_llm
+
+    release = threading.Event()
+    monkeypatch.setitem(_studio_llm._PROVIDERS, "openai", lambda _description, *, api_key: release.wait(10) and _DRAFT)
+    try:
+        with pytest.raises(TimeoutError, match="openai"):
+            _studio_llm.llm_generate_problem_code("a problem", provider="openai", api_key="test-key", timeout_seconds=0.2)
+    finally:
+        release.set()
