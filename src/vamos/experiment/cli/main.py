@@ -231,6 +231,7 @@ def run_from_config_path(config_path: str) -> int:
 
 
 def main() -> None:
+    from vamos.experiment.artifacts.errors import RunArtifactError
     from vamos.foundation.exceptions import VAMOSError
 
     _ensure_project_root_on_path()
@@ -255,6 +256,14 @@ def main() -> None:
         if exc.suggestion:
             print(f"Suggestion: {exc.suggestion}", file=sys.stderr)
         raise SystemExit(2) from None
+    except RunArtifactError as exc:
+        if show_traceback:
+            raise
+        from vamos.experiment.cli.run_artifact_cli import run_artifact_exit_code
+
+        # The run-artifact exit codes of `vamos results` and `vamos reproduce`: 8 for an output collision.
+        print(f"Error: {exc}", file=sys.stderr)
+        raise SystemExit(run_artifact_exit_code(exc)) from None
 
 
 if __name__ == "__main__":

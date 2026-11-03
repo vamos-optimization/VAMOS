@@ -417,6 +417,53 @@ def test_all_operator_pairs_run(algo_name: str, encoding: str, builder):
     assert not crashes, f"{len(crashes)}/{total} unexpected failures for {algo_name}:\n" + "\n".join(f"  {p}: {e}" for p, e in crashes[:20])
 
 
+def operator_choices() -> dict[tuple[str, str, str], tuple[str, Any]]:
+    """Every operator choice of the configuration spaces, with the first space that offers it.
+
+    Keys are ``(encoding, parameter, operator)``; the parameters are the crossover, mutation,
+    initializer and repair choices, and the per-segment operators of the mixed encoding.
+    """
+    choices: dict[tuple[str, str, str], tuple[str, Any]] = {}
+    for algo_name, encoding, builder in REGISTRY:
+        for name, param in builder().to_param_space().params.items():
+            if isinstance(param, Categorical) and name.endswith(("crossover", "mutation", "initializer", "repair")):
+                for choice in param.choices:
+                    choices.setdefault((encoding, name, str(choice)), (algo_name, builder))
+    return choices
+
+
+_OPERATOR_RUNS = [(*key, *first) for key, first in operator_choices().items()]
+
+
+@pytest.mark.parametrize(
+    "encoding,parameter,operator,algo_name,builder",
+    _OPERATOR_RUNS,
+    ids=[f"{encoding}-{parameter}-{operator}" for encoding, parameter, operator, *_ in _OPERATOR_RUNS],
+)
+def test_every_operator_runs_in_the_default_tier(encoding: str, parameter: str, operator: str, algo_name: str, builder):
+    """One short run per operator choice, so the default CI tier runs every operator.
+
+    ``test_all_operator_pairs_run`` covers every pair but is ``slow``, and CI runs ``-m "not slow"``.
+    """
+    import numpy as np
+
+    from vamos import optimize
+
+    assignment = _build_full_assignment(builder(), overrides={parameter: operator})
+    _inject_special_params(algo_name, assignment)
+    config = config_from_assignment(algo_name, assignment)
+    result = optimize(
+        ENCODING_PROBLEM[encoding],
+        algorithm=VARIANT_TO_CANONICAL.get(algo_name, algo_name),
+        algorithm_config=config,
+        max_evaluations=100,
+        seed=42,
+        engine="numpy",
+    )
+    F = result.F
+    assert F is not None and F.ndim == 2 and F.shape[0] > 0 and np.isfinite(F).all()
+
+
 # ---------------------------------------------------------------------------
 # Encoding and parent-arity validation of the pair-based real builders
 # ---------------------------------------------------------------------------
