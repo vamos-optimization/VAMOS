@@ -158,3 +158,34 @@ def test_ranking_excludes_infeasible_by_default(method: str) -> None:
 
     assert (ranking.rows[0]["f1"], ranking.rows[0]["f2"]) != (0.05, 0.05)
     assert ranking.rows[0]["Feasible"] is True
+
+
+# One registered problem per encoding that Studio's Batch Comparison offers.
+_BATCH_PROBLEM_BY_ENCODING = {"real": "zdt1", "binary": "zdt5", "permutation": "tsp6", "integer": "int_alloc", "mixed": "mixed_design"}
+
+
+@pytest.mark.parametrize("encoding", sorted(_BATCH_PROBLEM_BY_ENCODING))
+def test_every_algorithm_offered_for_an_encoding_runs_in_a_batch(encoding: str, tmp_path) -> None:
+    # A batch whose plan is valid must also run: every algorithm Studio offers for the
+    # encoding completes its task with the default configuration the plan resolved.
+    from vamos.study_artifacts import create_study
+    from vamos.ux.studio.algorithm_catalog import algorithms_for_encoding
+    from vamos.ux.studio.batch_studies import batch_spec, check_plan
+
+    algorithms = algorithms_for_encoding(encoding)
+    spec = batch_spec(
+        problems=[_BATCH_PROBLEM_BY_ENCODING[encoding]],
+        algorithms=list(algorithms),
+        seeds=[0],
+        max_evaluations=24,
+        pop_size=8,
+        on_error="continue",
+    )
+    output = tmp_path / "batch"
+    assert check_plan(spec, output).valid
+
+    rows = create_study(spec, output=output).run().summarize().rows
+    failed = {row.algorithm_id: (row.failure or {}).get("message") for row in rows if row.state != "succeeded"}
+
+    assert failed == {}
+    assert len(rows) == len(algorithms)

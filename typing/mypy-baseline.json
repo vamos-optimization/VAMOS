@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "d54eba3d24bf3527c5e65055535f43935e8f4dc8",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit d54eba3d24bf3527c5e65055535f43935e8f4dc8",
+  "generation_commit": "b5a19a2edff9d797651d97e4efc88ccde5a778dd",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit b5a19a2edff9d797651d97e4efc88ccde5a778dd",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.1",
@@ -26,14 +26,14 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 290,
-  "files_with_diagnostics": 53,
-  "fingerprint_count": 53,
+  "diagnostic_count": 285,
+  "files_with_diagnostics": 52,
+  "fingerprint_count": 52,
   "error_code_summary": {
-    "type-arg": 290
+    "type-arg": 285
   },
   "layer_summary": {
-    "engine": 169,
+    "engine": 164,
     "experiment": 11,
     "foundation": 92,
     "package-root": 1,
@@ -1552,36 +1552,6 @@
         {
           "line": 329,
           "column": 27
-        }
-      ]
-    },
-    {
-      "fingerprint": "DFE8702C5924DFF4E60EEAFA18B490F9177FBDA18D545D9E2CD82D17F1ECC553",
-      "path": "src/vamos/engine/operators/policies/discrete_operator_maps.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 5,
-      "locations": [
-        {
-          "line": 41,
-          "column": 42
-        },
-        {
-          "line": 42,
-          "column": 41
-        },
-        {
-          "line": 43,
-          "column": 43
-        },
-        {
-          "line": 45,
-          "column": 40
-        },
-        {
-          "line": 46,
-          "column": 39
         }
       ]
     },
