@@ -72,7 +72,7 @@ def initialize_spea2_run(
     tuple[SPEA2State, Any, Any, int, HVTracker]
         (state, live_cb, eval_strategy, max_eval, hv_tracker)
     """
-    max_eval, hv_config = parse_termination(termination, "SPEA2")
+    max_eval, hv_config = parse_termination(termination, "SPEA2", pop_size=int(cfg.get("pop_size", 100)))
 
     eval_strategy = get_eval_strategy(eval_strategy)
     live_cb = get_live_viz(live_viz)

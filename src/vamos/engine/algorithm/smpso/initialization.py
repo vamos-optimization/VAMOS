@@ -154,7 +154,7 @@ def initialize_smpso_run(
     tuple
         (state, live_cb, eval_strategy, max_eval, hv_tracker)
     """
-    max_eval, hv_config = parse_termination(termination, "SMPSO")
+    max_eval, hv_config = parse_termination(termination, "SMPSO", pop_size=int(config.get("pop_size", 100)))
     eval_strategy = get_eval_strategy(eval_strategy)
     live_cb = get_live_viz(live_viz)
     rng = np.random.default_rng(seed)

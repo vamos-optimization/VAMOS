@@ -17,8 +17,14 @@ import numpy as np
 
 from vamos.engine.algorithm.components.evaluation import combine_constraints, extract_evaluation_arrays
 from vamos.engine.algorithm.components.hooks import get_live_viz, live_should_stop
+from vamos.engine.algorithm.components.metrics import setup_hv_tracker
 from vamos.engine.algorithm.components.population import initialize_population, resolve_bounds
-from vamos.engine.algorithm.components.termination import capped_offspring_size, validate_initial_budget
+from vamos.engine.algorithm.components.termination import (
+    capped_offspring_size,
+    hv_target_reached,
+    parse_termination,
+    validate_initial_budget,
+)
 from vamos.engine.algorithm.config.base import normalize_constraint_mode
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
 from vamos.engine.config.variation import (
@@ -225,15 +231,12 @@ class RVEA:
         constraint_mode = normalize_constraint_mode(self.cfg.get("constraint_mode", "feasibility"))
         n_constraints = int(getattr(problem, "n_constraints", 0) or 0)
 
-        term_key, term_val = termination
-        if term_key == "n_gen":
-            max_gen = max(1, int(term_val))
-            max_evals = max_gen * pop_size
-        elif term_key == "max_evaluations":
-            max_evals = int(term_val)
-            max_gen = max(1, int(math.ceil((max_evals - pop_size) / pop_size)))
+        max_evals, hv_config = parse_termination(termination, "RVEA", pop_size)
+        # The APD penalty grows with generation / max_gen; n_gen gives max_gen directly.
+        if termination[0] == "n_gen":
+            max_gen = max_evals // pop_size
         else:
-            raise ValueError("Unsupported termination criterion for RVEA.")
+            max_gen = max(1, int(math.ceil((max_evals - pop_size) / pop_size)))
 
         ref_dirs = _generate_reference_vectors(n_obj, n_partitions)
         if ref_dirs.shape[0] != pop_size:
@@ -301,7 +304,9 @@ class RVEA:
             adapt_interval=adapt_interval,
             n_obj=n_obj,
             result_mode=result_mode,
+            hv_tracker=setup_hv_tracker(hv_config, self.kernel),
         )
+        self._st.hv_reached = hv_target_reached(self._st)
         live_cb.on_start(
             RunContext(
                 problem=problem,
@@ -359,7 +364,8 @@ class RVEA:
         Returns
         -------
         bool
-            Always ``False`` (RVEA has no early-stop criterion).
+            ``True`` when the HV target of an ``("hv", ...)`` termination is
+            reached or the live callback asks to stop.
 
         Raises
         ------
@@ -416,17 +422,19 @@ class RVEA:
 
         st.pending_offspring = None
         st.generation += 1
+        st.hv_reached = st.hv_reached or hv_target_reached(st)
+        stop_requested = False
         if self._live_cb is not None:
             # ``st.generation`` starts at 1 for the APD penalty; callbacks count completed generations.
             self._live_cb.on_generation(st.generation - 1, F=st.F, stats={"evals": st.n_eval})
-            return live_should_stop(self._live_cb)
-        return False
+            stop_requested = live_should_stop(self._live_cb)
+        return stop_requested or st.hv_reached
 
     def should_terminate(self) -> bool:
         """Check if termination criterion is met."""
         if self._st is None:
             return True
-        return self._st.n_eval >= self._st.max_evals
+        return self._st.n_eval >= self._st.max_evals or self._st.hv_reached
 
     def result(self) -> dict[str, Any]:
         """Get optimization result.
