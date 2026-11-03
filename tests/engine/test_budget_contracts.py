@@ -286,3 +286,65 @@ def test_study_result_evaluations_metric_for_ref_direction_algorithms() -> None:
     assert result.mean("evaluations") == pytest.approx(92.0)
     assert result.std("evaluations") == pytest.approx(0.0)
     assert result.best_run("evaluations").meta["seed"] == 1
+
+
+@pytest.mark.parametrize(
+    ("algorithm_name", "factory"),
+    ALGORITHM_FACTORIES,
+    ids=[name for name, _ in ALGORITHM_FACTORIES],
+)
+def test_every_algorithm_accepts_the_same_termination_criteria(
+    algorithm_name: str,
+    factory: Callable[[], tuple[Any, int]],
+) -> None:
+    problem = ZDT1Problem(n_var=6)
+
+    # VAMOS 1.1.0: n_gen only in AGE-MOEA and RVEA, hv only in the other seven.
+    algorithm, pop_size = factory()
+    by_generations = algorithm.run(problem, termination=("n_gen", 3), seed=11)
+    assert by_generations["evaluations"] == 3 * pop_size, algorithm_name
+
+    algorithm, pop_size = factory()
+    unreachable = {"target_value": 1e9, "reference_point": [11.0, 11.0], "max_evaluations": 5 * pop_size}
+    capped = algorithm.run(problem, termination=("hv", unreachable), seed=11)
+    assert capped["evaluations"] == 5 * pop_size, algorithm_name
+    # VAMOS 1.1.0 reported hv_converged instead in NSGA-III, SMS-EMOA and IBEA.
+    assert capped["hv_reached"] is False, algorithm_name
+
+    algorithm, pop_size = factory()
+    reachable = {"target_value": 0.0, "reference_point": [11.0, 11.0], "max_evaluations": 50 * pop_size}
+    early = algorithm.run(problem, termination=("hv", reachable), seed=11)
+    assert early["hv_reached"] is True, algorithm_name
+    assert early["evaluations"] < 50 * pop_size, algorithm_name
+
+
+@pytest.mark.parametrize("termination", [("max_evaluations", 150.9), ("max_evaluations", True), ("n_gen", 2.5), ("n_gen", 0)])
+@pytest.mark.parametrize(
+    ("algorithm_name", "factory"),
+    ALGORITHM_FACTORIES,
+    ids=[name for name, _ in ALGORITHM_FACTORIES],
+)
+def test_non_integer_budget_is_rejected(
+    algorithm_name: str,
+    factory: Callable[[], tuple[Any, int]],
+    termination: tuple[str, Any],
+) -> None:
+    algorithm, _pop_size = factory()
+
+    # VAMOS 1.1.0 truncated 150.9 to 150 evaluations without a warning.
+    with pytest.raises(ValueError, match=termination[0]):
+        algorithm.run(ZDT1Problem(n_var=6), termination=termination, seed=11)
+
+
+@pytest.mark.parametrize(
+    ("algorithm_name", "factory"),
+    [(name, factory) for name, factory in ALGORITHM_FACTORIES if name in {"nsgaiii", "smsemoa", "ibea"}],
+    ids=["nsgaiii", "smsemoa", "ibea"],
+)
+def test_hv_converged_stays_an_alias_of_hv_reached(algorithm_name: str, factory: Callable[[], tuple[Any, int]]) -> None:
+    algorithm, pop_size = factory()
+    reachable = {"target_value": 0.0, "reference_point": [11.0, 11.0], "max_evaluations": 50 * pop_size}
+
+    result = algorithm.run(ZDT1Problem(n_var=6), termination=("hv", reachable), seed=11)
+
+    assert result["hv_converged"] is result["hv_reached"] is True

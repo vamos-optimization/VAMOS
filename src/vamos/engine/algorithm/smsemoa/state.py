@@ -108,6 +108,8 @@ def build_smsemoa_result(
         "reference_point": state.ref_point.copy(),
         "evaluations": state.n_eval,
         "generation": state.generation,
+        "hv_reached": hv_reached,
+        # Alias of hv_reached, kept until VAMOS 2.0.
         "hv_converged": hv_reached,
         "population": {"X": state.X.copy(), "F": state.F.copy()},
     }

@@ -26,6 +26,7 @@ class RVEAState(AlgorithmState):
     """
 
     max_evals: int = 0
+    hv_reached: bool = False
     max_gen: int = 1
     variation: VariationPipeline | None = None
     ref_dirs: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
@@ -73,6 +74,7 @@ def build_rvea_result(
         "F": result_F,
         "evaluations": state.n_eval,
         "generation": state.generation,
+        "hv_reached": state.hv_reached,
         "population": population,
     }
     if result_G is not None:
