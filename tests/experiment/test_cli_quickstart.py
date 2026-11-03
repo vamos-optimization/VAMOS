@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import subprocess
 import sys
 
@@ -103,9 +104,10 @@ def test_quickstart_twice_does_not_fail(tmp_path, capsys) -> None:
     assert "Seed 42 already has a run" in second
     assert len(list(output_root.rglob("manifest.json"))) == 2
     assert len(list(output_root.glob("quickstart_*.json"))) == 2
-    # The suggested re-run command uses a free seed, so it works.
+    # The suggested re-run command uses a free seed, and the line holds only the command, so a shell can run it.
     rerun = next(line for line in second.splitlines() if line.startswith("Re-run:"))
-    assert "--seed 44" in rerun
+    command = shlex.split(rerun.removeprefix("Re-run:").strip(), posix=False)
+    assert command[:2] == ["vamos", "--config"] and command[3:] == ["--seed", "44"]
     assert "disabled by --no-plot" in second
 
 

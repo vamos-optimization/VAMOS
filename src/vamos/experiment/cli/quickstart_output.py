@@ -108,8 +108,10 @@ def _summary(
     print(f"Config saved: {config_path}")
     print(f"Run manifest: {Path(output_dir) / 'manifest.json'}")
     print(f"Plot: {plot_path or plot_note}")
-    # The same seed would write the same run directory, and a run is never overwritten.
-    print(f"Re-run: vamos --config {config_path} --seed {rerun_seed}  (seed {seed} now has a run)")
+    # The same seed would write the same run directory, and a run is never overwritten. The command
+    # has its own line, so that it can be pasted into a shell.
+    print(f"Seed {seed} now has a run; the command below uses a free seed.")
+    print(f"Re-run: vamos --config {config_path} --seed {rerun_seed}")
     print(f"Browse outputs: {problem_dir}")
 
 
