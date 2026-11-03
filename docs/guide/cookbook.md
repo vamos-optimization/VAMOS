@@ -281,6 +281,21 @@ The single-run CLI is **Stable**; custom evaluators and distributed study
 ownership remain **Experimental**. This command distributes evaluations
 within one run, not concurrent mutation of a durable study.
 
+**Development after 1.1.0:** the multiprocessing backend starts its pool of
+worker processes at the first evaluation and keeps it for the rest of the run.
+`optimize(..., eval_strategy="multiprocessing")` and the CLI close the pool
+when the run ends; a `MultiprocessingEvalBackend` that you create and pass is
+yours to close with `close()` or a `with` block, and can serve several runs.
+Without `--n-workers` (or `n_workers`), it uses the number of CPUs, at most 8.
+`n_workers` must be a positive integer, and `timeout`, when given, bounds each
+generation's evaluation in seconds: when it expires, the run fails with an
+`EvaluationError` and the workers are stopped. In VAMOS 1.1.0 the backend
+started and stopped a pool in every generation (about 1.5 s each on Windows,
+against 5 ms for a serial ZDT1 generation), used every CPU, read
+`n_workers=0` as every CPU, and never applied `timeout`. Each evaluation still
+pickles the population and the problem, so multiprocessing pays off only when
+one evaluation takes much longer than that.
+
 ## 12. Hypervolume-based early stopping
 
 **Stable single-run CLI.** For built-in ZDT1, stop at a fraction of its reference

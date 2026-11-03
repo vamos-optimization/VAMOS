@@ -108,6 +108,13 @@ quietly producing serial timings.
 Create or connect a `Client` before calling `optimize(..., eval_strategy="dask")`.
 If Dask is not installed, install the `compute` extra shown above.
 
+**Development after 1.1.0:** an `EvaluationError` raised by the problem's
+evaluation on a worker, such as non-finite objectives, reaches the caller as
+it is, and `DaskEvalBackend(fallback_to_serial=True)` does not evaluate the
+population again in serial. VAMOS 1.1.0 wrapped it as "DaskEvalBackend
+evaluation failed" and, with `fallback_to_serial=True`, evaluated the same
+population a second time.
+
 ## Kubernetes Deployment
 
 The following is a conceptual resource fragment, **not a complete deployment

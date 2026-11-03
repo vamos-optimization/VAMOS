@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import math
 import os
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import FIRST_EXCEPTION, ProcessPoolExecutor, wait
 from typing import Any, cast
 
 import numpy as np
@@ -36,19 +36,82 @@ class SerialEvalBackend(EvaluationBackend):
         return EvaluationResult(F=F, G=G)
 
 
+# Default worker count: process start-up and pickling dominate with more workers than this.
+_DEFAULT_MAX_WORKERS = 8
+
+
+def _positive_int(value: object, name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ConfigurationError(
+            f"MultiprocessingEvalBackend {name} must be a positive integer, got {value!r}.",
+            suggestion=f"Pass {name}=None for the default, or a count of at least 1.",
+        )
+    return value
+
+
 class MultiprocessingEvalBackend(EvaluationBackend):
     """
-    Parallel evaluation using multiprocessing.
+    Parallel evaluation in a pool of worker processes.
+
+    The pool starts at the first evaluation and serves every later one until
+    :meth:`close`; the backend is also a context manager. ``n_workers``
+    defaults to the number of CPUs, at most 8. ``timeout`` bounds each call to
+    :meth:`evaluate` in seconds: when it expires, the pending chunks are
+    cancelled, the workers are stopped and ``EvaluationError`` is raised.
 
     Notes:
         - Requires the problem instance to be picklable.
-        - Best suited for expensive evaluations; overhead dominates for tiny problems.
+        - Only pays off for expensive evaluations: each call pickles the
+          population and the problem, so with cheap problems it is slower than
+          serial evaluation.
     """
 
     def __init__(self, n_workers: int | None = None, chunk_size: int | None = None, timeout: float | None = None) -> None:
-        self.n_workers = max(1, n_workers or os.cpu_count() or 1)
+        if n_workers is None:
+            self.n_workers = max(1, min(os.cpu_count() or 1, _DEFAULT_MAX_WORKERS))
+        else:
+            self.n_workers = _positive_int(n_workers, "n_workers")
         self.chunk_size = chunk_size
+        if timeout is not None and (isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not timeout > 0):
+            raise ConfigurationError(
+                f"MultiprocessingEvalBackend timeout must be a positive number of seconds, got {timeout!r}.",
+                suggestion="Pass timeout=None to wait without a limit.",
+            )
         self.timeout = timeout
+        self._executor: ProcessPoolExecutor | None = None
+
+    def __enter__(self) -> MultiprocessingEvalBackend:
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        self.close()
+
+    def __getstate__(self) -> dict[str, Any]:
+        # The pool belongs to this process; a copy starts its own when it first evaluates.
+        state = dict(self.__dict__)
+        state["_executor"] = None
+        return state
+
+    def close(self) -> None:
+        """Shut the worker pool down; a later evaluation starts a new one."""
+        executor, self._executor = self._executor, None
+        if executor is not None:
+            executor.shutdown(wait=True, cancel_futures=True)
+
+    def _pool(self) -> ProcessPoolExecutor:
+        if self._executor is None:
+            self._executor = ProcessPoolExecutor(max_workers=self.n_workers)
+        return self._executor
+
+    def _abort(self) -> None:
+        """Stop the pool without waiting for its running chunks, which no caller will read."""
+        executor, self._executor = self._executor, None
+        if executor is None:
+            return
+        processes = list((getattr(executor, "_processes", None) or {}).values())
+        executor.shutdown(wait=False, cancel_futures=True)
+        for process in processes:
+            process.terminate()
 
     def evaluate(self, X: NDArray[np.generic], problem: Any) -> EvaluationResult:
         if self.n_workers <= 1 or X.shape[0] <= 1:
@@ -64,13 +127,26 @@ class MultiprocessingEvalBackend(EvaluationBackend):
         F_parts: list[tuple[int, NDArray[np.float64]]] = []
         G_parts: list[tuple[int, NDArray[np.float64] | None]] = []
 
-        with ProcessPoolExecutor(max_workers=self.n_workers) as ex:
-            future_map = {ex.submit(_eval_chunk, problem, X[start:end]): (start, end) for start, end in slices}
-            for fut in as_completed(future_map):
-                start, end = future_map[fut]
-                F_chunk, G_chunk = fut.result(timeout=self.timeout)
+        pool = self._pool()
+        future_map = {pool.submit(_eval_chunk, problem, X[start:end]): (start, end) for start, end in slices}
+        done, pending = wait(future_map, timeout=self.timeout, return_when=FIRST_EXCEPTION)
+        if pending and not any(fut.exception() is not None for fut in done):
+            self._abort()
+            raise EvaluationError(
+                f"MultiprocessingEvalBackend: {len(pending)} of {len(future_map)} chunks did not finish within the "
+                f"timeout of {self.timeout} s; the worker pool was stopped.",
+                suggestion="Raise timeout, or check the problem's evaluate() for a hang.",
+            )
+        try:
+            for fut, (start, _end) in future_map.items():
+                F_chunk, G_chunk = fut.result()
                 F_parts.append((start, F_chunk))
                 G_parts.append((start, G_chunk))
+        except BaseException:
+            # A chunk failed: drop the chunks that have not started, so the pool is free for the next call.
+            for fut in pending:
+                fut.cancel()
+            raise
 
         # Restore original order
         if not F_parts:
@@ -274,6 +350,10 @@ class DaskEvalBackend(EvaluationBackend):
 
             return EvaluationResult(F=F, G=G)
 
+        except EvaluationError:
+            # The problem's own evaluation error (non-finite or misshaped output), or this backend's final error:
+            # neither is a scheduler failure, so it propagates without wrapping or serial fallback.
+            raise
         except Exception as exc:
             # The scheduler answered, so a failure here usually comes from the problem's evaluate().
             return self._fallback_or_raise(X, problem, "DaskEvalBackend evaluation failed.", exc, suggestion=None)

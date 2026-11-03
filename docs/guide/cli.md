@@ -202,6 +202,12 @@ Multiprocessing evaluation for expensive problems:
 vamos --problem zdt1 --algorithm nsgaii --max-evaluations 8000 --eval-strategy multiprocessing --n-workers 4
 ```
 
+**Development after 1.1.0:** the run keeps one pool of worker processes from
+its first evaluation to its end, instead of starting one per generation, and
+without `--n-workers` it uses the number of CPUs, at most 8. It only pays off
+when each evaluation is expensive. See
+[Multiprocessing evaluation](cookbook.md#11-multiprocessing-evaluation).
+
 Enable Experimental live visualization and save plots (requires the
 [`analysis` extra](installation.md#optional-extras)):
 
