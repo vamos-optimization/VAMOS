@@ -55,6 +55,13 @@ Template keys (short list):
 
 The config is saved under `results/quickstart/` and can be re-run with `vamos --config <path>`.
 
+**Development after 1.1.0:** a seed whose run directory already exists cannot
+be reused. Without `--seed`, quickstart takes the first free seed from the
+template's (42, then 43, ...) and says so. With a taken `--seed`, it stops with
+exit code 8 before writing its config. Its closing `Re-run:` line adds a free
+`--seed` to the command. VAMOS 1.1.0 always used seed 42, so a second run, or
+its own `Re-run:` command, optimized and then failed when saving.
+
 Results helpers
 ---------------
 
@@ -252,11 +259,20 @@ vamos --problem zdt1 --algorithm nsgaii --max-evaluations 5000 --population-size
 - `result.npz`: objective, decision, constraint, population, and archive arrays
 - `environment.json`: bounded runtime environment details
 
-3) Save plots as presentation output outside the canonical run leaf:
+3) Save plots as presentation output outside the canonical run leaf. Use
+another seed (or another `--output-root`): the run of step 1 already holds
+`results/ZDT1/nsgaii/numpy/seed_7`, and a run directory is never overwritten.
 
 ```bash
-vamos --problem zdt1 --algorithm nsgaii --max-evaluations 5000 --population-size 80 --seed 7 --plot
+vamos --problem zdt1 --algorithm nsgaii --max-evaluations 5000 --population-size 80 --seed 8 --plot
 ```
+
+**Development after 1.1.0:** every run directory of the command is checked
+before the first optimization. If one already exists, or two runs of the
+command would share one, the command exits with code 8, the output-collision
+code of `vamos results` and `vamos reproduce`, without optimizing anything.
+VAMOS 1.1.0 optimized first and then stopped with a traceback and exit code 1
+when saving, and a series stopped at the first collision.
 
 Key flags
 ---------
@@ -320,6 +336,15 @@ problems:
 
 The `moead` block applies only when MOEA/D is selected, for example with
 `--algorithm moead`.
+
+**Development after 1.1.0:** a key repeated in the same mapping of a YAML or
+JSON config file is an error; VAMOS 1.1.0 kept the last value without warning.
+Keys under `problems` are case-insensitive, like the problem registry:
+`ZDT1` applies to `zdt1`, and two keys that differ only in case are an error.
+In VAMOS 1.1.0 `problems.ZDT1` passed validation but none of its overrides
+reached the run. The `stopping` and `archive` blocks merge key by key across
+`defaults`, the top level and `problems.<name>`; see
+[Stopping and archive](../experiment/stopping_and_archive.md).
 
 **Development after 1.1.0:** an operator that names the algorithm's default
 operator keeps the default parameters it does not set. With NSGA-II,
@@ -443,6 +468,28 @@ constrained runs whose result comes from an archive that keeps no constraint
 values, such as SMPSO with `result_mode: non_dominated`. VAMOS 1.1.0 also
 measured infeasible solutions, so its values for constrained problems are not
 valid.
+
+**Development after 1.1.0:** `vamos bench` checks its inputs before any run:
+
+- `--config` takes a JSON or YAML mapping with the keys `population_size`,
+  `offspring_population_size`, `max_evaluations`, `seeds`, `engine` and
+  `eval_strategy`. `max_evaluations` and `seeds` replace the budget and the
+  seeds of every experiment of the suite, also with `--smoke`. Any other key,
+  or an invalid value, stops the command with exit code 2. VAMOS 1.1.0 ignored
+  `max_evaluations`, `seeds` and unknown keys without a warning.
+- An unknown suite name exits with code 2 and suggests the closest names.
+- Every study of the suite is planned before the first one runs. If a
+  `study-NNNN` directory of the suite already exists under `--output`, the
+  command exits with code 5, as `vamos study create` does, and runs nothing.
+  VAMOS 1.1.0 stopped with a traceback, after running the studies before the
+  occupied one.
+- `--only-report` also rewrites `summary/metrics.csv` with the `--metrics` it
+  is given, so it can recompute the indicators of a finished benchmark. Without
+  studies of the suite under `--output` it exits with code 2. VAMOS 1.1.0 left
+  `metrics.csv` as the run wrote it, which could disagree with the tables.
+- The report draws its figures without `pyplot`, so it no longer switches the
+  process-wide matplotlib backend to `Agg`, and its plots work with every
+  matplotlib version that VAMOS supports (3.7 or newer).
 
 **Development after 1.1.0:** the statistics of `vamos bench` changed:
 

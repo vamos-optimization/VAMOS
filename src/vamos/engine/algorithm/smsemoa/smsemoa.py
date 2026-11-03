@@ -144,11 +144,13 @@ class SMSEMOA:
             engine_name=str(self.kernel.name),
         )
         live_cb.on_start(ctx)
+        # Generation 0 is the evaluated initial population, as in every algorithm.
+        live_cb.on_generation(0, F=st.F, stats={"evals": st.n_eval})
 
         # Compiled kernels reproduce the generation below when the configuration allows it.
         compiled = build_compiled_step(st, self.kernel)
         hv_reached = False
-        stop_requested = False
+        stop_requested = live_should_stop(live_cb)
         try:
             while st.n_eval < max_eval and not stop_requested:
                 if compiled is not None:
@@ -297,6 +299,7 @@ class SMSEMOA:
                 engine_name=str(self.kernel.name),
             )
             self._live_cb.on_start(ctx)
+            self._live_cb.on_generation(0, F=self._st.F, stats={"evals": self._st.n_eval})
 
     def ask(self) -> NDArray[Any]:
         """Generate offspring for evaluation.

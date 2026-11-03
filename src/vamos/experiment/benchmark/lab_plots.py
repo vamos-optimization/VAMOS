@@ -6,21 +6,11 @@ from typing import Any
 from vamos.experiment.benchmark.report_utils import ensure_dir, import_pandas
 
 
-def _load_matplotlib() -> tuple[Any | None, Any | None]:
-    try:  # pragma: no cover - optional heavy dep
-        import matplotlib
-
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-    except Exception:  # pragma: no cover
-        return None, None
-    return matplotlib, plt
-
-
 def generate_boxplots(summary: Any, output_dir: Path) -> dict[str, list[Path]]:
     pd = import_pandas()
-    _, plt = _load_matplotlib()
-    if plt is None:
+    try:  # pragma: no cover - optional heavy dep
+        from matplotlib.figure import Figure
+    except ImportError:  # pragma: no cover
         return {}
     output_dir = ensure_dir(output_dir)
     created: dict[str, list[Path]] = {}
@@ -38,18 +28,17 @@ def generate_boxplots(summary: Any, output_dir: Path) -> dict[str, list[Path]]:
                 subset = data[(data["Algorithm"] == alg) & (data["Problem"] == problem)]
                 data_to_plot.append(subset["IndicatorValue"].values)
 
-            fig = plt.figure(1, figsize=(9, 6))
-            plt.suptitle(problem, y=0.95, fontsize=14)
+            fig = Figure(figsize=(9, 6))
+            fig.suptitle(problem, y=0.95, fontsize=14)
             ax = fig.add_subplot(111)
             ax.boxplot(data_to_plot)
-            ax.set_xticklabels(algorithms, rotation=45, ha="right")
+            ax.set_xticks(range(1, len(algorithms) + 1), list(algorithms), rotation=45, ha="right")
             ax.tick_params(labelsize=10)
 
             png_path = output_dir / f"boxplot-{problem}-{indicator_name}.png"
             pdf_path = output_dir / f"boxplot-{problem}-{indicator_name}.pdf"
             fig.savefig(png_path, bbox_inches="tight")
             fig.savefig(pdf_path, bbox_inches="tight")
-            plt.close(fig)
             paths.extend([png_path, pdf_path])
         if paths:
             created[indicator_name] = paths

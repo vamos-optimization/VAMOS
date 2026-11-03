@@ -109,46 +109,51 @@ def notify_generation(
         live_cb.on_generation(generation, F=live_F, X=live_X, stats=None)
 
     if st is not None and callable(st.generation_callback):
-        try:
-            copy_arrays = bool(st.generation_callback_copy)
-            payload: dict[str, Any] = {
-                "generation": int(generation),
-                "evaluations": int(evals) if evals is not None else None,
-                "population": {
-                    "X": np.asarray(st.X).copy() if copy_arrays else np.asarray(st.X),
-                    "F": np.asarray(st.F).copy() if copy_arrays else np.asarray(st.F),
-                    "G": (
-                        np.asarray(st.G).copy()
-                        if copy_arrays and isinstance(st.G, np.ndarray)
-                        else np.asarray(st.G)
-                        if isinstance(st.G, np.ndarray)
-                        else None
-                    ),
-                },
-                "nondominated": None,
-                "archive": None,
-                "stats": stats or None,
+        # A user callback that raises stops the run with its exception.
+        copy_arrays = bool(st.generation_callback_copy)
+        payload: dict[str, Any] = {
+            "generation": int(generation),
+            "evaluations": int(evals) if evals is not None else None,
+            "population": {
+                "X": np.asarray(st.X).copy() if copy_arrays else np.asarray(st.X),
+                "F": np.asarray(st.F).copy() if copy_arrays else np.asarray(st.F),
+                "G": (
+                    np.asarray(st.G).copy()
+                    if copy_arrays and isinstance(st.G, np.ndarray)
+                    else np.asarray(st.G)
+                    if isinstance(st.G, np.ndarray)
+                    else None
+                ),
+            },
+            "nondominated": None,
+            "archive": None,
+            "stats": stats or None,
+        }
+        if nd_mask is not None:
+            payload["nondominated"] = {
+                "X": (np.asarray(st.X[nd_mask]).copy() if copy_arrays else np.asarray(st.X[nd_mask])),
+                "F": (np.asarray(st.F[nd_mask]).copy() if copy_arrays else np.asarray(st.F[nd_mask])),
             }
-            if nd_mask is not None:
-                payload["nondominated"] = {
-                    "X": (np.asarray(st.X[nd_mask]).copy() if copy_arrays else np.asarray(st.X[nd_mask])),
-                    "F": (np.asarray(st.F[nd_mask]).copy() if copy_arrays else np.asarray(st.F[nd_mask])),
-                }
-            archive_payload = get_archive_contents(st)
-            if archive_payload is not None:
-                x_arch = np.asarray(archive_payload.get("X"))
-                f_arch = np.asarray(archive_payload.get("F"))
-                payload["archive"] = {
-                    "X": x_arch.copy() if copy_arrays else x_arch,
-                    "F": f_arch.copy() if copy_arrays else f_arch,
-                }
-            callback_stop = bool(st.generation_callback(payload))
-            if callback_stop:
-                return True
-        except Exception as exc:
-            _logger().debug("generation_callback failed: %s", exc)
+        archive_payload = get_archive_contents(st)
+        if archive_payload is not None:
+            x_arch = np.asarray(archive_payload.get("X"))
+            f_arch = np.asarray(archive_payload.get("F"))
+            payload["archive"] = {
+                "X": x_arch.copy() if copy_arrays else x_arch,
+                "F": f_arch.copy() if copy_arrays else f_arch,
+            }
+        callback_stop = bool(st.generation_callback(payload))
+        if callback_stop:
+            return True
 
     return live_should_stop(live_cb)
+
+
+def _archive_constraints(st: Any) -> np.ndarray[Any, Any] | None:
+    """Constraint values of the archive rows, aligned with ``st.archive_F``, or ``None``."""
+    manager = getattr(st, "archive_manager", None)
+    constraint_values = getattr(manager, "constraint_values", None)
+    return constraint_values() if callable(constraint_values) else None
 
 
 def save_checkpoint(algo: NSGAII, checkpoint_dir: str, seed: int, generation: int, n_eval: int) -> None:
@@ -172,6 +177,7 @@ def save_checkpoint(algo: NSGAII, checkpoint_dir: str, seed: int, generation: in
         G=st.G,
         archive_X=st.archive_X,
         archive_F=st.archive_F,
+        archive_G=_archive_constraints(st),
         extra={
             "step": st.step,
             "replacements": st.replacements,
@@ -221,18 +227,20 @@ def run_nsgaii(
     generation = st.generation
     step = st.step
     replacements = st.replacements
-    stop_requested = notify_generation(
-        algo,
-        live_cb,
-        generation,
-        st.F,
-        problem=problem,
-        evals=n_eval,
-        eval_strategy=eval_strategy,
-    )
-    hv_reached = hv_tracker.enabled and hv_tracker.reached(st.hv_points_fn())
 
+    # From here on the handler is restored however the run ends, a failing generation-0 callback included.
     try:
+        stop_requested = notify_generation(
+            algo,
+            live_cb,
+            generation,
+            st.F,
+            problem=problem,
+            evals=n_eval,
+            eval_strategy=eval_strategy,
+        )
+        hv_reached = hv_tracker.enabled and hv_tracker.reached(st.hv_points_fn())
+
         while st.n_eval < max_eval and not hv_reached and not stop_requested and not interrupted:
             st.generation = generation
             st.step = step
@@ -302,6 +310,7 @@ def run_nsgaii(
         "rng_state": cast(dict[str, Any], st.rng.bit_generator.state),
         "archive_X": st.archive_X,
         "archive_F": st.archive_F,
+        "archive_G": _archive_constraints(st),
         "extra": {
             "step": st.step,
             "replacements": st.replacements,
