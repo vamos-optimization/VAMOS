@@ -70,7 +70,7 @@ def _invoke(operation: Callable[[], Any], *, json_output: bool, renderer: Callab
         result = operation()
     except RunArtifactError as exc:
         _emit_error(exc, json_output=json_output)
-        raise SystemExit(_exit_code(exc)) from None
+        raise SystemExit(run_artifact_exit_code(exc)) from None
     payload = result.as_dict() if hasattr(result, "as_dict") else result
     if json_output:
         print(json.dumps(payload, sort_keys=True, separators=(",", ":")))
@@ -157,7 +157,8 @@ def _mapping(value: object) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
 
 
-def _exit_code(exc: RunArtifactError) -> int:
+def run_artifact_exit_code(exc: RunArtifactError) -> int:
+    """Exit code of a run-artifact error, shared by every command that reports one (8: output collision)."""
     if isinstance(exc, OutputCollisionError):
         return 8
     if isinstance(exc, ReplayExecutionError):
@@ -176,4 +177,4 @@ def _exit_code(exc: RunArtifactError) -> int:
     return 3
 
 
-__all__ = ["run_reproduce", "run_results"]
+__all__ = ["run_artifact_exit_code", "run_reproduce", "run_results"]

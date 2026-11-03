@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import cast
 
 from vamos.engine.config.loader import load_experiment_spec
-from vamos.engine.config.spec import ExperimentSpec, ProblemOverrides, SpecBlock
+from vamos.engine.config.spec import ExperimentSpec, ProblemOverrides, SpecBlock, normalize_problem_overrides
 
 from .types import SpecDefaults
 
@@ -11,12 +11,6 @@ from .types import SpecDefaults
 def _as_spec_block(value: object) -> SpecBlock:
     if isinstance(value, dict):
         return cast(SpecBlock, value)
-    return {}
-
-
-def _as_problem_overrides(value: object) -> ProblemOverrides:
-    if isinstance(value, dict):
-        return cast(ProblemOverrides, value)
     return {}
 
 
@@ -47,7 +41,10 @@ def load_spec_defaults(config_path: str | None) -> SpecDefaults:
             problems = {}
         if not isinstance(problems, dict):
             raise ValueError("Experiment spec 'problems' must be a mapping of problem_key -> overrides.")
-        problem_overrides = _as_problem_overrides(problems)
+        # Problem keys are case-insensitive; the runs look their overrides up by registry key.
+        problem_overrides = normalize_problem_overrides(problems)
+        if "problems" in spec:
+            spec["problems"] = problem_overrides
 
         defaults = spec.get("defaults", {})
         if defaults is None:

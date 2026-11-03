@@ -119,6 +119,7 @@ class MOEAD:
             "rng_state": st.rng.bit_generator.state,
             "archive_X": st.archive_X,
             "archive_F": st.archive_F,
+            "archive_G": st.archive_manager.constraint_values() if st.archive_manager is not None else None,
             "extra": {
                 "subproblem_order": st.subproblem_order,
                 "subproblem_cursor": st.subproblem_cursor,

@@ -485,8 +485,23 @@ def test_cli_yaml_defaults_selection_is_applied_and_validated(monkeypatch, capsy
 
 _SMALL_RUN = {"algorithm": "nsgaii", "engine": "numpy", "population_size": 13, "max_evaluations": 26}
 _INVALID_HOOKS = [
-    pytest.param({"stopping": {"hv_convergence": {"enabled": True, "window": 1}}}, "window must be > 1", id="stopping"),
-    pytest.param({"archive": {"external": {"enabled": True, "pruning": "hypervolume"}}}, "hypervolume", id="archive"),
+    # Values that are invalid on their own fail the spec validation, which names their key.
+    pytest.param(
+        {"stopping": {"hv_convergence": {"enabled": True, "window": 1}}},
+        "'stopping.hv_convergence.window': window must be >= 2",
+        id="stopping",
+    ),
+    pytest.param(
+        {"archive": {"external": {"enabled": True, "pruning": "hypervolume"}}},
+        "'archive.external.pruning': Unsupported pruning 'hypervolume'",
+        id="archive",
+    ),
+    # Values that conflict only once the blocks are merged fail when the problem's hooks are built.
+    pytest.param(
+        {"stopping": {"hv_convergence": {"enabled": True, "window": 30}}},
+        "stopping.hv_convergence block of problem 'zdt1': min_points must be at least window+2",
+        id="merged-stopping",
+    ),
 ]
 
 
@@ -509,7 +524,7 @@ def test_invalid_hook_config_aborts_run(monkeypatch, capsys, tmp_path, hooks, re
     code, _, err = _exit_of_main(monkeypatch, capsys, "--config", str(_write_spec(tmp_path, spec)), "--problem", "zdt1")
 
     assert code == 2, err
-    assert reason in err and f"{next(iter(hooks))}." in err and "zdt1" in err
+    assert reason in err and f"{next(iter(hooks))}." in err
     assert "Traceback" not in err
     assert not output_root.exists()
 
@@ -571,3 +586,22 @@ def test_validate_config_accepts_a_valid_config_without_running(monkeypatch, cap
     assert code == 0, err
     assert "Config OK." in err
     assert not output_root.exists()
+
+
+def test_upper_case_problem_override_reaches_the_run(monkeypatch, tmp_path):
+    # In VAMOS 1.1.0 the spec accepted problems.ZDT1, but the run looked up "zdt1" and applied nothing.
+    output_root = tmp_path / "results"
+    spec = {
+        "defaults": {**_SMALL_RUN, "output_root": str(output_root)},
+        "problems": {"ZDT1": {"max_evaluations": 39, "archive": {"external": {"enabled": True, "capacity": 5}}}},
+    }
+    monkeypatch.setattr(sys, "argv", ["prog", "--config", str(_write_spec(tmp_path, spec)), "--problem", "zdt1", "--seed", "1"])
+    from vamos.experiment.cli.main import main
+
+    main()
+
+    import vamos
+
+    outcome = vamos.load_run(next(output_root.rglob("manifest.json")).parent).manifest["outcome"]
+    assert outcome["evaluations"] == 39
+    assert outcome["metrics"]["hooks"]["archive"]["enabled"] is True

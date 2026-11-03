@@ -20,7 +20,8 @@ from vamos.engine.algorithm.config import (
     SMSEMOAConfig,
     SPEA2Config,
 )
-from vamos.engine.hooks.hv_convergence import HVConvergenceConfig
+from vamos.engine.hooks.config_parse import check_hook_archive_field, check_hook_reference_point
+from vamos.engine.hooks.hv_convergence import HVConvergenceConfig, check_hv_convergence_field, coerce_hv_convergence_field
 from vamos.foundation.core.experiment_config import ExperimentConfig
 from vamos.foundation.problem.registry import available_problem_names
 
@@ -109,7 +110,9 @@ def validate_experiment_spec(spec: object, *, allowed_overrides: Iterable[str]) 
     defaults = _as_str_dict(spec_dict.get("defaults"), path="Experiment spec 'defaults'")
     _validate_overrides_block(defaults, path="defaults", allowed_keys=override_keys)
 
-    problems = _as_str_dict(spec_dict.get("problems"), path="Experiment spec 'problems'")
+    problems = normalize_problem_overrides(spec_dict.get("problems"))
+    if "problems" in spec_dict:
+        spec_dict["problems"] = problems
     known_problems = sorted(available_problem_names())
     for key, value in problems.items():
         normalized_key = key.lower()
@@ -203,17 +206,25 @@ def _validate_stopping_block(block: object, *, path: str) -> None:
     hv = block_dict.get("hv_convergence")
     if hv is None:
         return
-    hv_dict = _as_str_dict(hv, path=f"'{path}.hv_convergence'")
+    hv_path = f"{path}.hv_convergence"
+    hv_dict = _as_str_dict(hv, path=f"'{hv_path}'")
     allowed = {"enabled", "ref_point", *_dataclass_field_names(HVConvergenceConfig)}
     unknown_hv = _unknown_keys(hv_dict, allowed)
     if unknown_hv:
-        raise ValueError(f"Unknown keys in '{path}.hv_convergence': {', '.join(unknown_hv)}")
+        raise ValueError(f"Unknown keys in '{hv_path}': {', '.join(unknown_hv)}")
 
-    ref = hv_dict.get("ref_point")
-    if ref is not None and not (
-        (isinstance(ref, str) and ref.lower() == "auto") or (isinstance(ref, (list, tuple)) and all(_is_number(x) for x in ref))
-    ):
-        raise ValueError(f"'{path}.hv_convergence.ref_point' must be 'auto' or a list of numbers.")
+    # Each block may be partial (the blocks merge key by key), so every value is checked on its own.
+    for key, value in hv_dict.items():
+        try:
+            if key == "enabled":
+                if not isinstance(value, bool):
+                    raise TypeError(f"enabled must be true or false, got {value!r}.")
+            elif key == "ref_point":
+                check_hook_reference_point(value)
+            else:
+                check_hv_convergence_field(key, coerce_hv_convergence_field(key, value))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"'{hv_path}.{key}': {exc}") from exc
 
 
 def _validate_archive_block(block: object, *, path: str) -> None:
@@ -229,6 +240,29 @@ def _validate_archive_block(block: object, *, path: str) -> None:
         unknown_external = _unknown_keys(external_dict, _HOOK_ARCHIVE_KEYS)
         if unknown_external:
             raise ValueError(f"Unknown keys in '{path}.external': {', '.join(unknown_external)}")
+        for key, value in external_dict.items():
+            try:
+                check_hook_archive_field(key, value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"'{path}.external.{key}': {exc}") from exc
+
+
+def normalize_problem_overrides(problems: object) -> ProblemOverrides:
+    """Return the ``problems`` block with its keys in lower case, as the problem registry names them.
+
+    Problem keys are case-insensitive: ``ZDT1`` and ``zdt1`` name the same problem,
+    so two keys that differ only in case raise ``ValueError``.
+    """
+    block = _as_str_dict(problems, path="Experiment spec 'problems'")
+    normalized: ProblemOverrides = {}
+    original: dict[str, str] = {}
+    for key, value in block.items():
+        lowered = key.lower()
+        if lowered in normalized:
+            raise ValueError(f"Experiment spec 'problems' names problem {lowered!r} twice: {original[lowered]!r} and {key!r}.")
+        original[lowered] = key
+        normalized[lowered] = cast("SpecBlock | None", value)
+    return normalized
 
 
 def _dataclass_field_names(cls: object) -> list[str]:
@@ -238,10 +272,6 @@ def _dataclass_field_names(cls: object) -> list[str]:
 def _unknown_keys(d: Mapping[str, object], allowed: Iterable[str]) -> list[str]:
     allowed_set = set(allowed)
     return sorted(key for key in d.keys() if key not in allowed_set)
-
-
-def _is_number(value: object) -> bool:
-    return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
 def _as_str_dict(value: object, *, path: str) -> SpecBlock:
@@ -263,5 +293,6 @@ __all__ = [
     "ProblemOverrides",
     "SpecBlock",
     "allowed_override_keys",
+    "normalize_problem_overrides",
     "validate_experiment_spec",
 ]

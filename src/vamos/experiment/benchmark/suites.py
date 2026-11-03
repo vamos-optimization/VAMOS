@@ -132,7 +132,7 @@ def _init_default_suites() -> None:
             experiments=wfg_experiments,
             default_algorithms=["nsgaii", "moead", "nsgaiii"],
             default_metrics=["hv", "igd_plus", "epsilon_additive"],
-            description="Full WFG suite (requires pymoo) with larger budgets.",
+            description="Full WFG suite with larger budgets.",
             default_seeds=list(range(5)),
         )
     )
