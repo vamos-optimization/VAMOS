@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import signal
 import subprocess
 import sys
@@ -277,6 +278,68 @@ def test_concurrent_start_job_launches_one_worker(tmp_path: Path, monkeypatch: p
     assert sorted(type(item).__name__ for item in outcomes) == ["JobConflictError", "JobStatus"]
 
 
+def test_two_starts_after_a_crashed_start_launch_one_worker(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # A crashed starter left start.lock behind, and two callers then start the study. Both see the
+    # abandoned lock; the first replaces it with its own, and the second must not take that one away.
+    study = create_study(_tiny_spec(), output=tmp_path / "study")
+    job_dir = job_dir_for(study.root, study.study_id)
+    job_dir.mkdir(parents=True, exist_ok=True)
+    lock = job_dir / study_jobs.START_LOCK_FILE
+    lock.write_bytes(b"")
+    os.utime(lock, (time.time() - 3600, time.time() - 3600))
+    spawned: list[list[str]] = []
+
+    class _Process:
+        def wait(self) -> int:
+            return 0
+
+    # The interleaving of the race: both callers find the abandoned lock, then the second removes
+    # whatever is at the lock path only after the first has acquired a new lock there.
+    saw_old_lock = threading.Barrier(2)
+    first_acquired = threading.Event()
+    unlinks: list[str] = []
+    real_open, real_unlink = os.open, Path.unlink
+
+    def open_(path: object, flags: int, *args: object, **kwargs: object) -> int:
+        if Path(str(path)) != lock:
+            return real_open(path, flags, *args, **kwargs)  # type: ignore[arg-type]
+        try:
+            descriptor = real_open(path, flags, *args, **kwargs)  # type: ignore[arg-type]
+        except FileExistsError:
+            if not first_acquired.is_set():
+                saw_old_lock.wait(timeout=2.0)
+            raise
+        first_acquired.set()
+        return descriptor
+
+    def unlink(self: Path, missing_ok: bool = False) -> None:
+        if self == lock and threading.current_thread() is not threading.main_thread():
+            unlinks.append(threading.current_thread().name)
+            if len(unlinks) == 2:
+                first_acquired.wait(timeout=2.0)
+        real_unlink(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(study_jobs.os, "open", open_)
+    monkeypatch.setattr(Path, "unlink", unlink)
+    monkeypatch.setattr(study_jobs, "_spawn_detached", lambda command, _log: spawned.append(command) or _Process())
+    outcomes: list[object] = []
+
+    def start() -> None:
+        try:
+            outcomes.append(start_job(study.root, study.study_id, "run"))
+        except JobConflictError as exc:
+            outcomes.append(exc)
+
+    threads = [threading.Thread(target=start, name=f"start-{i}") for i in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=30)
+
+    assert len(spawned) == 1
+    assert sorted(type(item).__name__ for item in outcomes) == ["JobConflictError", "JobStatus"]
+
+
 def test_job_status_ignores_the_files_of_a_previous_worker(tmp_path: Path) -> None:
     now = 1_000_000.0
     current = {"operation": "run", "started_at": now - 5, "worker_id": "new"}
@@ -304,7 +367,9 @@ def test_start_job_gives_the_worker_its_identity(tmp_path: Path, monkeypatch: py
     job = json.loads((job_dir_for(study.root, study.study_id) / "job.json").read_text(encoding="utf-8"))
     assert isinstance(job["worker_id"], str) and job["worker_id"]
     assert spawned[0][spawned[0].index("--worker-id") + 1] == job["worker_id"]
-    assert not (job_dir_for(study.root, study.study_id) / study_jobs.START_LOCK_FILE).exists()
+    # The start released its lock: the next start can take it.
+    with study_jobs._start_lock(job_dir_for(study.root, study.study_id)):
+        pass
 
 
 def test_worker_runs_the_study_and_records_its_outcome(tmp_path: Path) -> None:

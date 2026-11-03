@@ -7,7 +7,8 @@ The job files live outside the study, in
 ``<parent>/.vamos-studio/jobs/<study-id>/``:
 
 - ``job.json``: operation, study path, start time and the worker's unique token, written by Studio;
-- ``start.lock``: held while Studio checks and starts a worker, so concurrent starts launch one;
+- ``start.lock``: locked by the operating system while Studio checks and starts a worker, so
+  concurrent starts launch one; the system releases the lock when its holder exits;
 - ``heartbeat.json``: the worker's process id, unique token and a timestamp, refreshed every
   few seconds while it runs;
 - ``stop.json``: a stop request addressed to one worker's unique token;
@@ -209,26 +210,48 @@ def _read_json(path: Path) -> dict[str, object] | None:
 
 @contextmanager
 def _start_lock(job_dir: Path) -> Iterator[None]:
-    """Hold ``start.lock`` for one start; a lock older than the startup grace is abandoned."""
-    lock = job_dir / START_LOCK_FILE
-    for attempt in range(2):
+    """Hold ``start.lock`` for one start.
+
+    The lock is the operating system's lock on the file, not the file's existence: the system
+    releases it when its holder exits, even after a crash, so no start has to reclaim an abandoned
+    lock, and none can remove a lock that another start holds. The file stays in place.
+    """
+    with (job_dir / START_LOCK_FILE).open("a+b") as handle:
+        if not _lock_first_byte(handle):
+            raise JobConflictError("Another Studio session is starting a runner for this study.")
         try:
-            descriptor = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except FileExistsError:
-            try:
-                abandoned = time.time() - lock.stat().st_mtime > STARTUP_GRACE_SECONDS
-            except OSError:
-                abandoned = True
-            if attempt == 0 and abandoned:
-                lock.unlink(missing_ok=True)
-                continue
-            raise JobConflictError("Another Studio session is starting a runner for this study.") from None
-        os.close(descriptor)
-        break
+            yield
+        finally:
+            _unlock_first_byte(handle)
+
+
+def _lock_first_byte(handle: BinaryIO) -> bool:
+    """Take an exclusive, non-blocking lock on the file of ``handle``; False if another holder has it."""
+    handle.seek(0)
     try:
-        yield
-    finally:
-        lock.unlink(missing_ok=True)
+        if sys.platform == "win32":
+            import msvcrt
+
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        return False
+    return True
+
+
+def _unlock_first_byte(handle: BinaryIO) -> None:
+    handle.seek(0)
+    if sys.platform == "win32":
+        import msvcrt
+
+        msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+    else:
+        import fcntl
+
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def _current_worker_file(path: Path, worker_id: object) -> dict[str, object] | None:
