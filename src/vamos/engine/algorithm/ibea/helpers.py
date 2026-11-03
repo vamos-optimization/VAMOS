@@ -341,7 +341,25 @@ def environmental_selection(
     tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any] | None, np.ndarray[Any, Any]]
         (X_selected, F_selected, G_selected, fitness)
     """
-    return indicator_selection(X, F, G, compute_indicator_matrix(F, indicator), pop_size, kappa, selection_kernels)
+    selected, fitness = environmental_selection_indices(F, G, pop_size, indicator, kappa, selection_kernels)
+    return X[selected], F[selected], G[selected] if G is not None else None, fitness
+
+
+def environmental_selection_indices(
+    F: np.ndarray[Any, Any],
+    G: np.ndarray[Any, Any] | None,
+    pop_size: int,
+    indicator: str,
+    kappa: float,
+    selection_kernels: SelectionKernels | None = None,
+) -> tuple[NDArray[np.int_], np.ndarray[Any, Any]]:
+    """Rows that IBEA's environmental selection keeps, with their fitness.
+
+    Same selection as :func:`environmental_selection`, which returns the kept
+    rows themselves; these indices let a caller carry per-row data, such as
+    genealogy ids, through the selection.
+    """
+    return _indicator_selection_indices(F, G, compute_indicator_matrix(F, indicator), pop_size, kappa, selection_kernels)
 
 
 def indicator_selection(
@@ -365,10 +383,23 @@ def indicator_selection(
     tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any] | None, np.ndarray[Any, Any]]
         (X_selected, F_selected, G_selected, fitness)
     """
+    selected, fitness = _indicator_selection_indices(F, G, indicator_values, pop_size, kappa, selection_kernels)
+    return X[selected], F[selected], G[selected] if G is not None else None, fitness
+
+
+def _indicator_selection_indices(
+    F: np.ndarray[Any, Any],
+    G: np.ndarray[Any, Any] | None,
+    indicator_values: np.ndarray[Any, Any],
+    pop_size: int,
+    kappa: float,
+    selection_kernels: SelectionKernels | None = None,
+) -> tuple[NDArray[np.int_], np.ndarray[Any, Any]]:
+    """Rows kept by IBEA's removal loop and their fitness; see :func:`indicator_selection`."""
     exponent = _fitness_exponents(indicator_values, kappa)
     if _overflows(exponent):
         selected, fitness = _log_domain_selection(exponent, _penalty_ranks(G, F.shape[0]), pop_size)
-        return X[selected], F[selected], G[selected] if G is not None else None, fitness
+        return np.asarray(selected, dtype=int), fitness
     contrib = np.exp(exponent)
     fitness = np.asarray(-np.sum(contrib, axis=1), dtype=float)
     fitness = apply_constraint_penalty(fitness, G)
@@ -376,9 +407,9 @@ def indicator_selection(
         # Same removal order and per-row accumulation order as the loop below.
         fitness = np.ascontiguousarray(fitness, dtype=np.float64)
         selected = np.asarray(selection_kernels.indicator_removal(fitness, contrib, pop_size), dtype=int)
-        return X[selected], F[selected], G[selected] if G is not None else None, fitness[selected]
+        return selected, fitness[selected]
 
-    active: NDArray[np.int_] = np.arange(X.shape[0], dtype=int)
+    active: NDArray[np.int_] = np.arange(F.shape[0], dtype=int)
     while active.size > pop_size:
         active_fitness = fitness[active]
         worst_pos = int(np.argmin(active_fitness))
@@ -388,11 +419,11 @@ def indicator_selection(
         fitness[active] += delta
         active = np.delete(active, worst_pos)
 
-    selected = active
-    return X[selected], F[selected], G[selected] if G is not None else None, fitness[selected]
+    return active, fitness[active]
 
 
 __all__ = [
+    "environmental_selection_indices",
     "epsilon_indicator",
     "hypervolume_indicator",
     "compute_indicator_matrix",

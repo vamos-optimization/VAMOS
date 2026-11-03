@@ -211,6 +211,8 @@ class NSGAIII:
                 X_off.shape[0],
                 variation_operator_label(self.cfg, "sbx+pm"),
                 "nsgaiii",
+                parents_per_group=2,
+                children_per_group=2,
             )
 
         return X_off
