@@ -219,18 +219,20 @@ def run_nsgaii(
     generation = st.generation
     step = st.step
     replacements = st.replacements
-    stop_requested = notify_generation(
-        algo,
-        live_cb,
-        generation,
-        st.F,
-        problem=problem,
-        evals=n_eval,
-        eval_strategy=eval_strategy,
-    )
-    hv_reached = hv_tracker.enabled and hv_tracker.reached(st.hv_points_fn())
 
+    # From here on the handler is restored however the run ends, a failing generation-0 callback included.
     try:
+        stop_requested = notify_generation(
+            algo,
+            live_cb,
+            generation,
+            st.F,
+            problem=problem,
+            evals=n_eval,
+            eval_strategy=eval_strategy,
+        )
+        hv_reached = hv_tracker.enabled and hv_tracker.reached(st.hv_points_fn())
+
         while st.n_eval < max_eval and not hv_reached and not stop_requested and not interrupted:
             st.generation = generation
             st.step = step

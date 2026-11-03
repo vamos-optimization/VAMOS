@@ -102,3 +102,18 @@ def test_live_callback_mode_type_matches_accepted_values() -> None:
         assert _nsgaii_builder().live_callback_mode(mode).build().live_callback_mode == mode
     with pytest.raises(ConfigurationError, match="live_callback_mode"):
         _nsgaii_builder().live_callback_mode("all").build()
+
+
+def test_nsgaii_restores_the_interrupt_handler_when_the_first_notification_fails() -> None:
+    import signal
+
+    def application_handler(signum: int, frame: object) -> None:
+        return None
+
+    previous = signal.signal(signal.SIGINT, application_handler)
+    try:
+        with pytest.raises(ValueError, match="user callback failed"):
+            optimize("zdt1", algorithm="nsgaii", engine="numpy", max_evaluations=600, seed=1, live_viz=_RecordingCallback(fail_at=0))
+        assert signal.getsignal(signal.SIGINT) is application_handler
+    finally:
+        signal.signal(signal.SIGINT, previous)
