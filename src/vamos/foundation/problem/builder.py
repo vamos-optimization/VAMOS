@@ -19,12 +19,13 @@ Example
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from typing import Any
 
 import numpy as np
 
 from vamos.foundation.encoding import EncodingLike, normalize_encoding
 from vamos.foundation.exceptions import BoundsError, ConfigurationError, ProblemDimensionError
-from vamos.foundation.problem.base import Problem, _coerce_decision_matrix
+from vamos.foundation.problem.base import Problem, _coerce_decision_matrix, _output_matrix
 
 
 class FunctionalProblem(Problem):
@@ -40,8 +41,8 @@ class FunctionalProblem(Problem):
         *,
         n_var: int,
         n_obj: int,
-        xl: np.ndarray,
-        xu: np.ndarray,
+        xl: np.ndarray[Any, Any],
+        xu: np.ndarray[Any, Any],
         encoding: EncodingLike,
         vectorized: bool,
         name: str,
@@ -63,7 +64,7 @@ class FunctionalProblem(Problem):
     # ProblemProtocol.evaluate
     # ------------------------------------------------------------------
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         """Evaluate the objective (and optional constraint) functions."""
         X = _coerce_decision_matrix(X, self.encoding)
         if X.ndim != 2 or X.shape[1] != self.n_var:
@@ -77,12 +78,7 @@ class FunctionalProblem(Problem):
             F_result = np.asarray(results, dtype=float)
 
         N = X.shape[0]
-        if F_result.ndim == 0:
-            F_result = F_result.reshape(1, 1)
-        elif F_result.ndim == 1:
-            F_result = F_result.reshape(-1, self.n_obj)
-        if F_result.shape != (N, self.n_obj):
-            raise ValueError(f"make_problem fn returned shape {F_result.shape}, expected ({N}, {self.n_obj}).")
+        F_result = _output_matrix(F_result, N, self.n_obj, source="make_problem fn")
 
         # Write into pre-allocated buffer when available, else assign.
         F = out.get("F")
@@ -99,12 +95,7 @@ class FunctionalProblem(Problem):
                 g_results = [self._constraints_fn(X[i]) for i in range(X.shape[0])]
                 G_result = np.asarray(g_results, dtype=float)
 
-            if G_result.ndim == 0:
-                G_result = G_result.reshape(1, 1)
-            elif G_result.ndim == 1:
-                G_result = G_result.reshape(-1, self.n_constraints)
-            if G_result.shape != (N, self.n_constraints):
-                raise ValueError(f"make_problem constraints fn returned shape {G_result.shape}, expected ({N}, {self.n_constraints}).")
+            G_result = _output_matrix(G_result, N, self.n_constraints, source="make_problem constraints fn")
 
             G = out.get("G")
             if G is not None and G.shape == G_result.shape:
@@ -127,8 +118,8 @@ def make_problem(
     n_var: int,
     n_obj: int,
     bounds: Sequence[tuple[float, float]] | None = None,
-    xl: float | Sequence[float] | np.ndarray | None = None,
-    xu: float | Sequence[float] | np.ndarray | None = None,
+    xl: float | Sequence[float] | np.ndarray[Any, Any] | None = None,
+    xu: float | Sequence[float] | np.ndarray[Any, Any] | None = None,
     vectorized: bool = False,
     encoding: str,
     name: str | None = None,
@@ -285,8 +276,7 @@ def make_problem(
             xu_arr = np.broadcast_to(np.asarray(xu, dtype=float), (n_var,)).copy()
         except ValueError as exc:
             raise BoundsError(
-                f"Could not broadcast xl/xu to shape ({n_var},)."
-                "\n\nHint: pass scalars or one value per decision variable."
+                f"Could not broadcast xl/xu to shape ({n_var},).\n\nHint: pass scalars or one value per decision variable."
             ) from exc
         if np.any(xl_arr > xu_arr):
             raise BoundsError("Lower bounds must not exceed upper bounds.")

@@ -1,4 +1,5 @@
 import warnings
+from typing import Any
 
 import numpy as np
 
@@ -7,15 +8,20 @@ from vamos.foundation.problem.base import Problem
 
 class DTLZBase(Problem):
     def __init__(self, n_var: int, n_obj: int) -> None:
+        if n_var < n_obj:
+            raise ValueError(
+                f"DTLZ problems need n_var >= n_obj (at least one distance variable, k = n_var - n_obj + 1 >= 1); "
+                f"got n_var={n_var}, n_obj={n_obj}."
+            )
         self.n_var = n_var
         self.n_obj = n_obj
         self.xl = 0.0
         self.xu = 1.0
 
-    def _evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def _evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         raise NotImplementedError
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         self._evaluate(X, out)
 
 
@@ -34,7 +40,7 @@ class DTLZ1Problem(DTLZBase):
                 stacklevel=2,
             )
 
-    def _evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def _evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         g = 100.0 * (
             self.n_var
             - self.n_obj
@@ -76,7 +82,7 @@ class DTLZ2Problem(DTLZBase):
                 stacklevel=2,
             )
 
-    def _evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def _evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         g = np.sum((X[:, self.n_obj - 1 :] - 0.5) ** 2, axis=1)
         F = np.ones((X.shape[0], self.n_obj))
         for i in range(self.n_obj):
@@ -110,7 +116,7 @@ class DTLZ3Problem(DTLZBase):
                 stacklevel=2,
             )
 
-    def _evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def _evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         g = 100.0 * (
             self.n_var
             - self.n_obj
@@ -153,7 +159,7 @@ class DTLZ4Problem(DTLZBase):
                 stacklevel=2,
             )
 
-    def _evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def _evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         g = np.sum((X[:, self.n_obj - 1 :] - 0.5) ** 2, axis=1)
         alpha = self.alpha
         F = np.ones((X.shape[0], self.n_obj))
@@ -190,7 +196,7 @@ class DTLZ5Problem(DTLZBase):
                 stacklevel=2,
             )
 
-    def _evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def _evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         g = np.sum((X[:, self.n_obj - 1 :] - 0.5) ** 2, axis=1)
 
         theta = np.empty((X.shape[0], self.n_obj - 1), dtype=float)
@@ -233,7 +239,7 @@ class DTLZ6Problem(DTLZBase):
                 stacklevel=2,
             )
 
-    def _evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def _evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         g = np.sum(np.power(X[:, self.n_obj - 1 :], 0.1), axis=1)
 
         theta = np.empty((X.shape[0], self.n_obj - 1), dtype=float)
@@ -276,7 +282,7 @@ class DTLZ7Problem(DTLZBase):
                 stacklevel=2,
             )
 
-    def _evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def _evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         # g function uses the last k variables
         g = 1.0 + (9.0 / (self.n_var - self.n_obj + 1)) * np.sum(X[:, self.n_obj - 1 :], axis=1)
 
