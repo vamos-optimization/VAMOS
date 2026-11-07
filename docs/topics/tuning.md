@@ -343,6 +343,22 @@ keep a grandchild such as `x_eta` (active when `x_kind == 'b'`) while its
 grandparent `use_x` was false, in spaces with conditions on the direct parent
 only. The built-in spaces were not affected.
 
+### Populations that depend on the number of objectives
+
+The parameter spaces do not know the problem, but two algorithms need its
+number of objectives: RVEA derives its population from `n_partitions`, and
+MOEA/D needs one weight vector per individual. `vamos tune` adds `n_obj` to the
+assignment of both before building the configuration, and code that builds
+configurations from assignments with `config_from_assignment` must do the same.
+
+**Development after 1.1.0:** with `n_obj` of three or more, MOEA/D runs the
+largest population, at most the sampled `pop_size`, that has weight vectors: a
+complete Das-Dennis lattice or one of the packaged jMetal weight files. A
+sampled `pop_size` of 60 thus runs 55 individuals with three objectives, the
+lattice of nine divisions, and a lattice is never truncated. Before, `vamos
+tune` did not pass `n_obj` to MOEA/D, and every other sampled population failed
+and got the failure score: most MOEA/D candidates on a three-objective problem.
+
 `optuna` and `bohb_optuna` suggest parents before the parameters that depend on
 them, whatever their declaration order, and record only active suggestions in
 `trial.params`. `smac3` and `bohb` receive the dependencies as ConfigSpace
