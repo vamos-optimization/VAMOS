@@ -349,6 +349,25 @@ def test_rvea_config_space_builds_and_constructs_config():
     )
 
 
+def test_moead_config_runs_the_largest_population_with_weights_for_its_objectives():
+    from vamos import optimize
+    from vamos.foundation.problem.dtlz import DTLZ2Problem
+
+    assignment = build_moead_config_space().sample(np.random.default_rng(7))
+    assignment.update(pop_size=60, neighbor_size=40)
+
+    assert config_from_assignment("moead", assignment).pop_size == 60
+    assert config_from_assignment("moead", {**assignment, "n_obj": 2}).pop_size == 60
+    cfg = config_from_assignment("moead", {**assignment, "n_obj": 3})
+    assert (cfg.pop_size, cfg.neighbor_size) == (55, 40)
+    permutation = build_moead_permutation_config_space().sample(np.random.default_rng(7))
+    assert config_from_assignment("moead_permutation", {**permutation, "pop_size": 60, "n_obj": 3}).pop_size == 55
+
+    problem = DTLZ2Problem(n_var=12, n_obj=3)
+    result = optimize(problem, algorithm="moead", algorithm_config=cfg, max_evaluations=110, seed=1, engine="numpy")
+    assert result.data["evaluations"] == 110
+
+
 def test_agemoea_external_archive_config():
     rng = np.random.default_rng(8)
     space = build_agemoea_config_space()
