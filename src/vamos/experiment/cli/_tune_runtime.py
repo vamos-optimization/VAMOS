@@ -190,9 +190,10 @@ def make_evaluator(
     ) -> tuple[object, CheckpointPayload | None]:
         try:
             start_config: dict[str, Any] = dict(config_dict)
-            if algorithm_name == "rvea":
+            # RVEA's population and MOEA/D's weight vectors depend on the number of objectives.
+            if canonical_algorithm_name(algorithm_name) in ("moead", "rvea"):
                 start_config["n_obj"] = n_obj
-            elif "pop_size" not in start_config:
+            if algorithm_name != "rvea" and "pop_size" not in start_config:
                 start_config["pop_size"] = fixed_pop_size
 
             cfg = _tuning_config(config_from_assignment(algorithm_name, start_config), algorithm_name)
