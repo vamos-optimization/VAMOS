@@ -104,6 +104,38 @@
       "reason": "The WFG problem name is a public resource lookup key; distinct stable paths are required despite equal sampled fronts.",
       "size": 260000,
       "review_condition": "Re-review when the reference-front catalog or resolver semantics change."
+    },
+    {
+      "path": "src/vamos/resources/reference_fronts/c1dtlz1.3d.csv",
+      "category": "semantic_duplicate_package_resource",
+      "owner": "src/vamos/resources",
+      "reason": "C1-DTLZ1 and DC2-DTLZ1 keep the whole DTLZ1 front at three objectives, so their analytic samples are byte-identical; each named problem requires a stable resource path.",
+      "size": 378750,
+      "review_condition": "Re-review when the reference-front catalog or resolver semantics change."
+    },
+    {
+      "path": "src/vamos/resources/reference_fronts/dc2dtlz1.3d.csv",
+      "category": "semantic_duplicate_package_resource",
+      "owner": "src/vamos/resources",
+      "reason": "C1-DTLZ1 and DC2-DTLZ1 keep the whole DTLZ1 front at three objectives, so their analytic samples are byte-identical; each named problem requires a stable resource path.",
+      "size": 378750,
+      "review_condition": "Re-review when the reference-front catalog or resolver semantics change."
+    },
+    {
+      "path": "src/vamos/resources/reference_fronts/c1dtlz3.3d.csv",
+      "category": "semantic_duplicate_package_resource",
+      "owner": "src/vamos/resources",
+      "reason": "C1-DTLZ3 and DC2-DTLZ3 keep the whole unit-sphere front at three objectives, so their analytic samples are byte-identical; each named problem requires a stable resource path.",
+      "size": 378750,
+      "review_condition": "Re-review when the reference-front catalog or resolver semantics change."
+    },
+    {
+      "path": "src/vamos/resources/reference_fronts/dc2dtlz3.3d.csv",
+      "category": "semantic_duplicate_package_resource",
+      "owner": "src/vamos/resources",
+      "reason": "C1-DTLZ3 and DC2-DTLZ3 keep the whole unit-sphere front at three objectives, so their analytic samples are byte-identical; each named problem requires a stable resource path.",
+      "size": 378750,
+      "review_condition": "Re-review when the reference-front catalog or resolver semantics change."
     }
   ]
 }

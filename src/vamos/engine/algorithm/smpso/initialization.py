@@ -120,6 +120,10 @@ class _SMPSOArchiveFanout:
             self._leaders.contents(),
         )
 
+    def constraint_values(self) -> np.ndarray[Any, Any] | None:
+        """Constraint values of the leaders, aligned with :meth:`contents`."""
+        return cast("np.ndarray[Any, Any] | None", self._leaders.constraint_values())
+
 
 def initialize_smpso_run(
     config: dict[str, Any],

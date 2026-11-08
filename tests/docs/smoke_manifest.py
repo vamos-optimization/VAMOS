@@ -395,6 +395,10 @@ namespace = {}
 exec(compile(blocks[0], "docs/reference/constraints.md", "exec"), namespace)
 assert namespace["result"].data["evaluations"] == 400
 assert namespace["feasible"].any()
+exec(compile(blocks[1], "docs/reference/constraints.md", "exec"), namespace)
+summary = namespace["summary"]
+assert summary["n_solutions"] == len(namespace["result"])
+assert summary["n_feasible"] == int(namespace["feasible"].sum())
 """,
     ),
     DocSmokeCase(

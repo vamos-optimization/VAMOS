@@ -76,8 +76,9 @@ It does not score top-level `result.F`, because that field can refer to an
 external archive for archive-enabled algorithm configurations.
 
 **Development after 1.1.0:** on unconstrained problems, SMPSO is scored on its
-leaders archive instead, because its final swarm is not elitist. The leaders
-carry no constraint values, so constrained SMPSO runs keep scoring the swarm. Persistent Optuna studies for SMPSO
+leaders archive instead, because its final swarm is not elitist. Constrained
+SMPSO runs keep scoring the swarm: the leaders carried no constraint values when
+this contract was set, and scoring them now would change the tuning scores. Persistent Optuna studies for SMPSO
 take the suffix `__vamos_cli_leaders_hv_v1`, so they do not mix with trials
 scored on the swarm.
 

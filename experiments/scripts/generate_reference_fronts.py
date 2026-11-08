@@ -11,8 +11,10 @@ provenance of every packaged file, including those this script leaves alone.
 
 - **Analytic samples** of the Pareto front from its closed form: ZDT1-4 and ZDT6, DTLZ1-7 (M = 3), WFG1 and
   WFG2 (M = 2, from the WFG shape functions, so the bias transformations cannot shift them), LSMOP9 (M = 2),
-  CEC2009 UF6 and UF9, C1-DTLZ3 (M = 2) and DC2-DTLZ1/3 (M = 2). Disconnected fronts are filtered for
-  non-dominance on a fine grid and thinned by farthest-point selection.
+  CEC2009 UF6 and UF9, and the ten C-DTLZ and DC-DTLZ problems at M = 2 and 3 (``c1dtlz1.2d`` ...
+  ``dc3dtlz3.3d``). Disconnected fronts are filtered for non-dominance on a fine grid and thinned by
+  farthest-point selection. The C-DTLZ and DC-DTLZ samples keep the points of DTLZ's front (C3-DTLZ1: of its
+  constraint boundary) at which VAMOS's problem, evaluated at a design rebuilt from the point, is feasible.
 - **The RE authors' fronts:** Tanabe and Ishibuchi's ``reference_points_RE*.dat`` from
   https://github.com/ryojitanabe/reproblems (``approximated_Pareto_fronts``), with only the separator changed.
   ``--reproblems-dir`` points at a local copy of that directory. Their MIT notice is
@@ -178,17 +180,85 @@ def _uf9() -> np.ndarray:
     return counts[keep] / h
 
 
-def _quarter_circle(n: int = 1000) -> np.ndarray:
-    theta = np.linspace(0.0, np.pi / 2.0, n)
-    return np.column_stack([np.cos(theta), np.sin(theta)])
+# The C-DTLZ problems of Jain and Deb (2014) and the DC-DTLZ problems of Li et al. (2019), at M = 2 and 3.
+CONSTRAINED_DTLZ = ("c1dtlz1", "c1dtlz3", "c2dtlz2", "c3dtlz1", "dc1dtlz1", "dc1dtlz3", "dc2dtlz1", "dc2dtlz3", "dc3dtlz1", "dc3dtlz3")
 
 
-def _dc2(name: str) -> np.ndarray:
-    # DC2's constraints depend only on g and hold at g = 0, so the front is the whole DTLZ front (M = 2).
-    if name == "dc2dtlz1":
-        f1 = np.linspace(0.0, 0.5, 1000)
-        return np.column_stack([f1, 0.5 - f1])
-    return _quarter_circle()
+def _simplex_directions(m: int) -> np.ndarray:
+    """Dense directions on the unit simplex: 200 001 for M = 2 and a lattice of 45 150 for M = 3."""
+    if m == 2:
+        u = np.linspace(0.0, 1.0, 200_001)
+        return np.column_stack([u, 1.0 - u])
+    return simplex_lattice(3, 299)
+
+
+def _constrained_dtlz_candidates(name: str, m: int) -> np.ndarray:
+    """Objective vectors that contain the front: DTLZ's own front, or C3-DTLZ1's constraint boundary."""
+    s = _simplex_directions(m)
+    if name == "c3dtlz1":
+        # sum(f) - f_j + 2 f_j >= 1 for every j moves the front out to f = t s with t = 1 / (1 + min_j s_j).
+        return s / (1.0 + s.min(axis=1, keepdims=True))
+    if name.endswith("dtlz1"):
+        return 0.5 * s
+    return s / np.linalg.norm(s, axis=1, keepdims=True)
+
+
+def _dtlz1_distance(g: np.ndarray) -> np.ndarray:
+    """The offset d in [0, 0.05] at which DTLZ1's g, with one distance variable at 0.5 + d, equals ``g``."""
+    lo, hi = np.zeros_like(g), np.full_like(g, 0.05)
+    for _ in range(80):
+        mid = 0.5 * (lo + hi)
+        below = 100.0 * (mid * mid - np.cos(20.0 * np.pi * mid) + 1.0) < g
+        lo, hi = np.where(below, mid, lo), np.where(below, hi, mid)
+    return 0.5 * (lo + hi)
+
+
+def constrained_dtlz_designs(name: str, F: np.ndarray, n_var: int) -> np.ndarray:
+    """Designs whose objectives are ``F``: the position variables invert DTLZ's closed form, and the distance
+    variables sit at 0.5 (g = 0), except one that gives C3-DTLZ1 its g = 2 sum(f) - 1."""
+    n, m = F.shape
+    linear = name.endswith("dtlz1")
+    if linear:
+        g = 2.0 * F.sum(axis=1) - 1.0
+        s = F / F.sum(axis=1, keepdims=True)
+    else:
+        g = np.linalg.norm(F, axis=1) - 1.0
+        s = F / (1.0 + g)[:, None]
+    X = np.full((n, n_var), 0.5)
+    # f_M depends on x_1 only, f_{M-1} on x_1 and x_2, and so on: peel one position variable at a time.
+    rest = np.ones(n)
+    for j in range(m - 1):
+        i = m - 1 - j
+        if linear:
+            x = 1.0 - np.divide(s[:, i], rest, out=np.zeros(n), where=rest > 1e-15)
+            rest = rest * x
+        else:
+            # tan(pi x / 2) = f_i / |(f_1, ..., f_{i-1})|, which atan2 inverts without losing precision.
+            x = 2.0 / np.pi * np.arctan2(s[:, i], np.linalg.norm(s[:, :i], axis=1))
+        X[:, j] = np.clip(x, 0.0, 1.0)
+    if name == "c3dtlz1":
+        X[:, m - 1] = 0.5 + _dtlz1_distance(np.maximum(g, 0.0))
+    return X
+
+
+def _constrained_dtlz(name: str, m: int) -> np.ndarray:
+    """The feasible, non-dominated part of the candidates, as VAMOS's problem evaluates them: 1000 points
+    for M = 2 and at most 5050 for M = 3."""
+    from vamos.foundation.problem.registry import make_problem_selection
+
+    problem = make_problem_selection(name, n_obj=m).instantiate()
+    F = _constrained_dtlz_candidates(name, m)
+    out = {"F": np.empty_like(F)}
+    problem.evaluate(constrained_dtlz_designs(name, F, problem.n_var), out)
+    if np.max(np.abs(out["F"] - F)) > 1e-12:
+        raise RuntimeError(f"{name}: the rebuilt designs do not evaluate to the candidates")
+    # C3-DTLZ1's front lies on its constraint boundary, where G is 0 up to rounding.
+    feasible = np.all(np.asarray(out["G"]).reshape(F.shape[0], -1) <= 1e-12, axis=1)
+    F = F[feasible]
+    if m == 2:
+        return thinned_2d(F, 1000)
+    front = _nondominated(F)
+    return front[farthest_points(front, 5050)] if front.shape[0] > 5050 else front
 
 
 ANALYTIC: dict[str, Callable[[], np.ndarray]] = {
@@ -199,9 +269,7 @@ ANALYTIC: dict[str, Callable[[], np.ndarray]] = {
     "lsmop9": _lsmop9,
     "cec2009_uf6": _uf6,
     "cec2009_uf9": _uf9,
-    "c1dtlz3": _quarter_circle,
-    "dc2dtlz1": lambda: _dc2("dc2dtlz1"),
-    "dc2dtlz3": lambda: _dc2("dc2dtlz3"),
+    **{f"{name}.{m}d": (lambda name=name, m=m: _constrained_dtlz(name, m)) for name in CONSTRAINED_DTLZ for m in (2, 3)},
 }
 
 

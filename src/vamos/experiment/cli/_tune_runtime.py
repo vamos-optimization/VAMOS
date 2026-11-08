@@ -152,8 +152,8 @@ def _versioned_optuna_study_name(args: Any, task: TuningTask) -> str:
 def _scores_leaders(algorithm_name: str, n_constraints: int) -> bool:
     """Whether a tuning run is scored on its leaders archive (unconstrained SMPSO) instead of its final population.
 
-    The leaders archive carries no constraint values, so constrained SMPSO keeps scoring its swarm with the
-    population's constraint values.
+    Constrained SMPSO keeps scoring its swarm with the population's constraint values, as when the leaders
+    carried none, so that its tuning scores do not change.
     """
     return canonical_algorithm_name(algorithm_name) in _LEADER_SCORED_ALGORITHMS and n_constraints == 0
 
