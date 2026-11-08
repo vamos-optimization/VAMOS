@@ -112,6 +112,7 @@ _RESIDUALS: dict[str, Callable[[np.ndarray], np.ndarray]] = {
     **{f"{name}.{m}d": _sum(0.5) for name in ("c1dtlz1", "dc1dtlz1", "dc2dtlz1", "dc3dtlz1") for m in (2, 3)},
     **{f"{name}.{m}d": _sphere for name in ("c1dtlz3", "c2dtlz2", "dc1dtlz3", "dc2dtlz3", "dc3dtlz3") for m in (2, 3)},
     **{f"c3dtlz1.{m}d": (lambda F: F.sum(axis=1) + F.min(axis=1) - 1.0) for m in (2, 3)},
+    **{f"c3dtlz4.{m}d": (lambda F: np.sum(F * F, axis=1) - 0.75 * np.max(F * F, axis=1) - 1.0) for m in (2, 3)},
 }
 
 
@@ -137,7 +138,19 @@ def test_uf6_reference_front_includes_its_isolated_point() -> None:
     assert np.any(np.all(np.isclose(front, [0.0, 1.0], rtol=0.0, atol=1e-12), axis=1))
 
 
-CONSTRAINED_DTLZ = ("c1dtlz1", "c1dtlz3", "c2dtlz2", "c3dtlz1", "dc1dtlz1", "dc1dtlz3", "dc2dtlz1", "dc2dtlz3", "dc3dtlz1", "dc3dtlz3")
+CONSTRAINED_DTLZ = (
+    "c1dtlz1",
+    "c1dtlz3",
+    "c2dtlz2",
+    "c3dtlz1",
+    "c3dtlz4",
+    "dc1dtlz1",
+    "dc1dtlz3",
+    "dc2dtlz1",
+    "dc2dtlz3",
+    "dc3dtlz1",
+    "dc3dtlz3",
+)
 CONSTRAINED_DTLZ_FRONTS = [(name, m) for name in CONSTRAINED_DTLZ for m in (2, 3)]
 
 
@@ -157,9 +170,11 @@ def _dtlz_designs(name: str, F: np.ndarray, n_var: int) -> np.ndarray:
             X[:, j] = 1.0 - np.divide(s[:, m - 1 - j], rest, out=np.zeros(n), where=rest > 1e-15)
             rest = rest * X[:, j]
     else:
+        # DTLZ4 raises its position variables to alpha = 100 before the trigonometric mapping.
+        power = 0.01 if name == "c3dtlz4" else 1.0
         for j in range(m - 1):
             i = m - 1 - j
-            X[:, j] = 2.0 / np.pi * np.arctan2(F[:, i], np.linalg.norm(F[:, :i], axis=1))
+            X[:, j] = (2.0 / np.pi * np.arctan2(F[:, i], np.linalg.norm(F[:, :i], axis=1))) ** power
     if name == "c3dtlz1":
         # One distance variable at 0.5 + d gives g = 100 (d^2 - cos(20 pi d) + 1), increasing on [0, 0.05].
         lo, hi = np.zeros(n), np.full(n, 0.05)
@@ -168,6 +183,9 @@ def _dtlz_designs(name: str, F: np.ndarray, n_var: int) -> np.ndarray:
             below = 100.0 * (mid * mid - np.cos(20.0 * np.pi * mid) + 1.0) < g
             lo, hi = np.where(below, mid, lo), np.where(below, hi, mid)
         X[:, m - 1] = 0.5 + 0.5 * (lo + hi)
+    elif name == "c3dtlz4":
+        # DTLZ2's g, shared by every distance variable.
+        X[:, m - 1 :] = 0.5 + np.sqrt(np.maximum(g, 0.0) / (n_var - m + 1))[:, None]
     return np.clip(X, 0.0, 1.0)
 
 
@@ -200,13 +218,16 @@ def test_constrained_dtlz_fronts_cover_their_feasible_pareto_sets(name: str, m: 
     if name == "c3dtlz1":
         # Its Pareto set leaves g = 0: try every distance as well, through one distance variable.
         X[:, m - 1] = 0.5 + 0.05 * rng.random(4_000)
+    elif name == "c3dtlz4":
+        # Likewise, with DTLZ2's g shared by the distance variables.
+        X[:, m - 1 :] = 0.5 + 0.35 * rng.random(4_000)[:, None]
     F, G = _evaluate(problem, X)
     F = F[np.all(G <= 0.0, axis=1)]
     assert F.shape[0] >= 100
 
     # No feasible design dominates the front, and the feasible Pareto-optimal designs lie next to it.
     assert not _dominated_by(F, front).any()
-    if name != "c3dtlz1":
+    if not name.startswith("c3"):
         gap, _ = cKDTree(front).query(F)
         assert np.max(gap) <= (0.005 if m == 2 else 0.03)
 
