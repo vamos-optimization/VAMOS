@@ -13,9 +13,48 @@ from ...cec import (
     CEC2009UF9Problem,
     CEC2009UF10Problem,
 )
+from ...cec2009 import (
+    CEC2009_CF2,
+    CEC2009_CF3,
+    CEC2009_CF4,
+    CEC2009_CF5,
+    CEC2009_CF6,
+    CEC2009_CF7,
+    CEC2009_CF8,
+    CEC2009_CF9,
+    CEC2009_CF10,
+)
 from ..common import ProblemSpec
 
 SPECS: dict[str, ProblemSpec] = {}
+
+# CF2-CF10 have no pymoo counterpart, so they are VAMOS's own classes: the problem class and its number of
+# objectives.
+_CONSTRAINED = {
+    2: (CEC2009_CF2, 2),
+    3: (CEC2009_CF3, 2),
+    4: (CEC2009_CF4, 2),
+    5: (CEC2009_CF5, 2),
+    6: (CEC2009_CF6, 2),
+    7: (CEC2009_CF7, 2),
+    8: (CEC2009_CF8, 3),
+    9: (CEC2009_CF9, 3),
+    10: (CEC2009_CF10, 3),
+}
+
+
+def _cf(k: int) -> ProblemSpec:
+    problem_class, n_obj = _CONSTRAINED[k]
+    objectives = "" if n_obj == 2 else " (three objectives)"
+    return ProblemSpec(
+        key=f"cec2009_cf{k}",
+        label=f"CEC2009 CF{k}",
+        default_n_var=10,
+        default_n_obj=n_obj,
+        allow_n_obj_override=False,
+        description=f"CEC2009 constrained function CF{k}{objectives}, as jMetal defines it.",
+        factory=lambda n_var, _n_obj: problem_class(n_var=n_var),
+    )
 
 
 def get_specs() -> dict[str, ProblemSpec]:
@@ -124,6 +163,7 @@ def get_specs() -> dict[str, ProblemSpec]:
             ),
         }
     )
+    SPECS.update({f"cec2009_cf{k}": _cf(k) for k in _CONSTRAINED})
     return SPECS
 
 

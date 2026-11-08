@@ -19,8 +19,8 @@ provenance of every packaged file, including those this script leaves alone.
   https://github.com/ryojitanabe/reproblems (``approximated_Pareto_fronts``), with only the separator changed.
   ``--reproblems-dir`` points at a local copy of that directory. Their MIT notice is
   ``LICENSE-reproblems.txt`` next to the CSV files.
-- **jMetal's fronts** for LIR-CMOP1-14, DAS-CMOP1-9, MW4, MW8-14, Binh2, Golinski, Osyczka2, Water and the car side
-  impact problem, from jMetal's ``resources/referenceFronts`` at commit
+- **jMetal's fronts** for LIR-CMOP1-14, DAS-CMOP1-9, MW4, MW8-14, Binh2, Golinski, Osyczka2, Water, the car side
+  impact problem, CEC2009 CF2-CF10 and ZXH-CF7 (M = 3), from jMetal's ``resources/referenceFronts`` at commit
   ``JMETAL_COMMIT``, copied line by line without the rows that another row of the same file dominates.
   ``--jmetal-dir`` points at a local copy of that directory. Their MIT notice is ``LICENSE-jmetal.txt``.
 - **Sampled fronts** where no closed form or authors' front applies: RWA3, RWA9, RWA10 and the deterministic
@@ -64,6 +64,11 @@ JMETAL_FRONTS = {
     "osyczka2": "Osyczka2",
     "water": "Water",
     "car_side_impact": "CarSideImpact",
+    **{f"cec2009_cf{k}": f"CEC2009CF{k}" for k in range(2, 11)},
+    # ZXH-CF accepts other numbers of objectives; jMetal's fronts have the default three. Only CF7's lies on the
+    # feasible front: every other file has rows that a feasible design dominates or that none reaches
+    # (docs/reference/problems.md, "Reference fronts").
+    "zxh_cf7.3d": "CF7",
 }
 
 # Sampled fronts: packaged size, number of uniform samples and grid points per variable (0 = no grid).
