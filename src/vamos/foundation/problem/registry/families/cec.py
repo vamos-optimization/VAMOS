@@ -13,7 +13,7 @@ from ...cec import (
     CEC2009UF9Problem,
     CEC2009UF10Problem,
 )
-from ...cec2009 import (
+from ...cec2009_cf import (
     CEC2009_CF2,
     CEC2009_CF3,
     CEC2009_CF4,
