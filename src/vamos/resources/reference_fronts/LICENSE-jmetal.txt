@@ -1,0 +1,38 @@
+Third-party reference fronts: jMetal
+
+The packaged files below are reference fronts of the jMetal framework:
+
+  A. J. Nebro, J. J. Durillo and M. Vergne, "Redesigning the jMetal
+  multi-objective optimization framework", GECCO Companion 2015, 1093-1100.
+
+Source: https://github.com/jMetal/jMetal, directory resources/referenceFronts,
+commit 1e4b83cae6. The values are unchanged. DAS-CMOP8 and DAS-CMOP9 leave out
+two rows each, which another row of the same file dominates.
+
+- lircmop1.csv to lircmop14.csv: LIRCMOP1.csv to LIRCMOP14.csv
+- dascmop1.csv to dascmop6.csv: DASCMOP1.csv to DASCMOP6.csv
+- dascmop7.csv to dascmop9.csv: DASCMOP7.3D.csv to DASCMOP9.3D.csv
+
+These files are distributed under the license of that repository:
+
+MIT License
+
+Copyright <2017> <Antonio J. Nebro, Juan J. Durillo>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
