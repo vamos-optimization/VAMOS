@@ -445,6 +445,41 @@ class TestOptimizationResultFeasibility:
         assert sorted(front_idx.tolist()) == [1, 2]
         assert result.best()["index"] in {1, 2}
 
+    def test_feasibility_counts_the_feasible_rows_of_a_run(self):
+        result = _constrained_population_result()
+        feasible = np.all(result.data["G"] <= 0.0, axis=1)
+
+        summary = result.feasibility()
+
+        assert summary == {"n_solutions": len(result), "n_feasible": int(feasible.sum()), "min_violation": 0.0}
+
+    def test_feasibility_without_feasible_rows_gives_the_least_violation(self):
+        from vamos.experiment.optimization_result import OptimizationResult
+
+        F = np.array([[0.0, 1.0], [1.0, 0.0], [0.5, 0.5]])
+        G = np.array([[0.3, -1.0], [0.1, 0.2], [-0.5, 0.25]])
+        result = OptimizationResult({"F": F, "X": None, "G": G})
+
+        assert result.feasibility() == {"n_solutions": 3, "n_feasible": 0, "min_violation": 0.25}
+
+    def test_feasibility_of_results_without_constraints_or_rows(self):
+        from vamos.experiment.optimization_result import OptimizationResult
+
+        unconstrained = OptimizationResult({"F": np.zeros((4, 2)), "X": None})
+        empty = OptimizationResult({"F": np.zeros((0, 2)), "X": None, "G": np.zeros((0, 1))})
+
+        assert unconstrained.feasibility() == {"n_solutions": 4, "n_feasible": 4, "min_violation": 0.0}
+        assert empty.feasibility() == {"n_solutions": 0, "n_feasible": 0, "min_violation": float("inf")}
+
+    def test_feasibility_rejects_constraint_values_of_other_rows(self):
+        from vamos.experiment.optimization_result import OptimizationResult
+        from vamos.foundation.exceptions import ResultSelectionError
+
+        result = OptimizationResult({"F": np.zeros((4, 2)), "X": None, "G": np.zeros((3, 1))})
+
+        with pytest.raises(ResultSelectionError, match="4 result rows"):
+            result.feasibility()
+
     def test_result_without_constraints_is_unchanged(self):
         from vamos.experiment.optimization_result import OptimizationResult
 

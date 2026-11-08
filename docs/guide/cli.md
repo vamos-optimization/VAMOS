@@ -470,10 +470,8 @@ count two such runs, or two such means, as a tie. The
 `n_feasible` column counts the feasible solutions of each run. When a run
 stores no constraint values, `feasibility_known` is `false` and every solution
 counts as feasible: this is the case for unconstrained problems, and for
-constrained runs whose result comes from an archive that keeps no constraint
-values, such as SMPSO with `result_mode: non_dominated`. VAMOS 1.1.0 also
-measured infeasible solutions, so its values for constrained problems are not
-valid.
+SPEA2 and SMPSO with `constraint_mode: none`. VAMOS 1.1.0 also measured
+infeasible solutions, so its values for constrained problems are not valid.
 
 **Development after 1.1.0:** `vamos bench` checks its inputs before any run:
 

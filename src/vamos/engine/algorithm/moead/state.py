@@ -13,7 +13,13 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from vamos.engine.algorithm.components.results import feasible_result_indices, get_external_archive_contents, wants_population_result
+from vamos.engine.algorithm.components.results import (
+    feasible_result_indices,
+    get_external_archive_constraints,
+    get_external_archive_contents,
+    wants_population_result,
+    with_constraints,
+)
 from vamos.engine.algorithm.components.state import AlgorithmState
 
 if TYPE_CHECKING:
@@ -111,9 +117,10 @@ def build_moead_result(
         X and F contain only non-dominated solutions when kernel is provided.
     """
     archive_contents = get_external_archive_contents(state)
+    archive_G = get_external_archive_constraints(state)
     if archive_contents is not None and not wants_population_result(state):
         result_X, result_F = archive_contents
-        result_G = None
+        result_G = archive_G
     else:
         should_filter = kernel is not None and not wants_population_result(state)
         if should_filter:
@@ -133,15 +140,14 @@ def build_moead_result(
         "weights": state.weights,
         "evaluations": state.n_eval,
         "hv_reached": hv_reached,
-        "population": {"X": state.X, "F": state.F},
+        "population": with_constraints({"X": state.X, "F": state.F}, state.G),
     }
 
-    if result_G is not None:
-        result["G"] = result_G
+    with_constraints(result, result_G)
 
     if archive_contents is not None:
         arch_X, arch_F = archive_contents
-        result["archive"] = {"X": arch_X, "F": arch_F}
+        result["archive"] = with_constraints({"X": arch_X, "F": arch_F}, archive_G)
 
     return result
 
