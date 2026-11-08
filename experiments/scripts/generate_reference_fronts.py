@@ -12,14 +12,15 @@ provenance of every packaged file, including those this script leaves alone.
 - **Analytic samples** of the Pareto front from its closed form: ZDT1-4 and ZDT6, DTLZ1-7 (M = 3), WFG1 and
   WFG2 (M = 2, from the WFG shape functions, so the bias transformations cannot shift them), LSMOP9 (M = 2),
   CEC2009 UF6 and UF9, and the ten C-DTLZ and DC-DTLZ problems at M = 2 and 3 (``c1dtlz1.2d`` ...
-  ``dc3dtlz3.3d``). Disconnected fronts are filtered for non-dominance on a fine grid and thinned by
+  ``dc3dtlz3.3d``), and Srinivas, ConstrEx and Tanaka from their Pareto-set pieces and constraint boundaries. Disconnected fronts are filtered for non-dominance on a fine grid and thinned by
   farthest-point selection. The C-DTLZ and DC-DTLZ samples keep the points of DTLZ's front (C3-DTLZ1: of its
   constraint boundary) at which VAMOS's problem, evaluated at a design rebuilt from the point, is feasible.
 - **The RE authors' fronts:** Tanabe and Ishibuchi's ``reference_points_RE*.dat`` from
   https://github.com/ryojitanabe/reproblems (``approximated_Pareto_fronts``), with only the separator changed.
   ``--reproblems-dir`` points at a local copy of that directory. Their MIT notice is
   ``LICENSE-reproblems.txt`` next to the CSV files.
-- **jMetal's fronts** for LIR-CMOP1-14, DAS-CMOP1-9, MW4 and MW8-14, from jMetal's ``resources/referenceFronts`` at commit
+- **jMetal's fronts** for LIR-CMOP1-14, DAS-CMOP1-9, MW4, MW8-14, Binh2, Golinski, Osyczka2, Water and the car side
+  impact problem, from jMetal's ``resources/referenceFronts`` at commit
   ``JMETAL_COMMIT``, copied line by line without the rows that another row of the same file dominates.
   ``--jmetal-dir`` points at a local copy of that directory. Their MIT notice is ``LICENSE-jmetal.txt``.
 - **Sampled fronts** where no closed form or authors' front applies: RWA3, RWA9, RWA10 and the deterministic
@@ -58,6 +59,11 @@ JMETAL_FRONTS = {
     **{f"dascmop{k}": f"DASCMOP{k}.3D" for k in range(7, 10)},
     **{f"mw{k}": f"MW{k}" for k in range(9, 14)},
     **{f"mw{k}.{m}d": f"MW{k}.{m}D" for k in (4, 8, 14) for m in (2, 3)},
+    "binh2": "Binh2",
+    "golinski": "Golinski",
+    "osyczka2": "Osyczka2",
+    "water": "Water",
+    "car_side_impact": "CarSideImpact",
 }
 
 # Sampled fronts: packaged size, number of uniform samples and grid points per variable (0 = no grid).
@@ -295,7 +301,49 @@ def _constrained_dtlz(name: str, m: int) -> np.ndarray:
     return front[farthest_points(front, 5050)] if front.shape[0] > 5050 else front
 
 
+def _two_variable_front(name: str, curves: list[np.ndarray]) -> np.ndarray:
+    """The feasible, non-dominated objectives of designs on ``curves`` (pieces of the Pareto set and the
+    constraint boundaries that may hold it), as VAMOS evaluates them, thinned to 1000 points."""
+    from vamos.foundation.problem.registry import make_problem_selection
+
+    problem = make_problem_selection(name).instantiate()
+    X = np.vstack(curves)
+    X = X[np.all((X >= problem.xl) & (X <= problem.xu), axis=1)]
+    out = {"F": np.empty((X.shape[0], 2))}
+    problem.evaluate(X, out)
+    feasible = np.all(np.asarray(out["G"]) <= 1e-9, axis=1)
+    return thinned_2d(out["F"][feasible], 1000)
+
+
+def _srinivas() -> np.ndarray:
+    # Where f1 + f2 = x1^2 + 5 x1 + 6 is least, x1 = -2.5 (the segment in Deb 2001). The front goes on along the
+    # boundary 3 x2 - x1 = 10 down to the least f1, 10.1 at (1.1, 3.7), and the circle closes it.
+    t = np.linspace(0.0, 1.0, 200_001)
+    segment = np.column_stack([np.full_like(t, -2.5), 2.5 + t * (np.sqrt(225.0 - 6.25) - 2.5)])
+    x1 = -20.0 + 40.0 * t
+    line = np.column_stack([x1, (10.0 + x1) / 3.0])
+    angle = 2.0 * np.pi * t
+    circle = np.column_stack([15.0 * np.cos(angle), 15.0 * np.sin(angle)])
+    return _two_variable_front("srinivas", [segment, line, circle])
+
+
+def _constrex() -> np.ndarray:
+    # On x2 = 6 - 9 x1 for x1 in [7/18, 2/3], then on x2 = 0 up to x1 = 1 (Deb 2001); f = (x1, (1 + x2) / x1).
+    x1 = 7.0 / 18.0 + (1.0 - 7.0 / 18.0) * np.linspace(0.0, 1.0, 200_001)
+    return _two_variable_front("constrex", [np.column_stack([x1, np.maximum(6.0 - 9.0 * x1, 0.0)])])
+
+
+def _tanaka() -> np.ndarray:
+    # f = x on the boundary x1^2 + x2^2 = 1 + 0.1 cos(16 atan(x1 / x2)), where the second constraint holds.
+    phi = np.linspace(1e-9, 0.5 * np.pi - 1e-9, 400_001)
+    radius = np.sqrt(1.0 + 0.1 * np.cos(16.0 * phi))
+    return _two_variable_front("tanaka", [np.column_stack([radius * np.sin(phi), radius * np.cos(phi)])])
+
+
 ANALYTIC: dict[str, Callable[[], np.ndarray]] = {
+    "srinivas": _srinivas,
+    "constrex": _constrex,
+    "tanaka": _tanaka,
     **{name: (lambda name=name: _zdt(name)) for name in ("zdt1", "zdt2", "zdt3", "zdt4", "zdt6")},
     **{f"dtlz{i}": (lambda i=i: _dtlz(f"dtlz{i}")) for i in range(1, 8)},
     "wfg1": lambda: _wfg("wfg1"),

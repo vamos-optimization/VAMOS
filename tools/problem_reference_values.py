@@ -62,12 +62,21 @@ JMETAL: dict[str, tuple[str, str]] = {
     **{f"re{n}": (f"re.RE{n}", "") for n in (21, 22, 23, 24, 25, 31, 32, 33, 34, 35, 36, 37, 42, 61)},
     **{f"rwa{i}": (f"rwa.RWA{i}", "") for i in (2, 3, 4, 5, 7, 8)},
 }
-# The same, for problems that only jMetal's main branch defines as VAMOS does.
+# The same, for problems that jMetal's main branch defines as VAMOS does: LIR-CMOP, DAS-CMOP, C3-DTLZ4 and
+# the classic constrained problems.
 JMETAL_MAIN_COMMIT = "1e4b83cae6"
 JMETAL_MAIN: dict[str, tuple[str, str]] = {
     **{f"lircmop{k}": (f"lircmop.LIRCMOP{k}", "") for k in range(1, 15)},
     **{f"dascmop{k}": (f"dascmop.DASCMOP{k}", "") for k in range(1, 10)},
     "c3dtlz4": ("cdtlz.C3_DTLZ4", "12,3,3"),
+    "binh2": ("Binh2", ""),
+    "constrex": ("ConstrEx", ""),
+    "srinivas": ("Srinivas", ""),
+    "tanaka": ("Tanaka", ""),
+    "osyczka2": ("Osyczka2", ""),
+    "golinski": ("Golinski", ""),
+    "water": ("Water", ""),
+    "car_side_impact": ("CarSideImpact", ""),
 }
 # DC-DTLZ with jMetal's constants (a = 3, b = 0.5, g unscaled in the constraints), which STEP also uses:
 # values of jMetal's main at three points for each variant and dimension. jMetal puts DC3's constraint on g
