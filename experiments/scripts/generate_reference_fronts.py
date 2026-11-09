@@ -3,7 +3,7 @@
 Run it from the repository root with this checkout's ``src`` importable and the ``compute`` extra installed
 (the exact non-dominated filter uses Numba):
 
-    python experiments/scripts/generate_reference_fronts.py --all --reproblems-dir PATH
+    python experiments/scripts/generate_reference_fronts.py --all --reproblems-dir PATH --jmetal-dir PATH
     python experiments/scripts/generate_reference_fronts.py zdt3 dtlz7 wfg1
 
 The script writes three groups of files; ``docs/reference/problems.md`` ("Reference fronts") lists the
@@ -19,6 +19,9 @@ provenance of every packaged file, including those this script leaves alone.
   https://github.com/ryojitanabe/reproblems (``approximated_Pareto_fronts``), with only the separator changed.
   ``--reproblems-dir`` points at a local copy of that directory. Their MIT notice is
   ``LICENSE-reproblems.txt`` next to the CSV files.
+- **jMetal's fronts** for LIR-CMOP1-14 and DAS-CMOP1-9, from jMetal's ``resources/referenceFronts`` at commit
+  ``JMETAL_COMMIT``, copied line by line without the rows that another row of the same file dominates.
+  ``--jmetal-dir`` points at a local copy of that directory. Their MIT notice is ``LICENSE-jmetal.txt``.
 - **Sampled fronts** where no closed form or authors' front applies: RWA3, RWA9, RWA10 and the deterministic
   RE91. Dense sampling of the design box, local refinement around the non-dominated designs and an exact
   non-dominated filter over every evaluated design. A well-spread pool of 1.25 times the packaged size is then
@@ -46,6 +49,14 @@ FILE_NAMES = {"zdt1": "ZDT1"}
 # Tanabe and Ishibuchi's approximated fronts that match VAMOS's RE formulations. RE91 is not here: VAMOS
 # evaluates it at the mean of its stochastic parameters, so the authors' stochastic front does not apply.
 AUTHORS_RE = (21, 24, 31, 32, 33, 34, 37, 41, 42, 61)
+
+# jMetal's fronts (MIT, LICENSE-jmetal.txt): the file of jMetal's resources/referenceFronts for each problem.
+JMETAL_COMMIT = "1e4b83cae6"
+JMETAL_FRONTS = {
+    **{f"lircmop{k}": f"LIRCMOP{k}" for k in range(1, 15)},
+    **{f"dascmop{k}": f"DASCMOP{k}" for k in range(1, 7)},
+    **{f"dascmop{k}": f"DASCMOP{k}.3D" for k in range(7, 10)},
+}
 
 # Sampled fronts: packaged size, number of uniform samples and grid points per variable (0 = no grid).
 SAMPLED = {
@@ -459,27 +470,54 @@ def write_authors_front(number: int, reproblems_dir: Path, out_dir: Path) -> Pat
     return path
 
 
+def _dominated_within(F: np.ndarray, chunk: int = 256) -> np.ndarray:
+    """Mask of the rows of ``F`` that another row dominates (minimization)."""
+    mask = np.zeros(F.shape[0], dtype=bool)
+    for start in range(0, F.shape[0], chunk):
+        block = F[start : start + chunk, None, :]
+        mask[start : start + chunk] = np.any(np.all(F[None] <= block, axis=2) & np.any(F[None] < block, axis=2), axis=1)
+    return mask
+
+
+def write_jmetal_front(name: str, jmetal_dir: Path, out_dir: Path) -> Path:
+    """Copy jMetal's front line by line, without the rows that another row of the file dominates.
+
+    Only DAS-CMOP8 and DAS-CMOP9 lose rows: two each, which lie 1e-6 from the corner point that dominates them.
+    """
+    lines = [line for line in (jmetal_dir / f"{JMETAL_FRONTS[name]}.csv").read_text(encoding="ascii").splitlines() if line.strip()]
+    F = np.array([[float(value) for value in line.split(",")] for line in lines])
+    keep = ~_dominated_within(F)
+    path = out_dir / f"{name}.csv"
+    path.write_text("".join(line + "\n" for line, kept in zip(lines, keep) if kept), encoding="ascii", newline="\n")
+    return path
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("names", nargs="*", help="fronts to write, e.g. zdt3 re31 rwa10 (default: none)")
     parser.add_argument("--all", action="store_true", help="write every front this script owns")
     parser.add_argument("--reproblems-dir", type=Path, help="local copy of reproblems' approximated_Pareto_fronts")
+    parser.add_argument("--jmetal-dir", type=Path, help=f"local copy of jMetal's resources/referenceFronts at commit {JMETAL_COMMIT}")
     parser.add_argument("--out", type=Path, default=OUT_DIR)
     args = parser.parse_args(argv)
 
     authors = [f"re{number}" for number in AUTHORS_RE]
-    names = [*ANALYTIC, *authors, *SAMPLED] if args.all else args.names
-    unknown = sorted(set(names) - {*ANALYTIC, *authors, *SAMPLED})
+    names = [*ANALYTIC, *authors, *JMETAL_FRONTS, *SAMPLED] if args.all else args.names
+    unknown = sorted(set(names) - {*ANALYTIC, *authors, *JMETAL_FRONTS, *SAMPLED})
     if unknown:
         parser.error(f"unknown fronts: {unknown}")
     if any(name in authors for name in names) and args.reproblems_dir is None:
         parser.error("the RE authors' fronts need --reproblems-dir")
+    if any(name in JMETAL_FRONTS for name in names) and args.jmetal_dir is None:
+        parser.error("jMetal's fronts need --jmetal-dir")
     args.out.mkdir(parents=True, exist_ok=True)
     for name in names:
         if name in ANALYTIC:
             path = write_front(name, ANALYTIC[name](), args.out)
         elif name in authors:
             path = write_authors_front(int(name[2:]), args.reproblems_dir, args.out)
+        elif name in JMETAL_FRONTS:
+            path = write_jmetal_front(name, args.jmetal_dir, args.out)
         else:
             path = write_front(name, _sampled(name), args.out)
         print(f"wrote {path.name}", flush=True)

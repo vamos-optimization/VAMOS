@@ -1,7 +1,7 @@
 """The benchmark problems against independent implementations and their analytical fronts (VR-068).
 
-``data/problem_reference_values.json`` holds, for each problem that pymoo 0.6.2 or jMetal 7.8 also
-implements, three points inside the VAMOS bounds and that implementation's objective and constraint
+``data/problem_reference_values.json`` holds, for each problem that pymoo 0.6.2, jMetal 7.8 or, for
+LIR-CMOP and DAS-CMOP, jMetal's ``main`` also implements, three points inside the VAMOS bounds and that implementation's objective and constraint
 values there; ``tools/problem_reference_values.py`` regenerates it. The fixture's ``excluded`` table
 gives, for each family member left out, why its counterpart is not the same problem.
 """
@@ -32,6 +32,8 @@ _REFERENCED_FAMILIES = (
     "dc1dtlz",
     "dc2dtlz",
     "dc3dtlz",
+    "lircmop",
+    "dascmop",
     "wfg",
     "mw",
     "cec2009_",

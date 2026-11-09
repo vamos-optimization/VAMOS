@@ -114,12 +114,33 @@ algorithm with the required constraint support in the [matrix](algorithms.md).
 | `mw5`, `mw10` | 15 | 2 | 3 | Actual M fixed at 2 | [MW][constrained] | 2D for MW5; none for MW10 |
 | `mw11` | 15 | 2 | 4 | Actual M fixed at 2 | [MW][constrained] | None packaged |
 | `mw4`, `mw8`, `mw14` | 15 | 3 | 1 | Configurable M | [MW][constrained] | None packaged |
+| `lircmop1`–`lircmop12` | 30 | 2 | 2–3 | Fixed M; variables in `[0, 1]`; LIR-CMOP1–4 need n ≥ 3 | [LIR-CMOP][lircmop] | 2D, each |
+| `lircmop13`, `lircmop14` | 30 | 3 | 2–3 | Fixed M | [LIR-CMOP][lircmop] | 3D, each |
+| `dascmop1`–`dascmop6` | 30 | 2 | 11 | Fixed M; jMetal's default difficulty | [DAS-CMOP][dascmop] | 2D, each |
+| `dascmop7`–`dascmop9` | 30 | 3 | 7 | Fixed M; jMetal's default difficulty | [DAS-CMOP][dascmop] | 3D, each |
 
 DC-DTLZ's constants `a` and `b`, and its `g` of DTLZ1 (factor 100) for both
 DTLZ1 and DTLZ3, are those of the authors' implementation (Li et al., 2019, in
 the [COLA Laboratory's code][dcdtlz-authors]), which pymoo also uses. jMetal and
 PlatEMO use `a = 3` and `b = 0.5` in DC1 and DC3, and PlatEMO a factor of 10 in
 DC3-DTLZ3's `g`, so their DC1 and DC3 problems and fronts differ from these.
+
+**Development after 1.1.0:** LIR-CMOP1–14 (Fan et al., 2019) and DAS-CMOP1–9
+(Fan et al., 2020) follow jMetal's implementation at commit `1e4b83cae6`.
+For LIR-CMOP5–14 that is the paper's definition: jMetal corrected those
+problems in its pull request #522, after jMetal 7.8. DAS-CMOP's difficulty is
+the triplet `(eta, zeta, gamma)`, each in `[0, 1]`:
+
+- `eta` controls diversity: how much of the front the first constraint cuts.
+- `zeta` controls feasibility: the width of the feasible band of the distance
+  function. `zeta = 1` turns it into an equality, met within `1e-4`.
+- `gamma` controls convergence: the radius of the infeasible regions on the
+  front.
+
+The registered keys use jMetal's defaults: `(0, 0.5, 0.5)` for DAS-CMOP1 and 2,
+and `(0.5, 0.5, 0.5)` for the others. `vamos.problems.DASCMOP(k, eta=...,
+zeta=..., gamma=...)` builds another difficulty. The packaged fronts hold only
+for the defaults.
 
 **Development after 1.1.0:** only MW4, MW8 and MW14 accept an objective
 override; the other MW keys reject a different `n_obj` with `ValueError`.
@@ -390,6 +411,7 @@ regenerates the files marked as regenerated.
 | `cec2009_uf6` | Closed-form front with its isolated point (0, 1) added |
 | `cec2009_uf9` | Regenerated: 5111 points of UF9's two planar pieces, `sum(f) = 1` with `f1 <= (1 - f3)/4` or `f1 >= 3(1 - f3)/4` |
 | `mw*` | Unchanged; within a mean distance of 0.0085 of pymoo 0.6.2's fronts |
+| `lircmop1`–`lircmop14`, `dascmop1`–`dascmop9` | jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), under its MIT notice in `LICENSE-jmetal.txt`; DAS-CMOP8 and DAS-CMOP9 leave out two rows each, which another row dominates |
 | `c1dtlz1`–`dc3dtlz3`, `.2d` and `.3d` | Regenerated: the feasible, non-dominated part of DTLZ's front (C3-DTLZ1: of its constraint boundary), as VAMOS evaluates it; 1000 points at M = 2 and up to 5050 at M = 3 |
 | `zcat*` | Unchanged samples |
 | `re21`, `re24`, `re31`–`re34`, `re37`, `re41`, `re42`, `re61` | Tanabe and Ishibuchi's approximated fronts (`reference_points_RE*.dat`) |
@@ -461,6 +483,8 @@ scalable formulations. For a new objective function, follow
 [zcat]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/zcat/core.py
 [constrained]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/constrained_many.py
 [dcdtlz-authors]: https://github.com/COLA-Laboratory/cola_www_src/tree/main/content/codes/Samaritan/testproblem/DCDTLZ
+[lircmop]: https://doi.org/10.1007/s00500-019-03794-x
+[dascmop]: https://doi.org/10.1162/evco_a_00259
 [binary]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/binary.py
 [integer]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/integer.py
 [mixed]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/mixed.py

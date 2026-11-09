@@ -211,6 +211,91 @@ def test_constrained_dtlz_fronts_cover_their_feasible_pareto_sets(name: str, m: 
         assert np.max(gap) <= (0.005 if m == 2 else 0.03)
 
 
+def _lircmop_designs(k: int, F: np.ndarray, n_var: int) -> np.ndarray:
+    """Designs whose objectives are ``F`` on LIR-CMOP``k``: the position variables from the closed form, and
+    the distance terms g1 and g2 (LIR-CMOP13 and 14: g) moved by one variable each."""
+    n = F.shape[0]
+    X = np.empty((n, n_var))
+    odd, even = np.arange(2, n_var, 2), np.arange(1, n_var, 2)
+    if k >= 13:
+        radius = np.linalg.norm(F, axis=1)
+        X[:, 0] = 2.0 / np.pi * np.arctan2(F[:, 2], np.linalg.norm(F[:, :2], axis=1))
+        X[:, 1] = 2.0 / np.pi * np.arctan2(F[:, 1], F[:, 0])
+        X[:, 2:] = 0.5
+        X[:, 2] = 0.5 + np.sqrt(np.maximum(radius - 1.7057, 0.0) / 10.0)
+        return X
+    concave = k in {1, 3, 6, 8, 9, 12}
+
+    def shape(x: np.ndarray) -> np.ndarray:
+        return 1.0 - x * x if concave else 1.0 - np.sqrt(x)
+
+    if k <= 4:
+        x0 = F[:, 0] - 0.5
+        g1, g2 = np.full(n, 0.5), F[:, 1] - shape(x0)
+    elif k <= 8:
+        x0 = np.clip(F[:, 0] - 0.7057, 0.0, 1.0)
+        g1, g2 = (F[:, 0] - 0.7057 - x0) / 10.0, (F[:, 1] - 0.7057 - shape(x0)) / 10.0
+    else:
+        # f = 1.7057 * h * (10 g + 1): take g1 = 0 and solve x0 from f1, or, where that leaves g2 < 0 or
+        # x0 > 1, take g2 = 0 and solve x0 from f2.
+
+        def g_for(f: np.ndarray, h: np.ndarray) -> np.ndarray:
+            return np.divide(f / np.where(h > 0.0, h, 1.0) - 1.0, 10.0, out=np.zeros(n), where=h > 0.0)
+
+        x0 = np.clip(F[:, 0] / 1.7057, 0.0, 1.0)
+        g1, g2 = g_for(F[:, 0], 1.7057 * x0), g_for(F[:, 1], 1.7057 * shape(x0))
+        level = np.clip(1.0 - F[:, 1] / 1.7057, 0.0, 1.0)
+        x0_b = np.sqrt(level) if concave else level**2
+        use_b = (g1 < -1e-12) | (g2 < -1e-12) | (F[:, 0] > 1.7057)
+        x0 = np.where(use_b, x0_b, x0)
+        g1 = np.where(use_b, g_for(F[:, 0], 1.7057 * x0_b), g1)
+        g2 = np.where(use_b, 0.0, g2)
+    X[:, 0] = x0
+    if k <= 4:
+        sine, cosine = np.sin(0.5 * np.pi * x0)[:, None], np.cos(0.5 * np.pi * x0)[:, None]
+        sine, cosine = np.broadcast_to(sine, (n, odd.size)), np.broadcast_to(cosine, (n, even.size))
+    else:
+        sine = np.sin(0.5 * (odd + 1) / n_var * np.pi * x0[:, None])
+        cosine = np.cos(0.5 * (even + 1) / n_var * np.pi * x0[:, None])
+    X[:, odd], X[:, even] = sine, cosine
+    for columns, target, g in ((odd, sine, g1), (even, cosine, g2)):
+        # One variable away from its target by sqrt(g), towards whichever bound leaves room.
+        step = np.sqrt(np.maximum(g, 0.0))
+        up = target[:, 0] + step <= 1.0
+        X[:, columns[0]] = np.where(up, target[:, 0] + step, target[:, 0] - step)
+    return X
+
+
+@pytest.mark.parametrize("k", range(1, 15))
+def test_lircmop_fronts_are_reached_by_feasible_designs(k: int) -> None:
+    problem = make_problem_selection(f"lircmop{k}").instantiate()
+    front = _load(f"lircmop{k}")
+
+    F, G = _evaluate(problem, _lircmop_designs(k, front, problem.n_var))
+
+    assert np.max(np.abs(F - front)) <= 1e-9
+    assert G.max() <= 1e-9
+
+
+@pytest.mark.parametrize("k", range(1, 10))
+def test_dascmop_fronts_avoid_the_infeasible_regions_of_objective_space(k: int) -> None:
+    # The constraints on the first variables and on the distance need the design; those on the objectives
+    # (rotated ellipses with two objectives, spheres with three) can be checked on the front itself.
+    from vamos.foundation.problem import dascmop
+
+    problem = dascmop.DASCMOPProblem(k)
+    front = _load(f"dascmop{k}")
+    assert front.shape[1] == problem.n_obj
+    if problem.n_obj == 2:
+        dx, dy = front[:, :1] - np.asarray(dascmop._P), front[:, 1:2] - np.asarray(dascmop._Q)
+        u = dx * np.cos(dascmop._THETA) - dy * np.sin(dascmop._THETA)
+        v = dx * np.sin(dascmop._THETA) + dy * np.cos(dascmop._THETA)
+        outside = u * u / dascmop._SQUARED_A + v * v / dascmop._SQUARED_B - problem._r
+    else:
+        outside = np.sum((front[:, None, :] - np.asarray(dascmop._CENTERS)[None]) ** 2, axis=2) - problem._r**2
+    assert outside.min() >= -1e-8
+
+
 @pytest.mark.parametrize("name", [name for name, spec in sorted(get_problem_specs().items())])
 def test_a_resolved_reference_front_has_the_requested_number_of_objectives(name: str) -> None:
     default = get_problem_specs()[name].default_n_obj
