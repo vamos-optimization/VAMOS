@@ -59,8 +59,11 @@ class LIRCMOPProblem(Problem):
         if number not in _CONSTRAINTS:
             raise ValueError(f"Unknown LIR-CMOP variant {variant!r}; the variants are 1 to 14.")
         n_obj = 3 if number >= 13 else 2
-        if int(n_var) < n_obj:
-            raise ValueError(f"LIR-CMOP{number} needs at least {n_obj} variables, got {n_var}.")
+        # LIR-CMOP1-4 keep each distance group in [0.5, 0.51], so each group needs a variable: the second
+        # variable starts g2 and the third g1. With fewer, no design is feasible.
+        minimum = 3 if number <= 4 else n_obj
+        if int(n_var) < minimum:
+            raise ValueError(f"LIR-CMOP{number} needs at least {minimum} variables, got {n_var}.")
         self.variant = number
         self.n_var = int(n_var)
         self.n_obj = n_obj
