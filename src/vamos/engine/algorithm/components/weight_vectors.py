@@ -114,6 +114,24 @@ def _load_or_generate_jmetalpy_weights(pop_size: int, n_obj: int, path: str | No
     return weights
 
 
+def largest_weighted_population(pop_size: int, n_obj: int) -> int:
+    """Return the largest population, at most ``pop_size``, for which MOEA/D has weight vectors.
+
+    MOEA/D needs one weight vector per individual. With one or two objectives every population
+    has them. With more, its weights are the complete Das-Dennis lattice with exactly that many
+    vectors or the packaged jMetal file ``W{n_obj}D_{size}.dat``, so a size with neither gives way
+    to the next smaller one that has them. A lattice is never truncated.
+    """
+    if n_obj <= 2:
+        return pop_size
+    if pop_size < n_obj:
+        raise ValueError(f"The smallest Das-Dennis lattice for n_obj={n_obj} has {n_obj} vectors, more than pop_size={pop_size}.")
+    size = pop_size
+    while _exact_divisions(size, n_obj) is None and _packaged_weights(n_obj, size) is None:
+        size -= 1
+    return size
+
+
 def _exact_divisions(pop_size: int, n_obj: int) -> int | None:
     try:
         return _choose_exact_divisions(pop_size, n_obj)
