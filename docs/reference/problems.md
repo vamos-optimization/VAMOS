@@ -114,7 +114,7 @@ algorithm with the required constraint support in the [matrix](algorithms.md).
 | `mw5`, `mw10` | 15 | 2 | 3 | Actual M fixed at 2 | [MW][constrained] | 2D for MW5; none for MW10 |
 | `mw11` | 15 | 2 | 4 | Actual M fixed at 2 | [MW][constrained] | None packaged |
 | `mw4`, `mw8`, `mw14` | 15 | 3 | 1 | Configurable M | [MW][constrained] | None packaged |
-| `lircmop1`–`lircmop12` | 30 | 2 | 2–3 | Fixed M; variables in `[0, 1]` | [LIR-CMOP][lircmop] | 2D, each |
+| `lircmop1`–`lircmop12` | 30 | 2 | 2–3 | Fixed M; variables in `[0, 1]`; LIR-CMOP1–4 need n ≥ 3 | [LIR-CMOP][lircmop] | 2D, each |
 | `lircmop13`, `lircmop14` | 30 | 3 | 2–3 | Fixed M | [LIR-CMOP][lircmop] | 3D, each |
 | `dascmop1`–`dascmop6` | 30 | 2 | 11 | Fixed M; jMetal's default difficulty | [DAS-CMOP][dascmop] | 2D, each |
 | `dascmop7`–`dascmop9` | 30 | 3 | 7 | Fixed M; jMetal's default difficulty | [DAS-CMOP][dascmop] | 3D, each |
