@@ -1,9 +1,9 @@
 """The benchmark problems against independent implementations and their analytical fronts (VR-068).
 
 ``data/problem_reference_values.json`` holds, for each problem that pymoo 0.6.2, jMetal 7.8 or, for
-LIR-CMOP, DAS-CMOP, the classic constrained problems, CEC2009 CF1-CF10 and ZXH-CF1-16, jMetal's ``main``
-also implements, three points inside the VAMOS bounds and that implementation's objective and constraint
-values there; ``tools/problem_reference_values.py`` regenerates it. The fixture's ``excluded`` table
+LIR-CMOP, DAS-CMOP, the classic constrained problems, CEC2009 CF1-CF10, ZXH-CF1-16, CRE21-CRE51 and
+RCM01-RCM50, jMetal's ``main`` also implements, three points inside the VAMOS bounds and that
+implementation's objective and constraint values there; ``tools/problem_reference_values.py`` regenerates it. The fixture's ``excluded`` table
 gives, for each family member left out, why its counterpart is not the same problem.
 """
 
@@ -52,6 +52,8 @@ _REFERENCED_FAMILIES = (
     "zcat",
     "re",
     "rwa",
+    "cre",
+    "rcm",
 )
 
 
