@@ -229,6 +229,15 @@ SMS-EMOA and IBEA keep `hv_converged` as an alias until VAMOS 2.0. In VAMOS
 SMS-EMOA and IBEA reported only `hv_converged`, so the CLI never recorded that
 their HV target was reached.
 
+**Development after 1.1.0:** all nine algorithms implement the same
+step-by-step protocol: `initialize(problem, termination, seed)` evaluates the
+initial population; repeat `ask()`, evaluate the returned decision vectors, and
+`tell(...)` the objectives (and constraints) until `should_terminate()`; then
+`result()` returns what `run()` would. With the same seed, the result equals
+`run()`'s. `tell` returns `True` once the HV target is reached. In VAMOS 1.1.0,
+NSGA-II and MOEA/D had no public `initialize`, `should_terminate` or `result`,
+and `tell` of NSGA-III, SMS-EMOA and IBEA always returned `False`.
+
 ### Changes included in 1.0.1
 
 - **SMPSO:** `archive_size` controls search leaders, `.external_archive(...)` configures a separate result archive, and explicit `population` mode returns the final swarm. Version 1.0.0 returned the leaders archive without honoring these independent result controls.

@@ -399,7 +399,9 @@ class SMSEMOA:
                 self._live_cb.on_generation(st.generation, F=st.F, stats={"evals": st.n_eval})
             _check_hv_target(st)
 
-        return False
+        # True once the HV target of an ("hv", ...) termination is reached, as in the other algorithms;
+        # it is measured at generation boundaries only.
+        return st.hv_reached
 
     def should_terminate(self) -> bool:
         """Check if termination criterion is met.
