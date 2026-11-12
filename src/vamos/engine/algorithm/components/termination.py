@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import math
+import numbers
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
 
 import numpy as np
 import numpy.typing as npt
 
+from vamos.engine.algorithm.components.results import result_objectives
 from vamos.foundation.quality_indicators.hypervolume import hypervolume
 
 _FloatArray = npt.NDArray[np.float64]
@@ -52,21 +55,53 @@ class HVTracker:
         return hv_val >= self.target
 
 
+TERMINATION_CRITERIA = ("max_evaluations", "n_gen", "hv")
+
+
+def parse_budget(value: Any, label: str, algorithm_name: str = "algorithm") -> int:
+    """Return ``value`` as a positive evaluation or generation count.
+
+    Integers, and floats with an integral value such as ``1e4``, are accepted.
+    Booleans, fractional values and counts below 1 raise ``ValueError`` naming
+    ``label``: a budget is never truncated.
+    """
+    if isinstance(value, bool):
+        parsed = None
+    elif isinstance(value, numbers.Integral):
+        parsed = int(value)
+    elif isinstance(value, numbers.Real) and math.isfinite(float(value)) and float(value).is_integer():
+        parsed = int(float(value))
+    else:
+        parsed = None
+    if parsed is None or parsed <= 0:
+        raise ValueError(f"{algorithm_name} requires {label} to be a positive integer, got {value!r}.")
+    return parsed
+
+
 def parse_termination(
     termination: tuple[str, Any],
     algorithm_name: str = "algorithm",
+    pop_size: int | None = None,
 ) -> tuple[int, dict[str, Any] | None]:
     """
     Parse termination criterion and return (max_eval, hv_config).
+
+    Every built-in algorithm accepts the same criteria.
 
     Parameters
     ----------
     termination : tuple[str, Any]
         Termination criterion as (type, value). Supported types:
-        - "max_evaluations": value is the max number of evaluations
-        - "hv": value is a dict with hypervolume config
+        - "max_evaluations": value is the total number of evaluations
+        - "n_gen": value is a number of generations of ``pop_size`` evaluations,
+          the initial population included, so the budget is ``n_gen * pop_size``
+        - "hv": value is a dict with ``target_value``, ``reference_point`` and the
+          ``max_evaluations`` cap
+        Counts must be positive integers; a fractional count is rejected, not truncated.
     algorithm_name : str
         Algorithm name for error messages.
+    pop_size : int | None
+        Population size, which ``n_gen`` needs.
 
     Returns
     -------
@@ -76,24 +111,41 @@ def parse_termination(
     Raises
     ------
     ValueError
-        If termination type is unsupported or HV config is invalid.
+        If termination type is unsupported, a count is not a positive integer,
+        or the HV config is invalid.
     """
     term_type, term_val = termination
     hv_config = None
 
     if term_type == "max_evaluations":
-        max_eval = int(term_val)
+        max_eval = parse_budget(term_val, "max_evaluations", algorithm_name)
+    elif term_type == "n_gen":
+        if pop_size is None:
+            raise ValueError(f"The 'n_gen' termination of {algorithm_name} needs the population size.")
+        max_eval = parse_budget(term_val, "n_gen", algorithm_name) * int(pop_size)
     elif term_type == "hv":
+        if not isinstance(term_val, Mapping):
+            raise ValueError(f"HV-based termination for {algorithm_name} takes a mapping with target_value and reference_point.")
         hv_config = dict(term_val)
-        max_eval = int(hv_config.get("max_evaluations", 0))
-        if max_eval <= 0:
+        if hv_config.get("max_evaluations") is None:
             raise ValueError(f"HV-based termination for {algorithm_name} requires a positive max_evaluations value.")
+        max_eval = parse_budget(hv_config["max_evaluations"], "max_evaluations", f"HV-based termination for {algorithm_name}")
     else:
-        raise ValueError(f"Unsupported termination criterion '{term_type}' for {algorithm_name}.")
-
-    if max_eval <= 0:
-        raise ValueError(f"{algorithm_name} requires max_evaluations to be positive.")
+        raise ValueError(
+            f"Unsupported termination criterion {term_type!r} for {algorithm_name}; use one of {', '.join(TERMINATION_CRITERIA)}."
+        )
     return max_eval, hv_config
+
+
+def hv_target_reached(state: Any) -> bool:
+    """Whether the state's HV tracker, when an ``("hv", ...)`` termination enables it, has reached its target.
+
+    The target is measured on the rows that the result reports (``result_objectives``), so an
+    infeasible row the result drops, or an archive that a population result ignores, cannot stop
+    the run early.
+    """
+    tracker = getattr(state, "hv_tracker", None)
+    return bool(tracker is not None and tracker.enabled and tracker.reached(result_objectives(state)))
 
 
 def validate_initial_budget(max_evaluations: int, pop_size: int, algorithm_name: str) -> None:
@@ -118,4 +170,13 @@ def capped_offspring_size(n_eval: int, max_evaluations: int, requested: int, alg
     return min(int(requested), remaining_evaluations(n_eval, max_evaluations, algorithm_name))
 
 
-__all__ = ["HVTracker", "parse_termination", "validate_initial_budget", "remaining_evaluations", "capped_offspring_size"]
+__all__ = [
+    "TERMINATION_CRITERIA",
+    "HVTracker",
+    "capped_offspring_size",
+    "hv_target_reached",
+    "parse_budget",
+    "parse_termination",
+    "remaining_evaluations",
+    "validate_initial_budget",
+]

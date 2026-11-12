@@ -142,7 +142,10 @@ def optimize(
         Maximum function evaluations. Auto-determined when omitted.
     termination : TerminationSpec | None, optional
         Explicit termination pair for advanced runs that also pass
-        ``algorithm_config``. For example ``("max_evaluations", 10000)``.
+        ``algorithm_config``: ``("max_evaluations", n)``, ``("n_gen", g)``
+        (``g * pop_size`` evaluations, the initial population included) or
+        ``("hv", {"target_value": t, "reference_point": r, "max_evaluations": n})``.
+        Every built-in algorithm accepts all three; counts must be positive integers.
     pop_size : int | None, optional
         Population size. Auto-determined when omitted.
     engine : EngineName | str | None, optional
@@ -169,6 +172,8 @@ def optimize(
         MOEA/D. Resumed with the same configuration and seed, both continue
         exactly as the uninterrupted run, archive constraints included. A
         checkpoint that cannot be restored raises ``ConfigurationError``.
+        ``max_evaluations`` is the resumed run's total budget, the checkpoint's
+        evaluations included; a smaller budget raises ``ConfigurationError``.
         Multi-seed runs do not accept checkpoints.
 
     Returns

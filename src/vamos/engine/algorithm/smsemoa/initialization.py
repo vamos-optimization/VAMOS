@@ -77,7 +77,7 @@ def initialize_smsemoa_run(
     tuple
         (state, live_cb, eval_strategy, max_eval, hv_tracker)
     """
-    max_eval, hv_config = parse_termination(termination, "SMSEMOA")
+    max_eval, hv_config = parse_termination(termination, "SMS-EMOA", pop_size=int(config["pop_size"]))
 
     live_cb = get_live_viz(live_viz)
     eval_strategy = get_eval_strategy(eval_strategy)

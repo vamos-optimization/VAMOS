@@ -188,6 +188,25 @@ NSGA-III and RVEA require a population compatible with the configured reference 
 
 **Development after 1.1.0:** with `pop_size`, `NSGAIIIConfig.default()` uses the complete lattice with the most directions that fit in it, for any number of objectives (four divisions, 70 directions, for 100 individuals and five objectives, which used to fail with six divisions and 210 directions); `RVEAConfig.default()` uses the lattice of exactly `pop_size` vectors and otherwise fails at once naming the nearest valid sizes, such as 91 or 105 for three objectives. Without `pop_size`, both still use 12 divisions for three objectives and 6 for four or more.
 
+### Termination criteria
+
+**Development after 1.1.0:** every algorithm's `run(problem, termination=...)`
+and `initialize`, and `optimize(termination=..., algorithm_config=...)`, accept
+the same three criteria:
+`("max_evaluations", n)`, the total number of evaluations;
+`("n_gen", g)`, `g` generations of `pop_size` evaluations, the initial
+population included, so `g * pop_size` evaluations; and
+`("hv", {"target_value": t, "reference_point": r, "max_evaluations": n})`,
+which stops once the hypervolume of the result source against `r` reaches `t`,
+within `n` evaluations. Counts must be positive integers: `("max_evaluations",
+150.9)` raises `ValueError`, while an integral float such as `1e4` is accepted.
+Every result has `hv_reached`, whether the HV target stopped the run; NSGA-III,
+SMS-EMOA and IBEA keep `hv_converged` as an alias until VAMOS 2.0. In VAMOS
+1.1.0, AGE-MOEA and RVEA accepted `n_gen` but not `hv`, the other seven accepted
+`hv` but not `n_gen`, `run()` truncated a fractional budget, and NSGA-III,
+SMS-EMOA and IBEA reported only `hv_converged`, so the CLI never recorded that
+their HV target was reached.
+
 ### Changes included in 1.0.1
 
 - **SMPSO:** `archive_size` controls search leaders, `.external_archive(...)` configures a separate result archive, and explicit `population` mode returns the final swarm. Version 1.0.0 returned the leaders archive without honoring these independent result controls.

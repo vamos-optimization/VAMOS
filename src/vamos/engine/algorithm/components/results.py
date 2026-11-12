@@ -104,6 +104,21 @@ def wants_population_result(state: Any) -> bool:
     return mode == "population"
 
 
+def result_objectives(state: Any) -> np.ndarray[Any, Any]:
+    """Objectives of the rows a result built from ``state`` reports, before non-dominated filtering.
+
+    The external archive unless the result mode is ``population``; the whole population in that
+    mode; otherwise the feasible rows, or the least violated ones when none is feasible.
+    """
+    archive = get_external_archive_contents(state)
+    if archive is not None and not wants_population_result(state):
+        return np.asarray(archive[1])
+    F = np.asarray(state.F)
+    if wants_population_result(state):
+        return F
+    return F[feasible_result_indices(F, getattr(state, "G", None), str(getattr(state, "constraint_mode", "none")))]
+
+
 def feasible_result_indices(
     F: np.ndarray[Any, Any], G: np.ndarray[Any, Any] | None, constraint_mode: str, kernel: Any = None
 ) -> NDArray[np.int_]:
