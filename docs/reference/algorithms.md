@@ -157,6 +157,26 @@ on ZDT1, from 0.7426 to 0.7443 on DTLZ2 and from 0.1880 to 0.1892 on DTLZ1,
 within seed variation of jMetal 7.9's AGE-MOEA (0.8545, 0.7446 and 0.1890).
 AGE-MOEA results from VAMOS 1.1.0 and earlier differ with the same seed.
 
+### Where the variants depart from their references
+
+These are declared VAMOS choices, not defects; report them when comparing with
+published results or with another framework.
+
+- **NSGA-III parents** are chosen by binary tournament on non-dominated rank
+  and crowding distance (feasibility first under constraints), as in NSGA-II
+  and in jMetal's NSGA-III example. Deb and Jain (2014) choose parents at
+  random. See [NSGA-III](../algorithms/nsgaiii.md#variants-and-their-effect).
+- **NSGA-III nadir estimate:** when an intercept of the extreme-point
+  hyperplane lies beyond the worst point found so far, VAMOS uses the worst
+  point of the first front for every objective, as pymoo up to 0.4 did; pymoo
+  0.6 replaces only those objectives by the worst point.
+- **SMS-EMOA contributions** are exact, with no Monte Carlo or HypE
+  approximation, so each step's cost grows exponentially with the number of
+  objectives. See [SMS-EMOA](../algorithms/smsemoa.md#interpret-the-result-and-its-limits).
+- **MOEA/D** defaults to differential evolution with PBI aggregation;
+  `aggregation("tchebycheff")` reproduces jMetal's MOEA/D-DE. See
+  [MOEA/D](../algorithms/moead.md).
+
 ### Choose an initial experiment
 
 | Need | Starting point | Check before increasing the budget |

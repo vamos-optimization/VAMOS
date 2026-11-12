@@ -177,6 +177,8 @@ Each `X` row aligns with the same `F` row. This lesson explicitly requests `popu
 
 Hypervolume depends on the reference point and objective scales. The low budget leaves visible distance from the analytical front. Indicator computation also has a cost; this example does not establish suitability for arbitrarily many objectives.
 
+Every step computes the exact hypervolume contribution of each point in the worst front: with MooCore's `hv_contributions` when MooCore is installed, otherwise with an exact sweep for two objectives and, for three or more, with one exact hypervolume of the front per point left out. There is no approximation such as Monte Carlo sampling or HypE, so the cost of a step grows exponentially with the number of objectives. Time a short run before planning many-objective experiments, or choose a reference-direction algorithm such as [NSGA-III](nsgaiii.md).
+
 This run has no constraints. Before using a constrained or discrete problem, check the [capability matrix](../reference/algorithms.md#capability-matrix) and [constraint convention](../reference/constraints.md). Preserve complete runs through the [canonical lifecycle](../guide/run-artifacts.md); the teaching JSON is not a replay bundle.
 
 ## Try one controlled change

@@ -53,14 +53,16 @@ class SMSEMOA:
     Parameters
     ----------
     config : dict
-        Algorithm configuration with keys:
+        Algorithm configuration, as ``SMSEMOAConfig.to_dict()`` builds it, with keys:
         - pop_size (int): Population size
         - crossover (tuple): Crossover operator config
         - mutation (tuple): Mutation operator config
-        - selection (tuple): Selection config, e.g., ("tournament", {"size": 2})
-        - reference_point (dict, optional): {"offset": float} or {"point": list}
-        - external_archive (dict, optional): {"capacity": int | None, "pruning": str}
-        - hv_threshold (float, optional): HV threshold for early termination
+        - selection (tuple): Parent selection, ("random", {}) or ("tournament", {"size": 2})
+        - reference_point (dict): {"offset": float, "adaptive": bool}, with ``offset`` a
+          fraction of each objective's range, or {"vector": list} for a fixed reference
+        - eliminate_duplicates (bool, optional): Discard a child that repeats an X or F row
+        - external_archive (dict, optional): {"capacity": int | None, "pruning": str, ...}
+        An HV target is a termination criterion, ``("hv", {...})``, not a configuration key.
     kernel : KernelBackend
         Backend for vectorized operations.
 

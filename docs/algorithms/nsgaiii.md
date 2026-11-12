@@ -86,6 +86,12 @@ For each generation, NSGA-III combines parents and offspring, sorts candidates i
 
 For explicit reference-direction files, each row must be non-negative, sum to one, have one column per objective and match the configured population count. Consult the [configuration reference](../reference/api/algorithms/nsgaiii.md) for the file option.
 
+### Variants and their effect
+
+Parents are chosen by binary tournament on non-dominated rank and crowding distance, with feasible solutions first when constraints are active, as in NSGA-II and in jMetal's NSGA-III example. Deb and Jain choose parents at random [1], and the constrained version compares constraint violation and picks at random among feasible solutions [2], as pymoo does. `selection("tournament", size=k)` sets the tournament size; NSGA-III reads no other selection setting.
+
+Normalization estimates the nadir point from the hyperplane through the extreme points. When the hyperplane cannot be built, or an intercept lies beyond the worst point found so far in some objective, VAMOS uses the worst point of the first front for every objective, as pymoo up to 0.4 did. pymoo 0.6 replaces only the objectives whose intercept lies beyond the worst point. The paper does not fix this rule, so both are variants, but the normalization differs in those generations.
+
 ## Scope and limitations
 
 **Use this tutorial for unconstrained problems.** The VAMOS 1.0.1 implementation can evaluate and retain `G`, but its environmental selection ranks objective values without constraint-aware survival. Setting `constraint_mode="feasibility"` does not establish full constrained NSGA-III support. Choose a constraint-aware implementation in the [capability matrix](../reference/algorithms.md#capability-matrix) when feasibility must affect survival.
@@ -97,3 +103,5 @@ The example demonstrates execution and output interpretation. It does not establ
 ## References
 
 [1] Deb, K., and Jain, H. (2014). [An Evolutionary Many-Objective Optimization Algorithm Using Reference-Point-Based Nondominated Sorting Approach, Part I: Solving Problems With Box Constraints](https://doi.org/10.1109/TEVC.2013.2281535). *IEEE Transactions on Evolutionary Computation*, 18(4), 577–601.
+
+[2] Jain, H., and Deb, K. (2014). [An Evolutionary Many-Objective Optimization Algorithm Using Reference-Point Based Nondominated Sorting Approach, Part II: Handling Constraints and Extending to an Adaptive Approach](https://doi.org/10.1109/TEVC.2013.2281534). *IEEE Transactions on Evolutionary Computation*, 18(4), 602–622.
