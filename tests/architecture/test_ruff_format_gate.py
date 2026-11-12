@@ -12,7 +12,7 @@ REFORMAT_RE = re.compile(r"(\d+)\s+files?\s+would be reformatted")
 
 
 def test_ruff_format_gate() -> None:
-    cmd = [sys.executable, "-m", "ruff", "format", "--check", "src/vamos", "tests"]
+    cmd = [sys.executable, "-m", "ruff", "format", "--check", "--no-cache", "src/vamos", "tests"]
     proc = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True)
     if proc.returncode == 0:
         return
