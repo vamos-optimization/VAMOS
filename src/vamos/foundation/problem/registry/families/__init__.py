@@ -11,6 +11,7 @@ __all__ = [
     "cec",
     "lsmop",
     "constrained_many",
+    "lir_das_cmop",
     "real_world",
     "tanabe_ishibuchi_re",
     "zapotecas_rwa",
