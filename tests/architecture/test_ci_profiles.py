@@ -76,6 +76,9 @@ def test_minimum_profile_uses_declared_minimums() -> None:
     scripts = "\n".join(step.get("run", "") for step in job["steps"])
     assert "python tools/minimum_constraints.py" in scripts
     assert "constraints/ci.txt ." not in scripts
+    # pytest and VAMOS resolve together: a separate pytest install could keep a dependency that needs a newer core pin.
+    installs = [line for line in scripts.splitlines() if "pip install" in line and "minimum.txt" in line]
+    assert installs and all(" . pytest" in line for line in installs)
     assert "tests-minimum" in _ci_jobs()["build-wheel"]["needs"]
 
 

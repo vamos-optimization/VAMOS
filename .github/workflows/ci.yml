@@ -158,10 +158,12 @@ jobs:
       - name: Install the declared minimum dependencies
         run: |
           python -m pip install -U pip
-          python -m pip install -c constraints/ci.txt pytest tomli
+          python -m pip install -c constraints/ci.txt tomli
           python tools/minimum_constraints.py > "$RUNNER_TEMP/minimum.txt"
+          # One resolution for VAMOS and pytest, so pytest's own dependencies fit the minimum pins.
+          grep -E '^pytest==' constraints/ci.txt >> "$RUNNER_TEMP/minimum.txt"
           cat "$RUNNER_TEMP/minimum.txt"
-          python -m pip install -c "$RUNNER_TEMP/minimum.txt" .
+          python -m pip install -c "$RUNNER_TEMP/minimum.txt" . pytest
           python -m pip list
       - name: Run minimal smoke tests
         run: python -m pytest tests/integration/test_minimal_imports.py tests/foundation/test_packaging_data.py
