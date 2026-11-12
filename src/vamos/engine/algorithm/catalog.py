@@ -20,7 +20,7 @@ OPTIONAL_ALGORITHMS: tuple[str, ...] = ()
 
 # The smallest population and number of objectives each built-in algorithm runs with.
 # NSGA-II, IBEA and AGE-MOEA select parents by tournament without replacement (two
-# individuals); MOEA/D needs two weight vectors and NSGA-III and RVEA two reference
+# individuals; NSGA-II and IBEA need one with random selection, see minimum_violation); MOEA/D needs two weight vectors and NSGA-III and RVEA two reference
 # directions, which also need two objectives. SMS-EMOA's hypervolume contributions and
 # AGE-MOEA's front geometry are defined for two or more objectives. NSGA-III and RVEA
 # check their exact lattice size when their configuration is built.
@@ -49,6 +49,18 @@ _LABELS = {
 }
 
 
+# Algorithms whose two-individual minimum comes from a configurable tournament (selection field).
+_SELECTION_DEPENDENT_POPULATION = ("nsgaii", "ibea")
+
+
+def _selection_name(selection: object) -> str | None:
+    if isinstance(selection, str):
+        return selection.strip().lower()
+    if isinstance(selection, (tuple, list)) and selection and isinstance(selection[0], str):
+        return selection[0].strip().lower()
+    return None
+
+
 @dataclass(frozen=True)
 class MinimumViolation:
     """A population or objective count below what a built-in algorithm runs with."""
@@ -59,16 +71,22 @@ class MinimumViolation:
     message: str
 
 
-def minimum_violation(algorithm: str, *, pop_size: int | None = None, n_obj: int | None = None) -> MinimumViolation | None:
+def minimum_violation(
+    algorithm: str, *, pop_size: int | None = None, n_obj: int | None = None, selection: object = None
+) -> MinimumViolation | None:
     """Return the first of ``n_obj`` and ``pop_size`` below ``algorithm``'s minimum, or ``None``.
 
-    Algorithms outside ``ALGORITHM_MINIMUMS``, such as plugins, are not checked, and a
-    ``None`` value is not checked.
+    ``selection`` is the configured parent selection (a name or a ``(name, params)`` pair).
+    NSGA-II and IBEA need two individuals only for a tournament: random selection draws
+    parents with replacement. Algorithms outside ``ALGORITHM_MINIMUMS``, such as plugins,
+    are not checked, and a ``None`` value is not checked.
     """
     key = algorithm.strip().lower()
     minimums = ALGORITHM_MINIMUMS.get(key)
     if minimums is None:
         return None
+    if key in _SELECTION_DEPENDENT_POPULATION and _selection_name(selection) == "random":
+        minimums = {**minimums, "pop_size": 1}
     label = _LABELS.get(key, algorithm)
     if n_obj is not None and n_obj < minimums["n_obj"]:
         return MinimumViolation(

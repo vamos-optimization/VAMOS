@@ -131,6 +131,17 @@ def test_algorithms_without_a_tournament_still_run_one_individual(algorithm: str
     assert result.F.shape[1] == 2
 
 
+@pytest.mark.parametrize("algorithm", ["nsgaii", "ibea"])
+def test_random_selection_runs_one_individual(algorithm: str):
+    # Random selection draws parents with replacement, so one individual supplies both.
+    from vamos.engine.algorithm.config import IBEAConfig
+
+    builder = NSGAIIConfig.builder() if algorithm == "nsgaii" else IBEAConfig.builder().indicator("eps").kappa(0.05)
+    config = builder.pop_size(1).crossover("sbx", prob=0.9, eta=20.0).mutation("pm", prob="1/n", eta=20.0).selection("random").build()
+    result = optimize(ZDT1Problem(n_var=4), algorithm=algorithm, algorithm_config=config, max_evaluations=8, seed=0)
+    assert result.F.shape[1] == 2
+
+
 _ALL_ALGORITHMS = ["nsgaii", "nsgaiii", "moead", "smsemoa", "spea2", "ibea", "smpso", "agemoea", "rvea"]
 
 
