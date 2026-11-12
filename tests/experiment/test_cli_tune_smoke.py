@@ -171,16 +171,21 @@ def test_smoke_space_keeps_reference_lattices_feasible(
         assert all(trial["config"]["pop_size"] >= 16 for trial in sampled), sampled
 
 
-def test_smoke_rejects_lattices_larger_than_its_budget(tmp_path: Path) -> None:
-    argv = ["--problem", "dtlz2", "--n-obj", "40", "--n-var", "50", "--algorithm", "nsgaiii", "--backend", "random", "--smoke"]
-    with pytest.raises(SystemExit, match=r"NSGA-III with 40 objectives needs a population of at least 40.*smoke budget of 30"):
+@pytest.mark.parametrize(("algorithm", "label"), [("nsgaiii", "NSGA-III"), ("moead", "MOEA/D"), ("rvea", "RVEA")])
+def test_smoke_rejects_lattices_larger_than_its_budget(algorithm: str, label: str, tmp_path: Path) -> None:
+    argv = ["--problem", "dtlz2", "--n-obj", "31", "--n-var", "50", "--algorithm", algorithm, "--backend", "random", "--smoke"]
+    with pytest.raises(SystemExit, match=rf"{label} with 31 objectives needs a population of at least 31.*smoke budget of 30"):
         tune_cli.main([*argv, "--output-dir", str(tmp_path)])
     assert not list(tmp_path.rglob("*.json")), "nothing may be written before the check"
 
 
 # Review follow-up (PR #230): a parameter that the smoke caps fix to one value must not reach the model
 # backends as an integer range without width, which ConfigSpace (SMAC3, BOHB) and irace reject.
-@pytest.mark.parametrize(("algorithm", "n_obj"), [("rvea", 6), ("rvea", 16), ("moead", 16), ("nsgaiii", 16)])
+@pytest.mark.parametrize(
+    ("algorithm", "n_obj"),
+    # With 30 objectives the smallest lattice is exactly the 30-evaluation smoke budget.
+    [("rvea", 6), ("rvea", 16), ("moead", 16), ("nsgaiii", 16), ("moead", 30), ("nsgaiii", 30), ("rvea", 30)],
+)
 def test_smoke_space_translates_for_smac_bohb_and_irace(
     algorithm: str, n_obj: int, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -204,7 +209,7 @@ def test_smoke_space_translates_for_smac_bohb_and_irace(
         return config, []
 
     monkeypatch.setattr(tune_cli, "_run_backend", fake_run_backend)
-    argv = ["--problem", "dtlz2", "--n-obj", str(n_obj), "--algorithm", algorithm, "--backend", "random", "--smoke"]
+    argv = ["--problem", "dtlz2", "--n-obj", str(n_obj), "--n-var", "40", "--algorithm", algorithm, "--backend", "random", "--smoke"]
     assert tune_cli.main([*argv, "--output-dir", str(tmp_path)]) == 0
 
     space = seen["space"]

@@ -95,15 +95,15 @@ def smoke_param_space(
     budget, the command stops with a message instead of failing every evaluation.
 
     Returns the space and the parameters that the caps fix to one value, which leave the space: RVEA
-    with six or more objectives fits one partition count only, and SMAC3, BOHB and irace reject an
-    integer range without width. The evaluator sets them in every configuration.
+    with six or more objectives fits one partition count only, MOEA/D and NSGA-III fit one population
+    when their smallest lattice is the whole budget, and SMAC3, BOHB and irace reject an integer
+    range without width. The evaluator sets them in every configuration.
     """
     floor = smallest_population(algorithm, n_obj)
     params = dict(param_space.params)
     pop_size = params.get("pop_size")
     partitions = params.get("n_partitions")
-    needed = floor + 1 if isinstance(pop_size, Int) else floor
-    if needed > budget:
+    if floor > budget:
         label = _LATTICE_LABELS.get(canonical_algorithm_name(algorithm).split("_")[0])
         why = " (its smallest reference lattice)" if label else ""
         raise SystemExit(
@@ -112,7 +112,8 @@ def smoke_param_space(
             "Run it without --smoke, with a --budget above that population."
         )
     if isinstance(pop_size, Int):
-        params["pop_size"] = _capped(pop_size, max(max_population, floor + 1), floor=floor)
+        # When the smallest lattice is the whole budget, pop_size is fixed to it (below).
+        params["pop_size"] = _capped(pop_size, min(budget, max(max_population, floor + 1)), floor=floor)
     if isinstance(partitions, Int):
         n_dirs = max(2, int(n_obj)) - 1
         limit = max(max_population, floor)
