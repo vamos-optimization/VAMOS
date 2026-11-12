@@ -186,6 +186,7 @@ def run_validation_stage(
             seeds=validation_seeds,
             budget=val_budget,
             aggregator=task.aggregator,
+            failure_score=float(args.failure_score),
         )
         validation_rows.append(
             {
@@ -290,6 +291,7 @@ def run_test_stage(
             seeds=test_seeds,
             budget=test_budget,
             aggregator=task.aggregator,
+            failure_score=float(args.failure_score),
         )
         test_rows.append(
             {

@@ -188,6 +188,7 @@ def test_cli_validation_reports_failed_runs():
         seeds=[1, 2, 3],
         budget=100,
         aggregator=lambda vals: float(np.mean(vals)),
+        failure_score=0.0,
     )
 
     assert (metrics["rows_total"], metrics["rows_ok"], metrics["fail_rate"]) == (3, 0, 1.0)
@@ -336,7 +337,7 @@ def _validation_inputs(tmp_path: Path):
     from vamos.engine.tuning import Instance, TrialResult
     from vamos.engine.tuning.racing.param_space import ParamSpace, Real
 
-    args = argparse.Namespace(run_validation=True, validation_budget=0, budget=100, validation_topk=2)
+    args = argparse.Namespace(run_validation=True, validation_budget=0, budget=100, validation_topk=2, failure_score=0.0)
     task = SimpleNamespace(param_space=ParamSpace(params={"x": Real("x", 0.0, 1.0)}), aggregator=lambda vals: float(np.mean(vals)))
     history = [TrialResult(trial_id=0, config={"x": 0.9}, score=2.0), TrialResult(trial_id=1, config={"x": 0.1}, score=1.0)]
     return dict(
@@ -370,3 +371,21 @@ def test_validation_chooses_no_champion_when_every_candidate_failed(tmp_path: Pa
     assert champions == {}
     assert not (tmp_path / "selected_configs_validation.json").exists()
     assert (tmp_path / "validation_metrics.csv").exists()
+
+
+def test_validation_counts_failed_runs_with_the_failure_score(tmp_path: Path):
+    from vamos.experiment.cli._tune_flow import run_validation_stage
+
+    inputs = _validation_inputs(tmp_path)
+    inputs["validation_seeds"] = list(range(10))
+
+    # x = 0.9 scores 10 once and fails nine times; x = 0.1 scores 2 on every run. With the default failure
+    # score of 0, the first averages 1 and the second 2.
+    def eval_fn(config, ctx):
+        if config["x"] == 0.9:
+            return 10.0 if ctx.seed == 0 else float("nan")
+        return 2.0
+
+    champions = run_validation_stage(eval_fn=eval_fn, **inputs)
+
+    assert champions["champion_global"] == {"x": 0.1}
