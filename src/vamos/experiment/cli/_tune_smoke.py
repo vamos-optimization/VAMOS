@@ -81,7 +81,9 @@ def smallest_population(algorithm: str, n_obj: int) -> int:
     return minimum
 
 
-def smoke_param_space(param_space: ParamSpace, *, max_population: int, n_obj: int, algorithm: str, budget: int) -> ParamSpace:
+def smoke_param_space(
+    param_space: ParamSpace, *, max_population: int, n_obj: int, algorithm: str, budget: int
+) -> tuple[ParamSpace, dict[str, int]]:
     """``param_space`` with every sampled population at most ``max_population`` and feasible.
 
     The built-in spaces sample ``pop_size`` in [20, 200], and RVEA's population is its number of
@@ -91,6 +93,10 @@ def smoke_param_space(param_space: ParamSpace, *, max_population: int, n_obj: in
     objectives, a reference-direction algorithm samples its smallest lattice, and a size one above
     it, which MOEA/D and NSGA-III round down to that lattice. When even that does not fit the smoke
     budget, the command stops with a message instead of failing every evaluation.
+
+    Returns the space and the parameters that the caps fix to one value, which leave the space: RVEA
+    with six or more objectives fits one partition count only, and SMAC3, BOHB and irace reject an
+    integer range without width. The evaluator sets them in every configuration.
     """
     floor = smallest_population(algorithm, n_obj)
     params = dict(param_space.params)
@@ -111,10 +117,12 @@ def smoke_param_space(param_space: ParamSpace, *, max_population: int, n_obj: in
         n_dirs = max(2, int(n_obj)) - 1
         limit = max(max_population, floor)
         fitting = [h for h in range(1, int(partitions.high) + 1) if math.comb(h + n_dirs, n_dirs) <= limit]
-        # One partition gives the n_obj axis directions, so it always fits; when no second count
-        # fits, the range has a single value, which SMAC3, BOHB and irace cannot sample.
+        # One partition gives the n_obj axis directions, so it always fits.
         params["n_partitions"] = _capped(partitions, max(fitting))
-    return ParamSpace(params=params, conditions=list(param_space.conditions))
+    fixed = {name: int(spec.low) for name, spec in params.items() if isinstance(spec, Int) and spec.low == spec.high}
+    params = {name: spec for name, spec in params.items() if name not in fixed}
+    conditions = [condition for condition in param_space.conditions if condition.param_name in params]
+    return ParamSpace(params=params, conditions=conditions), fixed
 
 
 __all__ = ["apply_smoke_mode", "smallest_population", "smoke_param_space"]

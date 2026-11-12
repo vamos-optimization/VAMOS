@@ -52,9 +52,11 @@ def test_tune_smoke_samples_feasible_population(tmp_path: Path, caplog: pytest.L
 @pytest.mark.parametrize("algorithm", sorted(_tune_runtime.BUILDERS))
 def test_smoke_space_keeps_every_population_within_half_the_budget(algorithm: str, n_obj: int) -> None:
     profile = _smoke_profile(["--algorithm", algorithm, "--n-obj", str(n_obj)])
-    params = smoke_param_space(
+    space, fixed = smoke_param_space(
         _param_space(algorithm), max_population=profile["pop_size"], n_obj=n_obj, algorithm=algorithm, budget=profile["budget"]
-    ).params
+    )
+    params = space.params
+    assert fixed == {}
 
     population = params["pop_size"] if "pop_size" in params else params["n_partitions"]
     assert isinstance(population, Int)
@@ -71,7 +73,7 @@ def test_smoke_space_keeps_every_population_within_half_the_budget(algorithm: st
 
 def test_smoke_population_leaves_room_for_the_opposition_based_initializer(caplog: pytest.LogCaptureFixture) -> None:
     profile = _smoke_profile(["--problem", "zdt1"])
-    space = smoke_param_space(
+    space, _ = smoke_param_space(
         _param_space("nsgaii"), max_population=profile["pop_size"], n_obj=2, algorithm="nsgaii", budget=profile["budget"]
     )
     config = space.sample(np.random.default_rng(0))
@@ -161,8 +163,10 @@ def test_smoke_space_keeps_reference_lattices_feasible(
     assert _failures(caplog) == []
     sampled = _artifact(tmp_path, "tuning_history.json")
     if algorithm == "rvea":
-        # One partition gives the 16 axis directions; two give 136, more than the smoke budget.
-        assert {trial["config"]["n_partitions"] for trial in sampled} == {1}
+        # One partition gives the 16 axis directions; two give 136, more than the smoke budget. The
+        # fixed count leaves the search space, and the smoke profile records it.
+        assert all("n_partitions" not in trial["config"] for trial in sampled), sampled
+        assert _artifact(tmp_path, "tuning_summary.json")["smoke_profile"]["fixed_parameters"] == {"n_partitions": 1}
     else:
         assert all(trial["config"]["pop_size"] >= 16 for trial in sampled), sampled
 
@@ -172,3 +176,38 @@ def test_smoke_rejects_lattices_larger_than_its_budget(tmp_path: Path) -> None:
     with pytest.raises(SystemExit, match=r"NSGA-III with 40 objectives needs a population of at least 40.*smoke budget of 30"):
         tune_cli.main([*argv, "--output-dir", str(tmp_path)])
     assert not list(tmp_path.rglob("*.json")), "nothing may be written before the check"
+
+
+# Review follow-up (PR #230): a parameter that the smoke caps fix to one value must not reach the model
+# backends as an integer range without width, which ConfigSpace (SMAC3, BOHB) and irace reject.
+@pytest.mark.parametrize(("algorithm", "n_obj"), [("rvea", 6), ("rvea", 16), ("moead", 16), ("nsgaiii", 16)])
+def test_smoke_space_translates_for_smac_bohb_and_irace(
+    algorithm: str, n_obj: int, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    pytest.importorskip("ConfigSpace")
+    import re
+
+    from vamos.engine.tuning._irace_space import parameter_file
+    from vamos.engine.tuning._model_backend_utils import build_configspace
+    from vamos.experiment.cli import _tune_scoring
+    from vamos.experiment.cli._tune_scoring import evaluation_ledger
+
+    # The runs are what this test checks; a many-objective hypervolume without moocore takes minutes.
+    monkeypatch.setattr(_tune_scoring, "_score_population_result", lambda *_args: 1.0)
+    seen: dict[str, object] = {}
+
+    def fake_run_backend(args, task, eval_fn, resolved_jobs):  # noqa: ANN001
+        _ = args, resolved_jobs
+        config = task.param_space.sample(np.random.default_rng(0))
+        eval_fn(config, EvalContext(instance=task.instances[0], seed=1, budget=task.budget_per_run))
+        seen.update(space=task.param_space, ledger=evaluation_ledger(eval_fn).counts())
+        return config, []
+
+    monkeypatch.setattr(tune_cli, "_run_backend", fake_run_backend)
+    argv = ["--problem", "dtlz2", "--n-obj", str(n_obj), "--algorithm", algorithm, "--backend", "random", "--smoke"]
+    assert tune_cli.main([*argv, "--output-dir", str(tmp_path)]) == 0
+
+    space = seen["space"]
+    build_configspace(space, seed=1)
+    assert not re.search(r"\((-?[\d.e+-]+), \1\)", parameter_file(space)), parameter_file(space)
+    assert seen["ledger"] == (1, 0), "the sampled configuration must run"

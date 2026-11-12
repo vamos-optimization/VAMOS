@@ -191,7 +191,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     algo_space = builder()
     param_space = algo_space.to_param_space() if isinstance(algo_space, AlgorithmConfigSpace) else algo_space
     if smoke_profile is not None:
-        param_space = _smoke_param_space(
+        param_space, smoke_profile["fixed_parameters"] = _smoke_param_space(
             param_space, max_population=int(args.pop_size), n_obj=int(args.n_obj), algorithm=str(args.algorithm), budget=int(args.budget)
         )
 
@@ -242,6 +242,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         runtime_penalty=float(args.runtime_penalty),
         failure_score=float(args.failure_score),
         logger=_logger,
+        fixed_assignment=smoke_profile.get("fixed_parameters") if smoke_profile else None,
     )
 
     out_dir = _resolve_output_dir(
