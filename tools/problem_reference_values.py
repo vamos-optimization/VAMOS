@@ -67,7 +67,17 @@ JMETAL_MAIN_COMMIT = "1e4b83cae6"
 JMETAL_MAIN: dict[str, tuple[str, str]] = {
     **{f"lircmop{k}": (f"lircmop.LIRCMOP{k}", "") for k in range(1, 15)},
     **{f"dascmop{k}": (f"dascmop.DASCMOP{k}", "") for k in range(1, 10)},
+    "c3dtlz4": ("cdtlz.C3_DTLZ4", "12,3,3"),
 }
+# DC-DTLZ with jMetal's constants (a = 3, b = 0.5, g unscaled in the constraints), which STEP also uses:
+# values of jMetal's main at three points for each variant and dimension. jMetal puts DC3's constraint on g
+# last; VAMOS, like pymoo, first.
+DCDTLZ_JMETAL_OUTPUT = ROOT / "tests" / "foundation" / "data" / "dcdtlz_jmetal_values.json"
+DCDTLZ_JMETAL_CASES = [
+    (key, n_var, n_obj)
+    for key in ("dc1dtlz1", "dc1dtlz3", "dc2dtlz1", "dc2dtlz3", "dc3dtlz1", "dc3dtlz3")
+    for n_var, n_obj in ((12, 3), (12, 2), (2, 3))
+]
 # Variables that VAMOS encodes as an index into a table of values (the table's attribute): the
 # reference evaluates the decoded value. Both problems document the encoding.
 DECODED: dict[str, tuple[int, str]] = {"re22": (0, "_X1_VALUES"), "re25": (2, "_X3_VALUES")}
@@ -246,13 +256,48 @@ def generate(
     }
 
 
+def dcdtlz_jmetal_values(classpath_main: str) -> dict[str, Any]:
+    """The fixture of DC-DTLZ with jMetal's constants: jMetal's values in VAMOS's constraint order."""
+    requests, designs = [], []
+    for key, n_var, n_obj in DCDTLZ_JMETAL_CASES:
+        rng = np.random.default_rng(zlib.crc32(f"{key}-{n_var}-{n_obj}".encode()))
+        X = rng.random((N_POINTS, n_var))
+        designs.append(X)
+        class_name = "dcdtlz." + key[:3].upper() + "_DTLZ" + key[-1]
+        requests.extend((class_name, f"{n_var},{n_obj}", x) for x in X)
+    values = iter(_jmetal_values(classpath_main, requests))
+    cases = []
+    for (key, n_var, n_obj), X in zip(DCDTLZ_JMETAL_CASES, designs):
+        rows = [next(values) for _ in range(N_POINTS)]
+        F = np.vstack([row[0] for row in rows])
+        G = np.vstack([row[1] for row in rows if row[1] is not None])
+        if key.startswith("dc3"):
+            G = np.column_stack([G[:, -1], G[:, :-1]])
+        cases.append({"key": key, "n_var": n_var, "n_obj": n_obj, "X": X.tolist(), "F": F.tolist(), "G": G.tolist()})
+    return {
+        "schema": "vamos.test.dcdtlz-jmetal-values/1",
+        "generated_by": "tools/problem_reference_values.py --dcdtlz-jmetal",
+        "source": f"jMetal main {JMETAL_MAIN_COMMIT}",
+        "parameters": {"a": 3.0, "b": 0.5, "g_factor": 100.0, "constraint_g_scale": 1.0},
+        "constraint_convention": "g_lte_0",
+        "cases": cases,
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("--classpath", help="jmetal-core, jmetal-problem 7.8, commons-lang3 and commons-math3 jars")
     parser.add_argument("--classpath-main", help=f"the same jars built from jMetal's main at commit {JMETAL_MAIN_COMMIT}")
     parser.add_argument("--only", nargs="+", metavar="KEY", help="regenerate these problems and keep the rest of the fixture")
+    parser.add_argument("--dcdtlz-jmetal", action="store_true", help=f"write {DCDTLZ_JMETAL_OUTPUT.name} instead")
     parser.add_argument("--output", type=Path, default=OUTPUT)
     args = parser.parse_args(argv)
+    if args.dcdtlz_jmetal:
+        if args.classpath_main is None:
+            parser.error("--dcdtlz-jmetal needs --classpath-main")
+        DCDTLZ_JMETAL_OUTPUT.write_text(json.dumps(dcdtlz_jmetal_values(args.classpath_main), indent=1) + "\n", encoding="utf-8")
+        print(f"wrote {DCDTLZ_JMETAL_OUTPUT}")
+        return 0
     existing = json.loads(args.output.read_text(encoding="utf-8")) if args.only and args.output.is_file() else None
     fixture = generate(args.classpath, args.classpath_main, only=args.only, existing=existing)
     args.output.parent.mkdir(parents=True, exist_ok=True)

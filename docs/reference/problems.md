@@ -106,24 +106,48 @@ algorithm with the required constraint support in the [matrix](algorithms.md).
 | `c1dtlz3` | 12 | 3 | 1 | Default radius `r = 9` at M = 3; varies with M | [C-DTLZ][constrained] | 2D and 3D |
 | `c2dtlz2` | 12 | 3 | 1 | Default radius `r = 0.4` at M = 3; varies with M | [C-DTLZ][constrained] | 2D and 3D |
 | `c3dtlz1` | 12 | 3 | M | Configurable M | [C-DTLZ][constrained] | 2D and 3D |
+| `c3dtlz4` | 12 | 3 | M | Configurable M; DTLZ4's `alpha = 100` | [C-DTLZ][constrained] | 2D and 3D |
 | `dc1dtlz1`, `dc1dtlz3` | 12 | 3 | 1 | Configurable M; `a = 5`, `b = 0.95` | [DC-DTLZ][constrained] | 2D and 3D, each |
 | `dc2dtlz1`, `dc2dtlz3` | 12 | 3 | 2 | Configurable M; `a = 3`, `b = 0.9` | [DC-DTLZ][constrained] | 2D and 3D, each |
 | `dc3dtlz1`, `dc3dtlz3` | 12 | 3 | M | Configurable M; `a = 5`, `b = 0.5` | [DC-DTLZ][constrained] | 2D and 3D, each |
-| `mw1`, `mw2`, `mw6`, `mw9` | 15 | 2 | 1 | Actual M fixed at 2 | [MW][constrained] | 2D for MW1/2/6; none for MW9 |
-| `mw3`, `mw7`, `mw12`, `mw13` | 15 | 2 | 2 | Actual M fixed at 2 | [MW][constrained] | 2D for MW3/7; none for MW12/13 |
-| `mw5`, `mw10` | 15 | 2 | 3 | Actual M fixed at 2 | [MW][constrained] | 2D for MW5; none for MW10 |
-| `mw11` | 15 | 2 | 4 | Actual M fixed at 2 | [MW][constrained] | None packaged |
-| `mw4`, `mw8`, `mw14` | 15 | 3 | 1 | Configurable M | [MW][constrained] | None packaged |
+| `mw1`, `mw2`, `mw6`, `mw9` | 15 | 2 | 1 | Actual M fixed at 2 | [MW][constrained] | 2D, each |
+| `mw3`, `mw7`, `mw12`, `mw13` | 15 | 2 | 2 | Actual M fixed at 2 | [MW][constrained] | 2D, each |
+| `mw5`, `mw10` | 15 | 2 | 3 | Actual M fixed at 2 | [MW][constrained] | 2D, each |
+| `mw11` | 15 | 2 | 4 | Actual M fixed at 2 | [MW][constrained] | 2D |
+| `mw4`, `mw8`, `mw14` | 15 | 3 | 1 | Configurable M | [MW][constrained] | 2D and 3D, each |
 | `lircmop1`–`lircmop12` | 30 | 2 | 2–3 | Fixed M; variables in `[0, 1]`; LIR-CMOP1–4 need n ≥ 3 | [LIR-CMOP][lircmop] | 2D, each |
 | `lircmop13`, `lircmop14` | 30 | 3 | 2–3 | Fixed M | [LIR-CMOP][lircmop] | 3D, each |
 | `dascmop1`–`dascmop6` | 30 | 2 | 11 | Fixed M; jMetal's default difficulty | [DAS-CMOP][dascmop] | 2D, each |
 | `dascmop7`–`dascmop9` | 30 | 3 | 7 | Fixed M; jMetal's default difficulty | [DAS-CMOP][dascmop] | 3D, each |
 
-DC-DTLZ's constants `a` and `b`, and its `g` of DTLZ1 (factor 100) for both
-DTLZ1 and DTLZ3, are those of the authors' implementation (Li et al., 2019, in
-the [COLA Laboratory's code][dcdtlz-authors]), which pymoo also uses. jMetal and
-PlatEMO use `a = 3` and `b = 0.5` in DC1 and DC3, and PlatEMO a factor of 10 in
-DC3-DTLZ3's `g`, so their DC1 and DC3 problems and fronts differ from these.
+DC-DTLZ's default constants are those of the authors' implementation (Li et
+al., 2019, in the [COLA Laboratory's code][dcdtlz-authors]), which pymoo also
+uses:
+
+- DC1: `a = 5`, `b = 0.95`;
+- DC2: `a = 3`, `b = 0.9`, with `g / 100` in the constraints;
+- DC3: `a = 5`, `b = 0.5`;
+- DTLZ1's distance `g`, with factor 100, for both DTLZ1 and DTLZ3.
+
+jMetal, PlatEMO and STEP (Cork et al., 2026) use `a = 3`, `b = 0.5` and the
+unscaled `g` in the constraints of all six problems. PlatEMO also uses a factor
+of 10 in DC3-DTLZ3's `g`. Their problems therefore differ from these. Their DC1
+and DC3 fronts differ too. Their DC2 fronts do not, because DC2's constraints
+hold on the whole DTLZ front.
+
+**Development after 1.1.0:** `vamos.problems.DCDTLZ(key, n_var=..., n_obj=...,
+a=..., b=..., g_factor=..., constraint_g_scale=...)` builds any of these
+variants:
+
+- `a=3, b=0.5, constraint_g_scale=1` gives jMetal's and STEP's problems; the
+  tests check them against jMetal.
+- `g_factor` multiplies DTLZ1's `g`, 100 by default.
+- `constraint_g_scale` scales the `g` that the constraints use: 0.01 in DC2 by
+  default, and 1 in DC1 and DC3.
+- DC-DTLZ accepts as few as M − 1 variables, as STEP's instances with three
+  objectives and two variables need; then `g = 0`.
+- DC3's constraint on `g` comes first, as in pymoo; jMetal puts it last.
+- The packaged fronts hold only for the default constants.
 
 **Development after 1.1.0:** LIR-CMOP1–14 (Fan et al., 2019) and DAS-CMOP1–9
 (Fan et al., 2020) follow jMetal's implementation at commit `1e4b83cae6`.
@@ -410,9 +434,10 @@ regenerates the files marked as regenerated.
 | `cec2009_uf1`–`uf5`, `uf7`, `uf8`, `uf10` | Closed-form front, unchanged |
 | `cec2009_uf6` | Closed-form front with its isolated point (0, 1) added |
 | `cec2009_uf9` | Regenerated: 5111 points of UF9's two planar pieces, `sum(f) = 1` with `f1 <= (1 - f3)/4` or `f1 >= 3(1 - f3)/4` |
-| `mw*` | Unchanged; within a mean distance of 0.0085 of pymoo 0.6.2's fronts |
+| `mw1`–`mw3`, `mw5`–`mw7` | Unchanged; within a mean distance of 0.0085 of pymoo 0.6.2's fronts |
+| `mw4`, `mw8`, `mw14` (`.2d` and `.3d`), `mw9`–`mw13` | jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), under `LICENSE-jmetal.txt`; jMetal's MW problems are VAMOS's, which the reference values check |
 | `lircmop1`–`lircmop14`, `dascmop1`–`dascmop9` | jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), under its MIT notice in `LICENSE-jmetal.txt`; DAS-CMOP8 and DAS-CMOP9 leave out two rows each, which another row dominates |
-| `c1dtlz1`–`dc3dtlz3`, `.2d` and `.3d` | Regenerated: the feasible, non-dominated part of DTLZ's front (C3-DTLZ1: of its constraint boundary), as VAMOS evaluates it; 1000 points at M = 2 and up to 5050 at M = 3 |
+| `c1dtlz1`–`dc3dtlz3`, `.2d` and `.3d`, `c3dtlz4` included | Regenerated: the feasible, non-dominated part of DTLZ's front (C3-DTLZ1 and C3-DTLZ4: of their constraint boundaries), as VAMOS evaluates it; 1000 points at M = 2 and up to 5050 at M = 3 |
 | `zcat*` | Unchanged samples |
 | `re21`, `re24`, `re31`–`re34`, `re37`, `re41`, `re42`, `re61` | Tanabe and Ishibuchi's approximated fronts (`reference_points_RE*.dat`) |
 | `re91` | Regenerated by dense sampling of the deterministic RE91, 1806 points |

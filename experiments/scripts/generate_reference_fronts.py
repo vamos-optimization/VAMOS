@@ -19,7 +19,7 @@ provenance of every packaged file, including those this script leaves alone.
   https://github.com/ryojitanabe/reproblems (``approximated_Pareto_fronts``), with only the separator changed.
   ``--reproblems-dir`` points at a local copy of that directory. Their MIT notice is
   ``LICENSE-reproblems.txt`` next to the CSV files.
-- **jMetal's fronts** for LIR-CMOP1-14 and DAS-CMOP1-9, from jMetal's ``resources/referenceFronts`` at commit
+- **jMetal's fronts** for LIR-CMOP1-14, DAS-CMOP1-9, MW4 and MW8-14, from jMetal's ``resources/referenceFronts`` at commit
   ``JMETAL_COMMIT``, copied line by line without the rows that another row of the same file dominates.
   ``--jmetal-dir`` points at a local copy of that directory. Their MIT notice is ``LICENSE-jmetal.txt``.
 - **Sampled fronts** where no closed form or authors' front applies: RWA3, RWA9, RWA10 and the deterministic
@@ -56,6 +56,8 @@ JMETAL_FRONTS = {
     **{f"lircmop{k}": f"LIRCMOP{k}" for k in range(1, 15)},
     **{f"dascmop{k}": f"DASCMOP{k}" for k in range(1, 7)},
     **{f"dascmop{k}": f"DASCMOP{k}.3D" for k in range(7, 10)},
+    **{f"mw{k}": f"MW{k}" for k in range(9, 14)},
+    **{f"mw{k}.{m}d": f"MW{k}.{m}D" for k in (4, 8, 14) for m in (2, 3)},
 }
 
 # Sampled fronts: packaged size, number of uniform samples and grid points per variable (0 = no grid).
@@ -192,7 +194,19 @@ def _uf9() -> np.ndarray:
 
 
 # The C-DTLZ problems of Jain and Deb (2014) and the DC-DTLZ problems of Li et al. (2019), at M = 2 and 3.
-CONSTRAINED_DTLZ = ("c1dtlz1", "c1dtlz3", "c2dtlz2", "c3dtlz1", "dc1dtlz1", "dc1dtlz3", "dc2dtlz1", "dc2dtlz3", "dc3dtlz1", "dc3dtlz3")
+CONSTRAINED_DTLZ = (
+    "c1dtlz1",
+    "c1dtlz3",
+    "c2dtlz2",
+    "c3dtlz1",
+    "c3dtlz4",
+    "dc1dtlz1",
+    "dc1dtlz3",
+    "dc2dtlz1",
+    "dc2dtlz3",
+    "dc3dtlz1",
+    "dc3dtlz3",
+)
 
 
 def _simplex_directions(m: int) -> np.ndarray:
@@ -209,6 +223,10 @@ def _constrained_dtlz_candidates(name: str, m: int) -> np.ndarray:
     if name == "c3dtlz1":
         # sum(f) - f_j + 2 f_j >= 1 for every j moves the front out to f = t s with t = 1 / (1 + min_j s_j).
         return s / (1.0 + s.min(axis=1, keepdims=True))
+    if name == "c3dtlz4":
+        # |f|^2 - 3 f_j^2 / 4 >= 1 for every j moves the unit sphere out to f = u / sqrt(1 - 3 max_j u_j^2 / 4).
+        u = s / np.linalg.norm(s, axis=1, keepdims=True)
+        return u / np.sqrt(1.0 - 0.75 * np.max(u * u, axis=1, keepdims=True))
     if name.endswith("dtlz1"):
         return 0.5 * s
     return s / np.linalg.norm(s, axis=1, keepdims=True)
@@ -235,6 +253,8 @@ def constrained_dtlz_designs(name: str, F: np.ndarray, n_var: int) -> np.ndarray
     else:
         g = np.linalg.norm(F, axis=1) - 1.0
         s = F / (1.0 + g)[:, None]
+    # DTLZ4 raises its position variables to alpha = 100 before the trigonometric mapping.
+    power = 1.0 / 100.0 if name == "c3dtlz4" else 1.0
     X = np.full((n, n_var), 0.5)
     # f_M depends on x_1 only, f_{M-1} on x_1 and x_2, and so on: peel one position variable at a time.
     rest = np.ones(n)
@@ -245,10 +265,13 @@ def constrained_dtlz_designs(name: str, F: np.ndarray, n_var: int) -> np.ndarray
             rest = rest * x
         else:
             # tan(pi x / 2) = f_i / |(f_1, ..., f_{i-1})|, which atan2 inverts without losing precision.
-            x = 2.0 / np.pi * np.arctan2(s[:, i], np.linalg.norm(s[:, :i], axis=1))
+            x = (2.0 / np.pi * np.arctan2(s[:, i], np.linalg.norm(s[:, :i], axis=1))) ** power
         X[:, j] = np.clip(x, 0.0, 1.0)
     if name == "c3dtlz1":
         X[:, m - 1] = 0.5 + _dtlz1_distance(np.maximum(g, 0.0))
+    elif name == "c3dtlz4":
+        # DTLZ2's g = sum((x - 0.5)^2), shared by every distance variable so that each stays in [0, 1].
+        X[:, m - 1 :] = 0.5 + np.sqrt(np.maximum(g, 0.0) / (n_var - m + 1))[:, None]
     return X
 
 

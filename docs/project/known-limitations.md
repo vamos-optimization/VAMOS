@@ -89,10 +89,10 @@ unsupported behavior rather than future compatibility promises.
 
   The [reference fronts](../reference/problems.md#reference-fronts) section
   lists the origin of each file.
-- DC-DTLZ follows its authors' implementation (Li et al., 2019), which pymoo
-  also follows. jMetal and PlatEMO use other constants in DC1 and DC3, and
-  PlatEMO another scale for DC3-DTLZ3's `g`, so DC1 and DC3 results and fronts
-  from them are not comparable with VAMOS's. See
+- DC-DTLZ follows its authors' implementation (Li et al., 2019) by default,
+  as pymoo does. jMetal, PlatEMO and STEP use other constants in all six
+  problems, so their DC-DTLZ results are not comparable with those of VAMOS's
+  defaults. `vamos.problems.DCDTLZ` takes their constants as parameters. See
   [Problems](../reference/problems.md#explicitly-constrained-suites).
 - Independent algorithm-conformance validation for AGE-MOEA, RVEA and SMPSO
   remains pending. Passing API and regression tests does not establish
