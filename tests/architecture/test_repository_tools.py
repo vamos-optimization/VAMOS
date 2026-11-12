@@ -46,3 +46,36 @@ def test_audit_facade_paths_exist() -> None:
 @pytest.mark.parametrize("checker", ["check_learning_content", "check_notebook_links", "check_notebook_quality"])
 def test_notebook_checkers_run_in_health(checker: str) -> None:
     assert f'[python, "tools/{checker}.py"]' in (ROOT / "tools" / "health.py").read_text(encoding="utf-8")
+
+
+def _repository_with_a_checkpoint(root: Path) -> Path:
+    # A tracked notebook, and the ignored checkpoint copy Jupyter writes next to it.
+    notebook = root / "notebooks" / "lesson.ipynb"
+    notebook.parent.mkdir(parents=True)
+    notebook.write_text('{"cells": [], "metadata": {}, "nbformat": 4, "nbformat_minor": 5}', encoding="utf-8")
+    (root / ".gitignore").write_text(".ipynb_checkpoints/\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+    checkpoint = root / "notebooks" / ".ipynb_checkpoints" / "lesson-checkpoint.ipynb"
+    checkpoint.parent.mkdir()
+    checkpoint.write_text(notebook.read_text(encoding="utf-8"), encoding="utf-8")
+    return notebook
+
+
+@pytest.mark.parametrize("checker", ["check_notebook_links", "check_notebook_quality"])
+def test_notebook_checkers_read_tracked_notebooks_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, checker: str) -> None:
+    import importlib
+
+    module = importlib.import_module(f"tools.{checker}")
+    notebook = _repository_with_a_checkpoint(tmp_path)
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module, "NOTEBOOK_ROOT", tmp_path / "notebooks")
+    assert module.iter_notebooks() == [notebook]
+
+
+def test_learning_content_check_reads_tracked_files_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from tools import check_learning_content as module
+
+    notebook = _repository_with_a_checkpoint(tmp_path)
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    assert module.iter_files(tmp_path / "notebooks") == [notebook]
