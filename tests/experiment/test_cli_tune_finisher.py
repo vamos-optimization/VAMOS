@@ -326,3 +326,47 @@ def test_tuning_summary_counts_evaluations_run_in_worker_processes(tmp_path: Pat
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
     assert summary["evaluations"] > 0
     assert 0 < summary["failed_evaluations"] < summary["evaluations"]
+
+
+def _validation_inputs(tmp_path: Path):
+    import argparse
+    import logging
+    from types import SimpleNamespace
+
+    from vamos.engine.tuning import Instance, TrialResult
+    from vamos.engine.tuning.racing.param_space import ParamSpace, Real
+
+    args = argparse.Namespace(run_validation=True, validation_budget=0, budget=100, validation_topk=2)
+    task = SimpleNamespace(param_space=ParamSpace(params={"x": Real("x", 0.0, 1.0)}), aggregator=lambda vals: float(np.mean(vals)))
+    history = [TrialResult(trial_id=0, config={"x": 0.9}, score=2.0), TrialResult(trial_id=1, config={"x": 0.1}, score=1.0)]
+    return dict(
+        args=args,
+        out_dir=tmp_path,
+        history=history,
+        task=task,
+        validation_instances=[Instance(name="zdt1", n_var=6, kwargs={})],
+        validation_seeds=[1, 2],
+        logger=logging.getLogger("test"),
+    )
+
+
+def test_validation_never_chooses_a_candidate_that_failed_every_run(tmp_path: Path):
+    from vamos.experiment.cli._tune_flow import run_validation_stage
+
+    # The best-trained candidate (x = 0.9) fails every validation run; the other one validates.
+    def eval_fn(config, ctx):
+        return float("nan") if config["x"] == 0.9 else 1.0
+
+    champions = run_validation_stage(eval_fn=eval_fn, **_validation_inputs(tmp_path))
+
+    assert champions == {"champion_global": {"x": 0.1}, "champion_robust": {"x": 0.1}, "champion_fast": {"x": 0.1}}
+
+
+def test_validation_chooses_no_champion_when_every_candidate_failed(tmp_path: Path):
+    from vamos.experiment.cli._tune_flow import run_validation_stage
+
+    champions = run_validation_stage(eval_fn=lambda config, ctx: float("nan"), **_validation_inputs(tmp_path))
+
+    assert champions == {}
+    assert not (tmp_path / "selected_configs_validation.json").exists()
+    assert (tmp_path / "validation_metrics.csv").exists()

@@ -4,6 +4,7 @@ import argparse
 import csv
 import json
 import logging
+import math
 import time
 from pathlib import Path
 from typing import Any
@@ -194,7 +195,10 @@ def run_validation_stage(
                 **metrics,
             }
         )
-    validation_rows.sort(key=lambda d: float(d["score_agg"]), reverse=True)
+    # A candidate with no successful validation run has NaN scores, which would sort first; it is
+    # listed last and never chosen.
+    validation_rows.sort(key=lambda d: (int(d["rows_ok"]) > 0, _finite_or(d["score_agg"])), reverse=True)
+    validated = [row for row in validation_rows if int(row["rows_ok"]) > 0]
     val_csv_path = out_dir / "validation_metrics.csv"
     with val_csv_path.open("w", encoding="utf-8", newline="") as fh:
         if validation_rows:
@@ -219,10 +223,12 @@ def run_validation_stage(
                 ]
             )
 
-    if validation_rows:
-        best_global = validation_rows[0]
-        best_robust = sorted(validation_rows, key=lambda d: float(d["score_p25"]), reverse=True)[0]
-        best_fast = sorted(validation_rows, key=lambda d: float(d["score_mean"]), reverse=True)[0]
+    if validation_rows and not validated:
+        logger.warning("Every validation candidate failed every run; no validation champion is selected.")
+    if validated:
+        best_global = validated[0]
+        best_robust = max(validated, key=lambda d: _finite_or(d["score_p25"]))
+        best_fast = max(validated, key=lambda d: _finite_or(d["score_mean"]))
         champions = {
             "champion_global": json.loads(str(best_global["config_json"])),
             "champion_robust": json.loads(str(best_robust["config_json"])),
@@ -245,6 +251,11 @@ def run_validation_stage(
             artifact_updates={"validation_metrics": val_csv_path.name},
         )
     return champions
+
+
+def _finite_or(value: Any, default: float = -math.inf) -> float:
+    number = float(value)
+    return number if math.isfinite(number) else default
 
 
 def run_test_stage(
