@@ -4,8 +4,8 @@ For each benchmark problem that another implementation also defines, the fixture
 inside the VAMOS bounds and the objective and constraint values of that implementation there.
 ``tests/foundation/test_problem_reference_values.py`` checks VAMOS against them. The sources are
 pymoo (ZDT, DTLZ, WFG, MW and the constrained DTLZ variants) and jMetal (UF, LZ09, LSMOP5-8, ZCAT,
-RE and RWA). Problems whose counterpart is not the same problem are listed, with the reason, in the
-fixture's ``excluded`` table.
+RE and RWA, and the constrained suites below from jMetal's ``main``). Problems whose counterpart is not
+the same problem are listed, with the reason, in the fixture's ``excluded`` table.
 
 Run from a checkout, with VAMOS importable and pymoo installed (0.6.2 was used)::
 
@@ -13,13 +13,16 @@ Run from a checkout, with VAMOS importable and pymoo installed (0.6.2 was used):
 
 ``--classpath`` lists, separated by the platform's path separator, the jmetal-core and
 jmetal-problem 7.8 jars with commons-lang3 and commons-math3; ``tools/jmetal_values/JMetalValues.java``
-runs with Java 17 or later. LIR-CMOP and DAS-CMOP come from jMetal's ``main`` at commit
-``JMETAL_MAIN_COMMIT``, since 7.8 predates LIR-CMOP's correction (jMetal #522): ``--classpath-main`` gives
-the same jars built from that commit. ``--only KEY ...`` regenerates those problems and keeps the rest of
-the fixture, so the other sources are not needed::
+runs with Java 17 or later. LIR-CMOP, DAS-CMOP, the classic constrained problems, CEC2009 CF1-CF10 and
+ZXH-CF1-16 come from jMetal's ``main`` at commit ``JMETAL_MAIN_COMMIT``: 7.8 predates LIR-CMOP's
+correction (jMetal #522), has no CEC2009 CF problems and fails to evaluate its ZXH-CF1.
+``--classpath-main`` gives the same jars built from that commit. ``--only KEY ...`` regenerates those
+problems and keeps the rest of the fixture, so the other sources are not needed::
 
-    PYTHONPATH=src python tools/problem_reference_values.py --classpath-main "<jars>" --only lircmop1 dascmop1 Constraints are stored in the VAMOS convention, ``g <= 0`` feasible:
-pymoo uses it too, and jMetal's values (``>= 0`` feasible) are negated.
+    PYTHONPATH=src python tools/problem_reference_values.py --classpath-main "<jars>" --only lircmop1 dascmop1
+
+Constraints are stored in the VAMOS convention, ``g <= 0`` feasible: pymoo uses it too, and jMetal's values
+(``>= 0`` feasible) are negated. ZXH-CF9-16 are the exception: see ``DISJUNCTIVE_HEAD``.
 """
 
 from __future__ import annotations
@@ -62,8 +65,8 @@ JMETAL: dict[str, tuple[str, str]] = {
     **{f"re{n}": (f"re.RE{n}", "") for n in (21, 22, 23, 24, 25, 31, 32, 33, 34, 35, 36, 37, 42, 61)},
     **{f"rwa{i}": (f"rwa.RWA{i}", "") for i in (2, 3, 4, 5, 7, 8)},
 }
-# The same, for problems that jMetal's main branch defines as VAMOS does: LIR-CMOP, DAS-CMOP, C3-DTLZ4 and
-# the classic constrained problems.
+# The same, for problems that jMetal's main branch defines as VAMOS does: LIR-CMOP, DAS-CMOP, C3-DTLZ4,
+# the classic constrained problems, the CEC2009 CF problems and ZXH-CF.
 JMETAL_MAIN_COMMIT = "1e4b83cae6"
 JMETAL_MAIN: dict[str, tuple[str, str]] = {
     **{f"lircmop{k}": (f"lircmop.LIRCMOP{k}", "") for k in range(1, 15)},
@@ -77,7 +80,13 @@ JMETAL_MAIN: dict[str, tuple[str, str]] = {
     "golinski": ("Golinski", ""),
     "water": ("Water", ""),
     "car_side_impact": ("CarSideImpact", ""),
+    **{f"cec2009_cf{k}": (f"cec2009.CEC2009CF{k}", "") for k in range(1, 11)},
+    **{f"zxh_cf{k}": (f"cf.CF{k}", "") for k in range(1, 17)},
 }
+# ZXH-CF9-16 keep angles out of intervals. jMetal stores both bounds of each interval, ``<= 0`` feasible and
+# not negated, after the first one or two constraints (two when the radius r > 0), and precomputes the
+# violation: the smaller bound of an interval when both are positive. VAMOS stores that smaller value.
+DISJUNCTIVE_HEAD: dict[str, int] = {f"zxh_cf{k}": 1 if k % 4 == 1 else 2 for k in range(9, 17)}
 # DC-DTLZ with jMetal's constants (a = 3, b = 0.5, g unscaled in the constraints), which STEP also uses:
 # values of jMetal's main at three points for each variant and dimension. jMetal puts DC3's constraint on g
 # last; VAMOS, like pymoo, first.
@@ -100,7 +109,6 @@ _RWA_C_FACTOR = (
 )
 # Problems whose counterpart is not the same problem; the fixture records why.
 EXCLUDED = {
-    "cec2009_cf1": "jMetal 7.8's CF1(Integer, Integer) fails when it evaluates, and CF1(String) has 3 variables and 3 objectives.",
     **{f"lsmop{i}": _LSMOP_LINKAGE for i in (1, 2, 3, 4, 9)},
     "rwa1": _RWA_C_FACTOR,
     "rwa6": _RWA_C_FACTOR,
@@ -181,6 +189,14 @@ def _jmetal_values(classpath: str, requests: list[tuple[str, str, np.ndarray]]) 
     return values
 
 
+def _vamos_constraints(key: str, G: np.ndarray) -> np.ndarray:
+    """jMetal's constraint values, negated, in VAMOS's columns: one per excluded interval for ZXH-CF9-16."""
+    if key not in DISJUNCTIVE_HEAD:
+        return G
+    head, raw = DISJUNCTIVE_HEAD[key], -G
+    return np.column_stack([raw[:, :head], raw[:, head:].reshape(raw.shape[0], -1, 2).min(axis=2)])
+
+
 def _entry(problem: Any, source: str, implementation: str, X: np.ndarray, F: np.ndarray, G: np.ndarray | None) -> dict[str, Any]:
     entry: dict[str, Any] = {
         "source": source,
@@ -210,7 +226,7 @@ def _jmetal_entries(classpath: str, table: dict[str, tuple[str, str]], keys: lis
         rows = [next(values) for _ in range(N_POINTS)]
         F = np.vstack([row[0] for row in rows])
         constraints = [row[1] for row in rows]
-        G = None if any(c is None for c in constraints) else np.vstack([c for c in constraints if c is not None])
+        G = None if any(c is None for c in constraints) else _vamos_constraints(key, np.vstack([c for c in constraints if c is not None]))
         implementation = f"org.uma.jmetal.problem.multiobjective.{class_name}({arguments})"
         entries[key] = _entry(problem, source, implementation, X, F, G)
     return entries

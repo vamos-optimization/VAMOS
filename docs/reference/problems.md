@@ -102,6 +102,10 @@ algorithm with the required constraint support in the [matrix](algorithms.md).
 | Registered keys | Default n | Default M | G | Default parameters / objective count | Source | Reference sample |
 | --- | ---: | ---: | ---: | --- | --- | --- |
 | `cec2009_cf1` | 10 | 2 | 1 | Fixed M and constraint function | [CEC2009][cec] | None packaged |
+| `cec2009_cf2`, `cec2009_cf3` | 10 | 2 | 1 | Fixed M; n ≥ 3 | [CEC2009][cec2009-cf] | 2D, each |
+| `cec2009_cf4`, `cec2009_cf5` | 10 | 2 | 1 | Fixed M; n ≥ 2 | [CEC2009][cec2009-cf] | 2D, each |
+| `cec2009_cf6`, `cec2009_cf7` | 10 | 2 | 2 | Fixed M; n ≥ 4 | [CEC2009][cec2009-cf] | 2D, each |
+| `cec2009_cf8`–`cec2009_cf10` | 10 | 3 | 1 | Fixed M; n ≥ 5 | [CEC2009][cec2009-cf] | 3D, each |
 | `c1dtlz1` | 12 | 3 | 1 | Configurable M; n remains 12 unless supplied | [C-DTLZ][constrained] | 2D and 3D |
 | `c1dtlz3` | 12 | 3 | 1 | Default radius `r = 9` at M = 3; varies with M | [C-DTLZ][constrained] | 2D and 3D |
 | `c2dtlz2` | 12 | 3 | 1 | Default radius `r = 0.4` at M = 3; varies with M | [C-DTLZ][constrained] | 2D and 3D |
@@ -124,6 +128,10 @@ algorithm with the required constraint support in the [matrix](algorithms.md).
 | `golinski` | 7 | 2 | 11 | Fixed n and M; Golinski's speed reducer | [jMetal][jmetal-classics] | 2D |
 | `water` | 3 | 5 | 7 | Fixed n and M; water resource planning | [jMetal][jmetal-classics] | 5D |
 | `car_side_impact` | 7 | 3 | 10 | Fixed n and M | [jMetal][jmetal-classics] | 3D |
+| `zxh_cf1`–`zxh_cf4` | 13 | 3 | 1–2 | Configurable M; n = M + 10 unless supplied; type A | [ZXH-CF][zxh-cf] | None packaged |
+| `zxh_cf5`–`zxh_cf8` | 13 | 3 | 5–6 | Configurable M; type B, 2k + 1 or 2k + 2 constraints | [ZXH-CF][zxh-cf] | 3D for `zxh_cf7` only |
+| `zxh_cf9`–`zxh_cf12` | 13 | 3 | 3–4 | Configurable M; type C, k + 1 or k + 2 constraints | [ZXH-CF][zxh-cf] | None packaged |
+| `zxh_cf13`–`zxh_cf16` | 13 | 3 | 5–6 | Configurable M; type D, 2k + 1 or 2k + 2 constraints | [ZXH-CF][zxh-cf] | None packaged |
 
 DC-DTLZ's default constants are those of the authors' implementation (Li et
 al., 2019, in the [COLA Laboratory's code][dcdtlz-authors]), which pymoo also
@@ -178,6 +186,32 @@ and `(0.5, 0.5, 0.5)` for the others. `vamos.problems.DASCMOP(k, eta=...,
 zeta=..., gamma=...)` builds another difficulty. The packaged fronts hold only
 for the defaults.
 
+**Development after 1.1.0:** CEC2009 CF2–CF10 (Zhang et al., 2009) and
+ZXH-CF1–16 (Zhou, Xiang and He, 2021) follow jMetal's implementation at commit
+`1e4b83cae6`; the reference values check them against it.
+
+- **CEC2009 CF2–CF10** take jMetal's dimensions and bounds: n = 10 by default,
+  the position variables (one with two objectives, two with three) in
+  `[0, 1]` and the others in `[-1, 1]` (CF2), `[-4, 4]` (CF8) or `[-2, 2]`.
+  `G` is the competition's `c(x) >= 0` with the opposite sign. Where
+  `f3 = 1`, CF8–CF10 divide by zero; as in jMetal, the constraint is then 0.
+- **ZXH-CF1–16** have M = 3 and n = 13 by default. Another M gives n = M + 10
+  unless n is supplied. Variables are in `[1e-10, 1 - 1e-10]`. With
+  `S = x1^2 + ... + xM^2` and a distance function `h` (sphere, Rosenbrock,
+  Ackley or Griewank, all 0 where the other variables are 0.2), every problem
+  requires `S + h <= 1`, and the ones with a radius `r` of 1/4, 1/2 or 3/4
+  also `S + h >= r`. The first k angles of the front shape are then free
+  (type A, CF1–4), in `[1/4, 3/4]` (type B, CF5–8), outside `(1/4, 3/4)`
+  (type C, CF9–12), or outside `(1/10, 2/5)` and `(7/10, 4/5)` (type D,
+  CF13–16). k is M − 1 up to three objectives, M // 2 up to eight, and then 3.
+- **Excluded intervals:** a type C or D constraint keeps an angle out of an
+  interval, so it is not two constraints that must both hold. jMetal stores
+  both bounds of each interval and computes the violation and the feasibility
+  itself. VAMOS stores one column per interval,
+  `min(theta - low, high - theta)`, as PlatEMO does. That gives jMetal's
+  feasibility and overall violation. jMetal counts two or three violated
+  constraints for an interval; VAMOS counts one column.
+
 **Development after 1.1.0:** only MW4, MW8 and MW14 accept an objective
 override; the other MW keys reject a different `n_obj` with `ValueError`.
 VAMOS 1.1.0 accepted an override for every MW key and kept those problems at
@@ -189,7 +223,10 @@ default to n = 10, the dimension of the CF problems in the CEC2009 technical
 report and in PlatEMO; `n_var` still selects another one. The
 `CEC2009_UF_CF_curved` benchmark suite also runs CF1 with 10 variables.
 VAMOS 1.1.0 and earlier default to 30, so their default CF1 runs are not
-comparable with CEC2009 results.
+comparable with CEC2009 results. The reference values now compare CF1 with
+jMetal's `CEC2009CF1` at commit `1e4b83cae6`, which agrees with it. jMetal 7.8
+has no CEC2009 CF classes (its `CF1` is ZXH-CF1), so CF1 was not compared
+before.
 
 In 1.0.2, `cec2009_cf1` did not declare its constraint, so algorithms ran it as
 an unconstrained problem; it also stored the CEC2009 constraint `c(x) >= 0`
@@ -409,9 +446,10 @@ compatibility or a certified optimum.
 - WFG and LSMOP samples have **two columns**, even though their registered
   default is three objectives. Supply a matching reference for default runs; do
   not use those two-column files for three-objective indicators.
-- C-DTLZ, DC-DTLZ and ZCAT supply dimension-specific samples, named
-  `<key>.<M>d.csv`: at M = 2 and 3 for C-DTLZ and DC-DTLZ, and at M = 2, 3, 4
-  and 6 for ZCAT. Other objective counts need a supplied reference.
+- C-DTLZ, DC-DTLZ, ZCAT and ZXH-CF supply dimension-specific samples, named
+  `<key>.<M>d.csv`: at M = 2 and 3 for C-DTLZ and DC-DTLZ, at M = 2, 3, 4
+  and 6 for ZCAT, and at M = 3 for ZXH-CF7. Other objective counts need a
+  supplied reference.
 
 **Development after 1.1.0:** the automatic lookup takes `<key>.<M>d.csv` or,
 failing that, `<key>.csv`, for the run's number of objectives or, when none is
@@ -450,6 +488,8 @@ regenerates the files marked as regenerated.
 | `binh2`, `golinski`, `osyczka2`, `water`, `car_side_impact` | jMetal's fronts (commit `1e4b83cae6`), under `LICENSE-jmetal.txt` |
 | `srinivas`, `constrex`, `tanaka` | Regenerated: the feasible, non-dominated designs of the Pareto-set pieces and the constraint boundaries that hold the front, as VAMOS evaluates them, 1000 points. jMetal's samples have dominated points: 310 of Srinivas's 3794 are dominated by another of its points or by a random feasible design, and 774 by those or by the new sample |
 | `mw4`, `mw8`, `mw14` (`.2d` and `.3d`), `mw9`–`mw13` | jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), under `LICENSE-jmetal.txt`; jMetal's MW problems are VAMOS's, which the reference values check |
+| `cec2009_cf2`–`cec2009_cf10` | jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), under `LICENSE-jmetal.txt`; a feasible design on the Pareto set reaches every point. CF4 and CF5, CF6 and CF7, and CF9 and CF10 share their fronts |
+| `zxh_cf7.3d` | jMetal's front (commit `1e4b83cae6`), under `LICENSE-jmetal.txt`; a feasible design on the Pareto set reaches every point. jMetal's other ZXH-CF fronts are not packaged (see the notes) |
 | `lircmop1`–`lircmop14`, `dascmop1`–`dascmop9` | jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), under its MIT notice in `LICENSE-jmetal.txt`; DAS-CMOP8 and DAS-CMOP9 leave out two rows each, which another row dominates |
 | `c1dtlz1`–`dc3dtlz3`, `.2d` and `.3d`, `c3dtlz4` included | Regenerated: the feasible, non-dominated part of DTLZ's front (C3-DTLZ1 and C3-DTLZ4: of their constraint boundaries), as VAMOS evaluates it; 1000 points at M = 2 and up to 5050 at M = 3 |
 | `zcat*` | Unchanged samples |
@@ -469,6 +509,21 @@ Notes on the table:
     augmented achievement function;
   - keeps the polished designs that stay non-dominated, and spreads the
     packaged points by farthest-point selection.
+- **jMetal's ZXH-CF fronts:** only CF7's lies on the feasible front. The
+  others approximate it, so they are not packaged. On the Pareto set `S = 1`
+  and `h = 0`, so each front point gives its angles and a design on the
+  Pareto set at those angles. Against those designs:
+  - CF2, CF8, CF11 and CF13 (concave) lie inside the unit sphere, by 2e-5 to
+    5.5e-4, where no design reaches.
+  - CF3, CF5, CF10 and CF16 (convex) lie behind the front, by up to 1.9e-3,
+    so the designs dominate them.
+  - CF4, CF6, CF9 and CF15 (mixed) are off in f1 by up to 1.2e-2, and the
+    designs dominate 709 to 852 of their 1000 points.
+  - CF1, CF12 and CF14 (linear) lie behind the front by up to 1.2e-6.
+  - CF9, CF10, CF11, CF12 and CF14 have one to three points at excluded
+    angles, which no feasible design reaches.
+
+  200 000 random designs already dominate points of CF3, CF4, CF6 and CF16.
 - **Tanabe and Ishibuchi's fronts:** they are redistributed under the MIT
   license of their repository, whose notice ships next to them as
   `LICENSE-reproblems.txt`. Their values are unchanged. They approximate the
@@ -525,6 +580,8 @@ scalable formulations. For a new objective function, follow
 [jmetal-classics]: https://github.com/jMetal/jMetal/tree/1e4b83cae6/jmetal-problem/src/main/java/org/uma/jmetal/problem/multiobjective
 [lircmop]: https://doi.org/10.1007/s00500-019-03794-x
 [dascmop]: https://doi.org/10.1162/evco_a_00259
+[cec2009-cf]: https://github.com/jMetal/jMetal/tree/1e4b83cae6/jmetal-problem/src/main/java/org/uma/jmetal/problem/multiobjective/cec2009
+[zxh-cf]: https://doi.org/10.1109/TEVC.2020.3011829
 [binary]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/binary.py
 [integer]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/integer.py
 [mixed]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/mixed.py
