@@ -119,6 +119,11 @@ algorithm with the required constraint support in the [matrix](algorithms.md).
 | `lircmop13`, `lircmop14` | 30 | 3 | 2–3 | Fixed M | [LIR-CMOP][lircmop] | 3D, each |
 | `dascmop1`–`dascmop6` | 30 | 2 | 11 | Fixed M; jMetal's default difficulty | [DAS-CMOP][dascmop] | 2D, each |
 | `dascmop7`–`dascmop9` | 30 | 3 | 7 | Fixed M; jMetal's default difficulty | [DAS-CMOP][dascmop] | 3D, each |
+| `binh2`, `constrex`, `srinivas`, `tanaka` | 2 | 2 | 2 | Fixed n and M | [jMetal][jmetal-classics] | 2D, each |
+| `osyczka2` | 6 | 2 | 6 | Fixed n and M | [jMetal][jmetal-classics] | 2D |
+| `golinski` | 7 | 2 | 11 | Fixed n and M; Golinski's speed reducer | [jMetal][jmetal-classics] | 2D |
+| `water` | 3 | 5 | 7 | Fixed n and M; water resource planning | [jMetal][jmetal-classics] | 5D |
+| `car_side_impact` | 7 | 3 | 10 | Fixed n and M | [jMetal][jmetal-classics] | 3D |
 
 DC-DTLZ's default constants are those of the authors' implementation (Li et
 al., 2019, in the [COLA Laboratory's code][dcdtlz-authors]), which pymoo also
@@ -148,6 +153,13 @@ variants:
   objectives and two variables need; then `g = 0`.
 - DC3's constraint on `g` comes first, as in pymoo; jMetal puts it last.
 - The packaged fronts hold only for the default constants.
+
+**Development after 1.1.0:** the classic constrained problems follow jMetal's
+classes of the same names, bounds and constraint scaling included. The front
+of Srinivas and Deb's problem is not only the textbook segment `x1 = -2.5`,
+which minimizes `f1 + f2` and starts at `f1 = 24.5`. It goes on along the
+boundary `3 x2 - x1 = 10` down to the least feasible `f1 = 10.1`, at
+`(1.1, 3.7)`.
 
 **Development after 1.1.0:** LIR-CMOP1–14 (Fan et al., 2019) and DAS-CMOP1–9
 (Fan et al., 2020) follow jMetal's implementation at commit `1e4b83cae6`.
@@ -435,6 +447,8 @@ regenerates the files marked as regenerated.
 | `cec2009_uf6` | Closed-form front with its isolated point (0, 1) added |
 | `cec2009_uf9` | Regenerated: 5111 points of UF9's two planar pieces, `sum(f) = 1` with `f1 <= (1 - f3)/4` or `f1 >= 3(1 - f3)/4` |
 | `mw1`–`mw3`, `mw5`–`mw7` | Unchanged; within a mean distance of 0.0085 of pymoo 0.6.2's fronts |
+| `binh2`, `golinski`, `osyczka2`, `water`, `car_side_impact` | jMetal's fronts (commit `1e4b83cae6`), under `LICENSE-jmetal.txt` |
+| `srinivas`, `constrex`, `tanaka` | Regenerated: the feasible, non-dominated designs of the Pareto-set pieces and the constraint boundaries that hold the front, as VAMOS evaluates them, 1000 points. jMetal's samples have dominated points: 310 of Srinivas's 3794 are dominated by another of its points or by a random feasible design, and 774 by those or by the new sample |
 | `mw4`, `mw8`, `mw14` (`.2d` and `.3d`), `mw9`–`mw13` | jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), under `LICENSE-jmetal.txt`; jMetal's MW problems are VAMOS's, which the reference values check |
 | `lircmop1`–`lircmop14`, `dascmop1`–`dascmop9` | jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), under its MIT notice in `LICENSE-jmetal.txt`; DAS-CMOP8 and DAS-CMOP9 leave out two rows each, which another row dominates |
 | `c1dtlz1`–`dc3dtlz3`, `.2d` and `.3d`, `c3dtlz4` included | Regenerated: the feasible, non-dominated part of DTLZ's front (C3-DTLZ1 and C3-DTLZ4: of their constraint boundaries), as VAMOS evaluates it; 1000 points at M = 2 and up to 5050 at M = 3 |
@@ -508,6 +522,7 @@ scalable formulations. For a new objective function, follow
 [zcat]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/zcat/core.py
 [constrained]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/constrained_many.py
 [dcdtlz-authors]: https://github.com/COLA-Laboratory/cola_www_src/tree/main/content/codes/Samaritan/testproblem/DCDTLZ
+[jmetal-classics]: https://github.com/jMetal/jMetal/tree/1e4b83cae6/jmetal-problem/src/main/java/org/uma/jmetal/problem/multiobjective
 [lircmop]: https://doi.org/10.1007/s00500-019-03794-x
 [dascmop]: https://doi.org/10.1162/evco_a_00259
 [binary]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/binary.py

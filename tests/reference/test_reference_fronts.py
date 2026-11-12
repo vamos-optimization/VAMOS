@@ -317,6 +317,28 @@ def test_dascmop_fronts_avoid_the_infeasible_regions_of_objective_space(k: int) 
     assert outside.min() >= -1e-8
 
 
+CLASSICS = ("binh2", "constrex", "srinivas", "tanaka", "osyczka2", "golinski", "water", "car_side_impact")
+
+
+@pytest.mark.parametrize("name", CLASSICS)
+def test_classic_fronts_are_not_dominated_by_random_feasible_designs(name: str) -> None:
+    problem = make_problem_selection(name).instantiate()
+    rng = np.random.default_rng(len(name))
+    X = problem.xl + rng.random((50_000, problem.n_var)) * (problem.xu - problem.xl)
+    F, G = _evaluate(problem, X)
+    feasible = F[np.all(G <= 0.0, axis=1)]
+    front = _load(name)
+
+    assert front.shape[1] == problem.n_obj and feasible.shape[0] >= 100
+    assert not _dominated_by(feasible, front).any()
+
+
+def test_srinivas_front_reaches_the_least_feasible_f1() -> None:
+    # The textbook segment x1 = -2.5 starts at f1 = 24.5; the least feasible f1 is 10.1, at (1.1, 3.7).
+    front = _load("srinivas")
+    assert front[:, 0].min() == pytest.approx(10.1, abs=1e-3)
+
+
 @pytest.mark.parametrize("name", [name for name, spec in sorted(get_problem_specs().items())])
 def test_a_resolved_reference_front_has_the_requested_number_of_objectives(name: str) -> None:
     default = get_problem_specs()[name].default_n_obj
