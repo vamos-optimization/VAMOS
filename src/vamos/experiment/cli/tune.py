@@ -52,7 +52,6 @@ from ._tune_runtime import (
 from ._tune_runtime import (
     supports_warm_start as _supports_warm_start,
 )
-from ._tune_scoring import EvaluationTally
 from ._tune_smoke import apply_smoke_mode as _apply_smoke_mode
 from ._tune_smoke import smoke_param_space as _smoke_param_space
 from ._tune_utils import (
@@ -230,7 +229,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         instances=train_instances,
         seeds=train_seeds,
     )
-    tally = EvaluationTally()
     eval_fn = make_evaluator(
         problem_key=str(args.problem),
         n_var=int(args.n_var),
@@ -242,7 +240,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         runtime_penalty=float(args.runtime_penalty),
         failure_score=float(args.failure_score),
         logger=_logger,
-        tally=tally,
     )
 
     out_dir = _resolve_output_dir(
@@ -289,7 +286,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         run_backend_fn=_run_backend,
         logger=logger,
     )
-    tally.warn_if_mostly_failed(logger)
 
     logger.info("--- Tuning complete ---")
     logger.info("Best configuration:")

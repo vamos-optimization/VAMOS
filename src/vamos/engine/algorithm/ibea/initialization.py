@@ -70,7 +70,7 @@ def initialize_ibea_run(
     tuple[IBEAState, Any, Any, int, Any]
         (state, live_cb, eval_strategy, max_eval, hv_tracker)
     """
-    max_eval, hv_config = parse_termination(termination, "IBEA")
+    max_eval, hv_config = parse_termination(termination, "IBEA", pop_size=int(cfg["pop_size"]))
 
     live_cb = get_live_viz(live_viz)
     eval_strategy = get_eval_strategy(eval_strategy)

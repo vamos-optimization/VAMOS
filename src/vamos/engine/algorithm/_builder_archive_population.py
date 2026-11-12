@@ -89,6 +89,7 @@ def build_smsemoa_algorithm(
     problem: ProblemProtocol,
     pop_size: int,
     smsemoa_variation: dict[str, Any] | None,
+    track_genealogy: bool = False,
 ) -> tuple[SMSEMOA, AlgorithmConfigProtocol]:
     encoding = resolve_problem_encoding(problem)
     var_cfg = resolve_variation_config(encoding=encoding, overrides=smsemoa_variation)
@@ -110,6 +111,8 @@ def build_smsemoa_algorithm(
         key="repair",
         encoding=encoding,
     )
+    if track_genealogy:
+        builder.track_genealogy(True)
     return cast(
         "tuple[SMSEMOA, AlgorithmConfigProtocol]",
         finalize_algorithm(algorithm_name="smsemoa", builder=builder, kernel=kernel, block=smsemoa_variation),
@@ -124,6 +127,7 @@ def build_spea2_algorithm(
     selection_pressure: int,
     external_archive: ExternalArchiveConfig | None,
     spea2_variation: dict[str, Any] | None,
+    track_genealogy: bool = False,
 ) -> tuple[SPEA2, AlgorithmConfigProtocol]:
     encoding = resolve_problem_encoding(problem)
     var_cfg = resolve_variation_config(encoding=encoding, overrides=spea2_variation)
@@ -161,6 +165,8 @@ def build_spea2_algorithm(
         key="repair",
         encoding=encoding,
     )
+    if track_genealogy:
+        builder.track_genealogy(True)
     return cast(
         "tuple[SPEA2, AlgorithmConfigProtocol]",
         finalize_algorithm(
@@ -176,6 +182,7 @@ def build_ibea_algorithm(
     pop_size: int,
     selection_pressure: int,
     ibea_variation: dict[str, Any] | None,
+    track_genealogy: bool = False,
 ) -> tuple[IBEA, AlgorithmConfigProtocol]:
     encoding = resolve_problem_encoding(problem)
     var_cfg = resolve_variation_config(encoding=encoding, overrides=ibea_variation)
@@ -215,6 +222,8 @@ def build_ibea_algorithm(
         key="repair",
         encoding=encoding,
     )
+    if track_genealogy:
+        builder.track_genealogy(True)
     return cast(
         "tuple[IBEA, AlgorithmConfigProtocol]",
         finalize_algorithm(algorithm_name="ibea", builder=builder, kernel=kernel, block=ibea_variation, handled=("indicator", "kappa")),

@@ -177,11 +177,20 @@ def make_evaluator(
     failure_score: float,
     *,
     logger: Callable[[], Any],
-    tally: _tune_scoring.EvaluationTally | None = None,
 ) -> EvalFn:
+    """Build the CLI evaluation function.
+
+    A run that fails scores NaN, so every tuner, the statistical finisher and the validation
+    count it as a failure and give it ``failure_score``; the returned evaluator counts the
+    evaluations and failures in its ``ledger``.
+    """
     ref_point = parse_ref_point(ref_point_str, n_obj)
+    ledger = _tune_scoring.EvaluationLedger()
 
     def _score(result: Any, _ctx: EvalContext) -> float:
+        payload = getattr(result, "data", None)
+        if isinstance(payload, dict) and payload.get("_tuning_failed", False):
+            return float("nan")
         return _tune_scoring._score_population_result(result, ref_point, runtime_penalty, failure_score)
 
     def _run_algorithm(
@@ -225,15 +234,12 @@ def make_evaluator(
                 if _scores_leaders(algo_name, n_constraints):
                     payload["_tuning_score_source"] = "result"
             checkpoint_payload = result.data.get("checkpoint")
-            if tally is not None:
-                tally.record(failed=False)
             return result, cast(CheckpointPayload | None, checkpoint_payload)
         except _tune_scoring._UnsupportedConstrainedTuningError:
             raise
-        except Exception:
+        except Exception as exc:
             logger().warning("[tune] evaluation failed; assigning configured failure score.", exc_info=True)
-            if tally is not None:
-                tally.record(failed=True)
+            ledger.first_failure = ledger.first_failure or f"{type(exc).__name__}: {exc}"
 
             class _EmptyResult:
                 data = {
@@ -247,13 +253,13 @@ def make_evaluator(
             return _EmptyResult(), None
 
     if warm_start:
-        return WarmStartEvaluator(run_fn=_run_algorithm, score_fn=_score)
+        return _tune_scoring.CountingEvaluator(WarmStartEvaluator(run_fn=_run_algorithm, score_fn=_score), ledger)
 
     def eval_fn(config_dict: dict[str, Any], ctx: EvalContext) -> float:
         result, _ = _run_algorithm(config_dict, ctx, None)
         return _score(result, ctx)
 
-    return eval_fn
+    return _tune_scoring.CountingEvaluator(eval_fn, ledger)
 
 
 def build_task(
@@ -279,6 +285,7 @@ def build_task(
         aggregator=build_aggregator(str(args.aggregate_mode)),
         budget_per_run=int(budget_per_run),
         maximize=True,
+        failure_score=float(args.failure_score),
     )
 
 

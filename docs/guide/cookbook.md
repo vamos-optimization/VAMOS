@@ -165,6 +165,13 @@ logged a warning and started a fresh run instead. It also restored archives
 without their constraint values, so those rows counted as feasible, and a
 default MOEA/D run drifted from the uninterrupted one after resuming.
 
+**Development after 1.1.0:** the resumed run's `max_evaluations` is its total
+budget, the checkpoint's evaluations included: resuming a 1000-evaluation
+checkpoint with `max_evaluations=2000` adds 1000 evaluations. A budget below
+the checkpoint's evaluations raises `ConfigurationError`; VAMOS 1.1.0 returned
+the checkpoint's state, with more evaluations than `max_evaluations`, and no
+warning.
+
 ## 5. Using Numba
 
 **Stable backend selection; optional dependency.** Install the `compute` extra

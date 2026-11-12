@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import logging
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass, fields, replace
 from typing import Any, cast
@@ -10,39 +10,49 @@ from numpy.typing import NDArray
 
 from vamos.engine.algorithm.config.types import AlgorithmConfigProtocol
 from vamos.engine.algorithm.variants import canonical_algorithm_name
+from vamos.engine.tuning.racing.eval_types import EvalFn, EvalResult
+from vamos.engine.tuning.racing.tuning_task import EvalContext
 from vamos.foundation.quality_indicators.hypervolume import hypervolume
 from vamos.foundation.quality_indicators.pareto import pareto_filter
 
 _CONSTRAINED_TUNING_UNSUPPORTED: tuple[str, ...] = ()
 
 
+@dataclass
+class EvaluationLedger:
+    """How many CLI tuning evaluations ran and failed, and the cause of the first failure."""
+
+    evaluations: int = 0
+    failures: int = 0
+    first_failure: str = ""
+
+    def counts(self) -> tuple[int, int]:
+        return self.evaluations, self.failures
+
+
+class CountingEvaluator:
+    """Call ``inner`` and record in ``ledger`` whether its score is a failure (non-finite)."""
+
+    def __init__(self, inner: EvalFn, ledger: EvaluationLedger) -> None:
+        self.inner = inner
+        self.ledger = ledger
+
+    def __call__(self, config: dict[str, Any], ctx: EvalContext) -> EvalResult:
+        result = self.inner(config, ctx)
+        score = result[0] if isinstance(result, tuple) else result
+        self.ledger.evaluations += 1
+        self.ledger.failures += int(not math.isfinite(float(score)))
+        return result
+
+
+def evaluation_ledger(eval_fn: object) -> EvaluationLedger | None:
+    """The ledger of a CLI evaluator, or ``None`` for another evaluation function."""
+    ledger = getattr(eval_fn, "ledger", None)
+    return ledger if isinstance(ledger, EvaluationLedger) else None
+
+
 class _UnsupportedConstrainedTuningError(RuntimeError):
     """Raised when maintained CLI tuning cannot score constraints safely."""
-
-
-@dataclass
-class EvaluationTally:
-    """Evaluations of a CLI tuning run and how many failed.
-
-    Only evaluations that run in this process are counted: with ``--n-jobs`` above 1, the racing
-    and random backends evaluate in joblib worker processes and the tally stays empty.
-    """
-
-    total: int = 0
-    failed: int = 0
-
-    def record(self, *, failed: bool) -> None:
-        self.total += 1
-        self.failed += int(failed)
-
-    def warn_if_mostly_failed(self, logger: logging.Logger) -> None:
-        if 2 * self.failed > self.total:
-            logger.warning(
-                "%d of %d tuning evaluations failed and were scored with --failure-score, so the best "
-                "configuration is not reliable; see the '[tune] evaluation failed' warnings above.",
-                self.failed,
-                self.total,
-            )
 
 
 def _ensure_constrained_tuning_supported(algorithm_name: str, n_constraints: int) -> None:

@@ -33,6 +33,7 @@ def build_moead_algorithm(
     problem: ProblemProtocol,
     pop_size: int,
     moead_variation: dict[str, Any] | None,
+    track_genealogy: bool = False,
 ) -> tuple[MOEAD, AlgorithmConfigProtocol]:
     encoding = resolve_problem_encoding(problem)
     moead_overrides = moead_variation or {}
@@ -71,6 +72,8 @@ def build_moead_algorithm(
         key="repair",
         encoding=encoding,
     )
+    if track_genealogy:
+        builder.track_genealogy(True)
     return cast(
         "tuple[MOEAD, AlgorithmConfigProtocol]",
         finalize_algorithm(algorithm_name="moead", builder=builder, kernel=kernel, block=moead_overrides, handled=_MOEAD_BUILDER_FIELDS),
@@ -84,6 +87,7 @@ def build_nsgaiii_algorithm(
     pop_size: int,
     nsgaiii_variation: dict[str, Any] | None,
     selection_pressure: int,
+    track_genealogy: bool = False,
 ) -> tuple[NSGAIII, AlgorithmConfigProtocol]:
     encoding = resolve_problem_encoding(problem)
     var_cfg = resolve_variation_config(encoding=encoding, overrides=nsgaiii_variation)
@@ -105,6 +109,8 @@ def build_nsgaiii_algorithm(
         key="repair",
         encoding=encoding,
     )
+    if track_genealogy:
+        builder.track_genealogy(True)
     return cast(
         "tuple[NSGAIII, AlgorithmConfigProtocol]",
         finalize_algorithm(algorithm_name="nsgaiii", builder=builder, kernel=kernel, block=nsgaiii_variation),

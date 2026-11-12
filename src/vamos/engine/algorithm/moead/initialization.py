@@ -55,7 +55,7 @@ def initialize_moead_run(
     checkpoint: Mapping[str, Any] | None = None,
 ) -> tuple[MOEADState, Any, Any, int, HVTracker]:
     """Initialize MOEA/D state and run-level helpers."""
-    max_eval, hv_config = parse_termination(termination, "MOEA/D")
+    max_eval, hv_config = parse_termination(termination, "MOEA/D", pop_size=int(cfg["pop_size"]))
 
     eval_strategy = get_eval_strategy(eval_strategy)
     live_cb = get_live_viz(live_viz)
@@ -156,6 +156,13 @@ def initialize_moead_run(
                 f"Cannot resume MOEA/D from the checkpoint: {exc}",
                 suggestion="Pass a checkpoint saved by a MOEA/D run with the same pop_size, or omit checkpoint.",
             ) from exc
+        # max_evaluations is the total budget of the resumed run, the checkpoint's evaluations included.
+        if n_eval > max_eval:
+            raise ConfigurationError(
+                f"Cannot resume MOEA/D from the checkpoint: it has already used {n_eval} evaluations, more than "
+                f"max_evaluations={max_eval}. max_evaluations is the total budget, the checkpoint's evaluations included.",
+                suggestion=f"Pass max_evaluations of at least {n_eval}: the run then adds max_evaluations - {n_eval} evaluations.",
+            )
     else:
         X, F, G, n_eval = initialize_population(
             encoding,

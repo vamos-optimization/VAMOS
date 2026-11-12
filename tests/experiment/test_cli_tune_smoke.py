@@ -97,17 +97,23 @@ def test_tune_smoke_runs_every_sampled_configuration(argv: list[str], tmp_path: 
 
 
 def test_tune_warns_when_most_evaluations_fail(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
-    def failing_optimize(*_args: object, **_kwargs: object) -> object:
-        raise RuntimeError("synthetic failure")
+    calls: list[int] = []
+    actual = _tune_runtime.optimize
 
-    monkeypatch.setattr(_tune_runtime, "optimize", failing_optimize)
+    def mostly_failing_optimize(*args: object, **kwargs: object) -> object:
+        calls.append(1)
+        if len(calls) % 4:
+            raise RuntimeError("synthetic failure")
+        return actual(*args, **kwargs)
+
+    monkeypatch.setattr(_tune_runtime, "optimize", mostly_failing_optimize)
     with caplog.at_level(logging.WARNING):
         assert tune_cli.main(["--problem", "zdt1", "--backend", "random", "--smoke", "--output-dir", str(tmp_path)]) == 0
 
-    # 4 configurations x 1 instance x 2 seeds.
-    assert len(_failures(caplog)) == 8
+    # 4 configurations x 1 instance x 2 seeds, of which every fourth runs.
+    assert len(_failures(caplog)) == 6
     warnings = [record.getMessage() for record in caplog.records if record.levelno == logging.WARNING]
-    assert any("8 of 8 tuning evaluations failed" in message for message in warnings), warnings
+    assert any("6 of 8 tuning evaluations failed" in message for message in warnings), warnings
 
 
 def test_tune_without_failures_does_not_warn(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
