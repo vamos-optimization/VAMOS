@@ -226,7 +226,7 @@ class HookManager:
             self._last_hv = float(hv)
 
     def _new_rows(self, F: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
-        """Rows of ``F`` that the last notification did not contain.
+        """Rows of ``F`` that the last notification did not contain (all rows, with an objective tolerance).
 
         Steady-state algorithms notify after every evaluation with a population that
         differs in at most a few rows; offering only those keeps the archive's work per
@@ -235,6 +235,10 @@ class HookManager:
         keys = [row.tobytes() for row in np.ascontiguousarray(F)]
         new = np.array([key not in self._offered_rows for key in keys], dtype=bool)
         self._offered_rows = set(keys)
+        if new.any() and self.cfg.archive_cfg.objective_tolerance > 0:
+            # With a tolerance, a row once dropped as a near-duplicate becomes eligible when its
+            # representative is dominated, so every row is offered again when anything changed.
+            return F
         rows: np.ndarray[Any, Any] = F[new]
         return rows
 

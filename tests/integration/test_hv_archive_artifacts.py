@@ -85,7 +85,7 @@ def test_cli_genealogy_summary_is_in_canonical_metrics(tmp_path: Path) -> None:
     assert genealogy["generation_contributions"]
 
 
-def _archive_hook(capacity: int | None = 20, *, stopping: bool = False):
+def _archive_hook(capacity: int | None = 20, *, stopping: bool = False, objective_tolerance: float = 0.0):
     from vamos.engine.archive import ExternalArchiveConfig
     from vamos.engine.hooks.hv_archive_hooks import HookManager, HookManagerConfig
     from vamos.engine.hooks.hv_convergence import HVConvergenceConfig
@@ -95,7 +95,7 @@ def _archive_hook(capacity: int | None = 20, *, stopping: bool = False):
             stopping_enabled=stopping,
             stop_cfg=HVConvergenceConfig(every_k=50),
             archive_enabled=True,
-            archive_cfg=ExternalArchiveConfig(capacity=capacity),
+            archive_cfg=ExternalArchiveConfig(capacity=capacity, objective_tolerance=objective_tolerance),
             hv_ref_point=[2.0, 11.0],
         )
     )
@@ -164,6 +164,16 @@ def test_archive_hook_offers_only_rows_it_has_not_seen() -> None:
     assert offered == [4, 1]
     trace = hook.metadata_payload()["archive"]["trace"]
     assert [(row["evals"], row["inserted"]) for row in trace] == [(4, 4), (6, 1)]
+
+
+def test_archive_hook_with_an_objective_tolerance_reconsiders_earlier_near_duplicates() -> None:
+    # With a tolerance, a row dropped as a near-duplicate of [1, 1] becomes eligible once
+    # [0.7, 1] dominates [1, 1]; offering only new rows would never offer it again.
+    hook = _archive_hook(capacity=None, objective_tolerance=0.2)
+    hook.on_generation(0, F=np.array([[1.0, 1.0], [1.1, 0.9]]), stats={"evals": 2})
+    hook.on_generation(1, F=np.array([[0.7, 1.0], [1.1, 0.9]]), stats={"evals": 3})
+
+    assert sorted(map(tuple, hook._archive_F.tolist())) == [(0.7, 1.0), (1.1, 0.9)]
 
 
 def test_archive_hook_counters_separate_dominated_rows_from_capacity_pruning() -> None:

@@ -120,7 +120,9 @@ bounded trace.
 
 **Development after 1.1.0:** the hook offers the archive only the objective rows
 that the previous notification did not contain, and skips the update when there
-are none. Steady-state algorithms such as MOEA/D notify after every evaluation
+are none. With a nonzero `objective_tolerance`, it offers the whole population
+whenever a row changed, because a row once dropped as a near-duplicate becomes
+eligible when the archived point it was close to is dominated. Steady-state algorithms such as MOEA/D notify after every evaluation
 with a population that changed in a row or two; VAMOS 1.1.0 re-inserted the
 whole population each time, so `inserted` summed the population size at every
 evaluation. `pruned` used to mix dominated and duplicated rows with capacity
