@@ -263,6 +263,13 @@ Existing 1.0 artifacts and schema versions are unchanged. Expanding the
 environment-dependent auto heuristic does not change the stable omitted default
 or promise cross-environment bitwise reproducibility.
 
+**Development after 1.1.0:** the NumPy engine sorts two-objective populations
+into fronts in O(N log N) by a sweep over the first objective, instead of
+comparing every pair of rows, with the same ranks and fronts (ties and
+duplicated rows included). Sorting 1000 rows takes about 0.4 ms instead of
+33 ms. Three or more objectives still compare every pair, in O(M N²); for large
+populations there, prefer `engine="auto"` or `engine="numba"`.
+
 Numba is a throughput preference, not a guarantee of a faster first call.
 Compare an empty JIT cache in a fresh process, a fresh process with a populated
 disk cache, and repeated runs with warm JIT separately. The reproducible
