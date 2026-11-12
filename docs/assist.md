@@ -223,6 +223,8 @@ In auto mode, VAMOS sends the user prompt and compact planning context (for exam
 
 Plan trace files (`provider_request.json`, `provider_response.json`) are written to the plan directory and do not store secrets such as `OPENAI_API_KEY`.
 
+The OpenAI model defaults to `gpt-5.2`; `VAMOS_ASSIST_OPENAI_MODEL` changes it. The same variable sets the model of the Studio Problem Builder, whose own default is `gpt-4o` (see [Studio](guide/studio.md#optional-dependencies)).
+
 ## Commands
 
 - `vamos assist catalog`: show available algorithms, kernels, operators, and templates.

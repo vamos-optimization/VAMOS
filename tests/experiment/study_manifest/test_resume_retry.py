@@ -15,6 +15,7 @@ from vamos.experiment.study.errors import (
     RetryLimitError,
     RetryNotAllowedError,
     StudyEventAppendError,
+    StudyRunVerificationError,
     UnsupportedStudyExecutionStateError,
 )
 
@@ -136,7 +137,8 @@ def test_sa_037_reconciles_verified_run_published_before_terminal_event(tmp_path
         raise OSError("verification interruption")
 
     monkeypatch.setattr(publication, "verify_run", interrupt_verification)
-    with pytest.raises(Exception):
+    # The interrupted verification surfaces as the study's typed verification error.
+    with pytest.raises(StudyRunVerificationError):
         created.run()
     interrupted = vamos.load_study(root)
     expected_run_id = next(event for event in interrupted.events if event.event_type == "task_claimed").payload["run_id"]
@@ -173,7 +175,7 @@ def test_failed_run_recovery_does_not_retry_until_explicit_request(tmp_path: Pat
         return original_append(*args, **kwargs)
 
     monkeypatch.setattr(publication, "append_event", interrupt_failure_event)
-    with pytest.raises(Exception):
+    with pytest.raises(StudyEventAppendError):
         created.run()
     monkeypatch.setattr(publication, "append_event", original_append)
     interrupted = vamos.load_study(root)

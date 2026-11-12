@@ -249,14 +249,8 @@ def main() -> None:
             return
 
         _run_standard_cli(argv=argv)
-    except VAMOSError as exc:
-        if show_traceback:
-            raise
-        print(f"Error: {exc.message}", file=sys.stderr)
-        if exc.suggestion:
-            print(f"Suggestion: {exc.suggestion}", file=sys.stderr)
-        raise SystemExit(2) from None
     except RunArtifactError as exc:
+        # Before VAMOSError, which RunArtifactError extends.
         if show_traceback:
             raise
         from vamos.experiment.cli.run_artifact_cli import run_artifact_exit_code
@@ -264,6 +258,13 @@ def main() -> None:
         # The run-artifact exit codes of `vamos results` and `vamos reproduce`: 8 for an output collision.
         print(f"Error: {exc}", file=sys.stderr)
         raise SystemExit(run_artifact_exit_code(exc)) from None
+    except VAMOSError as exc:
+        if show_traceback:
+            raise
+        print(f"Error: {exc.message}", file=sys.stderr)
+        if exc.suggestion:
+            print(f"Suggestion: {exc.suggestion}", file=sys.stderr)
+        raise SystemExit(2) from None
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 # Testing and validation
 
-Use the smallest test that proves a change while iterating, then run every higher tier required by `/AGENTS.md`. Tests are deterministic, offline, isolated from user directories, and explicit about optional dependencies.
+Use the smallest test that proves a change while iterating, then run every higher tier required by `/AGENTS.md`. Tests are deterministic, offline, and explicit about optional dependencies. They write under `tmp_path`, never in the checkout: the build smoke builds from a copy of the tree, the Ruff gates run without a cache, and `tests/conftest.py` sends Numba's kernel cache to the system temporary directory unless `NUMBA_CACHE_DIR` is already set.
 
 Repository-shape changes also run `python tools/check_repository_hygiene.py`.
 The checker examines tracked content only; generated test output belongs in
@@ -56,7 +56,7 @@ Release validation adds stable-facade and composite release typing before packag
 ```bash
 python tools/typecheck.py --scope stable
 python tools/typecheck.py --scope release
-python tools/typecheck.py --scope full-zero  # expected informational failure for 1.0.0
+python tools/typecheck.py --scope full-zero  # informational; fails while the typing baseline has entries
 python -m build
 ```
 

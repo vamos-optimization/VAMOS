@@ -46,6 +46,8 @@ def main() -> int:
         ("Import-time purity", [python, "-m", "pytest", "-q", "tests/architecture/test_no_import_time_side_effects.py"]),
         ("Public API snapshot", [python, "-m", "pytest", "-q", "tests/architecture/test_public_api_snapshot.py"]),
         ("Dependency policy", [python, "-m", "pytest", "-q", "tests/architecture/test_dependency_policy.py"]),
+        ("No facade imports", [python, "-m", "pytest", "-q", "tests/architecture/test_no_facade_imports.py"]),
+        ("Import cycles", [python, "-m", "pytest", "-q", "tests/architecture/test_experiment_import_cycles.py"]),
         ("Optional deps policy", [python, "-m", "pytest", "-q", "tests/test_optional_deps_policy.py"]),
         ("Logging policy", [python, "-m", "pytest", "-q", "tests/test_logging_policy.py"]),
         ("No prints in library", [python, "-m", "pytest", "-q", "tests/test_no_prints_in_library.py"]),
@@ -56,8 +58,6 @@ def main() -> int:
         ("Full typecheck", [python, "tools/typecheck.py", "--scope", "full"]),
         ("Build smoke", [python, "-m", "pytest", "-q", "tests/architecture/test_build_smoke.py"]),
         ("py.typed present", [python, "-m", "pytest", "-q", "tests/architecture/test_py_typed_present.py"]),
-        ("Ruff check", [python, "-m", "ruff", "check", "src/vamos", "tests"]),
-        ("Build", [python, "-m", "build"]),
     ]
 
     failures = 0

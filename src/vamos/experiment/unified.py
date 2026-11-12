@@ -16,6 +16,7 @@ from collections.abc import Mapping
 from datetime import datetime, timezone
 from typing import overload
 
+from vamos.engine.algorithm.catalog import minimum_violation
 from vamos.engine.algorithm.config.types import AlgorithmConfigProtocol, AlgorithmName, EngineName
 from vamos.experiment.artifacts.specs import RunSpecInputs, build_run_specs, custom_problem_code, is_registry_problem
 from vamos.experiment.auto import _compute_max_evaluations, _compute_pop_size, _resolve_problem, _select_algorithm
@@ -51,6 +52,15 @@ def _coerce_int(name: str, value: object, *, min_value: int | None = None) -> in
             raise ConfigurationError(f"{name} must be a positive integer.")
         raise ConfigurationError(f"{name} must be >= {min_value}.")
     return parsed
+
+
+def _check_algorithm_minimums(algorithm: str, *, pop_size: int | None = None, n_obj: int | None = None, selection: object = None) -> None:
+    violation = minimum_violation(algorithm, pop_size=pop_size, n_obj=n_obj, selection=selection)
+    if violation is not None:
+        raise ConfigurationError(
+            violation.message,
+            details={"algorithm": algorithm, violation.field: violation.actual, "minimum": violation.minimum},
+        )
 
 
 def _resolve_problem_label(problem: object, instance: ProblemProtocol) -> str:
@@ -326,6 +336,8 @@ def _run_single(
     if algorithm == "auto":
         algorithm = _select_algorithm(n_obj, encoding)
         _auto_defaults["algorithm"] = algorithm
+    # An algorithm_config's population is checked below, with its selection.
+    _check_algorithm_minimums(algorithm, pop_size=pop_size if algorithm_config is None else None, n_obj=n_obj)
 
     # Auto-determine hyperparameters if not specified
     effective_pop_size = pop_size if pop_size else _compute_pop_size(n_var, n_obj)
@@ -383,6 +395,8 @@ def _run_single(
 
     algo_cfg_dict = dict(algo_cfg.to_dict())
     resolved_pop_size = algo_cfg_dict.get("pop_size")
+    if algorithm_config is not None and isinstance(resolved_pop_size, int) and not isinstance(resolved_pop_size, bool):
+        _check_algorithm_minimums(algorithm, pop_size=resolved_pop_size, selection=algo_cfg_dict.get("selection"))
     if resolved_pop_size is None and algorithm_config is None:
         resolved_pop_size = effective_pop_size
     if algorithm_config is None and pop_size is None:

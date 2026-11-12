@@ -1,28 +1,18 @@
 from __future__ import annotations
 
-import shutil
-import subprocess
-import sys
 import zipfile
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from tests.architecture._build_tree import REPO_ROOT, build_from_copy, checkout_build_outputs
 
 
-def _clean_build_outputs() -> None:
-    for path in [REPO_ROOT / "build", REPO_ROOT / "dist", *(REPO_ROOT / "src").glob("*.egg-info")]:
-        if path.exists():
-            shutil.rmtree(path)
-
-
-def _assert_wheel_matches_source() -> None:
-    wheels = sorted((REPO_ROOT / "dist").glob("*.whl"), key=lambda p: p.stat().st_mtime)
+def _assert_wheel_matches_source(dist: Path) -> None:
+    wheels = sorted(dist.glob("*.whl"))
     if not wheels:
-        raise AssertionError("Build completed without producing a wheel under dist/*.whl.")
-    wheel_path = wheels[-1]
+        raise AssertionError(f"Build completed without producing a wheel under {dist}.")
     src_root = REPO_ROOT / "src"
     unexpected: list[str] = []
-    with zipfile.ZipFile(wheel_path) as zf:
+    with zipfile.ZipFile(wheels[-1]) as zf:
         for name in zf.namelist():
             if not name.startswith("vamos/") or not name.endswith(".py"):
                 continue
@@ -36,14 +26,8 @@ def _assert_wheel_matches_source() -> None:
         raise AssertionError(f"Wheel contains Python modules not present in src/vamos:\n{preview}")
 
 
-def test_build_smoke() -> None:
-    _clean_build_outputs()
-    cmd = [sys.executable, "-m", "build"]
-    proc = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True)
-    if proc.returncode == 0:
-        _assert_wheel_matches_source()
-        return
-
-    stdout = (proc.stdout or "").strip()
-    stderr = (proc.stderr or "").strip()
-    raise AssertionError(f"python -m build failed.\nExit code: {proc.returncode}\nstdout:\n{stdout}\nstderr:\n{stderr}\n")
+def test_build_smoke(tmp_path: Path) -> None:
+    # The sdist and the wheel built from it; the checkout's build/, dist/ and egg-info stay as the developer left them.
+    before = checkout_build_outputs()
+    _assert_wheel_matches_source(build_from_copy(tmp_path))
+    assert checkout_build_outputs() == before

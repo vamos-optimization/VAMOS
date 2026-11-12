@@ -105,11 +105,12 @@ def run_pymoo_benchmark(problem: str, n_evals: int, seed: int) -> BenchmarkResul
 def run_jmetalpy_benchmark(problem: str, n_evals: int, seed: int) -> BenchmarkResult:
     """Run jMetalPy benchmark."""
     try:
-        from jmetal.algorithm.multiobjective.nsgaii import NSGAII
-        from jmetal.operator import SBXCrossover, PolynomialMutation
-        from jmetal.util.termination_criterion import StoppingByEvaluations
-        from jmetal.problem import ZDT1, ZDT2, ZDT3, DTLZ1, DTLZ2
         import random
+
+        from jmetal.algorithm.multiobjective.nsgaii import NSGAII
+        from jmetal.operator import PolynomialMutation, SBXCrossover
+        from jmetal.problem import DTLZ1, DTLZ2, ZDT1, ZDT2, ZDT3
+        from jmetal.util.termination_criterion import StoppingByEvaluations
     except ImportError:
         return BenchmarkResult(
             framework="jMetalPy",
@@ -212,14 +213,16 @@ def run_pygmo_benchmark(problem: str, n_evals: int, seed: int) -> BenchmarkResul
     pop_size = 100
     gen = max(1, (n_evals - pop_size) // pop_size)
 
-    algo = pg.algorithm(pg.nsga2(
-        gen=gen,
-        cr=0.9,
-        eta_c=20.0,
-        m=1.0 / prob.get_nx(),
-        eta_m=20.0,
-        seed=seed,
-    ))
+    algo = pg.algorithm(
+        pg.nsga2(
+            gen=gen,
+            cr=0.9,
+            eta_c=20.0,
+            m=1.0 / prob.get_nx(),
+            eta_m=20.0,
+            seed=seed,
+        )
+    )
 
     start = time.perf_counter()
     pop = pg.population(prob, size=pop_size, seed=seed)
@@ -263,15 +266,6 @@ def run_benchmarks(
                 res = run_vamos_benchmark(problem, n_evals, seed, "numba")
                 print(f"{res.runtime_seconds:.2f}s")
                 results.append(res)
-
-            if "vamos-jax" in frameworks:
-                print("  VAMOS (JAX)...", end=" ", flush=True)
-                try:
-                    res = run_vamos_benchmark(problem, n_evals, seed, "jax")
-                    print(f"{res.runtime_seconds:.2f}s")
-                    results.append(res)
-                except Exception as e:
-                    print(f"SKIPPED ({e})")
 
             if "vamos-moocore" in frameworks:
                 print("  VAMOS (moocore)...", end=" ", flush=True)

@@ -102,14 +102,28 @@ not mixed into ordinary `vamos tune` comparisons.
 - `--runtime-penalty` changes the scalar score to
   `HV - lambda * log1p(runtime_seconds)`; its default is `0.0`, so the default
   score is plain HV.
-- `--failure-score` has a narrower scope than its name may suggest. Its default
-  is `0.0`, and it is used when the evaluator catches a failure while running
-  the candidate algorithm and therefore has no usable result. It is **not a
-  universal failure policy**: exceptions raised later while scoring HV can
-  propagate in the `random` backend, while racing may substitute its own
-  backend-level sentinel instead of `--failure-score`.
+- `--failure-score` (default `0.0`) is the score of a failed evaluation: a run
+  of the candidate algorithm that raised, or a score that is not finite (see
+  below).
 - `--aggregate-mode` then combines the per-block scores using `mean`, `median`,
   `p25`, or `p10`.
+
+**Development after 1.1.0:** a failed evaluation has one meaning in every
+backend: the run raised, or its score is not finite (NaN or infinite). It
+scores `--failure-score` in `vamos tune` (`TuningTask.failure_score` in Python,
+-1e30 when maximizing and 1e30 when minimizing if unset), it is counted, and the
+model-based backends and irace never receive a NaN. A run that fails in the
+`vamos tune` evaluator is marked as failed instead of scoring like a valid
+front with no point inside the reference, so the validation's `fail_rate`
+counts it, and `tuning_summary.json` records `evaluations` and
+`failed_evaluations` for the tuning phase. Racing, random-search and irace
+histories record `failed_evaluations` per configuration. When every tuning
+evaluation fails, `vamos tune` stops with exit code 1 and the first failure,
+and `RacingTuner` and `RandomSearchTuner` raise `TuningFailedError`. VAMOS 1.1.0
+reported `fail_rate=0` for runs that could not execute, let a single NaN stop
+every elimination of a race, let an exception abort `--backend random`, and
+ended a search in which nothing ran with exit code 0 and an arbitrary
+configuration.
 
 Choose and report a reference point that is meaningful for **all** problems in
 the tuning campaign. The CLI uses the same supplied reference point across the
