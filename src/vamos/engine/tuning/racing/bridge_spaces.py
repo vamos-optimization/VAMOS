@@ -31,6 +31,7 @@ from .bridge_spaces_moead import (
 from .bridge_spaces_nsgaii import (
     build_nsgaii_binary_config_space,
     build_nsgaii_config_space,
+    build_nsgaii_constrained_config_space,
     build_nsgaii_integer_config_space,
     build_nsgaii_mixed_config_space,
     build_nsgaii_permutation_config_space,
@@ -68,6 +69,7 @@ from .bridge_spaces_spea2 import (
 __all__ = [
     # NSGA-II
     "build_nsgaii_config_space",
+    "build_nsgaii_constrained_config_space",
     "build_nsgaii_permutation_config_space",
     "build_nsgaii_mixed_config_space",
     "build_nsgaii_binary_config_space",

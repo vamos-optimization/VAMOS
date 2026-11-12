@@ -4,6 +4,7 @@ NSGA-II configuration space builders for tuning.
 
 from __future__ import annotations
 
+from .bridge_space_parts_constraints import constraint_handling_part
 from .bridge_space_parts_discrete import (
     binary_operator_part_full,
     external_archive_part,
@@ -166,6 +167,11 @@ def build_nsgaii_config_space() -> AlgorithmConfigSpace:
     return compose_config_space("nsgaii", _core_part(), _real_operator_part())
 
 
+def build_nsgaii_constrained_config_space() -> AlgorithmConfigSpace:
+    """The real-coded space with the constraint-handling technique, as Evolver's ``NSGAIIDoubleConstrained``."""
+    return compose_config_space("nsgaii_constrained", _core_part(), _real_operator_part(), constraint_handling_part())
+
+
 def build_nsgaii_permutation_config_space() -> AlgorithmConfigSpace:
     return compose_config_space("nsgaii_permutation", _core_part(), _permutation_operator_part())
 
@@ -184,6 +190,7 @@ def build_nsgaii_integer_config_space() -> AlgorithmConfigSpace:
 
 __all__ = [
     "build_nsgaii_config_space",
+    "build_nsgaii_constrained_config_space",
     "build_nsgaii_permutation_config_space",
     "build_nsgaii_mixed_config_space",
     "build_nsgaii_binary_config_space",

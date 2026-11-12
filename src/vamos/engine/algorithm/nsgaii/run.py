@@ -181,6 +181,7 @@ def save_checkpoint(algo: NSGAII, checkpoint_dir: str, seed: int, generation: in
         extra={
             "step": st.step,
             "replacements": st.replacements,
+            **({"constraint_handling": st.constraint_handling.state()} if st.constraint_handling is not None else {}),
         },
     )
     _logger().info("Checkpoint saved: %s", path)

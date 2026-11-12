@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 ALGORITHM_VARIANT_GROUPS: dict[str, set[str]] = {
-    "nsgaii": {"nsgaii", "nsgaii_permutation", "nsgaii_mixed", "nsgaii_binary", "nsgaii_integer"},
+    "nsgaii": {"nsgaii", "nsgaii_permutation", "nsgaii_mixed", "nsgaii_binary", "nsgaii_integer", "nsgaii_constrained"},
     "moead": {"moead", "moead_permutation", "moead_mixed", "moead_binary", "moead_integer"},
     "nsgaiii": {"nsgaiii", "nsgaiii_permutation", "nsgaiii_mixed", "nsgaiii_binary", "nsgaiii_integer"},
     "smsemoa": {"smsemoa", "smsemoa_permutation", "smsemoa_mixed", "smsemoa_binary", "smsemoa_integer"},
@@ -19,6 +19,7 @@ VARIANT_TO_CANONICAL: dict[str, str] = {
     "nsgaii_mixed": "nsgaii",
     "nsgaii_binary": "nsgaii",
     "nsgaii_integer": "nsgaii",
+    "nsgaii_constrained": "nsgaii",
     "moead": "moead",
     "moead_permutation": "moead",
     "moead_mixed": "moead",

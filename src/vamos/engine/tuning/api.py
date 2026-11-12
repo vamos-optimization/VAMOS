@@ -58,6 +58,7 @@ from vamos.engine.tuning import (
     build_moead_permutation_config_space,
     build_nsgaii_binary_config_space,
     build_nsgaii_config_space,
+    build_nsgaii_constrained_config_space,
     build_nsgaii_integer_config_space,
     build_nsgaii_mixed_config_space,
     build_nsgaii_permutation_config_space,
@@ -116,6 +117,7 @@ __all__ = [
     "Scenario",
     # Config space builders
     "build_nsgaii_config_space",
+    "build_nsgaii_constrained_config_space",
     "build_nsgaii_permutation_config_space",
     "build_nsgaii_mixed_config_space",
     "build_nsgaii_binary_config_space",

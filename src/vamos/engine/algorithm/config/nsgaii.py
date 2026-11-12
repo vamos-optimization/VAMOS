@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from vamos.engine.algorithm.components.constraint_handling import normalize_constraint_handling
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.foundation.encoding import normalize_encoding
 
@@ -103,6 +104,19 @@ class _NSGAIIConfigBuilder(
         self._cfg["replacement_size"] = value
         return self
 
+    def constraint_handling(self, name: str, **params: float) -> _NSGAIIConfigBuilder:
+        """Rank constrained populations with a technique of jMetal's ``util.constrainthandling``.
+
+        ``name`` is ``cdp`` (the default), ``violated_constraints``, ``epsilon_constrained``
+        (``initial_quantile``, ``exponent``, ``decay_fraction``), ``push_pull`` (``change_threshold``,
+        ``window_fraction``, ``decay_fraction``, ``exponent``, ``feasibility_threshold``,
+        ``reduction_rate``), ``stochastic_ranking`` (``probability``) or ``self_adaptive_penalty``.
+        Every parameter of the technique is required. See
+        :mod:`vamos.engine.algorithm.components.constraint_handling`.
+        """
+        self._cfg["constraint_handling"] = normalize_constraint_handling((name, params))
+        return self
+
     def immigration(self, config: dict[str, Any] | None) -> _NSGAIIConfigBuilder:
         if config is None:
             self._cfg["immigration"] = None
@@ -151,6 +165,7 @@ class _NSGAIIConfigBuilder(
             mutation_prob_factor=self._cfg.get("mutation_prob_factor"),
             result_mode=self._cfg.get("result_mode", "non_dominated"),
             constraint_mode=self._cfg.get("constraint_mode", "feasibility"),
+            constraint_handling=self._cfg.get("constraint_handling"),
             track_genealogy=bool(self._cfg.get("track_genealogy", False)),
             immigration=self._cfg.get("immigration"),
             parent_selection_filter=self._cfg.get("parent_selection_filter"),
@@ -175,6 +190,7 @@ class NSGAIIConfig(_SerializableConfig):
     mutation_prob_factor: float | None = None
     result_mode: ResultMode | None = None
     constraint_mode: ConstraintModeStr = "feasibility"
+    constraint_handling: tuple[str, dict[str, float]] | None = None
     track_genealogy: bool = False
     immigration: dict[str, Any] | None = None
     parent_selection_filter: Any | None = None
@@ -191,6 +207,11 @@ class NSGAIIConfig(_SerializableConfig):
         )
         object.__setattr__(self, "offspring_size", offspring_size)
         object.__setattr__(self, "replacement_size", replacement_size)
+        if self.constraint_handling is not None:
+            # A JSON round trip returns the pair as a list; None stays None, which is cdp.
+            object.__setattr__(self, "constraint_handling", normalize_constraint_handling(self.constraint_handling))
+            if self.constraint_handling[0] != "cdp" and self.constraint_mode == "none":
+                raise ValueError(f"constraint_handling {self.constraint_handling[0]!r} needs constraint_mode 'feasibility'.")
 
     @classmethod
     def default(
