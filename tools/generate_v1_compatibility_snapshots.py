@@ -321,6 +321,32 @@ def snapshots() -> Mapping[str, object]:
     }
 
 
+def _keeps_frozen_fields(committed_text: str, expected: bytes) -> bool:
+    """Whether the generated configuration fields keep the frozen 1.0 ones, adding only new fields.
+
+    Stable configuration classes may gain optional fields during 1.x (see
+    ``docs/project/stability-and-versioning.md``). The snapshot keeps the 1.0 fields, which must all
+    remain, in their order; every other part of the document must match exactly.
+    """
+    committed = json.loads(committed_text)
+    generated = json.loads(expected.decode("utf-8"))
+    frozen = committed.pop("config_fields", {})
+    current = generated.pop("config_fields", {})
+    if committed != generated or frozen.keys() != current.keys():
+        return False
+    for name, fields in frozen.items():
+        remaining = iter(current[name])
+        if not all(field in remaining for field in fields):
+            return False
+    return True
+
+
+def _matches(name: str, committed_text: str, expected: bytes) -> bool:
+    if committed_text == expected.decode("utf-8"):
+        return True
+    return name == "stable_algorithm_configs.json" and _keeps_frozen_fields(committed_text, expected)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="Fail when committed snapshots differ from the generated contract.")
@@ -330,13 +356,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     for name, value in snapshots().items():
         path = OUTPUT_ROOT / name
         expected = _json_bytes(value)
+        # Git may materialize the canonical LF JSON with CRLF on Windows.
+        # Text mode normalizes line endings while preserving every other
+        # byte-level formatting decision in the snapshot.
+        current = path.read_text(encoding="utf-8") if path.is_file() else None
         if args.check:
-            # Git may materialize the canonical LF JSON with CRLF on Windows.
-            # Text mode normalizes line endings while preserving every other
-            # byte-level formatting decision in the snapshot.
-            if not path.is_file() or path.read_text(encoding="utf-8") != expected.decode("utf-8"):
+            if current is None or not _matches(name, current, expected):
                 mismatches.append(path.relative_to(REPO_ROOT).as_posix())
-        else:
+        elif current is None or not _matches(name, current, expected):
+            # A snapshot that only lacks fields added after 1.0 stays the 1.0 baseline.
             path.write_bytes(expected)
     if mismatches:
         print("VAMOS 1.0 compatibility snapshots differ:")

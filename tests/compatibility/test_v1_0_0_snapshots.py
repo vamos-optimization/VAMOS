@@ -37,3 +37,19 @@ def test_v1_0_0_cli_snapshot_contains_only_supported_lifecycle_commands() -> Non
     assert "vamos reproduce" in commands
     assert "vamos study cancel" not in commands
     assert {"vamos study run", "vamos study resume", "vamos study retry"} <= commands
+
+
+def _configs(**fields: list[str]) -> bytes:
+    document = {"algorithm_ids": ["nsgaii"], "config_fields": fields, "document_type": "vamos.stable-algorithm-configs"}
+    return json.dumps(document).encode("utf-8")
+
+
+def test_configuration_classes_may_gain_fields_but_keep_the_frozen_ones() -> None:
+    from tools.generate_v1_compatibility_snapshots import _keeps_frozen_fields
+
+    frozen = _configs(NSGAIIConfig=["pop_size", "constraint_mode", "track_genealogy"]).decode("utf-8")
+
+    assert _keeps_frozen_fields(frozen, _configs(NSGAIIConfig=["pop_size", "constraint_mode", "constraint_handling", "track_genealogy"]))
+    assert not _keeps_frozen_fields(frozen, _configs(NSGAIIConfig=["pop_size", "track_genealogy"]))
+    assert not _keeps_frozen_fields(frozen, _configs(NSGAIIConfig=["constraint_mode", "pop_size", "track_genealogy"]))
+    assert not _keeps_frozen_fields(frozen, _configs(NSGAIIConfig=["pop_size", "constraint_mode", "track_genealogy"], SPEA2Config=[]))
