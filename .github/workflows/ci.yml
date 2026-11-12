@@ -89,6 +89,9 @@ jobs:
           python tools/check_repository_hygiene.py
           python tools/check_repository_identity.py
           python tools/check_pre_release_remnants.py
+          python tools/check_learning_content.py
+          python tools/check_notebook_links.py
+          python tools/check_notebook_quality.py
           python -m pytest -q \
             tests/test_check_repository_hygiene.py \
             tests/test_check_repository_identity.py \
