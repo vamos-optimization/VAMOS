@@ -335,6 +335,79 @@ def test_population_result_mode_exposes_aligned_constraints_for_ibea_and_spea2(a
     np.testing.assert_allclose(result["F"], result["population"]["F"])
 
 
+class _RecordingZDT1(ZDT1Problem):
+    """ZDT1 that keeps every objective row it evaluates."""
+
+    def __init__(self) -> None:
+        super().__init__(n_var=6)
+        self.evaluated: list[np.ndarray] = []
+
+    def evaluate(self, X, out) -> None:  # noqa: ANN001 - protocol-style test double
+        super().evaluate(X, out)
+        self.evaluated.append(np.array(out["F"], dtype=float, copy=True))
+
+
+def _nondominated_rows(F: np.ndarray) -> np.ndarray:
+    unique = np.unique(F, axis=0)
+    dominated = np.array([bool(np.any(np.all(unique <= row, axis=1) & np.any(unique < row, axis=1))) for row in unique])
+    return unique[~dominated]
+
+
+def _nsgaiii_with_unbounded_archive():
+    from vamos.engine.algorithm.config import NSGAIIIConfig
+    from vamos.engine.algorithm.nsgaiii import NSGAIII
+
+    cfg = (
+        NSGAIIIConfig.builder()
+        .pop_size(10)
+        .crossover("sbx", prob=0.9, eta=20.0)
+        .mutation("polynomial", prob="1/n", eta=20.0)
+        .selection("tournament", size=2)
+        .reference_directions(divisions=9)
+        .external_archive(capacity=None)
+        .build()
+    )
+    return NSGAIII(cfg.to_dict(), kernel=NumPyKernel())
+
+
+def _smsemoa_with_unbounded_archive(kernel):
+    cfg = (
+        SMSEMOAConfig.builder()
+        .pop_size(10)
+        .crossover("sbx", prob=0.9, eta=20.0)
+        .mutation("polynomial", prob="1/n", eta=20.0)
+        .selection("random")
+        .external_archive(capacity=None)
+        .build()
+    )
+    return SMSEMOA(cfg.to_dict(), kernel=kernel)
+
+
+def _numba_kernel():
+    from vamos.foundation.kernel.numba_backend import NumbaKernel
+
+    return NumbaKernel()
+
+
+@pytest.mark.parametrize(
+    "build",
+    [
+        pytest.param(_nsgaiii_with_unbounded_archive, id="nsgaiii"),
+        pytest.param(lambda: _smsemoa_with_unbounded_archive(NumPyKernel()), id="smsemoa-numpy"),
+        pytest.param(lambda: _smsemoa_with_unbounded_archive(_numba_kernel()), id="smsemoa-numba"),
+    ],
+)
+def test_external_archive_keeps_non_dominated_offspring_removed_by_survival(build):
+    problem = _RecordingZDT1()
+    result = build().run(problem, termination=("max_evaluations", 600), seed=1)
+
+    expected = _nondominated_rows(np.vstack(problem.evaluated))
+    # NSGA-III reports its archive under ``archive_F``; the other algorithms under ``archive``.
+    archived = np.unique(result["archive"]["F"] if "archive" in result else result["archive_F"], axis=0)
+    assert archived.shape == expected.shape
+    np.testing.assert_array_equal(archived, expected)
+
+
 def test_optimize_smpso_returns_the_leaders_archive() -> None:
     from vamos import optimize
 
