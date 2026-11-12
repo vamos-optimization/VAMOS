@@ -274,6 +274,40 @@ def test_smsemoa_ask_tell_generation_counts_pop_size_evaluations() -> None:
     assert algorithm.state is not None and algorithm.state.generation == 2
 
 
+def test_smsemoa_hv_target_stops_ask_tell_and_run_at_the_same_generation(monkeypatch) -> None:
+    from vamos.engine.algorithm.components.termination import HVTracker
+
+    cfg = _smsemoa_config()
+    # With seed 0 the target is first reached at evaluation 250, inside a generation of 12.
+    termination = ("hv", {"target_value": 0.6, "reference_point": [1.1, 1.1], "max_evaluations": 3000})
+    problem = ZDT1Problem(n_var=6)
+    run_result = SMSEMOA(cfg.to_dict(), kernel=NumPyKernel()).run(problem, termination, seed=0)
+
+    checks: list[int] = []
+    reached = HVTracker.reached
+    algorithm = SMSEMOA(cfg.to_dict(), kernel=NumPyKernel())
+
+    def counting_reached(self, points):  # noqa: ANN001
+        checks.append(algorithm.state.n_eval if algorithm.state is not None else -1)
+        return reached(self, points)
+
+    monkeypatch.setattr(HVTracker, "reached", counting_reached)
+    algorithm.initialize(problem, termination, seed=0)
+    while not algorithm.should_terminate():
+        X = algorithm.ask()
+        out = {"F": np.empty((X.shape[0], 2))}
+        problem.evaluate(X, out)
+        algorithm.tell(out["F"])
+    result = algorithm.result()
+
+    # Both loops stop at the first generation boundary where the target holds.
+    assert result["evaluations"] == run_result["evaluations"]
+    assert (result["evaluations"] - 12) % 12 == 0
+    assert result["hv_converged"] and run_result["hv_converged"]
+    # The HV is measured once per generation, never between boundaries.
+    assert checks == list(range(24, result["evaluations"] + 1, 12))
+
+
 def test_user_reference_vector_is_kept() -> None:
     cfg = _smsemoa_config(vector=[1.1, 1.1])
     result = SMSEMOA(cfg.to_dict(), kernel=NumPyKernel()).run(ZDT1Problem(n_var=6), termination=("max_evaluations", 400), seed=3)

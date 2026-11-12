@@ -56,6 +56,17 @@ def _archive_child(st: SMSEMOAState, X_child: NDArray[Any], F_child: NDArray[np.
         st.archive_X, st.archive_F = st.archive_manager.update(X_child, F_child, G_rows)
 
 
+def _check_hv_target(st: SMSEMOAState) -> bool:
+    """Measure an ``("hv", ...)`` target at a generation boundary and remember the outcome.
+
+    The HV is measured only here, once per generation, in ``run`` and in ``tell`` alike;
+    ``should_terminate`` and ``result`` read the stored outcome.
+    """
+    tracker = st.hv_tracker
+    st.hv_reached = bool(tracker is not None and tracker.enabled and tracker.reached(st.hv_points()))
+    return st.hv_reached
+
+
 def _advance_step(st: SMSEMOAState) -> bool:
     """Count one child; return whether it completes a generation of ``pop_size`` children."""
     st.steps += 1
@@ -171,7 +182,7 @@ class SMSEMOA:
 
         # Compiled kernels reproduce the step below when the configuration allows it.
         compiled = build_compiled_step(st, self.kernel)
-        hv_reached = False
+        st.hv_reached = False
         stop_requested = live_should_stop(live_cb)
         try:
             while st.n_eval < max_eval and not stop_requested:
@@ -187,15 +198,14 @@ class SMSEMOA:
                 stop_requested = live_should_stop(live_cb)
 
                 # The HV target is checked once per generation, as in steady-state NSGA-II.
-                if new_generation and hv_tracker is not None and hv_tracker.enabled and hv_tracker.reached(st.hv_points()):
-                    hv_reached = True
+                if new_generation and _check_hv_target(st):
                     break
         finally:
             if compiled is not None:
                 compiled.finish()
 
         live_cb.on_end(final_F=st.F)
-        result = build_smsemoa_result(st, hv_reached, kernel=self.kernel)
+        result = build_smsemoa_result(st, st.hv_reached, kernel=self.kernel)
         finalize_genealogy(result, st, self.kernel)
         return result
 
@@ -385,8 +395,7 @@ class SMSEMOA:
         if _advance_step(st):
             if self._live_cb is not None:
                 self._live_cb.on_generation(st.generation, F=st.F, stats={"evals": st.n_eval})
-            if st.hv_tracker is not None and st.hv_tracker.enabled:
-                st.hv_tracker.reached(st.hv_points())
+            _check_hv_target(st)
 
         return False
 
@@ -402,7 +411,8 @@ class SMSEMOA:
             return True
         if self._st.n_eval >= self._max_eval:
             return True
-        if self._st.hv_tracker is not None and self._st.hv_tracker.enabled and self._st.hv_tracker.reached(self._st.hv_points()):
+        # The HV target is checked at generation boundaries, as in run(); no HV is computed here.
+        if self._st.hv_reached:
             return True
         return False
 
@@ -422,7 +432,7 @@ class SMSEMOA:
         if self._st is None:
             raise RuntimeError("Algorithm not initialized.")
 
-        hv_reached = self._st.hv_tracker is not None and self._st.hv_tracker.enabled and self._st.hv_tracker.reached(self._st.hv_points())
+        hv_reached = self._st.hv_reached
 
         if self._live_cb is not None:
             self._live_cb.on_end(final_F=self._st.F)
