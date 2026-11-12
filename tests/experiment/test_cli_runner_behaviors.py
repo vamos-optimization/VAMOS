@@ -95,8 +95,22 @@ def test_cli_dask_address_reaches_eval_backend(monkeypatch, tmp_path):
 
     assert calls == [("dask", "tcp://127.0.0.1:8786")]
     manifest = next(output_root.rglob("manifest.json"))
+
     # The scheduler address is infrastructure, not part of the run: only the strategy is recorded.
-    assert "8786" not in manifest.read_text(encoding="utf-8")
+    # Values are compared, not the raw text: a hash or a run ID can contain the digits 8786 by chance.
+    def values(node):
+        if isinstance(node, dict):
+            for value in node.values():
+                yield from values(value)
+        elif isinstance(node, list):
+            for value in node:
+                yield from values(value)
+        else:
+            yield node
+
+    recorded = list(values(json.loads(manifest.read_text(encoding="utf-8"))))
+    assert not [value for value in recorded if isinstance(value, str) and ("tcp://" in value or "127.0.0.1" in value)]
+    assert 8786 not in recorded and "8786" not in recorded
     stored = vamos.load_run(manifest.parent)
     assert stored.manifest.resolved_spec["backend"]["evaluation"]["component_id"].startswith("vamos.evaluation:dask")
 
