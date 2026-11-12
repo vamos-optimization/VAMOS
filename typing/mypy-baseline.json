@@ -26,15 +26,15 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 255,
-  "files_with_diagnostics": 50,
-  "fingerprint_count": 50,
+  "diagnostic_count": 249,
+  "files_with_diagnostics": 49,
+  "fingerprint_count": 49,
   "error_code_summary": {
-    "type-arg": 255
+    "type-arg": 249
   },
   "layer_summary": {
     "engine": 164,
-    "experiment": 8,
+    "experiment": 2,
     "foundation": 65,
     "package-root": 1,
     "ux": 17
@@ -1524,40 +1524,6 @@
         {
           "line": 87,
           "column": 27
-        }
-      ]
-    },
-    {
-      "fingerprint": "F746D349F9FFA940F8BB62B9D49B4534B231D13D4BB610154CD21A1912721BF9",
-      "path": "src/vamos/experiment/_execution_support.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "experiment",
-      "multiplicity": 6,
-      "locations": [
-        {
-          "line": 98,
-          "column": 12
-        },
-        {
-          "line": 99,
-          "column": 12
-        },
-        {
-          "line": 107,
-          "column": 18
-        },
-        {
-          "line": 132,
-          "column": 12
-        },
-        {
-          "line": 133,
-          "column": 12
-        },
-        {
-          "line": 140,
-          "column": 18
         }
       ]
     }
