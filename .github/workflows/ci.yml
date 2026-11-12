@@ -97,6 +97,8 @@ jobs:
             tests/test_import_time_smoke.py \
             tests/architecture/test_no_import_time_side_effects.py \
             tests/architecture/test_dependency_policy.py \
+            tests/architecture/test_no_facade_imports.py \
+            tests/architecture/test_experiment_import_cycles.py \
             tests/test_optional_deps_policy.py \
             tests/test_logging_policy.py \
             tests/test_no_prints_in_library.py \
