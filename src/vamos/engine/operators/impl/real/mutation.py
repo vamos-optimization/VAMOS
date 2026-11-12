@@ -9,6 +9,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from vamos.foundation.kernel.operator_primitives import polynomial_mutation_population
+from vamos.foundation.rng import require_generator
 
 from .utils import (
     ArrayLike,
@@ -271,7 +272,7 @@ class UniformMutation(Mutation):
             squeeze = True
         X = self._as_population(arr, name="offspring")
         n_ind, n_var = X.shape
-        active_rng = rng or self.rng or np.random.default_rng()
+        active_rng = require_generator(rng if rng is not None else self.rng, "UniformMutation")
         mask = active_rng.random((n_ind, n_var)) <= self.prob
         if not np.any(mask):
             return X[0] if squeeze else X
@@ -319,7 +320,7 @@ class LinkedPolynomialMutation(Mutation):
             squeeze = True
         X = self._as_population(arr, name="offspring")
         self._check_bounds_match(X, self.lower)
-        active_rng = rng or self.rng or np.random.default_rng()
+        active_rng = require_generator(rng if rng is not None else self.rng, "LinkedPolynomialMutation")
         n_ind, n_var = X.shape
         rnd_mask = active_rng.random((n_ind, n_var))
         if not np.any(rnd_mask <= self.prob):

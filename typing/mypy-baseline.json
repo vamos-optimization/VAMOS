@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "e402627182ac79653ec616bc89cd509fd71ebfba",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit e402627182ac79653ec616bc89cd509fd71ebfba",
+  "generation_commit": "6881d2cdff7f94addcd90880ee9b4f8551fdfbff",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 6881d2cdff7f94addcd90880ee9b4f8551fdfbff",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.1",
@@ -26,14 +26,14 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 258,
-  "files_with_diagnostics": 51,
-  "fingerprint_count": 51,
+  "diagnostic_count": 250,
+  "files_with_diagnostics": 50,
+  "fingerprint_count": 50,
   "error_code_summary": {
-    "type-arg": 258
+    "type-arg": 250
   },
   "layer_summary": {
-    "engine": 164,
+    "engine": 156,
     "experiment": 11,
     "foundation": 65,
     "package-root": 1,
@@ -990,48 +990,6 @@
         {
           "line": 453,
           "column": 27
-        }
-      ]
-    },
-    {
-      "fingerprint": "859174F9670A5F8C76E8D6FAB6608D877E727A2329416D8EFFC4716A461782DE",
-      "path": "src/vamos/engine/algorithm/components/selection.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 8,
-      "locations": [
-        {
-          "line": 26,
-          "column": 73
-        },
-        {
-          "line": 49,
-          "column": 73
-        },
-        {
-          "line": 85,
-          "column": 18
-        },
-        {
-          "line": 86,
-          "column": 10
-        },
-        {
-          "line": 127,
-          "column": 18
-        },
-        {
-          "line": 128,
-          "column": 10
-        },
-        {
-          "line": 165,
-          "column": 18
-        },
-        {
-          "line": 166,
-          "column": 10
         }
       ]
     },
