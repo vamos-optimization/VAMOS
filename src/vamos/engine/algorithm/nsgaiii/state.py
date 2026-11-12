@@ -11,7 +11,12 @@ from typing import Any
 
 import numpy as np
 
-from vamos.engine.algorithm.components.results import feasible_result_indices, get_external_archive_contents, wants_population_result
+from vamos.engine.algorithm.components.results import (
+    feasible_result_indices,
+    get_external_archive_constraints,
+    get_external_archive_contents,
+    wants_population_result,
+)
 from vamos.engine.algorithm.components.state import AlgorithmState
 
 
@@ -73,11 +78,12 @@ def build_nsgaiii_result(
         and metadata. X and F contain only non-dominated solutions when kernel is provided.
     """
     archive_contents = get_external_archive_contents(state)
+    archive_G = get_external_archive_constraints(state)
     if archive_contents is not None and not wants_population_result(state):
         archive_X, archive_F = archive_contents
         result_X = archive_X.copy()
         result_F = archive_F.copy()
-        result_G = None
+        result_G = archive_G.copy() if archive_G is not None else None
     else:
         should_filter = kernel is not None and not wants_population_result(state)
         if should_filter:
@@ -103,12 +109,13 @@ def build_nsgaiii_result(
         "evaluations": state.n_eval,
         "generation": state.generation,
         "hv_converged": hv_reached,
-        "population": {"X": state.X.copy(), "F": state.F.copy()},
+        "population": {"X": state.X.copy(), "F": state.F.copy(), "G": state.G.copy() if state.G is not None else None},
     }
 
     if archive_contents is not None:
         archive_X, archive_F = archive_contents
         result["archive_X"] = archive_X.copy()
         result["archive_F"] = archive_F.copy()
+        result["archive_G"] = archive_G.copy() if archive_G is not None else None
 
     return result

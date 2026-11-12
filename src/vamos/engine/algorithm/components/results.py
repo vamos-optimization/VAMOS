@@ -44,14 +44,11 @@ def build_result(
         "hv_reached": hv_reached,
     }
 
-    if state.G is not None:
-        result["G"] = state.G
+    with_constraints(result, state.G)
 
-    if state.archive_manager is not None:
-        arch_X, arch_F = state.archive_manager.contents()
-        result["archive"] = {"X": arch_X, "F": arch_F}
-    elif state.archive_X is not None and state.archive_F is not None:
-        result["archive"] = {"X": state.archive_X, "F": state.archive_F}
+    archive = _external_archive(state)
+    if archive is not None:
+        result["archive"] = with_constraints({"X": archive[0], "F": archive[1]}, archive[2])
 
     if extra:
         result.update(extra)
@@ -59,30 +56,47 @@ def build_result(
     return result
 
 
-def get_external_archive_contents(state: Any) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]] | None:
-    """Return external archive contents regardless of the concrete archive holder."""
-    result_archive = getattr(state, "result_archive", None)
-    if result_archive is not None:
-        archive_X, archive_F = result_archive.contents()
-        return archive_X, archive_F
-
-    archive_manager = getattr(state, "archive_manager", None)
-    if archive_manager is not None:
-        archive_X, archive_F = archive_manager.contents()
-        return archive_X, archive_F
+def _external_archive(
+    state: Any,
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any] | None] | None:
+    """The rows of the external archive and their constraint values, whatever object holds them."""
+    for holder in ("result_archive", "archive_manager"):
+        archive = getattr(state, holder, None)
+        if archive is not None:
+            archive_X, archive_F = archive.contents()
+            return archive_X, archive_F, archive.constraint_values()
 
     archive = getattr(state, "archive", None)
     if archive is not None:
         archive_X = getattr(archive, "X", None)
         archive_F = getattr(archive, "F", None)
         if archive_X is not None and archive_F is not None:
-            return archive_X, archive_F
+            return archive_X, archive_F, getattr(archive, "G", None)
 
     archive_X = getattr(state, "archive_X", None)
     archive_F = getattr(state, "archive_F", None)
     if archive_X is not None and archive_F is not None:
-        return archive_X, archive_F
+        return archive_X, archive_F, getattr(state, "archive_G", None)
     return None
+
+
+def get_external_archive_contents(state: Any) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]] | None:
+    """Return external archive contents regardless of the concrete archive holder."""
+    archive = _external_archive(state)
+    return None if archive is None else (archive[0], archive[1])
+
+
+def get_external_archive_constraints(state: Any) -> np.ndarray[Any, Any] | None:
+    """Constraint values of the rows of :func:`get_external_archive_contents`, or ``None`` without constraints."""
+    archive = _external_archive(state)
+    return None if archive is None or archive[2] is None else np.asarray(archive[2])
+
+
+def with_constraints(payload: dict[str, Any], G: np.ndarray[Any, Any] | None) -> dict[str, Any]:
+    """``payload`` (rows ``X`` and ``F``) with the constraint values ``G`` of its rows, when there are any."""
+    if G is not None:
+        payload["G"] = G
+    return payload
 
 
 def wants_population_result(state: Any) -> bool:
@@ -113,4 +127,11 @@ def feasible_result_indices(
     return np.asarray(candidates[np.asarray(ranks) == 0], dtype=int)
 
 
-__all__ = ["build_result", "feasible_result_indices", "get_external_archive_contents", "wants_population_result"]
+__all__ = [
+    "build_result",
+    "feasible_result_indices",
+    "get_external_archive_constraints",
+    "get_external_archive_contents",
+    "wants_population_result",
+    "with_constraints",
+]

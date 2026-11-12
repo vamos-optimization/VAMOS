@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TypeAlias
+from typing import Any, TypeAlias
 
 import numpy as np
 
@@ -38,12 +38,12 @@ from vamos.engine.operators.impl.permutation import (
     two_opt_mutation,
 )
 
-BinaryCrossoverOp: TypeAlias = Callable[[np.ndarray, float, np.random.Generator], np.ndarray]
-BinaryMutationOp: TypeAlias = Callable[[np.ndarray, float, np.random.Generator], None]
-IntCrossoverOp: TypeAlias = Callable[..., np.ndarray]
+BinaryCrossoverOp: TypeAlias = Callable[[np.ndarray[Any, Any], float, np.random.Generator], np.ndarray[Any, Any]]
+BinaryMutationOp: TypeAlias = Callable[[np.ndarray[Any, Any], float, np.random.Generator], None]
+IntCrossoverOp: TypeAlias = Callable[..., np.ndarray[Any, Any]]
 IntMutationOp: TypeAlias = Callable[..., None]
-PermCrossoverOp: TypeAlias = Callable[[np.ndarray, float, np.random.Generator], np.ndarray]
-PermMutationOp: TypeAlias = Callable[[np.ndarray, float, np.random.Generator], None]
+PermCrossoverOp: TypeAlias = Callable[[np.ndarray[Any, Any], float, np.random.Generator], np.ndarray[Any, Any]]
+PermMutationOp: TypeAlias = Callable[[np.ndarray[Any, Any], float, np.random.Generator], None]
 
 
 BINARY_CROSSOVER_COMMON: dict[str, BinaryCrossoverOp] = {
@@ -74,6 +74,8 @@ INT_MUTATION_COMMON: dict[str, IntMutationOp] = {
     "random_reset": random_reset_mutation,
     "creep": creep_mutation,
     "polynomial": integer_polynomial_mutation,
+    # The operator registry names polynomial mutation "pm", the name that resolved specs carry.
+    "pm": integer_polynomial_mutation,
     "gaussian": gaussian_integer_mutation,
     "boundary": boundary_integer_mutation,
 }

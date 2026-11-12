@@ -78,3 +78,33 @@ def test_build_demo_study_data_marks_demo_fronts() -> None:
     assert len(fronts) == 2
     assert all(front.extra.get("demo") for front in fronts)
     assert fronts[0].points_F.shape[1] == 2
+
+
+def test_studio_run_closes_only_the_backends_it_builds(monkeypatch) -> None:
+    import vamos.ux.studio.services as services
+    from vamos.engine.algorithm.config import NSGAIIConfig
+    from vamos.foundation.eval.backends import SerialEvalBackend
+    from vamos.foundation.problem.zdt1 import ZDT1Problem
+
+    class ClosingSpy(SerialEvalBackend):
+        closed = 0
+
+        def close(self) -> None:
+            self.closed += 1
+
+    built: list[ClosingSpy] = []
+    monkeypatch.setattr(services, "resolve_eval_strategy", lambda name, **kwargs: built.append(ClosingSpy()) or built[-1])
+    run = {
+        "algorithm": "nsgaii",
+        "algorithm_config": NSGAIIConfig.default(pop_size=10, n_var=6),
+        "termination": ("max_evaluations", 20),
+        "seed": 1,
+        "engine": "numpy",
+    }
+
+    services._run_algorithm(ZDT1Problem(n_var=6), eval_strategy="multiprocessing", **run)
+    assert len(built) == 1 and built[0].closed == 1
+
+    own = ClosingSpy()
+    services._run_algorithm(ZDT1Problem(n_var=6), eval_strategy=own, **run)
+    assert own.closed == 0

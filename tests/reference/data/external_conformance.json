@@ -1,0 +1,120 @@
+{
+ "schema": "vamos.test.external-conformance/1",
+ "generated_by": "tools/reference_conformance_baselines.py",
+ "cases": {
+  "nsgaii-zdt1": {
+   "problem": "zdt1",
+   "n_var": 30,
+   "n_obj": 2,
+   "pop_size": 100,
+   "max_evaluations": 10000,
+   "crossover": {
+    "name": "sbx",
+    "prob": 0.9,
+    "eta": 20.0
+   },
+   "mutation": {
+    "name": "pm",
+    "prob": "1/n",
+    "eta": 20.0
+   },
+   "reference_point": [
+    1.1,
+    1.1
+   ],
+   "source": "pymoo 0.6.2",
+   "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29
+   ],
+   "hv_mean": 0.849077,
+   "hv_std": 0.003409
+  },
+  "nsgaiii-dtlz2": {
+   "problem": "dtlz2",
+   "n_var": 12,
+   "n_obj": 3,
+   "pop_size": 91,
+   "divisions": 12,
+   "max_evaluations": 10010,
+   "crossover": {
+    "name": "sbx",
+    "prob": 1.0,
+    "eta": 30.0
+   },
+   "mutation": {
+    "name": "pm",
+    "prob": "1/n",
+    "eta": 20.0
+   },
+   "reference_point": [
+    1.1,
+    1.1,
+    1.1
+   ],
+   "source": "pymoo 0.6.2",
+   "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29
+   ],
+   "hv_mean": 0.737792,
+   "hv_std": 0.001163
+  }
+ }
+}

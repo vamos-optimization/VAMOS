@@ -153,39 +153,39 @@ def _run_config(
     effective_engine = engine or cfg.engine
     kernel = resolve_kernel(effective_engine)
 
+    algo_ctor = resolve_builtin_algorithm(algorithm_name) if built_in_only else resolve_algorithm(algorithm_name)
+    algorithm = algo_ctor(cfg_dict, kernel)
+
+    run_fn = cast(Callable[..., dict[str, Any]], algorithm.run)
+    run_kwargs: dict[str, Any] = {}
+    if cfg.checkpoint is not None:
+        import inspect
+
+        sig = inspect.signature(run_fn)
+        if not ("checkpoint" in sig.parameters or any(param.kind == inspect.Parameter.VAR_KEYWORD for param in sig.parameters.values())):
+            raise ConfigurationError(f"Algorithm '{algorithm_name}' does not support checkpoints.")
+        run_kwargs["checkpoint"] = cfg.checkpoint
+
+    # A backend built here from a name (such as a multiprocessing pool) belongs to this run and is closed with it;
+    # a backend instance the caller passes stays open for the caller to reuse and close.
+    owns_backend = cfg.eval_strategy is None or isinstance(cfg.eval_strategy, str)
     if cfg.eval_strategy is not None:
         backend = resolve_eval_strategy(cfg.eval_strategy) if isinstance(cfg.eval_strategy, str) else cfg.eval_strategy
     else:
         backend_name = str(cfg_dict.get("eval_strategy", "serial"))
         backend = resolve_eval_strategy(backend_name)
-
-    algo_ctor = resolve_builtin_algorithm(algorithm_name) if built_in_only else resolve_algorithm(algorithm_name)
-    algorithm = algo_ctor(cfg_dict, kernel)
-
-    run_fn = cast(Callable[..., dict[str, Any]], algorithm.run)
-    if cfg.checkpoint is not None:
-        import inspect
-
-        sig = inspect.signature(run_fn)
-        if "checkpoint" in sig.parameters or any(param.kind == inspect.Parameter.VAR_KEYWORD for param in sig.parameters.values()):
-            result = run_fn(
-                problem=cfg.problem,
-                termination=cfg.termination,
-                seed=cfg.seed,
-                eval_strategy=backend,
-                live_viz=cfg.live_viz,
-                checkpoint=cfg.checkpoint,
-            )
-        else:
-            raise ConfigurationError(f"Algorithm '{algorithm_name}' does not support checkpoints.")
-    else:
+    try:
         result = run_fn(
             problem=cfg.problem,
             termination=cfg.termination,
             seed=cfg.seed,
             eval_strategy=backend,
             live_viz=cfg.live_viz,
+            **run_kwargs,
         )
+    finally:
+        if owns_backend:
+            backend.close()
     from .optimization_result import OptimizationResult
 
     return OptimizationResult(

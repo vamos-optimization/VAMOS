@@ -12,10 +12,12 @@ def _logger() -> logging.Logger:
 
 
 from importlib.resources import as_file
+from pathlib import Path
 
 from vamos.foundation.problem.registry import (
     ProblemSelection,
     available_problem_names,
+    get_problem_specs,
     make_problem_selection,
 )
 from vamos.resources import reference_front_path
@@ -126,33 +128,45 @@ def _format_unknown_problem_set(name: str, options: list[str]) -> str:
 def resolve_reference_front_path(problem_key: str, explicit_path: str | None, n_obj: int | None = None) -> str | None:
     """
     Return a path to a reference front, using an explicit override when provided.
+
+    The packaged front of a problem with ``n_obj`` objectives is ``<key>.<n_obj>d.csv`` or, failing
+    that, ``<key>.csv``. A file with another number of objectives is never returned. Without
+    ``n_obj``, the problem's registered default is used; a key that is not registered takes
+    ``<key>.csv`` as it is.
     """
     if explicit_path:
         return explicit_path
 
     key = str(problem_key).strip().lower()
-    candidates: list[str]
-
-    # ZCAT fronts are packaged as zcatX.{2d,3d,4d,6d}.csv in addition to zcatX.csv aliases.
-    # Prefer dimension-specific assets before generic aliases.
-    if key.startswith("zcat") and "." not in key:
-        candidates = []
-        if n_obj is not None and n_obj > 0:
-            candidates.append(f"{key}.{int(n_obj)}d")
-        candidates.append(f"{key}.2d")
-        candidates.append(key)
-    else:
-        candidates = [key]
+    if n_obj is None:
+        n_obj = _default_n_obj(key)
+    candidates = [key] if n_obj is None or "." in key else [f"{key}.{int(n_obj)}d", key]
 
     for candidate in candidates:
         try:
             with as_file(reference_front_path(candidate)) as p:
+                if n_obj is not None and _front_columns(p) != int(n_obj):
+                    _logger().debug("Reference front %r has %d objectives, not %d", candidate, _front_columns(p), n_obj)
+                    continue
                 return str(p)
         except Exception:
             _logger().debug("No reference front found for candidate %r", candidate, exc_info=True)
 
     _logger().debug("No reference front found for %r", problem_key)
     return None
+
+
+def _default_n_obj(key: str) -> int | None:
+    spec = get_problem_specs().get(key)
+    return None if spec is None else int(spec.default_n_obj)
+
+
+def _front_columns(path: Path) -> int:
+    with path.open(encoding="utf-8") as handle:
+        for line in handle:
+            if line.strip():
+                return len(line.split(","))
+    return 0
 
 
 def _validate_problem_name(name: str) -> None:

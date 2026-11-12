@@ -17,7 +17,7 @@ from vamos.engine.algorithm.components.lifecycle import get_eval_strategy
 from vamos.engine.algorithm.components.metrics import setup_hv_tracker
 from vamos.engine.algorithm.components.population import (
     evaluate_population,
-    initialize_population,
+    initialize_evaluated_population,
     resolve_bounds,
 )
 from vamos.engine.algorithm.components.termination import parse_termination, validate_initial_budget
@@ -105,14 +105,25 @@ def initialize_spea2_run(
 
     # Initialize population
     initializer_cfg = cfg.get("initializer")
-    X = initialize_population(pop_size, n_var, xl, xu, encoding, rng, problem, initializer=initializer_cfg)
 
-    if constraint_mode and constraint_mode != "none":
-        F, G = evaluate_population_with_constraints(problem, X)
-    else:
-        F = evaluate_population(problem, X)
-        G = None
-    n_eval = pop_size
+    def evaluate(X: np.ndarray[Any, Any]) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any] | None]:
+        if constraint_mode and constraint_mode != "none":
+            return evaluate_population_with_constraints(problem, X)
+        return evaluate_population(problem, X), None
+
+    X, F, G, n_eval = initialize_evaluated_population(
+        pop_size,
+        n_var,
+        xl,
+        xu,
+        encoding,
+        rng,
+        problem,
+        initializer_cfg,
+        evaluate=evaluate,
+        max_evaluations=max_eval,
+        algorithm="SPEA2",
+    )
 
     # Environmental selection for initial internal archive
     env_selected, selection_raw_fitness, selection_density = environmental_selection_indices(
