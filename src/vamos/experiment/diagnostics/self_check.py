@@ -10,6 +10,8 @@ from __future__ import annotations
 import argparse
 import logging
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 
 from vamos.experiment.runner import run_single
@@ -36,6 +38,23 @@ class CheckResult:
     name: str
     status: str  # "ok", "skipped", "failed"
     detail: str | None = None
+
+
+@contextmanager
+def _quiet_runs() -> Iterator[None]:
+    """Silence the per-run summaries of the observers, so that each check prints one line."""
+    observers = logging.getLogger("vamos.experiment.observers")
+    level = observers.level
+    observers.setLevel(logging.WARNING)
+    try:
+        yield
+    finally:
+        observers.setLevel(level)
+
+
+def _report(result: CheckResult) -> None:
+    detail = f" {result.detail}" if result.detail else ""
+    _logger().info("[self-check] %s: %s%s", result.name, result.status.upper(), detail)
 
 
 def _run_backend_check(
@@ -85,14 +104,12 @@ def run_self_check(verbose: bool = False) -> list[CheckResult]:
         If the mandatory NumPy backend check fails.
     """
     checks: list[CheckResult] = []
-    with tempfile.TemporaryDirectory(prefix="vamos-self-check-") as output_root:
+    with tempfile.TemporaryDirectory(prefix="vamos-self-check-") as output_root, _quiet_runs():
         for engine in ("numpy", "numba", "moocore"):
             result = _run_backend_check(engine, output_root=output_root)
             checks.append(result)
             if verbose:
-                status = result.status.upper()
-                msg = result.detail or ""
-                _logger().info("[self-check] %s: %s %s", result.name, status, msg)
+                _report(result)
 
         # Binary and mixed smoke on NumPy only
         for name, label in (("bin_knapsack", "binary"), ("mixed_design", "mixed")):
@@ -106,9 +123,12 @@ def run_self_check(verbose: bool = False) -> list[CheckResult]:
             )
             try:
                 run_single("numpy", "nsgaii", selection, cfg, selection_pressure=2)
-                checks.append(CheckResult(name=f"{name}", status="ok"))
+                result = CheckResult(name=f"{name}", status="ok")
             except Exception as exc:  # pragma: no cover - quick smoke only
-                checks.append(CheckResult(name=f"{name}", status="failed", detail=str(exc)))
+                result = CheckResult(name=f"{name}", status="failed", detail=str(exc))
+            checks.append(result)
+            if verbose:
+                _report(result)
 
     numpy_ok = next((c for c in checks if c.name == "nsgaii-numpy"), None)
     if numpy_ok is None or numpy_ok.status != "ok":
@@ -123,7 +143,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--quiet", action="store_true", help="Only use the exit code; suppress informational output.")
     args = parser.parse_args(argv)
     _configure_cli_logging()
-    checks = run_self_check(verbose=not args.quiet)
+    try:
+        checks = run_self_check(verbose=not args.quiet)
+    except RuntimeError as exc:
+        # The NumPy check failed; its line above says why.
+        _logger().error("[self-check] %s", exc)
+        return 1
     failed = [c for c in checks if c.status == "failed"]
     skipped = [c for c in checks if c.status == "skipped"]
     if failed:

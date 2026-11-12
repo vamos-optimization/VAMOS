@@ -441,6 +441,14 @@ Install any required [optional extras](installation.md#optional-extras) first.
 - Problem zoo: `vamos zoo list`, `vamos zoo info zdt1`, `vamos zoo run zdt1 --algorithm nsgaii --budget 3000`
 - Studio (interactive, needs `studio` extra): read the [Studio walkthrough and launcher limitation](studio.md) before starting.
 
+**Development after 1.1.0:** `vamos --version` prints the installed version.
+`vamos check` prints one line per check, without the summary of each tiny run,
+and a failed NumPy check exits with code 1 and a message instead of a
+traceback. `vamos zoo info` with an unknown problem exits with code 1, `vamos zoo
+list` names the encoding of real-valued problems `real` for all of them (some
+said `continuous`), and `vamos zoo run` no longer prints `HV: None`: it
+computes no hypervolume, which needs a reference point.
+
 **Development after 1.1.0:** `vamos profile` runs each engine once untimed, to
 pay one-time costs such as Numba compilation, then `--repeats` timed runs
 (default 3). It reports their median, which the speedups use, and their range.

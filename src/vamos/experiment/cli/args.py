@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 
 from vamos.foundation.core.experiment_config import ExperimentConfig
+from vamos.foundation.version import get_version
 
 from .args_algorithms import add_algorithm_arguments
 from .args_benchmarks import add_benchmark_arguments
@@ -41,6 +42,7 @@ def build_parser(
         description="Vectorized multi-objective optimization demo across benchmark problems.",
         parents=[pre_parser],
     )
+    parser.add_argument("--version", action="version", version=f"vamos {get_version()}")
     add_core_arguments(
         parser,
         default_config=default_config,
