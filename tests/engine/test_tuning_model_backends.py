@@ -199,13 +199,15 @@ def test_optuna_persists_only_active_parameters(tmp_path):
     storage = f"sqlite:///{(tmp_path / 'conditional.sqlite3').as_posix()}"
     task = _make_task()
     task.param_space = _conditional_space()
-    for _ in range(2):
+    # The second run resumes the stored study up to its larger budget.
+    for max_trials in (3, 6):
         tuner = ModelBasedTuner(
             task=task,
-            max_trials=3,
+            max_trials=max_trials,
             seed=5,
             optuna_storage_url=storage,
             optuna_study_name="conditional",
+            optuna_load_if_exists=True,
         )
         best, history = tuner.run(lambda config, ctx: float(ctx.budget), verbose=False)
     study = optuna.load_study(study_name="conditional", storage=storage)
@@ -433,9 +435,10 @@ def test_optuna_storage_resume_and_trace(tmp_path: Path):
     assert db_path.exists()
     assert any("fidelity_trace" in h.details for h in history_a)
 
+    # Resuming runs only what the larger budget still allows.
     tuner_b = ModelBasedTuner(
         task=_make_task(),
-        max_trials=1,
+        max_trials=2,
         backend="optuna",
         seed=3,
         n_jobs=1,
@@ -567,3 +570,36 @@ def test_optuna_pruners_stop_trials_before_the_last_level(backend):
     states = {trial.details["state"] for trial in history}
     assert states == {"COMPLETE", "PRUNED"}
     assert next(trial for trial in history if trial.config == best).details["state"] == "COMPLETE"
+
+
+def test_bohb_optuna_is_reproducible_for_a_seed():
+    pytest.importorskip("optuna")
+
+    def run() -> list[tuple[dict, float, str]]:
+        tuner = ModelBasedTuner(task=_make_task(), backend="bohb_optuna", max_trials=24, seed=7, n_jobs=1, budget_levels=[1, 2, 4])
+        _, history = tuner.run(_eval_fn, verbose=False)
+        return [(trial.config, trial.score, trial.details.get("state")) for trial in history]
+
+    # Hyperband assigns each trial to a bracket from a hash of the study name, which must not be random.
+    assert run() == run()
+
+
+def test_resumed_optuna_study_stops_at_max_trials(tmp_path):
+    optuna = pytest.importorskip("optuna")
+    storage = f"sqlite:///{(tmp_path / 'resume.sqlite3').as_posix()}"
+
+    counts = []
+    for _ in range(3):
+        tuner = ModelBasedTuner(
+            task=_make_task(),
+            max_trials=5,
+            seed=3,
+            optuna_storage_url=storage,
+            optuna_study_name="resume",
+            optuna_load_if_exists=True,
+        )
+        _, history = tuner.run(_eval_fn, verbose=False)
+        counts.append((len(optuna.load_study(study_name="resume", storage=storage).trials), len(history)))
+
+    # Running the same command again resumes the study within its budget instead of adding 5 trials.
+    assert counts == [(5, 5), (5, 5), (5, 5)]

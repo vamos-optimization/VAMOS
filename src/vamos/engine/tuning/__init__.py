@@ -12,7 +12,6 @@ and config space builders for each algorithm.
 
 from .ablation import AblationPlan, AblationTask, AblationVariant, build_ablation_plan
 from .backends import ModelBasedTuner, available_model_based_backends
-from .convergence import ConvergenceDiagnostic, ConvergenceProfile, TuningCallback, diagnose, score_with_profile
 from .racing import (
     # Config space
     AlgorithmConfigSpace,
@@ -92,8 +91,6 @@ from .racing import (
     # I/O
     filter_active_config,
     history_to_dict,
-    load_checkpoint,
-    save_checkpoint,
     save_history_csv,
     save_history_json,
 )
@@ -143,8 +140,6 @@ __all__ = [
     "history_to_dict",
     "save_history_json",
     "save_history_csv",
-    "save_checkpoint",
-    "load_checkpoint",
     # Config space builders
     "build_spea2_config_space",
     "build_spea2_permutation_config_space",
@@ -190,11 +185,6 @@ __all__ = [
     "build_nsgaii_integer_config_space",
     "config_from_assignment",
     # Convergence-aware evaluation
-    "ConvergenceProfile",
-    "ConvergenceDiagnostic",
-    "TuningCallback",
-    "diagnose",
-    "score_with_profile",
     # Statistical utilities
     "vargha_delaney_a12",
     "a12_magnitude",
