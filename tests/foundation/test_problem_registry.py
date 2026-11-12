@@ -142,3 +142,29 @@ def test_registry_problems_satisfy_the_optimize_contract(name: str) -> None:
     if name in _OPTIONAL_DEPENDENCIES:
         pytest.importorskip(_OPTIONAL_DEPENDENCIES[name])
     validate_problem(make_problem_selection(name).instantiate())
+
+
+def test_cec_wrappers_use_builtin_implementations():
+    import ast
+    import inspect
+
+    from vamos.foundation.problem import cec, cec2009
+
+    pairs = {f"CEC2009UF{i}Problem": f"CEC2009_UF{i}" for i in range(1, 11)} | {"CEC2009CF1Problem": "CEC2009_CF1"}
+    for wrapper, builtin in pairs.items():
+        assert getattr(cec, wrapper) is getattr(cec2009, builtin), wrapper
+    imported = set()
+    for node in ast.walk(ast.parse(inspect.getsource(cec))):
+        if isinstance(node, ast.Import):
+            imported.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported.add(node.module)
+    assert not any(name.split(".")[0] == "pymoo" for name in imported)
+
+
+def test_registry_descriptions_do_not_claim_missing_dependencies():
+    from vamos.foundation.problem.registry.specs import get_problem_specs
+
+    # WFG is implemented in NumPy; no registered problem needs pymoo.
+    claims = {name: spec.description for name, spec in get_problem_specs().items() if "pymoo" in spec.description.lower()}
+    assert claims == {}

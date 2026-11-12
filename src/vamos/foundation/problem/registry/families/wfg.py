@@ -34,7 +34,7 @@ def get_specs() -> dict[str, ProblemSpec]:
                 default_n_var=24,
                 default_n_obj=3,
                 allow_n_obj_override=True,
-                description="WFG1 benchmarking problem (requires pymoo).",
+                description="WFG1 benchmarking problem.",
                 factory=lambda n_var, n_obj: _wfg_factory(WFG1Problem, n_var, n_obj),
             ),
             "wfg2": ProblemSpec(
@@ -43,7 +43,7 @@ def get_specs() -> dict[str, ProblemSpec]:
                 default_n_var=24,
                 default_n_obj=3,
                 allow_n_obj_override=True,
-                description="WFG2 benchmarking problem (requires pymoo).",
+                description="WFG2 benchmarking problem.",
                 factory=lambda n_var, n_obj: _wfg_factory(WFG2Problem, n_var, n_obj),
             ),
             "wfg3": ProblemSpec(
@@ -52,7 +52,7 @@ def get_specs() -> dict[str, ProblemSpec]:
                 default_n_var=24,
                 default_n_obj=3,
                 allow_n_obj_override=True,
-                description="WFG3 benchmarking problem (requires pymoo).",
+                description="WFG3 benchmarking problem.",
                 factory=lambda n_var, n_obj: _wfg_factory(WFG3Problem, n_var, n_obj),
             ),
             "wfg4": ProblemSpec(
@@ -61,7 +61,7 @@ def get_specs() -> dict[str, ProblemSpec]:
                 default_n_var=24,
                 default_n_obj=3,
                 allow_n_obj_override=True,
-                description="WFG4 benchmarking problem (requires pymoo).",
+                description="WFG4 benchmarking problem.",
                 factory=lambda n_var, n_obj: _wfg_factory(WFG4Problem, n_var, n_obj),
             ),
             "wfg5": ProblemSpec(
@@ -70,7 +70,7 @@ def get_specs() -> dict[str, ProblemSpec]:
                 default_n_var=24,
                 default_n_obj=3,
                 allow_n_obj_override=True,
-                description="WFG5 benchmarking problem (requires pymoo).",
+                description="WFG5 benchmarking problem.",
                 factory=lambda n_var, n_obj: _wfg_factory(WFG5Problem, n_var, n_obj),
             ),
             "wfg6": ProblemSpec(
@@ -79,7 +79,7 @@ def get_specs() -> dict[str, ProblemSpec]:
                 default_n_var=24,
                 default_n_obj=3,
                 allow_n_obj_override=True,
-                description="WFG6 benchmarking problem (requires pymoo).",
+                description="WFG6 benchmarking problem.",
                 factory=lambda n_var, n_obj: _wfg_factory(WFG6Problem, n_var, n_obj),
             ),
             "wfg7": ProblemSpec(
@@ -88,7 +88,7 @@ def get_specs() -> dict[str, ProblemSpec]:
                 default_n_var=24,
                 default_n_obj=3,
                 allow_n_obj_override=True,
-                description="WFG7 benchmarking problem (requires pymoo).",
+                description="WFG7 benchmarking problem.",
                 factory=lambda n_var, n_obj: _wfg_factory(WFG7Problem, n_var, n_obj),
             ),
             "wfg8": ProblemSpec(
@@ -97,7 +97,7 @@ def get_specs() -> dict[str, ProblemSpec]:
                 default_n_var=24,
                 default_n_obj=3,
                 allow_n_obj_override=True,
-                description="WFG8 benchmarking problem (requires pymoo).",
+                description="WFG8 benchmarking problem.",
                 factory=lambda n_var, n_obj: _wfg_factory(WFG8Problem, n_var, n_obj),
             ),
             "wfg9": ProblemSpec(
@@ -106,7 +106,7 @@ def get_specs() -> dict[str, ProblemSpec]:
                 default_n_var=24,
                 default_n_obj=3,
                 allow_n_obj_override=True,
-                description="WFG9 benchmarking problem (requires pymoo).",
+                description="WFG9 benchmarking problem.",
                 factory=lambda n_var, n_obj: _wfg_factory(WFG9Problem, n_var, n_obj),
             ),
         }
