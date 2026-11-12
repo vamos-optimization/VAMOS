@@ -190,6 +190,8 @@ class _BaseArchive:
         self._F = np.empty((storage_rows, self._n_obj), dtype=float)
         self._G = np.empty((storage_rows, self._n_con), dtype=float) if self._n_con is not None else None
         self._size = 0
+        # Rows the last ``update`` removed to respect the capacity (not as dominated or duplicated).
+        self.last_capacity_pruned = 0
 
     def update(
         self,
@@ -209,6 +211,7 @@ class _BaseArchive:
             raise ValueError(f"population_X has {pop_X.shape[1]} columns, expected {self._n_var}.")
         if pop_F.shape[1] != self._n_obj:
             raise ValueError(f"population_F has {pop_F.shape[1]} columns, expected {self._n_obj}.")
+        self.last_capacity_pruned = 0
         if pop_X.shape[0] == 0:
             return self._snapshot()
 
@@ -239,6 +242,7 @@ class _BaseArchive:
                 raise ValueError("_select_subset() must return a 1D index array.")
             if keep_idx.size != self.truncate_size:
                 raise ValueError(f"_select_subset() returned {keep_idx.size} indices, expected {self.truncate_size}.")
+            self.last_capacity_pruned = int(F_nd.shape[0] - keep_idx.size)
             X_nd, F_nd, G_nd = _subset_arrays(X_nd, F_nd, G_nd, keep_idx)
 
         self._replace_contents(X_nd, F_nd, G_nd)

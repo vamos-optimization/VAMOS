@@ -110,6 +110,23 @@ Canonical record:
 
 - `manifest.json` outcome metrics under `hooks.archive`, including the bounded trace
 
+Each trace row describes one archive update: `evals`, `archive_size` after the
+update, `inserted` (rows offered), `pruned` (rows the update removed, offered or
+already archived), split into `dominated_or_duplicate` and `pruned_by_capacity`,
+and `prune_reason` (the pruning policy when the capacity removed rows, otherwise
+`none`). `total_inserted`, `total_pruned`, `total_dominated_or_duplicate` and
+`total_pruned_by_capacity` sum the rows over the whole run, not only over the
+bounded trace.
+
+**Development after 1.1.0:** the hook offers the archive only the objective rows
+that the previous notification did not contain, and skips the update when there
+are none. Steady-state algorithms such as MOEA/D notify after every evaluation
+with a population that changed in a row or two; VAMOS 1.1.0 re-inserted the
+whole population each time, so `inserted` summed the population size at every
+evaluation. `pruned` used to mix dominated and duplicated rows with capacity
+pruning, and `prune_reason` named the pruning policy whenever any row was
+removed; the two new counters separate them.
+
 Notes:
 
 - Set a finite `capacity` explicitly; the hook parser defaults to 200. It does
