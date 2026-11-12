@@ -3,6 +3,6 @@
   "private": true,
   "description": "Pinned Wrangler for the documentation Workers (wrangler.jsonc and wrangler.preview.jsonc at the repository root).",
   "devDependencies": {
-    "wrangler": "4.129.1"
+    "wrangler": "4.159.0"
   }
 }
