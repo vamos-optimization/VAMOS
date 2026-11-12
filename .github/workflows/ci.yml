@@ -117,6 +117,26 @@ jobs:
             tests/architecture/test_docs_and_workflows.py
       - name: Run tests
         run: pytest -m "not slow" --cov=src/vamos --cov-report=term-missing
+      # Compiled Numba kernels are invisible to coverage; their tests run once more as plain Python.
+      # The *_are_nopython tests check compilation itself, so they are left out of this run.
+      - name: Measure the Numba kernels as Python
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        env:
+          NUMBA_DISABLE_JIT: "1"
+        run: >-
+          pytest -m "not slow" -k "not nopython" --cov=src/vamos --cov-append --cov-report=
+          tests/foundation/test_numba_ops.py tests/foundation/test_numba_selection_kernels.py
+          tests/foundation/test_numba_smsemoa_kernels.py tests/foundation/test_numba_variation_parity.py
+          tests/foundation/test_numba_backend_parity.py tests/engine/test_moead_numba.py tests/engine/test_ibea_numba.py
+          tests/engine/test_smpso_numba.py tests/engine/test_smsemoa_numba.py tests/engine/test_nsgaii_steady_state_numba.py
+      # Floors for the scientific packages (branch coverage, measured here). Raise a floor when coverage rises; never lower it.
+      - name: Coverage floors
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        run: |
+          coverage report --include="src/vamos/foundation/problem/*" --fail-under=86 --format=total
+          coverage report --include="src/vamos/foundation/quality_indicators/*" --fail-under=78 --format=total
+          coverage report --include="src/vamos/engine/algorithm/*" --fail-under=82 --format=total
+          coverage report --include="src/vamos/engine/operators/*" --fail-under=82 --format=total
       - name: Build docs
         run: mkdocs build --strict
       - name: Notebook Smoke

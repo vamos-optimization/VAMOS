@@ -288,6 +288,10 @@ markers = [
   "reference: scientific correctness verification tests",
 ]
 
+[tool.coverage.run]
+# Branch coverage; CI holds the scientific packages at floors (docs/dev/testing.md).
+branch = true
+
 [tool.setuptools.package-data]
 "vamos" = ["py.typed"]
 "vamos.resources" = ["reference_fronts/*.csv", "reference_fronts/LICENSE-*.txt", "weights/*.csv", "weights/*.dat", "tsplib/*.tsp"]
