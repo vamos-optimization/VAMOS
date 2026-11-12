@@ -126,16 +126,13 @@ class TestConstrainedBenchmarks:
         # Run optimization
         result = vamos.optimize(problem, algorithm="nsgaii", max_evaluations=2000, pop_size=100, seed=42)
 
-        # Manual constraint check on returned solutions
-        if result.X is not None and len(result.X) > 0:
-            out = {}
-            problem.evaluate(result.X, out)
-            G = out.get("G")
-
-            if G is not None:
-                feasibility = compute_feasibility_rate(G)
-                # Expect high feasibility rate
-                assert feasibility >= 0.5, f"Low feasibility: {feasibility:.2%}"
+        # Constraints re-evaluated on the returned solutions: every one is feasible.
+        assert result.X is not None and len(result.X) > 0
+        out: dict[str, np.ndarray] = {}
+        problem.evaluate(result.X, out)
+        assert out.get("G") is not None
+        feasibility = compute_feasibility_rate(out["G"])
+        assert feasibility == 1.0, f"Low feasibility: {feasibility:.2%}"
 
 
 @pytest.mark.parametrize("algorithm", ["nsgaii", "moead", "smsemoa"])
@@ -147,4 +144,8 @@ def test_constrained_algorithm_comparison(algorithm):
 
     result = vamos.optimize(problem, algorithm=algorithm, max_evaluations=500, seed=42)
 
-    assert len(result) >= 0, f"{algorithm} should complete without error"
+    # The returned solutions, re-evaluated, are all feasible.
+    assert len(result.X) > 0, f"{algorithm} returned no solution"
+    out: dict[str, np.ndarray] = {}
+    problem.evaluate(result.X, out)
+    assert compute_feasibility_rate(out["G"]) == 1.0, f"{algorithm} returned infeasible solutions"

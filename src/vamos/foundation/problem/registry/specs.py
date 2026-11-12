@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from .common import ProblemFactory, ProblemSpec
 from .families import (
     cec,
+    cec2021_rcm,
     classic_constrained,
     constrained_many,
     dtlz,
@@ -13,11 +14,13 @@ from .families import (
     lz09,
     misc,
     real_world,
+    tanabe_ishibuchi_cre,
     tanabe_ishibuchi_re,
     wfg,
     zapotecas_rwa,
     zcat,
     zdt,
+    zxh_cf,
 )
 
 _PROBLEM_SPECS: dict[str, ProblemSpec] | None = None
@@ -37,11 +40,14 @@ def _build_problem_specs() -> dict[str, ProblemSpec]:
         constrained_many.get_specs(),
         classic_constrained.get_specs(),
         lir_das_cmop.get_specs(),
+        zxh_cf.get_specs(),
         wfg.get_specs(),
         zcat.get_specs(),
         misc.get_specs(),
         real_world.get_specs(),
         tanabe_ishibuchi_re.get_specs(),
+        tanabe_ishibuchi_cre.get_specs(),
+        cec2021_rcm.get_specs(),
         zapotecas_rwa.get_specs(),
     ):
         specs.update(family)

@@ -170,7 +170,7 @@ def test_cli_ablation_accepts_variation_mapping_form(monkeypatch, tmp_path):
     assert (output_root / "summary" / "ablation_metrics.csv").exists()
 
 
-def test_cli_ablation_plans_every_variant_before_running(monkeypatch, tmp_path):
+def test_cli_ablation_plans_every_variant_before_running(monkeypatch, tmp_path, capsys):
     output_root = tmp_path / "out"
     config = {
         "algorithm": "nsgaii",
@@ -187,9 +187,12 @@ def test_cli_ablation_plans_every_variant_before_running(monkeypatch, tmp_path):
         ],
     }
 
-    with pytest.raises(Exception, match="max_evaluations|INVALID_EVALUATION_BUDGET"):
+    # The planning error is a VAMOSError: the CLI prints it and exits with code 2, without a traceback.
+    with pytest.raises(SystemExit) as stopped:
         _run_cli(monkeypatch, tmp_path, config)
 
+    assert stopped.value.code == 2
+    assert "INVALID_EVALUATION_BUDGET" in capsys.readouterr().err
     assert not output_root.exists() or not any(output_root.rglob("study-manifest.json"))
 
 

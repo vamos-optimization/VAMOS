@@ -374,8 +374,16 @@ def test_tell_reports_a_reached_hv_target(name, factory) -> None:
     target = {"target_value": 0.0, "reference_point": [11.0, 11.0], "max_evaluations": 50 * pop_size}
     algorithm.initialize(problem, ("hv", target), 11)
 
-    X = algorithm.ask()
     # VAMOS 1.1.0: NSGA-III, SMS-EMOA and IBEA returned False from tell() whatever the HV.
-    assert algorithm.tell(SerialEvalBackend().evaluate(X, problem), problem) is True, name
+    # Steady-state SMS-EMOA measures the HV once per generation of pop_size children, so the
+    # target shows within one generation; the generational algorithms report it on the first tell.
+    answers = []
+    for _ in range(pop_size):
+        X = algorithm.ask()
+        answers.append(algorithm.tell(SerialEvalBackend().evaluate(X, problem), problem))
+        if answers[-1]:
+            break
+    assert answers[-1] is True, name
+    assert name == "smsemoa" or len(answers) == 1, name
     assert algorithm.should_terminate(), name
     assert algorithm.result()["hv_reached"] is True, name

@@ -44,10 +44,16 @@ def test_nsgaii_invariants():
 
 @pytest.mark.smoke
 def test_nsgaii_population_mode_invariants():
-    """
-    Verify NSGA-II returns full population if configured.
-    """
-    # This requires configuring 'result_mode'="population".
-    # Use algorithm_config to request population mode if we wire this test.
-    # We'll skip this if it's too complex to wire via api, but bounds check is critical.
-    pass
+    """NSGA-II with result_mode="population" returns the whole final population, inside the bounds."""
+    from vamos.engine.algorithm.config import NSGAIIConfig
+
+    problem = ZDT1Problem(n_var=6)
+    config = NSGAIIConfig.default(pop_size=10, n_var=problem.n_var).to_dict()
+    config["result_mode"] = "population"
+    res = optimize(
+        problem, algorithm="nsgaii", algorithm_config=NSGAIIConfig.from_dict(config), max_evaluations=200, seed=123, engine="numpy"
+    )
+
+    assert res.X.shape == (10, problem.n_var)
+    assert res.F.shape == (10, 2)
+    assert np.all(res.X >= problem.xl) and np.all(res.X <= problem.xu)
