@@ -18,9 +18,7 @@ from vamos.engine.algorithm.components.evaluation import extract_evaluation_arra
 from vamos.engine.algorithm.components.hooks import get_live_viz, setup_genealogy
 from vamos.engine.algorithm.components.lifecycle import get_eval_strategy
 from vamos.engine.algorithm.components.metrics import setup_hv_tracker
-from vamos.engine.algorithm.components.population import (
-    initialize_population as initialize_decision_population,
-)
+from vamos.engine.algorithm.components.population import initialize_evaluated_population
 from vamos.engine.algorithm.components.termination import parse_termination, validate_initial_budget
 from vamos.engine.algorithm.components.utils import resolve_bounds_array
 from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors
@@ -166,7 +164,7 @@ def initialize_moead_run(
                 suggestion=f"Pass max_evaluations of at least {n_eval}: the run then adds max_evaluations - {n_eval} evaluations.",
             )
     else:
-        X, F, G = initialize_population(
+        X, F, G, n_eval = initialize_population(
             encoding,
             pop_size,
             n_var,
@@ -176,8 +174,8 @@ def initialize_moead_run(
             problem,
             constraint_mode,
             initializer=cfg.get("initializer"),
+            max_evaluations=max_eval,
         )
-        n_eval = pop_size
         subproblem_order = rng.permutation(pop_size).astype(int, copy=False)
         subproblem_cursor = 0
 
@@ -306,8 +304,9 @@ def initialize_population(
     problem: ProblemProtocol,
     constraint_mode: str,
     initializer: Any | None = None,
-) -> tuple[NDArray[np.generic], NDArray[np.generic], NDArray[np.generic] | None]:
-    """Initialize population based on encoding.
+    max_evaluations: int | None = None,
+) -> tuple[NDArray[np.generic], NDArray[np.generic], NDArray[np.generic] | None, int]:
+    """Initialize and evaluate the population based on encoding.
 
     Parameters
     ----------
@@ -327,27 +326,34 @@ def initialize_population(
         The optimization problem.
     constraint_mode : str
         Constraint handling mode.
+    initializer : Any | None
+        Optional initializer configuration.
+    max_evaluations : int | None
+        Evaluation budget of the run; the opposition-based initializer needs ``2 * pop_size``.
 
     Returns
     -------
-    tuple[NDArray[np.generic], NDArray[np.generic], NDArray[np.generic] | None]
-        (X, F, G) population arrays.
+    tuple[NDArray[np.generic], NDArray[np.generic], NDArray[np.generic] | None, int]
+        (X, F, G, n_eval): the population arrays and every evaluation the initialization took.
     """
-    X = initialize_decision_population(
-        pop_size=pop_size,
-        n_var=n_var,
-        xl=xl,
-        xu=xu,
-        encoding=encoding,
-        rng=rng,
-        problem=problem,
-        initializer=initializer,
-    )
 
-    F, G = evaluate_population_with_constraints(problem, X)
-    if constraint_mode == "none":
-        G = None
-    return X, F, G
+    def evaluate(X: NDArray[np.generic]) -> tuple[NDArray[np.float64], NDArray[np.float64] | None]:
+        F, G = evaluate_population_with_constraints(problem, X)
+        return F, None if constraint_mode == "none" else G
+
+    return initialize_evaluated_population(
+        pop_size,
+        n_var,
+        xl,
+        xu,
+        encoding,
+        rng,
+        problem,
+        initializer,
+        evaluate=evaluate,
+        max_evaluations=max_evaluations,
+        algorithm="MOEA/D",
+    )
 
 
 __all__ = [

@@ -15,10 +15,10 @@ import numpy as np
 
 from vamos.engine.algorithm.components.archive import CrowdingDistanceArchive
 from vamos.engine.algorithm.components.hooks import get_live_viz, setup_genealogy
-from vamos.engine.algorithm.components.lifecycle import get_eval_strategy
+from vamos.engine.algorithm.components.lifecycle import evaluate_batch, get_eval_strategy
 from vamos.engine.algorithm.components.metrics import setup_hv_tracker
 from vamos.engine.algorithm.components.population import (
-    initialize_population,
+    initialize_evaluated_population,
     resolve_bounds,
 )
 from vamos.engine.algorithm.components.termination import parse_termination, validate_initial_budget
@@ -120,6 +120,10 @@ class _SMPSOArchiveFanout:
             self._leaders.contents(),
         )
 
+    def constraint_values(self) -> np.ndarray[Any, Any] | None:
+        """Constraint values of the leaders, aligned with :meth:`contents`."""
+        return cast("np.ndarray[Any, Any] | None", self._leaders.constraint_values())
+
 
 def initialize_smpso_run(
     config: dict[str, Any],
@@ -205,13 +209,20 @@ def initialize_smpso_run(
 
     # Initialize population
     initializer_cfg = config.get("initializer")
-    X = initialize_population(pop_size, n_var, xl, xu, encoding, rng, problem, initializer=initializer_cfg)
-
-    # Evaluate initial population
-    eval_init = eval_strategy.evaluate(X, problem)
-    F = eval_init.F
     constraint_mode = normalize_constraint_mode(config.get("constraint_mode", "feasibility"))
-    G = eval_init.G if constraint_mode != "none" else None
+    X, F, G, n_eval = initialize_evaluated_population(
+        pop_size,
+        n_var,
+        xl,
+        xu,
+        encoding,
+        rng,
+        problem,
+        initializer_cfg,
+        evaluate=lambda X: evaluate_batch(problem, eval_strategy, X, constraint_mode),
+        max_evaluations=max_eval,
+        algorithm="SMPSO",
+    )
 
     # Initialize velocity (jMetalPy starts at zero velocity)
     velocity = np.zeros_like(X, dtype=float)
@@ -266,7 +277,7 @@ def initialize_smpso_run(
         pop_size=pop_size,
         offspring_size=pop_size,
         constraint_mode=constraint_mode,
-        n_eval=pop_size,
+        n_eval=n_eval,
         max_evals=max_eval,
         # Archive (leaders)
         archive_size=archive_size,

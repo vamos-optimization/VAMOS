@@ -152,8 +152,8 @@ def _versioned_optuna_study_name(args: Any, task: TuningTask) -> str:
 def _scores_leaders(algorithm_name: str, n_constraints: int) -> bool:
     """Whether a tuning run is scored on its leaders archive (unconstrained SMPSO) instead of its final population.
 
-    The leaders archive carries no constraint values, so constrained SMPSO keeps scoring its swarm with the
-    population's constraint values.
+    Constrained SMPSO keeps scoring its swarm with the population's constraint values, as when the leaders
+    carried none, so that its tuning scores do not change.
     """
     return canonical_algorithm_name(algorithm_name) in _LEADER_SCORED_ALGORITHMS and n_constraints == 0
 
@@ -190,9 +190,10 @@ def make_evaluator(
     ) -> tuple[object, CheckpointPayload | None]:
         try:
             start_config: dict[str, Any] = dict(config_dict)
-            if algorithm_name == "rvea":
+            # RVEA's population and MOEA/D's weight vectors depend on the number of objectives.
+            if canonical_algorithm_name(algorithm_name) in ("moead", "rvea"):
                 start_config["n_obj"] = n_obj
-            elif "pop_size" not in start_config:
+            if algorithm_name != "rvea" and "pop_size" not in start_config:
                 start_config["pop_size"] = fixed_pop_size
 
             cfg = _tuning_config(config_from_assignment(algorithm_name, start_config), algorithm_name)

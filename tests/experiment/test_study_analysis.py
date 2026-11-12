@@ -192,9 +192,14 @@ def test_derive_summary_rows_measures_only_the_feasible_part_of_a_run(mw2: dict[
 
 
 def test_derive_summary_rows_marks_runs_without_constraint_values(studies: dict[str, SummarySource], tmp_path: Path) -> None:
-    # SMPSO's non-dominated result comes from its archive, which stores no G.
+    # SMPSO with constraint handling off returns no G for its leaders.
     archive = _run_study(
-        tmp_path, "archive", "mw2", algorithm="smpso", max_evaluations=400, algorithm_config={"result_mode": "non_dominated"}
+        tmp_path,
+        "archive",
+        "mw2",
+        algorithm="smpso",
+        max_evaluations=400,
+        algorithm_config={"result_mode": "non_dominated", "constraint_mode": "none"},
     )
 
     rows = derive_summary_rows([studies["zdt1"], archive], indicators=_INDICATORS)
@@ -204,6 +209,19 @@ def test_derive_summary_rows_marks_runs_without_constraint_values(studies: dict[
     for row in rows:
         assert row["feasibility_known"] is False
         assert row["n_feasible"] == len(_front(by_study[row["study_id"]], row["run_manifest_path"]))
+
+
+def test_derive_summary_rows_reads_the_constraint_values_of_an_archive_result(tmp_path: Path) -> None:
+    # SMPSO's non-dominated result comes from its leaders archive, which keeps their constraint values.
+    archive = _run_study(
+        tmp_path, "archive", "mw2", algorithm="smpso", max_evaluations=400, algorithm_config={"result_mode": "non_dominated"}
+    )
+
+    rows = derive_summary_rows([archive], indicators=_INDICATORS)
+
+    assert len(rows) == 2
+    for row in rows:
+        assert row["feasibility_known"] is True
 
 
 def test_derive_summary_rows_scores_a_stored_empty_result_as_infeasible(

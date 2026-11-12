@@ -430,6 +430,18 @@ def test_registry_problem_instance_stays_exact(tmp_path: Path) -> None:
     assert vamos.verify_run(runs["instance"].root).effective_replayability == "exact"
 
 
+@pytest.mark.parametrize("algorithm", ["moead", "smsemoa", "nsgaiii", "spea2"])
+def test_integer_runs_replay_their_polynomial_mutation(algorithm: str, tmp_path: Path) -> None:
+    # The resolved spec names polynomial mutation by its registry name, "pm"; the integer
+    # operators of these algorithms must accept it, or their runs and study tasks cannot replay.
+    result = vamos.optimize("int_alloc", algorithm=algorithm, pop_size=8, max_evaluations=16, engine="numpy", seed=3)
+    source = vamos.save_result(result, tmp_path / "source")
+
+    report = vamos.reproduce(source.root, output=tmp_path / "replay")
+
+    assert report.exact is True
+
+
 def test_exact_replay_preserves_source_and_records_lineage(tmp_path: Path) -> None:
     source = _save_source(tmp_path / "source", seed=0)
     before = _snapshot(source.root)

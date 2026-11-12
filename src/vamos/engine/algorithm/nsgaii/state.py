@@ -23,7 +23,13 @@ from vamos.engine.algorithm.components.archive import (
     SPEA2Archive,
     UnboundedArchive,
 )
-from vamos.engine.algorithm.components.results import feasible_result_indices, get_external_archive_contents, wants_population_result
+from vamos.engine.algorithm.components.results import (
+    feasible_result_indices,
+    get_external_archive_constraints,
+    get_external_archive_contents,
+    wants_population_result,
+    with_constraints,
+)
 from vamos.engine.algorithm.components.termination import HVTracker
 from vamos.engine.hooks.genealogy import GenealogyTracker
 from vamos.engine.operators.impl.real import VariationWorkspace
@@ -167,12 +173,13 @@ def build_result(
         Full population is always available in 'population' key.
     """
     archive_contents = get_external_archive_contents(state)
+    archive_G = get_external_archive_constraints(state)
     should_use_archive = archive_contents is not None and not wants_population_result(state)
 
     if should_use_archive:
         assert archive_contents is not None
         result_X, result_F = archive_contents
-        result_G = None
+        result_G = archive_G
     else:
         should_filter = kernel is not None and not wants_population_result(state)
         if should_filter:
@@ -192,14 +199,13 @@ def build_result(
         "F": result_F,
         "evaluations": n_eval,
         "hv_reached": hv_reached,
-        "population": {"X": state.X, "F": state.F},  # Full population always available
+        "population": with_constraints({"X": state.X, "F": state.F}, state.G),  # Full population always available
     }
-    if result_G is not None:
-        result["G"] = result_G
+    with_constraints(result, result_G)
 
     if archive_contents is not None:
         arch_X, arch_F = archive_contents
-        result["archive"] = {"X": arch_X, "F": arch_F}
+        result["archive"] = with_constraints({"X": arch_X, "F": arch_F}, archive_G)
 
     return result
 

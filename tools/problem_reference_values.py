@@ -13,7 +13,12 @@ Run from a checkout, with VAMOS importable and pymoo installed (0.6.2 was used):
 
 ``--classpath`` lists, separated by the platform's path separator, the jmetal-core and
 jmetal-problem 7.8 jars with commons-lang3 and commons-math3; ``tools/jmetal_values/JMetalValues.java``
-runs with Java 17 or later. Constraints are stored in the VAMOS convention, ``g <= 0`` feasible:
+runs with Java 17 or later. LIR-CMOP and DAS-CMOP come from jMetal's ``main`` at commit
+``JMETAL_MAIN_COMMIT``, since 7.8 predates LIR-CMOP's correction (jMetal #522): ``--classpath-main`` gives
+the same jars built from that commit. ``--only KEY ...`` regenerates those problems and keeps the rest of
+the fixture, so the other sources are not needed::
+
+    PYTHONPATH=src python tools/problem_reference_values.py --classpath-main "<jars>" --only lircmop1 dascmop1 Constraints are stored in the VAMOS convention, ``g <= 0`` feasible:
 pymoo uses it too, and jMetal's values (``>= 0`` feasible) are negated.
 """
 
@@ -56,6 +61,12 @@ JMETAL: dict[str, tuple[str, str]] = {
     **{f"zcat{i}": (f"zcat.ZCAT{i}", "2,30,false,1,false,false") for i in range(1, 21)},
     **{f"re{n}": (f"re.RE{n}", "") for n in (21, 22, 23, 24, 25, 31, 32, 33, 34, 35, 36, 37, 42, 61)},
     **{f"rwa{i}": (f"rwa.RWA{i}", "") for i in (2, 3, 4, 5, 7, 8)},
+}
+# The same, for problems that only jMetal's main branch defines as VAMOS does.
+JMETAL_MAIN_COMMIT = "1e4b83cae6"
+JMETAL_MAIN: dict[str, tuple[str, str]] = {
+    **{f"lircmop{k}": (f"lircmop.LIRCMOP{k}", "") for k in range(1, 15)},
+    **{f"dascmop{k}": (f"dascmop.DASCMOP{k}", "") for k in range(1, 10)},
 }
 # Variables that VAMOS encodes as an index into a table of values (the table's attribute): the
 # reference evaluates the decoded value. Both problems document the encoding.
@@ -165,26 +176,16 @@ def _entry(problem: Any, source: str, implementation: str, X: np.ndarray, F: np.
     return entry
 
 
-def generate(classpath: str) -> dict[str, Any]:
-    import pymoo
-
-    problems: dict[str, Any] = {}
-    for key, (name, attributes) in PYMOO.items():
-        problem = _problem(key)
-        kwargs: dict[str, Any] = {attribute: int(getattr(problem, attribute)) for attribute in attributes}
-        if key == "zdt5":
-            # pymoo normalizes ZDT5's objectives unless told otherwise; VAMOS and the paper do not.
-            kwargs["normalize"] = False
-        X = _points(key, problem)
-        F, G = _pymoo_values(name, kwargs, X)
-        problems[key] = _entry(problem, f"pymoo {pymoo.__version__}", f"pymoo.problems.get_problem({name!r}, **{kwargs})", X, F, G)
-
+def _jmetal_entries(classpath: str, table: dict[str, tuple[str, str]], keys: list[str], source: str) -> dict[str, Any]:
     requests = []
-    for key, (class_name, arguments) in JMETAL.items():
+    for key in keys:
+        class_name, arguments = table[key]
         problem = _problem(key)
         requests.extend((class_name, arguments, x) for x in _reference_design(key, problem, _points(key, problem)))
     values = iter(_jmetal_values(classpath, requests))
-    for key, (class_name, arguments) in JMETAL.items():
+    entries: dict[str, Any] = {}
+    for key in keys:
+        class_name, arguments = table[key]
         problem = _problem(key)
         X = _points(key, problem)
         rows = [next(values) for _ in range(N_POINTS)]
@@ -192,7 +193,48 @@ def generate(classpath: str) -> dict[str, Any]:
         constraints = [row[1] for row in rows]
         G = None if any(c is None for c in constraints) else np.vstack([c for c in constraints if c is not None])
         implementation = f"org.uma.jmetal.problem.multiobjective.{class_name}({arguments})"
-        problems[key] = _entry(problem, "jMetal 7.8", implementation, X, F, G)
+        entries[key] = _entry(problem, source, implementation, X, F, G)
+    return entries
+
+
+def generate(
+    classpath: str | None,
+    classpath_main: str | None = None,
+    only: list[str] | None = None,
+    existing: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """The fixture: every problem, or only the keys of ``only`` on top of the ``existing`` fixture."""
+    keys = set(only) if only is not None else {*PYMOO, *JMETAL, *JMETAL_MAIN}
+    unknown = keys - {*PYMOO, *JMETAL, *JMETAL_MAIN}
+    if unknown:
+        raise ValueError(f"no reference implementation for {sorted(unknown)}")
+    problems: dict[str, Any] = dict(existing["problems"]) if only is not None and existing is not None else {}
+
+    pymoo_keys = [key for key in PYMOO if key in keys]
+    if pymoo_keys:
+        import pymoo
+
+        for key in pymoo_keys:
+            name, attributes = PYMOO[key]
+            problem = _problem(key)
+            kwargs: dict[str, Any] = {attribute: int(getattr(problem, attribute)) for attribute in attributes}
+            if key == "zdt5":
+                # pymoo normalizes ZDT5's objectives unless told otherwise; VAMOS and the paper do not.
+                kwargs["normalize"] = False
+            X = _points(key, problem)
+            F, G = _pymoo_values(name, kwargs, X)
+            problems[key] = _entry(problem, f"pymoo {pymoo.__version__}", f"pymoo.problems.get_problem({name!r}, **{kwargs})", X, F, G)
+
+    for table, path, source in (
+        (JMETAL, classpath, "jMetal 7.8"),
+        (JMETAL_MAIN, classpath_main, f"jMetal main {JMETAL_MAIN_COMMIT}"),
+    ):
+        table_keys = [key for key in table if key in keys]
+        if not table_keys:
+            continue
+        if path is None:
+            raise ValueError(f"{source} values for {table_keys[0]} and others need its classpath")
+        problems.update(_jmetal_entries(path, table, table_keys, source))
 
     return {
         "schema": "vamos.test.problem-reference-values/1",
@@ -206,10 +248,13 @@ def generate(classpath: str) -> dict[str, Any]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
-    parser.add_argument("--classpath", required=True, help="jmetal-core, jmetal-problem 7.8, commons-lang3 and commons-math3 jars")
+    parser.add_argument("--classpath", help="jmetal-core, jmetal-problem 7.8, commons-lang3 and commons-math3 jars")
+    parser.add_argument("--classpath-main", help=f"the same jars built from jMetal's main at commit {JMETAL_MAIN_COMMIT}")
+    parser.add_argument("--only", nargs="+", metavar="KEY", help="regenerate these problems and keep the rest of the fixture")
     parser.add_argument("--output", type=Path, default=OUTPUT)
     args = parser.parse_args(argv)
-    fixture = generate(args.classpath)
+    existing = json.loads(args.output.read_text(encoding="utf-8")) if args.only and args.output.is_file() else None
+    fixture = generate(args.classpath, args.classpath_main, only=args.only, existing=existing)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(fixture, indent=1) + "\n", encoding="utf-8")
     print(f"wrote {len(fixture['problems'])} problems to {args.output}")

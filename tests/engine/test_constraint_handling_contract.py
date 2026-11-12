@@ -23,6 +23,7 @@ from vamos.algorithms import (
 from vamos.engine.algorithm.ibea.helpers import environmental_selection
 from vamos.engine.algorithm.nsgaiii.helpers import nsgaiii_survival
 from vamos.engine.algorithm.registry import resolve_algorithm
+from vamos.engine.archive import ExternalArchiveConfig
 from vamos.foundation.eval.backends import SerialEvalBackend
 from vamos.foundation.kernel.registry import resolve_kernel
 
@@ -236,6 +237,38 @@ def test_non_dominated_results_contain_only_feasible_solutions_when_any_exist(na
     population_feasible = _constraints(population)[:, 0] <= 0.0
     assert population_feasible.any() and not population_feasible.all(), "the final population must mix both kinds"
     assert np.all(_constraints(np.asarray(result.X))[:, 0] <= 0.0)
+
+
+def _assert_constraints_match(payload: Any, where: str) -> None:
+    X = np.asarray(payload["X"])
+    G = payload.get("G")
+    assert G is not None, f"{where} has no constraint values"
+    np.testing.assert_array_equal(np.asarray(G), _constraints(X), err_msg=where)
+
+
+@pytest.mark.parametrize("archive", [False, True], ids=["population", "external-archive"])
+@pytest.mark.parametrize("result_mode", ["non_dominated", "population"])
+@pytest.mark.parametrize("name", sorted(CONFIG_CLASSES))
+def test_every_result_array_carries_the_constraint_values_of_its_rows(name: str, result_mode: str, archive: bool) -> None:
+    config = dataclasses.replace(_config(name), result_mode=result_mode)
+    if archive:
+        config = dataclasses.replace(config, external_archive=ExternalArchiveConfig(capacity=10))
+    pop_size = int(config.to_dict()["pop_size"])
+
+    result = vamos.optimize(_problem(), algorithm=name, algorithm_config=config, max_evaluations=3 * pop_size, seed=3, engine="numpy")
+
+    data = result.data
+    _assert_constraints_match(data, "the result")
+    _assert_constraints_match(data["population"], "the population")
+    if archive:
+        # NSGA-III and IBEA return their external archive as archive_X and archive_F; SPEA2 as external_archive,
+        # next to its environmental archive.
+        if "archive_X" in data:
+            _assert_constraints_match({"X": data["archive_X"], "G": data.get("archive_G")}, "the archive")
+        else:
+            _assert_constraints_match(data["archive"], "the archive")
+        if "external_archive" in data:
+            _assert_constraints_match(data["external_archive"], "the external archive")
 
 
 def _dominated_rows(F: np.ndarray) -> int:

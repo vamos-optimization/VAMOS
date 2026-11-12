@@ -145,7 +145,7 @@ def initialize_run(
                 suggestion=f"Pass max_evaluations of at least {n_eval}: the run then adds max_evaluations - {n_eval} evaluations.",
             )
     else:
-        X, F, G, n_eval = setup_population(problem, eval_strategy, rng, pop_size, constraint_mode, initializer_cfg)
+        X, F, G, n_eval = setup_population(problem, eval_strategy, rng, pop_size, constraint_mode, initializer_cfg, max_eval)
 
     incremental_enabled = bool(incremental_mode and replacement_size == 1 and G is None)
 

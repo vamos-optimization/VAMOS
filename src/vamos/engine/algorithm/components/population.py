@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any, TypeAlias
 
 import numpy as np
@@ -20,9 +21,13 @@ from vamos.foundation.encoding import EncodingLike, normalize_encoding
 
 DecisionArray: TypeAlias = NDArray[np.generic]
 BoundsArray: TypeAlias = NDArray[np.float64] | NDArray[np.int_]
+FloatArray: TypeAlias = NDArray[np.float64]
+EvaluateFn: TypeAlias = Callable[[DecisionArray], tuple[FloatArray, FloatArray | None]]
 
 # Initializers that sample real-valued decision vectors.
 _REAL_INITIALIZERS = ("lhs", "scatter", "scatter_search", "sobol", "halton", "obl", "opposition")
+# Initializers that evaluate candidates to choose the initial population.
+_OPPOSITION_INITIALIZERS = ("obl", "opposition")
 
 
 def resolve_bounds(problem: Any, encoding: EncodingLike) -> tuple[BoundsArray, BoundsArray]:
@@ -82,11 +87,7 @@ def initialize_population(
         return _validate_custom_population(initializer(), label="custom initializer")
     if initializer is not None and isinstance(initializer, dict):
         init_type = initializer.get("type", "random").lower()
-        if init_type in _REAL_INITIALIZERS and normalized != "real":
-            raise ValueError(
-                f"Initializer '{init_type}' samples real values and supports only real encoding, not {normalized} encoding. "
-                "Use 'random' or a custom initializer."
-            )
+        _check_real_initializer(init_type, normalized)
         if init_type == "custom":
             custom_fn = initializer.get("fn")
             if callable(custom_fn):
@@ -121,10 +122,71 @@ def initialize_population(
     return rng.uniform(np.asarray(xl, dtype=np.float64), np.asarray(xu, dtype=np.float64), size=(pop_size, n_var))
 
 
+def _check_real_initializer(init_type: str, encoding: str) -> None:
+    if init_type in _REAL_INITIALIZERS and encoding != "real":
+        raise ValueError(
+            f"Initializer '{init_type}' samples real values and supports only real encoding, not {encoding} encoding. "
+            "Use 'random' or a custom initializer."
+        )
+
+
+def _opposition_initializer(initializer: Any | None) -> bool:
+    return isinstance(initializer, dict) and str(initializer.get("type", "random")).lower() in _OPPOSITION_INITIALIZERS
+
+
+def initialize_evaluated_population(
+    pop_size: int,
+    n_var: int,
+    xl: DecisionArray,
+    xu: DecisionArray,
+    encoding: EncodingLike,
+    rng: np.random.Generator,
+    problem: Any | None,
+    initializer: Any | None,
+    *,
+    evaluate: EvaluateFn,
+    max_evaluations: int | None,
+    algorithm: str,
+) -> tuple[DecisionArray, FloatArray, FloatArray | None, int]:
+    """Build and evaluate an algorithm's initial population.
+
+    ``evaluate`` is the algorithm's own evaluation, which returns the objective
+    values and the constraint values it uses (``None`` without constraint
+    handling). Returns ``(X, F, G, n_eval)``, where ``n_eval`` is every
+    evaluation the initialization took.
+
+    The opposition-based initializer evaluates ``2 * pop_size`` candidates with
+    ``evaluate`` and keeps ``pop_size`` of them, feasible ones first, with their
+    values: the chosen rows are not evaluated again, and all the candidates count
+    against ``max_evaluations``, which must cover them. Every other initializer
+    samples ``pop_size`` decision vectors, which are evaluated once.
+    """
+    if _opposition_initializer(initializer):
+        normalized = normalize_encoding(encoding)
+        _check_real_initializer("obl", normalized)
+        if problem is None:
+            raise ValueError("Opposition-based initializer requires a problem instance for fitness evaluation.")
+        if pop_size <= 0:
+            raise ValueError("pop_size must be positive.")
+        obl = OppositionBasedInitializer(pop_size, xl, xu, problem=problem, rng=rng)
+        if max_evaluations is not None and max_evaluations < obl.n_candidates:
+            raise ValueError(
+                f"{algorithm} with the opposition-based initializer requires max_evaluations >= 2 * pop_size, because it "
+                f"evaluates every random candidate and its opposite (max_evaluations={max_evaluations}, pop_size={pop_size})."
+            )
+        candidates = obl.candidates()
+        F, G = evaluate(candidates)
+        keep = obl.select(F, G)
+        return candidates[keep], F[keep], None if G is None else G[keep], obl.n_candidates
+    X = initialize_population(pop_size, n_var, xl, xu, encoding, rng, problem, initializer=initializer)
+    F, G = evaluate(X)
+    return X, F, G, int(X.shape[0])
+
+
 def evaluate_population(problem: Any, X: DecisionArray) -> NDArray[np.float64]:
     out = {"F": np.empty((X.shape[0], problem.n_obj))}
     problem.evaluate(X, out)
     return out["F"]
 
 
-__all__ = ["resolve_bounds", "initialize_population", "evaluate_population"]
+__all__ = ["resolve_bounds", "initialize_population", "initialize_evaluated_population", "evaluate_population"]

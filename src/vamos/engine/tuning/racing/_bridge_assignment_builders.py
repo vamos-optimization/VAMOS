@@ -5,6 +5,7 @@ from typing import Any
 
 import numpy as np
 
+from vamos.engine.algorithm.components.weight_vectors import largest_weighted_population
 from vamos.engine.algorithm.config import (
     AGEMOEAConfig,
     IBEAConfig,
@@ -85,10 +86,23 @@ def build_nsgaii_config(assignment: dict[str, Any], *, mixed: bool = False) -> N
     return builder.build()
 
 
+def _moead_pop_size(assignment: dict[str, Any]) -> int:
+    """The sampled ``pop_size``; with ``n_obj`` in the assignment, the largest population up to it that has MOEA/D weights.
+
+    With three or more objectives MOEA/D runs only populations whose weights are a complete
+    Das-Dennis lattice or a packaged jMetal file, which the sampled range does not know about.
+    """
+    pop_size = int(assignment["pop_size"])
+    if "n_obj" in assignment:
+        return largest_weighted_population(pop_size, int(assignment["n_obj"]))
+    return pop_size
+
+
 def build_moead_config(assignment: dict[str, Any], *, mixed: bool = False) -> MOEADConfig:
     builder = MOEADConfig.builder()
-    builder.pop_size(int(assignment["pop_size"]))
-    builder.neighbor_size(min(int(assignment["neighbor_size"]), int(assignment["pop_size"])))
+    pop_size = _moead_pop_size(assignment)
+    builder.pop_size(pop_size)
+    builder.neighbor_size(min(int(assignment["neighbor_size"]), pop_size))
     builder.delta(float(assignment["delta"]))
     builder.replace_limit(int(assignment["replace_limit"]))
     cross = str(assignment["crossover"])
@@ -113,14 +127,15 @@ def build_moead_config(assignment: dict[str, Any], *, mixed: bool = False) -> MO
         builder.aggregation("pbi", theta=float(assignment.get("pbi_theta", 5.0)))
     else:
         builder.aggregation(aggregation)
-    apply_optional_external_archive(builder, assignment, int(assignment["pop_size"]))
+    apply_optional_external_archive(builder, assignment, pop_size)
     return builder.build()
 
 
 def build_moead_permutation_config(assignment: dict[str, Any]) -> MOEADConfig:
     builder = MOEADConfig.builder()
-    builder.pop_size(int(assignment["pop_size"]))
-    builder.neighbor_size(min(int(assignment["neighbor_size"]), int(assignment["pop_size"])))
+    pop_size = _moead_pop_size(assignment)
+    builder.pop_size(pop_size)
+    builder.neighbor_size(min(int(assignment["neighbor_size"]), pop_size))
     builder.delta(float(assignment["delta"]))
     builder.replace_limit(int(assignment["replace_limit"]))
     builder.crossover(str(assignment["crossover"]), prob=float(assignment.get("crossover_prob", 0.9)))
@@ -132,7 +147,7 @@ def build_moead_permutation_config(assignment: dict[str, Any]) -> MOEADConfig:
         builder.aggregation("modified_tchebycheff", rho=float(assignment.get("mtch_rho", 0.001)))
     else:
         builder.aggregation(aggregation)
-    apply_optional_external_archive(builder, assignment, int(assignment["pop_size"]))
+    apply_optional_external_archive(builder, assignment, pop_size)
     return builder.build()
 
 

@@ -5,6 +5,9 @@ from typing import Any
 import numpy as np
 from scipy.stats.qmc import Halton, Sobol  # type: ignore[import-untyped]
 
+from vamos.foundation.constraints.utils import compute_violation
+from vamos.foundation.eval.population import evaluate_population_with_constraints
+
 
 class LatinHypercubeInitializer:
     """
@@ -15,8 +18,8 @@ class LatinHypercubeInitializer:
     def __init__(
         self,
         n_solutions: int,
-        lower: np.ndarray,
-        upper: np.ndarray,
+        lower: np.ndarray[Any, Any],
+        upper: np.ndarray[Any, Any],
         rng: np.random.Generator | None = None,
     ) -> None:
         self.n_solutions = int(n_solutions)
@@ -31,7 +34,7 @@ class LatinHypercubeInitializer:
         self.n_var = self.lower.shape[0]
         self.rng = rng or np.random.default_rng()
 
-    def __call__(self) -> np.ndarray:
+    def __call__(self) -> np.ndarray[Any, Any]:
         n = self.n_solutions
         d = self.n_var
         samples = np.empty((n, d), dtype=float)
@@ -51,8 +54,8 @@ class ScatterSearchInitializer:
     def __init__(
         self,
         n_solutions: int,
-        lower: np.ndarray,
-        upper: np.ndarray,
+        lower: np.ndarray[Any, Any],
+        upper: np.ndarray[Any, Any],
         base_size: int = 20,
         rng: np.random.Generator | None = None,
     ) -> None:
@@ -68,7 +71,7 @@ class ScatterSearchInitializer:
         self.base_size = max(1, int(base_size))
         self.rng = rng or np.random.default_rng()
 
-    def __call__(self) -> np.ndarray:
+    def __call__(self) -> np.ndarray[Any, Any]:
         lhs = LatinHypercubeInitializer(self.base_size, self.lower, self.upper, rng=self.rng)
         base = lhs()
         if self.n_solutions <= self.base_size:
@@ -91,8 +94,8 @@ class SobolInitializer:
     def __init__(
         self,
         n_solutions: int,
-        lower: np.ndarray,
-        upper: np.ndarray,
+        lower: np.ndarray[Any, Any],
+        upper: np.ndarray[Any, Any],
         rng: np.random.Generator | None = None,
         scramble: bool = True,
     ) -> None:
@@ -109,7 +112,7 @@ class SobolInitializer:
         self.scramble = scramble
         self.rng = rng or np.random.default_rng()
 
-    def __call__(self) -> np.ndarray:
+    def __call__(self) -> np.ndarray[Any, Any]:
         seed = int(self.rng.integers(0, 2**31))
         sampler = Sobol(d=self.n_var, scramble=self.scramble, seed=seed)
         m = int(np.ceil(np.log2(max(self.n_solutions, 2))))
@@ -127,8 +130,8 @@ class HaltonInitializer:
     def __init__(
         self,
         n_solutions: int,
-        lower: np.ndarray,
-        upper: np.ndarray,
+        lower: np.ndarray[Any, Any],
+        upper: np.ndarray[Any, Any],
         rng: np.random.Generator | None = None,
         scramble: bool = True,
     ) -> None:
@@ -145,7 +148,7 @@ class HaltonInitializer:
         self.scramble = scramble
         self.rng = rng or np.random.default_rng()
 
-    def __call__(self) -> np.ndarray:
+    def __call__(self) -> np.ndarray[Any, Any]:
         seed = int(self.rng.integers(0, 2**31))
         sampler = Halton(d=self.n_var, scramble=self.scramble, seed=seed)
         samples = sampler.random(self.n_solutions)
@@ -158,14 +161,22 @@ class OppositionBasedInitializer:
 
     Generates a random population and its opposition-based counterparts
     (opposite = lower + upper - x), evaluates all 2*n_solutions candidates,
-    and selects the best n_solutions.
+    and selects the best n_solutions: feasible candidates first, then by
+    non-domination rank and crowding distance.
+
+    An algorithm counts the 2*n_solutions evaluations against its budget and
+    keeps the chosen candidates' objective and constraint values: it calls
+    :meth:`candidates`, evaluates them with its own backend and keeps the rows
+    that :meth:`select` returns. Calling the initializer evaluates the
+    candidates with ``problem.evaluate`` and returns only the chosen decision
+    vectors.
     """
 
     def __init__(
         self,
         n_solutions: int,
-        lower: np.ndarray,
-        upper: np.ndarray,
+        lower: np.ndarray[Any, Any],
+        upper: np.ndarray[Any, Any],
         problem: Any,
         rng: np.random.Generator | None = None,
     ) -> None:
@@ -182,32 +193,56 @@ class OppositionBasedInitializer:
         self.problem = problem
         self.rng = rng or np.random.default_rng()
 
-    def __call__(self) -> np.ndarray:
+    @property
+    def n_candidates(self) -> int:
+        """Number of candidates the initializer evaluates: the random points and their opposites."""
+        return 2 * self.n_solutions
+
+    def candidates(self) -> np.ndarray[Any, Any]:
+        """Draw ``n_solutions`` random points and return them stacked over their opposites."""
         X = self.rng.uniform(self.lower, self.upper, size=(self.n_solutions, self.n_var))
         opposites = self.lower + self.upper - X
         np.clip(opposites, self.lower, self.upper, out=opposites)
-        combined = np.vstack((X, opposites))
+        return np.vstack((X, opposites))
 
-        out: dict[str, Any] = {"F": np.empty((combined.shape[0], self.problem.n_obj))}
-        self.problem.evaluate(combined, out)
-        F = out["F"]
+    def select(self, F: np.ndarray[Any, Any], G: np.ndarray[Any, Any] | None = None) -> np.ndarray[Any, Any]:
+        """Indices of the ``n_solutions`` candidates to keep.
 
-        indices = self._select_best(F)
+        Feasible candidates come first. When more are feasible than needed, they
+        are chosen by non-domination rank and crowding distance; when fewer are,
+        the least violated infeasible candidates complete the population.
+        """
+        n = self.n_solutions
+        if G is None:
+            return self._select_best(F, np.arange(F.shape[0]), n)
+        violation = compute_violation(G)
+        feasible = np.flatnonzero(violation <= 0.0)
+        if feasible.size >= n:
+            return self._select_best(F, feasible, n)
+        infeasible = np.flatnonzero(violation > 0.0)
+        least_violated = infeasible[np.argsort(violation[infeasible], kind="stable")]
+        return np.concatenate([feasible, least_violated[: n - feasible.size]])
+
+    def __call__(self) -> np.ndarray[Any, Any]:
+        combined = self.candidates()
+        F, G = evaluate_population_with_constraints(self.problem, combined)
+        indices = self.select(F, G)
         return np.asarray(combined[indices], dtype=float)
 
-    def _select_best(self, F: np.ndarray) -> np.ndarray:
-        n = self.n_solutions
-        if F.shape[1] == 1:
-            return np.argsort(F[:, 0])[:n]
+    @staticmethod
+    def _select_best(F: np.ndarray[Any, Any], rows: np.ndarray[Any, Any], n: int) -> np.ndarray[Any, Any]:
+        F_rows = F[rows]
+        if F_rows.shape[1] == 1:
+            return np.asarray(rows[np.argsort(F_rows[:, 0], kind="stable")[:n]])
         from vamos.foundation.kernel.numpy_backend import (
             _compute_crowding,
             _fast_non_dominated_sort,
             _select_nsga2,
         )
 
-        fronts, _rank = _fast_non_dominated_sort(F)
-        crowding = _compute_crowding(F, fronts)
-        return _select_nsga2(fronts, crowding, n)
+        fronts, _rank = _fast_non_dominated_sort(F_rows)
+        crowding = _compute_crowding(F_rows, fronts)
+        return np.asarray(rows[_select_nsga2(fronts, crowding, n)])
 
 
 __all__ = [

@@ -82,11 +82,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--job-dir", required=True, help="Studio job directory for heartbeat and outcome.")
     parser.add_argument("--operation", choices=("run", "resume", "retry"), required=True)
     parser.add_argument("--retry-failed", action="store_true", help="With resume, also retry failed tasks.")
+    parser.add_argument("--worker-id", default="", help="Token that Studio recorded in job.json for this worker.")
     args = parser.parse_args(argv)
 
     job_dir = Path(args.job_dir)
+    worker_id = str(args.worker_id) or uuid.uuid4().hex
     stop = threading.Event()
-    heartbeat = threading.Thread(target=_beat, args=(job_dir, stop, uuid.uuid4().hex), name="vamos-studio-heartbeat", daemon=True)
+    heartbeat = threading.Thread(target=_beat, args=(job_dir, stop, worker_id), name="vamos-studio-heartbeat", daemon=True)
     previous_handler = signal.signal(signal.SIGTERM, _interrupt_worker)
     try:
         try:
@@ -108,6 +110,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         code = 0
     finally:
         signal.signal(signal.SIGTERM, previous_handler)
+    outcome["worker_id"] = worker_id
     write_json(job_dir / OUTCOME_FILE, outcome)
     return code
 
