@@ -5,7 +5,7 @@ These rules are guardrails for long-term maintainability in a research-oriented 
 
 ## Canonical rules
 Read before any architectural change.
-- Layering and facades: layers depend only in the directions listed in `AGENTS.md`. Public entry points are the curated facades `vamos`, `vamos.algorithms`, `vamos.problems`, and `vamos.ux.api`, and `vamos/__init__.py` stays a small facade.
+- Layering and facades: layers depend only in the directions listed in `AGENTS.md`. Public entry points are the curated facades listed in `AGENTS.md`, and `vamos/__init__.py` stays a small facade.
 - Import-time purity: importing a module runs only imports, constant and type-alias assignments, function and class definitions, decorators, `if TYPE_CHECKING:` blocks, and `if __name__ == "__main__":` blocks. File IO, dynamic imports, environment reads, and initialization live inside functions or CLI entry points.
 - Optional dependencies: core dependencies live in `[project].dependencies`, and heavy or optional libraries only in `[project.optional-dependencies]`. Optional imports are lazy or guarded with `try/except ImportError`. `experiment/external` is the integration boundary for benchmark backends, and Panel imports stay in `ux/panel` and the Studio UI.
 - No shims or allowlists: do not add alternate wrappers for superseded APIs or allowlists for architecture gates. Fix violations at the source and update call sites.

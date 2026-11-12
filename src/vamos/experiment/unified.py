@@ -128,9 +128,18 @@ def optimize(
 
     This function consolidates multiple APIs into a single powerful interface:
     - Accepts problem names (strings) or instances
-    - Supports AutoML with algorithm="auto"
+    - Quick defaults: ``algorithm="auto"`` selects NSGA-II for two objectives
+      and NSGA-III for more, and an omitted ``pop_size`` or ``max_evaluations``
+      is derived from the problem size
     - Handles multi-run studies with seed=[0,1,2,...]
     - Prefer optimize(...) for all runs (explicit options are available).
+
+    The quick defaults suit a first run, not a converged front or a reported
+    comparison: ``pop_size`` is ``min(max(50, 10 * n_var), 200)``, at least 100
+    with three or more objectives, and ``max_evaluations`` is
+    ``min(max(1000, 100 * n_var), 50000)``, at least 5000 with three or more
+    objectives. For ZDT1 (30 variables) that is 200 individuals and 3000
+    evaluations, 15 generations. Pass both for an experiment you report.
 
     Parameters
     ----------
@@ -187,7 +196,7 @@ def optimize(
         callable ``evaluate``.
 
     Examples:
-        # AutoML mode - zero config
+        # Quick defaults
         >>> result = vamos.optimize("zdt1")
 
         # Specify algorithm

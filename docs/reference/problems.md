@@ -33,6 +33,19 @@ print(problem.n_var, problem.n_obj, problem.encoding)  # 12 3 real
 print(problem.xl, problem.xu)
 ```
 
+`vamos.problems` is a curated set of problem classes, not the catalog. It
+holds the members used most in examples and tests: ZDT1–ZDT4 and ZDT6 (pass
+`n_var`), DTLZ1–DTLZ4 and DTLZ7, WFG1–WFG9, CEC2009 UF1–UF3 and CF1, `TSP`,
+and three application examples (`FeatureSelectionProblem`,
+`HyperparameterTuningProblem`, and `WeldedBeamDesignProblem`). These classes
+are stable for 1.x. **Development after 1.1.0:** the classes added since cover
+a whole family and take the variant number and the family's parameters:
+`DASCMOP`, `DCDTLZ`, and `LIRCMOP`. Every registered problem, including the
+families and members without a class (ZDT5, DTLZ5 and DTLZ6, UF4–UF10, LZ09,
+MW, C-DTLZ, LSMOP, ZCAT, RE, and RWA), is available by name through
+`optimize("name")` and `make_problem_selection`, the stable way to build any
+of them.
+
 The tables report the **instantiated** default dimensions. `n` is the number of
 decision variables, `M` the number of objectives, and `G` the number of explicit
 inequality outputs (`G <= 0` is feasible). Zero G means no separate inequality

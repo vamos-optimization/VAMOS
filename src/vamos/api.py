@@ -1,13 +1,14 @@
 """
 User-facing API surface for VAMOS.
 
-This module exposes the small set of stable entrypoints most users need:
-- Programmatic optimization via `optimize`.
-- Problem selection helpers.
-- Basic diagnostics helpers.
+This module exports the same stable names as the top-level ``vamos`` package,
+which examples import from: optimization, problem definition and selection,
+results, and the run and study lifecycles. ``select_survivors``,
+``EnvironmentalSelectionResult``, ``configure_logging`` and ``run_self_check``
+are experimental. See ``docs/project/stability-and-versioning.md``.
 
-For lower-level control, import from the layered packages:
-`vamos.foundation.*`, `vamos.engine.*`, `vamos.experiment.*`, `vamos.ux.*`.
+The layered packages (``vamos.foundation``, ``vamos.engine``,
+``vamos.experiment``, ``vamos.ux``) are internal implementation.
 """
 
 from __future__ import annotations
@@ -60,6 +61,8 @@ def configure_logging(*, level: int = logging.INFO) -> None:
     Attaches a ``StreamHandler`` to the ``"vamos"`` logger if no handlers
     are already present.  This is intentionally opt-in: library code
     must never call ``logging.basicConfig()``.
+
+    Experimental: not covered by the 1.x stability policy.
 
     Parameters
     ----------
