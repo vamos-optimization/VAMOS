@@ -9,9 +9,16 @@ population again for the tournaments, as it does with cdp; jMetal reuses the ran
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+
+from vamos.engine.algorithm.components.constraint_handling import (
+    ConstraintHandlingTechnique,
+    make_constraint_handling,
+    normalize_constraint_handling,
+)
 
 from .helpers import compute_crowding, fronts_from_ranks, select_nsga2
 
@@ -19,6 +26,25 @@ if TYPE_CHECKING:
     from vamos.foundation.kernel.backend import KernelBackend
 
     from .state import NSGAIIState
+
+
+def run_technique(value: object, constraint_mode: str, checkpoint: Mapping[str, Any] | None) -> ConstraintHandlingTechnique | None:
+    """A run's own technique, None for cdp, with the state that the checkpoint it resumes from saved.
+
+    cdp keeps NSGA-II's own feasibility-first survival and selection. Any other technique needs the
+    feasibility constraint mode.
+    """
+    name, params = normalize_constraint_handling(value)
+    if name == "cdp":
+        return None
+    if constraint_mode == "none":
+        raise ValueError(f"constraint_handling {name!r} needs constraint_mode 'feasibility'.")
+    technique = make_constraint_handling((name, params))
+    extra = checkpoint.get("extra") if checkpoint is not None else None
+    state = extra.get("constraint_handling") if isinstance(extra, Mapping) else None
+    if isinstance(state, Mapping):
+        technique.restore(state)
+    return technique
 
 
 def run_progress(st: NSGAIIState) -> float:
@@ -56,4 +82,4 @@ def technique_survival(
     return select_nsga2(fronts, compute_crowding(F, fronts), st.pop_size)
 
 
-__all__ = ["run_progress", "technique_selection_metrics", "technique_survival"]
+__all__ = ["run_progress", "run_technique", "technique_selection_metrics", "technique_survival"]

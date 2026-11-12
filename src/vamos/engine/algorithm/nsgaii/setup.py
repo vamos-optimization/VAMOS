@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
-from vamos.engine.algorithm.components.constraint_handling import make_constraint_handling, normalize_constraint_handling
 from vamos.engine.algorithm.components.evaluation import extract_evaluation_arrays
 from vamos.engine.algorithm.components.population import resolve_bounds
 from vamos.engine.algorithm.components.termination import HVTracker, parse_termination, validate_initial_budget
@@ -26,6 +25,7 @@ from vamos.foundation.eval.backends import EvaluationBackend, SerialEvalBackend
 from vamos.foundation.exceptions import ConfigurationError
 from vamos.foundation.observer import RunContext
 
+from .constrained_survival import run_technique
 from .helpers import fronts_from_ranks
 from .initialization import (
     setup_genealogy,
@@ -79,12 +79,7 @@ def initialize_run(
     replacement_size = 1
 
     constraint_mode = normalize_constraint_mode(algo.cfg.get("constraint_mode", "feasibility"))
-    technique_name, technique_params = normalize_constraint_handling(algo.cfg.get("constraint_handling"))
-    if technique_name != "cdp" and constraint_mode == "none":
-        raise ValueError(f"constraint_handling {technique_name!r} needs constraint_mode 'feasibility'.")
-    # cdp keeps NSGA-II's own feasibility-first survival and selection; a new technique has no state yet.
-    constraint_handling = None if technique_name == "cdp" else make_constraint_handling((technique_name, technique_params))
-    technique_state: Mapping[str, Any] | None = None
+    constraint_handling = run_technique(algo.cfg.get("constraint_handling"), constraint_mode, checkpoint)
     initializer_cfg = algo.cfg.get("initializer")
     X: np.ndarray[Any, Any]
     F: np.ndarray[Any, Any]
@@ -129,7 +124,6 @@ def initialize_run(
             if isinstance(extra, Mapping):
                 step = int(extra.get("step", 0))
                 replacements = int(extra.get("replacements", max(0, n_eval - X.shape[0])))
-                technique_state = extra.get("constraint_handling")
             else:
                 replacements = max(0, n_eval - X.shape[0])
 
@@ -298,8 +292,6 @@ def initialize_run(
         generation_callback=generation_callback,
         generation_callback_copy=generation_callback_copy,
     )
-    if constraint_handling is not None and isinstance(technique_state, Mapping):
-        constraint_handling.restore(technique_state)
     algo._st.steady_step = build_steady_state_step(algo.kernel, algo._st)
     return live_cb, eval_strategy, max_eval, n_eval, hv_tracker
 
