@@ -24,6 +24,16 @@ External packages may expose a builder using the `vamos.algorithms` entry-point 
 my_algorithm = "my_package.vamos_plugin:build_my_algorithm"
 ```
 
+**Development after 1.1.0:** a plugin whose name is that of a built-in algorithm
+(`nsgaii`, `moead`, and the others, in any case) is ignored with a
+`RuntimeWarning`; VAMOS 1.1.0 ignored it silently. Setting the environment
+variable `VAMOS_DISABLE_PLUGINS=1` stops the first use of the algorithm registry
+(`optimize`, `available_algorithms()`, `resolve_algorithm(...)`) from loading
+installed plugins, for example to rule a plugin out of a run;
+`discover_algorithm_plugins()` still loads them when called. The VAMOS 1.0
+compatibility snapshot lists only the built-in algorithms, whatever plugins are
+installed.
+
 ## Required tests
 
 - Registry name and builder resolution.
