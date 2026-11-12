@@ -224,13 +224,13 @@ def test_multiprocessing_backend_timeout_raises():
 
 
 class SlowFirstFailingSecondProblem(DummyProblem):
-    """The chunk holding the first row hangs for 3 s; the other chunk raises at once."""
+    """The chunk holding the first row hangs for 30 s; the other chunk raises at once."""
 
     def evaluate(self, X, out):
         import time
 
         if X[0, 0] == 0.0:
-            time.sleep(3.0)
+            time.sleep(30.0)
             out["F"] = np.sum(X * X, axis=1, keepdims=True)
             return
         raise ValueError("problem failed on its second chunk")
@@ -239,7 +239,8 @@ class SlowFirstFailingSecondProblem(DummyProblem):
 def test_multiprocessing_backend_raises_a_failed_chunk_without_waiting_for_a_hanging_one():
     import time
 
-    backend = MultiprocessingEvalBackend(n_workers=2, timeout=10.0)
+    # The timeout outlasts the hang, so a backend that waited for every chunk would raise the same error, after 30 s.
+    backend = MultiprocessingEvalBackend(n_workers=2, timeout=60.0)
     X = np.array([[0.0, 0.0], [1.0, 1.0]])
 
     start = time.perf_counter()
@@ -249,7 +250,8 @@ def test_multiprocessing_backend_raises_a_failed_chunk_without_waiting_for_a_han
     backend.close()
 
     # The error of the second chunk was available at once, but the first chunk's result was awaited first.
-    assert elapsed < 2.0
+    # Waiting for the hanging chunk takes 30 s; the limit leaves room for starting workers on a loaded machine.
+    assert elapsed < 15.0
 
 
 class CrashingProblem(DummyProblem):
