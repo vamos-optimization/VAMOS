@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
-from dataclasses import fields, replace
+from dataclasses import dataclass, fields, replace
 from typing import Any, cast
 
 import numpy as np
@@ -17,6 +18,31 @@ _CONSTRAINED_TUNING_UNSUPPORTED: tuple[str, ...] = ()
 
 class _UnsupportedConstrainedTuningError(RuntimeError):
     """Raised when maintained CLI tuning cannot score constraints safely."""
+
+
+@dataclass
+class EvaluationTally:
+    """Evaluations of a CLI tuning run and how many failed.
+
+    Only evaluations that run in this process are counted: with ``--n-jobs`` above 1, the racing
+    and random backends evaluate in joblib worker processes and the tally stays empty.
+    """
+
+    total: int = 0
+    failed: int = 0
+
+    def record(self, *, failed: bool) -> None:
+        self.total += 1
+        self.failed += int(failed)
+
+    def warn_if_mostly_failed(self, logger: logging.Logger) -> None:
+        if 2 * self.failed > self.total:
+            logger.warning(
+                "%d of %d tuning evaluations failed and were scored with --failure-score, so the best "
+                "configuration is not reliable; see the '[tune] evaluation failed' warnings above.",
+                self.failed,
+                self.total,
+            )
 
 
 def _ensure_constrained_tuning_supported(algorithm_name: str, n_constraints: int) -> None:

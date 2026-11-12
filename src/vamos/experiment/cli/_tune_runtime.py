@@ -177,6 +177,7 @@ def make_evaluator(
     failure_score: float,
     *,
     logger: Callable[[], Any],
+    tally: _tune_scoring.EvaluationTally | None = None,
 ) -> EvalFn:
     ref_point = parse_ref_point(ref_point_str, n_obj)
 
@@ -224,11 +225,15 @@ def make_evaluator(
                 if _scores_leaders(algo_name, n_constraints):
                     payload["_tuning_score_source"] = "result"
             checkpoint_payload = result.data.get("checkpoint")
+            if tally is not None:
+                tally.record(failed=False)
             return result, cast(CheckpointPayload | None, checkpoint_payload)
         except _tune_scoring._UnsupportedConstrainedTuningError:
             raise
         except Exception:
             logger().warning("[tune] evaluation failed; assigning configured failure score.", exc_info=True)
+            if tally is not None:
+                tally.record(failed=True)
 
             class _EmptyResult:
                 data = {

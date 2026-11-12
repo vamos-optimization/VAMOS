@@ -28,7 +28,6 @@ from ._tune_flow import (
 from ._tune_irace import backend_availability as _backend_availability
 from ._tune_irace import print_backend_table as _print_backend_table
 from ._tune_irace import resolve_irace_work_dir as _resolve_irace_work_dir
-from ._tune_irace import smoke_tune_budget as _smoke_tune_budget
 from ._tune_post import (
     append_summary as _append_summary,
 )
@@ -53,6 +52,9 @@ from ._tune_runtime import (
 from ._tune_runtime import (
     supports_warm_start as _supports_warm_start,
 )
+from ._tune_scoring import EvaluationTally
+from ._tune_smoke import apply_smoke_mode as _apply_smoke_mode
+from ._tune_smoke import smoke_param_space as _smoke_param_space
 from ._tune_utils import (
     parse_csv_ints as _parse_csv_ints,
 )
@@ -68,12 +70,6 @@ from ._tune_utils import (
 from ._tune_utils import (
     split_instances as _split_instances,
 )
-
-_SMOKE_BUDGET = 30
-_SMOKE_TUNE_BUDGET = 4
-_SMOKE_N_SEEDS = 2
-_SMOKE_POP_SIZE = 16
-_SMOKE_N_JOBS = 1
 
 
 def _logger() -> logging.Logger:
@@ -103,44 +99,10 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     )
 
 
-def _clamp_positive(value: int, ceiling: int) -> int:
-    return max(1, min(int(value), int(ceiling)))
-
-
-def _apply_smoke_mode(args: argparse.Namespace) -> dict[str, Any]:
-    args.budget = _clamp_positive(int(args.budget), _SMOKE_BUDGET)
-    args.tune_budget = _smoke_tune_budget(args, _clamp_positive(int(args.tune_budget), _SMOKE_TUNE_BUDGET))
-    args.n_seeds = _clamp_positive(int(args.n_seeds), _SMOKE_N_SEEDS)
-    args.n_jobs = _SMOKE_N_JOBS
-    args.pop_size = _clamp_positive(int(args.pop_size), _SMOKE_POP_SIZE)
-    args.initial_configs = _clamp_positive(int(args.initial_configs), int(args.tune_budget))
-    args.validation_topk = _clamp_positive(int(args.validation_topk), int(args.tune_budget))
-    args.finisher_topk = _clamp_positive(int(args.finisher_topk), int(args.tune_budget))
-    args.run_validation = False
-    args.run_test = False
-    args.run_statistical_finisher = False
-    args.multi_fidelity = False
-    args.show_progress_bar = False
-    if str(args.backend) in MODEL_BACKENDS and str(args.backend_fallback) == "error":
-        args.backend_fallback = "random"
-    return {
-        "budget": int(args.budget),
-        "tune_budget": int(args.tune_budget),
-        "n_seeds": int(args.n_seeds),
-        "n_jobs": int(args.n_jobs),
-        "pop_size": int(args.pop_size),
-        "initial_configs": int(args.initial_configs),
-        "run_validation": bool(args.run_validation),
-        "run_test": bool(args.run_test),
-        "run_statistical_finisher": bool(args.run_statistical_finisher),
-        "multi_fidelity": bool(args.multi_fidelity),
-        "backend_fallback": str(args.backend_fallback),
-    }
-
-
-def _resolve_output_dir(base: Path, run_name: str, *, problem: str, algorithm: str, backend: str, seed: int) -> Path:
+def _resolve_output_dir(base: Path, run_name: str, *, problems: Sequence[str], algorithm: str, backend: str, seed: int) -> Path:
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    suffix = run_name.strip() or f"{problem}_{algorithm}_{backend}_seed{seed}_{ts}"
+    label = "-".join(problems[:3]) + (f"-and-{len(problems) - 3}-more" if len(problems) > 3 else "")
+    suffix = run_name.strip() or f"{label}_{algorithm}_{backend}_seed{seed}_{ts}"
     out = base.expanduser().resolve() / suffix
     out.mkdir(parents=True, exist_ok=True)
     return out
@@ -229,6 +191,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     builder = BUILDERS[str(args.algorithm)]
     algo_space = builder()
     param_space = algo_space.to_param_space() if isinstance(algo_space, AlgorithmConfigSpace) else algo_space
+    if smoke_profile is not None:
+        param_space = _smoke_param_space(param_space, max_population=int(args.pop_size), n_obj=int(args.n_obj))
 
     problem_names = list(_parse_csv_strings(args.instances)) or [str(args.problem)]
     all_instances = [Instance(name=name, n_var=int(args.n_var), kwargs={}) for name in problem_names]
@@ -266,6 +230,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         instances=train_instances,
         seeds=train_seeds,
     )
+    tally = EvaluationTally()
     eval_fn = make_evaluator(
         problem_key=str(args.problem),
         n_var=int(args.n_var),
@@ -277,12 +242,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         runtime_penalty=float(args.runtime_penalty),
         failure_score=float(args.failure_score),
         logger=_logger,
+        tally=tally,
     )
 
     out_dir = _resolve_output_dir(
         args.output_dir,
         str(args.name),
-        problem=str(args.problem),
+        problems=problem_names,
         algorithm=str(args.algorithm),
         backend=str(args.backend),
         seed=int(args.seed),
@@ -323,6 +289,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         run_backend_fn=_run_backend,
         logger=logger,
     )
+    tally.warn_if_mostly_failed(logger)
 
     logger.info("--- Tuning complete ---")
     logger.info("Best configuration:")
