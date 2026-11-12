@@ -18,7 +18,6 @@ two rows each, which another row of the same file dominates.
 - binh2.csv, golinski.csv, osyczka2.csv, water.csv and car_side_impact.csv:
   Binh2.csv, Golinski.csv, Osyczka2.csv, Water.csv and CarSideImpact.csv
 - cec2009_cf2.csv to cec2009_cf10.csv: CEC2009CF2.csv to CEC2009CF10.csv
-- zxh_cf7.3d.csv: CF7.csv
 
 These files are distributed under the license of that repository:
 

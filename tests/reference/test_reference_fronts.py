@@ -432,12 +432,19 @@ def _zxh_cf_designs(problem: Any, F: np.ndarray, n_var: int) -> np.ndarray:
         a0, a1 = 0.5 * np.pi * (1.0 - F[:, 0]), 0.5 * np.pi * theta1
     else:
         G = F if problem.shape == "concave" else 1.0 - F
-        # The mixed shape replaces f1, so the first angle comes from the other two objectives.
-        a0 = (
-            np.arcsin(np.clip(np.hypot(G[:, 1], G[:, 2]), 0.0, 1.0))
-            if problem.shape == "mixed"
-            else np.arctan2(np.hypot(G[:, 1], G[:, 2]), G[:, 0])
-        )
+        if problem.shape == "mixed":
+            # The mixed shape replaces f1 by theta1 + sin(4 pi theta1) / (4 pi), which increases with theta1.
+            # arcsin of the other two objectives loses precision as theta1 nears 1, and inverting f1 where it is
+            # flat (theta1 = 1/4 and 3/4): take the first above 7/8 and the second below.
+            a0 = np.arcsin(np.clip(np.hypot(G[:, 1], G[:, 2]), 0.0, 1.0))
+            lo, hi = np.full(F.shape[0], 0.875), np.ones(F.shape[0])
+            for _ in range(60):
+                mid = 0.5 * (lo + hi)
+                below = mid + np.sin(4.0 * np.pi * mid) / (4.0 * np.pi) < F[:, 0]
+                lo, hi = np.where(below, mid, lo), np.where(below, hi, mid)
+            a0 = np.where(a0 > 0.875 * 0.5 * np.pi, 0.25 * np.pi * (lo + hi), a0)
+        else:
+            a0 = np.arctan2(np.hypot(G[:, 1], G[:, 2]), G[:, 0])
         a1 = np.arctan2(G[:, 2], G[:, 1])
     X = np.full((F.shape[0], n_var), 0.2)
     X[:, :3] = np.column_stack([np.cos(a0), np.sin(a0) * np.cos(a1), np.sin(a0) * np.sin(a1)])

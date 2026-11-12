@@ -12,7 +12,8 @@ provenance of every packaged file, including those this script leaves alone.
 - **Analytic samples** of the Pareto front from its closed form: ZDT1-4 and ZDT6, DTLZ1-7 (M = 3), WFG1 and
   WFG2 (M = 2, from the WFG shape functions, so the bias transformations cannot shift them), LSMOP9 (M = 2),
   CEC2009 UF6 and UF9, and the ten C-DTLZ and DC-DTLZ problems at M = 2 and 3 (``c1dtlz1.2d`` ...
-  ``dc3dtlz3.3d``), and Srinivas, ConstrEx and Tanaka from their Pareto-set pieces and constraint boundaries. Disconnected fronts are filtered for non-dominance on a fine grid and thinned by
+  ``dc3dtlz3.3d``), Srinivas, ConstrEx and Tanaka from their Pareto-set pieces and constraint boundaries, and ZXH-CF1-16 at
+  M = 3 from a grid of angles on their Pareto set. Disconnected fronts are filtered for non-dominance on a fine grid and thinned by
   farthest-point selection. The C-DTLZ and DC-DTLZ samples keep the points of DTLZ's front (C3-DTLZ1: of its
   constraint boundary) at which VAMOS's problem, evaluated at a design rebuilt from the point, is feasible.
 - **The RE authors' fronts:** Tanabe and Ishibuchi's ``reference_points_RE*.dat`` from
@@ -65,10 +66,6 @@ JMETAL_FRONTS = {
     "water": "Water",
     "car_side_impact": "CarSideImpact",
     **{f"cec2009_cf{k}": f"CEC2009CF{k}" for k in range(2, 11)},
-    # ZXH-CF accepts other numbers of objectives; jMetal's fronts have the default three. Only CF7's lies on the
-    # feasible front: every other file has rows that a feasible design dominates or that none reaches
-    # (docs/reference/problems.md, "Reference fronts").
-    "zxh_cf7.3d": "CF7",
 }
 
 # Sampled fronts: packaged size, number of uniform samples and grid points per variable (0 = no grid).
@@ -345,7 +342,28 @@ def _tanaka() -> np.ndarray:
     return _two_variable_front("tanaka", [np.column_stack([radius * np.sin(phi), radius * np.cos(phi)])])
 
 
+def _zxh_cf(k: int) -> np.ndarray:
+    """ZXH-CF``k`` at M = 3: on the Pareto set, S = 1 and h = 0, so the objectives are the front shape of the
+    angles. Designs on a 301 x 301 grid of angles are evaluated by VAMOS's problem, and the feasible,
+    non-dominated ones are kept, thinned to at most 5050."""
+    from vamos.foundation.problem.registry import make_problem_selection
+
+    problem = make_problem_selection(f"zxh_cf{k}").instantiate()
+    grid = np.linspace(0.0, 1.0, 301)
+    theta = np.array(list(itertools.product(grid, repeat=2)))
+    a0, a1 = 0.5 * np.pi * theta[:, 0], 0.5 * np.pi * theta[:, 1]
+    X = np.full((theta.shape[0], problem.n_var), 0.2)
+    X[:, :3] = np.column_stack([np.cos(a0), np.sin(a0) * np.cos(a1), np.sin(a0) * np.sin(a1)])
+    X = np.clip(X, problem.xl, problem.xu)
+    out = {"F": np.empty((X.shape[0], 3))}
+    problem.evaluate(X, out)
+    feasible = np.all(np.asarray(out["G"]) <= 1e-9, axis=1)
+    front = _nondominated(out["F"][feasible])
+    return front[farthest_points(front, 5050)] if front.shape[0] > 5050 else front
+
+
 ANALYTIC: dict[str, Callable[[], np.ndarray]] = {
+    **{f"zxh_cf{k}.3d": (lambda k=k: _zxh_cf(k)) for k in range(1, 17)},
     "srinivas": _srinivas,
     "constrex": _constrex,
     "tanaka": _tanaka,

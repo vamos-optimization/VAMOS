@@ -128,10 +128,10 @@ algorithm with the required constraint support in the [matrix](algorithms.md).
 | `golinski` | 7 | 2 | 11 | Fixed n and M; Golinski's speed reducer | [jMetal][jmetal-classics] | 2D |
 | `water` | 3 | 5 | 7 | Fixed n and M; water resource planning | [jMetal][jmetal-classics] | 5D |
 | `car_side_impact` | 7 | 3 | 10 | Fixed n and M | [jMetal][jmetal-classics] | 3D |
-| `zxh_cf1`–`zxh_cf4` | 13 | 3 | 1–2 | Configurable M; n = M + 10 unless supplied; type A | [ZXH-CF][zxh-cf] | None packaged |
-| `zxh_cf5`–`zxh_cf8` | 13 | 3 | 5–6 | Configurable M; type B, 2k + 1 or 2k + 2 constraints | [ZXH-CF][zxh-cf] | 3D for `zxh_cf7` only |
-| `zxh_cf9`–`zxh_cf12` | 13 | 3 | 3–4 | Configurable M; type C, k + 1 or k + 2 constraints | [ZXH-CF][zxh-cf] | None packaged |
-| `zxh_cf13`–`zxh_cf16` | 13 | 3 | 5–6 | Configurable M; type D, 2k + 1 or 2k + 2 constraints | [ZXH-CF][zxh-cf] | None packaged |
+| `zxh_cf1`–`zxh_cf4` | 13 | 3 | 1–2 | Configurable M; n = M + 10 unless supplied; type A | [ZXH-CF][zxh-cf] | 3D, each |
+| `zxh_cf5`–`zxh_cf8` | 13 | 3 | 5–6 | Configurable M; type B, 2k + 1 or 2k + 2 constraints | [ZXH-CF][zxh-cf] | 3D, each |
+| `zxh_cf9`–`zxh_cf12` | 13 | 3 | 3–4 | Configurable M; type C, k + 1 or k + 2 constraints | [ZXH-CF][zxh-cf] | 3D, each |
+| `zxh_cf13`–`zxh_cf16` | 13 | 3 | 5–6 | Configurable M; type D, 2k + 1 or 2k + 2 constraints | [ZXH-CF][zxh-cf] | 3D, each |
 
 DC-DTLZ's default constants are those of the authors' implementation (Li et
 al., 2019, in the [COLA Laboratory's code][dcdtlz-authors]), which pymoo also
@@ -448,7 +448,7 @@ compatibility or a certified optimum.
   not use those two-column files for three-objective indicators.
 - C-DTLZ, DC-DTLZ, ZCAT and ZXH-CF supply dimension-specific samples, named
   `<key>.<M>d.csv`: at M = 2 and 3 for C-DTLZ and DC-DTLZ, at M = 2, 3, 4
-  and 6 for ZCAT, and at M = 3 for ZXH-CF7. Other objective counts need a
+  and 6 for ZCAT, and at M = 3 for ZXH-CF. Other objective counts need a
   supplied reference.
 
 **Development after 1.1.0:** the automatic lookup takes `<key>.<M>d.csv` or,
@@ -489,7 +489,7 @@ regenerates the files marked as regenerated.
 | `srinivas`, `constrex`, `tanaka` | Regenerated: the feasible, non-dominated designs of the Pareto-set pieces and the constraint boundaries that hold the front, as VAMOS evaluates them, 1000 points. jMetal's samples have dominated points: 310 of Srinivas's 3794 are dominated by another of its points or by a random feasible design, and 774 by those or by the new sample |
 | `mw4`, `mw8`, `mw14` (`.2d` and `.3d`), `mw9`–`mw13` | jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), under `LICENSE-jmetal.txt`; jMetal's MW problems are VAMOS's, which the reference values check |
 | `cec2009_cf2`–`cec2009_cf10` | jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), under `LICENSE-jmetal.txt`; a feasible design on the Pareto set reaches every point. CF4 and CF5, CF6 and CF7, and CF9 and CF10 share their fronts |
-| `zxh_cf7.3d` | jMetal's front (commit `1e4b83cae6`), under `LICENSE-jmetal.txt`; a feasible design on the Pareto set reaches every point. jMetal's other ZXH-CF fronts are not packaged (see the notes) |
+| `zxh_cf1.3d`–`zxh_cf16.3d` | Regenerated: on the Pareto set `S = 1` and `h = 0`, so the objectives are the front shape of the angles; designs on a 301 × 301 grid of angles, evaluated by VAMOS's problem, keep the feasible, non-dominated ones, thinned to 5050 points. A feasible design reaches every point within 1e-9 (see the notes on jMetal's fronts) |
 | `lircmop1`–`lircmop14`, `dascmop1`–`dascmop9` | jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), under its MIT notice in `LICENSE-jmetal.txt`; DAS-CMOP8 and DAS-CMOP9 leave out two rows each, which another row dominates |
 | `c1dtlz1`–`dc3dtlz3`, `.2d` and `.3d`, `c3dtlz4` included | Regenerated: the feasible, non-dominated part of DTLZ's front (C3-DTLZ1 and C3-DTLZ4: of their constraint boundaries), as VAMOS evaluates it; 1000 points at M = 2 and up to 5050 at M = 3 |
 | `zcat*` | Unchanged samples |
@@ -510,7 +510,8 @@ Notes on the table:
   - keeps the polished designs that stay non-dominated, and spreads the
     packaged points by farthest-point selection.
 - **jMetal's ZXH-CF fronts:** only CF7's lies on the feasible front. The
-  others approximate it, so they are not packaged. On the Pareto set `S = 1`
+  others approximate it, so VAMOS generates all sixteen. Their mean distance
+  to VAMOS's samples is 3e-3 to 7e-3. On the Pareto set `S = 1`
   and `h = 0`, so each front point gives its angles and a design on the
   Pareto set at those angles. Against those designs:
   - CF2, CF8, CF11 and CF13 (concave) lie inside the unit sphere, by 2e-5 to
