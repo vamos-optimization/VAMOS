@@ -9,7 +9,13 @@ from .utils import ArrayLike, _check_nvars, _ensure_bounds
 
 
 class DifferentialCrossover(Crossover):
-    """Differential Evolution-style crossover/mutation operator."""
+    """Differential evolution DE/current/1/bin over a whole population.
+
+    Each individual ``x_i`` is the base of its own mutant
+    ``v = x_i + F * (x_r1 - x_r2)``, with ``r1`` and ``r2`` distinct and different
+    from ``i``; binomial crossover with ``CR`` then takes each gene from ``v`` (at
+    least one). The classic DE/rand/1/bin uses a random base ``x_r0`` instead.
+    """
 
     def __init__(self, F: float = 0.5, CR: float = 0.9, *, lower: ArrayLike, upper: ArrayLike) -> None:
         self.F = float(F)
@@ -36,7 +42,12 @@ class DifferentialCrossover(Crossover):
 
 
 class DEMatingCrossover(Crossover):
-    """Differential Evolution crossover for 3-parent mating groups."""
+    """Differential evolution crossover for 3-parent mating groups ``[x, a, b]``.
+
+    The mutant is ``x + F * (a - b)``, and binomial crossover with ``CR`` takes each
+    gene of the child from it (at least one). ``prob_crossover`` is accepted for a
+    uniform operator interface and ignored: every group is recombined.
+    """
 
     def __init__(
         self,
