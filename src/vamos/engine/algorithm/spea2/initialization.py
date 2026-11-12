@@ -27,7 +27,7 @@ from vamos.engine.operators.policies.spea2 import build_variation_operators
 from vamos.foundation.encoding import normalize_encoding
 from vamos.foundation.eval.population import evaluate_population_with_constraints
 
-from .helpers import environmental_selection
+from .helpers import environmental_selection_indices
 from .state import SPEA2State
 
 if TYPE_CHECKING:
@@ -126,9 +126,11 @@ def initialize_spea2_run(
     )
 
     # Environmental selection for initial internal archive
-    env_X, env_F, env_G, selection_raw_fitness, selection_density = environmental_selection(
-        X, F, G, env_archive_size, k_neighbors, constraint_mode, kernel.selection_kernels()
+    env_selected, selection_raw_fitness, selection_density = environmental_selection_indices(
+        F, G, env_archive_size, k_neighbors, constraint_mode, kernel.selection_kernels()
     )
+    env_X, env_F = X[env_selected], F[env_selected]
+    env_G = G[env_selected] if G is not None else None
 
     # Setup external archive (optional, separate from internal)
     ext_cfg = resolve_external_archive(cfg)
@@ -149,6 +151,9 @@ def initialize_spea2_run(
     # Setup genealogy
     track_genealogy = bool(cfg.get("track_genealogy", False))
     genealogy_tracker, ids = setup_genealogy(pop_size, F, track_genealogy, "spea2")
+    if ids is not None:
+        # SPEA2 mates from its archive, so the ids follow the archive rows.
+        ids = ids[env_selected]
 
     ctx = RunContext(
         problem=problem,
