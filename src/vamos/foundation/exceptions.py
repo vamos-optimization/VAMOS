@@ -73,15 +73,9 @@ class InvalidAlgorithmError(ConfigurationError):
     """Raised when an unknown algorithm is specified."""
 
     def __init__(self, algorithm: str, available: list[str] | None = None) -> None:
-        available = available or [
-            "nsgaii",
-            "moead",
-            "spea2",
-            "smsemoa",
-            "nsgaiii",
-            "ibea",
-            "smpso",
-        ]
+        # The built-in identifiers (vamos.engine.algorithm.registry.get_builtin_algorithm_names, which
+        # this layer cannot import); callers that know the registry pass it instead.
+        available = available or ["agemoea", "ibea", "moead", "nsgaii", "nsgaiii", "rvea", "smpso", "smsemoa", "spea2"]
         suggestions = _suggest_names(algorithm, available)
         message = f"Unknown algorithm '{algorithm}'."
         suggestion_parts = [f"Available algorithms: {', '.join(available)}"]
@@ -105,7 +99,7 @@ class InvalidEngineError(ConfigurationError):
         suggestions = _suggest_names(engine, available)
         suggestion_parts = [
             f"Available engines: {', '.join(available)}.",
-            "Install extras with: pip install vamos[compute]",
+            'Install extras with: pip install "vamos-optimization[compute]"',
         ]
         if suggestions:
             if len(suggestions) == 1:
@@ -291,10 +285,8 @@ class BackendNotAvailableError(DependencyError):
 
     def __init__(self, backend: str) -> None:
         feature = f"the '{backend}' backend"
-        if backend == "numba":
-            install_cmd = "pip install vamos[compute]"
-        elif backend == "moocore":
-            install_cmd = "pip install vamos[compute]"
+        if backend in ("numba", "moocore"):
+            install_cmd = 'pip install "vamos-optimization[compute]"'
         else:
             install_cmd = f"pip install {backend}"
         super().__init__(backend, feature, install_cmd)

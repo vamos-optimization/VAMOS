@@ -25,7 +25,7 @@ def _load_numba() -> KernelBackend:
         return cast(KernelBackend, module.NumbaKernel())
     except ImportError as exc:
         raise ImportError(
-            "Kernel 'numba' requires the [compute] extra (numba>=0.57). Install with `pip install -e \".[compute]\"`."
+            "Kernel 'numba' requires the [compute] extra (numba>=0.57). Install with `pip install \"vamos-optimization[compute]\"`."
         ) from exc
 
 
@@ -35,7 +35,7 @@ def _load_moocore() -> KernelBackend:
         return cast(KernelBackend, module.MooCoreKernel())
     except ImportError as exc:
         raise ImportError(
-            "Kernel 'moocore' requires the [compute] extra (moocore>=0.2.0). Install with `pip install -e \".[compute]\"`."
+            "Kernel 'moocore' requires the [compute] extra (moocore>=0.2.0). Install with `pip install \"vamos-optimization[compute]\"`."
         ) from exc
 
 
