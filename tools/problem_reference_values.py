@@ -13,9 +13,10 @@ Run from a checkout, with VAMOS importable and pymoo installed (0.6.2 was used):
 
 ``--classpath`` lists, separated by the platform's path separator, the jmetal-core and
 jmetal-problem 7.8 jars with commons-lang3 and commons-math3; ``tools/jmetal_values/JMetalValues.java``
-runs with Java 17 or later. LIR-CMOP, DAS-CMOP, the classic constrained problems, CEC2009 CF1-CF10 and
-ZXH-CF1-16 come from jMetal's ``main`` at commit ``JMETAL_MAIN_COMMIT``: 7.8 predates LIR-CMOP's
-correction (jMetal #522), has no CEC2009 CF problems and fails to evaluate its ZXH-CF1.
+runs with Java 17 or later. LIR-CMOP, DAS-CMOP, the classic constrained problems, CEC2009 CF1-CF10,
+ZXH-CF1-16, CRE21-CRE51 and RCM01-RCM50 come from jMetal's ``main`` at commit ``JMETAL_MAIN_COMMIT``: 7.8
+predates LIR-CMOP's correction (jMetal #522) and the CRE and RCM corrections (#513 and #514), has no CEC2009 CF
+problems and fails to evaluate its ZXH-CF1.
 ``--classpath-main`` gives the same jars built from that commit. ``--only KEY ...`` regenerates those
 problems and keeps the rest of the fixture, so the other sources are not needed::
 
@@ -66,7 +67,7 @@ JMETAL: dict[str, tuple[str, str]] = {
     **{f"rwa{i}": (f"rwa.RWA{i}", "") for i in (2, 3, 4, 5, 7, 8)},
 }
 # The same, for problems that jMetal's main branch defines as VAMOS does: LIR-CMOP, DAS-CMOP, C3-DTLZ4,
-# the classic constrained problems, the CEC2009 CF problems and ZXH-CF.
+# the classic constrained problems, the CEC2009 CF problems, ZXH-CF, CRE and RCM.
 JMETAL_MAIN_COMMIT = "1e4b83cae6"
 JMETAL_MAIN: dict[str, tuple[str, str]] = {
     **{f"lircmop{k}": (f"lircmop.LIRCMOP{k}", "") for k in range(1, 15)},
@@ -82,6 +83,8 @@ JMETAL_MAIN: dict[str, tuple[str, str]] = {
     "car_side_impact": ("CarSideImpact", ""),
     **{f"cec2009_cf{k}": (f"cec2009.CEC2009CF{k}", "") for k in range(1, 11)},
     **{f"zxh_cf{k}": (f"cf.CF{k}", "") for k in range(1, 17)},
+    **{f"cre{k}": (f"cre.CRE{k}", "") for k in (21, 22, 23, 24, 25, 31, 32, 51)},
+    **{f"rcm{k:02d}": (f"cec2021.RCM{k:02d}", "") for k in range(1, 51)},
 }
 # ZXH-CF9-16 keep angles out of intervals. jMetal stores both bounds of each interval, ``<= 0`` feasible and
 # not negated, after the first one or two constraints (two when the radius r > 0), and precomputes the

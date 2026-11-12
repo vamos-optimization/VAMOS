@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import zlib
 from collections.abc import Callable
 from importlib import resources
 from pathlib import Path
@@ -332,6 +333,68 @@ def test_classic_fronts_are_not_dominated_by_random_feasible_designs(name: str) 
 
     assert front.shape[1] == problem.n_obj and feasible.shape[0] >= 100
     assert not _dominated_by(feasible, front).any()
+
+
+# jMetal's CRE and RCM fronts. Uniform random designs of many of these problems are almost never feasible (those
+# with equality constraints never are), so their fronts cannot be checked this way. Where the feasible set is
+# easy to sample, 50 000 random designs on it are added.
+CRE_RCM = tuple(name for name in _PACKAGED if name.startswith(("cre", "rcm")))
+
+
+def _small_bars(problem: Any, rng: np.random.Generator, n: int) -> np.ndarray[Any, Any]:
+    # CRE21 and RCM03 (two-bar truss): the volume bound 0.1 needs bar areas far below their upper bound 100.
+    X: np.ndarray[Any, Any] = problem.xl + rng.random((n, 3)) * (problem.xu - problem.xl)
+    X[:, :2] = 10.0 ** rng.uniform(-5.0, 2.0, (n, 2))
+    return X
+
+
+def _one_reactor(problem: Any, rng: np.random.Generator, n: int) -> np.ndarray[Any, Any]:
+    # RCM28: y1 + y2 = 1 selects one reactor; its volume v sets the flow that converts 10 units.
+    first, v = rng.random(n) < 0.5, rng.uniform(0.0, 10.0, n)
+    flow = np.where(first, 10.0 / (0.9 * (1.0 - np.exp(-0.5 * v))), 10.0 / (0.8 * (1.0 - np.exp(-0.4 * v))))
+    zero = np.zeros(n)
+    columns = [np.where(first, flow, zero), np.where(first, zero, flow), np.where(first, v, zero), np.where(first, zero, v)]
+    return np.column_stack([*columns, first.astype(float), (~first).astype(float), flow])
+
+
+def _small_flows(problem: Any, rng: np.random.Generator, n: int) -> np.ndarray[Any, Any]:
+    # RCM29: the constraints on x1^2 + x2^2 + x3^2 keep the continuous variables small.
+    return np.column_stack([rng.uniform(0.0, 2.5, (n, 3)), rng.uniform(-0.49, 1.49, (n, 4))])
+
+
+def _sorted_angles(problem: Any, rng: np.random.Generator, n: int) -> np.ndarray[Any, Any]:
+    # RCM30-RCM35 (SOPWM): increasing switching angles are feasible.
+    return np.sort(rng.uniform(0.0, 90.0, (n, problem.n_var)), axis=1)
+
+
+_FEASIBLE_SAMPLERS: dict[str, Callable[[Any, np.random.Generator, int], np.ndarray[Any, Any]]] = {
+    "cre21": _small_bars,
+    "rcm03": _small_bars,
+    "rcm28": _one_reactor,
+    "rcm29": _small_flows,
+    **{f"rcm{k}": _sorted_angles for k in range(30, 36)},
+}
+
+
+@pytest.mark.parametrize("name", CRE_RCM)
+def test_cre_rcm_fronts_are_not_dominated_by_random_feasible_designs(name: str) -> None:
+    problem = make_problem_selection(name).instantiate()
+    rng = np.random.default_rng(zlib.crc32(name.encode()))
+    X = problem.xl + rng.random((50_000, problem.n_var)) * (problem.xu - problem.xl)
+    if name in _FEASIBLE_SAMPLERS:
+        X = np.clip(np.vstack([X, _FEASIBLE_SAMPLERS[name](problem, rng, 50_000)]), problem.xl, problem.xu)
+    F, G = evaluate_population_with_constraints(problem, X)
+    # RCM09 has no constraints.
+    feasible = F if G is None else F[np.all(G <= 0.0, axis=1)]
+    front = _load(name)
+
+    assert front.shape[1] == problem.n_obj
+    if feasible.shape[0] < 100:
+        pytest.skip(f"only {feasible.shape[0]} of {X.shape[0]} random designs of {name} are feasible")
+    # jMetal's files keep ten significant digits: a design must beat a row by more than that in every objective.
+    # (A design on RCM28's feasible set matches the f1 of its first point to 1e-11 and improves its f2 by 9e-6.)
+    precision = 1e-9 * np.maximum(1.0, np.abs(front).max(axis=0))
+    assert not _dominated_by(feasible + precision, front).any()
 
 
 def test_srinivas_front_reaches_the_least_feasible_f1() -> None:
