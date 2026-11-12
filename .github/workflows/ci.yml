@@ -142,9 +142,33 @@ jobs:
       - name: Run minimal smoke tests
         run: python -m pytest tests/integration/test_minimal_imports.py tests/foundation/test_packaging_data.py
 
+  # The declared minimum of every core dependency, on the oldest supported Python.
+  tests-minimum:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install the declared minimum dependencies
+        run: |
+          python -m pip install -U pip
+          python -m pip install -c constraints/ci.txt pytest tomli
+          python tools/minimum_constraints.py > "$RUNNER_TEMP/minimum.txt"
+          cat "$RUNNER_TEMP/minimum.txt"
+          python -m pip install -c "$RUNNER_TEMP/minimum.txt" .
+          python -m pip list
+      - name: Run minimal smoke tests
+        run: python -m pytest tests/integration/test_minimal_imports.py tests/foundation/test_packaging_data.py
+
   build-wheel:
     runs-on: ubuntu-latest
-    needs: [typing, tests-full, tests-minimal]
+    needs: [typing, tests-full, tests-minimal, tests-minimum]
     # A required check: it runs even when a needed job fails, and then fails itself, because
     # GitHub counts a skipped required check as passing, also in the merge queue.
     if: ${{ always() }}
@@ -152,7 +176,7 @@ jobs:
       - name: Require typing and tests
         if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}
         run: |
-          echo "typing=${{ needs.typing.result }} tests-full=${{ needs.tests-full.result }} tests-minimal=${{ needs.tests-minimal.result }}"
+          echo "typing=${{ needs.typing.result }} tests-full=${{ needs.tests-full.result }} tests-minimal=${{ needs.tests-minimal.result }} tests-minimum=${{ needs.tests-minimum.result }}"
           exit 1
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -161,10 +185,11 @@ jobs:
         with:
           python-version: "3.12"
       - name: Build wheel
+        # As the release builds it: the audited build environment, without isolation or the CI pins.
         run: |
-          python -m pip install -U pip build
-          python -m pip install -c constraints/ci.txt -r constraints/ci.txt
-          python -m build
+          python -m pip install -U pip
+          python -m pip install -r release/requirements-build.txt
+          python -m build --no-isolation
       - name: Install wheel and smoke test
         run: |
           python -m pip install dist/*.whl
