@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import numbers
 from collections.abc import Callable
-from dataclasses import dataclass, fields, replace
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
 from vamos.engine.algorithm.config.base import ResultMode
@@ -102,16 +102,6 @@ def _validate_budget_covers_population(cfg: dict[str, object], termination: Term
         )
 
 
-def _with_result_mode(cfg_data: Any, result_mode: ResultMode) -> Any:
-    try:
-        allowed = {field.name for field in fields(cfg_data)}
-    except TypeError:
-        return cfg_data
-    if "result_mode" not in allowed:
-        return cfg_data
-    return replace(cfg_data, result_mode=result_mode)
-
-
 def _run_config(
     config: _OptimizeConfig,
     *,
@@ -208,36 +198,11 @@ def _build_algorithm_config(
     n_obj: int | None,
     encoding: str | None,
 ) -> AlgorithmConfigProtocol:
-    algorithm = algorithm.lower()
+    from vamos.engine.algorithm.config.defaults import build_algorithm_config
+
     # SMPSO's swarm is not elitist: its result is the leaders archive, as in SMPSOConfig.default().
-    result_mode: ResultMode = "non_dominated" if algorithm == "smpso" else "population"
-
-    from vamos.engine.algorithm.config import GenericAlgorithmConfig
-    from vamos.engine.algorithm.config.defaults import build_default_algorithm_config
-
-    default_cfg = build_default_algorithm_config(
-        algorithm,
-        pop_size=pop_size,
-        n_var=n_var,
-        n_obj=n_obj,
-        encoding=encoding,
-    )
-    if default_cfg is not None:
-        return cast(AlgorithmConfigProtocol, _with_result_mode(default_cfg, result_mode))
-
-    registry = get_algorithms_registry()
-    if algorithm in registry:
-        base: dict[str, object] = {}
-        if pop_size is not None:
-            base["pop_size"] = pop_size
-        if n_var is not None:
-            base["n_var"] = n_var
-        if n_obj is not None:
-            base["n_obj"] = n_obj
-        return GenericAlgorithmConfig(base)
-
-    available = sorted(registry.keys())
-    raise InvalidAlgorithmError(algorithm, available=available)
+    result_mode: ResultMode = "non_dominated" if algorithm.lower() == "smpso" else "population"
+    return build_algorithm_config(algorithm, pop_size=pop_size, n_var=n_var, n_obj=n_obj, encoding=encoding, result_mode=result_mode)
 
 
 __all__: list[str] = []

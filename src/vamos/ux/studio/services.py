@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -11,7 +10,6 @@ from numpy.typing import NDArray
 from vamos.engine.algorithm.catalog import DEFAULT_ALGORITHM
 from vamos.engine.algorithm.config import (
     AGEMOEAConfig,
-    GenericAlgorithmConfig,
     IBEAConfig,
     MOEADConfig,
     NSGAIIConfig,
@@ -22,10 +20,9 @@ from vamos.engine.algorithm.config import (
     SPEA2Config,
 )
 from vamos.engine.algorithm.config.base import _SerializableConfig
-from vamos.engine.algorithm.config.defaults import build_default_algorithm_config
+from vamos.engine.algorithm.config.defaults import build_algorithm_config
 from vamos.engine.algorithm.config.types import AlgorithmConfigProtocol
-from vamos.engine.algorithm.registry import get_algorithms_registry, resolve_algorithm
-from vamos.exceptions import InvalidAlgorithmError
+from vamos.engine.algorithm.registry import resolve_algorithm
 from vamos.foundation.eval import EvaluationBackend
 from vamos.foundation.eval.backends import resolve_eval_strategy
 from vamos.foundation.kernel.registry import resolve_kernel
@@ -162,13 +159,6 @@ def build_decision_views(
     ]
 
 
-def _with_result_mode(cfg_data: AlgorithmConfigProtocol, result_mode: str) -> AlgorithmConfigProtocol:
-    fields_map = getattr(cfg_data, "__dataclass_fields__", None)
-    if not isinstance(fields_map, dict) or "result_mode" not in fields_map:
-        return cfg_data
-    return cast(AlgorithmConfigProtocol, replace(cast(Any, cfg_data), result_mode=result_mode))
-
-
 def _build_algorithm_config(
     algorithm: str,
     *,
@@ -177,31 +167,8 @@ def _build_algorithm_config(
     n_obj: int | None,
     encoding: str | None = None,
 ) -> AlgorithmConfigProtocol:
-    algorithm = algorithm.lower()
-    result_mode = "population"
-
-    default_cfg = build_default_algorithm_config(
-        algorithm,
-        pop_size=pop_size,
-        n_var=n_var,
-        n_obj=n_obj,
-        encoding=encoding,
-    )
-    if default_cfg is not None:
-        return _with_result_mode(default_cfg, result_mode)
-
-    registry = get_algorithms_registry()
-    if algorithm in registry:
-        base: dict[str, object] = {}
-        if pop_size is not None:
-            base["pop_size"] = pop_size
-        if n_var is not None:
-            base["n_var"] = n_var
-        if n_obj is not None:
-            base["n_obj"] = n_obj
-        return GenericAlgorithmConfig(base)
-
-    raise InvalidAlgorithmError(algorithm, available=sorted(registry.keys()))
+    # Studio shows the final population of every algorithm, SMPSO's swarm included.
+    return build_algorithm_config(algorithm, pop_size=pop_size, n_var=n_var, n_obj=n_obj, encoding=encoding, result_mode="population")
 
 
 def _run_algorithm(
