@@ -240,6 +240,11 @@ algorithms. Version 1.0.2 applied it only to NSGA-II and MOEA/D.
 | `"auto"`, external/plugin/unknown algorithm | NumPy; no compatibility claim for custom algorithms |
 | `"numpy"`, `"numba"`, `"moocore"` | Exactly the requested engine; unavailable engines raise an error |
 
+**Development after 1.1.0:** an algorithm class built directly without a
+kernel, such as `NSGAII(config)`, also uses NumPy. VAMOS 1.1.0 used Numba there
+whenever Numba was installed. The backends follow the same trajectory, so only
+the speed changes; pass `kernel=NumbaKernel()` to keep the compiled kernels.
+
 Pass `engine="auto"` to `optimize`, `engine="auto"` in `StudySpec`, or
 `--engine auto` on the CLI. It does not install optional packages, benchmark the
 workload, choose MooCore, compile kernels during selection, or consume random
