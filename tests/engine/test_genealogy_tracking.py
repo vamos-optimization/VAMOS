@@ -283,3 +283,45 @@ def test_spea2_genealogy_follows_an_archive_smaller_than_the_population(max_eval
 
     # The ids follow the 10-row archive, also when no generation runs after the initial population.
     assert result["genealogy"]["generation_contributions"]
+
+
+def test_moead_genealogy_credits_the_child_that_replaced_each_subproblem(monkeypatch):
+    import dataclasses
+
+    import numpy as np
+
+    from vamos.foundation.eval.backends import SerialEvalBackend
+
+    problem = ZDT1Problem(n_var=6)
+    cfg = dataclasses.replace(MOEADConfig.default(pop_size=4, n_var=6, n_obj=2), track_genealogy=True, batch_size=2)
+    algorithm = MOEAD(cfg.to_dict(), NumPyKernel())
+    algorithm.run(problem, termination=("max_evaluations", 4), seed=1)
+    st = algorithm._st
+    st.max_evals = 6  # room for one batch of two children
+    algorithm.ask()
+    first_id, second_id = (int(i) for i in st.pending_offspring_ids)
+
+    # Two identical children on the true front, which beat any random initial solution: the first is
+    # offered subproblem 0 only and the second subproblem 3 only, so each replaces one subproblem.
+    child = np.zeros(6)
+    child[0] = 0.5
+    st.pending_offspring = np.vstack([child, child])
+    monkeypatch.setattr(MOEAD, "_build_candidate_orders", lambda self, st, active, use: (np.array([[0], [3]]), np.array([1, 1])))
+    algorithm.tell(SerialEvalBackend().evaluate(st.pending_offspring, problem))
+
+    # Matching the children by their values credited the later identical child for both subproblems.
+    assert (int(st.ids[0]), int(st.ids[3])) == (first_id, second_id)
+
+
+@pytest.mark.parametrize("batch_size", [1, 4])
+def test_moead_tracking_genealogy_does_not_change_the_run(batch_size):
+    import dataclasses
+
+    import numpy as np
+
+    results = []
+    for track in (False, True):
+        cfg = dataclasses.replace(MOEADConfig.default(pop_size=12, n_var=6, n_obj=2), track_genealogy=track, batch_size=batch_size)
+        result = MOEAD(cfg.to_dict(), NumPyKernel()).run(ZDT1Problem(n_var=6), termination=("max_evaluations", 120), seed=3)
+        results.append(np.asarray(result["F"]))
+    np.testing.assert_array_equal(results[0], results[1])
