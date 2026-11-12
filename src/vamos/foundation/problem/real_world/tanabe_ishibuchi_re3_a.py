@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
+
+from vamos.foundation.problem._output import objective_output
 
 from .tanabe_ishibuchi_utils import sum_violations_gte0
 
@@ -17,7 +21,7 @@ class RE31Problem:
         self.xl = np.array([1e-5, 1e-5, 1.0], dtype=float)
         self.xu = np.array([100.0, 100.0, 3.0], dtype=float)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         x1 = X[:, 0]
         x2 = X[:, 1]
         x3 = X[:, 2]
@@ -32,7 +36,7 @@ class RE31Problem:
         g3 = 100000.0 - ((80.0 * root2) / (x3 * x2))
         f3 = sum_violations_gte0(g1, g2, g3)
 
-        Fout = out["F"]
+        Fout = objective_output(out, len(X), self.n_obj)
         Fout[:, 0] = f1
         Fout[:, 1] = f2
         Fout[:, 2] = f3
@@ -57,7 +61,7 @@ class RE32Problem:
         self._tau_max = 13600.0
         self._sigma_max = 30000.0
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         x1, x2, x3, x4 = X[:, 0], X[:, 1], X[:, 2], X[:, 3]
 
         P = self._P
@@ -88,7 +92,7 @@ class RE32Problem:
         g4 = PC - P
         f3 = sum_violations_gte0(g1, g2, g3, g4)
 
-        Fout = out["F"]
+        Fout = objective_output(out, len(X), self.n_obj)
         Fout[:, 0] = f1
         Fout[:, 1] = f2
         Fout[:, 2] = f3
@@ -106,7 +110,7 @@ class RE33Problem:
         self.xl = np.array([55.0, 75.0, 1000.0, 11.0], dtype=float)
         self.xu = np.array([80.0, 110.0, 3000.0, 20.0], dtype=float)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         x1, x2, x3, x4 = X[:, 0], X[:, 1], X[:, 2], X[:, 3]
 
         diff2 = x2 * x2 - x1 * x1
@@ -120,7 +124,7 @@ class RE33Problem:
         g4 = (2.66e-2 * x3 * x4 * diff3) / diff2 - 900.0
         f3 = sum_violations_gte0(g1, g2, g3, g4)
 
-        Fout = out["F"]
+        Fout = objective_output(out, len(X), self.n_obj)
         Fout[:, 0] = f1
         Fout[:, 1] = f2
         Fout[:, 2] = f3
@@ -138,7 +142,7 @@ class RE34Problem:
         self.xl = np.full(self.n_var, 1.0, dtype=float)
         self.xu = np.full(self.n_var, 3.0, dtype=float)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         x1, x2, x3, x4, x5 = X[:, 0], X[:, 1], X[:, 2], X[:, 3], X[:, 4]
 
         f1 = 1640.2823 + (2.3573285 * x1) + (2.3220035 * x2) + (4.5688768 * x3) + (7.7213633 * x4) + (4.4559504 * x5)
@@ -169,7 +173,7 @@ class RE34Problem:
             + (0.0109 * x4 * x4)
         )
 
-        Fout = out["F"]
+        Fout = objective_output(out, len(X), self.n_obj)
         Fout[:, 0] = f1
         Fout[:, 1] = f2
         Fout[:, 2] = f3

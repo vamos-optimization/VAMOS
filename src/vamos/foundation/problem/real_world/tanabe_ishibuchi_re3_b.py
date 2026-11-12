@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
+
+from vamos.foundation.problem._output import objective_output
 
 from .tanabe_ishibuchi_utils import sum_violations_gte0
 
@@ -17,7 +21,7 @@ class RE35Problem:
 
         self.xl = np.array([2.6, 0.7, 17.0, 7.3, 7.3, 2.9, 5.0], dtype=float)
         self.xu = np.array([3.6, 0.8, 28.0, 8.3, 8.3, 3.9, 5.5], dtype=float)
-        self.mixed_spec: dict[str, np.ndarray] = {
+        self.mixed_spec: dict[str, np.ndarray[Any, Any]] = {
             "real_idx": np.array([0, 1, 3, 4, 5, 6], dtype=int),
             "int_idx": np.array([2], dtype=int),
             "cat_idx": np.array([], dtype=int),
@@ -28,7 +32,7 @@ class RE35Problem:
             "cat_cardinality": np.array([], dtype=int),
         }
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         x1 = X[:, 0]
         x2 = X[:, 1]
         x3 = np.clip(np.rint(X[:, 2]), 17, 28).astype(int).astype(float)
@@ -62,7 +66,7 @@ class RE35Problem:
 
         f3 = sum_violations_gte0(g1, g2, g3, g4, g5, g6, g7, g8, g9, g10, g11)
 
-        Fout = out["F"]
+        Fout = objective_output(out, len(X), self.n_obj)
         Fout[:, 0] = f1
         Fout[:, 1] = f2
         Fout[:, 2] = f3
@@ -80,7 +84,7 @@ class RE36Problem:
         self.xl = np.full(self.n_var, 12, dtype=int)
         self.xu = np.full(self.n_var, 60, dtype=int)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         X_int = np.clip(np.rint(X), self.xl, self.xu).astype(int, copy=False)
         x1 = X_int[:, 0].astype(float)
         x2 = X_int[:, 1].astype(float)
@@ -92,7 +96,7 @@ class RE36Problem:
         g1 = 0.5 - (f1 / 6.931)
         f3 = np.maximum(-g1, 0.0)
 
-        Fout = out["F"]
+        Fout = objective_output(out, len(X), self.n_obj)
         Fout[:, 0] = f1
         Fout[:, 1] = f2
         Fout[:, 2] = f3
@@ -110,7 +114,7 @@ class RE37Problem:
         self.xl = np.zeros(self.n_var, dtype=float)
         self.xu = np.ones(self.n_var, dtype=float)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         x1, x2, x3, x4 = X[:, 0], X[:, 1], X[:, 2], X[:, 3]
 
         f1 = (
@@ -173,7 +177,7 @@ class RE37Problem:
             - (0.281 * x2 * x1 * x3)
         )
 
-        Fout = out["F"]
+        Fout = objective_output(out, len(X), self.n_obj)
         Fout[:, 0] = f1
         Fout[:, 1] = f2
         Fout[:, 2] = f3

@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
+
+from vamos.foundation.problem._output import objective_output
 
 
 class RWA9Problem:
@@ -22,7 +26,7 @@ class RWA9Problem:
         self.xl = np.array([5.0, 10.0, 5.0, 6.0, 3.0, 11.5, 17.5, 2.0, 17.5, 2.0], dtype=float)
         self.xu = np.array([7.0, 12.0, 6.0, 7.0, 4.0, 12.5, 22.5, 3.0, 22.5, 3.0], dtype=float)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         a1, a2, b1, b2, d1, d2, l1, l2, w1, w2 = (X[:, i] for i in range(10))
 
         w1n = (w1 - 20.0) / 0.5
@@ -55,7 +59,7 @@ class RWA9Problem:
         b2m55 = (b2 - 5.5) / 0.5
         pg = 1.08 - 0.12 * l1n - 0.26 * w1n - 0.05 * a2n - 0.12 * b2n + 0.08 * a1n * b2n + 0.07 * a2m6 * b2m55
 
-        F = out["F"]
+        F = objective_output(out, len(X), self.n_obj)
         F[:, 0] = vp
         F[:, 1] = -vwi
         F[:, 2] = -vwl
@@ -84,7 +88,7 @@ class RWA10Problem:
         self.xl = np.array([10.0, 10.0, 150.0], dtype=float)
         self.xu = np.array([50.0, 50.0, 170.0], dtype=float)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         ocpc, kfel, ctemp = (X[:, i] for i in range(3))
 
         wca = -1331.04 + 1.99 * ocpc + 0.33 * kfel + 17.12 * ctemp - 0.02 * ocpc * ocpc - 0.05 * ctemp * ctemp
@@ -104,7 +108,7 @@ class RWA10Problem:
         tear = 1954.71 + 14.246 * ocpc + 5.00 * kfel - 4.30 * ctemp - 0.22 * ocpc * ocpc - 0.33 * kfel * kfel
         tensile = 828.16 + 3.55 * ocpc + 73.65 * kfel + 10.80 * ctemp - 0.56 * kfel * ctemp + 0.20 * kfel * kfel
 
-        F = out["F"]
+        F = objective_output(out, len(X), self.n_obj)
         F[:, 0] = -wca
         F[:, 1] = -oca
         F[:, 2] = -ap

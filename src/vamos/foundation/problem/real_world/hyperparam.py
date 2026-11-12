@@ -5,6 +5,8 @@ from typing import Any
 
 import numpy as np
 
+from vamos.foundation.problem._output import objective_output
+
 from ._training import TRAINING_ERRORS, report_training_failures
 
 
@@ -108,7 +110,7 @@ class HyperparameterTuningProblem:
 
     def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         params_list = self._decode_params(X)
-        F = out["F"]
+        F = objective_output(out, len(X), self.n_obj)
         failures: list[Exception] = []
 
         for i, params in enumerate(params_list):

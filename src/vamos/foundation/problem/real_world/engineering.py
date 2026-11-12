@@ -4,6 +4,8 @@ from typing import Any
 
 import numpy as np
 
+from vamos.foundation.problem._output import objective_output
+
 
 class WeldedBeamDesignProblem:
     """
@@ -74,7 +76,7 @@ class WeldedBeamDesignProblem:
         g3 = delta - 0.25
         g4 = h - b  # enforce h <= b
 
-        F = out["F"]
+        F = objective_output(out, len(X), self.n_obj)
         F[:, 0] = cost
         F[:, 1] = delta
         out["G"] = np.vstack([g1, g2, g3, g4]).T
