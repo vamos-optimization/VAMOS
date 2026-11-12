@@ -46,7 +46,7 @@ jmetalpy==1.8.0 ; python_version < "3.11"
 jmetalpy==1.10.0 ; python_version >= "3.11"
 deap==1.4.4
 platypus-opt==1.4.1
-pygmo==2.19.5 ; python_version < "3.11"
+pygmo==2.20.0 ; python_version < "3.11"
 pygmo==2.20.0 ; python_version >= "3.11"
 # Optional tuning backends, exercised by the Ubuntu Python 3.12 test job.
 optuna==5.0.0
