@@ -128,6 +128,17 @@ def test_plan_rejects_tasks_below_the_algorithm_minimums(changes: dict[str, obje
     assert caught.value.execution_occurred is False
 
 
+@pytest.mark.parametrize("selection", [["random", {}], ["tournament", {"size": 1}]], ids=["random", "tournament-1"])
+@pytest.mark.parametrize("algorithm", ["nsgaii", "ibea"])
+def test_plan_accepts_one_individual_without_a_two_candidate_tournament(algorithm: str, selection: list[object]) -> None:
+    # The two-individual minimum belongs to the default tournament; other selections draw from one individual.
+    spec = _spec(
+        seeds=[0], max_evaluations=20, algorithms=[algorithm], algorithm_configs={algorithm: {"pop_size": 1, "selection": selection}}
+    )
+    report = vamos.plan_study(spec)
+    assert report.valid and report.population_sizes == (1,)
+
+
 def test_pl_008_per_algorithm_population_replaces_the_shared_one_before_the_lattice_is_derived() -> None:
     spec = _spec(
         problems=["dtlz2"],

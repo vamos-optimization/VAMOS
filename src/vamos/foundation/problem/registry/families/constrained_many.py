@@ -53,6 +53,15 @@ def get_specs() -> dict[str, ProblemSpec]:
                 description="Constrained DTLZ1 (C3-DTLZ1).",
                 factory=lambda n_var, n_obj: _named("c3dtlz1", n_var, n_obj),
             ),
+            "c3dtlz4": ProblemSpec(
+                key="c3dtlz4",
+                label="C3-DTLZ4",
+                default_n_var=12,
+                default_n_obj=3,
+                allow_n_obj_override=True,
+                description="Constrained DTLZ4 (C3-DTLZ4).",
+                factory=lambda n_var, n_obj: _named("c3dtlz4", n_var, n_obj),
+            ),
             "dc1dtlz1": ProblemSpec(
                 key="dc1dtlz1",
                 label="DC1-DTLZ1",

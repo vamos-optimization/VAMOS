@@ -212,3 +212,63 @@ def test_final_selection_compares_late_survivors_on_shared_blocks_only() -> None
     stranger = ConfigState(config_id=3, config={"q": 0.1}, scores=[100.1], blocks=[(0, 0)])
     best, _ = tuner._finalize_results([newcomer, stranger, veteran])
     assert best is not None and best.config == {"q": 0.9}
+
+
+def _nan_task() -> TuningTask:
+    return TuningTask(
+        name="nan",
+        param_space=ParamSpace(params={"q": Real("q", 0.0, 1.0)}),
+        instances=[Instance("p", 1)],
+        seeds=list(range(40)),
+        budget_per_run=1,
+        maximize=True,
+    )
+
+
+_NAN_QUALITIES = [round(float(q), 2) for q in np.linspace(0.0, 1.0, 11)]
+
+
+def _race_survivors(use_multi_fidelity: bool, *, nan_once_for: float | None) -> tuple[list[float], float, list]:
+    failed_once: set[float] = set()
+
+    def eval_fn(config, ctx):
+        q = float(config["q"])
+        if q == nan_once_for and q not in failed_once:
+            failed_once.add(q)
+            return float("nan")
+        return q + 0.01 * float(np.random.default_rng([ctx.seed, round(q * 100)]).normal())
+
+    fidelity = {"use_multi_fidelity": True, "fidelity_levels": (1, 2, 4)} if use_multi_fidelity else {}
+    scenario = Scenario(max_experiments=2_000, min_survivors=1, **fidelity)
+    tuner = RacingTuner(_nan_task(), scenario, seed=0, max_initial_configs=11, initial_configs=[{"q": q} for q in _NAN_QUALITIES])
+    best, history = tuner.run(eval_fn, verbose=False)
+    return [float(row.config["q"]) for row in history if row.details["alive"]], float(best["q"]), history
+
+
+@pytest.mark.parametrize("use_multi_fidelity", [False, True])
+def test_racing_treats_non_finite_scores_as_failures(use_multi_fidelity: bool) -> None:
+    # One NaN from q=0.5 on its first block used to stop the race: argmax picked the NaN as
+    # the best, every comparison with it was NaN, and all 11 configurations survived 40 stages.
+    reference, _, _ = _race_survivors(use_multi_fidelity, nan_once_for=None)
+
+    survivors, best, history = _race_survivors(use_multi_fidelity, nan_once_for=0.5)
+
+    # The other configurations are eliminated as without the NaN. The failed one can outlive
+    # the t-test, whose variance its failure score inflates, but it is not chosen.
+    assert [q for q in survivors if q != 0.5] == reference
+    assert best == 1.0
+    failed = {float(row.config["q"]): row.details["failed_evaluations"] for row in history}
+    assert failed[0.5] == 1
+    assert sum(failed.values()) == 1
+
+
+def test_racing_raises_when_every_evaluation_fails() -> None:
+    from vamos.engine.tuning.racing.tuning_task import TuningFailedError
+
+    def eval_fn(config, ctx):
+        raise RuntimeError("the algorithm cannot run")
+
+    tuner = RacingTuner(_nan_task(), Scenario(max_experiments=30, min_survivors=1), seed=0, max_initial_configs=3)
+
+    with pytest.raises(TuningFailedError, match="every one of the 30 evaluations failed"):
+        tuner.run(eval_fn, verbose=False)

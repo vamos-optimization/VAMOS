@@ -4,12 +4,15 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from importlib import resources
+from pathlib import Path
 
 import numpy as np
 import pytest
+from scipy.spatial import cKDTree  # type: ignore[import-untyped]
 
 from vamos.foundation.eval.population import evaluate_population_with_constraints
-from vamos.foundation.problem.registry import make_problem_selection
+from vamos.foundation.problem.registry import get_problem_specs, make_problem_selection
+from vamos.foundation.problem.resolver import resolve_reference_front_path
 from vamos.resources import reference_front_path
 
 _FRONTS = resources.files("vamos.resources.reference_fronts")
@@ -105,9 +108,11 @@ _RESIDUALS: dict[str, Callable[[np.ndarray], np.ndarray]] = {
     **{f"lsmop{i}": _sum(1.0) for i in range(1, 5)},
     **{f"lsmop{i}": _sphere for i in range(5, 9)},
     "lsmop9": lambda F: F[:, 1] - 2.0 * (2.0 - F[:, 0] / 2.0 * (1.0 + np.sin(3.0 * np.pi * F[:, 0]))),
-    "c1dtlz3": _sphere,
-    "dc2dtlz1": _sum(0.5),
-    "dc2dtlz3": _sphere,
+    # C-DTLZ and DC-DTLZ fronts are parts of DTLZ's fronts, except C3-DTLZ1's, which lies on its constraints.
+    **{f"{name}.{m}d": _sum(0.5) for name in ("c1dtlz1", "dc1dtlz1", "dc2dtlz1", "dc3dtlz1") for m in (2, 3)},
+    **{f"{name}.{m}d": _sphere for name in ("c1dtlz3", "c2dtlz2", "dc1dtlz3", "dc2dtlz3", "dc3dtlz3") for m in (2, 3)},
+    **{f"c3dtlz1.{m}d": (lambda F: F.sum(axis=1) + F.min(axis=1) - 1.0) for m in (2, 3)},
+    **{f"c3dtlz4.{m}d": (lambda F: np.sum(F * F, axis=1) - 0.75 * np.max(F * F, axis=1) - 1.0) for m in (2, 3)},
 }
 
 
@@ -133,18 +138,230 @@ def test_uf6_reference_front_includes_its_isolated_point() -> None:
     assert np.any(np.all(np.isclose(front, [0.0, 1.0], rtol=0.0, atol=1e-12), axis=1))
 
 
-@pytest.mark.parametrize("name", ["dc2dtlz1", "dc2dtlz3"])
-def test_dc2_reference_fronts_are_feasible(name: str) -> None:
-    # DC2's constraints depend only on g, and g = 0 is feasible (both constraints are -0.1 there), so its
-    # front is the whole DTLZ front. Pareto-set designs: x_i = 0.5 for the distance variables.
-    problem = make_problem_selection(name, n_obj=2).instantiate()
-    X = np.full((201, problem.n_var), 0.5)
-    X[:, 0] = np.linspace(0.0, 1.0, 201)
+CONSTRAINED_DTLZ = (
+    "c1dtlz1",
+    "c1dtlz3",
+    "c2dtlz2",
+    "c3dtlz1",
+    "c3dtlz4",
+    "dc1dtlz1",
+    "dc1dtlz3",
+    "dc2dtlz1",
+    "dc2dtlz3",
+    "dc3dtlz1",
+    "dc3dtlz3",
+)
+CONSTRAINED_DTLZ_FRONTS = [(name, m) for name in CONSTRAINED_DTLZ for m in (2, 3)]
+
+
+def _dtlz_designs(name: str, F: np.ndarray, n_var: int) -> np.ndarray:
+    """Designs whose objectives are ``F`` under DTLZ1's (``*dtlz1``) or DTLZ2/3's closed form.
+
+    The distance variables sit at 0.5, where g = 0, except one that moves C3-DTLZ1 out to g = 2 sum(f) - 1.
+    """
+    n, m = F.shape
+    linear = name.endswith("dtlz1")
+    g = 2.0 * F.sum(axis=1) - 1.0 if linear else np.linalg.norm(F, axis=1) - 1.0
+    X = np.full((n, n_var), 0.5)
+    if linear:
+        s = F / F.sum(axis=1, keepdims=True)
+        rest = np.ones(n)
+        for j in range(m - 1):
+            X[:, j] = 1.0 - np.divide(s[:, m - 1 - j], rest, out=np.zeros(n), where=rest > 1e-15)
+            rest = rest * X[:, j]
+    else:
+        # DTLZ4 raises its position variables to alpha = 100 before the trigonometric mapping.
+        power = 0.01 if name == "c3dtlz4" else 1.0
+        for j in range(m - 1):
+            i = m - 1 - j
+            X[:, j] = (2.0 / np.pi * np.arctan2(F[:, i], np.linalg.norm(F[:, :i], axis=1))) ** power
+    if name == "c3dtlz1":
+        # One distance variable at 0.5 + d gives g = 100 (d^2 - cos(20 pi d) + 1), increasing on [0, 0.05].
+        lo, hi = np.zeros(n), np.full(n, 0.05)
+        for _ in range(80):
+            mid = 0.5 * (lo + hi)
+            below = 100.0 * (mid * mid - np.cos(20.0 * np.pi * mid) + 1.0) < g
+            lo, hi = np.where(below, mid, lo), np.where(below, hi, mid)
+        X[:, m - 1] = 0.5 + 0.5 * (lo + hi)
+    elif name == "c3dtlz4":
+        # DTLZ2's g, shared by every distance variable.
+        X[:, m - 1 :] = 0.5 + np.sqrt(np.maximum(g, 0.0) / (n_var - m + 1))[:, None]
+    return np.clip(X, 0.0, 1.0)
+
+
+def _evaluate(problem: object, X: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     F, G = evaluate_population_with_constraints(problem, X)
-    assert G is not None and np.all(G <= 0.0)
-    front = _load(name)
-    assert front.shape[1] == F.shape[1]
+    assert G is not None
+    return np.asarray(F), np.asarray(G)
+
+
+@pytest.mark.parametrize(("name", "m"), CONSTRAINED_DTLZ_FRONTS)
+def test_constrained_dtlz_fronts_are_reached_by_feasible_designs(name: str, m: int) -> None:
+    problem = make_problem_selection(name, n_obj=m).instantiate()
+    front = _load(f"{name}.{m}d")
+    assert front.shape[1] == m
+
+    F, G = _evaluate(problem, _dtlz_designs(name, front, problem.n_var))
+
+    assert np.max(np.abs(F - front)) <= 1e-9
+    # C3-DTLZ1's points lie on a constraint boundary, where G is 0 up to rounding.
+    assert np.max(G) <= 1e-9
+
+
+@pytest.mark.parametrize(("name", "m"), CONSTRAINED_DTLZ_FRONTS)
+def test_constrained_dtlz_fronts_cover_their_feasible_pareto_sets(name: str, m: int) -> None:
+    problem = make_problem_selection(name, n_obj=m).instantiate()
+    front = _load(f"{name}.{m}d")
+    rng = np.random.default_rng(m)
+    X = np.full((4_000, problem.n_var), 0.5)
+    X[:, : m - 1] = rng.random((4_000, m - 1))
+    if name == "c3dtlz1":
+        # Its Pareto set leaves g = 0: try every distance as well, through one distance variable.
+        X[:, m - 1] = 0.5 + 0.05 * rng.random(4_000)
+    elif name == "c3dtlz4":
+        # Likewise, with DTLZ2's g shared by the distance variables.
+        X[:, m - 1 :] = 0.5 + 0.35 * rng.random(4_000)[:, None]
+    F, G = _evaluate(problem, X)
+    F = F[np.all(G <= 0.0, axis=1)]
+    assert F.shape[0] >= 100
+
+    # No feasible design dominates the front, and the feasible Pareto-optimal designs lie next to it.
     assert not _dominated_by(F, front).any()
+    if not name.startswith("c3"):
+        gap, _ = cKDTree(front).query(F)
+        assert np.max(gap) <= (0.005 if m == 2 else 0.03)
+
+
+def _lircmop_designs(k: int, F: np.ndarray, n_var: int) -> np.ndarray:
+    """Designs whose objectives are ``F`` on LIR-CMOP``k``: the position variables from the closed form, and
+    the distance terms g1 and g2 (LIR-CMOP13 and 14: g) moved by one variable each."""
+    n = F.shape[0]
+    X = np.empty((n, n_var))
+    odd, even = np.arange(2, n_var, 2), np.arange(1, n_var, 2)
+    if k >= 13:
+        radius = np.linalg.norm(F, axis=1)
+        X[:, 0] = 2.0 / np.pi * np.arctan2(F[:, 2], np.linalg.norm(F[:, :2], axis=1))
+        X[:, 1] = 2.0 / np.pi * np.arctan2(F[:, 1], F[:, 0])
+        X[:, 2:] = 0.5
+        X[:, 2] = 0.5 + np.sqrt(np.maximum(radius - 1.7057, 0.0) / 10.0)
+        return X
+    concave = k in {1, 3, 6, 8, 9, 12}
+
+    def shape(x: np.ndarray) -> np.ndarray:
+        return 1.0 - x * x if concave else 1.0 - np.sqrt(x)
+
+    if k <= 4:
+        x0 = F[:, 0] - 0.5
+        g1, g2 = np.full(n, 0.5), F[:, 1] - shape(x0)
+    elif k <= 8:
+        x0 = np.clip(F[:, 0] - 0.7057, 0.0, 1.0)
+        g1, g2 = (F[:, 0] - 0.7057 - x0) / 10.0, (F[:, 1] - 0.7057 - shape(x0)) / 10.0
+    else:
+        # f = 1.7057 * h * (10 g + 1): take g1 = 0 and solve x0 from f1, or, where that leaves g2 < 0 or
+        # x0 > 1, take g2 = 0 and solve x0 from f2.
+
+        def g_for(f: np.ndarray, h: np.ndarray) -> np.ndarray:
+            return np.divide(f / np.where(h > 0.0, h, 1.0) - 1.0, 10.0, out=np.zeros(n), where=h > 0.0)
+
+        x0 = np.clip(F[:, 0] / 1.7057, 0.0, 1.0)
+        g1, g2 = g_for(F[:, 0], 1.7057 * x0), g_for(F[:, 1], 1.7057 * shape(x0))
+        level = np.clip(1.0 - F[:, 1] / 1.7057, 0.0, 1.0)
+        x0_b = np.sqrt(level) if concave else level**2
+        use_b = (g1 < -1e-12) | (g2 < -1e-12) | (F[:, 0] > 1.7057)
+        x0 = np.where(use_b, x0_b, x0)
+        g1 = np.where(use_b, g_for(F[:, 0], 1.7057 * x0_b), g1)
+        g2 = np.where(use_b, 0.0, g2)
+    X[:, 0] = x0
+    if k <= 4:
+        sine, cosine = np.sin(0.5 * np.pi * x0)[:, None], np.cos(0.5 * np.pi * x0)[:, None]
+        sine, cosine = np.broadcast_to(sine, (n, odd.size)), np.broadcast_to(cosine, (n, even.size))
+    else:
+        sine = np.sin(0.5 * (odd + 1) / n_var * np.pi * x0[:, None])
+        cosine = np.cos(0.5 * (even + 1) / n_var * np.pi * x0[:, None])
+    X[:, odd], X[:, even] = sine, cosine
+    for columns, target, g in ((odd, sine, g1), (even, cosine, g2)):
+        # One variable away from its target by sqrt(g), towards whichever bound leaves room.
+        step = np.sqrt(np.maximum(g, 0.0))
+        up = target[:, 0] + step <= 1.0
+        X[:, columns[0]] = np.where(up, target[:, 0] + step, target[:, 0] - step)
+    return X
+
+
+@pytest.mark.parametrize("k", range(1, 15))
+def test_lircmop_fronts_are_reached_by_feasible_designs(k: int) -> None:
+    problem = make_problem_selection(f"lircmop{k}").instantiate()
+    front = _load(f"lircmop{k}")
+
+    F, G = _evaluate(problem, _lircmop_designs(k, front, problem.n_var))
+
+    assert np.max(np.abs(F - front)) <= 1e-9
+    assert G.max() <= 1e-9
+
+
+@pytest.mark.parametrize("k", range(1, 10))
+def test_dascmop_fronts_avoid_the_infeasible_regions_of_objective_space(k: int) -> None:
+    # The constraints on the first variables and on the distance need the design; those on the objectives
+    # (rotated ellipses with two objectives, spheres with three) can be checked on the front itself.
+    from vamos.foundation.problem import dascmop
+
+    problem = dascmop.DASCMOPProblem(k)
+    front = _load(f"dascmop{k}")
+    assert front.shape[1] == problem.n_obj
+    if problem.n_obj == 2:
+        dx, dy = front[:, :1] - np.asarray(dascmop._P), front[:, 1:2] - np.asarray(dascmop._Q)
+        u = dx * np.cos(dascmop._THETA) - dy * np.sin(dascmop._THETA)
+        v = dx * np.sin(dascmop._THETA) + dy * np.cos(dascmop._THETA)
+        outside = u * u / dascmop._SQUARED_A + v * v / dascmop._SQUARED_B - problem._r
+    else:
+        outside = np.sum((front[:, None, :] - np.asarray(dascmop._CENTERS)[None]) ** 2, axis=2) - problem._r**2
+    assert outside.min() >= -1e-8
+
+
+CLASSICS = ("binh2", "constrex", "srinivas", "tanaka", "osyczka2", "golinski", "water", "car_side_impact")
+
+
+@pytest.mark.parametrize("name", CLASSICS)
+def test_classic_fronts_are_not_dominated_by_random_feasible_designs(name: str) -> None:
+    problem = make_problem_selection(name).instantiate()
+    rng = np.random.default_rng(len(name))
+    X = problem.xl + rng.random((50_000, problem.n_var)) * (problem.xu - problem.xl)
+    F, G = _evaluate(problem, X)
+    feasible = F[np.all(G <= 0.0, axis=1)]
+    front = _load(name)
+
+    assert front.shape[1] == problem.n_obj and feasible.shape[0] >= 100
+    assert not _dominated_by(feasible, front).any()
+
+
+def test_srinivas_front_reaches_the_least_feasible_f1() -> None:
+    # The textbook segment x1 = -2.5 starts at f1 = 24.5; the least feasible f1 is 10.1, at (1.1, 3.7).
+    front = _load("srinivas")
+    assert front[:, 0].min() == pytest.approx(10.1, abs=1e-3)
+
+
+@pytest.mark.parametrize("name", [name for name, spec in sorted(get_problem_specs().items())])
+def test_a_resolved_reference_front_has_the_requested_number_of_objectives(name: str) -> None:
+    default = get_problem_specs()[name].default_n_obj
+    for n_obj in (None, 2, 3):
+        path = resolve_reference_front_path(name, None, n_obj=n_obj)
+        if path is not None:
+            assert np.loadtxt(path, delimiter=",", ndmin=2).shape[1] == (default if n_obj is None else n_obj)
+
+
+def test_reference_fronts_are_chosen_by_number_of_objectives() -> None:
+    def resolved(name: str, n_obj: int | None) -> str | None:
+        path = resolve_reference_front_path(name, None, n_obj=n_obj)
+        return None if path is None else Path(path).name
+
+    assert resolved("c1dtlz1", None) == "c1dtlz1.3d.csv"
+    assert resolved("c1dtlz1", 2) == "c1dtlz1.2d.csv"
+    assert resolved("c1dtlz1", 5) is None
+    assert resolved("zcat1", 4) == "zcat1.4d.csv"
+    assert resolved("dtlz2", None) == "dtlz2.csv"
+    # WFG's packaged front has two objectives, and the problem three by default.
+    assert resolved("wfg4", None) is None
+    assert resolved("wfg4", 2) == "wfg4.csv"
+    assert resolve_reference_front_path("wfg4", "my_front.csv", n_obj=3) == "my_front.csv"
 
 
 @pytest.mark.parametrize(("name", "seed"), [("rwa3", 3), ("rwa9", 9), ("rwa10", 10), ("re91", 91)])

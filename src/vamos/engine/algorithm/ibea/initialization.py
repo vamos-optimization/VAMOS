@@ -16,7 +16,7 @@ from vamos.engine.algorithm.components.hooks import get_live_viz, setup_genealog
 from vamos.engine.algorithm.components.lifecycle import evaluate_batch, get_eval_strategy
 from vamos.engine.algorithm.components.metrics import setup_hv_tracker
 from vamos.engine.algorithm.components.population import (
-    initialize_population,
+    initialize_evaluated_population,
     resolve_bounds,
 )
 from vamos.engine.algorithm.components.termination import parse_termination, validate_initial_budget
@@ -70,7 +70,7 @@ def initialize_ibea_run(
     tuple[IBEAState, Any, Any, int, Any]
         (state, live_cb, eval_strategy, max_eval, hv_tracker)
     """
-    max_eval, hv_config = parse_termination(termination, "IBEA")
+    max_eval, hv_config = parse_termination(termination, "IBEA", pop_size=int(cfg["pop_size"]))
 
     live_cb = get_live_viz(live_viz)
     eval_strategy = get_eval_strategy(eval_strategy)
@@ -92,9 +92,19 @@ def initialize_ibea_run(
 
     # Initialize population
     initializer_cfg = cfg.get("initializer")
-    X = initialize_population(pop_size, n_var, xl, xu, encoding, rng, problem, initializer=initializer_cfg)
-    F, G = evaluate_batch(problem, eval_strategy, X, constraint_mode)
-    n_eval = X.shape[0]
+    X, F, G, n_eval = initialize_evaluated_population(
+        pop_size,
+        n_var,
+        xl,
+        xu,
+        encoding,
+        rng,
+        problem,
+        initializer_cfg,
+        evaluate=lambda X: evaluate_batch(problem, eval_strategy, X, constraint_mode),
+        max_evaluations=max_eval,
+        algorithm="IBEA",
+    )
 
     # Tournament size
     sel_method, sel_params = cfg["selection"]

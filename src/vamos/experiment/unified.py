@@ -55,8 +55,8 @@ def _coerce_int(name: str, value: object, *, min_value: int | None = None) -> in
     return parsed
 
 
-def _check_algorithm_minimums(algorithm: str, *, pop_size: int | None = None, n_obj: int | None = None) -> None:
-    violation = minimum_violation(algorithm, pop_size=pop_size, n_obj=n_obj)
+def _check_algorithm_minimums(algorithm: str, *, pop_size: int | None = None, n_obj: int | None = None, selection: object = None) -> None:
+    violation = minimum_violation(algorithm, pop_size=pop_size, n_obj=n_obj, selection=selection)
     if violation is not None:
         raise ConfigurationError(
             violation.message,
@@ -152,7 +152,10 @@ def optimize(
     max_evaluations : int | None, optional
         Maximum function evaluations. Auto-determined when omitted.
     termination : TerminationSpec | None, optional
-        Explicit termination pair, for example ``("max_evaluations", 10000)``.
+        Explicit termination pair: ``("max_evaluations", n)``, ``("n_gen", g)``
+        (``g * pop_size`` evaluations, the initial population included) or
+        ``("hv", {"target_value": t, "reference_point": r, "max_evaluations": n})``.
+        Every built-in algorithm accepts all three; counts must be positive integers.
         With ``max_evaluations`` too, it must be ``("max_evaluations", max_evaluations)``.
     pop_size : int | None, optional
         Population size. Auto-determined when omitted.
@@ -183,6 +186,8 @@ def optimize(
         MOEA/D. Resumed with the same configuration and seed, both continue
         exactly as the uninterrupted run, archive constraints included. A
         checkpoint that cannot be restored raises ``ConfigurationError``.
+        ``max_evaluations`` is the resumed run's total budget, the checkpoint's
+        evaluations included; a smaller budget raises ``ConfigurationError``.
         Multi-seed runs do not accept checkpoints.
 
     Returns
@@ -339,7 +344,8 @@ def _run_single(
     if algorithm == "auto":
         algorithm = _select_algorithm(n_obj, encoding)
         _auto_defaults["algorithm"] = algorithm
-    _check_algorithm_minimums(algorithm, pop_size=pop_size, n_obj=n_obj)
+    # An algorithm_config's population is checked below, with its selection.
+    _check_algorithm_minimums(algorithm, pop_size=pop_size if algorithm_config is None else None, n_obj=n_obj)
 
     # Auto-determine hyperparameters if not specified
     effective_pop_size = pop_size if pop_size else _compute_pop_size(n_var, n_obj)
@@ -411,7 +417,7 @@ def _run_single(
     algo_cfg_dict = dict(algo_cfg.to_dict())
     resolved_pop_size = algo_cfg_dict.get("pop_size")
     if algorithm_config is not None and isinstance(resolved_pop_size, int) and not isinstance(resolved_pop_size, bool):
-        _check_algorithm_minimums(algorithm, pop_size=resolved_pop_size)
+        _check_algorithm_minimums(algorithm, pop_size=resolved_pop_size, selection=algo_cfg_dict.get("selection"))
     if resolved_pop_size is None and algorithm_config is None:
         resolved_pop_size = effective_pop_size
 

@@ -1,17 +1,18 @@
 from __future__ import annotations
 
 import math
+from typing import Any
 
 import numpy as np
 
 from vamos.foundation.problem.base import Problem
 
 
-def _as_float_vector(values: object) -> np.ndarray:
+def _as_float_vector(values: object) -> np.ndarray[Any, Any]:
     return np.asarray(values, dtype=float)
 
 
-def _safe_divide(num: np.ndarray, den: np.ndarray, *, eps: float = 1e-12) -> np.ndarray:
+def _safe_divide(num: np.ndarray[Any, Any], den: np.ndarray[Any, Any], *, eps: float = 1e-12) -> np.ndarray[Any, Any]:
     num_arr = np.asarray(num, dtype=float)
     den_arr = np.asarray(den, dtype=float)
     out = np.zeros_like(num_arr, dtype=float)
@@ -19,21 +20,21 @@ def _safe_divide(num: np.ndarray, den: np.ndarray, *, eps: float = 1e-12) -> np.
     return out
 
 
-def _safe_sqrt(expr: np.ndarray | float) -> np.ndarray:
+def _safe_sqrt(expr: np.ndarray[Any, Any] | float) -> np.ndarray[Any, Any]:
     return _as_float_vector(np.sqrt(np.maximum(np.asarray(expr, dtype=float), 0.0)))
 
 
-def _safe_arcsin(x: np.ndarray) -> np.ndarray:
+def _safe_arcsin(x: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     return _as_float_vector(np.arcsin(np.clip(np.asarray(x, dtype=float), -1.0, 1.0)))
 
 
 def _prepare_output(
-    X: np.ndarray,
-    out: dict[str, np.ndarray],
+    X: np.ndarray[Any, Any],
+    out: dict[str, np.ndarray[Any, Any]],
     *,
     n_var: int,
     n_obj: int,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
     X_arr = np.asarray(X, dtype=float)
     if X_arr.ndim != 2 or X_arr.shape[1] != n_var:
         raise ValueError(f"Expected decision matrix of shape (N, {n_var}).")
@@ -46,15 +47,15 @@ def _prepare_output(
     return X_arr, F
 
 
-def _dtlz_g1(X_m: np.ndarray, k: int) -> np.ndarray:
+def _dtlz_g1(X_m: np.ndarray[Any, Any], k: int) -> np.ndarray[Any, Any]:
     return _as_float_vector(100.0 * (k + np.sum(np.square(X_m - 0.5) - np.cos(20.0 * np.pi * (X_m - 0.5)), axis=1)))
 
 
-def _dtlz_g2(X_m: np.ndarray) -> np.ndarray:
+def _dtlz_g2(X_m: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     return _as_float_vector(np.sum(np.square(X_m - 0.5), axis=1))
 
 
-def _dtlz1_objectives(X_head: np.ndarray, g: np.ndarray, n_obj: int) -> np.ndarray:
+def _dtlz1_objectives(X_head: np.ndarray[Any, Any], g: np.ndarray[Any, Any], n_obj: int) -> np.ndarray[Any, Any]:
     n = X_head.shape[0]
     F = np.empty((n, n_obj), dtype=float)
     for i in range(n_obj):
@@ -68,7 +69,7 @@ def _dtlz1_objectives(X_head: np.ndarray, g: np.ndarray, n_obj: int) -> np.ndarr
     return F
 
 
-def _dtlz23_objectives(X_head: np.ndarray, g: np.ndarray, n_obj: int) -> np.ndarray:
+def _dtlz23_objectives(X_head: np.ndarray[Any, Any], g: np.ndarray[Any, Any], n_obj: int) -> np.ndarray[Any, Any]:
     n = X_head.shape[0]
     F = np.empty((n, n_obj), dtype=float)
     for i in range(n_obj):
@@ -82,16 +83,16 @@ def _dtlz23_objectives(X_head: np.ndarray, g: np.ndarray, n_obj: int) -> np.ndar
     return F
 
 
-def _constraint_c1_linear(F: np.ndarray) -> np.ndarray:
+def _constraint_c1_linear(F: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     return _as_float_vector(-(1.0 - F[:, -1] / 0.6 - np.sum(F[:, :-1] / 0.5, axis=1)))
 
 
-def _constraint_c1_spherical(F: np.ndarray, r: float) -> np.ndarray:
+def _constraint_c1_spherical(F: np.ndarray[Any, Any], r: float) -> np.ndarray[Any, Any]:
     radius = np.sum(F * F, axis=1)
     return _as_float_vector(-(radius - 16.0) * (radius - r * r))
 
 
-def _constraint_c2(F: np.ndarray, r: float) -> np.ndarray:
+def _constraint_c2(F: np.ndarray[Any, Any], r: float) -> np.ndarray[Any, Any]:
     n_obj = F.shape[1]
     sum_sq = np.sum(F * F, axis=1)
 
@@ -105,7 +106,7 @@ def _constraint_c2(F: np.ndarray, r: float) -> np.ndarray:
     return _as_float_vector(np.minimum(v1, v2))
 
 
-def _constraint_c3_linear(F: np.ndarray) -> np.ndarray:
+def _constraint_c3_linear(F: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     n_obj = F.shape[1]
     g_terms = []
     total = np.sum(F, axis=1)
@@ -114,29 +115,32 @@ def _constraint_c3_linear(F: np.ndarray) -> np.ndarray:
     return np.column_stack(g_terms)
 
 
-def _constraint_dc1(X: np.ndarray, a: float = 5.0, b: float = 0.95) -> np.ndarray:
+def _constraint_dc1(X: np.ndarray[Any, Any], a: float, b: float) -> np.ndarray[Any, Any]:
     return b - np.cos(a * np.pi * X[:, 0])
 
 
-def _constraint_dc2(gx: np.ndarray, a: float = 3.0, b: float = 0.9) -> np.ndarray:
-    return np.column_stack(
-        [
-            b - np.cos(gx / 100.0 * np.pi * a),
-            b - np.exp(-gx / 100.0),
-        ]
-    )
+def _constraint_dc2(g: np.ndarray[Any, Any], a: float, b: float) -> np.ndarray[Any, Any]:
+    return np.column_stack([b - np.cos(a * np.pi * g), b - np.exp(-g)])
 
 
-def _constraint_dc3(X: np.ndarray, gx: np.ndarray, a: float = 5.0, b: float = 0.5) -> np.ndarray:
-    g_gx = b - np.cos(a * np.pi * gx)
-    g_x = b - np.cos(a * np.pi * X)
-    return np.column_stack([g_gx, g_x])
+def _constraint_dc3(X: np.ndarray[Any, Any], g: np.ndarray[Any, Any], a: float, b: float) -> np.ndarray[Any, Any]:
+    return np.column_stack([b - np.cos(a * np.pi * g), b - np.cos(a * np.pi * X)])
+
+
+def _constraint_c3_spherical(F: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
+    squared = np.sum(F * F, axis=1, keepdims=True)
+    return np.asarray(-(F * F / 4.0 + squared - F * F - 1.0))
+
+
+# DC-DTLZ's constants in the authors' implementation (Li et al., 2019): a, b, and the factor that turns the
+# objectives' g into the g of the constraints (DC2 divides it by 100; DC1's constraint does not use g).
+DC_DTLZ_AUTHORS = {"dc1": (5.0, 0.95, 1.0), "dc2": (3.0, 0.9, 0.01), "dc3": (5.0, 0.5, 1.0)}
 
 
 class CDTLZProblem(Problem):
     def __init__(self, variant: str, *, n_var: int = 12, n_obj: int = 3, r: float | None = None) -> None:
         key = str(variant).lower()
-        if key not in {"c1dtlz1", "c1dtlz3", "c2dtlz2", "c3dtlz1"}:
+        if key not in {"c1dtlz1", "c1dtlz3", "c2dtlz2", "c3dtlz1", "c3dtlz4"}:
             raise ValueError(f"Unknown C-DTLZ variant '{variant}'.")
         if n_var <= n_obj:
             raise ValueError("C-DTLZ requires n_var > n_obj.")
@@ -144,7 +148,7 @@ class CDTLZProblem(Problem):
         self.variant = key
         self.n_var = int(n_var)
         self.n_obj = int(n_obj)
-        self.n_constraints = self.n_obj if key == "c3dtlz1" else 1
+        self.n_constraints = self.n_obj if key.startswith("c3") else 1
         self.xl = np.zeros(self.n_var, dtype=float)
         self.xu = np.ones(self.n_var, dtype=float)
 
@@ -165,7 +169,7 @@ class CDTLZProblem(Problem):
                 r = 0.5
         self._r = float(r) if r is not None else None
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         X_arr, F_out = _prepare_output(X, out, n_var=self.n_var, n_obj=self.n_obj)
         X_head = X_arr[:, : self.n_obj - 1]
         X_m = X_arr[:, self.n_obj - 1 :]
@@ -180,6 +184,10 @@ class CDTLZProblem(Problem):
         elif self.variant == "c2dtlz2":
             g = _dtlz_g2(X_m)
             F = _dtlz23_objectives(X_head, g, self.n_obj)
+        elif self.variant == "c3dtlz4":
+            # DTLZ4: DTLZ2's distance and its position variables raised to alpha = 100.
+            g = _dtlz_g2(X_m)
+            F = _dtlz23_objectives(X_head**100.0, g, self.n_obj)
         else:  # pragma: no cover - guarded by constructor
             raise RuntimeError("Unexpected C-DTLZ variant.")
 
@@ -189,6 +197,8 @@ class CDTLZProblem(Problem):
             G = _constraint_c1_spherical(F, self._r if self._r is not None else 9.0)[:, None]
         elif self.variant == "c2dtlz2":
             G = _constraint_c2(F, self._r if self._r is not None else 0.4)[:, None]
+        elif self.variant == "c3dtlz4":
+            G = _constraint_c3_spherical(F)
         else:  # c3dtlz1
             G = _constraint_c3_linear(F)
 
@@ -197,12 +207,42 @@ class CDTLZProblem(Problem):
 
 
 class DCDTLZProblem(Problem):
-    def __init__(self, variant: str, *, n_var: int = 12, n_obj: int = 3) -> None:
+    """DC-DTLZ (Li et al., 2019): DTLZ1 and DTLZ3 with constraints that cut their fronts into pieces.
+
+    ``a`` and ``b`` shape the constraints, ``g_factor`` multiplies DTLZ1's distance ``g`` in the objectives,
+    and ``constraint_g_scale`` turns that ``g`` into the one the constraints use. The defaults are the
+    authors': ``a = 5``, ``b = 0.95`` in DC1; ``a = 3``, ``b = 0.9`` and ``g / 100`` in DC2; ``a = 5``,
+    ``b = 0.5`` in DC3; ``g_factor = 100``. jMetal, PlatEMO and STEP use ``a = 3``, ``b = 0.5`` and
+    ``constraint_g_scale = 1`` in all six.
+    """
+
+    def __init__(
+        self,
+        variant: str,
+        *,
+        n_var: int = 12,
+        n_obj: int = 3,
+        a: float | None = None,
+        b: float | None = None,
+        g_factor: float = 100.0,
+        constraint_g_scale: float | None = None,
+    ) -> None:
         key = str(variant).lower()
         if key not in {"dc1dtlz1", "dc1dtlz3", "dc2dtlz1", "dc2dtlz3", "dc3dtlz1", "dc3dtlz3"}:
             raise ValueError(f"Unknown DC-DTLZ variant '{variant}'.")
-        if n_var <= n_obj:
-            raise ValueError("DC-DTLZ requires n_var > n_obj.")
+        if n_var < n_obj - 1:
+            raise ValueError("DC-DTLZ requires n_var >= n_obj - 1, one position variable per objective but the last.")
+        default_a, default_b, default_scale = DC_DTLZ_AUTHORS[key[:3]]
+        self.a = float(default_a if a is None else a)
+        self.b = float(default_b if b is None else b)
+        self.g_factor = float(g_factor)
+        self.constraint_g_scale = float(default_scale if constraint_g_scale is None else constraint_g_scale)
+        if not self.a > 0.0:
+            raise ValueError(f"DC-DTLZ's a must be positive, got {self.a}.")
+        if not -1.0 <= self.b <= 1.0:
+            raise ValueError(f"DC-DTLZ's b must be in [-1, 1], got {self.b}.")
+        if not self.g_factor > 0.0 or not self.constraint_g_scale > 0.0:
+            raise ValueError("DC-DTLZ's g_factor and constraint_g_scale must be positive.")
 
         self.variant = key
         self.n_var = int(n_var)
@@ -216,25 +256,25 @@ class DCDTLZProblem(Problem):
         self.xl = np.zeros(self.n_var, dtype=float)
         self.xu = np.ones(self.n_var, dtype=float)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         X_arr, F_out = _prepare_output(X, out, n_var=self.n_var, n_obj=self.n_obj)
         X_head = X_arr[:, : self.n_obj - 1]
         X_m = X_arr[:, self.n_obj - 1 :]
         k = self.n_var - self.n_obj + 1
 
+        g = _dtlz_g1(X_m, k) * (self.g_factor / 100.0)
         if self.variant.endswith("dtlz1"):
-            g = _dtlz_g1(X_m, k)
             F = _dtlz1_objectives(X_head, g, self.n_obj)
         else:
-            g = _dtlz_g1(X_m, k)
             F = _dtlz23_objectives(X_head, g, self.n_obj)
 
+        g_constraint = g * self.constraint_g_scale
         if self.variant.startswith("dc1"):
-            G = _constraint_dc1(X_arr)[:, None]
+            G = _constraint_dc1(X_arr, self.a, self.b)[:, None]
         elif self.variant.startswith("dc2"):
-            G = _constraint_dc2(g)
+            G = _constraint_dc2(g_constraint, self.a, self.b)
         else:
-            G = _constraint_dc3(X_head, g)
+            G = _constraint_dc3(X_head, g_constraint, self.a, self.b)
 
         F_out[:] = F
         out["G"] = G
@@ -296,18 +336,18 @@ class MWProblem(Problem):
         self.xu = np.full(self.n_var, xu, dtype=float)
 
     @staticmethod
-    def _la1(A: float, B: float, C: float, D: float, theta: np.ndarray) -> np.ndarray:
+    def _la1(A: float, B: float, C: float, D: float, theta: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
         return _as_float_vector(A * np.power(np.sin(B * np.pi * np.power(theta, C)), D))
 
     @staticmethod
-    def _la2(A: float, B: float, C: float, D: float, theta: np.ndarray) -> np.ndarray:
+    def _la2(A: float, B: float, C: float, D: float, theta: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
         return _as_float_vector(A * np.power(np.sin(B * np.power(theta, C)), D))
 
     @staticmethod
-    def _la3(A: float, B: float, C: float, D: float, theta: np.ndarray) -> np.ndarray:
+    def _la3(A: float, B: float, C: float, D: float, theta: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
         return _as_float_vector(A * np.power(np.cos(B * np.power(theta, C)), D))
 
-    def _g1(self, X: np.ndarray) -> np.ndarray:
+    def _g1(self, X: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
         d = self.n_var
         n = d - self.n_obj
         i = np.arange(self.n_obj - 1, d, dtype=float)
@@ -315,18 +355,18 @@ class MWProblem(Problem):
         exp_term = 1.0 - np.exp(-10.0 * np.square(z - 0.5 - i / (2.0 * d)))
         return _as_float_vector(1.0 + np.sum(exp_term, axis=1))
 
-    def _g2(self, X: np.ndarray) -> np.ndarray:
+    def _g2(self, X: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
         d = self.n_var
         i = np.arange(self.n_obj - 1, d, dtype=float)
         z = 1.0 - np.exp(-10.0 * np.square(X[:, self.n_obj - 1 :] - i / d))
         contrib = (0.1 / d) * z * z + 1.5 - 1.5 * np.cos(2.0 * np.pi * z)
         return _as_float_vector(1.0 + np.sum(contrib, axis=1))
 
-    def _g3(self, X: np.ndarray) -> np.ndarray:
+    def _g3(self, X: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
         contrib = 2.0 * np.square(X[:, self.n_obj - 1 :] + np.square(X[:, self.n_obj - 2 : -1] - 0.5) - 1.0)
         return _as_float_vector(1.0 + np.sum(contrib, axis=1))
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         X_arr, F_out = _prepare_output(X, out, n_var=self.n_var, n_obj=self.n_obj)
         idx = self.index
 
@@ -476,7 +516,7 @@ class MWProblem(Problem):
 
 def make_constrained_many_problem(name: str, *, n_var: int, n_obj: int | None) -> object:
     key = str(name).lower()
-    if key in {"c1dtlz1", "c1dtlz3", "c2dtlz2", "c3dtlz1"}:
+    if key in {"c1dtlz1", "c1dtlz3", "c2dtlz2", "c3dtlz1", "c3dtlz4"}:
         return CDTLZProblem(key, n_var=n_var, n_obj=(n_obj if n_obj is not None else 3))
     if key in {"dc1dtlz1", "dc1dtlz3", "dc2dtlz1", "dc2dtlz3", "dc3dtlz1", "dc3dtlz3"}:
         return DCDTLZProblem(key, n_var=n_var, n_obj=(n_obj if n_obj is not None else 3))
@@ -485,4 +525,4 @@ def make_constrained_many_problem(name: str, *, n_var: int, n_obj: int | None) -
     raise KeyError(f"Unknown constrained benchmark '{name}'.")
 
 
-__all__ = ["CDTLZProblem", "DCDTLZProblem", "MWProblem", "make_constrained_many_problem"]
+__all__ = ["DC_DTLZ_AUTHORS", "CDTLZProblem", "DCDTLZProblem", "MWProblem", "make_constrained_many_problem"]

@@ -209,6 +209,12 @@ Multiprocessing evaluation for expensive problems:
 vamos --problem zdt1 --algorithm nsgaii --max-evaluations 8000 --eval-strategy multiprocessing --n-workers 4
 ```
 
+**Development after 1.1.0:** the run keeps one pool of worker processes from
+its first evaluation to its end, instead of starting one per generation, and
+without `--n-workers` it uses the number of CPUs, at most 8. It only pays off
+when each evaluation is expensive. See
+[Multiprocessing evaluation](cookbook.md#11-multiprocessing-evaluation).
+
 Enable Experimental live visualization and save plots (requires the
 [`analysis` extra](installation.md#optional-extras)):
 
@@ -304,8 +310,16 @@ configures (`--nsgaii-crossover sbx`). Before running, the CLI also rejects a
 negative `--seed`, a `--n-var` or `--n-obj` below 1, a different `--n-obj` or
 `--n-var` on a problem with a fixed number of objectives or variables (see the
 [problem catalog](../reference/problems.md)), a `--selection-pressure` larger than the
-population a problem runs with (after its `problems.<name>` overrides), and `--track-genealogy` with an algorithm other than NSGA-II. It
+population a problem runs with (after its `problems.<name>` overrides), and `--track-genealogy` with an algorithm that records no genealogy. It
 warns about algorithm-specific flags that the selected algorithm ignores.
+
+**Development after 1.1.0:** `--track-genealogy` (or `track_genealogy` in a
+config file) works with NSGA-II, MOEA/D, SMS-EMOA, NSGA-III, SPEA2, IBEA and
+SMPSO; AGE-MOEA and RVEA record no genealogy, so the CLI rejects it with them
+and with `--algorithm both`. VAMOS 1.1.0 accepted it only with NSGA-II. In
+the Python API, the genealogy of IBEA, MOEA/D and SPEA2 now follows the
+survivors of each generation (in 1.1.0 it reported that no offspring reached
+the final front), and NSGA-III and IBEA record both parents of each SBX child.
 
 Config files (YAML/JSON)
 ------------------------
@@ -464,10 +478,8 @@ count two such runs, or two such means, as a tie. The
 `n_feasible` column counts the feasible solutions of each run. When a run
 stores no constraint values, `feasibility_known` is `false` and every solution
 counts as feasible: this is the case for unconstrained problems, and for
-constrained runs whose result comes from an archive that keeps no constraint
-values, such as SMPSO with `result_mode: non_dominated`. VAMOS 1.1.0 also
-measured infeasible solutions, so its values for constrained problems are not
-valid.
+SPEA2 and SMPSO with `constraint_mode: none`. VAMOS 1.1.0 also measured
+infeasible solutions, so its values for constrained problems are not valid.
 
 **Development after 1.1.0:** `vamos bench` checks its inputs before any run:
 

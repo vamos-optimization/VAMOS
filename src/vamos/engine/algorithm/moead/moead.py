@@ -326,28 +326,33 @@ class MOEAD:
         pop_size = st.pop_size
 
         st.ideal = np.minimum(st.ideal, F_child.min(axis=0))
+        offspring_ids = st.pending_offspring_ids if st.track_genealogy and st.ids is not None else None
+        st.pending_offspring_ids = None
 
+        # Neighbours are tried in random order, as in MOEA/D-DE and jMetal; the orders are drawn
+        # the same way whether genealogy is tracked or not, so tracking does not change the run.
         if batch_size == 1:
-            child = children[0]
-            child_f = F_child[0]
-            child_g = G_child[0] if G_child is not None else None
-            cv_penalty = float(cv_child[0]) if cv_child is not None else 0.0
-            # Neighbours are tried in random order, as in MOEA/D-DE and jMetal.
             if use_neighbors[0]:
-                candidate_order = st.rng.permutation(st.neighbors[active[0]])
+                orders = [st.rng.permutation(st.neighbors[active[0]])]
             else:
-                candidate_order = st.rng.permutation(pop_size)
+                orders = [st.rng.permutation(pop_size)]
+        else:
+            candidate_orders, candidate_lengths = self._build_candidate_orders(st, active, use_neighbors)
+            orders = [candidate_orders[pos, : int(candidate_lengths[pos])] for pos in range(batch_size)]
+
+        if offspring_ids is not None:
+            self._update_and_record_replacements(st, active, children, F_child, G_child, cv_child, orders, offspring_ids)
+        elif batch_size == 1:
             update_neighborhood(
                 st=st,
                 idx=int(active[0]),
-                child=child,
-                child_f=child_f,
-                child_g=child_g,
-                cv_penalty=cv_penalty,
-                candidate_order=candidate_order,
+                child=children[0],
+                child_f=F_child[0],
+                child_g=G_child[0] if G_child is not None else None,
+                cv_penalty=float(cv_child[0]) if cv_child is not None else 0.0,
+                candidate_order=orders[0],
             )
         else:
-            candidate_orders, candidate_lengths = self._build_candidate_orders(st, active, use_neighbors)
             update_neighborhood_batch(
                 st=st,
                 children=children,
@@ -361,6 +366,40 @@ class MOEAD:
         update_archive(st, st.X, st.F, st.G)
 
         return st.hv_tracker is not None and st.hv_tracker.enabled and st.hv_tracker.reached(st.hv_points())
+
+    @staticmethod
+    def _update_and_record_replacements(
+        st: MOEADState,
+        active: np.ndarray[Any, Any],
+        children: np.ndarray[Any, Any],
+        F_child: np.ndarray[Any, Any],
+        G_child: np.ndarray[Any, Any] | None,
+        cv_child: np.ndarray[Any, Any] | None,
+        orders: list[np.ndarray[Any, Any]],
+        offspring_ids: np.ndarray[Any, Any],
+    ) -> None:
+        """Update the neighbourhoods child by child and give each replaced subproblem that child's id.
+
+        This is the batch update's own loop, so the population is the same. A replacement needs a
+        strictly better aggregation, so it always changes the row's objectives (or violation).
+        """
+        assert st.ids is not None
+        for pos, order in enumerate(orders):
+            before_F = st.F[order].copy()
+            before_cv = st.cv[order].copy() if st.cv is not None else None
+            update_neighborhood(
+                st=st,
+                idx=int(active[pos]),
+                child=children[pos],
+                child_f=F_child[pos],
+                child_g=G_child[pos] if G_child is not None else None,
+                cv_penalty=float(cv_child[pos]) if cv_child is not None else 0.0,
+                candidate_order=order,
+            )
+            replaced = np.any(st.F[order] != before_F, axis=1)
+            if before_cv is not None and st.cv is not None:
+                replaced |= st.cv[order] != before_cv
+            st.ids[order[replaced]] = offspring_ids[pos]
 
     @staticmethod
     def _next_active_indices(st: MOEADState, batch_size: int) -> np.ndarray[Any, Any]:

@@ -5,8 +5,10 @@ from typing import TYPE_CHECKING
 from .common import ProblemFactory, ProblemSpec
 from .families import (
     cec,
+    classic_constrained,
     constrained_many,
     dtlz,
+    lir_das_cmop,
     lsmop,
     lz09,
     misc,
@@ -33,6 +35,8 @@ def _build_problem_specs() -> dict[str, ProblemSpec]:
         cec.get_specs(),
         lsmop.get_specs(),
         constrained_many.get_specs(),
+        classic_constrained.get_specs(),
+        lir_das_cmop.get_specs(),
         wfg.get_specs(),
         zcat.get_specs(),
         misc.get_specs(),

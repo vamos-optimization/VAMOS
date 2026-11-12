@@ -76,8 +76,9 @@ It does not score top-level `result.F`, because that field can refer to an
 external archive for archive-enabled algorithm configurations.
 
 **Development after 1.1.0:** on unconstrained problems, SMPSO is scored on its
-leaders archive instead, because its final swarm is not elitist. The leaders
-carry no constraint values, so constrained SMPSO runs keep scoring the swarm. Persistent Optuna studies for SMPSO
+leaders archive instead, because its final swarm is not elitist. Constrained
+SMPSO runs keep scoring the swarm: the leaders carried no constraint values when
+this contract was set, and scoring them now would change the tuning scores. Persistent Optuna studies for SMPSO
 take the suffix `__vamos_cli_leaders_hv_v1`, so they do not mix with trials
 scored on the swarm.
 
@@ -101,14 +102,28 @@ not mixed into ordinary `vamos tune` comparisons.
 - `--runtime-penalty` changes the scalar score to
   `HV - lambda * log1p(runtime_seconds)`; its default is `0.0`, so the default
   score is plain HV.
-- `--failure-score` has a narrower scope than its name may suggest. Its default
-  is `0.0`, and it is used when the evaluator catches a failure while running
-  the candidate algorithm and therefore has no usable result. It is **not a
-  universal failure policy**: exceptions raised later while scoring HV can
-  propagate in the `random` backend, while racing may substitute its own
-  backend-level sentinel instead of `--failure-score`.
+- `--failure-score` (default `0.0`) is the score of a failed evaluation: a run
+  of the candidate algorithm that raised, or a score that is not finite (see
+  below).
 - `--aggregate-mode` then combines the per-block scores using `mean`, `median`,
   `p25`, or `p10`.
+
+**Development after 1.1.0:** a failed evaluation has one meaning in every
+backend: the run raised, or its score is not finite (NaN or infinite). It
+scores `--failure-score` in `vamos tune` (`TuningTask.failure_score` in Python,
+-1e30 when maximizing and 1e30 when minimizing if unset), it is counted, and the
+model-based backends and irace never receive a NaN. A run that fails in the
+`vamos tune` evaluator is marked as failed instead of scoring like a valid
+front with no point inside the reference, so the validation's `fail_rate`
+counts it, and `tuning_summary.json` records `evaluations` and
+`failed_evaluations` for the tuning phase. Racing, random-search and irace
+histories record `failed_evaluations` per configuration. When every tuning
+evaluation fails, `vamos tune` stops with exit code 1 and the first failure,
+and `RacingTuner` and `RandomSearchTuner` raise `TuningFailedError`. VAMOS 1.1.0
+reported `fail_rate=0` for runs that could not execute, let a single NaN stop
+every elimination of a race, let an exception abort `--backend random`, and
+ended a search in which nothing ran with exit code 0 and an arbitrary
+configuration.
 
 Choose and report a reference point that is meaningful for **all** problems in
 the tuning campaign. The CLI uses the same supplied reference point across the
@@ -342,6 +357,22 @@ change, and keep a parameter only when its parents are kept.
 keep a grandchild such as `x_eta` (active when `x_kind == 'b'`) while its
 grandparent `use_x` was false, in spaces with conditions on the direct parent
 only. The built-in spaces were not affected.
+
+### Populations that depend on the number of objectives
+
+The parameter spaces do not know the problem, but two algorithms need its
+number of objectives: RVEA derives its population from `n_partitions`, and
+MOEA/D needs one weight vector per individual. `vamos tune` adds `n_obj` to the
+assignment of both before building the configuration, and code that builds
+configurations from assignments with `config_from_assignment` must do the same.
+
+**Development after 1.1.0:** with `n_obj` of three or more, MOEA/D runs the
+largest population, at most the sampled `pop_size`, that has weight vectors: a
+complete Das-Dennis lattice or one of the packaged jMetal weight files. A
+sampled `pop_size` of 60 thus runs 55 individuals with three objectives, the
+lattice of nine divisions, and a lattice is never truncated. Before, `vamos
+tune` did not pass `n_obj` to MOEA/D, and every other sampled population failed
+and got the failure score: most MOEA/D candidates on a three-objective problem.
 
 `optuna` and `bohb_optuna` suggest parents before the parameters that depend on
 them, whatever their declaration order, and record only active suggestions in

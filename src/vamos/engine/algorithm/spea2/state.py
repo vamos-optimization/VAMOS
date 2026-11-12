@@ -15,7 +15,13 @@ from typing import Any
 
 import numpy as np
 
-from vamos.engine.algorithm.components.results import feasible_result_indices, get_external_archive_contents, wants_population_result
+from vamos.engine.algorithm.components.results import (
+    feasible_result_indices,
+    get_external_archive_constraints,
+    get_external_archive_contents,
+    wants_population_result,
+    with_constraints,
+)
 from vamos.engine.algorithm.components.state import AlgorithmState
 
 
@@ -72,14 +78,16 @@ def build_spea2_result(state: SPEA2State, hv_reached: bool = False, kernel: Any 
         Result dictionary with X, F, evaluations, archive, population,
         and optionally G for constrained problems.
     """
+    handles_constraints = state.constraint_mode != "none"
     archive_contents = get_external_archive_contents(state)
+    archive_G = get_external_archive_constraints(state) if handles_constraints else None
     if wants_population_result(state):
         result_X = state.X
         result_F = state.F
-        result_G = state.G if state.constraint_mode != "none" else None
+        result_G = state.G if handles_constraints else None
     elif archive_contents is not None:
         result_X, result_F = archive_contents
-        result_G = None
+        result_G = archive_G
     else:
         assert state.env_X is not None
         assert state.env_F is not None
@@ -87,7 +95,7 @@ def build_spea2_result(state: SPEA2State, hv_reached: bool = False, kernel: Any 
         # does not fill it; return its non-dominated members, feasible ones first.
         selected = feasible_result_indices(state.env_F, state.env_G, state.constraint_mode, kernel)
         result_X, result_F = state.env_X[selected], state.env_F[selected]
-        result_G = state.env_G[selected] if state.env_G is not None and state.constraint_mode != "none" else None
+        result_G = state.env_G[selected] if state.env_G is not None and handles_constraints else None
 
     result: dict[str, Any] = {
         "X": result_X,
@@ -98,14 +106,13 @@ def build_spea2_result(state: SPEA2State, hv_reached: bool = False, kernel: Any 
     kernel_profiler = getattr(state, "kernel_profiler", None)
     if kernel_profiler is not None:
         result["kernel_profile"] = kernel_profiler.summary()
-    if result_G is not None:
-        result["G"] = result_G
-    result["archive"] = {"X": state.env_X, "F": state.env_F}
-    result["population"] = {"X": state.X, "F": state.F}
+    with_constraints(result, result_G)
+    result["archive"] = with_constraints({"X": state.env_X, "F": state.env_F}, state.env_G if handles_constraints else None)
+    result["population"] = with_constraints({"X": state.X, "F": state.F}, state.G if handles_constraints else None)
 
     if archive_contents is not None:
         archive_X, archive_F = archive_contents
-        result["external_archive"] = {"X": archive_X, "F": archive_F}
+        result["external_archive"] = with_constraints({"X": archive_X, "F": archive_F}, archive_G)
 
     return result
 

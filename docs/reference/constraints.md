@@ -92,6 +92,31 @@ Hypervolume and other objective-space metrics do not establish feasibility.
 Filter to feasible solutions first and apply the same feasibility rule to every
 algorithm in a comparison.
 
+## Read the feasibility of a result
+
+**Development after 1.1.0:** every solution array of a result carries the
+constraint values of its rows: `result.data["G"]` for `result.X`, and `"G"` in
+`result.data["population"]` and in the external archive's entry. The archive's
+entry is `result.data["archive"]` for most algorithms, `archive_G` next to
+`archive_X` for NSGA-III and IBEA, and `result.data["external_archive"]` for
+SPEA2, whose `archive` is its environmental archive. SPEA2 and SMPSO omit
+them with `constraint_mode="none"`. VAMOS 1.1.0 dropped them whenever the result
+came from an external archive or SMPSO's leaders, and from the population of
+most algorithms.
+
+`result.feasibility()` summarizes the top-level rows:
+
+```python
+summary = result.feasibility()
+# {"n_solutions": 40, "n_feasible": 37, "min_violation": 0.0}
+```
+
+The violation of a row is the sum of the positive parts of its constraint
+values. `min_violation` is 0 when a row is feasible. A run without a feasible
+solution has `n_feasible == 0` and the violation of its least violated row,
+which is what feasibility-first comparisons, such as those of constrained
+algorithm tuning, rank such runs by.
+
 For a fuller modeling example, read
 [Solve your own problem](../guide/custom-problem.md). Contributors who need the
 implementation-level strategies can consult the

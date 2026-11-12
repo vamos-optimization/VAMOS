@@ -61,7 +61,8 @@ def test_tuning_docs_match_current_contract() -> None:
     assert "[10.0, ..., 10.0]" in text
     assert "--runtime-penalty" in text
     assert "--failure-score" in text
-    assert "not a\n  universal failure policy" in text
+    assert "is the score of a failed evaluation" in text
+    assert "a failed evaluation has one meaning in every\nbackend" in text
     assert "should not be relied on to rescue an invalid HV scoring" in text
     assert "current maintained CLI cannot select it" in text
 

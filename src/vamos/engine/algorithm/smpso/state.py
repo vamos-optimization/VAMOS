@@ -7,6 +7,7 @@ from typing import Any
 
 import numpy as np
 
+from vamos.engine.algorithm.components.results import with_constraints
 from vamos.engine.algorithm.components.state import AlgorithmState
 
 
@@ -66,38 +67,46 @@ def build_smpso_result(state: SMPSOState, hv_reached: bool = False) -> dict[str,
     # The inherited archive is SMPSO's internal leaders archive. Keep it as the
     # default non-dominated result source when no explicit external result
     # archive is configured.
+    handles_constraints = state.G is not None and state.constraint_mode != "none"
     leaders_X = state.archive_X
     leaders_F = state.archive_F
+    leaders_G = None
     if state.archive_manager is not None:
         leaders_X, leaders_F = state.archive_manager.contents()
+        leaders_G = state.archive_manager.constraint_values()
 
-    external_X = external_F = None
+    external_X = external_F = external_G = None
     if state.result_archive is not None:
         external_X, external_F = state.result_archive.contents()
+        external_G = state.result_archive.constraint_values()
 
     archive_X = external_X if external_X is not None else leaders_X
     archive_F = external_F if external_F is not None else leaders_F
+    archive_G = (external_G if external_X is not None else leaders_G) if handles_constraints else None
 
     result_mode = str(state.result_mode or "non_dominated").strip().lower()
     if result_mode == "population":
         result_X = state.X
         result_F = state.F
         result_G = state.G if state.constraint_mode != "none" else None
+    elif archive_X is not None and archive_X.size:
+        result_X = archive_X
+        result_F = archive_F if archive_F is not None else state.F
+        result_G = archive_G
     else:
-        result_X = archive_X if archive_X is not None and archive_X.size else state.X
-        result_F = archive_F if archive_F is not None and archive_F.size else state.F
-        result_G = None
+        result_X = state.X
+        result_F = state.F
+        result_G = state.G if handles_constraints else None
 
     result: dict[str, Any] = {
         "X": result_X,
         "F": result_F,
         "evaluations": state.n_eval,
         "hv_reached": hv_reached,
-        "archive": {"X": archive_X, "F": archive_F},
+        "archive": with_constraints({"X": archive_X, "F": archive_F}, archive_G),
         "population": pop,
     }
-    if result_G is not None:
-        result["G"] = result_G
+    with_constraints(result, result_G)
     return result
 
 

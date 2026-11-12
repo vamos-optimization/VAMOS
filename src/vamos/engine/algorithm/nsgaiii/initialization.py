@@ -18,7 +18,7 @@ import numpy as np
 from vamos.engine.algorithm.components.hooks import get_live_viz, setup_genealogy
 from vamos.engine.algorithm.components.lifecycle import evaluate_batch, get_eval_strategy
 from vamos.engine.algorithm.components.metrics import setup_hv_tracker
-from vamos.engine.algorithm.components.population import initialize_population as initialize_decision_population
+from vamos.engine.algorithm.components.population import initialize_evaluated_population
 from vamos.engine.algorithm.components.termination import parse_termination, validate_initial_budget
 from vamos.engine.algorithm.components.utils import resolve_bounds_array
 from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors
@@ -77,7 +77,7 @@ def initialize_nsgaiii_run(
     tuple
         (state, live_cb, eval_strategy, max_eval, hv_tracker)
     """
-    max_eval, hv_config = parse_termination(termination, "NSGAIII")
+    max_eval, hv_config = parse_termination(termination, "NSGA-III", pop_size=int(config["pop_size"]))
 
     live_cb = get_live_viz(live_viz)
     eval_strategy = get_eval_strategy(eval_strategy)
@@ -163,7 +163,7 @@ def initialize_nsgaiii_run(
     ref_dirs_norm[np.isnan(ref_dirs_norm)] = 0.0
 
     # Initialize population
-    X, F, G = initialize_population(
+    X, F, G, n_eval = initialize_population(
         encoding,
         pop_size,
         n_var,
@@ -174,8 +174,8 @@ def initialize_nsgaiii_run(
         eval_strategy,
         constraint_mode,
         initializer=config.get("initializer"),
+        max_evaluations=max_eval,
     )
-    n_eval = pop_size
 
     # Setup genealogy tracking
     track_genealogy = bool(config.get("track_genealogy", False))
@@ -236,8 +236,9 @@ def initialize_population(
     eval_strategy: EvaluationBackend,
     constraint_mode: str,
     initializer: dict[str, Any] | None = None,
-) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any] | None]:
-    """Initialize population based on encoding.
+    max_evaluations: int | None = None,
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any] | None, int]:
+    """Initialize and evaluate the population based on encoding.
 
     Parameters
     ----------
@@ -258,13 +259,25 @@ def initialize_population(
     constraint_mode : str
         Constraint handling mode.
 
+    max_evaluations : int | None
+        Evaluation budget of the run; the opposition-based initializer needs ``2 * pop_size``.
+
     Returns
     -------
     tuple
-        (X, F, G) initial population, objectives, and constraints.
+        (X, F, G, n_eval): initial population, objectives, constraints, and every
+        evaluation the initialization took.
     """
-    normalized = normalize_encoding(encoding)
-    X = initialize_decision_population(pop_size, n_var, xl, xu, normalized, rng, problem, initializer=initializer)
-
-    F, G = evaluate_batch(problem, eval_strategy, X, constraint_mode)
-    return X, F, G
+    return initialize_evaluated_population(
+        pop_size,
+        n_var,
+        xl,
+        xu,
+        normalize_encoding(encoding),
+        rng,
+        problem,
+        initializer,
+        evaluate=lambda X: evaluate_batch(problem, eval_strategy, X, constraint_mode),
+        max_evaluations=max_evaluations,
+        algorithm="NSGA-III",
+    )

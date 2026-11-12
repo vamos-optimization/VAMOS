@@ -136,6 +136,13 @@ vamos studio --address 0.0.0.0 --allow-remote-binding --no-browser --allow-webso
 - **Batch Comparison** runs several algorithms on several problems for
   consecutive seeds as a durable study in a background process, follows its
   progress, and reports hypervolume with CSV and LaTeX downloads.
+  **Development after 1.1.0:** every algorithm it offers for an integer
+  problem runs. In VAMOS 1.1.0 the tasks of MOEA/D, SMS-EMOA, NSGA-III and
+  SPEA2 on an integer problem failed although the plan was valid, and so did
+  `vamos reproduce` of their integer runs. Two Studio sessions that start the
+  same study at once now start one runner, and the other is told that a
+  runner is already starting; Studio reads only the heartbeat and outcome of
+  the runner it started last.
 - **Statistical Comparison** tests whether the algorithms of a study differ and
   exports the evidence as LaTeX tables, CSV, and SAES files.
 - **Explore Results** loads a study, overlays the fronts of each problem,
@@ -259,6 +266,14 @@ A script generated from a customized configuration rebuilds it with the
 configuration class's `from_dict`; otherwise the script uses the default
 configuration and the chosen population size.
 
+**Development after 1.1.0:** the Problem Builder's script always rebuilds the
+configuration Studio runs with `from_dict`, default or customized, uses the
+seed of the form, and imports `math` and `numpy as np`, the names the
+objective code can use in Studio. It reports the number of returned
+solutions, which need not be non-dominated. VAMOS 1.1.0 scripts failed with
+`NameError` for code that used `np` or `math`, always used seed 42 and could
+run another default configuration than Studio.
+
 ## Batch hypervolume
 
 Batch Comparison computes the hypervolume of each run's feasible final front on
@@ -315,6 +330,15 @@ regenerating that code clears the acknowledgement.
 
 > Trusted local Python code executes with the permissions of your current
 > operating-system user. Review the complete code before opting in.
+
+**Development after 1.1.0:** the answer of every provider goes through one
+check before the form changes: a surrounding Markdown code fence is removed,
+the answer must be a JSON object, and `objective_code`, `constraint_code` and
+`bounds` must be strings, `n_var` an integer from 1 to 100 and `n_obj` from
+2 to 10. A rejected answer leaves the form as it was. The request runs in the
+background and is abandoned after 120 seconds, and an unknown provider name is
+refused before any request. VAMOS 1.1.0 rejected a fenced OpenAI answer, could
+fill part of the form before failing, and sent an unknown provider to OpenAI.
 
 Generated code is never executed automatically. Syntax-tree validation,
 restricted built-ins, a child process, timeouts, and best-effort resource

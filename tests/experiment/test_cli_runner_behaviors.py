@@ -171,11 +171,11 @@ def test_permutation_problem_rejects_unsupported_algorithm():
         )
 
 
-def test_runner_rejects_genealogy_for_non_nsgaii():
+def test_runner_rejects_genealogy_for_algorithms_that_do_not_track_it():
     selection = make_problem_selection("zdt1", n_var=4)
     config = ExperimentConfig(population_size=6, offspring_population_size=6, max_evaluations=12, seed=1)
-    with pytest.raises(ValueError, match="NSGA-II"):
-        runner.run_single("numpy", "ibea", selection, config, track_genealogy=True)
+    with pytest.raises(ValueError, match="track_genealogy is not supported by agemoea"):
+        runner.run_single("numpy", "agemoea", selection, config, track_genealogy=True)
 
 
 def test_runner_plugin_algorithm_uses_registry_path(tmp_path):

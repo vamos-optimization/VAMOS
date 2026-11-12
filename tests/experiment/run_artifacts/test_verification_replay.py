@@ -430,6 +430,18 @@ def test_registry_problem_instance_stays_exact(tmp_path: Path) -> None:
     assert vamos.verify_run(runs["instance"].root).effective_replayability == "exact"
 
 
+@pytest.mark.parametrize("algorithm", ["moead", "smsemoa", "nsgaiii", "spea2"])
+def test_integer_runs_replay_their_polynomial_mutation(algorithm: str, tmp_path: Path) -> None:
+    # The resolved spec names polynomial mutation by its registry name, "pm"; the integer
+    # operators of these algorithms must accept it, or their runs and study tasks cannot replay.
+    result = vamos.optimize("int_alloc", algorithm=algorithm, pop_size=8, max_evaluations=16, engine="numpy", seed=3)
+    source = vamos.save_result(result, tmp_path / "source")
+
+    report = vamos.reproduce(source.root, output=tmp_path / "replay")
+
+    assert report.exact is True
+
+
 def test_exact_replay_preserves_source_and_records_lineage(tmp_path: Path) -> None:
     source = _save_source(tmp_path / "source", seed=0)
     before = _snapshot(source.root)
@@ -512,6 +524,27 @@ def test_replay_reconstructs_hv_stopping_and_external_archive(tmp_path: Path) ->
 
     assert replay.exact
     assert {"archive/F", "archive/X"}.issubset({item.role for item in replay.comparisons if item.exact})
+
+
+def test_replay_reconstructs_a_generation_budget(tmp_path: Path) -> None:
+    config = (
+        NSGAIIConfig.builder()
+        .pop_size(8)
+        .offspring_size(8)
+        .crossover("sbx", prob=0.9, eta=15.0)
+        .mutation("pm", prob=1.0 / 6.0, eta=20.0)
+        .selection("tournament", size=2)
+        .build()
+    )
+    result = vamos.optimize("zdt1", algorithm="nsgaii", algorithm_config=config, termination=("n_gen", 3), engine="numpy", seed=3, n_var=6)
+    source = vamos.save_result(result, tmp_path / "source")
+
+    # n_gen is persisted as vamos.termination:n_gen@1; verification and replay must accept it.
+    assert vamos.verify_run(source.root).component_reconstructability == "reconstructable"
+    replay = vamos.reproduce(source.root, output=tmp_path / "replay")
+
+    assert replay.exact
+    assert vamos.load_run(replay.output_root).manifest.resolved_spec["termination"]["config"] == {"value": 3}
 
 
 def test_unknown_resolved_field_refuses_before_execution(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

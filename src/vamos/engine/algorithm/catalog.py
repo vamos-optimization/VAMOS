@@ -20,7 +20,7 @@ OPTIONAL_ALGORITHMS: tuple[str, ...] = ()
 
 # The smallest population and number of objectives each built-in algorithm runs with.
 # NSGA-II, IBEA and AGE-MOEA select parents by tournament without replacement (two
-# individuals); MOEA/D needs two weight vectors and NSGA-III and RVEA two reference
+# individuals by default; for NSGA-II and IBEA the configured selection decides, see minimum_violation); MOEA/D needs two weight vectors and NSGA-III and RVEA two reference
 # directions, which also need two objectives. SMS-EMOA's hypervolume contributions and
 # AGE-MOEA's front geometry are defined for two or more objectives. NSGA-III and RVEA
 # check their exact lattice size when their configuration is built.
@@ -49,6 +49,34 @@ _LABELS = {
 }
 
 
+# Algorithms whose population minimum comes from their configurable parent selection.
+_SELECTION_DEPENDENT_POPULATION = ("nsgaii", "ibea")
+# Selections that draw parents from any number of individuals, one included.
+_SINGLETON_SELECTIONS = ("random", "boltzmann", "ranking", "sus")
+
+
+def _selection_population_minimum(selection: object) -> int | None:
+    """The smallest population ``selection`` works with, or ``None`` when it is not given or unknown.
+
+    A tournament of size ``k`` draws ``k`` distinct candidates (2 by default); the other
+    selections work with a single individual.
+    """
+    if isinstance(selection, str):
+        name, params = selection, {}
+    elif isinstance(selection, (tuple, list)) and selection and isinstance(selection[0], str):
+        name = selection[0]
+        params = selection[1] if len(selection) > 1 and isinstance(selection[1], dict) else {}
+    else:
+        return None
+    name = name.strip().lower()
+    if name in _SINGLETON_SELECTIONS:
+        return 1
+    if name == "tournament":
+        size = params.get("size", 2)
+        return size if isinstance(size, int) and not isinstance(size, bool) and size >= 1 else None
+    return None
+
+
 @dataclass(frozen=True)
 class MinimumViolation:
     """A population or objective count below what a built-in algorithm runs with."""
@@ -59,16 +87,23 @@ class MinimumViolation:
     message: str
 
 
-def minimum_violation(algorithm: str, *, pop_size: int | None = None, n_obj: int | None = None) -> MinimumViolation | None:
+def minimum_violation(
+    algorithm: str, *, pop_size: int | None = None, n_obj: int | None = None, selection: object = None
+) -> MinimumViolation | None:
     """Return the first of ``n_obj`` and ``pop_size`` below ``algorithm``'s minimum, or ``None``.
 
-    Algorithms outside ``ALGORITHM_MINIMUMS``, such as plugins, are not checked, and a
-    ``None`` value is not checked.
+    ``selection`` is the configured parent selection (a name or a ``(name, params)`` pair).
+    For NSGA-II and IBEA it sets the population minimum: a tournament needs as many individuals
+    as its size, and random, Boltzmann, ranking and SUS selection one. Algorithms outside
+    ``ALGORITHM_MINIMUMS``, such as plugins, are not checked, and a ``None`` value is not checked.
     """
     key = algorithm.strip().lower()
     minimums = ALGORITHM_MINIMUMS.get(key)
     if minimums is None:
         return None
+    selection_minimum = _selection_population_minimum(selection) if key in _SELECTION_DEPENDENT_POPULATION else None
+    if selection_minimum is not None:
+        minimums = {**minimums, "pop_size": selection_minimum}
     label = _LABELS.get(key, algorithm)
     if n_obj is not None and n_obj < minimums["n_obj"]:
         return MinimumViolation(

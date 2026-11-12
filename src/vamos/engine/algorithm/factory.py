@@ -20,8 +20,13 @@ from vamos.engine.archive import ExternalArchiveConfig
 from vamos.engine.config.variation import VariationConfig
 from vamos.foundation.core.experiment_config import ExperimentConfig
 from vamos.foundation.encoding import normalize_encoding
+from vamos.foundation.exceptions import ConfigurationError
 from vamos.foundation.kernel.registry import resolve_kernel
 from vamos.foundation.problem.types import ProblemProtocol
+
+# Built-in algorithms that record offspring genealogy through survival.
+GENEALOGY_ALGORITHMS = ("nsgaii", "moead", "smsemoa", "nsgaiii", "spea2", "ibea", "smpso")
+_ALGORITHMS_WITHOUT_GENEALOGY = ("agemoea", "rvea")
 
 
 def _plugin_default_config(
@@ -56,6 +61,11 @@ def build_algorithm(
     """
     kernel = resolve_kernel(engine_name)
     algorithm_key = algorithm_name.lower()
+    if track_genealogy and algorithm_key in _ALGORITHMS_WITHOUT_GENEALOGY:
+        raise ConfigurationError(
+            f"track_genealogy is not supported by {algorithm_name}: it does not record genealogy.",
+            suggestion=f"Use one of {', '.join(GENEALOGY_ALGORITHMS)}, or drop track_genealogy.",
+        )
     variations = variations or {}
     pop_size = config.population_size
     offspring_size = config.offspring_size()
@@ -80,18 +90,21 @@ def build_algorithm(
             problem=problem,
             pop_size=pop_size,
             moead_variation=variations.get("moead"),
+            track_genealogy=track_genealogy,
         ),
         "smsemoa": lambda: build_smsemoa_algorithm(
             kernel=kernel,
             problem=problem,
             pop_size=pop_size,
             smsemoa_variation=variations.get("smsemoa"),
+            track_genealogy=track_genealogy,
         ),
         "nsgaiii": lambda: build_nsgaiii_algorithm(
             kernel=kernel,
             problem=problem,
             pop_size=pop_size,
             nsgaiii_variation=variations.get("nsgaiii"),
+            track_genealogy=track_genealogy,
             selection_pressure=selection_pressure,
         ),
         "spea2": lambda: build_spea2_algorithm(
@@ -101,6 +114,7 @@ def build_algorithm(
             selection_pressure=selection_pressure,
             external_archive=external_archive,
             spea2_variation=variations.get("spea2"),
+            track_genealogy=track_genealogy,
         ),
         "ibea": lambda: build_ibea_algorithm(
             kernel=kernel,
@@ -108,6 +122,7 @@ def build_algorithm(
             pop_size=pop_size,
             selection_pressure=selection_pressure,
             ibea_variation=variations.get("ibea"),
+            track_genealogy=track_genealogy,
         ),
         "smpso": lambda: build_smpso_algorithm(
             kernel=kernel,
@@ -115,6 +130,7 @@ def build_algorithm(
             pop_size=pop_size,
             external_archive=external_archive,
             smpso_variation=variations.get("smpso"),
+            track_genealogy=track_genealogy,
         ),
         "agemoea": lambda: build_agemoea_algorithm(
             kernel=kernel,

@@ -11,7 +11,7 @@ import numpy as np
 
 from vamos.engine.algorithm.components.evaluation import extract_evaluation_arrays
 from vamos.engine.algorithm.components.population import resolve_bounds
-from vamos.engine.algorithm.components.termination import HVTracker, validate_initial_budget
+from vamos.engine.algorithm.components.termination import HVTracker, parse_termination, validate_initial_budget
 from vamos.engine.algorithm.config.base import normalize_constraint_mode
 from vamos.engine.algorithm.config.nsgaii import normalize_nsgaii_steady_state
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
@@ -27,7 +27,6 @@ from vamos.foundation.observer import RunContext
 
 from .helpers import fronts_from_ranks
 from .initialization import (
-    parse_termination,
     setup_genealogy,
     setup_population,
     setup_selection,
@@ -55,7 +54,7 @@ def initialize_run(
     live_viz: LiveVisualization | None,
     checkpoint: Mapping[str, Any] | None = None,
 ) -> tuple[LiveVisualization, EvaluationBackend, int, int, HVTracker]:
-    max_eval, hv_config = parse_termination(termination)
+    max_eval, hv_config = parse_termination(termination, "NSGA-II", pop_size=int(algo.cfg["pop_size"]))
 
     if eval_strategy is None:
         eval_strategy = SerialEvalBackend()
@@ -138,8 +137,15 @@ def initialize_run(
                 f"Cannot resume NSGA-II from the checkpoint: {exc}",
                 suggestion="Pass a checkpoint saved by an NSGA-II run with the same pop_size, or omit checkpoint.",
             ) from exc
+        # max_evaluations is the total budget of the resumed run, the checkpoint's evaluations included.
+        if n_eval > max_eval:
+            raise ConfigurationError(
+                f"Cannot resume NSGA-II from the checkpoint: it has already used {n_eval} evaluations, more than "
+                f"max_evaluations={max_eval}. max_evaluations is the total budget, the checkpoint's evaluations included.",
+                suggestion=f"Pass max_evaluations of at least {n_eval}: the run then adds max_evaluations - {n_eval} evaluations.",
+            )
     else:
-        X, F, G, n_eval = setup_population(problem, eval_strategy, rng, pop_size, constraint_mode, initializer_cfg)
+        X, F, G, n_eval = setup_population(problem, eval_strategy, rng, pop_size, constraint_mode, initializer_cfg, max_eval)
 
     incremental_enabled = bool(incremental_mode and replacement_size == 1 and G is None)
 

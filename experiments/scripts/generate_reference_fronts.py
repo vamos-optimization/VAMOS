@@ -3,7 +3,7 @@
 Run it from the repository root with this checkout's ``src`` importable and the ``compute`` extra installed
 (the exact non-dominated filter uses Numba):
 
-    python experiments/scripts/generate_reference_fronts.py --all --reproblems-dir PATH
+    python experiments/scripts/generate_reference_fronts.py --all --reproblems-dir PATH --jmetal-dir PATH
     python experiments/scripts/generate_reference_fronts.py zdt3 dtlz7 wfg1
 
 The script writes three groups of files; ``docs/reference/problems.md`` ("Reference fronts") lists the
@@ -11,12 +11,18 @@ provenance of every packaged file, including those this script leaves alone.
 
 - **Analytic samples** of the Pareto front from its closed form: ZDT1-4 and ZDT6, DTLZ1-7 (M = 3), WFG1 and
   WFG2 (M = 2, from the WFG shape functions, so the bias transformations cannot shift them), LSMOP9 (M = 2),
-  CEC2009 UF6 and UF9, C1-DTLZ3 (M = 2) and DC2-DTLZ1/3 (M = 2). Disconnected fronts are filtered for
-  non-dominance on a fine grid and thinned by farthest-point selection.
+  CEC2009 UF6 and UF9, and the ten C-DTLZ and DC-DTLZ problems at M = 2 and 3 (``c1dtlz1.2d`` ...
+  ``dc3dtlz3.3d``), and Srinivas, ConstrEx and Tanaka from their Pareto-set pieces and constraint boundaries. Disconnected fronts are filtered for non-dominance on a fine grid and thinned by
+  farthest-point selection. The C-DTLZ and DC-DTLZ samples keep the points of DTLZ's front (C3-DTLZ1: of its
+  constraint boundary) at which VAMOS's problem, evaluated at a design rebuilt from the point, is feasible.
 - **The RE authors' fronts:** Tanabe and Ishibuchi's ``reference_points_RE*.dat`` from
   https://github.com/ryojitanabe/reproblems (``approximated_Pareto_fronts``), with only the separator changed.
   ``--reproblems-dir`` points at a local copy of that directory. Their MIT notice is
   ``LICENSE-reproblems.txt`` next to the CSV files.
+- **jMetal's fronts** for LIR-CMOP1-14, DAS-CMOP1-9, MW4, MW8-14, Binh2, Golinski, Osyczka2, Water and the car side
+  impact problem, from jMetal's ``resources/referenceFronts`` at commit
+  ``JMETAL_COMMIT``, copied line by line without the rows that another row of the same file dominates.
+  ``--jmetal-dir`` points at a local copy of that directory. Their MIT notice is ``LICENSE-jmetal.txt``.
 - **Sampled fronts** where no closed form or authors' front applies: RWA3, RWA9, RWA10 and the deterministic
   RE91. Dense sampling of the design box, local refinement around the non-dominated designs and an exact
   non-dominated filter over every evaluated design. A well-spread pool of 1.25 times the packaged size is then
@@ -44,6 +50,21 @@ FILE_NAMES = {"zdt1": "ZDT1"}
 # Tanabe and Ishibuchi's approximated fronts that match VAMOS's RE formulations. RE91 is not here: VAMOS
 # evaluates it at the mean of its stochastic parameters, so the authors' stochastic front does not apply.
 AUTHORS_RE = (21, 24, 31, 32, 33, 34, 37, 41, 42, 61)
+
+# jMetal's fronts (MIT, LICENSE-jmetal.txt): the file of jMetal's resources/referenceFronts for each problem.
+JMETAL_COMMIT = "1e4b83cae6"
+JMETAL_FRONTS = {
+    **{f"lircmop{k}": f"LIRCMOP{k}" for k in range(1, 15)},
+    **{f"dascmop{k}": f"DASCMOP{k}" for k in range(1, 7)},
+    **{f"dascmop{k}": f"DASCMOP{k}.3D" for k in range(7, 10)},
+    **{f"mw{k}": f"MW{k}" for k in range(9, 14)},
+    **{f"mw{k}.{m}d": f"MW{k}.{m}D" for k in (4, 8, 14) for m in (2, 3)},
+    "binh2": "Binh2",
+    "golinski": "Golinski",
+    "osyczka2": "Osyczka2",
+    "water": "Water",
+    "car_side_impact": "CarSideImpact",
+}
 
 # Sampled fronts: packaged size, number of uniform samples and grid points per variable (0 = no grid).
 SAMPLED = {
@@ -178,20 +199,151 @@ def _uf9() -> np.ndarray:
     return counts[keep] / h
 
 
-def _quarter_circle(n: int = 1000) -> np.ndarray:
-    theta = np.linspace(0.0, np.pi / 2.0, n)
-    return np.column_stack([np.cos(theta), np.sin(theta)])
+# The C-DTLZ problems of Jain and Deb (2014) and the DC-DTLZ problems of Li et al. (2019), at M = 2 and 3.
+CONSTRAINED_DTLZ = (
+    "c1dtlz1",
+    "c1dtlz3",
+    "c2dtlz2",
+    "c3dtlz1",
+    "c3dtlz4",
+    "dc1dtlz1",
+    "dc1dtlz3",
+    "dc2dtlz1",
+    "dc2dtlz3",
+    "dc3dtlz1",
+    "dc3dtlz3",
+)
 
 
-def _dc2(name: str) -> np.ndarray:
-    # DC2's constraints depend only on g and hold at g = 0, so the front is the whole DTLZ front (M = 2).
-    if name == "dc2dtlz1":
-        f1 = np.linspace(0.0, 0.5, 1000)
-        return np.column_stack([f1, 0.5 - f1])
-    return _quarter_circle()
+def _simplex_directions(m: int) -> np.ndarray:
+    """Dense directions on the unit simplex: 200 001 for M = 2 and a lattice of 45 150 for M = 3."""
+    if m == 2:
+        u = np.linspace(0.0, 1.0, 200_001)
+        return np.column_stack([u, 1.0 - u])
+    return simplex_lattice(3, 299)
+
+
+def _constrained_dtlz_candidates(name: str, m: int) -> np.ndarray:
+    """Objective vectors that contain the front: DTLZ's own front, or C3-DTLZ1's constraint boundary."""
+    s = _simplex_directions(m)
+    if name == "c3dtlz1":
+        # sum(f) - f_j + 2 f_j >= 1 for every j moves the front out to f = t s with t = 1 / (1 + min_j s_j).
+        return s / (1.0 + s.min(axis=1, keepdims=True))
+    if name == "c3dtlz4":
+        # |f|^2 - 3 f_j^2 / 4 >= 1 for every j moves the unit sphere out to f = u / sqrt(1 - 3 max_j u_j^2 / 4).
+        u = s / np.linalg.norm(s, axis=1, keepdims=True)
+        return u / np.sqrt(1.0 - 0.75 * np.max(u * u, axis=1, keepdims=True))
+    if name.endswith("dtlz1"):
+        return 0.5 * s
+    return s / np.linalg.norm(s, axis=1, keepdims=True)
+
+
+def _dtlz1_distance(g: np.ndarray) -> np.ndarray:
+    """The offset d in [0, 0.05] at which DTLZ1's g, with one distance variable at 0.5 + d, equals ``g``."""
+    lo, hi = np.zeros_like(g), np.full_like(g, 0.05)
+    for _ in range(80):
+        mid = 0.5 * (lo + hi)
+        below = 100.0 * (mid * mid - np.cos(20.0 * np.pi * mid) + 1.0) < g
+        lo, hi = np.where(below, mid, lo), np.where(below, hi, mid)
+    return 0.5 * (lo + hi)
+
+
+def constrained_dtlz_designs(name: str, F: np.ndarray, n_var: int) -> np.ndarray:
+    """Designs whose objectives are ``F``: the position variables invert DTLZ's closed form, and the distance
+    variables sit at 0.5 (g = 0), except one that gives C3-DTLZ1 its g = 2 sum(f) - 1."""
+    n, m = F.shape
+    linear = name.endswith("dtlz1")
+    if linear:
+        g = 2.0 * F.sum(axis=1) - 1.0
+        s = F / F.sum(axis=1, keepdims=True)
+    else:
+        g = np.linalg.norm(F, axis=1) - 1.0
+        s = F / (1.0 + g)[:, None]
+    # DTLZ4 raises its position variables to alpha = 100 before the trigonometric mapping.
+    power = 1.0 / 100.0 if name == "c3dtlz4" else 1.0
+    X = np.full((n, n_var), 0.5)
+    # f_M depends on x_1 only, f_{M-1} on x_1 and x_2, and so on: peel one position variable at a time.
+    rest = np.ones(n)
+    for j in range(m - 1):
+        i = m - 1 - j
+        if linear:
+            x = 1.0 - np.divide(s[:, i], rest, out=np.zeros(n), where=rest > 1e-15)
+            rest = rest * x
+        else:
+            # tan(pi x / 2) = f_i / |(f_1, ..., f_{i-1})|, which atan2 inverts without losing precision.
+            x = (2.0 / np.pi * np.arctan2(s[:, i], np.linalg.norm(s[:, :i], axis=1))) ** power
+        X[:, j] = np.clip(x, 0.0, 1.0)
+    if name == "c3dtlz1":
+        X[:, m - 1] = 0.5 + _dtlz1_distance(np.maximum(g, 0.0))
+    elif name == "c3dtlz4":
+        # DTLZ2's g = sum((x - 0.5)^2), shared by every distance variable so that each stays in [0, 1].
+        X[:, m - 1 :] = 0.5 + np.sqrt(np.maximum(g, 0.0) / (n_var - m + 1))[:, None]
+    return X
+
+
+def _constrained_dtlz(name: str, m: int) -> np.ndarray:
+    """The feasible, non-dominated part of the candidates, as VAMOS's problem evaluates them: 1000 points
+    for M = 2 and at most 5050 for M = 3."""
+    from vamos.foundation.problem.registry import make_problem_selection
+
+    problem = make_problem_selection(name, n_obj=m).instantiate()
+    F = _constrained_dtlz_candidates(name, m)
+    out = {"F": np.empty_like(F)}
+    problem.evaluate(constrained_dtlz_designs(name, F, problem.n_var), out)
+    if np.max(np.abs(out["F"] - F)) > 1e-12:
+        raise RuntimeError(f"{name}: the rebuilt designs do not evaluate to the candidates")
+    # C3-DTLZ1's front lies on its constraint boundary, where G is 0 up to rounding.
+    feasible = np.all(np.asarray(out["G"]).reshape(F.shape[0], -1) <= 1e-12, axis=1)
+    F = F[feasible]
+    if m == 2:
+        return thinned_2d(F, 1000)
+    front = _nondominated(F)
+    return front[farthest_points(front, 5050)] if front.shape[0] > 5050 else front
+
+
+def _two_variable_front(name: str, curves: list[np.ndarray]) -> np.ndarray:
+    """The feasible, non-dominated objectives of designs on ``curves`` (pieces of the Pareto set and the
+    constraint boundaries that may hold it), as VAMOS evaluates them, thinned to 1000 points."""
+    from vamos.foundation.problem.registry import make_problem_selection
+
+    problem = make_problem_selection(name).instantiate()
+    X = np.vstack(curves)
+    X = X[np.all((X >= problem.xl) & (X <= problem.xu), axis=1)]
+    out = {"F": np.empty((X.shape[0], 2))}
+    problem.evaluate(X, out)
+    feasible = np.all(np.asarray(out["G"]) <= 1e-9, axis=1)
+    return thinned_2d(out["F"][feasible], 1000)
+
+
+def _srinivas() -> np.ndarray:
+    # Where f1 + f2 = x1^2 + 5 x1 + 6 is least, x1 = -2.5 (the segment in Deb 2001). The front goes on along the
+    # boundary 3 x2 - x1 = 10 down to the least f1, 10.1 at (1.1, 3.7), and the circle closes it.
+    t = np.linspace(0.0, 1.0, 200_001)
+    segment = np.column_stack([np.full_like(t, -2.5), 2.5 + t * (np.sqrt(225.0 - 6.25) - 2.5)])
+    x1 = -20.0 + 40.0 * t
+    line = np.column_stack([x1, (10.0 + x1) / 3.0])
+    angle = 2.0 * np.pi * t
+    circle = np.column_stack([15.0 * np.cos(angle), 15.0 * np.sin(angle)])
+    return _two_variable_front("srinivas", [segment, line, circle])
+
+
+def _constrex() -> np.ndarray:
+    # On x2 = 6 - 9 x1 for x1 in [7/18, 2/3], then on x2 = 0 up to x1 = 1 (Deb 2001); f = (x1, (1 + x2) / x1).
+    x1 = 7.0 / 18.0 + (1.0 - 7.0 / 18.0) * np.linspace(0.0, 1.0, 200_001)
+    return _two_variable_front("constrex", [np.column_stack([x1, np.maximum(6.0 - 9.0 * x1, 0.0)])])
+
+
+def _tanaka() -> np.ndarray:
+    # f = x on the boundary x1^2 + x2^2 = 1 + 0.1 cos(16 atan(x1 / x2)), where the second constraint holds.
+    phi = np.linspace(1e-9, 0.5 * np.pi - 1e-9, 400_001)
+    radius = np.sqrt(1.0 + 0.1 * np.cos(16.0 * phi))
+    return _two_variable_front("tanaka", [np.column_stack([radius * np.sin(phi), radius * np.cos(phi)])])
 
 
 ANALYTIC: dict[str, Callable[[], np.ndarray]] = {
+    "srinivas": _srinivas,
+    "constrex": _constrex,
+    "tanaka": _tanaka,
     **{name: (lambda name=name: _zdt(name)) for name in ("zdt1", "zdt2", "zdt3", "zdt4", "zdt6")},
     **{f"dtlz{i}": (lambda i=i: _dtlz(f"dtlz{i}")) for i in range(1, 8)},
     "wfg1": lambda: _wfg("wfg1"),
@@ -199,9 +351,7 @@ ANALYTIC: dict[str, Callable[[], np.ndarray]] = {
     "lsmop9": _lsmop9,
     "cec2009_uf6": _uf6,
     "cec2009_uf9": _uf9,
-    "c1dtlz3": _quarter_circle,
-    "dc2dtlz1": lambda: _dc2("dc2dtlz1"),
-    "dc2dtlz3": lambda: _dc2("dc2dtlz3"),
+    **{f"{name}.{m}d": (lambda name=name, m=m: _constrained_dtlz(name, m)) for name in CONSTRAINED_DTLZ for m in (2, 3)},
 }
 
 
@@ -391,27 +541,54 @@ def write_authors_front(number: int, reproblems_dir: Path, out_dir: Path) -> Pat
     return path
 
 
+def _dominated_within(F: np.ndarray, chunk: int = 256) -> np.ndarray:
+    """Mask of the rows of ``F`` that another row dominates (minimization)."""
+    mask = np.zeros(F.shape[0], dtype=bool)
+    for start in range(0, F.shape[0], chunk):
+        block = F[start : start + chunk, None, :]
+        mask[start : start + chunk] = np.any(np.all(F[None] <= block, axis=2) & np.any(F[None] < block, axis=2), axis=1)
+    return mask
+
+
+def write_jmetal_front(name: str, jmetal_dir: Path, out_dir: Path) -> Path:
+    """Copy jMetal's front line by line, without the rows that another row of the file dominates.
+
+    Only DAS-CMOP8 and DAS-CMOP9 lose rows: two each, which lie 1e-6 from the corner point that dominates them.
+    """
+    lines = [line for line in (jmetal_dir / f"{JMETAL_FRONTS[name]}.csv").read_text(encoding="ascii").splitlines() if line.strip()]
+    F = np.array([[float(value) for value in line.split(",")] for line in lines])
+    keep = ~_dominated_within(F)
+    path = out_dir / f"{name}.csv"
+    path.write_text("".join(line + "\n" for line, kept in zip(lines, keep) if kept), encoding="ascii", newline="\n")
+    return path
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("names", nargs="*", help="fronts to write, e.g. zdt3 re31 rwa10 (default: none)")
     parser.add_argument("--all", action="store_true", help="write every front this script owns")
     parser.add_argument("--reproblems-dir", type=Path, help="local copy of reproblems' approximated_Pareto_fronts")
+    parser.add_argument("--jmetal-dir", type=Path, help=f"local copy of jMetal's resources/referenceFronts at commit {JMETAL_COMMIT}")
     parser.add_argument("--out", type=Path, default=OUT_DIR)
     args = parser.parse_args(argv)
 
     authors = [f"re{number}" for number in AUTHORS_RE]
-    names = [*ANALYTIC, *authors, *SAMPLED] if args.all else args.names
-    unknown = sorted(set(names) - {*ANALYTIC, *authors, *SAMPLED})
+    names = [*ANALYTIC, *authors, *JMETAL_FRONTS, *SAMPLED] if args.all else args.names
+    unknown = sorted(set(names) - {*ANALYTIC, *authors, *JMETAL_FRONTS, *SAMPLED})
     if unknown:
         parser.error(f"unknown fronts: {unknown}")
     if any(name in authors for name in names) and args.reproblems_dir is None:
         parser.error("the RE authors' fronts need --reproblems-dir")
+    if any(name in JMETAL_FRONTS for name in names) and args.jmetal_dir is None:
+        parser.error("jMetal's fronts need --jmetal-dir")
     args.out.mkdir(parents=True, exist_ok=True)
     for name in names:
         if name in ANALYTIC:
             path = write_front(name, ANALYTIC[name](), args.out)
         elif name in authors:
             path = write_authors_front(int(name[2:]), args.reproblems_dir, args.out)
+        elif name in JMETAL_FRONTS:
+            path = write_jmetal_front(name, args.jmetal_dir, args.out)
         else:
             path = write_front(name, _sampled(name), args.out)
         print(f"wrote {path.name}", flush=True)

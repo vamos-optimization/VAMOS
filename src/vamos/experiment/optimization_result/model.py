@@ -33,6 +33,12 @@ class TopKResult(TypedDict):
     method: RankingMethod
 
 
+class FeasibilitySummary(TypedDict):
+    n_solutions: int
+    n_feasible: int
+    min_violation: float
+
+
 class OptimizationResult:
     """
     Container returned by optimize() with Pareto front data and selection helpers.
@@ -105,6 +111,29 @@ class OptimizationResult:
         if return_indices:
             return front_F, front_idx
         return front_F
+
+    def feasibility(self) -> FeasibilitySummary:
+        """How many rows of the top-level result are feasible, and the smallest constraint violation among them.
+
+        The violation of a row is the sum of the positive parts of its constraint values ``G``, so it is 0
+        exactly when the row is feasible (``g(x) <= 0``). ``min_violation`` is therefore 0 when some row is
+        feasible; a run without feasible solutions has ``n_feasible == 0`` and the violation of its least
+        violated row. A result without ``G`` counts every row as feasible, and an empty one has a
+        ``min_violation`` of ``inf``.
+        """
+        n = 0 if self.F is None else int(np.asarray(self.F).shape[0])
+        G = self.data.get("G")
+        if G is None:
+            return {"n_solutions": n, "n_feasible": n, "min_violation": 0.0 if n else float("inf")}
+        G_arr = np.asarray(G, dtype=float)
+        if G_arr.ndim != 2 or G_arr.shape[0] != n:
+            raise ResultSelectionError(f"The constraint values G have shape {G_arr.shape}, which does not match the {n} result rows.")
+        violation = np.sum(np.maximum(G_arr, 0.0), axis=1)
+        return {
+            "n_solutions": n,
+            "n_feasible": int(np.count_nonzero(violation == 0.0)),
+            "min_violation": float(violation.min()) if n else float("inf"),
+        }
 
     def best(self, method: BestMethod = "balanced_sum", *, feasible_only: bool = True) -> BestResult:
         """One solution of :meth:`front`, chosen by ``method``.
@@ -214,4 +243,4 @@ class OptimizationResult:
         return explained
 
 
-__all__ = ["BestResult", "OptimizationResult", "TopKResult"]
+__all__ = ["BestResult", "FeasibilitySummary", "OptimizationResult", "TopKResult"]

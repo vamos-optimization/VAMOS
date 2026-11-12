@@ -248,7 +248,7 @@ def _validate_execution_shape(
             actual=population,
             action="Correct the population configuration; no study directory was published.",
         )
-    _reject_below_minimum(algorithm, candidate, pop_size=population)
+    _reject_below_minimum(algorithm, candidate, pop_size=population, selection=config.get("selection"))
     if budget < population:
         raise UnresolvedStudyTaskError(
             operation="resolve study plan",
@@ -265,8 +265,10 @@ def _validate_execution_shape(
     return population
 
 
-def _reject_below_minimum(algorithm: str, candidate: _Candidate, *, pop_size: int | None = None, n_obj: int | None = None) -> None:
-    violation = minimum_violation(algorithm, pop_size=pop_size, n_obj=n_obj)
+def _reject_below_minimum(
+    algorithm: str, candidate: _Candidate, *, pop_size: int | None = None, n_obj: int | None = None, selection: object = None
+) -> None:
+    violation = minimum_violation(algorithm, pop_size=pop_size, n_obj=n_obj, selection=selection)
     if violation is None:
         return
     objective = violation.field == "n_obj"
