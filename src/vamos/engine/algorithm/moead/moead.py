@@ -34,6 +34,7 @@ from vamos.foundation.kernel import default_kernel
 
 from .helpers import update_neighborhood, update_neighborhood_batch
 from .initialization import initialize_moead_run
+from .neighborhood import update_neighborhoods_recording_replacements
 from .state import MOEADState, build_moead_result
 from .steady_state import SteadyStateStep
 
@@ -431,7 +432,7 @@ class MOEAD:
             orders = [candidate_orders[pos, : int(candidate_lengths[pos])] for pos in range(batch_size)]
 
         if offspring_ids is not None:
-            self._update_and_record_replacements(st, active, children, F_child, G_child, cv_child, orders, offspring_ids)
+            update_neighborhoods_recording_replacements(st, active, children, F_child, G_child, cv_child, orders, offspring_ids)
         elif batch_size == 1:
             update_neighborhood(
                 st=st,
@@ -456,40 +457,6 @@ class MOEAD:
         update_archive(st, st.X, st.F, st.G)
 
         return st.hv_tracker is not None and st.hv_tracker.enabled and st.hv_tracker.reached(st.hv_points())
-
-    @staticmethod
-    def _update_and_record_replacements(
-        st: MOEADState,
-        active: np.ndarray[Any, Any],
-        children: np.ndarray[Any, Any],
-        F_child: np.ndarray[Any, Any],
-        G_child: np.ndarray[Any, Any] | None,
-        cv_child: np.ndarray[Any, Any] | None,
-        orders: list[np.ndarray[Any, Any]],
-        offspring_ids: np.ndarray[Any, Any],
-    ) -> None:
-        """Update the neighbourhoods child by child and give each replaced subproblem that child's id.
-
-        This is the batch update's own loop, so the population is the same. A replacement needs a
-        strictly better aggregation, so it always changes the row's objectives (or violation).
-        """
-        assert st.ids is not None
-        for pos, order in enumerate(orders):
-            before_F = st.F[order].copy()
-            before_cv = st.cv[order].copy() if st.cv is not None else None
-            update_neighborhood(
-                st=st,
-                idx=int(active[pos]),
-                child=children[pos],
-                child_f=F_child[pos],
-                child_g=G_child[pos] if G_child is not None else None,
-                cv_penalty=float(cv_child[pos]) if cv_child is not None else 0.0,
-                candidate_order=order,
-            )
-            replaced = np.any(st.F[order] != before_F, axis=1)
-            if before_cv is not None and st.cv is not None:
-                replaced |= st.cv[order] != before_cv
-            st.ids[order[replaced]] = offspring_ids[pos]
 
     @staticmethod
     def _next_active_indices(st: MOEADState, batch_size: int) -> np.ndarray[Any, Any]:
