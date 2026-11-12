@@ -131,15 +131,35 @@ def test_algorithms_without_a_tournament_still_run_one_individual(algorithm: str
     assert result.F.shape[1] == 2
 
 
+_SINGLETON_SELECTIONS = [("random", {}), ("tournament", {"size": 1}), ("boltzmann", {}), ("ranking", {}), ("sus", {})]
+
+
+@pytest.mark.parametrize(
+    "selection", _SINGLETON_SELECTIONS, ids=[name if not params else f"{name}-1" for name, params in _SINGLETON_SELECTIONS]
+)
 @pytest.mark.parametrize("algorithm", ["nsgaii", "ibea"])
-def test_random_selection_runs_one_individual(algorithm: str):
-    # Random selection draws parents with replacement, so one individual supplies both.
+def test_selections_without_a_two_candidate_tournament_run_one_individual(algorithm: str, selection: tuple[str, dict[str, int]]):
+    # Only a tournament of size k needs k individuals; the other selections draw from a single one.
     from vamos.engine.algorithm.config import IBEAConfig
 
     builder = NSGAIIConfig.builder() if algorithm == "nsgaii" else IBEAConfig.builder().indicator("eps").kappa(0.05)
-    config = builder.pop_size(1).crossover("sbx", prob=0.9, eta=20.0).mutation("pm", prob="1/n", eta=20.0).selection("random").build()
+    name, params = selection
+    config = builder.pop_size(1).crossover("sbx", prob=0.9, eta=20.0).mutation("pm", prob="1/n", eta=20.0).selection(name, **params).build()
     result = optimize(ZDT1Problem(n_var=4), algorithm=algorithm, algorithm_config=config, max_evaluations=8, seed=0)
     assert result.F.shape[1] == 2
+
+
+def test_a_tournament_needs_as_many_individuals_as_its_size():
+    config = (
+        NSGAIIConfig.builder()
+        .pop_size(2)
+        .crossover("sbx", prob=0.9, eta=20.0)
+        .mutation("pm", prob="1/n", eta=20.0)
+        .selection("tournament", size=3)
+        .build()
+    )
+    with pytest.raises(ConfigurationError, match=r"needs pop_size >= 3"):
+        optimize(ZDT1Problem(n_var=4), algorithm="nsgaii", algorithm_config=config, max_evaluations=8, seed=0)
 
 
 _ALL_ALGORITHMS = ["nsgaii", "nsgaiii", "moead", "smsemoa", "spea2", "ibea", "smpso", "agemoea", "rvea"]
