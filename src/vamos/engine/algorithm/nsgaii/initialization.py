@@ -1,10 +1,9 @@
-# algorithm/nsgaii/setup.py
 """
 Setup and initialization helpers for NSGA-II.
 
-This module contains functions for parsing configuration, initializing populations,
-archives, and genealogy tracking. These are extracted from the main NSGAII class
-to keep the core algorithm focused on the evolutionary loop.
+This module initializes the population, genealogy tracking and parent selection.
+Termination parsing and archives use the shared helpers in
+``components/termination.py`` and ``engine/archive/factory.py``.
 
 Operator pool building lives in operators/policies/nsgaii.py.
 """
@@ -15,57 +14,13 @@ from typing import Any
 
 import numpy as np
 
-from vamos.engine.algorithm.components.archive import (
-    CrowdingDistanceArchive,
-    HypervolumeArchive,
-    MaxMinArchive,
-    ReferenceDirectionsArchive,
-    SPEA2Archive,
-    UnboundedArchive,
-)
 from vamos.engine.algorithm.components.lifecycle import setup_initial_population
-from vamos.engine.archive import ExternalArchiveConfig
 from vamos.engine.hooks.genealogy import DefaultGenealogyTracker, GenealogyTracker
 from vamos.foundation.eval.backends import EvaluationBackend
-from vamos.foundation.kernel.backend import KernelBackend
 from vamos.foundation.problem.types import ProblemProtocol
 
 # Constants
 DEFAULT_TOURNAMENT_PRESSURE = 2
-
-
-def parse_termination(termination: tuple[str, Any]) -> tuple[int, dict[str, Any] | None]:
-    """Parse termination criterion and return (max_eval, hv_config).
-
-    Parameters
-    ----------
-    termination : tuple[str, Any]
-        Termination criterion as (type, value). Supported types:
-        - "max_evaluations": value is the max number of evaluations
-        - "hv": value is a dict with hypervolume config
-
-    Returns
-    -------
-    tuple[int, dict[str, Any] | None]
-        (max_evaluations, hv_config or None)
-
-    Raises
-    ------
-    ValueError
-        If termination type is unsupported or HV config is invalid.
-    """
-    term_type, term_val = termination
-    hv_config = None
-    if term_type == "max_evaluations":
-        max_eval = int(term_val)
-    elif term_type == "hv":
-        hv_config = dict(term_val)
-        max_eval = int(hv_config.get("max_evaluations", 0))
-        if max_eval <= 0:
-            raise ValueError("HV-based termination requires a positive max_evaluations value.")
-    else:
-        raise ValueError("Unsupported termination criterion for NSGA-II.")
-    return max_eval, hv_config
 
 
 def setup_population(
@@ -105,138 +60,6 @@ def setup_population(
     return setup_initial_population(
         problem, eval_strategy, rng, pop_size, constraint_mode, initializer_cfg, max_evaluations=max_evaluations, algorithm="NSGA-II"
     )
-
-
-def setup_archive(
-    kernel: KernelBackend,
-    X: np.ndarray[Any, Any],
-    F: np.ndarray[Any, Any],
-    G: np.ndarray[Any, Any] | None,
-    n_var: int,
-    n_obj: int,
-    dtype: np.dtype[Any],
-    ext_cfg: ExternalArchiveConfig | None,
-) -> tuple[
-    np.ndarray[Any, Any] | None,
-    np.ndarray[Any, Any] | None,
-    CrowdingDistanceArchive | HypervolumeArchive | MaxMinArchive | ReferenceDirectionsArchive | SPEA2Archive | UnboundedArchive | None,
-]:
-    """Initialize archive if configured.
-
-    Parameters
-    ----------
-    kernel : KernelBackend
-        The kernel backend.
-    X : np.ndarray
-        Initial population decision variables.
-    F : np.ndarray
-        Initial population objectives.
-    G : np.ndarray | None
-        Initial population constraints.
-    n_var : int
-        Number of decision variables.
-    n_obj : int
-        Number of objectives.
-    dtype : np.dtype
-        Data type for arrays.
-    ext_cfg : ExternalArchiveConfig | None
-        External archive configuration, or ``None`` to disable.
-
-    Returns
-    -------
-    tuple[np.ndarray | None, np.ndarray | None, archive_manager | None]
-        (archive_X, archive_F, archive_manager)
-    """
-    if ext_cfg is None:
-        return None, None, None
-
-    capacity = ext_cfg.capacity
-    pruning = ext_cfg.pruning
-
-    tol = ext_cfg.objective_tolerance
-    dedup_mode = ext_cfg.deduplicate_in
-    decision_tol = ext_cfg.decision_tolerance
-    truncate_size = ext_cfg.truncate_size
-    n_con = G.shape[1] if G is not None else None
-
-    manager: CrowdingDistanceArchive | HypervolumeArchive | MaxMinArchive | ReferenceDirectionsArchive | SPEA2Archive | UnboundedArchive
-    if capacity is None:
-        # Unbounded archive
-        manager = UnboundedArchive(
-            n_var=n_var,
-            n_obj=n_obj,
-            dtype=dtype,
-            objective_tolerance=tol,
-            deduplicate_in=dedup_mode,
-            decision_tolerance=decision_tol,
-            n_con=n_con,
-        )
-    elif pruning in {"hv", "mc_hv"}:
-        manager = HypervolumeArchive(
-            capacity,
-            n_var,
-            n_obj,
-            dtype,
-            truncate_size=truncate_size,
-            objective_tolerance=tol,
-            deduplicate_in=dedup_mode,
-            decision_tolerance=decision_tol,
-            n_con=n_con,
-            ref_point=ext_cfg.hv_ref_point,
-        )
-    elif pruning == "knn":
-        manager = SPEA2Archive(
-            capacity,
-            n_var,
-            n_obj,
-            dtype,
-            truncate_size=truncate_size,
-            objective_tolerance=tol,
-            deduplicate_in=dedup_mode,
-            decision_tolerance=decision_tol,
-            n_con=n_con,
-            constraint_mode="feasibility",
-        )
-    elif pruning == "maxmin":
-        manager = MaxMinArchive(
-            capacity,
-            n_var,
-            n_obj,
-            dtype,
-            truncate_size=truncate_size,
-            objective_tolerance=tol,
-            deduplicate_in=dedup_mode,
-            decision_tolerance=decision_tol,
-            n_con=n_con,
-        )
-    elif pruning == "ref_dirs":
-        manager = ReferenceDirectionsArchive(
-            capacity,
-            n_var,
-            n_obj,
-            dtype,
-            rng_seed=ext_cfg.rng_seed,
-            truncate_size=truncate_size,
-            objective_tolerance=tol,
-            deduplicate_in=dedup_mode,
-            decision_tolerance=decision_tol,
-            n_con=n_con,
-        )
-    else:
-        manager = CrowdingDistanceArchive(
-            capacity,
-            n_var,
-            n_obj,
-            dtype,
-            truncate_size=truncate_size,
-            objective_tolerance=tol,
-            deduplicate_in=dedup_mode,
-            decision_tolerance=decision_tol,
-            n_con=n_con,
-        )
-
-    archive_X, archive_F = manager.update(X, F, G)
-    return archive_X, archive_F, manager
 
 
 def setup_genealogy(
@@ -312,131 +135,9 @@ def setup_selection(
     return sel_method, tournament_size
 
 
-def setup_result_archive(
-    ext_cfg: ExternalArchiveConfig | None,
-    n_var: int,
-    n_obj: int,
-    dtype: np.dtype[Any],
-) -> HypervolumeArchive | CrowdingDistanceArchive | MaxMinArchive | ReferenceDirectionsArchive | SPEA2Archive | None:
-    """Create result archive if configured.
-
-    Parameters
-    ----------
-    ext_cfg : ExternalArchiveConfig | None
-        External archive configuration. The ``pruning`` field determines
-        the archive class (``"hv"`` -> HypervolumeArchive,
-        ``"knn"`` -> SPEA2Archive, ``"maxmin"`` -> MaxMinArchive,
-        ``"ref_dirs"`` -> ReferenceDirectionsArchive, otherwise CrowdingDistanceArchive).
-        ``None`` or unbounded (``capacity is None``) disables the result archive.
-    n_var : int
-        Number of decision variables.
-    n_obj : int
-        Number of objectives.
-    dtype : np.dtype
-        Data type for arrays.
-
-    Returns
-    -------
-    HypervolumeArchive | CrowdingDistanceArchive | MaxMinArchive | ReferenceDirectionsArchive | None
-        The result archive, or None if not configured.
-    """
-    if ext_cfg is None or ext_cfg.capacity is None:
-        return None
-
-    truncate_size = ext_cfg.truncate_size
-    tol = ext_cfg.objective_tolerance
-    dedup_mode = ext_cfg.deduplicate_in
-    decision_tol = ext_cfg.decision_tolerance
-
-    if ext_cfg.pruning in {"hv", "mc_hv"}:
-        return HypervolumeArchive(
-            ext_cfg.capacity,
-            n_var,
-            n_obj,
-            dtype,
-            truncate_size=truncate_size,
-            objective_tolerance=tol,
-            deduplicate_in=dedup_mode,
-            decision_tolerance=decision_tol,
-            ref_point=ext_cfg.hv_ref_point,
-        )
-    if ext_cfg.pruning == "knn":
-        return SPEA2Archive(
-            ext_cfg.capacity,
-            n_var,
-            n_obj,
-            dtype,
-            truncate_size=truncate_size,
-            objective_tolerance=tol,
-            deduplicate_in=dedup_mode,
-            decision_tolerance=decision_tol,
-            constraint_mode="feasibility",
-        )
-    if ext_cfg.pruning == "maxmin":
-        return MaxMinArchive(
-            ext_cfg.capacity,
-            n_var,
-            n_obj,
-            dtype,
-            truncate_size=truncate_size,
-            objective_tolerance=tol,
-            deduplicate_in=dedup_mode,
-            decision_tolerance=decision_tol,
-        )
-    if ext_cfg.pruning == "ref_dirs":
-        return ReferenceDirectionsArchive(
-            ext_cfg.capacity,
-            n_var,
-            n_obj,
-            dtype,
-            rng_seed=ext_cfg.rng_seed,
-            truncate_size=truncate_size,
-            objective_tolerance=tol,
-            deduplicate_in=dedup_mode,
-            decision_tolerance=decision_tol,
-        )
-    return CrowdingDistanceArchive(
-        ext_cfg.capacity,
-        n_var,
-        n_obj,
-        dtype,
-        truncate_size=truncate_size,
-        objective_tolerance=tol,
-        deduplicate_in=dedup_mode,
-        decision_tolerance=decision_tol,
-    )
-
-
-def resolve_external_archive(cfg: dict[str, Any]) -> ExternalArchiveConfig | None:
-    """Extract :class:`ExternalArchiveConfig` from a serialised config dict.
-
-    Returns ``None`` when no external archive is configured.
-
-    Parameters
-    ----------
-    cfg : dict[str, Any]
-        Algorithm configuration.
-
-    Returns
-    -------
-    ExternalArchiveConfig | None
-        External archive configuration, or ``None``.
-    """
-    raw = cfg.get("external_archive")
-    if raw is None:
-        return None
-    if isinstance(raw, ExternalArchiveConfig):
-        return raw
-    return ExternalArchiveConfig(**raw)
-
-
 __all__ = [
-    "parse_termination",
     "setup_population",
-    "setup_archive",
     "setup_genealogy",
     "setup_selection",
-    "setup_result_archive",
-    "resolve_external_archive",
     "DEFAULT_TOURNAMENT_PRESSURE",
 ]
