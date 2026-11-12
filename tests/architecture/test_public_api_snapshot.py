@@ -4,6 +4,8 @@ import ast
 import json
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SRC_ROOT = REPO_ROOT / "src" / "vamos"
 SNAPSHOT_PATH = Path(__file__).resolve().parent / "public_api_snapshot.json"
@@ -68,3 +70,14 @@ def test_public_api_snapshot() -> None:
             if removed:
                 lines.append(f"  - removed: {', '.join(removed)}")
         raise AssertionError("\n".join(lines))
+
+
+def test_public_api_snapshot_writer_uses_lf(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # On Windows, a text-mode write would turn every line of the snapshot into CRLF, a full diff with no change.
+    from tools import update_public_api_snapshot as writer
+
+    target = tmp_path / "public_api_snapshot.json"
+    monkeypatch.setattr(writer, "SNAPSHOT_PATH", target)
+    writer.main()
+    assert b"\r\n" not in target.read_bytes()
+    assert target.read_bytes() == (Path(__file__).with_name("public_api_snapshot.json")).read_bytes().replace(b"\r\n", b"\n")

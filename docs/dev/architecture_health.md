@@ -22,25 +22,28 @@ Read before any architectural change.
 5. `python tools/check_pre_release_remnants.py`
 6. `python -m pytest -q tests/test_check_pre_release_remnants.py`
 7. `python tools/check_agent_docs.py` (the same command and arguments used by CI)
-8. `python -m pytest -q tests/architecture/test_layer_boundaries.py`
-9. `python -m pytest -q tests/test_monolith_guard.py`
-10. `python -m pytest -q tests/test_public_api_guard.py`
-11. `python -m pytest -q tests/test_import_time_smoke.py`
-12. `python -m pytest -q tests/architecture/test_no_import_time_side_effects.py`
-13. `python -m pytest -q tests/architecture/test_public_api_snapshot.py`
-14. `python -m pytest -q tests/architecture/test_dependency_policy.py`
-15. `python -m pytest -q tests/architecture/test_no_facade_imports.py`
-16. `python -m pytest -q tests/architecture/test_experiment_import_cycles.py`
-17. `python -m pytest -q tests/test_optional_deps_policy.py`
-18. `python -m pytest -q tests/test_logging_policy.py`
-19. `python -m pytest -q tests/test_no_prints_in_library.py`
-20. `python -m pytest -q tests/test_no_deprecation_shims.py`
-21. `python -m pytest -q tests/architecture/test_ruff_gate.py`
-22. `python -m pytest -q tests/architecture/test_ruff_format_gate.py`
-23. `python tools/typecheck.py --scope strict` (zero diagnostics in the protected scope)
-24. `python tools/typecheck.py --scope full` (exact structured no-regression baseline and clean changed modules)
-25. `python -m pytest -q tests/architecture/test_build_smoke.py` (builds the sdist and wheel from a copy of the tree, outside the checkout)
-26. `python -m pytest -q tests/architecture/test_py_typed_present.py`
+8. `python tools/check_learning_content.py` (removed APIs and stale commands in the README, docs, examples and notebooks)
+9. `python tools/check_notebook_links.py`
+10. `python tools/check_notebook_quality.py`
+11. `python -m pytest -q tests/architecture/test_layer_boundaries.py`
+12. `python -m pytest -q tests/test_monolith_guard.py`
+13. `python -m pytest -q tests/test_public_api_guard.py`
+14. `python -m pytest -q tests/test_import_time_smoke.py`
+15. `python -m pytest -q tests/architecture/test_no_import_time_side_effects.py`
+16. `python -m pytest -q tests/architecture/test_public_api_snapshot.py`
+17. `python -m pytest -q tests/architecture/test_dependency_policy.py`
+18. `python -m pytest -q tests/architecture/test_no_facade_imports.py`
+19. `python -m pytest -q tests/architecture/test_experiment_import_cycles.py`
+20. `python -m pytest -q tests/test_optional_deps_policy.py`
+21. `python -m pytest -q tests/test_logging_policy.py`
+22. `python -m pytest -q tests/test_no_prints_in_library.py`
+23. `python -m pytest -q tests/test_no_deprecation_shims.py`
+24. `python -m pytest -q tests/architecture/test_ruff_gate.py`
+25. `python -m pytest -q tests/architecture/test_ruff_format_gate.py`
+26. `python tools/typecheck.py --scope strict` (zero diagnostics in the protected scope)
+27. `python tools/typecheck.py --scope full` (exact structured no-regression baseline and clean changed modules)
+28. `python -m pytest -q tests/architecture/test_build_smoke.py` (builds the sdist and wheel from a copy of the tree, outside the checkout)
+29. `python -m pytest -q tests/architecture/test_py_typed_present.py`
 
 ## Other gates
 Health does not run these:

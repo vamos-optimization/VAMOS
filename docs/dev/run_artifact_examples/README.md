@@ -24,5 +24,9 @@ lengths and SHA-256 digests match the committed files. Manifest self-hashes use
 the canonicalization rule from the contract with
 `integrity.manifest_sha256` omitted during hashing.
 
+`python tools/generate_run_replay_examples.py` rebuilds the replay and
+verification examples from `nsgaii-success/` and normalizes the environment of
+the base examples to the fixed example version.
+
 All artifact references use relative POSIX paths. No example contains a secret,
 personal path, hostname, account, or executable source payload.
