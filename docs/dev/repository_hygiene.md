@@ -29,10 +29,11 @@ new one only when no existing owner fits, and update the ownership map and this
 document in the same change.
 
 Cloudflare hosting is an explicit infrastructure responsibility: `cloudflare/`
-owns the trusted Worker runtime and edge-routing code, while `wrangler.jsonc`
-and `wrangler.preview.jsonc` are reviewed root-level deployment metadata for the
-production and isolated preview Workers. They are configuration source, not
-built-site output.
+owns the trusted Worker runtime and edge-routing code, and its `package.json`
+and `package-lock.json` pin the Wrangler version that the deployment workflows
+install with `npm ci`. `wrangler.jsonc` and `wrangler.preview.jsonc` are
+reviewed root-level deployment metadata for the production and isolated
+preview Workers. They are configuration source, not built-site output.
 
 ## Generated outputs and reports
 

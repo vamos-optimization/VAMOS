@@ -87,8 +87,8 @@ def test_cloudflare_preview_uses_privilege_separation() -> None:
     assert "persist-credentials: false" in publish
     assert "Revalidate generated portal as untrusted data" in publish
     assert '--preview-alias "$alias"' in publish
-    assert "wrangler@${WRANGLER_VERSION}" in publish
-    assert 'WRANGLER_VERSION: "4.129.1"' in publish
+    assert "npm ci --prefix cloudflare" in publish
+    assert "wrangler=cloudflare/node_modules/.bin/wrangler" in publish
     assert "actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0" in publish
     assert "require('@actions/github')" not in publish
     assert 'require("@actions/github")' not in publish
@@ -108,7 +108,8 @@ def test_cloudflare_production_deploy_is_manual_guarded_and_archive_preserving()
     assert "https://vamos-optimization.org/" in workflow
     assert "tools/check_docs_portal.py" in workflow
     assert "wrangler.jsonc" in workflow
-    assert 'WRANGLER_VERSION: "4.129.1"' in workflow
+    assert "npm ci --prefix cloudflare" in workflow
+    assert "cloudflare/node_modules/.bin/wrangler deploy --config wrangler.jsonc" in workflow
     assert "archive_release:" in workflow
     assert "archive_run_id:" in workflow
     assert "archive_artifact_name:" in workflow
