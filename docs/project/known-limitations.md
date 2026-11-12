@@ -25,6 +25,15 @@ unsupported behavior rather than future compatibility promises.
     bias. NSGA-III and RVEA with two objectives default to 100 directions, or
     `pop_size`, instead of 7.
 - The strict evaluation budget must be at least the resolved population size.
+  **Development after 1.1.0:** with the opposition-based initializer
+  (`initializer: obl`), it must be at least twice the population size: the
+  `2 * pop_size` candidates (random points and their opposites) count against
+  the budget, and the chosen ones keep their objective and constraint values
+  instead of being evaluated again. The initializer keeps feasible candidates
+  first, then the best by non-domination rank and crowding distance. VAMOS
+  1.1.0 evaluated the candidates outside the budget, so a run evaluated
+  `2 * pop_size` more rows than it reported, and chose them by objectives alone,
+  discarding feasible candidates for infeasible ones.
 - **Development after 1.1.0:** NSGA-III, SMS-EMOA and SPEA2 mate parents two by
   two, so they reject the three-parent crossovers `pcx`, `undx`, `simplex` and
   `de`; MOEA/D accepts `de` but rejects the other three. NSGA-II, IBEA,
@@ -73,17 +82,18 @@ unsupported behavior rather than future compatibility promises.
 - **Development after 1.1.0:** the inaccurate packaged reference fronts are
   regenerated. IGD, IGD+, epsilon and normalized HV values that VAMOS 1.1.0
   and earlier computed with them are not comparable with later ones:
-  - **Analytic samples:** ZDT, DTLZ, WFG1, WFG2, LSMOP9, UF6, UF9, C1-DTLZ3
-    and DC2-DTLZ;
+  - **Analytic samples:** ZDT, DTLZ, WFG1, WFG2, LSMOP9, UF6, UF9, and C-DTLZ
+    and DC-DTLZ at two and three objectives;
   - **Authors' fronts:** the RE fronts that Tanabe and Ishibuchi published;
   - **Dense sampling with polishing:** RE91, RWA3, RWA9 and RWA10.
 
   The [reference fronts](../reference/problems.md#reference-fronts) section
   lists the origin of each file.
-- DC-DTLZ's constraints use pymoo's constants, which cite no source. PlatEMO,
-  citing Li et al. (2019), uses different constants and a different scale for
-  `g`. Until the primary definition is checked, DC-DTLZ results may not
-  correspond to the published problems.
+- DC-DTLZ follows its authors' implementation (Li et al., 2019), which pymoo
+  also follows. jMetal and PlatEMO use other constants in DC1 and DC3, and
+  PlatEMO another scale for DC3-DTLZ3's `g`, so DC1 and DC3 results and fronts
+  from them are not comparable with VAMOS's. See
+  [Problems](../reference/problems.md#explicitly-constrained-suites).
 - Independent algorithm-conformance validation for AGE-MOEA, RVEA and SMPSO
   remains pending. Passing API and regression tests does not establish
   convergence equivalence with a reference implementation.

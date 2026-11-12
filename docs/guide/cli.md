@@ -209,6 +209,12 @@ Multiprocessing evaluation for expensive problems:
 vamos --problem zdt1 --algorithm nsgaii --max-evaluations 8000 --eval-strategy multiprocessing --n-workers 4
 ```
 
+**Development after 1.1.0:** the run keeps one pool of worker processes from
+its first evaluation to its end, instead of starting one per generation, and
+without `--n-workers` it uses the number of CPUs, at most 8. It only pays off
+when each evaluation is expensive. See
+[Multiprocessing evaluation](cookbook.md#11-multiprocessing-evaluation).
+
 Enable Experimental live visualization and save plots (requires the
 [`analysis` extra](installation.md#optional-extras)):
 
@@ -464,10 +470,8 @@ count two such runs, or two such means, as a tie. The
 `n_feasible` column counts the feasible solutions of each run. When a run
 stores no constraint values, `feasibility_known` is `false` and every solution
 counts as feasible: this is the case for unconstrained problems, and for
-constrained runs whose result comes from an archive that keeps no constraint
-values, such as SMPSO with `result_mode: non_dominated`. VAMOS 1.1.0 also
-measured infeasible solutions, so its values for constrained problems are not
-valid.
+SPEA2 and SMPSO with `constraint_mode: none`. VAMOS 1.1.0 also measured
+infeasible solutions, so its values for constrained problems are not valid.
 
 **Development after 1.1.0:** `vamos bench` checks its inputs before any run:
 

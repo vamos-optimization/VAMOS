@@ -186,3 +186,17 @@ def test_persistent_optuna_study_name_separates_smpso_leader_scoring() -> None:
 def test_only_unconstrained_smpso_runs_are_scored_on_their_leaders(algorithm_name: str, n_constraints: int, expected: bool) -> None:
     # The leaders archive carries no constraint values, so constrained SMPSO keeps scoring its swarm with population G.
     assert tune_runtime._scores_leaders(algorithm_name, n_constraints) is expected
+
+
+def test_moead_tuning_runs_three_objective_problems_whatever_the_sampled_population() -> None:
+    from vamos.engine.tuning.racing.bridge import build_moead_config_space
+    from vamos.engine.tuning.racing.tuning_task import EvalContext, Instance
+
+    warnings: list[str] = []
+    logger = SimpleNamespace(warning=lambda message, **_: warnings.append(message))
+    evaluate = tune_runtime.make_evaluator("dtlz2", 12, 3, "moead", 100, None, False, 0.0, -1.0, logger=lambda: logger)
+    assignment = {**build_moead_config_space().sample(np.random.default_rng(3)), "pop_size": 60}
+
+    score = evaluate(assignment, EvalContext(instance=Instance("dtlz2", 12, {"n_obj": 3}), seed=1, budget=120))
+
+    assert warnings == [] and score != -1.0

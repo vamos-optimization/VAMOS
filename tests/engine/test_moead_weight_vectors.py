@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from vamos import optimize
-from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors
+from vamos.engine.algorithm.components.weight_vectors import largest_weighted_population, load_or_generate_weight_vectors
 from vamos.foundation.problem.dtlz import DTLZ2Problem
 
 
@@ -116,3 +116,21 @@ def test_packaged_weights_with_another_size_are_not_used() -> None:
     # W4D_100.dat holds 200 vectors: 100 individuals with four objectives keep the lattice error.
     with pytest.raises(ValueError, match="pop_size=100"):
         load_or_generate_weight_vectors(100, 4, mode="jmetalpy")
+
+
+def test_largest_weighted_population_keeps_sizes_with_weights_and_lowers_the_others() -> None:
+    assert largest_weighted_population(60, 3) == 55  # the complete lattice of 9 divisions
+    assert largest_weighted_population(91, 3) == 91  # 12 divisions
+    assert largest_weighted_population(102, 3) == 100  # the packaged W3D_100.dat
+    assert largest_weighted_population(37, 2) == 37  # two objectives: any size
+    with pytest.raises(ValueError, match="smallest Das-Dennis lattice"):
+        largest_weighted_population(2, 3)
+
+
+@pytest.mark.parametrize("n_obj", [3, 4, 5])
+def test_largest_weighted_population_always_has_weight_vectors(n_obj: int) -> None:
+    for pop_size in range(20, 201):
+        size = largest_weighted_population(pop_size, n_obj)
+
+        assert size <= pop_size and largest_weighted_population(size, n_obj) == size
+        assert load_or_generate_weight_vectors(size, n_obj, mode="jmetalpy").shape == (size, n_obj)

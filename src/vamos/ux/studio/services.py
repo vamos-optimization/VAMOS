@@ -220,21 +220,25 @@ def _run_algorithm(
         raise ValueError("engine must be configured via run arguments, not algorithm_config.")
     kernel = resolve_kernel(engine)
 
+    algo_ctor = resolve_algorithm(algorithm)
+    algorithm_instance = algo_ctor(cfg_dict, kernel)
+    # A backend built here from a name belongs to this run; one the caller passes stays open.
+    owns_backend = eval_strategy is None or isinstance(eval_strategy, str)
     if eval_strategy is not None:
         backend = resolve_eval_strategy(eval_strategy) if isinstance(eval_strategy, str) else eval_strategy
     else:
-        backend_name = str(cfg_dict.get("eval_strategy", "serial"))
-        backend = resolve_eval_strategy(backend_name)
-
-    algo_ctor = resolve_algorithm(algorithm)
-    algorithm_instance = algo_ctor(cfg_dict, kernel)
-    result = algorithm_instance.run(
-        problem=problem,
-        termination=termination,
-        seed=seed,
-        eval_strategy=backend,
-        live_viz=live_viz,
-    )
+        backend = resolve_eval_strategy(str(cfg_dict.get("eval_strategy", "serial")))
+    try:
+        result = algorithm_instance.run(
+            problem=problem,
+            termination=termination,
+            seed=seed,
+            eval_strategy=backend,
+            live_viz=live_viz,
+        )
+    finally:
+        if owns_backend:
+            backend.close()
     return dict(result)
 
 

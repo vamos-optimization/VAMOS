@@ -7,7 +7,9 @@ Use `make_problem_selection()` when you need registry-based instantiation by nam
 from __future__ import annotations
 
 from vamos.foundation.problem.cec2009 import CEC2009_CF1, CEC2009_UF1, CEC2009_UF2, CEC2009_UF3
+from vamos.foundation.problem.dascmop import DASCMOPProblem
 from vamos.foundation.problem.dtlz import DTLZ1Problem, DTLZ2Problem, DTLZ3Problem, DTLZ4Problem, DTLZ7Problem
+from vamos.foundation.problem.lircmop import LIRCMOPProblem
 from vamos.foundation.problem.real_world.engineering import WeldedBeamDesignProblem
 from vamos.foundation.problem.real_world.feature_selection import FeatureSelectionProblem
 from vamos.foundation.problem.real_world.hyperparam import HyperparameterTuningProblem
@@ -33,6 +35,9 @@ CEC2009UF1 = CEC2009_UF1
 CEC2009UF2 = CEC2009_UF2
 CEC2009UF3 = CEC2009_UF3
 CEC2009CF1 = CEC2009_CF1
+
+DASCMOP = DASCMOPProblem
+LIRCMOP = LIRCMOPProblem
 
 DTLZ1 = DTLZ1Problem
 DTLZ2 = DTLZ2Problem
@@ -63,11 +68,13 @@ __all__ = [
     "CEC2009UF2",
     "CEC2009UF3",
     "CEC2009CF1",
+    "DASCMOP",
     "DTLZ1",
     "DTLZ2",
     "DTLZ3",
     "DTLZ4",
     "DTLZ7",
+    "LIRCMOP",
     "TSP",
     "WFG1",
     "WFG2",

@@ -11,7 +11,16 @@ from ._bridge_assignment_shared import sanitize_assignment
 
 
 def config_from_assignment(algorithm_name: str, assignment: dict[str, Any]) -> AlgorithmConfigProtocol:
-    """Build a concrete algorithm config dataclass from a sampled assignment."""
+    """Build a concrete algorithm config dataclass from a sampled assignment.
+
+    The tuning spaces do not know the problem, so the caller adds its number of objectives as
+    ``assignment["n_obj"]`` for the algorithms that depend on it. RVEA derives its population
+    from ``n_partitions`` and ``n_obj`` (two objectives without it). MOEA/D with ``n_obj`` runs the
+    largest population, at most the sampled ``pop_size``, that has weight vectors: with three or
+    more objectives a complete Das-Dennis lattice or a packaged jMetal file (see
+    :func:`~vamos.engine.algorithm.components.weight_vectors.largest_weighted_population`);
+    without it, exactly ``pop_size``.
+    """
     algo = algorithm_name.lower()
     assignment = sanitize_assignment(assignment)
 
