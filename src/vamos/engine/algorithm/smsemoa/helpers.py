@@ -116,8 +116,9 @@ def compute_front_crowding(F: FloatArray, front: IntArray | list[int]) -> FloatA
     front_arr = np.asarray(front, dtype=int)
     if front_arr.size == 0:
         return np.empty(0, dtype=float)
-    if front_arr.size == 1:
-        return np.array([np.inf], dtype=float)
+    if front_arr.size <= 2:
+        # One or two rows are both boundary points; an objective without spread is skipped below.
+        return np.full(front_arr.size, np.inf, dtype=float)
 
     fvals = F[front_arr]
     n_obj = fvals.shape[1]
@@ -125,11 +126,11 @@ def compute_front_crowding(F: FloatArray, front: IntArray | list[int]) -> FloatA
     for obj in range(n_obj):
         order = np.argsort(fvals[:, obj], kind="mergesort")
         sorted_vals = fvals[order, obj]
-        crowding[order[0]] = np.inf
-        crowding[order[-1]] = np.inf
         span = sorted_vals[-1] - sorted_vals[0]
         if span <= 0.0:
             continue
+        crowding[order[0]] = np.inf
+        crowding[order[-1]] = np.inf
         contrib = np.zeros_like(sorted_vals)
         contrib[1:-1] = (sorted_vals[2:] - sorted_vals[:-2]) / span
         crowding[order[1:-1]] += contrib[1:-1]

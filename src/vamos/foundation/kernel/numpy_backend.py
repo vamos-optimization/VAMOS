@@ -129,6 +129,10 @@ def _compute_crowding(F: RealArray, fronts: list[list[int]]) -> FloatArray:
     """
     Standard crowding-distance computation.
     crowding: array of length N.
+
+    A front of one or two rows gets ``inf``. An objective without spread in a
+    front is skipped, as in jMetal and pymoo: it does not mark the rows that come
+    first and last in its sort as boundary points.
     """
     N = F.shape[0]
     crowding = np.zeros(N)
@@ -137,8 +141,8 @@ def _compute_crowding(F: RealArray, fronts: list[list[int]]) -> FloatArray:
         if len(front) == 0:
             continue
         front_arr = np.asarray(front, dtype=int)
-        if front_arr.size == 1:
-            crowding[front_arr[0]] = np.inf
+        if front_arr.size <= 2:
+            crowding[front_arr] = np.inf
             continue
 
         fvals = F[front_arr]  # shape (k, n_obj)
@@ -149,12 +153,11 @@ def _compute_crowding(F: RealArray, fronts: list[list[int]]) -> FloatArray:
             order = np.argsort(fvals[:, m], kind="mergesort")
             sorted_vals = fvals[order, m]
 
-            d[order[0]] = np.inf
-            d[order[-1]] = np.inf
-
             span = sorted_vals[-1] - sorted_vals[0]
             if span <= 0.0:
                 continue
+            d[order[0]] = np.inf
+            d[order[-1]] = np.inf
 
             contrib = np.zeros_like(sorted_vals)
             contrib[1:-1] = (sorted_vals[2:] - sorted_vals[:-2]) / span
