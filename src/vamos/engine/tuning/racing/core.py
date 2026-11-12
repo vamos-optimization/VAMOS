@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from collections.abc import Sequence
 from typing import Any
 
@@ -16,7 +17,7 @@ from .refill import refill_population
 from .sampler import ModelBasedSampler, Sampler
 from .scenario import Scenario
 from .schedule import build_schedule
-from .state import ConfigState, EliteEntry
+from .state import ConfigState, EliteEntry, raise_if_every_evaluation_failed
 from .tuning_task import EvalContext, Instance, TuningTask
 
 
@@ -24,25 +25,25 @@ def _logger() -> logging.Logger:
     return logging.getLogger(__name__)
 
 
-def _failure_score(maximize: bool) -> float:
-    # Use a finite sentinel so aggregators and statistical tests keep working.
-    return -1e30 if maximize else 1e30
-
-
 def _eval_worker(
     eval_fn: EvalFn,
     config: dict[str, Any],
     ctx: EvalContext,
-    maximize: bool,
-) -> float:
+    failure_score: float,
+) -> tuple[float, bool]:
+    """``(score, failed)`` of one evaluation; an exception or a non-finite score is a failure.
+
+    A failure scores the finite ``failure_score``, so aggregators and statistical tests keep working.
+    """
     try:
         result = eval_fn(config, ctx)
-        if isinstance(result, tuple):
-            return float(result[0])
-        return float(result)
+        score = float(result[0]) if isinstance(result, tuple) else float(result)
     except Exception:
-        _logger().warning("[racing] eval_fn failed in worker; assigning failure score.", exc_info=True)
-        return _failure_score(maximize)
+        _logger().warning("[racing] eval_fn failed; assigning the failure score.", exc_info=True)
+        return failure_score, True
+    if not math.isfinite(score):
+        return failure_score, True
+    return score, False
 
 
 _BlockScores = dict[tuple[int, int], float]
@@ -307,6 +308,7 @@ class RacingTuner:
                     _logger().info("[racing] Budget exhausted after partial stage.")
                 break
 
+        raise_if_every_evaluation_failed(configs, tuner="RacingTuner")
         best_state, history = self._finalize_results(configs)
         if best_state is None:
             raise RuntimeError("RacingTuner finished without a valid configuration.")
@@ -358,30 +360,17 @@ class RacingTuner:
             tasks = [tasks[int(i)] for i in chosen]
             indices = [indices[int(i)] for i in chosen]
 
+        failure_score = self.task.failure_value()
         if self.scenario.n_jobs == 1:
             # Sequential execution (avoid overhead)
-            for i, (cfg, ctx) in enumerate(tasks):
-                try:
-                    result = eval_fn(cfg, ctx)
-                    score = float(result[0]) if isinstance(result, tuple) else float(result)
-                except Exception:
-                    _logger().warning(
-                        "[racing] eval_fn failed for config_id=%s; assigning failure score.",
-                        configs[indices[i]].config_id,
-                        exc_info=True,
-                    )
-                    score = _failure_score(self.task.maximize)
-                configs[indices[i]].scores.append(score)
-                configs[indices[i]].blocks.append(block)
+            results = [_eval_worker(eval_fn, cfg, ctx, failure_score) for cfg, ctx in tasks]
         else:
             # Parallel execution with joblib
-            results = Parallel(n_jobs=self.scenario.n_jobs)(
-                delayed(_eval_worker)(eval_fn, cfg, ctx, self.task.maximize) for cfg, ctx in tasks
-            )
-
-            for i, score in enumerate(results):
-                configs[indices[i]].scores.append(score)
-                configs[indices[i]].blocks.append(block)
+            results = Parallel(n_jobs=self.scenario.n_jobs)(delayed(_eval_worker)(eval_fn, cfg, ctx, failure_score) for cfg, ctx in tasks)
+        for i, (score, failed) in enumerate(results):
+            configs[indices[i]].scores.append(score)
+            configs[indices[i]].blocks.append(block)
+            configs[indices[i]].failures += int(failed)
         return len(tasks)
 
     def _played_blocks(self, configs: list[ConfigState]) -> list[tuple[int, int]]:
@@ -466,7 +455,7 @@ class RacingTuner:
 
         for state in configs:
             scores = state.scores
-            details = {"num_evals": len(state.scores), "alive": state.alive}
+            details = {"num_evals": len(state.scores), "alive": state.alive, "failed_evaluations": state.failures}
             if self.scenario.use_multi_fidelity:
                 final_level = len(self.scenario.fidelity_levels) - 1
                 final_scores = state.fidelity_scores.get(final_level) or []
