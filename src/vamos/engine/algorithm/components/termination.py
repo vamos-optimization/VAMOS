@@ -9,6 +9,7 @@ from typing import Any
 import numpy as np
 import numpy.typing as npt
 
+from vamos.engine.algorithm.components.results import result_objectives
 from vamos.foundation.quality_indicators.hypervolume import hypervolume
 
 _FloatArray = npt.NDArray[np.float64]
@@ -137,9 +138,14 @@ def parse_termination(
 
 
 def hv_target_reached(state: Any) -> bool:
-    """Whether the state's HV tracker, when an ``("hv", ...)`` termination enables it, has reached its target."""
+    """Whether the state's HV tracker, when an ``("hv", ...)`` termination enables it, has reached its target.
+
+    The target is measured on the rows that the result reports (``result_objectives``), so an
+    infeasible row the result drops, or an archive that a population result ignores, cannot stop
+    the run early.
+    """
     tracker = getattr(state, "hv_tracker", None)
-    return bool(tracker is not None and tracker.enabled and tracker.reached(state.hv_points()))
+    return bool(tracker is not None and tracker.enabled and tracker.reached(result_objectives(state)))
 
 
 def validate_initial_budget(max_evaluations: int, pop_size: int, algorithm_name: str) -> None:

@@ -348,3 +348,47 @@ def test_hv_converged_stays_an_alias_of_hv_reached(algorithm_name: str, factory:
     result = algorithm.run(ZDT1Problem(n_var=6), termination=("hv", reachable), seed=11)
 
     assert result["hv_converged"] is result["hv_reached"] is True
+
+
+class _Archive:
+    def __init__(self, F: np.ndarray) -> None:
+        self.F = F
+
+    def contents(self) -> tuple[np.ndarray, np.ndarray]:
+        return np.zeros((self.F.shape[0], 1)), self.F
+
+    def constraint_values(self) -> None:
+        return None
+
+
+def _hv_state(**fields: Any) -> Any:
+    from types import SimpleNamespace
+
+    from vamos.engine.algorithm.components.termination import HVTracker
+
+    tracker = HVTracker({"target_value": 2.0, "reference_point": [2.0, 2.0], "max_evaluations": 10}, None)
+    # An infeasible row at (0, 0) and a feasible one at (1, 1): HV 4 with both, 1 with the feasible row.
+    base = {
+        "hv_tracker": tracker,
+        "F": np.array([[0.0, 0.0], [1.0, 1.0]]),
+        "G": np.array([[1.0], [-1.0]]),
+        "constraint_mode": "feasibility",
+        "result_mode": "non_dominated",
+        "archive_manager": None,
+        "archive_F": None,
+    }
+    base.update(fields)
+    return SimpleNamespace(**base, hv_points=lambda: base["F"] if base["archive_F"] is None else base["archive_F"])
+
+
+def test_hv_target_is_measured_on_the_rows_the_result_reports() -> None:
+    from vamos.engine.algorithm.components.termination import hv_target_reached
+
+    # The non-dominated result keeps the feasible row only: HV 1 < 2, so the target is not reached.
+    assert hv_target_reached(_hv_state()) is False
+    # A population result reports the infeasible row too: HV 4 >= 2.
+    assert hv_target_reached(_hv_state(result_mode="population")) is True
+    # With result_mode="population" an external archive is not the result, so its HV does not count.
+    archive_only = _Archive(np.array([[0.0, 0.0]]))
+    population_result = _hv_state(result_mode="population", F=np.array([[1.5, 1.5]]), G=None, archive_manager=archive_only)
+    assert hv_target_reached(population_result) is False
