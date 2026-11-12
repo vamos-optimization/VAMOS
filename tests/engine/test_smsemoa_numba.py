@@ -230,6 +230,50 @@ def test_smsemoa_selection_is_invariant_to_objective_units() -> None:
         assert result["population"]["X"].tobytes() == base.tobytes(), factor
 
 
+class _RecordingCallback:
+    def __init__(self) -> None:
+        self.generations: list[tuple[int, int | None]] = []
+
+    def on_start(self, ctx=None) -> None:  # noqa: ANN001 - protocol-style test double
+        del ctx
+
+    def on_generation(self, generation, F=None, X=None, stats=None) -> None:  # noqa: ANN001
+        del F, X
+        self.generations.append((int(generation), None if stats is None else stats.get("evals")))
+
+    def on_end(self, final_F=None) -> None:  # noqa: ANN001
+        del final_F
+
+
+def test_smsemoa_generation_counts_pop_size_evaluations() -> None:
+    cfg = _smsemoa_config()
+    for kernel in (NumPyKernel(), NumbaKernel()):
+        callback = _RecordingCallback()
+        result = SMSEMOA(cfg.to_dict(), kernel=kernel).run(
+            ZDT1Problem(n_var=6), termination=("max_evaluations", 12 * 5 + 7), seed=0, live_viz=callback
+        )
+
+        # Generation 0 is the initial population; each later generation is pop_size (12) children.
+        assert callback.generations == [(0, 12), (1, 24), (2, 36), (3, 48), (4, 60)], type(kernel).__name__
+        assert result["generation"] == 4
+
+
+def test_smsemoa_ask_tell_generation_counts_pop_size_evaluations() -> None:
+    cfg = _smsemoa_config()
+    problem = ZDT1Problem(n_var=6)
+    callback = _RecordingCallback()
+    algorithm = SMSEMOA(cfg.to_dict(), kernel=NumPyKernel())
+    algorithm.initialize(problem, ("max_evaluations", 12 * 3 + 5), seed=0, live_viz=callback)
+    while not algorithm.should_terminate():
+        X = algorithm.ask()
+        out = {"F": np.empty((X.shape[0], 2))}
+        problem.evaluate(X, out)
+        algorithm.tell(out["F"])
+
+    assert callback.generations == [(0, 12), (1, 24), (2, 36)]
+    assert algorithm.state is not None and algorithm.state.generation == 2
+
+
 def test_user_reference_vector_is_kept() -> None:
     cfg = _smsemoa_config(vector=[1.1, 1.1])
     result = SMSEMOA(cfg.to_dict(), kernel=NumPyKernel()).run(ZDT1Problem(n_var=6), termination=("max_evaluations", 400), seed=3)

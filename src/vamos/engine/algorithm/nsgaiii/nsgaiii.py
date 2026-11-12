@@ -64,6 +64,17 @@ def _offspring_constraints(G: Any, F: FloatArray, population_G: FloatArray | Non
     return offspring_G
 
 
+def _archive_offspring(st: NSGAIIIState, X_off: DecisionArray, F_off: FloatArray, G_off: FloatArray | None) -> None:
+    """Offer the evaluated offspring to the external archive before survival.
+
+    The archive starts from the initial population and then receives every evaluated
+    offspring once, so an offspring that niching drops is archived when no evaluated
+    row dominates it.
+    """
+    if st.archive_manager is not None:
+        st.archive_X, st.archive_F = st.archive_manager.update(X_off, F_off, G_off)
+
+
 class NSGAIII:
     """Non-dominated Sorting Genetic Algorithm III for many-objective optimization."""
 
@@ -122,6 +133,7 @@ class NSGAIII:
             X_off = self._generate_offspring(st)
             F_off, G_off = self._evaluate_offspring(problem, X_off, eval_strategy, st.constraint_mode)
             st.n_eval += X_off.shape[0]
+            _archive_offspring(st, X_off, F_off, G_off)
 
             ids_combined = None
             if st.ids is not None and st.pending_offspring_ids is not None:
@@ -156,9 +168,6 @@ class NSGAIII:
                 st.ids = ids_combined[survivor_indices]
 
             st.generation += 1
-
-            if st.archive_manager is not None:
-                st.archive_X, st.archive_F = st.archive_manager.update(st.X, st.F, st.G)
 
             live_cb.on_generation(st.generation, F=st.F, stats={"evals": st.n_eval})
             stop_requested = live_should_stop(live_cb)
@@ -289,6 +298,7 @@ class NSGAIII:
             G = None
         G = _offspring_constraints(G, F, st.G, st.constraint_mode)
         st.pending_offspring = None
+        _archive_offspring(st, X_off, F, G)
 
         ids_combined = None
         if st.ids is not None and st.pending_offspring_ids is not None:
@@ -324,9 +334,6 @@ class NSGAIII:
 
         st.n_eval += X_off.shape[0]
         st.generation += 1
-
-        if st.archive_manager is not None:
-            st.archive_X, st.archive_F = st.archive_manager.update(st.X, st.F, st.G)
 
         if self._live_cb is not None:
             self._live_cb.on_generation(st.generation, F=st.F)

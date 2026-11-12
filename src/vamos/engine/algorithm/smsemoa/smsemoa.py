@@ -43,6 +43,28 @@ from vamos.foundation.observer import RunContext
 __all__ = ["SMSEMOA"]
 
 
+def _archive_child(st: SMSEMOAState, X_child: NDArray[Any], F_child: NDArray[np.float64], G_child: Any) -> None:
+    """Offer an evaluated child to the external archive, whether or not it survives.
+
+    The archive starts from the initial population and then receives every child
+    once, so a child removed as the least hypervolume contributor is archived when
+    no evaluated row dominates it.
+    """
+    if st.archive_manager is not None:
+        # The archive holds constraint values exactly when the population does.
+        G_rows = np.asarray(G_child, dtype=float).reshape(X_child.shape[0], -1) if st.G is not None and G_child is not None else None
+        st.archive_X, st.archive_F = st.archive_manager.update(X_child, F_child, G_rows)
+
+
+def _advance_step(st: SMSEMOAState) -> bool:
+    """Count one child; return whether it completes a generation of ``pop_size`` children."""
+    st.steps += 1
+    if st.steps % st.pop_size != 0:
+        return False
+    st.generation = st.steps // st.pop_size
+    return True
+
+
 class SMSEMOA:
     """S-Metric Selection Evolutionary Multiobjective Optimization Algorithm.
 
@@ -147,29 +169,25 @@ class SMSEMOA:
         # Generation 0 is the evaluated initial population, as in every algorithm.
         live_cb.on_generation(0, F=st.F, stats={"evals": st.n_eval})
 
-        # Compiled kernels reproduce the generation below when the configuration allows it.
+        # Compiled kernels reproduce the step below when the configuration allows it.
         compiled = build_compiled_step(st, self.kernel)
         hv_reached = False
         stop_requested = live_should_stop(live_cb)
         try:
             while st.n_eval < max_eval and not stop_requested:
                 if compiled is not None:
-                    compiled.step(problem, eval_strategy)
+                    X_child, F_child, G_child = compiled.step(problem, eval_strategy)
                 else:
-                    self._reference_step(st, problem, eval_strategy)
+                    X_child, F_child, G_child = self._reference_step(st, problem, eval_strategy)
+                _archive_child(st, X_child, F_child, G_child)
 
-                st.generation += 1
-
-                # Update archive
-                if st.archive_manager is not None:
-                    st.archive_X, st.archive_F = st.archive_manager.update(st.X, st.F, st.G)
-
-                # Live callback
-                live_cb.on_generation(st.generation, F=st.F, stats={"evals": st.n_eval})
+                new_generation = _advance_step(st)
+                if new_generation:
+                    live_cb.on_generation(st.generation, F=st.F, stats={"evals": st.n_eval})
                 stop_requested = live_should_stop(live_cb)
 
-                # Check HV threshold
-                if hv_tracker is not None and hv_tracker.enabled and hv_tracker.reached(st.hv_points()):
+                # The HV target is checked once per generation, as in steady-state NSGA-II.
+                if new_generation and hv_tracker is not None and hv_tracker.enabled and hv_tracker.reached(st.hv_points()):
                     hv_reached = True
                     break
         finally:
@@ -185,24 +203,18 @@ class SMSEMOA:
     # Generation logic
     # -------------------------------------------------------------------------
 
-    def _reference_step(self, st: SMSEMOAState, problem: ProblemProtocol, eval_strategy: EvaluationBackend) -> None:
-        """Generate, evaluate and insert one child (the reference for ``CompiledSteadyStep``)."""
+    def _reference_step(
+        self, st: SMSEMOAState, problem: ProblemProtocol, eval_strategy: EvaluationBackend
+    ) -> tuple[NDArray[Any], NDArray[np.float64], NDArray[np.float64] | None]:
+        """Generate, evaluate and insert one child (the reference for ``CompiledSteadyStep``).
+
+        Returns the evaluated child as ``(X, F, G)`` rows.
+        """
         X_child = self._generate_offspring(st)
         F_child, G_child = self._evaluate_offspring(problem, X_child, eval_strategy, st.constraint_mode)
         st.n_eval += X_child.shape[0]
-
-        # Survival selection (one child at a time for SMS-EMOA)
-        if X_child.shape[0] == 1:
-            survival_selection(st, X_child, F_child, G_child, self.kernel)
-        else:  # pragma: no cover - steady-state SMS-EMOA typically uses 1 offspring
-            for i in range(X_child.shape[0]):
-                survival_selection(
-                    st,
-                    X_child[i : i + 1],
-                    F_child[i : i + 1],
-                    G_child[i : i + 1] if G_child is not None else None,
-                    self.kernel,
-                )
+        survival_selection(st, X_child, F_child, G_child, self.kernel)
+        return X_child, F_child, G_child
 
     def _generate_offspring(self, st: SMSEMOAState) -> NDArray[Any]:
         """Generate offspring using parent selection and variation."""
@@ -365,28 +377,16 @@ class SMSEMOA:
             F = np.asarray(eval_result, dtype=float)
             G = None
 
-        # Survival selection for each child
-        if X_off.shape[0] == 1:
-            survival_selection(st, X_off, F, G, self.kernel)
-        else:  # pragma: no cover - steady-state SMS-EMOA typically uses 1 offspring
-            for i in range(X_off.shape[0]):
-                G_i = G[i : i + 1] if G is not None else None
-                survival_selection(st, X_off[i : i + 1], F[i : i + 1], G_i, self.kernel)
-
+        # ``ask`` creates one child per call.
+        survival_selection(st, X_off, F, G, self.kernel)
         st.n_eval += X_off.shape[0]
-        st.generation += 1
+        _archive_child(st, X_off, F, G)
 
-        # Update archive
-        if st.archive_manager is not None:
-            st.archive_X, st.archive_F = st.archive_manager.update(st.X, st.F, st.G)
-
-        # Live callback
-        if self._live_cb is not None:
-            self._live_cb.on_generation(st.generation, F=st.F)
-
-        # Check HV tracker
-        if st.hv_tracker is not None and st.hv_tracker.enabled:
-            st.hv_tracker.reached(st.hv_points())
+        if _advance_step(st):
+            if self._live_cb is not None:
+                self._live_cb.on_generation(st.generation, F=st.F, stats={"evals": st.n_eval})
+            if st.hv_tracker is not None and st.hv_tracker.enabled:
+                st.hv_tracker.reached(st.hv_points())
 
         return False
 

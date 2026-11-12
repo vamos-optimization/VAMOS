@@ -11,8 +11,9 @@ crowding distances and reference point evolve exactly as in the reference.
 Supported configurations: real encoding with SBX, polynomial mutation and the
 clip repair (``repair="auto"``); random or tournament parent selection;
 duplicate elimination; constraints; adaptive or fixed reference points. The run
-loop still updates archives, live callbacks and hypervolume termination after
-each step. Two-objective contributions are compiled when they match the
+loop still offers each child to the external archive and, once per generation
+of ``pop_size`` children, notifies live callbacks and checks hypervolume
+termination. Two-objective contributions are compiled when they match the
 installed reference (MooCore or the NumPy fallback); otherwise, and for three
 or more objectives, the reference contribution function is called on the worst
 front. Feasibility-first removal is compiled when the compiled violation sums
@@ -172,8 +173,13 @@ class CompiledSteadyStep:
         self._finite = True
         survival.reset(st.F)
 
-    def step(self, problem: ProblemProtocol, eval_strategy: EvaluationBackend) -> None:
-        """Generate, evaluate and insert one child; counts one evaluation."""
+    def step(
+        self, problem: ProblemProtocol, eval_strategy: EvaluationBackend
+    ) -> tuple[np.ndarray[Any, np.dtype[np.float64]], np.ndarray[Any, Any], np.ndarray[Any, Any] | None]:
+        """Generate, evaluate and insert one child; counts one evaluation.
+
+        Returns the evaluated child as ``(X, F, G)`` rows, as ``SMSEMOA._reference_step`` does.
+        """
         st = self._st
         if self._tournament:
             assert st.ranks is not None and st.crowding is not None
@@ -188,6 +194,7 @@ class CompiledSteadyStep:
             G_child = None
         st.n_eval += 1
         self._survive(X_child, F_child, G_child)
+        return X_child, F_child, G_child
 
     def finish(self) -> None:
         """Restore the cached front lists, which the reference keeps unless infeasible rows remain."""

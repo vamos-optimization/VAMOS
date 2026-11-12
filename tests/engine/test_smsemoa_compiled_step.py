@@ -40,9 +40,9 @@ class _StepCounter:
         self.references = 0
         step, reference = compiled_step.CompiledSteadyStep.step, compiled_step.CompiledSteadyStep._reference
 
-        def counted_step(inner: Any, *args: Any) -> None:
+        def counted_step(inner: Any, *args: Any) -> Any:
             self.steps += 1
-            step(inner, *args)
+            return step(inner, *args)
 
         def counted_reference(inner: Any, *args: Any) -> None:
             self.references += 1
