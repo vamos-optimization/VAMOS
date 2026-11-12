@@ -6,6 +6,8 @@ import argparse
 import math
 from typing import Any
 
+from vamos.engine.algorithm.catalog import ALGORITHM_MINIMUMS
+from vamos.engine.algorithm.variants import canonical_algorithm_name
 from vamos.engine.tuning import Int, ParamSpace
 
 from ._tune_irace import smoke_tune_budget
@@ -54,31 +56,65 @@ def apply_smoke_mode(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
-def _capped(param: Int, ceiling: int) -> Int:
+# The algorithms whose population can be a reference lattice, with their names in messages.
+_LATTICE_LABELS = {"moead": "MOEA/D", "nsgaiii": "NSGA-III", "rvea": "RVEA"}
+
+
+def _capped(param: Int, ceiling: int, *, floor: int = 1) -> Int:
     high = min(int(param.high), int(ceiling))
     # Keep two values at least: SMAC3, BOHB and irace reject an integer range without width.
-    low = max(1, min(int(param.low), high - 1))
+    low = max(int(floor), min(int(param.low), high - 1))
     return Int(param.name, low, high, log=param.log, role=param.role)
 
 
-def smoke_param_space(param_space: ParamSpace, *, max_population: int, n_obj: int) -> ParamSpace:
-    """``param_space`` with every sampled population at most ``max_population``.
+def smallest_population(algorithm: str, n_obj: int) -> int:
+    """The smallest population ``algorithm`` runs with on ``n_obj`` objectives.
+
+    NSGA-III's and RVEA's populations are complete Das-Dennis lattices, and so are MOEA/D's weight
+    vectors with three or more objectives; the smallest lattice has one direction per objective.
+    Otherwise it is the minimum of :data:`vamos.engine.algorithm.catalog.ALGORITHM_MINIMUMS`.
+    """
+    base = canonical_algorithm_name(algorithm).split("_")[0]
+    minimum = ALGORITHM_MINIMUMS.get(base, {}).get("pop_size", 1)
+    if base in ("nsgaiii", "rvea") or (base == "moead" and n_obj > 2):
+        return max(minimum, int(n_obj))
+    return minimum
+
+
+def smoke_param_space(param_space: ParamSpace, *, max_population: int, n_obj: int, algorithm: str, budget: int) -> ParamSpace:
+    """``param_space`` with every sampled population at most ``max_population`` and feasible.
 
     The built-in spaces sample ``pop_size`` in [20, 200], and RVEA's population is its number of
     reference directions, ``comb(n_partitions + n_obj - 1, n_obj - 1)``, while a smoke run has a few
-    dozen evaluations: without the cap, ``optimize`` rejects most sampled configurations.
+    dozen evaluations: without the cap, ``optimize`` rejects most sampled configurations. The cap
+    never goes below the algorithm's smallest population (:func:`smallest_population`): with many
+    objectives, a reference-direction algorithm samples its smallest lattice, and a size one above
+    it, which MOEA/D and NSGA-III round down to that lattice. When even that does not fit the smoke
+    budget, the command stops with a message instead of failing every evaluation.
     """
+    floor = smallest_population(algorithm, n_obj)
     params = dict(param_space.params)
     pop_size = params.get("pop_size")
-    if isinstance(pop_size, Int):
-        params["pop_size"] = _capped(pop_size, max_population)
     partitions = params.get("n_partitions")
+    needed = floor + 1 if isinstance(pop_size, Int) else floor
+    if needed > budget:
+        label = _LATTICE_LABELS.get(canonical_algorithm_name(algorithm).split("_")[0])
+        why = " (its smallest reference lattice)" if label else ""
+        raise SystemExit(
+            f"vamos tune --smoke: {label or algorithm} with {n_obj} objectives needs a population of at least {floor}{why}, "
+            f"which does not fit the smoke budget of {budget} evaluations per run. "
+            "Run it without --smoke, with a --budget above that population."
+        )
+    if isinstance(pop_size, Int):
+        params["pop_size"] = _capped(pop_size, max(max_population, floor + 1), floor=floor)
     if isinstance(partitions, Int):
         n_dirs = max(2, int(n_obj)) - 1
-        fitting = [h for h in range(1, int(partitions.high) + 1) if math.comb(h + n_dirs, n_dirs) <= max_population]
-        if fitting:
-            params["n_partitions"] = _capped(partitions, max(fitting))
+        limit = max(max_population, floor)
+        fitting = [h for h in range(1, int(partitions.high) + 1) if math.comb(h + n_dirs, n_dirs) <= limit]
+        # One partition gives the n_obj axis directions, so it always fits; when no second count
+        # fits, the range has a single value, which SMAC3, BOHB and irace cannot sample.
+        params["n_partitions"] = _capped(partitions, max(fitting))
     return ParamSpace(params=params, conditions=list(param_space.conditions))
 
 
-__all__ = ["apply_smoke_mode", "smoke_param_space"]
+__all__ = ["apply_smoke_mode", "smallest_population", "smoke_param_space"]

@@ -52,7 +52,9 @@ def test_tune_smoke_samples_feasible_population(tmp_path: Path, caplog: pytest.L
 @pytest.mark.parametrize("algorithm", sorted(_tune_runtime.BUILDERS))
 def test_smoke_space_keeps_every_population_within_half_the_budget(algorithm: str, n_obj: int) -> None:
     profile = _smoke_profile(["--algorithm", algorithm, "--n-obj", str(n_obj)])
-    params = smoke_param_space(_param_space(algorithm), max_population=profile["pop_size"], n_obj=n_obj).params
+    params = smoke_param_space(
+        _param_space(algorithm), max_population=profile["pop_size"], n_obj=n_obj, algorithm=algorithm, budget=profile["budget"]
+    ).params
 
     population = params["pop_size"] if "pop_size" in params else params["n_partitions"]
     assert isinstance(population, Int)
@@ -69,7 +71,9 @@ def test_smoke_space_keeps_every_population_within_half_the_budget(algorithm: st
 
 def test_smoke_population_leaves_room_for_the_opposition_based_initializer(caplog: pytest.LogCaptureFixture) -> None:
     profile = _smoke_profile(["--problem", "zdt1"])
-    space = smoke_param_space(_param_space("nsgaii"), max_population=profile["pop_size"], n_obj=2)
+    space = smoke_param_space(
+        _param_space("nsgaii"), max_population=profile["pop_size"], n_obj=2, algorithm="nsgaii", budget=profile["budget"]
+    )
     config = space.sample(np.random.default_rng(0))
     config.update(initializer="obl", pop_size=space.params["pop_size"].high)
     logger = logging.getLogger("test_cli_tune_smoke")
@@ -139,3 +143,32 @@ def test_tune_output_folder_names_the_instances(monkeypatch: pytest.MonkeyPatch,
 
     (folder,) = [path for path in tmp_path.iterdir() if path.is_dir()]
     assert folder.name.startswith(f"{label}_nsgaii_random_seed1_"), folder.name
+
+
+# Review follow-up (PR #230): reference-direction algorithms need at least one direction per objective.
+@pytest.mark.parametrize("algorithm", ["moead", "nsgaiii", "rvea"])
+def test_smoke_space_keeps_reference_lattices_feasible(
+    algorithm: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    from vamos.experiment.cli import _tune_scoring
+
+    # The runs are what this test checks; a 16-objective hypervolume without moocore takes minutes.
+    monkeypatch.setattr(_tune_scoring, "_score_population_result", lambda *_args: 1.0)
+    argv = ["--problem", "dtlz2", "--n-obj", "16", "--algorithm", algorithm, "--backend", "random", "--smoke"]
+    with caplog.at_level(logging.WARNING):
+        assert tune_cli.main([*argv, "--output-dir", str(tmp_path)]) == 0
+
+    assert _failures(caplog) == []
+    sampled = _artifact(tmp_path, "tuning_history.json")
+    if algorithm == "rvea":
+        # One partition gives the 16 axis directions; two give 136, more than the smoke budget.
+        assert {trial["config"]["n_partitions"] for trial in sampled} == {1}
+    else:
+        assert all(trial["config"]["pop_size"] >= 16 for trial in sampled), sampled
+
+
+def test_smoke_rejects_lattices_larger_than_its_budget(tmp_path: Path) -> None:
+    argv = ["--problem", "dtlz2", "--n-obj", "40", "--n-var", "50", "--algorithm", "nsgaiii", "--backend", "random", "--smoke"]
+    with pytest.raises(SystemExit, match=r"NSGA-III with 40 objectives needs a population of at least 40.*smoke budget of 30"):
+        tune_cli.main([*argv, "--output-dir", str(tmp_path)])
+    assert not list(tmp_path.rglob("*.json")), "nothing may be written before the check"

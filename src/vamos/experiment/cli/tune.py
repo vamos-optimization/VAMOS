@@ -191,7 +191,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     algo_space = builder()
     param_space = algo_space.to_param_space() if isinstance(algo_space, AlgorithmConfigSpace) else algo_space
     if smoke_profile is not None:
-        param_space = _smoke_param_space(param_space, max_population=int(args.pop_size), n_obj=int(args.n_obj))
+        param_space = _smoke_param_space(
+            param_space, max_population=int(args.pop_size), n_obj=int(args.n_obj), algorithm=str(args.algorithm), budget=int(args.budget)
+        )
 
     problem_names = list(_parse_csv_strings(args.instances)) or [str(args.problem)]
     all_instances = [Instance(name=name, n_var=int(args.n_var), kwargs={}) for name in problem_names]
