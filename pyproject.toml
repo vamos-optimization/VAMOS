@@ -320,9 +320,6 @@ ignore = [
     "UP038",  # Tuple form keeps isinstance checks readable for mixed runtime types
 ]
 
-[tool.ruff.lint.per-file-ignores]
-"tests/**" = ["B017"]  # Tests may assert broad exceptions intentionally
-
 [tool.semantic_release]
 version_variable = [
     "src/vamos/foundation/version.py:__version__",

@@ -15,7 +15,7 @@ def test_unknown_algorithm_name_errors():
 
 
 def test_unknown_problem_selection_errors():
-    with pytest.raises(Exception):
+    with pytest.raises(KeyError, match="nonexistent_problem"):
         optimize("nonexistent_problem", algorithm="nsgaii", max_evaluations=4, pop_size=4, seed=0)
 
 
