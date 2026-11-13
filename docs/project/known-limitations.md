@@ -48,6 +48,12 @@ unsupported behavior rather than future compatibility promises.
 - Deterministic same-environment runs do not imply bitwise equality across
   different kernels, BLAS implementations, operating systems, architectures,
   or optional third-party engines.
+- `optimize` passes the run's `numpy.random.Generator` to the stochastic
+  components it builds, but two random streams do not follow the run seed:
+  the `ref_dirs` pruning of a bounded external archive draws from its
+  `rng_seed` (0 unless set), and the hypervolume convergence monitor
+  bootstraps with Python's `random.Random` seeded by its own `rng_seed`
+  (also 0). Every seed of an experiment therefore shares those two streams.
 
 ## Benchmark validation
 

@@ -193,12 +193,12 @@ class TestDependencyErrors:
         assert "pip install pandas" in str(err)
 
     def test_backend_not_available_error(self):
-        """BackendNotAvailableError should suggest vamos[compute]."""
+        """BackendNotAvailableError should suggest vamos-optimization[compute]."""
         from vamos.foundation.exceptions import BackendNotAvailableError
 
         err = BackendNotAvailableError("numba")
         assert "numba" in str(err)
-        assert "vamos[compute]" in str(err)
+        assert "vamos-optimization[compute]" in str(err)
 
 
 class TestExceptionHierarchy:
@@ -305,3 +305,67 @@ class TestExceptionUsage:
                 BackendNotAvailableError,
             ]
         )
+
+
+def test_install_hints_name_the_distribution() -> None:
+    """Install hints name the PyPI distribution, not `vamos` (another project) or a checkout install (VR-128)."""
+    import re
+    from pathlib import Path
+
+    import vamos
+    from vamos.foundation.exceptions import BackendNotAvailableError, InvalidAlgorithmError, InvalidEngineError
+
+    src = Path(vamos.__file__).resolve().parent
+    wrong = re.compile(r"pip install (-e\b|\"?vamos\[)")
+    offenders = [
+        f"{path.relative_to(src).as_posix()}:{number}"
+        for path in sorted(src.rglob("*.py"))
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1)
+        if wrong.search(line)
+    ]
+    assert offenders == []
+    assert 'pip install "vamos-optimization[compute]"' in str(BackendNotAvailableError("numba"))
+    assert 'pip install "vamos-optimization[compute]"' in str(InvalidEngineError("numbaa"))
+    from vamos.engine.algorithm.registry import get_builtin_algorithm_names
+
+    assert InvalidAlgorithmError("nsga").details["available"] == list(get_builtin_algorithm_names())
+
+
+def test_artifact_and_study_errors_are_vamos_errors():
+    """Run-artifact and study errors share the VAMOSError base and the public namespace (VR-090)."""
+    import vamos.exceptions as public
+    from vamos.experiment.artifacts.errors import OutputCollisionError, RunArtifactError
+    from vamos.experiment.study.errors import InvalidStudySpecError, StudyError
+
+    assert issubclass(RunArtifactError, public.VAMOSError) and issubclass(StudyError, public.VAMOSError)
+    assert public.RunArtifactError is RunArtifactError and public.StudyError is StudyError
+    assert {"RunArtifactError", "StudyError"} <= set(public.__all__)
+
+    error = OutputCollisionError(
+        operation="save result", reason="already exists", expected="empty", actual="run", action="Choose another path."
+    )
+    assert (
+        str(error)
+        == error.message
+        == "Cannot save result: run artifact already exists. Expected 'empty'; received 'run'. Choose another path."
+    )
+    assert error.suggestion is None and error.as_dict()["reason"] == "already exists"
+    study_error = InvalidStudySpecError(operation="plan study", reason="bad", expected="a", actual="b", action="Fix it.")
+    assert str(study_error) == study_error.message and study_error.as_dict()["category"] == "study_spec"
+
+
+def test_unknown_problem_raises_invalid_problem_error():
+    """An unknown problem name raises InvalidProblemError, still a KeyError (VR-090)."""
+    from vamos import optimize
+    from vamos.exceptions import InvalidProblemError
+    from vamos.foundation.problem.registry import available_problem_names, make_problem_selection
+
+    with pytest.raises(InvalidProblemError) as caught:
+        make_problem_selection("zdt7")
+    assert isinstance(caught.value, KeyError)
+    assert str(caught.value).startswith("Unknown problem 'zdt7'.")
+    assert "Did you mean one of: 'zdt6'" in str(caught.value)
+    assert caught.value.details["available"] == sorted(available_problem_names())
+
+    with pytest.raises(KeyError, match="Unknown problem 'zdt7'"):
+        optimize("zdt7", max_evaluations=100)

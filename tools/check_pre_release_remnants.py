@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import subprocess
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -27,7 +28,7 @@ class Finding:
 
 
 _TEXT_SUFFIXES = {".cfg", ".ipynb", ".json", ".md", ".py", ".toml", ".txt", ".yaml", ".yml"}
-_SCAN_ROOTS = (".github", "docs", "examples", "experiments", "notebooks", "src", "submission", "tests", "website")
+_SCAN_ROOTS = (".github", "docs", "examples", "experiments", "notebooks", "src", "tests")
 _SCAN_FILES = ("AGENTS.md", "CLAUDE.md", "CONTRIBUTING.md", "README.md")
 _CHECKER_FIXTURES = {
     "tests/architecture/test_no_legacy_typing_hints.py",
@@ -133,11 +134,12 @@ def guidance_remnant_tokens(text: str) -> tuple[str, ...]:
 def scan(root: Path) -> list[Finding]:
     root = root.resolve()
     findings: list[Finding] = []
+    tracked = tracked_paths(root)
     for relative in _FORBIDDEN_PATHS:
-        if _forbidden_path_has_source(root / relative):
+        if _forbidden_path_has_source(root / relative, tracked):
             findings.append(Finding(relative, 0, "discarded path exists"))
 
-    for path in _iter_text_files(root):
+    for path in _iter_text_files(root, tracked):
         relative = path.relative_to(root).as_posix()
         if relative in _CHECKER_FIXTURES:
             continue
@@ -153,7 +155,7 @@ def scan(root: Path) -> list[Finding]:
                 for pattern in _DISCARDED_RUN_FILES:
                     if pattern.search(line):
                         findings.append(Finding(relative, line_number, f"discarded run file: {pattern.pattern}"))
-            active_source = relative.startswith(("src/", "website/", "tests/")) or active_experiment
+            active_source = relative.startswith(("src/", "tests/")) or active_experiment
             if active_source:
                 for name, pattern in _ACTIVE_SIGNATURES:
                     if pattern.search(line):
@@ -166,29 +168,39 @@ def scan(root: Path) -> list[Finding]:
                 for pattern in _CLI_SIGNATURES:
                     if pattern.search(line):
                         findings.append(Finding(relative, line_number, "discarded CLI alias"))
-            legacy_area = (
-                (relative.startswith("src/") and path.suffix.lower() == ".py") or relative.startswith("website/") or active_experiment
-            )
+            legacy_area = (relative.startswith("src/") and path.suffix.lower() == ".py") or active_experiment
             if legacy_area and re.search(r"\blegacy\b", line, re.IGNORECASE):
                 findings.append(Finding(relative, line_number, "active legacy marker"))
     return _deduplicate(findings)
 
 
-def _iter_text_files(root: Path) -> list[Path]:
-    files = [root / relative for relative in _SCAN_FILES if (root / relative).is_file()]
-    for top in _SCAN_ROOTS:
-        base = root / top
-        if base.exists():
-            files.extend(item for item in base.rglob("*") if item.is_file() and item.suffix.lower() in _TEXT_SUFFIXES)
-    return sorted(set(files))
+def tracked_paths(root: Path) -> list[Path]:
+    """The files of the repository at ``root``: what git tracks, or every file outside a git checkout.
+
+    Ignored and untracked files (virtual environments, nested worktrees, local configs) are
+    not part of the repository, so they never decide a check.
+    """
+    try:
+        raw = subprocess.run(["git", "-C", str(root), "ls-files", "-z"], capture_output=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return sorted(path for path in root.rglob("*") if path.is_file())
+    return sorted(root / item.decode("utf-8", errors="surrogateescape") for item in raw.split(b"\0") if item)
 
 
-def _forbidden_path_has_source(path: Path) -> bool:
-    if path.is_file():
+def _iter_text_files(root: Path, tracked: list[Path]) -> list[Path]:
+    scanned = {root / relative for relative in _SCAN_FILES}
+    roots = {root / top for top in _SCAN_ROOTS}
+    return sorted(
+        path
+        for path in tracked
+        if path.is_file() and (path in scanned or (path.suffix.lower() in _TEXT_SUFFIXES and any(base in path.parents for base in roots)))
+    )
+
+
+def _forbidden_path_has_source(path: Path, tracked: list[Path]) -> bool:
+    if path in tracked:
         return True
-    if not path.is_dir():
-        return False
-    return any(item.is_file() and "__pycache__" not in item.parts and item.suffix.lower() in _TEXT_SUFFIXES for item in path.rglob("*"))
+    return any(path in item.parents and "__pycache__" not in item.parts and item.suffix.lower() in _TEXT_SUFFIXES for item in tracked)
 
 
 def _is_active_experiment(relative: str) -> bool:

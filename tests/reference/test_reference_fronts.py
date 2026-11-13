@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import zlib
 from collections.abc import Callable
 from importlib import resources
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
@@ -333,6 +335,68 @@ def test_classic_fronts_are_not_dominated_by_random_feasible_designs(name: str) 
     assert not _dominated_by(feasible, front).any()
 
 
+# jMetal's CRE and RCM fronts. Uniform random designs of many of these problems are almost never feasible (those
+# with equality constraints never are), so their fronts cannot be checked this way. Where the feasible set is
+# easy to sample, 50 000 random designs on it are added.
+CRE_RCM = tuple(name for name in _PACKAGED if name.startswith(("cre", "rcm")))
+
+
+def _small_bars(problem: Any, rng: np.random.Generator, n: int) -> np.ndarray[Any, Any]:
+    # CRE21 and RCM03 (two-bar truss): the volume bound 0.1 needs bar areas far below their upper bound 100.
+    X: np.ndarray[Any, Any] = problem.xl + rng.random((n, 3)) * (problem.xu - problem.xl)
+    X[:, :2] = 10.0 ** rng.uniform(-5.0, 2.0, (n, 2))
+    return X
+
+
+def _one_reactor(problem: Any, rng: np.random.Generator, n: int) -> np.ndarray[Any, Any]:
+    # RCM28: y1 + y2 = 1 selects one reactor; its volume v sets the flow that converts 10 units.
+    first, v = rng.random(n) < 0.5, rng.uniform(0.0, 10.0, n)
+    flow = np.where(first, 10.0 / (0.9 * (1.0 - np.exp(-0.5 * v))), 10.0 / (0.8 * (1.0 - np.exp(-0.4 * v))))
+    zero = np.zeros(n)
+    columns = [np.where(first, flow, zero), np.where(first, zero, flow), np.where(first, v, zero), np.where(first, zero, v)]
+    return np.column_stack([*columns, first.astype(float), (~first).astype(float), flow])
+
+
+def _small_flows(problem: Any, rng: np.random.Generator, n: int) -> np.ndarray[Any, Any]:
+    # RCM29: the constraints on x1^2 + x2^2 + x3^2 keep the continuous variables small.
+    return np.column_stack([rng.uniform(0.0, 2.5, (n, 3)), rng.uniform(-0.49, 1.49, (n, 4))])
+
+
+def _sorted_angles(problem: Any, rng: np.random.Generator, n: int) -> np.ndarray[Any, Any]:
+    # RCM30-RCM35 (SOPWM): increasing switching angles are feasible.
+    return np.sort(rng.uniform(0.0, 90.0, (n, problem.n_var)), axis=1)
+
+
+_FEASIBLE_SAMPLERS: dict[str, Callable[[Any, np.random.Generator, int], np.ndarray[Any, Any]]] = {
+    "cre21": _small_bars,
+    "rcm03": _small_bars,
+    "rcm28": _one_reactor,
+    "rcm29": _small_flows,
+    **{f"rcm{k}": _sorted_angles for k in range(30, 36)},
+}
+
+
+@pytest.mark.parametrize("name", CRE_RCM)
+def test_cre_rcm_fronts_are_not_dominated_by_random_feasible_designs(name: str) -> None:
+    problem = make_problem_selection(name).instantiate()
+    rng = np.random.default_rng(zlib.crc32(name.encode()))
+    X = problem.xl + rng.random((50_000, problem.n_var)) * (problem.xu - problem.xl)
+    if name in _FEASIBLE_SAMPLERS:
+        X = np.clip(np.vstack([X, _FEASIBLE_SAMPLERS[name](problem, rng, 50_000)]), problem.xl, problem.xu)
+    F, G = evaluate_population_with_constraints(problem, X)
+    # RCM09 has no constraints.
+    feasible = F if G is None else F[np.all(G <= 0.0, axis=1)]
+    front = _load(name)
+
+    assert front.shape[1] == problem.n_obj
+    if feasible.shape[0] < 100:
+        pytest.skip(f"only {feasible.shape[0]} of {X.shape[0]} random designs of {name} are feasible")
+    # jMetal's files keep ten significant digits: a design must beat a row by more than that in every objective.
+    # (A design on RCM28's feasible set matches the f1 of its first point to 1e-11 and improves its f2 by 9e-6.)
+    precision = 1e-9 * np.maximum(1.0, np.abs(front).max(axis=0))
+    assert not _dominated_by(feasible + precision, front).any()
+
+
 def test_srinivas_front_reaches_the_least_feasible_f1() -> None:
     # The textbook segment x1 = -2.5 starts at f1 = 24.5; the least feasible f1 is 10.1, at (1.1, 3.7).
     front = _load("srinivas")
@@ -376,3 +440,136 @@ def test_sampled_reference_fronts_are_not_dominated_by_random_designs(name: str,
     assert front.shape[1] == problem.n_obj
     dominated = _dominated_by(out["F"], front)
     assert not dominated.any(), f"{dominated.mean():.1%} of {name} is dominated by random designs"
+
+
+CEC2009_CF = tuple(range(2, 11))
+# Only CF7's front from jMetal lies on the feasible front of ZXH-CF; the others are not packaged.
+ZXH_CF = tuple(k for k in range(1, 17) if f"zxh_cf{k}.3d" in _PACKAGED)
+
+
+def _cec2009_cf_designs(k: int, n_var: int, x1: np.ndarray, x2: np.ndarray) -> np.ndarray:
+    """Designs on the Pareto set of CEC2009 CF``k``: y_j = 0, except y2 and y4 where CF4-CF7 move the front."""
+    X = np.empty((x1.shape[0], n_var))
+    X[:, 0] = x1
+    if k >= 8:
+        X[:, 1] = x2
+        j = np.arange(3, n_var + 1)
+        X[:, 2:] = 2.0 * x2[:, None] * np.sin(2.0 * np.pi * x1[:, None] + j * np.pi / n_var)
+        return X
+    j = np.arange(2, n_var + 1)
+    angle = 6.0 * np.pi * x1[:, None] + j * np.pi / n_var
+    odd = j % 2 == 1
+    if k == 2:
+        X[:, 1:] = np.where(odd, np.sin(angle), np.cos(angle))
+    elif k in (3, 4):
+        X[:, 1:] = np.sin(angle)
+    else:
+        X[:, 1:] = (0.8 * x1[:, None] if k in (5, 6) else 1.0) * np.where(odd, np.cos(angle), np.sin(angle))
+    if k in (4, 5):
+        # y2 = 0, then on the constraint boundary 0.5 x1 - 0.25, then at the local minimum 1 of h2.
+        X[:, 1] += np.where(x1 <= 0.5, 0.0, np.where(x1 <= 0.75, 0.5 * x1 - 0.25, 1.0))
+    elif k in (6, 7):
+        # y2 and y4 on the boundaries of their constraints where those leave 0 infeasible.
+        X[:, 1] += np.sqrt(np.maximum((x1 - 0.5) * (1.0 - x1), 0.0))
+        X[:, 3] += np.sqrt(np.maximum(0.25 * np.sqrt(1.0 - x1) - 0.5 * (1.0 - x1), 0.0))
+    return X
+
+
+def _cec2009_cf_x2(k: int, x2: np.ndarray) -> np.ndarray:
+    """x2 on the Pareto set of CF8 ({0, 1/3, 1/2, 2/3, 1}) or CF9 and CF10 ([0, 1/3], [1/2, 2/3] and {1})."""
+    pieces = np.array(
+        [[0.0, 0.0], [1 / 3, 1 / 3], [0.5, 0.5], [2 / 3, 2 / 3], [1.0, 1.0]] if k == 8 else [[0.0, 1 / 3], [0.5, 2 / 3], [1.0, 1.0]]
+    )
+    nearest = np.clip(x2[:, None], pieces[:, 0], pieces[:, 1])
+    return np.asarray(nearest[np.arange(x2.size), np.argmin(np.abs(nearest - x2[:, None]), axis=1)])
+
+
+def _zxh_cf_designs(problem: Any, F: np.ndarray, n_var: int) -> np.ndarray:
+    """Three-objective ZXH-CF designs on the Pareto set (S = 1, h = 0) whose front shape is ``F``.
+
+    ``problem`` is Any: the registry returns a ProblemProtocol, which does not declare ZXH-CF's ``shape``.
+    """
+    if problem.shape == "linear":
+        total = F[:, 1] + F[:, 2]
+        theta1 = np.divide(F[:, 2], total, out=np.zeros_like(total), where=total > 0.0)
+        a0, a1 = 0.5 * np.pi * (1.0 - F[:, 0]), 0.5 * np.pi * theta1
+    else:
+        G = F if problem.shape == "concave" else 1.0 - F
+        if problem.shape == "mixed":
+            # The mixed shape replaces f1 by theta1 + sin(4 pi theta1) / (4 pi), which increases with theta1.
+            # arcsin of the other two objectives loses precision as theta1 nears 1, and inverting f1 where it is
+            # flat (theta1 = 1/4 and 3/4): take the first above 7/8 and the second below.
+            a0 = np.arcsin(np.clip(np.hypot(G[:, 1], G[:, 2]), 0.0, 1.0))
+            lo, hi = np.full(F.shape[0], 0.875), np.ones(F.shape[0])
+            for _ in range(60):
+                mid = 0.5 * (lo + hi)
+                below = mid + np.sin(4.0 * np.pi * mid) / (4.0 * np.pi) < F[:, 0]
+                lo, hi = np.where(below, mid, lo), np.where(below, hi, mid)
+            a0 = np.where(a0 > 0.875 * 0.5 * np.pi, 0.25 * np.pi * (lo + hi), a0)
+        else:
+            a0 = np.arctan2(np.hypot(G[:, 1], G[:, 2]), G[:, 0])
+        a1 = np.arctan2(G[:, 2], G[:, 1])
+    X = np.full((F.shape[0], n_var), 0.2)
+    X[:, :3] = np.column_stack([np.cos(a0), np.sin(a0) * np.cos(a1), np.sin(a0) * np.sin(a1)])
+    return np.clip(X, problem.xl, problem.xu)
+
+
+@pytest.mark.parametrize("k", CEC2009_CF)
+def test_cec2009_cf_fronts_are_reached_by_feasible_designs(k: int) -> None:
+    problem = make_problem_selection(f"cec2009_cf{k}").instantiate()
+    front = _load(f"cec2009_cf{k}")
+    assert front.shape[1] == problem.n_obj
+    if k >= 8:
+        x1 = 2.0 / np.pi * np.arctan2(front[:, 2], np.hypot(front[:, 0], front[:, 1]))
+        x2 = _cec2009_cf_x2(k, 2.0 / np.pi * np.arctan2(front[:, 1], front[:, 0]))
+    else:
+        x1, x2 = front[:, 0], front[:, 0]
+
+    F, G = _evaluate(problem, _cec2009_cf_designs(k, problem.n_var, x1, x2))
+
+    # jMetal's files keep ten significant digits.
+    assert np.max(np.abs(F - front)) <= 1e-9
+    assert G.max() <= 1e-9
+
+
+@pytest.mark.parametrize("k", ZXH_CF)
+def test_zxh_cf_fronts_are_reached_by_feasible_designs(k: int) -> None:
+    problem = make_problem_selection(f"zxh_cf{k}").instantiate()
+    front = _load(f"zxh_cf{k}.3d")
+    assert front.shape[1] == problem.n_obj == 3
+
+    F, G = _evaluate(problem, _zxh_cf_designs(problem, front, problem.n_var))
+
+    assert np.max(np.abs(F - front)) <= 1e-9
+    assert G.max() <= 1e-9
+
+
+def _cf_samples(name: str, problem: Any, rng: np.random.Generator, n: int) -> np.ndarray:
+    """Uniform designs, and as many next to the Pareto set, where uniform designs are seldom feasible."""
+    uniform = problem.xl + rng.random((n, problem.n_var)) * (problem.xu - problem.xl)
+    near = problem.xl + rng.random((n, problem.n_var)) * (problem.xu - problem.xl)
+    noise = 10.0 ** rng.uniform(-5.0, -1.5, size=(n, 1)) * rng.standard_normal((n, problem.n_var))
+    if name.startswith("zxh"):
+        # Directions of the first M variables scaled to S in [r - 0.05, 1.02], the others near 0.2.
+        m, low = problem.n_obj, max(problem.radius - 0.05, 0.0)
+        direction = rng.random((n, m)) + 1e-3
+        scale = np.sqrt(low + rng.random((n, 1)) * (1.02 - low))
+        near[:, :m] = scale * direction / np.linalg.norm(direction, axis=1, keepdims=True)
+        near[:, m:] = 0.2 + noise[:, m:]
+    else:
+        # The Pareto-set designs of the position variables, plus noise on the others.
+        k = int(name.removeprefix("cec2009_cf"))
+        near = _cec2009_cf_designs(k, problem.n_var, near[:, 0], near[:, 1])
+        near[:, problem.n_obj - 1 :] += noise[:, problem.n_obj - 1 :]
+    return np.clip(np.vstack([uniform, near]), problem.xl, problem.xu)
+
+
+@pytest.mark.parametrize("name", [f"cec2009_cf{k}" for k in CEC2009_CF] + [f"zxh_cf{k}" for k in ZXH_CF])
+def test_cf_fronts_are_not_dominated_by_random_feasible_designs(name: str) -> None:
+    problem = make_problem_selection(name).instantiate()
+    F, G = _evaluate(problem, _cf_samples(name, problem, np.random.default_rng(len(name)), 25_000))
+    feasible = F[np.all(G <= 0.0, axis=1)]
+    front = _load(name if name.startswith("cec") else f"{name}.3d")
+
+    assert front.shape[1] == problem.n_obj and feasible.shape[0] >= 100
+    assert not _dominated_by(feasible, front).any()

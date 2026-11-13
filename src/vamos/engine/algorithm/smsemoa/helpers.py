@@ -116,8 +116,9 @@ def compute_front_crowding(F: FloatArray, front: IntArray | list[int]) -> FloatA
     front_arr = np.asarray(front, dtype=int)
     if front_arr.size == 0:
         return np.empty(0, dtype=float)
-    if front_arr.size == 1:
-        return np.array([np.inf], dtype=float)
+    if front_arr.size <= 2:
+        # One or two rows are both boundary points; an objective without spread is skipped below.
+        return np.full(front_arr.size, np.inf, dtype=float)
 
     fvals = F[front_arr]
     n_obj = fvals.shape[1]
@@ -125,11 +126,11 @@ def compute_front_crowding(F: FloatArray, front: IntArray | list[int]) -> FloatA
     for obj in range(n_obj):
         order = np.argsort(fvals[:, obj], kind="mergesort")
         sorted_vals = fvals[order, obj]
-        crowding[order[0]] = np.inf
-        crowding[order[-1]] = np.inf
         span = sorted_vals[-1] - sorted_vals[0]
         if span <= 0.0:
             continue
+        crowding[order[0]] = np.inf
+        crowding[order[-1]] = np.inf
         contrib = np.zeros_like(sorted_vals)
         contrib[1:-1] = (sorted_vals[2:] - sorted_vals[:-2]) / span
         crowding[order[1:-1]] += contrib[1:-1]
@@ -401,20 +402,9 @@ def survival_selection(
 
     if st.fronts is None or st.ranks is None or st.crowding is None:
         refresh_selection_cache(st, kernel)
-
-    if st.fronts is None or st.ranks is None:
-        ranks, _ = kernel.nsga2_ranking(F_work)
-        worst_rank = int(ranks.max(initial=0))
-        worst_idx = np.flatnonzero(ranks == worst_rank)
-        if worst_idx.size == 1:
-            remove_idx = int(worst_idx[0])
-        else:
-            remove_idx = int(worst_idx[least_contributor(kernel, F_work[worst_idx], st.ref_point)])
-        if remove_idx == pop_n:
-            return
-        _write_child_survivor(st, X_child, F_child, G_child, pop_n, remove_idx)
-        refresh_selection_cache(st, kernel)
-        return
+    # Here the population and the child are all feasible (or constraints are off), so the
+    # cache keeps the front lists.
+    assert st.fronts is not None and st.ranks is not None
 
     fronts = [list(front) for front in st.fronts]
     ranks = np.empty(pop_n + 1, dtype=int)

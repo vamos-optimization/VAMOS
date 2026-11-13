@@ -15,6 +15,14 @@ without rerunning optimization or changing the stored files. Creation timestamps
 IDs, and producer environment remain the original evidence; they are not
 rewritten to resemble the machine running a future compatibility check.
 
+**Development after 1.1.0:** the structural snapshots freeze more than names.
+`stable_public_api.json` records the signature (parameter names, kinds, and
+defaults; not annotations) of every stable callable and of the public methods of
+the stable classes. `stable_algorithm_configs.json` records the field defaults of
+the configuration classes and the output of `Config.default()`. The generator
+reads the stable CLI arguments from the argparse parsers rather than from the
+help text, and the exit codes from the code that maps outcomes to codes.
+
 Regenerate the structural snapshots only through:
 
 ```bash

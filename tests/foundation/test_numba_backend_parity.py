@@ -383,3 +383,43 @@ def test_moocore_survival_ignores_hv_contrib_environment(monkeypatch: pytest.Mon
     flagged = MooCoreKernel().nsga2_survival(X[:30], F[:30], X[30:], F[30:], 30, return_indices=True)[2]
 
     np.testing.assert_array_equal(np.sort(flagged), np.sort(baseline))
+
+
+def _crowding_implementations():
+    from vamos.engine.algorithm.nsgaii import helpers as nsgaii_helpers
+    from vamos.engine.algorithm.smsemoa import helpers as smsemoa_helpers
+    from vamos.foundation.kernel.numpy_backend import _compute_crowding
+
+    return {
+        "numpy": lambda F, fronts: NumPyKernel().nsga2_ranking(F)[1],
+        "numba": lambda F, fronts: NumbaKernel().nsga2_ranking(F)[1],
+        "numpy-fronts": _compute_crowding,
+        "nsgaii-helpers": nsgaii_helpers.compute_crowding,
+        "smsemoa-helpers": smsemoa_helpers.compute_crowding,
+    }
+
+
+@pytest.mark.numba
+@pytest.mark.parametrize("name", ["numpy", "numba", "numpy-fronts", "nsgaii-helpers", "smsemoa-helpers"])
+def test_crowding_ignores_constant_objective(name: str) -> None:
+    rng = np.random.default_rng(8)
+    f1 = rng.permutation(np.linspace(0.0, 1.0, 9))  # rows 0 and 8 are not the extremes of f1
+    F2 = np.column_stack([f1, 1.0 - np.sqrt(f1)])  # one non-dominated front
+    F3 = np.column_stack([F2, np.full(9, 0.25)])  # the same front with a constant third objective
+    fronts = [list(range(9))]
+    crowding = _crowding_implementations()[name]
+
+    # jMetal 7.9 and pymoo skip an objective without spread; it must not make two
+    # rows (chosen by their position in the sort) boundary points.
+    np.testing.assert_array_equal(crowding(F3, fronts), crowding(F2, fronts))
+
+
+@pytest.mark.numba
+@pytest.mark.parametrize("name", ["numpy", "numba", "numpy-fronts", "nsgaii-helpers", "smsemoa-helpers"])
+def test_crowding_of_identical_rows(name: str) -> None:
+    crowding = _crowding_implementations()[name]
+
+    # Two rows (identical or not) are both boundary points, as in jMetal and pymoo;
+    # three identical rows have no spread in any objective.
+    np.testing.assert_array_equal(crowding(np.full((2, 3), 0.5), [[0, 1]]), [np.inf, np.inf])
+    np.testing.assert_array_equal(crowding(np.full((3, 3), 0.5), [[0, 1, 2]]), [0.0, 0.0, 0.0])

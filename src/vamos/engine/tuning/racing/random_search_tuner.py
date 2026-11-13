@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 
 from .sampler import Sampler, UniformSampler
-from .tuning_task import EvalContext, TuningTask
+from .tuning_task import EvalContext, TuningTask, every_evaluation_failed
 
 
 def _logger() -> logging.Logger:
@@ -45,9 +45,17 @@ class RandomSearchTuner:
         eval_fn: Callable[[dict[str, Any], EvalContext], float],
         verbose: bool = True,
     ) -> tuple[dict[str, Any], list[TrialResult]]:
+        """Sample ``max_trials`` configurations and return the best with the history.
+
+        An evaluation that raises or returns a non-finite score counts as failed and scores
+        ``task.failure_value()``; a trial records ``evaluations`` and ``failed_evaluations`` in
+        its details, and only a trial with a successful evaluation can be the best. When every
+        evaluation fails, ``TuningFailedError`` is raised.
+        """
         history: list[TrialResult] = []
         best_score: float | None = None
         best_config: dict[str, Any] | None = None
+        evaluations = failures = 0
         assert self.sampler is not None
 
         for trial_id in range(self.max_trials):
@@ -60,14 +68,19 @@ class RandomSearchTuner:
                     _logger().info("[trial %s] invalid config skipped: %s", trial_id, e)
                 continue
 
-            score = self.task.eval_config(config, eval_fn)
+            evaluation = self.task.evaluate(config, eval_fn)
+            score = evaluation.score
+            evaluations += evaluation.evaluations
+            failures += evaluation.failed_evaluations
 
             if verbose:
                 direction = "max" if self.task.maximize else "min"
                 _logger().info("[trial %s] %s score=%.6f", trial_id, direction, score)
 
-            trial = TrialResult(trial_id=trial_id, config=config, score=score)
-            history.append(trial)
+            details = {"evaluations": evaluation.evaluations, "failed_evaluations": evaluation.failed_evaluations}
+            history.append(TrialResult(trial_id=trial_id, config=config, score=score, details=details))
+            if evaluation.failed_evaluations == evaluation.evaluations:
+                continue
 
             if best_score is None:
                 best_score = score
@@ -80,6 +93,8 @@ class RandomSearchTuner:
                     best_score = score
                     best_config = config
 
+        if evaluations and failures == evaluations:
+            raise every_evaluation_failed(evaluations, failures, tuner="RandomSearchTuner")
         if best_config is None:
             raise RuntimeError("Tuner finished without a valid configuration")
 

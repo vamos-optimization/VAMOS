@@ -17,7 +17,7 @@ engineering benchmark is a test model, not a validated model of your application
 | Explicit constraint handling | `c1dtlz1`, `mw1` | Emit inequality constraints separately from objectives |
 | Binary, integer or mixed operators | `zdt5`, `int_alloc`, `mixed_design` | Small, deterministic examples with explicit encodings |
 | Permutation operators | `tsp6`, then `kroa100` | Closed tours with two specified route objectives |
-| Application-inspired test functions | RE and RWA tables below | Fixed engineering formulations with different encodings and objective counts |
+| Application-inspired test functions | RE, RWA, CRE and RCM tables below | Fixed engineering formulations with different encodings and objective counts; CRE and RCM keep their constraints in G |
 | Expensive model evaluations | `fs_real`, `ml_tuning` | Train a classifier for each candidate; require scikit-learn |
 
 Use `optimize("zdt1", ...)` in Python or `--problem zdt1` in the
@@ -32,6 +32,19 @@ problem = selection.instantiate()
 print(problem.n_var, problem.n_obj, problem.encoding)  # 12 3 real
 print(problem.xl, problem.xu)
 ```
+
+`vamos.problems` is a curated set of problem classes, not the catalog. It
+holds the members used most in examples and tests: ZDT1–ZDT4 and ZDT6 (pass
+`n_var`), DTLZ1–DTLZ4 and DTLZ7, WFG1–WFG9, CEC2009 UF1–UF3 and CF1, `TSP`,
+and three application examples (`FeatureSelectionProblem`,
+`HyperparameterTuningProblem`, and `WeldedBeamDesignProblem`). These classes
+are stable for 1.x. **Development after 1.1.0:** the classes added since cover
+a whole family and take the variant number and the family's parameters:
+`DASCMOP`, `DCDTLZ`, and `LIRCMOP`. Every registered problem, including the
+families and members without a class (ZDT5, DTLZ5 and DTLZ6, UF4–UF10, LZ09,
+MW, C-DTLZ, LSMOP, ZCAT, RE, and RWA), is available by name through
+`optimize("name")` and `make_problem_selection`, the stable way to build any
+of them.
 
 The tables report the **instantiated** default dimensions. `n` is the number of
 decision variables, `M` the number of objectives, and `G` the number of explicit
@@ -102,6 +115,10 @@ algorithm with the required constraint support in the [matrix](algorithms.md).
 | Registered keys | Default n | Default M | G | Default parameters / objective count | Source | Reference sample |
 | --- | ---: | ---: | ---: | --- | --- | --- |
 | `cec2009_cf1` | 10 | 2 | 1 | Fixed M and constraint function | [CEC2009][cec] | None packaged |
+| `cec2009_cf2`, `cec2009_cf3` | 10 | 2 | 1 | Fixed M; n ≥ 3 | [CEC2009][cec2009-cf] | 2D, each |
+| `cec2009_cf4`, `cec2009_cf5` | 10 | 2 | 1 | Fixed M; n ≥ 2 | [CEC2009][cec2009-cf] | 2D, each |
+| `cec2009_cf6`, `cec2009_cf7` | 10 | 2 | 2 | Fixed M; n ≥ 4 | [CEC2009][cec2009-cf] | 2D, each |
+| `cec2009_cf8`–`cec2009_cf10` | 10 | 3 | 1 | Fixed M; n ≥ 5 | [CEC2009][cec2009-cf] | 3D, each |
 | `c1dtlz1` | 12 | 3 | 1 | Configurable M; n remains 12 unless supplied | [C-DTLZ][constrained] | 2D and 3D |
 | `c1dtlz3` | 12 | 3 | 1 | Default radius `r = 9` at M = 3; varies with M | [C-DTLZ][constrained] | 2D and 3D |
 | `c2dtlz2` | 12 | 3 | 1 | Default radius `r = 0.4` at M = 3; varies with M | [C-DTLZ][constrained] | 2D and 3D |
@@ -124,6 +141,13 @@ algorithm with the required constraint support in the [matrix](algorithms.md).
 | `golinski` | 7 | 2 | 11 | Fixed n and M; Golinski's speed reducer | [jMetal][jmetal-classics] | 2D |
 | `water` | 3 | 5 | 7 | Fixed n and M; water resource planning | [jMetal][jmetal-classics] | 5D |
 | `car_side_impact` | 7 | 3 | 10 | Fixed n and M | [jMetal][jmetal-classics] | 3D |
+| `zxh_cf1`–`zxh_cf4` | 13 | 3 | 1–2 | Configurable M; n = M + 10 unless supplied; type A | [ZXH-CF][zxh-cf] | 3D, each |
+| `zxh_cf5`–`zxh_cf8` | 13 | 3 | 5–6 | Configurable M; type B, 2k + 1 or 2k + 2 constraints | [ZXH-CF][zxh-cf] | 3D, each |
+| `zxh_cf9`–`zxh_cf12` | 13 | 3 | 3–4 | Configurable M; type C, k + 1 or k + 2 constraints | [ZXH-CF][zxh-cf] | 3D, each |
+| `zxh_cf13`–`zxh_cf16` | 13 | 3 | 5–6 | Configurable M; type D, 2k + 1 or 2k + 2 constraints | [ZXH-CF][zxh-cf] | 3D, each |
+
+The constrained real-world suites CRE21–CRE51 and RCM01–RCM50 are listed with the
+[application-inspired benchmarks](#cre-and-rcm-constrained-real-world-suites).
 
 DC-DTLZ's default constants are those of the authors' implementation (Li et
 al., 2019, in the [COLA Laboratory's code][dcdtlz-authors]), which pymoo also
@@ -178,6 +202,32 @@ and `(0.5, 0.5, 0.5)` for the others. `vamos.problems.DASCMOP(k, eta=...,
 zeta=..., gamma=...)` builds another difficulty. The packaged fronts hold only
 for the defaults.
 
+**Development after 1.1.0:** CEC2009 CF2–CF10 (Zhang et al., 2009) and
+ZXH-CF1–16 (Zhou, Xiang and He, 2021) follow jMetal's implementation at commit
+`1e4b83cae6`; the reference values check them against it.
+
+- **CEC2009 CF2–CF10** take jMetal's dimensions and bounds: n = 10 by default,
+  the position variables (one with two objectives, two with three) in
+  `[0, 1]` and the others in `[-1, 1]` (CF2), `[-4, 4]` (CF8) or `[-2, 2]`.
+  `G` is the competition's `c(x) >= 0` with the opposite sign. Where
+  `f3 = 1`, CF8–CF10 divide by zero; as in jMetal, the constraint is then 0.
+- **ZXH-CF1–16** have M = 3 and n = 13 by default. Another M gives n = M + 10
+  unless n is supplied. Variables are in `[1e-10, 1 - 1e-10]`. With
+  `S = x1^2 + ... + xM^2` and a distance function `h` (sphere, Rosenbrock,
+  Ackley or Griewank, all 0 where the other variables are 0.2), every problem
+  requires `S + h <= 1`, and the ones with a radius `r` of 1/4, 1/2 or 3/4
+  also `S + h >= r`. The first k angles of the front shape are then free
+  (type A, CF1–4), in `[1/4, 3/4]` (type B, CF5–8), outside `(1/4, 3/4)`
+  (type C, CF9–12), or outside `(1/10, 2/5)` and `(7/10, 4/5)` (type D,
+  CF13–16). k is M − 1 up to three objectives, M // 2 up to eight, and then 3.
+- **Excluded intervals:** a type C or D constraint keeps an angle out of an
+  interval, so it is not two constraints that must both hold. jMetal stores
+  both bounds of each interval and computes the violation and the feasibility
+  itself. VAMOS stores one column per interval,
+  `min(theta - low, high - theta)`, as PlatEMO does. That gives jMetal's
+  feasibility and overall violation. jMetal counts two or three violated
+  constraints for an interval; VAMOS counts one column.
+
 **Development after 1.1.0:** only MW4, MW8 and MW14 accept an objective
 override; the other MW keys reject a different `n_obj` with `ValueError`.
 VAMOS 1.1.0 accepted an override for every MW key and kept those problems at
@@ -189,7 +239,10 @@ default to n = 10, the dimension of the CF problems in the CEC2009 technical
 report and in PlatEMO; `n_var` still selects another one. The
 `CEC2009_UF_CF_curved` benchmark suite also runs CF1 with 10 variables.
 VAMOS 1.1.0 and earlier default to 30, so their default CF1 runs are not
-comparable with CEC2009 results.
+comparable with CEC2009 results. The reference values now compare CF1 with
+jMetal's `CEC2009CF1` at commit `1e4b83cae6`, which agrees with it. jMetal 7.8
+has no CEC2009 CF classes (its `CF1` is ZXH-CF1), so CF1 was not compared
+before.
 
 In 1.0.2, `cec2009_cf1` did not declare its constraint, so algorithms ran it as
 an unconstrained problem; it also stored the CEC2009 constraint `c(x) >= 0`
@@ -327,6 +380,24 @@ implementation converts maximization goals to negative objective values.
 | `rwa9` — ultra-wideband antenna | 10 / 5 | Fixed passband/stopband response functions | [RWA9–10][rwa910] | 5D |
 | `rwa10` — repellent fabric | 3 / 7 | Fixed fabric performance response functions | [RWA9–10][rwa910] | 7D |
 
+`rwa1`, `rwa6`, `rwa9` and `rwa10` differ from jMetal's RWA implementations.
+VAMOS follows the formulas as published, but these four have not yet been
+checked against the article's appendix (doi
+[10.1016/j.engappai.2023.106192](https://doi.org/10.1016/j.engappai.2023.106192)):
+
+- **`rwa1`:** the Nusselt-number coefficients use `4.148e-3`; jMetal writes
+  `4.148 * 10e-3` (4.148e-2), a likely transcription of "×10⁻³" that gives
+  Nu around 1100–1900 instead of the physically plausible 79–305.
+- **`rwa6`:** the removal rate uses `d = 1`, jMetal `d = 2.5`. The constant only
+  scales `f3`, so dominance is the same, but values and fronts are not
+  comparable with jMetal's.
+- **`rwa9`:** the ten geometric variables of the antenna (`d1` enters no
+  formula); jMetal has six variables and derives `a2 = l1 * w1 * l2 * w2`.
+- **`rwa10`:** no additive constants beyond the response functions; jMetal adds
+  constants to several objectives (−15.33, −29.33, −413.33, −73.33, +0.22,
+  −8413.33, −2814.83). That translates the objectives without changing
+  dominance, but it changes absolute values and reference points.
+
 **Development after 1.1.0:** `rwa7` and `rwa8` search `[0, 1]^4`, the
 normalized domain in which Goel et al. (2007) fitted the injector response
 surfaces, as `re37`, Tanabe and Ishibuchi's RE37 and jMetal's RWA7 and RWA8 do.
@@ -345,6 +416,110 @@ regenerated for the normalized formulation. They come from dense sampling of
 minimizing an achievement function, and a non-dominated filter over all the
 evaluated designs. No point of either sample is dominated by jMetal's RWA7 and
 RWA8 reference fronts or by Tanabe and Ishibuchi's RE37 reference points.
+
+### CRE and RCM: constrained real-world suites
+
+These problems keep their constraints in **G** (`G <= 0` is feasible) instead of
+adding the violation as an objective, as RE does. They follow jMetal's classes
+at commit `1e4b83cae6` ([CRE][jmetal-cre], [RCM][jmetal-rcm]), which the
+reference values check. All are real-valued, with fixed n and M. The integer
+variables marked *rounded* stay real; the evaluation rounds them, as jMetal
+does.
+
+CRE are Tanabe and Ishibuchi's constrained problems ([2020][cre-paper]):
+
+| Key / formulation | n / M / G | Notes | Reference sample |
+| --- | --- | --- | --- |
+| `cre21` — two-bar truss | 3 / 2 / 3 | RE31 with its constraints; same as `rcm03` | 2D |
+| `cre22` — welded beam | 4 / 2 / 4 | RE32 with its constraints | 2D |
+| `cre23` — disc brake | 4 / 2 / 4 | RE33 with its constraints; same as `rcm05` | 2D |
+| `cre24` — speed reducer | 7 / 2 / 11 | RE35 with its constraints; x3 rounded, halves to even | 2D |
+| `cre25` — gear train | 4 / 2 / 1 | RE36 with its constraint; all rounded, halves to even | 2D |
+| `cre31` — car side impact | 7 / 3 / 10 | Same as `car_side_impact` | 3D |
+| `cre32` — conceptual marine design | 6 / 3 / 9 | RE42 without RE42's guards | 3D |
+| `cre51` — water resource planning | 3 / 5 / 7 | Same as `water` and `rcm11` | 5D |
+
+RCM are the 50 problems of the CEC 2021 real-world constrained suite
+([Kumar et al., 2021][rcm-paper]):
+
+| Key / formulation | n / M / G | Notes | Reference sample |
+| --- | --- | --- | --- |
+| `rcm01` — pressure vessel | 4 / 2 / 2 | x1 and x2 rounded | 2D |
+| `rcm02` — vibrating platform | 5 / 2 / 5 | | 2D |
+| `rcm03` — two-bar truss | 3 / 2 / 3 | Same as `cre21` | 2D |
+| `rcm04` — welded beam | 4 / 2 / 4 | `cre22` with another buckling load | 2D |
+| `rcm05` — disc brake | 4 / 2 / 4 | Same as `cre23` | 2D |
+| `rcm06` — speed reducer | 7 / 2 / 11 | x3 rounded | 2D |
+| `rcm07` — gear train | 4 / 2 / 1 | Not rounded | 2D |
+| `rcm08` — car side impact | 7 / 3 / 9 | | 3D |
+| `rcm09` — four-bar plane truss | 4 / 2 / 0 | No constraints | 2D |
+| `rcm10` — two-bar plane truss | 2 / 2 / 2 | | 2D |
+| `rcm11` — water resource management | 3 / 5 / 7 | Same as `cre51` | 5D |
+| `rcm12` — simply supported I-beam | 4 / 2 / 1 | | 2D |
+| `rcm13` — gear box | 7 / 3 / 11 | x3 rounded | 3D |
+| `rcm14` — multiple-disk clutch brake | 5 / 2 / 8 | | 2D |
+| `rcm15` — spring | 3 / 2 / 8 | x1 and x3 rounded; x3 picks one of 42 wire diameters | 2D |
+| `rcm16` — cantilever beam | 2 / 2 / 2 | | 2D |
+| `rcm17` — bulk carrier | 6 / 3 / 9 | f1 is unbounded below on the feasible set | None packaged |
+| `rcm18` — front rail | 3 / 2 / 3 | | 2D |
+| `rcm19` — multi-product batch plant | 10 / 3 / 10 | x1–x3 rounded | 3D |
+| `rcm20` — hydrostatic thrust bearing | 4 / 2 / 7 | | 2D |
+| `rcm21` — crash energy management | 6 / 2 / 4 | | 2D |
+| `rcm22` — Haverly's pooling | 9 / 2 / 6 | Four equalities | 2D |
+| `rcm23` — reactor network | 6 / 2 / 5 | Four equalities | None packaged |
+| `rcm24` — heat exchanger network | 9 / 3 / 6 | Six equalities | 3D |
+| `rcm25` — process synthesis | 2 / 2 / 2 | x2 rounded | 2D |
+| `rcm26` — process synthesis and design | 3 / 2 / 2 | x3 rounded; one equality | None packaged |
+| `rcm27` — process flow sheeting | 3 / 2 / 3 | | 2D |
+| `rcm28` — two-reactor problem | 7 / 2 / 8 | x5 and x6 rounded; four equalities | 2D |
+| `rcm29` — process synthesis | 7 / 2 / 9 | x4–x7 rounded | 2D |
+| `rcm30`–`rcm32` — SOPWM of 3-, 5- and 7-level inverters | 25 / 2 / 24 | Angles in degrees, increasing | 2D, each |
+| `rcm33`–`rcm35` — SOPWM of 9-, 11- and 13-level inverters | 30 / 2 / 29 | Angles in degrees, increasing | 2D, each |
+| `rcm36`–`rcm38` — distributed generation sizing | 28 / 2 / 24 | 24 equalities | 2D, each |
+| `rcm39` — distributed generation sizing | 28 / 3 / 24 | 24 equalities | 3D |
+| `rcm40`, `rcm42`, `rcm43` — optimal power flow | 34 / 2 / 26 | 26 equalities | 2D, each |
+| `rcm41`, `rcm44`, `rcm45` — optimal power flow | 34 / 3 / 26 | 26 equalities | 3D, each |
+| `rcm46` — optimal power flow | 34 / 4 / 26 | 26 equalities | 4D |
+| `rcm47`, `rcm48` — islanded microgrid droop control | 18 / 2 / 12 | 12 equalities | 2D, each |
+| `rcm49` — islanded microgrid droop control | 18 / 3 / 12 | 12 equalities | 3D |
+| `rcm50` — power distribution system planning | 6 / 2 / 1 | One equality | None packaged |
+
+**Development after 1.1.0:** CRE21–CRE51 and RCM01–RCM50 follow jMetal's
+classes at commit `1e4b83cae6`. That includes jMetal's pull requests #513
+(CRE21, CRE25 and CRE31 as in the authors' reference code) and #514 (RCM10's
+load `P = 104`, and the inequalities of RCM26 and RCM28 before their
+equalities).
+
+- **Overlap:** CRE21, CRE23 and CRE51 are RCM03, RCM05 and RCM11: the same
+  bounds, objectives and constraints. CRE31 is `car_side_impact` and CRE51
+  `water`. The other pairs differ:
+  - CRE22 and RCM04 in the buckling load: `x3^2 x4^6`, against the suite's
+    `x3^2 + x4^6`.
+  - CRE24 and RCM06 in the bounds and rounding of x3, and in the bound on the
+    stress of the second shaft (1100 against 850).
+  - CRE25 and RCM07 in the bounds and the rounding of the numbers of teeth.
+  - CRE31 and RCM08 in f1 and one constraint, as the suite's code writes them;
+    RCM08 also lacks CRE31's bound on the velocity of the front door.
+  - CRE32 and RCM17 in their models of the bulk carrier.
+- **Equalities:** as in jMetal, each equality `h(x) = 0` of RCM22–RCM24, RCM26,
+  RCM28 and RCM36–RCM50 is the constraint `|h(x)| - 1e-4 <= 0`. Uniform random
+  designs never meet them.
+- **Rounded variables:** the integer and binary variables stay real, and the
+  evaluation rounds them as jMetal does:
+  - CRE24 and CRE25 with `Math.rint`, halves to even;
+  - RCM01, RCM06, RCM13, RCM15, RCM19, RCM25, RCM26, RCM28 and RCM29 with
+    `Math.round`, halves up.
+
+  RCM07 and RCM27 are not rounded, in jMetal or in the suite's code, although
+  their bounds of ±0.49 around integers suggest it.
+- **RCM09** has no constraints: the suite's metadata lists one, but its
+  evaluator never sets it.
+- **Singular points:** RCM20 divides by zero where `r = ro`, so f2 is infinite
+  there, as in jMetal. VAMOS rejects that evaluation as non-finite. Random
+  designs and five NSGA-II runs of 30 000 evaluations did not reach it.
+- **Fronts:** RCM17 has none: its f1 is unbounded below on the feasible set.
+  Feasible designs dominate rows of jMetal's fronts of RCM23, RCM26 and RCM50,
+  so those are not packaged (see [Reference fronts](#reference-fronts)).
 
 ### Learning and mixed engineering examples
 
@@ -409,9 +584,10 @@ compatibility or a certified optimum.
 - WFG and LSMOP samples have **two columns**, even though their registered
   default is three objectives. Supply a matching reference for default runs; do
   not use those two-column files for three-objective indicators.
-- C-DTLZ, DC-DTLZ and ZCAT supply dimension-specific samples, named
-  `<key>.<M>d.csv`: at M = 2 and 3 for C-DTLZ and DC-DTLZ, and at M = 2, 3, 4
-  and 6 for ZCAT. Other objective counts need a supplied reference.
+- C-DTLZ, DC-DTLZ, ZCAT and ZXH-CF supply dimension-specific samples, named
+  `<key>.<M>d.csv`: at M = 2 and 3 for C-DTLZ and DC-DTLZ, at M = 2, 3, 4
+  and 6 for ZCAT, and at M = 3 for ZXH-CF. Other objective counts need a
+  supplied reference.
 
 **Development after 1.1.0:** the automatic lookup takes `<key>.<M>d.csv` or,
 failing that, `<key>.csv`, for the run's number of objectives or, when none is
@@ -450,7 +626,10 @@ regenerates the files marked as regenerated.
 | `binh2`, `golinski`, `osyczka2`, `water`, `car_side_impact` | jMetal's fronts (commit `1e4b83cae6`), under `LICENSE-jmetal.txt` |
 | `srinivas`, `constrex`, `tanaka` | Regenerated: the feasible, non-dominated designs of the Pareto-set pieces and the constraint boundaries that hold the front, as VAMOS evaluates them, 1000 points. jMetal's samples have dominated points: 310 of Srinivas's 3794 are dominated by another of its points or by a random feasible design, and 774 by those or by the new sample |
 | `mw4`, `mw8`, `mw14` (`.2d` and `.3d`), `mw9`–`mw13` | jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), under `LICENSE-jmetal.txt`; jMetal's MW problems are VAMOS's, which the reference values check |
+| `cec2009_cf2`–`cec2009_cf10` | jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), under `LICENSE-jmetal.txt`; a feasible design on the Pareto set reaches every point. CF4 and CF5, CF6 and CF7, and CF9 and CF10 share their fronts |
+| `zxh_cf1.3d`–`zxh_cf16.3d` | Regenerated: on the Pareto set `S = 1` and `h = 0`, so the objectives are the front shape of the angles; designs on a 301 × 301 grid of angles, evaluated by VAMOS's problem, keep the feasible, non-dominated ones, thinned to 5050 points. A feasible design reaches every point within 1e-9 (see the notes on jMetal's fronts) |
 | `lircmop1`–`lircmop14`, `dascmop1`–`dascmop9` | jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), under its MIT notice in `LICENSE-jmetal.txt`; DAS-CMOP8 and DAS-CMOP9 leave out two rows each, which another row dominates |
+| `cre21`–`cre25`, `cre31`, `cre32`, `cre51`, `rcm01`–`rcm49` except `rcm17`, `rcm23` and `rcm26` | jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), unchanged, under `LICENSE-jmetal.txt`; approximations (see the notes on jMetal's CRE and RCM fronts). `cre51` and `rcm11` are the same file |
 | `c1dtlz1`–`dc3dtlz3`, `.2d` and `.3d`, `c3dtlz4` included | Regenerated: the feasible, non-dominated part of DTLZ's front (C3-DTLZ1 and C3-DTLZ4: of their constraint boundaries), as VAMOS evaluates it; 1000 points at M = 2 and up to 5050 at M = 3 |
 | `zcat*` | Unchanged samples |
 | `re21`, `re24`, `re31`–`re34`, `re37`, `re41`, `re42`, `re61` | Tanabe and Ishibuchi's approximated fronts (`reference_points_RE*.dat`) |
@@ -469,6 +648,22 @@ Notes on the table:
     augmented achievement function;
   - keeps the polished designs that stay non-dominated, and spreads the
     packaged points by farthest-point selection.
+- **jMetal's ZXH-CF fronts:** only CF7's lies on the feasible front. The
+  others approximate it, so VAMOS generates all sixteen. Their mean distance
+  to VAMOS's samples is 3e-3 to 7e-3. On the Pareto set `S = 1`
+  and `h = 0`, so each front point gives its angles and a design on the
+  Pareto set at those angles. Against those designs:
+  - CF2, CF8, CF11 and CF13 (concave) lie inside the unit sphere, by 2e-5 to
+    5.5e-4, where no design reaches.
+  - CF3, CF5, CF10 and CF16 (convex) lie behind the front, by up to 1.9e-3,
+    so the designs dominate them.
+  - CF4, CF6, CF9 and CF15 (mixed) are off in f1 by up to 1.2e-2, and the
+    designs dominate 709 to 852 of their 1000 points.
+  - CF1, CF12 and CF14 (linear) lie behind the front by up to 1.2e-6.
+  - CF9, CF10, CF11, CF12 and CF14 have one to three points at excluded
+    angles, which no feasible design reaches.
+
+  200 000 random designs already dominate points of CF3, CF4, CF6 and CF16.
 - **Tanabe and Ishibuchi's fronts:** they are redistributed under the MIT
   license of their repository, whose notice ships next to them as
   `LICENSE-reproblems.txt`. Their values are unchanged. They approximate the
@@ -477,6 +672,27 @@ Notes on the table:
   others. RE91's front from the same source does not apply: it comes from the
   stochastic formulation, while VAMOS evaluates RE91 at the mean of its
   stochastic parameters.
+- **jMetal's CRE and RCM fronts:** they approximate the fronts: the
+  non-dominated feasible solutions of many runs of several algorithms, polished
+  near their extremes and, where the equalities leave thin feasible sets, by
+  problem-specific searches. No file has a duplicate row or a row that another
+  dominates, and 200 000 uniform random designs dominate none of their rows.
+  Those designs are seldom feasible, though: none is for CRE21, RCM03, RCM22,
+  RCM24 and RCM28–RCM49. Random designs on the feasible sets of CRE21 and RCM03
+  (small bar areas), RCM22 (on its equalities), RCM28 (one reactor), RCM29
+  (small flows) and RCM30–RCM35 (increasing angles) dominate none either,
+  beyond the ten significant digits of the files. Such designs do dominate rows
+  of three of jMetal's fronts, which are therefore not packaged:
+  - RCM23: designs on its equalities improve 28 of its 94 rows, by up to 3.5 %
+    of the front's range in both objectives;
+  - RCM50: designs on its power balance improve one of its 104 rows by 0.7 % of
+    the range;
+  - RCM26: designs on its equality improve 163 of its 1000 rows, by up to
+    4.4e-5 of the range.
+
+  CRE23 and RCM05 are the same problem with different fronts; each front
+  dominates 35 to 42 rows of the other, by up to 2e-4 of the range. RCM47's
+  front is a single point.
 - **Replaced samples:** VAMOS 1.1.0 and earlier packaged inaccurate samples for
   several regenerated files, so IGD, IGD+, epsilon and normalized HV values
   computed with those files are not comparable across versions:
@@ -525,6 +741,12 @@ scalable formulations. For a new objective function, follow
 [jmetal-classics]: https://github.com/jMetal/jMetal/tree/1e4b83cae6/jmetal-problem/src/main/java/org/uma/jmetal/problem/multiobjective
 [lircmop]: https://doi.org/10.1007/s00500-019-03794-x
 [dascmop]: https://doi.org/10.1162/evco_a_00259
+[cec2009-cf]: https://github.com/jMetal/jMetal/tree/1e4b83cae6/jmetal-problem/src/main/java/org/uma/jmetal/problem/multiobjective/cec2009
+[zxh-cf]: https://doi.org/10.1109/TEVC.2020.3011829
+[cre-paper]: https://doi.org/10.1016/j.asoc.2020.106078
+[rcm-paper]: https://doi.org/10.1016/j.swevo.2021.100961
+[jmetal-cre]: https://github.com/jMetal/jMetal/tree/1e4b83cae6/jmetal-problem/src/main/java/org/uma/jmetal/problem/multiobjective/cre
+[jmetal-rcm]: https://github.com/jMetal/jMetal/tree/1e4b83cae6/jmetal-problem/src/main/java/org/uma/jmetal/problem/multiobjective/cec2021
 [binary]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/binary.py
 [integer]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/integer.py
 [mixed]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/mixed.py

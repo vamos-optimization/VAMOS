@@ -18,6 +18,7 @@ from difflib import get_close_matches
 from typing import Any
 
 _ALGO_DOCS = "docs/reference/algorithms.md"
+_PROBLEM_DOCS = "docs/reference/problems.md"
 _TROUBLESHOOTING_DOCS = "docs/guide/troubleshooting.md"
 
 
@@ -73,15 +74,9 @@ class InvalidAlgorithmError(ConfigurationError):
     """Raised when an unknown algorithm is specified."""
 
     def __init__(self, algorithm: str, available: list[str] | None = None) -> None:
-        available = available or [
-            "nsgaii",
-            "moead",
-            "spea2",
-            "smsemoa",
-            "nsgaiii",
-            "ibea",
-            "smpso",
-        ]
+        # The built-in identifiers (vamos.engine.algorithm.registry.get_builtin_algorithm_names, which
+        # this layer cannot import); callers that know the registry pass it instead.
+        available = available or ["agemoea", "ibea", "moead", "nsgaii", "nsgaiii", "rvea", "smpso", "smsemoa", "spea2"]
         suggestions = _suggest_names(algorithm, available)
         message = f"Unknown algorithm '{algorithm}'."
         suggestion_parts = [f"Available algorithms: {', '.join(available)}"]
@@ -105,7 +100,7 @@ class InvalidEngineError(ConfigurationError):
         suggestions = _suggest_names(engine, available)
         suggestion_parts = [
             f"Available engines: {', '.join(available)}.",
-            "Install extras with: pip install vamos[compute]",
+            'Install extras with: pip install "vamos-optimization[compute]"',
         ]
         if suggestions:
             if len(suggestions) == 1:
@@ -158,18 +153,33 @@ class ProblemError(VAMOSError):
     pass
 
 
-class InvalidProblemError(ProblemError):
-    """Raised when an unknown problem is specified."""
+class InvalidProblemError(ProblemError, KeyError):
+    """Raised when an unknown problem is specified.
+
+    It is also a ``KeyError``, the type an unknown problem name raised in VAMOS 1.1.0.
+    ``details["available"]`` lists every registered name.
+    """
 
     def __init__(self, problem: str, available: list[str] | None = None) -> None:
         message = f"Unknown problem '{problem}'."
-        if available:
-            # Show first few problems as examples
-            examples = available[:5]
-            suggestion = f"Examples: {', '.join(examples)}. Use available_problem_names() for full list."
+        available = list(available or [])
+        suggestions = _suggest_names(problem, available)
+        if len(suggestions) == 1:
+            parts = [f"Did you mean '{suggestions[0]}'?"]
+        elif suggestions:
+            parts = ["Did you mean one of: " + ", ".join(f"'{item}'" for item in suggestions) + "?"]
+        elif available:
+            parts = [f"Examples: {', '.join(available[:5])}."]
         else:
-            suggestion = "Use available_problem_names() to see registered problems."
-        super().__init__(message, suggestion, {"problem": problem})
+            parts = []
+        parts.append("Use available_problem_names() for the full list.")
+        parts.append(f"Docs: {_PROBLEM_DOCS}.")
+        parts.append(f"Troubleshooting: {_TROUBLESHOOTING_DOCS}.")
+        super().__init__(message, " ".join(parts), {"problem": problem, "available": available})
+
+    def __str__(self) -> str:
+        # KeyError would show the repr of the message.
+        return self._format_message()
 
 
 class ProblemDimensionError(ProblemError):
@@ -291,10 +301,8 @@ class BackendNotAvailableError(DependencyError):
 
     def __init__(self, backend: str) -> None:
         feature = f"the '{backend}' backend"
-        if backend == "numba":
-            install_cmd = "pip install vamos[compute]"
-        elif backend == "moocore":
-            install_cmd = "pip install vamos[compute]"
+        if backend in ("numba", "moocore"):
+            install_cmd = 'pip install "vamos-optimization[compute]"'
         else:
             install_cmd = f"pip install {backend}"
         super().__init__(backend, feature, install_cmd)

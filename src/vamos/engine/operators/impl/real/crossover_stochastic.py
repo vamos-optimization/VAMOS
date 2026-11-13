@@ -9,7 +9,12 @@ from .utils import ArrayLike, VariationWorkspace, _ensure_bounds
 
 
 class LaplaceCrossover(Crossover):
-    """Laplace crossover using the Laplace distribution for offspring generation."""
+    """Laplace crossover (Deep and Thakur, 2007), a variant in how it draws ``beta``.
+
+    Each child is ``p + beta * |p1 - p2|`` with ``beta`` from a Laplace distribution of
+    location ``a`` and scale ``b``. Here each child draws its own ``beta`` per gene;
+    the paper uses one ``beta`` for both children, which places them symmetrically.
+    """
 
     def __init__(
         self,
@@ -54,7 +59,13 @@ class LaplaceCrossover(Crossover):
 
 
 class FuzzyCrossover(Crossover):
-    """Fuzzy recombination crossover using triangular fuzzy numbers."""
+    """Fuzzy recombination crossover, a variant of Voigt, Mühlenbein and Cvetković (1995).
+
+    Both children are drawn, gene by gene, from one triangular distribution over the
+    parents' interval widened by ``d`` times its length on each side (clipped to the
+    bounds), with its mode at the parents' midpoint. The paper draws each gene from
+    two triangular distributions, one centred on each parent.
+    """
 
     def __init__(
         self,

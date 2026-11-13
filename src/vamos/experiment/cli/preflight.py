@@ -13,10 +13,10 @@ _PROBLEM_EXTRA_REQUIREMENTS: dict[str, str] = {
 }
 
 _EXTRA_HINTS: dict[str, str] = {
-    "analysis": 'pip install -e ".[analysis]"',
-    "compute": 'pip install -e ".[compute]"',
-    "examples": 'pip install -e ".[examples]"',
-    "research": 'pip install -e ".[research]"',
+    "analysis": 'pip install "vamos-optimization[analysis]"',
+    "compute": 'pip install "vamos-optimization[compute]"',
+    "examples": 'pip install "vamos-optimization[examples]"',
+    "research": 'pip install "vamos-optimization[research]"',
 }
 
 _EXTERNAL_MODULES: dict[str, str] = {

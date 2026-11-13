@@ -13,7 +13,7 @@ def _require_matplotlib() -> Any:
         return plt
     except ImportError as exc:
         raise ImportError(
-            "Visualization requires matplotlib. Install with `pip install vamos[analysis]` or `pip install matplotlib`."
+            'Visualization requires matplotlib. Install with `pip install "vamos-optimization[analysis]"` or `pip install matplotlib`.'
         ) from exc
 
 

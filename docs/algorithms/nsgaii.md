@@ -67,6 +67,8 @@ For the generational configuration used here, the algorithm repeatedly performs 
 
 Crowding distance estimates local spacing in objective space using normalized neighbouring objective differences. Boundary solutions receive special treatment to preserve extremes. It is a diversity criterion, **not** a distance to the true Pareto front. In the tutorial configuration, tournament selection also uses rank and crowding.
 
+**Development after 1.1.0:** an objective that has the same value on every solution of a front is skipped in that front's crowding distance, as in jMetal and pymoo, and a front of one or two solutions gives each of them an infinite distance. VAMOS 1.1.0 still gave an infinite distance to the two solutions that came first and last when sorting by the constant objective, which depended only on their order. This applies to every engine and to the `crowding` pruning of external archives.
+
 This is the algorithmic idea. The encoding, variation operators, constraint handling, result selection and optional archives below are implementation/configuration choices that must be reported separately when comparing runs.
 
 ## Configure the run
@@ -87,6 +89,8 @@ config = (
 ```
 
 Pass that `config` as `algorithm_config` to `optimize()` as above. The string `"1/n"` resolves using the problem's number of variables; for the 30-variable example it is `1/30`.
+
+**Development after 1.1.0:** this example sets the SBX probability to 1.0 explicitly. `NSGAIIConfig.default()` uses 0.9, the value of Deb et al. (2002), jMetal and pymoo; VAMOS 1.1.0 used 1.0.
 
 ### Steady-state NSGA-II
 

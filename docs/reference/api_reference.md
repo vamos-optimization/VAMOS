@@ -40,7 +40,7 @@ Old section and symbol bookmarks are forwarded to their new page within the same
 <li><a id="unified-api" data-api-legacy href="../api/optimization/">unified-api</a></li>
 <li><a id="vamos.experiment.unified" data-api-legacy href="../api/optimization/">vamos.experiment.unified</a></li>
 <li><a id="vamos.experiment.unified.optimize" data-api-legacy href="../api/optimization/#vamos.optimize">vamos.experiment.unified.optimize</a></li>
-<li><a id="vamos.experiment.unified.optimize--automl-mode-zero-config" data-api-legacy href="../api/optimization/#vamos.optimize--automl-mode-zero-config">vamos.experiment.unified.optimize--automl-mode-zero-config</a></li>
+<li><a id="vamos.experiment.unified.optimize--automl-mode-zero-config" data-api-legacy href="../api/optimization/#vamos.optimize--quick-defaults">vamos.experiment.unified.optimize--automl-mode-zero-config</a></li>
 <li><a id="vamos.experiment.unified.optimize--specify-algorithm" data-api-legacy href="../api/optimization/#vamos.optimize--specify-algorithm">vamos.experiment.unified.optimize--specify-algorithm</a></li>
 <li><a id="vamos.experiment.unified.optimize--multi-seed-study" data-api-legacy href="../api/optimization/#vamos.optimize--multi-seed-study">vamos.experiment.unified.optimize--multi-seed-study</a></li>
 <li><a id="problem-definition" data-api-legacy href="../api/problem-definition/">problem-definition</a></li>

@@ -5,6 +5,8 @@ import json
 import zipfile
 from pathlib import Path
 
+import pytest
+
 from tools.check_repository_hygiene import collect_violations, distribution_violations, load_policy
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -125,6 +127,53 @@ def test_detects_personal_posix_home_path(tmp_path: Path) -> None:
     personal = "/" + "home/alice/project"
     path.write_text(personal, encoding="utf-8")
     assert "personal_absolute_path" in _codes(tmp_path, ["docs/bad.md"])
+
+
+def test_personal_path_after_allowed_account_is_detected(tmp_path: Path) -> None:
+    path = tmp_path / "docs" / "bad.md"
+    path.parent.mkdir()
+    path.write_text("C:" + "\\Users\\example\\a\\ then C:" + "\\Users\\alice\\secret\\", encoding="utf-8")
+    assert "personal_absolute_path" in _codes(tmp_path, ["docs/bad.md"])
+
+
+@pytest.mark.parametrize("name", ["front.csv", "lesson.svg", "weights.dat", "tour.tsp"])
+def test_personal_path_is_detected_in_every_tracked_file_type(tmp_path: Path, name: str) -> None:
+    path = tmp_path / "docs" / name
+    path.parent.mkdir()
+    path.write_bytes(b"1,2\n/" + b"home/alice/data\n")
+    assert "personal_absolute_path" in _codes(tmp_path, [f"docs/{name}"])
+
+
+@pytest.mark.parametrize("name", ["run_trace.csv", "db.sqlite3", "deep/er/run_trace.csv"])
+def test_top_level_generated_files_match_globs(tmp_path: Path, name: str) -> None:
+    path = tmp_path / "experiments" / name
+    path.parent.mkdir(parents=True)
+    path.write_text("1\n", encoding="utf-8")
+    assert "generated_output" in _codes(tmp_path, [f"experiments/{name}"])
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "C:" + "\\Users\\example\\project",
+        "/" + "home/user/project",
+        "/" + "Users/alice/project",
+        "a clean line about C: drives and /homes",
+    ],
+)
+def test_hygiene_and_release_scanners_agree(tmp_path: Path, content: str) -> None:
+    from tools.release_policy import scan_files
+
+    path = tmp_path / "docs" / "sample.md"
+    path.parent.mkdir()
+    path.write_text(content, encoding="utf-8")
+    hygiene = "personal_absolute_path" in _codes(tmp_path, ["docs/sample.md"])
+    try:
+        scan_files([path], root=tmp_path)
+        release = False
+    except AssertionError:
+        release = True
+    assert hygiene is release
 
 
 def test_detects_forbidden_distribution_content(tmp_path: Path) -> None:

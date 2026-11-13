@@ -234,10 +234,20 @@ class TestOptimizationResultPlot:
         ax = plot_result_front(result, show=False)
         assert ax is not None
 
-    def test_plot_no_matplotlib(self):
-        """plot() should raise if matplotlib not available."""
-        # This is hard to test without mocking, skip for now
-        pass
+    def test_plot_no_matplotlib(self, monkeypatch):
+        """plot() should raise with an install hint if matplotlib is not available."""
+        import sys
+
+        from vamos.experiment.optimization_result import OptimizationResult
+        from vamos.ux.api import plot_result_front
+
+        # A None entry in sys.modules makes the import fail, as when matplotlib is not installed.
+        monkeypatch.setitem(sys.modules, "matplotlib", None)
+        monkeypatch.setitem(sys.modules, "matplotlib.pyplot", None)
+        result = OptimizationResult({"F": np.array([[0.1, 0.9], [0.9, 0.1]])})
+
+        with pytest.raises(ImportError, match="pip install matplotlib"):
+            plot_result_front(result, show=False)
 
 
 class TestOptimizationResultDataFrame:

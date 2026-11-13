@@ -6,6 +6,7 @@ Assumes F is float64 of shape (N, M), X is float64 of shape (N, n_var).
 
 from __future__ import annotations
 
+from bisect import bisect_left
 from collections.abc import Iterable, Mapping
 from typing import Any, Literal, TypeAlias, cast, overload
 
@@ -103,8 +104,42 @@ def _fast_non_dominated_sort_blocked(F: RealArray) -> tuple[list[list[int]], Ind
     return fronts, rank
 
 
+def _two_objective_ranks(F: RealArray) -> IndexArray:
+    """Front ranks of two-objective rows in O(N log N), equal to the dense sort's.
+
+    Rows are visited by ``f1``, then ``f2``, so every row that dominates a row is
+    visited before it. Each front keeps its last visited row, which has the
+    front's smallest ``f2``; that row dominates the visited row exactly when its
+    ``(f2, f1)`` is lexicographically smaller (a duplicate row is not dominated).
+    The fronts that dominate a row form a prefix, so a binary search over the
+    fronts' last rows gives its rank. Rows with NaN are not supported.
+    """
+    order = np.lexsort((F[:, 1], F[:, 0]))
+    f1 = F[order, 0].tolist()
+    f2 = F[order, 1].tolist()
+    last_rows: list[tuple[float, float]] = []
+    sorted_ranks: list[int] = []
+    for key in zip(f2, f1):
+        rank = bisect_left(last_rows, key)
+        if rank == len(last_rows):
+            last_rows.append(key)
+        else:
+            last_rows[rank] = key
+        sorted_ranks.append(rank)
+    ranks = np.empty(order.shape[0], dtype=int)
+    ranks[order] = sorted_ranks
+    return ranks
+
+
+def _fronts_of_ranks(ranks: IndexArray) -> list[list[int]]:
+    """Front membership lists in ascending row order, as the dense sort builds them."""
+    by_rank = np.argsort(ranks, kind="stable")
+    bounds = np.cumsum(np.bincount(ranks))[:-1]
+    return [chunk.tolist() for chunk in np.split(by_rank, bounds)]
+
+
 def _fast_non_dominated_sort(F: RealArray) -> tuple[list[list[int]], IndexArray]:
-    """Classic O(N^2) fast non-dominated sort.
+    """Fast non-dominated sort: O(N log N) for two objectives, O(M N^2) otherwise.
 
     Parameters
     ----------
@@ -120,6 +155,9 @@ def _fast_non_dominated_sort(F: RealArray) -> tuple[list[list[int]], IndexArray]
     if N == 0:
         return [], np.empty(0, dtype=int)
 
+    if F.shape[1] == 2 and not bool(np.isnan(F).any()):
+        ranks = _two_objective_ranks(F)
+        return _fronts_of_ranks(ranks), ranks
     if F.shape[0] * F.shape[0] * F.shape[1] <= _DOMINANCE_TENSOR_BUDGET:
         return _fast_non_dominated_sort_dense(F)
     return _fast_non_dominated_sort_blocked(F)
@@ -129,6 +167,10 @@ def _compute_crowding(F: RealArray, fronts: list[list[int]]) -> FloatArray:
     """
     Standard crowding-distance computation.
     crowding: array of length N.
+
+    A front of one or two rows gets ``inf``. An objective without spread in a
+    front is skipped, as in jMetal and pymoo: it does not mark the rows that come
+    first and last in its sort as boundary points.
     """
     N = F.shape[0]
     crowding = np.zeros(N)
@@ -137,8 +179,8 @@ def _compute_crowding(F: RealArray, fronts: list[list[int]]) -> FloatArray:
         if len(front) == 0:
             continue
         front_arr = np.asarray(front, dtype=int)
-        if front_arr.size == 1:
-            crowding[front_arr[0]] = np.inf
+        if front_arr.size <= 2:
+            crowding[front_arr] = np.inf
             continue
 
         fvals = F[front_arr]  # shape (k, n_obj)
@@ -149,12 +191,11 @@ def _compute_crowding(F: RealArray, fronts: list[list[int]]) -> FloatArray:
             order = np.argsort(fvals[:, m], kind="mergesort")
             sorted_vals = fvals[order, m]
 
-            d[order[0]] = np.inf
-            d[order[-1]] = np.inf
-
             span = sorted_vals[-1] - sorted_vals[0]
             if span <= 0.0:
                 continue
+            d[order[0]] = np.inf
+            d[order[-1]] = np.inf
 
             contrib = np.zeros_like(sorted_vals)
             contrib[1:-1] = (sorted_vals[2:] - sorted_vals[:-2]) / span
