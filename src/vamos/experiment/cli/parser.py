@@ -7,14 +7,14 @@ from __future__ import annotations
 import argparse
 from collections.abc import Mapping, Sequence
 
-from vamos.engine.config.spec import allowed_override_keys, validate_experiment_spec
+from vamos.engine.config.spec import ProblemOverrides, allowed_override_keys, validate_experiment_spec
 from vamos.foundation.core.experiment_config import ExperimentConfig
 
 from .args import build_parser, build_pre_parser
 from .args_algorithms import _as_block
 from .common import _collect_generic_variation, collect_nsgaii_variation_args
 from .loaders import load_spec_defaults
-from .spec_args import parser_spec_keys
+from .spec_args import SpecArgumentParser, parser_spec_keys
 from .validation import finalize_args
 
 # Algorithms whose ``defaults.<name>`` block sets command-line options, and their operator sub-blocks.
@@ -65,6 +65,41 @@ def _config_keys(parser: argparse.ArgumentParser, args: argparse.Namespace, defa
     return keys
 
 
+# Options whose config value the run lower-cases, so the check ignores its case.
+_CASE_INSENSITIVE_CHOICES = ("engine", "eval_strategy")
+
+
+def _check_choice(parser: argparse.ArgumentParser, action: argparse.Action, value: object, where: str) -> None:
+    if value is None or action.choices is None or value in action.choices:
+        return
+    if action.dest in _CASE_INSENSITIVE_CHOICES and isinstance(value, str) and value.lower() in action.choices:
+        return
+    parser.error(f"{where}: invalid choice: {value!r} (choose from {', '.join(map(repr, action.choices))})")
+
+
+def _check_config_choices(parser: SpecArgumentParser, args: argparse.Namespace, problem_overrides: ProblemOverrides) -> None:
+    """Reject a config value outside the choices of its option, as the command line does.
+
+    argparse checks the choices of a command-line value only; a config value becomes the option's
+    default and skips that check. ``engine`` and ``eval_strategy`` match in any case, as the run
+    accepts them. Null is not checked: it is the default of options such as ``engine``, and a null
+    ``algorithm`` or ``engine`` in a problem block keeps the value in effect. Operator blocks may
+    name operators that the command-line options do not offer, and ``problem`` has its own check,
+    which suggests the closest names.
+    """
+    spec_keys = parser_spec_keys(parser) - {"problem"}
+    for action in parser._actions:
+        if action.choices is None or action.dest not in spec_keys:
+            continue
+        flag = action.option_strings[0]
+        if flag in parser.config_keys:
+            # The error names the config key that set the option.
+            _check_choice(parser, action, getattr(args, action.dest), f"argument {flag}")
+        for problem, overrides in problem_overrides.items():
+            if overrides is not None and action.dest in overrides:
+                _check_choice(parser, action, overrides[action.dest], f"problems.{problem}.{action.dest}")
+
+
 # Config-file aware parser.
 def parse_args(default_config: ExperimentConfig, argv: Sequence[str] | None = None) -> argparse.Namespace:
     """Parse and finalize the arguments of a standard ``vamos`` run.
@@ -98,6 +133,7 @@ def parse_args(default_config: ExperimentConfig, argv: Sequence[str] | None = No
     args.validate_config = bool(getattr(pre_args, "validate_config", False))
     if pre_args.config:
         parser.config_keys = _config_keys(parser, args, spec_defaults.experiment_defaults)
+        _check_config_choices(parser, args, spec_defaults.problem_overrides)
     return finalize_args(
         parser,
         args,
