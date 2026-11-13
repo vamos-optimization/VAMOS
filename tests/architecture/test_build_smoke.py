@@ -1,28 +1,26 @@
 from __future__ import annotations
 
-import shutil
+import fnmatch
 import subprocess
-import sys
+import tarfile
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - exercised by the Python 3.10 CI job
+    import tomli as tomllib
+
+from tests.architecture._build_tree import REPO_ROOT, build_from_copy, checkout_build_outputs
 
 
-def _clean_build_outputs() -> None:
-    for path in [REPO_ROOT / "build", REPO_ROOT / "dist", *(REPO_ROOT / "src").glob("*.egg-info")]:
-        if path.exists():
-            shutil.rmtree(path)
-
-
-def _assert_wheel_matches_source() -> None:
-    wheels = sorted((REPO_ROOT / "dist").glob("*.whl"), key=lambda p: p.stat().st_mtime)
+def _assert_wheel_matches_source(dist: Path) -> None:
+    wheels = sorted(dist.glob("*.whl"))
     if not wheels:
-        raise AssertionError("Build completed without producing a wheel under dist/*.whl.")
-    wheel_path = wheels[-1]
+        raise AssertionError(f"Build completed without producing a wheel under {dist}.")
     src_root = REPO_ROOT / "src"
     unexpected: list[str] = []
-    with zipfile.ZipFile(wheel_path) as zf:
+    with zipfile.ZipFile(wheels[-1]) as zf:
         for name in zf.namelist():
             if not name.startswith("vamos/") or not name.endswith(".py"):
                 continue
@@ -36,14 +34,43 @@ def _assert_wheel_matches_source() -> None:
         raise AssertionError(f"Wheel contains Python modules not present in src/vamos:\n{preview}")
 
 
-def test_build_smoke() -> None:
-    _clean_build_outputs()
-    cmd = [sys.executable, "-m", "build"]
-    proc = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True)
-    if proc.returncode == 0:
-        _assert_wheel_matches_source()
-        return
+def _assert_sdist_has_no_tests(dist: Path) -> None:
+    sdists = sorted(dist.glob("*.tar.gz"))
+    if not sdists:
+        raise AssertionError(f"Build completed without producing an sdist under {dist}.")
+    with tarfile.open(sdists[-1]) as archive:
+        # Member names start with the "<name>-<version>/" directory.
+        names = [name.partition("/")[2] for name in archive.getnames()]
+    tests = sorted(name for name in names if name == "tests" or name.startswith("tests/"))
+    if tests:
+        raise AssertionError(f"The sdist ships {len(tests)} files of the test suite without the rest of it: {tests[:5]}")
 
-    stdout = (proc.stdout or "").strip()
-    stderr = (proc.stderr or "").strip()
-    raise AssertionError(f"python -m build failed.\nExit code: {proc.returncode}\nstdout:\n{stdout}\nstderr:\n{stderr}\n")
+
+def test_build_smoke(tmp_path: Path) -> None:
+    # The sdist and the wheel built from it; the checkout's build/, dist/ and egg-info stay as the developer left them.
+    before = checkout_build_outputs()
+    dist = build_from_copy(tmp_path)
+    _assert_wheel_matches_source(dist)
+    _assert_sdist_has_no_tests(dist)
+    assert checkout_build_outputs() == before
+
+
+def test_src_holds_only_code_agent_docs_and_shipped_data() -> None:
+    # Any other file under src/vamos ships in no distribution, so it is left over, such as a script's output.
+    pyproject = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    package_data: dict[str, list[str]] = pyproject["tool"]["setuptools"]["package-data"]
+    tracked = subprocess.run(
+        ["git", "ls-files", "src/vamos"], cwd=REPO_ROOT, capture_output=True, text=True, check=True
+    ).stdout.splitlines()
+
+    def shipped(path: PurePosixPath) -> bool:
+        for package, patterns in package_data.items():
+            package_dir = PurePosixPath("src", *package.split("."))
+            if package_dir in path.parents:
+                relative = path.relative_to(package_dir).as_posix()
+                if any(fnmatch.fnmatch(relative, pattern) for pattern in patterns):
+                    return True
+        return False
+
+    stray = [name for name in tracked if not (name.endswith(".py") or name.endswith("/AGENTS.md") or shipped(PurePosixPath(name)))]
+    assert stray == [], f"Files under src/vamos that are neither code, agent documentation nor package data: {stray}"

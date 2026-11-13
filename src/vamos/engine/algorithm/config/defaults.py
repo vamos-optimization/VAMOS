@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Callable
+from dataclasses import fields, replace
+from typing import Any, cast
 
 from .agemoea import AGEMOEAConfig
 from .ibea import IBEAConfig
@@ -30,6 +32,24 @@ _DEFAULT_FACTORIES: dict[str, Callable[..., AlgorithmConfigProtocol]] = {
     "rvea": RVEAConfig.default,
 }
 
+# The built-in algorithm each configuration class configures.
+_CONFIG_ALGORITHMS: dict[type, str] = {
+    NSGAIIConfig: "nsgaii",
+    MOEADConfig: "moead",
+    SMSEMOAConfig: "smsemoa",
+    NSGAIIIConfig: "nsgaiii",
+    SPEA2Config: "spea2",
+    IBEAConfig: "ibea",
+    SMPSOConfig: "smpso",
+    AGEMOEAConfig: "agemoea",
+    RVEAConfig: "rvea",
+}
+
+
+def config_algorithm(config: object) -> str | None:
+    """The built-in algorithm that ``config``'s class configures, or ``None`` for another class."""
+    return _CONFIG_ALGORITHMS.get(type(config))
+
 
 def build_default_algorithm_config(
     algorithm: str,
@@ -55,4 +75,48 @@ def build_default_algorithm_config(
     return factory(**{name: value for name, value in arguments.items() if name in accepted})
 
 
-__all__ = ["build_default_algorithm_config", "DefaultConfigBuilder"]
+def _with_result_mode(config: AlgorithmConfigProtocol, result_mode: str) -> AlgorithmConfigProtocol:
+    """``config`` with ``result_mode``, when it is a dataclass with that field."""
+    try:
+        names = {field.name for field in fields(cast(Any, config))}
+    except TypeError:
+        return config
+    if "result_mode" not in names:
+        return config
+    return cast(AlgorithmConfigProtocol, replace(cast(Any, config), result_mode=result_mode))
+
+
+def build_algorithm_config(
+    algorithm: str,
+    *,
+    pop_size: int | None,
+    n_var: int | None,
+    n_obj: int | None,
+    encoding: str | None = None,
+    result_mode: str,
+) -> AlgorithmConfigProtocol:
+    """The configuration of a run whose caller gives none: ``optimize``, studies and Studio.
+
+    A built-in algorithm gets its ``default()`` configuration for the problem (see
+    :func:`build_default_algorithm_config`) with ``result_mode``; another registered algorithm
+    gets a ``GenericAlgorithmConfig`` with the sizes that are given. An unknown name raises
+    ``InvalidAlgorithmError``.
+    """
+    from vamos.engine.algorithm.registry import get_algorithms_registry
+    from vamos.foundation.exceptions import InvalidAlgorithmError
+
+    from .generic import GenericAlgorithmConfig
+
+    algorithm = algorithm.lower()
+    default_config = build_default_algorithm_config(algorithm, pop_size=pop_size, n_var=n_var, n_obj=n_obj, encoding=encoding)
+    if default_config is not None:
+        return _with_result_mode(default_config, result_mode)
+
+    registry = get_algorithms_registry()
+    if algorithm in registry:
+        sizes = {"pop_size": pop_size, "n_var": n_var, "n_obj": n_obj}
+        return GenericAlgorithmConfig({name: value for name, value in sizes.items() if value is not None})
+    raise InvalidAlgorithmError(algorithm, available=sorted(registry.keys()))
+
+
+__all__ = ["config_algorithm", "build_algorithm_config", "build_default_algorithm_config", "DefaultConfigBuilder"]

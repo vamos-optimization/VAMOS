@@ -157,6 +157,26 @@ on ZDT1, from 0.7426 to 0.7443 on DTLZ2 and from 0.1880 to 0.1892 on DTLZ1,
 within seed variation of jMetal 7.9's AGE-MOEA (0.8545, 0.7446 and 0.1890).
 AGE-MOEA results from VAMOS 1.1.0 and earlier differ with the same seed.
 
+### Where the variants depart from their references
+
+These are declared VAMOS choices, not defects; report them when comparing with
+published results or with another framework.
+
+- **NSGA-III parents** are chosen by binary tournament on non-dominated rank
+  and crowding distance (feasibility first under constraints), as in NSGA-II
+  and in jMetal's NSGA-III example. Deb and Jain (2014) choose parents at
+  random. See [NSGA-III](../algorithms/nsgaiii.md#variants-and-their-effect).
+- **NSGA-III nadir estimate:** when an intercept of the extreme-point
+  hyperplane lies beyond the worst point found so far, VAMOS uses the worst
+  point of the first front for every objective, as pymoo up to 0.4 did; pymoo
+  0.6 replaces only those objectives by the worst point.
+- **SMS-EMOA contributions** are exact, with no Monte Carlo or HypE
+  approximation, so each step's cost grows exponentially with the number of
+  objectives. See [SMS-EMOA](../algorithms/smsemoa.md#interpret-the-result-and-its-limits).
+- **MOEA/D** defaults to differential evolution with PBI aggregation;
+  `aggregation("tchebycheff")` reproduces jMetal's MOEA/D-DE. See
+  [MOEA/D](../algorithms/moead.md).
+
 ### Choose an initial experiment
 
 | Need | Starting point | Check before increasing the budget |
@@ -186,7 +206,37 @@ NSGA-III and RVEA require a population compatible with the configured reference 
 
 **Development after 1.1.0:** NSGA-III needs at least one individual per reference direction (N >= H) instead of exactly one, as Deb and Jain, jMetal and pymoo do; 100 individuals with 12 divisions and three objectives run with 91 directions, and fewer than 91 fail. Without `divisions`, NSGA-III uses the complete Das-Dennis lattice with the most directions that fit in `pop_size`; VAMOS 1.1.0 and earlier cut the next larger lattice to `pop_size` directions and lost the extreme direction of the first objective. With two objectives, NSGA-III and RVEA default to `pop_size - 1` divisions, or 99 without `pop_size`, instead of 6. RVEA and MOEA/D still need exactly one individual per vector; RVEA then keeps one survivor per occupied vector, so its population can end smaller than `pop_size` (see [RVEA](../algorithms/rvea.md)).
 
+**Development after 1.1.0:** `optimize` and study planning check each built-in algorithm's smallest population and number of objectives before the run and raise `ConfigurationError` (or, when planning, `UnresolvedStudyTaskError` with `INVALID_POPULATION_SIZE` or `UNSUPPORTED_OBJECTIVE_COUNT`) that names the minimum. NSGA-II, IBEA, AGE-MOEA, MOEA/D, NSGA-III and RVEA need `pop_size >= 2` (for NSGA-II and IBEA the selection decides: a tournament needs as many individuals as its size, 2 by default, and random, Boltzmann, ranking and SUS selection one); SMS-EMOA, AGE-MOEA, NSGA-III and RVEA need at least two objectives. The table is `vamos.engine.algorithm.catalog.ALGORITHM_MINIMUMS`. VAMOS 1.1.0 failed later with an error from the parent tournament or from moocore, and AGE-MOEA ran a single-objective problem.
+
 **Development after 1.1.0:** with `pop_size`, `NSGAIIIConfig.default()` uses the complete lattice with the most directions that fit in it, for any number of objectives (four divisions, 70 directions, for 100 individuals and five objectives, which used to fail with six divisions and 210 directions); `RVEAConfig.default()` uses the lattice of exactly `pop_size` vectors and otherwise fails at once naming the nearest valid sizes, such as 91 or 105 for three objectives. Without `pop_size`, both still use 12 divisions for three objectives and 6 for four or more.
+
+### Termination criteria
+
+**Development after 1.1.0:** every algorithm's `run(problem, termination=...)`
+and `initialize`, and `optimize(termination=..., algorithm_config=...)`, accept
+the same three criteria:
+`("max_evaluations", n)`, the total number of evaluations;
+`("n_gen", g)`, `g` generations of `pop_size` evaluations, the initial
+population included, so `g * pop_size` evaluations; and
+`("hv", {"target_value": t, "reference_point": r, "max_evaluations": n})`,
+which stops once the hypervolume of the result source against `r` reaches `t`,
+within `n` evaluations. Counts must be positive integers: `("max_evaluations",
+150.9)` raises `ValueError`, while an integral float such as `1e4` is accepted.
+Every result has `hv_reached`, whether the HV target stopped the run; NSGA-III,
+SMS-EMOA and IBEA keep `hv_converged` as an alias until VAMOS 2.0. In VAMOS
+1.1.0, AGE-MOEA and RVEA accepted `n_gen` but not `hv`, the other seven accepted
+`hv` but not `n_gen`, `run()` truncated a fractional budget, and NSGA-III,
+SMS-EMOA and IBEA reported only `hv_converged`, so the CLI never recorded that
+their HV target was reached.
+
+**Development after 1.1.0:** all nine algorithms implement the same
+step-by-step protocol: `initialize(problem, termination, seed)` evaluates the
+initial population; repeat `ask()`, evaluate the returned decision vectors, and
+`tell(...)` the objectives (and constraints) until `should_terminate()`; then
+`result()` returns what `run()` would. With the same seed, the result equals
+`run()`'s. `tell` returns `True` once the HV target is reached. In VAMOS 1.1.0,
+NSGA-II and MOEA/D had no public `initialize`, `should_terminate` or `result`,
+and `tell` of NSGA-III, SMS-EMOA and IBEA always returned `False`.
 
 ### Changes included in 1.0.1
 
@@ -240,6 +290,11 @@ algorithms. Version 1.0.2 applied it only to NSGA-II and MOEA/D.
 | `"auto"`, external/plugin/unknown algorithm | NumPy; no compatibility claim for custom algorithms |
 | `"numpy"`, `"numba"`, `"moocore"` | Exactly the requested engine; unavailable engines raise an error |
 
+**Development after 1.1.0:** an algorithm class built directly without a
+kernel, such as `NSGAII(config)`, also uses NumPy. VAMOS 1.1.0 used Numba there
+whenever Numba was installed. The backends follow the same trajectory, so only
+the speed changes; pass `kernel=NumbaKernel()` to keep the compiled kernels.
+
 Pass `engine="auto"` to `optimize`, `engine="auto"` in `StudySpec`, or
 `--engine auto` on the CLI. It does not install optional packages, benchmark the
 workload, choose MooCore, compile kernels during selection, or consume random
@@ -262,6 +317,13 @@ auto configuration can select differently in another environment; pin
 Existing 1.0 artifacts and schema versions are unchanged. Expanding the
 environment-dependent auto heuristic does not change the stable omitted default
 or promise cross-environment bitwise reproducibility.
+
+**Development after 1.1.0:** the NumPy engine sorts two-objective populations
+into fronts in O(N log N) by a sweep over the first objective, instead of
+comparing every pair of rows, with the same ranks and fronts (ties and
+duplicated rows included). Sorting 1000 rows takes about 0.4 ms instead of
+33 ms. Three or more objectives still compare every pair, in O(M N²); for large
+populations there, prefer `engine="auto"` or `engine="numba"`.
 
 Numba is a throughput preference, not a guarantee of a faster first call.
 Compare an empty JIT cache in a fresh process, a fresh process with a populated

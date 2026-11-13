@@ -47,6 +47,13 @@ advanced evaluation and contributors under the
 but those deep imports are not a compatibility commitment or a copy-paste
 learning path.
 
+**Development after 1.1.0:** the helpers without internal use are removed from
+`vamos.engine.tuning`: the `convergence` module (`ConvergenceProfile`,
+`ConvergenceDiagnostic`, `TuningCallback`, `diagnose`, `score_with_profile`),
+`save_checkpoint` and `load_checkpoint` of the racing I/O (a race cannot be
+resumed from them), and `AlgorithmConfigSpace.to_unit_vector` and
+`from_unit_vector`. `TwoPhaseTuner` stays.
+
 ## What a tuning experiment must define
 
 Before tuning, fix the experimental protocol just as you would for an algorithm
@@ -102,14 +109,28 @@ not mixed into ordinary `vamos tune` comparisons.
 - `--runtime-penalty` changes the scalar score to
   `HV - lambda * log1p(runtime_seconds)`; its default is `0.0`, so the default
   score is plain HV.
-- `--failure-score` has a narrower scope than its name may suggest. Its default
-  is `0.0`, and it is used when the evaluator catches a failure while running
-  the candidate algorithm and therefore has no usable result. It is **not a
-  universal failure policy**: exceptions raised later while scoring HV can
-  propagate in the `random` backend, while racing may substitute its own
-  backend-level sentinel instead of `--failure-score`.
+- `--failure-score` (default `0.0`) is the score of a failed evaluation: a run
+  of the candidate algorithm that raised, or a score that is not finite (see
+  below).
 - `--aggregate-mode` then combines the per-block scores using `mean`, `median`,
   `p25`, or `p10`.
+
+**Development after 1.1.0:** a failed evaluation has one meaning in every
+backend: the run raised, or its score is not finite (NaN or infinite). It
+scores `--failure-score` in `vamos tune` (`TuningTask.failure_score` in Python,
+-1e30 when maximizing and 1e30 when minimizing if unset), it is counted, and the
+model-based backends and irace never receive a NaN. A run that fails in the
+`vamos tune` evaluator is marked as failed instead of scoring like a valid
+front with no point inside the reference, so the validation's `fail_rate`
+counts it, and `tuning_summary.json` records `evaluations` and
+`failed_evaluations` for the tuning phase. Racing, random-search and irace
+histories record `failed_evaluations` per configuration. When every tuning
+evaluation fails, `vamos tune` stops with exit code 1 and the first failure,
+and `RacingTuner` and `RandomSearchTuner` raise `TuningFailedError`. VAMOS 1.1.0
+reported `fail_rate=0` for runs that could not execute, let a single NaN stop
+every elimination of a race, let an exception abort `--backend random`, and
+ended a search in which nothing ran with exit code 0 and an arbitrary
+configuration.
 
 Choose and report a reference point that is meaningful for **all** problems in
 the tuning campaign. The CLI uses the same supplied reference point across the
@@ -287,6 +308,17 @@ statistical-finisher stages. It is a real execution path and is exercised by
 the documentation smoke suite, but its tiny design is **not** intended for
 scientific conclusions.
 
+**Development after 1.1.0:** `--smoke` also caps the sampled populations at
+half of its 30-evaluation run budget (`--pop-size`, 15), so that every sampled
+configuration can run, including the opposition-based initializer, which
+evaluates a population and its opposite; for RVEA it caps `n_partitions`, whose
+reference directions are the population. VAMOS 1.1.0 kept the [20, 200]
+population range, and `optimize` rejected most smoke configurations, which
+received `--failure-score`. A `vamos tune` run in which more than half of the
+evaluations fail, but not all of them, now ends with a warning.
+Without `--name`, the output folder is named after the `--instances` (the first
+three and the number of the others), not after `--problem`.
+
 ## Choose a backend deliberately
 
 The current backend families are:
@@ -459,6 +491,16 @@ Reusing the same base study name resumes only studies from this contract
 version. A future incompatible scoring/search-space change must use a new
 namespace rather than mixing historical trial values.
 
+**Development after 1.1.0:** a resumed study runs only the trials that
+`--tune-budget` still allows: its finished trials (complete, pruned or failed)
+count, so running the same command again after an interruption completes the
+budget instead of adding `--tune-budget` trials each time, as VAMOS 1.1.0 did.
+Every study also has a name without `--optuna-storage` (the task, backend and
+seed), because `bohb_optuna`'s Hyperband pruner assigns each trial to a bracket
+from a hash of that name; with one worker, `bohb_optuna` is now reproducible
+for a seed, as the other backends were. VAMOS 1.1.0 let Optuna draw a random
+name, so the same seed gave different searches.
+
 ## Split-based tuning
 
 For a larger campaign, use explicit instance splitting and post-tuning stages:
@@ -521,6 +563,20 @@ Tuning output includes:
 - `tuning_summary.json`;
 - `split_instances.csv` and `split_seeds.json`;
 - optional finisher/validation/test artifacts when those stages are enabled.
+
+**Development after 1.1.0:** `best_score` in `tuning_summary.json` is the
+score of the returned configuration (`best_config_*.json`): racing's final
+choice, the statistical finisher's winner or irace's first elite, which need
+not be the highest score of the history; `best_history_score` is that highest
+score. VAMOS 1.1.0 wrote the highest history score as `best_score`. In
+`selected_configs_validation.json`, `champion_global` is the validated
+candidate with the best tuning score, `champion_robust` has the best 25th
+percentile and `champion_fast` the best mean validation score; "fast" does not
+refer to runtime. Ties keep the candidate with the better tuning score. In racing, `start_instances`
+only sets how many instances the first stages use; the schedule interleaves the
+other, already shuffled, instances, so it changes little. Rank elimination
+breaks ties by position, so with identical scores (identical failure scores,
+for example) the configurations sampled first survive.
 
 Keep these together with the command/configuration and environment used for the
 campaign. A best configuration without its search space, seeds, HV reference

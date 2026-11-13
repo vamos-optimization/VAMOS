@@ -24,6 +24,7 @@ from vamos.engine.algorithm.components.hooks import (
     finalize_genealogy,
     live_should_stop,
     notify_generation,
+    survivor_genealogy_ids,
     track_offspring_genealogy,
 )
 from vamos.engine.algorithm.components.termination import HVTracker, capped_offspring_size
@@ -31,7 +32,7 @@ from vamos.engine.algorithm.components.utils import variation_operator_label
 from vamos.engine.archive.factory import update_archive
 from vamos.foundation.kernel import default_kernel
 
-from .helpers import environmental_selection, selection_fitness_density
+from .helpers import environmental_selection_indices, selection_fitness_density
 from .initialization import initialize_spea2_run
 from .state import SPEA2State, build_spea2_result
 
@@ -209,7 +210,8 @@ class SPEA2:
             stop_requested = notify_generation(live_cb, self.kernel, generation, st.env_F, stats={"evals": st.n_eval})
 
         result = build_spea2_result(st, hv_reached, self.kernel)
-        finalize_genealogy(result, st, self.kernel)
+        # The genealogy ids follow the archive, which can differ from the initial population.
+        finalize_genealogy(result, st, self.kernel, F=st.env_F)
         live_cb.on_end(final_F=st.env_F)
         return result
 
@@ -362,8 +364,7 @@ class SPEA2:
         G_union = combine_constraints(st.env_G, G, st.constraint_mode, algorithm="SPEA2")
 
         # Environmental selection; mating uses the fitness each survivor had in the union.
-        st.env_X, st.env_F, st.env_G, st.selection_raw_fitness, st.selection_density = environmental_selection(
-            X_union,
+        selected, st.selection_raw_fitness, st.selection_density = environmental_selection_indices(
             F_union,
             G_union,
             st.env_archive_size,
@@ -371,6 +372,10 @@ class SPEA2:
             st.constraint_mode,
             self.kernel.selection_kernels(),
         )
+        st.env_X, st.env_F = X_union[selected], F_union[selected]
+        st.env_G = G_union[selected] if G_union is not None else None
+        # The genealogy ids follow the archive, which is the population SPEA2 mates from.
+        survivor_genealogy_ids(st, selected)
 
         # Update population reference
         st.X = st.env_X

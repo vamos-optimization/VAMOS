@@ -132,10 +132,11 @@ def test_optimize_records_backend_resolution_metadata() -> None:
     assert result.meta["kernel_backend"] == "numpy"
 
 
-def test_optimize_rejects_termination_keyword() -> None:
+def test_optimize_accepts_termination_without_algorithm_config() -> None:
+    # VAMOS 1.1.0 raised a false TypeError for a keyword that optimize() declares.
     problem = ZDT1Problem(n_var=6)
-    with pytest.raises(TypeError, match="unexpected keyword argument 'termination'"):
-        optimize(problem, algorithm="nsgaii", pop_size=6, termination=("max_evaluations", 12), seed=1, engine="numpy")  # type: ignore[call-arg]
+    result = optimize(problem, algorithm="nsgaii", pop_size=6, termination=("max_evaluations", 12), seed=1, engine="numpy")
+    assert result.meta["run_artifact_resolved_spec"]["termination"] is not None
 
 
 def test_optimize_auto_rejects_single_objective_problem() -> None:

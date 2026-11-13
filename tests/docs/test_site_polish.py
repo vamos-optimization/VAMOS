@@ -95,7 +95,7 @@ def test_preview_and_production_enforce_site_and_artifact_checks():
     assert "python tools/check_docs_artifact.py live" in production
     assert (
         production.index("check_docs_artifact.py create")
-        < production.index("wrangler@${WRANGLER_VERSION}")
+        < production.index("wrangler deploy --config wrangler.jsonc")
         < production.index("check_docs_artifact.py live")
     )
 

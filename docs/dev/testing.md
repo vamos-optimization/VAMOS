@@ -1,6 +1,6 @@
 # Testing and validation
 
-Use the smallest test that proves a change while iterating, then run every higher tier required by `/AGENTS.md`. Tests are deterministic, offline, isolated from user directories, and explicit about optional dependencies.
+Use the smallest test that proves a change while iterating, then run every higher tier required by `/AGENTS.md`. Tests are deterministic, offline, and explicit about optional dependencies. They write under `tmp_path`, never in the checkout: the build smoke builds from a copy of the tree, the Ruff gates run without a cache, and `tests/conftest.py` sends Numba's kernel cache to the system temporary directory unless `NUMBA_CACHE_DIR` is already set.
 
 Repository-shape changes also run `python tools/check_repository_hygiene.py`.
 The checker examines tracked content only; generated test output belongs in
@@ -51,12 +51,18 @@ python -m pytest -q
 mkdocs build --strict
 ```
 
+### Fast and slow tiers in CI
+
+Pull requests and the merge queue run the fast tier, `pytest -m "not slow"`. A test that takes more than about 10 seconds goes into `SLOW_TESTS` in `tests/conftest.py`, or carries `@pytest.mark.slow`, and the nightly `slow-tests.yml` workflow runs those with `pytest -m slow`. A test that is the only check of a stable contract, such as the compatibility snapshots, the study CLI, or resume and retry, stays in the fast tier however long it takes. When a slow test checks something every change can break, keep a cheap version of it in the fast tier, as `test_large_discrete_spaces_build_config_on_a_sample` does for the exhaustive configuration test. `python -m pytest -q` locally runs both tiers.
+
+The Ubuntu Python 3.12 job measures branch coverage (`[tool.coverage.run] branch = true`). It runs the Numba kernel tests a second time with `NUMBA_DISABLE_JIT=1`, because compiled kernels are invisible to coverage. It then holds `foundation/problem`, `foundation/quality_indicators`, `engine/algorithm`, and `engine/operators` at the floors in `ci.yml`, and reports all four before failing. A floor only rises: raise it when coverage of its package rises, and add tests instead of lowering it. The floors hold on every runner. Where compiled `pow` differs from `np.power`, which depends on the CPU, the Numba engine keeps its reference paths and the tests of its compiled steady-state steps skip, so `engine/algorithm` measures about four points lower there (80 instead of 84 on the Ubuntu runners).
+
 Release validation adds stable-facade and composite release typing before packaging:
 
 ```bash
 python tools/typecheck.py --scope stable
 python tools/typecheck.py --scope release
-python tools/typecheck.py --scope full-zero  # expected informational failure for 1.0.0
+python tools/typecheck.py --scope full-zero  # informational; fails while the typing baseline has entries
 python -m build
 ```
 

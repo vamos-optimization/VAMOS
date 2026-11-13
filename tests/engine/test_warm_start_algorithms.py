@@ -157,3 +157,16 @@ def test_moead_default_continuation_matches_uninterrupted() -> None:
     assert resumed.data["evaluations"] == 2000
     assert resumed.data["population"]["F"].tobytes() == full.data["population"]["F"].tobytes()
     assert resumed.data["population"]["X"].tobytes() == full.data["population"]["X"].tobytes()
+
+
+@pytest.mark.parametrize("algorithm", ["nsgaii", "moead"])
+def test_resume_with_budget_below_checkpoint_fails(algorithm: str) -> None:
+    stage = vamos.optimize("zdt1", algorithm=algorithm, engine="numpy", seed=3, max_evaluations=300)
+    checkpoint = stage.data["checkpoint"]
+
+    # max_evaluations is the total of the resumed run; VAMOS 1.1.0 returned the checkpoint's 300 evaluations silently.
+    with pytest.raises(ConfigurationError, match="300"):
+        vamos.optimize("zdt1", algorithm=algorithm, engine="numpy", seed=3, max_evaluations=200, checkpoint=checkpoint)
+
+    resumed = vamos.optimize("zdt1", algorithm=algorithm, engine="numpy", seed=3, max_evaluations=300, checkpoint=checkpoint)
+    assert resumed.data["evaluations"] == 300

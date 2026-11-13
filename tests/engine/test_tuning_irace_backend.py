@@ -189,7 +189,7 @@ def test_evaluation_server_and_target_runner(monkeypatch: pytest.MonkeyPatch) ->
     assert float(out.getvalue()) == pytest.approx(-(1.0 - 0.05 + 0.2 + 0.12))
     assert "missing" in err.getvalue() and "wrong token" in err.getvalue()
     assert evaluations.records == [
-        dict(config_id=7, config={"x": 0.25, "kind": "b", "y": 4}, instance="i2", seed=12, score=pytest.approx(1.27))
+        dict(config_id=7, config={"x": 0.25, "kind": "b", "y": 4}, instance="i2", seed=12, score=pytest.approx(1.27), failed=False)
     ]
     assert isinstance(evaluations.error, ValueError)
 

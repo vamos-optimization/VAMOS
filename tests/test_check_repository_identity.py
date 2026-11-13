@@ -24,6 +24,7 @@ from check_repository_identity import (  # noqa: E402
     PERSONAL_OWNER,
     REPOSITORY_GUARD,
     classify_references,
+    cloudflare_violations,
     load_yaml,
     metadata_violations,
     pages_violations,
@@ -157,6 +158,20 @@ def test_checker_rejects_pages_workflow_that_is_not_an_org_redirect(mutation: st
     else:
         jobs["build"]["steps"].insert(0, {"run": "python tools/build_release_docs.py --version 1.1.0 --output public"})
     assert pages_violations(workflow)
+
+
+@pytest.mark.parametrize("name", ["docs-cloudflare.yml", "docs-cloudflare-preview.yml", "docs-cloudflare-verify.yml"])
+@pytest.mark.parametrize("mutation", ["none", "removed", "always", "or-bypass"])
+def test_identity_guards_cloudflare_workflows(name: str, mutation: str) -> None:
+    workflow = copy.deepcopy(load_yaml(ROOT, f".github/workflows/{name}"))
+    job = next(iter(workflow["jobs"].values()))
+    if mutation == "removed":
+        job.pop("if")
+    elif mutation == "always":
+        job["if"] = "always()"
+    elif mutation == "or-bypass":
+        job["if"] = f"{REPOSITORY_GUARD} || github.event_name == 'workflow_dispatch'"
+    assert bool(cloudflare_violations(workflow)) is (mutation != "none")
 
 
 def test_identity_gate_is_in_health_ci_and_release_validation() -> None:

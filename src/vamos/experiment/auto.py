@@ -1,8 +1,10 @@
 """
 Auto-optimization helpers for the unified optimize entry point.
 
-These utilities derive sensible defaults (algorithm, population size,
-max evaluations) from lightweight problem metadata.
+These utilities derive the quick defaults of ``optimize`` (algorithm,
+population size, max evaluations) from lightweight problem metadata. They
+suit a first run, not a converged front: 3000 evaluations of a population of
+200 on ZDT1.
 """
 
 from __future__ import annotations

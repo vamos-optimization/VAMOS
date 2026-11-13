@@ -5,9 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from vamos.foundation.exceptions import VAMOSError
 
-class StudyError(Exception):
-    """Base error with stable fields suitable for future command rendering."""
+
+class StudyError(VAMOSError):
+    """Base error with stable fields suitable for future command rendering.
+
+    It is also a ``VAMOSError``; its ``message`` is the whole error text and it has no ``suggestion``.
+    """
 
     category = "study"
 

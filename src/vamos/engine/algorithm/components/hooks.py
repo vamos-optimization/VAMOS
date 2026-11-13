@@ -153,6 +153,9 @@ def track_offspring_genealogy(
     offspring_count: int,
     operator_name: str = "variation",
     algorithm_name: str = "algorithm",
+    *,
+    parents_per_group: int | None = None,
+    children_per_group: int = 1,
 ) -> None:
     """
     Record genealogy for new offspring.
@@ -162,23 +165,33 @@ def track_offspring_genealogy(
     state : AlgorithmState
         Algorithm state with genealogy fields.
     parent_idx : np.ndarray
-        Indices of parents used to create offspring.
+        Indices of parents used to create offspring, one group of
+        ``parents_per_group`` after another.
     offspring_count : int
         Number of offspring created.
     operator_name : str
         Name of the variation operator used.
     algorithm_name : str
         Algorithm name for tracking.
+    parents_per_group : int | None
+        Parents that the variation combines into one group. ``None`` assumes
+        one group per child: ``len(parent_idx) // offspring_count`` parents.
+    children_per_group : int
+        Children that each group produces, in order. SBX turns each pair of
+        parents into two children, so both children record both parents.
     """
     if not state.track_genealogy or state.genealogy_tracker is None:
         return
 
-    parents_per_offspring = max(1, len(parent_idx) // offspring_count)
+    if parents_per_group is None:
+        parents_per_group = max(1, len(parent_idx) // offspring_count)
+        children_per_group = 1
+    children_per_group = max(1, int(children_per_group))
     pending_ids = []
 
     for i in range(offspring_count):
-        start = i * parents_per_offspring
-        end = min(start + parents_per_offspring, len(parent_idx))
+        start = (i // children_per_group) * parents_per_group
+        end = min(start + parents_per_group, len(parent_idx))
         parent_ids = []
         if state.ids is not None:
             parent_ids = [int(state.ids[p]) for p in parent_idx[start:end] if p < len(state.ids)]
@@ -195,10 +208,25 @@ def track_offspring_genealogy(
     state.pending_offspring_ids = np.array(pending_ids, dtype=int)
 
 
+def survivor_genealogy_ids(state: AlgorithmState, survivors: IntArray) -> None:
+    """Keep the ids of the survivors of the current population followed by the pending offspring.
+
+    ``survivors`` indexes the parents and offspring stacked in that order, as an
+    environmental selection sees them. Without genealogy tracking it does nothing.
+    """
+    if not state.track_genealogy or state.ids is None:
+        return
+    pending = state.pending_offspring_ids if state.pending_offspring_ids is not None else np.empty(0, dtype=int)
+    combined = np.concatenate([np.asarray(state.ids, dtype=int), np.asarray(pending, dtype=int)])
+    state.ids = combined[np.asarray(survivors, dtype=int)]
+    state.pending_offspring_ids = None
+
+
 def finalize_genealogy(
     result: dict[str, Any],
     state: AlgorithmState,
     kernel: KernelBackend,
+    F: np.ndarray[Any, Any] | None = None,
 ) -> None:
     """
     Finalize genealogy tracking and add to result.
@@ -211,6 +239,8 @@ def finalize_genealogy(
         Algorithm state with genealogy tracker.
     kernel : KernelBackend
         Kernel backend for ranking computation.
+    F : np.ndarray | None
+        Objectives of the rows that ``state.ids`` follows; ``state.F`` by default.
     """
     if not state.track_genealogy or state.genealogy_tracker is None:
         return
@@ -221,7 +251,7 @@ def finalize_genealogy(
             operator_success_stats,
         )
 
-        ranks, _ = kernel.nsga2_ranking(state.F)
+        ranks, _ = kernel.nsga2_ranking(state.F if F is None else F)
         nd_mask = ranks == ranks.min(initial=0)
         final_front_ids = state.ids[nd_mask] if state.ids is not None else []
         state.genealogy_tracker.mark_final_front(list(final_front_ids))
@@ -265,6 +295,7 @@ __all__ = [
     "live_should_stop",
     "setup_genealogy",
     "track_offspring_genealogy",
+    "survivor_genealogy_ids",
     "finalize_genealogy",
     "match_ids",
 ]

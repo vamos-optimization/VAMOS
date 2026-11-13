@@ -15,7 +15,7 @@ from pathlib import Path
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from tools.check_pre_release_remnants import guidance_remnant_tokens
+from tools.check_pre_release_remnants import guidance_remnant_tokens, tracked_paths
 
 ROOT_INSTRUCTION = "AGENTS.md"
 COPILOT_ADAPTER = ".github/copilot-instructions.md"
@@ -94,9 +94,14 @@ def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8-sig")
 
 
+def _nested_instructions(root: Path) -> list[Path]:
+    # Tracked files only: an AGENTS.md inside an ignored .venv/ or nested worktree is not this repository's.
+    return [path for path in tracked_paths(root) if path.name == "AGENTS.md" and path != root / ROOT_INSTRUCTION]
+
+
 def _instruction_files(root: Path) -> list[Path]:
     files = [root / ROOT_INSTRUCTION]
-    files.extend(path for path in root.rglob("AGENTS.md") if path != root / ROOT_INSTRUCTION)
+    files.extend(_nested_instructions(root))
     for relative in (COPILOT_ADAPTER, CLAUDE_ADAPTER):
         path = root / relative
         if path.exists():
@@ -161,9 +166,7 @@ def _substantive_line_count(text: str) -> int:
 
 
 def _check_nested_scope(root: Path, errors: list[str]) -> None:
-    for path in sorted(root.rglob("AGENTS.md")):
-        if path == root / ROOT_INSTRUCTION:
-            continue
+    for path in _nested_instructions(root):
         text = _read(path)
         rel = _relative(path, root)
         match = SCOPE_RE.search(text)
@@ -201,9 +204,7 @@ def _check_adapters(root: Path, errors: list[str]) -> None:
 
 def _check_hidden_instructions(root: Path, errors: list[str]) -> None:
     hidden_root = root / ".agent"
-    if not hidden_root.exists():
-        return
-    hidden = sorted(path for path in hidden_root.rglob("*") if path.is_file() and path.suffix.lower() in {".md", ".txt"})
+    hidden = sorted(path for path in tracked_paths(root) if hidden_root in path.parents and path.suffix.lower() in {".md", ".txt"})
     for path in hidden:
         errors.append(f"{_relative(path, root)}: hidden instruction source is not permitted")
 
@@ -262,6 +263,40 @@ def _check_paths(root: Path, declarations: list[Declaration], errors: list[str])
         resolved = (root / candidate).resolve()
         if not resolved.is_relative_to(root.resolve()) or not resolved.exists():
             errors.append(f"{rel_source}:{item.line}: checked path does not exist: {item.value}")
+
+
+def _guidance_text(text: str) -> str:
+    kept: list[str] = []
+    in_block = False
+    for line in text.splitlines():
+        if line.strip() == "```agent-docs":
+            in_block = True
+        elif in_block and line.strip() == "```":
+            in_block = False
+        elif not in_block:
+            kept.append(line)
+    return "\n".join(kept)
+
+
+def _check_scoped_paths(root: Path, declarations: list[Declaration], errors: list[str]) -> None:
+    # A scoped file checks source paths of its own subtree and those its guidance names; tests and docs are routes.
+    for path in _nested_instructions(root):
+        text = _read(path)
+        match = SCOPE_RE.search(text)
+        if match is None:
+            continue
+        scope = match.group(1)[:-3].rstrip("/")
+        guidance = _guidance_text(text)
+        for item in declarations:
+            value = item.value.rstrip("/")
+            if item.source != path or item.kind != "path" or not value.startswith("src/"):
+                continue
+            if value == scope or value.startswith(f"{scope}/") or value in guidance:
+                continue
+            errors.append(
+                f"{_relative(path, root)}:{item.line}: declared source path is outside the scope {scope} "
+                f"and its guidance does not name it: {item.value}"
+            )
 
 
 def _python_env(root: Path) -> dict[str, str]:
@@ -427,6 +462,7 @@ def check_repository(root: Path) -> list[str]:
     _check_hidden_instructions(root, errors)
     _check_links(root, existing, errors)
     _check_paths(root, declarations, errors)
+    _check_scoped_paths(root, declarations, errors)
     _check_symbols(root, declarations, errors)
     _check_cli(root, declarations, errors)
     _check_commands(root, declarations, errors)
@@ -447,7 +483,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"- {error}")
         return 1
     active_count = len(_active_files(args.root.resolve()))
-    nested_count = len([path for path in args.root.resolve().rglob("AGENTS.md") if path != args.root.resolve() / ROOT_INSTRUCTION])
+    nested_count = len(_nested_instructions(args.root.resolve()))
     print(f"Agent-documentation check passed: {active_count} active files, {nested_count} scoped AGENTS.md files.")
     return 0
 

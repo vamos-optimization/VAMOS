@@ -18,6 +18,7 @@ Example
 
 from __future__ import annotations
 
+import numbers
 from collections.abc import Callable, Sequence
 from typing import Any
 
@@ -112,6 +113,14 @@ class FunctionalProblem(Problem):
 # ======================================================================
 
 
+def _integer_dimension(name: str, value: object, *, minimum: int) -> int:
+    """``value`` as an ``int``: any integral type but ``bool``, at least ``minimum``."""
+    if isinstance(value, bool) or not isinstance(value, numbers.Integral) or int(value) < minimum:
+        requirement = "a positive integer" if minimum == 1 else "a non-negative integer"
+        raise ProblemDimensionError(f"{name} must be {requirement}, got {value!r}.")
+    return int(value)
+
+
 def make_problem(
     fn: Callable[..., object],
     *,
@@ -187,12 +196,22 @@ def make_problem(
 
     Raises
     ------
-    TypeError
-        If *fn* is not callable.
-    ValueError
-        If *bounds* and *xl*/*xu* are both provided, if *bounds* length
-        does not match *n_var*, or if *n_constraints* > 0 but no
-        *constraints* callable is given.
+    ConfigurationError
+        If *fn* or *constraints* is not callable, or *encoding* is unknown.
+        It is also a ``ValueError``.
+    ProblemDimensionError
+        If *n_var* or *n_obj* is not a positive integer, if *n_constraints*
+        is not a non-negative integer, or if *constraints* is given without
+        *n_constraints* or *n_constraints* without *constraints*.
+    BoundsError
+        If *bounds* and *xl*/*xu* are both given, if *bounds* does not have
+        one (lower, upper) pair per variable, if *xl*/*xu* do not broadcast
+        to ``(n_var,)``, if a bound is NaN or infinite, or if a lower bound
+        exceeds its upper bound.
+
+    All three are ``vamos.exceptions.VAMOSError``. ``ProblemDimensionError``
+    and ``BoundsError`` are ``ProblemError``, not ``ValueError``. Dimensions
+    accept any integral type except ``bool``, such as ``numpy.int64``.
 
     Examples
     --------
@@ -245,10 +264,9 @@ def make_problem(
         )
 
     # ---- validate dimensions ----
-    if not isinstance(n_var, int) or n_var < 1:
-        raise ProblemDimensionError("n_var must be a positive integer.", n_var=n_var)
-    if not isinstance(n_obj, int) or n_obj < 1:
-        raise ProblemDimensionError("n_obj must be a positive integer.", n_obj=n_obj)
+    n_var = _integer_dimension("n_var", n_var, minimum=1)
+    n_obj = _integer_dimension("n_obj", n_obj, minimum=1)
+    n_constraints = _integer_dimension("n_constraints", n_constraints, minimum=0)
 
     # ---- resolve bounds ----
     if bounds is not None and (xl is not None or xu is not None):
@@ -280,6 +298,8 @@ def make_problem(
             ) from exc
         if np.any(xl_arr > xu_arr):
             raise BoundsError("Lower bounds must not exceed upper bounds.")
+    if not (np.all(np.isfinite(xl_arr)) and np.all(np.isfinite(xu_arr))):
+        raise BoundsError(f"Bounds must be finite numbers, got xl={xl_arr.tolist()} and xu={xu_arr.tolist()}.")
 
     # ---- validate constraints ----
     if constraints is not None:

@@ -91,12 +91,16 @@ class StudyResult(Sequence[OptimizationResult]):
             raise NoSolutionsError("StudyResult contains no runs.")
         return float(np.mean(values))
 
-    def std(self, name: str) -> float:
-        """Return the population standard deviation of a numeric metric across runs."""
+    def std(self, name: str, ddof: int = 0) -> float:
+        """Return the standard deviation of a numeric metric across runs.
+
+        ``ddof=0`` (the default) is the population standard deviation; ``ddof=1`` is the
+        sample standard deviation usually reported across seeds.
+        """
         values = self.metric_values(name)
         if values.size == 0:
             raise NoSolutionsError("StudyResult contains no runs.")
-        return float(np.std(values))
+        return float(np.std(values, ddof=ddof))
 
     def best_run(self, name: str, maximize: bool = True) -> OptimizationResult:
         """Return the run with the best value for the named metric."""
