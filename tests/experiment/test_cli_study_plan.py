@@ -183,3 +183,16 @@ def test_study_plan_rejects_unused_algorithm_configs(tmp_path: Path, payload: di
     envelope = json.loads(proc.stdout)
     assert envelope["errors"][0]["reason"] == "INVALID_STUDY_SPEC"
     assert field in envelope["errors"][0]["field"]
+
+
+def test_human_plan_errors_show_field_and_value(tmp_path: Path) -> None:
+    """The human output names the field and the value that the JSON error carries (VR-129)."""
+    config = tmp_path / "study.json"
+    _write_spec(config, algorithm_configs={"nsgaii": {"crossover": {"method": "nope"}}})
+
+    proc = _run("plan", str(config))
+
+    assert proc.returncode == 2
+    assert "UNAVAILABLE_COMPONENT" in proc.stderr
+    assert "$.matrix[0].operators.crossover" in proc.stderr
+    assert "unavailable-crossover" in proc.stderr
