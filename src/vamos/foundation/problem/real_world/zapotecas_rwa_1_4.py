@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
+
+from vamos.foundation.problem._output import objective_output
 
 
 class RWA1Problem:
@@ -19,7 +23,7 @@ class RWA1Problem:
         self.xl = np.array([20.0, 6.0, 20.0, 0.0, 8000.0], dtype=float)
         self.xu = np.array([60.0, 15.0, 40.0, 30.0, 25000.0], dtype=float)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         h, t, sy, theta, re = (X[:, i] for i in range(5))
 
         nu = (
@@ -53,7 +57,7 @@ class RWA1Problem:
             + 6.777e-4 * h * h
         )
 
-        F = out["F"]
+        F = objective_output(out, len(X), self.n_obj)
         F[:, 0] = -nu
         F[:, 1] = ff
 
@@ -75,7 +79,7 @@ class RWA2Problem:
         self.xl = np.full(self.n_var, 1.0, dtype=float)
         self.xu = np.full(self.n_var, 3.0, dtype=float)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         t1, t2, t3, t4, t5 = (X[:, i] for i in range(5))
 
         mass = 1640.2823 + 2.3573285 * t1 + 2.3220035 * t2 + 4.5688768 * t3 + 7.7213633 * t4 + 4.4559504 * t5
@@ -106,7 +110,7 @@ class RWA2Problem:
             + 0.0109 * t4 * t4
         )
 
-        F = out["F"]
+        F = objective_output(out, len(X), self.n_obj)
         F[:, 0] = mass
         F[:, 1] = ain
         F[:, 2] = intrusion
@@ -129,7 +133,7 @@ class RWA3Problem:
         self.xl = np.array([0.25, 10000.0, 600.0], dtype=float)
         self.xu = np.array([0.55, 20000.0, 1100.0], dtype=float)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         o2ch4 = X[:, 0]
         gv = X[:, 1]
         temp = X[:, 2]
@@ -164,7 +168,7 @@ class RWA3Problem:
             + 0.18
         )
 
-        F = out["F"]
+        F = objective_output(out, len(X), self.n_obj)
         F[:, 0] = -ch4
         F[:, 1] = -co
         F[:, 2] = h2co
@@ -188,7 +192,7 @@ class RWA4Problem:
         self.xl = np.array([1.0, 10.0, 850.0, 20.0, 4.0], dtype=float)
         self.xu = np.array([1.4, 26.0, 1650.0, 40.0, 8.0], dtype=float)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         x1, x2, x3, x4, x5 = (X[:, i] for i in range(5))
 
         cr = (
@@ -244,7 +248,7 @@ class RWA4Problem:
             - 3.312e-3 * x4 * x5
         )
 
-        F = out["F"]
+        F = objective_output(out, len(X), self.n_obj)
         F[:, 0] = -cr
         F[:, 1] = ra
         F[:, 2] = dd

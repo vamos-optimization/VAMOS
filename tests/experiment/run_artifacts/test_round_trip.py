@@ -123,7 +123,7 @@ def test_result_arrays_preserve_empty_shape_dtype_and_values_ra004(
     result = OptimizationResult(
         {
             "F": np.empty((0, 2), dtype=f_dtype),
-            "X": np.empty((0, 3), dtype=x_dtype),
+            "X": np.empty((0, 2), dtype=x_dtype),
             "evaluations": 0,
         },
         meta=_manual_meta(3),
@@ -132,7 +132,7 @@ def test_result_arrays_preserve_empty_shape_dtype_and_values_ra004(
     loaded = vamos.load_result(vamos.save_result(result, tmp_path / "run").root)
 
     assert loaded.F is not None and loaded.F.shape == (0, 2) and loaded.F.dtype.str == f_dtype.str
-    assert loaded.X is not None and loaded.X.shape == (0, 3) and loaded.X.dtype.str == x_dtype.str
+    assert loaded.X is not None and loaded.X.shape == (0, 2) and loaded.X.dtype.str == x_dtype.str
 
 
 def test_constraints_outcome_and_counters_round_trip_ra004_ra005(tmp_path: Path) -> None:

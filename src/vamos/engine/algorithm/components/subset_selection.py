@@ -14,6 +14,7 @@ from numpy.typing import NDArray
 from vamos.foundation.kernel.numpy_backend import _compute_crowding
 from vamos.foundation.quality_indicators.hypervolume import hypervolume_contributions
 from vamos.foundation.quality_indicators.pareto import pareto_filter
+from vamos.foundation.rng import require_generator
 
 try:  # pragma: no cover - optional dependency
     import moocore as _moocore
@@ -317,7 +318,7 @@ def select_top_k_kmeans(
     max_iter:
         Maximum iterations per restart.
     rng:
-        Random seed or ``np.random.Generator`` for reproducibility.
+        Integer seed or ``np.random.Generator``; required, so the selection is reproducible.
 
     Returns
     -------
@@ -334,8 +335,7 @@ def select_top_k_kmeans(
 
     F_norm = normalize_objectives(F)
 
-    if not isinstance(rng, np.random.Generator):
-        rng = np.random.default_rng(rng)
+    rng = np.random.default_rng(rng) if isinstance(rng, (int, np.integer)) else require_generator(rng, "select_top_k_kmeans")
 
     best_labels: NDArray[np.int_] | None = None
     best_centroids: NDArray[np.float64] | None = None

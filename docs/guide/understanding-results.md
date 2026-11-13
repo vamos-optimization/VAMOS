@@ -75,6 +75,8 @@ Multi-objective optimization normally returns alternatives, not a single univers
 
 **Development after 1.1.0:** `best("knee")` and `top_k(method="knee")` emit a `FutureWarning`. `knee` has always meant the same rule as `balanced_sum`, the smallest sum of objectives normalized over the front, not a knee point; the alias will be removed in VAMOS 2.0. Use `balanced_sum` for that rule, or `vamos.ux.api.knee_point_scores` for a geometric knee of a two-objective front. `top_k()` and `top_k_report()` now default to `source="auto"`: the external archive when the result has one and the top-level result otherwise. Their former default, `source="archive"`, failed on a result without an archive.
 
+**Development after 1.1.0:** `top_k(method="kmeans")` seeds its k-means initialization with a fixed seed, so the same result always gives the same selection. VAMOS 1.1.0 drew an unseeded generator and could select different solutions on each call.
+
 The exact public methods and properties of `OptimizationResult` are generated in the [Results API](../reference/api/results.md). Analysis and plotting helpers live under the public `vamos.ux.api` surface and are documented separately in [Analysis & Visualization](../topics/analysis.md).
 
 ## Reproduce the example

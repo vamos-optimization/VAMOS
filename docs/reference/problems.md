@@ -33,6 +33,19 @@ print(problem.n_var, problem.n_obj, problem.encoding)  # 12 3 real
 print(problem.xl, problem.xu)
 ```
 
+`vamos.problems` is a curated set of problem classes, not the catalog. It
+holds the members used most in examples and tests: ZDT1–ZDT4 and ZDT6 (pass
+`n_var`), DTLZ1–DTLZ4 and DTLZ7, WFG1–WFG9, CEC2009 UF1–UF3 and CF1, `TSP`,
+and three application examples (`FeatureSelectionProblem`,
+`HyperparameterTuningProblem`, and `WeldedBeamDesignProblem`). These classes
+are stable for 1.x. **Development after 1.1.0:** the classes added since cover
+a whole family and take the variant number and the family's parameters:
+`DASCMOP`, `DCDTLZ`, and `LIRCMOP`. Every registered problem, including the
+families and members without a class (ZDT5, DTLZ5 and DTLZ6, UF4–UF10, LZ09,
+MW, C-DTLZ, LSMOP, ZCAT, RE, and RWA), is available by name through
+`optimize("name")` and `make_problem_selection`, the stable way to build any
+of them.
+
 The tables report the **instantiated** default dimensions. `n` is the number of
 decision variables, `M` the number of objectives, and `G` the number of explicit
 inequality outputs (`G <= 0` is feasible). Zero G means no separate inequality
@@ -164,6 +177,11 @@ variants:
   objectives and two variables need; then `g = 0`.
 - DC3's constraint on `g` comes first, as in pymoo; jMetal puts it last.
 - The packaged fronts hold only for the default constants.
+
+**Development after 1.1.0:** the C-DTLZ problems accept as many variables as
+objectives, with a single distance variable, as STEP's C3-DTLZ4 with three
+objectives and three variables needs. The tests check them against jMetal 7.10
+with STEP's dimensions and, for C2-DTLZ2, its radius `r = 0.1`.
 
 **Development after 1.1.0:** the classic constrained problems follow jMetal's
 classes of the same names, bounds and constraint scaling included. The front

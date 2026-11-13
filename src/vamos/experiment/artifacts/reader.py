@@ -209,6 +209,7 @@ def _read_result(root: Path, manifest: RunManifest, *, verify: VerifyMode, limit
         limits=limits,
         required_f=True,
         operation="load result",
+        resolved_spec=manifest.resolved_spec,
     )
     _validate_outcome_arrays(manifest, arrays)
     payload = _result_payload(arrays, outcome)

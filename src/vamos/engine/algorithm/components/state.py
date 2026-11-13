@@ -7,7 +7,7 @@ Keeps shared fields and helpers that algorithm-specific states can extend.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -20,6 +20,7 @@ if TYPE_CHECKING:
         SPEA2Archive,
         UnboundedArchive,
     )
+    from vamos.engine.algorithm.components.constraint_handling import ConstraintHandlingTechnique
     from vamos.engine.algorithm.components.termination import HVTracker
     from vamos.engine.hooks.genealogy import GenealogyTracker
 
@@ -34,17 +35,18 @@ class AlgorithmState:
     """
 
     # Core population data
-    X: np.ndarray
-    F: np.ndarray
-    G: np.ndarray | None
+    X: np.ndarray[Any, Any]
+    F: np.ndarray[Any, Any]
+    G: np.ndarray[Any, Any] | None
     rng: np.random.Generator
 
     # Sizes
     pop_size: int = 100
     offspring_size: int = 100
 
-    # Constraints
+    # Constraints. ``constraint_handling`` is None for cdp, which keeps each algorithm's own survival.
     constraint_mode: str = "none"
+    constraint_handling: ConstraintHandlingTechnique | None = None
 
     # Generation tracking
     generation: int = 0
@@ -53,8 +55,8 @@ class AlgorithmState:
 
     # Archive (optional)
     archive_size: int | None = None
-    archive_X: np.ndarray | None = None
-    archive_F: np.ndarray | None = None
+    archive_X: np.ndarray[Any, Any] | None = None
+    archive_F: np.ndarray[Any, Any] | None = None
     archive_manager: (
         CrowdingDistanceArchive | HypervolumeArchive | MaxMinArchive | ReferenceDirectionsArchive | SPEA2Archive | UnboundedArchive | None
     ) = None
@@ -64,15 +66,15 @@ class AlgorithmState:
     hv_tracker: HVTracker | None = None
 
     # Pending offspring for ask/tell
-    pending_offspring: np.ndarray | None = None
-    pending_offspring_ids: np.ndarray | None = None
+    pending_offspring: np.ndarray[Any, Any] | None = None
+    pending_offspring_ids: np.ndarray[Any, Any] | None = None
 
     # Genealogy (optional)
     track_genealogy: bool = False
     genealogy_tracker: GenealogyTracker | None = None
-    ids: np.ndarray | None = None
+    ids: np.ndarray[Any, Any] | None = None
 
-    def hv_points(self) -> np.ndarray:
+    def hv_points(self) -> np.ndarray[Any, Any]:
         """Get points for hypervolume computation (archive if available, else population)."""
         if self.archive_F is not None and self.archive_F.size > 0:
             return self.archive_F

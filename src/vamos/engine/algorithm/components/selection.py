@@ -3,6 +3,9 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 
 import numpy as np
+from numpy.typing import NDArray
+
+from vamos.foundation.rng import require_generator
 
 
 class TournamentSelection:
@@ -21,9 +24,9 @@ class TournamentSelection:
             raise ValueError("tournament_size must be positive.")
         self.tournament_size = int(tournament_size)
         self.comparator = comparator
-        self.rng = rng or np.random.default_rng()
+        self.rng = require_generator(rng, "TournamentSelection")
 
-    def __call__(self, population: Sequence[object], n_parents: int) -> np.ndarray:
+    def __call__(self, population: Sequence[object], n_parents: int) -> NDArray[np.int64]:
         pop_size = len(population)
         if pop_size == 0:
             raise ValueError("population is empty.")
@@ -44,9 +47,9 @@ class RandomSelection:
     """Uniform random parent selection."""
 
     def __init__(self, rng: np.random.Generator | None = None) -> None:
-        self.rng = rng or np.random.default_rng()
+        self.rng = require_generator(rng, "RandomSelection")
 
-    def __call__(self, population: Sequence[object], n_parents: int) -> np.ndarray:
+    def __call__(self, population: Sequence[object], n_parents: int) -> NDArray[np.int64]:
         pop_size = len(population)
         if pop_size == 0:
             raise ValueError("population is empty.")
@@ -75,15 +78,15 @@ class BoltzmannSelection:
         if temperature <= 0:
             raise ValueError("temperature must be positive.")
         self.temperature = float(temperature)
-        self.rng = rng or np.random.default_rng()
+        self.rng = require_generator(rng, "BoltzmannSelection")
 
     def __call__(
         self,
         population: Sequence[object],
         n_parents: int,
         *,
-        fitness: np.ndarray | None = None,
-    ) -> np.ndarray:
+        fitness: NDArray[np.float64] | None = None,
+    ) -> NDArray[np.int64]:
         pop_size = len(population)
         if pop_size == 0:
             raise ValueError("population is empty.")
@@ -117,15 +120,15 @@ class RankingSelection:
         if not 1.0 <= sp <= 2.0:
             raise ValueError("Selective pressure sp must be in [1.0, 2.0].")
         self.sp = float(sp)
-        self.rng = rng or np.random.default_rng()
+        self.rng = require_generator(rng, "RankingSelection")
 
     def __call__(
         self,
         population: Sequence[object],
         n_parents: int,
         *,
-        fitness: np.ndarray | None = None,
-    ) -> np.ndarray:
+        fitness: NDArray[np.float64] | None = None,
+    ) -> NDArray[np.int64]:
         pop_size = len(population)
         if pop_size == 0:
             raise ValueError("population is empty.")
@@ -155,15 +158,15 @@ class SUSSelection:
     """
 
     def __init__(self, rng: np.random.Generator | None = None) -> None:
-        self.rng = rng or np.random.default_rng()
+        self.rng = require_generator(rng, "SUSSelection")
 
     def __call__(
         self,
         population: Sequence[object],
         n_parents: int,
         *,
-        fitness: np.ndarray | None = None,
-    ) -> np.ndarray:
+        fitness: NDArray[np.float64] | None = None,
+    ) -> NDArray[np.int64]:
         pop_size = len(population)
         if pop_size == 0:
             raise ValueError("population is empty.")

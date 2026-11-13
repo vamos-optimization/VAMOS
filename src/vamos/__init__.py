@@ -1,11 +1,17 @@
 """
 VAMOS package facade.
 
-Import most features from the dedicated facades:
-- `vamos.api` for core optimization entrypoints.
-- `vamos.algorithms` for algorithm configs and registry helpers.
-- `vamos.problems` for curated benchmark/real-world problem classes.
-- `vamos.ux.api` for analysis/visualization helpers.
+Stable facades (see ``docs/project/stability-and-versioning.md``):
+- `vamos` (and `vamos.api`, which exports the same names) for optimization,
+  problems, results, and the run and study lifecycles.
+- `vamos.algorithms` for algorithm configurations and identifiers.
+- `vamos.problems` for curated problem classes.
+- `vamos.run_artifacts` and `vamos.study_artifacts` for the run and study
+  lifecycles alone.
+
+`vamos.ux.api` (analysis and visualization) is experimental, as are
+`select_survivors`, `EnvironmentalSelectionResult`, `configure_logging` and
+`run_self_check` exported here.
 """
 
 from __future__ import annotations

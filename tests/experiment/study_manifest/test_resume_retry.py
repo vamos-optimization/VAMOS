@@ -243,11 +243,125 @@ def test_sa_047_environment_drift_refuses_before_claim(tmp_path: Path, monkeypat
     monkeypatch.setattr(execution, "_execute_optimization", fail_second)
     paused = created.run()
     before = _tree(paused.root)
-    monkeypatch.setattr(recovery, "verify_run", lambda _path: SimpleNamespace(environment=SimpleNamespace(level="compatible")))
+    monkeypatch.setattr(recovery, "compare_current_environment", lambda _manifest, _environment: SimpleNamespace(level="compatible"))
 
     with pytest.raises(ResumeEnvironmentIncompatibilityError, match="RESUME_ENVIRONMENT_INCOMPATIBLE"):
         paused.resume()
     assert _tree(paused.root) == before
+
+
+def _paused_after_two_executions(root: Path, monkeypatch: pytest.MonkeyPatch) -> vamos.Study:
+    """Five tasks: the third and fourth objective calls fail, so two executions publish runs and the study pauses."""
+    import vamos.experiment.study.execution as execution
+
+    calls = 0
+
+    def fail_third_and_fourth(reconstructed: Any, *, root: Path) -> OptimizationResult:
+        nonlocal calls
+        calls += 1
+        if calls in (3, 4):
+            raise RuntimeError("transient")
+        return _result(reconstructed)
+
+    monkeypatch.setattr(execution, "_execute_optimization", fail_third_and_fourth)
+    return vamos.create_study(_spec(seeds=(0, 1, 2, 3, 4)), output=root).run().resume()
+
+
+def test_resume_compares_every_earlier_run_with_one_capture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import vamos.experiment.artifacts.compatibility as compatibility
+    import vamos.experiment.study.recovery as recovery
+
+    paused = _paused_after_two_executions(tmp_path / "study", monkeypatch)
+    referenced = {str(attempt.run_reference["run_id"]) for attempt in paused.attempts if attempt.run_reference is not None}
+    assert len(referenced) >= 3
+    compared: list[str] = []
+    captures: list[str] = []
+    real_compare = recovery.compare_current_environment
+    real_capture = compatibility.capture_runtime_evidence
+
+    def counting_compare(manifest: Any, environment: Any) -> Any:
+        compared.append(manifest.run_id)
+        return real_compare(manifest, environment)
+
+    def counting_capture(*, backend: str) -> Any:
+        captures.append(backend)
+        return real_capture(backend=backend)
+
+    monkeypatch.setattr(recovery, "compare_current_environment", counting_compare)
+    monkeypatch.setattr(compatibility, "capture_runtime_evidence", counting_capture)
+
+    resumed = paused.resume()
+
+    assert resumed.status == "completed_with_failures"
+    assert sorted(compared) == sorted(referenced)
+    assert len(captures) == 1
+
+
+def test_resume_refuses_drift_in_the_backend_of_any_earlier_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import vamos.experiment.artifacts.compatibility as compatibility
+    import vamos.experiment.study.execution as execution
+
+    calls = 0
+
+    def fail_third(reconstructed: Any, *, root: Path) -> OptimizationResult:
+        nonlocal calls
+        calls += 1
+        if calls == 3:
+            raise RuntimeError("transient")
+        return _result(reconstructed)
+
+    monkeypatch.setattr(execution, "_execute_optimization", fail_third)
+    paused = vamos.create_study(_spec(seeds=(0, 1, 2, 3)), output=tmp_path / "study").run()
+    assert paused.status == "paused" and any(task.state == "pending" for task in paused.tasks)
+    referenced = [attempt for attempt in paused.attempts if attempt.run_reference is not None]
+    assert len(referenced) >= 2 and len({attempt.execution_id for attempt in referenced}) == 1
+    second_run = vamos.load_run(paused.root / "runs" / str(referenced[1].run_reference["run_id"]))
+    second_seed = second_run.manifest.resolved_spec["seed"]
+    # One execution, two backends: the second run used another backend, whose package changed since.
+    real_backend_name = compatibility._backend_name
+    real_capture = compatibility.capture_runtime_evidence
+
+    def backend_name(resolved: Any) -> str:
+        return "other-backend" if resolved.get("seed") == second_seed else real_backend_name(resolved)
+
+    def capture(*, backend: str) -> Any:
+        evidence, environment = real_capture(backend="numpy")
+        if backend == "other-backend":
+            environment["backend"]["package"] = {**environment["backend"]["package"], "version": "0.0"}
+        return evidence, environment
+
+    monkeypatch.setattr(compatibility, "_backend_name", backend_name)
+    monkeypatch.setattr(compatibility, "capture_runtime_evidence", capture)
+    before = _tree(paused.root)
+
+    with pytest.raises(ResumeEnvironmentIncompatibilityError, match="RESUME_ENVIRONMENT_INCOMPATIBLE"):
+        paused.resume()
+    assert _tree(paused.root) == before
+
+
+def test_study_operations_capture_the_current_environment_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import vamos.experiment.artifacts.compatibility as compatibility
+    import vamos.experiment.study.execution as execution
+
+    captures: list[str] = []
+    real_capture = compatibility.capture_runtime_evidence
+
+    def counting_capture(*, backend: str) -> Any:
+        captures.append(backend)
+        return real_capture(backend=backend)
+
+    monkeypatch.setattr(compatibility, "capture_runtime_evidence", counting_capture)
+    monkeypatch.setattr(execution, "_execute_optimization", lambda reconstructed, *, root: _result(reconstructed))
+    completed = vamos.create_study(_spec(), output=tmp_path / "study").run()
+    assert completed.status == "completed"
+    assert len(captures) == 1
+
+    reference = completed.attempts[0].run_reference
+    assert reference is not None
+    run_root = (completed.root / str(reference["path"])).parent
+    vamos.verify_run(run_root)
+    vamos.verify_run(run_root)
+    assert len(captures) == 3
 
 
 def test_relocation_and_same_process_reentry_refusal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -20,7 +20,7 @@ Do not add readers, migrations, aliases, or deprecation cycles for internal pre-
 
 - `src/vamos/foundation/`: base abstractions, problems, kernels, evaluation, indicators, shared data, and errors.
 - `src/vamos/engine/`: algorithms, canonical variation pipelines, operator implementations, archives, hooks, and tuning.
-- `src/vamos/experiment/`: orchestration, CLI, studies, diagnostics, artifacts, and external integrations.
+- `src/vamos/experiment/`: orchestration, CLI, studies, diagnostics, and artifacts.
 - `src/vamos/ux/`: public analysis, visualization, and Studio surfaces.
 - `src/vamos/assist/`: assisted workflows built on foundation, engine, and experiment.
 - `src/vamos/resources/`: packaged data; it imports no VAMOS layer.
@@ -36,7 +36,7 @@ Read [Architecture Health](docs/dev/architecture_health.md) before adding a modu
 
 ## Public and internal APIs
 
-User examples and public docs use the curated facades: `vamos`, `vamos.algorithms`, `vamos.problems`, and `vamos.ux.api`. Deep imports are for implementation and contributor tests only. Public exports are guarded by `tests/architecture/test_public_api_snapshot.py`.
+User examples and public docs use the curated facades: the stable `vamos` (with `vamos.api`, which exports the same names), `vamos.algorithms`, `vamos.problems`, `vamos.run_artifacts`, and `vamos.study_artifacts`, and the experimental `vamos.ux.api`, as listed in [Stability and versioning](docs/project/stability-and-versioning.md). Deep imports are for implementation and contributor tests only. Public exports are guarded by `tests/architecture/test_public_api_snapshot.py`.
 
 The canonical run lifecycle is:
 

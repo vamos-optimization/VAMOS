@@ -178,6 +178,10 @@ def ask_nsgaii(algo: NSGAII) -> np.ndarray[Any, Any]:
 
     if st.incremental_enabled and st.ranks is not None and st.crowding is not None and st.G is None:
         ranks, crowding = st.ranks, st.crowding
+    elif st.constraint_handling is not None and st.G is not None and st.constraint_mode != "none":
+        from .constrained_survival import technique_selection_metrics
+
+        ranks, crowding = technique_selection_metrics(st.constraint_handling, algo.kernel, st.F, st.G, st.rng)
     else:
         ranks, crowding = compute_selection_metrics(
             algo.kernel,
@@ -332,6 +336,11 @@ def tell_nsgaii(algo: NSGAII, eval_result: Any) -> bool:
     elif st.G is None or G_off is None or st.constraint_mode == "none":
         new_X, new_F = algo.kernel.nsga2_survival(st.X, st.F, X_off, F_off, st.pop_size)
         new_G = None
+    elif st.constraint_handling is not None and combined_G is not None:
+        from .constrained_survival import technique_survival
+
+        survivors = technique_survival(st, algo.kernel, combined_F, combined_G)
+        new_X, new_F, new_G = combined_X[survivors], combined_F[survivors], combined_G[survivors]
     else:
         from .helpers import feasible_nsga2_survival
 

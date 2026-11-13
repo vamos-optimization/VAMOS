@@ -4,6 +4,7 @@ from typing import Any
 
 import numpy as np
 
+from vamos.foundation.problem._output import objective_output
 from vamos.foundation.problem.base import Problem
 
 
@@ -97,7 +98,7 @@ class MixedDesignProblem(Problem):
         cat_cost = (X_cat * self.cat_cost).sum(axis=1)
         obj2 = int_cost + cat_cost
 
-        F = out["F"]
+        F = objective_output(out, len(X), self.n_obj)
         F[:, 0] = obj1
         F[:, 1] = obj2
 

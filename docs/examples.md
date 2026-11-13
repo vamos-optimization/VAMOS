@@ -115,6 +115,10 @@ Internal interfaces even when the optimization call itself is Stable. Install
 the [analysis extra](guide/installation.md#optional-extras) for notebooks and
 any additional dependencies named by the selected example.
 
+**Development after 1.1.0:** notebooks need the `analysis` and `examples`
+extras; seaborn, NetworkX and the Jupyter packages moved from `analysis` to
+`examples`.
+
 ## Cookbook
 
 Use the [Cookbook](guide/cookbook.md) for short task-oriented recipes. When a recipe establishes supported behavior, its public imports should come from the curated facades (`vamos`, `vamos.algorithms`, `vamos.problems`, or `vamos.ux.api`) rather than implementation modules.

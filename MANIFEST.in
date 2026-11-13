@@ -4,3 +4,6 @@ include CHANGELOG.md
 include CITATION.cff
 include AUTHORS.md
 include CONTRIBUTING.md
+
+# setuptools adds tests/test*.py by default; the test suite runs from the repository, not the sdist.
+prune tests
