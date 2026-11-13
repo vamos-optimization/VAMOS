@@ -121,6 +121,17 @@ jobs:
             profile: primary-maximum-compute
             extras: compute
             smoke: full
+          - os: ubuntu-latest
+            python: "3.13"
+            profile: newer-minimal
+            extras: ""
+            smoke: core
+          # The newest declared Python, with the optional compute backends.
+          - os: ubuntu-latest
+            python: "3.14"
+            profile: newest-maximum-compute
+            extras: compute
+            smoke: full
           - os: windows-latest
             python: "3.12"
             profile: windows

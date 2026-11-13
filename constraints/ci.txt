@@ -1,6 +1,10 @@
 # Tested direct dependency set for CI and reproducible release smoke runs.
-numpy==2.2.6
-scipy==1.15.3
+# NumPy 2.2.6 and SciPy 1.15.3, the last releases for Python 3.10, publish no Python 3.14 wheels.
+# Typing reads the pin for Python 3.12 (tools/typecheck.py).
+numpy==2.2.6 ; python_version < "3.14"
+numpy==2.3.5 ; python_version >= "3.14"
+scipy==1.15.3 ; python_version < "3.14"
+scipy==1.16.3 ; python_version >= "3.14"
 joblib==1.6.0
 pytest==9.2.0
 pytest-cov==7.1.0
@@ -40,14 +44,8 @@ param==2.4.2
 bokeh==3.9.2
 pymdown-extensions==12.1 ; python_version < "3.11"
 pymdown-extensions==12.3 ; python_version >= "3.11"
-# Research baselines, installed by the Ubuntu test jobs; jMetalPy 1.10 and pygmo 2.20 need Python >=3.11.
+# Not a VAMOS dependency: the scheduled performance job installs it for tools/benchmark_compare_pymoo.py.
 pymoo==0.6.2
-jmetalpy==1.8.0 ; python_version < "3.11"
-jmetalpy==1.10.0 ; python_version >= "3.11"
-deap==1.4.4
-platypus-opt==1.4.1
-pygmo==2.19.5 ; python_version < "3.11"
-pygmo==2.20.0 ; python_version >= "3.11"
 # Optional tuning backends, exercised by the Ubuntu Python 3.12 test job.
 optuna==5.0.0
 smac==2.4.1

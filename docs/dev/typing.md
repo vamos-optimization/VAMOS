@@ -12,7 +12,7 @@ The canonical typing environment is:
 - `pyproject.toml` as the only mypy configuration;
 - `constraints/ci.txt` as the dependency constraint set;
 - no separately installed stub distributions;
-- no optional compute, research, analysis, Studio, tuning, or model-provider distribution in the typing environment.
+- no optional compute, analysis, Studio, tuning, or model-provider distribution in the typing environment.
 
 Create or select a Python 3.12 environment and install exactly:
 
@@ -22,7 +22,7 @@ python -m pip install -c constraints/ci.txt -e ".[dev]"
 
 The entry point rejects Python, mypy, build-kind, typing-extensions, stub-set, optional-distribution, configuration, or type-affecting pin drift that could silently change diagnostic identity. The mypy configuration owns narrow third-party import boundaries, so optional runtime extras do not belong in this environment. Every invocation disables mypy's incremental cache and native parser and anchors imports to this checkout's `src` directory. The portable parser avoids process-affinity discovery failures in isolated runners; the strict rules and diagnostic ratchet remain unchanged.
 
-Without the optional distributions, mypy types every value that comes from them as `Any`: Numba kernels, Dask, MooCore, pandas, matplotlib, Panel and Bokeh in `ux/panel` and `ux/studio`, the research and tuning backends, and the model-provider SDKs. The ratchet does not see mistakes in how VAMOS calls them; tests are what cover those calls.
+Without the optional distributions, mypy types every value that comes from them as `Any`: Numba kernels, Dask, MooCore, pandas, matplotlib, Panel and Bokeh in `ux/panel` and `ux/studio`, the tuning backends, and the model-provider SDKs. The ratchet does not see mistakes in how VAMOS calls them; tests are what cover those calls.
 
 ## Scopes
 
@@ -114,7 +114,7 @@ Every production file changed by a Goal must finish with zero diagnostics. Reduc
 
 If the supported environment or effective configuration intentionally changes, add `--review-environment-change` to the update command after reviewing the diagnostic diff. The tool records the drift and still refuses new or increased diagnostics or debt in changed production files. Never replace this process with total-count edits, broad ignores, exclusions, disabled error codes, or `Any` inserted only to silence mypy.
 
-The baseline records the exact versions that `constraints/ci.txt` pins for the type-affecting distributions (`TYPE_AFFECTING_PINS` in `tools/typecheck.py`): mypy, typing-extensions, and the runtime and `[dev]` distributions that `src/vamos` imports. Bumping one of them needs the reviewed update above. Other pins, such as ruff, setuptools, documentation tools, or optional extras, change without touching the baseline. `tests/architecture/test_typecheck_policy.py` fails if `src/vamos` starts importing a runtime or `[dev]` distribution that the list does not name.
+The baseline records the exact versions that `constraints/ci.txt` pins for the type-affecting distributions (`TYPE_AFFECTING_PINS` in `tools/typecheck.py`): mypy, typing-extensions, and the runtime and `[dev]` distributions that `src/vamos` imports. Bumping one of them needs the reviewed update above. **Development after 1.1.0:** a distribution may have one pin per Python version, restricted by a `python_version` marker (NumPy and SciPy have their own pins on Python 3.14, which their 3.10 releases do not support); the baseline records the pin for the canonical Python 3.12, and only bumping that one needs the reviewed update. Other pins, such as ruff, setuptools, documentation tools, or optional extras, change without touching the baseline. `tests/architecture/test_typecheck_policy.py` fails if `src/vamos` starts importing a runtime or `[dev]` distribution that the list does not name.
 
 The reduction order is: shared NumPy type aliases and protocols by layer; engine algorithms/operators; foundation numerical modules; UX; then verification with the explicit full-zero scope.
 

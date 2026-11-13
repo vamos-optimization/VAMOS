@@ -218,7 +218,9 @@ def _stable_signatures(modules: Mapping[str, Sequence[str]]) -> dict[str, str]:
         module = importlib.import_module(module_name)
         for name in names:
             obj = getattr(module, name)
-            if id(obj) in seen or not callable(obj):
+            # Functions and classes only: a type alias has no signature, and whether typing makes one
+            # callable changes with the Python version (a union alias is callable before 3.14, not after).
+            if id(obj) in seen or not (inspect.isroutine(obj) or inspect.isclass(obj)):
                 continue
             seen.add(id(obj))
             members = {"": obj, **(_public_methods(obj) if inspect.isclass(obj) else {})}
