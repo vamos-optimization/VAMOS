@@ -11,6 +11,7 @@ from dataclasses import asdict
 from numbers import Integral
 from typing import Any, Literal, TypeAlias, cast, overload
 
+from vamos.engine.algorithm.components.constraint_handling import config_constraint_handling, normalize_constraint_handling
 from vamos.engine.algorithm.config.types import CrossoverName, InitializerName, MutationName, RepairName, SelectionName
 from vamos.engine.algorithm.config.validation import OPERATOR_PAIR_FIELDS, did_you_mean, operator_pair, validate_config_fields
 from vamos.engine.archive import ExternalArchiveConfig
@@ -241,6 +242,23 @@ class _ConstraintModeBuilder:
         return self
 
 
+class _ConstraintHandlingBuilder:
+    _cfg: dict[str, Any]
+
+    def constraint_handling(self, name: str, **params: float) -> Self:
+        """Rank constrained populations with a technique of jMetal's ``util.constrainthandling``.
+
+        ``name`` is ``cdp`` (the default), ``violated_constraints``, ``epsilon_constrained``
+        (``initial_quantile``, ``exponent``, ``decay_fraction``), ``push_pull`` (``change_threshold``,
+        ``window_fraction``, ``decay_fraction``, ``exponent``, ``feasibility_threshold``,
+        ``reduction_rate``), ``stochastic_ranking`` (``probability``) or ``self_adaptive_penalty``.
+        Every parameter of the technique is required. See
+        :mod:`vamos.engine.algorithm.components.constraint_handling`.
+        """
+        self._cfg["constraint_handling"] = normalize_constraint_handling((name, params))
+        return self
+
+
 class _TrackGenealogyBuilder:
     _cfg: dict[str, Any]
 
@@ -284,6 +302,9 @@ class _SerializableConfig:
         config = cast(Any, self)
         if "constraint_mode" in fields:
             object.__setattr__(self, "constraint_mode", normalize_constraint_mode(config.constraint_mode))
+        if "constraint_handling" in fields:
+            mode = config.constraint_mode if "constraint_mode" in fields else "feasibility"
+            object.__setattr__(self, "constraint_handling", config_constraint_handling(config.constraint_handling, mode))
         for name in OPERATOR_PAIR_FIELDS:
             if name in fields:
                 object.__setattr__(self, name, operator_pair(getattr(config, name)))

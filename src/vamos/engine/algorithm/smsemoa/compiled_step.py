@@ -93,6 +93,8 @@ def build_compiled_step(st: SMSEMOAState, kernel: KernelBackend) -> CompiledStea
         return None
     if st.track_genealogy or st.genealogy_tracker is not None or st.pending_offspring_ids is not None:
         return None
+    if st.constraint_handling is not None:
+        return None
     if st.selection_method not in ("random", "tournament"):
         return None
     if not _float_matrix(st.X, st.X.shape[0]) or st.X.shape[0] < 2:

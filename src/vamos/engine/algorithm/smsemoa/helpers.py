@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from numpy.typing import NDArray
 
+from vamos.engine.algorithm.components.constraint_handling import adapted_ranks
 from vamos.engine.algorithm.components.hv_reference import relative_reference_point
 from vamos.foundation.constraints.utils import compute_violation, is_feasible
 
@@ -116,8 +117,9 @@ def compute_front_crowding(F: FloatArray, front: IntArray | list[int]) -> FloatA
     front_arr = np.asarray(front, dtype=int)
     if front_arr.size == 0:
         return np.empty(0, dtype=float)
-    if front_arr.size == 1:
-        return np.array([np.inf], dtype=float)
+    if front_arr.size <= 2:
+        # One or two rows are both boundary points; an objective without spread is skipped below.
+        return np.full(front_arr.size, np.inf, dtype=float)
 
     fvals = F[front_arr]
     n_obj = fvals.shape[1]
@@ -125,11 +127,11 @@ def compute_front_crowding(F: FloatArray, front: IntArray | list[int]) -> FloatA
     for obj in range(n_obj):
         order = np.argsort(fvals[:, obj], kind="mergesort")
         sorted_vals = fvals[order, obj]
-        crowding[order[0]] = np.inf
-        crowding[order[-1]] = np.inf
         span = sorted_vals[-1] - sorted_vals[0]
         if span <= 0.0:
             continue
+        crowding[order[0]] = np.inf
+        crowding[order[-1]] = np.inf
         contrib = np.zeros_like(sorted_vals)
         contrib[1:-1] = (sorted_vals[2:] - sorted_vals[:-2]) / span
         crowding[order[1:-1]] += contrib[1:-1]
@@ -292,7 +294,19 @@ def refresh_selection_cache(
     st: SMSEMOAState,
     kernel: KernelBackend,
 ) -> tuple[IntArray, FloatArray, list[list[int]] | None]:
-    """Refresh cached ranks/crowding/fronts for parent selection and steady-state updates."""
+    """Refresh cached ranks/crowding/fronts for parent selection and steady-state updates.
+
+    With a constraint-handling technique other than cdp, the ranks are the technique's fronts of the
+    population, as in NSGA-II's tournament, and the cache keeps no front lists.
+    """
+    if st.constraint_handling is not None and st.G is not None and _constraints_active(st.G, st.constraint_mode):
+        from vamos.engine.algorithm.nsgaii.constrained_survival import technique_selection_metrics
+
+        technique_ranks, technique_crowding = technique_selection_metrics(st.constraint_handling, kernel, st.F, st.G, st.rng)
+        st.ranks = np.asarray(technique_ranks, dtype=int)
+        st.crowding = technique_crowding
+        st.fronts = None
+        return st.ranks, st.crowding, None
     ranks, crowding, fronts = _build_selection_cache(st.F, st.G, st.constraint_mode, kernel)
     st.ranks = ranks
     st.crowding = crowding
@@ -356,8 +370,14 @@ def survival_selection(
     F_child: FloatArray,
     G_child: FloatArray | None,
     kernel: KernelBackend,
+    progress: float = float("nan"),
 ) -> None:
-    """Perform steady-state SMS-EMOA survival selection."""
+    """Perform steady-state SMS-EMOA survival selection.
+
+    With a constraint-handling technique other than cdp, the technique adapts to the population and the
+    child at ``progress`` (the evaluations before the child's over the budget) and ranks them, and the
+    least hypervolume contributor of its last front leaves, as in Evolver's SMS-EMOA.
+    """
     pop_n = int(st.X.shape[0])
     if pop_n == 0:
         raise ValueError("Cannot perform survival selection with an empty population.")
@@ -387,6 +407,9 @@ def survival_selection(
         G_work = _ensure_constraint_buffer(st, pop_n, st.G.shape[1])
         G_work[:pop_n] = st.G
         G_work[pop_n] = G_child[0]
+        if st.constraint_handling is not None:
+            _technique_survival(st, X_child, F_child, G_child, F_work, G_work, kernel, progress)
+            return
         feasible = is_feasible(G_work, n=pop_n + 1)
         if not bool(np.all(feasible)):
             violations = compute_violation(G_work)
@@ -425,6 +448,32 @@ def survival_selection(
     st.fronts = new_fronts
     st.ranks = ranks_from_fronts(new_fronts, pop_n)
     st.crowding = compute_crowding(st.F, new_fronts)
+
+
+def _technique_survival(
+    st: SMSEMOAState,
+    X_child: AnyArray,
+    F_child: FloatArray,
+    G_child: FloatArray,
+    F_work: FloatArray,
+    G_work: FloatArray,
+    kernel: KernelBackend,
+    progress: float,
+) -> None:
+    """Remove the least hypervolume contributor of the technique's last front of the population and the child."""
+    assert st.constraint_handling is not None
+    pop_n = int(st.X.shape[0])
+    ranks = adapted_ranks(st.constraint_handling, kernel, F_work, G_work, st.rng, progress)
+    worst_front = np.flatnonzero(ranks == ranks.max())
+    if worst_front.size == 1:
+        remove_idx = int(worst_front[0])
+    else:
+        remove_idx = int(worst_front[least_contributor(kernel, F_work[worst_front], st.ref_point)])
+    if remove_idx != pop_n:
+        _write_child_survivor(st, X_child, F_child, G_child, pop_n, remove_idx)
+    # The tournament ranks the new population when it next selects parents.
+    st.ranks = st.crowding = None
+    st.fronts = None
 
 
 def evaluate_population_with_constraints(

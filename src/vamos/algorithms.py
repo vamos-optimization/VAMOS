@@ -2,7 +2,12 @@
 Algorithm facade: configuration builders and registry helpers.
 
 Use this module for algorithm config objects and discovery helpers.
-For running optimizations, use `vamos.api` or `vamos.optimize`.
+For running optimizations, use `vamos.optimize`.
+
+The nine configuration classes, the probability types and the
+``available_*`` functions are stable. ``GenericAlgorithmConfig``,
+``discover_algorithm_plugins`` and ``resolve_algorithm`` serve custom and
+plugin algorithms and are experimental.
 """
 
 from __future__ import annotations
@@ -49,7 +54,10 @@ def available_algorithms() -> tuple[str, ...]:
 
 
 def discover_algorithm_plugins(*, force: bool = False) -> tuple[str, ...]:
-    """Load algorithm builders exposed via the ``vamos.algorithms`` entry point group."""
+    """Load algorithm builders exposed via the ``vamos.algorithms`` entry point group.
+
+    Experimental: plugin discovery is not covered by the 1.x stability policy.
+    """
     from vamos.engine.algorithm.registry import discover_algorithm_plugins as _discover_algorithm_plugins
 
     return _discover_algorithm_plugins(force=force)
@@ -118,7 +126,11 @@ def available_mutation_methods(encoding: str = "real") -> tuple[str, ...]:
 
 
 def resolve_algorithm(name: str) -> AlgorithmBuilder:
-    """Return the registered builder for a named algorithm."""
+    """Return the registered builder for a named algorithm.
+
+    Experimental: the builder is an internal type, and this function is not
+    covered by the 1.x stability policy. Run algorithms through ``vamos.optimize``.
+    """
     from vamos.engine.algorithm.registry import resolve_algorithm as _resolve_algorithm
 
     return _resolve_algorithm(name)

@@ -38,8 +38,22 @@ class ClampRepair(Repair):
         return _clip_population(values, lower_arr, upper_arr)
 
 
+def _infinities_to_bounds(values: ArrayLike, lower: ArrayLike, upper: ArrayLike) -> ArrayLike:
+    """``values`` with ``+inf`` set to ``upper`` and ``-inf`` to ``lower``.
+
+    Reflecting or wrapping an infinite distance has no meaning (the modulo gives NaN).
+    """
+    if not bool(np.isinf(values).any()):
+        return values
+    values = np.where(values == np.inf, np.broadcast_to(upper, values.shape), values)
+    return np.where(values == -np.inf, np.broadcast_to(lower, values.shape), values)
+
+
 class ReflectRepair(Repair):
-    """Repair operator that reflects out-of-bounds values back into range."""
+    """Repair operator that reflects out-of-bounds values back into range.
+
+    An infinite value goes to the bound on its side.
+    """
 
     def __call__(
         self,
@@ -49,7 +63,7 @@ class ReflectRepair(Repair):
         rng: np.random.Generator,  # pylint: disable=unused-argument
     ) -> ArrayLike:
         lower_arr, upper_arr = _ensure_bounds(lower, upper)
-        result = self._as_population(x, name="x")
+        result = _infinities_to_bounds(self._as_population(x, name="x"), lower_arr, upper_arr)
         n_vars = lower_arr.shape[0]
         for j in range(n_vars):
             low = lower_arr[j]
@@ -111,7 +125,8 @@ class WrappingRepair(Repair):
     Values that exceed the upper bound re-enter from the lower bound and
     vice-versa, preserving the displacement modulo the domain width.  This is
     useful when the search space has periodic / cyclic semantics (e.g. angles).
-    Values already inside the closed interval ``[lower, upper]`` are preserved.
+    Values already inside the closed interval ``[lower, upper]`` are preserved,
+    and an infinite value goes to the bound on its side.
     """
 
     def __call__(
@@ -122,7 +137,7 @@ class WrappingRepair(Repair):
         rng: np.random.Generator,  # pylint: disable=unused-argument
     ) -> ArrayLike:
         lower_arr, upper_arr = _ensure_bounds(lower, upper)
-        result = self._as_population(x, name="x").copy()
+        result = _infinities_to_bounds(self._as_population(x, name="x").copy(), lower_arr, upper_arr)
         width = upper_arr - lower_arr
         mask = width > 0.0
 
@@ -142,6 +157,11 @@ class MidpointBaseRepair(Repair):
     lower bound and the interval midpoint; violations above the upper bound are
     mapped symmetrically on the upper side. This keeps repaired values feasible
     while avoiding the boundary-hugging behavior of pure clamping.
+
+    Every violation therefore lands on one of two fixed points (a quarter and three
+    quarters of the interval). This is not the midpoint-base repair of Biedrzycki,
+    Arabas and Jagodziński (2019), which places the value halfway between the bound
+    and the parent (base) vector.
     """
 
     def __call__(

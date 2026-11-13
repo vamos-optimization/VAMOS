@@ -18,6 +18,7 @@ from typing import overload
 
 from vamos.engine.algorithm.catalog import minimum_violation
 from vamos.engine.algorithm.config.types import AlgorithmConfigProtocol, AlgorithmName, EngineName
+from vamos.experiment._optimize_inputs import check_algorithm_config, check_budget, check_problem_arguments
 from vamos.experiment.artifacts.specs import RunSpecInputs, build_run_specs, custom_problem_code, is_registry_problem
 from vamos.experiment.auto import _compute_max_evaluations, _compute_pop_size, _resolve_problem, _select_algorithm
 from vamos.experiment.optimization_result import OptimizationResult, StudyResult
@@ -138,9 +139,13 @@ def optimize(
 
     This function consolidates multiple APIs into a single powerful interface:
     - Accepts problem names (strings) or instances
-    - Supports AutoML with algorithm="auto"
+    - Quick defaults for ``algorithm="auto"`` and an omitted ``pop_size`` or ``max_evaluations``
     - Handles multi-run studies with seed=[0,1,2,...]
     - Prefer optimize(...) for all runs (explicit options are available).
+
+    The quick defaults suit a first run, not a converged front: 200 individuals
+    and 3000 evaluations on ZDT1. The Optimization reference page gives their
+    rules. Pass ``pop_size`` and ``max_evaluations`` for an experiment you report.
 
     Parameters
     ----------
@@ -151,11 +156,11 @@ def optimize(
     max_evaluations : int | None, optional
         Maximum function evaluations. Auto-determined when omitted.
     termination : TerminationSpec | None, optional
-        Explicit termination pair for advanced runs that also pass
-        ``algorithm_config``: ``("max_evaluations", n)``, ``("n_gen", g)``
+        Explicit termination pair: ``("max_evaluations", n)``, ``("n_gen", g)``
         (``g * pop_size`` evaluations, the initial population included) or
         ``("hv", {"target_value": t, "reference_point": r, "max_evaluations": n})``.
         Every built-in algorithm accepts all three; counts must be positive integers.
+        With ``max_evaluations`` too, it must be ``("max_evaluations", max_evaluations)``.
     pop_size : int | None, optional
         Population size. Auto-determined when omitted.
     engine : EngineName | str | None, optional
@@ -168,11 +173,14 @@ def optimize(
     verbose : bool, default ``False``
         Enable VAMOS logging for the run.
     n_var, n_obj : int | None, optional
-        Override problem dimensions when using a registered string problem key.
+        Override problem dimensions of a registered problem name or a problem
+        class; a problem instance rejects them.
     problem_kwargs : Mapping[str, object] | None, optional
-        Extra keyword arguments forwarded to problem instantiation.
+        Keyword arguments for a problem class; a registered problem name
+        accepts only ``n_var`` and ``n_obj``, and an instance none.
     algorithm_config : AlgorithmConfigProtocol | None, optional
-        Explicit algorithm config object.
+        Explicit algorithm config object of ``algorithm``'s configuration class;
+        ``GenericAlgorithmConfig`` only for plugin algorithms.
     eval_strategy : EvaluationBackend | str | None, optional
         Evaluation backend name or backend instance.
     live_viz : LiveVisualization | None, optional
@@ -202,7 +210,7 @@ def optimize(
         callable ``evaluate``.
 
     Examples:
-        # AutoML mode - zero config
+        # Quick defaults
         >>> result = vamos.optimize("zdt1")
 
         # Specify algorithm
@@ -215,6 +223,8 @@ def optimize(
     if isinstance(seed, (list, tuple)):
         if checkpoint is not None:
             raise ConfigurationError("checkpoint is only supported for single-seed runs.")
+        if not seed:
+            raise ConfigurationError("seed sequences must contain at least one seed.")
         if any(isinstance(value, bool) or not isinstance(value, numbers.Integral) for value in seed):
             raise ConfigurationError("seed sequences must contain only integers.")
         with vamos_logging(enabled=verbose):
@@ -290,11 +300,10 @@ def _run_single(
         pop_size = _coerce_int("pop_size", pop_size, min_value=1)
     if max_evaluations is not None:
         max_evaluations = _coerce_int("max_evaluations", max_evaluations, min_value=1)
-    if termination is not None:
-        if algorithm_config is None:
-            raise TypeError("optimize() got an unexpected keyword argument 'termination'")
-        if not isinstance(termination, tuple) or len(termination) != 2:
-            raise ConfigurationError("termination must be a pair such as ('max_evaluations', 10000).")
+    if termination is not None and (not isinstance(termination, tuple) or len(termination) != 2):
+        raise ConfigurationError("termination must be a pair such as ('max_evaluations', 10000).")
+    check_budget(max_evaluations, termination)
+    check_problem_arguments(problem, n_var=n_var, n_obj=n_obj, problem_kwargs=problem_kwargs)
     requested_seed = seed
     if seed is None:
         seed = secrets.randbits(64)
@@ -330,6 +339,8 @@ def _run_single(
 
     if algorithm_config is not None and algorithm == "auto":
         raise ConfigurationError("algorithm_config requires an explicit algorithm name (not algorithm='auto').")
+    if algorithm_config is not None:
+        check_algorithm_config(algorithm, algorithm_config)
 
     # Auto-select algorithm if needed
     _auto_defaults: dict[str, str | int] = {}

@@ -6,7 +6,7 @@ import math
 from dataclasses import dataclass
 
 import numpy as np
-from numpy.typing import ArrayLike
+from numpy.typing import ArrayLike, NDArray
 
 from vamos.foundation.kernel.numpy_backend import NumPyKernel
 
@@ -18,6 +18,9 @@ class EnvironmentalSelectionResult:
     Objectives supplied to :func:`select_survivors` follow the minimization
     convention. Candidate objects and identifiers remain the caller's
     responsibility; this result preserves their original integer positions.
+
+    Experimental: exported by ``vamos`` and ``vamos.api``, but not covered by
+    the 1.x stability policy.
     """
 
     selected_indices: tuple[int, ...]
@@ -55,16 +58,11 @@ class EnvironmentalSelectionResult:
 
         if any(type(distance) is not float for distance in self.crowding_distances):
             raise TypeError("crowding_distances must contain built-in floats")
-        if any(
-            math.isnan(distance) or distance < 0.0
-            for distance in self.crowding_distances
-        ):
-            raise ValueError(
-                "crowding_distances must be nonnegative finite values or positive infinity"
-            )
+        if any(math.isnan(distance) or distance < 0.0 for distance in self.crowding_distances):
+            raise ValueError("crowding_distances must be nonnegative finite values or positive infinity")
 
 
-def _objective_matrix(objectives: ArrayLike) -> np.ndarray:
+def _objective_matrix(objectives: ArrayLike) -> NDArray[np.float64]:
     """Return a validated, independent minimization-objective matrix."""
     try:
         matrix = np.array(objectives, dtype=float, copy=True)
@@ -95,6 +93,9 @@ def select_survivors(
     Candidates are ordered by lower rank, higher crowding distance, then lower
     original input index. The returned indices therefore map directly back to
     the caller's original candidate sequence.
+
+    Experimental: exported by ``vamos`` and ``vamos.api``, but not covered by
+    the 1.x stability policy.
     """
     matrix = _objective_matrix(objectives)
     candidate_count = matrix.shape[0]
@@ -102,9 +103,7 @@ def select_survivors(
     if type(survivor_count) is not int:
         raise TypeError("survivor_count must be a built-in integer")
     if survivor_count < 1 or survivor_count > candidate_count:
-        raise ValueError(
-            "survivor_count must be between one and the number of candidates"
-        )
+        raise ValueError("survivor_count must be between one and the number of candidates")
 
     ranks, crowding = NumPyKernel().nsga2_ranking(matrix)
     original_indices = np.arange(candidate_count, dtype=int)

@@ -252,6 +252,8 @@ These are implementation fixes under the existing stability policy. Record the p
 - PyMOO NSGA-II (real and permutation), jMetalPy NSGA-II (real and permutation), PyGMO NSGA-II.
 - Enabled via `--include-external`; install with `python -m pip install "vamos-optimization[research]==1.1.0"`. These third-party integrations are **Experimental**, outside the stable VAMOS algorithm contract.
 
+**Development after 1.1.0:** these baselines are removed, with `--include-external`, `--external-problem-source` and the `research` extra. VAMOS depends on no other optimization framework.
+
 ## Backends
 
 - NumPy (default): vectorized CPU kernels.
@@ -462,7 +464,7 @@ For a measured first-call/subsequent-call example, follow [Measure backend perfo
 ## Comparative benchmarking
 
 - Kernel-focused benchmarks: `python tools/benchmark_kernels.py --smoke --output artifacts/performance/kernel_smoke.json`
-- VAMOS vs pymoo seeded comparisons: `python tools/benchmark_compare_pymoo.py --output artifacts/performance/pymoo_comparison.json --markdown artifacts/performance/pymoo_comparison.md`
+- VAMOS vs pymoo seeded comparisons: `python tools/benchmark_compare_pymoo.py --output artifacts/performance/pymoo_comparison.json --markdown artifacts/performance/pymoo_comparison.md`. **Development after 1.1.0:** install pymoo yourself first (`python -m pip install -c constraints/ci.txt pymoo` in a source checkout); no VAMOS extra installs it.
 
 ## Live visualization
 

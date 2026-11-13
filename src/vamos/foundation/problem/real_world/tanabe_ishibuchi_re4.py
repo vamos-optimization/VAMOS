@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
+
+from vamos.foundation.problem._output import objective_output
 
 from .tanabe_ishibuchi_utils import sum_violations_gte0
 
@@ -17,7 +21,7 @@ class RE41Problem:
         self.xl = np.array([0.5, 0.45, 0.5, 0.5, 0.875, 0.4, 0.4], dtype=float)
         self.xu = np.array([1.5, 1.35, 1.5, 1.5, 2.625, 1.2, 1.2], dtype=float)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         x1, x2, x3, x4, x5, x6, x7 = (X[:, i] for i in range(7))
 
         f1 = 1.98 + 4.9 * x1 + 6.67 * x2 + 6.98 * x3 + 4.01 * x4 + 1.78 * x5 + 0.00001 * x6 + 2.73 * x7
@@ -49,7 +53,7 @@ class RE41Problem:
         g10 = 15.7 - vfd
         f4 = sum_violations_gte0(g1, g2, g3, g4, g5, g6, g7, g8, g9, g10)
 
-        Fout = out["F"]
+        Fout = objective_output(out, len(X), self.n_obj)
         Fout[:, 0] = f1
         Fout[:, 1] = f2
         Fout[:, 2] = f3
@@ -68,7 +72,7 @@ class RE42Problem:
         self.xl = np.array([150.0, 20.0, 13.0, 10.0, 14.0, 0.63], dtype=float)
         self.xu = np.array([274.32, 32.31, 25.0, 11.71, 18.0, 0.75], dtype=float)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         L, B, D, T, Vk, CB = (X[:, i] for i in range(6))
 
         displacement = 1.025 * L * B * T * CB
@@ -138,7 +142,7 @@ class RE42Problem:
         c9 = (KB + BMT - KG) - (0.07 * B)
         f4 = sum_violations_gte0(c1, c2, c3, c4, c5, c6, c7, c8, c9)
 
-        Fout = out["F"]
+        Fout = objective_output(out, len(X), self.n_obj)
         Fout[:, 0] = f1
         Fout[:, 1] = f2
         Fout[:, 2] = f3

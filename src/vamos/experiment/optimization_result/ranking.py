@@ -285,9 +285,12 @@ def _top_k_subset_method(
         selector = select_top_k_farthest if method == "farthest" else select_top_k_knn
         selected_local = selector(F_rank, k_eff)
         selected_scores = _min_pairwise_distance(F_rank[selected_local])
-    elif method in {"reference_directions", "kmeans"}:
-        selector = select_top_k_reference_directions if method == "reference_directions" else select_top_k_kmeans
-        selected_local = selector(F_rank, k_eff)
+    elif method == "reference_directions":
+        selected_local = select_top_k_reference_directions(F_rank, k_eff)
+        selected_scores = np.linalg.norm(normalize_objectives(F_rank[selected_local]), axis=1)
+    elif method == "kmeans":
+        # A fixed seed for the k-means initialization, so the same result gives the same selection.
+        selected_local = select_top_k_kmeans(F_rank, k_eff, rng=0)
         selected_scores = np.linalg.norm(normalize_objectives(F_rank[selected_local]), axis=1)
     elif method == "angle":
         selected_local = select_top_k_angle(F_rank, k_eff)

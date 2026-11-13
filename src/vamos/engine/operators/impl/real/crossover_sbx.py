@@ -17,7 +17,12 @@ if TYPE_CHECKING:
 
 
 class SBXCrossover(Crossover):
-    """Simulated Binary Crossover (SBX) operator."""
+    """Simulated Binary Crossover (SBX) operator.
+
+    ``eta`` is 10 when it is not given, here and in a configuration that omits it.
+    The default algorithm configurations pass 20, as Deb et al. (2002) and jMetal
+    (pymoo uses 15); state ``eta`` explicitly when comparing runs.
+    """
 
     supports_variation_kernels: ClassVar[bool] = True
 

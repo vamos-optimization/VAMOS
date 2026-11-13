@@ -14,6 +14,7 @@ from .base import (
     ConstraintModeStr,
     ResultMode,
     _ConfigBuilderState,
+    _ConstraintHandlingBuilder,
     _ConstraintModeBuilder,
     _CrossoverBuilder,
     _encoding_operators,
@@ -47,6 +48,8 @@ class SMSEMOAConfig(_SerializableConfig):
     track_genealogy: bool = False
     result_mode: ResultMode | None = None
     external_archive: ExternalArchiveConfig | None = None
+    # Fields added after 1.0 go last, so that the constructor keeps the positions of its parameters.
+    constraint_handling: tuple[str, dict[str, float]] | None = None
 
     @classmethod
     def default(
@@ -88,6 +91,7 @@ class _SMSEMOAConfigBuilder(
     _RepairBuilder,
     _InitializerBuilder,
     _MutationProbFactorBuilder,
+    _ConstraintHandlingBuilder,
     _ConstraintModeBuilder,
     _TrackGenealogyBuilder,
     _ResultArchiveBuilder,
@@ -148,6 +152,7 @@ class _SMSEMOAConfigBuilder(
             reference_point=reference_point,
             eliminate_duplicates=bool(self._cfg.get("eliminate_duplicates", False)),
             constraint_mode=self._cfg.get("constraint_mode", "feasibility"),
+            constraint_handling=self._cfg.get("constraint_handling"),
             repair=self._cfg.get("repair", "auto"),
             initializer=self._cfg.get("initializer"),
             mutation_prob_factor=self._cfg.get("mutation_prob_factor"),

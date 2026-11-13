@@ -87,7 +87,9 @@ def _require_optional_deps() -> None:
     try:
         import pymoo  # noqa: F401
     except ImportError as exc:
-        raise SystemExit("This benchmark requires 'pymoo'. Install it with `pip install -e \".[research]\"`.") from exc
+        raise SystemExit(
+            "This benchmark requires 'pymoo', which VAMOS does not depend on. Install it with `pip install -c constraints/ci.txt pymoo`."
+        ) from exc
 
 
 def _reference_front(case: BenchmarkCase) -> np.ndarray:

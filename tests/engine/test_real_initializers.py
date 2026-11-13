@@ -271,3 +271,15 @@ def test_obl_initial_population_is_feasible_when_enough_candidates_are(algorithm
     )
 
     assert np.all(np.asarray(result.data["population"]["X"])[:, 1] >= 0.5)
+
+
+def test_scatter_default_is_not_latin_hypercube_for_large_populations():
+    from vamos.engine.algorithm.components.population import initialize_population
+
+    lower, upper = np.zeros(3), np.ones(3)
+    scatter = initialize_population(100, 3, lower, upper, "real", np.random.default_rng(4), initializer={"type": "scatter"})
+    lhs = initialize_population(100, 3, lower, upper, "real", np.random.default_rng(4), initializer={"type": "lhs"})
+
+    assert scatter.shape == (100, 3)
+    # The default reference set has 20 Latin-hypercube points; the other 80 combine them.
+    assert not np.array_equal(scatter, lhs)

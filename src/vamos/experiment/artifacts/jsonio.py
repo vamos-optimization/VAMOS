@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
+import sys
 import unicodedata
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
@@ -214,11 +216,42 @@ def read_json_file(
             action="Restore canonical JSON and keep numerical NaN/Infinity values only in result.npz.",
         )
 
+    def bounded_int(literal: str) -> int:
+        try:
+            return int(literal)
+        except ValueError as exc:  # the only failure: more digits than sys.get_int_max_str_digits()
+            raise ArtifactResourceLimitError(
+                operation=operation,
+                limit="int_max_str_digits",
+                configured=sys.get_int_max_str_digits(),
+                observed=len(literal.lstrip("-")),
+                artifact_role=artifact_role,
+                path=path,
+                action="Inspect the source; VAMOS never writes an integer this long.",
+            ) from exc
+
+    def depth_limit(observed: int) -> ArtifactResourceLimitError:
+        return ArtifactResourceLimitError(
+            operation=operation,
+            limit="max_json_depth",
+            configured=max_depth,
+            observed=observed,
+            artifact_role=artifact_role,
+            path=path,
+            action="Inspect the source and pass explicit trusted LoadLimits only if this nesting is expected.",
+        )
+
     try:
         decoded = payload.decode("utf-8")
-        value = json.loads(decoded, object_pairs_hook=reject_duplicate, parse_constant=reject_constant)
+        value = json.loads(decoded, object_pairs_hook=reject_duplicate, parse_constant=reject_constant, parse_int=bounded_int)
     except (ManifestValidationError, ArtifactResourceLimitError):
         raise
+    except RecursionError as exc:
+        # The parser recurses once per nesting level, so very deep input fails before the depth check below.
+        nesting = _nesting_depth(decoded)
+        if nesting <= max_depth:
+            raise
+        raise depth_limit(nesting) from exc
     except UnicodeDecodeError as exc:
         raise ManifestValidationError(
             operation=operation,
@@ -253,16 +286,26 @@ def read_json_file(
         )
     observed_depth = _json_depth(value)
     if observed_depth > max_depth:
-        raise ArtifactResourceLimitError(
-            operation=operation,
-            limit="max_json_depth",
-            configured=max_depth,
-            observed=observed_depth,
-            artifact_role=artifact_role,
-            path=path,
-            action="Inspect the source and pass explicit trusted LoadLimits only if this nesting is expected.",
-        )
+        raise depth_limit(observed_depth)
     return value, payload
+
+
+def _nesting_depth(text: str) -> int:
+    """Deepest array/object nesting in JSON text, in one linear pass without parsing; strings do not count."""
+    depth = deepest = 0
+    in_string = False
+    for match in re.finditer(r'\\.|["\[\]{}]', text, flags=re.DOTALL):
+        token = match.group()
+        if token == '"':
+            in_string = not in_string
+        elif in_string or token[0] == "\\":
+            continue
+        elif token in "[{":
+            depth += 1
+            deepest = max(deepest, depth)
+        else:
+            depth -= 1
+    return deepest
 
 
 def _json_depth(value: Any) -> int:

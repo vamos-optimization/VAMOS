@@ -27,6 +27,7 @@ from ._bridge_assignment_shared import (
     extend_mutation_params,
     has_mixed_mutation_assignment,
 )
+from .bridge_space_parts_constraints import apply_constraint_handling
 
 NSGAII_NAMES = ALGORITHM_VARIANT_GROUPS["nsgaii"]
 MOEAD_NAMES = ALGORITHM_VARIANT_GROUPS["moead"] - {"moead_permutation"}
@@ -83,6 +84,7 @@ def build_nsgaii_config(assignment: dict[str, Any], *, mixed: bool = False) -> N
 
     apply_optional_repair(builder, assignment)
     apply_optional_external_archive(builder, assignment, pop_size)
+    apply_constraint_handling(builder, assignment)
     return builder.build()
 
 
@@ -171,6 +173,7 @@ def build_nsgaiii_config(assignment: dict[str, Any], *, mixed: bool = False) -> 
     builder.selection("tournament", size=int(assignment["selection_pressure"]))
     apply_optional_repair(builder, assignment)
     apply_optional_external_archive(builder, assignment, pop_size)
+    apply_constraint_handling(builder, assignment)
     return builder.build()
 
 
@@ -195,6 +198,7 @@ def build_smsemoa_config(assignment: dict[str, Any], *, mixed: bool = False) -> 
     builder.reference_point(offset=0.1, adaptive=True)
     apply_optional_repair(builder, assignment)
     apply_optional_external_archive(builder, assignment, pop_size)
+    apply_constraint_handling(builder, assignment)
     return builder.build()
 
 
@@ -292,6 +296,7 @@ def build_agemoea_config(assignment: dict[str, Any], *, mixed: bool = False) -> 
 
     apply_optional_repair(builder, assignment)
     apply_optional_external_archive(builder, assignment, pop_size)
+    apply_constraint_handling(builder, assignment)
     return builder.build()
 
 

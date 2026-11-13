@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
+from vamos.engine.algorithm.components.constraint_handling import run_progress
 from vamos.engine.algorithm.components.hooks import (
     finalize_genealogy,
     live_should_stop,
@@ -24,13 +25,10 @@ from vamos.engine.algorithm.components.hooks import (
 from vamos.engine.algorithm.components.lifecycle import evaluate_batch
 from vamos.engine.algorithm.components.termination import HVTracker, capped_offspring_size, hv_target_reached
 from vamos.engine.algorithm.components.utils import variation_operator_label
-from vamos.engine.algorithm.nsgaii.state import compute_selection_metrics
 from vamos.foundation.kernel import default_kernel
 from vamos.foundation.kernel.backend import DecisionArray, FloatArray
 
-from .helpers import (
-    nsgaiii_survival,
-)
+from .helpers import nsgaiii_selection_metrics, nsgaiii_survival
 from .initialization import initialize_nsgaiii_run
 from .state import NSGAIIIState, build_nsgaiii_result
 
@@ -89,9 +87,9 @@ class NSGAIII:
         self._problem: ProblemProtocol | None = None
 
     def _refresh_selection_metrics(self, st: NSGAIIIState) -> None:
-        ranks, crowd = compute_selection_metrics(self.kernel, st.F, st.G, st.constraint_mode)
-        st.selection_ranks = np.asarray(ranks, dtype=int)
-        st.selection_crowding = np.asarray(crowd, dtype=float)
+        st.selection_ranks, st.selection_crowding = nsgaiii_selection_metrics(
+            self.kernel, st.F, st.G, st.constraint_mode, st.constraint_handling, st.rng
+        )
 
     # -------------------------------------------------------------------------
     # Main run method (batch mode)
@@ -132,6 +130,8 @@ class NSGAIII:
         while st.n_eval < max_eval and not stop_requested:
             X_off = self._generate_offspring(st)
             F_off, G_off = self._evaluate_offspring(problem, X_off, eval_strategy, st.constraint_mode)
+            # A constraint-handling technique follows the evaluations before the offspring's.
+            progress = run_progress(st.n_eval, st.max_evals)
             st.n_eval += X_off.shape[0]
             _archive_offspring(st, X_off, F_off, G_off)
 
@@ -161,6 +161,8 @@ class NSGAIII:
                 st.extreme_points,
                 st.worst_point,
                 kernel=self.kernel,
+                technique=st.constraint_handling,
+                progress=progress,
             )
             self._refresh_selection_metrics(st)
 
@@ -328,6 +330,8 @@ class NSGAIII:
             st.extreme_points,
             st.worst_point,
             kernel=self.kernel,
+            technique=st.constraint_handling,
+            progress=run_progress(st.n_eval, st.max_evals),
         )
         self._refresh_selection_metrics(st)
 

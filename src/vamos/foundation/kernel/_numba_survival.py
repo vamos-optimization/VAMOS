@@ -263,6 +263,22 @@ class NumbaSelectionKernels:
     def indicator_removal(self, fitness: FloatArray, contrib: FloatArray, target_size: int) -> IndexArray:
         return indicator_removal(fitness, contrib, int(target_size))
 
+    def stochastic_ranking_order(
+        self,
+        pareto_rank: IndexArray,
+        feasible: NDArray[np.bool_],
+        violation: FloatArray,
+        uniforms: FloatArray,
+        probability: float,
+    ) -> IndexArray:
+        return stochastic_ranking_order(
+            np.ascontiguousarray(pareto_rank, dtype=np.int64),
+            np.ascontiguousarray(feasible, dtype=np.bool_),
+            np.ascontiguousarray(violation, dtype=np.float64),
+            np.ascontiguousarray(uniforms, dtype=np.float64),
+            float(probability),
+        )
+
     def smsemoa_survival(
         self,
         *,
@@ -287,6 +303,41 @@ class NumbaSelectionKernels:
         )
 
 
+@njit(cache=True)
+def stochastic_ranking_order(
+    pareto_rank: IndexArray,
+    feasible: NDArray[np.bool_],
+    violation: FloatArray,
+    uniforms: FloatArray,
+    probability: float,
+) -> IndexArray:
+    """Stochastic ranking's bubble sort; the reference is ``constrained_ranking.stochastic_ranking_order``."""
+    n = pareto_rank.shape[0]
+    order = np.arange(n, dtype=np.int64)
+    drawn = 0
+    for _ in range(n):
+        swapped = False
+        for j in range(n - 1):
+            first = order[j]
+            second = order[j + 1]
+            if feasible[first] and feasible[second]:
+                by_rank = True
+            else:
+                by_rank = uniforms[drawn] < probability
+                drawn += 1
+            if by_rank:
+                swap = pareto_rank[second] < pareto_rank[first]
+            else:
+                swap = violation[second] < violation[first]
+            if swap:
+                order[j] = second
+                order[j + 1] = first
+                swapped = True
+        if not swapped:
+            break
+    return order
+
+
 @cache
 def numba_selection_kernels() -> NumbaSelectionKernels:
     """Shared compiled selection kernels (created on first use, not at import)."""
@@ -300,4 +351,5 @@ __all__ = [
     "iterative_crowding_truncation",
     "lexicographic_truncation",
     "numba_selection_kernels",
+    "stochastic_ranking_order",
 ]

@@ -6,6 +6,7 @@ from typing import Any
 
 import numpy as np
 
+from vamos.engine.algorithm.components.constraint_handling import ConstraintHandlingTechnique, adapted_ranks
 from vamos.foundation.constraints.utils import compute_violation, is_feasible
 from vamos.foundation.kernel.backend import KernelBackend
 
@@ -45,6 +46,48 @@ def constraint_aware_age_survival(
     order = np.argsort(violation[infeasible_idx], kind="stable")
     fill = infeasible_idx[order[:needed]]
     return np.asarray(np.concatenate([feasible_idx, fill]), dtype=int), scores
+
+
+def technique_age_survival(
+    F: np.ndarray[Any, Any],
+    G: np.ndarray[Any, Any],
+    n_survive: int,
+    kernel: KernelBackend,
+    technique: ConstraintHandlingTechnique,
+    rng: np.random.Generator,
+    progress: float,
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
+    """AGE-MOEA's environmental selection over the fronts of a constraint-handling technique.
+
+    The technique adapts to the union of parents and offspring at ``progress`` and ranks it, as in
+    Evolver's AGE-MOEA; whole fronts survive and the survival score cuts the last one.
+    """
+    ranks = adapted_ranks(technique, kernel, F, G, rng, progress)
+    return age_survival(F, n_survive, kernel, ranks=ranks)
+
+
+def technique_selection_metrics(
+    kernel: KernelBackend,
+    F: np.ndarray[Any, Any],
+    G: np.ndarray[Any, Any],
+    technique: ConstraintHandlingTechnique,
+    rng: np.random.Generator,
+    survival_scores: np.ndarray[Any, Any] | None = None,
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
+    """Tournament ranks and tie-break scores with a constraint-handling technique.
+
+    The ranks are the technique's fronts of the population, which VAMOS ranks again as in NSGA-II; rank
+    ties are broken by the AGE survival score. Without ``survival_scores`` (the initial population),
+    the survival over the technique's fronts scores the whole population.
+    """
+    ranks = np.asarray(technique.ranks(kernel, F, G, rng), dtype=int)
+    if survival_scores is None:
+        survivors, survivor_scores = age_survival(F, F.shape[0], kernel, ranks=ranks)
+        scores = np.zeros(F.shape[0], dtype=float)
+        scores[survivors] = survivor_scores
+    else:
+        scores = np.asarray(survival_scores, dtype=float)
+    return ranks, scores
 
 
 def selection_metrics(
@@ -91,4 +134,10 @@ def population_selection_metrics(
     return selection_metrics(kernel, F, G, constraint_mode, scores)
 
 
-__all__ = ["constraint_aware_age_survival", "population_selection_metrics", "selection_metrics"]
+__all__ = [
+    "constraint_aware_age_survival",
+    "population_selection_metrics",
+    "selection_metrics",
+    "technique_age_survival",
+    "technique_selection_metrics",
+]

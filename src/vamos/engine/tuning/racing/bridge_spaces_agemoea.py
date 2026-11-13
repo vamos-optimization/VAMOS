@@ -4,6 +4,7 @@ AGE-MOEA configuration space builders for tuning.
 
 from __future__ import annotations
 
+from .bridge_space_parts_constraints import constraint_handling_part
 from .bridge_space_parts_discrete import (
     binary_operator_part_full,
     external_archive_part,
@@ -62,6 +63,11 @@ def build_agemoea_config_space() -> AlgorithmConfigSpace:
     return compose_config_space("agemoea", _core_part(), _real_operator_part())
 
 
+def build_agemoea_constrained_config_space() -> AlgorithmConfigSpace:
+    """The real-coded space with the constraint-handling technique, as Evolver's ``AGEMOEADoubleConstrained``."""
+    return compose_config_space("agemoea_constrained", _core_part(), _real_operator_part(), constraint_handling_part())
+
+
 def build_agemoea_mixed_config_space() -> AlgorithmConfigSpace:
     return compose_config_space("agemoea_mixed", _core_part(), _mixed_operator_part())
 
@@ -80,6 +86,7 @@ def build_agemoea_integer_config_space() -> AlgorithmConfigSpace:
 
 __all__ = [
     "build_agemoea_config_space",
+    "build_agemoea_constrained_config_space",
     "build_agemoea_mixed_config_space",
     "build_agemoea_permutation_config_space",
     "build_agemoea_binary_config_space",
