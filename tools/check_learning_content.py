@@ -5,6 +5,11 @@ import re
 import sys
 from pathlib import Path
 
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from tools.check_pre_release_remnants import tracked_paths
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 PATHS = [
@@ -40,11 +45,9 @@ NOTEBOOK_TUNING_STALE_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
 def iter_files(root: Path) -> list[Path]:
     if root.is_file():
         return [root]
-    files: list[Path] = []
-    for path in root.rglob("*"):
-        if path.suffix in {".md", ".py", ".yml", ".yaml", ".ipynb"}:
-            files.append(path)
-    return sorted(files)
+    # Tracked files only: ignored copies such as Jupyter's .ipynb_checkpoints/ are not part of the repository.
+    suffixes = {".md", ".py", ".yml", ".yaml", ".ipynb"}
+    return [path for path in tracked_paths(REPO_ROOT) if path.suffix in suffixes and root in path.parents]
 
 
 def load_text(path: Path) -> str:

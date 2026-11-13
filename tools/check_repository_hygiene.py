@@ -3,17 +3,22 @@
 from __future__ import annotations
 
 import argparse
-import fnmatch
 import hashlib
 import json
 import re
 import subprocess
+import sys
 import tarfile
 import zipfile
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
+
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from tools.release_policy import personal_paths
 
 ROOT = Path(__file__).resolve().parents[1]
 POLICY_PATH = ROOT / "release" / "repository-hygiene-policy.json"
@@ -125,8 +130,31 @@ def filesystem_tracked_files(root: Path, paths: list[str]) -> list[TrackedFile]:
     return records
 
 
+def _glob_regex(pattern: str) -> re.Pattern[str]:
+    # Path globs: "*" and "?" stay within one directory, "**/" spans zero or more, and a trailing "**" anything below.
+    parts = []
+    index = 0
+    while index < len(pattern):
+        if pattern.startswith("**/", index):
+            parts.append("(?:[^/]+/)*")
+            index += 3
+        elif pattern.startswith("**", index):
+            parts.append(".*")
+            index += 2
+        elif pattern[index] == "*":
+            parts.append("[^/]*")
+            index += 1
+        elif pattern[index] == "?":
+            parts.append("[^/]")
+            index += 1
+        else:
+            parts.append(re.escape(pattern[index]))
+            index += 1
+    return re.compile("".join(parts))
+
+
 def _matches_any(path: str, patterns: list[str]) -> bool:
-    return any(fnmatch.fnmatchcase(path, pattern) for pattern in patterns)
+    return any(_glob_regex(pattern).fullmatch(path) for pattern in patterns)
 
 
 def _text(path: Path, *, max_bytes: int = 2_000_000) -> str | None:
@@ -188,16 +216,12 @@ def _notebook_violations(root: Path, record: TrackedFile, notebook_policy: dict[
     return violations
 
 
-def _personal_path_violation(path: str, content: str) -> Violation | None:
-    windows = re.search(r"[A-Za-z]:[/\\]Users[/\\]([^/\\\s<>]+)[/\\]", content, flags=re.IGNORECASE)
-    posix_home = re.search(r"/(?:home|Users)/([^/\s<>]+)/", content)
-    match = windows or posix_home
-    if match is None:
+def _personal_path_violation(path: str, payload: bytes) -> Violation | None:
+    # The release checker's detector, on the bytes of every tracked file: no account name is exempt.
+    found = personal_paths(payload)
+    if not found:
         return None
-    account = match.group(1).lower()
-    if account in {"user", "username", "your-name", "example"}:
-        return None
-    return Violation("personal_absolute_path", path, f"Personal absolute home path names account {match.group(1)!r}.")
+    return Violation("personal_absolute_path", path, f"Absolute home-directory path {found[0]!r}; the release scan rejects it.")
 
 
 def _output_declaration_violation(path: str, content: str) -> Violation | None:
@@ -285,11 +309,12 @@ def collect_violations(
             if not category.startswith("large_"):
                 violations.append(Violation("unapproved_large_file", path, f"Tracked size {record.size} exceeds policy threshold."))
         violations.extend(_notebook_violations(root, record, dict(policy["notebook"])))
-        content = _text(disk_path)
-        if content is not None:
-            personal = _personal_path_violation(path, content)
+        if disk_path.is_file():
+            personal = _personal_path_violation(path, disk_path.read_bytes())
             if personal is not None:
                 violations.append(personal)
+        content = _text(disk_path)
+        if content is not None:
             unsafe_output = _output_declaration_violation(path, content)
             if unsafe_output is not None:
                 violations.append(unsafe_output)

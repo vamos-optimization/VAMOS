@@ -1,15 +1,11 @@
 """Tests for new racing features: convergence detection, checkpoint I/O and elitist restarts."""
 
-import tempfile
-from pathlib import Path
-
 import numpy as np
 import pytest
 
 import vamos.engine.tuning.racing.core as core_module
 from vamos.engine.tuning import build_nsgaii_config_space
 from vamos.engine.tuning.racing.core import RacingTuner
-from vamos.engine.tuning.racing.io import load_checkpoint, save_checkpoint
 from vamos.engine.tuning.racing.param_space import Categorical, Condition, ParamSpace, Real, _active_assignment
 from vamos.engine.tuning.racing.refill import make_neighbor_config
 from vamos.engine.tuning.racing.scenario import Scenario
@@ -109,24 +105,6 @@ def test_convergence_not_triggered_by_high_variance_plateau():
     tuner._best_score_history = [1.0, 0.75, 1.25, 0.98]
 
     assert tuner._check_convergence() is False
-
-
-def test_checkpoint_save_load_roundtrip():
-    """Test checkpoint save and load preserves data."""
-    best_configs = [{"x": 0.5, "pop_size": 100}]
-    elite_archive = [{"config": {"x": 0.5}, "score": 0.123}]
-    metadata = {"stage_index": 10, "num_experiments": 500}
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        path = Path(tmpdir) / "checkpoint.json"
-
-        save_checkpoint(best_configs, elite_archive, path, metadata=metadata)
-
-        loaded = load_checkpoint(path)
-
-        assert loaded["best_configs"] == best_configs
-        assert loaded["elite_archive"] == elite_archive
-        assert loaded["metadata"] == metadata
 
 
 def test_warm_start_with_initial_configs():

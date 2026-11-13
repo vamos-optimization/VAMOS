@@ -13,6 +13,8 @@ Add an algorithm when VAMOS needs a new search/update lifecycle. A new crossover
 
 The implementation must honor exact evaluation budgets and explicit seed/RNG ownership. It must not switch backends silently. Reference-direction algorithms must define and validate how direction count constrains population size.
 
+Parse `termination` with `parse_termination(termination, name, pop_size)` from `src/vamos/engine/algorithm/components/termination.py`, so the algorithm accepts `max_evaluations`, `n_gen` and `hv` like the built-ins, and report `hv_reached` in the result. Besides the `ask` and `tell` of `InteractiveAlgorithmProtocol` (`src/vamos/engine/algorithm/components/protocol.py`), give it `initialize`, `should_terminate` and `result`, as every built-in has: `tell` returns whether the HV target is reached, and `result` equals what `run` returns for the same seed.
+
 Use `VariationPipeline` from `src/vamos/engine/variation/` for shared operator orchestration. If the algorithm exposes an external result archive, use `ExternalArchiveConfig` from `src/vamos/engine/archive/config.py`; experiment specifications contain only `archive.external`, parsed by `build_archive_cfg` in `src/vamos/engine/hooks/config_parse.py`.
 
 ## Package plugin workflow

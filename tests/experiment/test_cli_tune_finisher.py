@@ -389,3 +389,38 @@ def test_validation_counts_failed_runs_with_the_failure_score(tmp_path: Path):
     champions = run_validation_stage(eval_fn=eval_fn, **inputs)
 
     assert champions["champion_global"] == {"x": 0.1}
+
+
+def test_tuning_summary_best_score_matches_best_config(tmp_path: Path):
+    import argparse
+    import json
+
+    from vamos.engine.tuning import ParamSpace, Real, TrialResult, TuningTask
+    from vamos.experiment.cli._tune_post import persist_artifacts
+
+    task = TuningTask(
+        name="summary",
+        param_space=ParamSpace(params={"x": Real("x", 0.0, 1.0)}),
+        instances=[Instance(name="zdt1", n_var=6, kwargs={})],
+        seeds=[1],
+        budget_per_run=100,
+    )
+    history = [TrialResult(0, {"x": 0.9}, 0.95), TrialResult(1, {"x": 0.4}, 0.80), TrialResult(2, {"x": 0.4}, 0.85)]
+    args = argparse.Namespace(
+        backend="racing",
+        problem="zdt1",
+        algorithm="nsgaii",
+        n_var=6,
+        n_obj=2,
+        seed=1,
+        aggregate_mode="mean",
+        runtime_penalty=0.0,
+        failure_score=0.0,
+    )
+
+    # A statistical finisher or racing's final choice can pick a configuration other than the top history score.
+    persist_artifacts(tmp_path, args, task, {"x": 0.4}, history, 1.0, 1, available_backends_fn=dict)
+
+    summary = json.loads((tmp_path / "tuning_summary.json").read_text(encoding="utf-8"))
+    assert summary["best_score"] == 0.85
+    assert summary["best_history_score"] == 0.95

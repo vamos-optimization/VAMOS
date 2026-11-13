@@ -4,7 +4,7 @@ import csv
 import json
 import logging
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from .param_space import ParamSpace, _active_assignment
 from .random_search_tuner import TrialResult
@@ -103,61 +103,9 @@ def save_history_csv(
             writer.writerow(row)
 
 
-def save_checkpoint(
-    best_configs: list[dict[str, Any]],
-    elite_archive: list[dict[str, Any]],
-    path: str | Path,
-    *,
-    metadata: dict[str, Any] | None = None,
-) -> None:
-    """Save a tuning checkpoint with elite configurations for warm restart.
-
-    Parameters
-    ----------
-    best_configs
-        Best configuration dictionaries found so far.
-    elite_archive
-        Elite archive entries containing configuration and score data.
-    path
-        Destination path for the checkpoint JSON file.
-    metadata
-        Optional extra metadata such as stage index or experiment counts.
-    """
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    checkpoint = {
-        "best_configs": best_configs,
-        "elite_archive": elite_archive,
-        "metadata": metadata or {},
-    }
-    with path.open("w", encoding="utf-8") as fh:
-        json.dump(checkpoint, fh, indent=2, default=_json_default)
-
-
-def load_checkpoint(path: str | Path) -> dict[str, Any]:
-    """Load a tuning checkpoint for warm restart.
-
-    Parameters
-    ----------
-    path
-        Path to a checkpoint file produced by :func:`save_checkpoint`.
-
-    Returns
-    -------
-    dict[str, Any]
-        Mapping with ``best_configs``, ``elite_archive``, and ``metadata`` keys.
-    """
-    path = Path(path)
-    with path.open("r", encoding="utf-8") as fh:
-        payload = json.load(fh)
-    return cast(dict[str, Any], payload)
-
-
 __all__ = [
     "filter_active_config",
     "history_to_dict",
     "save_history_json",
     "save_history_csv",
-    "save_checkpoint",
-    "load_checkpoint",
 ]

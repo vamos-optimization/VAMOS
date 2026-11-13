@@ -10,6 +10,105 @@
     "smsemoa",
     "spea2"
   ],
+  "config_field_defaults": {
+    "AGEMOEAConfig": {
+      "constraint_mode": "feasibility",
+      "external_archive": null,
+      "initializer": null,
+      "mutation_prob_factor": null,
+      "repair": "auto",
+      "result_mode": null,
+      "track_genealogy": false
+    },
+    "IBEAConfig": {
+      "constraint_mode": "feasibility",
+      "external_archive": null,
+      "initializer": null,
+      "mutation_prob_factor": null,
+      "repair": "auto",
+      "result_mode": null,
+      "track_genealogy": false
+    },
+    "MOEADConfig": {
+      "constraint_mode": "feasibility",
+      "external_archive": null,
+      "initializer": null,
+      "mutation_prob_factor": null,
+      "repair": "auto",
+      "result_mode": null,
+      "track_genealogy": false,
+      "use_numba_variation": null
+    },
+    "NSGAIIConfig": {
+      "constraint_mode": "feasibility",
+      "external_archive": null,
+      "generation_callback": null,
+      "generation_callback_copy": true,
+      "immigration": null,
+      "initializer": null,
+      "live_callback_mode": "nd_only",
+      "mutation_prob_factor": null,
+      "offspring_size": null,
+      "parent_selection_filter": null,
+      "repair": "auto",
+      "replacement_size": null,
+      "result_mode": null,
+      "steady_state": false,
+      "track_genealogy": false
+    },
+    "NSGAIIIConfig": {
+      "constraint_mode": "feasibility",
+      "enforce_ref_dirs": true,
+      "external_archive": null,
+      "initializer": null,
+      "mutation_prob_factor": null,
+      "pop_size_auto": false,
+      "repair": "auto",
+      "result_mode": null,
+      "track_genealogy": false
+    },
+    "RVEAConfig": {
+      "constraint_mode": "feasibility",
+      "external_archive": null,
+      "initializer": null,
+      "mutation_prob_factor": null,
+      "repair": "auto",
+      "result_mode": null,
+      "track_genealogy": false
+    },
+    "SMPSOConfig": {
+      "c1": 1.5,
+      "c2": 1.5,
+      "constraint_mode": "feasibility",
+      "external_archive": null,
+      "inertia": 0.1,
+      "initializer": null,
+      "repair": "auto",
+      "result_mode": null,
+      "track_genealogy": false,
+      "vmax_fraction": 0.5
+    },
+    "SMSEMOAConfig": {
+      "constraint_mode": "feasibility",
+      "eliminate_duplicates": false,
+      "external_archive": null,
+      "initializer": null,
+      "mutation_prob_factor": null,
+      "repair": "auto",
+      "result_mode": null,
+      "track_genealogy": false
+    },
+    "SPEA2Config": {
+      "constraint_mode": "feasibility",
+      "external_archive": null,
+      "initializer": null,
+      "k_neighbors": null,
+      "mutation_prob_factor": null,
+      "repair": "auto",
+      "result_mode": null,
+      "track_genealogy": false
+    }
+  },
   "config_fields": {
     "AGEMOEAConfig": [
       "pop_size",
@@ -154,6 +253,283 @@
       "result_mode",
       "external_archive"
     ]
+  },
+  "default_configs": {
+    "AGEMOEAConfig": {
+      "constraint_mode": "feasibility",
+      "crossover": [
+        "sbx",
+        {
+          "eta": 15.0,
+          "prob": 0.9
+        }
+      ],
+      "external_archive": null,
+      "initializer": null,
+      "mutation": [
+        "pm",
+        {
+          "eta": 20.0,
+          "prob": 0.1
+        }
+      ],
+      "mutation_prob_factor": null,
+      "pop_size": 100,
+      "repair": "auto",
+      "result_mode": "non_dominated",
+      "track_genealogy": false
+    },
+    "IBEAConfig": {
+      "constraint_mode": "feasibility",
+      "crossover": [
+        "sbx",
+        {
+          "eta": 20.0,
+          "prob": 0.9
+        }
+      ],
+      "external_archive": null,
+      "indicator": "eps",
+      "initializer": null,
+      "kappa": 0.05,
+      "mutation": [
+        "pm",
+        {
+          "eta": 20.0,
+          "prob": 0.1
+        }
+      ],
+      "mutation_prob_factor": null,
+      "pop_size": 100,
+      "repair": "auto",
+      "result_mode": "non_dominated",
+      "selection": [
+        "tournament",
+        {}
+      ],
+      "track_genealogy": false
+    },
+    "MOEADConfig": {
+      "aggregation": [
+        "pbi",
+        {
+          "theta": 5.0
+        }
+      ],
+      "batch_size": 1,
+      "constraint_mode": "feasibility",
+      "crossover": [
+        "de",
+        {
+          "cr": 1.0,
+          "f": 0.5
+        }
+      ],
+      "delta": 0.9,
+      "external_archive": null,
+      "initializer": null,
+      "mutation": [
+        "pm",
+        {
+          "eta": 20.0,
+          "prob": 0.1
+        }
+      ],
+      "mutation_prob_factor": null,
+      "neighbor_size": 20,
+      "pop_size": 91,
+      "repair": "auto",
+      "replace_limit": 2,
+      "result_mode": "non_dominated",
+      "track_genealogy": false,
+      "use_numba_variation": null,
+      "weight_vectors": {
+        "divisions": 12,
+        "path": null
+      }
+    },
+    "NSGAIIConfig": {
+      "constraint_mode": "feasibility",
+      "crossover": [
+        "sbx",
+        {
+          "eta": 20.0,
+          "prob": 0.9
+        }
+      ],
+      "external_archive": null,
+      "generation_callback": null,
+      "generation_callback_copy": true,
+      "immigration": null,
+      "initializer": null,
+      "live_callback_mode": "nd_only",
+      "mutation": [
+        "pm",
+        {
+          "eta": 20.0,
+          "prob": 0.1
+        }
+      ],
+      "mutation_prob_factor": null,
+      "offspring_size": null,
+      "parent_selection_filter": null,
+      "pop_size": 100,
+      "repair": "auto",
+      "replacement_size": null,
+      "result_mode": "non_dominated",
+      "selection": [
+        "tournament",
+        {}
+      ],
+      "steady_state": false,
+      "track_genealogy": false
+    },
+    "NSGAIIIConfig": {
+      "constraint_mode": "feasibility",
+      "crossover": [
+        "sbx",
+        {
+          "eta": 30.0,
+          "prob": 0.9
+        }
+      ],
+      "enforce_ref_dirs": true,
+      "external_archive": null,
+      "initializer": null,
+      "mutation": [
+        "pm",
+        {
+          "eta": 20.0,
+          "prob": 0.1
+        }
+      ],
+      "mutation_prob_factor": null,
+      "pop_size": 91,
+      "pop_size_auto": true,
+      "reference_directions": {
+        "divisions": 12,
+        "path": null
+      },
+      "repair": "auto",
+      "result_mode": "population",
+      "selection": [
+        "tournament",
+        {}
+      ],
+      "track_genealogy": false
+    },
+    "RVEAConfig": {
+      "adapt_freq": 0.1,
+      "alpha": 2.0,
+      "constraint_mode": "feasibility",
+      "crossover": [
+        "sbx",
+        {
+          "eta": 30.0,
+          "prob": 0.9
+        }
+      ],
+      "external_archive": null,
+      "initializer": null,
+      "mutation": [
+        "pm",
+        {
+          "eta": 20.0,
+          "prob": 0.1
+        }
+      ],
+      "mutation_prob_factor": null,
+      "n_partitions": 12,
+      "pop_size": 91,
+      "repair": "auto",
+      "result_mode": "non_dominated",
+      "track_genealogy": false
+    },
+    "SMPSOConfig": {
+      "archive_size": 100,
+      "c1": 1.5,
+      "c2": 1.5,
+      "constraint_mode": "feasibility",
+      "external_archive": null,
+      "inertia": 0.1,
+      "initializer": null,
+      "mutation": [
+        "polynomial",
+        {
+          "eta": 20.0,
+          "prob": 0.1
+        }
+      ],
+      "pop_size": 100,
+      "repair": "auto",
+      "result_mode": "non_dominated",
+      "track_genealogy": false,
+      "vmax_fraction": 0.5
+    },
+    "SMSEMOAConfig": {
+      "constraint_mode": "feasibility",
+      "crossover": [
+        "sbx",
+        {
+          "eta": 20.0,
+          "prob": 0.9
+        }
+      ],
+      "eliminate_duplicates": false,
+      "external_archive": null,
+      "initializer": null,
+      "mutation": [
+        "pm",
+        {
+          "eta": 20.0,
+          "prob": 0.1
+        }
+      ],
+      "mutation_prob_factor": null,
+      "pop_size": 100,
+      "reference_point": {
+        "adaptive": true,
+        "offset": 1.0,
+        "vector": null
+      },
+      "repair": "auto",
+      "result_mode": "non_dominated",
+      "selection": [
+        "random",
+        {}
+      ],
+      "track_genealogy": false
+    },
+    "SPEA2Config": {
+      "archive_size": 100,
+      "constraint_mode": "feasibility",
+      "crossover": [
+        "sbx",
+        {
+          "eta": 20.0,
+          "prob": 0.9
+        }
+      ],
+      "external_archive": null,
+      "initializer": null,
+      "k_neighbors": null,
+      "mutation": [
+        "pm",
+        {
+          "eta": 20.0,
+          "prob": 0.1
+        }
+      ],
+      "mutation_prob_factor": null,
+      "pop_size": 100,
+      "repair": "auto",
+      "result_mode": "non_dominated",
+      "selection": [
+        "tournament",
+        {}
+      ],
+      "track_genealogy": false
+    }
   },
   "document_type": "vamos.stable-algorithm-configs",
   "schema_version": "1.0.0"

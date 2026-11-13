@@ -135,3 +135,15 @@ def test_repository_has_no_active_remnants() -> None:
     root = Path(__file__).resolve().parents[1]
 
     assert scan(root) == []
+
+
+def test_untracked_local_configs_are_ignored(tmp_path: Path) -> None:
+    import subprocess
+
+    _write(tmp_path, "src/vamos/example.py", "ENVIRONMENT_COMPATIBILITY = True\n")
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "add", "-A"], check=True)
+    # A developer's local, untracked experiment config is not part of the repository.
+    _write(tmp_path, "experiments/configs/zz_local_untracked.yml", "archive_type: bounded\n")
+
+    assert scan(tmp_path) == []

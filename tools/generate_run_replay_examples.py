@@ -18,7 +18,8 @@ EXAMPLES = ROOT / "docs" / "dev" / "run_artifact_examples"
 SOURCE = EXAMPLES / "nsgaii-success"
 SOURCE_RUN_ID = "11111111-1111-4111-8111-111111111111"
 TIMESTAMPS = {"started_at": "2026-01-01T00:04:00Z", "completed_at": "2026-01-01T00:04:01Z"}
-RELEASE_VERSION = "1.0.0"
+# The examples record a fixed VAMOS version, like their fixed IDs and timestamps (README.md there).
+EXAMPLE_VERSION = "1.0.0"
 BASE_EXAMPLES = ("nsgaii-success", "moead-success", "custom-manual", "failed-run")
 
 
@@ -33,19 +34,19 @@ def main() -> None:
 
 
 def _normalize_base_examples() -> None:
-    """Keep checked-in contract examples aligned with the release version."""
+    """Keep the checked-in contract examples on the fixed example version."""
     for name in BASE_EXAMPLES:
         destination = EXAMPLES / name
         environment_path = destination / "environment.json"
         environment = _json(environment_path)
-        environment["packages"]["vamos-optimization"] = RELEASE_VERSION
+        environment["packages"]["vamos-optimization"] = EXAMPLE_VERSION
         _write_json(environment_path, environment)
 
         manifest_path = destination / "manifest.json"
         manifest = _json(manifest_path)
         implementation = manifest["provenance"]["implementation"]
-        implementation["distribution"]["version"] = RELEASE_VERSION
-        implementation["vamos_version"] = RELEASE_VERSION
+        implementation["distribution"]["version"] = EXAMPLE_VERSION
+        implementation["vamos_version"] = EXAMPLE_VERSION
 
         environment_artifact = next(artifact for artifact in manifest["artifacts"] if artifact["role"] == "environment")
         normalized_descriptor = _descriptor("environment", environment_path)

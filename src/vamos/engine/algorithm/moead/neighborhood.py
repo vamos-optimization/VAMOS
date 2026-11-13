@@ -138,4 +138,38 @@ def update_neighborhood_batch(
     )
 
 
-__all__ = ["compute_neighbors", "update_neighborhood", "update_neighborhood_batch"]
+def update_neighborhoods_recording_replacements(
+    st: MOEADState,
+    active: np.ndarray[Any, Any],
+    children: np.ndarray[Any, Any],
+    F_child: np.ndarray[Any, Any],
+    G_child: np.ndarray[Any, Any] | None,
+    cv_child: np.ndarray[Any, Any] | None,
+    orders: list[np.ndarray[Any, Any]],
+    offspring_ids: np.ndarray[Any, Any],
+) -> None:
+    """Update the neighbourhoods child by child and give each replaced subproblem that child's id.
+
+    This is the batch update's own loop, so the population is the same. A replacement needs a
+    strictly better aggregation, so it always changes the row's objectives (or violation).
+    """
+    assert st.ids is not None
+    for pos, order in enumerate(orders):
+        before_F = st.F[order].copy()
+        before_cv = st.cv[order].copy() if st.cv is not None else None
+        update_neighborhood(
+            st=st,
+            idx=int(active[pos]),
+            child=children[pos],
+            child_f=F_child[pos],
+            child_g=G_child[pos] if G_child is not None else None,
+            cv_penalty=float(cv_child[pos]) if cv_child is not None else 0.0,
+            candidate_order=order,
+        )
+        replaced = np.any(st.F[order] != before_F, axis=1)
+        if before_cv is not None and st.cv is not None:
+            replaced |= st.cv[order] != before_cv
+        st.ids[order[replaced]] = offspring_ids[pos]
+
+
+__all__ = ["compute_neighbors", "update_neighborhood", "update_neighborhood_batch", "update_neighborhoods_recording_replacements"]
