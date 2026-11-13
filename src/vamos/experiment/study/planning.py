@@ -8,6 +8,7 @@ from itertools import product
 from math import comb
 from typing import Any
 
+from vamos.engine.algorithm.catalog import minimum_violation
 from vamos.engine.algorithm.config.base import ReferenceDirectionPopulationError
 from vamos.experiment.artifacts.models import deep_freeze, deep_thaw
 from vamos.experiment.artifacts.resolved_reconstruction import is_reconstructable_evaluation_backend
@@ -73,6 +74,7 @@ def _resolve_candidate(spec: StudySpec, candidate: _Candidate) -> PlanTask:
         n_obj = int(problem.n_obj)
         encoding = normalize_encoding(getattr(problem, "encoding", "real"))
         algorithm = _select_algorithm(n_obj, encoding) if candidate.algorithm == "auto" else candidate.algorithm
+        _reject_below_minimum(algorithm, candidate, n_obj=n_obj)
         population_size = spec.pop_size or _compute_pop_size(n_var, n_obj)
         budget = spec.max_evaluations or _compute_max_evaluations(n_var, n_obj)
         engine, engine_source = resolve_engine_details(spec.engine, algorithm=algorithm)
@@ -229,6 +231,7 @@ def _validate_execution_shape(
             actual=population,
             action="Correct the population configuration; no study directory was published.",
         )
+    _reject_below_minimum(algorithm, candidate, pop_size=population, selection=config.get("selection"))
     if budget < population:
         raise UnresolvedStudyTaskError(
             operation="resolve study plan",
@@ -243,6 +246,25 @@ def _validate_execution_shape(
     if algorithm.lower() == "rvea":
         _validate_rvea_reference_directions(config, population=population, n_obj=n_obj, candidate=candidate)
     return population
+
+
+def _reject_below_minimum(
+    algorithm: str, candidate: _Candidate, *, pop_size: int | None = None, n_obj: int | None = None, selection: object = None
+) -> None:
+    violation = minimum_violation(algorithm, pop_size=pop_size, n_obj=n_obj, selection=selection)
+    if violation is None:
+        return
+    objective = violation.field == "n_obj"
+    raise UnresolvedStudyTaskError(
+        operation="resolve study plan",
+        reason="UNSUPPORTED_OBJECTIVE_COUNT" if objective else "INVALID_POPULATION_SIZE",
+        field=f"$.matrix[{candidate.index}].{'algorithm' if objective else 'pop_size'}",
+        expected=f"{violation.field} >= {violation.minimum} for {algorithm}",
+        actual=violation.actual,
+        action=f"{violation.message} Choose another algorithm or problem; no study directory was published."
+        if objective
+        else f"{violation.message} Increase the population; no study directory was published.",
+    )
 
 
 def _validate_nsgaiii_reference_directions(config: Mapping[str, Any], *, population: int, n_obj: int, candidate: _Candidate) -> None:

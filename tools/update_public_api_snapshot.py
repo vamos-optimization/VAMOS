@@ -42,7 +42,7 @@ def main() -> None:
             raise SystemExit(f"Missing or non-literal __all__ in {path}")
         snapshot[module] = exports
 
-    SNAPSHOT_PATH.write_text(json.dumps(snapshot, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    SNAPSHOT_PATH.write_text(json.dumps(snapshot, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
     print(f"Wrote public API snapshot to {SNAPSHOT_PATH}")
 
 

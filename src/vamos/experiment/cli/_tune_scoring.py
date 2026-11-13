@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
-from dataclasses import fields, replace
+from dataclasses import dataclass, fields, replace
 from typing import Any, cast
 
 import numpy as np
@@ -9,10 +10,45 @@ from numpy.typing import NDArray
 
 from vamos.engine.algorithm.config.types import AlgorithmConfigProtocol
 from vamos.engine.algorithm.variants import canonical_algorithm_name
+from vamos.engine.tuning.racing.eval_types import EvalFn, EvalResult
+from vamos.engine.tuning.racing.tuning_task import EvalContext
 from vamos.foundation.quality_indicators.hypervolume import hypervolume
 from vamos.foundation.quality_indicators.pareto import pareto_filter
 
 _CONSTRAINED_TUNING_UNSUPPORTED: tuple[str, ...] = ()
+
+
+@dataclass
+class EvaluationLedger:
+    """How many CLI tuning evaluations ran and failed, and the cause of the first failure."""
+
+    evaluations: int = 0
+    failures: int = 0
+    first_failure: str = ""
+
+    def counts(self) -> tuple[int, int]:
+        return self.evaluations, self.failures
+
+
+class CountingEvaluator:
+    """Call ``inner`` and record in ``ledger`` whether its score is a failure (non-finite)."""
+
+    def __init__(self, inner: EvalFn, ledger: EvaluationLedger) -> None:
+        self.inner = inner
+        self.ledger = ledger
+
+    def __call__(self, config: dict[str, Any], ctx: EvalContext) -> EvalResult:
+        result = self.inner(config, ctx)
+        score = result[0] if isinstance(result, tuple) else result
+        self.ledger.evaluations += 1
+        self.ledger.failures += int(not math.isfinite(float(score)))
+        return result
+
+
+def evaluation_ledger(eval_fn: object) -> EvaluationLedger | None:
+    """The ledger of a CLI evaluator, or ``None`` for another evaluation function."""
+    ledger = getattr(eval_fn, "ledger", None)
+    return ledger if isinstance(ledger, EvaluationLedger) else None
 
 
 class _UnsupportedConstrainedTuningError(RuntimeError):

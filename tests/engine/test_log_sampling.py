@@ -2,9 +2,9 @@ import math
 
 import numpy as np
 
-from src.vamos.engine.tuning.racing.param_space import Int, ParamSpace, Real
-from src.vamos.engine.tuning.racing.refill import make_neighbor_config
-from src.vamos.engine.tuning.racing.sampler import ModelBasedSampler
+from vamos.engine.tuning.racing.param_space import Int, ParamSpace, Real
+from vamos.engine.tuning.racing.refill import make_neighbor_config
+from vamos.engine.tuning.racing.sampler import ModelBasedSampler
 
 
 def test_model_update_log_real():

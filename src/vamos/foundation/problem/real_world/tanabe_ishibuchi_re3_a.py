@@ -1,8 +1,76 @@
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 
 from .tanabe_ishibuchi_utils import sum_violations_gte0
+
+Array = np.ndarray[Any, Any]
+
+
+def two_bar_truss(x: Array) -> tuple[list[Array], list[Array]]:
+    """Objectives and constraints (``>= 0`` feasible) of the two-bar truss design, rows of ``x`` as variables.
+
+    RE31 adds the constraint violation as an objective; CRE21 and RCM03 keep the constraints.
+    """
+    x1, x2, x3 = x[0], x[1], x[2]
+    root1 = np.sqrt(16.0 + x3 * x3)
+    root2 = np.sqrt(1.0 + x3 * x3)
+    f1 = x1 * root1 + x2 * root2
+    f2 = (20.0 * root1) / (x1 * x3)
+
+    g1 = 0.1 - f1
+    g2 = 100000.0 - f2
+    g3 = 100000.0 - ((80.0 * root2) / (x3 * x2))
+    return [f1, f2], [g1, g2, g3]
+
+
+def welded_beam(x: Array) -> tuple[list[Array], list[Array]]:
+    """Objectives and constraints (``>= 0`` feasible) of the welded beam design (RE32 and CRE22)."""
+    x1, x2, x3, x4 = x[0], x[1], x[2], x[3]
+    P = 6000.0
+    L = 14.0
+    E = 30.0e6
+    G = 12.0e6
+
+    f1 = (1.10471 * x1 * x1 * x2) + (0.04811 * x3 * x4) * (14.0 + x2)
+    f2 = (4.0 * P * (L**3)) / (E * x4 * x3 * x3 * x3)
+
+    M = P * (L + (x2 / 2.0))
+    R = np.sqrt((x2 * x2) / 4.0 + np.square((x1 + x3) / 2.0))
+    J = 2.0 * np.sqrt(2.0) * x1 * x2 * ((x2 * x2) / 12.0 + np.square((x1 + x3) / 2.0))
+
+    tau_dd = (M * R) / J
+    tau_d = P / (np.sqrt(2.0) * x1 * x2)
+    tau = np.sqrt((tau_d * tau_d) + ((2.0 * tau_d * tau_dd * x2) / (2.0 * R)) + (tau_dd * tau_dd))
+
+    sigma = (6.0 * P * L) / (x4 * x3 * x3)
+
+    tmp1 = 4.013 * E * np.sqrt((x3 * x3 * (x4**6)) / 36.0) / (L * L)
+    tmp2 = (x3 / (2.0 * L)) * np.sqrt(E / (4.0 * G))
+    PC = tmp1 * (1.0 - tmp2)
+
+    g1 = 13600.0 - tau
+    g2 = 30000.0 - sigma
+    g3 = x4 - x1
+    g4 = PC - P
+    return [f1, f2], [g1, g2, g3, g4]
+
+
+def disc_brake(x: Array) -> tuple[list[Array], list[Array]]:
+    """Objectives and constraints (``>= 0`` feasible) of the disc brake design (RE33, CRE23 and RCM05)."""
+    x1, x2, x3, x4 = x[0], x[1], x[2], x[3]
+    diff2 = x2 * x2 - x1 * x1
+    diff3 = x2 * x2 * x2 - x1 * x1 * x1
+    f1 = 4.9e-5 * diff2 * (x4 - 1.0)
+    f2 = (9.82e6 * diff2) / (x3 * x4 * diff3)
+
+    g1 = (x2 - x1) - 20.0
+    g2 = 0.4 - (x3 / (3.14 * diff2))
+    g3 = 1.0 - (2.22e-3 * x3 * diff3) / np.power(diff2, 2.0)
+    g4 = (2.66e-2 * x3 * x4 * diff3) / diff2 - 900.0
+    return [f1, f2], [g1, g2, g3, g4]
 
 
 class RE31Problem:
@@ -17,20 +85,9 @@ class RE31Problem:
         self.xl = np.array([1e-5, 1e-5, 1.0], dtype=float)
         self.xu = np.array([100.0, 100.0, 3.0], dtype=float)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
-        x1 = X[:, 0]
-        x2 = X[:, 1]
-        x3 = X[:, 2]
-
-        root1 = np.sqrt(16.0 + x3 * x3)
-        root2 = np.sqrt(1.0 + x3 * x3)
-        f1 = x1 * root1 + x2 * root2
-        f2 = (20.0 * root1) / (x1 * x3)
-
-        g1 = 0.1 - f1
-        g2 = 100000.0 - f2
-        g3 = 100000.0 - ((80.0 * root2) / (x3 * x2))
-        f3 = sum_violations_gte0(g1, g2, g3)
+    def evaluate(self, X: Array, out: dict[str, Array]) -> None:
+        (f1, f2), g = two_bar_truss(X.T)
+        f3 = sum_violations_gte0(*g)
 
         Fout = out["F"]
         Fout[:, 0] = f1
@@ -50,43 +107,9 @@ class RE32Problem:
         self.xl = np.array([0.125, 0.1, 0.1, 0.125], dtype=float)
         self.xu = np.array([5.0, 10.0, 10.0, 5.0], dtype=float)
 
-        self._P = 6000.0
-        self._L = 14.0
-        self._E = 30.0e6
-        self._G = 12.0e6
-        self._tau_max = 13600.0
-        self._sigma_max = 30000.0
-
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
-        x1, x2, x3, x4 = X[:, 0], X[:, 1], X[:, 2], X[:, 3]
-
-        P = self._P
-        L = self._L
-        E = self._E
-        G = self._G
-
-        f1 = (1.10471 * x1 * x1 * x2) + (0.04811 * x3 * x4) * (14.0 + x2)
-        f2 = (4.0 * P * (L**3)) / (E * x4 * x3 * x3 * x3)
-
-        M = P * (L + (x2 / 2.0))
-        R = np.sqrt((x2 * x2) / 4.0 + np.square((x1 + x3) / 2.0))
-        J = 2.0 * np.sqrt(2.0) * x1 * x2 * ((x2 * x2) / 12.0 + np.square((x1 + x3) / 2.0))
-
-        tau_dd = (M * R) / J
-        tau_d = P / (np.sqrt(2.0) * x1 * x2)
-        tau = np.sqrt((tau_d * tau_d) + ((2.0 * tau_d * tau_dd * x2) / (2.0 * R)) + (tau_dd * tau_dd))
-
-        sigma = (6.0 * P * L) / (x4 * x3 * x3)
-
-        tmp1 = 4.013 * E * np.sqrt((x3 * x3 * (x4**6)) / 36.0) / (L * L)
-        tmp2 = (x3 / (2.0 * L)) * np.sqrt(E / (4.0 * G))
-        PC = tmp1 * (1.0 - tmp2)
-
-        g1 = self._tau_max - tau
-        g2 = self._sigma_max - sigma
-        g3 = x4 - x1
-        g4 = PC - P
-        f3 = sum_violations_gte0(g1, g2, g3, g4)
+    def evaluate(self, X: Array, out: dict[str, Array]) -> None:
+        (f1, f2), g = welded_beam(X.T)
+        f3 = sum_violations_gte0(*g)
 
         Fout = out["F"]
         Fout[:, 0] = f1
@@ -106,19 +129,9 @@ class RE33Problem:
         self.xl = np.array([55.0, 75.0, 1000.0, 11.0], dtype=float)
         self.xu = np.array([80.0, 110.0, 3000.0, 20.0], dtype=float)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
-        x1, x2, x3, x4 = X[:, 0], X[:, 1], X[:, 2], X[:, 3]
-
-        diff2 = x2 * x2 - x1 * x1
-        diff3 = x2 * x2 * x2 - x1 * x1 * x1
-        f1 = 4.9e-5 * diff2 * (x4 - 1.0)
-        f2 = (9.82e6 * diff2) / (x3 * x4 * diff3)
-
-        g1 = (x2 - x1) - 20.0
-        g2 = 0.4 - (x3 / (3.14 * diff2))
-        g3 = 1.0 - (2.22e-3 * x3 * diff3) / np.power(diff2, 2.0)
-        g4 = (2.66e-2 * x3 * x4 * diff3) / diff2 - 900.0
-        f3 = sum_violations_gte0(g1, g2, g3, g4)
+    def evaluate(self, X: Array, out: dict[str, Array]) -> None:
+        (f1, f2), g = disc_brake(X.T)
+        f3 = sum_violations_gte0(*g)
 
         Fout = out["F"]
         Fout[:, 0] = f1
@@ -138,7 +151,7 @@ class RE34Problem:
         self.xl = np.full(self.n_var, 1.0, dtype=float)
         self.xu = np.full(self.n_var, 3.0, dtype=float)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: Array, out: dict[str, Array]) -> None:
         x1, x2, x3, x4, x5 = X[:, 0], X[:, 1], X[:, 2], X[:, 3], X[:, 4]
 
         f1 = 1640.2823 + (2.3573285 * x1) + (2.3220035 * x2) + (4.5688768 * x3) + (7.7213633 * x4) + (4.4559504 * x5)
@@ -175,4 +188,4 @@ class RE34Problem:
         Fout[:, 2] = f3
 
 
-__all__ = ["RE31Problem", "RE32Problem", "RE33Problem", "RE34Problem"]
+__all__ = ["RE31Problem", "RE32Problem", "RE33Problem", "RE34Problem", "disc_brake", "two_bar_truss", "welded_beam"]

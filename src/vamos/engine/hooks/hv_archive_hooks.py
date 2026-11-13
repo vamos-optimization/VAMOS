@@ -97,6 +97,10 @@ class HookManager:
         self._archive_F: np.ndarray[Any, Any] | None = None
         self._archive_total_inserted = 0
         self._archive_total_pruned = 0
+        self._archive_total_dominated = 0
+        self._archive_total_capacity = 0
+        # Objective rows of the last notification, so each row is offered to the archive once.
+        self._offered_rows: set[bytes] = set()
 
         self._last_hv: float | None = None
         # With an automatic reference, the first sample fixes it so the HV series stays comparable.
@@ -170,25 +174,7 @@ class HookManager:
         if self.cfg.archive_enabled:
             self._ensure_archive(F)
         if self.archive is not None:
-            before = 0 if self._archive_F is None else int(self._archive_F.shape[0])
-            dummy_X = np.empty((F.shape[0], 0), dtype=float)
-            _, archive_F = self.archive.update(dummy_X, np.asarray(F, dtype=float), None)
-            after = int(archive_F.shape[0])
-            inserted = int(F.shape[0])
-            pruned = max(0, before + inserted - after)
-            self._archive_total_inserted += inserted
-            self._archive_total_pruned += pruned
-            self._archive_F = archive_F
-            _append_trace(
-                self._archive_stats,
-                {
-                    "evals": int(evals),
-                    "archive_size": after,
-                    "inserted": inserted,
-                    "pruned": pruned,
-                    "prune_reason": self.cfg.archive_cfg.pruning if pruned > 0 else "none",
-                },
-            )
+            self._update_archive(evals, np.asarray(F, dtype=float))
 
         if not self._should_sample(evals):
             return
@@ -239,6 +225,52 @@ class HookManager:
         if hv is not None:
             self._last_hv = float(hv)
 
+    def _new_rows(self, F: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
+        """Rows of ``F`` that the last notification did not contain (all rows, with an objective tolerance).
+
+        Steady-state algorithms notify after every evaluation with a population that
+        differs in at most a few rows; offering only those keeps the archive's work per
+        notification proportional to what changed.
+        """
+        keys = [row.tobytes() for row in np.ascontiguousarray(F)]
+        new = np.array([key not in self._offered_rows for key in keys], dtype=bool)
+        self._offered_rows = set(keys)
+        if new.any() and self.cfg.archive_cfg.objective_tolerance > 0:
+            # With a tolerance, a row once dropped as a near-duplicate becomes eligible when its
+            # representative is dominated, so every row is offered again when anything changed.
+            return F
+        rows: np.ndarray[Any, Any] = F[new]
+        return rows
+
+    def _update_archive(self, evals: int, F: np.ndarray[Any, Any]) -> None:
+        assert self.archive is not None
+        rows = self._new_rows(F)
+        if rows.shape[0] == 0:
+            return
+        before = 0 if self._archive_F is None else int(self._archive_F.shape[0])
+        _, archive_F = self.archive.update(np.empty((rows.shape[0], 0), dtype=float), rows, None)
+        after = int(archive_F.shape[0])
+        inserted = int(rows.shape[0])
+        pruned = max(0, before + inserted - after)
+        capacity = min(pruned, int(getattr(self.archive, "last_capacity_pruned", 0)))
+        self._archive_total_inserted += inserted
+        self._archive_total_pruned += pruned
+        self._archive_total_dominated += pruned - capacity
+        self._archive_total_capacity += capacity
+        self._archive_F = archive_F
+        _append_trace(
+            self._archive_stats,
+            {
+                "evals": int(evals),
+                "archive_size": after,
+                "inserted": inserted,
+                "pruned": pruned,
+                "dominated_or_duplicate": pruned - capacity,
+                "pruned_by_capacity": capacity,
+                "prune_reason": self.cfg.archive_cfg.pruning if capacity > 0 else "none",
+            },
+        )
+
     def should_stop(self) -> bool:
         if self._stop_decision is None:
             return False
@@ -272,6 +304,8 @@ class HookManager:
                 "final_size": final_size,
                 "total_inserted": int(self._archive_total_inserted),
                 "total_pruned": int(self._archive_total_pruned),
+                "total_dominated_or_duplicate": int(self._archive_total_dominated),
+                "total_pruned_by_capacity": int(self._archive_total_capacity),
                 "trace": list(self._archive_stats),
             }
 

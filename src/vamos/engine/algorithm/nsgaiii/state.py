@@ -108,6 +108,8 @@ def build_nsgaiii_result(
         "reference_directions": state.ref_dirs.copy(),
         "evaluations": state.n_eval,
         "generation": state.generation,
+        "hv_reached": hv_reached,
+        # Alias of hv_reached, kept until VAMOS 2.0.
         "hv_converged": hv_reached,
         "population": {"X": state.X.copy(), "F": state.F.copy(), "G": state.G.copy() if state.G is not None else None},
     }

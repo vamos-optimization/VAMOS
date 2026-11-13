@@ -14,6 +14,7 @@ from vamos.experiment.study.errors import (
     PlanMismatchError,
     StudyInfrastructureError,
     StudyOutputCollisionError,
+    UnsafeStudyPathError,
     UnsupportedStudySchemaError,
 )
 from vamos.experiment.study.paths import validate_study_relative_path
@@ -127,7 +128,7 @@ def test_sa_014_uppercase_uuid_is_rejected(tmp_path: Path) -> None:
     ["/absolute", "C:/drive", "//server/share", "https://example.test/a", "../escape", "a/../b", "a\\b", "a//b", "a%2fb", "a\x00b", ""],
 )
 def test_sa_015_unsafe_path_classes_are_rejected(unsafe: str) -> None:
-    with pytest.raises(Exception) as caught:
+    with pytest.raises(UnsafeStudyPathError) as caught:
         validate_study_relative_path(unsafe, role="test")
     assert getattr(caught.value, "reason", None) == "UNSAFE_PATH"
 

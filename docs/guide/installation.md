@@ -69,7 +69,7 @@ Install only the capability groups you use:
 | `tuning` | Optional model-based tuning backends | Experimental |
 | `studio` | Panel-based local Studio | Experimental; see [Studio](studio.md) for release limitations |
 | `examples` | Dependencies used by selected examples | Depends on the example's interfaces |
-| `openai`, `anthropic` | Optional provider SDKs | Experimental integrations |
+| `openai`, `anthropic`, `gemini` | LLM provider SDKs: Assist uses `openai`, and the Studio Problem Builder uses any of the three (`gemini` is new after 1.1.0) | Experimental integrations |
 | `docs` | Documentation toolchain | Developer tooling |
 | `dev` | Tests, linting, typing, building, and docs checks | Developer tooling |
 | `all` | All optional and development groups | Mixed; does not change interface guarantees |

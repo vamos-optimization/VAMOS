@@ -31,6 +31,7 @@ class AGEMOEAState(AlgorithmState):
     """
 
     max_evals: int = 0
+    hv_reached: bool = False
     variation: VariationPipeline | None = None
     selection_ranks: Any = field(default=None, repr=False, compare=False)
     selection_crowding: Any = field(default=None, repr=False, compare=False)
@@ -73,6 +74,7 @@ def build_agemoea_result(
         "F": result_F,
         "evaluations": state.n_eval,
         "generation": state.generation,
+        "hv_reached": state.hv_reached,
         "population": population,
     }
     if result_G is not None:

@@ -1,16 +1,10 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
-from typing import TYPE_CHECKING, Any, Literal, cast, overload
+from typing import Any, Literal, cast, overload
 
 import moocore
 import numpy as np
-from numpy.typing import NDArray
-
-try:  # Optional JIT acceleration for tournament selection
-    from numba import njit
-except ImportError:  # pragma: no cover - optional dependency
-    njit = None
 
 from vamos.foundation.quality_indicators.hypervolume import hypervolume as hv_fn
 
@@ -28,72 +22,11 @@ def _fronts_from_ranks(ranks: IntArray) -> list[list[int]]:
     return [np.flatnonzero(ranks == r).tolist() for r in unique_ranks]
 
 
-def _tournament_winners_numpy(
-    ranks: IntArray,
-    crowding: FloatArray,
-    candidates: IntArray,
-) -> IntArray:
-    n_rows = candidates.shape[0]
-    winners = np.empty(n_rows, dtype=np.int64)
-    for i in range(n_rows):
-        best_idx = candidates[i, 0]
-        best_rank = ranks[best_idx]
-        best_crowd = crowding[best_idx]
-        for j in range(1, candidates.shape[1]):
-            idx = candidates[i, j]
-            r = ranks[idx]
-            if r < best_rank or (r == best_rank and crowding[idx] > best_crowd):
-                best_rank = r
-                best_crowd = crowding[idx]
-                best_idx = idx
-        winners[i] = best_idx
-    return winners
-
-
-if njit is not None:  # pragma: no cover - optional speed-up
-    if TYPE_CHECKING:
-
-        def _tournament_winners_numba(
-            ranks: IntArray,
-            crowding: FloatArray,
-            candidates: IntArray,
-        ) -> IntArray: ...
-
-    else:
-
-        @njit(cache=True)
-        def _tournament_winners_numba(
-            ranks: IntArray,
-            crowding: FloatArray,
-            candidates: IntArray,
-        ) -> IntArray:
-            n_rows = candidates.shape[0]
-            n_cols = candidates.shape[1]
-            winners = np.empty(n_rows, dtype=np.int64)
-            for i in range(n_rows):
-                best_idx = candidates[i, 0]
-                best_rank = ranks[best_idx]
-                best_crowd = crowding[best_idx]
-                for j in range(1, n_cols):
-                    idx = candidates[i, j]
-                    r = ranks[idx]
-                    if r < best_rank or (r == best_rank and crowding[idx] > best_crowd):
-                        best_rank = r
-                        best_crowd = crowding[idx]
-                        best_idx = idx
-                winners[i] = best_idx
-            return winners
-
-else:
-
-    def _tournament_winners_numba(ranks: IntArray, crowding: FloatArray, candidates: IntArray) -> IntArray:
-        return _tournament_winners_numpy(ranks, crowding, candidates)
-
-
 class MooCoreKernel(KernelBackend):
-    """
-    Consolidated MooCore backend with buffered survival, adaptive HV/crowding,
-    optional numba tournament selection, and incremental archive maintenance.
+    """MooCore backend: MooCore's Pareto ranking in ranking and buffered NSGA-II survival.
+
+    Crowding distances, tournaments and variation use the NumPy reference, so the
+    trajectories match the NumPy kernel.
     """
 
     name = "moocore"
@@ -103,8 +36,6 @@ class MooCoreKernel(KernelBackend):
         self._X_buffer: DecisionArray | None = None
         self._F_buffer: FloatArray | None = None
         self._keep_buffer: IntArray | None = None
-        self._archive_manager: _IncrementalArchive | None = None
-        self._stats: dict[str, int] = {"buffer_resizes": 0}
 
     def capabilities(self) -> Iterable[str]:
         return ("c_backend",)
@@ -272,114 +203,5 @@ class MooCoreKernel(KernelBackend):
     ) -> tuple[DecisionArray, FloatArray] | tuple[DecisionArray, FloatArray, IntArray]:
         return self._survive(X, F, X_off, F_off, pop_size, return_indices=return_indices)
 
-    def update_archive(
-        self,
-        archive_X: DecisionArray | None,
-        archive_F: FloatArray | None,
-        population_X: DecisionArray,
-        population_F: FloatArray,
-        archive_size: int,
-    ) -> tuple[DecisionArray | None, FloatArray | None]:
-        if archive_size <= 0:
-            return archive_X, archive_F
-        if (
-            self._archive_manager is None
-            or self._archive_manager.capacity != archive_size
-            or self._archive_manager._X.shape[1] != population_X.shape[1]
-        ):
-            self._archive_manager = _IncrementalArchive(
-                self, archive_size, population_X.shape[1], population_F.shape[1], population_X.dtype
-            )
-            if archive_X is not None and archive_X.size:
-                assert archive_F is not None
-                self._archive_manager.bootstrap(archive_X, archive_F)
-        elif archive_X is not None and archive_X.size and self._archive_manager.is_empty():
-            assert archive_F is not None
-            self._archive_manager.bootstrap(archive_X, archive_F)
-
-        updated_X, updated_F = self._archive_manager.update(population_X, population_F)
-        return updated_X, updated_F
-
     def hypervolume(self, points: RealArray, reference_point: RealArray) -> float:
         return hv_fn(points, reference_point)
-
-
-class _IncrementalArchive:
-    """
-    Lightweight incremental archive that inserts candidates one-by-one,
-    removing dominated points and trimming by leveraging the kernel's
-    diversity selector when capacity is exceeded.
-    """
-
-    def __init__(
-        self,
-        kernel: MooCoreKernel,
-        capacity: int,
-        n_var: int,
-        n_obj: int,
-        dtype: Any,
-    ) -> None:
-        self.kernel = kernel
-        self.capacity = int(capacity)
-        self._dtype = np.dtype(dtype)
-        self._X: DecisionArray = np.empty((0, n_var), dtype=self._dtype)
-        self._F: FloatArray = np.empty((0, n_obj), dtype=float)
-
-    def is_empty(self) -> bool:
-        return self._X.size == 0
-
-    def bootstrap(self, archive_X: DecisionArray, archive_F: FloatArray) -> None:
-        self._X = np.asarray(archive_X, dtype=self._dtype, order="C").copy()
-        self._F = np.asarray(archive_F, dtype=float, order="C").copy()
-
-    def _dominates(self, candidates: RealArray, f: RealArray) -> NDArray[np.bool_]:
-        if candidates.size == 0:
-            return np.zeros(0, dtype=bool)
-        less_equal = candidates <= f
-        strictly_less = candidates < f
-        dominates = np.all(less_equal, axis=1) & np.any(strictly_less, axis=1)
-        return cast(NDArray[np.bool_], dominates)
-
-    def _trim(self) -> None:
-        if self._F.shape[0] <= self.capacity:
-            return
-        idx = np.arange(self._F.shape[0], dtype=int)
-        selected = self.kernel._select_partial_front(self._F, idx, self.capacity)
-        self._X = self._X[selected]
-        self._F = self._F[selected]
-
-    def update(self, pop_X: DecisionArray, pop_F: FloatArray) -> tuple[DecisionArray, FloatArray]:
-        """
-        Vectorized archive maintenance: merge, filter non-dominated, then trim.
-        Avoids per-individual Python loops and repeated vstack allocations.
-        """
-        if pop_X.size == 0:
-            return self._X, self._F
-
-        pop_X = np.asarray(pop_X, dtype=self._dtype, order="C")
-        pop_F = np.asarray(pop_F, dtype=float, order="C")
-
-        if self._X.size == 0:
-            X_comb = pop_X
-            F_comb = pop_F
-        else:
-            X_comb = np.vstack((self._X, pop_X))
-            F_comb = np.vstack((self._F, pop_F))
-
-        F_comb = np.asarray(F_comb, dtype=float, order="C")
-        nondom_mask = cast(NDArray[np.bool_], moocore.is_nondominated(F_comb))
-        X_nd = X_comb[nondom_mask]
-        F_nd = F_comb[nondom_mask]
-
-        if F_nd.shape[0] > self.capacity:
-            idx = np.arange(F_nd.shape[0], dtype=int)
-            selected = self.kernel._select_partial_front(F_nd, idx, self.capacity)
-            X_nd = X_nd[selected]
-            F_nd = F_nd[selected]
-
-        self._X = X_nd
-        self._F = F_nd
-        return self._X, self._F
-
-    def contents(self) -> tuple[DecisionArray, FloatArray]:
-        return self._X, self._F

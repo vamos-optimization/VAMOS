@@ -109,3 +109,6 @@ engine_study*
 
 # Private manuscript workspace (never publish)
 /paper/
+
+# --- Cloudflare hosting tools (npm ci in cloudflare/) ---
+/cloudflare/node_modules/

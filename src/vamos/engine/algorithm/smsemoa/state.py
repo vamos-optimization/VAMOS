@@ -42,6 +42,12 @@ class SMSEMOAState(AlgorithmState):
         Crossover operator function.
     mutation_fn : Callable
         Mutation operator function.
+    steps : int
+        Children evaluated after the initial population. A generation is
+        ``pop_size`` steps, so ``generation == steps // pop_size``.
+    hv_reached : bool
+        Whether an ``("hv", ...)`` target held at the last generation boundary,
+        where it is checked; ``should_terminate()`` and ``result()`` read it.
     """
 
     ref_point: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
@@ -55,6 +61,8 @@ class SMSEMOAState(AlgorithmState):
     fronts: list[list[int]] | None = None
     ranks: np.ndarray[Any, Any] | None = None
     crowding: np.ndarray[Any, Any] | None = None
+    steps: int = 0
+    hv_reached: bool = False
 
     # Workspace buffers (avoid per-iteration allocations in steady-state SMS-EMOA)
     _survival_F: np.ndarray[Any, Any] | None = field(default=None, repr=False, compare=False)
@@ -115,6 +123,8 @@ def build_smsemoa_result(
         "reference_point": state.ref_point.copy(),
         "evaluations": state.n_eval,
         "generation": state.generation,
+        "hv_reached": hv_reached,
+        # Alias of hv_reached, kept until VAMOS 2.0.
         "hv_converged": hv_reached,
         "population": with_constraints({"X": state.X.copy(), "F": state.F.copy()}, state.G.copy() if state.G is not None else None),
     }

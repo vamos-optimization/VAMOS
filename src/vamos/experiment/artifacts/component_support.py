@@ -26,7 +26,7 @@ BUILT_IN_OPERATORS = (
     "tournament",
     "uniform",
 )
-BUILT_IN_TERMINATIONS = ("max_evaluations", "hv")
+BUILT_IN_TERMINATIONS = ("max_evaluations", "n_gen", "hv")
 
 
 def component_reconstructability(manifest: RunManifest) -> tuple[ComponentStatus, tuple[VerificationReason, ...]]:
