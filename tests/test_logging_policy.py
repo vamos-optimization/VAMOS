@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import logging
 from pathlib import Path
 
 ALLOWED_BASICCONFIG_PATHS: tuple[str, ...] = ()
@@ -48,3 +49,43 @@ def test_logging_policy() -> None:
         msg = ["logging.basicConfig is forbidden in library modules:"]
         msg.extend(f"- {item}" for item in sorted(violations))
         raise AssertionError("\n".join(msg))
+
+
+def test_auto_selected_log_lists_only_auto_values(caplog) -> None:
+    """The "Auto-selected defaults" log names only what optimize chose (VR-127)."""
+    import vamos
+    from vamos.algorithms import NSGAIIConfig
+
+    with caplog.at_level(logging.INFO, logger="vamos"):
+        vamos.optimize(
+            "zdt1",
+            algorithm="nsgaii",
+            algorithm_config=NSGAIIConfig.default(pop_size=10, n_var=30),
+            termination=("max_evaluations", 40),
+            seed=1,
+        )
+    assert not [record.getMessage() for record in caplog.records if "Auto-selected" in record.getMessage()]
+
+    caplog.clear()
+    with caplog.at_level(logging.INFO, logger="vamos"):
+        result = vamos.optimize("dtlz2", algorithm="nsgaiii", max_evaluations=200, seed=1)
+    (message,) = [record.getMessage() for record in caplog.records if "Auto-selected" in record.getMessage()]
+    # NSGA-III's population is its reference lattice, not the size derived from the problem.
+    assert f"'pop_size': {len(result.data['population']['F'])}" in message, message
+
+
+def test_verbose_does_not_configure_logger_permanently() -> None:
+    """``verbose=True`` logs the run and leaves the "vamos" logger as it was (VR-127)."""
+    import json
+    import subprocess
+    import sys
+
+    code = (
+        "import json, logging, vamos\n"
+        "vamos.optimize('zdt1', max_evaluations=100, pop_size=10, seed=1, verbose=True)\n"
+        "logger = logging.getLogger('vamos')\n"
+        "print(json.dumps([len(logger.handlers), logger.propagate, logger.level]))\n"
+    )
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True, timeout=300)
+    assert "[vamos] Problem: n_var=30" in proc.stderr
+    assert json.loads(proc.stdout.splitlines()[-1]) == [0, True, logging.NOTSET]

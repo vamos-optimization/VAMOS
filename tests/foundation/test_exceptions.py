@@ -193,12 +193,12 @@ class TestDependencyErrors:
         assert "pip install pandas" in str(err)
 
     def test_backend_not_available_error(self):
-        """BackendNotAvailableError should suggest vamos[compute]."""
+        """BackendNotAvailableError should suggest vamos-optimization[compute]."""
         from vamos.foundation.exceptions import BackendNotAvailableError
 
         err = BackendNotAvailableError("numba")
         assert "numba" in str(err)
-        assert "vamos[compute]" in str(err)
+        assert "vamos-optimization[compute]" in str(err)
 
 
 class TestExceptionHierarchy:
@@ -305,6 +305,30 @@ class TestExceptionUsage:
                 BackendNotAvailableError,
             ]
         )
+
+
+def test_install_hints_name_the_distribution() -> None:
+    """Install hints name the PyPI distribution, not `vamos` (another project) or a checkout install (VR-128)."""
+    import re
+    from pathlib import Path
+
+    import vamos
+    from vamos.foundation.exceptions import BackendNotAvailableError, InvalidAlgorithmError, InvalidEngineError
+
+    src = Path(vamos.__file__).resolve().parent
+    wrong = re.compile(r"pip install (-e\b|\"?vamos\[)")
+    offenders = [
+        f"{path.relative_to(src).as_posix()}:{number}"
+        for path in sorted(src.rglob("*.py"))
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1)
+        if wrong.search(line)
+    ]
+    assert offenders == []
+    assert 'pip install "vamos-optimization[compute]"' in str(BackendNotAvailableError("numba"))
+    assert 'pip install "vamos-optimization[compute]"' in str(InvalidEngineError("numbaa"))
+    from vamos.engine.algorithm.registry import get_builtin_algorithm_names
+
+    assert InvalidAlgorithmError("nsga").details["available"] == list(get_builtin_algorithm_names())
 
 
 def test_artifact_and_study_errors_are_vamos_errors():

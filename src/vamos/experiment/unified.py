@@ -27,7 +27,7 @@ from vamos.experiment.types import CheckpointPayload, LiveVisualization, Termina
 from vamos.foundation.encoding import normalize_encoding
 from vamos.foundation.eval import EvaluationBackend
 from vamos.foundation.exceptions import ConfigurationError
-from vamos.foundation.logging import configure_vamos_logging
+from vamos.foundation.logging import vamos_logging
 from vamos.foundation.problem.types import ProblemProtocol
 from vamos.foundation.problem.validation import validate_problem
 
@@ -217,47 +217,49 @@ def optimize(
             raise ConfigurationError("checkpoint is only supported for single-seed runs.")
         if any(isinstance(value, bool) or not isinstance(value, numbers.Integral) for value in seed):
             raise ConfigurationError("seed sequences must contain only integers.")
-        return StudyResult(
-            [
-                _run_single(
-                    problem,
-                    algorithm,
-                    max_evaluations,
-                    termination,
-                    pop_size,
-                    engine,
-                    int(single_seed),
-                    verbose,
-                    n_var,
-                    n_obj,
-                    problem_kwargs,
-                    algorithm_config,
-                    eval_strategy,
-                    live_viz,
-                    checkpoint,
-                )
-                for single_seed in seed
-            ]
-        )
+        with vamos_logging(enabled=verbose):
+            return StudyResult(
+                [
+                    _run_single(
+                        problem,
+                        algorithm,
+                        max_evaluations,
+                        termination,
+                        pop_size,
+                        engine,
+                        int(single_seed),
+                        verbose,
+                        n_var,
+                        n_obj,
+                        problem_kwargs,
+                        algorithm_config,
+                        eval_strategy,
+                        live_viz,
+                        checkpoint,
+                    )
+                    for single_seed in seed
+                ]
+            )
 
     # Single run
-    return _run_single(
-        problem,
-        algorithm,
-        max_evaluations,
-        termination,
-        pop_size,
-        engine,
-        seed,
-        verbose,
-        n_var,
-        n_obj,
-        problem_kwargs,
-        algorithm_config,
-        eval_strategy,
-        live_viz,
-        checkpoint,
-    )
+    with vamos_logging(enabled=verbose):
+        return _run_single(
+            problem,
+            algorithm,
+            max_evaluations,
+            termination,
+            pop_size,
+            engine,
+            seed,
+            verbose,
+            n_var,
+            n_obj,
+            problem_kwargs,
+            algorithm_config,
+            eval_strategy,
+            live_viz,
+            checkpoint,
+        )
 
 
 def _run_single(
@@ -312,9 +314,6 @@ def _run_single(
     requested_algorithm = algorithm
     requested_engine = engine
 
-    if verbose:
-        configure_vamos_logging()
-
     algorithm_was_auto = algorithm == "auto"
 
     # Resolve problem
@@ -342,28 +341,15 @@ def _run_single(
 
     # Auto-determine hyperparameters if not specified
     effective_pop_size = pop_size if pop_size else _compute_pop_size(n_var, n_obj)
-    if not pop_size:
-        _auto_defaults["pop_size"] = effective_pop_size
     effective_max_evaluations = max_evaluations if max_evaluations is not None else _compute_max_evaluations(n_var, n_obj)
     if termination is not None and termination[0] == "max_evaluations":
         effective_max_evaluations = _coerce_int("termination max_evaluations", termination[1], min_value=1)
-    if max_evaluations is None:
+    if max_evaluations is None and termination is None:
         _auto_defaults["max_evaluations"] = effective_max_evaluations
     effective_termination = termination if termination is not None else ("max_evaluations", effective_max_evaluations)
     effective_engine, engine_source = resolve_engine_details(engine, algorithm=algorithm)
     if engine_source == "auto":
         _auto_defaults["engine"] = effective_engine
-
-    if _auto_defaults:
-        _logger().info("[vamos] Auto-selected defaults: %s", _auto_defaults)
-    if verbose:
-        _logger().info("[vamos] Problem: n_var=%s, n_obj=%s, encoding=%s", n_var, n_obj, encoding)
-        _logger().info(
-            "[vamos] Config: %s, pop_size=%s, max_evaluations=%s",
-            algorithm,
-            effective_pop_size,
-            effective_max_evaluations,
-        )
 
     algo_cfg: AlgorithmConfigProtocol
     if algorithm_config is None:
@@ -413,6 +399,19 @@ def _run_single(
         _check_algorithm_minimums(algorithm, pop_size=resolved_pop_size, selection=algo_cfg_dict.get("selection"))
     if resolved_pop_size is None and algorithm_config is None:
         resolved_pop_size = effective_pop_size
+    if algorithm_config is None and pop_size is None:
+        # The size the run uses: MOEA/D, NSGA-III and RVEA take their reference lattice's.
+        _auto_defaults["pop_size"] = resolved_pop_size
+    if _auto_defaults:
+        _logger().info("[vamos] Auto-selected defaults: %s", _auto_defaults)
+    if verbose:
+        _logger().info("[vamos] Problem: n_var=%s, n_obj=%s, encoding=%s", n_var, n_obj, encoding)
+        _logger().info(
+            "[vamos] Config: %s, pop_size=%s, max_evaluations=%s",
+            algorithm,
+            resolved_pop_size,
+            effective_max_evaluations,
+        )
 
     config = _OptimizeConfig(
         problem=problem_instance,
