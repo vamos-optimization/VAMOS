@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 
+from vamos.foundation.problem._output import objective_output
 from vamos.foundation.problem.base import Problem
 
 
@@ -40,7 +43,7 @@ class ZDT5Problem(Problem):
         self._block_size = int(block_size)
         self._n_blocks = (self.n_var - self._first_block) // self._block_size
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         X = np.asarray(X)
         if X.ndim != 2 or X.shape[1] != self.n_var:
             raise ValueError(f"Expected input shape (N, {self.n_var}), got {X.shape}.")
@@ -59,7 +62,7 @@ class ZDT5Problem(Problem):
         f1 = 1.0 + u0
         f2 = g / f1
 
-        F = out["F"]
+        F = objective_output(out, len(X), self.n_obj)
         F[:, 0] = f1
         F[:, 1] = f2
 

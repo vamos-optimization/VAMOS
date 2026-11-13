@@ -4,6 +4,8 @@ from typing import Any
 
 import numpy as np
 
+from vamos.foundation.problem._output import objective_output
+
 from ._training import TRAINING_ERRORS, report_training_failures
 
 
@@ -63,7 +65,7 @@ class FeatureSelectionProblem:
         except ImportError as exc:  # pragma: no cover - should be prevented by __init__
             raise ImportError("scikit-learn is required for evaluation.") from exc
 
-        F = out["F"]
+        F = objective_output(out, len(X), self.n_obj)
         failures: list[Exception] = []
         trained = 0
         for i, row in enumerate(X):
