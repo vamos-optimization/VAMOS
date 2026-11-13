@@ -13,6 +13,7 @@ from typing import Any
 
 import numpy as np
 
+from vamos.engine.algorithm.components.constraint_handling import run_progress, run_technique
 from vamos.engine.algorithm.components.evaluation import combine_constraints, extract_evaluation_arrays
 from vamos.engine.algorithm.components.hooks import get_live_viz, live_should_stop
 from vamos.engine.algorithm.components.metrics import setup_hv_tracker
@@ -44,7 +45,13 @@ from vamos.foundation.observer import RunContext
 from vamos.foundation.problem.types import ProblemProtocol
 
 from .state import AGEMOEAState, build_agemoea_result
-from .survival import constraint_aware_age_survival, population_selection_metrics, selection_metrics
+from .survival import (
+    constraint_aware_age_survival,
+    population_selection_metrics,
+    selection_metrics,
+    technique_age_survival,
+    technique_selection_metrics,
+)
 
 
 def _logger() -> logging.Logger:
@@ -139,7 +146,10 @@ class AGEMOEA:
         self._live_cb: LiveVisualization | None = None
 
     def _refresh_selection_metrics(self, st: AGEMOEAState) -> None:
-        ranks, scores = population_selection_metrics(self.kernel, st.F, st.G, st.constraint_mode)
+        if st.constraint_handling is not None and st.G is not None:
+            ranks, scores = technique_selection_metrics(self.kernel, st.F, st.G, st.constraint_handling, st.rng)
+        else:
+            ranks, scores = population_selection_metrics(self.kernel, st.F, st.G, st.constraint_mode)
         st.selection_ranks = ranks
         st.selection_crowding = scores
 
@@ -201,6 +211,7 @@ class AGEMOEA:
 
         pop_size = int(self.cfg.get("pop_size", 100))
         constraint_mode = normalize_constraint_mode(self.cfg.get("constraint_mode", "feasibility"))
+        constraint_handling = run_technique(self.cfg.get("constraint_handling"), constraint_mode)
         n_constraints = int(getattr(problem, "n_constraints", 0) or 0)
         max_evals, hv_config = parse_termination(termination, "AGE-MOEA", pop_size)
         validate_initial_budget(max_evals, pop_size, "AGE-MOEA")
@@ -235,7 +246,10 @@ class AGEMOEA:
             ext_cfg,
             G,
         )
-        selection_ranks, selection_crowding = population_selection_metrics(self.kernel, F, G, constraint_mode)
+        if constraint_handling is not None and G is not None:
+            selection_ranks, selection_crowding = technique_selection_metrics(self.kernel, F, G, constraint_handling, rng)
+        else:
+            selection_ranks, selection_crowding = population_selection_metrics(self.kernel, F, G, constraint_mode)
 
         result_mode = str(self.cfg.get("result_mode", "non_dominated")).strip().lower()
         if result_mode not in {"non_dominated", "population"}:
@@ -253,6 +267,7 @@ class AGEMOEA:
             max_evals=max_evals,
             variation=variation,
             constraint_mode=constraint_mode,
+            constraint_handling=constraint_handling,
             archive_size=ext_cfg.capacity if ext_cfg is not None else None,
             archive_X=archive_X,
             archive_F=archive_F,
@@ -357,12 +372,25 @@ class AGEMOEA:
         F_combined = np.vstack([st.F, F_off])
         G_combined = combine_constraints(st.G, G_off, st.constraint_mode, algorithm="AGE-MOEA")
 
-        survivors, survival_scores = constraint_aware_age_survival(F_combined, G_combined, st.pop_size, self.kernel, st.constraint_mode)
+        technique = st.constraint_handling
+        if technique is not None and G_combined is not None:
+            # The technique follows the evaluations before the offspring's.
+            progress = run_progress(st.n_eval, st.max_evals)
+            survivors, survival_scores = technique_age_survival(
+                F_combined, G_combined, st.pop_size, self.kernel, technique, st.rng, progress
+            )
+        else:
+            survivors, survival_scores = constraint_aware_age_survival(F_combined, G_combined, st.pop_size, self.kernel, st.constraint_mode)
         st.X = X_combined[survivors]
         st.F = F_combined[survivors]
         st.G = G_combined[survivors] if G_combined is not None else None
         st.n_eval += X_off.shape[0]
-        st.selection_ranks, st.selection_crowding = selection_metrics(self.kernel, st.F, st.G, st.constraint_mode, survival_scores)
+        if technique is not None and st.G is not None:
+            st.selection_ranks, st.selection_crowding = technique_selection_metrics(
+                self.kernel, st.F, st.G, technique, st.rng, survival_scores
+            )
+        else:
+            st.selection_ranks, st.selection_crowding = selection_metrics(self.kernel, st.F, st.G, st.constraint_mode, survival_scores)
         if st.archive_manager is not None:
             st.archive_X, st.archive_F = st.archive_manager.update(st.X, st.F, st.G)
 

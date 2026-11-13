@@ -43,6 +43,10 @@ without a source checkout:
 | External research baselines | `python -m pip install "vamos-optimization[research]==1.2.0"` | Experimental integrations |
 | Optional tuning backends | `python -m pip install "vamos-optimization[tuning]==1.2.0"` | Experimental |
 
+**VAMOS 1.2.0:** the `research` extra and its third-party baselines
+are removed, and notebooks need the `examples` extra besides `analysis`; see
+[optional extras](installation.md#optional-extras).
+
 An explicitly requested unavailable backend fails; it is not silently replaced
 by NumPy. Choose `engine="numpy"` explicitly if you want a core-only run.
 

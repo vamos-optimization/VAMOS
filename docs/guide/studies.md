@@ -227,12 +227,22 @@ Plan first and review the task count and total budget before `create` or `run`. 
 
 ## Resume and retry
 
-After interruption, reload the directory and resume eligible work:
+After interruption, reload the directory, resume eligible work, and retry the
+failed tasks if there are any:
 
 ```python
-resumed = load_study("studies/example").resume()
-retried = resumed.retry(failed_only=True)
+from vamos import load_study
+
+study = load_study("studies/example").resume()
+if study.inspect().retryable_failed_work:
+    study = study.retry(failed_only=True)
 ```
+
+`resume()` does nothing when no task is pending or interrupted. `retry()` needs
+a failed task that can be retried. On a study whose tasks all succeeded, it
+raises `RetryNotAllowedError` (a `StudyError`) with reason
+`TERMINAL_TASK_NOT_RETRYABLE`, and `vamos study retry` exits with code 4.
+Check `retryable_failed_work` first, as above.
 
 The CLI equivalents are:
 
@@ -241,6 +251,11 @@ vamos study resume studies/example --json
 vamos study resume studies/example --retry-failed --json
 vamos study retry studies/example --failed --json
 ```
+
+`vamos study inspect studies/example --json` reports `retryable_failed_work`
+and `retryable_task_ids`. `vamos study resume --retry-failed`, or
+`resume(retry_failed=True)` in Python, resumes and retries in one step, and
+does nothing when no task is left to run.
 
 Retry is explicit and bounded by `max_attempts_per_task`. VAMOS does not mutate the immutable study plan or silently substitute current convenience defaults.
 

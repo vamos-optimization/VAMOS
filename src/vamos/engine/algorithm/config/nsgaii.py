@@ -14,6 +14,7 @@ from .base import (
     LiveCallbackMode,
     ResultMode,
     _ConfigBuilderState,
+    _ConstraintHandlingBuilder,
     _ConstraintModeBuilder,
     _CrossoverBuilder,
     _InitializerBuilder,
@@ -76,6 +77,7 @@ class _NSGAIIConfigBuilder(
     _MutationProbFactorBuilder,
     _ResultArchiveBuilder,
     _ConstraintModeBuilder,
+    _ConstraintHandlingBuilder,
     _TrackGenealogyBuilder,
 ):
     """
@@ -151,6 +153,7 @@ class _NSGAIIConfigBuilder(
             mutation_prob_factor=self._cfg.get("mutation_prob_factor"),
             result_mode=self._cfg.get("result_mode", "non_dominated"),
             constraint_mode=self._cfg.get("constraint_mode", "feasibility"),
+            constraint_handling=self._cfg.get("constraint_handling"),
             track_genealogy=bool(self._cfg.get("track_genealogy", False)),
             immigration=self._cfg.get("immigration"),
             parent_selection_filter=self._cfg.get("parent_selection_filter"),
@@ -181,6 +184,8 @@ class NSGAIIConfig(_SerializableConfig):
     live_callback_mode: LiveCallbackMode = "nd_only"
     generation_callback: Any | None = None
     generation_callback_copy: bool = True
+    # Fields added after 1.0 go last, so that the constructor keeps the positions of its parameters.
+    constraint_handling: tuple[str, dict[str, float]] | None = None
 
     def __post_init__(self) -> None:
         super().__post_init__()

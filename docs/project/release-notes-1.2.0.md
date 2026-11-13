@@ -7,18 +7,17 @@ fronts, indicators and statistics back to their published definitions. These
 scientific corrections change numerical results: read
 [which results change](#which-results-change) before you compare new runs with
 runs from earlier versions. The release also adds 115 constrained benchmark
-problems, faster Numba paths for the steady-state algorithms, and stricter
-checks that reject inputs earlier versions ignored or misapplied. The stable
+problems, jMetal's constraint-handling techniques, faster Numba paths for the
+steady-state algorithms, and stricter checks that reject inputs earlier
+versions ignored or misapplied. The stable
 1.x API, the omitted-engine NumPy default, and the 1.0.0 run and study schemas
 remain the compatibility baseline.
 
-<!-- PENDING(user-extras and REPO-21 #266): drop the paragraph below for each pull request that is not merged. -->
 The package metadata now serves users of VAMOS: the `research` extra and the
 third-party framework integrations are removed, and `analysis` and `all`
 install only what users need. VAMOS 1.2.0 supports Python 3.10 to 3.14 and is
 declared Production/Stable; it is the last minor release that supports
 Python 3.10.
-<!-- /PENDING -->
 
 ## Which results change
 
@@ -67,10 +66,9 @@ comparing them with results of earlier versions.
   `max_evaluations`, `n_gen` and `hv` termination criteria.
 - The experimental tuning gains an `irace` backend through `Rscript`, and
   Studio's default LLM provider gets a `gemini` extra.
-<!-- PENDING(#242, feat/constraint-handling): drop this item if that pull request is not merged. -->
-- NSGA-II offers jMetal's constraint-handling techniques through
-  `constraint_handling`, with a matching `nsgaii_constrained` tuning space.
-<!-- /PENDING -->
+- NSGA-II, NSGA-III, SMS-EMOA and AGE-MOEA offer jMetal's constraint-handling
+  techniques through `constraint_handling`, with matching `*_constrained`
+  tuning spaces.
 
 ## Stricter validation
 
@@ -92,7 +90,6 @@ evaluation on ZDT1, with trajectories identical to the NumPy engine. The NumPy
 engine sorts two-objective fronts in O(N log N), and `import vamos` loads the
 experiment layer only on first use.
 
-<!-- PENDING(user-extras, build/user-oriented-extras): drop this section if that pull request is not merged. -->
 ## Optional dependencies
 
 - The `research` extra and the experimental third-party NSGA-II baselines
@@ -103,9 +100,7 @@ experiment layer only on first use.
 - `analysis` installs only what VAMOS imports (pandas, matplotlib, plotly and
   scikit-learn). Notebooks need `[analysis,examples]`.
 - `all` installs the user extras without the `dev` and `docs` tooling.
-<!-- /PENDING -->
 
-<!-- PENDING(REPO-21 #266, ci/python-support): drop this section if that pull request is not merged. -->
 ## Python support
 
 VAMOS 1.2.0 is tested on Python 3.10 to 3.14, including Python 3.13 and 3.14
@@ -113,7 +108,6 @@ on Linux, Windows and macOS, and its package metadata declares the development
 status Production/Stable. Python 3.10 reached its end of life in October 2026:
 VAMOS 1.2 is the last minor release that supports it, and VAMOS 1.3.0 will
 require Python 3.11 or newer.
-<!-- /PENDING -->
 
 ## Deprecations and removals
 

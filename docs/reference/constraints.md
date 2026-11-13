@@ -95,6 +95,62 @@ Hypervolume and other objective-space metrics do not establish feasibility.
 Filter to feasible solutions first and apply the same feasibility rule to every
 algorithm in a comparison.
 
+## Choose a constraint-handling technique
+
+**VAMOS 1.2.0:** NSGA-II, NSGA-III, SMS-EMOA and AGE-MOEA take
+`constraint_handling`, the technique that ranks a constrained population. They
+are the techniques of jMetal's package `util.constrainthandling`, which
+Evolver's constrained spaces tune:
+
+| Technique | Parameters | Ranking |
+| --- | --- | --- |
+| `cdp` (default) | none | Deb's constrained-domination principle: feasible solutions first, by Pareto dominance, then infeasible ones by total violation. |
+| `violated_constraints` | none | The same rule over the number of violated constraints. |
+| `epsilon_constrained` | `initial_quantile`, `exponent`, `decay_fraction` | Takahama and Sakai's epsilon-constrained method: a solution whose violation is at most epsilon counts as feasible. Epsilon starts at that quantile of the violations of the first ranked population and decays to 0 at that fraction of the run. |
+| `push_pull` | `change_threshold`, `window_fraction`, `decay_fraction`, `exponent`, `feasibility_threshold`, `reduction_rate` | Fan et al.'s push and pull search: Pareto dominance alone until the ideal and nadir points settle, then epsilon-constrained. |
+| `stochastic_ranking` | `probability` | Runarsson and Yao's stochastic ranking: a bubble sort that compares by objectives with that probability, or always between feasible solutions. |
+| `self_adaptive_penalty` | none | Woldesenbet, Yen and Tessema's self-adaptive penalty: Pareto dominance over objectives modified by the violation and the fraction of feasible solutions. |
+
+```python
+from vamos.algorithms import NSGAIIConfig
+
+config = (
+    NSGAIIConfig.builder()
+    .pop_size(100)
+    .crossover("sbx", prob=0.9, eta=20.0)
+    .mutation("pm", prob="1/n", eta=20.0)
+    .constraint_handling("epsilon_constrained", initial_quantile=0.2, exponent=5.0, decay_fraction=0.8)
+    .build()
+)
+```
+
+The other configurations take the same field and builder method, such as
+`NSGAIIIConfig.builder().constraint_handling(...)`. Every parameter of a
+technique is required, as in jMetal. The techniques that change during a run,
+`epsilon_constrained` and `push_pull`, follow its progress: the evaluations
+before the offspring's over the evaluation budget. Each ranks fixed populations
+as jMetal does, which `tests/engine/test_constraint_handling_techniques.py`
+checks against jMetal's own implementation.
+
+Before each replacement, the technique adapts to the union of parents and
+offspring and ranks it, as Evolver's algorithms do, and its fronts take the
+place of the non-dominated ones:
+
+| Algorithm | Replacement | Tournament |
+| --- | --- | --- |
+| NSGA-II | Whole fronts survive; crowding distance cuts the last. | Rank, then crowding distance. |
+| NSGA-III | Whole fronts survive; reference-direction niching cuts the last. | Rank, then crowding distance. |
+| SMS-EMOA | Once per child, the least hypervolume contributor of the last front leaves. | Rank, then crowding distance. |
+| AGE-MOEA | Whole fronts survive; the survival score cuts the last. | Rank, then survival score. |
+
+The tournament compares the technique's ranks of the population, which VAMOS
+ranks again, as it does with `cdp`; jMetal reuses the ranks of the replacement.
+Stochastic ranking draws its uniforms from the run's generator, so a run stays
+a function of its seed, and the engines give the same run. NSGA-II's checkpoints
+keep the state of the technique. `cdp` keeps each algorithm's own survival, so
+its results are those of VAMOS 1.1.0. A technique other than `cdp` needs
+`constraint_mode="feasibility"`.
+
 ## Read the feasibility of a result
 
 **VAMOS 1.2.0:** every solution array of a result carries the

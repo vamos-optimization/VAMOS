@@ -23,6 +23,7 @@ from vamos.engine.tuning.racing.bridge import (
     # AGE-MOEA
     build_agemoea_binary_config_space,
     build_agemoea_config_space,
+    build_agemoea_constrained_config_space,
     build_agemoea_integer_config_space,
     build_agemoea_mixed_config_space,
     build_agemoea_permutation_config_space,
@@ -41,12 +42,14 @@ from vamos.engine.tuning.racing.bridge import (
     # NSGA-II
     build_nsgaii_binary_config_space,
     build_nsgaii_config_space,
+    build_nsgaii_constrained_config_space,
     build_nsgaii_integer_config_space,
     build_nsgaii_mixed_config_space,
     build_nsgaii_permutation_config_space,
     # NSGA-III
     build_nsgaiii_binary_config_space,
     build_nsgaiii_config_space,
+    build_nsgaiii_constrained_config_space,
     build_nsgaiii_integer_config_space,
     build_nsgaiii_mixed_config_space,
     build_nsgaiii_permutation_config_space,
@@ -62,6 +65,7 @@ from vamos.engine.tuning.racing.bridge import (
     # SMS-EMOA
     build_smsemoa_binary_config_space,
     build_smsemoa_config_space,
+    build_smsemoa_constrained_config_space,
     build_smsemoa_integer_config_space,
     build_smsemoa_mixed_config_space,
     build_smsemoa_permutation_config_space,
@@ -94,8 +98,10 @@ REGISTRY: list[tuple[str, str, Any]] = [
     ("nsgaii_binary", "binary", build_nsgaii_binary_config_space),
     ("nsgaii_integer", "integer", build_nsgaii_integer_config_space),
     ("nsgaii_mixed", "mixed", build_nsgaii_mixed_config_space),
+    ("nsgaii_constrained", "real", build_nsgaii_constrained_config_space),
     # AGE-MOEA
     ("agemoea", "real", build_agemoea_config_space),
+    ("agemoea_constrained", "real", build_agemoea_constrained_config_space),
     ("agemoea_permutation", "permutation", build_agemoea_permutation_config_space),
     ("agemoea_binary", "binary", build_agemoea_binary_config_space),
     ("agemoea_integer", "integer", build_agemoea_integer_config_space),
@@ -126,12 +132,14 @@ REGISTRY: list[tuple[str, str, Any]] = [
     ("spea2_mixed", "mixed", build_spea2_mixed_config_space),
     # NSGA-III
     ("nsgaiii", "real", build_nsgaiii_config_space),
+    ("nsgaiii_constrained", "real", build_nsgaiii_constrained_config_space),
     ("nsgaiii_permutation", "permutation", build_nsgaiii_permutation_config_space),
     ("nsgaiii_binary", "binary", build_nsgaiii_binary_config_space),
     ("nsgaiii_integer", "integer", build_nsgaiii_integer_config_space),
     ("nsgaiii_mixed", "mixed", build_nsgaiii_mixed_config_space),
     # SMS-EMOA
     ("smsemoa", "real", build_smsemoa_config_space),
+    ("smsemoa_constrained", "real", build_smsemoa_constrained_config_space),
     ("smsemoa_permutation", "permutation", build_smsemoa_permutation_config_space),
     ("smsemoa_binary", "binary", build_smsemoa_binary_config_space),
     ("smsemoa_integer", "integer", build_smsemoa_integer_config_space),

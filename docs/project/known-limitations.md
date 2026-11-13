@@ -54,10 +54,6 @@ unsupported behavior rather than future compatibility promises.
   `rng_seed` (0 unless set), and the hypervolume convergence monitor
   bootstraps with Python's `random.Random` seeded by its own `rng_seed`
   (also 0). Every seed of an experiment therefore shares those two streams.
-  Used directly, some components accept `rng=None` and then draw from a new
-  unseeded generator, among them the selection operators, the real-encoding
-  initializers, and the uniform and linked polynomial mutations; pass `rng`
-  for reproducible draws.
 
 ## Benchmark validation
 
@@ -144,9 +140,13 @@ unsupported behavior rather than future compatibility promises.
   it. VAMOS 1.1.0 and earlier prune by crowding distance instead, with a single
   warning; see [Stopping and archive](../experiment/stopping_and_archive.md).
 - Optional research frameworks and model-based tuning packages have their own
-  Python and operating-system constraints.
-- The release CI claims Python 3.10, 3.11, and 3.12 on Linux, and Python 3.12
-  on Windows and macOS. Other interpreter/platform combinations are unclaimed.
+  Python and operating-system constraints. **VAMOS 1.2.0:** the
+  research frameworks are no longer an extra (the `research` extra is removed).
+- **VAMOS 1.2.0:** the release CI claims Python 3.10 to 3.14 on
+  Linux, and Python 3.12 to 3.14 on Windows and macOS; VAMOS 1.1.0 claimed
+  Python 3.10 to 3.12 on Linux and 3.12 on Windows and macOS. Other
+  interpreter/platform combinations are unclaimed. The tuning extra is tested
+  only on Linux with Python 3.12.
 
 ## Run artifacts and replay
 

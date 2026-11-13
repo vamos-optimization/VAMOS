@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
+from vamos.engine.algorithm.components.constraint_handling import run_technique
 from vamos.engine.algorithm.components.evaluation import extract_evaluation_arrays
 from vamos.engine.algorithm.components.population import resolve_bounds
 from vamos.engine.algorithm.components.termination import HVTracker, parse_termination, validate_initial_budget
@@ -78,6 +79,7 @@ def initialize_run(
     replacement_size = 1
 
     constraint_mode = normalize_constraint_mode(algo.cfg.get("constraint_mode", "feasibility"))
+    constraint_handling = run_technique(algo.cfg.get("constraint_handling"), constraint_mode, checkpoint)
     initializer_cfg = algo.cfg.get("initializer")
     X: np.ndarray[Any, Any]
     F: np.ndarray[Any, Any]
@@ -264,6 +266,7 @@ def initialize_run(
         replacement_size=replacement_size,
         incremental_mode=incremental_mode,
         constraint_mode=constraint_mode,
+        constraint_handling=constraint_handling,
         archive_size=ext_cfg.capacity if ext_cfg else None,
         archive_X=archive_X,
         archive_F=archive_F,

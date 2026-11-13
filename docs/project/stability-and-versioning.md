@@ -283,6 +283,16 @@ a supported Python version during 1.x requires advance documentation and a
 minor release. Optional dependencies may have narrower platform support and
 must fail clearly when unavailable.
 
+**VAMOS 1.2.0:** CI tests Python 3.10 to 3.14 on Linux and
+Python 3.12 to 3.14 on Windows and macOS, and the package metadata declares
+Python 3.10 to 3.14. The metadata also declares the development status
+"Production/Stable", which matches the commitments of this policy. VAMOS 1.1.0
+declared Python 3.10 to 3.12 and the status "Beta".
+
+**VAMOS 1.2.0:** Python 3.10 reached its end of life in October
+2026. VAMOS 1.2.0 is the last minor release that supports it: VAMOS 1.3.0 will
+require Python 3.11 or newer, and the 1.2 patch releases keep Python 3.10.
+
 ## Support window
 
 The newest 1.x release is the primary supported release. Valid public 1.0.0

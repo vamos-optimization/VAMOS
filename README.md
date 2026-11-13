@@ -2,33 +2,33 @@
 
 > **A high-performance, unified framework for Multi-Objective Evolutionary Algorithms (MOEA) in Python.**
 
-![VAMOS Banner](docs/assets/vamos1.png)
+![VAMOS Banner](https://raw.githubusercontent.com/vamos-optimization/VAMOS/main/docs/assets/vamos1.png)
 
 Official repository: [vamos-optimization/VAMOS](https://github.com/vamos-optimization/VAMOS).
 Issues, pull requests, releases, and development are coordinated there. See
-[repository governance](docs/project/repository-governance.md).
+[repository governance](https://vamos-optimization.org/project/repository-governance/).
+Documentation: [vamos-optimization.org](https://vamos-optimization.org/).
 
 VAMOS bridges the gap between simple research scripts and large-scale optimization studies. It provides a unified API for running state-of-the-art algorithms across diverse problems, backed by vectorized kernels with NumPy as the exact reference path and optional Numba acceleration for core kernels.
 
 VAMOS 1.0.0 is the first official public release and compatibility baseline.
 VAMOS 1.2.0 brings many built-in algorithms, operators, problems and indicators
 back to their published definitions, which changes results of affected
-experiments, and adds 115 constrained benchmark problems.
-<!-- PENDING(#266, Python 3.13/3.14): drop the next sentence if that pull request is not merged. -->
-It supports Python 3.13 and 3.14 and is the last minor release for Python 3.10.
-<!-- /PENDING -->
-See the [1.2.0 release notes](docs/project/release-notes-1.2.0.md), including
+experiments, and adds 115 constrained benchmark problems and jMetal's
+constraint-handling techniques. It supports Python 3.13 and 3.14 and is the
+last minor release for Python 3.10. See the
+[1.2.0 release notes](https://vamos-optimization.org/project/release-notes-1.2.0/), including
 which results to rerun, and the earlier
-[1.1.0 release notes](docs/project/release-notes-1.1.0.md).
+[1.1.0 release notes](https://vamos-optimization.org/project/release-notes-1.1.0/).
 Earlier version strings and Git tags were internal pre-public development
 markers, not prior public releases. See the
-[stability policy](docs/project/stability-and-versioning.md) and
-[known limitations](docs/project/known-limitations.md).
+[stability policy](https://vamos-optimization.org/project/stability-and-versioning/) and
+[known limitations](https://vamos-optimization.org/project/known-limitations/).
 
 ## Key Features
 
 - **Unified API**: A clear, fluent interface `vamos.optimize()` for all workflows.
-- **Battle-Tested Algorithms**: NSGA-II/III, MOEA/D, SMS-EMOA, SPEA2, IBEA, SMPSO, AGE-MOEA, RVEA.
+- **Nine Algorithms**: NSGA-II/III, MOEA/D, SMS-EMOA, SPEA2, IBEA, SMPSO, AGE-MOEA, RVEA. [Known limitations](https://vamos-optimization.org/project/known-limitations/) lists those not yet validated independently against a reference implementation.
 - **Unified Archiving**: Consistent external archive configuration via `.external_archive(capacity=..., pruning=...)`, with bounded or unbounded archives and pruning policies `crowding`, `hv`, `mc_hv`, `knn`, `maxmin`, and `ref_dirs`. When an external archive is enabled, top-level results come from it by default unless `result_mode="population"` is requested.
 - **Multi-Fidelity Tuning**: Hyperband-style racing with warm-start checkpoints for sample-efficient algorithm configuration.
 - **Ready-to-use Tuning Backends**: `racing` and `random` work out of the box; install the optional `tuning` extra to enable `optuna`, `bohb_optuna`, `smac3`, and `bohb` via `vamos tune`.
@@ -37,7 +37,7 @@ markers, not prior public releases. See the
 - **Visual Problem Builder**: Define custom problems in the experimental VAMOS Studio; local Python preview requires an explicit trusted-code opt-in.
 - **Extensible**: Standardized protocols for adding custom problems, operators, and algorithms.
 
-Canonical customization guide: `docs/topics/extending.md`.
+Canonical customization guide: [Extending VAMOS](https://vamos-optimization.org/topics/extending/).
 
 ## Quick Install
 
@@ -53,7 +53,7 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 
 # Install core + essential extras
-pip install "vamos-optimization[compute,research,analysis]"
+pip install "vamos-optimization[compute,analysis]"
 ```
 
 For development and extras (Linux / macOS):
@@ -64,7 +64,7 @@ python -m venv .venv
 source .venv/bin/activate
 
 # Install core + essential extras
-pip install "vamos-optimization[compute,research,analysis]"
+pip install "vamos-optimization[compute,analysis]"
 ```
 
 Optional model-based tuning backends (`optuna`, `smac3`, `bohb`):
@@ -92,7 +92,7 @@ to prefer loadable Numba for all nine built-in algorithms, with a NumPy fallback
 Numba remains optional. Omitting `engine` still selects NumPy, preserving the 1.x
 default; explicit `engine="numba"` fails if unavailable. First use can spend more
 time compiling than a short optimization takes. See the
-[selection and replay policy](docs/reference/algorithms.md#automatic-engine-selection)
+[selection and replay policy](https://vamos-optimization.org/reference/algorithms/#automatic-engine-selection)
 before comparing timings or moving runs between environments.
 
 Operator shorthand accepts either numeric probabilities or the string literal `"1/n"` for per-variable mutation rates.
@@ -101,8 +101,8 @@ Operator shorthand accepts either numeric probabilities or the string literal `"
 
 - `max_evaluations` is a strict evaluation budget. It must be at least the resolved population size, and the final generation is truncated when needed so budget-terminated runs report exactly `result.data["evaluations"] == max_evaluations`.
 - Public algorithm results expose `evaluations` as the evaluation-count metric. Internal checkpoints may still store `n_eval`.
-- `hypervolume` requires the reference point to dominate all points by default. Pass `allow_ref_expand=True` only when automatic reference-point expansion is intended. The two-objective helper `compute_hypervolume` instead leaves out the points that the reference point does not dominate.
-- NSGA-III, RVEA, and MOEA/D require `pop_size` to match their configured reference directions or weight lattice; incompatible configurations fail early with an actionable error.
+- **VAMOS 1.2.0:** `hypervolume` leaves out the points that the reference point does not dominate, as the two-objective helper `compute_hypervolume` does. `allow_ref_expand` is accepted for compatibility only; it is ignored with a `FutureWarning`.
+- **VAMOS 1.2.0:** NSGA-III needs at least one individual per reference direction (`pop_size` at least the number of directions). RVEA and MOEA/D need exactly one individual per reference or weight vector. Incompatible configurations fail early with an actionable error.
 
 ## Quickstart
 
@@ -134,7 +134,7 @@ This wizard writes a reusable config and stores results under `results/quickstar
 
 Use `vamos quickstart --template list` to inspect domain templates.
 
-New to Python? Start with the Minimal Python Track: `docs/guide/minimal-python.md`.
+New to Python? Start with the [Minimal Python Track](https://vamos-optimization.org/guide/minimal-python/).
 
 After a run, summarize results with:
 
@@ -150,13 +150,24 @@ vamos results verify RUN_DIR --require-level exact
 vamos reproduce RUN_DIR
 ```
 
-For a small study in one call:
+For a small study in one call, compare the seeds with a quality indicator. Every
+run spends exactly `max_evaluations`, so the evaluation count cannot tell them
+apart. The hypervolume below uses MooCore, installed by the `compute` extra:
 
 ```python
+import numpy as np
+from moocore import hypervolume
+from vamos import optimize
+
 study = optimize("zdt1", algorithm="nsgaii", max_evaluations=4000, seed=[0, 1, 2])
-print(study.mean("evaluations"))
-print(study.best_run("evaluations").meta["seed"])
+reference_point = np.array([1.1, 1.1])  # fixed: ZDT1's Pareto-front nadir plus 10%
+hv = np.array([hypervolume(run.front(), ref=reference_point) for run in study])
+print(f"Hypervolume: mean {hv.mean():.4f}, std {hv.std(ddof=1):.4f}")
+print("Best seed:", study[int(hv.argmax())].meta["seed"])
 ```
+
+Compare values computed against the same reference point only. For durable,
+resumable experiment matrices, use [studies](https://vamos-optimization.org/guide/studies/).
 
 All functionality lives under one command. Run `vamos help` to list everything:
 
@@ -193,7 +204,7 @@ vamos tune --instances zdt1,zdt2,zdt3,dtlz1,dtlz2,wfg1 --algorithm nsgaii --back
 
 Note: `racing` and `random` require no extra dependencies. The model-based backends (`optuna`, `bohb_optuna`, `smac3`, `bohb`) require the optional `tuning` extra: `pip install "vamos-optimization[tuning]"`. The `smac3` backend uses the `smac` package.
 
-For paper-grade comparisons against external frameworks, do not rely on the open-ended `research` extra alone. Record a pinned environment or lockfile alongside reported results.
+For paper-grade comparisons against other frameworks, install them yourself (VAMOS depends on none) and record a pinned environment or lockfile alongside reported results.
 
 Recommended robust command (fallback + suite-stratified split):
 
@@ -209,7 +220,7 @@ vamos tune \
   --n-jobs -1
 ```
 
-Canonical tuning reference: `docs/topics/tuning.md`.
+Canonical tuning reference: [Hyperparameter tuning](https://vamos-optimization.org/topics/tuning/).
 
 New to hands-on learning? Open the **interactive tutorial notebook**:
 
@@ -259,7 +270,7 @@ vamos studio
 # Open the "Problem Builder" tab
 ```
 
-See `docs/dev/add_problem.md` for all approaches (function, class, or registry).
+See [Adding a problem](https://vamos-optimization.org/dev/add_problem/) for all approaches (function, class, or registry).
 
 ## VAMOS Assist (no-code workflow)
 
@@ -275,10 +286,10 @@ setx OPENAI_API_KEY "..."
 vamos assist go "..." --mode auto --provider openai --smoke
 ```
 
-See `docs/assist.md` for the full guide (billing, privacy, artifacts, troubleshooting).
+See [VAMOS Assist](https://vamos-optimization.org/assist/) for the full guide (billing, privacy, artifacts, troubleshooting).
 
 Preferred path: start with `optimize(...)`. Use config objects only when you need fully specified, reproducible runs or plugin algorithms.
-See `docs/guide/getting-started.md` for a short decision guide.
+See [Getting started](https://vamos-optimization.org/guide/getting-started/) for a short decision guide.
 
 Advanced path (explicit config objects):
 
@@ -302,7 +313,7 @@ result = optimize(
 
 Reminder: plain dict configs are intentionally not accepted (use `GenericAlgorithmConfig` for plugin algorithms).
 
-For comparative evidence against pymoo on fixed seeded cases, run:
+For comparative evidence against pymoo on fixed seeded cases, install it (`pip install -c constraints/ci.txt pymoo` in a source checkout) and run:
 
 ```bash
 python tools/benchmark_compare_pymoo.py --output artifacts/performance/pymoo_comparison.json --markdown artifacts/performance/pymoo_comparison.md
@@ -311,13 +322,13 @@ python tools/benchmark_compare_pymoo.py --output artifacts/performance/pymoo_com
 ## Notes
 
 - For reproducible results, set `seed`; NumPy/Numba/MooCore backends share the same RNG-driven stochastic operators.
-- Troubleshooting guide: `docs/guide/troubleshooting.md`.
-- Algorithm-specific notes (reference directions, operator defaults): `docs/reference/algorithms.md`.
-- Release packaging smoke checklist: `docs/release_smoke.md`.
+- Troubleshooting guide: [Troubleshooting](https://vamos-optimization.org/guide/troubleshooting/).
+- Algorithm-specific notes (reference directions, operator defaults): [Algorithms & Backends](https://vamos-optimization.org/reference/algorithms/).
+- Release packaging smoke checklist: [Release verification](https://vamos-optimization.org/release_smoke/).
 
 ## Examples & Notebooks
 
-VAMOS comes with a comprehensive suite of Jupyter notebooks organized by tier:
+The repository's [`notebooks/`](https://github.com/vamos-optimization/VAMOS/tree/main/notebooks) folder holds a comprehensive suite of Jupyter notebooks organized by tier:
 
 - **0. Basic**: Essential concepts and API basics.
   - `notebooks/INDEX.ipynb` -- Maintained catalog of the full learning surface
@@ -367,12 +378,12 @@ All tools are available as `vamos <subcommand>`. Run `vamos help` for the full l
     ```bash
     vamos tune --instances zdt1,zdt2,zdt3,dtlz1,dtlz2,wfg1 --algorithm nsgaii --backend optuna --backend-fallback random --split-strategy suite_stratified --budget 5000 --tune-budget 200 --n-jobs -1
     ```
-- Full tuning reference (canonical docs): `docs/topics/tuning.md`.
+- Full tuning reference (canonical docs): [Hyperparameter tuning](https://vamos-optimization.org/topics/tuning/).
 - **`vamos check`**: Verify your installation and backend availability.
 
 ## Citation
 
-The [retained benchmark data guide](experiments/REFERENCE_RESULTS.md) documents
+The [retained benchmark data guide](https://github.com/vamos-optimization/VAMOS/blob/main/experiments/REFERENCE_RESULTS.md) documents
 the available scientific inputs and their provenance. Manuscript sources and
 author revision materials are maintained separately from this public repository.
 
@@ -388,18 +399,18 @@ If you use VAMOS in published work, cite it directly:
 }
 ```
 
-The maintained citation metadata lives in `CITATION.cff`.
+The maintained citation metadata lives in [CITATION.cff](https://github.com/vamos-optimization/VAMOS/blob/main/CITATION.cff).
 
 ## Contributing
 
-We welcome contributions! Please see `CONTRIBUTING.md` for guidelines.
+We welcome contributions! Please see [CONTRIBUTING.md](https://github.com/vamos-optimization/VAMOS/blob/main/CONTRIBUTING.md) for guidelines.
 
-- **Found a bug?** Open an issue.
-- **Want to add an algorithm?** Check `dev/add_algorithm.md` in the docs.
-- **Using AI tools?** Read `.agent/docs/AGENTS.md` for our AI coding standards.
-- **Troubleshooting**: `docs/guide/troubleshooting.md`.
-- **Security issues**: See `SECURITY.md` for private reporting.
-- **Contributors**: See `AUTHORS.md`.
+- **Found a bug?** [Open an issue](https://github.com/vamos-optimization/VAMOS/issues).
+- **Want to add an algorithm?** Check [Adding an algorithm](https://vamos-optimization.org/dev/add_algorithm/) in the docs.
+- **Using AI tools?** Read [AGENTS.md](https://github.com/vamos-optimization/VAMOS/blob/main/AGENTS.md) for our AI coding standards.
+- **Troubleshooting**: [Troubleshooting](https://vamos-optimization.org/guide/troubleshooting/).
+- **Security issues**: See [SECURITY.md](https://github.com/vamos-optimization/VAMOS/blob/main/SECURITY.md) for private reporting.
+- **Contributors**: See [AUTHORS.md](https://github.com/vamos-optimization/VAMOS/blob/main/AUTHORS.md).
 
 ---
 

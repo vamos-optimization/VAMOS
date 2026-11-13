@@ -167,6 +167,7 @@ Evaluations: 400
 | SBX probability 0.9, eta 15 | Real-coded recombination in this explicit example. |
 | Polynomial mutation | Numeric probability `1/12`, eta 20. |
 | `constraint_mode("feasibility")` | Enables the 1.0.1 feasibility path if constraints exist; DTLZ2 here is unconstrained. |
+| `constraint_handling(name, ...)` | **VAMOS 1.2.0:** ranks a constrained population with another of jMetal's techniques; its fronts take the place of the non-dominated ones in the survival and the tournament. See [choose a constraint-handling technique](../reference/constraints.md#choose-a-constraint-handling-technique). |
 
 ## Interpret the result and its limits
 

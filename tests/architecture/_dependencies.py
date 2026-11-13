@@ -18,12 +18,23 @@ IMPORT_NAMES: dict[str, tuple[str, ...]] = {
     "configspace": ("ConfigSpace",),
     "google-genai": ("google.genai",),
     "ipython": ("IPython",),
-    "jmetalpy": ("jmetal",),
     "mkdocs-material": ("material",),
-    "platypus-opt": ("platypus",),
     "pymdown-extensions": ("pymdownx",),
     "pyyaml": ("yaml",),
     "scikit-learn": ("sklearn",),
+}
+
+# Other evolutionary and multi-objective optimization frameworks, by distribution and import name.
+# VAMOS neither declares nor imports them; maintainer scripts under tools/ and experiments/ may.
+OPTIMIZATION_FRAMEWORKS: dict[str, tuple[str, ...]] = {
+    "deap": ("deap",),
+    "desdeo": ("desdeo",),
+    "inspyred": ("inspyred",),
+    "jmetalpy": ("jmetal",),
+    "platypus-opt": ("platypus",),
+    "pygmo": ("pygmo",),
+    "pymoo": ("pymoo",),
+    "pymoode": ("pymoode",),
 }
 
 _REQUIREMENT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
@@ -55,13 +66,18 @@ def base_distributions() -> set[str]:
     return {distribution_name(requirement) for requirement in requirements}
 
 
-def optional_distributions() -> dict[str, set[str]]:
-    """Return the distributions of each extra that are not base dependencies, without the ``all`` union."""
+def optional_requirements() -> dict[str, list[str]]:
+    """Return the requirements of each extra as declared, the ``all`` union included."""
     extras = _project()["optional-dependencies"]
     assert isinstance(extras, dict)
+    return extras
+
+
+def optional_distributions() -> dict[str, set[str]]:
+    """Return the distributions of each extra that are not base dependencies, without the ``all`` union."""
     base = base_distributions()
     return {
         group: {distribution_name(requirement) for requirement in requirements} - base
-        for group, requirements in extras.items()
+        for group, requirements in optional_requirements().items()
         if group != "all"
     }

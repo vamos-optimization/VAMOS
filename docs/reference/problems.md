@@ -178,6 +178,11 @@ variants:
 - DC3's constraint on `g` comes first, as in pymoo; jMetal puts it last.
 - The packaged fronts hold only for the default constants.
 
+**VAMOS 1.2.0:** the C-DTLZ problems accept as many variables as
+objectives, with a single distance variable, as STEP's C3-DTLZ4 with three
+objectives and three variables needs. The tests check them against jMetal 7.10
+with STEP's dimensions and, for C2-DTLZ2, its radius `r = 0.1`.
+
 **VAMOS 1.2.0:** the classic constrained problems follow jMetal's
 classes of the same names, bounds and constraint scaling included. The front
 of Srinivas and Deb's problem is not only the textbook segment `x1 = -2.5`,

@@ -15,12 +15,38 @@ import yaml
 from packaging.requirements import Requirement
 from packaging.version import Version
 
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - Python < 3.11 fallback
+    import tomli as tomllib  # type: ignore[import-not-found,no-redef]
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 import release_policy  # noqa: E402
 from release_artifacts import create_runtime_environment, inspect_distributions, write_release_manifests, write_runtime_lock  # noqa: E402
 from release_policy import document_evidence, license_evidence, scan_files, version_evidence  # noqa: E402
+
+_PYTHON_CLASSIFIER = re.compile(r"Programming Language :: Python :: (3\.\d+)")
+
+
+def _project() -> dict:
+    return tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+
+
+def _workflow_jobs(name: str) -> dict:
+    return yaml.load((ROOT / ".github" / "workflows" / name).read_text(encoding="utf-8"), Loader=yaml.BaseLoader)["jobs"]
+
+
+def _declared_python_versions() -> list[str]:
+    versions = [match[1] for classifier in _project()["classifiers"] if (match := _PYTHON_CLASSIFIER.fullmatch(classifier))]
+    return sorted(versions, key=Version)
+
+
+def _tested_python_versions() -> list[str]:
+    matrix = _workflow_jobs("ci.yml")["tests-full"]["strategy"]["matrix"]
+    versions = {*matrix["python-version"], *(entry["python-version"] for entry in matrix.get("include", []))}
+    return sorted(versions, key=Version)
 
 
 def test_release_checker_has_human_and_single_json_inventory() -> None:
@@ -289,6 +315,47 @@ def test_release_workflows_are_parseable_pinned_and_cover_claimed_matrix() -> No
     assert "--tag-state pre-release" in release
 
 
+def test_classifiers_match_tested_python_versions() -> None:
+    # The stability policy supports the Python versions that CI tests and the package metadata declares; the two lists agree.
+    tested = _tested_python_versions()
+    declared = _declared_python_versions()
+
+    assert [version for version in tested if version not in declared] == [], "tested in CI without a classifier"
+    assert [version for version in declared if version not in tested] == [], "declared without a CI test job"
+    assert _project()["requires-python"] == f">={tested[0]}"
+    # Python 3.13 and 3.14 are tested and declared since 1.2.0.
+    assert {"3.13", "3.14"} <= set(declared)
+
+
+def test_installation_guide_lists_the_tested_python_versions() -> None:
+    guide = (ROOT / "docs" / "guide" / "installation.md").read_text(encoding="utf-8")
+    matrix = _workflow_jobs("ci.yml")["tests-full"]["strategy"]["matrix"]
+    excluded = {(entry["os"], entry["python-version"]) for entry in matrix["exclude"]}
+
+    for system, row in (("ubuntu-latest", "Linux"), ("windows-latest", "Windows"), ("macos-latest", "macOS")):
+        listed = re.search(rf"^\| {row} \| ([^|]+) \|", guide, flags=re.M)
+        tested = [version for version in matrix["python-version"] if (system, version) not in excluded]
+        assert listed is not None and listed[1].strip() == ", ".join(tested), row
+
+
+def test_release_wheel_matrix_covers_the_declared_python_range() -> None:
+    # docs/release_smoke.md: the installed-wheel matrix covers the minimum, primary and declared maximum Python.
+    matrix = _workflow_jobs("release.yml")["installed-wheel-matrix"]["strategy"]["matrix"]["include"]
+    pythons = {entry["python"] for entry in matrix}
+    declared = _declared_python_versions()
+
+    assert {declared[0], "3.12", declared[-1]} <= pythons
+    assert pythons <= set(declared)
+
+
+def test_license_policy_accepts_the_declared_status() -> None:
+    # The 1.x series makes compatibility commitments (docs/project/stability-and-versioning.md), which a Beta status contradicts.
+    statuses = [classifier for classifier in _project()["classifiers"] if classifier.startswith("Development Status ::")]
+
+    assert statuses == ["Development Status :: 5 - Production/Stable"]
+    assert license_evidence(ROOT)["production_stable_classifier"] is True
+
+
 def test_publication_uses_trusted_publishing_and_never_rebuilds() -> None:
     workflow = (ROOT / ".github" / "workflows" / "upload_pypi.yml").read_text(encoding="utf-8")
 
@@ -313,8 +380,9 @@ def test_compute_extra_excludes_the_reviewed_distributed_advisory() -> None:
     assert "dask==2026.8.0" in constraints
     assert "distributed==2026.8.0" in constraints
     assert 'requires = ["setuptools>=83", "wheel>=0.46.2"]' in pyproject
-    assert pyproject.count('"setuptools>=83"') == 3
-    assert pyproject.count('"wheel>=0.46.2"') == 3
+    # The build-system requirements and the dev extra; all holds only the user extras.
+    assert pyproject.count('"setuptools>=83"') == 2
+    assert pyproject.count('"wheel>=0.46.2"') == 2
 
 
 def _exact_pins(text: str) -> dict[str, Version]:
@@ -376,7 +444,7 @@ name = "vamos-optimization"
 dynamic = ["version"]
 license = "MIT"
 license-files = ["LICENSE"]
-classifiers = ["Development Status :: 4 - Beta"]
+classifiers = ["Development Status :: 5 - Production/Stable"]
 [tool.setuptools.dynamic]
 version = {attr = "vamos.foundation.version.__version__"}
 """.strip(),
@@ -396,6 +464,21 @@ version = {attr = "vamos.foundation.version.__version__"}
     assert version_evidence(tmp_path, "1.0.0")["runtime"] == "1.0.0"
     assert license_evidence(tmp_path)["spdx"] is True
     assert len(document_evidence(tmp_path, "1.0.0")["documents"]) == 6
+
+
+@pytest.mark.parametrize(
+    "classifiers",
+    [[], ["Development Status :: 4 - Beta"], ["Development Status :: 4 - Beta", "Development Status :: 5 - Production/Stable"]],
+    ids=["none", "beta", "two-statuses"],
+)
+def test_license_policy_requires_the_production_stable_status_alone(tmp_path: Path, classifiers: list[str]) -> None:
+    (tmp_path / "LICENSE").write_text("MIT\n", encoding="utf-8")
+    (tmp_path / "pyproject.toml").write_text(
+        f'[project]\nlicense = "MIT"\nlicense-files = ["LICENSE"]\nclassifiers = {json.dumps(classifiers)}\n', encoding="utf-8"
+    )
+
+    with pytest.raises(AssertionError, match="production_stable_classifier"):
+        license_evidence(tmp_path)
 
 
 def test_path_and_secret_scan_detects_material_without_disclosing_it(tmp_path: Path) -> None:

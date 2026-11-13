@@ -411,7 +411,6 @@ def main() -> None:
         "vamos.engine.operators.impl": ("vamos.experiment", "vamos.ux"),
         "vamos.engine.operators.policies": ("vamos.experiment", "vamos.ux"),
         "vamos.foundation.problem.registry": ("vamos.engine", "vamos.experiment", "vamos.ux"),
-        "vamos.experiment.external": ("vamos.engine", "vamos.ux"),
     }
     for pkg, forbidden_prefixes in shared_packages.items():
         matches: list[str] = []

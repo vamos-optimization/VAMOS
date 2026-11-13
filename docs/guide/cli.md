@@ -180,6 +180,16 @@ from vamos import optimize
 result = optimize("zdt1", algorithm="nsgaii", max_evaluations=5000, pop_size=80, seed=7)
 ```
 
+After a single run, the runner (and `vamos quickstart`) prints
+`Hypervolume (reference [...]): ...`; a command with several runs prints the
+reference point under its summary table. That point comes from the fronts of
+the same command: for each objective, the worst value among the runs of that
+problem plus 10% of its magnitude (at least 0.1). Compare these values only
+between runs of one command. Another command derives another point, so a longer
+run can print a lower hypervolume than a shorter one. To compare runs of
+different commands, compute the hypervolume against one fixed reference point,
+as in [Compute hypervolume](cookbook.md#19-compute-hypervolume).
+
 Run a predefined continuous problem set with one compatible algorithm:
 
 ```bash
@@ -234,12 +244,17 @@ objective (1.1 after normalization, as in pymoo and jMetal). VAMOS 1.1.0 and
 earlier added at least 5 to every objective, so a target of 0.5 was met by a
 random ZDT1 population; thresholds from those versions are not comparable.
 
-Include Experimental third-party baselines (ZDT1 example; requires the
-[`research` extra](installation.md#optional-extras)):
+Run every built-in algorithm on one problem:
 
 ```bash
-vamos --problem zdt1 --algorithm both --include-external --external-problem-source native
+vamos --problem zdt1 --algorithm both --max-evaluations 2000
 ```
+
+**VAMOS 1.2.0:** the Experimental third-party baselines are
+removed: `--include-external`, `--external-problem-source`, the
+`pymoo_nsga2`, `jmetalpy_nsga2` and `pygmo_nsga2` algorithm names, and the
+`research` extra that installed them. VAMOS 1.1.0 added those NSGA-II runs to
+`--algorithm both` on ZDT1 when given `--include-external`.
 
 **VAMOS 1.2.0:** a failed run no longer stops `--algorithm both`
 or `--problem-set`. The error is logged, the remaining runs and the summary
@@ -283,7 +298,7 @@ when saving, and a series stopped at the first collision.
 Key flags
 ---------
 
-- `--algorithm`: agemoea, ibea, moead, nsgaii, nsgaiii, rvea, smpso, smsemoa, spea2, both, or Experimental external baselines (pymoo_nsga2, jmetalpy_nsga2, pygmo_nsga2)
+- `--algorithm`: agemoea, ibea, moead, nsgaii, nsgaiii, rvea, smpso, smsemoa, spea2, or both
 - `--engine`: numpy | numba | moocore | auto. The deterministic default is `numpy`; `auto` prefers available Numba with a NumPy fallback. See the [automatic engine policy](../reference/algorithms.md#automatic-engine-selection) for the selection and replay rules in VAMOS 1.2.0.
 - `--problem`: any registry key (see [Problems](../reference/problems.md))
 - `--problem-set`: predefined sets (e.g., `families`)

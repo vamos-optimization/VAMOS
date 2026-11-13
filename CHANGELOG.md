@@ -39,13 +39,15 @@ rerun. Run and study artifacts keep the 1.0.0 schemas.
 - `vamos create-problem --force`, and a `gemini` extra for the Studio Problem
   Builder's default provider (#172, #231).
 
-<!-- PENDING(#242, feat/constraint-handling): drop this block if that pull request is not merged. -->
 - NSGA-II's `constraint_handling`: jMetal's techniques `cdp` (the default),
   `violated_constraints`, `epsilon_constrained`, `push_pull`,
   `stochastic_ranking` and `self_adaptive_penalty`, which rank fixed
   populations as jMetal does, and the tuning space `nsgaii_constrained` with
   the ranges of Evolver's `NSGAIIDoubleConstrained` (#242).
-<!-- /PENDING -->
+- `constraint_handling` in NSGA-III, SMS-EMOA and AGE-MOEA, with the same six
+  techniques, as in Evolver's bases of these algorithms, and the tuning spaces
+  `nsgaiii_constrained`, `smsemoa_constrained` and `agemoea_constrained`
+  (#256).
 
 <!-- PENDING(EXP-28, fix/cli-quality-details): drop this block if that pull request is not merged. -->
 - `vamos --version` prints the installed version.
@@ -124,30 +126,24 @@ that.
   constraints, CI actions and release tooling include the updates merged since
   1.1.0 (#118).
 
-<!-- PENDING(REPO-21 #266, ci/python-support): drop this block if that pull request is not merged. -->
 - Python 3.13 and 3.14 are tested and declared, and the status is
   "Production/Stable". VAMOS 1.2 is the last minor release for Python 3.10;
-  1.3.0 will require 3.11 or newer.
-<!-- /PENDING -->
+  1.3.0 will require 3.11 or newer (#266).
 
-<!-- PENDING(user-extras, build/user-oriented-extras): drop this block if that pull request is not merged. -->
 - `analysis` installs only pandas, matplotlib, plotly and scikit-learn;
   notebook packages move to `examples`, so notebooks need
   `[analysis,examples]`. `all` installs the user extras without the `dev` and
-  `docs` tooling.
-<!-- /PENDING -->
+  `docs` tooling (#268).
 
 <!-- PENDING(UX-25, fix/studio-small-fixes): drop this block if that pull request is not merged. -->
 - `plot_critical_distance` no longer accepts `higher_is_better`, which had no
   effect.
 <!-- /PENDING -->
 
-<!-- PENDING(REPO-23, docs/readme-and-guides): drop this block if that pull request is not merged. When it merges, also add release-notes-1.2.0.md to Reference > Support & Versions in mkdocs.yml. -->
 - Documentation: the README works as the PyPI description, the CLI guide says
   printed hypervolumes compare only within one command, the study guides' retry
   recipe checks for failed work first, and the navigation gains Reference →
-  Support & Versions.
-<!-- /PENDING -->
+  Support & Versions (#267).
 
 ### Deprecated
 
@@ -169,12 +165,10 @@ that.
 - `VAMOS_MOOCORE_HV_CONTRIB`, `MooCoreKernel(use_hv_contrib=...)` and
   `ProfileResult.memory_mb` (#180, #183).
 
-<!-- PENDING(user-extras, build/user-oriented-extras): drop this block if that pull request is not merged. -->
 - The `research` extra and the Experimental third-party baselines
   (`--include-external`, `--external-problem-source`, `pymoo_nsga2`,
   `jmetalpy_nsga2`, `pygmo_nsga2`, `vamos.experiment.external`), and the unused
-  `vamos_contrib` package.
-<!-- /PENDING -->
+  `vamos_contrib` package (#268).
 
 ### Fixed
 
@@ -282,15 +276,16 @@ Unless stated otherwise, every run that uses the corrected component changes.
   seeds, resumed Optuna budgets, `--smoke`, and corrected archive, DC-DTLZ and
   RE22 notes (#140, #193, #214, #216, #230, #236).
 
-<!-- PENDING(user-extras, build/user-oriented-extras): drop this block if that pull request IS merged, because it removes these baselines. -->
-- The external baselines run as their libraries intend: `pymoo_nsga2` mutates
-  each variable with probability 1/n (it was 1/n²), and the jMetalPy and pygmo
-  baselines run and keep the caller's random streams (#139, #144).
-<!-- /PENDING -->
+- The C-DTLZ problems accept as many variables as objectives, as jMetal and
+  the STEP suite do (#269).
 
-<!-- PENDING(PRB-23, PRB-22, EXP-28 and UX-25): drop each line whose pull request is not merged, and replace each label with its pull request number. -->
+<!-- PENDING(#270, PRB-23 #271, PRB-22, EXP-28 and UX-25): drop each line whose pull request is not merged, and replace each label with its pull request number. -->
+- `vamos --config` rejects an `algorithm`, `engine`, `eval_strategy`,
+  `external_archive_pruning`, `problem_set` or `experiment` that the
+  command-line option does not accept, also with `--validate-config`, with
+  exit code 2; an unknown `algorithm` ran nothing and exited with 0 (#270).
 - Built-in problems create `out["F"]` when the caller has not allocated it
-  (PRB-23).
+  (#271).
 - `mixed_design` clips categories instead of wrapping them (PRB-22).
 - `vamos zoo` and `vamos check` report unknown problems and failures, and
   derived tables warn about indicators skipped without moocore (EXP-28).
