@@ -1,0 +1,38 @@
+name: Slow tests
+
+# Pull requests and the merge queue run the fast tier (pytest -m "not slow"); this runs the rest every night.
+on:
+  schedule:
+    - cron: "30 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: slow-tests
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  slow:
+    if: github.repository == 'vamos-optimization/VAMOS'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Install dependencies (full extras)
+        run: |
+          python -m pip install -U pip
+          python -m pip install -c constraints/ci.txt -e ".[dev,compute,research,analysis,examples,studio,docs,tuning]"
+      - name: Run the slow tier
+        run: pytest -m slow
