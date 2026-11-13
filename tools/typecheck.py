@@ -67,7 +67,11 @@ TYPE_AFFECTING_OPTIONAL_DISTRIBUTIONS = (
 # other pins (ruff, the build backend, documentation tools, optional extras) can move without
 # regenerating the baseline.
 TYPE_AFFECTING_PINS = ("joblib", "mypy", "numpy", "pyyaml", "scipy", "typing-extensions")
-EXACT_PIN_RE = re.compile(r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)\s*==\s*(?P<version>[^\s;#]+)\s*(?:;.*)?$")
+EXACT_PIN_RE = re.compile(r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)\s*==\s*(?P<version>[^\s;#]+)\s*(?:;\s*(?P<marker>.*))?$")
+# A type-affecting pin may be restricted to some Python versions, e.g. `numpy==2.3.5 ; python_version >= "3.14"`.
+PYTHON_VERSION_MARKER_RE = re.compile(
+    r"""^python_version\s*(?P<operator><=|>=|==|!=|<|>)\s*(?P<quote>["'])(?P<major>\d+)\.(?P<minor>\d+)(?P=quote)$"""
+)
 
 STRICT_PATHS = (
     "src/vamos/engine/algorithm/config",
@@ -157,8 +161,31 @@ def normalize_distribution(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).casefold()
 
 
+def _selects_canonical_python(marker: str | None) -> bool | None:
+    """Whether a pin's environment marker holds on ``SUPPORTED_PYTHON``; ``None`` if it is not one ``python_version`` comparison."""
+    if not marker:
+        return True
+    match = PYTHON_VERSION_MARKER_RE.match(marker.strip())
+    if match is None:
+        return None
+    pinned = (int(match["major"]), int(match["minor"]))
+    comparisons = {
+        "<": SUPPORTED_PYTHON < pinned,
+        "<=": SUPPORTED_PYTHON <= pinned,
+        ">": SUPPORTED_PYTHON > pinned,
+        ">=": SUPPORTED_PYTHON >= pinned,
+        "==": SUPPORTED_PYTHON == pinned,
+        "!=": SUPPORTED_PYTHON != pinned,
+    }
+    return comparisons[match["operator"]]
+
+
 def type_affecting_pins(path: Path | None = None) -> dict[str, str]:
-    """Return the exact version pinned for each of ``TYPE_AFFECTING_PINS`` in the constraint file."""
+    """Return the exact version pinned for each of ``TYPE_AFFECTING_PINS`` on the canonical Python.
+
+    A distribution may have one pin per Python version, selected by a ``python_version`` marker;
+    the pin whose marker holds on ``SUPPORTED_PYTHON`` is the one that typing records.
+    """
     lines = (path or CONSTRAINTS_PATH).read_text(encoding="utf-8").splitlines()
     pins: dict[str, list[str]] = collections.defaultdict(list)
     for line in lines:
@@ -166,11 +193,17 @@ def type_affecting_pins(path: Path | None = None) -> dict[str, str]:
         if not text:
             continue
         match = EXACT_PIN_RE.match(text)
-        name = match["name"] if match else re.split(r"[\s<>=!~;\[]", text, maxsplit=1)[0]
-        pins[normalize_distribution(name)].append(match["version"] if match else "")
+        name = normalize_distribution(match["name"] if match else re.split(r"[\s<>=!~;\[]", text, maxsplit=1)[0])
+        selected = _selects_canonical_python(match["marker"]) if match else True
+        if selected is False:
+            continue
+        pins[name].append(match["version"] if match and selected else "")
     errors = [name for name in TYPE_AFFECTING_PINS if len(pins.get(name, [])) != 1 or not pins[name][0]]
     if errors:
-        raise ValueError(f"constraints must pin each type-affecting distribution exactly once with '==': {', '.join(errors)}.")
+        raise ValueError(
+            "constraints must pin each type-affecting distribution exactly once with '==' for Python "
+            f"{SUPPORTED_PYTHON[0]}.{SUPPORTED_PYTHON[1]}, restricting a pin only by python_version: {', '.join(errors)}."
+        )
     return {name: pins[name][0] for name in TYPE_AFFECTING_PINS}
 
 
