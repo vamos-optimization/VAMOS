@@ -149,7 +149,10 @@ def optimize(
     with three or more objectives, and ``max_evaluations`` is
     ``min(max(1000, 100 * n_var), 50000)``, at least 5000 with three or more
     objectives. For ZDT1 (30 variables) that is 200 individuals and 3000
-    evaluations, 15 generations. Pass both for an experiment you report.
+    evaluations, 15 generations. MOEA/D, NSGA-III and RVEA, and so
+    ``algorithm="auto"`` with three or more objectives, take the population
+    from their reference directions instead: 100 with two objectives and 91
+    with three. Pass both for an experiment you report.
 
     Parameters
     ----------
