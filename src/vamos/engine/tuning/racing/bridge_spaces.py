@@ -10,6 +10,7 @@ from __future__ import annotations
 from .bridge_spaces_agemoea import (
     build_agemoea_binary_config_space,
     build_agemoea_config_space,
+    build_agemoea_constrained_config_space,
     build_agemoea_integer_config_space,
     build_agemoea_mixed_config_space,
     build_agemoea_permutation_config_space,
@@ -39,6 +40,7 @@ from .bridge_spaces_nsgaii import (
 from .bridge_spaces_nsgaiii import (
     build_nsgaiii_binary_config_space,
     build_nsgaiii_config_space,
+    build_nsgaiii_constrained_config_space,
     build_nsgaiii_integer_config_space,
     build_nsgaiii_mixed_config_space,
     build_nsgaiii_permutation_config_space,
@@ -54,6 +56,7 @@ from .bridge_spaces_smpso import build_smpso_config_space, build_smpso_mixed_con
 from .bridge_spaces_smsemoa import (
     build_smsemoa_binary_config_space,
     build_smsemoa_config_space,
+    build_smsemoa_constrained_config_space,
     build_smsemoa_integer_config_space,
     build_smsemoa_mixed_config_space,
     build_smsemoa_permutation_config_space,
@@ -82,12 +85,14 @@ __all__ = [
     "build_moead_integer_config_space",
     # NSGA-III
     "build_nsgaiii_config_space",
+    "build_nsgaiii_constrained_config_space",
     "build_nsgaiii_permutation_config_space",
     "build_nsgaiii_mixed_config_space",
     "build_nsgaiii_binary_config_space",
     "build_nsgaiii_integer_config_space",
     # SMS-EMOA
     "build_smsemoa_config_space",
+    "build_smsemoa_constrained_config_space",
     "build_smsemoa_permutation_config_space",
     "build_smsemoa_mixed_config_space",
     "build_smsemoa_binary_config_space",
@@ -109,6 +114,7 @@ __all__ = [
     "build_smpso_mixed_config_space",
     # AGE-MOEA
     "build_agemoea_config_space",
+    "build_agemoea_constrained_config_space",
     "build_agemoea_permutation_config_space",
     "build_agemoea_binary_config_space",
     "build_agemoea_integer_config_space",
