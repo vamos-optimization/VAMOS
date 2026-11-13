@@ -8,6 +8,8 @@ Read it before editing. A nested `AGENTS.md` may add rules only for its declared
 
 Resolve factual disagreements in this order: the current implementation and tests, canonical contracts, CI and packaging configuration, then developer documentation. Fix guidance that disagrees with a higher authority.
 
+When the code still breaks an invariant of this file or of a scoped `AGENTS.md`, a strict `xfail` test or [Known limitations](docs/project/known-limitations.md) records the departure; the fix removes the record.
+
 ## Compatibility policy
 
 Pre-1.0 development artifacts and undocumented APIs are unsupported. Starting with VAMOS 1.0.0, the stable APIs, CLI contracts, configuration fields, and artifact schemas listed in [Stability and versioning](docs/project/stability-and-versioning.md) are compatibility commitments for the 1.x series.
