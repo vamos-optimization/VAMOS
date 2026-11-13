@@ -6,7 +6,7 @@ description: 'C-TAEA: a convergence archive and a diversity archive for constrai
 
 The **two-archive evolutionary algorithm for constrained multi-objective optimization** keeps two archives of the same size, one solution per weight vector [1]. The convergence archive (CA) is driven by feasibility and convergence, and it is the result. The diversity archive (DA) ignores the constraints and keeps solutions in the subregions where the CA has few, so that the search can cross infeasible regions towards the parts of the front the CA has not reached. Each offspring has one parent from each archive or both from one, chosen from how many non-dominated solutions each archive holds.
 
-**Development after 1.1.0.** C-TAEA is new in the development series after VAMOS 1.1.0. It follows jMetal's port (pull request [jMetal/jMetal#524](https://github.com/jMetal/jMetal/pull/524)), which follows the authors' reference code where it differs from the paper, and its weight vectors, archive updates, mating proportions and tournament are checked against that port's own classes.
+**Development after 1.1.0.** C-TAEA is new in the development series after VAMOS 1.1.0. It follows jMetal's port (pull request [jMetal/jMetal#524](https://github.com/jMetal/jMetal/pull/524)), which follows PlatEMO's implementation where it differs from the paper, and its weight vectors, archive updates, mating proportions and tournament are checked against that port's own classes.
 
 [All algorithms](../reference/algorithms.md) · [Configuration reference](../reference/api/algorithms/ctaea.md) · [Constraints](../reference/constraints.md)
 
@@ -39,7 +39,7 @@ print(bool(np.all(archive["G"] <= 0)))  # True
 print(int(np.sum(np.any(diversity["G"] > 0, axis=1))))  # 87
 ```
 
-`result.data["population"]` is the whole CA, which is the result of the authors' code and of jMetal, and `result.X` and `result.F` hold its feasible non-dominated solutions (all 91 here). `result.data["diversity_archive"]` is the DA: 87 of its 91 solutions are infeasible, because it ignores the constraints. `result.data["weights"]` holds the weight vectors, which a stored run keeps as its reference directions.
+`result.data["population"]` is the whole CA, which is the result of PlatEMO's implementation and of jMetal, and `result.X` and `result.F` hold its feasible non-dominated solutions (all 91 here). `result.data["diversity_archive"]` is the DA: 87 of its 91 solutions are infeasible, because it ignores the constraints. `result.data["weights"]` holds the weight vectors, which a stored run keeps as its reference directions.
 
 ## How it works
 
@@ -79,7 +79,7 @@ The initial population has one solution per weight vector, so `max_evaluations` 
 
 Every solution of every result is feasible, in VAMOS and in jMetal.
 
-**The CMOEA-MS paper.** The paper of CMOEA-MS [2] runs the reference code of C-TAEA on MW and LIR-CMOP with D = 10, N = 100 and 200,000 evaluations. IGD is the mean distance from the points of the reference front to the feasible solutions of the final CA, against jMetal's reference fronts (VAMOS packages jMetal's LIR-CMOP7 front), over 31 seeds, with jMetal's C-TAEA run in the same way. Every final CA is feasible. The medians agree with jMetal's and with the pull request's within the spread of the seeds; on MW3, VAMOS's, jMetal's and the pull request's medians are 11 to 12% above the paper's mean.
+**The CMOEA-MS paper.** The paper of CMOEA-MS [2] runs PlatEMO's C-TAEA on MW and LIR-CMOP with D = 10, N = 100 and 200,000 evaluations. IGD is the mean distance from the points of the reference front to the feasible solutions of the final CA, against jMetal's reference fronts (VAMOS packages jMetal's LIR-CMOP7 front), over 31 seeds, with jMetal's C-TAEA run in the same way. Every final CA is feasible. The medians agree with jMetal's and with the pull request's within the spread of the seeds; on MW3, VAMOS's, jMetal's and the pull request's medians are 11 to 12% above the paper's mean.
 
 | Problem | VAMOS, median (range) | jMetal, median (range) | Mann–Whitney p | jMetal PR #524, median of 5 | Paper, mean |
 | --- | --- | --- | --- | --- | --- |
@@ -96,7 +96,7 @@ Every solution of every result is feasible, in VAMOS and in jMetal.
 - **Result:** `result.X` and `result.F` keep the feasible non-dominated solutions of the CA (with `result_mode="non_dominated"`, the default) or the whole CA (`result_mode="population"`); jMetal returns the whole CA, which is `result.data["population"]` in VAMOS.
 - **Violation:** VAMOS's convention, `g <= 0` feasible and the violation the sum of the positive parts, which is the authors' and, with the sign changed, jMetal's.
 
-jMetal's port follows the authors' reference code where it differs from the paper, and so does VAMOS: the second parent comes from the CA with the share of non-dominated solutions of the CA alone, not the share that chooses the first parent's archive; solutions are associated with the subregions on their raw objectives, except in the truncation of the feasible solutions of the CA, while the paper normalizes before every association; the ideal point of each Tchebycheff function is that of the set it is applied to; ties go to the solution that comes first instead of at random; and a tournament between two infeasible solutions picks a third one instead of one of the two at random. The CA may hold dominated solutions, and infeasible ones while fewer feasible solutions than weight vectors have been found.
+jMetal's port follows PlatEMO's implementation where it differs from the paper, and so does VAMOS: the second parent comes from the CA with the share of non-dominated solutions of the CA alone, not the share that chooses the first parent's archive; solutions are associated with the subregions on their raw objectives, except in the truncation of the feasible solutions of the CA, while the paper normalizes before every association; the ideal point of each Tchebycheff function is that of the set it is applied to; ties go to the solution that comes first instead of at random; and a tournament between two infeasible solutions picks a third one instead of one of the two at random. The CA may hold dominated solutions, and infeasible ones while fewer feasible solutions than weight vectors have been found.
 
 ## References
 

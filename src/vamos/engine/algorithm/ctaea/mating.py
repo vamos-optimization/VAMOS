@@ -1,8 +1,8 @@
 """Restricted mating selection of C-TAEA: the proportions that choose the archives and the binary tournament.
 
 These functions transcribe jMetal's port (pull request jMetal/jMetal#524, classes
-``MatingProportions`` and ``CTAEATournamentSelection``), which follows the reference code where it
-differs from the paper:
+``MatingProportions`` and ``CTAEATournamentSelection``), which follows PlatEMO's implementation
+where it differs from the paper:
 
 - the second parent comes from the CA with a probability equal to the proportion of
   non-dominated solutions of the CA sorted alone (``PC``); in Algorithm 4 of the paper it is the

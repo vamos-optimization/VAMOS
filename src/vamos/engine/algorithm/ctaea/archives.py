@@ -3,8 +3,8 @@
 C-TAEA (Li, Chen, Fu and Yao, 2019) keeps a convergence archive (CA) and a diversity archive (DA)
 of N solutions, one per weight vector. These functions transcribe jMetal's port (pull request
 jMetal/jMetal#524, classes ``Subregions``, ``NonDominatedSorting``, ``ConvergenceArchiveUpdate``
-and ``DiversityArchiveUpdate``), which follows the reference code where it differs from the
-paper:
+and ``DiversityArchiveUpdate``), which follows PlatEMO's implementation where it differs from
+the paper:
 
 - a solution is associated with the weight vector of largest cosine similarity on its raw
   objectives, except in the truncation of the feasible solutions of the CA, where the objectives

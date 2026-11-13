@@ -102,8 +102,8 @@ class CTAEA:
     the DA otherwise (see :mod:`vamos.engine.algorithm.ctaea.mating`). Each parent wins a binary
     tournament in its archive, and the offspring is the first child of the crossover, mutated. The
     CA and then the DA are updated with the offspring. The result is the CA. This follows jMetal's
-    port (pull request jMetal/jMetal#524), which follows the authors' reference code where it
-    differs from the paper.
+    port (pull request jMetal/jMetal#524), which follows PlatEMO's implementation where it differs
+    from the paper.
 
     The crossover receives the second parent first. jMetal's SBX gives a variable that it does
     not cross to the other child, so jMetal's first child takes those variables from the second

@@ -1,8 +1,8 @@
 """Weight vectors of C-TAEA, as jMetal's ``UniformWeightVectors`` generates them.
 
 jMetal's port of C-TAEA (pull request jMetal/jMetal#524) generates its weight vectors with the
-normal-boundary intersection of Das and Dennis in up to two layers, the default method of the
-reference code's ``UniformPoint``:
+normal-boundary intersection of Das and Dennis in up to two layers, the default method of
+PlatEMO's ``UniformPoint``:
 
 - the outer layer has the largest number of divisions ``H1`` whose lattice has at most the
   requested number of vectors ``N`` (at least one division);
