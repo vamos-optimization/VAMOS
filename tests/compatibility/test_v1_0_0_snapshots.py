@@ -7,6 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 from types import ModuleType
+from typing import Any
 
 import pytest
 
@@ -52,7 +53,7 @@ def _generator() -> ModuleType:
     return module
 
 
-def _committed(name: str) -> object:
+def _committed(name: str) -> Any:
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
 
 
@@ -76,14 +77,20 @@ def test_snapshot_detects_a_changed_config_default(monkeypatch: pytest.MonkeyPat
 
     generator = _generator()
     committed = _committed("stable_algorithm_configs.json")
-    assert generator._algorithm_snapshot() == committed
+
+    def generated() -> dict[str, object]:
+        return dict(json.loads(generator._json_bytes(generator._algorithm_snapshot())))
+
+    added = generator._added_config_fields(committed, generated())
+    assert added is not None
+    assert generator._keeps_frozen_configs(committed, generated(), added)
     default = NSGAIIConfig.default
 
     def changed_default(*args: object, **kwargs: object) -> NSGAIIConfig:
         return dataclasses.replace(default(*args, **kwargs), crossover=("sbx", {"prob": 1.0, "eta": 20.0}))
 
     monkeypatch.setattr(NSGAIIConfig, "default", changed_default)
-    assert generator._algorithm_snapshot() != committed
+    assert not generator._keeps_frozen_configs(committed, generated(), added)
 
 
 def test_snapshot_detects_a_changed_signature(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -91,14 +98,23 @@ def test_snapshot_detects_a_changed_signature(monkeypatch: pytest.MonkeyPatch) -
     import vamos
 
     generator = _generator()
-    assert generator._stable_api_snapshot() == _committed("stable_public_api.json")
+    committed = _committed("stable_public_api.json")
+    added = generator._added_config_fields(
+        _committed("stable_algorithm_configs.json"), json.loads(generator._json_bytes(generator._algorithm_snapshot()))
+    )
+    assert added is not None
+
+    def generated() -> object:
+        return json.loads(generator._json_bytes(generator._stable_api_snapshot()))
+
+    assert generator._keeps_frozen_api(committed, generated(), added)
     optimize = vamos.optimize
 
     def other_seed(problem: object, algorithm: str = "auto", *, seed: int = 7, **kwargs: object) -> object:
         return optimize(problem, algorithm, seed=seed, **kwargs)
 
     monkeypatch.setattr(vamos, "optimize", other_seed)
-    assert generator._stable_api_snapshot() != _committed("stable_public_api.json")
+    assert not generator._keeps_frozen_api(committed, generated(), added)
 
 
 def test_exit_code_snapshot_reads_the_cli_mapping(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -111,3 +127,77 @@ def test_exit_code_snapshot_reads_the_cli_mapping(monkeypatch: pytest.MonkeyPatc
     actual = run_artifact_cli.run_artifact_exit_code
     monkeypatch.setattr(run_artifact_cli, "run_artifact_exit_code", lambda exc: 9 if isinstance(exc, OutputCollisionError) else actual(exc))
     assert generator._exit_code_snapshot()["run"]["output_collision"] == 9
+
+
+def _configs(fields: list[str], defaults: dict[str, object], default_config: dict[str, object]) -> dict[str, Any]:
+    return {
+        "algorithm_ids": ["nsgaii"],
+        "config_field_defaults": {"NSGAIIConfig": defaults},
+        "config_fields": {"NSGAIIConfig": fields},
+        "default_configs": {"NSGAIIConfig": default_config},
+        "document_type": "vamos.stable-algorithm-configs",
+    }
+
+
+def test_configuration_classes_may_gain_optional_fields_after_the_frozen_ones() -> None:
+    generator = _generator()
+    frozen = _configs(
+        ["pop_size", "constraint_mode"], {"constraint_mode": "feasibility"}, {"pop_size": 100, "constraint_mode": "feasibility"}
+    )
+    added = _configs(
+        ["pop_size", "constraint_mode", "constraint_handling"],
+        {"constraint_mode": "feasibility", "constraint_handling": None},
+        {"pop_size": 100, "constraint_mode": "feasibility", "constraint_handling": None},
+    )
+
+    assert generator._added_config_fields(frozen, added) == {"NSGAIIConfig": ["constraint_handling"]}
+    assert generator._keeps_frozen_configs(frozen, added, {"NSGAIIConfig": ["constraint_handling"]})
+    # A new field before a frozen one would move the constructor's positional parameters.
+    inserted = _configs(
+        ["pop_size", "constraint_handling", "constraint_mode"], {"constraint_mode": "feasibility", "constraint_handling": None}, {}
+    )
+    assert generator._added_config_fields(frozen, inserted) is None
+    assert generator._added_config_fields(frozen, _configs(["pop_size"], {}, {})) is None
+    assert (
+        generator._added_config_fields(
+            frozen, _configs(["pop_size", "constraint_mode", "required"], {"constraint_mode": "feasibility"}, {})
+        )
+        is None
+    )
+    changed_default = _configs(
+        ["pop_size", "constraint_mode"], {"constraint_mode": "none"}, {"pop_size": 100, "constraint_mode": "feasibility"}
+    )
+    assert not generator._keeps_frozen_configs(frozen, changed_default, {"NSGAIIConfig": []})
+    changed_config = _configs(
+        ["pop_size", "constraint_mode"], {"constraint_mode": "feasibility"}, {"pop_size": 50, "constraint_mode": "feasibility"}
+    )
+    assert not generator._keeps_frozen_configs(frozen, changed_config, {"NSGAIIConfig": []})
+
+
+def test_only_the_constructor_of_a_configuration_class_with_added_fields_may_extend_its_signature() -> None:
+    generator = _generator()
+    frozen = "(pop_size, constraint_mode='feasibility')"
+    added = {"NSGAIIConfig": ["constraint_handling"], "SPEA2Config": []}
+    api: dict[str, Any] = {
+        "modules": {"vamos.algorithms": ["NSGAIIConfig", "SPEA2Config"]},
+        "signatures": {
+            "vamos.algorithms.NSGAIIConfig": frozen,
+            "vamos.algorithms.NSGAIIConfig.builder": "()",
+            "vamos.algorithms.SPEA2Config": frozen,
+        },
+    }
+    extended = "(pop_size, constraint_mode='feasibility', constraint_handling=None)"
+
+    assert generator._extends_constructor(frozen, extended, ["constraint_handling"])
+    assert not generator._extends_constructor(
+        frozen, "(pop_size, constraint_handling=None, constraint_mode='feasibility')", ["constraint_handling"]
+    )
+    assert not generator._extends_constructor("(pop_size)", "(pop_size, constraint_handling)", ["constraint_handling"])
+    assert not generator._extends_constructor(frozen, extended, [])
+
+    def with_signature(key: str, signature: str) -> dict[str, Any]:
+        return {**api, "signatures": {**api["signatures"], key: signature}}
+
+    assert generator._keeps_frozen_api(api, with_signature("vamos.algorithms.NSGAIIConfig", extended), added)
+    assert not generator._keeps_frozen_api(api, with_signature("vamos.algorithms.SPEA2Config", extended), added)
+    assert not generator._keeps_frozen_api(api, with_signature("vamos.algorithms.NSGAIIConfig.builder", "(name)"), added)

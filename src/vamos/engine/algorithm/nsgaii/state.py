@@ -23,6 +23,7 @@ from vamos.engine.algorithm.components.archive import (
     SPEA2Archive,
     UnboundedArchive,
 )
+from vamos.engine.algorithm.components.constraint_handling import ConstraintHandlingTechnique
 from vamos.engine.algorithm.components.results import (
     feasible_result_indices,
     get_external_archive_constraints,
@@ -68,8 +69,9 @@ class NSGAIIState:
     replacement_size: int = 1
     incremental_mode: bool = False
 
-    # Constraints
+    # Constraints. ``constraint_handling`` is None for cdp, which keeps its own survival and selection.
     constraint_mode: str = "feasibility"
+    constraint_handling: ConstraintHandlingTechnique | None = None
 
     # Archive
     archive_size: int | None = None
