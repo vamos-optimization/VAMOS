@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -22,7 +23,7 @@ from vamos.experiment.artifacts import (
     UnsupportedArtifactLayoutError,
     UnsupportedSchemaError,
 )
-from vamos.experiment.artifacts.bundle import inspect_result_bundle
+from vamos.experiment.artifacts.bundle import array_contract, inspect_result_bundle
 from vamos.experiment.artifacts.jsonio import manifest_self_hash, sha256_file, stored_json_bytes
 from vamos.experiment.artifacts.models import ArtifactDescriptor, LoadLimits
 from vamos.experiment.optimization_result import OptimizationResult
@@ -108,6 +109,82 @@ def test_manifest_semantic_edit_malformed_and_duplicate_keys_ra017(tmp_path: Pat
     formatting = vamos.save_result(_result(), tmp_path / "formatting").root / "manifest.json"
     formatting.write_text(json.dumps(json.loads(formatting.read_text(encoding="utf-8"))), encoding="utf-8")
     assert vamos.load_run(formatting.parent).status == "succeeded"
+
+
+def test_deeply_nested_manifest_raises_typed_error(tmp_path: Path) -> None:
+    run = vamos.save_result(_result(), tmp_path / "run").root
+    nested = '{"note": "[{\\"[[", "nested": ' + "[" * 100_000 + "]" * 100_000 + "}"
+    (run / "manifest.json").write_text(nested, encoding="utf-8")
+
+    for operation in (vamos.load_run, vamos.verify_run):
+        with pytest.raises(ArtifactResourceLimitError) as info:
+            operation(run)
+        assert info.value.limit == "max_json_depth"
+        assert info.value.observed == 100_001
+
+
+def test_huge_integer_manifest_raises_typed_error(tmp_path: Path) -> None:
+    digits = getattr(sys, "get_int_max_str_digits", lambda: 0)()
+    if not digits:
+        pytest.skip("this interpreter converts integers of any length")
+    manifest = vamos.save_result(_result(), tmp_path / "run").root / "manifest.json"
+    text = manifest.read_text(encoding="utf-8")
+    manifest.write_text(text.replace('"n_solutions": 2', '"n_solutions": 1' + "0" * digits), encoding="utf-8")
+
+    for operation in (vamos.load_run, vamos.verify_run):
+        with pytest.raises(ArtifactResourceLimitError) as info:
+            operation(manifest.parent)
+        assert info.value.limit == "int_max_str_digits"
+        assert info.value.observed == digits + 1
+
+
+def _replace_result_arrays(run: Path, **arrays: np.ndarray[Any, Any]) -> None:
+    """Rewrite result.npz and every manifest field derived from it, as a consistent tamperer would."""
+    bundle = run / "result.npz"
+    with np.load(bundle) as stored:
+        merged = {name: stored[name] for name in stored.files}
+    merged.update(arrays)
+    with bundle.open("wb") as handle:
+        np.savez(handle, **merged)
+    manifest_path = run / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    descriptor = next(item for item in manifest["artifacts"] if item["role"] == "result_bundle")
+    descriptor.update(bytes=bundle.stat().st_size, sha256=sha256_file(bundle), array_contract=array_contract(merged))
+    manifest["outcome"]["n_objectives"] = int(merged["F"].shape[1])
+    manifest["outcome"]["n_variables"] = int(merged["X"].shape[1])
+    manifest["integrity"]["manifest_sha256"] = manifest_self_hash(manifest)
+    manifest_path.write_bytes(stored_json_bytes(manifest))
+
+
+@pytest.mark.parametrize("name", ["F", "reference_directions"])
+def test_objective_columns_must_match_n_obj(name: str, tmp_path: Path) -> None:
+    run = vamos.save_result(_result(), tmp_path / "run").root
+    _replace_result_arrays(run, **{name: np.ones((2, 3))})
+
+    with pytest.raises(MalformedResultBundleError, match="n_obj"):
+        vamos.load_result(run)
+    with pytest.raises(MalformedResultBundleError, match="n_obj"):
+        vamos.verify_run(run)
+
+
+def test_decision_columns_must_match_n_var(tmp_path: Path) -> None:
+    run = vamos.save_result(_result(), tmp_path / "run").root
+    _replace_result_arrays(run, X=np.ones((2, 3), dtype=np.int32))
+
+    with pytest.raises(MalformedResultBundleError, match="n_var"):
+        vamos.load_result(run)
+    with pytest.raises(MalformedResultBundleError, match="n_var"):
+        vamos.verify_run(run)
+
+
+@pytest.mark.parametrize(("name", "dimension"), [("F", "n_obj"), ("X", "n_var")])
+def test_save_refuses_columns_that_disagree_with_the_problem(name: str, dimension: str, tmp_path: Path) -> None:
+    result = _result()
+    setattr(result, name, np.ones((2, 3)))
+
+    with pytest.raises(MalformedResultBundleError, match=dimension):
+        vamos.save_result(result, tmp_path / "run")
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_future_major_rejected_before_artifact_access_ra023(tmp_path: Path) -> None:

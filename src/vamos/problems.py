@@ -1,7 +1,9 @@
 """
 Problem facade: curated benchmark and real-world problem classes.
 
-Use `make_problem_selection()` when you need registry-based instantiation by name.
+The classes cover the problems used most in examples and tests, not the whole
+catalog. Use `make_problem_selection()` (or `optimize("name")`) to build any
+registered problem by name; `docs/reference/problems.md` lists them.
 """
 
 from __future__ import annotations

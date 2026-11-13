@@ -292,6 +292,10 @@ markers = [
   "reference: scientific correctness verification tests",
 ]
 
+[tool.coverage.run]
+# Branch coverage; CI holds the scientific packages at floors (docs/dev/testing.md).
+branch = true
+
 [tool.setuptools.package-data]
 "vamos" = ["py.typed"]
 "vamos.resources" = ["reference_fronts/*.csv", "reference_fronts/LICENSE-*.txt", "weights/*.csv", "weights/*.dat", "tsplib/*.tsp"]
@@ -323,12 +327,3 @@ ignore = [
     "C408",  # Unnecessary dict() call - dict() reads better in plotly marker kwargs
     "UP038",  # Tuple form keeps isinstance checks readable for mixed runtime types
 ]
-
-[tool.semantic_release]
-version_variable = [
-    "src/vamos/foundation/version.py:__version__",
-]
-branch = "main"
-upload_to_pypi = true
-upload_to_release = true
-build_command = "pip install build && python -m build"

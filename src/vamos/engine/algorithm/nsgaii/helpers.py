@@ -20,25 +20,26 @@ from vamos.engine.hooks.genealogy import (
     operator_success_stats as genealogy_operator_success_stats,
 )
 from vamos.foundation.constraints.utils import compute_violation, is_feasible
+from vamos.foundation.kernel.backend import DecisionArray, FloatArray, IndexArray, NumericArray
 
 
 def build_mating_pool(
     kernel: Any,
-    ranks: np.ndarray,
-    crowding: np.ndarray,
+    ranks: NumericArray,
+    crowding: FloatArray,
     pressure: int,
     rng: np.random.Generator,
     parent_count: int,
     group_size: int = 2,
     selection_method: str = "tournament",
-    candidate_indices: np.ndarray | None = None,
-) -> np.ndarray:
+    candidate_indices: IndexArray | None = None,
+) -> IndexArray:
     if parent_count <= 0:
         raise ValueError("parent_count must be positive.")
     if parent_count % group_size != 0:
         raise ValueError("parent_count must be divisible by group_size.")
     assert ranks.shape == crowding.shape, "ranks and crowding must align"
-    cand: np.ndarray | None = None
+    cand: IndexArray | None = None
     if candidate_indices is not None:
         cand = np.asarray(candidate_indices, dtype=int)
         cand = cand[(cand >= 0) & (cand < ranks.size)]
@@ -116,42 +117,42 @@ def build_mating_pool(
 @overload
 def feasible_nsga2_survival(
     kernel: Any,
-    X: np.ndarray,
-    F: np.ndarray,
-    G: np.ndarray | None,
-    X_off: np.ndarray,
-    F_off: np.ndarray,
-    G_off: np.ndarray | None,
+    X: DecisionArray,
+    F: FloatArray,
+    G: FloatArray | None,
+    X_off: DecisionArray,
+    F_off: FloatArray,
+    G_off: FloatArray | None,
     pop_size: int,
     return_indices: Literal[False] = False,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]: ...
+) -> tuple[DecisionArray, FloatArray, FloatArray | None]: ...
 
 
 @overload
 def feasible_nsga2_survival(
     kernel: Any,
-    X: np.ndarray,
-    F: np.ndarray,
-    G: np.ndarray | None,
-    X_off: np.ndarray,
-    F_off: np.ndarray,
-    G_off: np.ndarray | None,
+    X: DecisionArray,
+    F: FloatArray,
+    G: FloatArray | None,
+    X_off: DecisionArray,
+    F_off: FloatArray,
+    G_off: FloatArray | None,
     pop_size: int,
     return_indices: Literal[True],
-) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray]: ...
+) -> tuple[DecisionArray, FloatArray, FloatArray | None, IndexArray]: ...
 
 
 def feasible_nsga2_survival(
     kernel: Any,
-    X: np.ndarray,
-    F: np.ndarray,
-    G: np.ndarray | None,
-    X_off: np.ndarray,
-    F_off: np.ndarray,
-    G_off: np.ndarray | None,
+    X: DecisionArray,
+    F: FloatArray,
+    G: FloatArray | None,
+    X_off: DecisionArray,
+    F_off: FloatArray,
+    G_off: FloatArray | None,
     pop_size: int,
     return_indices: bool = False,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray | None] | tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray]:
+) -> tuple[DecisionArray, FloatArray, FloatArray | None] | tuple[DecisionArray, FloatArray, FloatArray | None, IndexArray]:
     """
     Feasibility rule:
       - Feasible dominate infeasible.
@@ -192,7 +193,7 @@ def feasible_nsga2_survival(
     return X_comb[selected], F_comb[selected], G_comb[selected]
 
 
-def match_ids(new_X: np.ndarray, combined_X: np.ndarray, combined_ids: np.ndarray) -> np.ndarray:
+def match_ids(new_X: DecisionArray, combined_X: DecisionArray, combined_ids: IndexArray) -> IndexArray:
     """Map surviving rows in new_X back to their ids from combined_X/combined_ids.
 
     Uses a close-enough row match (tolerance 1e-12) to handle floating-point
@@ -210,20 +211,21 @@ def generation_contributions(tracker: GenealogyTracker, final_ids: list[int]) ->
     return genealogy_generation_contributions(tracker, final_ids)
 
 
-def fronts_from_ranks(ranks: np.ndarray) -> list[list[int]]:
+def fronts_from_ranks(ranks: IndexArray) -> list[list[int]]:
     if ranks.size == 0:
         return []
     max_rank = int(ranks.max(initial=-1))
     return [np.flatnonzero(ranks == r).tolist() for r in range(max_rank + 1)]
 
 
-def compute_front_crowding(F: np.ndarray, front: np.ndarray | list[int]) -> np.ndarray:
+def compute_front_crowding(F: FloatArray, front: IndexArray | list[int]) -> FloatArray:
     """Compute crowding distance for a single front."""
     front_arr = np.asarray(front, dtype=int)
     if front_arr.size == 0:
         return np.empty(0, dtype=float)
-    if front_arr.size == 1:
-        return np.array([np.inf], dtype=float)
+    if front_arr.size <= 2:
+        # One or two rows are both boundary points; an objective without spread is skipped below.
+        return np.full(front_arr.size, np.inf, dtype=float)
 
     fvals = F[front_arr]
     n_obj = fvals.shape[1]
@@ -231,18 +233,18 @@ def compute_front_crowding(F: np.ndarray, front: np.ndarray | list[int]) -> np.n
     for m in range(n_obj):
         order = np.argsort(fvals[:, m], kind="mergesort")
         sorted_vals = fvals[order, m]
-        d[order[0]] = np.inf
-        d[order[-1]] = np.inf
         span = sorted_vals[-1] - sorted_vals[0]
         if span <= 0.0:
             continue
+        d[order[0]] = np.inf
+        d[order[-1]] = np.inf
         contrib = np.zeros_like(sorted_vals)
         contrib[1:-1] = (sorted_vals[2:] - sorted_vals[:-2]) / span
         d[order[1:-1]] += contrib[1:-1]
     return d
 
 
-def compute_crowding(F: np.ndarray, fronts: list[list[int]]) -> np.ndarray:
+def compute_crowding(F: FloatArray, fronts: list[list[int]]) -> FloatArray:
     """Compute crowding distance for the provided fronts."""
     N = F.shape[0]
     crowding = np.zeros(N, dtype=float)
@@ -254,7 +256,7 @@ def compute_crowding(F: np.ndarray, fronts: list[list[int]]) -> np.ndarray:
     return crowding
 
 
-def select_nsga2(fronts: list[list[int]], crowding: np.ndarray, pop_size: int) -> np.ndarray:
+def select_nsga2(fronts: list[list[int]], crowding: FloatArray, pop_size: int) -> IndexArray:
     """NSGA-II elitist selection based on fronts + crowding."""
     selected: list[int] = []
     for front in fronts:
@@ -273,8 +275,8 @@ def select_nsga2(fronts: list[list[int]], crowding: np.ndarray, pop_size: int) -
 
 def incremental_insert_fronts(
     fronts: list[list[int]],
-    ranks: np.ndarray,
-    F: np.ndarray,
+    ranks: IndexArray,
+    F: FloatArray,
     new_idx: int,
 ) -> list[int]:
     """
@@ -358,7 +360,7 @@ def reindex_fronts(fronts: list[list[int]], removed_idx: int) -> list[list[int]]
     return new_fronts
 
 
-def ranks_from_fronts(fronts: list[list[int]], size: int) -> np.ndarray:
+def ranks_from_fronts(fronts: list[list[int]], size: int) -> IndexArray:
     ranks = np.empty(size, dtype=int)
     for rank, front in enumerate(fronts):
         ranks[np.asarray(front, dtype=int)] = rank

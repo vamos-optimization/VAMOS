@@ -85,6 +85,7 @@ def _inspect_numerical_bundle(stored: StoredRun, limits: LoadLimits) -> Literal[
         limits=limits,
         required_f=stored.status == "succeeded",
         operation="verify run",
+        resolved_spec=stored.manifest.resolved_spec,
     )
     return "valid"
 

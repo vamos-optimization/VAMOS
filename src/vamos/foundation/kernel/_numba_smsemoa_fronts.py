@@ -181,7 +181,7 @@ def _recompute_crowding(
         order = orders[c]
         for r in range(top):
             first[r] = -1
-            prev[r] = -1
+            prev[r] = 0  # counts the rank's rows until the walk below
             cur[r] = -1
         for t in range(n):
             p = order[t]
@@ -189,10 +189,13 @@ def _recompute_crowding(
                 if first[ranks[p]] < 0:
                     first[ranks[p]] = p
                 last[ranks[p]] = p
+                prev[ranks[p]] += 1
         for r in range(top):
-            if first[r] >= 0:
+            # One or two rows are boundary points; an objective without spread is skipped.
+            if first[r] >= 0 and (prev[r] <= 2 or F[last[r], c] - F[first[r], c] > 0.0):
                 crowding[first[r]] = np.inf
                 crowding[last[r]] = np.inf
+            prev[r] = -1
         for t in range(n):
             p = order[t]
             if not (member[p] and changed[ranks[p]]):
