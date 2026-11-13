@@ -1,6 +1,10 @@
 # Tested direct dependency set for CI and reproducible release smoke runs.
-numpy==2.2.6
-scipy==1.15.3
+# NumPy 2.2.6 and SciPy 1.15.3, the last releases for Python 3.10, publish no Python 3.14 wheels.
+# Typing reads the pin for Python 3.12 (tools/typecheck.py).
+numpy==2.2.6 ; python_version < "3.14"
+numpy==2.3.5 ; python_version >= "3.14"
+scipy==1.15.3 ; python_version < "3.14"
+scipy==1.16.3 ; python_version >= "3.14"
 joblib==1.6.0
 pytest==9.2.0
 pytest-cov==7.1.0
