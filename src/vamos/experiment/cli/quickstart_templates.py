@@ -51,7 +51,6 @@ _EXTRA_HINTS: dict[str, str] = {
     "analysis": 'pip install "vamos-optimization[analysis]"',
     "compute": 'pip install "vamos-optimization[compute]"',
     "examples": 'pip install "vamos-optimization[examples]"',
-    "research": 'pip install "vamos-optimization[research]"',
 }
 
 _TEMPLATE_DATA: dict[str, _TemplateSpec] = {

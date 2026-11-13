@@ -244,12 +244,17 @@ objective (1.1 after normalization, as in pymoo and jMetal). VAMOS 1.1.0 and
 earlier added at least 5 to every objective, so a target of 0.5 was met by a
 random ZDT1 population; thresholds from those versions are not comparable.
 
-Include Experimental third-party baselines (ZDT1 example; requires the
-[`research` extra](installation.md#optional-extras)):
+Run every built-in algorithm on one problem:
 
 ```bash
-vamos --problem zdt1 --algorithm both --include-external --external-problem-source native
+vamos --problem zdt1 --algorithm both --max-evaluations 2000
 ```
+
+**Development after 1.1.0:** the Experimental third-party baselines are
+removed: `--include-external`, `--external-problem-source`, the
+`pymoo_nsga2`, `jmetalpy_nsga2` and `pygmo_nsga2` algorithm names, and the
+`research` extra that installed them. VAMOS 1.1.0 added those NSGA-II runs to
+`--algorithm both` on ZDT1 when given `--include-external`.
 
 **Development after 1.1.0:** a failed run no longer stops `--algorithm both`
 or `--problem-set`. The error is logged, the remaining runs and the summary
@@ -293,7 +298,7 @@ when saving, and a series stopped at the first collision.
 Key flags
 ---------
 
-- `--algorithm`: agemoea, ibea, moead, nsgaii, nsgaiii, rvea, smpso, smsemoa, spea2, both, or Experimental external baselines (pymoo_nsga2, jmetalpy_nsga2, pygmo_nsga2)
+- `--algorithm`: agemoea, ibea, moead, nsgaii, nsgaiii, rvea, smpso, smsemoa, spea2, or both
 - `--engine`: numpy | numba | moocore | auto. The deterministic default is `numpy`; `auto` prefers available Numba with a NumPy fallback. See the [automatic engine policy](../reference/algorithms.md#automatic-engine-selection) for the selection and replay rules in VAMOS 1.1.0.
 - `--problem`: any registry key (see [Problems](../reference/problems.md))
 - `--problem-set`: predefined sets (e.g., `families`)
@@ -371,8 +376,7 @@ reached the run. The `stopping` and `archive` blocks merge key by key across
 [Stopping and archive](../experiment/stopping_and_archive.md).
 
 **Development after 1.1.0:** `algorithm`, `engine`, `eval_strategy`,
-`external_problem_source`, `external_archive_pruning`, `problem_set` and
-`experiment` take the values of their command-line option, in `defaults` and
+`external_archive_pruning`, `problem_set` and `experiment` take the values of their command-line option, in `defaults` and
 in `problems.<name>`. `engine` and `eval_strategy` may use any case, such as
 `NUMPY`, as in VAMOS 1.1.0; the other keys need the exact spelling, such as
 `nsgaii`. Any other value stops the command, and `--validate-config`, with exit
@@ -380,8 +384,7 @@ code 2 and an error that names the key, the value and the valid values. In
 VAMOS 1.1.0 a config file skipped the check that
 the command line makes: an unknown `algorithm` printed `No runs were executed`
 and exited with code 0, an unknown `engine` or pruning policy stopped the run
-with a traceback, an unknown `external_problem_source`, or `experiment` in a
-problem block, was ignored, and `--validate-config` accepted most of them.
+with a traceback, `experiment` in a problem block was ignored, and `--validate-config` accepted most of them.
 
 **Development after 1.1.0:** an operator that names the algorithm's default
 operator keeps the default parameters it does not set. With NSGA-II,

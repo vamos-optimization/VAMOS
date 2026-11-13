@@ -12,7 +12,7 @@ The canonical typing environment is:
 - `pyproject.toml` as the only mypy configuration;
 - `constraints/ci.txt` as the dependency constraint set;
 - no separately installed stub distributions;
-- no optional compute, research, analysis, Studio, tuning, or model-provider distribution in the typing environment.
+- no optional compute, analysis, Studio, tuning, or model-provider distribution in the typing environment.
 
 Create or select a Python 3.12 environment and install exactly:
 
@@ -22,7 +22,7 @@ python -m pip install -c constraints/ci.txt -e ".[dev]"
 
 The entry point rejects Python, mypy, build-kind, typing-extensions, stub-set, optional-distribution, configuration, or type-affecting pin drift that could silently change diagnostic identity. The mypy configuration owns narrow third-party import boundaries, so optional runtime extras do not belong in this environment. Every invocation disables mypy's incremental cache and native parser and anchors imports to this checkout's `src` directory. The portable parser avoids process-affinity discovery failures in isolated runners; the strict rules and diagnostic ratchet remain unchanged.
 
-Without the optional distributions, mypy types every value that comes from them as `Any`: Numba kernels, Dask, MooCore, pandas, matplotlib, Panel and Bokeh in `ux/panel` and `ux/studio`, the research and tuning backends, and the model-provider SDKs. The ratchet does not see mistakes in how VAMOS calls them; tests are what cover those calls.
+Without the optional distributions, mypy types every value that comes from them as `Any`: Numba kernels, Dask, MooCore, pandas, matplotlib, Panel and Bokeh in `ux/panel` and `ux/studio`, the tuning backends, and the model-provider SDKs. The ratchet does not see mistakes in how VAMOS calls them; tests are what cover those calls.
 
 ## Scopes
 

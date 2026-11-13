@@ -617,7 +617,6 @@ _INVALID_CHOICES = [
     pytest.param("algorithm", "NSGAII", "'nsgaii'", id="algorithm-upper-case"),
     pytest.param("engine", "not_an_engine", "'numpy'", id="engine"),
     pytest.param("eval_strategy", "not_a_strategy", "'serial'", id="eval_strategy"),
-    pytest.param("external_problem_source", "not_a_source", "'native'", id="external_problem_source"),
     pytest.param("external_archive_pruning", "not_a_policy", "'crowding'", id="external_archive_pruning"),
 ]
 

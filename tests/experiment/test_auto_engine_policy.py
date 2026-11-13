@@ -25,7 +25,7 @@ def test_named_and_default_engines_never_probe_or_substitute(engine, source, mon
     assert catalog.resolve_engine_details(engine, algorithm="nsgaii") == (engine or "numpy", source)
 
 
-@pytest.mark.parametrize("algorithm", [None, "custom_algorithm", "pymoo_nsga2", "unknown"])
+@pytest.mark.parametrize("algorithm", [None, "custom_algorithm", "unknown"])
 def test_auto_does_not_claim_plugin_compatibility(algorithm, monkeypatch):
     monkeypatch.setattr(catalog, "_has_numba", lambda: pytest.fail("must not probe optional backends"))
     assert catalog.resolve_engine_details("auto", algorithm=algorithm) == ("numpy", "auto")

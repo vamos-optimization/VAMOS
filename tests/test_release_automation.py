@@ -380,8 +380,9 @@ def test_compute_extra_excludes_the_reviewed_distributed_advisory() -> None:
     assert "dask==2026.8.0" in constraints
     assert "distributed==2026.8.0" in constraints
     assert 'requires = ["setuptools>=83", "wheel>=0.46.2"]' in pyproject
-    assert pyproject.count('"setuptools>=83"') == 3
-    assert pyproject.count('"wheel>=0.46.2"') == 3
+    # The build-system requirements and the dev extra; all holds only the user extras.
+    assert pyproject.count('"setuptools>=83"') == 2
+    assert pyproject.count('"wheel>=0.46.2"') == 2
 
 
 def _exact_pins(text: str) -> dict[str, Version]:
