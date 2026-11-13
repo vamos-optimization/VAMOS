@@ -76,8 +76,16 @@ def constraint_handling_from_assignment(assignment: dict[str, Any]) -> tuple[str
     return technique, {parameter: float(assignment[key]) for key, parameter in mapping.items()}
 
 
+def apply_constraint_handling(builder: Any, assignment: dict[str, Any]) -> None:
+    """Give a configuration builder the technique of an assignment, if it has one."""
+    technique = constraint_handling_from_assignment(assignment)
+    if technique is not None:
+        builder.constraint_handling(technique[0], **technique[1])
+
+
 __all__ = [
     "CONSTRAINT_HANDLING_SPACE_PARAMETERS",
+    "apply_constraint_handling",
     "constraint_handling_from_assignment",
     "constraint_handling_part",
 ]

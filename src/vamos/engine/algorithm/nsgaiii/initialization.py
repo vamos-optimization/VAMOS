@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from vamos.engine.algorithm.components.constraint_handling import run_technique
 from vamos.engine.algorithm.components.hooks import get_live_viz, setup_genealogy
 from vamos.engine.algorithm.components.lifecycle import evaluate_batch, get_eval_strategy
 from vamos.engine.algorithm.components.metrics import setup_hv_tracker
@@ -23,12 +24,12 @@ from vamos.engine.algorithm.components.termination import parse_termination, val
 from vamos.engine.algorithm.components.utils import resolve_bounds_array
 from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors
 from vamos.engine.algorithm.config.base import normalize_constraint_mode
-from vamos.engine.algorithm.nsgaii.state import compute_selection_metrics
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
 from vamos.engine.operators.policies.nsgaiii import build_variation_operators
 from vamos.engine.reference_directions import lattice_size
 from vamos.foundation.encoding import EncodingLike, normalize_encoding
 
+from .helpers import nsgaiii_selection_metrics
 from .state import NSGAIIIState
 
 if TYPE_CHECKING:
@@ -92,6 +93,7 @@ def initialize_nsgaiii_run(
     n_var = problem.n_var
     n_obj = problem.n_obj
     constraint_mode = normalize_constraint_mode(config.get("constraint_mode", "feasibility"))
+    constraint_handling = run_technique(config.get("constraint_handling"), constraint_mode)
     result_mode = config.get("result_mode", "population")
 
     # Build variation operators
@@ -184,7 +186,7 @@ def initialize_nsgaiii_run(
     # Setup external archive
     ext_cfg = resolve_external_archive(config)
     archive_X, archive_F, archive_manager = setup_archive(kernel, X, F, n_var, n_obj, X.dtype, ext_cfg, G)
-    selection_ranks, selection_crowding = compute_selection_metrics(kernel, F, G, constraint_mode)
+    selection_ranks, selection_crowding = nsgaiii_selection_metrics(kernel, F, G, constraint_mode, constraint_handling, rng)
 
     # Create state
     state = NSGAIIIState(
@@ -195,6 +197,7 @@ def initialize_nsgaiii_run(
         pop_size=pop_size,
         offspring_size=pop_size,
         constraint_mode=constraint_mode,
+        constraint_handling=constraint_handling,
         n_eval=n_eval,
         max_evals=max_eval,
         # NSGA-III specific

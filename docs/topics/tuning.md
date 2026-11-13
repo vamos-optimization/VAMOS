@@ -378,14 +378,15 @@ only. The built-in spaces were not affected.
 
 ### Constrained spaces
 
-**Development after 1.1.0:** `nsgaii_constrained` is the real-coded NSGA-II
-space with the parameter `constraint_handling`: the six techniques of
+**Development after 1.1.0:** `nsgaii_constrained`, `nsgaiii_constrained`,
+`smsemoa_constrained` and `agemoea_constrained` are the real-coded spaces of
+those algorithms with the parameter `constraint_handling`: the six techniques of
 [choose a constraint-handling technique](../reference/constraints.md#choose-a-constraint-handling-technique)
-and the parameters of three of them, with the ranges of Evolver's
-`NSGAIIDoubleConstrained` space. The parameters are named after the technique,
-such as `epsilon_initial_quantile` or `push_pull_window_fraction`;
-`config_from_assignment("nsgaii_constrained", assignment)` builds the
-configuration, and `vamos tune --algorithm nsgaii_constrained` tunes it.
+and the parameters of three of them, with the ranges of Evolver's constrained
+spaces, such as `NSGAIIDoubleConstrained`. The parameters are named after the
+technique, such as `epsilon_initial_quantile` or `push_pull_window_fraction`;
+`config_from_assignment("nsgaiii_constrained", assignment)` builds the
+configuration, and `vamos tune --algorithm nsgaiii_constrained` tunes it.
 
 ### Populations that depend on the number of objectives
 

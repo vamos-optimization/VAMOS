@@ -97,10 +97,10 @@ algorithm in a comparison.
 
 ## Choose a constraint-handling technique
 
-**Development after 1.1.0:** NSGA-II takes `constraint_handling`, the
-technique that ranks a constrained population. They are the techniques of
-jMetal's package `util.constrainthandling`, which Evolver's constrained spaces
-tune:
+**Development after 1.1.0:** NSGA-II, NSGA-III, SMS-EMOA and AGE-MOEA take
+`constraint_handling`, the technique that ranks a constrained population. They
+are the techniques of jMetal's package `util.constrainthandling`, which
+Evolver's constrained spaces tune:
 
 | Technique | Parameters | Ranking |
 | --- | --- | --- |
@@ -124,18 +124,31 @@ config = (
 )
 ```
 
-Every parameter of a technique is required, as in jMetal. The techniques that
-change during a run, `epsilon_constrained` and `push_pull`, follow its progress:
-the evaluations so far over the evaluation budget. Each ranks fixed populations
+The other configurations take the same field and builder method, such as
+`NSGAIIIConfig.builder().constraint_handling(...)`. Every parameter of a
+technique is required, as in jMetal. The techniques that change during a run,
+`epsilon_constrained` and `push_pull`, follow its progress: the evaluations
+before the offspring's over the evaluation budget. Each ranks fixed populations
 as jMetal does, which `tests/engine/test_constraint_handling_techniques.py`
-checks against jMetal's own implementation. NSGA-II ranks the union of parents
-and offspring with the technique before each replacement, after adapting the
-technique to that union, as Evolver's NSGA-II does, and ranks the population
-again for the tournaments, as it does with `cdp`; jMetal reuses the ranks of the
-replacement. Stochastic ranking draws its uniforms from the run's generator, so
-a run stays a function of its seed, and the engines give the same run. A
-checkpoint keeps the state of the technique. `cdp` keeps NSGA-II's own survival,
-so its results are those of VAMOS 1.1.0. A technique other than `cdp` needs
+checks against jMetal's own implementation.
+
+Before each replacement, the technique adapts to the union of parents and
+offspring and ranks it, as Evolver's algorithms do, and its fronts take the
+place of the non-dominated ones:
+
+| Algorithm | Replacement | Tournament |
+| --- | --- | --- |
+| NSGA-II | Whole fronts survive; crowding distance cuts the last. | Rank, then crowding distance. |
+| NSGA-III | Whole fronts survive; reference-direction niching cuts the last. | Rank, then crowding distance. |
+| SMS-EMOA | Once per child, the least hypervolume contributor of the last front leaves. | Rank, then crowding distance. |
+| AGE-MOEA | Whole fronts survive; the survival score cuts the last. | Rank, then survival score. |
+
+The tournament compares the technique's ranks of the population, which VAMOS
+ranks again, as it does with `cdp`; jMetal reuses the ranks of the replacement.
+Stochastic ranking draws its uniforms from the run's generator, so a run stays
+a function of its seed, and the engines give the same run. NSGA-II's checkpoints
+keep the state of the technique. `cdp` keeps each algorithm's own survival, so
+its results are those of VAMOS 1.1.0. A technique other than `cdp` needs
 `constraint_mode="feasibility"`.
 
 ## Read the feasibility of a result

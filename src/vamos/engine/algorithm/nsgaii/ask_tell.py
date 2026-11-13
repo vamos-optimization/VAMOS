@@ -181,7 +181,7 @@ def ask_nsgaii(algo: NSGAII) -> np.ndarray[Any, Any]:
     elif st.constraint_handling is not None and st.G is not None and st.constraint_mode != "none":
         from .constrained_survival import technique_selection_metrics
 
-        ranks, crowding = technique_selection_metrics(st, algo.kernel)
+        ranks, crowding = technique_selection_metrics(st.constraint_handling, algo.kernel, st.F, st.G, st.rng)
     else:
         ranks, crowding = compute_selection_metrics(
             algo.kernel,

@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
+from vamos.engine.algorithm.components.constraint_handling import run_technique
 from vamos.engine.algorithm.components.evaluation import extract_evaluation_arrays
 from vamos.engine.algorithm.components.population import resolve_bounds
 from vamos.engine.algorithm.components.termination import HVTracker, parse_termination, validate_initial_budget
@@ -25,7 +26,6 @@ from vamos.foundation.eval.backends import EvaluationBackend, SerialEvalBackend
 from vamos.foundation.exceptions import ConfigurationError
 from vamos.foundation.observer import RunContext
 
-from .constrained_survival import run_technique
 from .helpers import fronts_from_ranks
 from .initialization import (
     setup_genealogy,
