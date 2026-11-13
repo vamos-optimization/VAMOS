@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
 
+from vamos.engine.algorithm.components.constraint_handling import PAIRWISE_TECHNIQUES
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.foundation.encoding import EncodingLike
 
@@ -14,6 +15,7 @@ from .base import (
     ResultMode,
     _build_external_archive_config,
     _ConfigBuilderState,
+    _ConstraintHandlingBuilder,
     _ConstraintModeBuilder,
     _encoding_operators,
     _InitializerBuilder,
@@ -44,6 +46,10 @@ class SMPSOConfig(_SerializableConfig):
     track_genealogy: bool = False
     result_mode: ResultMode | None = None
     external_archive: ExternalArchiveConfig | None = None
+    # Fields added after 1.0 go last, so that the constructor keeps the positions of its parameters.
+    constraint_handling: tuple[str, dict[str, float]] | None = None
+    #: The techniques that judge the violation of a single solution, the only ones this algorithm takes.
+    constraint_handling_techniques: ClassVar[tuple[str, ...]] = PAIRWISE_TECHNIQUES
 
     @classmethod
     def default(
@@ -73,6 +79,7 @@ class _SMPSOConfigBuilder(
     _MutationBuilder,
     _RepairBuilder,
     _InitializerBuilder,
+    _ConstraintHandlingBuilder,
     _ConstraintModeBuilder,
     _TrackGenealogyBuilder,
     _ResultArchiveBuilder,
@@ -135,6 +142,7 @@ class _SMPSOConfigBuilder(
             repair=self._cfg.get("repair", "auto"),
             initializer=self._cfg.get("initializer"),
             constraint_mode=self._cfg.get("constraint_mode", "feasibility"),
+            constraint_handling=self._cfg.get("constraint_handling"),
             track_genealogy=bool(self._cfg.get("track_genealogy", False)),
             result_mode=self._cfg.get("result_mode", "non_dominated"),
             external_archive=self._cfg.get("external_archive"),

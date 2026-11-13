@@ -33,10 +33,10 @@ CONSTRAINT_HANDLING_SPACE_PARAMETERS: dict[str, dict[str, str]] = {
 }
 
 
-def constraint_handling_part() -> SpacePart:
-    """``constraint_handling`` with the six techniques and the conditional parameters of three."""
-    params: list[ParamType] = [Categorical("constraint_handling", list(CONSTRAINT_HANDLING_TECHNIQUES), role="structural")]
-    conditionals = [
+def constraint_handling_part(techniques: tuple[str, ...] = CONSTRAINT_HANDLING_TECHNIQUES) -> SpacePart:
+    """``constraint_handling`` with the ``techniques`` (by default the six) and the parameters of those that have them."""
+    params: list[ParamType] = [Categorical("constraint_handling", list(techniques), role="structural")]
+    blocks = [
         ConditionalBlock(
             "constraint_handling",
             "epsilon_constrained",
@@ -60,6 +60,7 @@ def constraint_handling_part() -> SpacePart:
             ],
         ),
     ]
+    conditionals = [block for block in blocks if block.parent_value in techniques]
     return params, conditionals, []
 
 

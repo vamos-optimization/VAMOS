@@ -24,9 +24,6 @@ from vamos.experiment._execution_support import (
     LiveVizAdapter,
     VariationConfigs,
 )
-from vamos.experiment._execution_support import (
-    default_weight_path as _default_weight_path_impl,
-)
 from vamos.experiment.observers.console import ConsoleObserver
 from vamos.experiment.observers.storage import StorageObserver
 from vamos.experiment.runner_abstractions import EvaluatorSpec, resolve_evaluator, resolve_termination
@@ -51,10 +48,6 @@ def _logger() -> logging.Logger:
 
 
 Metrics = dict[str, Any]
-
-
-def _default_weight_path(problem_name: str, n_obj: int, pop_size: int) -> str:
-    return _default_weight_path_impl(problem_name, n_obj, pop_size)
 
 
 def build_hook_manager(config_spec: ExperimentSpec | None, problem_key: str) -> HookManager | None:

@@ -97,10 +97,10 @@ algorithm in a comparison.
 
 ## Choose a constraint-handling technique
 
-**VAMOS 1.2.0:** NSGA-II, NSGA-III, SMS-EMOA and AGE-MOEA take
-`constraint_handling`, the technique that ranks a constrained population. They
-are the techniques of jMetal's package `util.constrainthandling`, which
-Evolver's constrained spaces tune:
+**VAMOS 1.2.0:** NSGA-II, NSGA-III, SMS-EMOA, AGE-MOEA, RVEA and
+SMPSO take `constraint_handling`, the technique that ranks or compares
+constrained solutions. They are the techniques of jMetal's package
+`util.constrainthandling`, which Evolver's constrained spaces tune:
 
 | Technique | Parameters | Ranking |
 | --- | --- | --- |
@@ -142,6 +142,19 @@ place of the non-dominated ones:
 | NSGA-III | Whole fronts survive; reference-direction niching cuts the last. | Rank, then crowding distance. |
 | SMS-EMOA | Once per child, the least hypervolume contributor of the last front leaves. | Rank, then crowding distance. |
 | AGE-MOEA | Whole fronts survive; the survival score cuts the last. | Rank, then survival score. |
+
+RVEA and SMPSO take only the four techniques that judge the violation of a
+single solution, as Evolver's `EffectiveViolation` does: `cdp` (the total
+violation), `violated_constraints` (their number), `epsilon_constrained` (the
+violation, or 0 within epsilon) and `push_pull` (0 while it pushes, then as
+`epsilon_constrained`). RVEA's feasibility-first survival judges feasibility
+and violation by that measure, after the technique adapts to the union of
+parents and offspring. In SMPSO, the technique adapts to the swarm once per
+iteration and decides, as its jMetal comparator, whether a particle replaces
+its personal best: the less violated position wins, and two equally violated
+ones compare by Pareto dominance when both count as feasible, and also otherwise
+for `cdp` and `violated_constraints`. SMPSO's leaders archive keeps comparing by
+the constrained-domination principle.
 
 The tournament compares the technique's ranks of the population, which VAMOS
 ranks again, as it does with `cdp`; jMetal reuses the ranks of the replacement.

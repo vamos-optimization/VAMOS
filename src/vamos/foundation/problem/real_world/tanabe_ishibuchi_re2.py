@@ -3,6 +3,8 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
+from vamos.foundation.problem._output import objective_output
+
 from .tanabe_ishibuchi_utils import sum_violations_gte0
 
 
@@ -39,7 +41,7 @@ class RE21Problem:
         f1 = L * ((2.0 * x1) + np.sqrt(2.0) * x2 + np.sqrt(np.maximum(x3, 0.0)) + x4)
         f2 = ((Fconst * L) / E) * ((2.0 / x1) + (2.0 * np.sqrt(2.0) / x2) - (2.0 * np.sqrt(2.0) / x3) + (2.0 / x4))
 
-        Fout = out["F"]
+        Fout = objective_output(out, len(X), self.n_obj)
         Fout[:, 0] = f1
         Fout[:, 1] = f2
 
@@ -175,7 +177,7 @@ class RE22Problem:
         g2 = 4.0 - (x3 / denom)
         f2 = sum_violations_gte0(g1, g2)
 
-        Fout = out["F"]
+        Fout = objective_output(out, len(X), self.n_obj)
         Fout[:, 0] = f1
         Fout[:, 1] = f2
 
@@ -223,7 +225,7 @@ class RE23Problem:
         g3 = (np.pi * x3 * x3 * x4) + ((4.0 / 3.0) * (np.pi * x3 * x3 * x3)) - 1296000.0
         f2 = sum_violations_gte0(g1, g2, g3)
 
-        Fout = out["F"]
+        Fout = objective_output(out, len(X), self.n_obj)
         Fout[:, 0] = f1
         Fout[:, 1] = f2
 
@@ -265,7 +267,7 @@ class RE24Problem:
         g4 = 1.0 - (sigma_b / sigma_k)
         f2 = sum_violations_gte0(g1, g2, g3, g4)
 
-        Fout = out["F"]
+        Fout = objective_output(out, len(X), self.n_obj)
         Fout[:, 0] = f1
         Fout[:, 1] = f2
 
@@ -357,7 +359,7 @@ class RE25Problem:
         g6 = sigma_w - ((Fmax - Fp) / K)
         f2 = sum_violations_gte0(g1, g2, g3, g4, g5, g6)
 
-        Fout = out["F"]
+        Fout = objective_output(out, len(X), self.n_obj)
         Fout[:, 0] = f1
         Fout[:, 1] = f2
 

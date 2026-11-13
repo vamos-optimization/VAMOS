@@ -2,14 +2,12 @@ from __future__ import annotations
 
 from argparse import Namespace
 from dataclasses import dataclass as _dataclass
-from importlib.resources import as_file
 from typing import Any
 
 import numpy as np
 
 from vamos.engine.config.variation import VariationConfig
 from vamos.foundation.observer import Observer, RunContext
-from vamos.resources import weight_path
 
 _VARIATION_FIELDS = (
     "nsgaii",
@@ -95,8 +93,8 @@ class CompositeObserver(Observer):
     def on_generation(
         self,
         generation: int,
-        F: np.ndarray | None = None,
-        X: np.ndarray | None = None,
+        F: np.ndarray[Any, Any] | None = None,
+        X: np.ndarray[Any, Any] | None = None,
         stats: dict[str, Any] | None = None,
     ) -> None:
         for obs in self.observers:
@@ -104,7 +102,7 @@ class CompositeObserver(Observer):
 
     def on_end(
         self,
-        final_F: np.ndarray | None = None,
+        final_F: np.ndarray[Any, Any] | None = None,
         final_stats: dict[str, Any] | None = None,
     ) -> None:
         for obs in self.observers:
@@ -129,27 +127,18 @@ class LiveVizAdapter:
     def on_generation(
         self,
         generation: int,
-        F: np.ndarray | None = None,
-        X: np.ndarray | None = None,
+        F: np.ndarray[Any, Any] | None = None,
+        X: np.ndarray[Any, Any] | None = None,
         stats: dict[str, Any] | None = None,
     ) -> None:
         self._observer.on_generation(generation, F, X, stats)
 
     def on_end(
         self,
-        final_F: np.ndarray | None = None,
+        final_F: np.ndarray[Any, Any] | None = None,
         final_stats: dict[str, Any] | None = None,
     ) -> None:
         return None
 
     def should_stop(self) -> bool:
         return self._observer.should_stop()
-
-
-def default_weight_path(problem_name: str, n_obj: int, pop_size: int) -> str:
-    filename = f"{problem_name}_nobj{n_obj}_pop{pop_size}.csv"
-    try:
-        with as_file(weight_path(filename)) as p:
-            return str(p)
-    except Exception:
-        return str(weight_path("zdt1problem_2obj_pop100.csv")) if "zdt1" in filename else str(weight_path(filename))

@@ -48,10 +48,11 @@ rerun. Run and study artifacts keep the 1.0.0 schemas.
   techniques, as in Evolver's bases of these algorithms, and the tuning spaces
   `nsgaiii_constrained`, `smsemoa_constrained` and `agemoea_constrained`
   (#256).
+- `constraint_handling` in RVEA and SMPSO, with the four of these techniques
+  that judge a single solution, as in Evolver, and the tuning spaces
+  `rvea_constrained` and `smpso_constrained` (#257).
 
-<!-- PENDING(EXP-28, fix/cli-quality-details): drop this block if that pull request is not merged. -->
-- `vamos --version` prints the installed version.
-<!-- /PENDING -->
+- `vamos --version` prints the installed version (#273).
 
 ### Changed
 
@@ -135,9 +136,9 @@ that.
   `[analysis,examples]`. `all` installs the user extras without the `dev` and
   `docs` tooling (#268).
 
-<!-- PENDING(UX-25, fix/studio-small-fixes): drop this block if that pull request is not merged. -->
+<!-- PENDING(UX-25 #276, fix/studio-small-fixes): drop this block if that pull request is not merged. -->
 - `plot_critical_distance` no longer accepts `higher_is_better`, which had no
-  effect.
+  effect (#276).
 <!-- /PENDING -->
 
 - Documentation: the README works as the PyPI description, the CLI guide says
@@ -279,19 +280,19 @@ Unless stated otherwise, every run that uses the corrected component changes.
 - The C-DTLZ problems accept as many variables as objectives, as jMetal and
   the STEP suite do (#269).
 
-<!-- PENDING(#270, PRB-23 #271, PRB-22, EXP-28 and UX-25): drop each line whose pull request is not merged, and replace each label with its pull request number. -->
 - `vamos --config` rejects an `algorithm`, `engine`, `eval_strategy`,
   `external_archive_pruning`, `problem_set` or `experiment` that the
   command-line option does not accept, also with `--validate-config`, with
   exit code 2; an unknown `algorithm` ran nothing and exited with 0 (#270).
 - Built-in problems create `out["F"]` when the caller has not allocated it
   (#271).
-- `mixed_design` clips categories instead of wrapping them (PRB-22).
 - `vamos zoo` and `vamos check` report unknown problems and failures, and
-  derived tables warn about indicators skipped without moocore (EXP-28).
+  derived tables warn about indicators skipped without moocore (#273).
+<!-- PENDING(PRB-22 #274 and UX-25 #276): drop each line whose pull request is not merged. -->
+- `mixed_design` clips categories instead of wrapping them (#274).
 - Studio opens runs with 64-bit seeds, uses the chosen significance level for
   the Nemenyi difference, searches studies in the background, and keeps
-  Matplotlib's backend; `reduce_objectives` no longer depends on units (UX-25).
+  Matplotlib's backend; `reduce_objectives` no longer depends on units (#276).
 <!-- /PENDING -->
 
 ## [1.1.0] - 2026-10-23

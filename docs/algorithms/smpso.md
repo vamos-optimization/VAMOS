@@ -180,6 +180,8 @@ Each `X` row aligns with the same `F` row. This lesson explicitly requests `popu
 
 In VAMOS 1.0.1, explicit population mode returns the final swarm. The leaders archive and optional external result archive remain separate. Standalone binary, integer and permutation problems are rejected; mixed problems require mixed-compatible mutation. This real-valued run does not verify every supported combination.
 
+**VAMOS 1.2.0:** `constraint_handling` makes the replacement of personal bests follow one of jMetal's constraint-handling techniques, `cdp` (the default), `violated_constraints`, `epsilon_constrained` or `push_pull`, as Evolver's MOPSO does; the leaders archive still compares by the constrained-domination principle. See [choose a constraint-handling technique](../reference/constraints.md#choose-a-constraint-handling-technique).
+
 This run has no constraints. Before using a constrained or discrete problem, check the [capability matrix](../reference/algorithms.md#capability-matrix) and [constraint convention](../reference/constraints.md). Preserve complete runs through the [canonical lifecycle](../guide/run-artifacts.md); the teaching JSON is not a replay bundle.
 
 ## Try one controlled change

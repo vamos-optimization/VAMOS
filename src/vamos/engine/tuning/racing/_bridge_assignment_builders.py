@@ -271,6 +271,7 @@ def build_smpso_config(assignment: dict[str, Any], *, mixed: bool = False) -> SM
         extend_mutation_params(mut, assignment, mut_params, mixed=True)
     builder.mutation(mut, **mut_params)
     apply_optional_external_archive(builder, assignment, pop_size)
+    apply_constraint_handling(builder, assignment)
     return builder.build()
 
 
@@ -327,6 +328,7 @@ def build_rvea_config(assignment: dict[str, Any], *, mixed: bool = False) -> RVE
 
     apply_optional_repair(builder, assignment)
     apply_optional_external_archive(builder, assignment, pop_size)
+    apply_constraint_handling(builder, assignment)
     return builder.build()
 
 

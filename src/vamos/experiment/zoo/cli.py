@@ -36,11 +36,11 @@ def _list_cmd(args: argparse.Namespace) -> None:
         )
 
 
-def _info_cmd(args: argparse.Namespace) -> None:
+def _info_cmd(args: argparse.Namespace) -> int:
     info = get_problem_info(args.name)
     if info is None:
         _logger().warning("Problem '%s' not found.", args.name)
-        return
+        return 1
     _logger().info("Name: %s", info.name)
     _logger().info("Description: %s", info.description)
     _logger().info("Categories: %s", ", ".join(info.categories))
@@ -50,6 +50,7 @@ def _info_cmd(args: argparse.Namespace) -> None:
         info.default_n_objectives,
     )
     _logger().info("Tags: %s", ", ".join(info.tags))
+    return 0
 
 
 def _run_cmd(args: argparse.Namespace) -> None:
@@ -66,7 +67,8 @@ def _run_cmd(args: argparse.Namespace) -> None:
         config=config,
         selection_pressure=2,
     )
-    _logger().info("Run finished. HV: %s, output: %s", metrics.get("hv"), metrics.get("output_dir"))
+    # The run's metrics carry no hypervolume: it needs a reference point, which zoo does not choose.
+    _logger().info("Run finished. Output: %s", metrics.get("output_dir"))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -98,7 +100,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "list":
         _list_cmd(args)
     elif args.cmd == "info":
-        _info_cmd(args)
+        return _info_cmd(args)
     elif args.cmd == "run":
         _run_cmd(args)
     else:
