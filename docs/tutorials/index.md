@@ -69,6 +69,7 @@ Each guide includes runnable code, an actual result, and its limits.
 - [RVEA](../algorithms/rvea.md): explicit configuration, recorded results and mechanism-specific limits.
 - [CCMO](../algorithms/ccmo.md): two cooperating populations for constrained problems, its variations and its agreement with the published results.
 - [C-TAEA](../algorithms/ctaea.md): a convergence and a diversity archive for constrained problems, its weight vectors and its agreement with jMetal's port and the published results.
+- [ToP](../algorithms/top.md): two phases for constrained problems, the switch between them and its agreement with jMetal's port and the published results.
 
 Use the [algorithm capability matrix](../reference/algorithms.md) to check
 encoding, constraint, archive, and backend support before choosing a family.

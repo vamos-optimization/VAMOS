@@ -70,6 +70,7 @@ from .bridge_spaces_spea2 import (
     build_spea2_mixed_config_space,
     build_spea2_permutation_config_space,
 )
+from .bridge_spaces_top import build_top_config_space
 
 __all__ = [
     # NSGA-II
@@ -131,4 +132,6 @@ __all__ = [
     "build_ccmo_config_space",
     # C-TAEA
     "build_ctaea_config_space",
+    # ToP
+    "build_top_config_space",
 ]

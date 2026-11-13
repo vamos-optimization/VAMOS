@@ -20,6 +20,7 @@ from vamos.engine.algorithm.config import (
     SMPSOConfig,
     SMSEMOAConfig,
     SPEA2Config,
+    ToPConfig,
 )
 from vamos.engine.algorithm.config.base import _SerializableConfig
 from vamos.engine.algorithm.config.defaults import build_algorithm_config
@@ -52,6 +53,7 @@ _CONFIG_MAP: dict[str, type[_SerializableConfig]] = {
     "rvea": RVEAConfig,
     "ccmo": CCMOConfig,
     "ctaea": CTAEAConfig,
+    "top": ToPConfig,
 }
 
 

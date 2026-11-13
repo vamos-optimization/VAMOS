@@ -19,6 +19,7 @@ from vamos.engine.algorithm.config import (
     SMPSOConfig,
     SMSEMOAConfig,
     SPEA2Config,
+    ToPConfig,
 )
 
 
@@ -53,6 +54,17 @@ def _ccmo_de() -> CCMOConfig:
     return CCMOConfig.builder().pop_size(4).crossover("de", cr=0.9, f=0.5).mutation("pm", prob=1.0 / 6.0, eta=20.0).build()
 
 
+def _top_phase_two() -> ToPConfig:
+    return (
+        ToPConfig.builder()
+        .pop_size(5)
+        .crossover("de", cr=0.9, f=0.5)
+        .mutation("pm", prob=1.0 / 6.0, eta=20.0)
+        .phase_one_evaluation_fraction(0.0)
+        .build()
+    )
+
+
 _ALGORITHMS: tuple[tuple[str, str, Callable[[], Any], dict[str, int]], ...] = (
     ("nsgaii", "zdt1", lambda: NSGAIIConfig.default(pop_size=8, n_var=6), {"n_var": 6}),
     ("nsgaiii", "dtlz2", _nsgaiii, {"n_var": 6, "n_obj": 3}),
@@ -69,6 +81,9 @@ _ALGORITHMS: tuple[tuple[str, str, Callable[[], Any], dict[str, int]], ...] = (
     # C-TAEA: 6 requested weight vectors give 6 with three objectives; 5 with two leave a partial generation.
     ("ctaea", "c1dtlz1", lambda: CTAEAConfig.default(pop_size=6, n_var=7), {"n_var": 7, "n_obj": 3}),
     ("ctaea", "zdt1", lambda: CTAEAConfig.default(pop_size=5, n_var=6), {"n_var": 6}),
+    # ToP: one generation of phase 1 on a constrained problem; phase 2 from the start, with a partial generation.
+    ("top", "c1dtlz1", lambda: ToPConfig.default(pop_size=6, n_var=7), {"n_var": 7, "n_obj": 3}),
+    ("top", "zdt1", _top_phase_two, {"n_var": 6}),
 )
 
 

@@ -20,6 +20,7 @@ ALGORITHM_LABELS: dict[str, str] = {
     "rvea": "RVEA",
     "ccmo": "CCMO",
     "ctaea": "C-TAEA",
+    "top": "ToP",
 }
 
 _SPACE_SUFFIX = {

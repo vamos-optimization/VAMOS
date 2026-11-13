@@ -18,6 +18,7 @@ from .rvea import RVEAConfig
 from .smpso import SMPSOConfig
 from .smsemoa import SMSEMOAConfig
 from .spea2 import SPEA2Config
+from .top import ToPConfig
 from .types import AlgorithmConfigProtocol
 
 DefaultConfigBuilder = Callable[[int | None, int | None, int | None, str | None], AlgorithmConfigProtocol]
@@ -34,6 +35,7 @@ _DEFAULT_FACTORIES: dict[str, Callable[..., AlgorithmConfigProtocol]] = {
     "rvea": RVEAConfig.default,
     "ccmo": CCMOConfig.default,
     "ctaea": CTAEAConfig.default,
+    "top": ToPConfig.default,
 }
 
 # The built-in algorithm each configuration class configures.
@@ -49,6 +51,7 @@ _CONFIG_ALGORITHMS: dict[type, str] = {
     RVEAConfig: "rvea",
     CCMOConfig: "ccmo",
     CTAEAConfig: "ctaea",
+    ToPConfig: "top",
 }
 
 

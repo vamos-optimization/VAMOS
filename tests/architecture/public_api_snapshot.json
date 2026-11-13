@@ -50,6 +50,7 @@
     "SMPSOConfig",
     "SMSEMOAConfig",
     "SPEA2Config",
+    "ToPConfig",
     "available_algorithms",
     "available_crossover_methods",
     "available_mutation_methods",

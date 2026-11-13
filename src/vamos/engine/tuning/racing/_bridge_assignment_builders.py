@@ -18,6 +18,7 @@ from vamos.engine.algorithm.config import (
     SMPSOConfig,
     SMSEMOAConfig,
     SPEA2Config,
+    ToPConfig,
 )
 from vamos.engine.algorithm.variants import ALGORITHM_VARIANT_GROUPS
 
@@ -42,6 +43,7 @@ AGEMOEA_NAMES = ALGORITHM_VARIANT_GROUPS["agemoea"]
 RVEA_NAMES = ALGORITHM_VARIANT_GROUPS["rvea"]
 CCMO_NAMES = ALGORITHM_VARIANT_GROUPS["ccmo"]
 CTAEA_NAMES = ALGORITHM_VARIANT_GROUPS["ctaea"]
+TOP_NAMES = ALGORITHM_VARIANT_GROUPS["top"]
 
 
 def build_nsgaii_config(assignment: dict[str, Any], *, mixed: bool = False) -> NSGAIIConfig:
@@ -391,6 +393,33 @@ def build_ctaea_config(assignment: dict[str, Any], *, mixed: bool = False) -> CT
     return builder.build()
 
 
+def build_top_config(assignment: dict[str, Any], *, mixed: bool = False) -> ToPConfig:
+    """ToP's configuration: DE with ``de_cr`` and ``de_f``, the mutation of its trial vectors and the switch thresholds.
+
+    A missing ``de_cr``, ``de_f`` or threshold gets the value of PlatEMO's implementation: CR = 1.0,
+    F = 0.5, 0.2 for ``delta``, 1/3 for ``Pf`` and 0.9 of the budget.
+    """
+    builder = ToPConfig.builder()
+    pop_size = int(assignment["pop_size"])
+    builder.pop_size(pop_size)
+    apply_initializer(builder, assignment, pop_size)
+    builder.crossover("de", cr=float(assignment.get("de_cr", 1.0)), f=float(assignment.get("de_f", 0.5)))
+
+    mut = str(assignment.get("mutation", "pm"))
+    mut_params: dict[str, Any] = {}
+    if "mutation_prob" in assignment:
+        mut_params["prob"] = assignment["mutation_prob"]
+    extend_mutation_params(mut, assignment, mut_params, mixed=mixed)
+    builder.mutation(mut, **mut_params)
+
+    builder.delta_threshold(float(assignment.get("delta_threshold", 0.2)))
+    builder.feasible_ratio_threshold(float(assignment.get("feasible_ratio_threshold", 1.0 / 3.0)))
+    builder.phase_one_evaluation_fraction(float(assignment.get("phase_one_evaluation_fraction", 0.9)))
+    apply_optional_repair(builder, assignment)
+    apply_optional_external_archive(builder, assignment, pop_size)
+    return builder.build()
+
+
 def config_builders() -> dict[str, tuple[set[str], Any]]:
     return {
         "nsgaii": (NSGAII_NAMES, build_nsgaii_config),
@@ -404,6 +433,7 @@ def config_builders() -> dict[str, tuple[set[str], Any]]:
         "rvea": (RVEA_NAMES, build_rvea_config),
         "ccmo": (CCMO_NAMES, build_ccmo_config),
         "ctaea": (CTAEA_NAMES, build_ctaea_config),
+        "top": (TOP_NAMES, build_top_config),
     }
 
 
