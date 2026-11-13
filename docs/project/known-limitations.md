@@ -140,7 +140,8 @@ unsupported behavior rather than future compatibility promises.
   it. VAMOS 1.1.0 and earlier prune by crowding distance instead, with a single
   warning; see [Stopping and archive](../experiment/stopping_and_archive.md).
 - Optional research frameworks and model-based tuning packages have their own
-  Python and operating-system constraints.
+  Python and operating-system constraints. **Development after 1.1.0:** the
+  research frameworks are no longer an extra (the `research` extra is removed).
 - **Development after 1.1.0:** the release CI claims Python 3.10 to 3.14 on
   Linux, and Python 3.12 to 3.14 on Windows and macOS; VAMOS 1.1.0 claimed
   Python 3.10 to 3.12 on Linux and 3.12 on Windows and macOS. Other

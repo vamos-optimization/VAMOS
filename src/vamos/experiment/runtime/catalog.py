@@ -10,7 +10,6 @@ TITLE = "VAMOS Experiment Runner"
 DEFAULT_ENGINE = "numpy"
 DEFAULT_PROBLEM = "zdt1"
 
-EXTERNAL_ALGORITHM_NAMES = ("pymoo_nsga2", "jmetalpy_nsga2", "pygmo_nsga2")
 EXPERIMENT_TYPES = ("backends",)
 EXPERIMENT_BACKENDS = (
     "numpy",
@@ -71,7 +70,6 @@ __all__ = [
     "TITLE",
     "DEFAULT_ENGINE",
     "DEFAULT_PROBLEM",
-    "EXTERNAL_ALGORITHM_NAMES",
     "EXPERIMENT_TYPES",
     "EXPERIMENT_BACKENDS",
     "resolve_engine_details",

@@ -80,6 +80,16 @@ Install only the capability groups you use:
 | `dev` | Tests, linting, typing, building, and docs checks | Developer tooling |
 | `all` | All optional and development groups | Mixed; does not change interface guarantees |
 
+**Development after 1.1.0:** the extras install only what VAMOS and its
+examples use, and no other optimization framework. The `research` extra
+(pymoo, jMetalPy, DEAP, Platypus and pygmo) is removed, with the baselines it
+served. `analysis` installs pandas, matplotlib, Plotly and scikit-learn.
+`examples` adds seaborn, NetworkX, IPython, ipykernel and ipywidgets for the
+examples and notebooks; in VAMOS 1.1.0 they came with `analysis`, so a notebook
+now needs `analysis` and `examples`. `all` installs the user extras (`compute`,
+`analysis`, `tuning`, `studio`, `examples`, `openai`, `anthropic` and
+`gemini`) and no longer the `dev` and `docs` tooling.
+
 For example:
 
 ```bash

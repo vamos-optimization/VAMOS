@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import itertools
+import re
 import runpy
 from pathlib import Path
+
+import pytest
+
+from vamos import load_study
 
 ROOT = Path(__file__).resolve().parents[2]
 HOME = ROOT / "docs" / "index.md"
 GUIDE = ROOT / "docs" / "guide" / "studies.md"
+DEV_GUIDE = ROOT / "docs" / "dev" / "studies.md"
 QUICKSTART = ROOT / "docs" / "guide" / "zero_to_hero.md"
 EXAMPLES = ROOT / "docs" / "examples.md"
 EXAMPLE = ROOT / "examples" / "journeys" / "reproducible_study.py"
@@ -49,6 +55,43 @@ def test_executable_journey_plans_budget_and_traces_every_run(tmp_path: Path) ->
         assert row.run_metadata_available
         assert row.run_manifest_sha256 is not None
         assert (output / row.run_manifest_path).is_file()
+
+
+def _python_blocks(text: str) -> list[str]:
+    return re.findall(r"```python\s*\n(.*?)```", text, flags=re.DOTALL)
+
+
+def _section(text: str, heading: str) -> str:
+    start = text.index(f"\n{heading}\n")
+    end = text.find("\n## ", start + len(heading) + 2)
+    return text[start : end if end != -1 else len(text)]
+
+
+@pytest.mark.smoke
+def test_retry_recipe_runs_without_failed_tasks(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every task of the documented study succeeds, so the recipe meets the usual case with nothing to retry.
+
+    ``retry`` refuses a study without a retryable failed task (``TERMINAL_TASK_NOT_RETRYABLE``,
+    exit code 4 in the CLI); the recipe must check before calling it.
+    """
+    guide = GUIDE.read_text(encoding="utf-8")
+    (tmp_path / "guide").mkdir()
+    (tmp_path / "dev").mkdir()
+    monkeypatch.chdir(tmp_path / "guide")
+    namespace = {"__name__": "__main__"}
+    for heading in ("## Python lifecycle in one block", "## Resume and retry"):
+        for index, source in enumerate(_python_blocks(_section(guide, heading)), start=1):
+            exec(compile(source, f"docs/guide/studies.md::{heading[3:]}::{index}", "exec"), namespace)
+    report = load_study("studies/example").inspect()
+    assert report.counts["succeeded"] == report.counts["tasks"] == 8
+    assert not report.retryable_failed_work
+
+    (block,) = [source for source in _python_blocks(DEV_GUIDE.read_text(encoding="utf-8")) if ".retry(" in source]
+    # The contributor example uses a realistic budget; one generation is enough here.
+    assert "max_evaluations=10_000" in block
+    monkeypatch.chdir(tmp_path / "dev")
+    exec(compile(block.replace("max_evaluations=10_000", "max_evaluations=200"), "docs/dev/studies.md", "exec"), {"__name__": "__main__"})
+    assert load_study("studies/example").inspect().counts["succeeded"] == 4
 
 
 def test_learning_path_distinguishes_reproducibility_from_inference() -> None:

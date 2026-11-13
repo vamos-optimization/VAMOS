@@ -33,6 +33,6 @@ jobs:
       - name: Install dependencies (full extras)
         run: |
           python -m pip install -U pip
-          python -m pip install -c constraints/ci.txt -e ".[dev,compute,research,analysis,examples,studio,docs,tuning]"
+          python -m pip install -c constraints/ci.txt -e ".[dev,compute,analysis,examples,studio,docs,tuning]"
       - name: Run the slow tier
         run: pytest -m slow
