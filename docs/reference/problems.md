@@ -283,6 +283,12 @@ The TSPLIB factories have fixed dimensions. **Development after 1.1.0:** a
 different `n_var` is rejected with `ValueError`; VAMOS 1.1.0 ignored it while
 the selection reported it.
 
+**Development after 1.1.0:** `mixed_design` rounds each categorical value and
+clips it to `0..cardinality - 1`, as it does with integer values. VAMOS 1.1.0
+wrapped an out-of-range category modulo its cardinality, so a value rounded to
+the cardinality counted as category 0. Values within the bounds evaluate as
+before.
+
 ## Application-inspired benchmarks
 
 ### RE: Tanabe–Ishibuchi engineering suite
@@ -544,8 +550,23 @@ and inspect the returned `G` before selecting a design.
 `welded_beam` is VAMOS's six-variable mixed design example; it is a different
 formulation from the four-variable, three-objective `re32`. Its four emitted G
 columns are shear stress, normal stress, deflection and the `h <= b` condition.
-Its formulas are not certified as the canonical four-variable welded-beam
-benchmark. See [Known limitations](../project/known-limitations.md).
+Its formulas are not those of the four-variable welded-beam benchmark, which
+`re32` and `cre22` use. With the same h, l, t and b:
+
+- the weld term of the cost is `1.10471 h^2`, without the factor `l`; the cost
+  is then scaled by the material factor (1, 1.15 or 1.3) and adds 5 per
+  stiffener;
+- the deflection `2.1952 / (t^3 b)` is also divided by the stiffener count, in
+  the objective and in its constraint;
+- the normal stress is `504000 / (t b^2)` instead of `504000 / (t^2 b)`;
+- the polar moment is `J = 2 sqrt(2) h l (l^2/4 + R^2)` instead of
+  `2 sqrt(2) h l (l^2/12 + ((h + t)/2)^2)`, and the shear stress combines the
+  primary and torsional stresses with the cross term `2 tau' tau''` instead of
+  `tau' tau'' l / R`;
+- there is no buckling constraint.
+
+Its results are therefore not comparable with published welded-beam results.
+See [Known limitations](../project/known-limitations.md).
 
 **Development after 1.1.0:** `cec2009_uf3` searches the CEC2009 domain
 `[0, 1]^n`, as in the CEC2009 technical report, jMetal and the MOEA Framework.
