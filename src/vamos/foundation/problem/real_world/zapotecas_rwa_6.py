@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
+
+from vamos.foundation.problem._output import objective_output
 
 
 class RWA6Problem:
@@ -32,7 +36,7 @@ class RWA6Problem:
         self._z = float(z)
         self._d = float(d)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         vc, fz, ap, ae = (X[:, i] for i in range(4))
 
         ft = (
@@ -71,7 +75,7 @@ class RWA6Problem:
         )
         mrr = (1000.0 * vc * fz * self._z * ap * ae) / (np.pi * self._d)
 
-        F = out["F"]
+        F = objective_output(out, len(X), self.n_obj)
         F[:, 0] = ft
         F[:, 1] = ra
         F[:, 2] = -mrr

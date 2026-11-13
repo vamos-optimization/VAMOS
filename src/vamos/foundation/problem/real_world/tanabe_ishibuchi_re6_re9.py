@@ -3,6 +3,8 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
+from vamos.foundation.problem._output import objective_output
+
 from .tanabe_ishibuchi_utils import sum_violations_gte0
 
 
@@ -36,7 +38,7 @@ class RE61Problem:
         g7 = 550.0 - (0.164 / (x1 * x2) + 631.13 * x3 - 54.48)
         f6 = sum_violations_gte0(g1, g2, g3, g4, g5, g6, g7)
 
-        Fout = out["F"]
+        Fout = objective_output(out, len(X), self.n_obj)
         Fout[:, 0] = f1
         Fout[:, 1] = f2
         Fout[:, 2] = f3
@@ -146,7 +148,7 @@ class RE91Problem:
             (16.45 - 0.489 * x3 * x7 - 0.843 * x5 * x6 + 0.0432 * x9 * x10 - 0.0556 * x9 * x11 - 0.000786 * x11 * x11) / 15.7,
         )
 
-        Fout = out["F"]
+        Fout = objective_output(out, len(X), self.n_obj)
         Fout[:, 0] = f1
         Fout[:, 1] = f2
         Fout[:, 2] = f3

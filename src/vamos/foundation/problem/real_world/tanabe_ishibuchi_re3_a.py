@@ -4,6 +4,8 @@ from typing import Any
 
 import numpy as np
 
+from vamos.foundation.problem._output import objective_output
+
 from .tanabe_ishibuchi_utils import sum_violations_gte0
 
 Array = np.ndarray[Any, Any]
@@ -89,7 +91,7 @@ class RE31Problem:
         (f1, f2), g = two_bar_truss(X.T)
         f3 = sum_violations_gte0(*g)
 
-        Fout = out["F"]
+        Fout = objective_output(out, len(X), self.n_obj)
         Fout[:, 0] = f1
         Fout[:, 1] = f2
         Fout[:, 2] = f3
@@ -111,7 +113,7 @@ class RE32Problem:
         (f1, f2), g = welded_beam(X.T)
         f3 = sum_violations_gte0(*g)
 
-        Fout = out["F"]
+        Fout = objective_output(out, len(X), self.n_obj)
         Fout[:, 0] = f1
         Fout[:, 1] = f2
         Fout[:, 2] = f3
@@ -133,7 +135,7 @@ class RE33Problem:
         (f1, f2), g = disc_brake(X.T)
         f3 = sum_violations_gte0(*g)
 
-        Fout = out["F"]
+        Fout = objective_output(out, len(X), self.n_obj)
         Fout[:, 0] = f1
         Fout[:, 1] = f2
         Fout[:, 2] = f3
@@ -182,7 +184,7 @@ class RE34Problem:
             + (0.0109 * x4 * x4)
         )
 
-        Fout = out["F"]
+        Fout = objective_output(out, len(X), self.n_obj)
         Fout[:, 0] = f1
         Fout[:, 1] = f2
         Fout[:, 2] = f3
