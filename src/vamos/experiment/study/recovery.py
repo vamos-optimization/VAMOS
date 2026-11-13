@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Literal
 
-from vamos.experiment.artifacts.compatibility import reuse_current_environment
+from vamos.experiment.artifacts.compatibility import compare_current_environment, reuse_current_environment
+from vamos.experiment.artifacts.persistence import load_run
 from vamos.experiment.artifacts.reconstruction import reconstruct_resolved_run
-from vamos.experiment.artifacts.verification import verify_run
 
 from .cancellation import cancel_loaded
 from .errors import (
@@ -190,18 +190,17 @@ def _select_tasks(
 
 
 def _verify_resume_environment(study: Study, selected: set[str], operation: _Operation) -> None:
-    # The runs of one execution come from one process and share its environment, so one run per execution
-    # stands for the others; load_study has already verified the integrity of every run.
-    compared_executions: set[str] = set()
+    # Every earlier run is compared: its backend, and so its evidence, is its own. load_study has just verified
+    # every artifact of every run, so a run is read from its manifest only, and the operation reuses one capture.
     for attempt in study.attempts:
-        if attempt.run_reference is None or attempt.execution_id in compared_executions:
+        if attempt.run_reference is None:
             continue
         run_id = attempt.run_reference.get("run_id")
         if not isinstance(run_id, str):
             continue
-        compared_executions.add(attempt.execution_id)
-        report = verify_run(study.root / "runs" / run_id)
-        if report.environment.level != "exact":
+        stored = load_run(study.root / "runs" / run_id, verify="manifest")
+        report = compare_current_environment(stored.manifest, stored.environment)
+        if report.level != "exact":
             raise ResumeEnvironmentIncompatibilityError(
                 operation=f"{operation} study",
                 reason="RESUME_ENVIRONMENT_INCOMPATIBLE",
@@ -211,7 +210,7 @@ def _verify_resume_environment(study: Study, selected: set[str], operation: _Ope
                 expected_state="exact prior material environment",
                 path=f"runs/{run_id}/environment.json",
                 expected="exact material compatibility",
-                actual=report.environment.level,
+                actual=report.level,
                 action="Use the runtime and dependency build recorded by the prior canonical run.",
             )
     for plan_task in study.plan.tasks:
