@@ -104,3 +104,23 @@ def test_explore_result_front_reads_constraints_from_an_optimization_result():
     shown = sorted(zip(fig.data[0].x, fig.data[0].y, strict=True))
     assert shown == [(0.4, 0.4), (0.6, 0.2)]
     assert shown == sorted(map(tuple, np.asarray(result.front())))
+
+
+@pytest.mark.parametrize("n_obj", [2, 3])
+def test_plot_result_front_keeps_backend(n_obj):
+    import matplotlib.pyplot as plt
+
+    from vamos.ux.results import plot_result_front
+
+    result = SimpleNamespace(F=np.eye(n_obj), X=None, meta={})
+    plt.switch_backend("svg")
+    figures = plt.get_fignums()
+    try:
+        ax = plot_result_front(result, show=False)
+        backend = matplotlib.get_backend()
+    finally:
+        plt.switch_backend("agg")
+
+    assert backend == "svg"  # A notebook keeps showing the user's later figures.
+    assert plt.get_fignums() == figures  # The figure is not left open in pyplot.
+    assert ax.get_title() == "Pareto Front"

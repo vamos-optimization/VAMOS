@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import io
-import math
 from pathlib import Path
 from typing import Any
 
@@ -14,7 +13,7 @@ import param
 from vamos.ux.panel.components.background import BackgroundWork
 from vamos.ux.panel.components.plots import a12_heatmap, attainment_figure, box_figure, cd_figure, cost_figure, overlay_figure
 from vamos.ux.studio.batch import csv_text
-from vamos.ux.studio.batch_studies import list_studies
+from vamos.ux.studio.batch_studies import StudyListing, list_studies
 from vamos.ux.studio.comparison import (
     HV,
     IGD_PLUS,
@@ -29,15 +28,22 @@ from vamos.ux.studio.comparison import (
     verdict_counts,
 )
 from vamos.ux.studio.comparison_export import comparison_html, comparison_latex, comparison_rows, ranking_latex, saes_csv, saes_metrics_csv
-from vamos.ux.studio.comparison_stats import CORRECTIONS, attainment_surface_2d
+from vamos.ux.studio.comparison_stats import CORRECTIONS, attainment_surface_2d, rank_sum_p
 from vamos.ux.studio.data import RunRecord
 
 LEVELS = {"best": "best", "median": "median", "worst": "worst"}
 
 
 def smallest_p_value(n1: int, n2: int) -> float:
-    """The smallest two-sided p-value the exact rank-sum test can give with ``n1`` and ``n2`` runs."""
-    return min(1.0, 2.0 / math.comb(n1 + n2, n1)) if n1 and n2 else 1.0
+    """The smallest two-sided p-value the comparisons' Mann-Whitney test gives ``n1`` and ``n2`` runs without ties.
+
+    It comes from two fully separated samples, through the same SciPy call as the comparisons: the
+    exact test when a sample has at most eight runs, the normal approximation otherwise. Tied runs
+    always use the approximation, whose tie correction can give a smaller p-value.
+    """
+    if not n1 or not n2:
+        return 1.0
+    return rank_sum_p(np.arange(n1), np.arange(n1, n1 + n2))
 
 
 class CompareState(param.Parameterized):
@@ -62,12 +68,21 @@ class CompareState(param.Parameterized):
         self._runs: dict[str, RunRecord] = {}
         self._requested: str | None = None
         self._work: BackgroundWork[ComparisonData] = BackgroundWork()
+        self._search: BackgroundWork[list[StudyListing]] = BackgroundWork()
 
     def _report(self, message: str, kind: str = "info") -> None:
         self.status_kind, self.status = kind, message
 
     def refresh_studies(self, event: Any = None, *, select: str | None = None) -> None:
-        self.studies = [listing for listing in list_studies(Path(self.study_dir)) if listing.finished]
+        """List the studies of ``study_dir`` in the background; a large folder takes a while."""
+        base = Path(self.study_dir)
+        self._search.submit(lambda: list_studies(base), lambda found: self._listed(found, select=select, reload=event is not None))
+
+    def _listed(self, found: list[StudyListing] | Exception, *, select: str | None, reload: bool) -> None:
+        if isinstance(found, Exception):
+            self._report(f"Cannot list the studies of {self.study_dir}: {found}", "danger")
+            return
+        self.studies = [listing for listing in found if listing.finished]
         roots = [str(listing.root) for listing in self.studies]
         if select is not None and select not in roots:
             roots.insert(0, select)
@@ -77,7 +92,7 @@ class CompareState(param.Parameterized):
             self.selected = select
         elif self.selected not in roots:
             self.selected = roots[0] if roots else None
-        if event is not None and self.selected == before:
+        if reload and self.selected == before:
             self.load(force=True)  # Refresh rereads a study that may have gained runs.
 
     def study_options(self) -> dict[str, str]:
@@ -148,8 +163,9 @@ class CompareState(param.Parameterized):
         threshold = float(self.alpha) / (len(comparisons) if self.correction != "none" else 1)
         if smallest > threshold:
             return (
-                f"With these run counts the smallest possible p-value is {smallest:.2g}, above {threshold:.2g}, "
-                f"so no per-problem difference can be significant{' after the correction' if self.correction != 'none' else ''}. "
+                f"With these run counts the smallest possible p-value is {smallest:.2g} for runs without ties, above "
+                f"{threshold:.2g}, so no per-problem difference can be significant"
+                f"{' after the correction' if self.correction != 'none' else ''} unless runs tie. "
                 "Add runs per algorithm and problem to detect differences."
             )
         return ""
@@ -174,7 +190,8 @@ class CompareState(param.Parameterized):
     def ranking_tex(self) -> io.StringIO:
         if not isinstance(self.data, ComparisonData) or self.pivot is None:
             return io.StringIO("")
-        return io.StringIO(ranking_latex(rank_algorithms(self.data, self.indicator, self.pivot), self.pivot, self.indicator))
+        ranking = rank_algorithms(self.data, self.indicator, self.pivot, alpha=float(self.alpha))
+        return io.StringIO(ranking_latex(ranking, self.pivot, self.indicator))
 
     def comparisons_csv(self) -> io.StringIO:
         return io.StringIO(csv_text(comparison_rows(self.comparisons())))
@@ -256,13 +273,14 @@ def ranking_view(state: CompareState) -> Any:
     data = state.data
     if not isinstance(data, ComparisonData) or state.pivot is None or len(data.algorithms) < 2:
         return pn.pane.Markdown("*Load a study with at least two algorithms.*")
-    ranking = rank_algorithms(data, state.indicator, state.pivot)
+    ranking = rank_algorithms(data, state.indicator, state.pivot, alpha=float(state.alpha))
     items: list[Any] = [pn.pane.Alert(warning, alert_type="warning") for warning in ranking.warnings]
     if ranking.friedman is not None:
         statistic, p = ranking.friedman
         items.append(pn.pane.Markdown(f"Friedman test over {ranking.problems} problems: χ² = {statistic:.3g}, p = {p:.3g}."))
     if ranking.ranks:
-        items.append(pn.pane.Plotly(cd_figure(ranking.algorithms, ranking.ranks, ranking.cd, ranking.groups), sizing_mode="stretch_width"))
+        figure = cd_figure(ranking.algorithms, ranking.ranks, ranking.cd, ranking.groups, alpha=ranking.alpha)
+        items.append(pn.pane.Plotly(figure, sizing_mode="stretch_width"))
         rows = []
         for index in np.argsort(ranking.ranks):
             name = ranking.algorithms[index]

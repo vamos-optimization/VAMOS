@@ -35,7 +35,7 @@ class ExperimentState(param.Parameterized):
     n_var = param.Integer(default=30, bounds=(1, 1_000_000), doc="Number of decision variables.")
     n_obj = param.Integer(default=2, bounds=(1, 100), doc="Number of objectives, when the problem allows choosing it.")
     max_evaluations = param.Integer(default=25000, bounds=(100, 5_000_000))
-    seed = param.Integer(default=0, bounds=(0, 2**31 - 1))
+    seed = param.Integer(default=0, bounds=(0, 2**64 - 1), doc="Run seed; 64 bits, as the seeds optimize draws.")
 
     # ---- Outputs ----
     running = param.Boolean(default=False, precedence=-1)
@@ -120,7 +120,10 @@ class ExperimentState(param.Parameterized):
             budget = max(setup.max_evaluations, low)
             if budget != setup.max_evaluations:
                 notes.append(f"That run's budget of {setup.max_evaluations} evaluations is below this page's minimum of {low}.")
-            self.max_evaluations = min(budget, high) if high is not None else budget
+            if high is not None and budget > high:
+                notes.append(f"That run's budget of {setup.max_evaluations} evaluations is above this page's maximum of {high}.")
+                budget = high
+            self.max_evaluations = budget
         if setup.seed is not None:
             self.seed = setup.seed
             notes.append("The seed is that run's; change it to run another replicate.")
@@ -211,6 +214,22 @@ class ExperimentState(param.Parameterized):
         )
 
 
+def seed_input(state: ExperimentState) -> pn.widgets.TextInput:
+    """The seed as text: a browser number field would round a 64-bit seed above 2**53."""
+    field = pn.widgets.TextInput(name="Seed", value=str(state.seed))
+
+    def to_state(event: Any) -> None:
+        try:
+            state.seed = int(event.new.strip())
+        except ValueError:
+            state.status = f"The seed must be a whole number from 0 to {2**64 - 1}."
+            field.value = str(state.seed)
+
+    field.param.watch(to_state, "value")
+    state.param.watch(lambda event: setattr(field, "value", str(event.new)), "seed")
+    return field
+
+
 def render_experiment(on_exit: Callable[[Callable[[], None]], None] | None = None, setup: ExperimentSetup | None = None) -> pn.Column:
     """Build and return the Experiment page layout, loading ``setup`` when one is given."""
     state = ExperimentState()
@@ -238,7 +257,7 @@ def render_experiment(on_exit: Callable[[Callable[[], None]], None] | None = Non
         ),
         pn.pane.Markdown(pn.bind(lambda text: text, state.param.problem_info), sizing_mode="stretch_width"),
         pn.widgets.IntInput.from_param(state.param.max_evaluations, name="Max evaluations"),
-        pn.widgets.IntInput.from_param(state.param.seed, name="Seed"),
+        seed_input(state),
         pn.layout.Divider(),
         "### Algorithm",
         state.configurator.view(),

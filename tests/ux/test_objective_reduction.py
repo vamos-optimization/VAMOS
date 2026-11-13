@@ -45,3 +45,15 @@ def test_hybrid_respects_thresholds_and_keeps_diversity():
     _F_red, selected = reduce_objectives(F, target_dim=2, method="hybrid")
     assert len(set(selected.tolist())) == 2
     assert 2 in selected or 3 in selected
+
+
+def test_target_dim_reduction_is_scale_invariant():
+    # No pair reaches the correlation threshold, so target_dim alone decides which objectives stay.
+    x = np.linspace(0, 1, 50)
+    in_kg = np.stack([x, x**3, 4 * (x - 0.5) ** 2], axis=1)
+    in_g = in_kg * np.array([1.0, 1000.0, 1.0])
+
+    _F, kept_kg = reduce_objectives(in_kg, target_dim=2, method="correlation")
+    _F, kept_g = reduce_objectives(in_g, target_dim=2, method="correlation")
+
+    assert kept_kg.tolist() == kept_g.tolist()

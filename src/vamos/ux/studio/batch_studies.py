@@ -16,6 +16,7 @@ from typing import Literal
 from vamos.study_artifacts import StudySpec, create_study, load_study, plan_study
 from vamos.ux.studio.study_jobs import JobStatus, job_dir_for, job_status, start_job
 from vamos.ux.studio.study_progress import StudyProgress
+from vamos.ux.studio.study_search import study_roots
 
 BATCH_PREFIX = "batch-"
 OnErrorPolicy = Literal["fail_fast", "continue"]
@@ -105,18 +106,16 @@ def create_and_start(spec: StudySpec, output: Path) -> JobStatus:
 
 
 def list_studies(base: Path, *, limit: int = 50) -> list[StudyListing]:
-    """Studies at or below ``base``, most recently updated first."""
+    """Studies found by ``study_roots`` under ``base``, most recently updated first; at most ``limit`` are read."""
     base = Path(base).expanduser()
     if not base.is_dir():
         return []
-    candidates = [base] if (base / "study-manifest.json").is_file() else []
-    candidates += [
-        manifest.parent
-        for manifest in base.rglob("study-manifest.json")
-        if manifest.parent != base and ".vamos-studio" not in manifest.parts and "vamos-study-staging" not in str(manifest.parent.name)
-    ]
     listings: list[StudyListing] = []
-    for root in candidates:
+    for root in study_roots(base):
+        if len(listings) >= limit:
+            break
+        if root != base and (".vamos-studio" in root.parts or "vamos-study-staging" in root.name):
+            continue
         try:
             report = load_study(root).inspect().as_dict()
         except Exception:
@@ -136,7 +135,7 @@ def list_studies(base: Path, *, limit: int = 50) -> list[StudyListing]:
             )
         )
     listings.sort(key=lambda listing: listing.updated_at, reverse=True)
-    return listings[:limit]
+    return listings
 
 
 @dataclass(frozen=True)
