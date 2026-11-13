@@ -275,3 +275,10 @@ def test_hv_contribution_columns_use_the_problem_reference_point() -> None:
     value = study_analysis._row_indicator("hv_contributions", _ALIAS_FRONT, _ALIAS_REFERENCE_FRONT, _ALIAS_REFERENCE_POINT)
     assert value is not None
     assert np.asarray(value) == pytest.approx([0.5, 1.0, 0.3])
+
+
+def test_missing_moocore_warns_about_skipped_indicators(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    monkeypatch.setattr(study_analysis, "has_moocore", lambda: False)
+    with caplog.at_level("WARNING"):
+        study_analysis._attach_indicators([], [], None, ("hv", "igd_plus", "epsilon_additive"))
+    assert "igd_plus" in caplog.text and "epsilon_additive" in caplog.text and "moocore" in caplog.text

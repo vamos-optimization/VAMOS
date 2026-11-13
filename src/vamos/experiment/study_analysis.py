@@ -133,7 +133,13 @@ def _attach_indicators(
     indicators: Sequence[str],
 ) -> None:
     requested = tuple(name for name in indicators if _canonical_name(name) != "hv")
-    if not requested or not has_moocore():
+    if not requested:
+        return
+    if not has_moocore():
+        logging.getLogger(__name__).warning(
+            'Skipping the indicators %s: they need moocore (pip install "vamos-optimization[compute]"); only HV is computed.',
+            ", ".join(requested),
+        )
         return
     reference_front = _nondominated_union(fronts) if fronts else None
     for row in rows:

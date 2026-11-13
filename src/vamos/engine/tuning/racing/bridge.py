@@ -24,6 +24,7 @@ from .bridge_spaces import (
     # MOEA/D
     build_moead_binary_config_space,
     build_moead_config_space,
+    build_moead_constrained_config_space,
     build_moead_integer_config_space,
     build_moead_mixed_config_space,
     build_moead_permutation_config_space,
@@ -77,6 +78,7 @@ __all__ = [
     "build_nsgaii_integer_config_space",
     # MOEA/D
     "build_moead_config_space",
+    "build_moead_constrained_config_space",
     "build_moead_permutation_config_space",
     "build_moead_mixed_config_space",
     "build_moead_binary_config_space",
