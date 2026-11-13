@@ -66,11 +66,13 @@ The canonical environment, path inventory, diagnostic fingerprint schema, baseli
 - Facades: prefer `vamos.api`, `vamos.algorithms`, `vamos.problems`, `vamos.ux.api`.
 
 ## Optional Dependencies Policy
-- foundation/** and engine/**: no top-level imports of optional/heavy deps.
-- experiment/external/**: integration boundary for optional deps; imports must be lazy or guarded.
-- ux/panel/** and ux/studio/**: Panel is optional and confined to UI modules.
+`tests/test_optional_deps_policy.py` reads the optional packages from `[project.optional-dependencies]`, by import name, and checks module-level imports:
+- foundation/** and engine/**: no top-level imports of optional/heavy deps, guarded or not. A kernel backend module (`foundation/kernel/<backend>_*.py`) imports its own package; `registry.py` loads it on demand.
+- experiment/external/**: integration boundary for the `research` extra, which no other module imports; imports must be lazy or guarded.
+- ux/panel/** and ux/studio/**: the Studio UI imports the `studio` extra (Panel and its stack) at top level.
+- Elsewhere, a top-level import of an optional dependency is guarded with `try/except ImportError`.
 - Dynamic import loopholes (`importlib.import_module`, `__import__`) are disallowed at top-level.
-- Dependency list is enforced by `tests/architecture/test_dependency_policy.py`.
+- `[project].dependencies` is the closed set numpy, scipy, joblib and typing-extensions (`tests/architecture/test_dependency_policy.py`), and importing a public module loads no other third-party package (`tests/test_import_time_smoke.py`).
 
 ## Public API Snapshot
 - Public facades are frozen via `tests/architecture/test_public_api_snapshot.py`.
