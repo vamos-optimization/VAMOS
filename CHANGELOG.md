@@ -51,6 +51,10 @@ rerun. Run and study artifacts keep the 1.0.0 schemas.
 - `constraint_handling` in RVEA and SMPSO, with the four of these techniques
   that judge a single solution, as in Evolver, and the tuning spaces
   `rvea_constrained` and `smpso_constrained` (#257).
+- MOEA/D's `subproblem_update_criterion`, with jMetal's criteria
+  `feasibility_rules` (the default), `improved_epsilon` and
+  `violation_threshold`, which decide as jMetal's do, and the tuning space
+  `moead_constrained` (#258).
 
 - `vamos --version` prints the installed version (#273).
 
@@ -288,8 +292,8 @@ Unless stated otherwise, every run that uses the corrected component changes.
   (#271).
 - `vamos zoo` and `vamos check` report unknown problems and failures, and
   derived tables warn about indicators skipped without moocore (#273).
-<!-- PENDING(PRB-22 #274 and UX-25 #276): drop each line whose pull request is not merged. -->
 - `mixed_design` clips categories instead of wrapping them (#274).
+<!-- PENDING(UX-25 #276, fix/studio-small-fixes): drop this line if that pull request is not merged. -->
 - Studio opens runs with 64-bit seeds, uses the chosen significance level for
   the Nemenyi difference, searches studies in the background, and keeps
   Matplotlib's backend; `reduce_objectives` no longer depends on units (#276).

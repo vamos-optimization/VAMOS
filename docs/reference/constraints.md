@@ -164,6 +164,45 @@ keep the state of the technique. `cdp` keeps each algorithm's own survival, so
 its results are those of VAMOS 1.1.0. A technique other than `cdp` needs
 `constraint_mode="feasibility"`.
 
+### MOEA/D: subproblem update criteria
+
+**VAMOS 1.2.0:** MOEA/D handles constraints where a new solution
+replaces the solutions of its neighbouring subproblems, and
+`subproblem_update_criterion` chooses how, among the criteria of jMetal's
+package `subproblemupdate`, as Evolver's `MOEADDoubleConstrained` space does:
+
+| Criterion | Parameters | Replacement |
+| --- | --- | --- |
+| `feasibility_rules` (default) | none | Deb's feasibility rules: feasible first, then the less violated, then the better aggregation value. Two infeasible solutions with the same violation keep the current one, where jMetal compares their aggregation values. |
+| `improved_epsilon` | `tao`, `feasibility_ratio_threshold`, `decay_fraction` | Fan et al.'s improved epsilon method: violations within epsilon, or equal, compare by aggregation value. Epsilon shrinks by `tao` each generation while fewer than `feasibility_ratio_threshold` of the population is feasible, grows otherwise, and is 0 from `decay_fraction` of the run's generations on. |
+| `violation_threshold` | none | Jan and Khanum's adaptive threshold: the less violated wins if a violation (the number of violated constraints times the total violation) exceeds the fraction of infeasible solutions times their mean; otherwise the aggregation value decides. |
+
+```python
+from vamos.algorithms import MOEADConfig
+
+config = (
+    MOEADConfig.builder()
+    .pop_size(100)
+    .neighbor_size(20)
+    .delta(0.9)
+    .replace_limit(2)
+    .aggregation("tchebycheff")
+    .crossover("sbx", prob=1.0, eta=20.0)
+    .mutation("pm", prob="1/n", eta=20.0)
+    .subproblem_update_criterion("improved_epsilon", tao=0.1, feasibility_ratio_threshold=0.95, decay_fraction=0.8)
+    .build()
+)
+```
+
+The criteria decide as jMetal's own, which
+`tests/engine/test_subproblem_update_criteria.py` checks on sequences of
+populations. As in jMetal, a criterion adapts to the population once per new
+solution, before its replacements, and a generation is `pop_size` new solutions.
+With a criterion other than `feasibility_rules`, MOEA/D replaces child by child
+in NumPy on both engines, and its checkpoints keep the criterion's state.
+`feasibility_rules` keeps MOEA/D's own replacement, so its results are those of
+VAMOS 1.1.0.
+
 ## Read the feasibility of a result
 
 **VAMOS 1.2.0:** every solution array of a result carries the

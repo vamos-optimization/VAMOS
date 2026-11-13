@@ -390,6 +390,11 @@ configuration, and `vamos tune --algorithm nsgaiii_constrained` tunes it.
 `rvea_constrained` and `smpso_constrained` offer the four techniques that RVEA
 and SMPSO take, with the parameters of `epsilon_constrained` and `push_pull`,
 as Evolver's `RVEADoubleConstrained` and `MOPSOConstrained`.
+`moead_constrained` adds MOEA/D's `subproblem_update_criterion` and the
+parameters of `improved_epsilon` (`improved_epsilon_tao`,
+`improved_epsilon_feasibility_ratio_threshold`,
+`improved_epsilon_decay_fraction`), with the ranges of Evolver's
+`MOEADDoubleConstrained` space.
 
 ### Populations that depend on the number of objectives
 

@@ -27,7 +27,7 @@ from ._bridge_assignment_shared import (
     extend_mutation_params,
     has_mixed_mutation_assignment,
 )
-from .bridge_space_parts_constraints import apply_constraint_handling
+from .bridge_space_parts_constraints import apply_constraint_handling, apply_subproblem_update_criterion
 
 NSGAII_NAMES = ALGORITHM_VARIANT_GROUPS["nsgaii"]
 MOEAD_NAMES = ALGORITHM_VARIANT_GROUPS["moead"] - {"moead_permutation"}
@@ -130,6 +130,7 @@ def build_moead_config(assignment: dict[str, Any], *, mixed: bool = False) -> MO
     else:
         builder.aggregation(aggregation)
     apply_optional_external_archive(builder, assignment, pop_size)
+    apply_subproblem_update_criterion(builder, assignment)
     return builder.build()
 
 

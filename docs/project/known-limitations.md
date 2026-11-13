@@ -58,8 +58,14 @@ unsupported behavior rather than future compatibility promises.
 ## Benchmark validation
 
 - `welded_beam` is a six-variable mixed design example with its own formulas,
-  materials and stiffeners. Its constraint metadata is fixed, but this does
-  not certify equivalence to the canonical four-variable welded-beam benchmark.
+  materials and stiffeners. Its constraint metadata is fixed, but its formulas
+  are not those of the four-variable welded-beam benchmark that `re32` and
+  `cre22` use: the weld cost lacks the factor `l`, the normal stress uses
+  `t b^2` for `t^2 b`, the polar moment and the shear stress differ, the
+  deflection is divided by the stiffener count, and there is no buckling
+  constraint. Its results are not comparable with published welded-beam
+  results; the formulas are listed under
+  [Problems](../reference/problems.md#learning-and-mixed-engineering-examples).
 - **VAMOS 1.2.0:** `lsmop1`–`lsmop9` follow the original LSMOP
   definition (Cheng et al., 2017), as PlatEMO does. VAMOS 1.1.0 and earlier
   follow jMetal, with the nonlinear linkage in LSMOP1–4 and a larger distance

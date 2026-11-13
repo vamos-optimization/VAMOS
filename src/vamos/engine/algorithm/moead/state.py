@@ -23,6 +23,8 @@ from vamos.engine.algorithm.components.results import (
 from vamos.engine.algorithm.components.state import AlgorithmState
 
 if TYPE_CHECKING:
+    from vamos.engine.algorithm.moead.update_criteria import SubproblemUpdateCriterion
+
     pass
 
 
@@ -77,6 +79,8 @@ class MOEADState(AlgorithmState):
 
     # Cached constraint violation (sum of positive parts), when constraints are enabled.
     cv: np.ndarray[Any, Any] | None = None
+    # The subproblem update criterion; None keeps MOEA/D's own feasibility rules.
+    subproblem_update: SubproblemUpdateCriterion | None = None
 
     # Variation operators (as callables for flexibility across encodings)
     crossover_fn: Callable[[np.ndarray[Any, Any], np.random.Generator], np.ndarray[Any, Any]] | None = None

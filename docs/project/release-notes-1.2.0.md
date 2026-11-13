@@ -67,8 +67,9 @@ comparing them with results of earlier versions.
 - The experimental tuning gains an `irace` backend through `Rscript`, and
   Studio's default LLM provider gets a `gemini` extra.
 - NSGA-II, NSGA-III, SMS-EMOA, AGE-MOEA, RVEA and SMPSO offer jMetal's
-  constraint-handling techniques through `constraint_handling`, with matching
-  `*_constrained` tuning spaces.
+  constraint-handling techniques through `constraint_handling`, and MOEA/D
+  its subproblem update criteria through `subproblem_update_criterion`, with
+  matching `*_constrained` tuning spaces.
 
 ## Stricter validation
 
