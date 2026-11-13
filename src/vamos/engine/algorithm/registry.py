@@ -8,6 +8,7 @@ and return an initialized algorithm instance.
 
 from __future__ import annotations
 
+import os
 import warnings
 from collections.abc import Callable, Mapping
 from importlib import metadata
@@ -148,6 +149,13 @@ def _load_algorithm_plugins(registry: Registry[AlgorithmBuilder], *, force: bool
         if not name:
             warnings.warn("Ignoring VAMOS algorithm entry point with an empty name.", RuntimeWarning, stacklevel=2)
             continue
+        if name in get_builtin_algorithm_names():
+            warnings.warn(
+                f"Ignoring VAMOS algorithm plugin '{entry_point.name}': '{name}' is the name of a built-in algorithm.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            continue
         if name in registry:
             continue
         try:
@@ -165,18 +173,28 @@ def _load_algorithm_plugins(registry: Registry[AlgorithmBuilder], *, force: bool
     return tuple(loaded)
 
 
+def _plugins_disabled() -> bool:
+    """Whether ``VAMOS_DISABLE_PLUGINS`` turns off the implicit loading of algorithm plugins."""
+    return os.environ.get("VAMOS_DISABLE_PLUGINS", "").strip().lower() in ("1", "true", "yes", "on")
+
+
 def get_algorithms_registry() -> Registry[AlgorithmBuilder]:
+    """The algorithm registry; its first use also loads the installed plugins unless ``VAMOS_DISABLE_PLUGINS`` is set."""
     global _ALGORITHMS
     if _ALGORITHMS is None:
         registry: Registry[AlgorithmBuilder] = Registry("Algorithms")
         _register_algorithms(registry)
         _ALGORITHMS = registry
-    _load_algorithm_plugins(_ALGORITHMS)
+    if not _plugins_disabled():
+        _load_algorithm_plugins(_ALGORITHMS)
     return _ALGORITHMS
 
 
 def discover_algorithm_plugins(*, force: bool = False) -> tuple[str, ...]:
-    """Load algorithm builders exposed through the ``vamos.algorithms`` entry point group."""
+    """Load algorithm builders exposed through the ``vamos.algorithms`` entry point group.
+
+    This explicit call loads them even when ``VAMOS_DISABLE_PLUGINS`` is set.
+    """
     global _ALGORITHMS
     if _ALGORITHMS is None:
         registry: Registry[AlgorithmBuilder] = Registry("Algorithms")

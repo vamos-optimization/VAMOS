@@ -192,9 +192,12 @@ def _default_for_param(p: Real | Int | Categorical | Boolean) -> Any:
     raise TypeError(f"Unknown param type: {type(p)}")
 
 
-def _enumerate_discrete_combos(space: AlgorithmConfigSpace):
+def _enumerate_discrete_combos(space: AlgorithmConfigSpace, *, base_stride: int = 1):
     """
     Yield every feasible Categorical × Boolean assignment.
+
+    With ``base_stride`` > 1, only every ``base_stride``-th combination of the base
+    parameters is expanded, which makes a sample without walking the whole product.
 
     Enumerates base (non-conditional) discrete params first, then expands
     conditional discrete params only when their parent value activates them.
@@ -229,7 +232,9 @@ def _enumerate_discrete_combos(space: AlgorithmConfigSpace):
     for block in space.conditionals or []:
         cond_blocks.append((block.parent_name, block.parent_value, block.params))
 
-    for base_combo in itertools.product(*base_enum_values):
+    for index, base_combo in enumerate(itertools.product(*base_enum_values)):
+        if index % base_stride:
+            continue
         base_assignment = dict(zip(base_enum_names, base_combo))
         base_assignment.update(fixed)
 
@@ -328,32 +333,58 @@ def _inject_special_params(algo_name: str, assignment: dict[str, Any]) -> None:
 # ---------------------------------------------------------------------------
 
 _REGISTRY_IDS = [f"{algo}_{enc}" for algo, enc, _ in REGISTRY]
+# Spaces with more than 100 000 combinations: building them all takes minutes, so the
+# exhaustive check runs in the slow tier and the fast tier builds a sample of them.
+_LARGE_SPACES = {"nsgaii_real", "nsgaii_mixed_mixed"}
+# A prime stride over the base product reaches every value of every base parameter.
+_SAMPLE_BASE_STRIDE = 211
 
 
-@pytest.mark.parametrize(
-    "algo_name,encoding,builder",
-    REGISTRY,
-    ids=_REGISTRY_IDS,
-)
-def test_all_discrete_combos_build_config(algo_name: str, encoding: str, builder):
-    """Every feasible Categorical × Boolean combo produces a valid config."""
-    space = builder()
+def _assert_combos_build(algo_name: str, combos) -> list[dict[str, Any]]:
     failures: list[tuple[int, dict[str, Any], str]] = []
-    total = 0
+    built: list[dict[str, Any]] = []
 
-    for i, assignment in enumerate(_enumerate_discrete_combos(space)):
-        total += 1
+    for i, assignment in enumerate(combos):
         _inject_special_params(algo_name, assignment)
         try:
             cfg = config_from_assignment(algo_name, assignment)
             assert cfg is not None
+            built.append(assignment)
         except Exception as e:
             failures.append((i, assignment, str(e)))
 
-    assert total > 0, f"No combinations generated for {algo_name}"
-    assert not failures, f"{len(failures)}/{total} failures for {algo_name}:\n" + "\n".join(
+    assert built or failures, f"No combinations generated for {algo_name}"
+    assert not failures, f"{len(failures)}/{len(built) + len(failures)} failures for {algo_name}:\n" + "\n".join(
         f"  combo {i}: {e}" for i, _, e in failures[:20]
     )
+    return built
+
+
+@pytest.mark.parametrize(
+    "algo_name,encoding,builder",
+    [
+        pytest.param(algo, enc, builder, id=f"{algo}_{enc}", marks=[pytest.mark.slow] if f"{algo}_{enc}" in _LARGE_SPACES else [])
+        for algo, enc, builder in REGISTRY
+    ],
+)
+def test_all_discrete_combos_build_config(algo_name: str, encoding: str, builder):
+    """Every feasible Categorical × Boolean combo produces a valid config."""
+    _assert_combos_build(algo_name, _enumerate_discrete_combos(builder()))
+
+
+@pytest.mark.parametrize(
+    "algo_name,encoding,builder",
+    [pytest.param(algo, enc, builder, id=f"{algo}_{enc}") for algo, enc, builder in REGISTRY if f"{algo}_{enc}" in _LARGE_SPACES],
+)
+def test_large_discrete_spaces_build_config_on_a_sample(algo_name: str, encoding: str, builder):
+    """A sample of every large space builds, and it uses every value of every base parameter."""
+    space = builder()
+    built = _assert_combos_build(algo_name, _enumerate_discrete_combos(space, base_stride=_SAMPLE_BASE_STRIDE))
+
+    for param in space.params:
+        if isinstance(param, (Categorical, Boolean)):
+            values = list(param.choices) if isinstance(param, Categorical) else [True, False]
+            assert {repr(combo[param.name]) for combo in built} == {repr(value) for value in values}, param.name
 
 
 # ---------------------------------------------------------------------------

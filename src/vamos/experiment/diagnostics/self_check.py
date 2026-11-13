@@ -68,6 +68,9 @@ def run_self_check(verbose: bool = False) -> list[CheckResult]:
     Always exercises NumPy; Numba and MooCore are optional and reported
     as ``"skipped"`` when the dependency is missing.
 
+    Experimental: a development diagnostic exported by ``vamos`` and
+    ``vamos.api``, not covered by the 1.x stability policy.
+
     Parameters
     ----------
     verbose : bool, default False

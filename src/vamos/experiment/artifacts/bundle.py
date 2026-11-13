@@ -23,6 +23,7 @@ from .bundle_safety import (
     validate_contract_map,
     validate_dtype,
     validate_member_layout,
+    validate_problem_columns,
     validate_shape,
 )
 from .errors import ArtifactResourceLimitError, MalformedResultBundleError
@@ -82,8 +83,12 @@ def inspect_result_bundle(
     limits: LoadLimits,
     required_f: bool,
     operation: str,
+    resolved_spec: Mapping[str, Any] | None = None,
 ) -> dict[str, tuple[tuple[int, ...], np.dtype[Any]]]:
-    """Validate ZIP/NPY metadata without materializing any array."""
+    """Validate ZIP/NPY metadata without materializing any array.
+
+    With ``resolved_spec``, array columns are also checked against its problem's ``n_obj`` and ``n_var``.
+    """
     try:
         observed_artifact_bytes = path.stat().st_size
     except OSError as exc:
@@ -236,6 +241,8 @@ def inspect_result_bundle(
     if required_f and "F" not in contracts:
         raise_malformed(descriptor, path, operation, "does not contain required F", "F.npy", sorted(contracts))
     validate_contract_map(contracts, descriptor=descriptor, path=path, operation=operation)
+    if resolved_spec is not None:
+        validate_problem_columns(contracts, resolved_spec, descriptor=descriptor, path=path, operation=operation)
     return contracts
 
 
@@ -246,6 +253,7 @@ def load_result_bundle(
     limits: LoadLimits,
     required_f: bool,
     operation: str,
+    resolved_spec: Mapping[str, Any] | None = None,
 ) -> dict[str, np.ndarray[Any, Any]]:
     """Inspect, then materialize a ResultBundle with pickle disabled."""
     contracts = inspect_result_bundle(
@@ -254,6 +262,7 @@ def load_result_bundle(
         limits=limits,
         required_f=required_f,
         operation=operation,
+        resolved_spec=resolved_spec,
     )
     try:
         with np.load(path, allow_pickle=False) as bundle:

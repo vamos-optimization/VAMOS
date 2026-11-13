@@ -150,6 +150,25 @@ def test_cli_exit_codes_for_integrity_schema_component_and_collision(tmp_path: P
     assert collision.value.code == 8
 
 
+@pytest.mark.parametrize(
+    "manifest_text",
+    ['{"nested": ' + "[" * 100_000 + "]" * 100_000 + "}", '{"count": 1' + "0" * 5000 + "}"],
+    ids=["deep_nesting", "huge_integer"],
+)
+def test_verify_reports_json_beyond_reader_limits_as_malformed(
+    manifest_text: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = _source(tmp_path)
+    (source / "manifest.json").write_text(manifest_text, encoding="utf-8")
+
+    with pytest.raises(SystemExit) as caught:
+        run_results(["verify", str(source), "--json"])
+    captured = capsys.readouterr()
+
+    assert caught.value.code == 3
+    assert json.loads(captured.out)["error"]["category"] == "artifact_resource_limit"
+
+
 def test_cli_usage_and_exact_mismatch_exit_codes(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
