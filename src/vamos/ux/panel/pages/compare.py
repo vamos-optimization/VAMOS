@@ -415,7 +415,10 @@ def render_compare(study_dir: Path | None = None, focus_study: str | None = None
         ("Verdict", pn.bind(lambda *_: verdict_view(state), *watched)),
         ("Comparisons", pn.bind(lambda *_: comparisons_view(state), *watched)),
         ("Effect size", pn.bind(lambda *_: effect_view(state), *watched)),
-        ("Ranking", pn.bind(lambda *_: ranking_view(state), state.param.data, state.param.indicator, state.param.pivot)),
+        (
+            "Ranking",
+            pn.bind(lambda *_: ranking_view(state), state.param.data, state.param.indicator, state.param.pivot, state.param.alpha),
+        ),
         ("Distributions", pn.bind(lambda *_: distribution_view(state), state.param.data, state.param.indicator)),
         ("Fronts", pn.bind(lambda *_: fronts_view(state), state.param.data, state.param.indicator, state.param.problem)),
         ("Attainment", pn.bind(lambda *_: attainment_view(state), state.param.data, state.param.problem, state.param.levels)),

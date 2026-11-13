@@ -644,6 +644,34 @@ def test_ranking_uses_selected_alpha() -> None:
     assert r"$\alpha=0.01$" in latex and f"$CD={cd:.3g}$" in latex
 
 
+def test_ranking_tab_follows_the_significance_level(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Changing the level redraws the Ranking tab, so the diagram agrees with the LaTeX table."""
+    import panel as pn
+
+    from vamos.ux.panel.pages import compare
+    from vamos.ux.studio.comparison import HV
+
+    states: list[Any] = []
+
+    class RecordedState(compare.CompareState):
+        def __init__(self, **params: Any) -> None:
+            super().__init__(**params)
+            states.append(self)
+
+    monkeypatch.setattr(compare, "CompareState", RecordedState)
+    page = compare.render_compare(tmp_path)
+    (state,) = states
+    (tabs,) = page.select(pn.Tabs)
+    ranking = tabs.objects[tabs._names.index("Ranking")]
+    (level,) = [widget for widget in page.select(pn.widgets.Select) if widget.name == "Significance level"]
+    state.data, state.indicator, state.pivot = _three_algorithms_on_five_problems(), HV, "A"
+
+    level.value = 0.01
+
+    (figure,) = [item.object for item in ranking._pane if type(item).__name__ == "Plotly"]
+    assert "α = 0.01" in figure.layout.title.text
+
+
 @pytest.mark.parametrize(("n1", "n2"), [(2, 3), (5, 5), (8, 9), (9, 9), (12, 10), (30, 30)])
 def test_smallest_p_value_is_the_smallest_the_rank_sum_test_gives(n1: int, n2: int) -> None:
     from vamos.ux.panel.pages import compare
