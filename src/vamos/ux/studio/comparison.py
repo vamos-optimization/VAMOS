@@ -93,6 +93,7 @@ class Ranking:
     groups: tuple[tuple[int, int], ...]
     against_pivot: tuple[tuple[float, float, float], ...]
     warnings: tuple[str, ...]
+    alpha: float = 0.05  # The significance level of ``cd``.
 
 
 def igd_plus(points: NDArray[np.float64], reference: NDArray[np.float64]) -> float:
@@ -216,7 +217,7 @@ def rank_algorithms(data: ComparisonData, indicator: str, pivot: str, *, alpha: 
     k, n = len(data.algorithms), len(problems)
     warnings: list[str] = []
     if n == 0:
-        return Ranking(data.algorithms, (), 0, None, None, (), (), ("No problem has results for every algorithm.",))
+        return Ranking(data.algorithms, (), 0, None, None, (), (), ("No problem has results for every algorithm.",), alpha)
     ranks = average_ranks(matrix, higher_is_better=INDICATOR_DIRECTIONS[indicator])
     if n < 5:
         warnings.append(f"Only {n} problem(s): rank-based tests over problems have little power; read them as indicative.")
@@ -227,7 +228,7 @@ def rank_algorithms(data: ComparisonData, indicator: str, pivot: str, *, alpha: 
     cd = nemenyi_cd(k, n, alpha) if k >= 2 else None
     groups = tuple(cd_groups(list(ranks), cd)) if cd is not None else ()
     against = tuple(holm_against_pivot(ranks, data.algorithms.index(pivot), n)) if pivot in data.algorithms else ()
-    return Ranking(data.algorithms, tuple(float(r) for r in ranks), n, friedman_p(matrix), cd, groups, against, tuple(warnings))
+    return Ranking(data.algorithms, tuple(float(r) for r in ranks), n, friedman_p(matrix), cd, groups, against, tuple(warnings), alpha)
 
 
 def median_run(data: ComparisonData, indicator: str, problem: str, algorithm: str) -> BatchRun | None:
