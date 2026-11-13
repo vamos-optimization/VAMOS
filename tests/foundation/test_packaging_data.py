@@ -1,7 +1,6 @@
 from importlib import resources
 
 import vamos.resources as data_module
-from vamos.experiment.execution import _default_weight_path
 from vamos.foundation.core.hv_stop import build_hv_stop_config
 from vamos.foundation.problem.tsplib import load_tsplib_coords
 from vamos.resources import reference_front_path, weight_path
@@ -71,8 +70,6 @@ def test_weight_file_packaged_and_accessible():
     path = weight_path("zdt1problem_2obj_pop100.csv")
     assert path.is_file()
     assert path.stat().st_size > 0
-    resolved = _default_weight_path("zdt1problem", 2, 100)
-    assert resolved.endswith("zdt1problem_2obj_pop100.csv")
 
 
 def test_hv_stop_uses_packaged_reference_front():

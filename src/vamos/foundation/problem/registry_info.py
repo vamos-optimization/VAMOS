@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from vamos.foundation.encoding import normalize_encoding
 from vamos.foundation.problem.registry.specs import ProblemSpec, get_problem_specs
 
 
@@ -13,21 +14,20 @@ class ProblemInfo:
     default_n_variables: int | None = None
     default_n_objectives: int | None = None
     tags: list[str] = field(default_factory=list)
-    encoding: str = "continuous"
+    encoding: str = "real"
 
 
 def _spec_to_info(spec: ProblemSpec) -> ProblemInfo:
-    cats = []
-    if spec.encoding:
-        cats.append(spec.encoding)
+    # One name per encoding: "continuous" problems are "real" ones.
+    encoding = normalize_encoding(spec.encoding, default="real")
     return ProblemInfo(
         name=spec.key,
         description=spec.description,
-        categories=cats,
+        categories=[encoding],
         default_n_variables=spec.default_n_var,
         default_n_objectives=spec.default_n_obj,
         tags=[spec.label],
-        encoding=spec.encoding,
+        encoding=encoding,
     )
 
 

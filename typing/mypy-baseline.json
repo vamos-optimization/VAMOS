@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "ffb8ad6175aac518b29ea61991e0faf068c067a0",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit ffb8ad6175aac518b29ea61991e0faf068c067a0",
+  "generation_commit": "bd95776c4dc6aabb2b5700a8a7d2570d3a3c13ad",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit bd95776c4dc6aabb2b5700a8a7d2570d3a3c13ad",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.1",
@@ -26,15 +26,14 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 123,
-  "files_with_diagnostics": 24,
-  "fingerprint_count": 24,
+  "diagnostic_count": 114,
+  "files_with_diagnostics": 22,
+  "fingerprint_count": 22,
   "error_code_summary": {
-    "type-arg": 123
+    "type-arg": 114
   },
   "layer_summary": {
     "engine": 104,
-    "experiment": 9,
     "foundation": 9,
     "ux": 1
   },
@@ -691,28 +690,6 @@
       ]
     },
     {
-      "fingerprint": "E1A7D1B67F0E35EC10C6DAE8DF92FF96BB5E96AD733639E6B83C627C833F7068",
-      "path": "src/vamos/experiment/observers/console.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "experiment",
-      "multiplicity": 3,
-      "locations": [
-        {
-          "line": 65,
-          "column": 12
-        },
-        {
-          "line": 66,
-          "column": 12
-        },
-        {
-          "line": 75,
-          "column": 18
-        }
-      ]
-    },
-    {
       "fingerprint": "E516CB3EE29FED7B635B8E578EA2D7A277EAFCEC1CDD99FB32D8027AA0FA5076",
       "path": "src/vamos/engine/operators/impl/real/crossover_blend.py",
       "error_code": "type-arg",
@@ -735,40 +712,6 @@
         {
           "line": 99,
           "column": 71
-        }
-      ]
-    },
-    {
-      "fingerprint": "F746D349F9FFA940F8BB62B9D49B4534B231D13D4BB610154CD21A1912721BF9",
-      "path": "src/vamos/experiment/_execution_support.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "experiment",
-      "multiplicity": 6,
-      "locations": [
-        {
-          "line": 98,
-          "column": 12
-        },
-        {
-          "line": 99,
-          "column": 12
-        },
-        {
-          "line": 107,
-          "column": 18
-        },
-        {
-          "line": 132,
-          "column": 12
-        },
-        {
-          "line": 133,
-          "column": 12
-        },
-        {
-          "line": 140,
-          "column": 18
         }
       ]
     }

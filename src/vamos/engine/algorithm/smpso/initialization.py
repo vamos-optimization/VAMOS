@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, cast
 import numpy as np
 
 from vamos.engine.algorithm.components.archive import CrowdingDistanceArchive
+from vamos.engine.algorithm.components.constraint_handling import PAIRWISE_TECHNIQUES, run_technique
 from vamos.engine.algorithm.components.hooks import get_live_viz, setup_genealogy
 from vamos.engine.algorithm.components.lifecycle import evaluate_batch, get_eval_strategy
 from vamos.engine.algorithm.components.metrics import setup_hv_tracker
@@ -210,6 +211,7 @@ def initialize_smpso_run(
     # Initialize population
     initializer_cfg = config.get("initializer")
     constraint_mode = normalize_constraint_mode(config.get("constraint_mode", "feasibility"))
+    constraint_handling = run_technique(config.get("constraint_handling"), constraint_mode, techniques=PAIRWISE_TECHNIQUES)
     X, F, G, n_eval = initialize_evaluated_population(
         pop_size,
         n_var,
@@ -277,6 +279,7 @@ def initialize_smpso_run(
         pop_size=pop_size,
         offspring_size=pop_size,
         constraint_mode=constraint_mode,
+        constraint_handling=constraint_handling,
         n_eval=n_eval,
         max_evals=max_eval,
         # Archive (leaders)

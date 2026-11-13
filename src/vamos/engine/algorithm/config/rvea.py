@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import comb
-from typing import Any
+from typing import Any, ClassVar
 
+from vamos.engine.algorithm.components.constraint_handling import PAIRWISE_TECHNIQUES
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.engine.reference_directions import lattice_size
 from vamos.foundation.encoding import EncodingLike
@@ -16,6 +17,7 @@ from .base import (
     ReferenceDirectionPopulationError,
     ResultMode,
     _ConfigBuilderState,
+    _ConstraintHandlingBuilder,
     _ConstraintModeBuilder,
     _CrossoverBuilder,
     _encoding_operators,
@@ -84,6 +86,10 @@ class RVEAConfig(_SerializableConfig):
     track_genealogy: bool = False
     result_mode: ResultMode | None = None
     external_archive: ExternalArchiveConfig | None = None
+    # Fields added after 1.0 go last, so that the constructor keeps the positions of its parameters.
+    constraint_handling: tuple[str, dict[str, float]] | None = None
+    #: The techniques that judge the violation of a single solution, the only ones this algorithm takes.
+    constraint_handling_techniques: ClassVar[tuple[str, ...]] = PAIRWISE_TECHNIQUES
 
     @classmethod
     def default(
@@ -142,6 +148,7 @@ class _RVEAConfigBuilder(
     _RepairBuilder,
     _InitializerBuilder,
     _MutationProbFactorBuilder,
+    _ConstraintHandlingBuilder,
     _ConstraintModeBuilder,
     _TrackGenealogyBuilder,
     _ResultArchiveBuilder,
@@ -184,6 +191,7 @@ class _RVEAConfigBuilder(
             initializer=self._cfg.get("initializer"),
             mutation_prob_factor=self._cfg.get("mutation_prob_factor"),
             constraint_mode=self._cfg.get("constraint_mode", "feasibility"),
+            constraint_handling=self._cfg.get("constraint_handling"),
             track_genealogy=bool(self._cfg.get("track_genealogy", False)),
             result_mode=self._cfg.get("result_mode", "non_dominated"),
             external_archive=self._cfg.get("external_archive"),
