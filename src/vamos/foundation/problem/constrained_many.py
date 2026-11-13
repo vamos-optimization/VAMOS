@@ -142,8 +142,8 @@ class CDTLZProblem(Problem):
         key = str(variant).lower()
         if key not in {"c1dtlz1", "c1dtlz3", "c2dtlz2", "c3dtlz1", "c3dtlz4"}:
             raise ValueError(f"Unknown C-DTLZ variant '{variant}'.")
-        if n_var <= n_obj:
-            raise ValueError("C-DTLZ requires n_var > n_obj.")
+        if n_var < n_obj:
+            raise ValueError("C-DTLZ requires n_var >= n_obj, one distance variable at least.")
 
         self.variant = key
         self.n_var = int(n_var)
