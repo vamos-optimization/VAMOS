@@ -12,6 +12,9 @@ concurrency:
   group: ci-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 defaults:
   run:
     shell: bash
@@ -86,6 +89,9 @@ jobs:
           python tools/check_repository_hygiene.py
           python tools/check_repository_identity.py
           python tools/check_pre_release_remnants.py
+          python tools/check_learning_content.py
+          python tools/check_notebook_links.py
+          python tools/check_notebook_quality.py
           python -m pytest -q \
             tests/test_check_repository_hygiene.py \
             tests/test_check_repository_identity.py \
@@ -113,7 +119,6 @@ jobs:
             tests/engine/test_permutation_edge_cases.py \
             tests/engine/test_moead_weight_vectors.py \
             tests/foundation/test_hypervolume_fallback.py \
-            tests/engine/test_tuning_hypervolume_nd.py \
             tests/architecture/test_docs_and_workflows.py
       - name: Run tests
         run: pytest -m "not slow" --cov=src/vamos --cov-report=term-missing

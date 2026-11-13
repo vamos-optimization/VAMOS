@@ -220,19 +220,12 @@ def _populate_defaults() -> None:
     real_crossover = _get_registry("REAL_CROSSOVER")
     real_mutation = _get_registry("REAL_MUTATION")
 
-    _populate(
-        perm_crossover,
-        {
-            **PERM_CROSSOVER_COMMON,
-            "oxd": PERM_CROSSOVER_COMMON["order"],
-        },
-    )
-
+    _populate(perm_crossover, PERM_CROSSOVER_COMMON)
     _populate(perm_mutation, PERM_MUTATION_COMMON)
-    _populate(binary_crossover, {**BINARY_CROSSOVER_COMMON, "spx": BINARY_CROSSOVER_COMMON["one_point"]})
+    _populate(binary_crossover, BINARY_CROSSOVER_COMMON)
     _populate(binary_mutation, BINARY_MUTATION_COMMON)
     _populate(int_crossover, INT_CROSSOVER_COMMON)
-    _populate(int_mutation, {**INT_MUTATION_COMMON, "pm": INT_MUTATION_COMMON["polynomial"]})
+    _populate(int_mutation, INT_MUTATION_COMMON)
 
     _populate(
         mixed_crossover_registry,

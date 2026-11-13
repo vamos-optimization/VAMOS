@@ -157,6 +157,26 @@ on ZDT1, from 0.7426 to 0.7443 on DTLZ2 and from 0.1880 to 0.1892 on DTLZ1,
 within seed variation of jMetal 7.9's AGE-MOEA (0.8545, 0.7446 and 0.1890).
 AGE-MOEA results from VAMOS 1.1.0 and earlier differ with the same seed.
 
+### Where the variants depart from their references
+
+These are declared VAMOS choices, not defects; report them when comparing with
+published results or with another framework.
+
+- **NSGA-III parents** are chosen by binary tournament on non-dominated rank
+  and crowding distance (feasibility first under constraints), as in NSGA-II
+  and in jMetal's NSGA-III example. Deb and Jain (2014) choose parents at
+  random. See [NSGA-III](../algorithms/nsgaiii.md#variants-and-their-effect).
+- **NSGA-III nadir estimate:** when an intercept of the extreme-point
+  hyperplane lies beyond the worst point found so far, VAMOS uses the worst
+  point of the first front for every objective, as pymoo up to 0.4 did; pymoo
+  0.6 replaces only those objectives by the worst point.
+- **SMS-EMOA contributions** are exact, with no Monte Carlo or HypE
+  approximation, so each step's cost grows exponentially with the number of
+  objectives. See [SMS-EMOA](../algorithms/smsemoa.md#interpret-the-result-and-its-limits).
+- **MOEA/D** defaults to differential evolution with PBI aggregation;
+  `aggregation("tchebycheff")` reproduces jMetal's MOEA/D-DE. See
+  [MOEA/D](../algorithms/moead.md).
+
 ### Choose an initial experiment
 
 | Need | Starting point | Check before increasing the budget |
@@ -208,6 +228,15 @@ SMS-EMOA and IBEA keep `hv_converged` as an alias until VAMOS 2.0. In VAMOS
 `hv` but not `n_gen`, `run()` truncated a fractional budget, and NSGA-III,
 SMS-EMOA and IBEA reported only `hv_converged`, so the CLI never recorded that
 their HV target was reached.
+
+**Development after 1.1.0:** all nine algorithms implement the same
+step-by-step protocol: `initialize(problem, termination, seed)` evaluates the
+initial population; repeat `ask()`, evaluate the returned decision vectors, and
+`tell(...)` the objectives (and constraints) until `should_terminate()`; then
+`result()` returns what `run()` would. With the same seed, the result equals
+`run()`'s. `tell` returns `True` once the HV target is reached. In VAMOS 1.1.0,
+NSGA-II and MOEA/D had no public `initialize`, `should_terminate` or `result`,
+and `tell` of NSGA-III, SMS-EMOA and IBEA always returned `False`.
 
 ### Changes included in 1.0.1
 
@@ -261,6 +290,11 @@ algorithms. Version 1.0.2 applied it only to NSGA-II and MOEA/D.
 | `"auto"`, external/plugin/unknown algorithm | NumPy; no compatibility claim for custom algorithms |
 | `"numpy"`, `"numba"`, `"moocore"` | Exactly the requested engine; unavailable engines raise an error |
 
+**Development after 1.1.0:** an algorithm class built directly without a
+kernel, such as `NSGAII(config)`, also uses NumPy. VAMOS 1.1.0 used Numba there
+whenever Numba was installed. The backends follow the same trajectory, so only
+the speed changes; pass `kernel=NumbaKernel()` to keep the compiled kernels.
+
 Pass `engine="auto"` to `optimize`, `engine="auto"` in `StudySpec`, or
 `--engine auto` on the CLI. It does not install optional packages, benchmark the
 workload, choose MooCore, compile kernels during selection, or consume random
@@ -283,6 +317,13 @@ auto configuration can select differently in another environment; pin
 Existing 1.0 artifacts and schema versions are unchanged. Expanding the
 environment-dependent auto heuristic does not change the stable omitted default
 or promise cross-environment bitwise reproducibility.
+
+**Development after 1.1.0:** the NumPy engine sorts two-objective populations
+into fronts in O(N log N) by a sweep over the first objective, instead of
+comparing every pair of rows, with the same ranks and fronts (ties and
+duplicated rows included). Sorting 1000 rows takes about 0.4 ms instead of
+33 ms. Three or more objectives still compare every pair, in O(M N²); for large
+populations there, prefer `engine="auto"` or `engine="numba"`.
 
 Numba is a throughput preference, not a guarantee of a faster first call.
 Compare an empty JIT cache in a fresh process, a fresh process with a populated

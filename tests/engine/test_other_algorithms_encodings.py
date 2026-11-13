@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from vamos.engine.algorithm.config import MOEADConfig, NSGAIIIConfig, SMPSOConfig, SMSEMOAConfig, SPEA2Config
 from vamos.engine.algorithm.moead import MOEAD
@@ -134,3 +135,40 @@ def test_smpso_mixed_mutation_path():
     res = algo.run(problem, termination=("max_evaluations", pop_size * 2), seed=3)
     assert "F" in res and res["F"].shape[0] > 0
     assert np.isfinite(res["F"]).all()
+
+
+_ADVERTISED_PROBLEMS = {"binary": "zdt5", "integer": "int_alloc", "permutation": "tsp6", "mixed": "mixed_design"}
+_DISCRETE_ALGORITHMS = ("agemoea", "ibea", "moead", "nsgaii", "nsgaiii", "rvea", "smsemoa", "spea2")
+
+
+@pytest.mark.parametrize("encoding", sorted(_ADVERTISED_PROBLEMS))
+@pytest.mark.parametrize("algorithm", _DISCRETE_ALGORITHMS)
+def test_advertised_operator_methods_work_for_every_algorithm(algorithm: str, encoding: str) -> None:
+    """Every name that available_*_methods advertises runs with every algorithm of the encoding (VR-109)."""
+    import dataclasses
+
+    import vamos
+    from vamos.algorithms import available_crossover_methods, available_mutation_methods
+    from vamos.engine.algorithm.config.defaults import build_default_algorithm_config
+    from vamos.foundation.problem.registry import make_problem_selection
+
+    problem = make_problem_selection(_ADVERTISED_PROBLEMS[encoding]).instantiate()
+    pop_size = None if algorithm in ("moead", "nsgaiii", "rvea") else 12
+    failures = []
+    for field, methods in (("crossover", available_crossover_methods(encoding)), ("mutation", available_mutation_methods(encoding))):
+        for method in methods:
+            config = build_default_algorithm_config(
+                algorithm, pop_size=pop_size, n_var=problem.n_var, n_obj=problem.n_obj, encoding=encoding
+            )
+            _, params = getattr(config, field)
+            try:
+                vamos.optimize(
+                    problem,
+                    algorithm=algorithm,
+                    algorithm_config=dataclasses.replace(config, **{field: (method, dict(params))}),
+                    max_evaluations=150,
+                    seed=1,
+                )
+            except ValueError as exc:
+                failures.append(f"{field}={method}: {exc}")
+    assert failures == []

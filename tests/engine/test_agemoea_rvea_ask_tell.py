@@ -334,3 +334,56 @@ def test_agemoea_and_rvea_resolve_one_over_n(algorithm, problem_name, n_obj, enc
 
     assert result.data["evaluations"] == 3 * config.pop_size
     assert np.isfinite(result.F).all()
+
+
+# ---------------------------------------------------------------------------
+# The public ask/tell protocol in all nine algorithms
+# ---------------------------------------------------------------------------
+
+from .test_budget_contracts import ALGORITHM_FACTORIES  # noqa: E402
+
+
+def _drive_with_public_methods(algorithm, problem, termination, seed: int):
+    algorithm.initialize(problem, termination, seed)
+    while not algorithm.should_terminate():
+        X = algorithm.ask()
+        algorithm.tell(SerialEvalBackend().evaluate(X, problem), problem)
+    return algorithm.result()
+
+
+@pytest.mark.parametrize(("name", "factory"), ALGORITHM_FACTORIES, ids=[name for name, _ in ALGORITHM_FACTORIES])
+def test_ask_tell_matches_run_for_every_algorithm(name, factory) -> None:
+    problem = ZDT1Problem(n_var=6)
+    run_algorithm, pop_size = factory()
+    termination = ("max_evaluations", 10 * pop_size)
+    expected = run_algorithm.run(problem, termination=termination, seed=11)
+
+    # VAMOS 1.1.0: NSGA-II and MOEA/D had no public initialize, should_terminate or result.
+    algorithm, _ = factory()
+    result = _drive_with_public_methods(algorithm, problem, termination, seed=11)
+
+    assert result["evaluations"] == expected["evaluations"], name
+    np.testing.assert_array_equal(result["F"], expected["F"])
+    np.testing.assert_array_equal(result["population"]["F"], expected["population"]["F"])
+
+
+@pytest.mark.parametrize(("name", "factory"), ALGORITHM_FACTORIES, ids=[name for name, _ in ALGORITHM_FACTORIES])
+def test_tell_reports_a_reached_hv_target(name, factory) -> None:
+    algorithm, pop_size = factory()
+    problem = ZDT1Problem(n_var=6)
+    target = {"target_value": 0.0, "reference_point": [11.0, 11.0], "max_evaluations": 50 * pop_size}
+    algorithm.initialize(problem, ("hv", target), 11)
+
+    # VAMOS 1.1.0: NSGA-III, SMS-EMOA and IBEA returned False from tell() whatever the HV.
+    # Steady-state SMS-EMOA measures the HV once per generation of pop_size children, so the
+    # target shows within one generation; the generational algorithms report it on the first tell.
+    answers = []
+    for _ in range(pop_size):
+        X = algorithm.ask()
+        answers.append(algorithm.tell(SerialEvalBackend().evaluate(X, problem), problem))
+        if answers[-1]:
+            break
+    assert answers[-1] is True, name
+    assert name == "smsemoa" or len(answers) == 1, name
+    assert algorithm.should_terminate(), name
+    assert algorithm.result()["hv_reached"] is True, name

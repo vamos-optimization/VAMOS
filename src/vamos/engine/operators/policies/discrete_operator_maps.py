@@ -46,10 +46,13 @@ PermCrossoverOp: TypeAlias = Callable[[np.ndarray[Any, Any], float, np.random.Ge
 PermMutationOp: TypeAlias = Callable[[np.ndarray[Any, Any], float, np.random.Generator], None]
 
 
+# The one table of discrete operator names: the algorithms build from these maps, and
+# vamos.algorithms.available_crossover_methods and available_mutation_methods list them.
 BINARY_CROSSOVER_COMMON: dict[str, BinaryCrossoverOp] = {
     "one_point": one_point_crossover,
     "single_point": one_point_crossover,
     "1point": one_point_crossover,
+    "spx": one_point_crossover,
     "two_point": two_point_crossover,
     "2point": two_point_crossover,
     "uniform": uniform_crossover,
@@ -83,6 +86,7 @@ INT_MUTATION_COMMON: dict[str, IntMutationOp] = {
 PERM_CROSSOVER_COMMON: dict[str, PermCrossoverOp] = {
     "ox": order_crossover,
     "order": order_crossover,
+    "oxd": order_crossover,
     "pmx": pmx_crossover,
     "cycle": cycle_crossover,
     "cx": cycle_crossover,

@@ -105,11 +105,15 @@ jobs:
           retention-days: 14
       - name: Write trusted-preview handoff metadata
         if: github.event_name == 'pull_request'
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
         run: |
           mkdir preview-metadata
-          printf '%s\n' '${{ github.event.pull_request.number }}' > preview-metadata/pr-number.txt
-          printf '%s\n' '${{ github.event.pull_request.head.sha }}' > preview-metadata/head-sha.txt
-          printf '%s\n' '${{ github.event.pull_request.head.repo.full_name }}' > preview-metadata/head-repository.txt
+          printf '%s\n' "$PR_NUMBER" > preview-metadata/pr-number.txt
+          printf '%s\n' "$HEAD_SHA" > preview-metadata/head-sha.txt
+          printf '%s\n' "$HEAD_REPOSITORY" > preview-metadata/head-repository.txt
       - name: Upload trusted-preview handoff metadata
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -119,11 +123,13 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - name: Summarize preview
+        env:
+          ARTIFACT_NAME: docs-preview-${{ github.event.pull_request.number || github.run_id }}
         run: |
           {
             echo "### Documentation preview"
             echo
             echo "Built and verified VAMOS ${DOC_VERSION} against the canonical .org base."
-            echo "The downloadable artifact is named \`docs-preview-${{ github.event.pull_request.number || github.run_id }}\`."
+            echo "The downloadable artifact is named \`${ARTIFACT_NAME}\`."
             echo "This workflow is read-only. A separate trusted workflow may publish the artifact to an isolated Cloudflare preview."
           } >> "$GITHUB_STEP_SUMMARY"
