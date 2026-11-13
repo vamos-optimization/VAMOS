@@ -39,6 +39,9 @@ def main() -> int:
         ("Unsupported pre-1.0 remnant checker tests", [python, "-m", "pytest", "-q", "tests/test_check_pre_release_remnants.py"]),
         # CI runs this checker with the same script and no arguments. See /AGENTS.md.
         ("Agent documentation", [python, "tools/check_agent_docs.py"]),
+        ("Learning content", [python, "tools/check_learning_content.py"]),
+        ("Notebook links", [python, "tools/check_notebook_links.py"]),
+        ("Notebook quality", [python, "tools/check_notebook_quality.py"]),
         ("Layer boundaries", [python, "-m", "pytest", "-q", "tests/architecture/test_layer_boundaries.py"]),
         ("Monolith guard", [python, "-m", "pytest", "-q", "tests/test_monolith_guard.py"]),
         ("Public API guard", [python, "-m", "pytest", "-q", "tests/test_public_api_guard.py"]),

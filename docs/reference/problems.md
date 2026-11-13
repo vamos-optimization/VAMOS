@@ -367,6 +367,24 @@ implementation converts maximization goals to negative objective values.
 | `rwa9` — ultra-wideband antenna | 10 / 5 | Fixed passband/stopband response functions | [RWA9–10][rwa910] | 5D |
 | `rwa10` — repellent fabric | 3 / 7 | Fixed fabric performance response functions | [RWA9–10][rwa910] | 7D |
 
+`rwa1`, `rwa6`, `rwa9` and `rwa10` differ from jMetal's RWA implementations.
+VAMOS follows the formulas as published, but these four have not yet been
+checked against the article's appendix (doi
+[10.1016/j.engappai.2023.106192](https://doi.org/10.1016/j.engappai.2023.106192)):
+
+- **`rwa1`:** the Nusselt-number coefficients use `4.148e-3`; jMetal writes
+  `4.148 * 10e-3` (4.148e-2), a likely transcription of "×10⁻³" that gives
+  Nu around 1100–1900 instead of the physically plausible 79–305.
+- **`rwa6`:** the removal rate uses `d = 1`, jMetal `d = 2.5`. The constant only
+  scales `f3`, so dominance is the same, but values and fronts are not
+  comparable with jMetal's.
+- **`rwa9`:** the ten geometric variables of the antenna (`d1` enters no
+  formula); jMetal has six variables and derives `a2 = l1 * w1 * l2 * w2`.
+- **`rwa10`:** no additive constants beyond the response functions; jMetal adds
+  constants to several objectives (−15.33, −29.33, −413.33, −73.33, +0.22,
+  −8413.33, −2814.83). That translates the objectives without changing
+  dominance, but it changes absolute values and reference points.
+
 **Development after 1.1.0:** `rwa7` and `rwa8` search `[0, 1]^4`, the
 normalized domain in which Goel et al. (2007) fitted the injector response
 surfaces, as `re37`, Tanabe and Ishibuchi's RE37 and jMetal's RWA7 and RWA8 do.

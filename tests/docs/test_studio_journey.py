@@ -43,3 +43,19 @@ def test_studio_demo_plot_reads_canonical_algorithm_ids(tmp_path: Path) -> None:
     svg = plot.read_text(encoding="utf-8")
     assert "NSGA-II" in svg
     assert "MOEA/D" in svg
+
+
+def test_studio_guide_lists_llm_providers_and_models() -> None:
+    import re
+
+    source = (ROOT / "src" / "vamos" / "ux" / "studio" / "_studio_llm.py").read_text(encoding="utf-8")
+    defaults = dict(re.findall(r'os\.getenv\("(VAMOS_ASSIST_\w+_MODEL)", "([^"]+)"\)', source))
+    guide = (ROOT / "docs" / "guide" / "studio.md").read_text(encoding="utf-8")
+
+    assert set(defaults) == {"VAMOS_ASSIST_GEMINI_MODEL", "VAMOS_ASSIST_OPENAI_MODEL", "VAMOS_ASSIST_ANTHROPIC_MODEL"}
+    for variable, model in defaults.items():
+        provider = variable.removeprefix("VAMOS_ASSIST_").removesuffix("_MODEL").lower()
+        row = next((line for line in guide.splitlines() if line.startswith(f"| {provider} |")), None)
+        assert row is not None, f"no row for {provider}"
+        assert f"vamos-optimization[{provider}]" in row
+        assert f"`{model}`" in row and f"`{variable}`" in row

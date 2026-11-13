@@ -231,10 +231,8 @@ def niche_selection(
         candidate_refs = candidate_refs[:remaining]
 
         for ref_choice in candidate_refs:
+            # Never empty: every candidate reference is associated with an active row.
             candidates = active_pos[assoc_front == ref_choice]
-            if candidates.size == 0:
-                niche_counts[ref_choice] = np.inf
-                continue
             rng.shuffle(candidates)
             if niche_counts[ref_choice] == 0:
                 cand_dist = distances[front[candidates]]

@@ -65,7 +65,8 @@ def run_tuning_with_finisher(
     """Run the backend and the optional statistical finisher.
 
     The summary updates count the tuning evaluations and how many failed. When every one of
-    them failed, the command stops with a nonzero exit code instead of reporting a configuration.
+    them failed, the command stops with a nonzero exit code instead of reporting a configuration;
+    when more than half failed, it warns.
     """
     ledger = evaluation_ledger(eval_fn)
     before = ledger.counts() if ledger is not None else (0, 0)
@@ -84,6 +85,13 @@ def run_tuning_with_finisher(
         evaluations, failures = recorded if recorded is not None else (ledger.evaluations - before[0], ledger.failures - before[1])
         if evaluations and failures == evaluations:
             raise SystemExit(_every_evaluation_failed_message(f"every one of the {evaluations} tuning evaluations failed", ledger))
+        if 2 * failures > evaluations:
+            logger.warning(
+                "%d of %d tuning evaluations failed and received --failure-score, so the best configuration "
+                "is not reliable; see the '[tune] evaluation failed' warnings above.",
+                failures,
+                evaluations,
+            )
         finisher_summary_updates = {"evaluations": evaluations, "failed_evaluations": failures}
     finisher_artifacts: dict[str, str] | None = None
     if bool(args.run_statistical_finisher):
