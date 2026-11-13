@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+from vamos.experiment.artifacts.compatibility import reuse_current_environment
 from vamos.experiment.artifacts.reconstruction import reconstruct_resolved_run
 from vamos.experiment.artifacts.verification import verify_run
 
@@ -27,18 +28,20 @@ _Operation = Literal["resume", "retry"]
 
 def resume_study(snapshot: Study, *, retry_failed: bool = False) -> Study:
     """Reconcile first, then execute pending/interrupted and explicit failures."""
-    return _operate(snapshot, operation="resume", include_failed=retry_failed, include_pending=True, include_interrupted=True)
+    with reuse_current_environment():
+        return _operate(snapshot, operation="resume", include_failed=retry_failed, include_pending=True, include_interrupted=True)
 
 
 def retry_study(snapshot: Study, *, failed_only: bool = True) -> Study:
     """Explicitly retry failed tasks, optionally including interrupted tasks."""
-    return _operate(
-        snapshot,
-        operation="retry",
-        include_failed=True,
-        include_pending=False,
-        include_interrupted=not failed_only,
-    )
+    with reuse_current_environment():
+        return _operate(
+            snapshot,
+            operation="retry",
+            include_failed=True,
+            include_pending=False,
+            include_interrupted=not failed_only,
+        )
 
 
 def _operate(
@@ -187,12 +190,16 @@ def _select_tasks(
 
 
 def _verify_resume_environment(study: Study, selected: set[str], operation: _Operation) -> None:
+    # The runs of one execution come from one process and share its environment, so one run per execution
+    # stands for the others; load_study has already verified the integrity of every run.
+    compared_executions: set[str] = set()
     for attempt in study.attempts:
-        if attempt.run_reference is None:
+        if attempt.run_reference is None or attempt.execution_id in compared_executions:
             continue
         run_id = attempt.run_reference.get("run_id")
         if not isinstance(run_id, str):
             continue
+        compared_executions.add(attempt.execution_id)
         report = verify_run(study.root / "runs" / run_id)
         if report.environment.level != "exact":
             raise ResumeEnvironmentIncompatibilityError(

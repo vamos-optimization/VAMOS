@@ -250,6 +250,70 @@ def test_sa_047_environment_drift_refuses_before_claim(tmp_path: Path, monkeypat
     assert _tree(paused.root) == before
 
 
+def _paused_after_two_executions(root: Path, monkeypatch: pytest.MonkeyPatch) -> vamos.Study:
+    """Five tasks: the third and fourth objective calls fail, so two executions publish runs and the study pauses."""
+    import vamos.experiment.study.execution as execution
+
+    calls = 0
+
+    def fail_third_and_fourth(reconstructed: Any, *, root: Path) -> OptimizationResult:
+        nonlocal calls
+        calls += 1
+        if calls in (3, 4):
+            raise RuntimeError("transient")
+        return _result(reconstructed)
+
+    monkeypatch.setattr(execution, "_execute_optimization", fail_third_and_fourth)
+    return vamos.create_study(_spec(seeds=(0, 1, 2, 3, 4)), output=root).run().resume()
+
+
+def test_resume_compares_the_environment_once_per_earlier_execution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import vamos.experiment.study.recovery as recovery
+
+    paused = _paused_after_two_executions(tmp_path / "study", monkeypatch)
+    referenced = [attempt for attempt in paused.attempts if attempt.run_reference is not None]
+    executions = {attempt.execution_id for attempt in referenced}
+    assert len(referenced) > len(executions) == 2
+    verified: list[Path] = []
+    real_verify_run = recovery.verify_run
+
+    def counting_verify_run(path: Path) -> Any:
+        verified.append(path)
+        return real_verify_run(path)
+
+    monkeypatch.setattr(recovery, "verify_run", counting_verify_run)
+
+    resumed = paused.resume()
+
+    assert resumed.status == "completed_with_failures"
+    assert len(verified) == len(executions)
+
+
+def test_study_operations_capture_the_current_environment_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import vamos.experiment.artifacts.compatibility as compatibility
+    import vamos.experiment.study.execution as execution
+
+    captures: list[str] = []
+    real_capture = compatibility.capture_runtime_evidence
+
+    def counting_capture(*, backend: str) -> Any:
+        captures.append(backend)
+        return real_capture(backend=backend)
+
+    monkeypatch.setattr(compatibility, "capture_runtime_evidence", counting_capture)
+    monkeypatch.setattr(execution, "_execute_optimization", lambda reconstructed, *, root: _result(reconstructed))
+    completed = vamos.create_study(_spec(), output=tmp_path / "study").run()
+    assert completed.status == "completed"
+    assert len(captures) == 1
+
+    reference = completed.attempts[0].run_reference
+    assert reference is not None
+    run_root = (completed.root / str(reference["path"])).parent
+    vamos.verify_run(run_root)
+    vamos.verify_run(run_root)
+    assert len(captures) == 3
+
+
 def test_relocation_and_same_process_reentry_refusal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import vamos.experiment.study.execution as execution
 
