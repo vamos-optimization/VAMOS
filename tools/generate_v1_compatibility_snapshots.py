@@ -314,6 +314,8 @@ def _stable_cli_snapshot() -> dict[str, Any]:
 
 
 def _algorithm_snapshot() -> dict[str, Any]:
+    from vamos.engine.algorithm.registry import get_builtin_algorithm_names
+
     algorithms = importlib.import_module("vamos.algorithms")
     config_names = (
         "AGEMOEAConfig",
@@ -331,7 +333,8 @@ def _algorithm_snapshot() -> dict[str, Any]:
     return {
         "document_type": "vamos.stable-algorithm-configs",
         "schema_version": "1.0.0",
-        "algorithm_ids": list(algorithms.available_algorithms()),
+        # The built-in identifiers: available_algorithms() also lists the plugins installed here.
+        "algorithm_ids": list(get_builtin_algorithm_names()),
         "config_fields": configs,
         "config_field_defaults": {name: _field_defaults(cls) for name, cls in classes.items()},
         "default_configs": {name: _json_value(cls.default().to_dict()) for name, cls in classes.items()},
