@@ -7,9 +7,9 @@ ALGORITHM_VARIANT_GROUPS: dict[str, set[str]] = {
     "smsemoa": {"smsemoa", "smsemoa_permutation", "smsemoa_mixed", "smsemoa_binary", "smsemoa_integer", "smsemoa_constrained"},
     "spea2": {"spea2", "spea2_permutation", "spea2_mixed", "spea2_binary", "spea2_integer"},
     "ibea": {"ibea", "ibea_permutation", "ibea_mixed", "ibea_binary", "ibea_integer"},
-    "smpso": {"smpso", "smpso_mixed"},
+    "smpso": {"smpso", "smpso_mixed", "smpso_constrained"},
     "agemoea": {"agemoea", "agemoea_permutation", "agemoea_mixed", "agemoea_binary", "agemoea_integer", "agemoea_constrained"},
-    "rvea": {"rvea", "rvea_permutation", "rvea_mixed", "rvea_binary", "rvea_integer"},
+    "rvea": {"rvea", "rvea_permutation", "rvea_mixed", "rvea_binary", "rvea_integer", "rvea_constrained"},
 }
 
 
@@ -48,6 +48,7 @@ VARIANT_TO_CANONICAL: dict[str, str] = {
     "ibea_binary": "ibea",
     "ibea_integer": "ibea",
     "smpso": "smpso",
+    "smpso_constrained": "smpso",
     "smpso_mixed": "smpso",
     "agemoea": "agemoea",
     "agemoea_permutation": "agemoea",
@@ -56,6 +57,7 @@ VARIANT_TO_CANONICAL: dict[str, str] = {
     "agemoea_integer": "agemoea",
     "agemoea_constrained": "agemoea",
     "rvea": "rvea",
+    "rvea_constrained": "rvea",
     "rvea_permutation": "rvea",
     "rvea_mixed": "rvea",
     "rvea_binary": "rvea",
