@@ -42,7 +42,7 @@ Read before any architectural change.
 25. `python -m pytest -q tests/architecture/test_ruff_format_gate.py`
 26. `python tools/typecheck.py --scope strict` (zero diagnostics in the protected scope)
 27. `python tools/typecheck.py --scope full` (exact structured no-regression baseline and clean changed modules)
-28. `python -m pytest -q tests/architecture/test_build_smoke.py` (builds the sdist and wheel from a copy of the tree, outside the checkout)
+28. `python -m pytest -q tests/architecture/test_build_smoke.py` (builds the sdist and wheel from a copy of the tree, outside the checkout, and checks what they ship)
 29. `python -m pytest -q tests/architecture/test_py_typed_present.py`
 
 ## Other gates
