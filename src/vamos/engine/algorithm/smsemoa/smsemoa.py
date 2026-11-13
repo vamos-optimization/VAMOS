@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, cast
 import numpy as np
 from numpy.typing import NDArray
 
+from vamos.engine.algorithm.components.constraint_handling import run_progress
 from vamos.engine.algorithm.components.hooks import (
     finalize_genealogy,
     live_should_stop,
@@ -224,8 +225,10 @@ class SMSEMOA:
         """
         X_child = self._generate_offspring(st)
         F_child, G_child = self._evaluate_offspring(problem, X_child, eval_strategy, st.constraint_mode)
+        # A constraint-handling technique follows the evaluations before the child's.
+        progress = run_progress(st.n_eval, st.max_evals)
         st.n_eval += X_child.shape[0]
-        survival_selection(st, X_child, F_child, G_child, self.kernel)
+        survival_selection(st, X_child, F_child, G_child, self.kernel, progress)
         return X_child, F_child, G_child
 
     def _generate_offspring(self, st: SMSEMOAState) -> NDArray[Any]:
@@ -390,7 +393,7 @@ class SMSEMOA:
             G = None
 
         # ``ask`` creates one child per call.
-        survival_selection(st, X_off, F, G, self.kernel)
+        survival_selection(st, X_off, F, G, self.kernel, run_progress(st.n_eval, st.max_evals))
         st.n_eval += X_off.shape[0]
         _archive_child(st, X_off, F, G)
 

@@ -358,6 +358,63 @@ def make_constraint_handling(value: object) -> ConstraintHandlingTechnique:
     return SelfAdaptivePenalty()
 
 
+def config_constraint_handling(value: object, constraint_mode: str) -> tuple[str, dict[str, float]] | None:
+    """The ``constraint_handling`` field of a configuration, validated; None stays None, which is cdp.
+
+    A JSON round trip returns the pair as a list, which this turns back into a tuple. A technique other
+    than cdp needs the feasibility constraint mode.
+    """
+    if value is None:
+        return None
+    technique = normalize_constraint_handling(value)
+    if technique[0] != "cdp" and constraint_mode == "none":
+        raise ValueError(f"constraint_handling {technique[0]!r} needs constraint_mode 'feasibility'.")
+    return technique
+
+
+def run_technique(value: object, constraint_mode: str, checkpoint: Mapping[str, Any] | None = None) -> ConstraintHandlingTechnique | None:
+    """A run's own technique, None for cdp, with the state that the checkpoint it resumes from saved.
+
+    cdp keeps each algorithm's own feasibility-first survival and selection, so its results do not
+    change. Any other technique needs the feasibility constraint mode.
+    """
+    technique_value = config_constraint_handling(value, constraint_mode)
+    if technique_value is None or technique_value[0] == "cdp":
+        return None
+    technique = make_constraint_handling(technique_value)
+    extra = checkpoint.get("extra") if checkpoint is not None else None
+    state = extra.get("constraint_handling") if isinstance(extra, Mapping) else None
+    if isinstance(state, Mapping):
+        technique.restore(state)
+    return technique
+
+
+def run_progress(n_eval: int, max_evals: int) -> float:
+    """The evaluations so far over the budget, in [0, 1]; NaN without a budget.
+
+    An algorithm takes it before it counts the offspring about to be ranked, as jMetal's ``RunProgress``.
+    """
+    if max_evals <= 0:
+        return float("nan")
+    return min(1.0, n_eval / max_evals)
+
+
+def adapted_ranks(
+    technique: ConstraintHandlingTechnique,
+    kernel: KernelBackend,
+    F: NDArray[Any],
+    G: NDArray[Any],
+    rng: np.random.Generator,
+    progress: float,
+) -> RankArray:
+    """The fronts of the population of a replacement, after the technique adapts to it at ``progress``.
+
+    This is what jMetal's ``ConstraintHandlingReplacement`` does before each replacement.
+    """
+    technique.update(kernel, F, G, progress)
+    return technique.ranks(kernel, F, G, rng)
+
+
 __all__ = [
     "CONSTRAINT_HANDLING_PARAMETERS",
     "CONSTRAINT_HANDLING_TECHNIQUES",
@@ -367,6 +424,10 @@ __all__ = [
     "PushPullSearch",
     "SelfAdaptivePenalty",
     "StochasticRanking",
+    "adapted_ranks",
+    "config_constraint_handling",
     "make_constraint_handling",
     "normalize_constraint_handling",
+    "run_progress",
+    "run_technique",
 ]

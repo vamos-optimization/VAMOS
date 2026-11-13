@@ -17,7 +17,9 @@ runs with Java 17 or later. LIR-CMOP, DAS-CMOP, the classic constrained problems
 ZXH-CF1-16, CRE21-CRE51 and RCM01-RCM50 come from jMetal's ``main`` at commit ``JMETAL_MAIN_COMMIT``: 7.8
 predates LIR-CMOP's correction (jMetal #522) and the CRE and RCM corrections (#513 and #514), has no CEC2009 CF
 problems and fails to evaluate its ZXH-CF1.
-``--classpath-main`` gives the same jars built from that commit. ``--only KEY ...`` regenerates those
+``--classpath-main`` gives the same jars built from that commit. ``--cdtlz-jmetal --classpath-release
+"<jars>"`` writes ``cdtlz_jmetal_values.json`` from the jars of jMetal 7.10: C-DTLZ with as many variables
+as objectives and with STEP's dimensions and radius. ``--only KEY ...`` regenerates those
 problems and keeps the rest of the fixture, so the other sources are not needed::
 
     PYTHONPATH=src python tools/problem_reference_values.py --classpath-main "<jars>" --only lircmop1 dascmop1
@@ -98,6 +100,22 @@ DCDTLZ_JMETAL_CASES = [
     (key, n_var, n_obj)
     for key in ("dc1dtlz1", "dc1dtlz3", "dc2dtlz1", "dc2dtlz3", "dc3dtlz1", "dc3dtlz3")
     for n_var, n_obj in ((12, 3), (12, 2), (2, 3))
+]
+# C-DTLZ with as many variables as objectives (one distance variable) and STEP's dimensions, and C2-DTLZ2
+# with STEP's radius 0.1: values of jMetal 7.10 at three points for each case.
+CDTLZ_JMETAL_OUTPUT = ROOT / "tests" / "foundation" / "data" / "cdtlz_jmetal_values.json"
+CDTLZ_JMETAL_RELEASE = "7.10"
+CDTLZ_JMETAL_CASES: list[tuple[str, int, int, float | None]] = [
+    ("c1dtlz1", 3, 3, None),
+    ("c1dtlz1", 5, 3, None),
+    ("c1dtlz3", 3, 3, None),
+    ("c2dtlz2", 2, 2, 0.5),
+    ("c2dtlz2", 5, 2, 0.1),
+    ("c2dtlz2", 10, 2, 0.1),
+    ("c3dtlz1", 3, 3, None),
+    ("c3dtlz4", 3, 3, None),
+    ("c3dtlz4", 5, 3, None),
+    ("c3dtlz4", 10, 3, None),
 ]
 # Variables that VAMOS encodes as an index into a table of values (the table's attribute): the
 # reference evaluates the decoded value. Both problems document the encoding.
@@ -312,14 +330,53 @@ def dcdtlz_jmetal_values(classpath_main: str) -> dict[str, Any]:
     }
 
 
+def cdtlz_jmetal_values(classpath_release: str) -> dict[str, Any]:
+    """The fixture of C-DTLZ with jMetal 7.10's values, in VAMOS's constraint convention."""
+    requests, designs = [], []
+    for key, n_var, n_obj, r in CDTLZ_JMETAL_CASES:
+        rng = np.random.default_rng(zlib.crc32(f"{key}-{n_var}-{n_obj}-{r}".encode()))
+        X = rng.random((N_POINTS, n_var))
+        designs.append(X)
+        class_name = "cdtlz." + key[:2].upper() + "_DTLZ" + key[-1]
+        arguments = f"{n_var},{n_obj}" + (f",{n_obj}" if key.startswith("c3") else "") + (f",{r!r}" if r is not None else "")
+        requests.extend((class_name, arguments, x) for x in X)
+    values = iter(_jmetal_values(classpath_release, requests))
+    cases = []
+    for (key, n_var, n_obj, r), X in zip(CDTLZ_JMETAL_CASES, designs):
+        rows = [next(values) for _ in range(N_POINTS)]
+        F = np.vstack([row[0] for row in rows])
+        G = np.vstack([row[1] for row in rows if row[1] is not None])
+        case: dict[str, Any] = {"key": key, "n_var": n_var, "n_obj": n_obj, "X": X.tolist(), "F": F.tolist(), "G": G.tolist()}
+        if r is not None:
+            case["r"] = r
+        cases.append(case)
+    return {
+        "schema": "vamos.test.cdtlz-jmetal-values/1",
+        "generated_by": "tools/problem_reference_values.py --cdtlz-jmetal",
+        "source": f"jMetal {CDTLZ_JMETAL_RELEASE}",
+        "constraint_convention": "g_lte_0",
+        "cases": cases,
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("--classpath", help="jmetal-core, jmetal-problem 7.8, commons-lang3 and commons-math3 jars")
     parser.add_argument("--classpath-main", help=f"the same jars built from jMetal's main at commit {JMETAL_MAIN_COMMIT}")
     parser.add_argument("--only", nargs="+", metavar="KEY", help="regenerate these problems and keep the rest of the fixture")
     parser.add_argument("--dcdtlz-jmetal", action="store_true", help=f"write {DCDTLZ_JMETAL_OUTPUT.name} instead")
+    parser.add_argument(
+        "--classpath-release", help=f"jmetal-core and jmetal-problem {CDTLZ_JMETAL_RELEASE}, commons-lang3 and commons-math3 jars"
+    )
+    parser.add_argument("--cdtlz-jmetal", action="store_true", help=f"write {CDTLZ_JMETAL_OUTPUT.name} instead")
     parser.add_argument("--output", type=Path, default=OUTPUT)
     args = parser.parse_args(argv)
+    if args.cdtlz_jmetal:
+        if args.classpath_release is None:
+            parser.error("--cdtlz-jmetal needs --classpath-release")
+        CDTLZ_JMETAL_OUTPUT.write_text(json.dumps(cdtlz_jmetal_values(args.classpath_release), indent=1) + "\n", encoding="utf-8")
+        print(f"wrote {CDTLZ_JMETAL_OUTPUT}")
+        return 0
     if args.dcdtlz_jmetal:
         if args.classpath_main is None:
             parser.error("--dcdtlz-jmetal needs --classpath-main")

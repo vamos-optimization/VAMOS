@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from vamos.engine.algorithm.components.constraint_handling import normalize_constraint_handling
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.foundation.encoding import normalize_encoding
 
@@ -15,6 +14,7 @@ from .base import (
     LiveCallbackMode,
     ResultMode,
     _ConfigBuilderState,
+    _ConstraintHandlingBuilder,
     _ConstraintModeBuilder,
     _CrossoverBuilder,
     _InitializerBuilder,
@@ -77,6 +77,7 @@ class _NSGAIIConfigBuilder(
     _MutationProbFactorBuilder,
     _ResultArchiveBuilder,
     _ConstraintModeBuilder,
+    _ConstraintHandlingBuilder,
     _TrackGenealogyBuilder,
 ):
     """
@@ -102,19 +103,6 @@ class _NSGAIIConfigBuilder(
         if value <= 0:
             raise ValueError("replacement size must be positive.")
         self._cfg["replacement_size"] = value
-        return self
-
-    def constraint_handling(self, name: str, **params: float) -> _NSGAIIConfigBuilder:
-        """Rank constrained populations with a technique of jMetal's ``util.constrainthandling``.
-
-        ``name`` is ``cdp`` (the default), ``violated_constraints``, ``epsilon_constrained``
-        (``initial_quantile``, ``exponent``, ``decay_fraction``), ``push_pull`` (``change_threshold``,
-        ``window_fraction``, ``decay_fraction``, ``exponent``, ``feasibility_threshold``,
-        ``reduction_rate``), ``stochastic_ranking`` (``probability``) or ``self_adaptive_penalty``.
-        Every parameter of the technique is required. See
-        :mod:`vamos.engine.algorithm.components.constraint_handling`.
-        """
-        self._cfg["constraint_handling"] = normalize_constraint_handling((name, params))
         return self
 
     def immigration(self, config: dict[str, Any] | None) -> _NSGAIIConfigBuilder:
@@ -208,11 +196,6 @@ class NSGAIIConfig(_SerializableConfig):
         )
         object.__setattr__(self, "offspring_size", offspring_size)
         object.__setattr__(self, "replacement_size", replacement_size)
-        if self.constraint_handling is not None:
-            # A JSON round trip returns the pair as a list; None stays None, which is cdp.
-            object.__setattr__(self, "constraint_handling", normalize_constraint_handling(self.constraint_handling))
-            if self.constraint_handling[0] != "cdp" and self.constraint_mode == "none":
-                raise ValueError(f"constraint_handling {self.constraint_handling[0]!r} needs constraint_mode 'feasibility'.")
 
     @classmethod
     def default(
