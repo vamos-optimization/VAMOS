@@ -15,6 +15,8 @@ from .neighborhood_kernels import (
 )
 
 if TYPE_CHECKING:
+    from vamos.engine.algorithm.moead.update_criteria import SubproblemUpdateCriterion
+
     from .state import MOEADState
 
 
@@ -172,4 +174,47 @@ def update_neighborhoods_recording_replacements(
         st.ids[order[replaced]] = offspring_ids[pos]
 
 
-__all__ = ["compute_neighbors", "update_neighborhood", "update_neighborhood_batch", "update_neighborhoods_recording_replacements"]
+def update_neighborhoods_with_criterion(
+    st: MOEADState,
+    criterion: SubproblemUpdateCriterion,
+    children: np.ndarray[Any, Any],
+    F_child: np.ndarray[Any, Any],
+    G_child: np.ndarray[Any, Any],
+    orders: list[np.ndarray[Any, Any]],
+    offspring_ids: np.ndarray[Any, Any] | None,
+) -> None:
+    """Update the neighbourhoods child by child with a subproblem update criterion, as jMetal does.
+
+    Before each child's replacements the criterion adapts to the population. The child replaces, in
+    the order of its candidates, at most ``replace_limit`` of the solutions that the criterion lets it
+    replace, comparing the aggregation values of the child and of each solution in that solution's
+    subproblem. A replaced subproblem takes the child's id when genealogy is tracked.
+    """
+    assert st.aggregator is not None and st.G is not None
+    for pos, order in enumerate(orders):
+        criterion.update(st.G, G_child[pos])
+        candidates = np.asarray(order, dtype=int)
+        if candidates.size == 0:
+            continue
+        weights = st.weights[candidates]
+        child_values = st.aggregator(np.broadcast_to(F_child[pos], (candidates.size, F_child.shape[1])), weights, st.ideal)
+        values = st.aggregator(st.F[candidates], weights, st.ideal)
+        replaced = candidates[criterion.replaces(G_child[pos], child_values, st.G[candidates], values)][: int(st.replace_limit)]
+        if replaced.size == 0:
+            continue
+        st.X[replaced] = children[pos]
+        st.F[replaced] = F_child[pos]
+        st.G[replaced] = G_child[pos]
+        if st.cv is not None:
+            st.cv[replaced] = compute_violation(G_child[pos : pos + 1])[0]
+        if offspring_ids is not None and st.ids is not None:
+            st.ids[replaced] = offspring_ids[pos]
+
+
+__all__ = [
+    "compute_neighbors",
+    "update_neighborhood",
+    "update_neighborhood_batch",
+    "update_neighborhoods_recording_replacements",
+    "update_neighborhoods_with_criterion",
+]

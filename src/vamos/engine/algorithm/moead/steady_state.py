@@ -46,6 +46,8 @@ def _float_matrix(value: object, rows: int) -> bool:
 
 
 def _supported_state(st: MOEADState) -> bool:
+    if st.subproblem_update is not None:
+        return False
     pop_size, n_obj = st.pop_size, st.F.shape[1] if st.F.ndim == 2 else -1
     if not (_float_matrix(st.X, pop_size) and _float_matrix(st.F, pop_size)):
         return False
