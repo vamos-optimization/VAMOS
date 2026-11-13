@@ -54,10 +54,6 @@ unsupported behavior rather than future compatibility promises.
   `rng_seed` (0 unless set), and the hypervolume convergence monitor
   bootstraps with Python's `random.Random` seeded by its own `rng_seed`
   (also 0). Every seed of an experiment therefore shares those two streams.
-  Used directly, some components accept `rng=None` and then draw from a new
-  unseeded generator, among them the selection operators, the real-encoding
-  initializers, and the uniform and linked polynomial mutations; pass `rng`
-  for reproducible draws.
 
 ## Benchmark validation
 
