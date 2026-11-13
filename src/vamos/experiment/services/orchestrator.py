@@ -4,13 +4,14 @@ from collections.abc import Mapping
 from typing import Any
 
 from vamos.engine.algorithm.config.types import AlgorithmConfigProtocol
-from vamos.engine.algorithm.factory import build_algorithm
+from vamos.engine.algorithm.factory import GENEALOGY_ALGORITHMS, build_algorithm
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.engine.config.spec import ExperimentSpec, SpecBlock
 from vamos.engine.hooks import LiveVisualization
 from vamos.experiment._execution_support import VariationConfigs
 from vamos.experiment.execution import run_single as execute_run_single
 from vamos.foundation.core.experiment_config import ExperimentConfig
+from vamos.foundation.exceptions import ConfigurationError
 from vamos.foundation.problem.registry import ProblemSelection
 
 
@@ -35,8 +36,11 @@ def run_single(
     cli_request: Mapping[str, Any] | None = None,
 ) -> dict[str, object]:
     problem = selection.instantiate()
-    if track_genealogy and algorithm_name.lower() != "nsgaii":
-        raise ValueError("track_genealogy is currently supported only for NSGA-II in the experiment/CLI runner.")
+    if track_genealogy and algorithm_name.lower() not in GENEALOGY_ALGORITHMS:
+        raise ConfigurationError(
+            f"track_genealogy is not supported by {algorithm_name}.",
+            suggestion=f"Use one of {', '.join(GENEALOGY_ALGORITHMS)}, or drop track_genealogy.",
+        )
     variations = variations or VariationConfigs()
     algorithm, cfg_data = build_algorithm(
         algorithm_name,

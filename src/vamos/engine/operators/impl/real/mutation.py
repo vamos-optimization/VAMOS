@@ -245,7 +245,10 @@ class NonUniformMutation(Mutation):
 
 
 class UniformMutation(Mutation):
-    """Uniform mutation with bounded perturbation scaled by variable range."""
+    """Uniform mutation: each mutated variable moves by ``U(-perturb, perturb) * (upper - lower)``.
+
+    ``perturb`` is a fraction of the range; jMetal's ``(r - 0.5) * perturbation`` is in the variable's units.
+    """
 
     def __init__(
         self,

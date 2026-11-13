@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
 
-from src.vamos.engine.tuning.racing.elimination import eliminate_configs
-from src.vamos.engine.tuning.racing.state import ConfigState
-from src.vamos.engine.tuning.racing.stats import select_configs_by_paired_test
+from vamos.engine.tuning.racing.elimination import eliminate_configs
+from vamos.engine.tuning.racing.state import ConfigState
+from vamos.engine.tuning.racing.stats import select_configs_by_paired_test
 
 
 def test_holm_bonferroni_saves_config():

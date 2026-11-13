@@ -155,3 +155,44 @@ def test_invalid_human_plan_has_no_traceback(tmp_path: Path) -> None:
     assert proc.stdout == ""
     assert "Error [study_spec]" in proc.stderr
     assert "Traceback" not in proc.stderr
+
+
+@pytest.mark.parametrize(
+    ("payload", "field"),
+    [
+        (
+            {"problems": ["zdt1"], "algorithms": ["nsgaii"], "seeds": [0], "algorithm_configs": {"NSGAII": {"pop_size": 12}}},
+            "algorithm_configs",
+        ),
+        (
+            {"problems": ["zdt1"], "algorithms": ["nsgaii"], "seeds": [0], "algorithm_configs": {"moead": {"pop_size": 12}}},
+            "algorithm_configs",
+        ),
+    ],
+    ids=["upper-case-key", "unused-algorithm"],
+)
+def test_study_plan_rejects_unused_algorithm_configs(tmp_path: Path, payload: dict[str, object], field: str) -> None:
+    # VAMOS 1.1.0 planned these as ready and dropped the configuration. An empty seed list stays a
+    # ready zero-task plan, which the study contract requires (PL-002, SA-002).
+    config = tmp_path / "study.json"
+    config.write_text(json.dumps(payload), encoding="utf-8")
+
+    proc = _run("plan", str(config), "--json")
+
+    assert proc.returncode == 2, proc.stdout
+    envelope = json.loads(proc.stdout)
+    assert envelope["errors"][0]["reason"] == "INVALID_STUDY_SPEC"
+    assert field in envelope["errors"][0]["field"]
+
+
+def test_human_plan_errors_show_field_and_value(tmp_path: Path) -> None:
+    """The human output names the field and the value that the JSON error carries (VR-129)."""
+    config = tmp_path / "study.json"
+    _write_spec(config, algorithm_configs={"nsgaii": {"crossover": {"method": "nope"}}})
+
+    proc = _run("plan", str(config))
+
+    assert proc.returncode == 2
+    assert "UNAVAILABLE_COMPONENT" in proc.stderr
+    assert "$.matrix[0].operators.crossover" in proc.stderr
+    assert "unavailable-crossover" in proc.stderr

@@ -17,9 +17,9 @@ DEFAULT_REPORT_PATH = ARTIFACTS_ROOT / "architecture-and-runtime.md"
 FACADE_PATHS = [
     SRC_ROOT / "__init__.py",
     SRC_ROOT / "api.py",
-    SRC_ROOT / "engine" / "api.py",
+    SRC_ROOT / "algorithms.py",
+    SRC_ROOT / "problems.py",
     SRC_ROOT / "ux" / "api.py",
-    SRC_ROOT / "experiment" / "quick" / "__init__.py",
     SRC_ROOT / "experiment" / "runner.py",
     SRC_ROOT / "experiment" / "optimize.py",
 ]
@@ -187,6 +187,9 @@ def main() -> None:
     parser.add_argument("--no-report", action="store_true", help="Skip writing the markdown report.")
     parser.add_argument("--overwrite", action="store_true", help="Replace an existing report/artifact directory.")
     args = parser.parse_args()
+    missing = [str(path.relative_to(REPO_ROOT)) for path in FACADE_PATHS if not path.is_file()]
+    if missing:
+        raise SystemExit(f"Facade modules listed in FACADE_PATHS do not exist: {missing}")
 
     artifacts_root = _resolve_path(args.artifacts_dir, REPO_ROOT)
     report_path = _resolve_path(args.report_path, REPO_ROOT)

@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from numpy.typing import NDArray
 
-from vamos.engine.operators.impl.binary import one_point_crossover
 from vamos.engine.operators.impl.real import ClampRepair, PolynomialMutation, SBXCrossover, VariationWorkspace
 from vamos.engine.operators.policies._discrete_variation_builder import (
     VariationFn,
@@ -36,10 +35,7 @@ if TYPE_CHECKING:
 VariationCrossoverFn = VariationFn
 VariationMutationFn = VariationFn
 
-BINARY_CROSSOVER: dict[str, Any] = {
-    **BINARY_CROSSOVER_COMMON,
-    "spx": one_point_crossover,
-}
+BINARY_CROSSOVER: dict[str, Any] = {**BINARY_CROSSOVER_COMMON}
 BINARY_MUTATION = {**BINARY_MUTATION_COMMON}
 INT_CROSSOVER = {**INT_CROSSOVER_COMMON}
 INT_MUTATION = {**INT_MUTATION_COMMON}

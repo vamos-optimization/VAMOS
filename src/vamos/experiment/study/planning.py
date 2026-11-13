@@ -8,6 +8,7 @@ from itertools import product
 from math import comb
 from typing import Any
 
+from vamos.engine.algorithm.catalog import ENABLED_ALGORITHMS, minimum_violation
 from vamos.engine.algorithm.config.base import ReferenceDirectionPopulationError
 from vamos.experiment.artifacts.models import deep_freeze, deep_thaw
 from vamos.experiment.artifacts.resolved_reconstruction import is_reconstructable_evaluation_backend
@@ -34,6 +35,7 @@ class _Candidate:
 def resolve_spec(spec: StudySpec) -> ResolvedStudyPlan:
     """Resolve every matrix candidate and freeze one immutable sorted plan."""
     _reject_negative_seeds(spec.seeds)
+    _reject_unused_inputs(spec)
     candidates = (
         _Candidate(index, problem, algorithm, seed)
         for index, (problem, algorithm, seed) in enumerate(product(spec.problems, spec.algorithms, spec.seeds))
@@ -44,6 +46,22 @@ def resolve_spec(spec: StudySpec) -> ResolvedStudyPlan:
     plan_id = compute_plan_id(task.task_id for task in sorted_tasks)
     provisional = ResolvedStudyPlan(plan_id=plan_id, tasks=sorted_tasks, document_sha256="")
     return ResolvedStudyPlan(plan_id=plan_id, tasks=sorted_tasks, document_sha256=_plan_hash(provisional))
+
+
+def _reject_unused_inputs(spec: StudySpec) -> None:
+    # Validated when planning, so that studies published before this check still load.
+    # An empty matrix (for example seeds=[]) stays a valid, ready zero-task plan (PL-002, SA-002).
+    usable = set(spec.algorithms) | (set(ENABLED_ALGORITHMS) if "auto" in spec.algorithms else set())
+    unused = sorted(str(key) for key in (spec.algorithm_configs or {}) if key not in usable)
+    if unused:
+        raise InvalidStudySpecError(
+            operation="resolve study plan",
+            reason="INVALID_STUDY_SPEC",
+            field=f"algorithm_configs.{unused[0]}",
+            expected=f"a configuration for one of the study algorithms {sorted(spec.algorithms)}",
+            actual=unused,
+            action="Key algorithm_configs by the algorithm names of the study (case matters); no study directory was published.",
+        )
 
 
 def _reject_negative_seeds(seeds: Sequence[int]) -> None:
@@ -73,6 +91,7 @@ def _resolve_candidate(spec: StudySpec, candidate: _Candidate) -> PlanTask:
         n_obj = int(problem.n_obj)
         encoding = normalize_encoding(getattr(problem, "encoding", "real"))
         algorithm = _select_algorithm(n_obj, encoding) if candidate.algorithm == "auto" else candidate.algorithm
+        _reject_below_minimum(algorithm, candidate, n_obj=n_obj)
         population_size = spec.pop_size or _compute_pop_size(n_var, n_obj)
         budget = spec.max_evaluations or _compute_max_evaluations(n_var, n_obj)
         engine, engine_source = resolve_engine_details(spec.engine, algorithm=algorithm)
@@ -229,6 +248,7 @@ def _validate_execution_shape(
             actual=population,
             action="Correct the population configuration; no study directory was published.",
         )
+    _reject_below_minimum(algorithm, candidate, pop_size=population, selection=config.get("selection"))
     if budget < population:
         raise UnresolvedStudyTaskError(
             operation="resolve study plan",
@@ -243,6 +263,25 @@ def _validate_execution_shape(
     if algorithm.lower() == "rvea":
         _validate_rvea_reference_directions(config, population=population, n_obj=n_obj, candidate=candidate)
     return population
+
+
+def _reject_below_minimum(
+    algorithm: str, candidate: _Candidate, *, pop_size: int | None = None, n_obj: int | None = None, selection: object = None
+) -> None:
+    violation = minimum_violation(algorithm, pop_size=pop_size, n_obj=n_obj, selection=selection)
+    if violation is None:
+        return
+    objective = violation.field == "n_obj"
+    raise UnresolvedStudyTaskError(
+        operation="resolve study plan",
+        reason="UNSUPPORTED_OBJECTIVE_COUNT" if objective else "INVALID_POPULATION_SIZE",
+        field=f"$.matrix[{candidate.index}].{'algorithm' if objective else 'pop_size'}",
+        expected=f"{violation.field} >= {violation.minimum} for {algorithm}",
+        actual=violation.actual,
+        action=f"{violation.message} Choose another algorithm or problem; no study directory was published."
+        if objective
+        else f"{violation.message} Increase the population; no study directory was published.",
+    )
 
 
 def _validate_nsgaiii_reference_directions(config: Mapping[str, Any], *, population: int, n_obj: int, candidate: _Candidate) -> None:

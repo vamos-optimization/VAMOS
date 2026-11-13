@@ -310,8 +310,16 @@ configures (`--nsgaii-crossover sbx`). Before running, the CLI also rejects a
 negative `--seed`, a `--n-var` or `--n-obj` below 1, a different `--n-obj` or
 `--n-var` on a problem with a fixed number of objectives or variables (see the
 [problem catalog](../reference/problems.md)), a `--selection-pressure` larger than the
-population a problem runs with (after its `problems.<name>` overrides), and `--track-genealogy` with an algorithm other than NSGA-II. It
+population a problem runs with (after its `problems.<name>` overrides), and `--track-genealogy` with an algorithm that records no genealogy. It
 warns about algorithm-specific flags that the selected algorithm ignores.
+
+**Development after 1.1.0:** `--track-genealogy` (or `track_genealogy` in a
+config file) works with NSGA-II, MOEA/D, SMS-EMOA, NSGA-III, SPEA2, IBEA and
+SMPSO; AGE-MOEA and RVEA record no genealogy, so the CLI rejects it with them
+and with `--algorithm both`. VAMOS 1.1.0 accepted it only with NSGA-II. In
+the Python API, the genealogy of IBEA, MOEA/D and SPEA2 now follows the
+survivors of each generation (in 1.1.0 it reported that no offspring reached
+the final front), and NSGA-III and IBEA record both parents of each SBX child.
 
 Config files (YAML/JSON)
 ------------------------

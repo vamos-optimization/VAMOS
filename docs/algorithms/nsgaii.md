@@ -90,6 +90,8 @@ config = (
 
 Pass that `config` as `algorithm_config` to `optimize()` as above. The string `"1/n"` resolves using the problem's number of variables; for the 30-variable example it is `1/30`.
 
+**Development after 1.1.0:** this example sets the SBX probability to 1.0 explicitly. `NSGAIIConfig.default()` uses 0.9, the value of Deb et al. (2002), jMetal and pymoo; VAMOS 1.1.0 used 1.0.
+
 ### Steady-state NSGA-II
 
 The default configuration is **generational**: when `offspring_size` is omitted, the runtime uses `pop_size`, so a full offspring batch is evaluated before survival. For the classic one-offspring **steady-state** variant, use the explicit `.steady_state()` builder switch:

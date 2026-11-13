@@ -9,6 +9,8 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, cast
 
+from vamos.experiment.artifacts.models import deep_thaw
+
 from .study_command import Operation, StudyCommandRequest, StudyCommandResult, execute_study_command
 from .study_summary_output import SummaryFormat
 
@@ -96,6 +98,11 @@ def _render_human(result: StudyCommandResult) -> None:
     if result.errors:
         for error in result.errors:
             print(f"Error [{error.get('category', 'study')}]: {error.get('reason', 'UNKNOWN')}", file=sys.stderr)
+            # The field and the value that the JSON error carries.
+            if error.get("field"):
+                print(f"Field: {error['field']}", file=sys.stderr)
+            if error.get("actual") is not None:
+                print(f"Received: {_plain(error['actual'])} (expected {_plain(error.get('expected'))})", file=sys.stderr)
             action = error.get("action")
             if action:
                 print(f"Next: {action}", file=sys.stderr)
@@ -115,6 +122,11 @@ def _render_human(result: StudyCommandResult) -> None:
         print(f"Next: {action}")
     for warning in result.warnings:
         print(f"Warning: {warning}", file=sys.stderr)
+
+
+def _plain(value: object) -> str:
+    """A diagnostic value as JSON text; the result's frozen mappings and tuples become objects and lists."""
+    return json.dumps(deep_thaw(value), sort_keys=True, default=str)
 
 
 def _render_counts(payload: Mapping[str, Any]) -> None:
