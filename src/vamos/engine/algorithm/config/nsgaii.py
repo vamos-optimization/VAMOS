@@ -190,13 +190,14 @@ class NSGAIIConfig(_SerializableConfig):
     mutation_prob_factor: float | None = None
     result_mode: ResultMode | None = None
     constraint_mode: ConstraintModeStr = "feasibility"
-    constraint_handling: tuple[str, dict[str, float]] | None = None
     track_genealogy: bool = False
     immigration: dict[str, Any] | None = None
     parent_selection_filter: Any | None = None
     live_callback_mode: LiveCallbackMode = "nd_only"
     generation_callback: Any | None = None
     generation_callback_copy: bool = True
+    # Fields added after 1.0 go last, so that the constructor keeps the positions of its parameters.
+    constraint_handling: tuple[str, dict[str, float]] | None = None
 
     def __post_init__(self) -> None:
         super().__post_init__()
