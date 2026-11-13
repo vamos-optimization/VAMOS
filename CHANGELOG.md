@@ -4,7 +4,7 @@ All notable public changes to VAMOS are documented here.
 
 ## [Unreleased]
 
-## [1.2.0] - YYYY-MM-DD
+## [1.2.0] - 2026-11-14
 
 VAMOS 1.2.0 corrects built-in algorithms, operators, problems, reference
 fronts, indicators and statistics that departed from their published

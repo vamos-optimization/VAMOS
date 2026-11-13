@@ -1,6 +1,6 @@
 # VAMOS 1.2.0 release notes
 
-Released YYYY-MM-DD.
+Released 2026-11-14.
 
 VAMOS 1.2.0 brings many built-in algorithms, operators, problems, reference
 fronts, indicators and statistics back to their published definitions. These
