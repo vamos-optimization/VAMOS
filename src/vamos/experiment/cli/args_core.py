@@ -8,7 +8,7 @@ from vamos.engine.algorithm.catalog import (
     OPTIONAL_ALGORITHMS,
 )
 from vamos.engine.algorithm.registry import get_algorithms_registry
-from vamos.experiment.runtime.catalog import DEFAULT_PROBLEM, EXPERIMENT_BACKENDS, EXTERNAL_ALGORITHM_NAMES
+from vamos.experiment.runtime.catalog import DEFAULT_PROBLEM, EXPERIMENT_BACKENDS
 from vamos.foundation.core.experiment_config import ExperimentConfig
 from vamos.foundation.problem.registry import available_problem_names
 
@@ -33,7 +33,6 @@ def add_core_arguments(
                 *sorted(get_algorithms_registry().keys()),
                 *ENABLED_ALGORITHMS,
                 *OPTIONAL_ALGORITHMS,
-                *EXTERNAL_ALGORITHM_NAMES,
                 "both",
             )
         )
@@ -44,10 +43,7 @@ def add_core_arguments(
         "--algorithm",
         choices=algorithm_choices,
         default=spec_default(experiment_defaults, "algorithm", DEFAULT_ALGORITHM),
-        help=(
-            "Algorithm to run (use 'both' to execute the default internal algorithms sequentially; "
-            "combine with --include-external to add third-party baselines)."
-        ),
+        help="Algorithm to run (use 'both' to execute the default internal algorithms sequentially).",
     )
     add_spec_argument(
         parser,
@@ -108,23 +104,6 @@ def add_core_arguments(
     )
     add_spec_argument(
         parser,
-        "--include-external",
-        action="store_true",
-        default=bool(spec_default(experiment_defaults, "include_external", False)),
-        help="Include PyMOO/jMetalPy/PyGMO baselines when running algorithms (requires research extra).",
-    )
-    add_spec_argument(
-        parser,
-        "--external-problem-source",
-        choices=("native", "vamos"),
-        default=spec_default(experiment_defaults, "external_problem_source", "native"),
-        help=(
-            "For external baselines, choose whether to use each library's native benchmark "
-            "implementation ('native') or wrap the VAMOS problem definition ('vamos')."
-        ),
-    )
-    add_spec_argument(
-        parser,
         "--max-evaluations",
         type=int,
         default=spec_default(experiment_defaults, "max_evaluations", default_config.max_evaluations),
@@ -156,7 +135,7 @@ def add_core_arguments(
         "--seed",
         type=int,
         default=spec_default(experiment_defaults, "seed", default_config.seed),
-        help="Random seed used by internal and external runs (default: %(default)s).",
+        help="Random seed used by the runs (default: %(default)s).",
     )
     add_spec_argument(
         parser,

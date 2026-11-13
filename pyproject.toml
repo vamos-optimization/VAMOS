@@ -60,13 +60,6 @@ compute = [
   "moocore>=0.2.0,<1.0",
   "dask[distributed]>=2026.1.0",
 ]
-research = [
-  "pymoo>=0.6",
-  "jmetalpy>=1.5",
-  "deap>=1.4",
-  "platypus-opt>=1.0.4",
-  "pygmo>=2.19",
-]
 analysis = [
   "pandas>=1.5",
   "matplotlib>=3.7",
@@ -142,11 +135,6 @@ all = [
   "numba>=0.57",
   "moocore>=0.2.0,<1.0",
   "dask[distributed]>=2026.1.0",
-  "pymoo>=0.6",
-  "jmetalpy>=1.5",
-  "deap>=1.4",
-  "platypus-opt>=1.0.4",
-  "pygmo>=2.19",
   "pandas>=1.5",
   "matplotlib>=3.7",
   "seaborn>=0.12",
@@ -260,12 +248,8 @@ module = [
   "smac.*",
   "plotly",
   "plotly.*",
-  "pymoo.*",
-  "jmetal.*",
-  "jmetalpy.*",
   "hpbandster",
   "hpbandster.*",
-  "pygmo.*",
   "sklearn",
   "sklearn.*",
   "panel",

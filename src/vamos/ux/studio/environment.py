@@ -17,7 +17,6 @@ EXTRA_PURPOSES: dict[str, str] = {
     "compute": "Numba and MooCore kernels, Dask evaluation",
     "analysis": "plots and notebook analysis",
     "tuning": "Optuna and SMAC tuning backends",
-    "research": "comparisons with other frameworks",
     "openai": "OpenAI code generation in Problem Builder",
     "anthropic": "Anthropic code generation in Problem Builder",
 }

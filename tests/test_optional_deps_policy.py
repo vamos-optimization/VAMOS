@@ -15,13 +15,18 @@ from pathlib import Path
 
 import pytest
 
-from tests.architecture._dependencies import base_distributions, distribution_name, import_names, optional_distributions
+from tests.architecture._dependencies import (
+    OPTIMIZATION_FRAMEWORKS,
+    base_distributions,
+    distribution_name,
+    import_names,
+    optional_distributions,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = REPO_ROOT / "src" / "vamos"
 
 EXTRAS = optional_distributions()
-RESEARCH = EXTRAS["research"]
 STUDIO = EXTRAS["studio"]
 OPTIONAL = sorted(set().union(*EXTRAS.values()))
 
@@ -86,6 +91,23 @@ def _dynamic_name(call: ast.Call) -> str | None:
 
 
 @functools.cache
+def _imported_names() -> frozenset[str]:
+    """Every absolute module name that src/vamos imports, at module level or inside a function."""
+    found: set[str] = set()
+    for path in SRC_ROOT.rglob("*.py"):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8-sig"))):
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                found.update(_static_names(node))
+            elif isinstance(node, ast.Call) and (name := _dynamic_name(node)) is not None:
+                found.add(name)
+    return frozenset(found)
+
+
+def _imports(modules: tuple[str, ...]) -> bool:
+    return any(name == module or name.startswith(f"{module}.") for name in _imported_names() for module in modules)
+
+
+@functools.cache
 def _module_level_imports() -> tuple[_ModuleLevelImport, ...]:
     found: list[_ModuleLevelImport] = []
     for path in sorted(SRC_ROOT.rglob("*.py")):
@@ -112,9 +134,6 @@ def _violation(record: _ModuleLevelImport, distribution: str, modules: tuple[str
         return "dynamic import at module level"
     if record.path.startswith(("src/vamos/foundation/", "src/vamos/engine/")):
         return None if _is_kernel_backend_of(record.path, modules) else "foundation and engine import it only inside functions"
-    if distribution in RESEARCH:
-        allowed = record.guarded and record.path.startswith("src/vamos/experiment/external/")
-        return None if allowed else "research frameworks are imported only in experiment/external, lazily or guarded"
     if distribution in STUDIO and record.path.startswith(_STUDIO_UI):
         return None
     return None if record.guarded else "module-level import outside try/except ImportError"
@@ -158,3 +177,8 @@ def test_declared_dependencies_map_to_their_import_names() -> None:
         if distribution in provided and not {name.partition(".")[0] for name in import_names(distribution)} <= provided[distribution]
     }
     assert not wrong, f"add these distributions to IMPORT_NAMES in tests/architecture/_dependencies.py (they provide): {wrong}"
+
+
+def test_vamos_imports_no_other_optimization_framework() -> None:
+    imported = sorted(distribution for distribution, modules in OPTIMIZATION_FRAMEWORKS.items() if _imports(modules))
+    assert imported == [], f"src/vamos imports these optimization frameworks: {imported}"

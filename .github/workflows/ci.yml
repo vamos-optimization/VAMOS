@@ -65,8 +65,7 @@ jobs:
             python-version: "3.12"
             tuning: true
     env:
-      # The research extra (pygmo) has Linux wheels only.
-      EXTRAS: ${{ matrix.os == 'ubuntu-latest' && 'dev,compute,research,analysis,examples,studio,docs' || 'dev,compute,analysis,examples,studio,docs' }}${{ matrix.tuning && ',tuning' || '' }}
+      EXTRAS: dev,compute,analysis,examples,studio,docs${{ matrix.tuning && ',tuning' || '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

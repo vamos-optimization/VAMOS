@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from tests.architecture._dependencies import OPTIMIZATION_FRAMEWORKS, distribution_name, optional_requirements
+
 
 def test_pyproject_all_extra_matches_union_of_other_optional_dependencies() -> None:
     pyproject_path = Path(__file__).resolve().parents[1] / "pyproject.toml"
@@ -25,3 +27,13 @@ def test_pyproject_all_extra_matches_union_of_other_optional_dependencies() -> N
                 expected_union.append(dep)
 
     assert all_extra == expected_union
+
+
+def test_no_extra_installs_another_optimization_framework() -> None:
+    frameworks = {
+        group: sorted({distribution_name(requirement) for requirement in requirements} & set(OPTIMIZATION_FRAMEWORKS))
+        for group, requirements in optional_requirements().items()
+    }
+
+    declared = {group: names for group, names in frameworks.items() if names}
+    assert declared == {}, f"extras that install another optimization framework: {declared}"
