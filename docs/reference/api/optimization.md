@@ -10,6 +10,13 @@ from vamos import optimize
 
 [Quickstart](../../guide/zero_to_hero.md) · [Results](results.md) · [Algorithm configuration](algorithms/index.md)
 
+When `pop_size` or `max_evaluations` is omitted, `optimize` uses quick defaults derived from the problem size, and `algorithm="auto"` selects NSGA-II for two objectives and NSGA-III for more:
+
+- `pop_size` is `min(max(50, 10 * n_var), 200)`, at least 100 with three or more objectives. MOEA/D, NSGA-III and RVEA, and so `algorithm="auto"` with three or more objectives, take the population from their reference directions instead: 100 with two objectives and 91 with three.
+- `max_evaluations` is `min(max(1000, 100 * n_var), 50000)`, at least 5000 with three or more objectives.
+
+For ZDT1 (30 variables) the quick defaults are 200 individuals and 3000 evaluations, 15 generations: enough for a first run, not for a converged front. Pass both for an experiment you report.
+
 `max_evaluations` is a hard evaluation budget subject to documented algorithm cardinality requirements. An explicit integer seed controls the built-in stochastic path in the same materially relevant environment; cross-backend bitwise equality is not promised. The generated reference below defines the arguments and their defaults.
 
 **Development after 1.1.0:** `optimize` raises `ConfigurationError` for arguments it would ignore or apply only in part: `n_var`, `n_obj` or `problem_kwargs` with a problem instance; `problem_kwargs` other than `n_var` and `n_obj` with a registered problem name (build the instance yourself to pass other arguments); `max_evaluations` together with a `termination` that does not stop at the same number of evaluations; the configuration class of another algorithm (`algorithm="moead"` with an `NSGAIIConfig`); `GenericAlgorithmConfig` with a built-in algorithm, whose generic keys, such as SMPSO's coefficient bounds, the typed configuration does not record and a replay cannot rebuild; and an empty seed sequence. `termination` no longer needs an `algorithm_config`. `StudyResult.std` takes `ddof` (default 0, the population standard deviation; pass `ddof=1` for the sample standard deviation). VAMOS 1.1.0 ran these calls and recorded the requested values, raised a `TypeError` naming an internal function or a false "unexpected keyword argument 'termination'", or returned an empty `StudyResult`. Study plans likewise reject, with `INVALID_STUDY_SPEC`, `algorithm_configs` keys that name no algorithm of the study, compared with the exact case; an empty `seeds` list remains a valid zero-task plan.

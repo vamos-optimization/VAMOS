@@ -139,9 +139,13 @@ def optimize(
 
     This function consolidates multiple APIs into a single powerful interface:
     - Accepts problem names (strings) or instances
-    - Supports AutoML with algorithm="auto"
+    - Quick defaults for ``algorithm="auto"`` and an omitted ``pop_size`` or ``max_evaluations``
     - Handles multi-run studies with seed=[0,1,2,...]
     - Prefer optimize(...) for all runs (explicit options are available).
+
+    The quick defaults suit a first run, not a converged front: 200 individuals
+    and 3000 evaluations on ZDT1. The Optimization reference page gives their
+    rules. Pass ``pop_size`` and ``max_evaluations`` for an experiment you report.
 
     Parameters
     ----------
@@ -206,7 +210,7 @@ def optimize(
         callable ``evaluate``.
 
     Examples:
-        # AutoML mode - zero config
+        # Quick defaults
         >>> result = vamos.optimize("zdt1")
 
         # Specify algorithm
