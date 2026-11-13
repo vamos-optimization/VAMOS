@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "c62b251c9200eae8ae06e946b0c84e5bbcd5274e",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit c62b251c9200eae8ae06e946b0c84e5bbcd5274e",
+  "generation_commit": "43ee39de9e87c92f245a88e655c63c94e1324c2d",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 43ee39de9e87c92f245a88e655c63c94e1324c2d",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.1",
@@ -26,14 +26,14 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 222,
-  "files_with_diagnostics": 44,
-  "fingerprint_count": 44,
+  "diagnostic_count": 188,
+  "files_with_diagnostics": 43,
+  "fingerprint_count": 43,
   "error_code_summary": {
-    "type-arg": 222
+    "type-arg": 188
   },
   "layer_summary": {
-    "engine": 155,
+    "engine": 121,
     "experiment": 11,
     "foundation": 39,
     "ux": 17
@@ -901,152 +901,6 @@
         {
           "line": 17,
           "column": 27
-        }
-      ]
-    },
-    {
-      "fingerprint": "94472FBA45CD9E3B43AAEF746FA53D5FEDD7A9A6B412221344754D67F139CAB2",
-      "path": "src/vamos/engine/algorithm/nsgaii/helpers.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 34,
-      "locations": [
-        {
-          "line": 27,
-          "column": 12
-        },
-        {
-          "line": 28,
-          "column": 15
-        },
-        {
-          "line": 34,
-          "column": 24
-        },
-        {
-          "line": 35,
-          "column": 6
-        },
-        {
-          "line": 41,
-          "column": 11
-        },
-        {
-          "line": 119,
-          "column": 8
-        },
-        {
-          "line": 120,
-          "column": 8
-        },
-        {
-          "line": 121,
-          "column": 8
-        },
-        {
-          "line": 122,
-          "column": 12
-        },
-        {
-          "line": 123,
-          "column": 12
-        },
-        {
-          "line": 124,
-          "column": 12
-        },
-        {
-          "line": 127,
-          "column": 12
-        },
-        {
-          "line": 133,
-          "column": 8
-        },
-        {
-          "line": 134,
-          "column": 8
-        },
-        {
-          "line": 135,
-          "column": 8
-        },
-        {
-          "line": 136,
-          "column": 12
-        },
-        {
-          "line": 137,
-          "column": 12
-        },
-        {
-          "line": 138,
-          "column": 12
-        },
-        {
-          "line": 141,
-          "column": 12
-        },
-        {
-          "line": 146,
-          "column": 8
-        },
-        {
-          "line": 147,
-          "column": 8
-        },
-        {
-          "line": 148,
-          "column": 8
-        },
-        {
-          "line": 149,
-          "column": 12
-        },
-        {
-          "line": 150,
-          "column": 12
-        },
-        {
-          "line": 151,
-          "column": 12
-        },
-        {
-          "line": 154,
-          "column": 12
-        },
-        {
-          "line": 195,
-          "column": 22
-        },
-        {
-          "line": 213,
-          "column": 30
-        },
-        {
-          "line": 220,
-          "column": 31
-        },
-        {
-          "line": 245,
-          "column": 25
-        },
-        {
-          "line": 257,
-          "column": 53
-        },
-        {
-          "line": 276,
-          "column": 12
-        },
-        {
-          "line": 277,
-          "column": 8
-        },
-        {
-          "line": 361,
-          "column": 62
         }
       ]
     },
