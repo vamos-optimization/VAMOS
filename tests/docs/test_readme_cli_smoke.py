@@ -1,11 +1,104 @@
 from __future__ import annotations
 
+import ast
 import os
+import re
 import subprocess
 import sys
+import unicodedata
 from pathlib import Path
+from typing import Any
 
+import numpy as np
 import pytest
+
+ROOT = Path(__file__).resolve().parents[2]
+README = ROOT / "README.md"
+DOCS = ROOT / "docs"
+REPOSITORY_FILE = re.compile(
+    r"https://(?:github\.com/vamos-optimization/VAMOS/(?:blob|tree)/main|raw\.githubusercontent\.com/vamos-optimization/VAMOS/main)/(?P<path>[^#?]+)"
+)
+DOCUMENTATION_PAGE = re.compile(r"https://vamos-optimization\.org/(?P<route>[^#?]*)(?:#(?P<anchor>.+))?")
+
+
+def _readme_prose() -> str:
+    return re.sub(r"```.*?```", "", README.read_text(encoding="utf-8"), flags=re.DOTALL)
+
+
+def _heading_anchors(page: Path) -> set[str]:
+    anchors = set()
+    for heading in re.findall(r"^#{1,6}\s+(.+?)\s*$", page.read_text(encoding="utf-8"), flags=re.MULTILINE):
+        explicit = re.search(r"\{#([^}]+)\}$", heading)
+        if explicit:
+            anchors.add(explicit.group(1))
+            continue
+        text = unicodedata.normalize("NFKD", heading).encode("ascii", "ignore").decode("ascii")
+        text = re.sub(r"[^\w\s-]", "", text).strip().lower()
+        anchors.add(re.sub(r"[-\s]+", "-", text))
+    return anchors
+
+
+def _link_target_exists(link: str) -> bool:
+    repository_file = REPOSITORY_FILE.fullmatch(link)
+    if repository_file:
+        return (ROOT / repository_file.group("path")).exists()
+    page = DOCUMENTATION_PAGE.fullmatch(link)
+    if not page:
+        return True
+    route = page.group("route").strip("/")
+    candidates = [DOCS / "index.md"] if not route else [DOCS / f"{route}.md", DOCS / route / "index.md"]
+    source = next((candidate for candidate in candidates if candidate.is_file()), None)
+    if source is None:
+        return False
+    return page.group("anchor") is None or page.group("anchor") in _heading_anchors(source)
+
+
+def test_readme_links_are_absolute() -> None:
+    """The README is also the PyPI project description, where repository paths do not resolve."""
+    prose = _readme_prose()
+    links = re.findall(r"!?\[[^\]]*\]\(([^)\s]+)\)", prose)
+    assert links
+
+    assert [link for link in links if not link.startswith(("https://", "#"))] == []
+    # A path in backticks is not a link on PyPI either; link the page instead.
+    assert re.findall(r"`([^`\s]+\.(?:md|cff))`", prose) == []
+    assert [link for link in links if not _link_target_exists(link)] == []
+
+
+def _python_blocks(text: str) -> list[str]:
+    return re.findall(r"```python\s*\n(.*?)```", text, flags=re.DOTALL)
+
+
+@pytest.mark.smoke
+def test_readme_study_example_compares_a_quality_indicator(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The multi-seed example ranks its seeds by a quality indicator with a fixed reference point.
+
+    Every run spends exactly its budget, so comparing ``evaluations`` across seeds
+    compares equal numbers, and the "best run" is the first one.
+    """
+    (block,) = [source for source in _python_blocks(README.read_text(encoding="utf-8")) if "seed=[" in source]
+    assert '"evaluations"' not in block, block
+
+    tree = ast.parse(block)
+    reference = [
+        node.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == "reference_point" for target in node.targets)
+    ]
+    assert len(reference) == 1, block
+    # A literal point, not one derived from the fronts it measures.
+    assert {node.id for node in ast.walk(reference[0]) if isinstance(node, ast.Name)} <= {"np"}
+
+    pytest.importorskip("moocore")
+    monkeypatch.chdir(tmp_path)
+    namespace: dict[str, Any] = {"__name__": "__main__"}
+    exec(compile(block, "README.md::study-example", "exec"), namespace)
+
+    study = namespace["study"]
+    hv = np.asarray(namespace["hv"], dtype=float)
+    assert hv.shape == (len(study),)
+    assert np.all(hv > 0.0)
+    assert len(np.unique(hv)) == len(study)
 
 
 def _run_vamos(*args: str, timeout: int = 180) -> subprocess.CompletedProcess[str]:
