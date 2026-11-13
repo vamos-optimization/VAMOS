@@ -51,7 +51,7 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 
 # Install core + essential extras
-pip install "vamos-optimization[compute,research,analysis]"
+pip install "vamos-optimization[compute,analysis]"
 ```
 
 For development and extras (Linux / macOS):
@@ -62,7 +62,7 @@ python -m venv .venv
 source .venv/bin/activate
 
 # Install core + essential extras
-pip install "vamos-optimization[compute,research,analysis]"
+pip install "vamos-optimization[compute,analysis]"
 ```
 
 Optional model-based tuning backends (`optuna`, `smac3`, `bohb`):
@@ -202,7 +202,7 @@ vamos tune --instances zdt1,zdt2,zdt3,dtlz1,dtlz2,wfg1 --algorithm nsgaii --back
 
 Note: `racing` and `random` require no extra dependencies. The model-based backends (`optuna`, `bohb_optuna`, `smac3`, `bohb`) require the optional `tuning` extra: `pip install "vamos-optimization[tuning]"`. The `smac3` backend uses the `smac` package.
 
-For paper-grade comparisons against external frameworks, do not rely on the open-ended `research` extra alone. Record a pinned environment or lockfile alongside reported results.
+For paper-grade comparisons against other frameworks, install them yourself (VAMOS depends on none) and record a pinned environment or lockfile alongside reported results.
 
 Recommended robust command (fallback + suite-stratified split):
 
@@ -311,7 +311,7 @@ result = optimize(
 
 Reminder: plain dict configs are intentionally not accepted (use `GenericAlgorithmConfig` for plugin algorithms).
 
-For comparative evidence against pymoo on fixed seeded cases, run:
+For comparative evidence against pymoo on fixed seeded cases, install it (`pip install -c constraints/ci.txt pymoo` in a source checkout) and run:
 
 ```bash
 python tools/benchmark_compare_pymoo.py --output artifacts/performance/pymoo_comparison.json --markdown artifacts/performance/pymoo_comparison.md

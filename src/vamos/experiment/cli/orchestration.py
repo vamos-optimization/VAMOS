@@ -210,8 +210,6 @@ def _effective_run(
         "algorithm",
         "engine",
         "experiment",
-        "include_external",
-        "external_problem_source",
     ):
         if override.get(key) is not None:
             setattr(effective_args, key, override[key])
@@ -320,7 +318,6 @@ def run_from_args(
             run_single_fn=run_single,
             hv_stop_config=hv_stop_config,
             variations=variations,
-            include_external=effective_args.include_external,
             config_source=config_source,
             config_spec=config_spec,
             problem_override=override,

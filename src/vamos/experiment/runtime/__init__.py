@@ -5,7 +5,6 @@ from .catalog import (
     DEFAULT_PROBLEM,
     EXPERIMENT_BACKENDS,
     EXPERIMENT_TYPES,
-    EXTERNAL_ALGORITHM_NAMES,
     TITLE,
     resolve_engine,
 )
@@ -15,7 +14,6 @@ __all__ = [
     "DEFAULT_PROBLEM",
     "EXPERIMENT_BACKENDS",
     "EXPERIMENT_TYPES",
-    "EXTERNAL_ALGORITHM_NAMES",
     "TITLE",
     "resolve_engine",
 ]

@@ -191,7 +191,7 @@ def test_cli_guide_tune_smoke_command_smoke(tmp_path: Path) -> None:
 
 
 @pytest.mark.smoke
-def test_cli_guide_both_with_external_baselines_smoke(tmp_path: Path) -> None:
+def test_cli_guide_both_smoke(tmp_path: Path) -> None:
     from vamos.engine.algorithm.catalog import ENABLED_ALGORITHMS
 
     source_path = "docs/guide/cli.md"
@@ -201,9 +201,6 @@ def test_cli_guide_both_with_external_baselines_smoke(tmp_path: Path) -> None:
         "zdt1",
         "--algorithm",
         "both",
-        "--include-external",
-        "--external-problem-source",
-        "native",
         "--max-evaluations",
         "200",
         "--seed",

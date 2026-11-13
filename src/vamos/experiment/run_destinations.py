@@ -16,10 +16,7 @@ from vamos.foundation.problem.registry import ProblemSelection
 
 
 def planned_run_dirs(args: Namespace, problem_selection: ProblemSelection, config: ExperimentConfig) -> list[str]:
-    """The run directories that ``execute_problem_suite`` writes for one problem, in run order.
-
-    External baselines write no run artifact, so they have none.
-    """
+    """The run directories that ``execute_problem_suite`` writes for one problem, in run order."""
     engines, algorithms = planned_engines_and_algorithms(args)
     registered = set(get_algorithms_registry().keys())
     return [

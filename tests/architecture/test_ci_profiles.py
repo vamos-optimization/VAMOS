@@ -40,6 +40,55 @@ def _ci_jobs() -> dict:
     return yaml.load((ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8"), Loader=yaml.BaseLoader)["jobs"]
 
 
+_PIP_VALUE_OPTIONS = {"-c", "-r", "-e", "--constraint", "--requirement", "--editable"}
+
+
+def _workflows() -> list[tuple[str, str]]:
+    return [(path.name, path.read_text(encoding="utf-8")) for path in sorted((ROOT / ".github" / "workflows").glob("*.yml"))]
+
+
+def _pip_installs() -> list[tuple[str, list[str]]]:
+    """The arguments of each ``pip install`` command of the workflows, with the workflow's name."""
+    installs = []
+    for name, text in _workflows():
+        for command in text.replace("\\\n", " ").splitlines():
+            if "pip install" in command:
+                installs.append((name, command.split("pip install", 1)[1].split()))
+    return installs
+
+
+def _installed_by_name(arguments: list[str]) -> list[str]:
+    """The distributions that ``pip install`` arguments name directly, not through an extra or a file."""
+    names = []
+    skip = False
+    for argument in arguments:
+        if skip or argument in _PIP_VALUE_OPTIONS:
+            skip = not skip
+            continue
+        if re.fullmatch(r"[A-Za-z][A-Za-z0-9._-]*", argument):
+            names.append(_name(argument))
+    return names
+
+
+def _installed_extras() -> list[tuple[str, str]]:
+    """The extras that the workflows install: ``.[a,b]`` in a command, or the lists of the ``EXTRAS`` variable it expands."""
+    found = []
+    for name, text in _workflows():
+        groups = [
+            group
+            for workflow, arguments in _pip_installs()
+            if workflow == name
+            for group in re.findall(r"\.\[([A-Za-z0-9_,-]+)\]", " ".join(arguments))
+        ]
+        for line in text.splitlines():
+            key, _, value = line.strip().partition(":")
+            if key == "EXTRAS":
+                # The literal lists inside the ${{ }} expressions ('a,b' && 'c' || ',d'), and the text outside them.
+                groups += re.findall(r"(?:&&|\|\|)\s*'([^']*)'", value) + [re.sub(r"\$\{\{.*?\}\}", ",", value)]
+        found += [(name, extra.strip()) for group in groups for extra in group.split(",") if extra.strip()]
+    return found
+
+
 def test_ci_constraints_pin_only_declared_distributions() -> None:
     data = _project()
     requirements = [
@@ -50,13 +99,28 @@ def test_ci_constraints_pin_only_declared_distributions() -> None:
     declared = {_name(requirement) for requirement in requirements}
     # A requirement such as dask[distributed] also installs the distribution its extra names.
     declared |= {_name(extra) for requirement in requirements for extra in re.findall(r"\[([^\]]+)\]", requirement)}
+    # A maintainer tool's dependency that a workflow installs by name, such as pymoo for tools/benchmark_compare_pymoo.py.
+    declared |= {name for _workflow, arguments in _pip_installs() for name in _installed_by_name(arguments)}
 
-    assert sorted(set(_pins(ROOT / "constraints" / "ci.txt")) - declared) == []
+    undeclared = sorted(set(_pins(ROOT / "constraints" / "ci.txt")) - declared)
+    assert undeclared == [], f"constraints/ci.txt pins distributions that nothing installs: {undeclared}"
 
 
-def test_ci_constraints_pin_the_research_extra() -> None:
-    research = {_name(requirement) for requirement in _project()["project"]["optional-dependencies"]["research"]}
-    assert sorted(research - set(_pins(ROOT / "constraints" / "ci.txt"))) == []
+def test_workflows_install_declared_extras_and_pinned_tools() -> None:
+    # pip only warns about an extra that the package does not declare, and installs nothing for it.
+    extras = set(_project()["project"]["optional-dependencies"])
+    undeclared = sorted({f"{workflow}: {extra}" for workflow, extra in _installed_extras() if extra not in extras})
+    assert undeclared == [], f"workflows install extras that pyproject.toml does not declare: {undeclared}"
+
+    pins = set(_pins(ROOT / "constraints" / "ci.txt"))
+    unpinned = [
+        f"{workflow}: {name}"
+        for workflow, arguments in _pip_installs()
+        if "constraints/ci.txt" in arguments
+        for name in _installed_by_name(arguments)
+        if name not in pins
+    ]
+    assert unpinned == [], f"workflows install by name, with constraints/ci.txt, distributions that it does not pin: {unpinned}"
 
 
 def test_minimum_profile_uses_declared_minimums() -> None:
