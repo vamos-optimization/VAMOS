@@ -26,7 +26,8 @@ def test_runtime_is_the_single_package_version_source() -> None:
     assert "version" not in pyproject["project"]
     assert pyproject["project"]["dynamic"] == ["version"]
     assert pyproject["tool"]["setuptools"]["dynamic"]["version"] == {"attr": "vamos.foundation.version.__version__"}
-    assert "version_toml" not in pyproject["tool"]["semantic_release"]
+    # Releases bump the version by hand and publish through release.yml; no second tool owns it.
+    assert "semantic_release" not in pyproject["tool"]
 
 
 def test_public_release_documents_match_runtime_version() -> None:
