@@ -101,6 +101,23 @@ def test_snapshot_detects_a_changed_signature(monkeypatch: pytest.MonkeyPatch) -
     assert generator._stable_api_snapshot() != _committed("stable_public_api.json")
 
 
+def test_type_aliases_record_no_signature() -> None:
+    """A type alias is not a callable API; whether typing makes one callable changes with the Python version."""
+    import inspect
+
+    generator = _generator()
+    signatures = generator._stable_api_snapshot()["signatures"]
+    aliases = [
+        f"{module_name}.{name}"
+        for module_name, names in generator.STABLE_API.items()
+        for name in names
+        if not (inspect.isroutine(obj := getattr(importlib.import_module(module_name), name)) or inspect.isclass(obj))
+    ]
+
+    assert "vamos.algorithms.ProbabilityValue" in aliases
+    assert [alias for alias in aliases if alias in signatures] == []
+
+
 def test_exit_code_snapshot_reads_the_cli_mapping(monkeypatch: pytest.MonkeyPatch) -> None:
     """The frozen exit codes come from the code that maps errors to codes (VR-091)."""
     from vamos.experiment.artifacts.errors import OutputCollisionError
