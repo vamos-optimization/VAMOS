@@ -227,3 +227,43 @@ def test_a_resumed_run_keeps_the_technique_state(technique: str, generation: int
     resumed = run(checkpoint=checkpoint)
 
     assert np.array_equal(whole["X"], resumed["X"])
+
+
+class _StopAtGeneration:
+    """A live callback that asks the run to stop once it reaches ``generation``."""
+
+    def __init__(self, generation: int) -> None:
+        self.generation = generation
+        self.reached = False
+
+    def on_start(self, ctx: object = None) -> None:
+        return None
+
+    def on_generation(self, generation: int, F: object = None, X: object = None, stats: object = None) -> None:
+        self.reached = generation >= self.generation
+
+    def on_end(self, final_F: object = None, final_stats: object = None) -> None:
+        return None
+
+    def should_stop(self) -> bool:
+        return self.reached
+
+
+@pytest.mark.parametrize(("technique", "generation"), [("epsilon_constrained", 20), ("push_pull", 30)])
+def test_a_run_resumed_from_the_returned_checkpoint_keeps_the_technique_state(technique: str, generation: int) -> None:
+    # The checkpoint in the result is the in-memory way to resume, without a checkpoint directory.
+    from vamos.engine.algorithm.nsgaii import NSGAII
+
+    def run(**kwargs: Any) -> dict[str, Any]:
+        algorithm = NSGAII(_config(technique).to_dict(), kernel=resolve_kernel("numpy"))
+        return dict(algorithm.run(LIRCMOP(2, n_var=10), ("max_evaluations", 2000), seed=9, **kwargs))
+
+    whole = run()
+    stopped = run(live_viz=_StopAtGeneration(generation))
+    checkpoint = stopped["checkpoint"]
+    assert checkpoint["generation"] == generation
+    assert "constraint_handling" in checkpoint["extra"]
+
+    resumed = run(checkpoint=checkpoint)
+
+    assert np.array_equal(whole["X"], resumed["X"])
