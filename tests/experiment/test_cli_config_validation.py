@@ -712,3 +712,29 @@ def test_upper_case_problem_override_reaches_the_run(monkeypatch, tmp_path):
     outcome = vamos.load_run(next(output_root.rglob("manifest.json")).parent).manifest["outcome"]
     assert outcome["evaluations"] == 39
     assert outcome["metrics"]["hooks"]["archive"]["enabled"] is True
+
+
+@pytest.mark.parametrize(
+    ("defaults", "code", "message"),
+    [
+        # C-TAEA's initial population is one solution per weight vector: 91 for 100 and three objectives.
+        pytest.param({"algorithm": "ctaea", "problem": "dtlz2", "population_size": 100, "max_evaluations": 95}, 0, "", id="ctaea-95"),
+        pytest.param(
+            {"algorithm": "ctaea", "problem": "dtlz2", "population_size": 100, "max_evaluations": 90}, 2, "at least 91", id="ctaea-90"
+        ),
+        # CCMO's two initial populations take twice the population size.
+        pytest.param(
+            {"algorithm": "ccmo", "problem": "zdt1", "population_size": 10, "max_evaluations": 15}, 2, "at least 20", id="ccmo-15"
+        ),
+        pytest.param(
+            {"algorithm": "nsgaii", "problem": "zdt1", "population_size": 10, "max_evaluations": 5}, 2, "--population-size", id="nsgaii-5"
+        ),
+    ],
+)
+def test_the_budget_must_cover_the_initial_population_of_the_algorithm(monkeypatch, capsys, tmp_path, defaults, code, message):
+    spec = {"version": "1", "defaults": {"engine": "numpy", **defaults}}
+
+    exit_code, _, err = _exit_of_main(monkeypatch, capsys, "--config", str(_write_spec(tmp_path, spec)), "--validate-config")
+
+    assert exit_code == code, err
+    assert message in err

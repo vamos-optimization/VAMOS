@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import logging
 
+from vamos.engine.algorithm.catalog import WEIGHT_VECTOR_POPULATIONS, initial_evaluations
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.engine.config.variation import merge_variation_overrides
 from vamos.foundation.problem.resolver import resolve_problem_selections, resolve_reference_front_path
@@ -74,6 +75,31 @@ def _validate_problem_dimensions(parser: argparse.ArgumentParser, args: argparse
         parser.error(str(exc))
 
 
+def _validate_budget_covers_initial_population(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
+    """Reject a ``--max-evaluations`` below the evaluations of the algorithm's initial population(s).
+
+    They are those of :func:`vamos.engine.algorithm.catalog.initial_evaluations`, as ``optimize``
+    checks them: ``--population-size`` for most algorithms, twice it for CCMO, and for C-TAEA the
+    number of weight vectors that ``--population-size`` gives for the objectives of each problem,
+    which may be smaller than ``--population-size`` (91 for 100 and three objectives).
+    """
+    algorithm = str(args.algorithm).strip().lower()
+    population = int(args.population_size)
+    if algorithm in WEIGHT_VECTOR_POPULATIONS:
+        needed = max(initial_evaluations(algorithm, population, n_obj=selection.n_obj) for selection in resolve_problem_selections(args))
+        if args.max_evaluations < needed:
+            parser.error(
+                f"--max-evaluations must be at least {needed}, the number of weight vectors of {algorithm} "
+                f"for --population-size {population} and the problem's objectives."
+            )
+        return
+    needed = initial_evaluations(algorithm, population)
+    if args.max_evaluations < needed and needed > population:
+        parser.error(f"--max-evaluations must be at least {needed}, the evaluations of the initial populations of {algorithm}.")
+    if args.max_evaluations < population:
+        parser.error("--max-evaluations must be greater than or equal to --population-size.")
+
+
 def _with_defaults_block(collected: dict[str, object] | None, defaults: dict[str, object], name: str) -> dict[str, object] | None:
     """The config's ``defaults.<name>`` block with the operators the command line resolved on top.
 
@@ -127,8 +153,7 @@ def finalize_args(
         args.external_archive = None
     if args.max_evaluations <= 0:
         parser.error("--max-evaluations must be a positive integer.")
-    if args.max_evaluations < args.population_size:
-        parser.error("--max-evaluations must be greater than or equal to --population-size.")
+    _validate_budget_covers_initial_population(parser, args)
     if args.n_workers is not None and args.n_workers <= 0:
         parser.error("--n-workers must be positive if provided.")
     if args.live_viz_interval is not None and args.live_viz_interval <= 0:
