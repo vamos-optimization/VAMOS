@@ -11,7 +11,11 @@ from dataclasses import asdict
 from numbers import Integral
 from typing import Any, Literal, TypeAlias, cast, overload
 
-from vamos.engine.algorithm.components.constraint_handling import config_constraint_handling, normalize_constraint_handling
+from vamos.engine.algorithm.components.constraint_handling import (
+    CONSTRAINT_HANDLING_TECHNIQUES,
+    config_constraint_handling,
+    normalize_constraint_handling,
+)
 from vamos.engine.algorithm.config.types import CrossoverName, InitializerName, MutationName, RepairName, SelectionName
 from vamos.engine.algorithm.config.validation import OPERATOR_PAIR_FIELDS, did_you_mean, operator_pair, validate_config_fields
 from vamos.engine.archive import ExternalArchiveConfig
@@ -304,7 +308,8 @@ class _SerializableConfig:
             object.__setattr__(self, "constraint_mode", normalize_constraint_mode(config.constraint_mode))
         if "constraint_handling" in fields:
             mode = config.constraint_mode if "constraint_mode" in fields else "feasibility"
-            object.__setattr__(self, "constraint_handling", config_constraint_handling(config.constraint_handling, mode))
+            techniques = getattr(type(self), "constraint_handling_techniques", CONSTRAINT_HANDLING_TECHNIQUES)
+            object.__setattr__(self, "constraint_handling", config_constraint_handling(config.constraint_handling, mode, techniques))
         for name in OPERATOR_PAIR_FIELDS:
             if name in fields:
                 object.__setattr__(self, name, operator_pair(getattr(config, name)))

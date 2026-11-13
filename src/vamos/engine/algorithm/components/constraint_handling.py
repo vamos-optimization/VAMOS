@@ -72,6 +72,10 @@ CONSTRAINT_HANDLING_TECHNIQUES: tuple[str, ...] = (
     "self_adaptive_penalty",
 )
 
+#: The techniques that judge the violation of a single solution and compare pairs of solutions, which
+#: RVEA's survival and SMPSO's personal bests use, as Evolver's ``EffectiveViolation``.
+PAIRWISE_TECHNIQUES: tuple[str, ...] = ("cdp", "violated_constraints", "epsilon_constrained", "push_pull")
+
 # The admissible values of each parameter, as jMetal's constructors check them: (low, high, low closed).
 _RANGES: dict[str, tuple[float, float, bool]] = {
     "initial_quantile": (0.0, 1.0, True),
@@ -137,6 +141,8 @@ class ConstraintHandlingTechnique:
     name = ""
     #: Whether :meth:`update` reads the run's progress.
     needs_progress = False
+    #: Whether two rows with the same positive effective violation compare by Pareto dominance.
+    dominance_on_ties = False
 
     def update(self, kernel: KernelBackend, F: NDArray[Any], G: NDArray[Any], progress: float) -> None:
         """Adapt to the population about to be ranked, at ``progress`` (evaluations over the budget)."""
@@ -145,6 +151,15 @@ class ConstraintHandlingTechnique:
     def ranks(self, kernel: KernelBackend, F: NDArray[Any], G: NDArray[Any], rng: np.random.Generator) -> RankArray:
         """The front of each row (0 first)."""
         raise NotImplementedError
+
+    def effective_violation(self, G: NDArray[Any]) -> NDArray[np.float64]:
+        """The violation of each row as the technique judges it: 0 for a row that it treats as feasible.
+
+        Only the techniques of :data:`PAIRWISE_TECHNIQUES` judge single rows.
+        """
+        raise ValueError(
+            f"constraint_handling {self.name!r} does not judge the violation of a single solution; use {', '.join(PAIRWISE_TECHNIQUES)}."
+        )
 
     def state(self) -> dict[str, Any]:
         """What :meth:`update` has learnt, for a checkpoint."""
@@ -158,13 +173,23 @@ class ConstraintHandlingTechnique:
 class ConstrainedDominance(ConstraintHandlingTechnique):
     """Deb's rule over the overall violation (``cdp``) or the number of violated constraints."""
 
+    dominance_on_ties = True
+
     def __init__(self, *, count_violated_constraints: bool = False) -> None:
         self.count_violated_constraints = count_violated_constraints
         self.name = "violated_constraints" if count_violated_constraints else "cdp"
 
+    def effective_violation(self, G: NDArray[Any]) -> NDArray[np.float64]:
+        return violated_constraints(G) if self.count_violated_constraints else violation(G)
+
     def ranks(self, kernel: KernelBackend, F: NDArray[Any], G: NDArray[Any], rng: np.random.Generator) -> RankArray:
         measure = violated_constraints(G) if self.count_violated_constraints else violation(G)
         return ranks_by_violation(kernel, F, measure, objectives_on_ties=True)
+
+
+def _within_epsilon(measure: NDArray[np.float64], epsilon: float) -> NDArray[np.float64]:
+    """A violation, or 0 where it is at most epsilon."""
+    return np.where(measure <= epsilon, 0.0, measure)
 
 
 def _ranks_within_epsilon(kernel: KernelBackend, F: NDArray[Any], G: NDArray[Any], epsilon: float) -> RankArray:
@@ -200,6 +225,9 @@ class EpsilonConstrained(ConstraintHandlingTechnique):
 
     def ranks(self, kernel: KernelBackend, F: NDArray[Any], G: NDArray[Any], rng: np.random.Generator) -> RankArray:
         return _ranks_within_epsilon(kernel, F, G, self.epsilon)
+
+    def effective_violation(self, G: NDArray[Any]) -> NDArray[np.float64]:
+        return _within_epsilon(violation(G), self.epsilon)
 
     def state(self) -> dict[str, Any]:
         return {"started": self.started, "initial_epsilon": self.initial_epsilon, "epsilon": self.epsilon}
@@ -283,6 +311,9 @@ class PushPullSearch(ConstraintHandlingTechnique):
             return pareto_ranks(kernel, F)
         return _ranks_within_epsilon(kernel, F, G, self.epsilon)
 
+    def effective_violation(self, G: NDArray[Any]) -> NDArray[np.float64]:
+        return _push_pull_effective_violation(self, G)
+
     def state(self) -> dict[str, Any]:
         return {
             "pushing": self.pushing,
@@ -299,6 +330,12 @@ class PushPullSearch(ConstraintHandlingTechnique):
         ]
         self.initial_epsilon = float(state.get("initial_epsilon", 0.0))
         self.epsilon = float(state.get("epsilon", 0.0))
+
+
+def _push_pull_effective_violation(technique: PushPullSearch, G: NDArray[Any]) -> NDArray[np.float64]:
+    if technique.pushing:
+        return np.zeros(np.asarray(G).shape[0], dtype=np.float64)
+    return _within_epsilon(violation(G), technique.epsilon)
 
 
 def _largest_relative_change(previous: NDArray[np.float64], current: NDArray[np.float64]) -> float:
@@ -358,27 +395,41 @@ def make_constraint_handling(value: object) -> ConstraintHandlingTechnique:
     return SelfAdaptivePenalty()
 
 
-def config_constraint_handling(value: object, constraint_mode: str) -> tuple[str, dict[str, float]] | None:
+def config_constraint_handling(
+    value: object, constraint_mode: str, techniques: tuple[str, ...] = CONSTRAINT_HANDLING_TECHNIQUES
+) -> tuple[str, dict[str, float]] | None:
     """The ``constraint_handling`` field of a configuration, validated; None stays None, which is cdp.
 
     A JSON round trip returns the pair as a list, which this turns back into a tuple. A technique other
-    than cdp needs the feasibility constraint mode.
+    than cdp needs the feasibility constraint mode, and must be one of the ``techniques`` that the
+    algorithm takes.
     """
     if value is None:
         return None
     technique = normalize_constraint_handling(value)
+    if technique[0] not in techniques:
+        raise ValueError(
+            f"constraint_handling {technique[0]!r} does not judge the violation of a single solution; "
+            f"this algorithm takes {', '.join(techniques)}."
+        )
     if technique[0] != "cdp" and constraint_mode == "none":
         raise ValueError(f"constraint_handling {technique[0]!r} needs constraint_mode 'feasibility'.")
     return technique
 
 
-def run_technique(value: object, constraint_mode: str, checkpoint: Mapping[str, Any] | None = None) -> ConstraintHandlingTechnique | None:
+def run_technique(
+    value: object,
+    constraint_mode: str,
+    checkpoint: Mapping[str, Any] | None = None,
+    techniques: tuple[str, ...] = CONSTRAINT_HANDLING_TECHNIQUES,
+) -> ConstraintHandlingTechnique | None:
     """A run's own technique, None for cdp, with the state that the checkpoint it resumes from saved.
 
     cdp keeps each algorithm's own feasibility-first survival and selection, so its results do not
-    change. Any other technique needs the feasibility constraint mode.
+    change. Any other technique needs the feasibility constraint mode, and must be one of the
+    ``techniques`` that the algorithm takes.
     """
-    technique_value = config_constraint_handling(value, constraint_mode)
+    technique_value = config_constraint_handling(value, constraint_mode, techniques)
     if technique_value is None or technique_value[0] == "cdp":
         return None
     technique = make_constraint_handling(technique_value)
@@ -415,9 +466,32 @@ def adapted_ranks(
     return technique.ranks(kernel, F, G, rng)
 
 
+def preferred(
+    technique: ConstraintHandlingTechnique,
+    F_a: NDArray[Any],
+    G_a: NDArray[Any],
+    F_b: NDArray[Any],
+    G_b: NDArray[Any],
+) -> NDArray[np.bool_]:
+    """Whether the technique prefers each row of ``a`` to the same row of ``b``, as its jMetal comparator.
+
+    The row with the lower effective violation wins. Two rows with the same one compare by Pareto
+    dominance if the technique treats both as feasible, and also otherwise for cdp and
+    violated_constraints; epsilon_constrained and push_pull prefer neither.
+    """
+    measure_a = technique.effective_violation(G_a)
+    measure_b = technique.effective_violation(G_b)
+    F_a = np.asarray(F_a, dtype=np.float64)
+    F_b = np.asarray(F_b, dtype=np.float64)
+    dominates = np.all(F_a <= F_b, axis=1) & np.any(F_a < F_b, axis=1)
+    ties = (measure_a == measure_b) & ((measure_a <= 0.0) | technique.dominance_on_ties)
+    return np.asarray((measure_a < measure_b) | (ties & dominates), dtype=np.bool_)
+
+
 __all__ = [
     "CONSTRAINT_HANDLING_PARAMETERS",
     "CONSTRAINT_HANDLING_TECHNIQUES",
+    "PAIRWISE_TECHNIQUES",
     "ConstrainedDominance",
     "ConstraintHandlingTechnique",
     "EpsilonConstrained",
@@ -428,6 +502,7 @@ __all__ = [
     "config_constraint_handling",
     "make_constraint_handling",
     "normalize_constraint_handling",
+    "preferred",
     "run_progress",
     "run_technique",
 ]
