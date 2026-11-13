@@ -4,8 +4,8 @@ Version helpers for VAMOS.
 
 from __future__ import annotations
 
-# Managed by python-semantic-release
-__version__ = "1.1.0"
+# Bumped by hand in the release pull request; see docs/release_smoke.md.
+__version__ = "1.2.0"
 
 
 def get_version() -> str:

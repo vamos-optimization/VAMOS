@@ -1,10 +1,10 @@
 # Constraints
 
 !!! info "Stable problem-definition API"
-    `make_problem` and `optimize` are Stable in VAMOS 1.1.0. The violation
+    `make_problem` and `optimize` are Stable in VAMOS 1.2.0. The violation
     helpers are Internal. See
     [Stability and versioning](../project/stability-and-versioning.md).
-    **Development after 1.1.0:** the internal symbolic constraint DSL
+    **VAMOS 1.2.0:** the internal symbolic constraint DSL
     (`vamos.foundation.constraints.dsl`), which no algorithm or guide used, is
     removed; declare constraints with `make_problem` or a `Problem` subclass.
 
@@ -72,7 +72,7 @@ Declare `n_constraints` explicitly. In a custom `Problem.evaluate(X, out)`
 implementation, put the constraint matrix in `out["G"]` using the same sign
 convention.
 
-**Development after 1.1.0:** constraint values from a problem that declares
+**VAMOS 1.2.0:** constraint values from a problem that declares
 `n_constraints = 0` raise `EvaluationError`. This covers a `G` written by
 `evaluate` and an overridden `Problem.constraints()`. VAMOS 1.1.0 ignored them
 and optimized the problem as unconstrained. Constraint values, like objectives,
@@ -97,7 +97,7 @@ algorithm in a comparison.
 
 ## Read the feasibility of a result
 
-**Development after 1.1.0:** every solution array of a result carries the
+**VAMOS 1.2.0:** every solution array of a result carries the
 constraint values of its rows: `result.data["G"]` for `result.X`, and `"G"` in
 `result.data["population"]` and in the external archive's entry. The archive's
 entry is `result.data["archive"]` for most algorithms, `archive_G` next to

@@ -10,13 +10,13 @@ A [complete NSGA-II/ZDT1 configuration](https://github.com/vamos-optimization/VA
 shows both together. Start with two-objective, unconstrained runs: the hook
 observes objective vectors and does not independently enforce feasibility.
 
-**Development after 1.1.0:** a block whose values cannot be built (for example
+**VAMOS 1.2.0:** a block whose values cannot be built (for example
 `window: 1` or `pruning: hypervolume`) stops the command with exit code 2
 before any run, and `--validate-config` reports it. VAMOS 1.1.0 and earlier
 disabled both hooks with a warning and ran the full evaluation budget without
 them.
 
-**Development after 1.1.0:** both blocks merge key by key, nested mappings
+**VAMOS 1.2.0:** both blocks merge key by key, nested mappings
 included: first `defaults`, then the top-level block, then `problems.<name>`.
 A key set to `null` replaces the inherited value, so
 `problems.zdt1.stopping.hv_convergence: {patience: 10}` changes only `patience`.
@@ -53,7 +53,7 @@ stopping:
     ref_point: [2.0, 2.0] # two values (the monitor is two-objective), or "auto"
 ```
 
-**Development after 1.1.0:** `every_k`, `patience`, `min_points` and
+**VAMOS 1.2.0:** `every_k`, `patience`, `min_points` and
 `bootstrap_samples` are positive integers and `window` is an integer of at
 least 2; `epsilon` is a finite number `>= 0`; `epsilon_mode` is `abs` or `rel`
 and `statistic` is `mean`, `median` or `min`; `confidence` is `null` or
@@ -74,7 +74,7 @@ Notes:
   installing another backend does not change this hook's dimensionality guard.
 - `ref_point: "auto"` derives a reference point from the observed set. Use an
   explicit fixed reference point for comparisons across runs.
-  **Development after 1.1.0:** the automatic reference is fixed at the first
+  **VAMOS 1.2.0:** the automatic reference is fixed at the first
   sample (its nadir plus 10% of its range in each objective) and recorded as
   `reference_point` in the stopping metadata; later points outside it count as
   zero. VAMOS 1.1.0 and earlier recomputed it from every sample, so the series
@@ -118,7 +118,7 @@ and `prune_reason` (the pruning policy when the capacity removed rows, otherwise
 `total_pruned_by_capacity` sum the rows over the whole run, not only over the
 bounded trace.
 
-**Development after 1.1.0:** the hook offers the archive only the objective rows
+**VAMOS 1.2.0:** the hook offers the archive only the objective rows
 that the previous notification did not contain, and skips the update when there
 are none. With a nonzero `objective_tolerance`, it offers the whole population
 whenever a row changed, because a row once dropped as a near-duplicate becomes
@@ -133,14 +133,14 @@ Notes:
 
 - Set a finite `capacity` explicitly; the hook parser defaults to 200. It does
   not inherit population size from a tuning space.
-  **Development after 1.1.0:** `capacity: null` keeps every non-dominated
+  **VAMOS 1.2.0:** `capacity: null` keeps every non-dominated
   objective vector; VAMOS 1.1.0 rejected it.
 - The hook stores objective vectors, not a decision-aligned result archive.
-  **Development after 1.1.0:** `deduplicate_in` must therefore be `objective`;
+  **VAMOS 1.2.0:** `deduplicate_in` must therefore be `objective`;
   `decision` and `both` are rejected when the spec is validated. VAMOS 1.1.0
   accepted them and the run aborted with an `IndexError` at the first archive
   update.
-- **Development after 1.1.0:** `capacity` and `truncate_size` are positive
+- **VAMOS 1.2.0:** `capacity` and `truncate_size` are positive
   integers (not `true` or `10.7`), `rng_seed` is an integer, the tolerances are
   finite numbers `>= 0` and `hv_ref_point` is a list of finite numbers. The same
   rules apply to `ExternalArchiveConfig` in Python, which also warns about a
@@ -151,7 +151,7 @@ Notes:
 - `objective_tolerance` is an absolute Chebyshev distance: two objective
   vectors within that distance count as duplicates and only the first is kept. Set it
   in objective units, if at all.
-- **Development after 1.1.0:** `objective_tolerance` defaults to `0.0`, exact
+- **VAMOS 1.2.0:** `objective_tolerance` defaults to `0.0`, exact
   equality, as in jMetal; it was `1.0e-10`. The same default applies to the
   SMPSO leader archive and to the algorithm result archives. With objectives on
   a scale of about `1e-9` or smaller, the old tolerance merged distinct
@@ -159,7 +159,7 @@ Notes:
 - `pruning: hv` uses exact HV contributions in 2D and, when `moocore` is
   installed, exact higher-dimensional contributions. Archive pruning support does
   not remove the two-objective restriction of the convergence monitor.
-- **Development after 1.1.0:** `mc_hv` is an alias of `hv`: both compute the
+- **VAMOS 1.2.0:** `mc_hv` is an alias of `hv`: both compute the
   exact contributions; VAMOS 1.1.0 documented `mc_hv` as a Monte Carlo estimate,
   but it never was one. `hv_ref_point` is optional. Without it, each truncation
   measures the contributions against `nadir + (nadir - ideal)` of the archived
@@ -169,13 +169,13 @@ Notes:
   the largest value seen in each objective plus 1, in objective units: with one
   objective in hundreds, the archive dropped extreme points that it keeps with
   the objective in units.
-- **Development after 1.1.0:** without `moocore`, HV pruning with two objectives
+- **VAMOS 1.2.0:** without `moocore`, HV pruning with two objectives
   uses the exact contributions too, and with three or more objectives the run
   fails with a `DependencyError` naming the `compute` extra. VAMOS 1.1.0 and
   earlier prune by crowding distance instead, with a single warning per process.
   The HV subset selection of `top_k(method="hv_greedy")` is exact with or without
   `moocore`; without it, it is slow with three or more objectives.
-- **Development after 1.1.0:** `pruning: knn` applies the SPEA2 truncation
+- **VAMOS 1.2.0:** `pruning: knn` applies the SPEA2 truncation
   operator: it repeatedly removes the point whose distances to the others,
   sorted in ascending order, are lexicographically smallest. VAMOS 1.1.0 and
   earlier rank points by the distance to their second-nearest neighbour alone,

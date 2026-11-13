@@ -113,14 +113,14 @@ The stable study lifecycle consists of:
   and `retry` methods;
 - `StudyReport` and `StudySummary`.
 
-Study mutation is single-owner in VAMOS 1.1.0. Do not run concurrent
+Study mutation is single-owner in VAMOS 1.2.0. Do not run concurrent
 `run`, `resume`, or `retry` operations against the same study. There is no
 cross-process cancellation command. Inspection and summary are immutable,
 data-only projections.
 
 ### Exceptions
 
-**Development after 1.1.0:** the stable API raises errors of one hierarchy,
+**VAMOS 1.2.0:** the stable API raises errors of one hierarchy,
 exported by `vamos.exceptions`. Catch them by class; their messages may change.
 
 - `VAMOSError` is the base of every error below.
@@ -204,7 +204,7 @@ not covered by this promise.
 
 ## Experimental surface
 
-The following remain experimental in VAMOS 1.1.0:
+The following remain experimental in VAMOS 1.2.0:
 
 - Studio and all generated-code execution;
 - LLM-provider and provider-specific assist integrations;
@@ -242,13 +242,13 @@ VAMOS follows semantic versioning from 1.0.0 onward:
 
 ## Scientific corrections
 
-**Development after 1.1.0:** a built-in algorithm, operator, problem, or
+**VAMOS 1.2.0:** a built-in algorithm, operator, problem, or
 indicator that departs from its published definition is a defect. Its fix
 ships in a patch or minor release even when it changes numerical results, or
 the default value of a stable signature, because results of the faulty
 definition are not results of the published method. The changelog lists such a
 fix as Fixed with a note on which results change and how, so that affected
-experiments can be rerun. Two fixes after 1.1.0 are examples:
+experiments can be rerun. Two fixes in VAMOS 1.2.0 are examples:
 
 - CEC2009 UF3 searches its published domain `[0, 1]^n` (pull request #104).
   VAMOS 1.1.0 searched `[-1, 1]` for every variable after the first, a
@@ -277,7 +277,7 @@ replacement where available, and affected versions.
 
 ## Python and operating-system support
 
-VAMOS 1.1.0 supports only the Python versions and operating systems exercised
+VAMOS 1.2.0 supports only the Python versions and operating systems exercised
 by the final hosted release matrix and declared in package metadata. Dropping
 a supported Python version during 1.x requires advance documentation and a
 minor release. Optional dependencies may have narrower platform support and

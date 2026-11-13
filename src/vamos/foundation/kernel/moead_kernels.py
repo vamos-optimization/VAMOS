@@ -1,6 +1,6 @@
 """Kernel contract of MOEA/D's compiled one-offspring step and neighbourhood replacement.
 
-**Development after 1.1.0.** ``KernelBackend.moead_steady_state_kernels`` returns
+**New in VAMOS 1.2.0.** ``KernelBackend.moead_steady_state_kernels`` returns
 an implementation of :class:`MOEADSteadyStateKernels` (the Numba backend does)
 or ``None``. The kernels never draw random numbers: MOEA/D draws every value
 from the run generator in the order and shape of its reference ask/tell and

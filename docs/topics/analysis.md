@@ -4,7 +4,7 @@ VAMOS includes optional post-processing helpers for statistical comparison,
 visualization, and multi-criteria decision making (MCDM). These tools are useful
 after optimization; they are not required by the core optimization runtime.
 
-!!! warning "Experimental surface in VAMOS 1.1.0"
+!!! warning "Experimental surface in VAMOS 1.2.0"
     `vamos.ux.api`, statistical analysis, visualization, and MCDM helpers are
     **experimental**. They are supported for evaluation, but may change
     incompatibly in a minor release. See
@@ -13,7 +13,7 @@ after optimization; they are not required by the core optimization runtime.
 ## Install the analysis extras
 
 ```bash
-python -m pip install "vamos-optimization[analysis]==1.1.0"
+python -m pip install "vamos-optimization[analysis]==1.2.0"
 ```
 
 For environment setup and other extras, see [Installation](../guide/installation.md).
@@ -82,12 +82,12 @@ for comparison in comparisons:
 
 `p_value` is each pair's **raw Wilcoxon p-value**.
 
-**Development after 1.1.0:**
+**VAMOS 1.2.0:**
 - **Holm adjustment:** each `WilcoxonResult` also has `p_adjusted`, Holm's step-down adjustment over all the pairs of the call, and `significant`, which is `p_adjusted <= alpha`. `vamos bench` writes the same values to `statistics.json` (`p_value_holm` and `significant`). Report the procedure you use; for another correction, start from the raw `p_value`.
 - **Friedman input:** `friedman_test(...)` raises `ValueError` for fewer than 3 algorithms, fewer than 2 problems, or a NaN score.
 - **Before:** in VAMOS 1.1.0, `pairwise_wilcoxon` ignored `alpha` and returned only raw p-values. `friedman_test` let SciPy's error through for two algorithms and returned NaN for a NaN score.
 
-**Development after 1.1.0:** `pairwise_wilcoxon(...)` counts two equal scores
+**VAMOS 1.2.0:** `pairwise_wilcoxon(...)` counts two equal scores
 as a tie (Pratt's treatment of zero differences), including two infinite
 penalties such as the +inf IGD+ of runs without feasible solutions. An
 infinite score against a finite one is the largest difference. VAMOS 1.1.0
@@ -102,7 +102,7 @@ everywhere, get statistic 0 and p-value 1 without calling SciPy, whose
 `n_problems` is supplied, a Nemenyi-style critical-distance bar. It does not
 infer or draw significance cliques for you.
 
-**Development after 1.1.0:** the bar is the Nemenyi critical difference
+**VAMOS 1.2.0:** the bar is the Nemenyi critical difference
 `CD = q_alpha * sqrt(k * (k + 1) / (6 * N))` for the `k` plotted algorithms and
 `N = n_problems`. The critical value `q_alpha` depends on `k`: it comes from
 Demšar (2006), "Statistical comparisons of classifiers over multiple data sets",
@@ -159,7 +159,7 @@ ax.figure.savefig("front.png", dpi=200, bbox_inches="tight")
 The same facade also exposes `plot_pareto_front_3d`,
 `plot_parallel_coordinates`, and `plot_hv_convergence`.
 
-**Development after 1.1.0:** `plot_pareto_front_2d` and `plot_pareto_front_3d`
+**VAMOS 1.2.0:** `plot_pareto_front_2d` and `plot_pareto_front_3d`
 draw minimization axes, with values increasing away from the origin, so the
 ideal corner is at the lower left as in the other VAMOS front plots. Pass
 `invert_axes=True` for the reversed view. VAMOS 1.1.0 and earlier always
@@ -181,7 +181,7 @@ They return an `MCDMResult` containing `scores`, `best_index`, and `best_point`.
 The scoring convention is minimization: the selected index is the one preferred
 by the helper under the supplied objectives/preferences.
 
-**Development after 1.1.0:** `knee_point_scores` keeps only the non-dominated
+**VAMOS 1.2.0:** `knee_point_scores` keeps only the non-dominated
 points and joins the two extreme points of that set with a chord. The knee is
 the point farthest from the chord on the side of the ideal point (Das, 1999;
 Deb and Gupta, 2011), and each score is minus that signed distance. Dominated

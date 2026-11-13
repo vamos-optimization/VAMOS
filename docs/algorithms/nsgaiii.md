@@ -98,7 +98,7 @@ Normalization estimates the nadir point from the hyperplane through the extreme 
 
 An optional external archive is distinct from the population and from the reference directions; the directions are never a solution archive. Set result mode explicitly when combining archive and population requirements. See [archives](../experiment/stopping_and_archive.md) and [saved runs](../guide/run-artifacts.md).
 
-**Development after 1.1.0:** the external archive receives every evaluated offspring before survival, so an offspring that niching drops is still archived when no evaluated solution dominates it. In VAMOS 1.1.0 it received only the survivors of each generation.
+**VAMOS 1.2.0:** the external archive receives every evaluated offspring before survival, so an offspring that niching drops is still archived when no evaluated solution dominates it. In VAMOS 1.1.0 it received only the survivors of each generation.
 
 The example demonstrates execution and output interpretation. It does not establish superiority over NSGA-II, MOEA/D or any other algorithm; compare multiple seeds and problem instances under a documented study protocol.
 

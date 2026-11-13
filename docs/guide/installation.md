@@ -1,12 +1,12 @@
 ---
-description: Install VAMOS 1.1.0 and select the optional dependencies needed for your optimization workflow.
+description: Install VAMOS 1.2.0 and select the optional dependencies needed for your optimization workflow.
 search:
   boost: 2
 ---
 
 # Installation
 
-The examples on this site target **VAMOS 1.1.0**. Use an isolated Python
+The examples on this site target **VAMOS 1.2.0**. Use an isolated Python
 environment and the pinned commands below to follow the same release.
 
 ## Supported Python and operating systems
@@ -32,7 +32,7 @@ Create an isolated environment and install the package from PyPI:
     python -m venv .venv
     source .venv/bin/activate
     python -m pip install --upgrade pip
-    python -m pip install "vamos-optimization==1.1.0"
+    python -m pip install "vamos-optimization==1.2.0"
     ```
 
 === "Windows PowerShell"
@@ -41,7 +41,7 @@ Create an isolated environment and install the package from PyPI:
     py -m venv .venv
     .\.venv\Scripts\Activate.ps1
     python -m pip install --upgrade pip
-    python -m pip install "vamos-optimization==1.1.0"
+    python -m pip install "vamos-optimization==1.2.0"
     ```
 
 Verify the installation:
@@ -51,7 +51,7 @@ python -c "import vamos; print(vamos.__version__)"
 vamos check
 ```
 
-The version command must print `1.1.0` for this release. To install the latest
+The version command must print `1.2.0` for this release. To install the latest
 published version instead, use `python -m pip install --upgrade vamos-optimization`
 and consult the documentation for that version. Pinning VAMOS alone does not
 freeze dependencies; retain the environment record for scientific runs (see
@@ -69,7 +69,7 @@ Install only the capability groups you use:
 | `tuning` | Optional model-based tuning backends | Experimental |
 | `studio` | Panel-based local Studio | Experimental; see [Studio](studio.md) for release limitations |
 | `examples` | Dependencies used by selected examples | Depends on the example's interfaces |
-| `openai`, `anthropic`, `gemini` | LLM provider SDKs: Assist uses `openai`, and the Studio Problem Builder uses any of the three (`gemini` is new after 1.1.0) | Experimental integrations |
+| `openai`, `anthropic`, `gemini` | LLM provider SDKs: Assist uses `openai`, and the Studio Problem Builder uses any of the three (`gemini` is new in 1.2.0) | Experimental integrations |
 | `docs` | Documentation toolchain | Developer tooling |
 | `dev` | Tests, linting, typing, building, and docs checks | Developer tooling |
 | `all` | All optional and development groups | Mixed; does not change interface guarantees |
@@ -77,7 +77,7 @@ Install only the capability groups you use:
 For example:
 
 ```bash
-python -m pip install "vamos-optimization[compute,analysis]==1.1.0"
+python -m pip install "vamos-optimization[compute,analysis]==1.2.0"
 ```
 
 An explicit optional backend fails clearly when its dependency is unavailable.
@@ -99,5 +99,5 @@ python -m pip install -e ".[dev]"
 
 Use the environment setup above before this command. The default branch may
 contain work beyond the published release; record the checked-out commit. To
-inspect the release source, check out the `v1.1.0` tag before installing.
+inspect the release source, check out the `v1.2.0` tag before installing.
 For ordinary use, prefer the PyPI installation under **Core package**.

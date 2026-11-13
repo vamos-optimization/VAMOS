@@ -6,7 +6,7 @@ search:
 
 # Troubleshooting
 
-These checks target the published VAMOS 1.1.0 package. See
+These checks target the published VAMOS 1.2.0 package. See
 [Installation](installation.md) for supported environments and extras, and
 [Stability and versioning](../project/stability-and-versioning.md) for the
 **Stable**, **Experimental**, and **Internal** labels.
@@ -20,7 +20,7 @@ python -c "import sys, vamos; print(sys.executable); print(vamos.__version__); p
 python -m pip show vamos-optimization
 ```
 
-The version should be `1.1.0` when following this release's examples. If the
+The version should be `1.2.0` when following this release's examples. If the
 package is missing, activate the intended virtual environment and follow
 [Installation](installation.md). Use `python -m pip` so installation targets the
 selected interpreter. Restart a notebook kernel after changing packages.
@@ -36,12 +36,12 @@ without a source checkout:
 
 | Capability | Installation command | Status |
 | --- | --- | --- |
-| Numba/MooCore kernels and Dask dependency | `python -m pip install "vamos-optimization[compute]==1.1.0"` | Kernel selection is Stable; distributed evaluation is Experimental |
-| Plots, pandas, and notebooks | `python -m pip install "vamos-optimization[analysis]==1.1.0"` | Analysis helpers are Experimental |
-| Local Studio | `python -m pip install "vamos-optimization[studio]==1.1.0"` | Experimental |
-| Selected domain examples | `python -m pip install "vamos-optimization[examples]==1.1.0"` | Check the individual example |
-| External research baselines | `python -m pip install "vamos-optimization[research]==1.1.0"` | Experimental integrations |
-| Optional tuning backends | `python -m pip install "vamos-optimization[tuning]==1.1.0"` | Experimental |
+| Numba/MooCore kernels and Dask dependency | `python -m pip install "vamos-optimization[compute]==1.2.0"` | Kernel selection is Stable; distributed evaluation is Experimental |
+| Plots, pandas, and notebooks | `python -m pip install "vamos-optimization[analysis]==1.2.0"` | Analysis helpers are Experimental |
+| Local Studio | `python -m pip install "vamos-optimization[studio]==1.2.0"` | Experimental |
+| Selected domain examples | `python -m pip install "vamos-optimization[examples]==1.2.0"` | Check the individual example |
+| External research baselines | `python -m pip install "vamos-optimization[research]==1.2.0"` | Experimental integrations |
+| Optional tuning backends | `python -m pip install "vamos-optimization[tuning]==1.2.0"` | Experimental |
 
 An explicitly requested unavailable backend fails; it is not silently replaced
 by NumPy. Choose `engine="numpy"` explicitly if you want a core-only run.
@@ -85,7 +85,7 @@ more (248 for a directory) and reports it as a missing path, with a
 destination, which adds about 60 characters to its path. Creating a study adds
 about 130, because each task lives in `tasks/<64-character task hash>/`.
 
-**Development after 1.1.0:** when the path is long enough to be the cause, the
+**VAMOS 1.2.0:** when the path is long enough to be the cause, the
 error gives its length and the ways out listed below. A study reports them in
 the `actual` field of its `ATOMIC_PUBLICATION_FAILED` error, which now also
 carries the original message. In VAMOS 1.1.0 the error named only the missing

@@ -1,4 +1,4 @@
-# Known limitations in VAMOS 1.1.0
+# Known limitations in VAMOS 1.2.0
 
 These limitations are part of the current release scope. They describe
 unsupported behavior rather than future compatibility promises.
@@ -10,11 +10,11 @@ unsupported behavior rather than future compatibility promises.
 - Objective and constraint values must be finite: a NaN or an infinity stops
   the run with `EvaluationError`. Give failed evaluations a large finite penalty
   or a violated constraint.
-  - **Development after 1.1.0:** constraint values from a problem that does not
+  - **VAMOS 1.2.0:** constraint values from a problem that does not
     declare `n_constraints` raise `EvaluationError`; they were ignored.
 - A valid population size may depend on an algorithm's reference directions or
   weight lattice. Incompatible sizes fail instead of being adjusted silently.
-  - **Development after 1.1.0:** NSGA-III accepts a population at least as
+  - **VAMOS 1.2.0:** NSGA-III accepts a population at least as
     large as its reference directions (N >= H), as Deb and Jain, jMetal and
     pymoo do, and fails only below that. Without `divisions` it uses the
     complete Das-Dennis lattice with the most directions that fit in
@@ -25,7 +25,7 @@ unsupported behavior rather than future compatibility promises.
     bias. NSGA-III and RVEA with two objectives default to 100 directions, or
     `pop_size`, instead of 7.
 - The strict evaluation budget must be at least the resolved population size.
-  **Development after 1.1.0:** with the opposition-based initializer
+  **VAMOS 1.2.0:** with the opposition-based initializer
   (`initializer: obl`), it must be at least twice the population size: the
   `2 * pop_size` candidates (random points and their opposites) count against
   the budget, and the chosen ones keep their objective and constraint values
@@ -34,7 +34,7 @@ unsupported behavior rather than future compatibility promises.
   1.1.0 evaluated the candidates outside the budget, so a run evaluated
   `2 * pop_size` more rows than it reported, and chose them by objectives alone,
   discarding feasible candidates for infeasible ones.
-- **Development after 1.1.0:** NSGA-III, SMS-EMOA and SPEA2 mate parents two by
+- **VAMOS 1.2.0:** NSGA-III, SMS-EMOA and SPEA2 mate parents two by
   two, so they reject the three-parent crossovers `pcx`, `undx`, `simplex` and
   `de`; MOEA/D accepts `de` but rejects the other three. NSGA-II, IBEA,
   AGE-MOEA and RVEA group parents by the crossover's arity and run all four.
@@ -64,32 +64,32 @@ unsupported behavior rather than future compatibility promises.
 - `welded_beam` is a six-variable mixed design example with its own formulas,
   materials and stiffeners. Its constraint metadata is fixed, but this does
   not certify equivalence to the canonical four-variable welded-beam benchmark.
-- **Development after 1.1.0:** `lsmop1`–`lsmop9` follow the original LSMOP
+- **VAMOS 1.2.0:** `lsmop1`–`lsmop9` follow the original LSMOP
   definition (Cheng et al., 2017), as PlatEMO does. VAMOS 1.1.0 and earlier
   follow jMetal, with the nonlinear linkage in LSMOP1–4 and a larger distance
   term in LSMOP9. The Pareto fronts are the same, but LSMOP1–4 and LSMOP9
   results from those versions do not correspond to the original problems.
-- **Development after 1.1.0:** `cec2009_uf3` searches the CEC2009 domain
+- **VAMOS 1.2.0:** `cec2009_uf3` searches the CEC2009 domain
   `[0, 1]^n`. VAMOS 1.1.0 and earlier search `[-1, 1]` for variables 2 to n, so
   UF3 results from those versions do not correspond to the CEC2009 instance.
-- **Development after 1.1.0:** `re24` searches `x2` in `[0.5, 50]` and `re25`
+- **VAMOS 1.2.0:** `re24` searches `x2` in `[0.5, 50]` and `re25`
   uses the 19 wire diameters from 0.092, as Tanabe and Ishibuchi's reference
   implementation does, and `re24.csv` is the authors' approximated front.
   VAMOS 1.1.0 and earlier use `x2 >= 4` in RE24, which cuts its front at
   f₁ = 480.5, and all 42 listed diameters in RE25. RE24 and RE25 results from
   those versions do not correspond to the reference problems. `re22` keeps its
   documented reading of the reference's "3,10" as 3.10.
-- **Development after 1.1.0:** `cec2009_uf9` uses the CEC2009 squared distance
+- **VAMOS 1.2.0:** `cec2009_uf9` uses the CEC2009 squared distance
   `y_j^2`. VAMOS 1.1.0 and earlier use the multimodal distance of UF5, with the
   same Pareto front but a different landscape, so UF9 results from those
   versions do not correspond to the CEC2009 instance.
-- **Development after 1.1.0:** `rwa7` and `rwa8` search the normalized domain
+- **VAMOS 1.2.0:** `rwa7` and `rwa8` search the normalized domain
   `[0, 1]^4` of their response surfaces, with the TTmax sign of `re37`, and
   their packaged reference samples are regenerated. VAMOS 1.1.0 and earlier
   evaluate the surfaces far outside their fitted region, on the physical design
   ranges, so RWA7 and RWA8 values, fronts and indicators from those versions do
   not correspond to the published problems.
-- **Development after 1.1.0:** the inaccurate packaged reference fronts are
+- **VAMOS 1.2.0:** the inaccurate packaged reference fronts are
   regenerated. IGD, IGD+, epsilon and normalized HV values that VAMOS 1.1.0
   and earlier computed with them are not comparable with later ones:
   - **Analytic samples:** ZDT, DTLZ, WFG1, WFG2, LSMOP9, UF6, UF9, and C-DTLZ
@@ -107,7 +107,7 @@ unsupported behavior rather than future compatibility promises.
 - Independent algorithm-conformance validation for AGE-MOEA, RVEA and SMPSO
   remains pending. Passing API and regression tests does not establish
   convergence equivalence with a reference implementation.
-- **Development after 1.1.0:** AGE-MOEA's hypervolume on ZDT1, DTLZ2 and DTLZ1
+- **VAMOS 1.2.0:** AGE-MOEA's hypervolume on ZDT1, DTLZ2 and DTLZ1
   is statistically indistinguishable from jMetal 7.9's over 30 seeds, and a
   reference test checks it on ZDT1. VAMOS 1.1.0's AGE-MOEA was significantly
   worse, mainly because its mating tournament used NSGA-II crowding instead of
@@ -139,7 +139,7 @@ unsupported behavior rather than future compatibility promises.
   algorithms.
 - Explicitly selecting an unavailable backend is an error. VAMOS does not
   install dependencies during a run, verification, or replay.
-- **Development after 1.1.0:** hypervolume archive pruning (`pruning: hv` or
+- **VAMOS 1.2.0:** hypervolume archive pruning (`pruning: hv` or
   `mc_hv`) with three or more objectives requires `moocore` and fails without
   it. VAMOS 1.1.0 and earlier prune by crowding distance instead, with a single
   warning; see [Stopping and archive](../experiment/stopping_and_archive.md).
@@ -159,10 +159,10 @@ unsupported behavior rather than future compatibility promises.
 - SHA-256 evidence detects modification; it is not an authenticity signature.
 - On Windows without long paths enabled, a run or study cannot be written when
   its staging paths reach 260 characters (248 for a directory), and the Numba
-  cache fails in deeply nested installations. **Development after 1.1.0:** the
+  cache fails in deeply nested installations. **VAMOS 1.2.0:** the
   error gives the path length and the ways out; see
   [Troubleshooting](../guide/troubleshooting.md#saving-fails-on-windows-with-a-long-path).
-- **Development after 1.1.0:** saving and verification classify the installed
+- **VAMOS 1.2.0:** saving and verification classify the installed
   VAMOS sources with the same rule.
   - **Wheel inside another Git project:** a Git repository counts as a VAMOS
     checkout only when its `src/vamos` is the imported package, or when VAMOS
@@ -185,9 +185,9 @@ unsupported behavior rather than future compatibility promises.
 
 - Study mutation is single-owner. Do not run, resume, or retry the same study
   concurrently from multiple processes.
-- Study execution is sequential in 1.1.0. Distributed workers, multiprocess
+- Study execution is sequential in 1.2.0. Distributed workers, multiprocess
   ownership, and cross-process cancellation are unsupported.
-- **Development after 1.1.0:** study tasks run with serial evaluation only;
+- **VAMOS 1.2.0:** study tasks run with serial evaluation only;
   planning and creation reject `eval_strategy="multiprocessing"` or `"dask"`
   with `UNSUPPORTED_EVALUATION_BACKEND`.
 - Cancellation is cooperative and local to the process that owns execution.
@@ -200,19 +200,19 @@ unsupported behavior rather than future compatibility promises.
   remain experimental and may change in a minor release.
 - Users are responsible for selecting indicators, reference points, sample
   sizes, and statistical tests appropriate for their scientific claim.
-- **Development after 1.1.0:** the Nemenyi critical difference of
+- **VAMOS 1.2.0:** the Nemenyi critical difference of
   `plot_critical_distance` and of the `cd_<metric>.pdf` plots of `vamos bench`
   uses the critical value for the number of algorithms. VAMOS 1.1.0 and earlier
   use the four-algorithm value for every count, which understates the critical
   difference with more than four algorithms; see
   [Critical-distance plot](../topics/analysis.md#critical-distance-plot).
-- **Development after 1.1.0:** `knee_point_scores` and Studio's "Knee point"
+- **VAMOS 1.2.0:** `knee_point_scores` and Studio's "Knee point"
   ranking measure the signed distance to the extreme-point chord among the
   non-dominated points, and warn when the front has no knee. VAMOS 1.1.0 and
   earlier pick the point farthest from the ideal on a concave front and can
   pick a dominated point; see
   [MCDM](../topics/analysis.md#mcdm-selecting-one-solution-from-a-front).
-- **Development after 1.1.0:** the LaTeX tables of `vamos bench` mark
+- **VAMOS 1.2.0:** the LaTeX tables of `vamos bench` mark
   differences with a rank-sum test per problem and say when the number of runs
   cannot reach `alpha`. VAMOS 1.1.0 paired runs by seed in a signed-rank test,
   so with five or fewer seeds its tables showed no significant difference, and
@@ -223,7 +223,7 @@ unsupported behavior rather than future compatibility promises.
 
 - Studio is experimental and is intended for trusted local use. It is not a
   multi-user hosted service.
-- **Development after 1.1.0:** the Statistical Comparison counts a run without
+- **VAMOS 1.2.0:** the Statistical Comparison counts a run without
   feasible solutions as the worst IGD+ (∞). VAMOS 1.1.0 and earlier leave those
   runs out of IGD+, which favors algorithms that are rarely feasible; see
   [Statistical comparison](../guide/studio.md#statistical-comparison).
