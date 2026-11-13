@@ -151,7 +151,7 @@ def test_agemoea_pipeline_run_integration(mock_kernel):
         assert kwargs["mut_method"] == "bitflip"
 
 
-_ALGORITHMS = ("nsgaii", "moead", "smsemoa", "nsgaiii", "spea2", "ibea", "smpso", "agemoea", "rvea")
+_ALGORITHMS = ("nsgaii", "moead", "smsemoa", "nsgaiii", "spea2", "ibea", "smpso", "agemoea", "rvea", "ccmo")
 _DISCRETE_PROBLEMS = ("bin_knapsack", "tsp6", "int_alloc", "mixed_design")
 
 
@@ -170,7 +170,9 @@ def test_default_config_follows_problem_encoding(algorithm, problem_name):
 
     problem = vamos.make_problem_selection(problem_name).instantiate()
 
-    result = vamos.optimize(problem, algorithm=algorithm, max_evaluations=300, seed=1, engine="numpy")
+    # CCMO's two initial populations take 2 * pop_size evaluations, up to 400 with the quick default population.
+    budget = 500 if algorithm == "ccmo" else 300
+    result = vamos.optimize(problem, algorithm=algorithm, max_evaluations=budget, seed=1, engine="numpy")
 
-    assert result.data["evaluations"] == 300
+    assert result.data["evaluations"] == budget
     assert len(result) > 0

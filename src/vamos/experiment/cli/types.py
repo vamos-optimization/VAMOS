@@ -19,3 +19,4 @@ class SpecDefaults:
     smpso_defaults: SpecBlock
     agemoea_defaults: SpecBlock
     rvea_defaults: SpecBlock
+    ccmo_defaults: SpecBlock

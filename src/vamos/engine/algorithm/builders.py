@@ -12,6 +12,7 @@ from vamos.engine.algorithm._builder_archive_population import (
     build_smsemoa_algorithm,
     build_spea2_algorithm,
 )
+from vamos.engine.algorithm._builder_constrained import build_ccmo_algorithm
 from vamos.engine.algorithm._builder_decomposition import (
     build_moead_algorithm,
     build_nsgaiii_algorithm,
@@ -28,4 +29,5 @@ __all__ = [
     "build_smpso_algorithm",
     "build_agemoea_algorithm",
     "build_rvea_algorithm",
+    "build_ccmo_algorithm",
 ]

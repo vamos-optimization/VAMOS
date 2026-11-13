@@ -533,6 +533,7 @@ def snapshots() -> Mapping[str, object]:
 CONFIGS_SNAPSHOT = "stable_algorithm_configs.json"
 API_SNAPSHOT = "stable_public_api.json"
 _CONFIG_SECTIONS = ("config_fields", "config_field_defaults", "default_configs")
+_ALGORITHM_IDS = "algorithm_ids"
 
 
 def _added_config_fields(frozen: Mapping[str, Any], generated: Mapping[str, Any]) -> dict[str, list[str]] | None:
@@ -561,10 +562,23 @@ def _without_added(section: Mapping[str, Mapping[str, Any]], added: Mapping[str,
     return {name: {key: value for key, value in values.items() if key not in added.get(name, ())} for name, values in section.items()}
 
 
+def _keeps_frozen_algorithm_ids(frozen: object, generated: object) -> bool:
+    """Whether the built-in algorithm identifiers are the frozen ones, plus algorithms added after 1.0.
+
+    Built-in algorithms may be added during 1.x (``ccmo`` is one); none of the 1.0 identifiers may go.
+    """
+    if not isinstance(frozen, list) or not isinstance(generated, list) or len(set(generated)) != len(generated):
+        return False
+    return set(frozen) <= set(generated)
+
+
 def _keeps_frozen_configs(frozen: Mapping[str, Any], generated: Mapping[str, Any], added: Mapping[str, Sequence[str]]) -> bool:
-    """Whether the configuration snapshot is the frozen one plus the added fields, their defaults among them."""
-    rest = {key: value for key, value in frozen.items() if key not in _CONFIG_SECTIONS}
-    if rest != {key: value for key, value in generated.items() if key not in _CONFIG_SECTIONS}:
+    """Whether the configuration snapshot is the frozen one plus the added fields and algorithms, their defaults among them."""
+    exempt = (*_CONFIG_SECTIONS, _ALGORITHM_IDS)
+    rest = {key: value for key, value in frozen.items() if key not in exempt}
+    if rest != {key: value for key, value in generated.items() if key not in exempt}:
+        return False
+    if not _keeps_frozen_algorithm_ids(frozen.get(_ALGORITHM_IDS), generated.get(_ALGORITHM_IDS)):
         return False
     sections = _CONFIG_SECTIONS[1:]
     return all(_without_added(generated.get(section, {}), added) == frozen.get(section, {}) for section in sections)

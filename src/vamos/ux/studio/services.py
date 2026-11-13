@@ -10,6 +10,7 @@ from numpy.typing import NDArray
 from vamos.engine.algorithm.catalog import DEFAULT_ALGORITHM
 from vamos.engine.algorithm.config import (
     AGEMOEAConfig,
+    CCMOConfig,
     IBEAConfig,
     MOEADConfig,
     NSGAIIConfig,
@@ -48,6 +49,7 @@ _CONFIG_MAP: dict[str, type[_SerializableConfig]] = {
     "smpso": SMPSOConfig,
     "agemoea": AGEMOEAConfig,
     "rvea": RVEAConfig,
+    "ccmo": CCMOConfig,
 }
 
 

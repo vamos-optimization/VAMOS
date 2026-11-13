@@ -160,5 +160,6 @@ def finalize_args(
     args.smpso_variation = defaults.get("smpso", {})
     args.agemoea_variation = _with_defaults_block(_collect_generic_variation(args, "agemoea"), defaults, "agemoea")
     args.rvea_variation = _with_defaults_block(_collect_generic_variation(args, "rvea"), defaults, "rvea")
+    args.ccmo_variation = defaults.get("ccmo", {})
 
     return args

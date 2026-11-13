@@ -6,6 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
+from vamos.engine.algorithm.catalog import initial_evaluations
 from vamos.engine.algorithm.config.base import ResultMode
 from vamos.engine.algorithm.config.types import AlgorithmConfigProtocol, EngineName
 from vamos.engine.algorithm.registry import (
@@ -89,15 +90,21 @@ def _termination_budget(termination: TerminationSpec) -> int | None:
     return None
 
 
-def _validate_budget_covers_population(cfg: dict[str, object], termination: TerminationSpec) -> None:
+def _validate_budget_covers_population(cfg: dict[str, object], termination: TerminationSpec, algorithm: str) -> None:
     pop_raw = cfg.get("pop_size")
     budget = _termination_budget(termination)
     if pop_raw is None or budget is None:
         return
     pop_size = _parse_positive_int(pop_raw, label="algorithm_config.pop_size")
+    initial = initial_evaluations(algorithm, pop_size)
     if budget < pop_size:
         raise ConfigurationError(
             "max_evaluations must be >= pop_size because the initial population consumes pop_size evaluations "
+            f"(max_evaluations={budget}, pop_size={pop_size})."
+        )
+    if budget < initial:
+        raise ConfigurationError(
+            f"max_evaluations must be >= {initial} because the initial populations of {algorithm} consume {initial} evaluations "
             f"(max_evaluations={budget}, pop_size={pop_size})."
         )
 
@@ -129,7 +136,7 @@ def _run_config(
 
     cfg_dict = _normalize_cfg(cfg.algorithm_config)
     _validate_algorithm_config(cfg_dict)
-    _validate_budget_covers_population(cfg_dict, cfg.termination)
+    _validate_budget_covers_population(cfg_dict, cfg.termination, cfg.algorithm or "")
     if "engine" in cfg_dict:
         raise ConfigurationError("engine must be configured via optimize(engine=...) rather than algorithm_config.")
     algorithm_raw = cfg.algorithm or ""

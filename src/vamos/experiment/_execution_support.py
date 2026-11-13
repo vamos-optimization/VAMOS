@@ -21,6 +21,7 @@ _VARIATION_FIELDS = (
     "smpso",
     "agemoea",
     "rvea",
+    "ccmo",
 )
 
 
@@ -37,6 +38,7 @@ class VariationConfigs:
     smpso: VariationConfig | None = None
     agemoea: VariationConfig | None = None
     rvea: VariationConfig | None = None
+    ccmo: VariationConfig | None = None
 
     @classmethod
     def from_namespace(cls, args: Namespace) -> VariationConfigs:
@@ -50,6 +52,7 @@ class VariationConfigs:
             smpso=getattr(args, "smpso_variation", None),
             agemoea=getattr(args, "agemoea_variation", None),
             rvea=getattr(args, "rvea_variation", None),
+            ccmo=getattr(args, "ccmo_variation", None),
         )
 
     def as_storage_dict(self) -> dict[str, VariationConfig | None]:
@@ -63,6 +66,7 @@ class VariationConfigs:
             "smpso_variation": self.smpso,
             "agemoea_variation": self.agemoea,
             "rvea_variation": self.rvea,
+            "ccmo_variation": self.ccmo,
         }
 
     def has_any(self) -> bool:
@@ -95,8 +99,8 @@ class CompositeObserver(Observer):
     def on_generation(
         self,
         generation: int,
-        F: np.ndarray | None = None,
-        X: np.ndarray | None = None,
+        F: np.ndarray[Any, Any] | None = None,
+        X: np.ndarray[Any, Any] | None = None,
         stats: dict[str, Any] | None = None,
     ) -> None:
         for obs in self.observers:
@@ -104,7 +108,7 @@ class CompositeObserver(Observer):
 
     def on_end(
         self,
-        final_F: np.ndarray | None = None,
+        final_F: np.ndarray[Any, Any] | None = None,
         final_stats: dict[str, Any] | None = None,
     ) -> None:
         for obs in self.observers:
@@ -129,15 +133,15 @@ class LiveVizAdapter:
     def on_generation(
         self,
         generation: int,
-        F: np.ndarray | None = None,
-        X: np.ndarray | None = None,
+        F: np.ndarray[Any, Any] | None = None,
+        X: np.ndarray[Any, Any] | None = None,
         stats: dict[str, Any] | None = None,
     ) -> None:
         self._observer.on_generation(generation, F, X, stats)
 
     def on_end(
         self,
-        final_F: np.ndarray | None = None,
+        final_F: np.ndarray[Any, Any] | None = None,
         final_stats: dict[str, Any] | None = None,
     ) -> None:
         return None
