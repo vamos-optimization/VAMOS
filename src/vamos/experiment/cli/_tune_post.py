@@ -238,7 +238,13 @@ def persist_artifacts(
     available_backends_fn: Callable[[], dict[str, bool]] | None = None,
 ) -> None:
     best_active = filter_active_config(best_config, task.param_space)
-    best_score = max((float(h.score) for h in history), default=float("nan"))
+    # The score of the returned configuration (racing's final choice, the finisher's winner or
+    # irace's elite), which need not be the highest score in the history.
+    best_score = max(
+        (float(h.score) for h in history if filter_active_config(dict(h.config), task.param_space) == best_active),
+        default=float("nan"),
+    )
+    best_history_score = max((float(h.score) for h in history), default=float("nan"))
 
     best_raw_path = output_dir / "best_config_raw.json"
     best_active_path = output_dir / "best_config_active.json"
@@ -269,6 +275,7 @@ def persist_artifacts(
         "failure_score": float(args.failure_score),
         "trials_observed": int(len(history)),
         "best_score": float(best_score),
+        "best_history_score": float(best_history_score),
         "elapsed_seconds": float(elapsed_seconds),
         "available_model_backends": available_backends,
         "args": arg_payload,

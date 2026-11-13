@@ -1,3 +1,12 @@
+"""CEC2009 UF1-UF10 and CF1; CF2-CF10 are in :mod:`vamos.foundation.problem.cec2009_cf`.
+
+Q. Zhang, A. Zhou, S. Zhao, P. N. Suganthan, W. Liu and S. Tiwari, "Multiobjective optimization test
+instances for the CEC 2009 special session and competition", Technical Report CES-487, University of
+Essex and Nanyang Technological University, 2008 (revised on April 20, 2009). The report states each
+constraint as ``c(x) >= 0``; ``out["G"]`` holds ``-c(x)`` so that, as everywhere in VAMOS, ``G <= 0``
+means feasible.
+"""
+
 from __future__ import annotations
 
 from typing import Any

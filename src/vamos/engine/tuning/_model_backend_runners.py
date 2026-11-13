@@ -101,17 +101,22 @@ def run_optuna_like(
     storage_url = str(tuner.optuna_storage_url or "").strip() or None
     study_name_raw = str(tuner.optuna_study_name or "").strip()
     study_name = study_name_raw if study_name_raw else default_optuna_study_name(tuner)
+    # Always name the study: HyperbandPruner assigns a trial's bracket from a hash of the study
+    # name, so Optuna's random default name would make bohb_optuna differ between runs with one seed.
     create_kwargs: dict[str, Any] = {
         "direction": "maximize" if tuner.task.maximize else "minimize",
         "sampler": sampler,
         "pruner": pruner,
+        "study_name": study_name,
     }
     if storage_url:
         create_kwargs["storage"] = storage_url
-        create_kwargs["study_name"] = study_name
         create_kwargs["load_if_exists"] = bool(tuner.optuna_load_if_exists)
 
     study = optuna.create_study(**create_kwargs)
+    # A resumed study runs only the trials its budget still allows; finished trials of earlier runs count.
+    finished = sum(1 for trial in study.trials if trial.state.is_finished())
+    remaining_trials = max(0, int(tuner.max_trials) - finished)
 
     def objective(trial: Any) -> float:
         config = _sample_from_optuna_trial(trial, tuner.task.param_space)
@@ -144,7 +149,7 @@ def run_optuna_like(
 
     study.optimize(
         objective,
-        n_trials=int(tuner.max_trials),
+        n_trials=remaining_trials,
         n_jobs=int(tuner.n_jobs),
         timeout=float(tuner.timeout_seconds) if tuner.timeout_seconds is not None else None,
         show_progress_bar=bool(tuner.show_progress_bar),

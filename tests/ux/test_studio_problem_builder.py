@@ -590,3 +590,38 @@ def test_llm_request_that_does_not_answer_times_out(monkeypatch: pytest.MonkeyPa
             _studio_llm.llm_generate_problem_code("a problem", provider="openai", api_key="test-key", timeout_seconds=0.2)
     finally:
         release.set()
+
+
+# The distribution each Studio provider imports, and the module that import loads.
+_PROVIDER_PACKAGES = {"gemini": ("google-genai", "google.genai"), "openai": ("openai", "openai"), "anthropic": ("anthropic", "anthropic")}
+
+
+def test_every_studio_llm_provider_has_a_package_entry() -> None:
+    from vamos.ux.studio import _studio_llm
+
+    assert set(_studio_llm._PROVIDERS) == set(_PROVIDER_PACKAGES)
+
+
+@pytest.mark.parametrize("provider", sorted(_PROVIDER_PACKAGES))
+def test_each_llm_provider_installs_from_the_extra_its_error_names(monkeypatch: pytest.MonkeyPatch, provider: str) -> None:
+    import re
+    import sys
+    from pathlib import Path
+
+    from vamos.ux.studio import _studio_llm
+
+    try:
+        import tomllib
+    except ModuleNotFoundError:  # pragma: no cover - Python < 3.11 fallback
+        import tomli as tomllib  # type: ignore[import-not-found,no-redef]
+
+    distribution, module = _PROVIDER_PACKAGES[provider]
+    pyproject = tomllib.loads((Path(__file__).resolve().parents[2] / "pyproject.toml").read_text(encoding="utf-8"))
+    extra = pyproject["project"]["optional-dependencies"].get(provider, [])
+    assert distribution in [re.split(r"[\s<>=!~;\[]", requirement, maxsplit=1)[0] for requirement in extra]
+
+    # A None entry in sys.modules makes the provider's import fail as if the package were absent.
+    for name in (module, module.split(".")[0]):
+        monkeypatch.setitem(sys.modules, name, None)
+    with pytest.raises(RuntimeError, match=re.escape(f'pip install "vamos-optimization[{provider}]"')):
+        _studio_llm._PROVIDERS[provider]("a problem", api_key="test-key")

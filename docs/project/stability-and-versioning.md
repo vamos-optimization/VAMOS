@@ -108,6 +108,31 @@ Study mutation is single-owner in VAMOS 1.1.0. Do not run concurrent
 cross-process cancellation command. Inspection and summary are immutable,
 data-only projections.
 
+### Exceptions
+
+**Development after 1.1.0:** the stable API raises errors of one hierarchy,
+exported by `vamos.exceptions`. Catch them by class; their messages may change.
+
+- `VAMOSError` is the base of every error below.
+- `ConfigurationError` (also a `ValueError`) and its subclass
+  `InvalidAlgorithmError` report invalid arguments and configurations.
+- `ProblemError` and its subclasses `InvalidProblemError` (also a `KeyError`,
+  the type an unknown problem name raised in VAMOS 1.1.0),
+  `ProblemDimensionError`, and `BoundsError` report invalid problems.
+- `OptimizationError` and its subclass `EvaluationError` report failures while
+  a run executes.
+- `ResultSelectionError` (also a `ValueError`) and its subclass
+  `NoSolutionsError` report selections that a result cannot satisfy.
+- `DependencyError` reports a missing optional dependency.
+- `RunArtifactError` is the base of the errors of the run lifecycle, and
+  `StudyError` the base of the errors of the study lifecycle. In VAMOS 1.1.0
+  they derived only from `Exception`.
+
+`InvalidEngineError`, `InvalidOperatorError`, `MissingConfigError`,
+`ConvergenceError`, `ConstraintViolationError`, `ResultsNotFoundError`, and
+`BackendNotAvailableError` are exported, but VAMOS never raises them. They stay
+importable during 1.x and are planned for removal in 2.0.
+
 ## Stable CLI
 
 The stable command surface is:

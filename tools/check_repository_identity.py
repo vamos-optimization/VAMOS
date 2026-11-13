@@ -31,6 +31,11 @@ MIRROR_REPOSITORY = f"{PERSONAL_OWNER}/VAMOS"
 MIRROR_DECLARATION = f"Personal mirror: [{MIRROR_REPOSITORY}](https://github.com/{MIRROR_REPOSITORY})."
 REPOSITORY_GUARD = f"github.repository == '{CANONICAL_REPOSITORY}'"
 SHELL_ASSERTION = f'test "$GITHUB_REPOSITORY" = "{CANONICAL_REPOSITORY}"'
+CLOUDFLARE_WORKFLOWS = (
+    ".github/workflows/docs-cloudflare.yml",
+    ".github/workflows/docs-cloudflare-preview.yml",
+    ".github/workflows/docs-cloudflare-verify.yml",
+)
 
 
 @dataclass(frozen=True)
@@ -153,6 +158,8 @@ def metadata_violations(root: Path) -> list[str]:
             violations.append(f"CHANGELOG {label} link must use the canonical repository.")
     violations.extend(publication_violations(load_yaml(root, ".github/workflows/upload_pypi.yml")))
     violations.extend(pages_violations(load_yaml(root, ".github/workflows/docs.yml")))
+    for relative in CLOUDFLARE_WORKFLOWS:
+        violations.extend(cloudflare_violations(load_yaml(root, relative)))
     return violations
 
 
@@ -170,6 +177,18 @@ def pages_violations(workflow: dict) -> list[str]:
     commands = [step["run"].strip() for step in build.get("steps", []) if "run" in step]
     if commands != [PAGES_REDIRECT_COMMAND]:
         violations.append(f"Pages must publish only the redirect to {DOCUMENTATION_URL}, not a documentation copy.")
+    return violations
+
+
+def cloudflare_violations(workflow: dict) -> list[str]:
+    """Run every Cloudflare documentation job only in the canonical repository, whatever else its condition says."""
+    jobs = workflow.get("jobs", {})
+    violations = [] if jobs else ["A Cloudflare documentation workflow must define its jobs."]
+    for name, job in jobs.items():
+        condition = " ".join(str(job.get("if", "")).split())
+        # An || anywhere could run the job without the guard.
+        if "||" in condition or not (condition == REPOSITORY_GUARD or condition.startswith(REPOSITORY_GUARD + " && ")):
+            violations.append(f"Cloudflare documentation job {name} must start its condition with the canonical repository guard.")
     return violations
 
 

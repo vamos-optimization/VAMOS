@@ -115,6 +115,9 @@ openai = [
 anthropic = [
   "anthropic>=0.30.0",
 ]
+gemini = [
+  "google-genai>=1.0",
+]
 # Development and documentation
 dev = [
   "tomli>=1.1.0; python_version < '3.11'",
@@ -170,6 +173,7 @@ all = [
   "jinja2>=3.1",
   "openai>=1.0.0",
   "anthropic>=0.30.0",
+  "google-genai>=1.0",
   "tomli>=1.1.0; python_version < '3.11'",
   "pytest>=9.0.3",
   "pytest-cov>=4.1",
@@ -319,9 +323,6 @@ ignore = [
     "C408",  # Unnecessary dict() call - dict() reads better in plotly marker kwargs
     "UP038",  # Tuple form keeps isinstance checks readable for mixed runtime types
 ]
-
-[tool.ruff.lint.per-file-ignores]
-"tests/**" = ["B017"]  # Tests may assert broad exceptions intentionally
 
 [tool.semantic_release]
 version_variable = [

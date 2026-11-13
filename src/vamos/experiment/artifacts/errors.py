@@ -6,6 +6,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from vamos.foundation.exceptions import VAMOSError
+
 MESSAGE_LIMIT = 500
 # Absolute paths: a Windows drive (not inside a word, so not the ``s:/`` of ``https://``), a UNC share, or a
 # POSIX root not preceded by a word character, dot, colon or slash (so ``1/n``, ``a/b`` and URLs are kept).
@@ -36,8 +38,11 @@ def sanitized_message(exc: BaseException, *, empty: str = "The error has no mess
     return message[:MESSAGE_LIMIT] if message else empty
 
 
-class RunArtifactError(Exception):
-    """Base error carrying actionable, machine-readable failure details."""
+class RunArtifactError(VAMOSError):
+    """Base error carrying actionable, machine-readable failure details.
+
+    It is also a ``VAMOSError``; its ``message`` is the whole error text and it has no ``suggestion``.
+    """
 
     category = "run_artifact"
 

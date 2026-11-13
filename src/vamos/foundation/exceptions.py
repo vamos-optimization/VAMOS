@@ -18,6 +18,7 @@ from difflib import get_close_matches
 from typing import Any
 
 _ALGO_DOCS = "docs/reference/algorithms.md"
+_PROBLEM_DOCS = "docs/reference/problems.md"
 _TROUBLESHOOTING_DOCS = "docs/guide/troubleshooting.md"
 
 
@@ -158,18 +159,33 @@ class ProblemError(VAMOSError):
     pass
 
 
-class InvalidProblemError(ProblemError):
-    """Raised when an unknown problem is specified."""
+class InvalidProblemError(ProblemError, KeyError):
+    """Raised when an unknown problem is specified.
+
+    It is also a ``KeyError``, the type an unknown problem name raised in VAMOS 1.1.0.
+    ``details["available"]`` lists every registered name.
+    """
 
     def __init__(self, problem: str, available: list[str] | None = None) -> None:
         message = f"Unknown problem '{problem}'."
-        if available:
-            # Show first few problems as examples
-            examples = available[:5]
-            suggestion = f"Examples: {', '.join(examples)}. Use available_problem_names() for full list."
+        available = list(available or [])
+        suggestions = _suggest_names(problem, available)
+        if len(suggestions) == 1:
+            parts = [f"Did you mean '{suggestions[0]}'?"]
+        elif suggestions:
+            parts = ["Did you mean one of: " + ", ".join(f"'{item}'" for item in suggestions) + "?"]
+        elif available:
+            parts = [f"Examples: {', '.join(available[:5])}."]
         else:
-            suggestion = "Use available_problem_names() to see registered problems."
-        super().__init__(message, suggestion, {"problem": problem})
+            parts = []
+        parts.append("Use available_problem_names() for the full list.")
+        parts.append(f"Docs: {_PROBLEM_DOCS}.")
+        parts.append(f"Troubleshooting: {_TROUBLESHOOTING_DOCS}.")
+        super().__init__(message, " ".join(parts), {"problem": problem, "available": available})
+
+    def __str__(self) -> str:
+        # KeyError would show the repr of the message.
+        return self._format_message()
 
 
 class ProblemDimensionError(ProblemError):

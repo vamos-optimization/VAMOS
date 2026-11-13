@@ -1,0 +1,8 @@
+{
+  "name": "vamos-docs-hosting",
+  "private": true,
+  "description": "Pinned Wrangler for the documentation Workers (wrangler.jsonc and wrangler.preview.jsonc at the repository root).",
+  "devDependencies": {
+    "wrangler": "4.129.1"
+  }
+}
