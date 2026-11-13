@@ -75,7 +75,7 @@ The canonical environment, path inventory, diagnostic fingerprint schema, baseli
 - `[project].dependencies` is the closed set numpy, scipy, joblib and typing-extensions (`tests/architecture/test_dependency_policy.py`), and importing a public module loads no other third-party package (`tests/test_import_time_smoke.py`).
 
 ## Public API Snapshot
-- Public facades are frozen via `tests/architecture/test_public_api_snapshot.py`.
+- Public facades (`vamos`, every public top-level module, and `vamos.ux.api`) are frozen via `tests/architecture/test_public_api_snapshot.py`, which also fails when a top-level module is missing from the snapshot.
 - Update the snapshot intentionally with `python tools/update_public_api_snapshot.py`.
 
 ## Import-Time Purity
