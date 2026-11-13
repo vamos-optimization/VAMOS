@@ -19,7 +19,6 @@ ALLOWED_UNREACHABLE: dict[str, str] = {
     "vamos.engine.tuning._irace_target_runner": "irace runs it as a script (the targetRunner of the irace backend).",
     "vamos.ux.studio.app": "Studio entry module, run with `python -m vamos.ux.studio.app`.",
     "vamos.resources.reference_fronts": "Data package read through importlib.resources.",
-    "vamos.foundation.constraints.dsl": "Unused constraint DSL; its removal is review finding VR-164.",
     "vamos.engine.tuning.api": "Experimental tuning facade for direct imports.",
     "vamos.ux.analysis.tuning_viz": "Experimental tuning plots for direct imports.",
     "vamos.ux.analytics": "Experimental genealogy analytics for direct imports.",

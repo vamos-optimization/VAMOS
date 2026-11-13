@@ -25,11 +25,6 @@ Follow [Changing studies](/docs/dev/studies.md) and the linked StudyManifest con
 Run `python -m pytest -q tests/experiment/study_manifest tests/experiment/run_artifacts/test_verification_replay.py tests/experiment/test_ablation_study_api.py tests/experiment/test_cli_ablation.py` plus the nearest study/indicator tests.
 
 ```agent-docs
-path: src/vamos/experiment/ablation.py
-path: src/vamos/experiment/benchmark/runner.py
-path: src/vamos/experiment/study_analysis.py
-path: src/vamos/ux/studio/data.py
-path: src/vamos/ux/analysis/tuning_viz.py
 path: src/vamos/experiment/study/models.py
 path: src/vamos/experiment/study/planning.py
 path: src/vamos/experiment/study/preflight.py
@@ -44,7 +39,6 @@ path: src/vamos/experiment/study/checkpoint_projection.py
 path: src/vamos/experiment/study/run_publication.py
 path: src/vamos/experiment/study/reconciliation.py
 path: src/vamos/experiment/study/recovery.py
-path: src/vamos/study_artifacts.py
 path: tests/experiment/study_manifest
 path: tests/experiment/test_ablation_study_api.py
 path: tests/experiment/test_cli_ablation.py

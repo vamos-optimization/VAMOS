@@ -4,7 +4,7 @@
     "unified-api": "../api/optimization/",
     "vamos.experiment.unified": "../api/optimization/",
     "vamos.experiment.unified.optimize": "../api/optimization/#vamos.optimize",
-    "vamos.experiment.unified.optimize--automl-mode-zero-config": "../api/optimization/#vamos.optimize--automl-mode-zero-config",
+    "vamos.experiment.unified.optimize--automl-mode-zero-config": "../api/optimization/#vamos.optimize--quick-defaults",
     "vamos.experiment.unified.optimize--specify-algorithm": "../api/optimization/#vamos.optimize--specify-algorithm",
     "vamos.experiment.unified.optimize--multi-seed-study": "../api/optimization/#vamos.optimize--multi-seed-study",
     "problem-definition": "../api/problem-definition/",

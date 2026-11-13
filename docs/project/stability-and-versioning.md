@@ -27,7 +27,16 @@ it is listed here and represented in the VAMOS 1.0 compatibility baseline.
 
 The stable Python surface is exposed through `vamos`, `vamos.api`,
 `vamos.algorithms`, `vamos.problems`, `vamos.run_artifacts`, and
-`vamos.study_artifacts`.
+`vamos.study_artifacts`. `vamos.api` exports the same stable names as `vamos`;
+examples import from `vamos`. `vamos.ux.api` is an experimental facade.
+
+These facades also export a few experimental names, which this policy does not
+cover even though a stable facade exports them: `select_survivors` and
+`EnvironmentalSelectionResult` (direct environmental selection),
+`configure_logging` and `run_self_check` (development diagnostics) from `vamos`
+and `vamos.api`, and `GenericAlgorithmConfig`, `discover_algorithm_plugins`,
+and `resolve_algorithm` (custom and plugin algorithms) from `vamos.algorithms`.
+Their docstrings say so.
 
 ### Core optimization
 
@@ -56,8 +65,9 @@ For these entry points:
   value invalid;
 - a supplied integer seed owns the stochastic path and produces deterministic
   same-environment behavior for the documented built-in implementation;
-- an omitted seed is resolved before execution and the resolved integer is
-  persisted in a canonical run;
+- an omitted seed is the fixed default seed 42, so repeating a call without a
+  seed repeats the same run; `seed=None` draws a new seed before execution, and
+  a canonical run persists the resolved integer;
 - an explicitly requested unavailable backend fails rather than silently
   selecting another backend;
 - `numpy` is the deterministic reference backend. Cross-backend bitwise
@@ -228,7 +238,27 @@ VAMOS follows semantic versioning from 1.0.0 onward:
   functionality;
 - incompatible changes to a stable Python API, CLI contract, configuration,
   or public artifact schema require a new major version, except for the
-  security exception below.
+  scientific corrections and the security exception below.
+
+## Scientific corrections
+
+**Development after 1.1.0:** a built-in algorithm, operator, problem, or
+indicator that departs from its published definition is a defect. Its fix
+ships in a patch or minor release even when it changes numerical results, or
+the default value of a stable signature, because results of the faulty
+definition are not results of the published method. The changelog lists such a
+fix as Fixed with a note on which results change and how, so that affected
+experiments can be rerun. Two fixes after 1.1.0 are examples:
+
+- CEC2009 UF3 searches its published domain `[0, 1]^n` (pull request #104).
+  VAMOS 1.1.0 searched `[-1, 1]` for every variable after the first, a
+  different problem.
+- IBEA defaults to `kappa=0.05`, the value of Zitzler and Künzli (2004),
+  instead of 1.0, and normalizes the objectives before the epsilon indicator,
+  as adaptive IBEA does (pull request #115).
+
+Choices that the literature leaves open, such as a default population size,
+are not corrections; changing them follows the rules for stable defaults.
 
 ## Deprecation policy
 

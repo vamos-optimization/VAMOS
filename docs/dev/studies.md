@@ -202,6 +202,13 @@ built-in configuration is reconstructed and prior canonical run evidence, when
 present, must match the current material environment exactly. There is no
 environment-change override in this slice.
 
+**Development after 1.1.0:** a study operation (`run`, `resume`, `retry`)
+captures the current environment once and reuses it for every run it verifies
+or compares; a separate `verify_run` call captures it again. Resume and retry
+compare the manifest and environment of every earlier run with that capture
+without verifying the run's artifacts a second time, since loading the study
+has just verified them.
+
 ## Identities and immutable view
 
 - `study_id` is a random UUIDv4 for one persisted study instance.

@@ -6,6 +6,8 @@ import json
 import re
 from pathlib import Path
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -89,3 +91,42 @@ def test_ci_architecture_step_runs_the_health_test_files() -> None:
     health_files = {command.split()[-1] for command in _health_gate_commands() if command.startswith("python -m pytest")}
 
     assert sorted(health_files - ci_files) == []
+
+
+# The scientific packages whose coverage CI holds at a floor; a floor only rises.
+_COVERAGE_FLOOR_PACKAGES = ("foundation/problem", "foundation/quality_indicators", "engine/algorithm", "engine/operators")
+
+
+def test_ci_measures_branch_coverage_with_floors() -> None:
+    try:
+        import tomllib
+    except ModuleNotFoundError:  # pragma: no cover - Python < 3.11 fallback
+        import tomli as tomllib  # type: ignore[import-not-found,no-redef]
+
+    coverage = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["coverage"]
+    assert coverage["run"]["branch"] is True
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    for package in _COVERAGE_FLOOR_PACKAGES:
+        floor = re.search(rf'coverage report --include="src/vamos/{package}/\*" --fail-under=(\d+)', workflow)
+        assert floor is not None, package
+        assert int(floor[1]) >= 50
+
+
+def test_slow_tier_runs_every_night() -> None:
+    workflow = yaml.safe_load((ROOT / ".github" / "workflows" / "slow-tests.yml").read_text(encoding="utf-8"))
+    triggers = workflow.get("on", workflow.get(True))
+    assert "schedule" in triggers
+    scripts = "\n".join(step.get("run", "") for job in workflow["jobs"].values() for step in job["steps"])
+    assert "pytest -m slow" in scripts
+
+
+def test_slow_test_list_names_existing_tests() -> None:
+    from tests.conftest import SLOW_TESTS
+
+    missing = []
+    for nodeid in sorted(SLOW_TESTS):
+        relative, name = nodeid.split("[", 1)[0].split("::", 1)
+        path = ROOT / relative
+        if not path.is_file() or f"def {name}(" not in path.read_text(encoding="utf-8"):
+            missing.append(nodeid)
+    assert missing == []

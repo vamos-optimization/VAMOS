@@ -271,6 +271,25 @@ def test_corrupt_referenced_run_is_reported_with_exit_three_without_repair(tmp_p
     assert _tree(root) == before
 
 
+@pytest.mark.parametrize(
+    "manifest_text",
+    ['{"nested": ' + "[" * 100_000 + "]" * 100_000 + "}", '{"count": 1' + "0" * 5000 + "}"],
+    ids=["deep_nesting", "huge_integer"],
+)
+def test_study_json_beyond_reader_limits_is_corrupt_data_not_infrastructure(manifest_text: str, tmp_path: Path) -> None:
+    root = tmp_path / "study"
+    vamos.create_study(
+        vamos.StudySpec(problems=["zdt1"], algorithms=["nsgaii"], seeds=[0], max_evaluations=8, pop_size=4),
+        output=root,
+    )
+    (root / "study-manifest.json").write_text(manifest_text, encoding="utf-8")
+
+    inspected = execute_study_command(StudyCommandRequest(operation="inspect", study_dir=root, json_output=True))
+
+    assert inspected.exit_code == 3
+    assert inspected.errors[0]["reason"] == "RESOURCE_LIMIT"
+
+
 def test_fail_fast_partial_maps_to_six_and_explicit_retry_uses_new_attempt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import vamos.experiment.study.execution as execution
 

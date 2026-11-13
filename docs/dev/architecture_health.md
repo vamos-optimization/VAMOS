@@ -5,7 +5,7 @@ These rules are guardrails for long-term maintainability in a research-oriented 
 
 ## Canonical rules
 Read before any architectural change.
-- Layering and facades: layers depend only in the directions listed in `AGENTS.md`. Public entry points are the curated facades `vamos`, `vamos.algorithms`, `vamos.problems`, and `vamos.ux.api`, and `vamos/__init__.py` stays a small facade.
+- Layering and facades: layers depend only in the directions listed in `AGENTS.md`. Public entry points are the curated facades listed in `AGENTS.md`, and `vamos/__init__.py` stays a small facade.
 - Import-time purity: importing a module runs only imports, constant and type-alias assignments, function and class definitions, decorators, `if TYPE_CHECKING:` blocks, and `if __name__ == "__main__":` blocks. File IO, dynamic imports, environment reads, and initialization live inside functions or CLI entry points.
 - Optional dependencies: core dependencies live in `[project].dependencies`, and heavy or optional libraries only in `[project.optional-dependencies]`. Optional imports are lazy or guarded with `try/except ImportError`. `experiment/external` is the integration boundary for benchmark backends, and Panel imports stay in `ux/panel` and the Studio UI.
 - No shims, and recorded debt only shrinks: do not add alternate wrappers for superseded APIs. Fix violations at the source and update call sites. A gate that tolerates existing debt records it in a ratchet, not an allowlist of exempt paths: `tests/architecture/monolith_guard_budget.json`, `tests/architecture/ruff_format_budget.json`, `typing/mypy-baseline.json`, and `release/repository-hygiene-exceptions.json`. Lower a budget or drop a baseline entry when the debt goes; never raise a budget or add a baseline entry to pass a gate. A hygiene exception names its owner, reason, and review condition.
@@ -42,7 +42,7 @@ Read before any architectural change.
 25. `python -m pytest -q tests/architecture/test_ruff_format_gate.py`
 26. `python tools/typecheck.py --scope strict` (zero diagnostics in the protected scope)
 27. `python tools/typecheck.py --scope full` (exact structured no-regression baseline and clean changed modules)
-28. `python -m pytest -q tests/architecture/test_build_smoke.py` (builds the sdist and wheel from a copy of the tree, outside the checkout)
+28. `python -m pytest -q tests/architecture/test_build_smoke.py` (builds the sdist and wheel from a copy of the tree, outside the checkout, and checks what they ship)
 29. `python -m pytest -q tests/architecture/test_py_typed_present.py`
 
 ## Other gates
@@ -66,14 +66,16 @@ The canonical environment, path inventory, diagnostic fingerprint schema, baseli
 - Facades: prefer `vamos.api`, `vamos.algorithms`, `vamos.problems`, `vamos.ux.api`.
 
 ## Optional Dependencies Policy
-- foundation/** and engine/**: no top-level imports of optional/heavy deps.
-- experiment/external/**: integration boundary for optional deps; imports must be lazy or guarded.
-- ux/panel/** and ux/studio/**: Panel is optional and confined to UI modules.
+`tests/test_optional_deps_policy.py` reads the optional packages from `[project.optional-dependencies]`, by import name, and checks module-level imports:
+- foundation/** and engine/**: no top-level imports of optional/heavy deps, guarded or not. A kernel backend module (`foundation/kernel/<backend>_*.py`) imports its own package; `registry.py` loads it on demand.
+- experiment/external/**: integration boundary for the `research` extra, which no other module imports; imports must be lazy or guarded.
+- ux/panel/** and ux/studio/**: the Studio UI imports the `studio` extra (Panel and its stack) at top level.
+- Elsewhere, a top-level import of an optional dependency is guarded with `try/except ImportError`.
 - Dynamic import loopholes (`importlib.import_module`, `__import__`) are disallowed at top-level.
-- Dependency list is enforced by `tests/architecture/test_dependency_policy.py`.
+- `[project].dependencies` is the closed set numpy, scipy, joblib and typing-extensions (`tests/architecture/test_dependency_policy.py`), and importing a public module loads no other third-party package (`tests/test_import_time_smoke.py`).
 
 ## Public API Snapshot
-- Public facades are frozen via `tests/architecture/test_public_api_snapshot.py`.
+- Public facades (`vamos`, every public top-level module, and `vamos.ux.api`) are frozen via `tests/architecture/test_public_api_snapshot.py`, which also fails when a top-level module is missing from the snapshot.
 - Update the snapshot intentionally with `python tools/update_public_api_snapshot.py`.
 
 ## Import-Time Purity

@@ -12,7 +12,7 @@ Inherits all repository-wide rules from `/AGENTS.md`. This file contains local d
 - Shared crossover/mutation orchestration lives in `src/vamos/engine/variation/`; algorithm packages import that canonical pipeline directly.
 - External archive configuration is `ExternalArchiveConfig` in `src/vamos/engine/archive/config.py`. Experiment specs use only `archive.external`, parsed by `build_archive_cfg` in `src/vamos/engine/hooks/config_parse.py`.
 - Run loops must honor exact evaluation budgets, explicit RNG ownership, encoding support, observer/hooks, and warm-start contracts.
-- Reference-direction algorithms must validate population/reference-direction cardinality. Algorithms use `KernelBackend` methods rather than backend-specific imports.
+- Reference-direction algorithms must validate population/reference-direction cardinality. Algorithms use `KernelBackend` methods rather than backend-specific imports. MOEA/D's neighbourhood update is the documented exception: it runs compiled whenever Numba is installed, whatever the engine ([Automatic engine selection](/docs/reference/algorithms.md#automatic-engine-selection)).
 
 ## Extension touchpoints
 
