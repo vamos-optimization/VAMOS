@@ -6,7 +6,7 @@ Operators are reusable variation or repair components. If the change alters a se
 
 1. Choose the encoding package under `src/vamos/engine/operators/impl/`: `real`, `integer`, `binary`, `permutation`, or `mixed`. Shared repair and registry modules live directly under `impl/`.
 2. Copy the protocol and call shape of a neighboring operator of the same kind. Real mutation operators, for example, are constructed with their parameters/bounds and called with `(offspring, rng)`; other encodings have their own current protocols.
-3. Vectorize over individuals, accept an explicit `numpy.random.Generator`, validate shapes/dtypes, and document whether mutation is in place. Never obtain randomness from global NumPy state.
+3. Vectorize over individuals, accept an explicit `numpy.random.Generator`, validate shapes/dtypes, and document whether mutation is in place. Never obtain randomness from global NumPy state or from an unseeded `np.random.default_rng()`; `vamos.foundation.rng.require_generator` raises `ConfigurationError` when a caller passes no generator.
 4. Export the class from the encoding package and register its stable method name in `src/vamos/engine/operators/impl/registry.py`.
 5. Update `src/vamos/engine/operators/policies/` only when config-driven construction or encoding/algorithm policy must select the operator. Keep algorithm-specific decisions out of the generic class.
 6. If it becomes a supported public config value, update discovery helpers and CLI/config validation together; do not add a second registry.

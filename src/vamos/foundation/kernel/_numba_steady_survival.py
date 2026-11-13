@@ -60,16 +60,16 @@ def _sorted_front_crowding(F: FloatArray, orders: IntArray, ranks: IntArray, ran
     """
     n_rows = orders.shape[1]
     size = 0
-    single = -1
     for i in range(n_rows):
         if ranks[i] == rank:
             crowding[i] = 0.0
             size += 1
-            single = i
     if size == 0:
         return
-    if size == 1:
-        crowding[single] = np.inf
+    if size <= 2:
+        for i in range(n_rows):
+            if ranks[i] == rank:
+                crowding[i] = np.inf
         return
     for m in range(F.shape[1]):
         sequence = orders[m]
@@ -81,11 +81,11 @@ def _sorted_front_crowding(F: FloatArray, orders: IntArray, ranks: IntArray, ran
             last -= 1
         low = sequence[first]
         high = sequence[last]
-        crowding[low] = np.inf
-        crowding[high] = np.inf
         span = F[high, m] - F[low, m]
         if span <= 0.0:
             continue
+        crowding[low] = np.inf
+        crowding[high] = np.inf
         previous = low
         current = -1
         for t in range(first + 1, last + 1):

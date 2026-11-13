@@ -96,7 +96,9 @@ def initialize_population(
         if init_type == "lhs":
             return LatinHypercubeInitializer(pop_size, xl, xu, rng=rng)()
         if init_type in {"scatter", "scatter_search"}:
-            base = int(initializer.get("base_size", max(20, pop_size)))
+            # A reference set of 20 Latin-hypercube points (all of them for smaller
+            # populations); the other rows are convex combinations of its points.
+            base = int(initializer.get("base_size", min(20, pop_size)))
             return ScatterSearchInitializer(pop_size, xl, xu, base_size=base, rng=rng)()
         if init_type == "sobol":
             scramble = bool(initializer.get("scramble", True))

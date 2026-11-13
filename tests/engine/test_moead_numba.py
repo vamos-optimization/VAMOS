@@ -247,3 +247,38 @@ def test_moead_numba_reproducible_with_seed_on_batch_path():
 
     np.testing.assert_allclose(result_a["population"]["F"], result_b["population"]["F"])
     np.testing.assert_allclose(result_a["F"], result_b["F"])
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "use_numba_variation sets a process-wide override in vamos.engine.operators.impl.flags that stays set "
+        "after the run and selects the Numba binary, integer and permutation operators of every later run; "
+        "passing the switch through the operator configuration removes it"
+    ),
+)
+def test_moead_numba_flag_does_not_outlive_the_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    from vamos.engine.operators.impl import flags
+
+    monkeypatch.delenv("VAMOS_USE_NUMBA_VARIATION", raising=False)
+    cfg = (
+        MOEADConfig.builder()
+        .pop_size(20)
+        .batch_size(4)
+        .neighbor_size(6)
+        .delta(0.9)
+        .replace_limit(3)
+        .crossover("sbx", prob=0.9, eta=20.0)
+        .mutation("polynomial", prob="1/n", eta=20.0)
+        .aggregation("pbi", theta=5.0)
+        .weight_vectors(divisions=19)
+        .use_numba_variation(True)
+        .build()
+    )
+    before = flags.should_use_numba_variation()
+    try:
+        MOEAD(cfg.to_dict(), kernel=NumPyKernel()).run(ZDT1Problem(n_var=8), termination=("max_evaluations", 40), seed=0)
+        # The run's configuration must not choose the operators of the runs that follow it.
+        assert flags.should_use_numba_variation() == before, "use_numba_variation outlived the run"
+    finally:
+        flags.set_numba_variation(None)

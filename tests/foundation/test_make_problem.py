@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import inspect
+
 import numpy as np
 import pytest
 
@@ -371,8 +373,9 @@ class TestValidation:
 
 
 def _raises_section() -> str:
-    doc = _make_problem.__doc__ or ""
-    return doc.split("Raises\n    ------", 1)[1].split("Examples\n", 1)[0]
+    # cleandoc: Python 3.13 and later strip the docstring's indentation when compiling, earlier versions keep it.
+    doc = inspect.cleandoc(_make_problem.__doc__ or "")
+    return doc.split("Raises\n------", 1)[1].split("Examples\n", 1)[0]
 
 
 @pytest.mark.parametrize(

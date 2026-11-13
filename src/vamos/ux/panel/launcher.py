@@ -85,8 +85,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         import panel  # noqa: F401
-    except ImportError as exc:  # pragma: no cover
-        raise ImportError("VAMOS Studio requires the 'studio' extra: pip install -e \".[studio]\"") from exc
+    except ImportError:
+        parser.exit(2, "vamos studio: VAMOS Studio requires the 'studio' extra: pip install \"vamos-optimization[studio]\"\n")
 
     cmd = _build_panel_command(
         args.study_dir,

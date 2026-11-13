@@ -15,6 +15,7 @@ from numpy.typing import NDArray
 from vamos.experiment.optimization_result import OptimizationResult
 
 from .bundle import snapshot_result_arrays
+from .bundle_safety import result_descriptor, validate_problem_columns
 from .errors import IncompleteRunMetadataError
 from .jsonio import canonical_json_bytes, normalize_json, sha256_bytes
 from .manifest import DOCUMENT_TYPE, SCHEMA_VERSION
@@ -52,6 +53,13 @@ def save_result(
         result,
         requested_spec=requested_spec,
         resolved_spec=resolved_spec,
+    )
+    validate_problem_columns(
+        {name: (array.shape, array.dtype) for name, array in arrays.items()},
+        resolved,
+        descriptor=result_descriptor(),
+        path=Path("result.npz"),
+        operation="save result",
     )
     loaded_run_id = meta.get("run_artifact_loaded_run_id")
     saved_again = isinstance(loaded_run_id, str) and not caller_supplied

@@ -27,6 +27,7 @@ from ._bridge_assignment_shared import (
     extend_mutation_params,
     has_mixed_mutation_assignment,
 )
+from .bridge_space_parts_constraints import constraint_handling_from_assignment
 
 NSGAII_NAMES = ALGORITHM_VARIANT_GROUPS["nsgaii"]
 MOEAD_NAMES = ALGORITHM_VARIANT_GROUPS["moead"] - {"moead_permutation"}
@@ -83,6 +84,9 @@ def build_nsgaii_config(assignment: dict[str, Any], *, mixed: bool = False) -> N
 
     apply_optional_repair(builder, assignment)
     apply_optional_external_archive(builder, assignment, pop_size)
+    technique = constraint_handling_from_assignment(assignment)
+    if technique is not None:
+        builder.constraint_handling(technique[0], **technique[1])
     return builder.build()
 
 

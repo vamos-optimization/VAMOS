@@ -178,6 +178,14 @@ pickle-backed arrays are rejected. Shape relationships and manifest array
 contracts are validated before values are exposed. Loaded arrays are defensive
 copies and are never executable objects.
 
+**Development after 1.1.0:** the shape check includes columns. `F`,
+`population/F`, `archive/F`, and `reference_directions` have
+`resolved_spec.problem.config.n_obj` columns, and `X`, `population/X`, and
+`archive/X` have its `n_var` columns, whenever the configuration records that
+dimension as an integer. `load_result` and `verify_run` reject a bundle that
+disagrees with `MalformedResultBundleError`, and `save_result` refuses such a
+result before writing anything.
+
 ## 8. Environment and provenance
 
 `environment.json` has identity `vamos.environment` and version `1.0.0`. It
@@ -278,6 +286,13 @@ headers, sizes, shapes, dtypes, and ratios are checked before materialization.
 
 Trusted callers may pass an explicit `LoadLimits`. VAMOS never silently raises
 a limit following rejection.
+
+**Development after 1.1.0:** a JSON document nested too deeply for Python's
+parser is rejected with the `max_json_depth` error, and an integer literal
+longer than `sys.get_int_max_str_digits()` (4300 digits by default) with
+`ArtifactResourceLimitError` and limit `int_max_str_digits`. `vamos results
+verify` exits with 3 for both, and study loading reports them as
+`RESOURCE_LIMIT` (exit 3) rather than as an infrastructure failure (exit 7).
 
 ## 11. Consumers
 

@@ -178,12 +178,17 @@ def save_checkpoint(algo: NSGAII, checkpoint_dir: str, seed: int, generation: in
         archive_X=st.archive_X,
         archive_F=st.archive_F,
         archive_G=_archive_constraints(st),
-        extra={
-            "step": st.step,
-            "replacements": st.replacements,
-        },
+        extra=_checkpoint_extra(st),
     )
     _logger().info("Checkpoint saved: %s", path)
+
+
+def _checkpoint_extra(st: Any) -> dict[str, Any]:
+    """The run state outside the population that a resumed run needs, for both kinds of checkpoint."""
+    extra: dict[str, Any] = {"step": st.step, "replacements": st.replacements}
+    if st.constraint_handling is not None:
+        extra["constraint_handling"] = st.constraint_handling.state()
+    return extra
 
 
 def run_nsgaii(
@@ -320,10 +325,7 @@ def finish_run(
         "archive_X": st.archive_X,
         "archive_F": st.archive_F,
         "archive_G": _archive_constraints(st),
-        "extra": {
-            "step": st.step,
-            "replacements": st.replacements,
-        },
+        "extra": _checkpoint_extra(st),
     }
     if live_cb is not None:
         live_cb.on_end(final_F=st.F)

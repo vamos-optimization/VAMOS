@@ -13,10 +13,13 @@ from several routes while retaining one source and one primary navigation entry.
 - **How-to:** complete a specific operation. The How-to Guides index also links
   directly to relevant sections of tutorials and reference pages.
 - **Reference:** look up exact interfaces, capabilities, support, or version
-  contracts. Internal implementation APIs stay in Developer.
+  contracts. Internal implementation APIs stay in Developer. The stability
+  policy, known limitations, documentation versions, and every release's notes
+  are grouped under Reference → Support & Versions.
 - **Development:** contribute, maintain, or validate the project. Roadmap comes
   first; extension guides, contracts, internal APIs, and Maintainers are grouped
-  separately. Project policies remain contextual links, without a Project tab.
+  separately. Hosting and repository governance remain contextual links; there
+  is no Project tab.
 
 The logo links to the homepage. Each user section opens with an index; the
 three homepage journeys lead directly to T01, T02, and T06.
@@ -104,15 +107,15 @@ and reachable through the named parent pages even when absent from the menu.
 | [guide/understanding-results.md](../guide/understanding-results.md) | Tutorial | Tutorials → First results → Understanding Results | Regroup |
 | [guide/zero_to_hero.md](../guide/zero_to_hero.md) | Tutorial | Get Started → Quickstart | Keep |
 | [index.md](../index.md) | Tutorial | Logo; homepage | Regroup; logo entry |
-| [project/documentation-versioning.md](../project/documentation-versioning.md) | Reference | Reference overview; Maintainers → Documentation Delivery | Keep; contextual links |
+| [project/documentation-versioning.md](../project/documentation-versioning.md) | Reference | Reference → Support & Versions → Documentation Versions | Regroup |
 | [project/hosting.md](../project/hosting.md) | Development | Maintainers overview; Documentation Delivery | Keep; contextual links |
-| [project/known-limitations.md](../project/known-limitations.md) | Reference | Homepage; Reference overview | Keep; contextual links |
-| [project/release-notes-1.0.0.md](../project/release-notes-1.0.0.md) | Reference | Reference overview; Documentation versions | Keep; contextual links |
-| [project/release-notes-1.0.1.md](../project/release-notes-1.0.1.md) | Reference | Reference overview; Documentation versions | Keep; contextual links |
-| [project/release-notes-1.0.2.md](../project/release-notes-1.0.2.md) | Reference | Reference overview; Documentation versions | Keep; contextual links |
-| [project/release-notes-1.1.0.md](../project/release-notes-1.1.0.md) | Reference | Reference overview; Documentation versions | Keep; contextual links |
+| [project/known-limitations.md](../project/known-limitations.md) | Reference | Reference → Support & Versions → Known Limitations | Regroup |
+| [project/release-notes-1.0.0.md](../project/release-notes-1.0.0.md) | Reference | Reference → Support & Versions → Release Notes → VAMOS 1.0.0 | Regroup |
+| [project/release-notes-1.0.1.md](../project/release-notes-1.0.1.md) | Reference | Reference → Support & Versions → Release Notes → VAMOS 1.0.1 | Regroup |
+| [project/release-notes-1.0.2.md](../project/release-notes-1.0.2.md) | Reference | Reference → Support & Versions → Release Notes → VAMOS 1.0.2 | Regroup |
+| [project/release-notes-1.1.0.md](../project/release-notes-1.1.0.md) | Reference | Reference → Support & Versions → Release Notes → VAMOS 1.1.0 | Regroup |
 | [project/repository-governance.md](../project/repository-governance.md) | Development | Homepage; Maintainers overview | Keep; contextual links |
-| [project/stability-and-versioning.md](../project/stability-and-versioning.md) | Reference | Homepage; Reference overview; learning indexes | Keep; contextual links |
+| [project/stability-and-versioning.md](../project/stability-and-versioning.md) | Reference | Reference → Support & Versions → Stability and Versioning | Regroup |
 | [reference/algorithms.md](../reference/algorithms.md) | Reference | Reference → Algorithms & Backends | Regroup |
 | [reference/api/algorithms/agemoea.md](../reference/api/algorithms/agemoea.md) | Reference | Reference → API Reference → Algorithm configuration → AGE-MOEA | Keep |
 | [reference/api/algorithms/ibea.md](../reference/api/algorithms/ibea.md) | Reference | Reference → API Reference → Algorithm configuration → IBEA | Keep |
