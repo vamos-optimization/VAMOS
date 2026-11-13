@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "4d1ce3d6a1ac97ce43516bf26ac26b393e7dc645",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 4d1ce3d6a1ac97ce43516bf26ac26b393e7dc645",
+  "generation_commit": "f05e23f0c7ba093cca537e62bf98e32cd930cdf8",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit f05e23f0c7ba093cca537e62bf98e32cd930cdf8",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.1",
@@ -11,7 +11,7 @@
     "stub_packages": [],
     "type_affecting_optional_distributions": [],
     "config_path": "pyproject.toml",
-    "config_sha256": "D2A52068C67E41E2B8012D47BC8509EE1647CBB18632193E078334A03B91570E",
+    "config_sha256": "E39E0E1022C5982D7D7E36E90D414460652CF68CE3318B12DF225901E5840F23",
     "mypy_config_sha256": "562D592DA8D4C96E4C5CD2E48B2F2268EFEB70AC50858210E11E8528D28B4CA0",
     "constraints_path": "constraints/ci.txt",
     "type_affecting_pins": {

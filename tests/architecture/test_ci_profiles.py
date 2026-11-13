@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import re
+from collections import Counter
 from pathlib import Path
 
 import yaml
+from packaging.requirements import Requirement
+from packaging.version import Version
 
 try:
     import tomllib
@@ -153,3 +156,34 @@ def test_build_wheel_job_builds_like_the_release() -> None:
     assert "-r release/requirements-build.txt" in scripts
     assert "python -m build --no-isolation" in scripts
     assert "constraints/ci.txt" not in scripts
+
+
+def test_tests_full_runs_every_python_on_linux_and_the_newest_on_every_system() -> None:
+    matrix = _ci_jobs()["tests-full"]["strategy"]["matrix"]
+    versions = matrix["python-version"]
+    excluded = {(entry["os"], entry["python-version"]) for entry in matrix["exclude"]}
+
+    # Pull requests run Linux only; the merge queue and main add Windows and macOS.
+    assert "github.event_name == 'pull_request' && '[\"ubuntu-latest\"]'" in matrix["os"]
+    assert [version for version in versions if ("ubuntu-latest", version) in excluded] == []
+    # Windows and macOS skip only the versions older than the primary Python 3.12.
+    for system in ("windows-latest", "macos-latest"):
+        tested = [version for version in versions if (system, version) not in excluded]
+        assert tested == [version for version in versions if Version(version) >= Version("3.12")], system
+    # A single job installs the tuning extra.
+    assert matrix["include"] == [{"os": "ubuntu-latest", "python-version": "3.12", "tuning": "true"}]
+
+
+def test_ci_constraints_pin_each_distribution_at_most_once_for_every_tested_python() -> None:
+    matrix = _ci_jobs()["tests-full"]["strategy"]["matrix"]
+    pythons = sorted({*matrix["python-version"], *(entry["python-version"] for entry in matrix["include"])}, key=Version)
+    lines = (line.split("#", 1)[0].strip() for line in (ROOT / "constraints" / "ci.txt").read_text(encoding="utf-8").splitlines())
+    requirements = [Requirement(line) for line in lines if line]
+    core = {_name(requirement) for requirement in _project()["project"]["dependencies"]}
+
+    for python in pythons:
+        environment = {"python_version": python, "python_full_version": f"{python}.0"}
+        applied = Counter(_name(item.name) for item in requirements if item.marker is None or item.marker.evaluate(environment))
+        # Two pins for one Python make pip fail; the core dependencies need one on every tested Python.
+        assert sorted(name for name, count in applied.items() if count > 1) == [], python
+        assert sorted(name for name in core if applied[name] != 1) == [], python

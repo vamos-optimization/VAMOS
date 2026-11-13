@@ -358,10 +358,11 @@ def test_metadata_only_pyproject_drift_preserves_typing_baseline() -> None:
 
 def _checkout_with_bumped_pins(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *names: str) -> None:
     # Bump whatever version is pinned today, so the test survives the bumps it is meant to allow.
+    # A distribution pinned once per Python version gets every pin bumped, the canonical one included.
     constraints = (ROOT / "constraints" / "ci.txt").read_text(encoding="utf-8")
     for name in names:
-        constraints, count = re.subn(rf"^({re.escape(name)}==\S+)", r"\1.post1", constraints, flags=re.M)
-        assert count == 1
+        constraints, count = re.subn(rf"^({re.escape(name)}==[^\s;]+)", r"\1.post1", constraints, flags=re.M)
+        assert count >= 1
     (tmp_path / "constraints").mkdir()
     (tmp_path / "constraints" / "ci.txt").write_text(constraints, encoding="utf-8")
     (tmp_path / "pyproject.toml").write_text((ROOT / "pyproject.toml").read_text(encoding="utf-8"), encoding="utf-8")
@@ -424,6 +425,24 @@ def test_type_affecting_pins_must_be_exact_and_unique(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="numpy"):
         typecheck.type_affecting_pins(constraints)
+
+
+def test_type_affecting_pins_read_the_pin_for_the_canonical_python(tmp_path: Path) -> None:
+    # A Python that the pinned NumPy or SciPy has no wheels for gets its own pin; typing reads the one for Python 3.12.
+    others = "".join(f"{name}==1.0\n" for name in typecheck.TYPE_AFFECTING_PINS if name != "numpy")
+    constraints = tmp_path / "ci.txt"
+    constraints.write_text(others + 'numpy==2.2.6 ; python_version < "3.14"\nnumpy==2.3.5 ; python_version >= "3.14"\n', encoding="utf-8")
+
+    assert typecheck.type_affecting_pins(constraints)["numpy"] == "2.2.6"
+
+    for pins in (
+        'numpy==2.2.6\nnumpy==2.3.5 ; python_version >= "3.12"\n',
+        'numpy==2.3.5 ; python_version >= "3.14"\n',
+        'numpy==2.2.6 ; sys_platform == "linux"\n',
+    ):
+        constraints.write_text(others + pins, encoding="utf-8")
+        with pytest.raises(ValueError, match="numpy"):
+            typecheck.type_affecting_pins(constraints)
 
 
 def test_mypy_config_fingerprint_ignores_unrelated_project_metadata(tmp_path: Path) -> None:

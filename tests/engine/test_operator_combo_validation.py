@@ -41,6 +41,7 @@ from vamos.engine.tuning.racing.bridge import (
     # NSGA-II
     build_nsgaii_binary_config_space,
     build_nsgaii_config_space,
+    build_nsgaii_constrained_config_space,
     build_nsgaii_integer_config_space,
     build_nsgaii_mixed_config_space,
     build_nsgaii_permutation_config_space,
@@ -94,6 +95,7 @@ REGISTRY: list[tuple[str, str, Any]] = [
     ("nsgaii_binary", "binary", build_nsgaii_binary_config_space),
     ("nsgaii_integer", "integer", build_nsgaii_integer_config_space),
     ("nsgaii_mixed", "mixed", build_nsgaii_mixed_config_space),
+    ("nsgaii_constrained", "real", build_nsgaii_constrained_config_space),
     # AGE-MOEA
     ("agemoea", "real", build_agemoea_config_space),
     ("agemoea_permutation", "permutation", build_agemoea_permutation_config_space),

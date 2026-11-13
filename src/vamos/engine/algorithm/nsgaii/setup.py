@@ -25,6 +25,7 @@ from vamos.foundation.eval.backends import EvaluationBackend, SerialEvalBackend
 from vamos.foundation.exceptions import ConfigurationError
 from vamos.foundation.observer import RunContext
 
+from .constrained_survival import run_technique
 from .helpers import fronts_from_ranks
 from .initialization import (
     setup_genealogy,
@@ -78,6 +79,7 @@ def initialize_run(
     replacement_size = 1
 
     constraint_mode = normalize_constraint_mode(algo.cfg.get("constraint_mode", "feasibility"))
+    constraint_handling = run_technique(algo.cfg.get("constraint_handling"), constraint_mode, checkpoint)
     initializer_cfg = algo.cfg.get("initializer")
     X: np.ndarray[Any, Any]
     F: np.ndarray[Any, Any]
@@ -264,6 +266,7 @@ def initialize_run(
         replacement_size=replacement_size,
         incremental_mode=incremental_mode,
         constraint_mode=constraint_mode,
+        constraint_handling=constraint_handling,
         archive_size=ext_cfg.capacity if ext_cfg else None,
         archive_X=archive_X,
         archive_F=archive_F,

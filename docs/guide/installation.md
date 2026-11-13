@@ -13,14 +13,20 @@ environment and the pinned commands below to follow the same release.
 
 | Operating system | Python versions covered by CI | Installed-wheel release checks |
 | --- | --- | --- |
-| Linux | 3.10, 3.11, 3.12 | Core on 3.10; core and compute on 3.12 |
-| Windows | 3.12 | Core |
-| macOS | 3.12 | Core |
+| Linux | 3.10, 3.11, 3.12, 3.13, 3.14 | Core on 3.10 and 3.13; core and compute on 3.12 and 3.14 |
+| Windows | 3.12, 3.13, 3.14 | Core on 3.12 |
+| macOS | 3.12, 3.13, 3.14 | Core on 3.12 |
 
 These are the combinations in the project's CI and release verification
 matrices, not a promise for every version of every optional dependency. Other
 interpreter/platform combinations are unclaimed. See
 [Known limitations](../project/known-limitations.md#backends-and-optional-dependencies).
+
+**Development after 1.1.0:** CI tests Python 3.13 and 3.14 on the three
+systems, and the release checks install the wheel on both. VAMOS 1.1.0 was
+tested on Python 3.10, 3.11 and 3.12 only. VAMOS 1.3.0 will require Python
+3.11 or newer; see
+[Stability and versioning](../project/stability-and-versioning.md#python-and-operating-system-support).
 
 ## Core package
 

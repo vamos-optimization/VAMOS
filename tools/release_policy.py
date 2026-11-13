@@ -119,11 +119,13 @@ def document_evidence(root: Path, version: str) -> dict[str, Any]:
 def license_evidence(root: Path) -> dict[str, Any]:
     pyproject = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
     project = pyproject["project"]
+    # The 1.x compatibility commitments (docs/project/stability-and-versioning.md) are those of a stable release.
+    statuses = [classifier for classifier in project.get("classifiers", []) if classifier.startswith("Development Status ::")]
     checks = {
         "spdx": project.get("license") == "MIT",
         "license_file_declared": project.get("license-files") == ["LICENSE"],
         "license_file_present": (root / "LICENSE").is_file(),
-        "beta_classifier": "Development Status :: 4 - Beta" in project.get("classifiers", []),
+        "production_stable_classifier": statuses == ["Development Status :: 5 - Production/Stable"],
     }
     failed = sorted(name for name, passed in checks.items() if not passed)
     if failed:
