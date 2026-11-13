@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 
+from vamos.foundation.problem._output import objective_output
 from vamos.foundation.problem.base import Problem
 
 
-def _as_bits(X: np.ndarray, n_var: int) -> np.ndarray:
+def _as_bits(X: np.ndarray[Any, Any], n_var: int) -> np.ndarray[Any, Any]:
     bits = np.asarray(X)
     if bits.ndim != 2 or bits.shape[1] != n_var:
         raise ValueError(f"Expected decision matrix of shape (N, {n_var}).")
@@ -32,11 +35,11 @@ class BinaryFeatureSelectionProblem(Problem):
         self.utility = np.abs(rng.normal(loc=1.0, scale=0.5, size=self.n_var)) + 0.05
         self.cost = rng.uniform(0.2, 1.5, size=self.n_var)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         bits = _as_bits(X, self.n_var)
         gain = bits @ self.utility
         complexity = bits @ self.cost
-        F = out["F"]
+        F = objective_output(out, len(X), self.n_obj)
         F[:, 0] = -gain
         F[:, 1] = complexity
 
@@ -69,11 +72,11 @@ class BinaryKnapsackProblem(Problem):
         self.values = rng.uniform(1.0, 5.0, size=self.n_var)
         self.capacity = float(capacity_ratio) * float(self.weights.sum())
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         bits = _as_bits(X, self.n_var)
         total_weight = bits @ self.weights
         total_value = bits @ self.values
-        F = out["F"]
+        F = objective_output(out, len(X), self.n_obj)
         F[:, 0] = np.abs(total_weight - self.capacity)
         F[:, 1] = -total_value
 
@@ -109,11 +112,11 @@ class BinaryQUBOProblem(Problem):
         self.Q = sym + diag_boost
         self.bias = rng.normal(scale=0.2, size=self.n_var)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         bits = _as_bits(X, self.n_var)
         quad = np.einsum("bi,ij,bj->b", bits, self.Q, bits)
         linear = bits @ self.bias
-        F = out["F"]
+        F = objective_output(out, len(X), self.n_obj)
         F[:, 0] = quad + linear
         F[:, 1] = -bits.sum(axis=1)
 

@@ -777,3 +777,29 @@ def test_non_finite_output_message_names_the_possible_causes() -> None:
 
     with pytest.raises(EvaluationError, match=r"finite.*penalty.*operator"):
         evaluate_population_with_constraints(NaNProblem(), np.full((2, 2), 0.5))
+
+
+def _registered_problem_names() -> list[str]:
+    from vamos.foundation.problem.registry.specs import available_problem_names
+
+    return list(available_problem_names())
+
+
+@pytest.mark.parametrize("name", _registered_problem_names())
+def test_every_registered_problem_creates_missing_objective_output(name: str) -> None:
+    from vamos.engine.algorithm.components.population import initialize_population, resolve_bounds
+    from vamos.foundation.problem.registry import make_problem_selection
+
+    try:
+        problem = make_problem_selection(name).instantiate()
+    except ImportError as exc:  # optional dependencies such as scikit-learn
+        pytest.skip(str(exc))
+    encoding = getattr(problem, "encoding", "real")
+    xl, xu = resolve_bounds(problem, encoding)
+    X = initialize_population(3, problem.n_var, xl, xu, encoding, np.random.default_rng(0), problem=problem)
+
+    # The contract: ``evaluate(X, out)`` writes ``out["F"]``, also when the caller did not allocate it.
+    out: dict[str, np.ndarray] = {}
+    problem.evaluate(X, out)
+
+    assert np.asarray(out["F"]).shape == (3, problem.n_obj)

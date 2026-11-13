@@ -3,15 +3,17 @@ from __future__ import annotations
 
 import math
 from collections.abc import Iterable, Sequence
+from typing import Any
 
 import numpy as np
 
+from vamos.foundation.problem._output import objective_output
 from vamos.foundation.problem.base import Problem
 
 from .tsplib import load_tsplib_coords
 
 
-def _default_coordinates() -> np.ndarray:
+def _default_coordinates() -> np.ndarray[Any, Any]:
     # Simple layout with a few asymmetric points to avoid symmetry degeneracy.
     return np.array(
         [
@@ -26,14 +28,14 @@ def _default_coordinates() -> np.ndarray:
     )
 
 
-def _circle_coordinates(n_cities: int) -> np.ndarray:
+def _circle_coordinates(n_cities: int) -> np.ndarray[Any, Any]:
     if n_cities < 3:
         raise ValueError("TSP problems require at least 3 cities.")
     angles = np.linspace(0.0, 2.0 * math.pi, num=n_cities, endpoint=False)
     return np.stack([np.cos(angles), np.sin(angles)], axis=1)
 
 
-def _validate_routes(routes: np.ndarray, n_cities: int) -> None:
+def _validate_routes(routes: np.ndarray[Any, Any], n_cities: int) -> None:
     expected = np.arange(n_cities, dtype=int)
     if np.any(routes < 0) or np.any(routes >= n_cities):
         raise ValueError(f"TSP routes must contain city labels in [0, {n_cities - 1}].")
@@ -42,7 +44,7 @@ def _validate_routes(routes: np.ndarray, n_cities: int) -> None:
             raise ValueError("TSP routes must be valid permutations of each city exactly once.")
 
 
-def _coerce_routes(X: np.ndarray, n_cities: int) -> np.ndarray:
+def _coerce_routes(X: np.ndarray[Any, Any], n_cities: int) -> np.ndarray[Any, Any]:
     try:
         raw_routes = np.asarray(X)
     except ValueError as exc:
@@ -93,14 +95,14 @@ class TSPProblem(Problem):
         self.encoding = "permutation"
         self.labels = [f"City {i}" for i in range(self.n_var)]
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         routes = _coerce_routes(X, self.n_var)
         coords = self.coordinates
         paths = coords[routes]
         closed_paths = np.concatenate([paths, paths[:, :1, :]], axis=1)
         deltas = np.diff(closed_paths, axis=1)
         edges = np.linalg.norm(deltas, axis=2)
-        F = out["F"]
+        F = objective_output(out, len(X), self.n_obj)
         F[:, 0] = edges.sum(axis=1)
         F[:, 1] = edges.max(axis=1)
 

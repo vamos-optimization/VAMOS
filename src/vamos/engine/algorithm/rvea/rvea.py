@@ -15,6 +15,7 @@ from typing import Any
 
 import numpy as np
 
+from vamos.engine.algorithm.components.constraint_handling import PAIRWISE_TECHNIQUES, run_progress, run_technique
 from vamos.engine.algorithm.components.evaluation import combine_constraints, extract_evaluation_arrays
 from vamos.engine.algorithm.components.hooks import get_live_viz, live_should_stop
 from vamos.engine.algorithm.components.metrics import setup_hv_tracker
@@ -229,6 +230,7 @@ class RVEA:
         alpha = float(self.cfg.get("alpha", 2.0))
         adapt_freq = self.cfg.get("adapt_freq", 0.1)
         constraint_mode = normalize_constraint_mode(self.cfg.get("constraint_mode", "feasibility"))
+        constraint_handling = run_technique(self.cfg.get("constraint_handling"), constraint_mode, techniques=PAIRWISE_TECHNIQUES)
         n_constraints = int(getattr(problem, "n_constraints", 0) or 0)
 
         max_evals, hv_config = parse_termination(termination, "RVEA", pop_size)
@@ -297,6 +299,7 @@ class RVEA:
             max_gen=max_gen,
             variation=variation,
             constraint_mode=constraint_mode,
+            constraint_handling=constraint_handling,
             archive_size=ext_cfg.capacity if ext_cfg is not None else None,
             archive_X=archive_X,
             archive_F=archive_F,
@@ -398,9 +401,15 @@ class RVEA:
         F_combined = np.vstack([st.F, F_off])
         G_combined = combine_constraints(st.G, G_off, st.constraint_mode, algorithm="RVEA")
 
+        survival_G = G_combined
+        if st.constraint_handling is not None and G_combined is not None:
+            # The survival judges feasibility and violation as the technique does, after the technique
+            # adapts to the union at the evaluations before the offspring's, as in Evolver's RVEA.
+            st.constraint_handling.update(self.kernel, F_combined, G_combined, run_progress(st.n_eval, st.max_evals))
+            survival_G = st.constraint_handling.effective_violation(G_combined)[:, None]
         survivors, st.ideal, st.nadir = _constraint_aware_apd_survival(
             F_combined,
-            G_combined,
+            survival_G,
             st.V,
             st.gamma,
             st.ideal,
