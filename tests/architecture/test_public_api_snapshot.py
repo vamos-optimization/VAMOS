@@ -14,6 +14,11 @@ FACADE_PATHS = {
     "vamos": SRC_ROOT / "__init__.py",
     "vamos.api": SRC_ROOT / "api.py",
     "vamos.algorithms": SRC_ROOT / "algorithms.py",
+    "vamos.problems": SRC_ROOT / "problems.py",
+    "vamos.run_artifacts": SRC_ROOT / "run_artifacts.py",
+    "vamos.study_artifacts": SRC_ROOT / "study_artifacts.py",
+    "vamos.exceptions": SRC_ROOT / "exceptions.py",
+    "vamos.selection": SRC_ROOT / "selection.py",
     "vamos.ux.api": SRC_ROOT / "ux" / "api.py",
 }
 
@@ -70,6 +75,13 @@ def test_public_api_snapshot() -> None:
             if removed:
                 lines.append(f"  - removed: {', '.join(removed)}")
         raise AssertionError("\n".join(lines))
+
+
+def test_public_api_snapshot_covers_every_public_module() -> None:
+    # AGENTS.md: "Public exports are guarded by tests/architecture/test_public_api_snapshot.py".
+    public = {"vamos"} | {f"vamos.{path.stem}" for path in SRC_ROOT.glob("*.py") if not path.name.startswith("_")}
+    missing = sorted(public - set(FACADE_PATHS))
+    assert not missing, f"public modules outside the snapshot: {missing}"
 
 
 def test_public_api_snapshot_writer_uses_lf(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -186,8 +186,9 @@ def _front_crowding(
     """Crowding distances of ``members[start:start + front_size]`` into ``local_dist``."""
     for i in range(front_size):
         local_dist[i] = 0.0
-    if front_size == 1:
-        local_dist[0] = np.inf
+    if front_size <= 2:
+        for i in range(front_size):
+            local_dist[i] = np.inf
         return
 
     for obj in range(F.shape[1]):
@@ -196,12 +197,11 @@ def _front_crowding(
             local_values[i] = F[members[start + i], obj]
 
         _stable_merge_sort_order(local_values, local_order, local_temp, front_size)
-        local_dist[local_order[0]] = np.inf
-        local_dist[local_order[front_size - 1]] = np.inf
-
         span = local_values[local_order[front_size - 1]] - local_values[local_order[0]]
         if span <= 0.0:
             continue
+        local_dist[local_order[0]] = np.inf
+        local_dist[local_order[front_size - 1]] = np.inf
 
         for pos in range(1, front_size - 1):
             local_dist[local_order[pos]] += (local_values[local_order[pos + 1]] - local_values[local_order[pos - 1]]) / span

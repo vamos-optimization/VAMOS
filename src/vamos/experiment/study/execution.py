@@ -8,6 +8,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, cast
 
+from vamos.experiment.artifacts.compatibility import reuse_current_environment
 from vamos.experiment.artifacts.models import deep_freeze
 from vamos.experiment.artifacts.reconstruction import (
     ReconstructedRun,
@@ -65,6 +66,11 @@ class _ExecutionState:
 
 def execute_study(snapshot: Study) -> Study:
     """Execute all pending tasks in canonical task-ID order and reload."""
+    with reuse_current_environment():
+        return _execute_study(snapshot)
+
+
+def _execute_study(snapshot: Study) -> Study:
     root = snapshot.root.resolve(strict=True)
     state: _ExecutionState | None = None
     if root in _ACTIVE_ROOTS:

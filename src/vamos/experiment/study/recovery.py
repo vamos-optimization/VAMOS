@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import Literal
 
+from vamos.experiment.artifacts.compatibility import compare_current_environment, reuse_current_environment
+from vamos.experiment.artifacts.persistence import load_run
 from vamos.experiment.artifacts.reconstruction import reconstruct_resolved_run
-from vamos.experiment.artifacts.verification import verify_run
 
 from .cancellation import cancel_loaded
 from .errors import (
@@ -27,18 +28,20 @@ _Operation = Literal["resume", "retry"]
 
 def resume_study(snapshot: Study, *, retry_failed: bool = False) -> Study:
     """Reconcile first, then execute pending/interrupted and explicit failures."""
-    return _operate(snapshot, operation="resume", include_failed=retry_failed, include_pending=True, include_interrupted=True)
+    with reuse_current_environment():
+        return _operate(snapshot, operation="resume", include_failed=retry_failed, include_pending=True, include_interrupted=True)
 
 
 def retry_study(snapshot: Study, *, failed_only: bool = True) -> Study:
     """Explicitly retry failed tasks, optionally including interrupted tasks."""
-    return _operate(
-        snapshot,
-        operation="retry",
-        include_failed=True,
-        include_pending=False,
-        include_interrupted=not failed_only,
-    )
+    with reuse_current_environment():
+        return _operate(
+            snapshot,
+            operation="retry",
+            include_failed=True,
+            include_pending=False,
+            include_interrupted=not failed_only,
+        )
 
 
 def _operate(
@@ -187,14 +190,17 @@ def _select_tasks(
 
 
 def _verify_resume_environment(study: Study, selected: set[str], operation: _Operation) -> None:
+    # Every earlier run is compared: its backend, and so its evidence, is its own. load_study has just verified
+    # every artifact of every run, so a run is read from its manifest only, and the operation reuses one capture.
     for attempt in study.attempts:
         if attempt.run_reference is None:
             continue
         run_id = attempt.run_reference.get("run_id")
         if not isinstance(run_id, str):
             continue
-        report = verify_run(study.root / "runs" / run_id)
-        if report.environment.level != "exact":
+        stored = load_run(study.root / "runs" / run_id, verify="manifest")
+        report = compare_current_environment(stored.manifest, stored.environment)
+        if report.level != "exact":
             raise ResumeEnvironmentIncompatibilityError(
                 operation=f"{operation} study",
                 reason="RESUME_ENVIRONMENT_INCOMPATIBLE",
@@ -204,7 +210,7 @@ def _verify_resume_environment(study: Study, selected: set[str], operation: _Ope
                 expected_state="exact prior material environment",
                 path=f"runs/{run_id}/environment.json",
                 expected="exact material compatibility",
-                actual=report.environment.level,
+                actual=report.level,
                 action="Use the runtime and dependency build recorded by the prior canonical run.",
             )
     for plan_task in study.plan.tasks:

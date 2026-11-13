@@ -2,21 +2,55 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+import threading
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from typing import Any
 
 from .models import RunManifest, deep_freeze
 from .provenance import capture_runtime_evidence
 from .reports import CompatibilityFinding, CompatibilityLevel, CompatibilityReport
 
+# Current evidence per backend, kept for each thread inside ``reuse_current_environment``.
+_REUSED_EVIDENCE: dict[int, dict[str, tuple[dict[str, Any], dict[str, Any]]]] = {}
+
+
+@contextmanager
+def reuse_current_environment() -> Iterator[None]:
+    """Capture the current environment once per backend for every comparison this thread makes in the block.
+
+    A capture reads every installed distribution and hashes the VAMOS sources and data, so it costs a few
+    hundred milliseconds. Study operations verify many runs in a row; only resume and retry use the
+    comparison, before running any task. Outside the block, each comparison captures the environment again,
+    so a change to the installation shows in the next verification.
+    """
+    thread = threading.get_ident()
+    if thread in _REUSED_EVIDENCE:
+        yield
+        return
+    _REUSED_EVIDENCE[thread] = {}
+    try:
+        yield
+    finally:
+        del _REUSED_EVIDENCE[thread]
+
 
 def compare_current_environment(manifest: RunManifest, stored_environment: Mapping[str, Any]) -> CompatibilityReport:
     """Compare scientifically material evidence without shell, network, or mutation."""
     backend = _backend_name(manifest.resolved_spec)
-    current_evidence, current_environment = capture_runtime_evidence(backend=backend)
+    current_evidence, current_environment = _current_evidence(backend)
     pairs = _material_pairs(manifest, stored_environment, current_evidence, current_environment)
     findings = tuple(_finding(field, stored, current, explanation) for field, stored, current, explanation in pairs)
     return CompatibilityReport(level=_overall_level(findings), findings=findings)
+
+
+def _current_evidence(backend: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    reused = _REUSED_EVIDENCE.get(threading.get_ident())
+    if reused is None:
+        return capture_runtime_evidence(backend=backend)
+    if backend not in reused:
+        reused[backend] = capture_runtime_evidence(backend=backend)
+    return reused[backend]
 
 
 def _material_pairs(
@@ -224,4 +258,4 @@ def _mapping(value: object) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
 
 
-__all__ = ["compare_current_environment"]
+__all__ = ["compare_current_environment", "reuse_current_environment"]

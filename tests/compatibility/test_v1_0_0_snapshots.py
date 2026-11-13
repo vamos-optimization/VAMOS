@@ -76,25 +76,21 @@ def test_snapshot_detects_a_changed_config_default(monkeypatch: pytest.MonkeyPat
     from vamos.algorithms import NSGAIIConfig
 
     generator = _generator()
-    # algorithm_ids also lists plugins that other tests register in this process (VR-105).
-    keys = ("config_fields", "config_field_defaults", "default_configs")
     committed = _committed("stable_algorithm_configs.json")
-    frozen = {key: committed[key] for key in keys}
 
     def generated() -> dict[str, object]:
-        snapshot = json.loads(generator._json_bytes(generator._algorithm_snapshot()))
-        return {key: snapshot[key] for key in keys}
+        return dict(json.loads(generator._json_bytes(generator._algorithm_snapshot())))
 
-    added = generator._added_config_fields(frozen, generated())
+    added = generator._added_config_fields(committed, generated())
     assert added is not None
-    assert generator._keeps_frozen_configs(frozen, generated(), added)
+    assert generator._keeps_frozen_configs(committed, generated(), added)
     default = NSGAIIConfig.default
 
     def changed_default(*args: object, **kwargs: object) -> NSGAIIConfig:
         return dataclasses.replace(default(*args, **kwargs), crossover=("sbx", {"prob": 1.0, "eta": 20.0}))
 
     monkeypatch.setattr(NSGAIIConfig, "default", changed_default)
-    assert not generator._keeps_frozen_configs(frozen, generated(), added)
+    assert not generator._keeps_frozen_configs(committed, generated(), added)
 
 
 def test_snapshot_detects_a_changed_signature(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -1,9 +1,12 @@
 # Constraints
 
 !!! info "Stable problem-definition API"
-    `make_problem` and `optimize` are Stable in VAMOS 1.1.0. The symbolic
-    constraint DSL and the violation helpers are Internal. See
+    `make_problem` and `optimize` are Stable in VAMOS 1.1.0. The violation
+    helpers are Internal. See
     [Stability and versioning](../project/stability-and-versioning.md).
+    **Development after 1.1.0:** the internal symbolic constraint DSL
+    (`vamos.foundation.constraints.dsl`), which no algorithm or guide used, is
+    removed; declare constraints with `make_problem` or a `Problem` subclass.
 
 ## Define inequality constraints
 

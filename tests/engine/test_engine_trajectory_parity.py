@@ -127,3 +127,63 @@ def test_numpy_and_moocore_engines_follow_the_same_trajectory(algorithm: str, pr
 
     np.testing.assert_array_equal(X_mc, X_np)
     np.testing.assert_array_equal(F_mc, F_np)
+
+
+class _ConstantThirdObjective:
+    """ZDT1 with a third objective that never changes, so crowding must skip it."""
+
+    n_var = 6
+    n_obj = 3
+    n_constraints = 0
+    xl = np.zeros(6)
+    xu = np.ones(6)
+    encoding = "real"
+
+    def evaluate(self, X, out):  # noqa: ANN001 - problem protocol
+        f1 = X[:, 0]
+        g = 1.0 + 9.0 * X[:, 1:].mean(axis=1)
+        out["F"] = np.column_stack([f1, g * (1.0 - np.sqrt(f1 / g)), np.full(X.shape[0], 0.5)])
+
+
+def _steady_state_nsgaii():
+    from vamos.algorithms import NSGAIIConfig
+
+    return (
+        NSGAIIConfig.builder().pop_size(20).steady_state().crossover("sbx", prob=0.9, eta=20.0).mutation("pm", prob="1/n", eta=20.0).build()
+    )
+
+
+def _tournament_smsemoa():
+    from vamos.algorithms import SMSEMOAConfig
+
+    return (
+        SMSEMOAConfig.builder()
+        .pop_size(20)
+        .selection("tournament", size=2)
+        .crossover("sbx", prob=0.9, eta=20.0)
+        .mutation("pm", prob="1/n", eta=20.0)
+        .build()
+    )
+
+
+_CONSTANT_OBJECTIVE_RUNS = {
+    "nsgaii": ("nsgaii", None),
+    "nsgaii-steady": ("nsgaii", _steady_state_nsgaii),
+    # SMS-EMOA reads crowding distances only in tournament parent selection.
+    "smsemoa-tournament": ("smsemoa", _tournament_smsemoa),
+    "spea2": ("spea2", None),
+}
+
+
+@pytest.mark.numba
+@pytest.mark.parametrize("algorithm", sorted(_CONSTANT_OBJECTIVE_RUNS))
+def test_engines_agree_on_a_constant_objective(algorithm: str) -> None:
+    name, build = _CONSTANT_OBJECTIVE_RUNS[algorithm]
+    config = build() if build is not None else None
+    runs = [
+        vamos.optimize(_ConstantThirdObjective(), algorithm=name, algorithm_config=config, engine=engine, seed=5, max_evaluations=600)
+        for engine in ("numpy", "numba")
+    ]
+
+    np.testing.assert_array_equal(np.asarray(runs[1].X), np.asarray(runs[0].X))
+    np.testing.assert_array_equal(np.asarray(runs[1].F), np.asarray(runs[0].F))

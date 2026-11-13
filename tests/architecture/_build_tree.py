@@ -11,10 +11,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _build_inputs(root: Path) -> list[str]:
-    # The project metadata, the files MANIFEST.in adds to the sdist, and src/.
+    # The project metadata, the files MANIFEST.in adds to the sdist, src/, and tests/: the release builds in a
+    # full checkout, where setuptools adds tests/test*.py to the sdist unless MANIFEST.in prunes them.
     manifest = (root / "MANIFEST.in").read_text(encoding="utf-8").splitlines()
     included = [line.split(maxsplit=1)[1] for line in manifest if line.startswith("include ")]
-    return ["pyproject.toml", "MANIFEST.in", *included, "src"]
+    return ["pyproject.toml", "MANIFEST.in", *included, "src", "tests"]
 
 
 def _copy_build_inputs(root: Path, destination: Path) -> None:
