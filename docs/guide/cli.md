@@ -375,6 +375,17 @@ reached the run. The `stopping` and `archive` blocks merge key by key across
 `defaults`, the top level and `problems.<name>`; see
 [Stopping and archive](../experiment/stopping_and_archive.md).
 
+**Development after 1.1.0:** `algorithm`, `engine`, `eval_strategy`,
+`external_archive_pruning`, `problem_set` and `experiment` take the values of their command-line option, in `defaults` and
+in `problems.<name>`. `engine` and `eval_strategy` may use any case, such as
+`NUMPY`, as in VAMOS 1.1.0; the other keys need the exact spelling, such as
+`nsgaii`. Any other value stops the command, and `--validate-config`, with exit
+code 2 and an error that names the key, the value and the valid values. In
+VAMOS 1.1.0 a config file skipped the check that
+the command line makes: an unknown `algorithm` printed `No runs were executed`
+and exited with code 0, an unknown `engine` or pruning policy stopped the run
+with a traceback, `experiment` in a problem block was ignored, and `--validate-config` accepted most of them.
+
 **Development after 1.1.0:** an operator that names the algorithm's default
 operator keeps the default parameters it does not set. With NSGA-II,
 `crossover: {method: sbx, eta: 5}` is SBX with probability 0.9 and eta 5, and

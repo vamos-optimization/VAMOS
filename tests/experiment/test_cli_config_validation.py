@@ -597,6 +597,104 @@ def test_validate_config_accepts_a_valid_config_without_running(monkeypatch, cap
     assert not output_root.exists()
 
 
+def _config_exit(monkeypatch, capsys, config, *argv):
+    """Run ``vamos --config config``; return its exit code (0 when it returns) and stderr."""
+    from vamos.experiment.cli.main import main
+
+    monkeypatch.setattr(sys, "argv", ["prog", "--config", str(config), *argv])
+    try:
+        main()
+    except SystemExit as exc:
+        return exc.code, capsys.readouterr().err
+    return 0, capsys.readouterr().err
+
+
+# A config value of an option with choices, and one of the choices the error lists.
+_INVALID_CHOICES = [
+    pytest.param("algorithm", "not_an_algorithm", "'nsgaii'", id="algorithm"),
+    pytest.param("algorithm", ["nsgaii", "moead"], "'nsgaii'", id="algorithm-list"),
+    # The run never matched algorithm names in another case.
+    pytest.param("algorithm", "NSGAII", "'nsgaii'", id="algorithm-upper-case"),
+    pytest.param("engine", "not_an_engine", "'numpy'", id="engine"),
+    pytest.param("eval_strategy", "not_a_strategy", "'serial'", id="eval_strategy"),
+    pytest.param("external_archive_pruning", "not_a_policy", "'crowding'", id="external_archive_pruning"),
+]
+
+
+@pytest.mark.parametrize("argv", [(), ("--validate-config",)], ids=["run", "validate-config"])
+@pytest.mark.parametrize(("key", "value", "choice"), _INVALID_CHOICES)
+def test_config_value_outside_its_options_choices_stops_the_command(monkeypatch, capsys, tmp_path, key, value, choice, argv):
+    # The command line rejects these values; in VAMOS 1.1.0 a config file passed them on, and
+    # `algorithm: not_an_algorithm` printed "No runs were executed" and exited with code 0.
+    output_root = tmp_path / "results"
+    spec = {"defaults": {**_SMALL_RUN, "output_root": str(output_root), "external_archive_size": 5, key: value}}
+
+    code, err = _config_exit(monkeypatch, capsys, _write_spec(tmp_path, spec), *argv)
+
+    assert code == 2, err
+    assert f"invalid choice: {value!r}" in err and choice in err
+    assert f"defaults.{key}" in err
+    assert "Config OK." not in err and "Traceback" not in err
+    assert not output_root.exists()
+
+
+@pytest.mark.parametrize("argv", [(), ("--validate-config",)], ids=["run", "validate-config"])
+@pytest.mark.parametrize(
+    ("key", "value", "choice"),
+    [*_INVALID_CHOICES, pytest.param("experiment", "not_an_experiment", "'backends'", id="experiment")],
+)
+def test_problem_block_value_outside_its_options_choices_stops_the_command(monkeypatch, capsys, tmp_path, key, value, choice, argv):
+    output_root = tmp_path / "results"
+    spec = {
+        "defaults": {**_SMALL_RUN, "output_root": str(output_root), "external_archive_size": 5},
+        "problems": {"zdt1": {key: value}},
+    }
+
+    code, err = _config_exit(monkeypatch, capsys, _write_spec(tmp_path, spec), *argv)
+
+    assert code == 2, err
+    assert f"problems.zdt1.{key}: invalid choice: {value!r}" in err and choice in err
+    assert "Config OK." not in err and "Traceback" not in err
+    assert not output_root.exists()
+
+
+@pytest.mark.parametrize(
+    "spec",
+    [
+        # A null value leaves the option at its default.
+        pytest.param({"defaults": {**_SMALL_RUN, "engine": None}, "problems": {"zdt1": {"algorithm": None}}}, id="null"),
+        # A config block may name operators that the command-line options do not offer.
+        pytest.param(
+            {"defaults": {**_SMALL_RUN, "problem": "bin_knapsack", "nsgaii": {"crossover": {"method": "uniform"}}}},
+            id="operator-block",
+        ),
+    ],
+)
+def test_config_choice_check_leaves_unset_values_and_operator_blocks_alone(monkeypatch, capsys, tmp_path, spec):
+    code, err = _config_exit(monkeypatch, capsys, _write_spec(tmp_path, spec), "--validate-config")
+
+    assert code == 0, err
+    assert "Config OK." in err
+
+
+def test_config_engine_and_eval_strategy_match_their_choices_in_any_case(monkeypatch, capsys, tmp_path):
+    # The run lower-cases both values, and configs that spelled them in upper case ran in VAMOS 1.1.0.
+    output_root = tmp_path / "results"
+    spec = {
+        "defaults": {**_SMALL_RUN, "engine": "NUMPY", "eval_strategy": "SERIAL", "output_root": str(output_root)},
+        "problems": {"zdt1": {"engine": "NumPy", "eval_strategy": "Serial"}},
+    }
+    config = _write_spec(tmp_path, spec)
+
+    code, err = _config_exit(monkeypatch, capsys, config, "--validate-config")
+    assert code == 0, err
+    assert "Config OK." in err
+
+    code, err = _config_exit(monkeypatch, capsys, config)
+    assert code == 0, err
+    assert list(output_root.rglob("manifest.json"))
+
+
 def test_upper_case_problem_override_reaches_the_run(monkeypatch, tmp_path):
     # In VAMOS 1.1.0 the spec accepted problems.ZDT1, but the run looked up "zdt1" and applied nothing.
     output_root = tmp_path / "results"
