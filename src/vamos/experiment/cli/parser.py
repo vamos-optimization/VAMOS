@@ -65,8 +65,14 @@ def _config_keys(parser: argparse.ArgumentParser, args: argparse.Namespace, defa
     return keys
 
 
+# Options whose config value the run lower-cases, so the check ignores its case.
+_CASE_INSENSITIVE_CHOICES = ("engine", "eval_strategy")
+
+
 def _check_choice(parser: argparse.ArgumentParser, action: argparse.Action, value: object, where: str) -> None:
     if value is None or action.choices is None or value in action.choices:
+        return
+    if action.dest in _CASE_INSENSITIVE_CHOICES and isinstance(value, str) and value.lower() in action.choices:
         return
     parser.error(f"{where}: invalid choice: {value!r} (choose from {', '.join(map(repr, action.choices))})")
 
@@ -75,10 +81,11 @@ def _check_config_choices(parser: SpecArgumentParser, args: argparse.Namespace, 
     """Reject a config value outside the choices of its option, as the command line does.
 
     argparse checks the choices of a command-line value only; a config value becomes the option's
-    default and skips that check. Null is not checked: it is the default of options such as
-    ``engine``, and a null ``algorithm`` or ``engine`` in a problem block keeps the value in effect.
-    Operator blocks may name operators that the command-line options do not offer, and ``problem``
-    has its own check, which suggests the closest names.
+    default and skips that check. ``engine`` and ``eval_strategy`` match in any case, as the run
+    accepts them. Null is not checked: it is the default of options such as ``engine``, and a null
+    ``algorithm`` or ``engine`` in a problem block keeps the value in effect. Operator blocks may
+    name operators that the command-line options do not offer, and ``problem`` has its own check,
+    which suggests the closest names.
     """
     spec_keys = parser_spec_keys(parser) - {"problem"}
     for action in parser._actions:

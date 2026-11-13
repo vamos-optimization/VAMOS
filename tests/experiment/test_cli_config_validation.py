@@ -613,6 +613,8 @@ def _config_exit(monkeypatch, capsys, config, *argv):
 _INVALID_CHOICES = [
     pytest.param("algorithm", "not_an_algorithm", "'nsgaii'", id="algorithm"),
     pytest.param("algorithm", ["nsgaii", "moead"], "'nsgaii'", id="algorithm-list"),
+    # The run never matched algorithm names in another case.
+    pytest.param("algorithm", "NSGAII", "'nsgaii'", id="algorithm-upper-case"),
     pytest.param("engine", "not_an_engine", "'numpy'", id="engine"),
     pytest.param("eval_strategy", "not_a_strategy", "'serial'", id="eval_strategy"),
     pytest.param("external_problem_source", "not_a_source", "'native'", id="external_problem_source"),
@@ -674,6 +676,24 @@ def test_config_choice_check_leaves_unset_values_and_operator_blocks_alone(monke
 
     assert code == 0, err
     assert "Config OK." in err
+
+
+def test_config_engine_and_eval_strategy_match_their_choices_in_any_case(monkeypatch, capsys, tmp_path):
+    # The run lower-cases both values, and configs that spelled them in upper case ran in VAMOS 1.1.0.
+    output_root = tmp_path / "results"
+    spec = {
+        "defaults": {**_SMALL_RUN, "engine": "NUMPY", "eval_strategy": "SERIAL", "output_root": str(output_root)},
+        "problems": {"zdt1": {"engine": "NumPy", "eval_strategy": "Serial"}},
+    }
+    config = _write_spec(tmp_path, spec)
+
+    code, err = _config_exit(monkeypatch, capsys, config, "--validate-config")
+    assert code == 0, err
+    assert "Config OK." in err
+
+    code, err = _config_exit(monkeypatch, capsys, config)
+    assert code == 0, err
+    assert list(output_root.rglob("manifest.json"))
 
 
 def test_upper_case_problem_override_reaches_the_run(monkeypatch, tmp_path):
