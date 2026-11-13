@@ -150,3 +150,16 @@ def test_health_and_ci_use_the_same_agent_checker_arguments() -> None:
 
     assert '("Agent documentation", [python, "tools/check_agent_docs.py"])' in health
     assert "run: python tools/check_agent_docs.py" in ci
+
+
+def test_ignored_agents_md_is_skipped(tmp_path: Path) -> None:
+    import subprocess
+
+    root = _fixture_repo(tmp_path)
+    _write(root / ".gitignore", ".venv/\n")
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+    # A package inside an ignored virtual environment ships its own AGENTS.md; it is not this repository's.
+    _write(root / ".venv" / "Lib" / "site-packages" / "somepkg" / "AGENTS.md", "# Someone else's instructions\n")
+
+    assert check_repository(root) == []

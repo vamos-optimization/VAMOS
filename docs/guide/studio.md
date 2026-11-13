@@ -370,6 +370,24 @@ are not part of the stable VAMOS 1.x compatibility surface.
 ## Optional dependencies
 
 Interactive plots and tables use Panel, Plotly, and pandas from the `studio`
-extra. Provider-backed code generation may require a provider-specific API key.
+extra. Problem Builder code generation also needs the SDK of the chosen LLM
+provider and an API key. The provider selector starts on `gemini`.
+
+| Provider | Install | Default model | Model variable | API key |
+| --- | --- | --- | --- | --- |
+| gemini | `pip install "vamos-optimization[gemini]"` | `gemini-2.0-flash` | `VAMOS_ASSIST_GEMINI_MODEL` | `GEMINI_API_KEY` |
+| openai | `pip install "vamos-optimization[openai]"` | `gpt-4o` | `VAMOS_ASSIST_OPENAI_MODEL` | `OPENAI_API_KEY` |
+| anthropic | `pip install "vamos-optimization[anthropic]"` | `claude-sonnet-4-20250514` | `VAMOS_ASSIST_ANTHROPIC_MODEL` | `ANTHROPIC_API_KEY`, or another credential the Anthropic SDK finds |
+
+**Development after 1.1.0:** the `gemini` extra is new. With VAMOS 1.1.0,
+install the Gemini SDK with `pip install google-genai`.
+
+`VAMOS_ASSIST_OPENAI_MODEL` also sets the model of `vamos assist`, whose
+default is `gpt-5.2`; set it to the model you want for both.
+
+Studio sends the provider the instructions for the expected answer and the
+problem description you typed. It sends no data, results, or files. Usage is
+billed to the owner of the API key.
+
 Prefer environment-based credentials; values entered in the password field are
 held only in the running process and are not included in Studio status output.

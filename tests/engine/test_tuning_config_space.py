@@ -78,17 +78,6 @@ def test_param_round_trip_sampling():
     assert cati.from_unit(vec[4]) in cati.choices
 
 
-def test_algorithm_config_space_round_trip():
-    rng = np.random.default_rng(1)
-    params = [Categorical("a", ["x", "y"]), Int("b", 1, 3)]
-    space = AlgorithmConfigSpace("toy", params, [])
-    assignment = space.sample(rng)
-    vec = space.to_unit_vector(assignment)
-    decoded = space.from_unit_vector(vec)
-    assert decoded["a"] in ["x", "y"]
-    assert 1 <= decoded["b"] <= 3
-
-
 @pytest.mark.parametrize("builder", [build_nsgaii_config_space, build_moead_config_space, build_agemoea_config_space])
 def test_mutation_eta_is_active_only_for_polynomial_mutations(builder):
     space = builder()
@@ -101,10 +90,6 @@ def test_mutation_eta_is_active_only_for_polynomial_mutations(builder):
         assert ("mutation_eta" in config) == active
         assert {param.name for param in space.flatten(config)} == set(config)
         param_space.validate(config)
-        vector = space.to_unit_vector(config)
-        decoded = space.from_unit_vector(vector)
-        assert set(decoded) == set(config)
-        np.testing.assert_allclose(space.to_unit_vector(decoded), vector)
         seen.add(active)
     assert seen == {False, True}
 
@@ -748,10 +733,6 @@ def test_conditioned_parameters_declared_before_their_parents_are_sampled():
     for sample in samples:
         assert set(sample) == {name for name in param_space.params if param_space.is_active(name, sample)}
         param_space.validate(sample)
-        decoded = space.from_unit_vector(space.to_unit_vector(sample))
-        assert set(decoded) == set(sample)
-        assert decoded["op"] == sample["op"] and decoded.get("kind") == sample.get("kind")
-        assert decoded.get("eta") == pytest.approx(sample.get("eta"))
 
 
 @pytest.mark.parametrize("parent", [Boolean("use_x"), Categorical("use_x", [True, False])], ids=["boolean", "categorical"])

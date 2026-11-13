@@ -15,6 +15,13 @@ two rows each, which another row of the same file dominates.
 - mw9.csv to mw13.csv: MW9.csv to MW13.csv
 - mw4.2d.csv, mw4.3d.csv, mw8.2d.csv, mw8.3d.csv, mw14.2d.csv and mw14.3d.csv:
   MW4.2D.csv, MW4.3D.csv, MW8.2D.csv, MW8.3D.csv, MW14.2D.csv and MW14.3D.csv
+- binh2.csv, golinski.csv, osyczka2.csv, water.csv and car_side_impact.csv:
+  Binh2.csv, Golinski.csv, Osyczka2.csv, Water.csv and CarSideImpact.csv
+- cec2009_cf2.csv to cec2009_cf10.csv: CEC2009CF2.csv to CEC2009CF10.csv
+- cre21.csv to cre25.csv, cre31.csv, cre32.csv and cre51.csv: CRE21.csv to
+  CRE25.csv, CRE31.csv, CRE32.csv and CRE51.csv
+- rcm01.csv to rcm49.csv, except rcm17.csv, rcm23.csv and rcm26.csv: RCM01.csv
+  to RCM49.csv
 
 These files are distributed under the license of that repository:
 

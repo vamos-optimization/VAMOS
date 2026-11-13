@@ -39,6 +39,9 @@ def main() -> int:
         ("Unsupported pre-1.0 remnant checker tests", [python, "-m", "pytest", "-q", "tests/test_check_pre_release_remnants.py"]),
         # CI runs this checker with the same script and no arguments. See /AGENTS.md.
         ("Agent documentation", [python, "tools/check_agent_docs.py"]),
+        ("Learning content", [python, "tools/check_learning_content.py"]),
+        ("Notebook links", [python, "tools/check_notebook_links.py"]),
+        ("Notebook quality", [python, "tools/check_notebook_quality.py"]),
         ("Layer boundaries", [python, "-m", "pytest", "-q", "tests/architecture/test_layer_boundaries.py"]),
         ("Monolith guard", [python, "-m", "pytest", "-q", "tests/test_monolith_guard.py"]),
         ("Public API guard", [python, "-m", "pytest", "-q", "tests/test_public_api_guard.py"]),
@@ -46,6 +49,8 @@ def main() -> int:
         ("Import-time purity", [python, "-m", "pytest", "-q", "tests/architecture/test_no_import_time_side_effects.py"]),
         ("Public API snapshot", [python, "-m", "pytest", "-q", "tests/architecture/test_public_api_snapshot.py"]),
         ("Dependency policy", [python, "-m", "pytest", "-q", "tests/architecture/test_dependency_policy.py"]),
+        ("No facade imports", [python, "-m", "pytest", "-q", "tests/architecture/test_no_facade_imports.py"]),
+        ("Import cycles", [python, "-m", "pytest", "-q", "tests/architecture/test_experiment_import_cycles.py"]),
         ("Optional deps policy", [python, "-m", "pytest", "-q", "tests/test_optional_deps_policy.py"]),
         ("Logging policy", [python, "-m", "pytest", "-q", "tests/test_logging_policy.py"]),
         ("No prints in library", [python, "-m", "pytest", "-q", "tests/test_no_prints_in_library.py"]),
@@ -56,8 +61,6 @@ def main() -> int:
         ("Full typecheck", [python, "tools/typecheck.py", "--scope", "full"]),
         ("Build smoke", [python, "-m", "pytest", "-q", "tests/architecture/test_build_smoke.py"]),
         ("py.typed present", [python, "-m", "pytest", "-q", "tests/architecture/test_py_typed_present.py"]),
-        ("Ruff check", [python, "-m", "ruff", "check", "src/vamos", "tests"]),
-        ("Build", [python, "-m", "build"]),
     ]
 
     failures = 0

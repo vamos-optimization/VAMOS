@@ -4,10 +4,10 @@ from typing import Any
 import pytest
 from joblib import parallel_config
 
-from src.vamos.engine.tuning.racing.core import RacingTuner
-from src.vamos.engine.tuning.racing.param_space import ParamSpace, Real
-from src.vamos.engine.tuning.racing.scenario import Scenario
-from src.vamos.engine.tuning.racing.tuning_task import EvalContext, Instance, TuningTask
+from vamos.engine.tuning.racing.core import RacingTuner
+from vamos.engine.tuning.racing.param_space import ParamSpace, Real
+from vamos.engine.tuning.racing.scenario import Scenario
+from vamos.engine.tuning.racing.tuning_task import EvalContext, Instance, TuningTask
 
 
 def test_parallel_execution_preserves_results():

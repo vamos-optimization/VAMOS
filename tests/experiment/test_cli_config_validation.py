@@ -205,15 +205,24 @@ def test_problem_operator_override_completes_an_unnamed_cli_operator(monkeypatch
 
 
 def test_genealogy_is_checked_against_each_problems_algorithm(monkeypatch, capsys, tmp_path):
-    spec = {"defaults": {"algorithm": "smsemoa", "track_genealogy": True}, "problems": {"zdt1": {"algorithm": "nsgaii"}}}
+    spec = {"defaults": {"algorithm": "agemoea", "track_genealogy": True}, "problems": {"zdt1": {"algorithm": "nsgaii"}}}
     config = tmp_path / "spec.json"
     config.write_text(json.dumps({"version": "1", **spec}), encoding="utf-8")
 
     stored = _run_and_load(monkeypatch, tmp_path, "--config", str(config))
     assert stored.result.F is not None
 
-    err = _run_error(monkeypatch, capsys, tmp_path / "other", "--algorithm", "smsemoa", "--track-genealogy")
-    assert "track_genealogy" in err
+    # AGE-MOEA records no genealogy, so the run would ignore the request.
+    err = _run_error(monkeypatch, capsys, tmp_path / "other", "--algorithm", "agemoea", "--track-genealogy")
+    assert "track_genealogy" in err and "agemoea" in err
+
+
+@pytest.mark.parametrize("algorithm", ["moead", "smsemoa", "nsgaiii", "spea2", "ibea", "smpso"])
+def test_cli_genealogy_runs_with_every_tracking_algorithm(monkeypatch, tmp_path, algorithm):
+    # VAMOS 1.1.0 accepted --track-genealogy only with NSGA-II.
+    stored = _run_and_load(monkeypatch, tmp_path, "--algorithm", algorithm, "--track-genealogy")
+
+    assert stored.manifest["outcome"]["metrics"]["genealogy"]
 
 
 @pytest.mark.parametrize(

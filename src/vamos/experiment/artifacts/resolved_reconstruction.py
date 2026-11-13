@@ -295,6 +295,12 @@ def _termination(resolved: Mapping[str, Any], root: Path) -> TerminationSpec:
         if config.get("hard_max_evaluations") != value or set(config) != {"max_evaluations", "hard_max_evaluations"}:
             raise _component_error(root, "$.resolved_spec.termination.config", config)
         return (name, value)
+    if name == "n_gen":
+        # A generation budget is persisted as {"value": generations}.
+        generations = _integer(config.get("value"), root, "$.resolved_spec.termination.config.value")
+        if set(config) != {"value"}:
+            raise _component_error(root, "$.resolved_spec.termination.config", config)
+        return (name, generations)
     if name == "hv":
         return (name, cast(dict[str, object], deep_thaw(deep_freeze(config))))
     raise _component_error(root, "$.resolved_spec.termination.component_id", name)

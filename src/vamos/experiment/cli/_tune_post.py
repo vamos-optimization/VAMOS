@@ -53,7 +53,14 @@ def evaluate_config_split(
     seeds: list[int],
     budget: int,
     aggregator: Callable[[list[float]], float],
+    failure_score: float,
 ) -> dict[str, Any]:
+    """Scores of ``config`` on every instance and seed of a split.
+
+    A failed run counts as ``failure_score`` in the score metrics when some run succeeded, so a
+    candidate that rarely succeeds is not ranked by its few successes; when every run failed,
+    the score metrics are NaN. ``rows_ok`` and ``fail_rate`` count the failures either way.
+    """
     scores: list[float] = []
     rows_total = 0
     rows_ok = 0
@@ -63,15 +70,13 @@ def evaluate_config_split(
             ctx = EvalContext(instance=inst, seed=int(seed), budget=int(budget))
             try:
                 result = eval_fn(config, ctx)
-                if isinstance(result, tuple):
-                    score = float(result[0])
-                else:
-                    score = float(result)
-                rows_ok += 1
+                score = float(result[0]) if isinstance(result, tuple) else float(result)
             except Exception:
                 score = float("nan")
+            # A failed run scores NaN (see make_evaluator), so only finite scores are successful rows.
+            rows_ok += int(np.isfinite(score))
             scores.append(score)
-    valid = [s for s in scores if np.isfinite(s)]
+    valid = [s if np.isfinite(s) else float(failure_score) for s in scores] if rows_ok else []
     agg = float(aggregator(valid)) if valid else float("nan")
     return {
         "score_agg": agg,
@@ -233,7 +238,13 @@ def persist_artifacts(
     available_backends_fn: Callable[[], dict[str, bool]] | None = None,
 ) -> None:
     best_active = filter_active_config(best_config, task.param_space)
-    best_score = max((float(h.score) for h in history), default=float("nan"))
+    # The score of the returned configuration (racing's final choice, the finisher's winner or
+    # irace's elite), which need not be the highest score in the history.
+    best_score = max(
+        (float(h.score) for h in history if filter_active_config(dict(h.config), task.param_space) == best_active),
+        default=float("nan"),
+    )
+    best_history_score = max((float(h.score) for h in history), default=float("nan"))
 
     best_raw_path = output_dir / "best_config_raw.json"
     best_active_path = output_dir / "best_config_active.json"
@@ -264,6 +275,7 @@ def persist_artifacts(
         "failure_score": float(args.failure_score),
         "trials_observed": int(len(history)),
         "best_score": float(best_score),
+        "best_history_score": float(best_history_score),
         "elapsed_seconds": float(elapsed_seconds),
         "available_model_backends": available_backends,
         "args": arg_payload,

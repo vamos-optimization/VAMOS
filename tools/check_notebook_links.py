@@ -5,13 +5,19 @@ import re
 import sys
 from pathlib import Path
 
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from tools.check_pre_release_remnants import tracked_paths
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 NOTEBOOK_ROOT = REPO_ROOT / "notebooks"
 LINK_RE = re.compile(r"\[[^\]]+\]\(([^)#]+)(?:#[^)]+)?\)")
 
 
 def iter_notebooks() -> list[Path]:
-    return sorted(NOTEBOOK_ROOT.rglob("*.ipynb"))
+    # Tracked notebooks only: Jupyter's ignored .ipynb_checkpoints/ copies are not part of the repository.
+    return [path for path in tracked_paths(REPO_ROOT) if path.suffix == ".ipynb" and NOTEBOOK_ROOT in path.parents]
 
 
 def main() -> int:

@@ -12,6 +12,9 @@ concurrency:
   group: ci-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 defaults:
   run:
     shell: bash
@@ -86,6 +89,9 @@ jobs:
           python tools/check_repository_hygiene.py
           python tools/check_repository_identity.py
           python tools/check_pre_release_remnants.py
+          python tools/check_learning_content.py
+          python tools/check_notebook_links.py
+          python tools/check_notebook_quality.py
           python -m pytest -q \
             tests/test_check_repository_hygiene.py \
             tests/test_check_repository_identity.py \
@@ -97,6 +103,8 @@ jobs:
             tests/test_import_time_smoke.py \
             tests/architecture/test_no_import_time_side_effects.py \
             tests/architecture/test_dependency_policy.py \
+            tests/architecture/test_no_facade_imports.py \
+            tests/architecture/test_experiment_import_cycles.py \
             tests/test_optional_deps_policy.py \
             tests/test_logging_policy.py \
             tests/test_no_prints_in_library.py \
@@ -111,7 +119,6 @@ jobs:
             tests/engine/test_permutation_edge_cases.py \
             tests/engine/test_moead_weight_vectors.py \
             tests/foundation/test_hypervolume_fallback.py \
-            tests/engine/test_tuning_hypervolume_nd.py \
             tests/architecture/test_docs_and_workflows.py
       - name: Run tests
         run: pytest -m "not slow" --cov=src/vamos --cov-report=term-missing
@@ -142,9 +149,35 @@ jobs:
       - name: Run minimal smoke tests
         run: python -m pytest tests/integration/test_minimal_imports.py tests/foundation/test_packaging_data.py
 
+  # The declared minimum of every core dependency, on the oldest supported Python.
+  tests-minimum:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install the declared minimum dependencies
+        run: |
+          python -m pip install -U pip
+          python -m pip install -c constraints/ci.txt tomli
+          python tools/minimum_constraints.py > "$RUNNER_TEMP/minimum.txt"
+          # One resolution for VAMOS and pytest, so pytest's own dependencies fit the minimum pins.
+          grep -E '^pytest==' constraints/ci.txt >> "$RUNNER_TEMP/minimum.txt"
+          cat "$RUNNER_TEMP/minimum.txt"
+          python -m pip install -c "$RUNNER_TEMP/minimum.txt" . pytest
+          python -m pip list
+      - name: Run minimal smoke tests
+        run: python -m pytest tests/integration/test_minimal_imports.py tests/foundation/test_packaging_data.py
+
   build-wheel:
     runs-on: ubuntu-latest
-    needs: [typing, tests-full, tests-minimal]
+    needs: [typing, tests-full, tests-minimal, tests-minimum]
     # A required check: it runs even when a needed job fails, and then fails itself, because
     # GitHub counts a skipped required check as passing, also in the merge queue.
     if: ${{ always() }}
@@ -152,7 +185,7 @@ jobs:
       - name: Require typing and tests
         if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}
         run: |
-          echo "typing=${{ needs.typing.result }} tests-full=${{ needs.tests-full.result }} tests-minimal=${{ needs.tests-minimal.result }}"
+          echo "typing=${{ needs.typing.result }} tests-full=${{ needs.tests-full.result }} tests-minimal=${{ needs.tests-minimal.result }} tests-minimum=${{ needs.tests-minimum.result }}"
           exit 1
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -161,10 +194,11 @@ jobs:
         with:
           python-version: "3.12"
       - name: Build wheel
+        # As the release builds it: the audited build environment, without isolation or the CI pins.
         run: |
-          python -m pip install -U pip build
-          python -m pip install -c constraints/ci.txt -r constraints/ci.txt
-          python -m build
+          python -m pip install -U pip
+          python -m pip install -r release/requirements-build.txt
+          python -m build --no-isolation
       - name: Install wheel and smoke test
         run: |
           python -m pip install dist/*.whl

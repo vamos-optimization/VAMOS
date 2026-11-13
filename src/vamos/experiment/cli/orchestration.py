@@ -11,6 +11,7 @@ from typing import TypeVar, cast
 from vamos.engine.algorithm.catalog import ENABLED_ALGORITHMS
 from vamos.engine.algorithm.config.base import normalize_constraint_mode
 from vamos.engine.algorithm.config.validation import validate_config_fields
+from vamos.engine.algorithm.factory import GENEALOGY_ALGORITHMS
 from vamos.engine.archive import ExternalArchiveConfig, normalize_prune_policy
 from vamos.engine.config.spec import ExperimentSpec, ProblemOverrides, SpecBlock
 from vamos.engine.config.variation import VariationOverrides, merge_variation_overrides
@@ -133,10 +134,16 @@ def _check_effective_settings(
                 f"selection_pressure ({pressure}) cannot exceed population_size ({population}) for problem '{key}'.",
                 suggestion="Lower --selection-pressure (selection_pressure in a config) or raise the population size.",
             )
-        if override.get("track_genealogy", getattr(args, "track_genealogy", False)) and algorithm != "nsgaii":
+        untracked = [
+            name for name in (ENABLED_ALGORITHMS if algorithm == "both" else (str(algorithm),)) if name not in GENEALOGY_ALGORITHMS
+        ]
+        if override.get("track_genealogy", getattr(args, "track_genealogy", False)) and untracked:
             raise ConfigurationError(
-                f"track_genealogy is supported only with the nsgaii algorithm; problem '{key}' runs '{algorithm}'.",
-                suggestion="Drop --track-genealogy (track_genealogy in a config) or select nsgaii for that problem.",
+                f"track_genealogy is not supported by {', '.join(untracked)}; problem '{key}' runs '{algorithm}'.",
+                suggestion=(
+                    "Drop --track-genealogy (track_genealogy in a config) or select one of "
+                    f"{', '.join(GENEALOGY_ALGORITHMS)} for that problem."
+                ),
             )
         _check_unnamed_operators(args, override, algorithm, key)
         offspring = override.get("offspring_population_size", config.offspring_population_size)

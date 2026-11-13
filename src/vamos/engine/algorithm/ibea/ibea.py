@@ -23,15 +23,16 @@ from vamos.engine.algorithm.components.evaluation import combine_constraints, ex
 from vamos.engine.algorithm.components.hooks import (
     finalize_genealogy,
     live_should_stop,
+    survivor_genealogy_ids,
     track_offspring_genealogy,
 )
 from vamos.engine.algorithm.components.lifecycle import evaluate_batch
-from vamos.engine.algorithm.components.termination import HVTracker, capped_offspring_size
+from vamos.engine.algorithm.components.termination import HVTracker, capped_offspring_size, hv_target_reached
 from vamos.engine.algorithm.components.utils import variation_operator_label
 from vamos.engine.algorithm.nsgaii.helpers import build_mating_pool
 from vamos.foundation.kernel import default_kernel
 
-from .helpers import environmental_selection
+from .helpers import environmental_selection_indices
 from .initialization import initialize_ibea_run
 from .state import IBEAState, build_ibea_result
 
@@ -144,9 +145,7 @@ class IBEA:
             F_comb = np.vstack([st.F, F_off])
             G_comb = combine_constraints(st.G, G_off, st.constraint_mode, algorithm="IBEA")
 
-            st.X, st.F, st.G, st.fitness = environmental_selection(
-                X_comb, F_comb, G_comb, st.pop_size, st.indicator, st.kappa, self.kernel.selection_kernels()
-            )
+            self._select_survivors(st, X_comb, F_comb, G_comb)
 
             st.generation += 1
 
@@ -186,6 +185,21 @@ class IBEA:
         self._hv_tracker = cast(HVTracker, hv_tracker)
         return live_cb, eval_strategy, max_eval, hv_tracker
 
+    def _select_survivors(
+        self,
+        st: IBEAState,
+        X_comb: np.ndarray[Any, Any],
+        F_comb: np.ndarray[Any, Any],
+        G_comb: np.ndarray[Any, Any] | None,
+    ) -> None:
+        """Keep the survivors of the population followed by its offspring, and their genealogy ids."""
+        selected, st.fitness = environmental_selection_indices(
+            F_comb, G_comb, st.pop_size, st.indicator, st.kappa, self.kernel.selection_kernels()
+        )
+        st.X, st.F = X_comb[selected], F_comb[selected]
+        st.G = G_comb[selected] if G_comb is not None else None
+        survivor_genealogy_ids(st, selected)
+
     def _generate_offspring(self, st: IBEAState) -> np.ndarray[Any, Any]:
         """Generate offspring using tournament selection and variation."""
         if st.variation is None:
@@ -208,7 +222,15 @@ class IBEA:
             X_off = X_off[:request_size]
 
         # Track genealogy
-        track_offspring_genealogy(st, parent_idx, X_off.shape[0], variation_operator_label(self.cfg, "sbx+pm"), "ibea")
+        track_offspring_genealogy(
+            st,
+            parent_idx,
+            X_off.shape[0],
+            variation_operator_label(self.cfg, "sbx+pm"),
+            "ibea",
+            parents_per_group=parents_per_group,
+            children_per_group=children_per_group,
+        )
 
         return X_off
 
@@ -310,9 +332,7 @@ class IBEA:
         F_comb = np.vstack([st.F, F])
         G_comb = combine_constraints(st.G, G, st.constraint_mode, algorithm="IBEA")
 
-        st.X, st.F, st.G, st.fitness = environmental_selection(
-            X_comb, F_comb, G_comb, st.pop_size, st.indicator, st.kappa, self.kernel.selection_kernels()
-        )
+        self._select_survivors(st, X_comb, F_comb, G_comb)
 
         st.n_eval += X_off.shape[0]
         st.generation += 1
@@ -326,10 +346,8 @@ class IBEA:
             self._live_cb.on_generation(st.generation, F=st.F)
 
         # Check HV tracker
-        if st.hv_tracker is not None and st.hv_tracker.enabled:
-            st.hv_tracker.reached(st.hv_points())
-
-        return False
+        # True once the HV target of an ("hv", ...) termination is reached, as in the other algorithms.
+        return hv_target_reached(st)
 
     def should_terminate(self) -> bool:
         """Check if termination criterion is met."""

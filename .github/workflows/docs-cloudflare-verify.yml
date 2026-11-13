@@ -30,17 +30,21 @@ jobs:
         with:
           python-version: "3.12"
       - name: Verify live documentation contract
+        env:
+          DOC_VERSION: ${{ inputs.version }}
         run: |
           python tools/check_docs_live.py \
-            --version '${{ inputs.version }}' \
+            --version "$DOC_VERSION" \
             --attempts 1 \
             --delay 0 \
             --timeout 15
       - name: Summarize verification
+        env:
+          DOC_VERSION: ${{ inputs.version }}
         run: |
           {
             echo "### VAMOS Cloudflare cutover verification"
             echo
-            echo "Verified https://vamos-optimization.org/ for VAMOS ${{ inputs.version }}."
+            echo "Verified https://vamos-optimization.org/ for VAMOS ${DOC_VERSION}."
             echo "Canonical version routes and all three redirect hosts satisfy the live contract."
           } >> "$GITHUB_STEP_SUMMARY"
