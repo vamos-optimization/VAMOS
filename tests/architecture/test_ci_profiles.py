@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import re
+from collections import Counter
 from pathlib import Path
 
 import yaml
+from packaging.requirements import Requirement
+from packaging.version import Version
 
 try:
     import tomllib
@@ -37,6 +40,55 @@ def _ci_jobs() -> dict:
     return yaml.load((ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8"), Loader=yaml.BaseLoader)["jobs"]
 
 
+_PIP_VALUE_OPTIONS = {"-c", "-r", "-e", "--constraint", "--requirement", "--editable"}
+
+
+def _workflows() -> list[tuple[str, str]]:
+    return [(path.name, path.read_text(encoding="utf-8")) for path in sorted((ROOT / ".github" / "workflows").glob("*.yml"))]
+
+
+def _pip_installs() -> list[tuple[str, list[str]]]:
+    """The arguments of each ``pip install`` command of the workflows, with the workflow's name."""
+    installs = []
+    for name, text in _workflows():
+        for command in text.replace("\\\n", " ").splitlines():
+            if "pip install" in command:
+                installs.append((name, command.split("pip install", 1)[1].split()))
+    return installs
+
+
+def _installed_by_name(arguments: list[str]) -> list[str]:
+    """The distributions that ``pip install`` arguments name directly, not through an extra or a file."""
+    names = []
+    skip = False
+    for argument in arguments:
+        if skip or argument in _PIP_VALUE_OPTIONS:
+            skip = not skip
+            continue
+        if re.fullmatch(r"[A-Za-z][A-Za-z0-9._-]*", argument):
+            names.append(_name(argument))
+    return names
+
+
+def _installed_extras() -> list[tuple[str, str]]:
+    """The extras that the workflows install: ``.[a,b]`` in a command, or the lists of the ``EXTRAS`` variable it expands."""
+    found = []
+    for name, text in _workflows():
+        groups = [
+            group
+            for workflow, arguments in _pip_installs()
+            if workflow == name
+            for group in re.findall(r"\.\[([A-Za-z0-9_,-]+)\]", " ".join(arguments))
+        ]
+        for line in text.splitlines():
+            key, _, value = line.strip().partition(":")
+            if key == "EXTRAS":
+                # The literal lists inside the ${{ }} expressions ('a,b' && 'c' || ',d'), and the text outside them.
+                groups += re.findall(r"(?:&&|\|\|)\s*'([^']*)'", value) + [re.sub(r"\$\{\{.*?\}\}", ",", value)]
+        found += [(name, extra.strip()) for group in groups for extra in group.split(",") if extra.strip()]
+    return found
+
+
 def test_ci_constraints_pin_only_declared_distributions() -> None:
     data = _project()
     requirements = [
@@ -47,13 +99,28 @@ def test_ci_constraints_pin_only_declared_distributions() -> None:
     declared = {_name(requirement) for requirement in requirements}
     # A requirement such as dask[distributed] also installs the distribution its extra names.
     declared |= {_name(extra) for requirement in requirements for extra in re.findall(r"\[([^\]]+)\]", requirement)}
+    # A maintainer tool's dependency that a workflow installs by name, such as pymoo for tools/benchmark_compare_pymoo.py.
+    declared |= {name for _workflow, arguments in _pip_installs() for name in _installed_by_name(arguments)}
 
-    assert sorted(set(_pins(ROOT / "constraints" / "ci.txt")) - declared) == []
+    undeclared = sorted(set(_pins(ROOT / "constraints" / "ci.txt")) - declared)
+    assert undeclared == [], f"constraints/ci.txt pins distributions that nothing installs: {undeclared}"
 
 
-def test_ci_constraints_pin_the_research_extra() -> None:
-    research = {_name(requirement) for requirement in _project()["project"]["optional-dependencies"]["research"]}
-    assert sorted(research - set(_pins(ROOT / "constraints" / "ci.txt"))) == []
+def test_workflows_install_declared_extras_and_pinned_tools() -> None:
+    # pip only warns about an extra that the package does not declare, and installs nothing for it.
+    extras = set(_project()["project"]["optional-dependencies"])
+    undeclared = sorted({f"{workflow}: {extra}" for workflow, extra in _installed_extras() if extra not in extras})
+    assert undeclared == [], f"workflows install extras that pyproject.toml does not declare: {undeclared}"
+
+    pins = set(_pins(ROOT / "constraints" / "ci.txt"))
+    unpinned = [
+        f"{workflow}: {name}"
+        for workflow, arguments in _pip_installs()
+        if "constraints/ci.txt" in arguments
+        for name in _installed_by_name(arguments)
+        if name not in pins
+    ]
+    assert unpinned == [], f"workflows install by name, with constraints/ci.txt, distributions that it does not pin: {unpinned}"
 
 
 def test_minimum_profile_uses_declared_minimums() -> None:
@@ -89,3 +156,34 @@ def test_build_wheel_job_builds_like_the_release() -> None:
     assert "-r release/requirements-build.txt" in scripts
     assert "python -m build --no-isolation" in scripts
     assert "constraints/ci.txt" not in scripts
+
+
+def test_tests_full_runs_every_python_on_linux_and_the_newest_on_every_system() -> None:
+    matrix = _ci_jobs()["tests-full"]["strategy"]["matrix"]
+    versions = matrix["python-version"]
+    excluded = {(entry["os"], entry["python-version"]) for entry in matrix["exclude"]}
+
+    # Pull requests run Linux only; the merge queue and main add Windows and macOS.
+    assert "github.event_name == 'pull_request' && '[\"ubuntu-latest\"]'" in matrix["os"]
+    assert [version for version in versions if ("ubuntu-latest", version) in excluded] == []
+    # Windows and macOS skip only the versions older than the primary Python 3.12.
+    for system in ("windows-latest", "macos-latest"):
+        tested = [version for version in versions if (system, version) not in excluded]
+        assert tested == [version for version in versions if Version(version) >= Version("3.12")], system
+    # A single job installs the tuning extra.
+    assert matrix["include"] == [{"os": "ubuntu-latest", "python-version": "3.12", "tuning": "true"}]
+
+
+def test_ci_constraints_pin_each_distribution_at_most_once_for_every_tested_python() -> None:
+    matrix = _ci_jobs()["tests-full"]["strategy"]["matrix"]
+    pythons = sorted({*matrix["python-version"], *(entry["python-version"] for entry in matrix["include"])}, key=Version)
+    lines = (line.split("#", 1)[0].strip() for line in (ROOT / "constraints" / "ci.txt").read_text(encoding="utf-8").splitlines())
+    requirements = [Requirement(line) for line in lines if line]
+    core = {_name(requirement) for requirement in _project()["project"]["dependencies"]}
+
+    for python in pythons:
+        environment = {"python_version": python, "python_full_version": f"{python}.0"}
+        applied = Counter(_name(item.name) for item in requirements if item.marker is None or item.marker.evaluate(environment))
+        # Two pins for one Python make pip fail; the core dependencies need one on every tested Python.
+        assert sorted(name for name, count in applied.items() if count > 1) == [], python
+        assert sorted(name for name in core if applied[name] != 1) == [], python

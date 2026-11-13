@@ -219,7 +219,7 @@ class ReleaseChecker:
                 "--ignore",
                 "W002",
                 "--toplevel",
-                "vamos,vamos_contrib",
+                "vamos",
                 str(wheel),
             ],
         )

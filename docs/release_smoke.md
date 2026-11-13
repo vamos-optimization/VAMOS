@@ -17,11 +17,12 @@ The current candidate is **1.1.0**, dated **2026-10-23**. The published
 historical 1.0.0 compatibility fixtures and artifact schemas unchanged.
 See the [1.1.0 release notes](project/release-notes-1.1.0.md) for the included changes.
 
-Update the runtime version, citation, changelog, release notes, version
-consistency test, and exact candidate and publication workflow versions in one
-reviewed commit. Build the changelog from the "Changelog entry" sections of the
-pull requests merged since the previous release; those pull requests do not
-edit `CHANGELOG.md`. Freeze the final merged organization `main` commit; if that
+Update the runtime version, citation, changelog, release notes (with their entry
+under Reference → Support & Versions in `mkdocs.yml`), version consistency test,
+and exact candidate and publication workflow versions in one reviewed commit.
+Build the changelog from the "Changelog entry" sections of the pull requests
+merged since the previous release; those pull requests do not edit
+`CHANGELOG.md`. Freeze the final merged organization `main` commit; if that
 commit changes, produce new evidence before publishing. Verify the actual
 publication date before freezing.
 

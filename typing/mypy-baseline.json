@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "994c352b6282041a5ec29ddd794a9229a690a709",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 994c352b6282041a5ec29ddd794a9229a690a709",
+  "generation_commit": "d328bd475ae7981c5b05735c0b34166534aaa123",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit d328bd475ae7981c5b05735c0b34166534aaa123",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.1",
@@ -11,8 +11,8 @@
     "stub_packages": [],
     "type_affecting_optional_distributions": [],
     "config_path": "pyproject.toml",
-    "config_sha256": "6AD3CDDFC87BD579DFDA9EE80FDDCCF92AE2ACCEEDB06145AADC936D5E0A0B65",
-    "mypy_config_sha256": "2D1AAAB5CB687AA8C7871D3AFBE4638A782A12541721A85B770843816611FCAD",
+    "config_sha256": "E39E0E1022C5982D7D7E36E90D414460652CF68CE3318B12DF225901E5840F23",
+    "mypy_config_sha256": "562D592DA8D4C96E4C5CD2E48B2F2268EFEB70AC50858210E11E8528D28B4CA0",
     "constraints_path": "constraints/ci.txt",
     "type_affecting_pins": {
       "joblib": "1.6.0",
@@ -26,15 +26,15 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 171,
-  "files_with_diagnostics": 41,
-  "fingerprint_count": 41,
+  "diagnostic_count": 169,
+  "files_with_diagnostics": 40,
+  "fingerprint_count": 40,
   "error_code_summary": {
-    "type-arg": 171
+    "type-arg": 169
   },
   "layer_summary": {
     "engine": 104,
-    "experiment": 11,
+    "experiment": 9,
     "foundation": 39,
     "ux": 17
   },
@@ -99,24 +99,6 @@
         {
           "line": 71,
           "column": 23
-        }
-      ]
-    },
-    {
-      "fingerprint": "199C0D15A37D953FA8B0676A9B7D3939513189EC2F957240A721B03AAF4DA437",
-      "path": "src/vamos/experiment/external/reporting.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "experiment",
-      "multiplicity": 2,
-      "locations": [
-        {
-          "line": 51,
-          "column": 8
-        },
-        {
-          "line": 52,
-          "column": 8
         }
       ]
     },

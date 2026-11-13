@@ -49,7 +49,9 @@ jobs:
       matrix:
         # Pull requests test Linux only, to save runners; the merge queue and main also test Windows and macOS.
         os: ${{ fromJSON(github.event_name == 'pull_request' && '["ubuntu-latest"]' || '["ubuntu-latest", "windows-latest", "macos-latest"]') }}
-        python-version: ["3.10", "3.11", "3.12"]
+        # Keep this list and the Python classifiers in pyproject.toml identical.
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        # Windows and macOS test the primary Python 3.12 and every newer version.
         exclude:
           - os: windows-latest
             python-version: "3.10"
@@ -65,8 +67,7 @@ jobs:
             python-version: "3.12"
             tuning: true
     env:
-      # The research extra (pygmo) has Linux wheels only.
-      EXTRAS: ${{ matrix.os == 'ubuntu-latest' && 'dev,compute,research,analysis,examples,studio,docs' || 'dev,compute,analysis,examples,studio,docs' }}${{ matrix.tuning && ',tuning' || '' }}
+      EXTRAS: dev,compute,analysis,examples,studio,docs${{ matrix.tuning && ',tuning' || '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

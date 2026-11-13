@@ -230,8 +230,6 @@
     "vamos.algorithms.NSGAIIIConfig.from_dict": "(data)",
     "vamos.algorithms.NSGAIIIConfig.to_dict": "(self)",
     "vamos.algorithms.NSGAIIIConfig.to_json": "(self)",
-    "vamos.algorithms.ProbabilityExpression": "(*args, **kwargs)",
-    "vamos.algorithms.ProbabilityValue": "(*args, **kwargs)",
     "vamos.algorithms.RVEAConfig": "(pop_size, n_partitions, alpha, adapt_freq, crossover, mutation, repair='auto', initializer=None, mutation_prob_factor=None, constraint_mode='feasibility', track_genealogy=False, result_mode=None, external_archive=None)",
     "vamos.algorithms.RVEAConfig.available_operators": "(category=None)",
     "vamos.algorithms.RVEAConfig.builder": "()",

@@ -37,10 +37,10 @@ The public information architecture is task-first:
 1. **Get Started** — install VAMOS and complete a first run.
 2. **Tutorials** — learn from worked examples, study algorithms, and find the examples gallery.
 3. **How-to Guides** — locate a specific operation, cookbook recipe, or optional workflow.
-4. **Reference** — inspect exact API, algorithm, problem, constraint, and stopping contracts.
+4. **Reference** — inspect exact API, algorithm, problem, constraint, and stopping contracts, and the support and version commitments.
 5. **Developer** — roadmap, extension contracts, tests, architecture, and maintenance material.
 
-Roadmap is the first entry under Developer. Project policy and release pages retain their existing URLs and contextual links without a separate navigation section.
+Roadmap is the first entry under Developer. The stability policy, known limitations, documentation versions, and release notes are listed under Reference → Support & Versions, without a separate Project tab; every release adds its notes there. Hosting and repository governance keep their contextual links without a navigation entry. Project pages keep their existing URLs.
 
 The homepage is available from the logo. Each user section opens with an index;
 Tutorials and How-to Guides link to the same canonical pages when a page serves

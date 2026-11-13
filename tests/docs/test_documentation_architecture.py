@@ -43,7 +43,6 @@ def test_public_navigation_is_task_first() -> None:
     assert "Architecture Decisions" not in nav_text
     assert "dev/adr/" not in nav_text
     assert "website/" not in nav_text
-    assert "project/" not in nav_text
     developer = next(item["Developer"] for item in nav if isinstance(item, dict) and "Developer" in item)
     assert developer[0] == {"Roadmap": "roadmap.md"}
     assert nav_text.count("roadmap.md") == 1
@@ -53,12 +52,24 @@ def test_public_navigation_is_task_first() -> None:
     assert tutorials[0] == {"Overview": "tutorials/index.md"}
     assert how_to[0] == {"Overview": "guide/index.md"}
     assert reference[0] == {"Overview": "reference/index.md"}
+    # Support and version pages are reference material, not a separate Project tab.
+    assert nav_text.count("project/") == yaml.safe_dump(reference).count("project/")
     tutorial_nav = yaml.safe_dump(tutorials)
     for algorithm in ("nsgaii", "moead", "nsgaiii"):
         assert f"algorithms/{algorithm}.md" in tutorial_nav
     maintainers = next(item["Maintainers"] for item in developer if isinstance(item, dict) and "Maintainers" in item)
     assert {"Maintaining Algorithm Tutorials": "dev/algorithm-documentation.md"} in maintainers
     assert "dev/algorithm-documentation.md" not in tutorial_nav
+
+
+def test_project_policy_pages_are_in_nav() -> None:
+    """The pages that say what is stable, what is not supported and what each release changed are in the menu."""
+    nav_text = yaml.safe_dump(_config()["nav"], sort_keys=False)
+    release_notes = sorted(path.relative_to(ROOT / "docs").as_posix() for path in (ROOT / "docs" / "project").glob("release-notes-*.md"))
+    assert release_notes
+    pages = ["project/stability-and-versioning.md", "project/known-limitations.md", *release_notes]
+
+    assert [page for page in pages if nav_text.count(page) != 1] == []
 
 
 def test_installation_tabs_have_required_markdown_extensions() -> None:

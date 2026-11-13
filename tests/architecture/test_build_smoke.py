@@ -34,6 +34,14 @@ def _assert_wheel_matches_source(dist: Path) -> None:
         raise AssertionError(f"Wheel contains Python modules not present in src/vamos:\n{preview}")
 
 
+def _assert_wheel_ships_only_vamos(dist: Path) -> None:
+    with zipfile.ZipFile(sorted(dist.glob("*.whl"))[-1]) as zf:
+        top_level = {name.split("/", 1)[0] for name in zf.namelist()}
+    packages = sorted(name for name in top_level if not name.endswith(".dist-info"))
+    if packages != ["vamos"]:
+        raise AssertionError(f"The wheel ships top-level packages other than vamos: {packages}")
+
+
 def _assert_sdist_has_no_tests(dist: Path) -> None:
     sdists = sorted(dist.glob("*.tar.gz"))
     if not sdists:
@@ -51,6 +59,7 @@ def test_build_smoke(tmp_path: Path) -> None:
     before = checkout_build_outputs()
     dist = build_from_copy(tmp_path)
     _assert_wheel_matches_source(dist)
+    _assert_wheel_ships_only_vamos(dist)
     _assert_sdist_has_no_tests(dist)
     assert checkout_build_outputs() == before
 
