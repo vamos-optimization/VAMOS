@@ -56,6 +56,12 @@ def displacement_mutation(X: PermPop, prob: float, rng: RNG) -> None:
 
 
 def two_opt_mutation(X: PermPop, prob: float, rng: RNG) -> None:
+    """A 2-opt move: reverse the segment between two random positions.
+
+    On a tour, removing two edges and reconnecting the path reverses the segment
+    between them, so this is the same operator as :func:`inversion_mutation`, with
+    the same random draws; the name is kept for routing problems.
+    """
     _apply_row_mutation(X, prob, rng, _two_opt_row_mutation)
 
 
@@ -72,7 +78,12 @@ def _apply_row_mutation(X: PermPop, prob: float, rng: RNG, mut_fn: Callable[[Per
 
 
 def _insert_row_mutation(row: PermVec, rng: RNG) -> None:
-    i, j = two_cut_points(row.size, rng)
+    """Move the gene at a random position ``i`` to another random position ``j``, to the left or right."""
+    n = row.size
+    i = int(rng.integers(0, n))
+    j = int(rng.integers(0, n - 1))
+    if j >= i:
+        j += 1
     gene = row[i]
     if i < j:
         row[i:j] = row[i + 1 : j + 1]
@@ -83,20 +94,20 @@ def _insert_row_mutation(row: PermVec, rng: RNG) -> None:
 
 
 def _scramble_row_mutation(row: PermVec, rng: RNG, max_segment_length: int = 0) -> None:
+    """Shuffle the genes between two distinct random positions, both included.
+
+    The segment has at least two genes (at most ``max_segment_length`` when it is
+    positive), so the shuffle can change the row.
+    """
     n = row.size
     if n < 2:
         return
-    point1 = int(rng.integers(0, n + 1))
-    point2 = int(rng.integers(0, n))
-    if point2 >= point1:
-        point2 += 1
-    else:
-        point1, point2 = point2, point1
-    if max_segment_length > 0 and point2 - point1 >= max_segment_length:
-        point2 = point1 + max_segment_length
-    segment = row[point1:point2].copy()
+    lo, hi = two_cut_points(n, rng)
+    if max_segment_length > 0 and hi - lo + 1 > max_segment_length:
+        hi = lo + max_segment_length - 1
+    segment = row[lo : hi + 1].copy()
     rng.shuffle(segment)
-    row[point1:point2] = segment
+    row[lo : hi + 1] = segment
 
 
 def _inversion_row_mutation(row: PermVec, rng: RNG) -> None:
