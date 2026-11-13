@@ -36,6 +36,7 @@ from vamos.engine.tuning.racing.bridge import (
     # MOEA/D
     build_moead_binary_config_space,
     build_moead_config_space,
+    build_moead_constrained_config_space,
     build_moead_integer_config_space,
     build_moead_mixed_config_space,
     build_moead_permutation_config_space,
@@ -117,6 +118,7 @@ REGISTRY: list[tuple[str, str, Any]] = [
     ("rvea_mixed", "mixed", build_rvea_mixed_config_space),
     # MOEA/D
     ("moead", "real", build_moead_config_space),
+    ("moead_constrained", "real", build_moead_constrained_config_space),
     ("moead_permutation", "permutation", build_moead_permutation_config_space),
     ("moead_binary", "binary", build_moead_binary_config_space),
     ("moead_integer", "integer", build_moead_integer_config_space),
