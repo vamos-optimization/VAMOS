@@ -34,3 +34,11 @@ def test_vamos_studio_help():
         pytest.skip("streamlit not installed")
     proc = _run_cmd(f"{sys.executable} -m vamos.ux.studio.app --help")
     assert proc.returncode == 0
+
+
+def test_cli_version_flag():
+    from vamos.foundation.version import get_version
+
+    proc = subprocess.run([sys.executable, "-m", "vamos.experiment.cli.main", "--version"], capture_output=True, text=True, timeout=60)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.strip() == f"vamos {get_version()}"
