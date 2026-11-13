@@ -15,7 +15,7 @@ def test_unknown_algorithm_name_errors():
 
 
 def test_unknown_problem_selection_errors():
-    with pytest.raises(Exception):
+    with pytest.raises(KeyError, match="nonexistent_problem"):
         optimize("nonexistent_problem", algorithm="nsgaii", max_evaluations=4, pop_size=4, seed=0)
 
 
@@ -233,3 +233,79 @@ def test_nsgaii_restores_the_interrupt_handler_when_the_first_notification_fails
         assert signal.getsignal(signal.SIGINT) is application_handler
     finally:
         signal.signal(signal.SIGINT, previous)
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [{"n_var": 5}, {"n_obj": 3}, {"problem_kwargs": {"n_var": 5}}],
+    ids=["n_var", "n_obj", "problem_kwargs"],
+)
+def test_optimize_rejects_ignored_problem_arguments(arguments: dict[str, object]):
+    # A problem instance already has its dimensions: VAMOS 1.1.0 ran n_var=30 and recorded n_var=5.
+    with pytest.raises(ConfigurationError, match="problem instance"):
+        optimize(ZDT1Problem(n_var=30), algorithm="nsgaii", max_evaluations=40, pop_size=20, seed=0, **arguments)
+
+
+def test_optimize_rejects_unsupported_problem_kwargs():
+    with pytest.raises(ConfigurationError, match=r"only n_var and n_obj.*n_cities"):
+        optimize("tsp6", algorithm="nsgaii", problem_kwargs={"n_cities": 8}, max_evaluations=40, pop_size=20, seed=0)
+
+
+def test_optimize_rejects_conflicting_budgets():
+    with pytest.raises(ConfigurationError, match="max_evaluations"):
+        optimize(
+            ZDT1Problem(n_var=4),
+            algorithm="nsgaii",
+            algorithm_config=NSGAIIConfig.default(pop_size=6, n_var=4),
+            max_evaluations=200,
+            termination=("max_evaluations", 400),
+            seed=0,
+        )
+    # Agreeing values are accepted.
+    result = optimize(
+        ZDT1Problem(n_var=4),
+        algorithm="nsgaii",
+        algorithm_config=NSGAIIConfig.default(pop_size=6, n_var=4),
+        max_evaluations=12,
+        termination=("max_evaluations", 12),
+        seed=0,
+    )
+    assert result.F.shape[1] == 2
+
+
+def test_optimize_accepts_termination_without_algorithm_config():
+    result = optimize(ZDT1Problem(n_var=4), algorithm="nsgaii", pop_size=6, termination=("max_evaluations", 12), seed=0)
+    assert result.F.shape[1] == 2
+
+
+def test_optimize_rejects_config_of_another_algorithm():
+    from vamos.engine.algorithm.config import MOEADConfig
+
+    with pytest.raises(ConfigurationError, match=r"NSGAIIConfig.*nsgaii.*moead"):
+        optimize(ZDT1Problem(n_var=4), algorithm="moead", algorithm_config=NSGAIIConfig.default(pop_size=6, n_var=4), max_evaluations=12)
+    with pytest.raises(ConfigurationError, match=r"MOEADConfig"):
+        optimize(ZDT1Problem(n_var=4), algorithm="nsgaii", algorithm_config=MOEADConfig.default(pop_size=6, n_var=4), max_evaluations=12)
+
+
+def test_optimize_rejects_generic_config_for_builtin():
+    from vamos.engine.algorithm.config import GenericAlgorithmConfig
+
+    generic = GenericAlgorithmConfig({"pop_size": 6, "c1_min": 2.5})
+    with pytest.raises(ConfigurationError, match="GenericAlgorithmConfig"):
+        optimize(ZDT1Problem(n_var=4), algorithm="smpso", algorithm_config=generic, max_evaluations=12)
+
+
+def test_optimize_rejects_empty_seed_list():
+    with pytest.raises(ConfigurationError, match="at least one seed"):
+        optimize(ZDT1Problem(n_var=4), algorithm="nsgaii", max_evaluations=12, pop_size=6, seed=[])
+
+
+def test_study_result_std_takes_ddof():
+    from vamos.experiment.optimization_result import StudyResult
+
+    study = StudyResult([])
+    values = np.array([1.0, 2.0, 4.0])
+    study.metric_values = lambda name: values  # type: ignore[method-assign]
+
+    assert study.std("hv") == pytest.approx(float(np.std(values)))
+    assert study.std("hv", ddof=1) == pytest.approx(float(np.std(values, ddof=1)))

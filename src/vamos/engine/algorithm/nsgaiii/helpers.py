@@ -16,6 +16,7 @@ import numpy as np
 from vamos.foundation.constraints.utils import compute_violation, is_feasible
 
 if TYPE_CHECKING:
+    from vamos.engine.algorithm.components.constraint_handling import ConstraintHandlingTechnique
     from vamos.foundation.kernel.backend import KernelBackend
     from vamos.foundation.problem.types import ProblemProtocol
 
@@ -28,6 +29,7 @@ __all__ = [
     "associate",
     "niche_selection",
     "nsgaiii_survival",
+    "nsgaiii_selection_metrics",
     "evaluate_population_with_constraints",
 ]
 
@@ -231,10 +233,8 @@ def niche_selection(
         candidate_refs = candidate_refs[:remaining]
 
         for ref_choice in candidate_refs:
+            # Never empty: every candidate reference is associated with an active row.
             candidates = active_pos[assoc_front == ref_choice]
-            if candidates.size == 0:
-                niche_counts[ref_choice] = np.inf
-                continue
             rng.shuffle(candidates)
             if niche_counts[ref_choice] == 0:
                 cand_dist = distances[front[candidates]]
@@ -264,6 +264,8 @@ def nsgaiii_survival(
     extreme_points: np.ndarray[Any, Any] | None,
     worst_point: np.ndarray[Any, Any],
     kernel: KernelBackend | None = None,
+    technique: ConstraintHandlingTechnique | None = None,
+    progress: float = float("nan"),
 ) -> tuple[
     np.ndarray[Any, Any],
     np.ndarray[Any, Any],
@@ -308,13 +310,25 @@ def nsgaiii_survival(
     when more solutions are feasible than survive, reference-direction niching
     selects among the feasible ones only; otherwise every feasible solution
     survives and the least violated infeasible ones fill the population.
+
+    With a constraint-handling ``technique`` other than cdp, the technique adapts
+    to the union at ``progress`` and ranks it, and its fronts take the place of the
+    non-dominated ones: whole fronts survive, and niching cuts the last one, as in
+    Evolver's NSGA-III.
     """
     X_all = np.vstack([X, X_off])
     F_all = np.vstack([F, F_off])
     G_all = np.vstack([G, G_off]) if G is not None and G_off is not None else None
 
     candidates: np.ndarray[Any, Any] | None = None
-    if G_all is not None:
+    fronts: list[np.ndarray[Any, Any]] | None = None
+    if G_all is not None and technique is not None:
+        if kernel is None:
+            raise ValueError("NSGA-III survival with a constraint-handling technique needs a kernel.")
+        from vamos.engine.algorithm.components.constraint_handling import adapted_ranks
+
+        fronts = _fronts_from_ranks(adapted_ranks(technique, kernel, F_all, G_all, rng, progress))
+    elif G_all is not None:
         feasible_mask = is_feasible(G_all)
         feasible = np.flatnonzero(feasible_mask)
         if feasible.size <= pop_size:
@@ -341,6 +355,7 @@ def nsgaiii_survival(
         extreme_points,
         worst_point,
         kernel,
+        fronts,
     )
     survivor_arr = local if candidates is None else candidates[local]
     return (
@@ -363,13 +378,19 @@ def _reference_direction_survival(
     extreme_points: np.ndarray[Any, Any] | None,
     worst_point: np.ndarray[Any, Any],
     kernel: KernelBackend | None,
+    fronts: list[np.ndarray[Any, Any]] | None = None,
 ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any] | None, np.ndarray[Any, Any]]:
-    """Select ``pop_size`` rows of ``F_all`` by non-dominated fronts and reference-direction niching."""
-    if kernel is not None:
-        ranks, _ = kernel.nsga2_ranking(F_all)
-        fronts = _fronts_from_ranks(ranks)
-    else:
-        fronts = [np.asarray(front, dtype=int) for front in fast_non_dominated_sort(F_all)]
+    """Select ``pop_size`` rows of ``F_all`` by fronts and reference-direction niching.
+
+    The fronts are the non-dominated ones unless ``fronts`` gives them, as a constraint-handling
+    technique does; the first of them sets the extreme points.
+    """
+    if fronts is None:
+        if kernel is not None:
+            ranks, _ = kernel.nsga2_ranking(F_all)
+            fronts = _fronts_from_ranks(ranks)
+        else:
+            fronts = [np.asarray(front, dtype=int) for front in fast_non_dominated_sort(F_all)]
     survivor_indices: list[int] = []
 
     ideal_point = np.minimum(ideal_point, F_all.min(axis=0))
@@ -409,6 +430,29 @@ def _reference_direction_survival(
         survivor_indices.extend(selected_idx.tolist())
 
     return np.asarray(survivor_indices, dtype=int), ideal_point, extreme_points, worst_point
+
+
+def nsgaiii_selection_metrics(
+    kernel: KernelBackend,
+    F: np.ndarray[Any, Any],
+    G: np.ndarray[Any, Any] | None,
+    constraint_mode: str,
+    technique: ConstraintHandlingTechnique | None,
+    rng: np.random.Generator,
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
+    """Ranks and crowding of the mating tournament.
+
+    The fronts are the technique's, when there is one other than cdp, and the feasibility-first
+    ones otherwise. As in NSGA-II, VAMOS ranks the population again for the tournament.
+    """
+    from vamos.engine.algorithm.nsgaii.constrained_survival import technique_selection_metrics
+    from vamos.engine.algorithm.nsgaii.state import compute_selection_metrics
+
+    if technique is not None and G is not None and constraint_mode != "none":
+        ranks, crowding = technique_selection_metrics(technique, kernel, F, G, rng)
+    else:
+        ranks, crowding = compute_selection_metrics(kernel, F, G, constraint_mode)
+    return np.asarray(ranks, dtype=int), np.asarray(crowding, dtype=float)
 
 
 def evaluate_population_with_constraints(

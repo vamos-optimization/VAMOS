@@ -14,6 +14,10 @@ class GenericAlgorithmConfig:
     This exists to keep the public-facing APIs strongly typed while still
     allowing users (or tests) to pass a free-form mapping when integrating a
     third-party algorithm via the algorithm registry.
+
+    Experimental: exported by ``vamos.algorithms`` for custom and plugin
+    algorithms, but not covered by the 1.x stability policy. Built-in
+    algorithms take their own configuration classes.
     """
 
     data: Mapping[str, object]

@@ -396,6 +396,8 @@ exec(compile(blocks[0], "docs/reference/constraints.md", "exec"), namespace)
 assert namespace["result"].data["evaluations"] == 400
 assert namespace["feasible"].any()
 exec(compile(blocks[1], "docs/reference/constraints.md", "exec"), namespace)
+assert namespace["config"].constraint_handling[0] == "epsilon_constrained"
+exec(compile(blocks[2], "docs/reference/constraints.md", "exec"), namespace)
 summary = namespace["summary"]
 assert summary["n_solutions"] == len(namespace["result"])
 assert summary["n_feasible"] == int(namespace["feasible"].sum())

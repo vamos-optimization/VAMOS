@@ -178,12 +178,17 @@ def save_checkpoint(algo: NSGAII, checkpoint_dir: str, seed: int, generation: in
         archive_X=st.archive_X,
         archive_F=st.archive_F,
         archive_G=_archive_constraints(st),
-        extra={
-            "step": st.step,
-            "replacements": st.replacements,
-        },
+        extra=_checkpoint_extra(st),
     )
     _logger().info("Checkpoint saved: %s", path)
+
+
+def _checkpoint_extra(st: Any) -> dict[str, Any]:
+    """The run state outside the population that a resumed run needs, for both kinds of checkpoint."""
+    extra: dict[str, Any] = {"step": st.step, "replacements": st.replacements}
+    if st.constraint_handling is not None:
+        extra["constraint_handling"] = st.constraint_handling.state()
+    return extra
 
 
 def run_nsgaii(
@@ -225,8 +230,6 @@ def run_nsgaii(
         signal.signal(signal.SIGINT, _handle_interrupt)
 
     generation = st.generation
-    step = st.step
-    replacements = st.replacements
 
     # From here on the handler is restored however the run ends, a failing generation-0 callback included.
     try:
@@ -242,61 +245,72 @@ def run_nsgaii(
         hv_reached = hv_tracker.enabled and hv_tracker.reached(st.hv_points_fn())
 
         while st.n_eval < max_eval and not hv_reached and not stop_requested and not interrupted:
-            st.generation = generation
-            st.step = step
-            st.replacements = replacements
             X_off = algo.ask()
             eval_off = eval_strategy.evaluate(X_off, problem)
             hv_reached = algo.tell(eval_off)
-            n_eval = st.n_eval
-            replacements += X_off.shape[0]
-
-            step += 1
-            st.step = step
-            st.replacements = replacements
-
-            if st.incremental_mode:
-                if not stop_requested:
-                    stop_requested = live_should_stop(live_cb)
-                new_generation = replacements // st.pop_size
-                if new_generation != generation:
-                    generation = new_generation
-                    st.generation = generation
-                    stop_requested = stop_requested or notify_generation(
-                        algo,
-                        live_cb,
-                        generation,
-                        st.F,
-                        problem=problem,
-                        evals=n_eval,
-                        eval_strategy=eval_strategy,
-                    )
-                    if hv_tracker.enabled and hv_tracker.reached(st.hv_points_fn()):
-                        hv_reached = True
-
-                    if checkpoint_dir and generation % checkpoint_interval == 0:
-                        save_checkpoint(algo, checkpoint_dir, seed, generation, st.n_eval)
-            else:
-                generation += 1
-                st.generation = generation
-                stop_requested = notify_generation(
-                    algo,
-                    live_cb,
-                    generation,
-                    st.F,
-                    problem=problem,
-                    evals=n_eval,
-                    eval_strategy=eval_strategy,
-                )
-                if hv_tracker.enabled and hv_tracker.reached(st.hv_points_fn()):
-                    hv_reached = True
-
-                if checkpoint_dir and generation % checkpoint_interval == 0:
-                    save_checkpoint(algo, checkpoint_dir, seed, generation, st.n_eval)
+            stop_requested, generation_hv_reached, completed = advance_generation(
+                algo, live_cb, X_off.shape[0], problem=problem, eval_strategy=eval_strategy
+            )
+            hv_reached = hv_reached or generation_hv_reached
+            if completed and checkpoint_dir and st.generation % checkpoint_interval == 0:
+                save_checkpoint(algo, checkpoint_dir, seed, st.generation, st.n_eval)
     finally:
         if main_thread_signals and original_handler is not None:
             signal.signal(signal.SIGINT, original_handler)
 
+    return finish_run(algo, live_cb, hv_reached, interrupted=interrupted)
+
+
+def advance_generation(
+    algo: NSGAII,
+    live_cb: LiveVisualization,
+    n_offspring: int,
+    *,
+    problem: Any,
+    eval_strategy: EvaluationBackend,
+) -> tuple[bool, bool, bool]:
+    """Count a told batch of offspring; when it completes a generation, notify it and check the HV target.
+
+    Returns ``(stop_requested, hv_reached, completed)``: whether the live callback asks to
+    stop, whether the HV target is reached at the completed generation, and whether the
+    batch completed one. Steady-state runs complete a generation every ``pop_size``
+    replacements; the others, at every batch.
+    """
+    st = algo._st
+    assert st is not None, "State not initialized"
+    st.replacements += n_offspring
+    st.step += 1
+    stop_requested = live_should_stop(live_cb) if st.incremental_mode else False
+    if st.incremental_mode:
+        generation = st.replacements // st.pop_size
+        if generation == st.generation:
+            return stop_requested, False, False
+        st.generation = generation
+    else:
+        st.generation += 1
+    stop_requested = stop_requested or notify_generation(
+        algo,
+        live_cb,
+        st.generation,
+        st.F,
+        problem=problem,
+        evals=st.n_eval,
+        eval_strategy=eval_strategy,
+    )
+    hv_reached = bool(st.hv_tracker is not None and st.hv_tracker.enabled and st.hv_tracker.reached(st.hv_points_fn()))
+    return stop_requested, hv_reached, True
+
+
+def finish_run(
+    algo: NSGAII,
+    live_cb: LiveVisualization | None,
+    hv_reached: bool,
+    *,
+    interrupted: bool = False,
+) -> dict[str, Any]:
+    """Build the result and the checkpoint of the current state; ``live_cb`` (when given) is told the run ended."""
+    st = algo._st
+    assert st is not None, "State not initialized"
     result = build_result(st, st.n_eval, hv_reached, kernel=algo.kernel)
     result["interrupted"] = interrupted
     result["checkpoint"] = {
@@ -311,14 +325,12 @@ def run_nsgaii(
         "archive_X": st.archive_X,
         "archive_F": st.archive_F,
         "archive_G": _archive_constraints(st),
-        "extra": {
-            "step": st.step,
-            "replacements": st.replacements,
-        },
+        "extra": _checkpoint_extra(st),
     }
-    live_cb.on_end(final_F=st.F)
+    if live_cb is not None:
+        live_cb.on_end(final_F=st.F)
     finalize_genealogy(result, st, algo.kernel)
     return result
 
 
-__all__ = ["run_nsgaii", "save_checkpoint", "notify_generation"]
+__all__ = ["advance_generation", "finish_run", "notify_generation", "run_nsgaii", "save_checkpoint"]

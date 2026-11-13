@@ -5,6 +5,8 @@ from typing import Any, Literal, overload
 
 import numpy as np
 
+from vamos.foundation.rng import require_generator
+
 from ._numba_moead_steady_state import numba_moead_steady_state_kernels
 from ._numba_ranking import compute_crowding_numba, fast_non_dominated_sort_ranks, nsga2_survival_split
 from ._numba_selection import binary_tournament_winners_numba
@@ -184,8 +186,7 @@ class NumbaKernel(KernelBackend):
         xl: float,
         xu: float,
     ) -> FloatArray:
-        if rng is None:
-            rng = np.random.default_rng()
+        rng = require_generator(rng, "NumbaKernel.sbx_crossover")
         return _sbx_crossover_flat(X_parents, params, rng, xl, xu, kernels=self.variation_kernels())
 
     def polynomial_mutation(
@@ -198,8 +199,7 @@ class NumbaKernel(KernelBackend):
     ) -> None:
         if X.size == 0:
             return
-        if rng is None:
-            rng = np.random.default_rng()
+        rng = require_generator(rng, "NumbaKernel.polynomial_mutation")
         if self.variation_kernels() is None:
             # Compiled pow differs from np.power on this platform: keep the exact reference.
             self._numpy_ops.polynomial_mutation(X, params, rng, xl, xu)

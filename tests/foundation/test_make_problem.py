@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import inspect
+
 import numpy as np
 import pytest
 
@@ -368,3 +370,54 @@ class TestValidation:
     def test_encoding_required(self) -> None:
         with pytest.raises(TypeError, match="encoding"):
             _make_problem(lambda x: [x[0]], n_var=1, n_obj=1)
+
+
+def _raises_section() -> str:
+    # cleandoc: Python 3.13 and later strip the docstring's indentation when compiling, earlier versions keep it.
+    doc = inspect.cleandoc(_make_problem.__doc__ or "")
+    return doc.split("Raises\n------", 1)[1].split("Examples\n", 1)[0]
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "expected"),
+    [
+        ({"fn": "not callable"}, ConfigurationError),
+        ({"constraints": "bad", "n_constraints": 1}, ConfigurationError),
+        ({"encoding": "quantum"}, ConfigurationError),
+        ({"n_var": True}, ProblemDimensionError),
+        ({"n_var": 2.0}, ProblemDimensionError),
+        ({"n_obj": 0}, ProblemDimensionError),
+        ({"n_constraints": -1}, ProblemDimensionError),
+        ({"n_constraints": 1.5, "constraints": lambda x: [x[0]]}, ProblemDimensionError),
+        ({"n_constraints": 1}, ProblemDimensionError),
+        ({"bounds": [(0, 1)]}, BoundsError),
+        ({"bounds": [(0, 1), (0, 1)], "xl": 0.0}, BoundsError),
+        ({"xl": [np.nan, 0.0]}, BoundsError),
+        ({"bounds": [(0.0, np.nan), (0.0, 1.0)]}, BoundsError),
+        ({"xu": np.inf}, BoundsError),
+        ({"xl": -np.inf}, BoundsError),
+    ],
+)
+def test_make_problem_raises_documented_exceptions(kwargs: dict[str, object], expected: type[Exception]) -> None:
+    """Every invalid input raises a VAMOSError named in the Raises section (VR-089)."""
+    from vamos.exceptions import VAMOSError
+
+    arguments: dict[str, object] = {"fn": lambda x: [x[0], x[1]], "n_var": 2, "n_obj": 2, **kwargs}
+    fn = arguments.pop("fn")
+    with pytest.raises(expected) as caught:
+        make_problem(fn, **arguments)  # type: ignore[arg-type]
+    assert isinstance(caught.value, VAMOSError)
+    assert f"{expected.__name__}\n" in _raises_section()
+
+
+def test_make_problem_accepts_numpy_integers() -> None:
+    """Dimensions accept any integral type, as optimize does (VR-089)."""
+    problem = make_problem(
+        lambda x: [x[0], x[1]],
+        n_var=np.int64(2),
+        n_obj=np.int32(2),
+        constraints=lambda x: [x[0] - 1.0],
+        n_constraints=np.int64(1),
+    )
+    assert (problem.n_var, problem.n_obj, problem.n_constraints) == (2, 2, 1)
+    assert all(type(value) is int for value in (problem.n_var, problem.n_obj, problem.n_constraints))

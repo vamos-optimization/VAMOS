@@ -55,7 +55,7 @@ def _gemini_text(description: str, *, api_key: str = "") -> str:
         # this runtime import remains guarded by the actionable error below.
         from google import genai  # type: ignore[import-not-found]
     except ImportError as exc:
-        raise RuntimeError("google-genai package not installed. Run: pip install google-genai") from exc
+        raise RuntimeError('google-genai package not installed. Run: pip install "vamos-optimization[gemini]"') from exc
 
     client = genai.Client(api_key=key)
     response = client.models.generate_content(
@@ -72,7 +72,7 @@ def _openai_text(description: str, *, api_key: str = "") -> str:
     try:
         from openai import OpenAI  # type: ignore[import-not-found]
     except ImportError as exc:
-        raise RuntimeError("openai package not installed. Run: pip install vamos-optimization[openai]") from exc
+        raise RuntimeError('openai package not installed. Run: pip install "vamos-optimization[openai]"') from exc
 
     client = OpenAI(api_key=key)
     response = client.responses.create(
@@ -91,7 +91,7 @@ def _anthropic_text(description: str, *, api_key: str = "") -> str:
     try:
         from anthropic import Anthropic  # type: ignore[import-not-found]
     except ImportError as exc:
-        raise RuntimeError("anthropic package not installed. Run: pip install vamos-optimization[anthropic]") from exc
+        raise RuntimeError('anthropic package not installed. Run: pip install "vamos-optimization[anthropic]"') from exc
 
     # Without a key in the field, the SDK resolves ANTHROPIC_API_KEY or another configured credential.
     client = Anthropic(api_key=api_key) if api_key else Anthropic()

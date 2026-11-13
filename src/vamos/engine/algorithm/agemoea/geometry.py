@@ -176,6 +176,7 @@ def age_survival(
     F: np.ndarray[Any, Any],
     n_survive: int,
     kernel: KernelBackend,
+    ranks: np.ndarray[Any, Any] | None = None,
 ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
     """Select AGE-MOEA survivors from a combined parent-offspring front.
 
@@ -194,9 +195,15 @@ def age_survival(
     They can depend on the objectives' units: as in PlatEMO, pymoo and jMetal,
     the extreme points are searched before normalizing, and a single
     first-front point leaves nothing to normalize by.
+
+    The fronts are the non-dominated ones unless ``ranks`` gives them, as a
+    constraint-handling technique does in Evolver's AGE-MOEA.
     """
     n_survive = min(int(n_survive), F.shape[0])
-    ranks, _ = kernel.nsga2_ranking(F)
+    if ranks is None:
+        ranks, _ = kernel.nsga2_ranking(F)
+    else:
+        ranks = np.asarray(ranks, dtype=int)
     max_rank = int(ranks.max()) if ranks.size else 0
 
     fronts: list[np.ndarray[Any, Any]] = []

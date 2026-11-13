@@ -28,6 +28,10 @@ ALLOWED_ARRAY_NAMES = (
     "reference_directions",
 )
 _ALLOWED_DTYPE_KINDS = ("b", "i", "u", "f")
+_COLUMN_DIMENSIONS = (
+    ("n_obj", ("F", "population/F", "archive/F", "reference_directions")),
+    ("n_var", ("X", "population/X", "archive/X")),
+)
 
 
 def validate_array_collection(
@@ -131,6 +135,38 @@ def validate_contract_map(
                 {"shape": spec.get("shape"), "dtype": spec.get("dtype")},
                 {"shape": list(shape), "dtype": dtype.str},
             )
+
+
+def validate_problem_columns(
+    contracts: Mapping[str, tuple[tuple[int, ...], np.dtype[Any]]],
+    resolved_spec: Mapping[str, Any],
+    *,
+    descriptor: ArtifactDescriptor,
+    path: Path,
+    operation: str,
+) -> None:
+    """Check objective columns against the resolved problem's ``n_obj`` and decision columns against its ``n_var``.
+
+    A dimension that the problem configuration does not record as an integer is not checked.
+    """
+    problem = resolved_spec.get("problem")
+    config = problem.get("config") if isinstance(problem, Mapping) else None
+    if not isinstance(config, Mapping):
+        return
+    for dimension, names in _COLUMN_DIMENSIONS:
+        expected = config.get(dimension)
+        if isinstance(expected, bool) or not isinstance(expected, int):
+            continue
+        for name in names:
+            if name in contracts and contracts[name][0][1] != expected:
+                raise_malformed(
+                    descriptor,
+                    path,
+                    operation,
+                    f"array {name!r} has a column count different from the problem's {dimension}",
+                    expected,
+                    contracts[name][0][1],
+                )
 
 
 def validate_shape(
@@ -283,5 +319,6 @@ __all__ = [
     "validate_contract_map",
     "validate_dtype",
     "validate_member_layout",
+    "validate_problem_columns",
     "validate_shape",
 ]

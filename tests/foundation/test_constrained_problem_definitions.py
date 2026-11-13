@@ -77,3 +77,77 @@ def test_cf1_constraint_is_feasible_when_nonpositive() -> None:
     assert constraint(_cf1_point(0.1)) == pytest.approx(0.0, abs=1e-12)  # A Pareto-optimal point, c = 0.
     assert constraint(_cf1_point(0.125)) > 0.0  # On f1 + f2 = 1 between optimal points: c = -1, infeasible.
     assert constraint(_cf1_point(0.125, offset=0.6)) < 0.0  # Far from the Pareto set: f1 + f2 > 2, so c > 0.
+
+
+@pytest.mark.parametrize(
+    ("key", "n_var_min"),
+    [("cec2009_cf2", 3), ("cec2009_cf3", 3), ("cec2009_cf4", 2), ("cec2009_cf5", 2), ("cec2009_cf6", 4), ("cec2009_cf7", 4)]
+    + [(f"cec2009_cf{k}", 5) for k in (8, 9, 10)],
+)
+def test_cec2009_cf_problems_need_jmetals_minimum_dimension(key: str, n_var_min: int) -> None:
+    assert make_problem_selection(key, n_var=n_var_min).instantiate().n_var == n_var_min
+    with pytest.raises(ValueError, match="at least"):
+        make_problem_selection(key, n_var=n_var_min - 1).instantiate()
+
+
+@pytest.mark.parametrize("k", (8, 9, 10))
+def test_cec2009_cf8_to_cf10_constraint_holds_at_the_top_of_the_front(k: int) -> None:
+    # At (0, 0, 1) the constraint divides by 1 - f3^2 = 0; as in jMetal it is then 0, not NaN.
+    problem = make_problem_selection(f"cec2009_cf{k}").instantiate()
+    X = np.zeros((1, problem.n_var))
+    X[0, 0] = 1.0
+
+    F, G = evaluate_population_with_constraints(problem, X)
+
+    assert F[0, 2] == 1.0 and G is not None
+    assert G[0, 0] == 0.0
+
+
+@pytest.mark.parametrize(("n_obj", "k"), [(2, 1), (3, 2), (5, 2), (8, 4), (9, 3)])
+def test_zxh_cf_constraints_follow_the_number_of_objectives(n_obj: int, k: int) -> None:
+    # One or two radius constraints, then per constrained angle: none (A), two bounds (B), one excluded
+    # interval (C) or two (D).
+    expected = {1: 1, 2: 2, 5: 1 + 2 * k, 6: 2 + 2 * k, 9: 1 + k, 10: 2 + k, 13: 1 + 2 * k, 14: 2 + 2 * k}
+    for variant, n_constraints in expected.items():
+        selection = make_problem_selection(f"zxh_cf{variant}", n_obj=n_obj)
+        problem = selection.instantiate()
+        assert (problem.n_var, problem.n_obj, problem.n_constraints) == (n_obj + 10, n_obj, n_constraints)
+
+
+def _zxh_point(theta0: float, theta1: float, n_var: int = 13) -> np.ndarray:
+    """A three-objective ZXH-CF design on the Pareto set (S = 1, h = 0) with the given angles."""
+    a0, a1 = 0.5 * np.pi * theta0, 0.5 * np.pi * theta1
+    x = np.full(n_var, 0.2)
+    x[:3] = [np.cos(a0), np.sin(a0) * np.cos(a1), np.sin(a0) * np.sin(a1)]
+    return x[None, :]
+
+
+def test_zxh_cf_type_c_excludes_an_interval_of_each_angle() -> None:
+    # ZXH-CF11 (r = 1/2): G = [S + h - 1, r - S - h, then min(theta - 1/4, 3/4 - theta) per angle].
+    problem = make_problem_selection("zxh_cf11").instantiate()
+    _, G = evaluate_population_with_constraints(problem, np.vstack([_zxh_point(0.4, 0.1), _zxh_point(0.1, 0.9)]))
+
+    assert G is not None and G.shape == (2, 4)
+    np.testing.assert_allclose(G[0, 2:], [0.15, -0.15], atol=1e-12)
+    np.testing.assert_allclose(G[1, 2:], [-0.15, -0.15], atol=1e-12)
+    assert np.max(G[1]) <= 1e-12
+
+
+def test_zxh_cf_type_d_excludes_two_intervals_of_each_angle() -> None:
+    # ZXH-CF16 (r = 3/4): per angle, min(theta - 1/10, 2/5 - theta) and min(theta - 7/10, 4/5 - theta).
+    problem = make_problem_selection("zxh_cf16").instantiate()
+    designs = np.vstack([_zxh_point(0.25, 0.05), _zxh_point(0.75, 0.55), _zxh_point(0.55, 0.95)])
+    _, G = evaluate_population_with_constraints(problem, designs)
+
+    assert G is not None and G.shape == (3, 6)
+    np.testing.assert_allclose(G[0, 2:], [0.15, -0.45, -0.05, -0.65], atol=1e-12)
+    np.testing.assert_allclose(G[1, 2:], [-0.35, 0.05, -0.15, -0.15], atol=1e-12)
+    assert np.max(G[2]) <= 1e-12
+
+
+def test_zxh_cf_ackley_problems_need_a_distance_variable() -> None:
+    # The Ackley function averages over the variables after the first M, as jMetal checks.
+    assert make_problem_selection("zxh_cf1", n_var=3).instantiate().n_var == 3
+    for key in ("zxh_cf3", "zxh_cf8", "zxh_cf9", "zxh_cf14"):
+        with pytest.raises(ValueError, match="at least 4 variables"):
+            make_problem_selection(key, n_var=3).instantiate()

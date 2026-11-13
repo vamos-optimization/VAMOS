@@ -16,21 +16,19 @@ from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
+from vamos.engine.algorithm.components.constraint_handling import run_progress
 from vamos.engine.algorithm.components.hooks import (
     finalize_genealogy,
     live_should_stop,
     track_offspring_genealogy,
 )
 from vamos.engine.algorithm.components.lifecycle import evaluate_batch
-from vamos.engine.algorithm.components.termination import HVTracker, capped_offspring_size
+from vamos.engine.algorithm.components.termination import HVTracker, capped_offspring_size, hv_target_reached
 from vamos.engine.algorithm.components.utils import variation_operator_label
-from vamos.engine.algorithm.nsgaii.state import compute_selection_metrics
 from vamos.foundation.kernel import default_kernel
 from vamos.foundation.kernel.backend import DecisionArray, FloatArray
 
-from .helpers import (
-    nsgaiii_survival,
-)
+from .helpers import nsgaiii_selection_metrics, nsgaiii_survival
 from .initialization import initialize_nsgaiii_run
 from .state import NSGAIIIState, build_nsgaiii_result
 
@@ -64,6 +62,17 @@ def _offspring_constraints(G: Any, F: FloatArray, population_G: FloatArray | Non
     return offspring_G
 
 
+def _archive_offspring(st: NSGAIIIState, X_off: DecisionArray, F_off: FloatArray, G_off: FloatArray | None) -> None:
+    """Offer the evaluated offspring to the external archive before survival.
+
+    The archive starts from the initial population and then receives every evaluated
+    offspring once, so an offspring that niching drops is archived when no evaluated
+    row dominates it.
+    """
+    if st.archive_manager is not None:
+        st.archive_X, st.archive_F = st.archive_manager.update(X_off, F_off, G_off)
+
+
 class NSGAIII:
     """Non-dominated Sorting Genetic Algorithm III for many-objective optimization."""
 
@@ -78,9 +87,9 @@ class NSGAIII:
         self._problem: ProblemProtocol | None = None
 
     def _refresh_selection_metrics(self, st: NSGAIIIState) -> None:
-        ranks, crowd = compute_selection_metrics(self.kernel, st.F, st.G, st.constraint_mode)
-        st.selection_ranks = np.asarray(ranks, dtype=int)
-        st.selection_crowding = np.asarray(crowd, dtype=float)
+        st.selection_ranks, st.selection_crowding = nsgaiii_selection_metrics(
+            self.kernel, st.F, st.G, st.constraint_mode, st.constraint_handling, st.rng
+        )
 
     # -------------------------------------------------------------------------
     # Main run method (batch mode)
@@ -121,7 +130,10 @@ class NSGAIII:
         while st.n_eval < max_eval and not stop_requested:
             X_off = self._generate_offspring(st)
             F_off, G_off = self._evaluate_offspring(problem, X_off, eval_strategy, st.constraint_mode)
+            # A constraint-handling technique follows the evaluations before the offspring's.
+            progress = run_progress(st.n_eval, st.max_evals)
             st.n_eval += X_off.shape[0]
+            _archive_offspring(st, X_off, F_off, G_off)
 
             ids_combined = None
             if st.ids is not None and st.pending_offspring_ids is not None:
@@ -149,6 +161,8 @@ class NSGAIII:
                 st.extreme_points,
                 st.worst_point,
                 kernel=self.kernel,
+                technique=st.constraint_handling,
+                progress=progress,
             )
             self._refresh_selection_metrics(st)
 
@@ -156,9 +170,6 @@ class NSGAIII:
                 st.ids = ids_combined[survivor_indices]
 
             st.generation += 1
-
-            if st.archive_manager is not None:
-                st.archive_X, st.archive_F = st.archive_manager.update(st.X, st.F, st.G)
 
             live_cb.on_generation(st.generation, F=st.F, stats={"evals": st.n_eval})
             stop_requested = live_should_stop(live_cb)
@@ -291,6 +302,7 @@ class NSGAIII:
             G = None
         G = _offspring_constraints(G, F, st.G, st.constraint_mode)
         st.pending_offspring = None
+        _archive_offspring(st, X_off, F, G)
 
         ids_combined = None
         if st.ids is not None and st.pending_offspring_ids is not None:
@@ -318,6 +330,8 @@ class NSGAIII:
             st.extreme_points,
             st.worst_point,
             kernel=self.kernel,
+            technique=st.constraint_handling,
+            progress=run_progress(st.n_eval, st.max_evals),
         )
         self._refresh_selection_metrics(st)
 
@@ -327,16 +341,11 @@ class NSGAIII:
         st.n_eval += X_off.shape[0]
         st.generation += 1
 
-        if st.archive_manager is not None:
-            st.archive_X, st.archive_F = st.archive_manager.update(st.X, st.F, st.G)
-
         if self._live_cb is not None:
             self._live_cb.on_generation(st.generation, F=st.F)
 
-        if st.hv_tracker is not None and st.hv_tracker.enabled:
-            st.hv_tracker.reached(st.hv_points())
-
-        return False
+        # True once the HV target of an ("hv", ...) termination is reached, as in the other algorithms.
+        return hv_target_reached(st)
 
     def should_terminate(self) -> bool:
         """Check whether the current run should terminate."""

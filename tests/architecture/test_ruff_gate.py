@@ -8,7 +8,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_ruff_gate() -> None:
-    cmd = [sys.executable, "-m", "ruff", "check", "src/vamos", "tests"]
+    cmd = [sys.executable, "-m", "ruff", "check", "--no-cache", "src/vamos", "tests"]
     proc = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True)
     if proc.returncode == 0:
         return

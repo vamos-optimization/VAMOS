@@ -7,6 +7,7 @@ from scipy.stats.qmc import Halton, Sobol  # type: ignore[import-untyped]
 
 from vamos.foundation.constraints.utils import compute_violation
 from vamos.foundation.eval.population import evaluate_population_with_constraints
+from vamos.foundation.rng import require_generator
 
 
 class LatinHypercubeInitializer:
@@ -32,7 +33,7 @@ class LatinHypercubeInitializer:
         if self.lower.ndim != 1:
             raise ValueError("Bounds must be one-dimensional.")
         self.n_var = self.lower.shape[0]
-        self.rng = rng or np.random.default_rng()
+        self.rng = require_generator(rng, "LatinHypercubeInitializer")
 
     def __call__(self) -> np.ndarray[Any, Any]:
         n = self.n_solutions
@@ -69,7 +70,7 @@ class ScatterSearchInitializer:
         if self.lower.ndim != 1:
             raise ValueError("Bounds must be one-dimensional.")
         self.base_size = max(1, int(base_size))
-        self.rng = rng or np.random.default_rng()
+        self.rng = require_generator(rng, "ScatterSearchInitializer")
 
     def __call__(self) -> np.ndarray[Any, Any]:
         lhs = LatinHypercubeInitializer(self.base_size, self.lower, self.upper, rng=self.rng)
@@ -110,7 +111,7 @@ class SobolInitializer:
             raise ValueError("Bounds must be one-dimensional.")
         self.n_var = self.lower.shape[0]
         self.scramble = scramble
-        self.rng = rng or np.random.default_rng()
+        self.rng = require_generator(rng, "SobolInitializer")
 
     def __call__(self) -> np.ndarray[Any, Any]:
         seed = int(self.rng.integers(0, 2**31))
@@ -146,7 +147,7 @@ class HaltonInitializer:
             raise ValueError("Bounds must be one-dimensional.")
         self.n_var = self.lower.shape[0]
         self.scramble = scramble
-        self.rng = rng or np.random.default_rng()
+        self.rng = require_generator(rng, "HaltonInitializer")
 
     def __call__(self) -> np.ndarray[Any, Any]:
         seed = int(self.rng.integers(0, 2**31))
@@ -191,7 +192,7 @@ class OppositionBasedInitializer:
             raise ValueError("Bounds must be one-dimensional.")
         self.n_var = self.lower.shape[0]
         self.problem = problem
-        self.rng = rng or np.random.default_rng()
+        self.rng = require_generator(rng, "OppositionBasedInitializer")
 
     @property
     def n_candidates(self) -> int:

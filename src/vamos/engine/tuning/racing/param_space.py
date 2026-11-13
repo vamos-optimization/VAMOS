@@ -31,6 +31,8 @@ from typing import Any
 
 import numpy as np
 
+from vamos.foundation.rng import require_generator
+
 
 @dataclass
 class Real:
@@ -206,7 +208,7 @@ class ParamSpace:
         which parameters end up active. A parameter is kept when its conditions hold for the
         parents already kept, so descendants of an inactive parameter are left out.
         """
-        rng = np.random.default_rng() if rng is None else rng
+        rng = require_generator(rng, "ParamSpace.sample")
         return _active_assignment(self, {name: spec.sample(rng) for name, spec in self.params.items()})
 
     def is_active(self, param_name: str, config: dict[str, Any]) -> bool:

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import cast
 
-from vamos.foundation.exceptions import _suggest_names
+from vamos.foundation.exceptions import InvalidProblemError
 
 from ..types import ProblemProtocol
 from .specs import ProblemSpec, get_problem_specs
@@ -20,23 +20,6 @@ class ProblemSelection:
     def instantiate(self) -> ProblemProtocol:
         """Create a new problem instance with the resolved dimensions."""
         return cast(ProblemProtocol, self.spec.factory(self.n_var, self.n_obj))
-
-
-_PROBLEM_DOCS = "docs/reference/problems.md"
-_TROUBLESHOOTING_DOCS = "docs/guide/troubleshooting.md"
-
-
-def _format_unknown_problem(name: str, options: list[str]) -> str:
-    parts = [f"Unknown problem '{name}'.", f"Available: {', '.join(options)}."]
-    suggestions = _suggest_names(name, options)
-    if suggestions:
-        if len(suggestions) == 1:
-            parts.append(f"Did you mean '{suggestions[0]}'?")
-        else:
-            parts.append("Did you mean one of: " + ", ".join(f"'{item}'" for item in suggestions) + "?")
-    parts.append(f"Docs: {_PROBLEM_DOCS}.")
-    parts.append(f"Troubleshooting: {_TROUBLESHOOTING_DOCS}.")
-    return " ".join(parts)
 
 
 def make_problem_selection(key: str, *, n_var: int | None = None, n_obj: int | None = None) -> ProblemSelection:
@@ -60,17 +43,17 @@ def make_problem_selection(key: str, *, n_var: int | None = None, n_obj: int | N
 
     Raises
     ------
-    KeyError
-        If *key* does not match any registered problem.  The error
-        message includes the full list of valid names and close-match
-        suggestions.
+    InvalidProblemError
+        If *key* does not match any registered problem. It is also a
+        ``KeyError``; its message suggests close matches and its
+        ``details["available"]`` lists every registered name.
     """
     specs = get_problem_specs()
     try:
         spec = specs[key]
     except KeyError as exc:
         available = sorted(specs.keys())
-        raise KeyError(_format_unknown_problem(key, available)) from exc
+        raise InvalidProblemError(key, available) from exc
 
     actual_n_var, actual_n_obj = spec.resolve_dimensions(n_var=n_var, n_obj=n_obj)
     return ProblemSelection(spec=spec, n_var=actual_n_var, n_obj=actual_n_obj)

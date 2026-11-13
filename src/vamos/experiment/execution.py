@@ -31,7 +31,6 @@ from vamos.experiment.runner_utils import run_output_dir, validate_problem
 from vamos.experiment.runtime.catalog import (
     EXPERIMENT_BACKENDS,
     EXPERIMENT_TYPES,
-    EXTERNAL_ALGORITHM_NAMES,
     resolve_engine,
 )
 from vamos.foundation.core.execution import execute_algorithm
@@ -344,7 +343,7 @@ def raise_run_failures(failures: list[str]) -> None:
 
 
 def planned_engines_and_algorithms(args: Namespace) -> tuple[tuple[str | None, ...], list[str]]:
-    """The engines and the algorithms (before external baselines are added) that one problem runs with."""
+    """The engines and the algorithms that one problem runs with."""
     engines: tuple[str | None, ...] = EXPERIMENT_BACKENDS if args.experiment in EXPERIMENT_TYPES else (getattr(args, "engine", None),)
     return engines, list(ENABLED_ALGORITHMS) if args.algorithm == "both" else [args.algorithm]
 
@@ -357,7 +356,6 @@ def execute_problem_suite(
     run_single_fn: Callable[..., Metrics],
     hv_stop_config: dict[str, Any] | None = None,
     variations: VariationConfigs | None = None,
-    include_external: bool = False,
     config_source: str | None = None,
     config_spec: ExperimentSpec | None = None,
     problem_override: SpecBlock | None = None,
@@ -373,27 +371,13 @@ def execute_problem_suite(
     to ``failures`` when the caller passes a list (it reports them after its own series);
     otherwise ``raise_run_failures`` raises them once the summary of the other runs is printed.
     """
-    from vamos.experiment import external  # local import to keep runner decoupled
-
     engines, algorithms = planned_engines_and_algorithms(args)
     registered_algorithms = set(get_algorithms_registry().keys())
-    use_native_external_problem = args.external_problem_source == "native"
-
-    if include_external and problem_selection.spec.key != "zdt1":
-        _logger().info("External baselines are currently available only for ZDT1; skipping external runs.")
-        include_external = False
-
-    if include_external:
-        for ext in EXTERNAL_ALGORITHM_NAMES:
-            if ext not in algorithms:
-                algorithms.append(ext)
-
     runnable_algorithms = [a for a in algorithms if a in registered_algorithms]
-    external_algorithms = [a for a in algorithms if a in EXTERNAL_ALGORITHM_NAMES]
 
     _track_genealogy: bool = getattr(args, "track_genealogy", False)
     run_failures: list[str] = failures if failures is not None else []
-    keep_going = failures is not None or len(engines) * len(runnable_algorithms) + len(external_algorithms) > 1
+    keep_going = failures is not None or len(engines) * len(runnable_algorithms) > 1
     problem_key = problem_selection.spec.key
     _variations = variations or VariationConfigs.from_namespace(args)
     # The strategy and worker count come from the (per-problem) config; the Dask scheduler address only from the CLI.
@@ -438,27 +422,6 @@ def execute_problem_suite(
                     raise
                 _record_failure(run_failures, problem_key, algorithm_name, engine_name, exc)
                 continue
-            results.append(metrics)
-
-    for algorithm_name in external_algorithms:
-        from vamos.experiment.external.reporting import build_metrics, print_run_banner, print_run_results
-
-        try:
-            metrics = external.run_external(
-                algorithm_name,
-                problem_selection,
-                use_native_problem=use_native_external_problem,
-                config=config,
-                make_metrics=build_metrics,
-                print_banner=lambda problem, selection, label, backend: print_run_banner(problem, selection, label, backend, config),
-                print_results=print_run_results,
-            )
-        except Exception as exc:
-            if not keep_going:
-                raise
-            _record_failure(run_failures, problem_key, algorithm_name, "external", exc)
-            continue
-        if metrics is not None:
             results.append(metrics)
 
     if not results:

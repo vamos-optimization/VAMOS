@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, cast
 import numpy as np
 from numpy.typing import NDArray
 
+from vamos.engine.algorithm.components.constraint_handling import run_progress
 from vamos.engine.algorithm.components.hooks import (
     finalize_genealogy,
     live_should_stop,
@@ -43,6 +44,39 @@ from vamos.foundation.observer import RunContext
 __all__ = ["SMSEMOA"]
 
 
+def _archive_child(st: SMSEMOAState, X_child: NDArray[Any], F_child: NDArray[np.float64], G_child: Any) -> None:
+    """Offer an evaluated child to the external archive, whether or not it survives.
+
+    The archive starts from the initial population and then receives every child
+    once, so a child removed as the least hypervolume contributor is archived when
+    no evaluated row dominates it.
+    """
+    if st.archive_manager is not None:
+        # The archive holds constraint values exactly when the population does.
+        G_rows = np.asarray(G_child, dtype=float).reshape(X_child.shape[0], -1) if st.G is not None and G_child is not None else None
+        st.archive_X, st.archive_F = st.archive_manager.update(X_child, F_child, G_rows)
+
+
+def _check_hv_target(st: SMSEMOAState) -> bool:
+    """Measure an ``("hv", ...)`` target at a generation boundary and remember the outcome.
+
+    The HV is measured only here, once per generation, in ``run`` and in ``tell`` alike;
+    ``should_terminate`` and ``result`` read the stored outcome.
+    """
+    tracker = st.hv_tracker
+    st.hv_reached = bool(tracker is not None and tracker.enabled and tracker.reached(st.hv_points()))
+    return st.hv_reached
+
+
+def _advance_step(st: SMSEMOAState) -> bool:
+    """Count one child; return whether it completes a generation of ``pop_size`` children."""
+    st.steps += 1
+    if st.steps % st.pop_size != 0:
+        return False
+    st.generation = st.steps // st.pop_size
+    return True
+
+
 class SMSEMOA:
     """S-Metric Selection Evolutionary Multiobjective Optimization Algorithm.
 
@@ -53,14 +87,16 @@ class SMSEMOA:
     Parameters
     ----------
     config : dict
-        Algorithm configuration with keys:
+        Algorithm configuration, as ``SMSEMOAConfig.to_dict()`` builds it, with keys:
         - pop_size (int): Population size
         - crossover (tuple): Crossover operator config
         - mutation (tuple): Mutation operator config
-        - selection (tuple): Selection config, e.g., ("tournament", {"size": 2})
-        - reference_point (dict, optional): {"offset": float} or {"point": list}
-        - external_archive (dict, optional): {"capacity": int | None, "pruning": str}
-        - hv_threshold (float, optional): HV threshold for early termination
+        - selection (tuple): Parent selection, ("random", {}) or ("tournament", {"size": 2})
+        - reference_point (dict): {"offset": float, "adaptive": bool}, with ``offset`` a
+          fraction of each objective's range, or {"vector": list} for a fixed reference
+        - eliminate_duplicates (bool, optional): Discard a child that repeats an X or F row
+        - external_archive (dict, optional): {"capacity": int | None, "pruning": str, ...}
+        An HV target is a termination criterion, ``("hv", {...})``, not a configuration key.
     kernel : KernelBackend
         Backend for vectorized operations.
 
@@ -147,37 +183,32 @@ class SMSEMOA:
         # Generation 0 is the evaluated initial population, as in every algorithm.
         live_cb.on_generation(0, F=st.F, stats={"evals": st.n_eval})
 
-        # Compiled kernels reproduce the generation below when the configuration allows it.
+        # Compiled kernels reproduce the step below when the configuration allows it.
         compiled = build_compiled_step(st, self.kernel)
-        hv_reached = False
+        st.hv_reached = False
         stop_requested = live_should_stop(live_cb)
         try:
             while st.n_eval < max_eval and not stop_requested:
                 if compiled is not None:
-                    compiled.step(problem, eval_strategy)
+                    X_child, F_child, G_child = compiled.step(problem, eval_strategy)
                 else:
-                    self._reference_step(st, problem, eval_strategy)
+                    X_child, F_child, G_child = self._reference_step(st, problem, eval_strategy)
+                _archive_child(st, X_child, F_child, G_child)
 
-                st.generation += 1
-
-                # Update archive
-                if st.archive_manager is not None:
-                    st.archive_X, st.archive_F = st.archive_manager.update(st.X, st.F, st.G)
-
-                # Live callback
-                live_cb.on_generation(st.generation, F=st.F, stats={"evals": st.n_eval})
+                new_generation = _advance_step(st)
+                if new_generation:
+                    live_cb.on_generation(st.generation, F=st.F, stats={"evals": st.n_eval})
                 stop_requested = live_should_stop(live_cb)
 
-                # Check HV threshold
-                if hv_tracker is not None and hv_tracker.enabled and hv_tracker.reached(st.hv_points()):
-                    hv_reached = True
+                # The HV target is checked once per generation, as in steady-state NSGA-II.
+                if new_generation and _check_hv_target(st):
                     break
         finally:
             if compiled is not None:
                 compiled.finish()
 
         live_cb.on_end(final_F=st.F)
-        result = build_smsemoa_result(st, hv_reached, kernel=self.kernel)
+        result = build_smsemoa_result(st, st.hv_reached, kernel=self.kernel)
         finalize_genealogy(result, st, self.kernel)
         return result
 
@@ -185,24 +216,20 @@ class SMSEMOA:
     # Generation logic
     # -------------------------------------------------------------------------
 
-    def _reference_step(self, st: SMSEMOAState, problem: ProblemProtocol, eval_strategy: EvaluationBackend) -> None:
-        """Generate, evaluate and insert one child (the reference for ``CompiledSteadyStep``)."""
+    def _reference_step(
+        self, st: SMSEMOAState, problem: ProblemProtocol, eval_strategy: EvaluationBackend
+    ) -> tuple[NDArray[Any], NDArray[np.float64], NDArray[np.float64] | None]:
+        """Generate, evaluate and insert one child (the reference for ``CompiledSteadyStep``).
+
+        Returns the evaluated child as ``(X, F, G)`` rows.
+        """
         X_child = self._generate_offspring(st)
         F_child, G_child = self._evaluate_offspring(problem, X_child, eval_strategy, st.constraint_mode)
+        # A constraint-handling technique follows the evaluations before the child's.
+        progress = run_progress(st.n_eval, st.max_evals)
         st.n_eval += X_child.shape[0]
-
-        # Survival selection (one child at a time for SMS-EMOA)
-        if X_child.shape[0] == 1:
-            survival_selection(st, X_child, F_child, G_child, self.kernel)
-        else:  # pragma: no cover - steady-state SMS-EMOA typically uses 1 offspring
-            for i in range(X_child.shape[0]):
-                survival_selection(
-                    st,
-                    X_child[i : i + 1],
-                    F_child[i : i + 1],
-                    G_child[i : i + 1] if G_child is not None else None,
-                    self.kernel,
-                )
+        survival_selection(st, X_child, F_child, G_child, self.kernel, progress)
+        return X_child, F_child, G_child
 
     def _generate_offspring(self, st: SMSEMOAState) -> NDArray[Any]:
         """Generate offspring using parent selection and variation."""
@@ -365,30 +392,19 @@ class SMSEMOA:
             F = np.asarray(eval_result, dtype=float)
             G = None
 
-        # Survival selection for each child
-        if X_off.shape[0] == 1:
-            survival_selection(st, X_off, F, G, self.kernel)
-        else:  # pragma: no cover - steady-state SMS-EMOA typically uses 1 offspring
-            for i in range(X_off.shape[0]):
-                G_i = G[i : i + 1] if G is not None else None
-                survival_selection(st, X_off[i : i + 1], F[i : i + 1], G_i, self.kernel)
-
+        # ``ask`` creates one child per call.
+        survival_selection(st, X_off, F, G, self.kernel, run_progress(st.n_eval, st.max_evals))
         st.n_eval += X_off.shape[0]
-        st.generation += 1
+        _archive_child(st, X_off, F, G)
 
-        # Update archive
-        if st.archive_manager is not None:
-            st.archive_X, st.archive_F = st.archive_manager.update(st.X, st.F, st.G)
+        if _advance_step(st):
+            if self._live_cb is not None:
+                self._live_cb.on_generation(st.generation, F=st.F, stats={"evals": st.n_eval})
+            _check_hv_target(st)
 
-        # Live callback
-        if self._live_cb is not None:
-            self._live_cb.on_generation(st.generation, F=st.F)
-
-        # Check HV tracker
-        if st.hv_tracker is not None and st.hv_tracker.enabled:
-            st.hv_tracker.reached(st.hv_points())
-
-        return False
+        # True once the HV target of an ("hv", ...) termination is reached, as in the other algorithms;
+        # it is measured at generation boundaries only.
+        return st.hv_reached
 
     def should_terminate(self) -> bool:
         """Check if termination criterion is met.
@@ -402,7 +418,8 @@ class SMSEMOA:
             return True
         if self._st.n_eval >= self._max_eval:
             return True
-        if self._st.hv_tracker is not None and self._st.hv_tracker.enabled and self._st.hv_tracker.reached(self._st.hv_points()):
+        # The HV target is checked at generation boundaries, as in run(); no HV is computed here.
+        if self._st.hv_reached:
             return True
         return False
 
@@ -422,7 +439,7 @@ class SMSEMOA:
         if self._st is None:
             raise RuntimeError("Algorithm not initialized.")
 
-        hv_reached = self._st.hv_tracker is not None and self._st.hv_tracker.enabled and self._st.hv_tracker.reached(self._st.hv_points())
+        hv_reached = self._st.hv_reached
 
         if self._live_cb is not None:
             self._live_cb.on_end(final_F=self._st.F)

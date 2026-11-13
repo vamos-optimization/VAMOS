@@ -238,3 +238,32 @@ def test_smpso_resolve_repair_supports_new_repairs():
         ),
         GradientRepair,
     )
+
+
+def test_gradient_repair_ignores_satisfied_constraints():
+    """A satisfied constraint (g < 0) must not offset a violated one."""
+
+    def constraint_fun(X: np.ndarray) -> np.ndarray:
+        # g1 = x0 - 0.2 is violated by 0.3 at x0 = 0.5; g2 = -0.8 is satisfied.
+        return np.column_stack([X[:, 0] - 0.2, np.full(X.shape[0], -0.8)])
+
+    def constraint_grad(X: np.ndarray) -> np.ndarray:
+        grads = np.zeros((X.shape[0], 2, X.shape[1]))
+        grads[:, 0, 0] = 1.0
+        return grads
+
+    repair = GradientRepair(constraint_fun, constraint_grad, step_size=0.5, max_iters=20)
+    repaired = repair(np.array([[0.5]]), np.array([0.0]), np.array([1.0]))
+
+    assert repaired[0, 0] < 0.2 + 1e-3
+
+
+def test_reflect_and_wrapping_repairs_send_infinities_to_the_bounds():
+    X = np.array([[np.inf, -np.inf, 0.5]])
+    lower = np.array([0.0, 0.0, 0.0])
+    upper = np.array([1.0, 2.0, 1.0])
+    rng = np.random.default_rng(0)
+
+    for repair in (ReflectRepair(), WrappingRepair()):
+        repaired = repair(X.copy(), lower, upper, rng)
+        assert_allclose(repaired, [[1.0, 0.0, 0.5]], err_msg=type(repair).__name__)

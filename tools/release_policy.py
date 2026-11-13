@@ -119,11 +119,13 @@ def document_evidence(root: Path, version: str) -> dict[str, Any]:
 def license_evidence(root: Path) -> dict[str, Any]:
     pyproject = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
     project = pyproject["project"]
+    # The 1.x compatibility commitments (docs/project/stability-and-versioning.md) are those of a stable release.
+    statuses = [classifier for classifier in project.get("classifiers", []) if classifier.startswith("Development Status ::")]
     checks = {
         "spdx": project.get("license") == "MIT",
         "license_file_declared": project.get("license-files") == ["LICENSE"],
         "license_file_present": (root / "LICENSE").is_file(),
-        "beta_classifier": "Development Status :: 4 - Beta" in project.get("classifiers", []),
+        "production_stable_classifier": statuses == ["Development Status :: 5 - Production/Stable"],
     }
     failed = sorted(name for name, passed in checks.items() if not passed)
     if failed:
@@ -140,6 +142,15 @@ def tracked_files(root: Path) -> list[Path]:
     return [root / item.decode("utf-8", errors="surrogateescape") for item in raw.split(b"\0") if item]
 
 
+def personal_paths(payload: bytes) -> list[str]:
+    """Every absolute home-directory path in ``payload``, whatever the file type and account name.
+
+    The repository-hygiene checker uses the same detector, so a path that would stop the
+    release already fails health and CI.
+    """
+    return [match.group(0).decode("utf-8", errors="replace") for pattern in _PERSONAL_PATH_PATTERNS for match in pattern.finditer(payload)]
+
+
 def scan_files(paths: list[Path], *, root: Path) -> dict[str, Any]:
     personal: list[str] = []
     credentials: list[dict[str, str]] = []
@@ -150,7 +161,7 @@ def scan_files(paths: list[Path], *, root: Path) -> dict[str, Any]:
         payload = path.read_bytes()
         scanned += 1
         label = path.relative_to(root).as_posix() if path.is_relative_to(root) else path.name
-        if any(pattern.search(payload) for pattern in _PERSONAL_PATH_PATTERNS):
+        if personal_paths(payload):
             personal.append(label)
         for kind, pattern in _CREDENTIAL_PATTERNS.items():
             if pattern.search(payload):

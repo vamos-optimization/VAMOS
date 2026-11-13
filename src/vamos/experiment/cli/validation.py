@@ -5,8 +5,7 @@ import logging
 
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.engine.config.variation import merge_variation_overrides
-from vamos.experiment.runtime.catalog import EXPERIMENT_TYPES
-from vamos.foundation.problem.resolver import PROBLEM_SET_PRESETS, resolve_problem_selections, resolve_reference_front_path
+from vamos.foundation.problem.resolver import resolve_problem_selections, resolve_reference_front_path
 
 from .common import _collect_generic_variation, _collect_moead_variation, _normalize_operator_args, collect_nsgaii_variation_args
 from .types import SpecDefaults
@@ -105,14 +104,6 @@ def finalize_args(
 
     if getattr(args, "quiet", False) and getattr(args, "verbose", False):
         parser.error("--quiet and --verbose cannot be used together.")
-
-    if getattr(args, "problem_set", None) is not None:
-        if not PROBLEM_SET_PRESETS:
-            parser.error("--problem-set is not available because no presets are registered.")
-        if args.problem_set not in PROBLEM_SET_PRESETS:
-            parser.error(f"--problem-set must be one of: {', '.join(sorted(PROBLEM_SET_PRESETS))}.")
-    if getattr(args, "experiment", None) is not None and args.experiment not in EXPERIMENT_TYPES:
-        parser.error(f"--experiment must be one of: {', '.join(EXPERIMENT_TYPES)}.")
 
     if args.seed is not None and args.seed < 0:
         parser.error("--seed must be a non-negative integer.")

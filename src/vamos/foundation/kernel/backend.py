@@ -193,6 +193,17 @@ class SelectionKernels(Protocol):
         """IBEA iterative removal of the lowest fitness, updating ``fitness`` in place."""
         ...
 
+    def stochastic_ranking_order(
+        self,
+        pareto_rank: NDArray[np.int64],
+        feasible: NDArray[np.bool_],
+        violation: FloatArray,
+        uniforms: FloatArray,
+        probability: float,
+    ) -> NDArray[np.int64]:
+        """Stochastic ranking's bubble sort, consuming ``uniforms`` in order (see ``constrained_ranking``)."""
+        ...
+
     def smsemoa_survival(
         self,
         *,
@@ -482,22 +493,6 @@ class KernelBackend(ABC):
         """
 
     # -------- Quality indicator hooks --------
-
-    def update_archive(
-        self,
-        archive_X: DecisionArray | None,
-        archive_F: FloatArray | None,
-        population_X: DecisionArray,
-        population_F: FloatArray,
-        archive_size: int,
-    ) -> tuple[DecisionArray | None, FloatArray | None]:
-        """
-        Optional external archive update implementation.
-
-        Backends that implement this method can be used by algorithms to maintain a
-        non-dominated archive inside the kernel for performance.
-        """
-        raise NotImplementedError(f"Backend '{self.__class__.__name__}' does not support update_archive.")
 
     def hypervolume(self, points: FloatArray, reference_point: FloatArray) -> float:
         """

@@ -12,6 +12,9 @@ concurrency:
   group: ci-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 defaults:
   run:
     shell: bash
@@ -46,7 +49,9 @@ jobs:
       matrix:
         # Pull requests test Linux only, to save runners; the merge queue and main also test Windows and macOS.
         os: ${{ fromJSON(github.event_name == 'pull_request' && '["ubuntu-latest"]' || '["ubuntu-latest", "windows-latest", "macos-latest"]') }}
-        python-version: ["3.10", "3.11", "3.12"]
+        # Keep this list and the Python classifiers in pyproject.toml identical.
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        # Windows and macOS test the primary Python 3.12 and every newer version.
         exclude:
           - os: windows-latest
             python-version: "3.10"
@@ -62,8 +67,7 @@ jobs:
             python-version: "3.12"
             tuning: true
     env:
-      # The research extra (pygmo) has Linux wheels only.
-      EXTRAS: ${{ matrix.os == 'ubuntu-latest' && 'dev,compute,research,analysis,examples,studio,docs' || 'dev,compute,analysis,examples,studio,docs' }}${{ matrix.tuning && ',tuning' || '' }}
+      EXTRAS: dev,compute,analysis,examples,studio,docs${{ matrix.tuning && ',tuning' || '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -86,6 +90,9 @@ jobs:
           python tools/check_repository_hygiene.py
           python tools/check_repository_identity.py
           python tools/check_pre_release_remnants.py
+          python tools/check_learning_content.py
+          python tools/check_notebook_links.py
+          python tools/check_notebook_quality.py
           python -m pytest -q \
             tests/test_check_repository_hygiene.py \
             tests/test_check_repository_identity.py \
@@ -97,6 +104,8 @@ jobs:
             tests/test_import_time_smoke.py \
             tests/architecture/test_no_import_time_side_effects.py \
             tests/architecture/test_dependency_policy.py \
+            tests/architecture/test_no_facade_imports.py \
+            tests/architecture/test_experiment_import_cycles.py \
             tests/test_optional_deps_policy.py \
             tests/test_logging_policy.py \
             tests/test_no_prints_in_library.py \
@@ -111,10 +120,33 @@ jobs:
             tests/engine/test_permutation_edge_cases.py \
             tests/engine/test_moead_weight_vectors.py \
             tests/foundation/test_hypervolume_fallback.py \
-            tests/engine/test_tuning_hypervolume_nd.py \
             tests/architecture/test_docs_and_workflows.py
       - name: Run tests
         run: pytest -m "not slow" --cov=src/vamos --cov-report=term-missing
+      # Compiled Numba kernels are invisible to coverage; their tests run once more as plain Python.
+      # The *_are_nopython tests check compilation itself, so they are left out of this run.
+      - name: Measure the Numba kernels as Python
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        env:
+          NUMBA_DISABLE_JIT: "1"
+        run: >-
+          pytest -m "not slow" -k "not nopython" --cov=src/vamos --cov-append --cov-report=
+          tests/foundation/test_numba_ops.py tests/foundation/test_numba_selection_kernels.py
+          tests/foundation/test_numba_smsemoa_kernels.py tests/foundation/test_numba_variation_parity.py
+          tests/foundation/test_numba_backend_parity.py tests/engine/test_moead_numba.py tests/engine/test_ibea_numba.py
+          tests/engine/test_smpso_numba.py tests/engine/test_smsemoa_numba.py tests/engine/test_nsgaii_steady_state_numba.py
+      # Floors for the scientific packages (branch coverage, measured here). Raise a floor when coverage rises; never lower it.
+      # They hold on every runner: where compiled pow differs from np.power (it depends on the CPU), the Numba
+      # engine keeps its reference paths, and the compiled steady-state steps stay unmeasured.
+      - name: Coverage floors
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        run: |
+          status=0
+          coverage report --include="src/vamos/foundation/problem/*" --fail-under=86 --format=total || status=1
+          coverage report --include="src/vamos/foundation/quality_indicators/*" --fail-under=78 --format=total || status=1
+          coverage report --include="src/vamos/engine/algorithm/*" --fail-under=78 --format=total || status=1
+          coverage report --include="src/vamos/engine/operators/*" --fail-under=81 --format=total || status=1
+          exit "$status"
       - name: Build docs
         run: mkdocs build --strict
       - name: Notebook Smoke
@@ -142,9 +174,35 @@ jobs:
       - name: Run minimal smoke tests
         run: python -m pytest tests/integration/test_minimal_imports.py tests/foundation/test_packaging_data.py
 
+  # The declared minimum of every core dependency, on the oldest supported Python.
+  tests-minimum:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install the declared minimum dependencies
+        run: |
+          python -m pip install -U pip
+          python -m pip install -c constraints/ci.txt tomli
+          python tools/minimum_constraints.py > "$RUNNER_TEMP/minimum.txt"
+          # One resolution for VAMOS and pytest, so pytest's own dependencies fit the minimum pins.
+          grep -E '^pytest==' constraints/ci.txt >> "$RUNNER_TEMP/minimum.txt"
+          cat "$RUNNER_TEMP/minimum.txt"
+          python -m pip install -c "$RUNNER_TEMP/minimum.txt" . pytest
+          python -m pip list
+      - name: Run minimal smoke tests
+        run: python -m pytest tests/integration/test_minimal_imports.py tests/foundation/test_packaging_data.py
+
   build-wheel:
     runs-on: ubuntu-latest
-    needs: [typing, tests-full, tests-minimal]
+    needs: [typing, tests-full, tests-minimal, tests-minimum]
     # A required check: it runs even when a needed job fails, and then fails itself, because
     # GitHub counts a skipped required check as passing, also in the merge queue.
     if: ${{ always() }}
@@ -152,7 +210,7 @@ jobs:
       - name: Require typing and tests
         if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}
         run: |
-          echo "typing=${{ needs.typing.result }} tests-full=${{ needs.tests-full.result }} tests-minimal=${{ needs.tests-minimal.result }}"
+          echo "typing=${{ needs.typing.result }} tests-full=${{ needs.tests-full.result }} tests-minimal=${{ needs.tests-minimal.result }} tests-minimum=${{ needs.tests-minimum.result }}"
           exit 1
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -161,10 +219,11 @@ jobs:
         with:
           python-version: "3.12"
       - name: Build wheel
+        # As the release builds it: the audited build environment, without isolation or the CI pins.
         run: |
-          python -m pip install -U pip build
-          python -m pip install -c constraints/ci.txt -r constraints/ci.txt
-          python -m build
+          python -m pip install -U pip
+          python -m pip install -r release/requirements-build.txt
+          python -m build --no-isolation
       - name: Install wheel and smoke test
         run: |
           python -m pip install dist/*.whl

@@ -3,6 +3,7 @@
 from .bridge import (
     build_agemoea_binary_config_space,
     build_agemoea_config_space,
+    build_agemoea_constrained_config_space,
     build_agemoea_integer_config_space,
     build_agemoea_mixed_config_space,
     build_agemoea_permutation_config_space,
@@ -18,11 +19,13 @@ from .bridge import (
     build_moead_permutation_config_space,
     build_nsgaii_binary_config_space,
     build_nsgaii_config_space,
+    build_nsgaii_constrained_config_space,
     build_nsgaii_integer_config_space,
     build_nsgaii_mixed_config_space,
     build_nsgaii_permutation_config_space,
     build_nsgaiii_binary_config_space,
     build_nsgaiii_config_space,
+    build_nsgaiii_constrained_config_space,
     build_nsgaiii_integer_config_space,
     build_nsgaiii_mixed_config_space,
     build_nsgaiii_permutation_config_space,
@@ -35,6 +38,7 @@ from .bridge import (
     build_smpso_mixed_config_space,
     build_smsemoa_binary_config_space,
     build_smsemoa_config_space,
+    build_smsemoa_constrained_config_space,
     build_smsemoa_integer_config_space,
     build_smsemoa_mixed_config_space,
     build_smsemoa_permutation_config_space,
@@ -47,7 +51,7 @@ from .bridge import (
 )
 from .config_space import AlgorithmConfigSpace
 from .core import RacingTuner
-from .io import filter_active_config, history_to_dict, load_checkpoint, save_checkpoint, save_history_csv, save_history_json
+from .io import filter_active_config, history_to_dict, save_history_csv, save_history_json
 from .param_space import (
     Boolean,
     BooleanParam,
@@ -118,8 +122,6 @@ __all__ = [
     "history_to_dict",
     "save_history_json",
     "save_history_csv",
-    "save_checkpoint",
-    "load_checkpoint",
     # Config space builders
     "build_spea2_config_space",
     "build_spea2_permutation_config_space",
@@ -134,6 +136,7 @@ __all__ = [
     "build_smpso_config_space",
     "build_smpso_mixed_config_space",
     "build_agemoea_config_space",
+    "build_agemoea_constrained_config_space",
     "build_agemoea_permutation_config_space",
     "build_agemoea_binary_config_space",
     "build_agemoea_integer_config_space",
@@ -149,16 +152,19 @@ __all__ = [
     "build_moead_integer_config_space",
     "build_moead_permutation_config_space",
     "build_nsgaiii_config_space",
+    "build_nsgaiii_constrained_config_space",
     "build_nsgaiii_permutation_config_space",
     "build_nsgaiii_mixed_config_space",
     "build_nsgaiii_binary_config_space",
     "build_nsgaiii_integer_config_space",
     "build_smsemoa_config_space",
+    "build_smsemoa_constrained_config_space",
     "build_smsemoa_permutation_config_space",
     "build_smsemoa_mixed_config_space",
     "build_smsemoa_binary_config_space",
     "build_smsemoa_integer_config_space",
     "build_nsgaii_config_space",
+    "build_nsgaii_constrained_config_space",
     "build_nsgaii_permutation_config_space",
     "build_nsgaii_mixed_config_space",
     "build_nsgaii_binary_config_space",
