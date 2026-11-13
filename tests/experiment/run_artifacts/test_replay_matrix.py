@@ -10,6 +10,7 @@ import vamos
 from vamos.engine.algorithm.config import (
     AGEMOEAConfig,
     CCMOConfig,
+    CTAEAConfig,
     IBEAConfig,
     MOEADConfig,
     NSGAIIConfig,
@@ -65,6 +66,9 @@ _ALGORITHMS: tuple[tuple[str, str, Callable[[], Any], dict[str, int]], ...] = (
     # CCMO: two initial populations of 4, then one generation, on a constrained problem and with the DE variation.
     ("ccmo", "c1dtlz1", lambda: CCMOConfig.default(pop_size=4, n_var=7), {"n_var": 7, "n_obj": 3}),
     ("ccmo", "zdt1", _ccmo_de, {"n_var": 6}),
+    # C-TAEA: 6 requested weight vectors give 6 with three objectives; 5 with two leave a partial generation.
+    ("ctaea", "c1dtlz1", lambda: CTAEAConfig.default(pop_size=6, n_var=7), {"n_var": 7, "n_obj": 3}),
+    ("ctaea", "zdt1", lambda: CTAEAConfig.default(pop_size=5, n_var=6), {"n_var": 6}),
 )
 
 

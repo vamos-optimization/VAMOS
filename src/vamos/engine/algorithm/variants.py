@@ -11,6 +11,7 @@ ALGORITHM_VARIANT_GROUPS: dict[str, set[str]] = {
     "agemoea": {"agemoea", "agemoea_permutation", "agemoea_mixed", "agemoea_binary", "agemoea_integer", "agemoea_constrained"},
     "rvea": {"rvea", "rvea_permutation", "rvea_mixed", "rvea_binary", "rvea_integer"},
     "ccmo": {"ccmo"},
+    "ctaea": {"ctaea"},
 }
 
 
@@ -62,6 +63,7 @@ VARIANT_TO_CANONICAL: dict[str, str] = {
     "rvea_binary": "rvea",
     "rvea_integer": "rvea",
     "ccmo": "ccmo",
+    "ctaea": "ctaea",
 }
 
 

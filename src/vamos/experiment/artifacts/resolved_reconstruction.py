@@ -10,6 +10,7 @@ from typing import Any, cast
 from vamos.engine.algorithm.config import (
     AGEMOEAConfig,
     CCMOConfig,
+    CTAEAConfig,
     IBEAConfig,
     MOEADConfig,
     NSGAIIConfig,
@@ -33,6 +34,7 @@ from .specs import RunSpecInputs, build_run_specs
 _CONFIG_TYPES = {
     "agemoea": AGEMOEAConfig,
     "ccmo": CCMOConfig,
+    "ctaea": CTAEAConfig,
     "ibea": IBEAConfig,
     "moead": MOEADConfig,
     "nsgaii": NSGAIIConfig,

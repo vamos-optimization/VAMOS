@@ -12,6 +12,7 @@ from typing import TypedDict, cast
 from vamos.engine.algorithm.config import (
     AGEMOEAConfig,
     CCMOConfig,
+    CTAEAConfig,
     IBEAConfig,
     MOEADConfig,
     NSGAIIConfig,
@@ -51,6 +52,7 @@ _ALGORITHM_BLOCKS: dict[str, type] = {
     "agemoea": AGEMOEAConfig,
     "rvea": RVEAConfig,
     "ccmo": CCMOConfig,
+    "ctaea": CTAEAConfig,
 }
 
 _OPERATOR_SPEC_KEYS = ("crossover", "mutation", "selection", "repair", "aggregation")
