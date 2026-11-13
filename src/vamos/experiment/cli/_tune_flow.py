@@ -4,12 +4,14 @@ import argparse
 import csv
 import json
 import logging
+import math
 import time
 from pathlib import Path
 from typing import Any
 
 from vamos.engine.tuning import Instance, TrialResult, TuningTask, filter_active_config
 from vamos.engine.tuning.racing.eval_types import EvalFn
+from vamos.engine.tuning.racing.tuning_task import TuningFailedError
 
 from ._tune_post import (
     append_summary,
@@ -17,6 +19,7 @@ from ._tune_post import (
     rank_history_topk,
     run_statistical_finisher,
 )
+from ._tune_scoring import evaluation_ledger
 
 
 def write_split_artifacts(
@@ -59,11 +62,37 @@ def run_tuning_with_finisher(
     run_backend_fn: Any,
     logger: logging.Logger,
 ) -> tuple[dict[str, Any], list[TrialResult], float, dict[str, Any] | None, dict[str, str] | None]:
+    """Run the backend and the optional statistical finisher.
+
+    The summary updates count the tuning evaluations and how many failed. When every one of
+    them failed, the command stops with a nonzero exit code instead of reporting a configuration;
+    when more than half failed, it warns.
+    """
+    ledger = evaluation_ledger(eval_fn)
+    before = ledger.counts() if ledger is not None else (0, 0)
     t0 = time.perf_counter()
-    best_config, history = run_backend_fn(args, task, eval_fn, resolved_jobs=resolved_jobs)
+    try:
+        best_config, history = run_backend_fn(args, task, eval_fn, resolved_jobs=resolved_jobs)
+    except TuningFailedError as exc:
+        raise SystemExit(_every_evaluation_failed_message(str(exc), ledger)) from exc
     elapsed = time.perf_counter() - t0
 
     finisher_summary_updates: dict[str, Any] | None = None
+    if ledger is not None:
+        # Racing with n_jobs > 1 evaluates in worker processes, which count in their own copy of the
+        # evaluator; its trials record their evaluations, so those records are counted instead.
+        recorded = _recorded_evaluations(history)
+        evaluations, failures = recorded if recorded is not None else (ledger.evaluations - before[0], ledger.failures - before[1])
+        if evaluations and failures == evaluations:
+            raise SystemExit(_every_evaluation_failed_message(f"every one of the {evaluations} tuning evaluations failed", ledger))
+        if 2 * failures > evaluations:
+            logger.warning(
+                "%d of %d tuning evaluations failed and received --failure-score, so the best configuration "
+                "is not reliable; see the '[tune] evaluation failed' warnings above.",
+                failures,
+                evaluations,
+            )
+        finisher_summary_updates = {"evaluations": evaluations, "failed_evaluations": failures}
     finisher_artifacts: dict[str, str] | None = None
     if bool(args.run_statistical_finisher):
         finisher_budget = int(args.finisher_budget) if int(args.finisher_budget) > 0 else int(args.budget)
@@ -97,6 +126,7 @@ def run_tuning_with_finisher(
                 writer.writeheader()
                 writer.writerows(block_rows)
             finisher_summary_updates = {
+                **(finisher_summary_updates or {}),
                 "statistical_finisher_ran": True,
                 "statistical_finisher_method": str(finisher_result["method"]),
                 "statistical_finisher_budget": int(finisher_budget),
@@ -112,6 +142,29 @@ def run_tuning_with_finisher(
                 finisher_result["method"],
             )
     return best_config, history, elapsed, finisher_summary_updates, finisher_artifacts
+
+
+def _recorded_evaluations(history: list[TrialResult]) -> tuple[int, int] | None:
+    """Evaluations and failures that every trial of ``history`` records, or ``None`` if some does not.
+
+    Racing records ``num_evals``, and random search and irace ``evaluations``, each with
+    ``failed_evaluations``; the model-based backends record neither and evaluate in this process.
+    """
+    evaluations = failures = 0
+    for trial in history:
+        details = getattr(trial, "details", None) or {}
+        count = details.get("num_evals", details.get("evaluations"))
+        failed = details.get("failed_evaluations")
+        if not isinstance(count, int) or not isinstance(failed, int):
+            return None
+        evaluations += count
+        failures += failed
+    return (evaluations, failures) if history else None
+
+
+def _every_evaluation_failed_message(reason: str, ledger: Any) -> str:
+    cause = f" First failure: {ledger.first_failure}." if ledger is not None and ledger.first_failure else ""
+    return f"vamos tune: {reason}; no configuration was selected.{cause} The log shows each failure."
 
 
 def run_validation_stage(
@@ -141,6 +194,7 @@ def run_validation_stage(
             seeds=validation_seeds,
             budget=val_budget,
             aggregator=task.aggregator,
+            failure_score=float(args.failure_score),
         )
         validation_rows.append(
             {
@@ -150,7 +204,10 @@ def run_validation_stage(
                 **metrics,
             }
         )
-    validation_rows.sort(key=lambda d: float(d["score_agg"]), reverse=True)
+    # A candidate with no successful validation run has NaN scores, which would sort first; it is
+    # listed last and never chosen.
+    validation_rows.sort(key=lambda d: (int(d["rows_ok"]) > 0, _finite_or(d["score_agg"])), reverse=True)
+    validated = [row for row in validation_rows if int(row["rows_ok"]) > 0]
     val_csv_path = out_dir / "validation_metrics.csv"
     with val_csv_path.open("w", encoding="utf-8", newline="") as fh:
         if validation_rows:
@@ -175,10 +232,12 @@ def run_validation_stage(
                 ]
             )
 
-    if validation_rows:
-        best_global = validation_rows[0]
-        best_robust = sorted(validation_rows, key=lambda d: float(d["score_p25"]), reverse=True)[0]
-        best_fast = sorted(validation_rows, key=lambda d: float(d["score_mean"]), reverse=True)[0]
+    if validation_rows and not validated:
+        logger.warning("Every validation candidate failed every run; no validation champion is selected.")
+    if validated:
+        best_global = validated[0]
+        best_robust = max(validated, key=lambda d: _finite_or(d["score_p25"]))
+        best_fast = max(validated, key=lambda d: _finite_or(d["score_mean"]))
         champions = {
             "champion_global": json.loads(str(best_global["config_json"])),
             "champion_robust": json.loads(str(best_robust["config_json"])),
@@ -201,6 +260,11 @@ def run_validation_stage(
             artifact_updates={"validation_metrics": val_csv_path.name},
         )
     return champions
+
+
+def _finite_or(value: Any, default: float = -math.inf) -> float:
+    number = float(value)
+    return number if math.isfinite(number) else default
 
 
 def run_test_stage(
@@ -235,6 +299,7 @@ def run_test_stage(
             seeds=test_seeds,
             budget=test_budget,
             aggregator=task.aggregator,
+            failure_score=float(args.failure_score),
         )
         test_rows.append(
             {

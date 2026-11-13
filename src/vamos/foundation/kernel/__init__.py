@@ -11,15 +11,12 @@ if TYPE_CHECKING:
 
 
 def default_kernel() -> KernelBackend:
-    """Return the best available kernel backend.
+    """Return the kernel an algorithm uses when it is built without one: NumPy.
 
-    Uses NumbaKernel when numba is installed, otherwise falls back to NumPyKernel.
+    NumPy is the stable 1.x default when no engine is requested, as in
+    ``vamos.optimize``; pass ``NumbaKernel()`` or ``MooCoreKernel()`` explicitly, or
+    use ``engine="auto"`` with ``optimize``, to opt in to another backend.
     """
-    try:
-        from .numba_backend import NumbaKernel
+    from .numpy_backend import NumPyKernel
 
-        return NumbaKernel()
-    except ImportError:
-        from .numpy_backend import NumPyKernel
-
-        return NumPyKernel()
+    return NumPyKernel()

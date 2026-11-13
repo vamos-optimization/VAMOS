@@ -7,7 +7,7 @@ from joblib import Parallel, delayed  # type: ignore[import-untyped]
 
 from .eval_types import EvalFn, EvalResult
 from .random_search_tuner import TrialResult
-from .state import ConfigState
+from .state import ConfigState, raise_if_every_evaluation_failed
 from .tuning_task import EvalContext
 
 if TYPE_CHECKING:
@@ -18,21 +18,42 @@ def _logger() -> logging.Logger:
     return logging.getLogger(__name__)
 
 
-def _failure_score(maximize: bool) -> float:
-    return -1e30 if maximize else 1e30
-
-
 def _eval_worker_warmstart(
     eval_fn: EvalFn,
     config: dict[str, Any],
     ctx: EvalContext,
-    maximize: bool,
-) -> EvalResult:
+) -> EvalResult | None:
+    """The result of one evaluation, or ``None`` when it raised."""
     try:
         return eval_fn(config, ctx)
     except Exception:
-        _logger().warning("[multi-fidelity] eval_fn failed in worker; assigning failure score.", exc_info=True)
-        return _failure_score(maximize)
+        _logger().warning("[multi-fidelity] eval_fn failed; assigning the failure score.", exc_info=True)
+        return None
+
+
+def _record_result(
+    tuner: RacingTuner,
+    state: ConfigState,
+    result: EvalResult | None,
+    *,
+    block_key: tuple[int, int],
+    fidelity_level: int,
+    budget: int,
+    warm_start: bool,
+) -> None:
+    """Store one evaluation; an exception or a non-finite score is a failure and keeps no checkpoint."""
+    if result is None:
+        score, failed = tuner.task.failure_value(), True
+    else:
+        score, failed = tuner.task.checked_score(result[0] if isinstance(result, tuple) else result)
+        if warm_start and not failed and isinstance(result, tuple) and len(result) == 2:
+            # A checkpoint and the budget that produced it are kept together.
+            state.checkpoint_map[block_key] = result[1]
+            state.last_budget_map[block_key] = budget
+    state.scores.append(score)
+    state.blocks.append(block_key)
+    state.fidelity_scores.setdefault(fidelity_level, []).append(score)
+    state.failures += int(failed)
 
 
 def _run_multi_fidelity(
@@ -132,6 +153,7 @@ def _run_multi_fidelity(
                 len(survivors),
             )
 
+    raise_if_every_evaluation_failed(configs, tuner="RacingTuner")
     best_state, history = tuner._finalize_results(configs)
 
     if best_state is None:
@@ -189,45 +211,19 @@ def _run_stage_with_budget(
         return
 
     if tuner.scenario.n_jobs == 1:
-        for cfg, ctx, idx in tasks:
-            try:
-                result = eval_fn(cfg, ctx)
-            except Exception:
-                _logger().warning(
-                    "[multi-fidelity] eval_fn failed for config_id=%s; assigning failure score.",
-                    configs[idx].config_id,
-                    exc_info=True,
-                )
-                result = _failure_score(tuner.task.maximize)
-
-            if warm_start and isinstance(result, tuple) and len(result) == 2:
-                score, checkpoint = result
-                # A checkpoint and the budget that produced it are kept together.
-                configs[idx].checkpoint_map[block_key] = checkpoint
-                configs[idx].last_budget_map[block_key] = budget
-            else:
-                score = float(result) if not isinstance(result, tuple) else float(result[0])
-
-            configs[idx].scores.append(float(score))
-            configs[idx].blocks.append(block_key)
-            configs[idx].fidelity_scores.setdefault(fidelity_level, []).append(float(score))
+        results = [_eval_worker_warmstart(eval_fn, cfg, ctx) for cfg, ctx, _ in tasks]
     else:
-        results = Parallel(n_jobs=tuner.scenario.n_jobs)(
-            delayed(_eval_worker_warmstart)(eval_fn, cfg, ctx, tuner.task.maximize) for cfg, ctx, _ in tasks
+        results = Parallel(n_jobs=tuner.scenario.n_jobs)(delayed(_eval_worker_warmstart)(eval_fn, cfg, ctx) for cfg, ctx, _ in tasks)
+    for (_cfg, _ctx, idx), result in zip(tasks, results):
+        _record_result(
+            tuner,
+            configs[idx],
+            result,
+            block_key=block_key,
+            fidelity_level=fidelity_level,
+            budget=budget,
+            warm_start=warm_start,
         )
-        for i, result in enumerate(results):
-            idx = tasks[i][2]
-            if warm_start and isinstance(result, tuple) and len(result) == 2:
-                score, checkpoint = result
-                # A checkpoint and the budget that produced it are kept together.
-                configs[idx].checkpoint_map[block_key] = checkpoint
-                configs[idx].last_budget_map[block_key] = budget
-            else:
-                score = float(result) if not isinstance(result, tuple) else float(result[0])
-
-            configs[idx].scores.append(float(score))
-            configs[idx].blocks.append(block_key)
-            configs[idx].fidelity_scores.setdefault(fidelity_level, []).append(float(score))
 
 
 __all__ = ["_run_multi_fidelity", "_run_stage_with_budget"]

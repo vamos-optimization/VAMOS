@@ -19,6 +19,7 @@ from vamos.experiment.study.errors import (
     ResumeEnvironmentIncompatibilityError,
     StudyEventAppendError,
     StudyInfrastructureError,
+    StudyRunVerificationError,
 )
 from vamos.experiment.study.serialization import seal_document, stored_document_bytes
 
@@ -149,7 +150,8 @@ def test_corrupt_expected_published_run_refuses_reconciliation_without_writes(tm
     monkeypatch.setattr(execution, "_execute_optimization", lambda reconstructed, *, root: _result(reconstructed))
     original_verify = publication.verify_run
     monkeypatch.setattr(publication, "verify_run", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("stop")))
-    with pytest.raises(Exception):
+    # The interrupted verification surfaces as the study's typed verification error.
+    with pytest.raises(StudyRunVerificationError):
         created.run()
     interrupted = vamos.load_study(root)
     run_id = str(next(event for event in interrupted.events if event.event_type == "task_claimed").payload["run_id"])

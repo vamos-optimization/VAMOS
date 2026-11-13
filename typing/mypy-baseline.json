@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "6881d2cdff7f94addcd90880ee9b4f8551fdfbff",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 6881d2cdff7f94addcd90880ee9b4f8551fdfbff",
+  "generation_commit": "ef764552ff42446408862fe9cff3124f5b929c69",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit ef764552ff42446408862fe9cff3124f5b929c69",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.1",
@@ -11,7 +11,7 @@
     "stub_packages": [],
     "type_affecting_optional_distributions": [],
     "config_path": "pyproject.toml",
-    "config_sha256": "6D1ACABE2944045603803588B1C0BE475945EEF4E421E9E6891E124B1ECC1588",
+    "config_sha256": "A30B63467A4CA6AED7B297A51483A1F221795A63680C11E2E50139AEFA2C104B",
     "mypy_config_sha256": "2D1AAAB5CB687AA8C7871D3AFBE4638A782A12541721A85B770843816611FCAD",
     "constraints_path": "constraints/ci.txt",
     "type_affecting_pins": {
@@ -26,14 +26,14 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 220,
-  "files_with_diagnostics": 34,
-  "fingerprint_count": 34,
+  "diagnostic_count": 217,
+  "files_with_diagnostics": 33,
+  "fingerprint_count": 33,
   "error_code_summary": {
-    "type-arg": 220
+    "type-arg": 217
   },
   "layer_summary": {
-    "engine": 164,
+    "engine": 161,
     "experiment": 11,
     "foundation": 27,
     "package-root": 1,
@@ -1034,28 +1034,6 @@
         {
           "line": 72,
           "column": 32
-        }
-      ]
-    },
-    {
-      "fingerprint": "BF72F3E4657B7071D5FE464E578082DFE2BC07D762780EEA0973F817CEF7DC53",
-      "path": "src/vamos/engine/algorithm/nsgaii/nsgaii.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 3,
-      "locations": [
-        {
-          "line": 65,
-          "column": 12
-        },
-        {
-          "line": 81,
-          "column": 22
-        },
-        {
-          "line": 87,
-          "column": 48
         }
       ]
     },
