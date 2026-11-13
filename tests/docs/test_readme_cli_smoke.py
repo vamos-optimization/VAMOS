@@ -192,3 +192,18 @@ def test_readme_tune_smoke_command_smoke(tmp_path: Path) -> None:
     )
     assert proc.returncode == 0, f"{source_path}: {proc.stderr or proc.stdout}"
     assert (output_dir / "readme_tune_smoke" / "tuning_summary.json").exists(), source_path
+
+
+def test_readme_api_contracts_describe_the_hypervolume_and_population_rules() -> None:
+    from vamos.algorithms import NSGAIIIConfig
+    from vamos.foundation.quality_indicators.hypervolume import hypervolume
+
+    readme = README.read_text(encoding="utf-8")
+    assert "requires the reference point to dominate all points" not in readme
+    assert "require `pop_size` to match" not in readme
+
+    # What the README states: a point the reference does not dominate is left out, and the flag only warns.
+    with pytest.warns(FutureWarning):
+        assert hypervolume(np.array([[0.5, 0.5], [2.0, 0.1]]), np.array([1.0, 1.0]), allow_ref_expand=True) == pytest.approx(0.25)
+    # NSGA-III takes more individuals than its 91 directions for three objectives.
+    assert NSGAIIIConfig.default(n_obj=3, pop_size=100).pop_size == 100

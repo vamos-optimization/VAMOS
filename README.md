@@ -99,8 +99,8 @@ Operator shorthand accepts either numeric probabilities or the string literal `"
 
 - `max_evaluations` is a strict evaluation budget. It must be at least the resolved population size, and the final generation is truncated when needed so budget-terminated runs report exactly `result.data["evaluations"] == max_evaluations`.
 - Public algorithm results expose `evaluations` as the evaluation-count metric. Internal checkpoints may still store `n_eval`.
-- `hypervolume` requires the reference point to dominate all points by default. Pass `allow_ref_expand=True` only when automatic reference-point expansion is intended. The two-objective helper `compute_hypervolume` instead leaves out the points that the reference point does not dominate.
-- NSGA-III, RVEA, and MOEA/D require `pop_size` to match their configured reference directions or weight lattice; incompatible configurations fail early with an actionable error.
+- **Development after 1.1.0:** `hypervolume` leaves out the points that the reference point does not dominate, as the two-objective helper `compute_hypervolume` does. `allow_ref_expand` is accepted for compatibility only; it is ignored with a `FutureWarning`.
+- **Development after 1.1.0:** NSGA-III needs at least one individual per reference direction (`pop_size` at least the number of directions). RVEA and MOEA/D need exactly one individual per reference or weight vector. Incompatible configurations fail early with an actionable error.
 
 ## Quickstart
 
