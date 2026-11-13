@@ -20,11 +20,6 @@ from tests.architecture._dependencies import base_distributions, import_names
 # Known departures from "importing core VAMOS must not import optional packages"
 # (src/vamos/foundation/kernel/AGENTS.md). They show only where moocore is installed.
 _MOOCORE = find_spec("moocore") is not None
-_EAGER_FACADE = pytest.mark.xfail(
-    _MOOCORE,
-    strict=True,
-    reason="vamos/__init__.py imports the whole package, and with it moocore; resolving the top-level facade lazily removes this",
-)
 _GUARDED_MOOCORE = pytest.mark.xfail(
     _MOOCORE,
     strict=True,
@@ -35,14 +30,14 @@ _GUARDED_MOOCORE = pytest.mark.xfail(
 )
 
 PUBLIC_MODULES = (
-    pytest.param("vamos", marks=_EAGER_FACADE),
-    pytest.param("vamos.api", marks=_EAGER_FACADE),
+    "vamos",
+    "vamos.api",
     pytest.param("vamos.algorithms", marks=_GUARDED_MOOCORE),
-    pytest.param("vamos.problems", marks=_EAGER_FACADE),
+    "vamos.problems",
     pytest.param("vamos.run_artifacts", marks=_GUARDED_MOOCORE),
     pytest.param("vamos.study_artifacts", marks=_GUARDED_MOOCORE),
-    pytest.param("vamos.exceptions", marks=_EAGER_FACADE),
-    pytest.param("vamos.selection", marks=_EAGER_FACADE),
+    "vamos.exceptions",
+    "vamos.selection",
     pytest.param("vamos.ux.api", marks=_GUARDED_MOOCORE),
 )
 
@@ -86,3 +81,46 @@ def test_import_vamos_loads_only_base_dependencies(module: str) -> None:
     assert not extra, f"import {module} loads packages outside [project].dependencies: " + ", ".join(
         f"{root} (imported by {importer})" for root, importer in sorted(extra.items())
     )
+
+
+def test_foundation_import_does_not_load_experiment() -> None:
+    """Importing a foundation module loads neither the experiment layer nor the algorithms.
+
+    ``import vamos.foundation.encoding`` runs ``vamos/__init__.py``, whose facade names now load on
+    first access.
+    """
+    cmd = [
+        sys.executable,
+        "-c",
+        "import json, sys; import vamos.foundation.encoding; print(json.dumps(sorted(sys.modules)))",
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    modules = json.loads(result.stdout.splitlines()[-1])
+    loaded = [name for name in modules if name.startswith(("vamos.experiment", "vamos.engine.algorithm"))]
+    assert loaded == []
+
+
+def test_lazy_facades_resolve_every_public_name() -> None:
+    """Every name of ``__all__`` resolves, ``dir()`` lists it, and ``from vamos import *`` works."""
+    import vamos
+    import vamos.api
+
+    for module in (vamos, vamos.api):
+        for name in module.__all__:
+            assert getattr(module, name) is not None, (module.__name__, name)
+        assert set(module.__all__) <= set(dir(module))
+    namespace: dict[str, object] = {}
+    exec("from vamos import *", namespace)
+    assert namespace["optimize"] is vamos.api.optimize
+
+
+def test_subpackages_stay_reachable_after_import_vamos() -> None:
+    """``vamos.api``, ``vamos.run_artifacts`` and the layers load as attributes, as with the eager facade."""
+    cmd = [
+        sys.executable,
+        "-c",
+        "import vamos; print(vamos.api.optimize.__name__, vamos.run_artifacts.load_run.__name__, vamos.experiment.__name__);"
+        "print(hasattr(vamos, 'no_such_module'))",
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    assert result.stdout.split() == ["optimize", "load_run", "vamos.experiment", "False"]
