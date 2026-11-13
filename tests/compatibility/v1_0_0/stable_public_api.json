@@ -173,7 +173,7 @@
     "vamos.StudyResult.best_run": "(self, name, maximize=True)",
     "vamos.StudyResult.mean": "(self, name)",
     "vamos.StudyResult.metric_values": "(self, name)",
-    "vamos.StudyResult.std": "(self, name)",
+    "vamos.StudyResult.std": "(self, name, ddof=0)",
     "vamos.StudySpec": "(problems, algorithms, seeds, max_evaluations=None, pop_size=None, engine=None, eval_strategy='serial', n_var=None, n_obj=None, problem_kwargs=None, algorithm_configs=None, on_error='fail_fast', max_attempts_per_task=3, labels=None, metadata=None)",
     "vamos.StudySpec.as_intent_dict": "(self)",
     "vamos.StudySummary": "(study_id, plan_id, state, generated_at, root_manifest_sha256, event_head_sequence, event_head_sha256, rows, issues)",
