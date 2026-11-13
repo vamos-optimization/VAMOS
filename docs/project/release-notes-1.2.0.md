@@ -26,33 +26,33 @@ A built-in component that departs from its published definition is a defect,
 and its fix ships even when it changes results; see
 [scientific corrections](stability-and-versioning.md#scientific-corrections).
 The [changelog](https://github.com/vamos-optimization/VAMOS/blob/main/CHANGELOG.md)
-gives the measured effect of each correction. Rerun the experiments that use
-any of the following before comparing them with results of earlier versions.
+lists each correction with its pull request, whose description gives the
+measured effect. Rerun the experiments that use any of the following before
+comparing them with results of earlier versions.
 
 | Component | What changed | Results affected |
 | --- | --- | --- |
 | Default SBX | Probability 0.9 instead of 1.0 in NSGA-II, NSGA-III, SMS-EMOA, SPEA2, IBEA and RVEA, as in Deb et al. (2002), jMetal and pymoo | Runs with the default crossover; `.crossover("sbx", prob=1.0, eta=...)` reproduces 1.1.0 |
 | IBEA | Default `kappa` 0.05; the epsilon indicator is normalized as in adaptive IBEA | Every IBEA run with the default `kappa` or the epsilon indicator |
 | AGE-MOEA | Mating and survival follow the author's PlatEMO code | Every AGE-MOEA run |
-| MOEA/D | Neighbours replaced in random order; packaged jMetal weights when no lattice fits | Every MOEA/D run |
+| MOEA/D | Neighbours replaced in random order; exact resume from checkpoints | Every MOEA/D run, and resumed runs |
 | NSGA-III | Complete Das-Dennis lattice without `divisions` (the CLI and specification default); N >= H; offspring offered to the archive | Runs without explicit `divisions`, and archives |
 | RVEA | One survivor per occupied reference vector; parents drawn by permutation | Every RVEA run; populations can be smaller than `pop_size` |
 | SMPSO | jMetal's coefficient sampling, personal-best rule and leader insertion; `optimize`, studies and `vamos tune` return the leaders archive by default | Every SMPSO run, and SMPSO tuning scores |
 | SMS-EMOA | Normalized reference point; a fixed user `vector`; a generation is `pop_size` children; offspring offered to the archive | Default SMS-EMOA runs, HV-stopped runs and archives |
 | SPEA2 | Lexicographic truncation and fitness-based filling, as in Zitzler et al. (2001); non-dominated result | Every SPEA2 run, and the `knn` archive pruning |
-| Crowding distance | An objective constant within a front is skipped | Runs in which an objective is constant within a front |
-| Operators | `pcx`, `undx`, `simplex`, `linked_polynomial`, `power_law`, `insert`, `scramble`, `GradientRepair`, `scatter` and `obl` follow their definitions | Runs that use them; none is a default |
+| Crowding and tournaments | An objective constant within a front is skipped; larger tournaments keep the best rank with NaN crowding; MooCore survival no longer overwrites earlier results | Runs in which these cases occur |
+| Generations and budgets | Generation 0 is notified; NSGA-II immigration and the `obl` initializer count their evaluations | `hv_convergence` stops, callbacks, and runs with immigration or `obl` |
+| Operators | `pcx`, `undx`, `simplex`, `linked_polynomial`, `power_law`, `insert`, `scramble`, `GradientRepair`, `ReflectRepair`, `WrappingRepair`, `scatter` and `obl` follow their definitions; overrides of a default operator keep its other parameters | Runs that use them or override a default operator |
 | Problems | CEC2009 UF3 domain and UF9 distance; LSMOP1–4 and LSMOP9; RWA7 and RWA8; RE24 and RE25 domains; CF1 defaults to 10 variables | Results on these problems |
 | Reference fronts | Regenerated ZDT, DTLZ, WFG1, WFG2, LSMOP9, C1-DTLZ3, UF6, UF9, DC2-DTLZ, RE, RWA3, RWA9 and RWA10 samples; fronts by number of objectives | IGD, IGD+, epsilon and normalized HV computed with them |
 | Stopping | The `("hv", ...)` criterion, `--hv-threshold` and `hv_convergence` use fixed references | HV-stopped runs |
-| Statistics | Per-problem, feasible-only references in `vamos bench` and `vamos ablation`; rank-sum tests; Nemenyi critical values; IGD+ of infeasible runs in Studio; the knee point | Benchmark tables, critical-difference diagrams, Studio comparisons and knee selections |
-| Archives and indicators | Exact hypervolume contributions without MooCore; explicit reference points; exact deduplication | HV-pruned archives and HV values without MooCore or without a reference point |
-| Tuning | Racing's final choice among survivors; single-fidelity model backends; failed evaluations | Tuning results and budgets |
-
-Constrained results also change where earlier versions lost constraint values:
-selection helpers rank feasible solutions first, archives and results keep the
-constraint values of their rows, and problems that write undeclared
-constraints now fail instead of running unconstrained.
+| Selection and constraints | `front()`, `best()` and `top_k()` rank feasible solutions first; archive and leader results keep their constraint values; `top_k()` defaults to `source="auto"`; `top_k(method="kmeans")` is deterministic | Selected solutions of constrained results |
+| CLI configuration | `--nsga3-*` options, every algorithm-block field and partial `stopping` or `archive` overrides reach the run | CLI runs that set them |
+| Statistics | Per-problem, feasible-only references in `vamos bench` and `vamos ablation`; ablation overrides applied; rank-sum tests; Nemenyi critical values; IGD+ of infeasible runs and merged fronts in Studio; the knee point; `vamos profile` timings and HV | Benchmark and ablation tables, critical-difference diagrams, Studio comparisons, knee selections and profiles |
+| Archives and indicators | Exact hypervolume contributions without MooCore; explicit reference points; exact deduplication; SPEA2 truncation in `knn` pruning; the archive hook stops re-offering pruned rows | Pruned archives, and HV values without MooCore or without a reference point |
+| Tuning | Racing's final choice among survivors and elitist restarts; single-fidelity model backends; SMAC3 and BOHB budgets and incumbents; Optuna pruning; failed evaluations; `best_score` | Tuning results, budgets and summaries |
+| Run provenance | Wheels inside Git projects, editable installs, packaged data, user problems, re-saved results and CLI requests are recorded correctly | Task IDs and verification outcomes of those runs |
 
 ## New problems and APIs
 
@@ -67,13 +67,17 @@ constraints now fail instead of running unconstrained.
   `max_evaluations`, `n_gen` and `hv` termination criteria.
 - The experimental tuning gains an `irace` backend through `Rscript`, and
   Studio's default LLM provider gets a `gemini` extra.
+<!-- PENDING(#242, feat/constraint-handling): drop this item if that pull request is not merged. -->
+- NSGA-II offers jMetal's constraint-handling techniques through
+  `constraint_handling`, with a matching `nsgaii_constrained` tuning space.
+<!-- /PENDING -->
 
 ## Stricter validation
 
 Typed algorithm configurations validate their values when they are built.
 `optimize`, study planning and the CLI reject arguments, configuration keys,
-dimensions, operators and checkpoints that 1.1.0 ignored, applied in part or
-failed on later, and they check each algorithm's minimum population and number
+dimensions, operators, checkpoints and undeclared constraint output that 1.1.0
+ignored, applied in part or failed on later, and they check each algorithm's minimum population and number
 of objectives before running. Stochastic components used directly without a
 `numpy.random.Generator` raise `ConfigurationError` instead of drawing from an
 unseeded one. Every error of the stable API derives from `VAMOSError`. Code
