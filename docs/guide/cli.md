@@ -180,6 +180,16 @@ from vamos import optimize
 result = optimize("zdt1", algorithm="nsgaii", max_evaluations=5000, pop_size=80, seed=7)
 ```
 
+After a single run, the runner (and `vamos quickstart`) prints
+`Hypervolume (reference [...]): ...`; a command with several runs prints the
+reference point under its summary table. That point comes from the fronts of
+the same command: for each objective, the worst value among the runs of that
+problem plus 10% of its magnitude (at least 0.1). Compare these values only
+between runs of one command. Another command derives another point, so a longer
+run can print a lower hypervolume than a shorter one. To compare runs of
+different commands, compute the hypervolume against one fixed reference point,
+as in [Compute hypervolume](cookbook.md#19-compute-hypervolume).
+
 Run a predefined continuous problem set with one compatible algorithm:
 
 ```bash

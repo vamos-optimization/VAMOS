@@ -30,7 +30,8 @@ summary = loaded.summarize()  # immutable, one row per planned task
 
 # Later, after a paused/interrupted execution:
 resumed = loaded.resume()  # pending and eligible interrupted tasks
-retried = resumed.retry(failed_only=True)  # explicit failed-task consent
+if resumed.inspect().retryable_failed_work:  # retry() refuses a study with none
+    resumed = resumed.retry(failed_only=True)  # explicit failed-task consent
 ```
 
 `inspection.as_dict()` and `summary.as_dict()` return detached JSON-safe values.
@@ -197,10 +198,13 @@ are not. The persisted default limit is three attempts.
 
 Both methods return a freshly loaded immutable `Study`; the calling handle
 remains a snapshot. When no eligible task exists, resume returns a fresh handle
-without adding an event or changing a byte. Before any new claim, persisted
-built-in configuration is reconstructed and prior canonical run evidence, when
-present, must match the current material environment exactly. There is no
-environment-change override in this slice.
+without adding an event or changing a byte, while retry raises
+`RetryNotAllowedError` with reason `TERMINAL_TASK_NOT_RETRYABLE` (exit code 4
+in the CLI) if any task succeeded, was skipped, or was cancelled. Callers check
+`inspect().retryable_failed_work` before retrying. Before any new claim,
+persisted built-in configuration is reconstructed and prior canonical run
+evidence, when present, must match the current material environment exactly.
+There is no environment-change override in this slice.
 
 **Development after 1.1.0:** a study operation (`run`, `resume`, `retry`)
 captures the current environment once and reuses it for every run it verifies
