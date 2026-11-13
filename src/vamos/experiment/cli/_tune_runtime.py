@@ -177,6 +177,7 @@ def make_evaluator(
     failure_score: float,
     *,
     logger: Callable[[], Any],
+    fixed_assignment: Mapping[str, object] | None = None,
 ) -> EvalFn:
     """Build the CLI evaluation function.
 
@@ -199,7 +200,8 @@ def make_evaluator(
         checkpoint: CheckpointPayload | None,
     ) -> tuple[object, CheckpointPayload | None]:
         try:
-            start_config: dict[str, Any] = dict(config_dict)
+            # The parameters that --smoke fixes to one value and leaves out of the search space.
+            start_config: dict[str, Any] = {**(fixed_assignment or {}), **dict(config_dict)}
             # RVEA's population and MOEA/D's weight vectors depend on the number of objectives.
             if canonical_algorithm_name(algorithm_name) in ("moead", "rvea"):
                 start_config["n_obj"] = n_obj

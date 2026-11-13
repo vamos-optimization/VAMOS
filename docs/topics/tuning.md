@@ -308,6 +308,17 @@ statistical-finisher stages. It is a real execution path and is exercised by
 the documentation smoke suite, but its tiny design is **not** intended for
 scientific conclusions.
 
+**Development after 1.1.0:** `--smoke` also caps the sampled populations at
+half of its 30-evaluation run budget (`--pop-size`, 15), so that every sampled
+configuration can run, including the opposition-based initializer, which
+evaluates a population and its opposite; for RVEA it caps `n_partitions`, whose
+reference directions are the population. VAMOS 1.1.0 kept the [20, 200]
+population range, and `optimize` rejected most smoke configurations, which
+received `--failure-score`. A `vamos tune` run in which more than half of the
+evaluations fail, but not all of them, now ends with a warning.
+Without `--name`, the output folder is named after the `--instances` (the first
+three and the number of the others), not after `--problem`.
+
 ## Choose a backend deliberately
 
 The current backend families are:

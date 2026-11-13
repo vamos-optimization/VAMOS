@@ -108,3 +108,37 @@ def test_studio_run_closes_only_the_backends_it_builds(monkeypatch) -> None:
     own = ClosingSpy()
     services._run_algorithm(ZDT1Problem(n_var=6), eval_strategy=own, **run)
     assert own.closed == 0
+
+
+def test_studio_and_optimize_build_the_same_default_configs() -> None:
+    """Studio and optimize share one default-configuration builder (VR-109).
+
+    The only difference is the result mode of SMPSO: optimize returns its leaders archive, while
+    Studio shows the final swarm, as for every other algorithm.
+    """
+    import dataclasses
+
+    import pytest
+
+    from vamos.exceptions import InvalidAlgorithmError
+    from vamos.experiment.optimize import _build_algorithm_config as optimize_config
+    from vamos.ux.studio.services import _build_algorithm_config as studio_config
+
+    shapes = ((None, None, None), (40, 12, 2), (None, 30, 3), (24, None, None))
+    for algorithm in ("agemoea", "ibea", "moead", "nsgaii", "nsgaiii", "rvea", "smpso", "smsemoa", "spea2", "NSGAII"):
+        for encoding in (None, "real", "binary", "integer", "permutation", "mixed"):
+            for pop_size, n_var, n_obj in shapes:
+                arguments = {"pop_size": pop_size, "n_var": n_var, "n_obj": n_obj, "encoding": encoding}
+                try:
+                    expected = optimize_config(algorithm, **arguments)
+                except ValueError as exc:
+                    with pytest.raises(type(exc)):
+                        studio_config(algorithm, **arguments)
+                    continue
+                if algorithm == "smpso":
+                    assert expected.result_mode == "non_dominated"
+                    expected = dataclasses.replace(expected, result_mode="population")
+                assert studio_config(algorithm, **arguments) == expected, (algorithm, arguments)
+    for build in (optimize_config, studio_config):
+        with pytest.raises(InvalidAlgorithmError):
+            build("not_an_algorithm", pop_size=None, n_var=None, n_obj=None, encoding=None)
