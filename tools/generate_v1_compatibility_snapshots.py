@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import contextlib
 import dataclasses
 import importlib
@@ -524,30 +525,89 @@ def snapshots() -> Mapping[str, object]:
     }
 
 
-def _keeps_frozen_fields(committed_text: str, expected: bytes) -> bool:
-    """Whether the generated configuration fields keep the frozen 1.0 ones, adding only new fields.
+CONFIGS_SNAPSHOT = "stable_algorithm_configs.json"
+API_SNAPSHOT = "stable_public_api.json"
+_CONFIG_SECTIONS = ("config_fields", "config_field_defaults", "default_configs")
+
+
+def _added_config_fields(frozen: Mapping[str, Any], generated: Mapping[str, Any]) -> dict[str, list[str]] | None:
+    """The fields that each stable configuration class adds after its frozen 1.0 fields.
 
     Stable configuration classes may gain optional fields during 1.x (see
-    ``docs/project/stability-and-versioning.md``). The snapshot keeps the 1.0 fields, which must all
-    remain, in their order; every other part of the document must match exactly.
+    ``docs/project/stability-and-versioning.md``). A new field goes after the 1.0 ones, so that the
+    constructor keeps the positions of its parameters, and has a default. None if a class loses,
+    moves or reorders a frozen field, if a class appears or disappears, or if a new field has no default.
     """
-    committed = json.loads(committed_text)
-    generated = json.loads(expected.decode("utf-8"))
-    frozen = committed.pop("config_fields", {})
-    current = generated.pop("config_fields", {})
-    if committed != generated or frozen.keys() != current.keys():
+    frozen_fields = frozen.get("config_fields", {})
+    fields = generated.get("config_fields", {})
+    defaults = generated.get("config_field_defaults", {})
+    if frozen_fields.keys() != fields.keys():
+        return None
+    added: dict[str, list[str]] = {}
+    for name, names in frozen_fields.items():
+        current = list(fields[name])
+        if current[: len(names)] != list(names) or any(field not in defaults.get(name, {}) for field in current[len(names) :]):
+            return None
+        added[name] = current[len(names) :]
+    return added
+
+
+def _without_added(section: Mapping[str, Mapping[str, Any]], added: Mapping[str, Sequence[str]]) -> dict[str, dict[str, Any]]:
+    return {name: {key: value for key, value in values.items() if key not in added.get(name, ())} for name, values in section.items()}
+
+
+def _keeps_frozen_configs(frozen: Mapping[str, Any], generated: Mapping[str, Any], added: Mapping[str, Sequence[str]]) -> bool:
+    """Whether the configuration snapshot is the frozen one plus the added fields, their defaults among them."""
+    rest = {key: value for key, value in frozen.items() if key not in _CONFIG_SECTIONS}
+    if rest != {key: value for key, value in generated.items() if key not in _CONFIG_SECTIONS}:
         return False
-    for name, fields in frozen.items():
-        remaining = iter(current[name])
-        if not all(field in remaining for field in fields):
-            return False
-    return True
+    sections = _CONFIG_SECTIONS[1:]
+    return all(_without_added(generated.get(section, {}), added) == frozen.get(section, {}) for section in sections)
 
 
-def _matches(name: str, committed_text: str, expected: bytes) -> bool:
+def _extends_constructor(frozen: str, generated: str, added: Sequence[str]) -> bool:
+    """Whether a constructor's signature is the frozen one followed by the added fields, each with a default."""
+    if not added or not frozen.endswith(")") or not generated.startswith(frozen[:-1] + ", "):
+        return False
+    try:
+        definition = ast.parse(f"def _constructor{generated}: pass").body[0]
+    except SyntaxError:
+        return False
+    if not isinstance(definition, ast.FunctionDef):
+        return False
+    arguments = definition.args
+    trailing = [argument.arg for argument in arguments.args[len(arguments.args) - len(added) :]]
+    plain = arguments.vararg is None and arguments.kwarg is None and not arguments.kwonlyargs
+    return plain and trailing == list(added) and len(arguments.defaults) >= len(added)
+
+
+def _keeps_frozen_api(frozen: Mapping[str, Any], generated: Mapping[str, Any], added: Mapping[str, Sequence[str]]) -> bool:
+    """Whether the API snapshot is the frozen one, but for the constructors of configuration classes with added fields."""
+    frozen_signatures = frozen.get("signatures", {})
+    signatures = generated.get("signatures", {})
+    if {key: value for key, value in frozen.items() if key != "signatures"} != {
+        key: value for key, value in generated.items() if key != "signatures"
+    } or frozen_signatures.keys() != signatures.keys():
+        return False
+    return all(
+        signatures[key] == signature or _extends_constructor(signature, signatures[key], added.get(key.rsplit(".", 1)[-1], ()))
+        for key, signature in frozen_signatures.items()
+    )
+
+
+def _matches(name: str, committed_text: str, expected: bytes, added: Mapping[str, Sequence[str]] | None) -> bool:
+    """Whether a committed snapshot holds the generated contract: exactly, or with optional configuration fields added."""
     if committed_text == expected.decode("utf-8"):
         return True
-    return name == "stable_algorithm_configs.json" and _keeps_frozen_fields(committed_text, expected)
+    if added is None:
+        return False
+    frozen = json.loads(committed_text)
+    generated = json.loads(expected.decode("utf-8"))
+    if name == CONFIGS_SNAPSHOT:
+        return _keeps_frozen_configs(frozen, generated, added)
+    if name == API_SNAPSHOT:
+        return _keeps_frozen_api(frozen, generated, added)
+    return False
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -561,7 +621,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     mismatches: list[str] = []
     OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
-    for name, value in snapshots().items():
+    generated = snapshots()
+    frozen_configs = OUTPUT_ROOT / CONFIGS_SNAPSHOT
+    added = (
+        _added_config_fields(json.loads(frozen_configs.read_text(encoding="utf-8")), json.loads(_json_bytes(generated[CONFIGS_SNAPSHOT])))
+        if frozen_configs.is_file()
+        else None
+    )
+    for name, value in generated.items():
         path = OUTPUT_ROOT / name
         expected = _json_bytes(value)
         # Git may materialize the canonical LF JSON with CRLF on Windows.
@@ -569,10 +636,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         # byte-level formatting decision in the snapshot.
         current = path.read_text(encoding="utf-8") if path.is_file() else None
         if args.check:
-            if current is None or not _matches(name, current, expected):
+            if current is None or not _matches(name, current, expected, added):
                 mismatches.append(path.relative_to(REPO_ROOT).as_posix())
-        elif current is None or not _matches(name, current, expected):
-            # A snapshot that only lacks fields added after 1.0 stays the 1.0 baseline.
+        elif current is None or not _matches(name, current, expected, added):
+            # A snapshot that only lacks optional configuration fields added after 1.0 stays the 1.0 baseline.
             path.write_bytes(expected)
     if mismatches:
         print("VAMOS 1.0 compatibility snapshots differ:")
