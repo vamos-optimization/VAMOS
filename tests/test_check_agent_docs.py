@@ -144,6 +144,30 @@ def test_checker_rejects_nonexact_replay_claim(tmp_path: Path) -> None:
     assert any("non-exact replay mode" in error for error in check_repository(root))
 
 
+def test_scoped_agent_docs_declare_only_in_scope_paths(tmp_path: Path) -> None:
+    root = _fixture_repo(tmp_path)
+    _write(root / "src" / "vamos" / "experiment" / "study" / "models.py", "")
+    _write(root / "src" / "vamos" / "experiment" / "ablation.py", "")
+    _write(
+        root / "src" / "vamos" / "experiment" / "study" / "AGENTS.md",
+        "# Scope\n\nApplies only to `src/vamos/experiment/study/**`.\n\n"
+        "Inherits all repository-wide rules from `/AGENTS.md`.\n\n"
+        "- `models.py` owns the model; `src/vamos/experiment/cli/main.py` renders it.\n\n"
+        "```agent-docs\n"
+        "path: src/vamos/experiment/study/models.py\n"
+        "path: src/vamos/experiment/cli/main.py\n"
+        "path: tools/check_agent_docs.py\n"
+        "path: src/vamos/experiment/ablation.py\n"
+        "```\n",
+    )
+
+    # Its own subtree, a source path its guidance names, and a non-source path are in scope.
+    assert check_repository(root) == [
+        "src/vamos/experiment/study/AGENTS.md:13: declared source path is outside the scope "
+        "src/vamos/experiment/study and its guidance does not name it: src/vamos/experiment/ablation.py"
+    ]
+
+
 def test_health_and_ci_use_the_same_agent_checker_arguments() -> None:
     health = (ROOT / "tools" / "health.py").read_text(encoding="utf-8")
     ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")

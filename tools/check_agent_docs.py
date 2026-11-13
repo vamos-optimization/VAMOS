@@ -265,6 +265,40 @@ def _check_paths(root: Path, declarations: list[Declaration], errors: list[str])
             errors.append(f"{rel_source}:{item.line}: checked path does not exist: {item.value}")
 
 
+def _guidance_text(text: str) -> str:
+    kept: list[str] = []
+    in_block = False
+    for line in text.splitlines():
+        if line.strip() == "```agent-docs":
+            in_block = True
+        elif in_block and line.strip() == "```":
+            in_block = False
+        elif not in_block:
+            kept.append(line)
+    return "\n".join(kept)
+
+
+def _check_scoped_paths(root: Path, declarations: list[Declaration], errors: list[str]) -> None:
+    # A scoped file checks source paths of its own subtree and those its guidance names; tests and docs are routes.
+    for path in _nested_instructions(root):
+        text = _read(path)
+        match = SCOPE_RE.search(text)
+        if match is None:
+            continue
+        scope = match.group(1)[:-3].rstrip("/")
+        guidance = _guidance_text(text)
+        for item in declarations:
+            value = item.value.rstrip("/")
+            if item.source != path or item.kind != "path" or not value.startswith("src/"):
+                continue
+            if value == scope or value.startswith(f"{scope}/") or value in guidance:
+                continue
+            errors.append(
+                f"{_relative(path, root)}:{item.line}: declared source path is outside the scope {scope} "
+                f"and its guidance does not name it: {item.value}"
+            )
+
+
 def _python_env(root: Path) -> dict[str, str]:
     env = os.environ.copy()
     source = str(root / "src")
@@ -428,6 +462,7 @@ def check_repository(root: Path) -> list[str]:
     _check_hidden_instructions(root, errors)
     _check_links(root, existing, errors)
     _check_paths(root, declarations, errors)
+    _check_scoped_paths(root, declarations, errors)
     _check_symbols(root, declarations, errors)
     _check_cli(root, declarations, errors)
     _check_commands(root, declarations, errors)
