@@ -15,7 +15,7 @@ KERNEL_EXTRAS: dict[str, str | None] = {"numpy": None, "numba": "compute", "mooc
 # Optional extras that change what Studio and VAMOS can do, with what each adds.
 EXTRA_PURPOSES: dict[str, str] = {
     "compute": "Numba and MooCore kernels, Dask evaluation",
-    "analysis": "plots and notebook analysis",
+    "analysis": "plots and data analysis",
     "tuning": "Optuna and SMAC tuning backends",
     "openai": "OpenAI code generation in Problem Builder",
     "anthropic": "Anthropic code generation in Problem Builder",

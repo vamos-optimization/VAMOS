@@ -179,6 +179,12 @@ def test_declared_dependencies_map_to_their_import_names() -> None:
     assert not wrong, f"add these distributions to IMPORT_NAMES in tests/architecture/_dependencies.py (they provide): {wrong}"
 
 
+def test_analysis_extra_holds_only_what_vamos_imports() -> None:
+    # The examples and notebooks import more; those packages belong to the examples extra.
+    unused = sorted(distribution for distribution in EXTRAS["analysis"] if not _imports(import_names(distribution)))
+    assert unused == [], f"src/vamos imports none of these analysis packages: {unused}"
+
+
 def test_vamos_imports_no_other_optimization_framework() -> None:
     imported = sorted(distribution for distribution, modules in OPTIMIZATION_FRAMEWORKS.items() if _imports(modules))
     assert imported == [], f"src/vamos imports these optimization frameworks: {imported}"

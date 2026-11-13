@@ -1,37 +1,47 @@
-from __future__ import annotations
+"""The extras of pyproject.toml install what users of VAMOS need, and ``all`` gathers only those."""
 
-from pathlib import Path
+from __future__ import annotations
 
 from tests.architecture._dependencies import OPTIMIZATION_FRAMEWORKS, distribution_name, optional_requirements
 
+# The extras for users of VAMOS, in the order ``all`` gathers them, and those for working on VAMOS itself.
+USER_EXTRAS = ("compute", "analysis", "tuning", "studio", "examples", "openai", "anthropic", "gemini")
+TOOLING_EXTRAS = ("dev", "docs")
 
-def test_pyproject_all_extra_matches_union_of_other_optional_dependencies() -> None:
-    pyproject_path = Path(__file__).resolve().parents[1] / "pyproject.toml"
 
-    try:
-        import tomllib
-    except ModuleNotFoundError:  # pragma: no cover - Python < 3.11 fallback
-        import tomli as tomllib  # type: ignore[import-not-found]
+def _distributions(requirements: list[str]) -> set[str]:
+    return {distribution_name(requirement) for requirement in requirements}
 
-    data = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
-    project = data["project"]
-    optional_deps = project["optional-dependencies"]
 
-    all_extra = optional_deps["all"]
-    expected_union: list[str] = []
-    for group_name, deps in optional_deps.items():
-        if group_name == "all":
-            continue
-        for dep in deps:
-            if dep not in expected_union:
-                expected_union.append(dep)
+def test_every_extra_is_a_user_or_a_tooling_extra() -> None:
+    known = {*USER_EXTRAS, *TOOLING_EXTRAS, "all"}
+    unclassified = sorted(set(optional_requirements()) - known)
+    missing = sorted(known - set(optional_requirements()))
+    assert (unclassified, missing) == ([], []), f"extras that are neither user nor tooling extras: {unclassified}; missing: {missing}"
 
-    assert all_extra == expected_union
+
+def test_all_extra_is_the_union_of_the_user_extras() -> None:
+    extras = optional_requirements()
+    expected = list(dict.fromkeys(requirement for group in USER_EXTRAS for requirement in extras[group]))
+
+    assert extras["all"] == expected, (
+        f"all has {sorted(set(extras['all']) - set(expected))} beyond the user extras "
+        f"and lacks {sorted(set(expected) - set(extras['all']))}"
+    )
+
+
+def test_all_extra_installs_no_development_tooling() -> None:
+    extras = optional_requirements()
+    user = set().union(*(_distributions(extras[group]) for group in USER_EXTRAS))
+    tooling = set().union(*(_distributions(extras[group]) for group in TOOLING_EXTRAS)) - user
+
+    installed = sorted(_distributions(extras["all"]) & tooling)
+    assert installed == [], f"all installs development tooling: {installed}"
 
 
 def test_no_extra_installs_another_optimization_framework() -> None:
     frameworks = {
-        group: sorted({distribution_name(requirement) for requirement in requirements} & set(OPTIMIZATION_FRAMEWORKS))
+        group: sorted(_distributions(requirements) & set(OPTIMIZATION_FRAMEWORKS))
         for group, requirements in optional_requirements().items()
     }
 
