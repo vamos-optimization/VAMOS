@@ -1,4 +1,4 @@
-"""`vamos zoo`: unknown names, encodings and the run summary (review finding VR-297)."""
+"""`vamos zoo`: unknown names, encodings and the run summary."""
 
 from __future__ import annotations
 
