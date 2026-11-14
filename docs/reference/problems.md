@@ -121,7 +121,7 @@ algorithm with the required constraint support in the [matrix](algorithms.md).
 | `cec2009_cf8`–`cec2009_cf10` | 10 | 3 | 1 | Fixed M; n ≥ 5 | [CEC2009][cec2009-cf] | 3D, each |
 | `c1dtlz1` | 12 | 3 | 1 | Configurable M; n remains 12 unless supplied | [C-DTLZ][constrained] | 2D and 3D |
 | `c1dtlz3` | 12 | 3 | 1 | Default radius `r = 9` at M = 3; varies with M | [C-DTLZ][constrained] | 2D and 3D |
-| `c2dtlz2` | 12 | 3 | 1 | Default radius `r = 0.4` at M = 3; varies with M | [C-DTLZ][constrained] | 2D and 3D |
+| `c2dtlz2` | 12 | 3 | 1 | Default radius `r = 0.4` at M = 3 and `r = 0.5` otherwise | [C-DTLZ][constrained] | 2D and 3D |
 | `c3dtlz1` | 12 | 3 | M | Configurable M | [C-DTLZ][constrained] | 2D and 3D |
 | `c3dtlz4` | 12 | 3 | M | Configurable M; DTLZ4's `alpha = 100` | [C-DTLZ][constrained] | 2D and 3D |
 | `dc1dtlz1`, `dc1dtlz3` | 12 | 3 | 1 | Configurable M; `a = 5`, `b = 0.95` | [DC-DTLZ][constrained] | 2D and 3D, each |
@@ -182,6 +182,13 @@ variants:
 objectives, with a single distance variable, as STEP's C3-DTLZ4 with three
 objectives and three variables needs. The tests check them against jMetal 7.10
 with STEP's dimensions and, for C2-DTLZ2, its radius `r = 0.1`.
+
+**Development after 1.2.0:** C2-DTLZ2's default radius is that of Jain and Deb
+(2014) and of jMetal's `C2_DTLZ2`: `r = 0.4` with three objectives and `r = 0.5`
+otherwise. VAMOS 1.2.0 and earlier used `r = 0.2` with two objectives. With
+`r = 0.5` the whole of the unconstrained front, the quarter of the unit circle,
+is feasible, and the packaged two-objective front is that quarter circle instead
+of the three arcs that `r = 0.2` left. Pass `r=0.2` to keep the former problem.
 
 **VAMOS 1.2.0:** the classic constrained problems follow jMetal's
 classes of the same names, bounds and constraint scaling included. The front
