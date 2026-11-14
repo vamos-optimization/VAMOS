@@ -83,6 +83,9 @@ PERMUTATION_COMPATIBLE_ALGORITHMS: set[str] = {
     "ibea",
     "agemoea",
     "rvea",
+    "ccmo",
+    "ctaea",
+    "cmoeams",
 }
 
 

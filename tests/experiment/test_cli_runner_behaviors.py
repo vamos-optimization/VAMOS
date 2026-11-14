@@ -185,6 +185,16 @@ def test_permutation_problem_rejects_unsupported_algorithm():
         )
 
 
+@pytest.mark.parametrize("algorithm", ["ccmo", "ctaea", "cmoeams"])
+def test_cli_runs_the_constrained_algorithms_on_permutations(monkeypatch, tmp_path, algorithm):
+    # Their GA variations take OX and swap, as optimize() runs them; the command line must not reject them.
+    output_root = tmp_path / "results"
+    argv = ["--problem", "tsp6", "--algorithm", algorithm, "--engine", "numpy", "--population-size", "6"]
+    _run_cli(monkeypatch, [*argv, "--max-evaluations", "30", "--seed", "1", "--output-root", str(output_root)])
+
+    assert len(list(output_root.rglob("manifest.json"))) == 1
+
+
 def test_runner_rejects_genealogy_for_algorithms_that_do_not_track_it():
     selection = make_problem_selection("zdt1", n_var=4)
     config = ExperimentConfig(population_size=6, offspring_population_size=6, max_evaluations=12, seed=1)
