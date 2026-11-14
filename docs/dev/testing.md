@@ -57,6 +57,8 @@ Pull requests and the merge queue run the fast tier, `pytest -m "not slow"`. A t
 
 The Ubuntu Python 3.12 job measures branch coverage (`[tool.coverage.run] branch = true`). It runs the Numba kernel tests a second time with `NUMBA_DISABLE_JIT=1`, because compiled kernels are invisible to coverage. It then holds `foundation/problem`, `foundation/quality_indicators`, `engine/algorithm`, and `engine/operators` at the floors in `ci.yml`, and reports all four before failing. A floor only rises: raise it when coverage of its package rises, and add tests instead of lowering it. The floors hold on every runner. Where compiled `pow` differs from `np.power`, which depends on the CPU, the Numba engine keeps its reference paths and the tests of its compiled steady-state steps skip, so `engine/algorithm` measures about four points lower there (80 instead of 84 on the Ubuntu runners).
 
+The `Performance Checks` workflow (`performance.yml`) runs a kernel benchmark smoke on every pull request and merge-queue run. It checks that the benchmarks run; their timings are informational, because shared runners are too noisy to gate on. The nightly run also compares VAMOS with pymoo on ZDT1, DTLZ2 and WFG1 for NSGA-II and MOEA/D with three fixed seeds, and fails when the median hypervolume of VAMOS for a case and an algorithm is more than 5% below pymoo's (`tools/benchmark_compare_pymoo.py --fail-below 5`); with fixed seeds the check is deterministic. `--check REPORT --fail-below PERCENT` applies the same test to a saved report without running anything. The reports are uploaded as the `kernel-benchmarks` artifact even when the check fails.
+
 Release validation adds stable-facade and composite release typing before packaging:
 
 ```bash
