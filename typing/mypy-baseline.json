@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "688980de0eb4b59ce4bbbc5e3500229f48acedf7",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 688980de0eb4b59ce4bbbc5e3500229f48acedf7",
+  "generation_commit": "7e235c3f9ee3a7009d503f4f010a5108a9308c08",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 7e235c3f9ee3a7009d503f4f010a5108a9308c08",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.1",
@@ -26,14 +26,14 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 114,
-  "files_with_diagnostics": 22,
-  "fingerprint_count": 22,
+  "diagnostic_count": 108,
+  "files_with_diagnostics": 21,
+  "fingerprint_count": 21,
   "error_code_summary": {
-    "type-arg": 114
+    "type-arg": 108
   },
   "layer_summary": {
-    "engine": 104,
+    "engine": 98,
     "foundation": 9,
     "ux": 1
   },
@@ -630,40 +630,6 @@
         {
           "line": 453,
           "column": 27
-        }
-      ]
-    },
-    {
-      "fingerprint": "86F37CF9414141F14C1B80EDE6FEF66B64B1A345B4F449986587A1CB8B72A1D3",
-      "path": "src/vamos/engine/hooks/live_viz.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 6,
-      "locations": [
-        {
-          "line": 18,
-          "column": 12
-        },
-        {
-          "line": 19,
-          "column": 12
-        },
-        {
-          "line": 25,
-          "column": 18
-        },
-        {
-          "line": 39,
-          "column": 12
-        },
-        {
-          "line": 40,
-          "column": 12
-        },
-        {
-          "line": 47,
-          "column": 18
         }
       ]
     },

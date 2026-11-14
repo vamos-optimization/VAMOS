@@ -50,8 +50,10 @@ def _advance_generation(st: MOEADState, kernel: Any, live_cb: Any, hv_tracker: A
     if hv_tracker.enabled and hv_tracker.reached(st.hv_points()):
         return False, True
     st.generation += 1
-    if notify:
-        return notify_generation(live_cb, kernel, st.generation, st.F, stats={"evals": st.n_eval}), False
+    if notify and st.n_eval - st.live_evals >= st.pop_size:
+        st.live_generation += 1
+        st.live_evals = st.n_eval
+        return notify_generation(live_cb, st.live_generation, st.F, st.X, st.n_eval), False
     return False, False
 
 
@@ -132,7 +134,8 @@ class MOEAD:
         assert st is not None, "State not initialized"
 
         generation = st.generation
-        live_cb.on_generation(generation, F=st.F, stats={"evals": st.n_eval})
+        st.live_evals = st.n_eval
+        live_cb.on_generation(st.live_generation, F=st.F, X=st.X, stats={"evals": st.n_eval})
         stop_requested = live_should_stop(live_cb)
         hv_reached = hv_tracker.enabled and hv_tracker.reached(st.hv_points())
         # notify_generation ignores no-op callbacks, so the loop skips the call for them.
@@ -181,7 +184,8 @@ class MOEAD:
         )
         st = self._st
         assert st is not None, "State not initialized"
-        live_cb.on_generation(st.generation, F=st.F, stats={"evals": st.n_eval})
+        st.live_evals = st.n_eval
+        live_cb.on_generation(st.live_generation, F=st.F, X=st.X, stats={"evals": st.n_eval})
         self._session = _AskTellSession(
             live_cb=live_cb,
             hv_tracker=hv_tracker,
