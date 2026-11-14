@@ -187,6 +187,20 @@ current defaults. `F`, `X`, and deterministic auxiliary arrays are compared by
 dtype, shape, logical order, and exact bytes. The new manifest stores bounded
 source/root lineage and per-array comparison evidence.
 
+Without `--output`, the replay goes to `<source-parent>/replays/<new-run-id>`,
+inside the results tree of its source. **Development after 1.2.0:** `vamos
+summarize`, `vamos open-results` and `discover_runs` in `vamos.ux.analysis`
+leave replays out, so a seed is listed once; `discover_runs(...,
+include_replays=True)` lists them too, with `RunInfo.replay` set. VAMOS 1.2.0
+counted each replay as one more run of its seed.
+
+A replay that does not match its source is still stored as a completed run,
+so its outcome reads `succeeded`, and `vamos reproduce` reports the mismatch
+with exit code 7. Read the replay's manifest to tell the two apart:
+`lineage.comparison.status` is `exact_match` or `mismatch`,
+`lineage.comparison.arrays` gives the comparison of each array, and
+`replayability.declared_level` is `unavailable` for a mismatch.
+
 This slice executes only same-environment, same-backend registered built-ins.
 Custom Python, plugins, cross-backend execution, and best-effort environments
 are outside the exact-replay contract, and it never installs dependencies. A pre-execution
