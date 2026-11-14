@@ -10,6 +10,15 @@ from vamos.algorithms import NSGAIIIConfig
 
 [Configuration overview](index.md) · [Algorithm contracts](../../algorithms.md) · [Optimization](../optimization.md)
 
+**Development after 1.2.0:** `pop_size_auto` and `enforce_ref_dirs` have no
+effect: NSGA-III runs the largest reference-direction lattice that fits in
+`pop_size` and keeps at least one individual per direction. Setting them with
+the builder, or `enforce_ref_dirs=False` in the constructor or `from_dict()`,
+emits a `FutureWarning`; both fields are planned for removal in 2.0 (see
+[stable configuration](../../../project/stability-and-versioning.md#stable-configuration)).
+`NSGAIIIConfig.default()` does not warn. `mutation_prob_factor` now sets the
+mutation probability to `factor / n_var`, as in NSGA-II.
+
 ::: vamos.algorithms.NSGAIIIConfig
     options:
       heading_level: 2

@@ -471,6 +471,13 @@ probability 1.7 or `eta=-5`, `kappa` at or below 0 (which inverts IBEA's
 selection) and `delta=1.5` ran without warning, and a `result_mode` or
 aggregation typo failed only after the initial population was evaluated.
 
+**Development after 1.2.0:** `mutation_prob_factor` reaches every algorithm
+whose configuration has it: MOEA/D, NSGA-III, SMS-EMOA, SPEA2, AGE-MOEA and
+RVEA now set the mutation probability to `factor / n_var` (at most 1), as
+NSGA-II and IBEA did. In VAMOS 1.2.0 those six ran with the mutation's own
+`prob`. The fields that still have no effect warn; see
+[stable configuration](../project/stability-and-versioning.md#stable-configuration).
+
 For a measured first-call/subsequent-call example, follow [Measure backend performance](../tutorials/measure-performance.md).
 
 ## Comparative benchmarking
