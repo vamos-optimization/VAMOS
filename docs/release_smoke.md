@@ -12,7 +12,7 @@ subsequent publication job depends on that guard.
 
 ## Preparing the next release
 
-The current candidate is **1.2.1**, dated **2026-11-14**. The published
+The current candidate is **1.2.1**, dated **2026-11-15**. The published
 `v1.0.0`, `v1.0.1`, `v1.0.2`, `v1.1.0` and `v1.2.0` tags and distributions remain immutable. Keep the
 historical 1.0.0 compatibility fixtures and artifact schemas unchanged.
 See the [1.2.1 release notes](project/release-notes-1.2.1.md) for the included changes.

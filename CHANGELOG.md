@@ -4,7 +4,7 @@ All notable public changes to VAMOS are documented here.
 
 ## [Unreleased]
 
-## [1.2.1] - 2026-11-14
+## [1.2.1] - 2026-11-15
 
 VAMOS 1.2.1 is a patch release. It corrects C2-DTLZ2's default radius with two
 objectives, which changes results of affected experiments, and the constraint

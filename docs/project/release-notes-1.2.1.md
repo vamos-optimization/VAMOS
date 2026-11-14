@@ -1,6 +1,6 @@
 # VAMOS 1.2.1 release notes
 
-Released 2026-11-14.
+Released 2026-11-15.
 
 VAMOS 1.2.1 is a patch release of [VAMOS 1.2.0](release-notes-1.2.0.md). It
 corrects C2-DTLZ2's default radius with two objectives, which changes the
