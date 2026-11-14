@@ -7,10 +7,11 @@ All notable public changes to VAMOS are documented here.
 ## [1.2.1] - 2026-11-14
 
 VAMOS 1.2.1 is a patch release. It corrects C2-DTLZ2's default radius with two
-objectives, which changes results of affected experiments, keeps persistent
-Optuna studies of the tuning CLI from mixing with those of earlier versions,
-and corrects two install instructions in the documentation. See the
-[1.2.1 release notes](docs/project/release-notes-1.2.1.md).
+objectives, which changes results of affected experiments, and the constraint
+count of eight ZXH-CF problems, keeps persistent Optuna studies of the tuning
+CLI from mixing with those of earlier versions, and corrects two install
+instructions in the documentation. See the [1.2.1 release
+notes](docs/project/release-notes-1.2.1.md).
 
 ### Fixed
 
@@ -20,6 +21,14 @@ and corrects two install instructions in the documentation. See the
   feasible, and its packaged two-objective front is regenerated. This changes
   the results of two-objective C2-DTLZ2 runs; `r=0.2` gives the former problem
   (#280).
+<!-- /PENDING -->
+<!-- PENDING(#281, fix/zxh-cf-constraint-count): drop this entry if that pull request is not merged. -->
+- ZXH-CF5–8 and ZXH-CF13–16 have one constraint per constrained angle, the
+  k_theta constraints of Zhou, Xiang and He (2021), as ZXH-CF9–12 do: `k + 1`
+  or `k + 2` constraints instead of `2k + 1` or `2k + 2`. Feasibility and the
+  overall constraint violation do not change; techniques that use the
+  individual constraints, such as `violated_constraints`, can rank differently
+  (#281).
 <!-- /PENDING -->
 <!-- PENDING(#282, fix/optuna-study-namespace-v2): drop this entry if that pull request is not merged. -->
 - `vamos tune` stores persistent Optuna studies under
