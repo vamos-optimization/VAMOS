@@ -13,6 +13,7 @@ import pytest
 
 import vamos
 from vamos.algorithms import ToPConfig
+from vamos.engine.algorithm.builders import build_top_algorithm
 from vamos.engine.algorithm.catalog import initial_evaluations
 from vamos.engine.algorithm.registry import get_builtin_algorithm_names, resolve_algorithm
 from vamos.engine.algorithm.top import (
@@ -34,6 +35,7 @@ from vamos.engine.algorithm.top import (
     tournament_winners,
     updated_delta,
 )
+from vamos.engine.algorithm.top.top import build_top_variation
 from vamos.engine.tuning import build_top_config_space, config_from_assignment
 from vamos.foundation.eval.backends import SerialEvalBackend
 from vamos.foundation.exceptions import ConfigurationError
@@ -538,12 +540,37 @@ def test_variation_choices_and_encodings_are_validated() -> None:
         )
     with pytest.raises(ValueError, match="cr must be in"):
         ToP({**_config(10), "crossover": ("de", {"cr": 1.5})}, kernel=NumPyKernel()).run(problem, ("max_evaluations", 100), seed=1)
+    with pytest.raises(ValueError, match="f or F, not both"):
+        ToP({**_config(10), "crossover": ("de", {"f": 0.5, "F": 0.8})}, kernel=NumPyKernel()).run(problem, ("max_evaluations", 100), seed=1)
     for name in ("bin_knapsack", "tsp6", "int_alloc", "mixed_design"):
         discrete = make_problem_selection(name).instantiate()
         with pytest.raises(ValueError, match="needs real variables"):
             ToP(_config(10), kernel=NumPyKernel()).run(discrete, ("max_evaluations", 100), seed=1)
         with pytest.raises((ValueError, ConfigurationError), match="needs real variables"):
             vamos.optimize(discrete, algorithm="top", max_evaluations=300, seed=1, engine="numpy")
+
+
+@pytest.mark.parametrize(
+    "crossover",
+    [{"method": "de", "CR": 0.2, "F": 0.8}, ("de", {"CR": 0.2, "F": 0.8}), ["de", {"cr": 0.2, "F": 0.8}]],
+)
+def test_a_variation_override_sets_cr_and_f_in_either_case(crossover: Any) -> None:
+    # The default crossover ("de", {"cr": 1.0, "f": 0.5}) must give way to CR and F as it does to cr and f.
+    problem = _ShiftedFrontProblem()
+    algorithm, config = build_top_algorithm(kernel=NumPyKernel(), problem=problem, pop_size=10, top_variation={"crossover": crossover})
+    _, cr, f = build_top_variation(algorithm.cfg, "real", problem.xl, problem.xu, problem)
+    assert (cr, f) == (0.2, 0.8)
+    assert config.to_dict()["crossover"] == ("de", {"cr": 0.2, "f": 0.8})
+
+
+def test_a_variation_override_gives_cr_and_f_once() -> None:
+    with pytest.raises(ValueError, match="cr or CR, not both"):
+        build_top_algorithm(
+            kernel=NumPyKernel(),
+            problem=_ShiftedFrontProblem(),
+            pop_size=10,
+            top_variation={"crossover": {"method": "de", "cr": 0.2, "CR": 0.3}},
+        )
 
 
 def test_other_real_mutations_and_repairs_run() -> None:

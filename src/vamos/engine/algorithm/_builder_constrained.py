@@ -12,6 +12,7 @@ from vamos.engine.algorithm._builder_common import (
     resolve_variation_config,
 )
 from vamos.engine.algorithm.config import AlgorithmConfigProtocol, CCMOConfig, CTAEAConfig, ToPConfig
+from vamos.engine.config.variation import ensure_operator_tuple
 from vamos.foundation.kernel.backend import KernelBackend
 from vamos.foundation.problem.types import ProblemProtocol
 
@@ -90,6 +91,26 @@ def build_ctaea_algorithm(
     )
 
 
+def _lowercase_de_parameters(overrides: dict[str, Any]) -> dict[str, Any]:
+    """``overrides`` with the crossover's parameters ``CR`` and ``F`` named ``cr`` and ``f``.
+
+    An override of ToP's default crossover, ``("de", {"cr": 1.0, "f": 0.5})``, keeps the default
+    parameters it does not set, so ``CR`` and ``F`` must replace ``cr`` and ``f`` rather than sit
+    beside them. Giving a parameter in both cases is ambiguous and rejected.
+    """
+    crossover = overrides.get("crossover")
+    if crossover is None:
+        return overrides
+    name, params = ensure_operator_tuple(crossover, key="crossover")
+    renamed: dict[str, Any] = {}
+    for key, value in params.items():
+        lower = key.lower() if key in ("CR", "F") else key
+        if lower in renamed:
+            raise ValueError(f"ToP's crossover takes {lower} or {lower.upper()}, not both.")
+        renamed[lower] = value
+    return {**overrides, "crossover": (name, renamed)}
+
+
 def build_top_algorithm(
     *,
     kernel: KernelBackend,
@@ -104,7 +125,7 @@ def build_top_algorithm(
     encoding = resolve_problem_encoding(problem)
     if encoding != "real":
         raise ValueError(f"ToP's differential evolution needs real variables; the problem's encoding is {encoding!r}.")
-    top_overrides = top_variation or {}
+    top_overrides = _lowercase_de_parameters(top_variation or {})
     defaults = {
         "crossover": ("de", {"cr": 1.0, "f": 0.5}),
         "mutation": ("polynomial", {"prob": 1.0 / problem.n_var, "eta": 20.0}),
