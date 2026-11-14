@@ -18,6 +18,7 @@ ALGORITHM_LABELS: dict[str, str] = {
     "smpso": "SMPSO",
     "agemoea": "AGE-MOEA",
     "rvea": "RVEA",
+    "ccmo": "CCMO",
 }
 
 _SPACE_SUFFIX = {

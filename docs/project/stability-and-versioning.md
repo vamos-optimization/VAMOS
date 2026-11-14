@@ -58,6 +58,12 @@ The stable built-in algorithm identifiers are `agemoea`, `ibea`, `moead`,
 configuration fields are frozen in
 `tests/compatibility/v1_0_0/stable_algorithm_configs.json`.
 
+**Development after 1.1.0:** built-in algorithms may be added during 1.x; the
+compatibility check accepts identifiers added after the frozen ones and still
+fails when a 1.0 identifier disappears. `ccmo` and its `CCMOConfig` are the
+first such addition. Until a release lists them here, they are not part of the
+stable surface, although `vamos.algorithms` exports `CCMOConfig`.
+
 For these entry points:
 
 - `max_evaluations` is a hard evaluation budget unless the selected algorithm

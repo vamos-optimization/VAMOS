@@ -35,6 +35,7 @@ _OPERATOR_ALIASES = {
 }
 _BUILT_IN_ALGORITHMS = {
     "agemoea",
+    "ccmo",
     "ibea",
     "moead",
     "nsgaii",

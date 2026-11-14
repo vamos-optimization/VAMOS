@@ -114,19 +114,26 @@ class VariationPipeline:
         return buffer
 
     def produce_offspring(self, parents: NDArray[np.generic], rng: np.random.Generator) -> NDArray[np.generic]:
-        # Crossover
+        """Crossover, then mutation: :meth:`recombine` followed by :meth:`mutate`."""
+        return self.mutate(self.recombine(parents, rng), rng)
+
+    def recombine(self, parents: NDArray[np.generic], rng: np.random.Generator) -> NDArray[np.generic]:
+        """Crossover of consecutive groups of ``parents_per_group`` rows, repaired for real encoding.
+
+        The children of each group are consecutive, ``children_per_group`` rows per group, so an
+        algorithm can keep some of them before :meth:`mutate`.
+        """
         offspring = self.crossover_op(parents, rng)
         if self.encoding == "real":
             assert self.repair_op is not None
             offspring = self.repair_op(offspring, self.xl, self.xu, rng)
+        return offspring
 
-        # Mutation
+    def mutate(self, offspring: NDArray[np.generic], rng: np.random.Generator) -> NDArray[np.generic]:
+        """Mutation of every row, then the repair of real encoding."""
         offspring = self.mutation_op(offspring, rng)
-
-        # Repair
         if self.repair_op is not None:
             offspring = self.repair_op(offspring, self.xl, self.xu, rng)
-
         return offspring
 
 

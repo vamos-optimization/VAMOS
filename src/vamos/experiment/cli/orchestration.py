@@ -259,6 +259,7 @@ def _effective_run(
         getattr(args, "agemoea_variation", None), _override_mapping(override, "agemoea")
     )
     effective_args.rvea_variation = merge_variation_overrides(getattr(args, "rvea_variation", None), _override_mapping(override, "rvea"))
+    effective_args.ccmo_variation = merge_variation_overrides(getattr(args, "ccmo_variation", None), _override_mapping(override, "ccmo"))
     effective_args.effective_problem_override = override
     return effective_selection, effective_config, effective_args, override
 

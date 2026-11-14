@@ -76,7 +76,7 @@ class InvalidAlgorithmError(ConfigurationError):
     def __init__(self, algorithm: str, available: list[str] | None = None) -> None:
         # The built-in identifiers (vamos.engine.algorithm.registry.get_builtin_algorithm_names, which
         # this layer cannot import); callers that know the registry pass it instead.
-        available = available or ["agemoea", "ibea", "moead", "nsgaii", "nsgaiii", "rvea", "smpso", "smsemoa", "spea2"]
+        available = available or ["agemoea", "ccmo", "ibea", "moead", "nsgaii", "nsgaiii", "rvea", "smpso", "smsemoa", "spea2"]
         suggestions = _suggest_names(algorithm, available)
         message = f"Unknown algorithm '{algorithm}'."
         suggestion_parts = [f"Available algorithms: {', '.join(available)}"]

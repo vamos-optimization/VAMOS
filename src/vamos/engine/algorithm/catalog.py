@@ -14,6 +14,7 @@ ENABLED_ALGORITHMS = (
     "smpso",
     "agemoea",
     "rvea",
+    "ccmo",
 )
 
 OPTIONAL_ALGORITHMS: tuple[str, ...] = ()
@@ -23,7 +24,8 @@ OPTIONAL_ALGORITHMS: tuple[str, ...] = ()
 # individuals by default; for NSGA-II and IBEA the configured selection decides, see minimum_violation); MOEA/D needs two weight vectors and NSGA-III and RVEA two reference
 # directions, which also need two objectives. SMS-EMOA's hypervolume contributions and
 # AGE-MOEA's front geometry are defined for two or more objectives. NSGA-III and RVEA
-# check their exact lattice size when their configuration is built.
+# check their exact lattice size when their configuration is built. CCMO pairs the parents
+# of each population two by two, so each population needs two individuals.
 ALGORITHM_MINIMUMS: dict[str, dict[str, int]] = {
     "nsgaii": {"pop_size": 2, "n_obj": 1},
     "moead": {"pop_size": 2, "n_obj": 1},
@@ -34,7 +36,12 @@ ALGORITHM_MINIMUMS: dict[str, dict[str, int]] = {
     "smpso": {"pop_size": 1, "n_obj": 1},
     "agemoea": {"pop_size": 2, "n_obj": 2},
     "rvea": {"pop_size": 2, "n_obj": 2},
+    "ccmo": {"pop_size": 2, "n_obj": 1},
 }
+
+# Built-in algorithms that evaluate several populations of pop_size before their first
+# generation: CCMO initializes its two populations.
+INITIAL_POPULATIONS: dict[str, int] = {"ccmo": 2}
 
 _LABELS = {
     "nsgaii": "NSGA-II",
@@ -46,6 +53,7 @@ _LABELS = {
     "smpso": "SMPSO",
     "agemoea": "AGE-MOEA",
     "rvea": "RVEA",
+    "ccmo": "CCMO",
 }
 
 
@@ -87,6 +95,15 @@ class MinimumViolation:
     message: str
 
 
+def initial_evaluations(algorithm: str, pop_size: int) -> int:
+    """Evaluations that ``algorithm`` spends on its initial population(s) of ``pop_size``.
+
+    ``2 * pop_size`` for CCMO, which initializes two populations, and ``pop_size`` for the other
+    algorithms. The budget must cover them.
+    """
+    return INITIAL_POPULATIONS.get(algorithm.strip().lower(), 1) * int(pop_size)
+
+
 def minimum_violation(
     algorithm: str, *, pop_size: int | None = None, n_obj: int | None = None, selection: object = None
 ) -> MinimumViolation | None:
@@ -126,7 +143,9 @@ __all__ = [
     "ALGORITHM_MINIMUMS",
     "DEFAULT_ALGORITHM",
     "ENABLED_ALGORITHMS",
+    "INITIAL_POPULATIONS",
     "MinimumViolation",
     "OPTIONAL_ALGORITHMS",
+    "initial_evaluations",
     "minimum_violation",
 ]

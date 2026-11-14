@@ -4,8 +4,9 @@ Algorithm facade: configuration builders and registry helpers.
 Use this module for algorithm config objects and discovery helpers.
 For running optimizations, use `vamos.optimize`.
 
-The nine configuration classes, the probability types and the
-``available_*`` functions are stable. ``GenericAlgorithmConfig``,
+The nine configuration classes of VAMOS 1.1.0, the probability types and the
+``available_*`` functions are stable. ``CCMOConfig`` is new after 1.1.0 and not
+yet covered by the 1.0 compatibility baseline. ``GenericAlgorithmConfig``,
 ``discover_algorithm_plugins`` and ``resolve_algorithm`` serve custom and
 plugin algorithms and are experimental.
 """
@@ -16,6 +17,7 @@ from typing import TYPE_CHECKING
 
 from vamos.engine.algorithm.config import (
     AGEMOEAConfig,
+    CCMOConfig,
     GenericAlgorithmConfig,
     IBEAConfig,
     MOEADConfig,
@@ -146,6 +148,7 @@ __all__ = [
     "IBEAConfig",
     "AGEMOEAConfig",
     "RVEAConfig",
+    "CCMOConfig",
     "GenericAlgorithmConfig",
     "ProbabilityExpression",
     "ProbabilityValue",

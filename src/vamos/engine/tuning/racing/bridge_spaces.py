@@ -15,6 +15,7 @@ from .bridge_spaces_agemoea import (
     build_agemoea_mixed_config_space,
     build_agemoea_permutation_config_space,
 )
+from .bridge_spaces_ccmo import build_ccmo_config_space
 from .bridge_spaces_ibea import (
     build_ibea_binary_config_space,
     build_ibea_config_space,
@@ -134,4 +135,6 @@ __all__ = [
     "build_rvea_binary_config_space",
     "build_rvea_integer_config_space",
     "build_rvea_mixed_config_space",
+    # CCMO
+    "build_ccmo_config_space",
 ]

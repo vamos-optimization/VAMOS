@@ -19,8 +19,9 @@ Choose a built-in algorithm through its public identifier in `optimize()`. Start
 | SMPSO | `smpso` | [Run and interpret SMPSO](../algorithms/smpso.md) | [SMPSOConfig](api/algorithms/smpso.md) |
 | AGE-MOEA | `agemoea` | [Run and interpret AGEMOEA](../algorithms/agemoea.md) | [AGEMOEAConfig](api/algorithms/agemoea.md) |
 | RVEA | `rvea` | [Run and interpret RVEA](../algorithms/rvea.md) | [RVEAConfig](api/algorithms/rvea.md) |
+| CCMO | `ccmo` | [Two populations for constrained problems](../algorithms/ccmo.md) | [CCMOConfig](api/algorithms/ccmo.md) |
 
-To query the installed registry, use `available_algorithms()` from `vamos.algorithms`; see [discovery](api/discovery.md). **All nine built-in identifiers and their public configuration classes are Stable** under the [1.x stability policy](../project/stability-and-versioning.md). Stable API status is a compatibility commitment, not evidence that every combination of algorithm, operator and problem has been validated.
+To query the installed registry, use `available_algorithms()` from `vamos.algorithms`; see [discovery](api/discovery.md). **All nine built-in identifiers of VAMOS 1.1.0 and their public configuration classes are Stable** under the [1.x stability policy](../project/stability-and-versioning.md). **Development after 1.1.0:** `ccmo` and `CCMOConfig` are new and not yet covered by the 1.0 compatibility baseline. Stable API status is a compatibility commitment, not evidence that every combination of algorithm, operator and problem has been validated.
 
 ## Capability matrix
 
@@ -37,6 +38,7 @@ This table describes the **VAMOS 1.1.0 package**. Changes since 1.0.0 are listed
 | SMPSO | R / M | Feasibility-based leaders/personal-best selection | Internal leaders archive; optional external result archive | NumPy / Numba / MooCore | Stable |
 | AGE-MOEA | R / B / I / P / M | Feasibility-based when enabled | Optional external result archive | NumPy / Numba / MooCore | Stable |
 | RVEA | R / B / I / P / M | Feasibility-based when enabled | Optional external result archive | NumPy / Numba / MooCore | Stable |
+| CCMO | R / B / I / P / M (DE variation: R) | Violation-first SPEA2 selection in population 1; population 2 ignores constraints | Optional external result archive | NumPy / Numba / MooCore | Development after 1.1.0 |
 
 **Evidence and scope.** The encoding families are exercised by repository operator-combination tests and encoding integration tests. Historical real-coded, unconstrained ZDT1 smoke runs were checked for all nine algorithms on each of the three backends against the installed 1.0.0 package. That is not a validation of the full encoding × constraints × archive × backend Cartesian product, nor a convergence or speed benchmark. Custom operators and untested combinations require a representative check before a large study. SMPSO rejects standalone binary, integer and permutation encodings; its mixed path requires mixed-variable mutation.
 
@@ -189,6 +191,7 @@ published results or with another framework.
 | Indicator-based fitness | IBEA | Indicator choice, scaling and its parameters |
 | Particle-swarm search | SMPSO | Real/mixed representation and leaders archive; release notes below |
 | Alternative many-objective diversity mechanisms | AGE-MOEA or RVEA | Geometry/reference vectors and explicit constraint mode |
+| Constrained problems whose feasible regions are hard to reach | [CCMO](../algorithms/ccmo.md) | Budget of at least `2 * pop_size`; GA or DE variation |
 
 These are starting points for a study, not objective-count cut-offs or performance rankings. Compare algorithms using explicit budgets, repeated seeds and the same problem formulation.
 

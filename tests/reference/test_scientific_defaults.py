@@ -23,6 +23,8 @@ Sources, for 30 variables, 2 objectives and 100 individuals:
 - RVEA: Cheng, Jin, Olhofer and Sendhoff (2016), alpha = 2, f_r = 0.1, eta_c = 30, eta_m = 20.
 - SMPSO: Nebro et al. (2009), C1 and C2 drawn from [1.5, 2.5], w = 0.1, velocity bounded by half
   the variable range, polynomial mutation p_m = 1/n, eta_m = 20.
+- CCMO: Tian, Zhang, Xiao, Zhang and Jin (2021) and jMetal's port, SBX p_c = 1.0, eta_c = 20,
+  polynomial mutation p_m = 1/n, eta_m = 20.
 """
 
 from __future__ import annotations
@@ -70,6 +72,7 @@ PINNED: dict[str, dict[str, Any]] = {
     "ibea": {"crossover": _SBX_20, "mutation": _PM, "selection": ["tournament", {}], "indicator": "eps", "kappa": 0.05},
     "agemoea": {"crossover": ["sbx", {"prob": 0.9, "eta": 15.0}], "mutation": _PM},
     "rvea": {"crossover": _SBX_30, "mutation": _PM, "alpha": 2.0, "adapt_freq": 0.1, "n_partitions": 99},
+    "ccmo": {"crossover": ["sbx", {"prob": 1.0, "eta": 20.0}], "mutation": _PM},
     "smpso": {
         "mutation": ["polynomial", {"prob": 1.0 / _N_VAR, "eta": 20.0}],
         "inertia": 0.1,
@@ -81,6 +84,8 @@ PINNED: dict[str, dict[str, Any]] = {
 }
 # Fields whose value depends on the population size, which each entry point sizes on its own.
 _LATTICE_FIELDS = {"nsgaiii": "reference_directions", "moead": "weight_vectors", "rvea": "n_partitions"}
+# CCMO's two initial populations take 2 * pop_size evaluations: 400 with the quick default population of ZDT1.
+_BUDGET = {"ccmo": 400}
 # Resolved run specs name operators by their component, not by the configuration's alias.
 _COMPONENT_NAMES = {"pm": "polynomial", "de": "differential_evolution"}
 
@@ -143,7 +148,7 @@ def _assert_resolves_the_defaults(algorithm: str, resolved_spec: dict[str, Any])
 
 @pytest.mark.parametrize("algorithm", sorted(PINNED))
 def test_optimize_without_a_configuration_resolves_the_defaults(algorithm: str) -> None:
-    result = vamos.optimize("zdt1", algorithm=algorithm, max_evaluations=200, seed=0)
+    result = vamos.optimize("zdt1", algorithm=algorithm, max_evaluations=_BUDGET.get(algorithm, 200), seed=0)
     _assert_resolves_the_defaults(algorithm, result.explain_defaults()["resolved_spec"])
 
 
@@ -173,7 +178,7 @@ def test_cli_without_a_configuration_resolves_the_defaults(algorithm: str, tmp_p
 
 @pytest.fixture(scope="module")
 def study_plan(tmp_path_factory: pytest.TempPathFactory) -> dict[str, dict[str, Any]]:
-    spec = vamos.StudySpec(problems=["zdt1"], algorithms=sorted(PINNED), seeds=[0], max_evaluations=200)
+    spec = vamos.StudySpec(problems=["zdt1"], algorithms=sorted(PINNED), seeds=[0], max_evaluations=400)
     study = vamos.create_study(spec, output=tmp_path_factory.mktemp("defaults") / "study")
     plan = json.loads((study.root / "plan.json").read_text(encoding="utf-8"))
     specs = (task["resolved_run_spec"] for task in plan["tasks"])

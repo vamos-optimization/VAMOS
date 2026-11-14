@@ -13,6 +13,7 @@ Choose the configuration class for the algorithm passed to `optimize`. These cla
 | `smpso` | [`SMPSOConfig`](smpso.md) |
 | `agemoea` | [`AGEMOEAConfig`](agemoea.md) |
 | `rvea` | [`RVEAConfig`](rvea.md) |
+| `ccmo` | [`CCMOConfig`](ccmo.md) (development after 1.1.0) |
 
 ## Explicit configuration
 

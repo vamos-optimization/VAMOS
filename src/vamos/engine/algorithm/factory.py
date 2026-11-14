@@ -4,6 +4,7 @@ from collections.abc import Callable, Mapping
 
 from vamos.engine.algorithm.builders import (
     build_agemoea_algorithm,
+    build_ccmo_algorithm,
     build_ibea_algorithm,
     build_moead_algorithm,
     build_nsgaii_algorithm,
@@ -26,7 +27,7 @@ from vamos.foundation.problem.types import ProblemProtocol
 
 # Built-in algorithms that record offspring genealogy through survival.
 GENEALOGY_ALGORITHMS = ("nsgaii", "moead", "smsemoa", "nsgaiii", "spea2", "ibea", "smpso")
-_ALGORITHMS_WITHOUT_GENEALOGY = ("agemoea", "rvea")
+_ALGORITHMS_WITHOUT_GENEALOGY = ("agemoea", "rvea", "ccmo")
 
 
 def _plugin_default_config(
@@ -143,6 +144,12 @@ def build_algorithm(
             problem=problem,
             pop_size=pop_size,
             rvea_variation=variations.get("rvea"),
+        ),
+        "ccmo": lambda: build_ccmo_algorithm(
+            kernel=kernel,
+            problem=problem,
+            pop_size=pop_size,
+            ccmo_variation=variations.get("ccmo"),
         ),
     }
 

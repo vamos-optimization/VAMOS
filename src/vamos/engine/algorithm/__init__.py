@@ -15,6 +15,7 @@ Algorithms
 - SMPSO: Speed-constrained Multi-objective PSO
 - AGEMOEA: Adaptive Geometry Estimation MOEA
 - RVEA: Reference Vector Guided Evolutionary Algorithm
+- CCMO: Coevolutionary framework for constrained multi-objective optimization
 
 Usage
 -----
@@ -43,6 +44,7 @@ from vamos.engine.algorithm.components.protocol import (
 
 if TYPE_CHECKING:
     from vamos.engine.algorithm.agemoea import AGEMOEA
+    from vamos.engine.algorithm.ccmo import CCMO
     from vamos.engine.algorithm.ibea import IBEA
     from vamos.engine.algorithm.moead import MOEAD
     from vamos.engine.algorithm.nsgaii import NSGAII
@@ -62,6 +64,7 @@ _ALGORITHM_EXPORTS = {
     "SMPSO": ("vamos.engine.algorithm.smpso", "SMPSO"),
     "AGEMOEA": ("vamos.engine.algorithm.agemoea", "AGEMOEA"),
     "RVEA": ("vamos.engine.algorithm.rvea", "RVEA"),
+    "CCMO": ("vamos.engine.algorithm.ccmo", "CCMO"),
 }
 
 __all__ = [
@@ -75,6 +78,7 @@ __all__ = [
     "SMPSO",
     "AGEMOEA",
     "RVEA",
+    "CCMO",
     # Protocols and enums
     "AlgorithmProtocol",
     "InteractiveAlgorithmProtocol",

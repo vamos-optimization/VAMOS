@@ -298,7 +298,7 @@ when saving, and a series stopped at the first collision.
 Key flags
 ---------
 
-- `--algorithm`: agemoea, ibea, moead, nsgaii, nsgaiii, rvea, smpso, smsemoa, spea2, or both
+- `--algorithm`: agemoea, ccmo, ibea, moead, nsgaii, nsgaiii, rvea, smpso, smsemoa, spea2, or both
 - `--engine`: numpy | numba | moocore | auto. The deterministic default is `numpy`; `auto` prefers available Numba with a NumPy fallback. See the [automatic engine policy](../reference/algorithms.md#automatic-engine-selection) for the selection and replay rules in VAMOS 1.1.0.
 - `--problem`: any registry key (see [Problems](../reference/problems.md))
 - `--problem-set`: predefined sets (e.g., `families`)
