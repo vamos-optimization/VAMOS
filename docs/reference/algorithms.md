@@ -222,6 +222,28 @@ NSGA-III and RVEA require a population compatible with the configured reference 
 
 **Development after 1.1.0:** with `pop_size`, `NSGAIIIConfig.default()` uses the complete lattice with the most directions that fit in it, for any number of objectives (four divisions, 70 directions, for 100 individuals and five objectives, which used to fail with six divisions and 210 directions); `RVEAConfig.default()` uses the lattice of exactly `pop_size` vectors and otherwise fails at once naming the nearest valid sizes, such as 91 or 105 for three objectives. Without `pop_size`, both still use 12 divisions for three objectives and 6 for four or more.
 
+### The command line and `optimize`
+
+A top-level `vamos` run and `vamos.optimize` build a run separately, so with the
+same problem, algorithm, population, budget and seed, and no algorithm
+configuration, they resolve the same configuration except for these
+differences, which `tests/experiment/test_cli_api_parity.py` keeps listed:
+
+- Result mode: the command line returns `non_dominated` for AGE-MOEA, CCMO,
+  CMOEA-MS, C-TAEA, IBEA, MOEA/D, RVEA, SMS-EMOA, SPEA2 and ToP, where
+  `optimize` returns `population`. NSGA-II, NSGA-III and SMPSO agree.
+- NSGA-III: the command line uses SBX with distribution index 20, not 30, and
+  derives the reference directions from the population when the run starts;
+  `optimize` records the lattice's divisions.
+- MOEA/D: the command line reads the packaged weight files and records their
+  directory, a path inside the installation; `optimize` records the divisions.
+- NSGA-II's offspring size and SMS-EMOA's reference point are written out by
+  one path and left to their defaults by the other, with the same effect.
+
+When the two must agree, set these options explicitly on both and compare the
+resolved configuration that each run records. Both paths are stable, so their
+defaults stay until one execution path replaces them in 2.0.
+
 ### Termination criteria
 
 **Development after 1.1.0:** every algorithm's `run(problem, termination=...)`
