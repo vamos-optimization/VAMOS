@@ -62,6 +62,13 @@ rerun. Run and study artifacts keep the 1.0.0 schemas.
   and its budget is exact. It stays outside the stable API, which the 1.0
   compatibility check now lets grow; `VariationPipeline` gains `recombine`
   and `mutate` (#272).
+- C-TAEA (`ctaea`), the two-archive algorithm for constrained problems of Li et
+  al. (2019), following jMetal's port: its weight vectors, archive updates and
+  mating selection match jMetal's on fixed inputs, and its IGD+ and IGD on
+  C1-DTLZ1, C3-DTLZ4, MW1, MW3 and LIR-CMOP7 agree with jMetal's runs and the
+  published values. `CTAEAConfig` and the `ctaea` tuning space configure it.
+  Its population is the number of weight vectors that `pop_size` gives, its
+  budget is exact, and it stays outside the stable API (#275).
 
 - `vamos --version` prints the installed version (#273).
 

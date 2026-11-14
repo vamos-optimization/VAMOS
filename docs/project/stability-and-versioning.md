@@ -61,8 +61,9 @@ configuration fields are frozen in
 **VAMOS 1.2.0:** built-in algorithms may be added during 1.x; the
 compatibility check accepts identifiers added after the frozen ones and still
 fails when a 1.0 identifier disappears. `ccmo` and its `CCMOConfig` are the
-first such addition. Until a later release lists them here, they are not part of the
-stable surface, although `vamos.algorithms` exports `CCMOConfig`.
+first such addition, and `ctaea` with its `CTAEAConfig` the second. Until a
+later release lists them here, they are not part of the stable surface, although
+`vamos.algorithms` exports `CCMOConfig` and `CTAEAConfig`.
 
 For these entry points:
 

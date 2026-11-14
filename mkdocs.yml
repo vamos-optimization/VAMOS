@@ -103,6 +103,7 @@ nav:
       - AGE-MOEA: algorithms/agemoea.md
       - RVEA: algorithms/rvea.md
       - CCMO: algorithms/ccmo.md
+      - C-TAEA: algorithms/ctaea.md
     - Representations and applications:
       - Coverage Setup: tutorials/coverage-setup.md
       - Decision Representations: tutorials/encodings.md
@@ -146,6 +147,7 @@ nav:
         - AGE-MOEA: reference/api/algorithms/agemoea.md
         - RVEA: reference/api/algorithms/rvea.md
         - CCMO: reference/api/algorithms/ccmo.md
+        - C-TAEA: reference/api/algorithms/ctaea.md
       - Run artifacts:
         - Save, load, and replay: reference/api/runs.md
         - Stored runs and reports: reference/api/run-models.md

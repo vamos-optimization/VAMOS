@@ -168,6 +168,9 @@ its results are those of VAMOS 1.1.0. A technique other than `cdp` needs
 designed for constrained problems rather than a technique: it ranks its main
 population with the violation first and evolves a second population that
 ignores the constraints, whose offspring the main population can select.
+[C-TAEA](../algorithms/ctaea.md) is another: its convergence archive is
+driven by feasibility, and its diversity archive ignores the constraints and
+keeps solutions in the subregions where the convergence archive has few.
 
 ### MOEA/D: subproblem update criteria
 

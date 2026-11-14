@@ -14,6 +14,7 @@ Choose the configuration class for the algorithm passed to `optimize`. These cla
 | `agemoea` | [`AGEMOEAConfig`](agemoea.md) |
 | `rvea` | [`RVEAConfig`](rvea.md) |
 | `ccmo` | [`CCMOConfig`](ccmo.md) (new in VAMOS 1.2.0) |
+| `ctaea` | [`CTAEAConfig`](ctaea.md) (new in VAMOS 1.2.0) |
 
 ## Explicit configuration
 

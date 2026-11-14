@@ -112,6 +112,12 @@ def _build_ccmo(cfg: AlgorithmConfigMapping, kernel: KernelBackend | None = None
     return CCMO(dict(cfg), kernel=kernel)
 
 
+def _build_ctaea(cfg: AlgorithmConfigMapping, kernel: KernelBackend | None = None) -> AlgorithmLike:
+    from .ctaea import CTAEA
+
+    return CTAEA(dict(cfg), kernel=kernel)
+
+
 def _register_algorithms(registry: Registry[AlgorithmBuilder]) -> None:
     registry.register("nsgaii", _build_nsgaii)
     registry.register("nsgaiii", _build_nsgaiii)
@@ -123,11 +129,12 @@ def _register_algorithms(registry: Registry[AlgorithmBuilder]) -> None:
     registry.register("agemoea", _build_agemoea)
     registry.register("rvea", _build_rvea)
     registry.register("ccmo", _build_ccmo)
+    registry.register("ctaea", _build_ctaea)
 
 
 def get_builtin_algorithm_names() -> tuple[str, ...]:
     """Return stable built-in IDs without discovering entry points."""
-    return ("agemoea", "ccmo", "ibea", "moead", "nsgaii", "nsgaiii", "rvea", "smpso", "smsemoa", "spea2")
+    return ("agemoea", "ccmo", "ctaea", "ibea", "moead", "nsgaii", "nsgaiii", "rvea", "smpso", "smsemoa", "spea2")
 
 
 def resolve_builtin_algorithm(name: str) -> AlgorithmBuilder:

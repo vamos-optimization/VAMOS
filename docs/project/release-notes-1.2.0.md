@@ -7,11 +7,11 @@ fronts, indicators and statistics back to their published definitions. These
 scientific corrections change numerical results: read
 [which results change](#which-results-change) before you compare new runs with
 runs from earlier versions. The release also adds 115 constrained benchmark
-problems, jMetal's constraint-handling techniques, the CCMO algorithm for
-constrained problems, faster Numba paths for the steady-state algorithms, and
-stricter checks that reject inputs earlier versions ignored or misapplied. The
-stable 1.x API, the omitted-engine NumPy default, and the 1.0.0 run and study
-schemas remain the compatibility baseline.
+problems, jMetal's constraint-handling techniques, the CCMO and C-TAEA
+algorithms for constrained problems, faster Numba paths for the steady-state
+algorithms, and stricter checks that reject inputs earlier versions ignored or
+misapplied. The stable 1.x API, the omitted-engine NumPy default, and the
+1.0.0 run and study schemas remain the compatibility baseline.
 
 The package metadata now serves users of VAMOS: the `research` extra and the
 third-party framework integrations are removed, and `analysis` and `all`
@@ -70,10 +70,12 @@ comparing them with results of earlier versions.
   constraint-handling techniques through `constraint_handling`, and MOEA/D
   its subproblem update criteria through `subproblem_update_criterion`, with
   matching `*_constrained` tuning spaces.
-- [CCMO](../algorithms/ccmo.md) (`ccmo`), the coevolutionary framework for
-  constrained problems of Tian et al. (2021), follows jMetal's port, and its
-  IGD on MW1, MW3 and C1-DTLZ1 matches the published values. It is new in 1.2.0
-  and stays outside the stable API until a later release lists it.
+- Two algorithms for constrained problems follow jMetal's ports and match the
+  published values: [CCMO](../algorithms/ccmo.md) (`ccmo`), the
+  coevolutionary framework of Tian et al. (2021), and
+  [C-TAEA](../algorithms/ctaea.md) (`ctaea`), the two-archive algorithm of Li
+  et al. (2019). They are new in 1.2.0 and stay outside the stable API until a
+  later release lists them.
 
 ## Stricter validation
 

@@ -8,7 +8,7 @@ from itertools import product
 from math import comb
 from typing import Any
 
-from vamos.engine.algorithm.catalog import ENABLED_ALGORITHMS, initial_evaluations, minimum_violation
+from vamos.engine.algorithm.catalog import ENABLED_ALGORITHMS, WEIGHT_VECTOR_POPULATIONS, initial_evaluations, minimum_violation
 from vamos.engine.algorithm.config.base import ReferenceDirectionPopulationError
 from vamos.experiment.artifacts.models import deep_freeze, deep_thaw
 from vamos.experiment.artifacts.resolved_reconstruction import is_reconstructable_evaluation_backend
@@ -249,15 +249,22 @@ def _validate_execution_shape(
             action="Correct the population configuration; no study directory was published.",
         )
     _reject_below_minimum(algorithm, candidate, pop_size=population, selection=config.get("selection"))
-    initial = initial_evaluations(algorithm, population)
+    initial = initial_evaluations(algorithm, population, n_obj=n_obj)
     if budget < initial:
+        if algorithm.lower() in WEIGHT_VECTOR_POPULATIONS:
+            expected = (
+                f"integer >= the {initial} evaluations of the initial population of {algorithm}, one per weight vector "
+                f"generated from pop_size={population} for {n_obj} objectives"
+            )
+        elif initial == population:
+            expected = f"integer >= resolved initial population size ({population})"
+        else:
+            expected = f"integer >= the {initial} evaluations of the initial populations of {algorithm} ({population} individuals each)"
         raise UnresolvedStudyTaskError(
             operation="resolve study plan",
             reason="INVALID_EVALUATION_BUDGET",
             field=f"$.matrix[{candidate.index}].max_evaluations",
-            expected=f"integer >= resolved initial population size ({population})"
-            if initial == population
-            else f"integer >= the {initial} evaluations of the initial populations of {algorithm} ({population} individuals each)",
+            expected=expected,
             actual=budget,
             action="Increase max_evaluations or reduce the population; no study directory was published.",
         )
