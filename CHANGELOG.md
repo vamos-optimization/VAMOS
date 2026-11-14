@@ -639,7 +639,8 @@ development markers; they are not prior public releases.
 - Studio, tuning, visualization, provider integrations, plugin interfaces, and
   non-stable CLI commands remain experimental.
 
-[Unreleased]: https://github.com/vamos-optimization/VAMOS/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/vamos-optimization/VAMOS/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.2.1
 [1.2.0]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.2.0
 [1.1.0]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.1.0
 [1.0.2]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.0.2
