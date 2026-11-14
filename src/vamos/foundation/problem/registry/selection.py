@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field, replace
+from types import MappingProxyType
 from typing import cast
 
 from vamos.foundation.exceptions import InvalidProblemError
@@ -16,10 +18,22 @@ class ProblemSelection:
     spec: ProblemSpec
     n_var: int
     n_obj: int
+    #: The problem's other options, which ``with_options`` checks against the factory's signature.
+    options: Mapping[str, object] = field(default_factory=lambda: MappingProxyType({}), hash=False)
 
     def instantiate(self) -> ProblemProtocol:
-        """Create a new problem instance with the resolved dimensions."""
-        return cast(ProblemProtocol, self.spec.factory(self.n_var, self.n_obj))
+        """Create a new problem instance with the resolved dimensions and options."""
+        return cast(ProblemProtocol, self.spec.build(self.n_var, self.n_obj, self.options))
+
+    def with_options(self, options: Mapping[str, object]) -> ProblemSelection:
+        """Return this selection with the problem's other options, such as ``capacity_ratio`` for ``bin_knapsack``.
+
+        The options are the factory's keyword-only parameters (``spec.option_defaults()``); an option it does not
+        declare, or a value other than ``None``, a boolean, a string, an integer or a finite number, raises
+        ``ConfigurationError``.
+        """
+        self.spec.check_options(options)
+        return replace(self, options=MappingProxyType(dict(options)))
 
 
 def make_problem_selection(key: str, *, n_var: int | None = None, n_obj: int | None = None) -> ProblemSelection:

@@ -176,8 +176,8 @@ def optimize(
         Override problem dimensions of a registered problem name or a problem
         class; a problem instance rejects them.
     problem_kwargs : Mapping[str, object] | None, optional
-        Keyword arguments for a problem class; a registered problem name
-        accepts only ``n_var`` and ``n_obj``, and an instance none.
+        Keyword arguments for a problem class; for a registered name, ``n_var``, ``n_obj`` and the
+        options its factory declares (``capacity_ratio`` for ``"bin_knapsack"``); an instance none.
     algorithm_config : AlgorithmConfigProtocol | None, optional
         Explicit algorithm config object of ``algorithm``'s configuration class;
         ``GenericAlgorithmConfig`` only for plugin algorithms.

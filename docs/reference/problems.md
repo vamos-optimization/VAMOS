@@ -46,6 +46,16 @@ MW, C-DTLZ, LSMOP, ZCAT, RE, and RWA), is available by name through
 `optimize("name")` and `make_problem_selection`, the stable way to build any
 of them.
 
+**Development after 1.2.1:** some registered problems also take options
+besides `n_var` and `n_obj`: `capacity_ratio` for `bin_knapsack`, and
+`complicated_pareto_set`, `level`, `bias` and `imbalance` for
+`zcat1`–`zcat20`, with the defaults in the tables below. Pass them by name with
+`optimize(name, problem_kwargs={...})`, a study's `problem_kwargs`, or
+`make_problem_selection(name).with_options({...})`; `selection.spec.option_defaults()`
+lists them. A run records them in `resolved_spec.problem.config` and replays them
+exactly. The other problems take no options, and arguments that identify a
+registered problem, such as a family's variant, stay fixed by its name.
+
 The tables report the **instantiated** default dimensions. `n` is the number of
 decision variables, `M` the number of objectives, and `G` the number of explicit
 inequality outputs (`G <= 0` is feasible). Zero G means no separate inequality

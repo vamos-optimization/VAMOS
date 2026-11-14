@@ -9,9 +9,9 @@ from vamos.engine.algorithm.config import GenericAlgorithmConfig
 from vamos.engine.algorithm.config.defaults import config_algorithm
 from vamos.engine.algorithm.variants import canonical_algorithm_name
 from vamos.foundation.exceptions import ConfigurationError
+from vamos.foundation.problem.registry import get_problem_specs
 
-# The registry selects a named problem by its dimensions only.
-_NAMED_PROBLEM_KWARGS = ("n_var", "n_obj")
+_DIMENSIONS = ("n_var", "n_obj")
 
 
 def check_problem_arguments(
@@ -23,12 +23,11 @@ def check_problem_arguments(
 ) -> None:
     """Reject dimension arguments that a problem instance would ignore and kwargs a name cannot take."""
     if isinstance(problem, str):
-        unsupported = sorted(str(key) for key in (problem_kwargs or {}) if key not in _NAMED_PROBLEM_KWARGS)
-        if unsupported:
-            raise ConfigurationError(
-                f"problem_kwargs for a registered problem accepts only n_var and n_obj; got {', '.join(unsupported)}.",
-                suggestion="Build the problem instance with these arguments and pass it as problem.",
-            )
+        spec = get_problem_specs().get(problem)
+        options = {key: value for key, value in (problem_kwargs or {}).items() if key not in _DIMENSIONS}
+        if spec is not None and options:
+            # The registry entry's factory declares the problem's other options; an unknown name fails later.
+            spec.check_options(options)
         return
     if isinstance(problem, type):
         return
