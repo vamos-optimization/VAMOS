@@ -12,10 +12,10 @@ subsequent publication job depends on that guard.
 
 ## Preparing the next release
 
-The current candidate is **1.1.0**, dated **2026-10-23**. The published
-`v1.0.0`, `v1.0.1` and `v1.0.2` tags and distributions remain immutable. Keep the
+The current candidate is **1.2.0**, dated **2026-11-14**. The published
+`v1.0.0`, `v1.0.1`, `v1.0.2` and `v1.1.0` tags and distributions remain immutable. Keep the
 historical 1.0.0 compatibility fixtures and artifact schemas unchanged.
-See the [1.1.0 release notes](project/release-notes-1.1.0.md) for the included changes.
+See the [1.2.0 release notes](project/release-notes-1.2.0.md) for the included changes.
 
 Update the runtime version, citation, changelog, release notes (with their entry
 under Reference → Support & Versions in `mkdocs.yml`), version consistency test,
@@ -27,7 +27,7 @@ commit changes, produce new evidence before publishing. Verify the actual
 publication date before freezing.
 
 Run full local and hosted release validation. The candidate workflow accepts
-`release/final-1.1.0` pull requests and manual dispatch. After merging, dispatch
+`release/final-1.2.0` pull requests and manual dispatch. After merging, dispatch
 `release.yml` on the final `main` commit and wait for all source and installed
 wheel gates, including the frozen-evidence job, to succeed. The pre-release tag
 check requires the new tag to be absent and all previous public annotated tags
@@ -41,8 +41,8 @@ Trusted Publisher identities remain:
 | PyPI | vamos-optimization | vamos-optimization | VAMOS | upload_pypi.yml | pypi |
 
 Confirm both existing publisher registrations and the GitHub environments
-before creating the annotated `v1.1.0` tag. If deployment restrictions still
-allow only earlier tags, an authorized maintainer must add `v1.1.0` while preserving
+before creating the annotated `v1.2.0` tag. If deployment restrictions still
+allow only earlier tags, an authorized maintainer must add `v1.2.0` while preserving
 production approval requirements. Use OIDC; do not introduce API tokens or
 publish through a mirror. A required deployment approval must be completed
 through the normal environment approval flow.
@@ -69,7 +69,7 @@ only when the redirect changes. The personal mirror must not deploy Pages. The
 describes the redirect. Documentation is published through the Cloudflare
 production workflow, which attaches the portal archive to the GitHub Release.
 
-`tools/build_release_docs.py --version 1.1.0 --output <new-directory>` builds
+`tools/build_release_docs.py --version 1.2.0 --output <new-directory>` builds
 the complete deployment layout. It builds the current documentation and the
 immutable release separately so each has the correct canonical URL, preserves
 previous immutable `docs/<version>/` trees when an archive directory or portal
@@ -85,7 +85,7 @@ both documentation sites, distributions, installed wheel, dependencies, and
 release evidence in one command:
 
 ```bash
-python tools/release_check.py --version 1.1.0
+python tools/release_check.py --version 1.2.0
 ```
 
 Run it from a clean release branch with the development, documentation,
@@ -109,8 +109,8 @@ evidence outside the repository:
 
 ```bash
 python tools/release_check.py \
-  --version 1.1.0 \
-  --expected-branch release/final-1.1.0 \
+  --version 1.2.0 \
+  --expected-branch release/final-1.2.0 \
   --expected-commit <full-commit-sha> \
   --tag-state pre-release \
   --typing-python <typing-venv>/bin/python \
@@ -136,7 +136,7 @@ candidate, pass its directory instead of rebuilding it:
 
 ```bash
 python tools/release_check.py \
-  --version 1.1.0 \
+  --version 1.2.0 \
   --artifacts <directory-with-one-wheel-and-one-sdist> \
   --output-dir <new-empty-evidence-directory>
 ```
@@ -161,7 +161,7 @@ from making pip treat an uninstalled wheel as already installed. Run the full
 smoke with:
 
 ```bash
-python tools/release_smoke.py --version 1.1.0 --mode full
+python tools/release_smoke.py --version 1.2.0 --mode full
 ```
 
 `--mode core` omits the optional-backend failure scenario and is used by the

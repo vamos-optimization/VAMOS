@@ -2,7 +2,7 @@
 
 Choose a problem by its **formulation, encoding and dimensions**, then check the
 [algorithm compatibility matrix](algorithms.md). This catalog describes the
-136 registered problems in VAMOS **1.1.0**. The named selection helpers are
+251 registered problems in VAMOS **1.2.0**. The named selection helpers are
 [stable public APIs](../project/stability-and-versioning.md). A synthetic or
 engineering benchmark is a test model, not a validated model of your application.
 
@@ -38,7 +38,7 @@ holds the members used most in examples and tests: ZDT1–ZDT4 and ZDT6 (pass
 `n_var`), DTLZ1–DTLZ4 and DTLZ7, WFG1–WFG9, CEC2009 UF1–UF3 and CF1, `TSP`,
 and three application examples (`FeatureSelectionProblem`,
 `HyperparameterTuningProblem`, and `WeldedBeamDesignProblem`). These classes
-are stable for 1.x. **Development after 1.1.0:** the classes added since cover
+are stable for 1.x. **VAMOS 1.2.0:** the classes added since cover
 a whole family and take the variant number and the family's parameters:
 `DASCMOP`, `DCDTLZ`, and `LIRCMOP`. Every registered problem, including the
 families and members without a class (ZDT5, DTLZ5 and DTLZ6, UF4–UF10, LZ09,
@@ -87,14 +87,14 @@ otherwise `k = 2(M - 1)`, and `l = n - k`; WFG2/3 require an even distance-varia
 count. LSMOP needs enough variables for all groups to remain nonempty.
 Family constructor checks still apply to dimension overrides.
 
-**Development after 1.1.0:** impossible dimensions are rejected with
+**VAMOS 1.2.0:** impossible dimensions are rejected with
 `ValueError` when the problem is built: WFG needs at least one distance variable
 (`n >= k + 1`, so `wfg1` with M = 13 needs `n_var >= 25`), DTLZ needs
 `n >= M`, and LZ09 needs `n >= 3`. `n_var` and `n_obj` must be integers; a
 float or a boolean is rejected. VAMOS 1.1.0 accepted these settings and failed
 later with NaN objectives, an `IndexError` or a `ZeroDivisionError`.
 
-**Development after 1.1.0:** `lsmop1`–`lsmop9` follow the definition of Cheng,
+**VAMOS 1.2.0:** `lsmop1`–`lsmop9` follow the definition of Cheng,
 Jin and Olhofer (2017), as implemented in PlatEMO. For `i >= M`, LSMOP1–4 use
 the linear linkage `(1 + i/n) x_i - 10 x_1` and LSMOP5–9 the nonlinear linkage
 `(1 + cos(0.5 pi i/n)) x_i - 10 x_1`. LSMOP9 divides each group's distance by
@@ -164,7 +164,7 @@ of 10 in DC3-DTLZ3's `g`. Their problems therefore differ from these. Their DC1
 and DC3 fronts differ too. Their DC2 fronts do not, because DC2's constraints
 hold on the whole DTLZ front.
 
-**Development after 1.1.0:** `vamos.problems.DCDTLZ(key, n_var=..., n_obj=...,
+**VAMOS 1.2.0:** `vamos.problems.DCDTLZ(key, n_var=..., n_obj=...,
 a=..., b=..., g_factor=..., constraint_g_scale=...)` builds any of these
 variants:
 
@@ -178,19 +178,19 @@ variants:
 - DC3's constraint on `g` comes first, as in pymoo; jMetal puts it last.
 - The packaged fronts hold only for the default constants.
 
-**Development after 1.1.0:** the C-DTLZ problems accept as many variables as
+**VAMOS 1.2.0:** the C-DTLZ problems accept as many variables as
 objectives, with a single distance variable, as STEP's C3-DTLZ4 with three
 objectives and three variables needs. The tests check them against jMetal 7.10
 with STEP's dimensions and, for C2-DTLZ2, its radius `r = 0.1`.
 
-**Development after 1.1.0:** the classic constrained problems follow jMetal's
+**VAMOS 1.2.0:** the classic constrained problems follow jMetal's
 classes of the same names, bounds and constraint scaling included. The front
 of Srinivas and Deb's problem is not only the textbook segment `x1 = -2.5`,
 which minimizes `f1 + f2` and starts at `f1 = 24.5`. It goes on along the
 boundary `3 x2 - x1 = 10` down to the least feasible `f1 = 10.1`, at
 `(1.1, 3.7)`.
 
-**Development after 1.1.0:** LIR-CMOP1–14 (Fan et al., 2019) and DAS-CMOP1–9
+**VAMOS 1.2.0:** LIR-CMOP1–14 (Fan et al., 2019) and DAS-CMOP1–9
 (Fan et al., 2020) follow jMetal's implementation at commit `1e4b83cae6`.
 For LIR-CMOP5–14 that is the paper's definition: jMetal corrected those
 problems in its pull request #522, after jMetal 7.8. DAS-CMOP's difficulty is
@@ -207,7 +207,7 @@ and `(0.5, 0.5, 0.5)` for the others. `vamos.problems.DASCMOP(k, eta=...,
 zeta=..., gamma=...)` builds another difficulty. The packaged fronts hold only
 for the defaults.
 
-**Development after 1.1.0:** CEC2009 CF2–CF10 (Zhang et al., 2009) and
+**VAMOS 1.2.0:** CEC2009 CF2–CF10 (Zhang et al., 2009) and
 ZXH-CF1–16 (Zhou, Xiang and He, 2021) follow jMetal's implementation at commit
 `1e4b83cae6`; the reference values check them against it.
 
@@ -233,13 +233,13 @@ ZXH-CF1–16 (Zhou, Xiang and He, 2021) follow jMetal's implementation at commit
   feasibility and overall violation. jMetal counts two or three violated
   constraints for an interval; VAMOS counts one column.
 
-**Development after 1.1.0:** only MW4, MW8 and MW14 accept an objective
+**VAMOS 1.2.0:** only MW4, MW8 and MW14 accept an objective
 override; the other MW keys reject a different `n_obj` with `ValueError`.
 VAMOS 1.1.0 accepted an override for every MW key and kept those problems at
 two objectives, so the selection reported an objective count that the problem
 did not have.
 
-**Development after 1.1.0:** `cec2009_cf1` and `vamos.problems.CEC2009CF1`
+**VAMOS 1.2.0:** `cec2009_cf1` and `vamos.problems.CEC2009CF1`
 default to n = 10, the dimension of the CF problems in the CEC2009 technical
 report and in PlatEMO; `n_var` still selects another one. The
 `CEC2009_UF_CF_curved` benchmark suite also runs CF1 with 10 variables.
@@ -297,11 +297,11 @@ constructing `TSP()` without arguments uses a separate asymmetric six-city toy.
 
 ZDT5 requires `n >= 35` and `(n - 30)` divisible by 5. Changing its number of
 tail blocks changes its front, so the packaged 80-bit reference is not universal.
-The TSPLIB factories have fixed dimensions. **Development after 1.1.0:** a
+The TSPLIB factories have fixed dimensions. **VAMOS 1.2.0:** a
 different `n_var` is rejected with `ValueError`; VAMOS 1.1.0 ignored it while
 the selection reported it.
 
-**Development after 1.1.0:** `mixed_design` rounds each categorical value and
+**VAMOS 1.2.0:** `mixed_design` rounds each categorical value and
 clips it to `0..cardinality - 1`, as it does with integer values. VAMOS 1.1.0
 wrapped an out-of-range category modulo its cardinality, so a value rounded to
 the cardinality counted as category 0. Values within the bounds evaluate as
@@ -335,7 +335,7 @@ The default bounds and discrete choices are fixed by the linked implementation.
 | `re61` — water resource planning | Real | 3 / 6 | f₆ | Fixed design bounds | [RE6/9][re69] | 6D |
 | `re91` — car cab | Real | 7 / 9 | No separate violation objective | **Deterministic** mean-value evaluation (`stochastic=False`) | [RE6/9][re69] | 9D |
 
-**Development after 1.1.0:** the RE and RWA entries, the TSPLIB instances and
+**VAMOS 1.2.0:** the RE and RWA entries, the TSPLIB instances and
 the application examples `welded_beam`, `fs_real` and `ml_tuning` reject an
 `n_var` other than the listed one with `ValueError`, as they already did for
 `n_obj`, and the RE registry labels name the formulations in this table.
@@ -346,7 +346,7 @@ four-variable problem. Several RE labels named other formulations, and the
 Keep RE91's deterministic setting explicit when comparing it with stochastic
 formulations.
 
-**Development after 1.1.0:** `re24` and `re25` use the domains of Tanabe and
+**VAMOS 1.2.0:** `re24` and `re25` use the domains of Tanabe and
 Ishibuchi's reference implementation (`reproblem.py`), which jMetal shares.
 
 - `re24` searches `x2` in `[0.5, 50]`. VAMOS 1.1.0 and earlier start at 4,
@@ -409,7 +409,7 @@ checked against the article's appendix (doi
   −8413.33, −2814.83). That translates the objectives without changing
   dominance, but it changes absolute values and reference points.
 
-**Development after 1.1.0:** `rwa7` and `rwa8` search `[0, 1]^4`, the
+**VAMOS 1.2.0:** `rwa7` and `rwa8` search `[0, 1]^4`, the
 normalized domain in which Goel et al. (2007) fitted the injector response
 surfaces, as `re37`, Tanabe and Ishibuchi's RE37 and jMetal's RWA7 and RWA8 do.
 The last TTmax term is `-0.281 * dHA * alpha * dOA`, as in `re37`, so `rwa7` is
@@ -495,7 +495,7 @@ RCM are the 50 problems of the CEC 2021 real-world constrained suite
 | `rcm49` — islanded microgrid droop control | 18 / 3 / 12 | 12 equalities | 3D |
 | `rcm50` — power distribution system planning | 6 / 2 / 1 | One equality | None packaged |
 
-**Development after 1.1.0:** CRE21–CRE51 and RCM01–RCM50 follow jMetal's
+**VAMOS 1.2.0:** CRE21–CRE51 and RCM01–RCM50 follow jMetal's
 classes at commit `1e4b83cae6`. That includes jMetal's pull requests #513
 (CRE21, CRE25 and CRE31 as in the authors' reference code) and #514 (RCM10's
 load `P = 104`, and the inequalities of RCM26 and RCM28 before their
@@ -534,7 +534,7 @@ equalities).
 
 ### Learning and mixed engineering examples
 
-Install `python -m pip install "vamos-optimization[examples]==1.1.0"` for the two
+Install `python -m pip install "vamos-optimization[examples]==1.2.0"` for the two
 classifier examples. The base package is sufficient for `welded_beam`.
 See [Installation](../guide/installation.md) for environments and extras.
 
@@ -551,7 +551,7 @@ held-out test estimates. Both public classes also accept the wine dataset,
 which changes `fs_real` to 13 decision variables; named registry selection uses
 the defaults above.
 
-**Development after 1.1.0:** when the classifier of `fs_real` or `ml_tuning`
+**VAMOS 1.2.0:** when the classifier of `fs_real` or `ml_tuning`
 fails to train on a candidate with a data error (`ValueError` or
 `LinAlgError`), that candidate gets validation error 1 and the evaluation warns
 with the number of failed models. If every model of an evaluation fails, it
@@ -586,12 +586,12 @@ Its formulas are not those of the four-variable welded-beam benchmark, which
 Its results are therefore not comparable with published welded-beam results.
 See [Known limitations](../project/known-limitations.md).
 
-**Development after 1.1.0:** `cec2009_uf3` searches the CEC2009 domain
+**VAMOS 1.2.0:** `cec2009_uf3` searches the CEC2009 domain
 `[0, 1]^n`, as in the CEC2009 technical report, jMetal and the MOEA Framework.
 VAMOS 1.1.0 and earlier search `[-1, 1]` for variables 2 to n. The Pareto front
 is the same, but the larger search space changes the problem's difficulty.
 
-**Development after 1.1.0:** `cec2009_uf9` adds the squared distance `y_j^2` of
+**VAMOS 1.2.0:** `cec2009_uf9` adds the squared distance `y_j^2` of
 each remaining variable, as in the CEC2009 technical report, jMetal and PlatEMO,
 and as `cec2009_uf8` does. VAMOS 1.1.0 and earlier use the multimodal distance
 `2 y_j^2 - cos(4 pi y_j) + 1` of UF5. The Pareto front is the same, since
@@ -615,7 +615,7 @@ compatibility or a certified optimum.
   and 6 for ZCAT, and at M = 3 for ZXH-CF. Other objective counts need a
   supplied reference.
 
-**Development after 1.1.0:** the automatic lookup takes `<key>.<M>d.csv` or,
+**VAMOS 1.2.0:** the automatic lookup takes `<key>.<M>d.csv` or,
 failing that, `<key>.csv`, for the run's number of objectives or, when none is
 given, the problem's registered default. It never returns a file with another
 number of objectives: WFG and LSMOP at their default three objectives, DTLZ at
@@ -629,7 +629,7 @@ files of 1.1.0 (`c1dtlz1.csv` and so on, two-objective) are replaced by
 - Families marked “None packaged” require a suitable external reference or a
   documented empirical reference construction when using reference-front metrics.
 
-**Development after 1.1.0:** every packaged sample is mutually non-dominated,
+**VAMOS 1.2.0:** every packaged sample is mutually non-dominated,
 and the analytic ones lie on their fronts within 1e-9. The table gives the
 origin of each file. `experiments/scripts/generate_reference_fronts.py`
 regenerates the files marked as regenerated.
