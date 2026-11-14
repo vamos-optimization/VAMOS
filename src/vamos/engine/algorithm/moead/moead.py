@@ -24,6 +24,7 @@ from vamos.engine.algorithm.components.hooks import (
     finalize_genealogy,
     live_should_stop,
     notify_generation,
+    send_live_generation,
     track_offspring_genealogy,
 )
 from vamos.engine.algorithm.components.termination import capped_offspring_size
@@ -53,7 +54,7 @@ def _advance_generation(st: MOEADState, kernel: Any, live_cb: Any, hv_tracker: A
     if notify and st.n_eval - st.live_evals >= st.pop_size:
         st.live_generation += 1
         st.live_evals = st.n_eval
-        return notify_generation(live_cb, st.live_generation, st.F, st.X, st.n_eval), False
+        return notify_generation(live_cb, st.live_generation, st), False
     return False, False
 
 
@@ -135,7 +136,7 @@ class MOEAD:
 
         generation = st.generation
         st.live_evals = st.n_eval
-        live_cb.on_generation(st.live_generation, F=st.F, X=st.X, stats={"evals": st.n_eval})
+        send_live_generation(live_cb, st.live_generation, st)
         stop_requested = live_should_stop(live_cb)
         hv_reached = hv_tracker.enabled and hv_tracker.reached(st.hv_points())
         # notify_generation ignores no-op callbacks, so the loop skips the call for them.
@@ -185,7 +186,7 @@ class MOEAD:
         st = self._st
         assert st is not None, "State not initialized"
         st.live_evals = st.n_eval
-        live_cb.on_generation(st.live_generation, F=st.F, X=st.X, stats={"evals": st.n_eval})
+        send_live_generation(live_cb, st.live_generation, st)
         self._session = _AskTellSession(
             live_cb=live_cb,
             hv_tracker=hv_tracker,
@@ -231,6 +232,7 @@ class MOEAD:
             live_viz,
             checkpoint=checkpoint,
         )
+        self._st.live_callback_mode = str(self.cfg.get("live_callback_mode", "population"))
         cross_method = str(self.cfg.get("crossover", ("sbx", {}))[0]).lower()
         self._cross_is_de = cross_method in {"de", "differential", "differential_evolution"}
         self._op_label = variation_operator_label(self.cfg, "sbx+pm")

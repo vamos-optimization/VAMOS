@@ -11,6 +11,7 @@ from vamos.foundation.encoding import EncodingLike
 from .base import (
     DEFAULT_POP_SIZE,
     ConstraintModeStr,
+    LiveCallbackMode,
     ResultMode,
     _ConfigBuilderState,
     _ConstraintModeBuilder,
@@ -46,6 +47,7 @@ class CTAEAConfig(_SerializableConfig):
     constraint_mode: ConstraintModeStr = "feasibility"
     result_mode: ResultMode | None = None
     external_archive: ExternalArchiveConfig | None = None
+    live_callback_mode: LiveCallbackMode = "population"
 
     @classmethod
     def default(
@@ -108,6 +110,7 @@ class _CTAEAConfigBuilder(
             constraint_mode=self._cfg.get("constraint_mode", "feasibility"),
             result_mode=self._cfg.get("result_mode", "non_dominated"),
             external_archive=self._cfg.get("external_archive"),
+            live_callback_mode=self._cfg.get("live_callback_mode", "population"),
         )
 
 

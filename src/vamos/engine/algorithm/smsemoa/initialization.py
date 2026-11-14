@@ -181,6 +181,7 @@ def initialize_smsemoa_run(
         genealogy_tracker=genealogy_tracker,
         ids=ids,
         result_mode=config.get("result_mode", "non_dominated"),
+        live_callback_mode=str(config.get("live_callback_mode", "population")),
     )
 
     refresh_selection_cache(state, kernel)

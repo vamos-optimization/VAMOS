@@ -223,6 +223,7 @@ def initialize_nsgaiii_run(
         genealogy_tracker=genealogy_tracker,
         ids=ids,
         result_mode=result_mode,
+        live_callback_mode=str(config.get("live_callback_mode", "population")),
     )
 
     return state, live_cb, eval_strategy, max_eval, hv_tracker

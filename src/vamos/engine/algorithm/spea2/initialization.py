@@ -182,6 +182,7 @@ def initialize_spea2_run(
         archive_F=archive_F,
         archive_manager=archive_manager,
         result_mode=str(cfg.get("result_mode", "non_dominated")),
+        live_callback_mode=str(cfg.get("live_callback_mode", "population")),
         # HV tracking
         hv_tracker=hv_tracker,
         # SPEA2-specific internal archive
