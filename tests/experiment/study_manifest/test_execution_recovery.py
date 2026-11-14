@@ -3,6 +3,7 @@ from __future__ import annotations
 import collections
 import json
 import os
+import signal
 import time
 from pathlib import Path
 from typing import Any
@@ -447,3 +448,27 @@ def test_document_read_retries_sharing_violation(tmp_path: Path, monkeypatch: py
 
     assert vamos.load_study(root).status == "completed"
     assert len(refused) == 2
+
+
+def test_commit_section_runs_a_held_signal_handler_once_after_the_commit() -> None:
+    from vamos.experiment.study.commits import commit_section
+
+    received: list[int] = []
+
+    def handler(signum: int, _frame: object) -> None:
+        received.append(signum)
+
+    interrupt_handler = signal.getsignal(signal.SIGINT)
+    previous = signal.signal(signal.SIGTERM, handler)
+    try:
+        with commit_section():
+            for _ in range(2):
+                current = signal.getsignal(signal.SIGTERM)
+                assert callable(current)
+                current(signal.SIGTERM, None)
+            assert received == []
+        assert received == [signal.SIGTERM]
+        assert signal.getsignal(signal.SIGTERM) is handler
+        assert signal.getsignal(signal.SIGINT) is interrupt_handler
+    finally:
+        signal.signal(signal.SIGTERM, previous)
