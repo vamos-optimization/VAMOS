@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 
+from vamos.foundation.problem._output import objective_output
 from vamos.foundation.problem.base import Problem
 
 
-def _validate_bounds(n_var: int, lower: np.ndarray, upper: np.ndarray) -> None:
+def _validate_bounds(n_var: int, lower: np.ndarray[Any, Any], upper: np.ndarray[Any, Any]) -> None:
     if lower.shape != upper.shape or lower.shape[0] != n_var:
         raise ValueError("lower and upper bounds must be 1D arrays of length n_var.")
     if np.any(lower > upper):
@@ -32,14 +35,14 @@ class IntegerResourceAllocationProblem(Problem):
         self.task_cost = rng.uniform(0.5, 2.0, size=self.n_var)
         self.task_reward = rng.uniform(1.0, 3.0, size=self.n_var)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         if X.ndim != 2 or X.shape[1] != self.n_var:
             raise ValueError(f"Expected decision matrix of shape (N, {self.n_var}).")
         X_int = np.clip(np.rint(X), self.xl, self.xu).astype(int, copy=False)
         cost = X_int @ self.task_cost
         reward = self.task_reward * np.sqrt(X_int)
         total_reward = reward.sum(axis=1)
-        F = out["F"]
+        F = objective_output(out, len(X), self.n_obj)
         F[:, 0] = cost
         F[:, 1] = -total_reward
 
@@ -74,7 +77,7 @@ class IntegerJobAssignmentProblem(Problem):
         self.preferences = rng.integers(0, self.n_job_types, size=self.n_var, dtype=int)
         self.mismatch_penalty = rng.uniform(0.5, 2.5, size=self.n_var)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         if X.ndim != 2 or X.shape[1] != self.n_var:
             raise ValueError(f"Expected decision matrix of shape (N, {self.n_var}).")
         X_int = np.clip(np.rint(X), self.xl, self.xu).astype(int, copy=False)
@@ -86,7 +89,7 @@ class IntegerJobAssignmentProblem(Problem):
         max_share = counts.max(axis=1) / float(self.n_var)
         diversity_penalty = max_share
 
-        F = out["F"]
+        F = objective_output(out, len(X), self.n_obj)
         F[:, 0] = mismatch_cost
         F[:, 1] = diversity_penalty
 

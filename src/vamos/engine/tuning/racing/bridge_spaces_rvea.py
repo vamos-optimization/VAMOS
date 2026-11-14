@@ -4,6 +4,9 @@ RVEA configuration space builders for tuning.
 
 from __future__ import annotations
 
+from vamos.engine.algorithm.components.constraint_handling import PAIRWISE_TECHNIQUES
+
+from .bridge_space_parts_constraints import constraint_handling_part
 from .bridge_space_parts_discrete import (
     binary_operator_part_full,
     external_archive_part,
@@ -64,6 +67,11 @@ def build_rvea_config_space() -> AlgorithmConfigSpace:
     return compose_config_space("rvea", _core_part(), _real_operator_part())
 
 
+def build_rvea_constrained_config_space() -> AlgorithmConfigSpace:
+    """The real-coded space with the techniques that judge single solutions, as Evolver's ``RVEADoubleConstrained``."""
+    return compose_config_space("rvea_constrained", _core_part(), _real_operator_part(), constraint_handling_part(PAIRWISE_TECHNIQUES))
+
+
 def build_rvea_mixed_config_space() -> AlgorithmConfigSpace:
     return compose_config_space("rvea_mixed", _core_part(), _mixed_operator_part())
 
@@ -82,6 +90,7 @@ def build_rvea_integer_config_space() -> AlgorithmConfigSpace:
 
 __all__ = [
     "build_rvea_config_space",
+    "build_rvea_constrained_config_space",
     "build_rvea_mixed_config_space",
     "build_rvea_permutation_config_space",
     "build_rvea_binary_config_space",

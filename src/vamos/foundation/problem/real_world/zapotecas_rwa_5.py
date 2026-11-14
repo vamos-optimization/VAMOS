@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
+
+from vamos.foundation.problem._output import objective_output
 
 
 class RWA5Problem:
@@ -21,7 +25,7 @@ class RWA5Problem:
         self.xl = np.array([40.0, 0.35, 333.0, 20.0, 3000.0, 0.1, 308.0, 150.0, 0.1], dtype=float)
         self.xu = np.array([100.0, 0.5, 363.0, 40.0, 4000.0, 3.0, 328.0, 200.0, 2.0], dtype=float)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         A, B, C, D, E, Fv, G, H, J = (X[:, i] for i in range(9))
 
         teff = (
@@ -198,7 +202,7 @@ class RWA5Problem:
             - 7.56e-4 * J * J
         )
 
-        F = out["F"]
+        F = objective_output(out, len(X), self.n_obj)
         F[:, 0] = teff
         F[:, 1] = -qeff
         F[:, 2] = -phiex

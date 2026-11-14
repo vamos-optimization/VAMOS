@@ -7,6 +7,9 @@ crossover/mutation. The mixed variant exposes mutation-only tuning.
 
 from __future__ import annotations
 
+from vamos.engine.algorithm.components.constraint_handling import PAIRWISE_TECHNIQUES
+
+from .bridge_space_parts_constraints import constraint_handling_part
 from .bridge_space_parts_discrete import external_archive_part
 from .config_space import AlgorithmConfigSpace, SpacePart, compose_config_space
 from .param_space import Categorical, ConditionalBlock, Int, ParamType, Real
@@ -70,6 +73,11 @@ def _smpso_mixed_part() -> SpacePart:
 
 def build_smpso_config_space() -> AlgorithmConfigSpace:
     return compose_config_space("smpso", _smpso_part())
+
+
+def build_smpso_constrained_config_space() -> AlgorithmConfigSpace:
+    """The real-coded space with the techniques that judge single solutions, as Evolver's ``MOPSOConstrained``."""
+    return compose_config_space("smpso_constrained", _smpso_part(), constraint_handling_part(PAIRWISE_TECHNIQUES))
 
 
 def build_smpso_mixed_config_space() -> AlgorithmConfigSpace:

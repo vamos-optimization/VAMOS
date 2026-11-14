@@ -97,10 +97,10 @@ algorithm in a comparison.
 
 ## Choose a constraint-handling technique
 
-**Development after 1.1.0:** NSGA-II, NSGA-III, SMS-EMOA and AGE-MOEA take
-`constraint_handling`, the technique that ranks a constrained population. They
-are the techniques of jMetal's package `util.constrainthandling`, which
-Evolver's constrained spaces tune:
+**Development after 1.1.0:** NSGA-II, NSGA-III, SMS-EMOA, AGE-MOEA, RVEA and
+SMPSO take `constraint_handling`, the technique that ranks or compares
+constrained solutions. They are the techniques of jMetal's package
+`util.constrainthandling`, which Evolver's constrained spaces tune:
 
 | Technique | Parameters | Ranking |
 | --- | --- | --- |
@@ -143,6 +143,19 @@ place of the non-dominated ones:
 | SMS-EMOA | Once per child, the least hypervolume contributor of the last front leaves. | Rank, then crowding distance. |
 | AGE-MOEA | Whole fronts survive; the survival score cuts the last. | Rank, then survival score. |
 
+RVEA and SMPSO take only the four techniques that judge the violation of a
+single solution, as Evolver's `EffectiveViolation` does: `cdp` (the total
+violation), `violated_constraints` (their number), `epsilon_constrained` (the
+violation, or 0 within epsilon) and `push_pull` (0 while it pushes, then as
+`epsilon_constrained`). RVEA's feasibility-first survival judges feasibility
+and violation by that measure, after the technique adapts to the union of
+parents and offspring. In SMPSO, the technique adapts to the swarm once per
+iteration and decides, as its jMetal comparator, whether a particle replaces
+its personal best: the less violated position wins, and two equally violated
+ones compare by Pareto dominance when both count as feasible, and also otherwise
+for `cdp` and `violated_constraints`. SMPSO's leaders archive keeps comparing by
+the constrained-domination principle.
+
 The tournament compares the technique's ranks of the population, which VAMOS
 ranks again, as it does with `cdp`; jMetal reuses the ranks of the replacement.
 Stochastic ranking draws its uniforms from the run's generator, so a run stays
@@ -161,6 +174,45 @@ keeps solutions in the subregions where the convergence archive has few.
 [ToP](../algorithms/top.md) is a third: it first solves the problem as a
 constrained single-objective one, to find the feasible regions that hold the
 front, and then runs NSGA-II with the constrained-domination principle.
+
+### MOEA/D: subproblem update criteria
+
+**Development after 1.1.0:** MOEA/D handles constraints where a new solution
+replaces the solutions of its neighbouring subproblems, and
+`subproblem_update_criterion` chooses how, among the criteria of jMetal's
+package `subproblemupdate`, as Evolver's `MOEADDoubleConstrained` space does:
+
+| Criterion | Parameters | Replacement |
+| --- | --- | --- |
+| `feasibility_rules` (default) | none | Deb's feasibility rules: feasible first, then the less violated, then the better aggregation value. Two infeasible solutions with the same violation keep the current one, where jMetal compares their aggregation values. |
+| `improved_epsilon` | `tao`, `feasibility_ratio_threshold`, `decay_fraction` | Fan et al.'s improved epsilon method: violations within epsilon, or equal, compare by aggregation value. Epsilon shrinks by `tao` each generation while fewer than `feasibility_ratio_threshold` of the population is feasible, grows otherwise, and is 0 from `decay_fraction` of the run's generations on. |
+| `violation_threshold` | none | Jan and Khanum's adaptive threshold: the less violated wins if a violation (the number of violated constraints times the total violation) exceeds the fraction of infeasible solutions times their mean; otherwise the aggregation value decides. |
+
+```python
+from vamos.algorithms import MOEADConfig
+
+config = (
+    MOEADConfig.builder()
+    .pop_size(100)
+    .neighbor_size(20)
+    .delta(0.9)
+    .replace_limit(2)
+    .aggregation("tchebycheff")
+    .crossover("sbx", prob=1.0, eta=20.0)
+    .mutation("pm", prob="1/n", eta=20.0)
+    .subproblem_update_criterion("improved_epsilon", tao=0.1, feasibility_ratio_threshold=0.95, decay_fraction=0.8)
+    .build()
+)
+```
+
+The criteria decide as jMetal's own, which
+`tests/engine/test_subproblem_update_criteria.py` checks on sequences of
+populations. As in jMetal, a criterion adapts to the population once per new
+solution, before its replacements, and a generation is `pop_size` new solutions.
+With a criterion other than `feasibility_rules`, MOEA/D replaces child by child
+in NumPy on both engines, and its checkpoints keep the criterion's state.
+`feasibility_rules` keeps MOEA/D's own replacement, so its results are those of
+VAMOS 1.1.0.
 
 ## Read the feasibility of a result
 
