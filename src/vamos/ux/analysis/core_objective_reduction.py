@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 
 @dataclass
@@ -22,11 +24,11 @@ class ObjectiveReducer:
 
     def __init__(self, config: ObjectiveReductionConfig):
         self.config = config
-        self.selected_indices_: np.ndarray | None = None
-        self.removed_indices_: np.ndarray | None = None
+        self.selected_indices_: NDArray[np.int_] | None = None
+        self.removed_indices_: NDArray[np.int_] | None = None
         self._n_obj_fit: int | None = None
 
-    def fit(self, F: np.ndarray) -> ObjectiveReducer:
+    def fit(self, F: NDArray[Any]) -> ObjectiveReducer:
         F = self._validate_input(F)
         n_obj = F.shape[1]
         self._n_obj_fit = n_obj
@@ -52,7 +54,7 @@ class ObjectiveReducer:
         self.removed_indices_ = np.array(sorted(all_idx - selected_set), dtype=int)
         return self
 
-    def transform(self, F: np.ndarray) -> np.ndarray:
+    def transform(self, F: NDArray[Any]) -> NDArray[Any]:
         if self.selected_indices_ is None:
             raise RuntimeError("ObjectiveReducer.transform() called before fit().")
         F = np.asarray(F)
@@ -62,10 +64,10 @@ class ObjectiveReducer:
             raise ValueError("Input F has fewer objectives than were seen during fit.")
         return F[:, self.selected_indices_]
 
-    def fit_transform(self, F: np.ndarray) -> np.ndarray:
+    def fit_transform(self, F: NDArray[Any]) -> NDArray[Any]:
         return self.fit(F).transform(F)
 
-    def _validate_input(self, F: np.ndarray) -> np.ndarray:
+    def _validate_input(self, F: NDArray[Any]) -> NDArray[np.float64]:
         F = np.asarray(F, dtype=float)
         if F.ndim != 2:
             raise ValueError("F must be a 2-dimensional array.")
@@ -73,7 +75,7 @@ class ObjectiveReducer:
             raise ValueError("F must have at least one sample and one objective.")
         return F
 
-    def _fit_correlation(self, F: np.ndarray) -> list[int]:
+    def _fit_correlation(self, F: NDArray[np.float64]) -> list[int]:
         cfg = self.config
         keep_mand = set(cfg.keep_mandatory)
         n_obj = F.shape[1]
@@ -97,9 +99,9 @@ class ObjectiveReducer:
 
     def _correlation_greedy(
         self,
-        F: np.ndarray,
+        F: NDArray[np.float64],
         indices: list[int],
-        stds: np.ndarray,
+        stds: NDArray[np.float64],
         keep_mand: set[int],
         threshold: float,
     ) -> list[int]:
@@ -128,7 +130,7 @@ class ObjectiveReducer:
                 break
         return remaining
 
-    def _choose_drop(self, i: int, j: int, stds: np.ndarray, keep_mand: set[int]) -> int:
+    def _choose_drop(self, i: int, j: int, stds: NDArray[np.float64], keep_mand: set[int]) -> int:
         if i in keep_mand:
             return j
         if j in keep_mand:
@@ -141,27 +143,29 @@ class ObjectiveReducer:
             return i
         return max(i, j)
 
-    def _truncate_to_target_dim(self, F: np.ndarray, remaining: list[int], keep_mand: set[int], target_dim: int) -> list[int]:
+    def _truncate_to_target_dim(self, F: NDArray[np.float64], remaining: list[int], keep_mand: set[int], target_dim: int) -> list[int]:
         if target_dim >= len(remaining):
             return remaining
         mandatory = [idx for idx in remaining if idx in keep_mand]
         if len(mandatory) >= target_dim:
             return sorted(mandatory)
         capacity = target_dim - len(mandatory)
-        variances = np.var(F, axis=0)
+        # Variance on each objective's own range, so that a change of units does not change the choice.
+        spans = np.ptp(F, axis=0)
+        variances = np.var(F, axis=0) / np.where(spans > 0, spans, 1.0) ** 2
         candidates = [(idx, variances[idx]) for idx in remaining if idx not in keep_mand]
         candidates.sort(key=lambda pair: (-pair[1], pair[0]))
         selected = mandatory + [idx for idx, _ in candidates[:capacity]]
         return sorted(selected)
 
-    def _fit_angle(self, F: np.ndarray, initial_indices: Iterable[int] | None = None) -> list[int]:
+    def _fit_angle(self, F: NDArray[np.float64], initial_indices: Iterable[int] | None = None) -> list[int]:
         cfg = self.config
         keep_mand = set(cfg.keep_mandatory)
         indices = list(initial_indices) if initial_indices is not None else list(range(F.shape[1]))
         variances = np.var(F, axis=0)
         remaining: list[int] = []
         zero_norm: list[int] = []
-        normalized_vectors: dict[int, np.ndarray] = {}
+        normalized_vectors: dict[int, NDArray[np.float64]] = {}
         for idx in indices:
             vec = F[:, idx] - F[:, idx].mean()
             norm = np.linalg.norm(vec)
@@ -203,7 +207,7 @@ class ObjectiveReducer:
             selected.append(best_idx)
         return sorted(selected)
 
-    def _min_angle_to_set(self, cand: int, selected: list[int], normalized_vectors: dict[int, np.ndarray]) -> float:
+    def _min_angle_to_set(self, cand: int, selected: list[int], normalized_vectors: dict[int, NDArray[np.float64]]) -> float:
         angles = []
         v_cand = normalized_vectors[cand]
         for sel in selected:
@@ -216,15 +220,18 @@ class ObjectiveReducer:
 
 
 def reduce_objectives(
-    F: np.ndarray,
+    F: NDArray[Any],
     method: str = "correlation",
     target_dim: int | None = None,
     corr_threshold: float = 0.99,
     angle_threshold_deg: float = 5.0,
     keep_mandatory: tuple[int, ...] = (),
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[NDArray[Any], NDArray[np.int_]]:
     """
     Convenience wrapper for ObjectiveReducer.
+
+    With ``target_dim``, the correlation method keeps the ``keep_mandatory`` objectives and then
+    those with the largest variance relative to their range, so the choice does not depend on units.
 
     Returns:
         F_reduced: objective matrix with selected objectives.

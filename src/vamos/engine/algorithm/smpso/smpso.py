@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
+from vamos.engine.algorithm.components.constraint_handling import run_progress
 from vamos.engine.algorithm.components.evaluation import extract_evaluation_arrays
 from vamos.engine.algorithm.components.hooks import (
     finalize_genealogy,
@@ -382,6 +383,11 @@ class SMPSO:
         st.pending_offspring = None
         st.pending_particle_indices = None
 
+        technique = st.constraint_handling if G is not None else None
+        if technique is not None and G is not None:
+            # Once per iteration the technique adapts to the swarm at the evaluations before it, as
+            # jMetal's ConstraintHandlingLocalBestUpdate does.
+            technique.update(self.kernel, F, G, run_progress(st.n_eval, st.max_evals))
         st.n_eval += X_new.shape[0]
         st.generation += 1
 
@@ -397,6 +403,7 @@ class SMPSO:
             pbest_F,
             pbest_G,
             st.constraint_mode,
+            technique,
         )
         st.pbest_X[particle_idx] = pbest_X
         st.pbest_F[particle_idx] = pbest_F

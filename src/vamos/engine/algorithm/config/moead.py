@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from math import comb
 from typing import Any, overload
 
+from vamos.engine.algorithm.moead.update_criteria import normalize_subproblem_update_criterion
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.foundation.encoding import EncodingLike
 from vamos.foundation.exceptions import ConfigurationError
@@ -50,6 +51,15 @@ class MOEADConfig(_SerializableConfig):
     track_genealogy: bool = False
     result_mode: ResultMode | None = None
     external_archive: ExternalArchiveConfig | None = None
+    # Fields added after 1.0 go last, so that the constructor keeps the positions of its parameters.
+    subproblem_update_criterion: tuple[str, dict[str, float]] | None = None
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        criterion = normalize_subproblem_update_criterion(self.subproblem_update_criterion)
+        if criterion is not None and criterion[0] != "feasibility_rules" and self.constraint_mode == "none":
+            raise ValueError(f"subproblem_update_criterion {criterion[0]!r} needs constraint_mode 'feasibility'.")
+        object.__setattr__(self, "subproblem_update_criterion", criterion)
 
     @classmethod
     def default(
@@ -126,6 +136,16 @@ class _MOEADConfigBuilder(
         cfg = MOEADConfig.default()
     """
 
+    def subproblem_update_criterion(self, name: str, **params: float) -> _MOEADConfigBuilder:
+        """How a new solution replaces the solution of a subproblem under constraints.
+
+        ``name`` is ``feasibility_rules`` (the default), ``improved_epsilon`` (``tao``,
+        ``feasibility_ratio_threshold``, ``decay_fraction``) or ``violation_threshold``, the criteria of
+        jMetal's package ``subproblemupdate``. See :mod:`vamos.engine.algorithm.moead.update_criteria`.
+        """
+        self._cfg["subproblem_update_criterion"] = normalize_subproblem_update_criterion((name, params))
+        return self
+
     def batch_size(self, value: int) -> _MOEADConfigBuilder:
         self._cfg["batch_size"] = value
         return self
@@ -187,6 +207,7 @@ class _MOEADConfigBuilder(
             aggregation=self._cfg["aggregation"],
             weight_vectors=self._cfg.get("weight_vectors"),
             constraint_mode=self._cfg.get("constraint_mode", "feasibility"),
+            subproblem_update_criterion=self._cfg.get("subproblem_update_criterion"),
             repair=self._cfg.get("repair", "auto"),
             initializer=self._cfg.get("initializer"),
             mutation_prob_factor=self._cfg.get("mutation_prob_factor"),

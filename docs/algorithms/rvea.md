@@ -186,6 +186,8 @@ Reference vectors are directions, not target solutions on the DTLZ2 unit sphere.
 
 **Development after 1.1.0:** RVEA keeps one solution per reference vector that has any, the one with the smallest angle-penalized distance, as Cheng et al. [1], PlatEMO and pymoo do. Vectors without a solution leave the population, and the result, smaller than `pop_size`; the recorded run above, made with 1.0.1, has 10 rows, and the same run now can have fewer. Parents are drawn by random permutations of the population, as in pymoo (the article only says "random"). Two choices follow pymoo rather than the article: the angle penalty uses M = 1 with two objectives, and the ideal point accumulates across generations. VAMOS 1.1.0 filled the population up to `pop_size` with further solutions taken in vector order, which favoured the vectors listed first, those near (0, …, 0, 1), and drew parents with replacement.
 
+**Development after 1.1.0:** with constraints, RVEA's survival keeps feasible solutions first. `constraint_handling` makes it judge feasibility and violation by one of jMetal's constraint-handling techniques: `cdp`, `violated_constraints`, `epsilon_constrained` or `push_pull`. See [choose a constraint-handling technique](../reference/constraints.md#choose-a-constraint-handling-technique).
+
 This run has no constraints. Before using a constrained or discrete problem, check the [capability matrix](../reference/algorithms.md#capability-matrix) and [constraint convention](../reference/constraints.md). Preserve complete runs through the [canonical lifecycle](../guide/run-artifacts.md); the teaching JSON is not a replay bundle.
 
 ## Try one controlled change

@@ -777,3 +777,53 @@ def test_non_finite_output_message_names_the_possible_causes() -> None:
 
     with pytest.raises(EvaluationError, match=r"finite.*penalty.*operator"):
         evaluate_population_with_constraints(NaNProblem(), np.full((2, 2), 0.5))
+
+
+def test_mixed_design_clips_out_of_range_categories() -> None:
+    """Categories outside their range evaluate as the nearest bound, as integers do."""
+    from vamos.foundation.problem.mixed import MixedDesignProblem
+
+    problem = MixedDesignProblem()
+    spec = problem.mixed_spec
+    cat_idx = spec["cat_idx"]
+    top = spec["cat_cardinality"] - 1
+
+    def evaluate(X: np.ndarray) -> np.ndarray:
+        out = {"F": np.empty((X.shape[0], problem.n_obj))}
+        problem.evaluate(X, out)
+        return out["F"]
+
+    inside = np.tile((problem.xl + problem.xu) / 2.0, (2, 1))
+    inside[0, cat_idx] = top
+    inside[1, cat_idx] = 0.0
+    outside = inside.copy()
+    outside[0, cat_idx] = top + 1.0
+    outside[1, cat_idx] = -1.0
+
+    np.testing.assert_array_equal(evaluate(outside), evaluate(inside))
+
+
+def _registered_problem_names() -> list[str]:
+    from vamos.foundation.problem.registry.specs import available_problem_names
+
+    return list(available_problem_names())
+
+
+@pytest.mark.parametrize("name", _registered_problem_names())
+def test_every_registered_problem_creates_missing_objective_output(name: str) -> None:
+    from vamos.engine.algorithm.components.population import initialize_population, resolve_bounds
+    from vamos.foundation.problem.registry import make_problem_selection
+
+    try:
+        problem = make_problem_selection(name).instantiate()
+    except ImportError as exc:  # optional dependencies such as scikit-learn
+        pytest.skip(str(exc))
+    encoding = getattr(problem, "encoding", "real")
+    xl, xu = resolve_bounds(problem, encoding)
+    X = initialize_population(3, problem.n_var, xl, xu, encoding, np.random.default_rng(0), problem=problem)
+
+    # The contract: ``evaluate(X, out)`` writes ``out["F"]``, also when the caller did not allocate it.
+    out: dict[str, np.ndarray] = {}
+    problem.evaluate(X, out)
+
+    assert np.asarray(out["F"]).shape == (3, problem.n_obj)

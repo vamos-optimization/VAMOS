@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 
+from vamos.foundation.problem._output import objective_output
 from vamos.foundation.problem.base import Problem
 
 
@@ -71,7 +74,7 @@ class MixedDesignProblem(Problem):
         }
         self._validate_mixed_spec(self.mixed_spec)
 
-    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+    def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
         if X.ndim != 2 or X.shape[1] != self.n_var:
             raise ValueError(f"Expected decision matrix of shape (N, {self.n_var}).")
 
@@ -82,7 +85,7 @@ class MixedDesignProblem(Problem):
         # Cast and clip to type domains.
         X_real = np.asarray(X[:, real_idx], dtype=float)
         X_int = np.clip(np.rint(X[:, int_idx]), self.mixed_spec["int_lower"], self.mixed_spec["int_upper"]).astype(int)
-        X_cat = np.mod(np.rint(X[:, cat_idx]), self.mixed_spec["cat_cardinality"]).astype(int)
+        X_cat = np.clip(np.rint(X[:, cat_idx]), 0, self.mixed_spec["cat_cardinality"] - 1).astype(int)
 
         # Objective 1: deviation from targets.
         real_err = np.square(X_real - self.real_target).sum(axis=1)
@@ -95,7 +98,7 @@ class MixedDesignProblem(Problem):
         cat_cost = (X_cat * self.cat_cost).sum(axis=1)
         obj2 = int_cost + cat_cost
 
-        F = out["F"]
+        F = objective_output(out, len(X), self.n_obj)
         F[:, 0] = obj1
         F[:, 1] = obj2
 
@@ -108,7 +111,7 @@ class MixedDesignProblem(Problem):
         }
 
     @staticmethod
-    def _validate_mixed_spec(spec: dict[str, np.ndarray]) -> None:
+    def _validate_mixed_spec(spec: dict[str, np.ndarray[Any, Any]]) -> None:
         required = (
             "real_idx",
             "int_idx",

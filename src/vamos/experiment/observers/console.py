@@ -62,8 +62,8 @@ class ConsoleObserver(Observer):
     def on_generation(
         self,
         generation: int,
-        F: np.ndarray | None = None,
-        X: np.ndarray | None = None,
+        F: np.ndarray[Any, Any] | None = None,
+        X: np.ndarray[Any, Any] | None = None,
         stats: dict[str, Any] | None = None,
     ) -> None:
         # Console observer is typically quiet during generations to avoid spam,
@@ -72,7 +72,7 @@ class ConsoleObserver(Observer):
 
     def on_end(
         self,
-        final_F: np.ndarray | None = None,
+        final_F: np.ndarray[Any, Any] | None = None,
         final_stats: dict[str, Any] | None = None,
     ) -> None:
         if final_stats is None:
@@ -82,18 +82,9 @@ class ConsoleObserver(Observer):
         time_ms = final_stats.get("time_ms", 0.0)
         evals_sec = final_stats.get("evals_per_sec", 0.0)
 
-        hv_info = ""
-        hv = final_stats.get("hv")
-        if hv is not None:
-            hv_info = f" | HV: {hv:.6f}"
-
-        _logger().info(
-            "%s -> Time: %.2f ms | Eval/s: %.1f%s",
-            algo,
-            time_ms,
-            evals_sec,
-            hv_info,
-        )
+        # The run's own metrics have no hypervolume: the CLI reports it after all runs, with one
+        # reference point for all of them.
+        _logger().info("%s -> Time: %.2f ms | Eval/s: %.1f", algo, time_ms, evals_sec)
 
         spread = final_stats.get("spread")
         if spread is not None:

@@ -79,7 +79,7 @@ The `n_obj` argument matters: the default factory otherwise assumes three object
 
 ## Constraints, archives and reproducibility
 
-This example is unconstrained. MOEA/D supports feasibility-based comparison with the `G <= 0` convention; the [constraint reference](../reference/constraints.md) explains how to supply residuals. A scatter plot of objectives alone does not establish feasibility.
+This example is unconstrained. MOEA/D supports feasibility-based comparison with the `G <= 0` convention; the [constraint reference](../reference/constraints.md) explains how to supply residuals. A scatter plot of objectives alone does not establish feasibility. **Development after 1.1.0:** `subproblem_update_criterion` replaces the feasibility rules by jMetal's improved epsilon method or adaptive violation threshold; see [subproblem update criteria](../reference/constraints.md#moead-subproblem-update-criteria).
 
 An optional external archive stores non-dominated results separately from the working population. Choose `result_mode="population"` explicitly when the final population is the required output; otherwise an enabled external archive becomes the result source. The [MOEADConfig reference](../reference/api/algorithms/moead.md) documents result-archive configuration. The [stopping and archive hooks](../experiment/stopping_and_archive.md) maintain a separate objective-space observation archive. Preserve the resolved configuration, effective backend and seed with the [run lifecycle](../guide/run-artifacts.md).
 

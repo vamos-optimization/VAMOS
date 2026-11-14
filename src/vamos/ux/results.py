@@ -97,18 +97,19 @@ def plot_result_front(
     result : ResultLike
         Optimization result to visualize.
     show : bool, default ``True``
-        Whether to display the plot immediately.
+        Whether to display the plot immediately. With ``False`` the figure is
+        not registered with pyplot and the Matplotlib backend is left as it is;
+        save it through ``ax.figure.savefig``.
     title : str | None, optional
         Plot title. Defaults to ``"Pareto Front"``.
     **kwargs : Any
         Additional keyword arguments forwarded to Matplotlib scatter calls.
     """
     try:
-        import matplotlib
+        import matplotlib.figure
 
-        if not show:
-            matplotlib.use("Agg", force=True)
-        import matplotlib.pyplot as plt
+        if show:
+            import matplotlib.pyplot as plt
     except ImportError as exc:
         raise ImportError("matplotlib is required for plotting. Install with: pip install matplotlib") from exc
 
@@ -121,13 +122,14 @@ def plot_result_front(
     plot_title = "Pareto Front" if title is None else title
     ax3d: Any | None = None
     if n_obj == 2:
-        fig, ax = plt.subplots()
+        fig = plt.figure() if show else matplotlib.figure.Figure()
+        ax = fig.add_subplot(111)
         ax.scatter(F_plot[:, 0], F_plot[:, 1], **kwargs)
         ax.set_xlabel("f1")
         ax.set_ylabel("f2")
         ax.set_title(plot_title)
     elif n_obj == 3:
-        fig = plt.figure()
+        fig = plt.figure() if show else matplotlib.figure.Figure()
         ax3d = cast(Any, fig.add_subplot(111, projection="3d"))
         ax = ax3d
         ax3d.scatter(F_plot[:, 0], F_plot[:, 1], F_plot[:, 2], **kwargs)

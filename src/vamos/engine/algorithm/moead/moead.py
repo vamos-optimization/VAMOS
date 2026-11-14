@@ -34,7 +34,7 @@ from vamos.foundation.kernel import default_kernel
 
 from .helpers import update_neighborhood, update_neighborhood_batch
 from .initialization import initialize_moead_run
-from .neighborhood import update_neighborhoods_recording_replacements
+from .neighborhood import update_neighborhoods_recording_replacements, update_neighborhoods_with_criterion
 from .state import MOEADState, build_moead_result
 from .steady_state import SteadyStateStep
 
@@ -74,6 +74,7 @@ def _finish_run(st: MOEADState, kernel: Any, hv_reached: bool, live_cb: Any | No
             "subproblem_order": st.subproblem_order,
             "subproblem_cursor": st.subproblem_cursor,
             "ideal": st.ideal,
+            **({"subproblem_update_criterion": st.subproblem_update.state()} if st.subproblem_update is not None else {}),
         },
     }
     finalize_genealogy(result, st, kernel)
@@ -431,7 +432,9 @@ class MOEAD:
             candidate_orders, candidate_lengths = self._build_candidate_orders(st, active, use_neighbors)
             orders = [candidate_orders[pos, : int(candidate_lengths[pos])] for pos in range(batch_size)]
 
-        if offspring_ids is not None:
+        if st.subproblem_update is not None and G_child is not None:
+            update_neighborhoods_with_criterion(st, st.subproblem_update, children, F_child, G_child, orders, offspring_ids)
+        elif offspring_ids is not None:
             update_neighborhoods_recording_replacements(st, active, children, F_child, G_child, cv_child, orders, offspring_ids)
         elif batch_size == 1:
             update_neighborhood(

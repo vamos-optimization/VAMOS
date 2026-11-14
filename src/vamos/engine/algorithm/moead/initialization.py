@@ -23,6 +23,11 @@ from vamos.engine.algorithm.components.termination import parse_termination, val
 from vamos.engine.algorithm.components.utils import resolve_bounds_array
 from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors
 from vamos.engine.algorithm.config.base import normalize_constraint_mode
+from vamos.engine.algorithm.moead.update_criteria import (
+    SubproblemUpdateCriterion,
+    make_subproblem_update_criterion,
+    normalize_subproblem_update_criterion,
+)
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
 from vamos.engine.operators.impl.flags import set_numba_variation
 from vamos.engine.operators.policies.moead import build_variation_operators
@@ -42,6 +47,25 @@ if TYPE_CHECKING:
     from vamos.foundation.problem.types import ProblemProtocol
 from vamos.engine.hooks.live_viz import LiveVisualization
 from vamos.foundation.observer import RunContext
+
+
+def _run_criterion(
+    value: object,
+    constraint_mode: str,
+    max_eval: int,
+    pop_size: int,
+    checkpoint: Mapping[str, Any] | None,
+) -> SubproblemUpdateCriterion | None:
+    """A run's subproblem update criterion, None for feasibility_rules, with the state of its checkpoint."""
+    criterion = normalize_subproblem_update_criterion(value)
+    if criterion is not None and criterion[0] != "feasibility_rules" and constraint_mode == "none":
+        raise ValueError(f"subproblem_update_criterion {criterion[0]!r} needs constraint_mode 'feasibility'.")
+    run_criterion = make_subproblem_update_criterion(criterion, max_eval, pop_size)
+    extra = checkpoint.get("extra") if checkpoint is not None else None
+    state = extra.get("subproblem_update_criterion") if isinstance(extra, Mapping) else None
+    if run_criterion is not None and isinstance(state, Mapping):
+        run_criterion.restore(state)
+    return run_criterion
 
 
 def initialize_moead_run(
@@ -67,6 +91,7 @@ def initialize_moead_run(
     validate_initial_budget(max_eval, pop_size, "MOEA/D")
 
     constraint_mode = normalize_constraint_mode(cfg.get("constraint_mode", "feasibility"))
+    subproblem_update = _run_criterion(cfg.get("subproblem_update_criterion"), constraint_mode, max_eval, pop_size, checkpoint)
     encoding = normalize_encoding(getattr(problem, "encoding", "real"))
     xl, xu = resolve_bounds_array(problem, encoding)
     n_var = problem.n_var
@@ -240,6 +265,7 @@ def initialize_moead_run(
         pop_size=pop_size,
         offspring_size=batch_size,
         constraint_mode=constraint_mode,
+        subproblem_update=subproblem_update,
         n_eval=n_eval,
         max_evals=max_eval,
         weights=weights,

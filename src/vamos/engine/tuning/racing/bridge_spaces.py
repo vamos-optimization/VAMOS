@@ -27,6 +27,7 @@ from .bridge_spaces_ibea import (
 from .bridge_spaces_moead import (
     build_moead_binary_config_space,
     build_moead_config_space,
+    build_moead_constrained_config_space,
     build_moead_integer_config_space,
     build_moead_mixed_config_space,
     build_moead_permutation_config_space,
@@ -50,11 +51,16 @@ from .bridge_spaces_nsgaiii import (
 from .bridge_spaces_rvea import (
     build_rvea_binary_config_space,
     build_rvea_config_space,
+    build_rvea_constrained_config_space,
     build_rvea_integer_config_space,
     build_rvea_mixed_config_space,
     build_rvea_permutation_config_space,
 )
-from .bridge_spaces_smpso import build_smpso_config_space, build_smpso_mixed_config_space
+from .bridge_spaces_smpso import (
+    build_smpso_config_space,
+    build_smpso_constrained_config_space,
+    build_smpso_mixed_config_space,
+)
 from .bridge_spaces_smsemoa import (
     build_smsemoa_binary_config_space,
     build_smsemoa_config_space,
@@ -81,6 +87,7 @@ __all__ = [
     "build_nsgaii_integer_config_space",
     # MOEA/D
     "build_moead_config_space",
+    "build_moead_constrained_config_space",
     "build_moead_permutation_config_space",
     "build_moead_mixed_config_space",
     "build_moead_binary_config_space",
@@ -113,6 +120,7 @@ __all__ = [
     "build_ibea_integer_config_space",
     # SMPSO
     "build_smpso_config_space",
+    "build_smpso_constrained_config_space",
     "build_smpso_mixed_config_space",
     # AGE-MOEA
     "build_agemoea_config_space",
@@ -123,6 +131,7 @@ __all__ = [
     "build_agemoea_mixed_config_space",
     # RVEA
     "build_rvea_config_space",
+    "build_rvea_constrained_config_space",
     "build_rvea_permutation_config_space",
     "build_rvea_binary_config_space",
     "build_rvea_integer_config_space",

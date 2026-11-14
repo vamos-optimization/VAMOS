@@ -36,6 +36,7 @@ from vamos.engine.tuning.racing.bridge import (
     # MOEA/D
     build_moead_binary_config_space,
     build_moead_config_space,
+    build_moead_constrained_config_space,
     build_moead_integer_config_space,
     build_moead_mixed_config_space,
     build_moead_permutation_config_space,
@@ -56,11 +57,13 @@ from vamos.engine.tuning.racing.bridge import (
     # RVEA
     build_rvea_binary_config_space,
     build_rvea_config_space,
+    build_rvea_constrained_config_space,
     build_rvea_integer_config_space,
     build_rvea_mixed_config_space,
     build_rvea_permutation_config_space,
     # SMPSO
     build_smpso_config_space,
+    build_smpso_constrained_config_space,
     build_smpso_mixed_config_space,
     # SMS-EMOA
     build_smsemoa_binary_config_space,
@@ -108,12 +111,14 @@ REGISTRY: list[tuple[str, str, Any]] = [
     ("agemoea_mixed", "mixed", build_agemoea_mixed_config_space),
     # RVEA
     ("rvea", "real", build_rvea_config_space),
+    ("rvea_constrained", "real", build_rvea_constrained_config_space),
     ("rvea_permutation", "permutation", build_rvea_permutation_config_space),
     ("rvea_binary", "binary", build_rvea_binary_config_space),
     ("rvea_integer", "integer", build_rvea_integer_config_space),
     ("rvea_mixed", "mixed", build_rvea_mixed_config_space),
     # MOEA/D
     ("moead", "real", build_moead_config_space),
+    ("moead_constrained", "real", build_moead_constrained_config_space),
     ("moead_permutation", "permutation", build_moead_permutation_config_space),
     ("moead_binary", "binary", build_moead_binary_config_space),
     ("moead_integer", "integer", build_moead_integer_config_space),
@@ -146,6 +151,7 @@ REGISTRY: list[tuple[str, str, Any]] = [
     ("smsemoa_mixed", "mixed", build_smsemoa_mixed_config_space),
     # SMPSO (only 2 variants)
     ("smpso", "real", build_smpso_config_space),
+    ("smpso_constrained", "real", build_smpso_constrained_config_space),
     ("smpso_mixed", "mixed", build_smpso_mixed_config_space),
 ]
 

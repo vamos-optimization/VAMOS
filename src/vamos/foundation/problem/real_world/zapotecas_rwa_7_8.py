@@ -3,6 +3,8 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
+from vamos.foundation.problem._output import objective_output
+
 
 def _rwa7_xcc(
     alpha: NDArray[np.float64], dha: NDArray[np.float64], doa: NDArray[np.float64], optt: NDArray[np.float64]
@@ -108,7 +110,7 @@ class RWA7Problem:
         tfmax = _rwa7_tfmax(alpha, dha, doa, optt)
         ttmax = _rwa7_ttmax(alpha, dha, doa, optt)
 
-        F = out["F"]
+        F = objective_output(out, len(X), self.n_obj)
         F[:, 0] = xcc
         F[:, 1] = tfmax
         F[:, 2] = ttmax
@@ -154,7 +156,7 @@ class RWA8Problem:
         ttmax = _rwa7_ttmax(alpha, dha, doa, optt)
         xcc = _rwa7_xcc(alpha, dha, doa, optt)
 
-        F = out["F"]
+        F = objective_output(out, len(X), self.n_obj)
         F[:, 0] = tfmax
         F[:, 1] = tw4
         F[:, 2] = ttmax
