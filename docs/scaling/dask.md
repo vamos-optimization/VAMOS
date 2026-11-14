@@ -15,7 +15,7 @@ backend internals.
 Install VAMOS with the optional distributed-compute dependencies:
 
 ```bash
-python -m pip install "vamos-optimization[compute]==1.1.0"
+python -m pip install "vamos-optimization[compute]==1.2.0"
 ```
 
 For environment setup, see [Installation](../guide/installation.md). For an
@@ -89,7 +89,7 @@ with Client("tcp://scheduler.example.com:8786"):
 
 ## From the Command Line
 
-**Development after 1.1.0:** the `vamos` command connects to a running
+**VAMOS 1.2.0:** the `vamos` command connects to a running
 scheduler with `--dask-address`; a `problems.<name>` block of a config file can
 set `eval_strategy: dask` and `dask_address` for one problem. The run artifact
 records the `dask` evaluation strategy, not the scheduler address.
@@ -108,7 +108,7 @@ quietly producing serial timings.
 Create or connect a `Client` before calling `optimize(..., eval_strategy="dask")`.
 If Dask is not installed, install the `compute` extra shown above.
 
-**Development after 1.1.0:** an `EvaluationError` raised by the problem's
+**VAMOS 1.2.0:** an `EvaluationError` raised by the problem's
 evaluation on a worker, such as non-finite objectives, reaches the caller as
 it is, and the opt-in serial fallback does not evaluate the population again.
 VAMOS 1.1.0 reported it as a failed Dask evaluation and, with the serial
