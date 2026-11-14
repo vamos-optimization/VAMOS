@@ -142,3 +142,32 @@ def test_studio_and_optimize_build_the_same_default_configs() -> None:
     for build in (optimize_config, studio_config):
         with pytest.raises(InvalidAlgorithmError):
             build("not_an_algorithm", pop_size=None, n_var=None, n_obj=None, encoding=None)
+
+
+def test_study_search_is_bounded_in_depth_and_in_studies_read(tmp_path: Path, monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    from vamos.ux.studio import batch_studies, services
+
+    near = [tmp_path / "one", tmp_path / "two" / "three"]
+    deep = tmp_path.joinpath(*["deeper"] * 10)
+    for root in (*near, deep):
+        root.mkdir(parents=True)
+        (root / "study-manifest.json").write_text("{}", encoding="utf-8")
+    report = {"study_id": "s", "state": "completed", "counts": {"tasks": 1, "succeeded": 1}, "timestamps": {}}
+    read: list[Path] = []
+
+    def load_study(root: Path) -> SimpleNamespace:
+        read.append(Path(root))
+        return SimpleNamespace(inspect=lambda: SimpleNamespace(as_dict=lambda: report))
+
+    monkeypatch.setattr(batch_studies, "load_study", load_study)
+    monkeypatch.setattr(services, "load_study", load_study)
+    expected = {root.resolve() for root in near}
+
+    assert {listing.root for listing in batch_studies.list_studies(tmp_path)} == expected
+    assert set(services.discover_study_directories(tmp_path)) == expected
+    for search in (batch_studies.list_studies, services.discover_study_directories):
+        read.clear()
+        assert len(search(tmp_path, limit=1)) == 1
+        assert len(read) == 1, search.__name__  # The limit stops the reading, not only the list.

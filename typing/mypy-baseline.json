@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "738deb6e4f32e1849b6a9819c9e4ddbd72105552",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 738deb6e4f32e1849b6a9819c9e4ddbd72105552",
+  "generation_commit": "bd95776c4dc6aabb2b5700a8a7d2570d3a3c13ad",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit bd95776c4dc6aabb2b5700a8a7d2570d3a3c13ad",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.1",
@@ -26,16 +26,16 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 130,
-  "files_with_diagnostics": 23,
-  "fingerprint_count": 23,
+  "diagnostic_count": 114,
+  "files_with_diagnostics": 22,
+  "fingerprint_count": 22,
   "error_code_summary": {
-    "type-arg": 130
+    "type-arg": 114
   },
   "layer_summary": {
     "engine": 104,
     "foundation": 9,
-    "ux": 17
+    "ux": 1
   },
   "installed_mypy": "2.4.1",
   "diagnostics": [
@@ -686,80 +686,6 @@
         {
           "line": 72,
           "column": 32
-        }
-      ]
-    },
-    {
-      "fingerprint": "C4BC8CAF29CE955980745E7E82C0FF14AA094020E5F2E3EAED2C80A5BC8AA221",
-      "path": "src/vamos/ux/analysis/core_objective_reduction.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "ux",
-      "multiplicity": 16,
-      "locations": [
-        {
-          "line": 25,
-          "column": 33
-        },
-        {
-          "line": 26,
-          "column": 32
-        },
-        {
-          "line": 29,
-          "column": 22
-        },
-        {
-          "line": 55,
-          "column": 28
-        },
-        {
-          "line": 65,
-          "column": 32
-        },
-        {
-          "line": 68,
-          "column": 34
-        },
-        {
-          "line": 76,
-          "column": 35
-        },
-        {
-          "line": 100,
-          "column": 12
-        },
-        {
-          "line": 102,
-          "column": 15
-        },
-        {
-          "line": 131,
-          "column": 50
-        },
-        {
-          "line": 144,
-          "column": 42
-        },
-        {
-          "line": 157,
-          "column": 29
-        },
-        {
-          "line": 164,
-          "column": 39
-        },
-        {
-          "line": 206,
-          "column": 95
-        },
-        {
-          "line": 219,
-          "column": 8
-        },
-        {
-          "line": 225,
-          "column": 12
         }
       ]
     },

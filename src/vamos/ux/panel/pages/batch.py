@@ -17,6 +17,7 @@ from vamos.ux.studio.algorithm_catalog import algorithm_label, studio_algorithms
 from vamos.ux.studio.batch import HV_DESCRIPTION, csv_text, summary_latex
 from vamos.ux.studio.batch_studies import (
     RunnerActions,
+    StudyListing,
     batch_spec,
     check_plan,
     create_and_start,
@@ -82,6 +83,7 @@ class BatchState(param.Parameterized):
         self._marker: int | None = None
         self._runs: dict[str, RunRecord] = {}
         self._work: BackgroundWork[_Snapshot] = BackgroundWork()
+        self._search: BackgroundWork[list[StudyListing]] = BackgroundWork()
         self._poller: Any = None
 
     # ---- the batch form ----
@@ -130,7 +132,14 @@ class BatchState(param.Parameterized):
     # ---- the studies of the folder ----
 
     def refresh_studies(self, event: Any = None, *, select: str | None = None) -> None:
-        listings = list_studies(Path(self.study_dir))
+        """List the studies of ``study_dir`` in the background; a large folder takes a while."""
+        base = Path(self.study_dir)
+        self._search.submit(lambda: list_studies(base), lambda found: self._listed(found, select=select))
+
+    def _listed(self, listings: list[StudyListing] | Exception, *, select: str | None) -> None:
+        if isinstance(listings, Exception):
+            self._report(f"Cannot list the studies of {self.study_dir}: {listings}", "danger")
+            return
         self.studies = listings
         roots = [str(listing.root) for listing in listings]
         self.param.selected.objects = roots
@@ -250,6 +259,7 @@ class BatchState(param.Parameterized):
             self._poller.stop()
             self._poller = None
         self._work.shutdown()
+        self._search.shutdown()
 
     # ---- downloads ----
 

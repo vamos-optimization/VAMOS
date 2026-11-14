@@ -359,7 +359,6 @@ def test_compare_page_analyzes_a_study(tmp_path: Path) -> None:
         assert type(view(state)).__name__ == "Plotly"
     assert r"\begin{tabular}" in state.comparison_tex().getvalue()
     assert state.comparisons_csv().getvalue().startswith("Problem,Algorithm,Pivot")
-    assert compare.smallest_p_value(5, 5) == pytest.approx(2 / 252)
 
 
 def test_compare_page_annotates_runs_without_feasible_solutions() -> None:
@@ -570,3 +569,157 @@ def test_results_filter_fronts_and_run_a_run_again(tmp_path: Path) -> None:
     assert (opened[0].problem, opened[0].algorithm, opened[0].max_evaluations) == ("zdt1", "nsgaii", 40)
     state.problem = None
     assert state.objective_ranges == [] and state.rerun is None
+
+
+def test_run_again_accepts_64_bit_seeds(monkeypatch: pytest.MonkeyPatch) -> None:
+    from vamos.ux.studio.experiment_setup import ExperimentSetup
+
+    seeds: list[int] = []
+    original = experiment._run_algorithm
+    monkeypatch.setattr(experiment, "_run_algorithm", lambda problem, **kwargs: seeds.append(kwargs["seed"]) or original(problem, **kwargs))
+    state = experiment.ExperimentState()
+    field = experiment.seed_input(state)
+
+    # The CLI and optimize(seed=None) draw 64-bit seeds.
+    state.apply_setup(ExperimentSetup(problem="zdt1", algorithm="nsgaii", max_evaluations=100, seed=2**64 - 1, source="run 1234"))
+    state.run_experiment()
+
+    assert state.seed == 2**64 - 1
+    assert seeds == [2**64 - 1]
+    assert "Error" not in state.status
+    # The field shows every digit; a browser number field would round the seed to a float.
+    assert field.value == "18446744073709551615"
+    field.value = "12345678901234567891"
+    assert state.seed == 12345678901234567891
+    for invalid in (str(2**64), "-1", "1.5"):
+        field.value = invalid
+        assert (state.seed, field.value) == (12345678901234567891, "12345678901234567891")
+        assert "whole number" in state.status
+
+
+def test_run_again_says_when_a_budget_is_above_the_page_maximum() -> None:
+    from vamos.ux.studio.experiment_setup import ExperimentSetup
+
+    state = experiment.ExperimentState()
+    high = state.param.max_evaluations.bounds[1]
+
+    state.apply_setup(ExperimentSetup(problem="zdt1", max_evaluations=high + 1, source="run 1234"))
+
+    assert state.max_evaluations == high
+    assert f"above this page's maximum of {high}" in state.setup_note
+
+
+def _three_algorithms_on_five_problems() -> Any:
+    from vamos.ux.studio.batch import BatchRun
+    from vamos.ux.studio.comparison import HV, ComparisonData
+
+    problems = tuple(f"p{index}" for index in range(5))
+    algorithms = ("A", "B", "C")
+    front = np.array([[0.0, 1.0], [1.0, 0.0]])
+    runs = tuple(BatchRun(problem, name, seed, front) for problem in problems for name in algorithms for seed in range(3))
+    values = {
+        HV: {
+            (problem, name): np.array([0.9, 0.8, 0.7]) - 0.1 * position - 0.01 * index
+            for index, problem in enumerate(problems)
+            for position, name in enumerate(algorithms)
+        }
+    }
+    return ComparisonData(Path("study"), problems, algorithms, runs, values)
+
+
+def test_ranking_uses_selected_alpha() -> None:
+    from vamos.ux.panel.pages import compare
+    from vamos.ux.studio.comparison import HV
+    from vamos.ux.studio.comparison_stats import nemenyi_cd
+
+    state = compare.CompareState()
+    state.data, state.indicator, state.pivot, state.alpha = _three_algorithms_on_five_problems(), HV, "A", 0.01
+    cd = nemenyi_cd(3, 5, 0.01)
+
+    (figure,) = [item.object for item in compare.ranking_view(state) if type(item).__name__ == "Plotly"]
+    latex = state.ranking_tex().getvalue()
+
+    assert "α = 0.01" in figure.layout.title.text
+    assert any(annotation.text == f"CD = {cd:.2f}" for annotation in figure.layout.annotations)
+    assert r"$\alpha=0.01$" in latex and f"$CD={cd:.3g}$" in latex
+
+
+def test_ranking_tab_follows_the_significance_level(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Changing the level redraws the Ranking tab, so the diagram agrees with the LaTeX table."""
+    import panel as pn
+
+    from vamos.ux.panel.pages import compare
+    from vamos.ux.studio.comparison import HV
+
+    states: list[Any] = []
+
+    class RecordedState(compare.CompareState):
+        def __init__(self, **params: Any) -> None:
+            super().__init__(**params)
+            states.append(self)
+
+    monkeypatch.setattr(compare, "CompareState", RecordedState)
+    page = compare.render_compare(tmp_path)
+    (state,) = states
+    (tabs,) = page.select(pn.Tabs)
+    ranking = tabs.objects[tabs._names.index("Ranking")]
+    (level,) = [widget for widget in page.select(pn.widgets.Select) if widget.name == "Significance level"]
+    state.data, state.indicator, state.pivot = _three_algorithms_on_five_problems(), HV, "A"
+
+    level.value = 0.01
+
+    (figure,) = [item.object for item in ranking._pane if type(item).__name__ == "Plotly"]
+    assert "α = 0.01" in figure.layout.title.text
+
+
+@pytest.mark.parametrize(("n1", "n2"), [(2, 3), (5, 5), (8, 9), (9, 9), (12, 10), (30, 30)])
+def test_smallest_p_value_is_the_smallest_the_rank_sum_test_gives(n1: int, n2: int) -> None:
+    from vamos.ux.panel.pages import compare
+    from vamos.ux.studio.comparison_stats import rank_sum_p
+
+    smallest = compare.smallest_p_value(n1, n2)
+    # SciPy's exact test applies up to eight runs in a sample, the normal approximation beyond, whose
+    # smallest p-value is about ten times the exact bound 2 / C(n1 + n2, n1) with nine runs per sample.
+    separated = rank_sum_p(np.arange(n1), np.arange(n1, n1 + n2))
+    rng = np.random.default_rng(0)
+    sampled = [rank_sum_p(rng.random(n1), rng.random(n2) + shift) for shift in (0.0, 0.5, 2.0) for _ in range(5)]
+
+    assert smallest == pytest.approx(separated)
+    assert all(p >= smallest * (1 - 1e-9) for p in sampled)
+
+
+def test_study_search_runs_off_the_event_loop(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+
+    from vamos.ux.panel.pages import compare
+
+    spec = vamos.StudySpec(problems=["zdt1"], algorithms=["nsgaii", "spea2"], seeds=[0], pop_size=8, max_evaluations=40, engine="numpy")
+    root = str(vamos.create_study(spec, output=tmp_path / "study").run().root.resolve())
+    pages: list[tuple[Any, str, str]] = [
+        (compare.CompareState(study_dir=str(tmp_path)), "refresh_studies", "selected"),
+        (batch.BatchState(study_dir=str(tmp_path)), "refresh_studies", "selected"),
+        (results.ResultsState(study_dir=str(tmp_path)), "find_studies", "selected_study"),
+    ]
+    for state, search, selection in pages:
+        submitted: list[Any] = []
+        state._search = SimpleNamespace(submit=lambda work, apply, submitted=submitted: submitted.append((work, apply)) or True)
+
+        getattr(state, search)()
+
+        assert len(submitted) == 1, type(state).__name__  # The folder is searched in the background...
+        assert getattr(state, selection) is None
+        work, apply = submitted[0]
+        apply(work())
+        assert getattr(state, selection) == root  # ...and the page shows what it found.
+
+    # A study that Explore Results opens while it searches stays selected when the search ends.
+    state = results.ResultsState(study_dir=str(tmp_path))
+    submitted.clear()
+    state._search = SimpleNamespace(submit=lambda work, apply: submitted.append((work, apply)) or True)
+    state.find_studies()
+    opened = str(tmp_path / "opened-batch")
+    state.focus(opened)
+    work, apply = submitted[0]
+    apply(work())
+    assert state.selected_study == opened
+    assert state.param.selected_study.objects == [opened, root]

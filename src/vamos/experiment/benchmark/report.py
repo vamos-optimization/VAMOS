@@ -246,7 +246,7 @@ class BenchmarkReport:
         tidy = self.aggregate_metrics()
         stats = self.compute_statistics()
         plots_dir = ensure_dir(self.output_dir / "plots")
-        return generate_plots(tidy, stats, self.config.metrics, self.config.alpha, self.result.suite.name, plots_dir, higher_is_better)
+        return generate_plots(tidy, stats, self.config.metrics, self.config.alpha, self.result.suite.name, plots_dir)
 
     def generate_lab_outputs(self) -> dict[str, Path | dict[str, Path]]:
         if not self.config.emit_lab_outputs:
