@@ -58,11 +58,11 @@ The stable built-in algorithm identifiers are `agemoea`, `ibea`, `moead`,
 configuration fields are frozen in
 `tests/compatibility/v1_0_0/stable_algorithm_configs.json`.
 
-**Development after 1.1.0:** built-in algorithms may be added during 1.x; the
+**VAMOS 1.2.0:** built-in algorithms may be added during 1.x; the
 compatibility check accepts identifiers added after the frozen ones and still
 fails when a 1.0 identifier disappears. `ccmo` and its `CCMOConfig` are the
 first such addition, and `ctaea` with its `CTAEAConfig` the second. Until a
-release lists them here, they are not part of the stable surface, although
+later release lists them here, they are not part of the stable surface, although
 `vamos.algorithms` exports `CCMOConfig` and `CTAEAConfig`.
 
 For these entry points:
@@ -120,14 +120,14 @@ The stable study lifecycle consists of:
   and `retry` methods;
 - `StudyReport` and `StudySummary`.
 
-Study mutation is single-owner in VAMOS 1.1.0. Do not run concurrent
+Study mutation is single-owner in VAMOS 1.2.0. Do not run concurrent
 `run`, `resume`, or `retry` operations against the same study. There is no
 cross-process cancellation command. Inspection and summary are immutable,
 data-only projections.
 
 ### Exceptions
 
-**Development after 1.1.0:** the stable API raises errors of one hierarchy,
+**VAMOS 1.2.0:** the stable API raises errors of one hierarchy,
 exported by `vamos.exceptions`. Catch them by class; their messages may change.
 
 - `VAMOSError` is the base of every error below.
@@ -211,7 +211,7 @@ not covered by this promise.
 
 ## Experimental surface
 
-The following remain experimental in VAMOS 1.1.0:
+The following remain experimental in VAMOS 1.2.0:
 
 - Studio and all generated-code execution;
 - LLM-provider and provider-specific assist integrations;
@@ -249,13 +249,13 @@ VAMOS follows semantic versioning from 1.0.0 onward:
 
 ## Scientific corrections
 
-**Development after 1.1.0:** a built-in algorithm, operator, problem, or
+**VAMOS 1.2.0:** a built-in algorithm, operator, problem, or
 indicator that departs from its published definition is a defect. Its fix
 ships in a patch or minor release even when it changes numerical results, or
 the default value of a stable signature, because results of the faulty
 definition are not results of the published method. The changelog lists such a
 fix as Fixed with a note on which results change and how, so that affected
-experiments can be rerun. Two fixes after 1.1.0 are examples:
+experiments can be rerun. Two fixes in VAMOS 1.2.0 are examples:
 
 - CEC2009 UF3 searches its published domain `[0, 1]^n` (pull request #104).
   VAMOS 1.1.0 searched `[-1, 1]` for every variable after the first, a
@@ -284,19 +284,19 @@ replacement where available, and affected versions.
 
 ## Python and operating-system support
 
-VAMOS 1.1.0 supports only the Python versions and operating systems exercised
+VAMOS 1.2.0 supports only the Python versions and operating systems exercised
 by the final hosted release matrix and declared in package metadata. Dropping
 a supported Python version during 1.x requires advance documentation and a
 minor release. Optional dependencies may have narrower platform support and
 must fail clearly when unavailable.
 
-**Development after 1.1.0:** CI tests Python 3.10 to 3.14 on Linux and
+**VAMOS 1.2.0:** CI tests Python 3.10 to 3.14 on Linux and
 Python 3.12 to 3.14 on Windows and macOS, and the package metadata declares
 Python 3.10 to 3.14. The metadata also declares the development status
 "Production/Stable", which matches the commitments of this policy. VAMOS 1.1.0
 declared Python 3.10 to 3.12 and the status "Beta".
 
-**Development after 1.1.0:** Python 3.10 reached its end of life in October
+**VAMOS 1.2.0:** Python 3.10 reached its end of life in October
 2026. VAMOS 1.2.0 is the last minor release that supports it: VAMOS 1.3.0 will
 require Python 3.11 or newer, and the 1.2 patch releases keep Python 3.10.
 

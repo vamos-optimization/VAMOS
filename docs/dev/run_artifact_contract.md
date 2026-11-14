@@ -99,7 +99,7 @@ termination, provenance, or seed from array shapes.
 omitted. A requested seed may be `null` when the user explicitly asks VAMOS to
 choose one.
 
-**Development after 1.1.0:** for a CLI run, `requested_spec` is the effective
+**VAMOS 1.2.0:** for a CLI run, `requested_spec` is the effective
 request for that run, with the command-line overrides and the problem's
 `problems.<name>` block applied; the config file it came from is kept under
 `config_file` as provenance. The problem configuration holds only what built
@@ -178,7 +178,7 @@ pickle-backed arrays are rejected. Shape relationships and manifest array
 contracts are validated before values are exposed. Loaded arrays are defensive
 copies and are never executable objects.
 
-**Development after 1.1.0:** the shape check includes columns. `F`,
+**VAMOS 1.2.0:** the shape check includes columns. `F`,
 `population/F`, `archive/F`, and `reference_directions` have
 `resolved_spec.problem.config.n_obj` columns, and `X`, `population/X`, and
 `archive/X` have its `n_var` columns, whenever the configuration records that
@@ -199,7 +199,7 @@ available, the environment artifact role, and the same timestamps as the
 manifest. Python saves identify `vamos.optimize`; CLI saves identify a
 sanitized CLI entry point. A caller-supplied manual context is marked as such.
 
-**Development after 1.1.0:** saving a result that `load_result` returned is a
+**VAMOS 1.2.0:** saving a result that `load_result` returned is a
 manual copy. It has entry point `vamos.save_result` with `arguments_source`
 `loaded_result`, the timestamps of the new save, runtime 0, and replayability
 `manual` with the reason `loaded_result_saved_again`. No new schema field
@@ -226,7 +226,7 @@ evidence blocks exact replay. A dirty checkout qualifies only with a matching
 reproducible content fingerprint. Current evidence capture uses no Git command,
 shell, network, installation, or mutation.
 
-**Development after 1.1.0:** saving and verification classify the source kind
+**VAMOS 1.2.0:** saving and verification classify the source kind
 with one rule.
 
 - **Checkout:** the nearest Git repository above the imported package counts
@@ -287,7 +287,7 @@ headers, sizes, shapes, dtypes, and ratios are checked before materialization.
 Trusted callers may pass an explicit `LoadLimits`. VAMOS never silently raises
 a limit following rejection.
 
-**Development after 1.1.0:** a JSON document nested too deeply for Python's
+**VAMOS 1.2.0:** a JSON document nested too deeply for Python's
 parser is rejected with the `max_json_depth` error, and an integer literal
 longer than `sys.get_int_max_str_digits()` (4300 digits by default) with
 `ArtifactResourceLimitError` and limit `int_max_str_digits`. `vamos results

@@ -6,7 +6,7 @@ description: 'CCMO: two cooperating populations for constrained multi-objective 
 
 The **coevolutionary framework for constrained multi-objective optimization** evolves two populations of the same size: population 1 solves the problem, and population 2 solves the same problem without its constraints [1]. The two populations cooperate only through their offspring: in each generation every population selects its survivors from itself together with the offspring of both. Population 2 explores across infeasible regions and its offspring help population 1 reach the feasible parts of the front that infeasible barriers hide.
 
-**Development after 1.1.0.** CCMO is new in the development series after VAMOS 1.1.0. It follows the authors' reference code through jMetal's port (pull request [jMetal/jMetal#521](https://github.com/jMetal/jMetal/pull/521)), and its fitness and environmental selection are checked against that port's own classes.
+**New in VAMOS 1.2.0.** CCMO follows the authors' reference code through jMetal's port (pull request [jMetal/jMetal#521](https://github.com/jMetal/jMetal/pull/521)), and its fitness and environmental selection are checked against that port's own classes.
 
 [All algorithms](../reference/algorithms.md) · [Configuration reference](../reference/api/algorithms/ccmo.md) · [Constraints](../reference/constraints.md)
 

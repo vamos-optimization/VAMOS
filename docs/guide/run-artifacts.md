@@ -40,7 +40,7 @@ The directory may be moved as a unit. All references are relative and confined
 to it. The destination passed to `save_result` must not exist; VAMOS never
 overwrites or merges a run.
 
-**Development after 1.1.0:** while it saves, VAMOS writes the run into a
+**VAMOS 1.2.0:** while it saves, VAMOS writes the run into a
 sibling `.<name>.vamos-staging-<token>` directory and holds a
 `.<name>.vamos-save.lock` file. The lock records the process ID, host and UTC
 start time of the save. Both disappear when the save ends, but a process that
@@ -89,7 +89,7 @@ stored = vamos.save_result(
 Without both mappings, saving raises `vamos.IncompleteRunMetadataError`. VAMOS
 does not invent a seed or execution configuration from arrays.
 
-**Development after 1.1.0:** a run's problem is built in only when it was
+**VAMOS 1.2.0:** a run's problem is built in only when it was
 requested by registry name, or when it is an instance of the class that the
 registry builds for its name. A problem from `vamos.make_problem`, or any other
 user code, is recorded with provider `custom_python`, a component ID taken from
@@ -100,7 +100,7 @@ after its `name` with `exact` replayability. One named `zdt1` then shared the
 task ID of the registered ZDT1, and `reproduce` ran the registered ZDT1
 instead of the user's function.
 
-**Development after 1.1.0:** saving a result returned by `load_result` again
+**VAMOS 1.2.0:** saving a result returned by `load_result` again
 records a manual copy: replayability `manual` with the reason
 `loaded_result_saved_again`, the entry point `vamos.save_result`, and the time
 of the new save, with `runtime_ms` 0. The loaded arrays can be changed before

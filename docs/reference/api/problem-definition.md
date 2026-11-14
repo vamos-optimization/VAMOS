@@ -10,7 +10,7 @@ from vamos import Problem, make_problem
 
 [Solve your own problem](../../guide/custom-problem.md) · [Built-in problem catalogue](../problems.md) · [Problem discovery](discovery.md)
 
-**Development after 1.1.0:** `make_problem` accepts any integral type for
+**VAMOS 1.2.0:** `make_problem` accepts any integral type for
 `n_var`, `n_obj`, and `n_constraints`, such as `numpy.int64`, and rejects NaN or
 infinite bounds with `BoundsError` and a negative or non-integer
 `n_constraints` with `ProblemDimensionError`. VAMOS 1.1.0 rejected NumPy

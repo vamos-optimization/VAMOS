@@ -5,7 +5,7 @@ indices, population-related settings, and other parameters that control a MOEA.
 A tuning campaign evaluates candidate configurations over explicit problem and
 seed blocks and ranks them by a scalar quality score.
 
-!!! warning "Experimental surface in VAMOS 1.1.0"
+!!! warning "Experimental surface in VAMOS 1.2.0"
     The tuning/racing implementation and the `vamos tune` and `vamos ablation`
     commands are **experimental**. They are supported for evaluation but may
     change incompatibly in a minor release. Stable optimization calls used by
@@ -19,7 +19,7 @@ This page is about configuring optimization algorithms. If the variables in
 
 ## Changes included in 1.0.1
 
-The install command below selects **VAMOS 1.1.0**, which keeps the corrected
+The install command below selects **VAMOS 1.2.0**, which keeps the corrected
 scoring, archive-search, and persistence behavior introduced in 1.0.1 and
 described on this page:
 
@@ -37,7 +37,7 @@ search spaces differ. See also the
 
 ## Programmatic API status
 
-VAMOS 1.1.0 does **not** expose a curated public programmatic facade for the
+VAMOS 1.2.0 does **not** expose a curated public programmatic facade for the
 algorithm-configuration tuner. Maintained user workflows should therefore use
 `vamos tune` rather than import deep `vamos.engine.*` implementation modules.
 
@@ -47,7 +47,7 @@ advanced evaluation and contributors under the
 but those deep imports are not a compatibility commitment or a copy-paste
 learning path.
 
-**Development after 1.1.0:** the helpers without internal use are removed from
+**VAMOS 1.2.0:** the helpers without internal use are removed from
 `vamos.engine.tuning`: the `convergence` module (`ConvergenceProfile`,
 `ConvergenceDiagnostic`, `TuningCallback`, `diagnose`, `score_with_profile`),
 `save_checkpoint` and `load_checkpoint` of the racing I/O (a race cannot be
@@ -73,7 +73,7 @@ comparison:
 
 ### CLI scoring contract: hypervolume
 
-In VAMOS 1.1.0, the maintained `vamos tune` CLI has **no metric selector**. It scores
+In VAMOS 1.2.0, the maintained `vamos tune` CLI has **no metric selector**. It scores
 candidate runs with **hypervolume (HV) and maximizes that score**.
 
 The score source is fixed: VAMOS takes the **final population**, removes
@@ -82,7 +82,7 @@ objective vectors, and computes HV on that feasible non-dominated population.
 It does not score top-level `result.F`, because that field can refer to an
 external archive for archive-enabled algorithm configurations.
 
-**Development after 1.1.0:** on unconstrained problems, SMPSO is scored on its
+**VAMOS 1.2.0:** on unconstrained problems, SMPSO is scored on its
 leaders archive instead, because its final swarm is not elitist. Constrained
 SMPSO runs keep scoring the swarm: the leaders carried no constraint values when
 this contract was set, and scoring them now would change the tuning scores. Persistent Optuna studies for SMPSO
@@ -115,7 +115,7 @@ not mixed into ordinary `vamos tune` comparisons.
 - `--aggregate-mode` then combines the per-block scores using `mean`, `median`,
   `p25`, or `p10`.
 
-**Development after 1.1.0:** a failed evaluation has one meaning in every
+**VAMOS 1.2.0:** a failed evaluation has one meaning in every
 backend: the run raised, or its score is not finite (NaN or infinite). It
 scores `--failure-score` in `vamos tune` (`TuningTask.failure_score` in Python,
 -1e30 when maximizing and 1e30 when minimizing if unset), it is counted, and the
@@ -166,7 +166,7 @@ Model-based backends (`optuna`, `smac3`, `bohb`, and `bohb_optuna`) require the
 optional tuning dependencies:
 
 ```bash
-python -m pip install "vamos-optimization[tuning]==1.1.0"
+python -m pip install "vamos-optimization[tuning]==1.2.0"
 ```
 
 For an editable development installation, follow
@@ -245,7 +245,7 @@ and `--fidelity-min-configs` additionally affect how many configurations reach
 each level, so compute estimates should account for the schedule and promotion
 policy together.
 
-**Development after 1.1.0:** `--backend racing` runs the statistical race by
+**VAMOS 1.2.0:** `--backend racing` runs the statistical race by
 default, at `--budget` per run, with `--alpha`, `--use-statistical-tests`,
 `--elimination-fraction` and `--min-blocks-before-elimination`; pass
 `--multi-fidelity` for the schedule above. The other backends keep
@@ -262,7 +262,7 @@ starts again from scratch, where it used to receive another block's checkpoint.
 
 ### Model-based backends run one fidelity unless given levels
 
-**Development after 1.1.0:** without `--fidelity-levels` (`budget_levels=None`
+**VAMOS 1.2.0:** without `--fidelity-levels` (`budget_levels=None`
 in Python), `optuna`, `bohb_optuna`, `smac3` and `bohb` evaluate every
 candidate once, at `--budget`, on every training instance and seed. A trial
 then costs one run per instance/seed pair, and `optuna` and `bohb_optuna` prune
@@ -308,7 +308,7 @@ statistical-finisher stages. It is a real execution path and is exercised by
 the documentation smoke suite, but its tiny design is **not** intended for
 scientific conclusions.
 
-**Development after 1.1.0:** `--smoke` also caps the sampled populations at
+**VAMOS 1.2.0:** `--smoke` also caps the sampled populations at
 half of its 30-evaluation run budget (`--pop-size`, 15), so that every sampled
 configuration can run, including the opposition-based initializer, which
 evaluates a population and its opposite; for RVEA it caps `n_partitions`, whose
@@ -325,7 +325,7 @@ The current backend families are:
 
 - `random` — built-in random search;
 - `racing` — built-in racing that progressively allocates experiments and can
-  eliminate weak candidates; since the development after 1.1.0, the CLI runs
+  eliminate weak candidates; since VAMOS 1.2.0, the CLI runs
   its statistical race unless `--multi-fidelity` is given;
 - `optuna` — current CLI default; requires the tuning extra;
 - `bohb_optuna`, `smac3`, and `bohb` — optional model-based backends from the
@@ -338,14 +338,14 @@ HV score, and an aggregation rule. Its statistical elimination is an
 **allocation mechanism during tuning**; it is not a substitute for an
 independently designed final comparison on held-out blocks.
 
-**Development after 1.1.0:** racing returns the best of the configurations
+**VAMOS 1.2.0:** racing returns the best of the configurations
 still alive when the race ends, aggregated over the problem/seed blocks that
 all of them were evaluated on; with multi-fidelity racing, over the last
 fidelity level they reached. VAMOS 1.1.0 and earlier compared every evaluated
 configuration on its own blocks, so a configuration the race had already
 eliminated could be returned.
 
-**Development after 1.1.0:** with elitist restarts
+**VAMOS 1.2.0:** with elitist restarts
 (`Scenario(use_elitist_restarts=True)`), each configuration spawned to refill
 the race is first evaluated on the blocks the race has already played, so it
 enters the elimination tests on the same blocks as the elites. A restart
@@ -369,7 +369,7 @@ a parameter whose own conditions held while its parent was inactive. They now
 still draw every value in declaration order, so their seeded values do not
 change, and keep a parameter only when its parents are kept.
 
-**Development after 1.1.0:** racing's model-based sampler and
+**VAMOS 1.2.0:** racing's model-based sampler and
 `filter_active_config`, which writes the trial history and
 `best_config_active.json`, apply the same rule. In VAMOS 1.1.0 they could still
 keep a grandchild such as `x_eta` (active when `x_kind == 'b'`) while its
@@ -378,7 +378,7 @@ only. The built-in spaces were not affected.
 
 ### Constrained spaces
 
-**Development after 1.1.0:** `nsgaii_constrained`, `nsgaiii_constrained`,
+**VAMOS 1.2.0:** `nsgaii_constrained`, `nsgaiii_constrained`,
 `smsemoa_constrained` and `agemoea_constrained` are the real-coded spaces of
 those algorithms with the parameter `constraint_handling`: the six techniques of
 [choose a constraint-handling technique](../reference/constraints.md#choose-a-constraint-handling-technique)
@@ -396,7 +396,7 @@ parameters of `improved_epsilon` (`improved_epsilon_tao`,
 `improved_epsilon_decay_fraction`), with the ranges of Evolver's
 `MOEADDoubleConstrained` space.
 
-**Development after 1.1.0:** `ccmo` is the real-coded space of
+**VAMOS 1.2.0:** `ccmo` is the real-coded space of
 [CCMO](../algorithms/ccmo.md), which handles constraints itself: `pop_size`
 (20 to 200, the size of each of its two populations) and the crossover, which
 chooses the variation. SBX, BLX-alpha and arithmetic crossover select the GA
@@ -406,7 +406,7 @@ initializer and repair are those of the other real-coded spaces. An assignment
 without `crossover_prob`, `de_cr` or `de_f` gets the published values: 1.0, and
 CR = 1 and F = 0.5. `vamos tune --algorithm ccmo` tunes it.
 
-**Development after 1.1.0:** `ctaea` is the real-coded space of
+**VAMOS 1.2.0:** `ctaea` is the real-coded space of
 [C-TAEA](../algorithms/ctaea.md), which also handles constraints itself:
 `pop_size` (20 to 200, the requested number of weight vectors, from which
 C-TAEA generates its population: 91 for 100 and three objectives) and a
@@ -423,7 +423,7 @@ MOEA/D needs one weight vector per individual. `vamos tune` adds `n_obj` to the
 assignment of both before building the configuration, and code that builds
 configurations from assignments with `config_from_assignment` must do the same.
 
-**Development after 1.1.0:** with `n_obj` of three or more, MOEA/D runs the
+**VAMOS 1.2.0:** with `n_obj` of three or more, MOEA/D runs the
 largest population, at most the sampled `pop_size`, that has weight vectors: a
 complete Das-Dennis lattice or one of the packaged jMetal weight files. A
 sampled `pop_size` of 60 thus runs 55 individuals with three objectives, the
@@ -517,7 +517,7 @@ cause of a `RuntimeError`.
 
 ### Persistent Optuna studies are scoring-contract versioned
 
-In VAMOS 1.1.0, when `optuna` or `bohb_optuna` uses `--optuna-storage`, the maintained CLI treats
+In VAMOS 1.2.0, when `optuna` or `bohb_optuna` uses `--optuna-storage`, the maintained CLI treats
 `--optuna-study-name` as a base name and appends
 `__vamos_cli_final_population_hv_v1` to the effective persisted study name. The
 same versioned namespace is used whether `--optuna-load-if-exists` is enabled or
@@ -530,7 +530,7 @@ Reusing the same base study name resumes only studies from this contract
 version. A future incompatible scoring/search-space change must use a new
 namespace rather than mixing historical trial values.
 
-**Development after 1.1.0:** a resumed study runs only the trials that
+**VAMOS 1.2.0:** a resumed study runs only the trials that
 `--tune-budget` still allows: its finished trials (complete, pruned or failed)
 count, so running the same command again after an interruption completes the
 budget instead of adding `--tune-budget` trials each time, as VAMOS 1.1.0 did.
@@ -576,8 +576,7 @@ The key controls include:
 - `--irace-rscript`, `--irace-instance-seeds`, `--irace-work-dir`,
   `--irace-option`: irace settings; see [The irace backend](#the-irace-backend);
 - `--multi-fidelity` / `--no-multi-fidelity`: enable or disable racing
-  multi-fidelity execution (off by default for racing since the development
-  after 1.1.0);
+  multi-fidelity execution (off by default for racing since VAMOS 1.2.0);
 - `--fidelity-levels`: explicit increasing candidate-run budgets for the
   multi-fidelity schedule;
 - `--aggregate-mode`: aggregation across instance/seed scores;
@@ -603,7 +602,7 @@ Tuning output includes:
 - `split_instances.csv` and `split_seeds.json`;
 - optional finisher/validation/test artifacts when those stages are enabled.
 
-**Development after 1.1.0:** `best_score` in `tuning_summary.json` is the
+**VAMOS 1.2.0:** `best_score` in `tuning_summary.json` is the
 score of the returned configuration (`best_config_*.json`): racing's final
 choice, the statistical finisher's winner or irace's first elite, which need
 not be the highest score of the history; `best_history_score` is that highest
@@ -624,7 +623,7 @@ schedule, and split is not a reproducible tuning result.
 
 ## Archive studies are separate from ordinary CLI tuning
 
-The 1.1.0 CLI intentionally excludes external-archive controls from its
+The 1.2.0 CLI intentionally excludes external-archive controls from its
 ordinary algorithm-configuration search so every candidate is compared on the
 same final-population basis. If archive capacity, pruning, or archive-enabled
 result semantics are themselves the research question, define them explicitly
@@ -648,7 +647,7 @@ choosing at each step the parameter change that helps most, and uses racing to
 make the steps cheaper. VAMOS neither builds that path nor connects it to the
 output of `vamos tune`.
 
-**Development after 1.1.0:** every key of `base_config` and of a variant's
+**VAMOS 1.2.0:** every key of `base_config` and of a variant's
 `config_overrides` is either an ablation setting (`population_size`,
 `offspring_population_size`, `eval_strategy` and `output_root`) or a field of
 the algorithm configuration, such as `pop_size` or

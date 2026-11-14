@@ -90,7 +90,7 @@ For explicit reference-direction files, each row must be non-negative, sum to on
 
 Parents are chosen by binary tournament on non-dominated rank and crowding distance, with feasible solutions first when constraints are active, as in NSGA-II and in jMetal's NSGA-III example. Deb and Jain choose parents at random [1], and the constrained version compares constraint violation and picks at random among feasible solutions [2], as pymoo does. `selection("tournament", size=k)` sets the tournament size; NSGA-III reads no other selection setting.
 
-**Development after 1.1.0:** `constraint_handling` replaces the feasibility-first rule by another of jMetal's constraint-handling techniques, such as epsilon-constrained or stochastic ranking: its fronts take the place of the non-dominated ones in the survival and the tournament, and niching cuts the last front that survives. See [choose a constraint-handling technique](../reference/constraints.md#choose-a-constraint-handling-technique).
+**VAMOS 1.2.0:** `constraint_handling` replaces the feasibility-first rule by another of jMetal's constraint-handling techniques, such as epsilon-constrained or stochastic ranking: its fronts take the place of the non-dominated ones in the survival and the tournament, and niching cuts the last front that survives. See [choose a constraint-handling technique](../reference/constraints.md#choose-a-constraint-handling-technique).
 
 Normalization estimates the nadir point from the hyperplane through the extreme points. When the hyperplane cannot be built, or an intercept lies beyond the worst point found so far in some objective, VAMOS uses the worst point of the first front for every objective, as pymoo up to 0.4 did. pymoo 0.6 replaces only the objectives whose intercept lies beyond the worst point. The paper does not fix this rule, so both are variants, but the normalization differs in those generations.
 
@@ -100,7 +100,7 @@ Normalization estimates the nadir point from the hyperplane through the extreme 
 
 An optional external archive is distinct from the population and from the reference directions; the directions are never a solution archive. Set result mode explicitly when combining archive and population requirements. See [archives](../experiment/stopping_and_archive.md) and [saved runs](../guide/run-artifacts.md).
 
-**Development after 1.1.0:** the external archive receives every evaluated offspring before survival, so an offspring that niching drops is still archived when no evaluated solution dominates it. In VAMOS 1.1.0 it received only the survivors of each generation.
+**VAMOS 1.2.0:** the external archive receives every evaluated offspring before survival, so an offspring that niching drops is still archived when no evaluated solution dominates it. In VAMOS 1.1.0 it received only the survivors of each generation.
 
 The example demonstrates execution and output interpretation. It does not establish superiority over NSGA-II, MOEA/D or any other algorithm; compare multiple seeds and problem instances under a documented study protocol.
 

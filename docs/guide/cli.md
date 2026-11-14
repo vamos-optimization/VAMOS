@@ -1,10 +1,10 @@
 # CLI and config files
 
 Install the [published package](installation.md) before using these commands.
-The examples target VAMOS 1.1.0; use `vamos --help` or `vamos <command> --help`
+The examples target VAMOS 1.2.0; use `vamos --help` or `vamos <command> --help`
 for the parser in your installed version.
 
-| Command family | Status in 1.1.0 | Use it for |
+| Command family | Status in 1.2.0 | Use it for |
 | --- | --- | --- |
 | Main optimization runner | **Stable** core invocation | One run or a configured problem set |
 | `results inspect`, `results verify`, `reproduce` | **Stable** | Canonical run inspection, integrity, and exact replay |
@@ -55,7 +55,7 @@ Template keys (short list):
 
 The config is saved under `results/quickstart/` and can be re-run with `vamos --config <path>`.
 
-**Development after 1.1.0:** a seed whose run directory already exists cannot
+**VAMOS 1.2.0:** a seed whose run directory already exists cannot
 be reused. Without `--seed`, quickstart takes the first free seed from the
 template's (42, then 43, ...) and says so. With a taken `--seed`, it stops with
 exit code 8 before writing its config. Its closing `Re-run:` line adds a free
@@ -146,7 +146,7 @@ document in JSON mode. Creation and execution are separate. `inspect` and an
 in-memory `summarize` are read-only; JSON/CSV summary files are written only
 when `--output` is explicit and never overwrite an existing path.
 
-**Development after 1.1.0:** without `--json`, `vamos study summarize` prints
+**VAMOS 1.2.0:** without `--json`, `vamos study summarize` prints
 its task table: one row per task with its index, state, problem, algorithm,
 seed and evaluations. Its suggested next step reads
 `vamos study inspect STUDY_DIR`. In VAMOS 1.1.0 it printed only the study
@@ -208,7 +208,7 @@ vamos --problem zdt1 --experiment backends --max-evaluations 2000
 ```
 
 Install optional kernels with
-`python -m pip install "vamos-optimization[compute]==1.1.0"`.
+`python -m pip install "vamos-optimization[compute]==1.2.0"`.
 The `--experiment backends` comparison skips unavailable optional kernels with
 a warning. An explicit single-run `--engine numba` or `--engine moocore`
 instead fails if that dependency is missing; it never switches silently.
@@ -219,7 +219,7 @@ Multiprocessing evaluation for expensive problems:
 vamos --problem zdt1 --algorithm nsgaii --max-evaluations 8000 --eval-strategy multiprocessing --n-workers 4
 ```
 
-**Development after 1.1.0:** the run keeps one pool of worker processes from
+**VAMOS 1.2.0:** the run keeps one pool of worker processes from
 its first evaluation to its end, instead of starting one per generation, and
 without `--n-workers` it uses the number of CPUs, at most 8. It only pays off
 when each evaluation is expensive. See
@@ -238,7 +238,7 @@ Early stop when hypervolume reaches a target fraction:
 vamos --problem zdt1 --algorithm nsgaii --max-evaluations 15000 --hv-threshold 0.9
 ```
 
-**Development after 1.1.0:** the target is a fraction of the reference front's
+**VAMOS 1.2.0:** the target is a fraction of the reference front's
 hypervolume measured against the front's nadir plus 10% of its range in each
 objective (1.1 after normalization, as in pymoo and jMetal). VAMOS 1.1.0 and
 earlier added at least 5 to every objective, so a target of 0.5 was met by a
@@ -250,13 +250,13 @@ Run every built-in algorithm on one problem:
 vamos --problem zdt1 --algorithm both --max-evaluations 2000
 ```
 
-**Development after 1.1.0:** the Experimental third-party baselines are
+**VAMOS 1.2.0:** the Experimental third-party baselines are
 removed: `--include-external`, `--external-problem-source`, the
 `pymoo_nsga2`, `jmetalpy_nsga2` and `pygmo_nsga2` algorithm names, and the
 `research` extra that installed them. VAMOS 1.1.0 added those NSGA-II runs to
 `--algorithm both` on ZDT1 when given `--include-external`.
 
-**Development after 1.1.0:** a failed run no longer stops `--algorithm both`
+**VAMOS 1.2.0:** a failed run no longer stops `--algorithm both`
 or `--problem-set`. The error is logged, the remaining runs and the summary
 complete, and the command then exits with a nonzero status that lists the
 failed runs. RVEA derives its reference-vector partitions from
@@ -288,7 +288,7 @@ another seed (or another `--output-root`): the run of step 1 already holds
 vamos --problem zdt1 --algorithm nsgaii --max-evaluations 5000 --population-size 80 --seed 8 --plot
 ```
 
-**Development after 1.1.0:** every run directory of the command is checked
+**VAMOS 1.2.0:** every run directory of the command is checked
 before the first optimization. If one already exists, or two runs of the
 command would share one, the command exits with code 8, the output-collision
 code of `vamos results` and `vamos reproduce`, without optimizing anything.
@@ -299,7 +299,7 @@ Key flags
 ---------
 
 - `--algorithm`: agemoea, ccmo, ctaea, ibea, moead, nsgaii, nsgaiii, rvea, smpso, smsemoa, spea2, or both
-- `--engine`: numpy | numba | moocore | auto. The deterministic default is `numpy`; `auto` prefers available Numba with a NumPy fallback. See the [automatic engine policy](../reference/algorithms.md#automatic-engine-selection) for the selection and replay rules in VAMOS 1.1.0.
+- `--engine`: numpy | numba | moocore | auto. The deterministic default is `numpy`; `auto` prefers available Numba with a NumPy fallback. See the [automatic engine policy](../reference/algorithms.md#automatic-engine-selection) for the selection and replay rules in VAMOS 1.2.0.
 - `--problem`: any registry key (see [Problems](../reference/problems.md))
 - `--problem-set`: predefined sets (e.g., `families`)
 - `--validate-config`: validate `--config` with the checks that precede a run and exit
@@ -317,7 +317,7 @@ Key flags
   - `--moead-crossover sbx --moead-mutation polynomial --moead-aggregation pbi`
   - `--smsemoa-mutation polynomial --nsga3-crossover sbx`
 
-**Development after 1.1.0:** the `--nsga3-*` options and a `defaults.nsgaiii`
+**VAMOS 1.2.0:** the `--nsga3-*` options and a `defaults.nsgaiii`
 block of a config file reach NSGA-III; before, NSGA-III ignored them and used
 SBX (probability 1.0, eta 20) and polynomial mutation (1/n, eta 20). An
 operator parameter such as `--nsgaii-crossover-prob` needs the operator it
@@ -328,7 +328,7 @@ negative `--seed`, a `--n-var` or `--n-obj` below 1, a different `--n-obj` or
 population a problem runs with (after its `problems.<name>` overrides), and `--track-genealogy` with an algorithm that records no genealogy. It
 warns about algorithm-specific flags that the selected algorithm ignores.
 
-**Development after 1.1.0:** `--track-genealogy` (or `track_genealogy` in a
+**VAMOS 1.2.0:** `--track-genealogy` (or `track_genealogy` in a
 config file) works with NSGA-II, MOEA/D, SMS-EMOA, NSGA-III, SPEA2, IBEA and
 SMPSO; AGE-MOEA and RVEA record no genealogy, so the CLI rejects it with them
 and with `--algorithm both`. VAMOS 1.1.0 accepted it only with NSGA-II. In
@@ -366,7 +366,7 @@ problems:
 The `moead` block applies only when MOEA/D is selected, for example with
 `--algorithm moead`.
 
-**Development after 1.1.0:** a key repeated in the same mapping of a YAML or
+**VAMOS 1.2.0:** a key repeated in the same mapping of a YAML or
 JSON config file is an error; VAMOS 1.1.0 kept the last value without warning.
 Keys under `problems` are case-insensitive, like the problem registry:
 `ZDT1` applies to `zdt1`, and two keys that differ only in case are an error.
@@ -375,7 +375,7 @@ reached the run. The `stopping` and `archive` blocks merge key by key across
 `defaults`, the top level and `problems.<name>`; see
 [Stopping and archive](../experiment/stopping_and_archive.md).
 
-**Development after 1.1.0:** `algorithm`, `engine`, `eval_strategy`,
+**VAMOS 1.2.0:** `algorithm`, `engine`, `eval_strategy`,
 `external_archive_pruning`, `problem_set` and `experiment` take the values of their command-line option, in `defaults` and
 in `problems.<name>`. `engine` and `eval_strategy` may use any case, such as
 `NUMPY`, as in VAMOS 1.1.0; the other keys need the exact spelling, such as
@@ -386,7 +386,7 @@ the command line makes: an unknown `algorithm` printed `No runs were executed`
 and exited with code 0, an unknown `engine` or pruning policy stopped the run
 with a traceback, `experiment` in a problem block was ignored, and `--validate-config` accepted most of them.
 
-**Development after 1.1.0:** an operator that names the algorithm's default
+**VAMOS 1.2.0:** an operator that names the algorithm's default
 operator keeps the default parameters it does not set. With NSGA-II,
 `crossover: {method: sbx, eta: 5}` is SBX with probability 0.9 and eta 5, and
 MOEA/D's `crossover: {method: de, f: 0.7}` keeps `cr: 1.0`. An operator with
@@ -399,7 +399,7 @@ operator override replaced the default operator, so changing only `eta` also
 lowered the SBX probability from 1.0 to 0.9, and the saved configuration did
 not record it.
 
-**Development after 1.1.0:** every field of an algorithm block reaches the
+**VAMOS 1.2.0:** every field of an algorithm block reaches the
 algorithm configuration, in `defaults` and in `problems.<name>` (which wins).
 Examples include MOEA/D's `neighbor_size`, `delta`, `replace_limit` and
 `batch_size`, NSGA-III's `reference_directions` and `enforce_ref_dirs`,
@@ -426,7 +426,7 @@ ran with 20. For NSGA-II, MOEA/D, SMS-EMOA, NSGA-III, AGE-MOEA and RVEA, a
 command-line option reads crossover and mutation, plus NSGA-II's repair and
 MOEA/D's aggregation), its `selection` and `repair` included.
 
-**Development after 1.1.0:** `hv_threshold` (or `--hv-threshold`) stops only
+**VAMOS 1.2.0:** `hv_threshold` (or `--hv-threshold`) stops only
 NSGA-II early. With another algorithm the run logs a warning and uses its full
 evaluation budget; with `--algorithm both`, only the NSGA-II run can stop early.
 
@@ -436,7 +436,7 @@ Validate a config without running:
 vamos --config configs/experiment.yaml --validate-config
 ```
 
-**Development after 1.1.0:** `--validate-config` runs every check that precedes
+**VAMOS 1.2.0:** `--validate-config` runs every check that precedes
 the first run: the option values (for example a negative `max_evaluations` or
 a crossover `prob` above 1), each selected problem's settings after its
 `problems.<name>` overrides, its algorithm fields, and its `stopping` and
@@ -467,7 +467,7 @@ Install any required [optional extras](installation.md#optional-extras) first.
 - Problem zoo: `vamos zoo list`, `vamos zoo info zdt1`, `vamos zoo run zdt1 --algorithm nsgaii --budget 3000`
 - Studio (interactive, needs `studio` extra): read the [Studio walkthrough and launcher limitation](studio.md) before starting.
 
-**Development after 1.1.0:** `vamos --version` prints the installed version.
+**VAMOS 1.2.0:** `vamos --version` prints the installed version.
 `vamos check` prints one line per check, without the summary of each tiny run,
 and a failed NumPy check exits with code 1 and a message instead of a
 traceback. `vamos zoo info` with an unknown problem exits with code 1, `vamos zoo
@@ -475,7 +475,7 @@ list` names the encoding of real-valued problems `real` for all of them (some
 said `continuous`), and `vamos zoo run` no longer prints `HV: None`: it
 computes no hypervolume, which needs a reference point.
 
-**Development after 1.1.0:** `vamos profile` runs each engine once untimed, to
+**VAMOS 1.2.0:** `vamos profile` runs each engine once untimed, to
 pay one-time costs such as Numba compilation, then `--repeats` timed runs
 (default 3). It reports their median, which the speedups use, and their range.
 An unknown engine or problem stops the command with exit code 2 before any run.
@@ -494,7 +494,7 @@ so the value was meaningless for a front outside the unit range (ZDT3,
 DTLZ1, WFG) and for problems without a reference front. It was missing with
 three or more objectives, and the CSV stored 0.0 where the table said N/A.
 
-**Development after 1.1.0:** `vamos bench` and `vamos ablation` build the
+**VAMOS 1.2.0:** `vamos bench` and `vamos ablation` build the
 indicator references per problem and number of objectives. The HV reference
 point (`hv_reference`, with `hv_source` set to `problem`) and the reference
 front for IGD, IGD+, epsilon and Hausdorff come from the non-dominated union of
@@ -504,7 +504,7 @@ benchmark. VAMOS 1.1.0 built one reference for the whole suite, which distorts
 its indicator values and significance tests; rerun those benchmarks before
 comparing them.
 
-**Development after 1.1.0:** the indicators and their references use only the
+**VAMOS 1.2.0:** the indicators and their references use only the
 feasible solutions of each run, those whose stored constraint values are all
 `G <= 0`. A run without feasible solutions gets HV 0 and +inf for IGD, IGD+,
 epsilon and Hausdorff, the worst values, and stays in the rank tests, which
@@ -515,7 +515,7 @@ counts as feasible: this is the case for unconstrained problems, and for
 SPEA2 and SMPSO with `constraint_mode: none`. VAMOS 1.1.0 also measured
 infeasible solutions, so its values for constrained problems are not valid.
 
-**Development after 1.1.0:** `vamos bench` checks its inputs before any run:
+**VAMOS 1.2.0:** `vamos bench` checks its inputs before any run:
 
 - `--config` takes a JSON or YAML mapping with the keys `population_size`,
   `offspring_population_size`, `max_evaluations`, `seeds`, `engine` and
@@ -537,7 +537,7 @@ infeasible solutions, so its values for constrained problems are not valid.
   process-wide matplotlib backend to `Agg`, and its plots work with every
   matplotlib version that VAMOS supports (3.7 or newer).
 
-**Development after 1.1.0:** the statistics of `vamos bench` changed:
+**VAMOS 1.2.0:** the statistics of `vamos bench` changed:
 
 - The LaTeX tables bold the best mean of each problem. They mark an algorithm
   whose runs differ from those of the best in a two-sided rank-sum
@@ -623,4 +623,4 @@ summary_dir: results/ablation_demo/summary
 
 The CLI writes a summary CSV by default to `<output_root>/summary/ablation_metrics.csv` (override with `summary_path` or `summary_dir`).
 
-**Development after 1.1.0:** each variant writes its studies to `<output_root>/<variant>/study-NNNN` (`--flat-output` keeps them all in `<output_root>`), and a key of `base_config` or `config_overrides` that is neither an ablation setting nor a field of the algorithm configuration is rejected before any run. See [Ablation planning](../topics/tuning.md#ablation-planning).
+**VAMOS 1.2.0:** each variant writes its studies to `<output_root>/<variant>/study-NNNN` (`--flat-output` keeps them all in `<output_root>`), and a key of `base_config` or `config_overrides` that is neither an ablation setting nor a field of the algorithm configuration is rejected before any run. See [Ablation planning](../topics/tuning.md#ablation-planning).

@@ -14,9 +14,9 @@ ZDT1, NSGA-II and MOEA/D, seeds 42 and 43, population 100, NumPy backend,
 10,000 evaluations per run. The two seeds are pooled for each algorithm.
 This is a walkthrough dataset, not evidence that one algorithm is better.*
 
-This guide targets **VAMOS 1.1.0**. The launcher now serves the application
-and honors its study directory. Users of 1.0.2 should upgrade to obtain these
-fixes and the durable batch and comparison pages described here.
+This guide targets **VAMOS 1.2.0**. Since VAMOS 1.1.0 the launcher serves the
+application and honors its study directory. Users of 1.0.2 should upgrade to
+obtain these fixes and the durable batch and comparison pages described here.
 
 ### Prepare the same data
 
@@ -84,7 +84,7 @@ ranking table shown on the page, filters included. Use the
 Studio's optional dependencies are installed from PyPI:
 
 ```bash
-python -m pip install "vamos-optimization[studio]==1.1.0"
+python -m pip install "vamos-optimization[studio]==1.2.0"
 ```
 
 The packaged command and its intended study-root argument are:
@@ -136,7 +136,7 @@ vamos studio --address 0.0.0.0 --allow-remote-binding --no-browser --allow-webso
 - **Batch Comparison** runs several algorithms on several problems for
   consecutive seeds as a durable study in a background process, follows its
   progress, and reports hypervolume with CSV and LaTeX downloads.
-  **Development after 1.1.0:** every algorithm it offers for an integer
+  **VAMOS 1.2.0:** every algorithm it offers for an integer
   problem runs. In VAMOS 1.1.0 the tasks of MOEA/D, SMS-EMOA, NSGA-III and
   SPEA2 on an integer problem failed although the plan was valid, and so did
   `vamos reproduce` of their integer runs. Two Studio sessions that start the
@@ -148,7 +148,7 @@ vamos studio --address 0.0.0.0 --allow-remote-binding --no-browser --allow-webso
 - **Explore Results** loads a study, overlays the fronts of each problem,
   filters them, ranks solutions with MCDM methods, exports the ranking as CSV,
   and opens a run in Run Experiment to run it again.
-  **Development after 1.1.0:** **Feasible solutions only** is on by default,
+  **VAMOS 1.2.0:** **Feasible solutions only** is on by default,
   the ranking and its CSV mark each solution as feasible or not, and a front
   that merges several seeds keeps only the solutions no other seed dominates,
   among the feasible ones, with each row's decision variables. VAMOS 1.1.0
@@ -201,7 +201,7 @@ a budget of at least 100 evaluations, made with the same VAMOS version, Run
 Experiment therefore follows the same trajectory; change the seed to run
 another replicate.
 
-**Development after 1.1.0:** Run Experiment accepts any seed from 0 to
+**VAMOS 1.2.0:** Run Experiment accepts any seed from 0 to
 2^64 - 1, the range of the seeds that `optimize` and the CLI draw when none is
 given, and shows it as text so that every digit is kept. It also says when it
 lowers a run's budget to its maximum of 5,000,000 evaluations. VAMOS 1.1.0
@@ -273,7 +273,7 @@ A script generated from a customized configuration rebuilds it with the
 configuration class's `from_dict`; otherwise the script uses the default
 configuration and the chosen population size.
 
-**Development after 1.1.0:** the Problem Builder's script always rebuilds the
+**VAMOS 1.2.0:** the Problem Builder's script always rebuilds the
 configuration Studio runs with `from_dict`, default or customized, uses the
 seed of the form, and imports `math` and `numpy as np`, the names the
 objective code can use in Studio. It reports the number of returned
@@ -314,7 +314,7 @@ The exports are a LaTeX table of medians and interquartile ranges with the
 marks, a LaTeX ranking table, the comparisons as CSV, and the long-format
 results and metrics files that the SAES tool reads.
 
-**Development after 1.1.0:** a run without any feasible solution takes the
+**VAMOS 1.2.0:** a run without any feasible solution takes the
 worst value of each indicator, HV = 0 and IGD+ = ∞, and counts as such in the
 Mann-Whitney tests, the A12 effect sizes, the medians, and the Friedman and
 Nemenyi ranks; a problem therefore stays in the ranking when an algorithm never
@@ -327,7 +327,7 @@ feasible solution. VAMOS 1.1.0 left such runs out of IGD+, so an algorithm that
 was feasible in a few runs could appear significantly better than one that was
 always feasible.
 
-**Development after 1.1.0:** the Ranking tab's critical difference uses the
+**VAMOS 1.2.0:** the Ranking tab's critical difference uses the
 significance level chosen on the page, and the caption of its LaTeX table gives
 that critical difference and level; VAMOS 1.1.0 always used α = 0.05 for the
 diagram and left the critical difference out of the table. The warning
@@ -349,7 +349,7 @@ regenerating that code clears the acknowledgement.
 > Trusted local Python code executes with the permissions of your current
 > operating-system user. Review the complete code before opting in.
 
-**Development after 1.1.0:** the answer of every provider goes through one
+**VAMOS 1.2.0:** the answer of every provider goes through one
 check before the form changes: a surrounding Markdown code fence is removed,
 the answer must be a JSON object, and `objective_code`, `constraint_code` and
 `bounds` must be strings, `n_var` an integer from 1 to 100 and `n_obj` from
@@ -382,7 +382,7 @@ the canonical studies at or below the chosen folder. A study that cannot be
 loaded is reported as an error; synthetic demo fronts appear only after you
 choose **Load demo data**, and are labelled as such.
 
-**Development after 1.1.0:** Find studies, and the study lists of Batch
+**VAMOS 1.2.0:** Find studies, and the study lists of Batch
 Comparison and Statistical Comparison, search in the background, look at most
 four folders below the chosen one, and read at most 50 studies, the most
 recently changed first. VAMOS 1.1.0 searched the whole folder tree while the
@@ -404,7 +404,7 @@ provider and an API key. The provider selector starts on `gemini`.
 | openai | `pip install "vamos-optimization[openai]"` | `gpt-4o` | `VAMOS_ASSIST_OPENAI_MODEL` | `OPENAI_API_KEY` |
 | anthropic | `pip install "vamos-optimization[anthropic]"` | `claude-sonnet-4-20250514` | `VAMOS_ASSIST_ANTHROPIC_MODEL` | `ANTHROPIC_API_KEY`, or another credential the Anthropic SDK finds |
 
-**Development after 1.1.0:** the `gemini` extra is new. With VAMOS 1.1.0,
+**VAMOS 1.2.0:** the `gemini` extra is new. With VAMOS 1.1.0,
 install the Gemini SDK with `pip install google-genai`.
 
 `VAMOS_ASSIST_OPENAI_MODEL` also sets the model of `vamos assist`, whose

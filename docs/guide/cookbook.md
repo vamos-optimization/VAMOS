@@ -1,6 +1,6 @@
 # VAMOS Cookbook
 
-Copy-paste recipes for the published **VAMOS 1.1.0** package. Install the core
+Copy-paste recipes for the published **VAMOS 1.2.0** package. Install the core
 package using [Installation](installation.md); recipes that need an extra say
 so explicitly. Budgets below are demonstrations, not evidence of convergence
 or comparative performance.
@@ -132,7 +132,7 @@ assert progress.generations and progress.finished
 Observe the supplied arrays without modifying them. Custom callbacks are not
 covered by the built-in exact-replay contract.
 
-**Development after 1.1.0:** every algorithm first calls `on_generation` with
+**VAMOS 1.2.0:** every algorithm first calls `on_generation` with
 generation 0, the evaluated initial population, and then once per generation.
 NSGA-III, SMS-EMOA, IBEA, AGE-MOEA and RVEA used to start at generation 1, and
 RVEA at 2. An exception raised by `on_generation` or by an optional
@@ -155,7 +155,7 @@ continue an interrupted algorithm at its last in-memory generation. Pickling
 algorithm objects is not a supported VAMOS checkpoint format. Internal
 checkpoint/state payloads have no public persistence guarantee.
 
-**Development after 1.1.0:** within one process, `optimize(..., checkpoint=...)`
+**VAMOS 1.2.0:** within one process, `optimize(..., checkpoint=...)`
 resumes NSGA-II and MOEA/D from `result.data["checkpoint"]`. With the same
 configuration and seed, the resumed run continues exactly as the uninterrupted
 one, and the external archive keeps its constraint values. A checkpoint that
@@ -165,7 +165,7 @@ logged a warning and started a fresh run instead. It also restored archives
 without their constraint values, so those rows counted as feasible, and a
 default MOEA/D run drifted from the uninterrupted one after resuming.
 
-**Development after 1.1.0:** the resumed run's `max_evaluations` is its total
+**VAMOS 1.2.0:** the resumed run's `max_evaluations` is its total
 budget, the checkpoint's evaluations included: resuming a 1000-evaluation
 checkpoint with `max_evaluations=2000` adds 1000 evaluations. A budget below
 the checkpoint's evaluations raises `ConfigurationError`; VAMOS 1.1.0 returned
@@ -309,7 +309,7 @@ The single-run CLI is **Stable**; custom evaluators and distributed study
 ownership remain **Experimental**. This command distributes evaluations
 within one run, not concurrent mutation of a durable study.
 
-**Development after 1.1.0:** the multiprocessing backend starts its pool of
+**VAMOS 1.2.0:** the multiprocessing backend starts its pool of
 worker processes at the first evaluation and keeps it for the rest of the run.
 `optimize(..., eval_strategy="multiprocessing")` and the CLI close the pool
 when the run ends; a `MultiprocessingEvalBackend` that you create and pass is

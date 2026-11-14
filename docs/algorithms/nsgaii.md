@@ -67,7 +67,7 @@ For the generational configuration used here, the algorithm repeatedly performs 
 
 Crowding distance estimates local spacing in objective space using normalized neighbouring objective differences. Boundary solutions receive special treatment to preserve extremes. It is a diversity criterion, **not** a distance to the true Pareto front. In the tutorial configuration, tournament selection also uses rank and crowding.
 
-**Development after 1.1.0:** an objective that has the same value on every solution of a front is skipped in that front's crowding distance, as in jMetal and pymoo, and a front of one or two solutions gives each of them an infinite distance. VAMOS 1.1.0 still gave an infinite distance to the two solutions that came first and last when sorting by the constant objective, which depended only on their order. This applies to every engine and to the `crowding` pruning of external archives.
+**VAMOS 1.2.0:** an objective that has the same value on every solution of a front is skipped in that front's crowding distance, as in jMetal and pymoo, and a front of one or two solutions gives each of them an infinite distance. VAMOS 1.1.0 still gave an infinite distance to the two solutions that came first and last when sorting by the constant objective, which depended only on their order. This applies to every engine and to the `crowding` pruning of external archives.
 
 This is the algorithmic idea. The encoding, variation operators, constraint handling, result selection and optional archives below are implementation/configuration choices that must be reported separately when comparing runs.
 
@@ -90,7 +90,7 @@ config = (
 
 Pass that `config` as `algorithm_config` to `optimize()` as above. The string `"1/n"` resolves using the problem's number of variables; for the 30-variable example it is `1/30`.
 
-**Development after 1.1.0:** this example sets the SBX probability to 1.0 explicitly. `NSGAIIConfig.default()` uses 0.9, the value of Deb et al. (2002), jMetal and pymoo; VAMOS 1.1.0 used 1.0.
+**VAMOS 1.2.0:** this example sets the SBX probability to 1.0 explicitly. `NSGAIIConfig.default()` uses 0.9, the value of Deb et al. (2002), jMetal and pymoo; VAMOS 1.1.0 used 1.0.
 
 ### Steady-state NSGA-II
 
@@ -116,7 +116,7 @@ The initial population still counts towards `max_evaluations`. With `pop_size=10
 
 When comparing generational and steady-state NSGA-II, keep the evaluation budget and seed policy explicit. Changing the replacement schedule changes the search dynamics even when the total number of evaluations is identical.
 
-**Development after 1.1.0:** with `engine="numba"`, the one-offspring step of the real-coded SBX/polynomial-mutation configuration above runs compiled and follows the same trajectory as `engine="numpy"`; see [Numba engine coverage](../reference/algorithms.md#numba-engine-coverage) for the supported configuration.
+**VAMOS 1.2.0:** with `engine="numba"`, the one-offspring step of the real-coded SBX/polynomial-mutation configuration above runs compiled and follows the same trajectory as `engine="numpy"`; see [Numba engine coverage](../reference/algorithms.md#numba-engine-coverage) for the supported configuration.
 
 | Choice | What to consider |
 | --- | --- |
@@ -133,7 +133,7 @@ This table explains decisions rather than duplicating every signature and defaul
 
 The default factory has branches for real, binary, integer, permutation and mixed encodings. For a non-real problem, provide its actual `encoding` to `NSGAIIConfig.default(...)`; using a real-coded configuration is not an encoding conversion. Consult the [problem contracts](../reference/problems.md) and [custom-problem guide](../guide/custom-problem.md), particularly for mixed-variable specifications. This tutorial validates the real-coded ZDT1 path, not every possible operator/problem combination.
 
-With the default feasibility constraint mode, feasible candidates are favoured over infeasible ones; selection then uses objective space among feasible candidates and total violation among infeasible candidates. Constraints use the `G <= 0` convention. **Development after 1.1.0:** `constraint_handling` replaces that rule by another of jMetal's constraint-handling techniques, such as epsilon-constrained or stochastic ranking; see [choose a constraint-handling technique](../reference/constraints.md#choose-a-constraint-handling-technique). The present ZDT1 example has no constraints; follow the [custom-problem guide](../guide/custom-problem.md) for a constrained problem rather than inferring feasibility from an objective scatter plot.
+With the default feasibility constraint mode, feasible candidates are favoured over infeasible ones; selection then uses objective space among feasible candidates and total violation among infeasible candidates. Constraints use the `G <= 0` convention. **VAMOS 1.2.0:** `constraint_handling` replaces that rule by another of jMetal's constraint-handling techniques, such as epsilon-constrained or stochastic ranking; see [choose a constraint-handling technique](../reference/constraints.md#choose-a-constraint-handling-technique). The present ZDT1 example has no constraints; follow the [custom-problem guide](../guide/custom-problem.md) for a constrained problem rather than inferring feasibility from an objective scatter plot.
 
 Without an external archive, the default result mode is `non_dominated`; `population` returns the final population. Enabling an external archive changes the default source of returned solutions unless population mode is requested explicitly. The archive is not the population: inspect `result.data["archive"]` and `result.data["population"]` separately. See [stopping and archives](../experiment/stopping_and_archive.md) before changing either policy.
 

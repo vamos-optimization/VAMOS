@@ -2,7 +2,7 @@
 
 Configure `ctaea` through `vamos.algorithms.CTAEAConfig`. This page is the parameter reference, not a tutorial about the algorithm; see [C-TAEA](../../../algorithms/ctaea.md) for the algorithm, its weight vectors and its budget rule.
 
-**Development after 1.1.0.** C-TAEA and `CTAEAConfig` are new in the development series after VAMOS 1.1.0; the [1.0 compatibility baseline](../../../project/stability-and-versioning.md) does not cover them yet.
+**New in VAMOS 1.2.0.** The [1.0 compatibility baseline](../../../project/stability-and-versioning.md) does not cover C-TAEA and `CTAEAConfig` yet.
 
 ```python
 from vamos.algorithms import CTAEAConfig

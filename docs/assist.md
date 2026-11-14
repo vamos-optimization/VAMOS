@@ -1,6 +1,6 @@
 # VAMOS Assist
 
-!!! warning "Experimental workflow in VAMOS 1.1.0"
+!!! warning "Experimental workflow in VAMOS 1.2.0"
     The Assist CLI, provider integrations, generated plans, and convenience
     artifacts are Experimental. They may change in a minor release; see
     [Stability and versioning](project/stability-and-versioning.md).
@@ -58,7 +58,7 @@ Note: `execution_mode` can be `"in_process"` or `"subprocess"` (fallback). The a
 Install optional dependencies:
 
 ```bash
-python -m pip install "vamos-optimization[openai]==1.1.0"
+python -m pip install "vamos-optimization[openai]==1.2.0"
 ```
 
 Alternative:
@@ -133,7 +133,7 @@ Expected JSON output (example):
 Install optional dependency support:
 
 ```bash
-python -m pip install "vamos-optimization[openai]==1.1.0"
+python -m pip install "vamos-optimization[openai]==1.2.0"
 ```
 
 Alternative:
@@ -258,14 +258,14 @@ Run directory (`assist run` / `assist go --smoke`):
 
 `run_report.json` records `execution_mode` (`in_process` or `subprocess` fallback).
 
-**Development after 1.1.0:**
+**VAMOS 1.2.0:**
 - **Overwriting:** `--overwrite` replaces only a project or run folder that assist created, marked by a `.vamos-assist` file. It removes only the files assist wrote there (the plan files and `README_run.md`; `execution_config.json`, `run_report.json` and `results`) and keeps anything else you added. An `--out` that is the plan folder, or contains it, is refused.
 - **Failed runs:** a run that fails in the process is not repeated in a subprocess; the subprocess is used only when the CLI cannot be imported. The failure goes to `error_message` and `warnings`. A run that exits, for example on a configuration error, still writes `run_report.json` with its exit code.
 - **Before:** in VAMOS 1.1.0, `--overwrite` deleted the whole folder, even the plan folder or a folder assist had not created. A failed run was executed a second time in a subprocess, whose result replaced the first error, and an exit left no report.
 
 ## Troubleshooting
 
-- Missing OpenAI SDK: install optional deps with `python -m pip install "vamos-optimization[openai]==1.1.0"` (or `python -m pip install openai`).
+- Missing OpenAI SDK: install optional deps with `python -m pip install "vamos-optimization[openai]==1.2.0"` (or `python -m pip install openai`).
 - Missing API key: set `OPENAI_API_KEY` and open a new shell session if needed.
 - Run diagnostics first: `vamos assist doctor`.
 - Invalid auto overrides: VAMOS filters/rejects unsupported keys and records requested/applied/rejected overrides in `plan.json`.

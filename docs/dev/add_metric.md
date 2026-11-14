@@ -13,7 +13,7 @@ Use a quality indicator for a numerical property of an objective front. Executio
 
 ## Indicator contract
 
-**Development after 1.1.0:** every indicator path validates its inputs the same way.
+**VAMOS 1.2.0:** every indicator path validates its inputs the same way.
 
 - **Finite inputs:** a NaN or infinite value in a front, a reference front or a reference point raises `ValueError`. MooCore used to drop such rows silently.
 - **Reference point:** `hypervolume()`, `hypervolume_contributions()`, `HVIndicator`, `HVContributionsIndicator`, `HVApproxIndicator` and `WHVRectIndicator` require an explicit reference point. VAMOS 1.1.0 used `max(front) + 1` of the measured front, so adding a dominated point changed the hypervolume.
