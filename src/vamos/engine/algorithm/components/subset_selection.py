@@ -107,7 +107,7 @@ def select_top_k_crowding(F: NDArray[np.float64], k: int) -> NDArray[np.int_]:
 # ---------------------------------------------------------------------------
 
 
-def select_top_k_farthest(F: NDArray[np.float64], k: int) -> NDArray[np.int_]:
+def select_top_k_farthest(F: NDArray[np.float64], k: int, *, normalize: bool = False) -> NDArray[np.int_]:
     """Select the top-*k* most diverse solutions using farthest-point sampling.
 
     Greedy algorithm that iteratively picks the point maximising the minimum
@@ -122,6 +122,13 @@ def select_top_k_farthest(F: NDArray[np.float64], k: int) -> NDArray[np.int_]:
         Objective matrix of shape ``(n, n_obj)``.
     k:
         Number of solutions to keep.
+    normalize:
+        Scale each objective to ``[0, 1]`` by its smallest and largest value in
+        ``F`` before measuring distances, as distance-based subset selection
+        does, so that the selection depends neither on the objectives' units nor
+        on their offsets; an objective that is constant in ``F`` is ignored.
+        ``False`` (the default) measures raw distances, so the objective with
+        the widest range dominates them.
 
     Returns
     -------
@@ -133,6 +140,10 @@ def select_top_k_farthest(F: NDArray[np.float64], k: int) -> NDArray[np.int_]:
     n = F.shape[0]
     if n <= k:
         return np.arange(n, dtype=int)
+    if normalize:
+        from vamos.engine.algorithm.components.utils import normalize_objectives
+
+        F = normalize_objectives(F)
 
     # Start from the point with the largest norm (an extreme point)
     selected = [int(np.argmax(np.linalg.norm(F, axis=1)))]
