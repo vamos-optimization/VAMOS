@@ -133,7 +133,7 @@ def initialize_spea2_run(
     env_G = G[env_selected] if G is not None else None
 
     # Setup external archive (optional, separate from internal)
-    ext_cfg = resolve_external_archive(cfg)
+    ext_cfg = resolve_external_archive(cfg, seed=seed)
     archive_X, archive_F, archive_manager = setup_archive(
         kernel,
         env_X,

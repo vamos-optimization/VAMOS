@@ -18,7 +18,7 @@ from typing import overload
 
 from vamos.engine.algorithm.catalog import minimum_violation
 from vamos.engine.algorithm.config.types import AlgorithmConfigProtocol, AlgorithmName, EngineName
-from vamos.experiment._optimize_inputs import check_algorithm_config, check_budget, check_problem_arguments
+from vamos.experiment._optimize_inputs import check_algorithm_config, check_budget, check_problem_arguments, with_archive_seed
 from vamos.experiment.artifacts.specs import RunSpecInputs, build_run_specs, custom_problem_code, is_registry_problem
 from vamos.experiment.auto import _compute_max_evaluations, _compute_pop_size, _resolve_problem, _select_algorithm
 from vamos.experiment.optimization_result import OptimizationResult, StudyResult
@@ -402,7 +402,7 @@ def _run_single(
                     f"Conflicting pop_size: pop_size={pop_size} but algorithm_config.pop_size={cfg_pop_size_int}. "
                     "Set pop_size on algorithm_config (single source of truth)."
                 )
-        algo_cfg = algorithm_config
+        algo_cfg = with_archive_seed(algorithm_config, seed)
 
     algo_cfg_dict = dict(algo_cfg.to_dict())
     resolved_pop_size = algo_cfg_dict.get("pop_size")

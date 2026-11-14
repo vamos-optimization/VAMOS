@@ -542,3 +542,23 @@ def test_checkpoint_restores_archive_constraints():
     assert restored_G is not None
     np.testing.assert_array_equal(restored_G, np.ones((restored_X.shape[0], 1)))
     assert sorted(map(tuple, restored_X.tolist())) == sorted(map(tuple, np.asarray(checkpoint["archive_X"]).tolist()))
+
+
+def test_ref_dirs_archive_streams_differ_between_run_seeds():
+    import vamos
+    from vamos.algorithms import NSGAIIConfig
+
+    def run(seed):
+        config = NSGAIIConfig.builder().pop_size(30).crossover("sbx", prob=0.9, eta=20.0).mutation("pm", prob=0.1, eta=20.0)
+        config = config.selection("tournament").external_archive(20, pruning="ref_dirs").build()
+        result = vamos.optimize("dtlz2", algorithm="nsgaii", algorithm_config=config, max_evaluations=600, seed=seed, engine="numpy")
+        archive = result.meta["run_artifact_resolved_spec"]["algorithm"]["config"]["external_archive"]
+        return archive["rng_seed"], np.asarray(result.F)
+
+    seed_1, front_1 = run(1)
+    seed_2, _ = run(2)
+    again, front_again = run(1)
+    # The pruning stream derives from the run seed, and the resolved configuration records it.
+    assert isinstance(seed_1, int) and isinstance(seed_2, int) and seed_1 != seed_2
+    assert again == seed_1
+    np.testing.assert_array_equal(front_again, front_1)

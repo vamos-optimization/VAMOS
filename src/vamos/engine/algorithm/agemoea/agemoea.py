@@ -235,7 +235,7 @@ class AGEMOEA:
         )
 
         variation = _build_variation(self.cfg, encoding, xl, xu, problem, self.kernel.variation_kernels())
-        ext_cfg = resolve_external_archive(self.cfg)
+        ext_cfg = resolve_external_archive(self.cfg, seed=seed)
         archive_X, archive_F, archive_manager = setup_archive(
             self.kernel,
             X,
