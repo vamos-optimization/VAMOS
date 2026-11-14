@@ -237,6 +237,12 @@ ZXH-CF1–16 (Zhou, Xiang and He, 2021) follow jMetal's implementation at commit
   only one interval at a time; jMetal counts two or three violated constraints
   for an angle, VAMOS one.
 
+**Development after 1.2.0:** ZXH-CF5–8 and ZXH-CF13–16 have one constraint per
+constrained angle, as ZXH-CF9–12 already had: `k + 1` constraints, or `k + 2`
+with a radius. VAMOS 1.2.0 stored two per angle, `2k + 1` or `2k + 2`. The
+feasibility and the overall violation do not change; the number of constraints
+and of violated constraints does.
+
 **VAMOS 1.2.0:** only MW4, MW8 and MW14 accept an objective
 override; the other MW keys reject a different `n_obj` with `ValueError`.
 VAMOS 1.1.0 accepted an override for every MW key and kept those problems at
