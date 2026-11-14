@@ -38,6 +38,7 @@
   "vamos.algorithms": [
     "AGEMOEAConfig",
     "CCMOConfig",
+    "CMOEAMSConfig",
     "CTAEAConfig",
     "GenericAlgorithmConfig",
     "IBEAConfig",

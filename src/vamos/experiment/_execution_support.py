@@ -22,6 +22,7 @@ _VARIATION_FIELDS = (
     "ccmo",
     "ctaea",
     "top",
+    "cmoeams",
 )
 
 
@@ -41,6 +42,7 @@ class VariationConfigs:
     ccmo: VariationConfig | None = None
     ctaea: VariationConfig | None = None
     top: VariationConfig | None = None
+    cmoeams: VariationConfig | None = None
 
     @classmethod
     def from_namespace(cls, args: Namespace) -> VariationConfigs:
@@ -57,6 +59,7 @@ class VariationConfigs:
             ccmo=getattr(args, "ccmo_variation", None),
             ctaea=getattr(args, "ctaea_variation", None),
             top=getattr(args, "top_variation", None),
+            cmoeams=getattr(args, "cmoeams_variation", None),
         )
 
     def as_storage_dict(self) -> dict[str, VariationConfig | None]:
@@ -73,6 +76,7 @@ class VariationConfigs:
             "ccmo_variation": self.ccmo,
             "ctaea_variation": self.ctaea,
             "top_variation": self.top,
+            "cmoeams_variation": self.cmoeams,
         }
 
     def has_any(self) -> bool:

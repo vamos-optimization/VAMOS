@@ -79,6 +79,7 @@ class InvalidAlgorithmError(ConfigurationError):
         available = available or [
             "agemoea",
             "ccmo",
+            "cmoeams",
             "ctaea",
             "ibea",
             "moead",

@@ -63,6 +63,7 @@ def run_single(
             "ccmo": variations.ccmo,
             "ctaea": variations.ctaea,
             "top": variations.top,
+            "cmoeams": variations.cmoeams,
         },
         track_genealogy=track_genealogy,
     )
