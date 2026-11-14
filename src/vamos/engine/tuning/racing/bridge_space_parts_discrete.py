@@ -37,7 +37,7 @@ def real_operator_part_medium(
         ]
     )
     if include_repair:
-        params.append(Categorical("repair", ["clip", "reflect", "random", "round"], role="structural"))
+        params.append(Categorical("repair", ["clip", "reflect", "random"], role="structural"))
 
     conditionals = [
         ConditionalBlock("crossover", "sbx", [Real("crossover_eta", 5.0, 40.0, role="operator_rate")]),
@@ -46,7 +46,7 @@ def real_operator_part_medium(
             "blx_alpha",
             [
                 Real("crossover_alpha", 0.0, 1.0, role="operator_rate"),
-                Categorical("blx_repair", ["clip", "random", "reflect", "round"], role="structural"),
+                Categorical("blx_repair", ["clip", "random", "reflect"], role="structural"),
             ],
         ),
         ConditionalBlock("mutation", "non_uniform", [Real("nonuniform_perturbation", 0.05, 0.5, role="operator_rate")]),
