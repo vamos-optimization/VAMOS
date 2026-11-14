@@ -164,6 +164,11 @@ keep the state of the technique. `cdp` keeps each algorithm's own survival, so
 its results are those of VAMOS 1.1.0. A technique other than `cdp` needs
 `constraint_mode="feasibility"`.
 
+**VAMOS 1.2.0:** [CCMO](../algorithms/ccmo.md) is an algorithm
+designed for constrained problems rather than a technique: it ranks its main
+population with the violation first and evolves a second population that
+ignores the constraints, whose offspring the main population can select.
+
 ### MOEA/D: subproblem update criteria
 
 **VAMOS 1.2.0:** MOEA/D handles constraints where a new solution

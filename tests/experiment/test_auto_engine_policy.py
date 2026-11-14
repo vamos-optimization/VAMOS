@@ -110,7 +110,8 @@ def test_broken_optional_install_falls_back_end_to_end(error):
         catalog.import_module = blocked_module
         from vamos.engine.algorithm.registry import get_builtin_algorithm_names
         for algorithm in get_builtin_algorithm_names():
-            kwargs = dict(algorithm=algorithm, seed=19, max_evaluations=300)
+            # CCMO's two initial populations of 200 take 400 evaluations.
+            kwargs = dict(algorithm=algorithm, seed=19, max_evaluations=500 if algorithm == 'ccmo' else 300)
             reference = vamos.optimize('zdt1', engine='numpy', **kwargs)
             fallback = vamos.optimize('zdt1', engine='auto', **kwargs)
             assert fallback.meta['engine'] == 'numpy'

@@ -102,6 +102,7 @@ nav:
       - SMPSO: algorithms/smpso.md
       - AGE-MOEA: algorithms/agemoea.md
       - RVEA: algorithms/rvea.md
+      - CCMO: algorithms/ccmo.md
     - Representations and applications:
       - Coverage Setup: tutorials/coverage-setup.md
       - Decision Representations: tutorials/encodings.md
@@ -144,6 +145,7 @@ nav:
         - SMPSO: reference/api/algorithms/smpso.md
         - AGE-MOEA: reference/api/algorithms/agemoea.md
         - RVEA: reference/api/algorithms/rvea.md
+        - CCMO: reference/api/algorithms/ccmo.md
       - Run artifacts:
         - Save, load, and replay: reference/api/runs.md
         - Stored runs and reports: reference/api/run-models.md

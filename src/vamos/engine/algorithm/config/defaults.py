@@ -8,6 +8,7 @@ from dataclasses import fields, replace
 from typing import Any, cast
 
 from .agemoea import AGEMOEAConfig
+from .ccmo import CCMOConfig
 from .ibea import IBEAConfig
 from .moead import MOEADConfig
 from .nsgaii import NSGAIIConfig
@@ -30,6 +31,7 @@ _DEFAULT_FACTORIES: dict[str, Callable[..., AlgorithmConfigProtocol]] = {
     "smpso": SMPSOConfig.default,
     "agemoea": AGEMOEAConfig.default,
     "rvea": RVEAConfig.default,
+    "ccmo": CCMOConfig.default,
 }
 
 # The built-in algorithm each configuration class configures.
@@ -43,6 +45,7 @@ _CONFIG_ALGORITHMS: dict[type, str] = {
     SMPSOConfig: "smpso",
     AGEMOEAConfig: "agemoea",
     RVEAConfig: "rvea",
+    CCMOConfig: "ccmo",
 }
 
 

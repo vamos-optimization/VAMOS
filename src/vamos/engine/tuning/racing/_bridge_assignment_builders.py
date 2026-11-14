@@ -8,6 +8,7 @@ import numpy as np
 from vamos.engine.algorithm.components.weight_vectors import largest_weighted_population
 from vamos.engine.algorithm.config import (
     AGEMOEAConfig,
+    CCMOConfig,
     IBEAConfig,
     MOEADConfig,
     NSGAIIConfig,
@@ -38,6 +39,7 @@ IBEA_NAMES = ALGORITHM_VARIANT_GROUPS["ibea"]
 SMPSO_NAMES = ALGORITHM_VARIANT_GROUPS["smpso"]
 AGEMOEA_NAMES = ALGORITHM_VARIANT_GROUPS["agemoea"]
 RVEA_NAMES = ALGORITHM_VARIANT_GROUPS["rvea"]
+CCMO_NAMES = ALGORITHM_VARIANT_GROUPS["ccmo"]
 
 
 def build_nsgaii_config(assignment: dict[str, Any], *, mixed: bool = False) -> NSGAIIConfig:
@@ -333,6 +335,36 @@ def build_rvea_config(assignment: dict[str, Any], *, mixed: bool = False) -> RVE
     return builder.build()
 
 
+def build_ccmo_config(assignment: dict[str, Any], *, mixed: bool = False) -> CCMOConfig:
+    """CCMO's configuration: crossover ``de`` is the DE variation (``de_cr``, ``de_f``), any other the GA variation.
+
+    A missing crossover probability is 1.0, CCMO's default.
+    """
+    builder = CCMOConfig.builder()
+    pop_size = int(assignment["pop_size"])
+    builder.pop_size(pop_size)
+    apply_initializer(builder, assignment, pop_size)
+
+    cross = str(assignment.get("crossover", "sbx"))
+    if cross == "de":
+        builder.crossover("de", cr=float(assignment.get("de_cr", 1.0)), f=float(assignment.get("de_f", 0.5)))
+    else:
+        cross_params: dict[str, Any] = {"prob": float(assignment.get("crossover_prob", 1.0))}
+        extend_crossover_params(cross, assignment, cross_params, mixed=mixed)
+        builder.crossover(cross, **cross_params)
+
+    mut = str(assignment.get("mutation", "pm"))
+    mut_params: dict[str, Any] = {}
+    if "mutation_prob" in assignment:
+        mut_params["prob"] = assignment["mutation_prob"]
+    extend_mutation_params(mut, assignment, mut_params, mixed=mixed)
+    builder.mutation(mut, **mut_params)
+
+    apply_optional_repair(builder, assignment)
+    apply_optional_external_archive(builder, assignment, pop_size)
+    return builder.build()
+
+
 def config_builders() -> dict[str, tuple[set[str], Any]]:
     return {
         "nsgaii": (NSGAII_NAMES, build_nsgaii_config),
@@ -344,6 +376,7 @@ def config_builders() -> dict[str, tuple[set[str], Any]]:
         "smpso": (SMPSO_NAMES, build_smpso_config),
         "agemoea": (AGEMOEA_NAMES, build_agemoea_config),
         "rvea": (RVEA_NAMES, build_rvea_config),
+        "ccmo": (CCMO_NAMES, build_ccmo_config),
     }
 
 

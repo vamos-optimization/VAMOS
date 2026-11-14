@@ -14,8 +14,8 @@ VAMOS bridges the gap between simple research scripts and large-scale optimizati
 VAMOS 1.0.0 is the first official public release and compatibility baseline.
 VAMOS 1.2.0 brings many built-in algorithms, operators, problems and indicators
 back to their published definitions, which changes results of affected
-experiments, and adds 115 constrained benchmark problems and jMetal's
-constraint-handling techniques. It supports Python 3.13 and 3.14 and is the
+experiments, and adds 115 constrained benchmark problems, jMetal's
+constraint-handling techniques and the CCMO algorithm. It supports Python 3.13 and 3.14 and is the
 last minor release for Python 3.10. See the
 [1.2.0 release notes](https://vamos-optimization.org/project/release-notes-1.2.0/), including
 which results to rerun, and the earlier
@@ -29,6 +29,7 @@ markers, not prior public releases. See the
 
 - **Unified API**: A clear, fluent interface `vamos.optimize()` for all workflows.
 - **Nine Algorithms**: NSGA-II/III, MOEA/D, SMS-EMOA, SPEA2, IBEA, SMPSO, AGE-MOEA, RVEA. [Known limitations](https://vamos-optimization.org/project/known-limitations/) lists those not yet validated independently against a reference implementation.
+  **VAMOS 1.2.0:** CCMO (Tian et al., 2021), a coevolutionary algorithm for constrained problems whose fitness and selection are checked against jMetal's port and whose IGD on MW1, MW3 and C1-DTLZ1 matches the published values.
 - **Unified Archiving**: Consistent external archive configuration via `.external_archive(capacity=..., pruning=...)`, with bounded or unbounded archives and pruning policies `crowding`, `hv`, `mc_hv`, `knn`, `maxmin`, and `ref_dirs`. When an external archive is enabled, top-level results come from it by default unless `result_mode="population"` is requested.
 - **Multi-Fidelity Tuning**: Hyperband-style racing with warm-start checkpoints for sample-efficient algorithm configuration.
 - **Ready-to-use Tuning Backends**: `racing` and `random` work out of the box; install the optional `tuning` extra to enable `optuna`, `bohb_optuna`, `smac3`, and `bohb` via `vamos tune`.

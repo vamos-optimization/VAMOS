@@ -10,7 +10,7 @@ from vamos.foundation.problem.registry import get_problem_specs
 from .models import RunManifest
 from .reports import ComponentStatus, VerificationReason
 
-BUILT_IN_ALGORITHMS = ("agemoea", "ibea", "moead", "nsgaii", "nsgaiii", "rvea", "smpso", "smsemoa", "spea2")
+BUILT_IN_ALGORITHMS = ("agemoea", "ccmo", "ibea", "moead", "nsgaii", "nsgaiii", "rvea", "smpso", "smsemoa", "spea2")
 BUILT_IN_BACKENDS = ("numpy", "numba", "moocore")
 BUILT_IN_OPERATORS = (
     "bitflip",

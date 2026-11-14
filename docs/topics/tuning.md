@@ -396,6 +396,16 @@ parameters of `improved_epsilon` (`improved_epsilon_tao`,
 `improved_epsilon_decay_fraction`), with the ranges of Evolver's
 `MOEADDoubleConstrained` space.
 
+**VAMOS 1.2.0:** `ccmo` is the real-coded space of
+[CCMO](../algorithms/ccmo.md), which handles constraints itself: `pop_size`
+(20 to 200, the size of each of its two populations) and the crossover, which
+chooses the variation. SBX, BLX-alpha and arithmetic crossover select the GA
+variation, with `crossover_prob` and their own parameters; `de` selects the DE
+variation, with `de_cr` and `de_f` in [0, 1] and no `crossover_prob`. Mutation,
+initializer and repair are those of the other real-coded spaces. An assignment
+without `crossover_prob`, `de_cr` or `de_f` gets the published values: 1.0, and
+CR = 1 and F = 0.5. `vamos tune --algorithm ccmo` tunes it.
+
 ### Populations that depend on the number of objectives
 
 The parameter spaces do not know the problem, but two algorithms need its

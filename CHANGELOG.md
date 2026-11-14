@@ -55,6 +55,13 @@ rerun. Run and study artifacts keep the 1.0.0 schemas.
   `feasibility_rules` (the default), `improved_epsilon` and
   `violation_threshold`, which decide as jMetal's do, and the tuning space
   `moead_constrained` (#258).
+- CCMO (`ccmo`), the coevolutionary framework for constrained problems of Tian
+  et al. (2021), following jMetal's port: its fitness and selection match
+  jMetal's on fixed populations, and its IGD on MW1, MW3 and C1-DTLZ1 matches
+  the published values. `CCMOConfig` and the `ccmo` tuning space configure it,
+  and its budget is exact. It stays outside the stable API, which the 1.0
+  compatibility check now lets grow; `VariationPipeline` gains `recombine`
+  and `mutate` (#272).
 
 - `vamos --version` prints the installed version (#273).
 

@@ -9,6 +9,7 @@ import pytest
 import vamos
 from vamos.engine.algorithm.config import (
     AGEMOEAConfig,
+    CCMOConfig,
     IBEAConfig,
     MOEADConfig,
     NSGAIIConfig,
@@ -47,6 +48,10 @@ def _rvea() -> RVEAConfig:
     )
 
 
+def _ccmo_de() -> CCMOConfig:
+    return CCMOConfig.builder().pop_size(4).crossover("de", cr=0.9, f=0.5).mutation("pm", prob=1.0 / 6.0, eta=20.0).build()
+
+
 _ALGORITHMS: tuple[tuple[str, str, Callable[[], Any], dict[str, int]], ...] = (
     ("nsgaii", "zdt1", lambda: NSGAIIConfig.default(pop_size=8, n_var=6), {"n_var": 6}),
     ("nsgaiii", "dtlz2", _nsgaiii, {"n_var": 6, "n_obj": 3}),
@@ -57,6 +62,9 @@ _ALGORITHMS: tuple[tuple[str, str, Callable[[], Any], dict[str, int]], ...] = (
     ("smpso", "zdt1", lambda: SMPSOConfig.default(pop_size=8, n_var=6), {"n_var": 6}),
     ("agemoea", "zdt1", lambda: AGEMOEAConfig.default(pop_size=8, n_var=6), {"n_var": 6}),
     ("rvea", "dtlz2", _rvea, {"n_var": 6, "n_obj": 3}),
+    # CCMO: two initial populations of 4, then one generation, on a constrained problem and with the DE variation.
+    ("ccmo", "c1dtlz1", lambda: CCMOConfig.default(pop_size=4, n_var=7), {"n_var": 7, "n_obj": 3}),
+    ("ccmo", "zdt1", _ccmo_de, {"n_var": 6}),
 )
 
 

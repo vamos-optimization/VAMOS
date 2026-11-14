@@ -14,6 +14,7 @@ Examples:
 """
 
 from .agemoea import AGEMOEAConfig
+from .ccmo import CCMOConfig
 from .generic import GenericAlgorithmConfig
 from .ibea import IBEAConfig
 from .moead import MOEADConfig
@@ -49,6 +50,8 @@ __all__ = [
     "AGEMOEAConfig",
     # RVEA
     "RVEAConfig",
+    # CCMO
+    "CCMOConfig",
     # Plugin/custom
     "GenericAlgorithmConfig",
     # Typing helpers

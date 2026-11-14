@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "bd95776c4dc6aabb2b5700a8a7d2570d3a3c13ad",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit bd95776c4dc6aabb2b5700a8a7d2570d3a3c13ad",
+  "generation_commit": "7aa3a496e1d7ac0eae3008ce7e0513087851ff4b",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 7aa3a496e1d7ac0eae3008ce7e0513087851ff4b",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.1",

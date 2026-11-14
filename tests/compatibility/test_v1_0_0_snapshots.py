@@ -218,3 +218,17 @@ def test_only_the_constructor_of_a_configuration_class_with_added_fields_may_ext
     assert generator._keeps_frozen_api(api, with_signature("vamos.algorithms.NSGAIIConfig", extended), added)
     assert not generator._keeps_frozen_api(api, with_signature("vamos.algorithms.SPEA2Config", extended), added)
     assert not generator._keeps_frozen_api(api, with_signature("vamos.algorithms.NSGAIIConfig.builder", "(name)"), added)
+
+
+def test_built_in_algorithms_may_be_added_but_not_removed() -> None:
+    """Built-in algorithms added during 1.x (``ccmo``) keep the 1.0 snapshot; a lost 1.0 identifier does not."""
+    generator = _generator()
+    frozen = _configs(["pop_size"], {}, {"pop_size": 100})
+    added = {**frozen, "algorithm_ids": ["ccmo", "nsgaii"]}
+
+    assert generator._keeps_frozen_configs(frozen, added, {"NSGAIIConfig": []})
+    assert not generator._keeps_frozen_configs(frozen, {**frozen, "algorithm_ids": ["ccmo"]}, {"NSGAIIConfig": []})
+    assert not generator._keeps_frozen_configs(frozen, {**frozen, "algorithm_ids": ["nsgaii", "nsgaii"]}, {"NSGAIIConfig": []})
+    committed = _committed("stable_algorithm_configs.json")
+    generated = json.loads(generator._json_bytes(generator._algorithm_snapshot()))
+    assert "ccmo" in generated["algorithm_ids"] and "ccmo" not in committed["algorithm_ids"]
