@@ -23,7 +23,7 @@ the configuration classes and the output of `Config.default()`. The generator
 reads the stable CLI arguments from the argparse parsers rather than from the
 help text, and the exit codes from the code that maps outcomes to codes.
 The check accepts built-in algorithm identifiers added after the frozen ones
-in `stable_algorithm_configs.json` (such as `ccmo` and `ctaea`), but not the loss of one,
+in `stable_algorithm_configs.json` (such as `ccmo`, `ctaea` and `top`), but not the loss of one,
 and it does not record the configuration classes of algorithms added after 1.0.
 
 Regenerate the structural snapshots only through:

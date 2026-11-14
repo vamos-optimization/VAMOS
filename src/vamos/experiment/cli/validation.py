@@ -187,5 +187,6 @@ def finalize_args(
     args.rvea_variation = _with_defaults_block(_collect_generic_variation(args, "rvea"), defaults, "rvea")
     args.ccmo_variation = defaults.get("ccmo", {})
     args.ctaea_variation = defaults.get("ctaea", {})
+    args.top_variation = defaults.get("top", {})
 
     return args

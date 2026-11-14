@@ -21,6 +21,7 @@ from vamos.engine.algorithm.config import (
     SMPSOConfig,
     SMSEMOAConfig,
     SPEA2Config,
+    ToPConfig,
 )
 from vamos.engine.hooks.config_parse import check_hook_archive_field, check_hook_reference_point
 from vamos.engine.hooks.hv_convergence import HVConvergenceConfig, check_hv_convergence_field, coerce_hv_convergence_field
@@ -53,6 +54,7 @@ _ALGORITHM_BLOCKS: dict[str, type] = {
     "rvea": RVEAConfig,
     "ccmo": CCMOConfig,
     "ctaea": CTAEAConfig,
+    "top": ToPConfig,
 }
 
 _OPERATOR_SPEC_KEYS = ("crossover", "mutation", "selection", "repair", "aggregation")

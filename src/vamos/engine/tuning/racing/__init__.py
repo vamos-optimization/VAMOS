@@ -52,6 +52,7 @@ from .bridge import (
     build_spea2_integer_config_space,
     build_spea2_mixed_config_space,
     build_spea2_permutation_config_space,
+    build_top_config_space,
     config_from_assignment,
 )
 from .config_space import AlgorithmConfigSpace
@@ -155,6 +156,7 @@ __all__ = [
     "build_rvea_mixed_config_space",
     "build_ccmo_config_space",
     "build_ctaea_config_space",
+    "build_top_config_space",
     "build_moead_config_space",
     "build_moead_constrained_config_space",
     "build_moead_mixed_config_space",

@@ -45,6 +45,7 @@ _BUILT_IN_ALGORITHMS = {
     "smpso",
     "smsemoa",
     "spea2",
+    "top",
 }
 
 

@@ -25,6 +25,7 @@ from .rvea import RVEAConfig
 from .smpso import SMPSOConfig
 from .smsemoa import SMSEMOAConfig
 from .spea2 import SPEA2Config
+from .top import ToPConfig
 from .types import (
     AlgorithmConfigMapping,
     AlgorithmConfigProtocol,
@@ -55,6 +56,8 @@ __all__ = [
     "CCMOConfig",
     # C-TAEA
     "CTAEAConfig",
+    # ToP
+    "ToPConfig",
     # Plugin/custom
     "GenericAlgorithmConfig",
     # Typing helpers

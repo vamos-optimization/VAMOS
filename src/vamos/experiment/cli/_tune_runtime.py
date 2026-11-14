@@ -62,6 +62,7 @@ from vamos.engine.tuning import (
     build_spea2_config_space,
     build_spea2_integer_config_space,
     build_spea2_permutation_config_space,
+    build_top_config_space,
     config_from_assignment,
 )
 from vamos.engine.tuning.racing.eval_types import EvalFn
@@ -118,6 +119,7 @@ BUILDERS: dict[str, Callable[[], AlgorithmConfigSpace | ParamSpace]] = {
     "rvea_integer": build_rvea_integer_config_space,
     "ccmo": build_ccmo_config_space,
     "ctaea": build_ctaea_config_space,
+    "top": build_top_config_space,
 }
 
 MODEL_BACKENDS = ("optuna", "bohb_optuna", "smac3", "bohb", "irace")

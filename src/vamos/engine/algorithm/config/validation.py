@@ -103,6 +103,9 @@ _FINITE_FIELDS: dict[str, dict[str, Any]] = {
     "c1": {"minimum": 0.0},
     "c2": {"minimum": 0.0},
     "vmax_fraction": {"minimum": 0.0, "strict": True},
+    "delta_threshold": {"minimum": 0.0},
+    "feasible_ratio_threshold": {"minimum": 0.0, "maximum": 1.0},
+    "phase_one_evaluation_fraction": {"minimum": 0.0, "maximum": 1.0},
 }
 _OPTIONAL_FINITE_FIELDS: dict[str, dict[str, Any]] = {
     "mutation_prob_factor": {"minimum": 0.0, "strict": True},

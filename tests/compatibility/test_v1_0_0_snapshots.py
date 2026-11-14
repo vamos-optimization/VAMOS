@@ -221,7 +221,7 @@ def test_only_the_constructor_of_a_configuration_class_with_added_fields_may_ext
 
 
 def test_built_in_algorithms_may_be_added_but_not_removed() -> None:
-    """Built-in algorithms added during 1.x (``ccmo``, ``ctaea``) keep the 1.0 snapshot; a lost 1.0 identifier does not."""
+    """Built-in algorithms added during 1.x (``ccmo``, ``ctaea``, ``top``) keep the 1.0 snapshot; a lost 1.0 identifier does not."""
     generator = _generator()
     frozen = _configs(["pop_size"], {}, {"pop_size": 100})
     added = {**frozen, "algorithm_ids": ["ccmo", "nsgaii"]}
@@ -231,5 +231,5 @@ def test_built_in_algorithms_may_be_added_but_not_removed() -> None:
     assert not generator._keeps_frozen_configs(frozen, {**frozen, "algorithm_ids": ["nsgaii", "nsgaii"]}, {"NSGAIIConfig": []})
     committed = _committed("stable_algorithm_configs.json")
     generated = json.loads(generator._json_bytes(generator._algorithm_snapshot()))
-    for added_id in ("ccmo", "ctaea"):
+    for added_id in ("ccmo", "ctaea", "top"):
         assert added_id in generated["algorithm_ids"] and added_id not in committed["algorithm_ids"]

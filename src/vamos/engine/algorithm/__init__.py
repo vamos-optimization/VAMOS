@@ -17,6 +17,7 @@ Algorithms
 - RVEA: Reference Vector Guided Evolutionary Algorithm
 - CCMO: Coevolutionary framework for constrained multi-objective optimization
 - CTAEA: Two-archive evolutionary algorithm for constrained multi-objective optimization
+- ToP: Two-phase framework for constrained multi-objective optimization
 
 Usage
 -----
@@ -55,6 +56,7 @@ if TYPE_CHECKING:
     from vamos.engine.algorithm.smpso import SMPSO
     from vamos.engine.algorithm.smsemoa import SMSEMOA
     from vamos.engine.algorithm.spea2 import SPEA2
+    from vamos.engine.algorithm.top import ToP
 
 _ALGORITHM_EXPORTS = {
     "NSGAII": ("vamos.engine.algorithm.nsgaii", "NSGAII"),
@@ -68,6 +70,7 @@ _ALGORITHM_EXPORTS = {
     "RVEA": ("vamos.engine.algorithm.rvea", "RVEA"),
     "CCMO": ("vamos.engine.algorithm.ccmo", "CCMO"),
     "CTAEA": ("vamos.engine.algorithm.ctaea", "CTAEA"),
+    "ToP": ("vamos.engine.algorithm.top", "ToP"),
 }
 
 __all__ = [
@@ -83,6 +86,7 @@ __all__ = [
     "RVEA",
     "CCMO",
     "CTAEA",
+    "ToP",
     # Protocols and enums
     "AlgorithmProtocol",
     "InteractiveAlgorithmProtocol",

@@ -171,6 +171,9 @@ ignores the constraints, whose offspring the main population can select.
 [C-TAEA](../algorithms/ctaea.md) is another: its convergence archive is
 driven by feasibility, and its diversity archive ignores the constraints and
 keeps solutions in the subregions where the convergence archive has few.
+[ToP](../algorithms/top.md) is a third: it first solves the problem as a
+constrained single-objective one, to find the feasible regions that hold the
+front, and then runs NSGA-II with the constrained-domination principle.
 
 ### MOEA/D: subproblem update criteria
 

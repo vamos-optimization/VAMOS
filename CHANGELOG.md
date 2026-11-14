@@ -69,6 +69,13 @@ rerun. Run and study artifacts keep the 1.0.0 schemas.
   published values. `CTAEAConfig` and the `ctaea` tuning space configure it.
   Its population is the number of weight vectors that `pop_size` gives, its
   budget is exact, and it stays outside the stable API (#275).
+- ToP (`top`), the two-phase framework for constrained problems of Liu and
+  Wang (2019) with NSGA-II in its second phase, following jMetal's port and
+  PlatEMO's defaults: its sorting, crowding distance, differential evolution,
+  mutation and phase-1 rules match jMetal's on fixed inputs, and its IGD on
+  MW1, MW3, MW11, LIR-CMOP2, LIR-CMOP7, LIR-CMOP10 and C1-DTLZ1 matches
+  jMetal's runs. `ToPConfig` and the `top` tuning space configure it, its
+  budget is exact, and it stays outside the stable API (#277).
 
 - `vamos --version` prints the installed version (#273).
 

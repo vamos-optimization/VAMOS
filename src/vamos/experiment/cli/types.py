@@ -21,3 +21,4 @@ class SpecDefaults:
     rvea_defaults: SpecBlock
     ccmo_defaults: SpecBlock
     ctaea_defaults: SpecBlock
+    top_defaults: SpecBlock
