@@ -47,6 +47,7 @@ from vamos.engine.tuning import (
     build_agemoea_mixed_config_space,
     build_agemoea_permutation_config_space,
     build_ccmo_config_space,
+    build_cmoeams_config_space,
     build_ctaea_config_space,
     build_ibea_binary_config_space,
     # Config space builders
@@ -171,5 +172,6 @@ __all__ = [
     "build_ccmo_config_space",
     "build_ctaea_config_space",
     "build_top_config_space",
+    "build_cmoeams_config_space",
     "config_from_assignment",
 ]

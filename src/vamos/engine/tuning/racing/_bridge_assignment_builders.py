@@ -9,6 +9,7 @@ from vamos.engine.algorithm.components.weight_vectors import largest_weighted_po
 from vamos.engine.algorithm.config import (
     AGEMOEAConfig,
     CCMOConfig,
+    CMOEAMSConfig,
     CTAEAConfig,
     IBEAConfig,
     MOEADConfig,
@@ -44,6 +45,7 @@ RVEA_NAMES = ALGORITHM_VARIANT_GROUPS["rvea"]
 CCMO_NAMES = ALGORITHM_VARIANT_GROUPS["ccmo"]
 CTAEA_NAMES = ALGORITHM_VARIANT_GROUPS["ctaea"]
 TOP_NAMES = ALGORITHM_VARIANT_GROUPS["top"]
+CMOEAMS_NAMES = ALGORITHM_VARIANT_GROUPS["cmoeams"]
 
 
 def build_nsgaii_config(assignment: dict[str, Any], *, mixed: bool = False) -> NSGAIIConfig:
@@ -420,6 +422,40 @@ def build_top_config(assignment: dict[str, Any], *, mixed: bool = False) -> ToPC
     return builder.build()
 
 
+def build_cmoeams_config(assignment: dict[str, Any], *, mixed: bool = False) -> CMOEAMSConfig:
+    """CMOEA-MS's configuration: crossover ``de`` is the DE variation (``de_cr``, ``de_f``, ``de_variant``), any other the GA variation.
+
+    A missing crossover probability is 1.0, a missing ``de_cr``, ``de_f`` or ``de_variant`` CR = 1.0,
+    F = 0.5 and ``rand_1_bin``, and a missing ``feasible_ratio_threshold`` 0.5: the values of the
+    paper and of PlatEMO's implementation.
+    """
+    builder = CMOEAMSConfig.builder()
+    pop_size = int(assignment["pop_size"])
+    builder.pop_size(pop_size)
+    apply_initializer(builder, assignment, pop_size)
+
+    cross = str(assignment.get("crossover", "sbx"))
+    if cross == "de":
+        builder.crossover("de", cr=float(assignment.get("de_cr", 1.0)), f=float(assignment.get("de_f", 0.5)))
+        builder.de_variant(str(assignment.get("de_variant", "rand_1_bin")))
+    else:
+        cross_params: dict[str, Any] = {"prob": float(assignment.get("crossover_prob", 1.0))}
+        extend_crossover_params(cross, assignment, cross_params, mixed=mixed)
+        builder.crossover(cross, **cross_params)
+
+    mut = str(assignment.get("mutation", "pm"))
+    mut_params: dict[str, Any] = {}
+    if "mutation_prob" in assignment:
+        mut_params["prob"] = assignment["mutation_prob"]
+    extend_mutation_params(mut, assignment, mut_params, mixed=mixed)
+    builder.mutation(mut, **mut_params)
+
+    builder.feasible_ratio_threshold(float(assignment.get("feasible_ratio_threshold", 0.5)))
+    apply_optional_repair(builder, assignment)
+    apply_optional_external_archive(builder, assignment, pop_size)
+    return builder.build()
+
+
 def config_builders() -> dict[str, tuple[set[str], Any]]:
     return {
         "nsgaii": (NSGAII_NAMES, build_nsgaii_config),
@@ -434,6 +470,7 @@ def config_builders() -> dict[str, tuple[set[str], Any]]:
         "ccmo": (CCMO_NAMES, build_ccmo_config),
         "ctaea": (CTAEA_NAMES, build_ctaea_config),
         "top": (TOP_NAMES, build_top_config),
+        "cmoeams": (CMOEAMS_NAMES, build_cmoeams_config),
     }
 
 

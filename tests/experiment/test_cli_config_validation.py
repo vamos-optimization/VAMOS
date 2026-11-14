@@ -729,6 +729,11 @@ def test_upper_case_problem_override_reaches_the_run(monkeypatch, tmp_path):
         pytest.param(
             {"algorithm": "nsgaii", "problem": "zdt1", "population_size": 10, "max_evaluations": 5}, 2, "--population-size", id="nsgaii-5"
         ),
+        # CMOEA-MS's initial population takes the population size.
+        pytest.param(
+            {"algorithm": "cmoeams", "problem": "mw3", "population_size": 10, "max_evaluations": 9}, 2, "--population-size", id="cmoeams-9"
+        ),
+        pytest.param({"algorithm": "cmoeams", "problem": "mw3", "population_size": 10, "max_evaluations": 10}, 0, "", id="cmoeams-10"),
     ],
 )
 def test_the_budget_must_cover_the_initial_population_of_the_algorithm(monkeypatch, capsys, tmp_path, defaults, code, message):

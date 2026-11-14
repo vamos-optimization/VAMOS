@@ -24,6 +24,7 @@ from vamos.engine.tuning import (
     build_agemoea_integer_config_space,
     build_agemoea_permutation_config_space,
     build_ccmo_config_space,
+    build_cmoeams_config_space,
     build_ctaea_config_space,
     build_ibea_binary_config_space,
     build_ibea_config_space,
@@ -114,6 +115,7 @@ BUILDERS: dict[str, Callable[[], AlgorithmConfigSpace | ParamSpace]] = {
     "ccmo": build_ccmo_config_space,
     "ctaea": build_ctaea_config_space,
     "top": build_top_config_space,
+    "cmoeams": build_cmoeams_config_space,
 }
 
 MODEL_BACKENDS = ("optuna", "bohb_optuna", "smac3", "bohb", "irace")

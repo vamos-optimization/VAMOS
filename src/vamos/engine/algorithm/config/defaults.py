@@ -9,6 +9,7 @@ from typing import Any, cast
 
 from .agemoea import AGEMOEAConfig
 from .ccmo import CCMOConfig
+from .cmoeams import CMOEAMSConfig
 from .ctaea import CTAEAConfig
 from .ibea import IBEAConfig
 from .moead import MOEADConfig
@@ -36,6 +37,7 @@ _DEFAULT_FACTORIES: dict[str, Callable[..., AlgorithmConfigProtocol]] = {
     "ccmo": CCMOConfig.default,
     "ctaea": CTAEAConfig.default,
     "top": ToPConfig.default,
+    "cmoeams": CMOEAMSConfig.default,
 }
 
 # The built-in algorithm each configuration class configures.
@@ -52,6 +54,7 @@ _CONFIG_ALGORITHMS: dict[type, str] = {
     CCMOConfig: "ccmo",
     CTAEAConfig: "ctaea",
     ToPConfig: "top",
+    CMOEAMSConfig: "cmoeams",
 }
 
 

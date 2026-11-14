@@ -11,12 +11,13 @@ from vamos.engine.algorithm._builder_common import (
     resolve_problem_encoding,
     resolve_variation_config,
 )
-from vamos.engine.algorithm.config import AlgorithmConfigProtocol, CCMOConfig, CTAEAConfig, ToPConfig
+from vamos.engine.algorithm.config import AlgorithmConfigProtocol, CCMOConfig, CMOEAMSConfig, CTAEAConfig, ToPConfig
 from vamos.foundation.kernel.backend import KernelBackend
 from vamos.foundation.problem.types import ProblemProtocol
 
 if TYPE_CHECKING:
     from vamos.engine.algorithm.ccmo import CCMO
+    from vamos.engine.algorithm.cmoeams import CMOEAMS
     from vamos.engine.algorithm.ctaea import CTAEA
     from vamos.engine.algorithm.top import ToP
 
@@ -128,4 +129,39 @@ def build_top_algorithm(
     )
 
 
-__all__ = ["build_ccmo_algorithm", "build_ctaea_algorithm", "build_top_algorithm"]
+def build_cmoeams_algorithm(
+    *,
+    kernel: KernelBackend,
+    problem: ProblemProtocol,
+    pop_size: int,
+    cmoeams_variation: dict[str, Any] | None,
+) -> tuple[CMOEAMS, AlgorithmConfigProtocol]:
+    """CMOEA-MS with the paper's variation for real variables, SBX(1.0, 20) and polynomial mutation (1/n, 20), unless overridden."""
+    encoding = resolve_problem_encoding(problem)
+    cmoeams_overrides = cmoeams_variation or {}
+    real_defaults = {
+        "crossover": ("sbx", {"prob": 1.0, "eta": 20.0}),
+        "mutation": ("polynomial", {"prob": 1.0 / problem.n_var, "eta": 20.0}),
+    }
+    var_cfg = resolve_variation_config(
+        encoding=encoding, overrides=cmoeams_overrides, defaults=real_defaults if encoding == "real" else None
+    )
+
+    builder = CMOEAMSConfig.builder()
+    builder.pop_size(pop_size)
+    apply_operator_config(builder, method_name="crossover", operator_cfg=var_cfg["crossover"], key="crossover")
+    apply_operator_config(builder, method_name="mutation", operator_cfg=var_cfg["mutation"], key="mutation")
+    apply_optional_operator_config(
+        builder,
+        method_name="repair",
+        operator_cfg=var_cfg.get("repair"),
+        key="repair",
+        encoding=encoding,
+    )
+    return cast(
+        "tuple[CMOEAMS, AlgorithmConfigProtocol]",
+        finalize_algorithm(algorithm_name="cmoeams", builder=builder, kernel=kernel, block=cmoeams_overrides),
+    )
+
+
+__all__ = ["build_ccmo_algorithm", "build_cmoeams_algorithm", "build_ctaea_algorithm", "build_top_algorithm"]

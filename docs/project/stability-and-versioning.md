@@ -61,10 +61,11 @@ configuration fields are frozen in
 **Development after 1.1.0:** built-in algorithms may be added during 1.x; the
 compatibility check accepts identifiers added after the frozen ones and still
 fails when a 1.0 identifier disappears. `ccmo` and its `CCMOConfig` are the
-first such addition, `ctaea` with its `CTAEAConfig` the second and `top` with
-its `ToPConfig` the third. Until a release lists them here, they are not part
-of the stable surface, although `vamos.algorithms` exports `CCMOConfig`,
-`CTAEAConfig` and `ToPConfig`.
+first such addition, `ctaea` with its `CTAEAConfig` the second, `top` with
+its `ToPConfig` the third and `cmoeams` with its `CMOEAMSConfig` the fourth.
+Until a release lists them here, they are not part of the stable surface,
+although `vamos.algorithms` exports `CCMOConfig`, `CTAEAConfig`, `ToPConfig`
+and `CMOEAMSConfig`.
 
 For these entry points:
 

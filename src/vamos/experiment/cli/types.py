@@ -22,3 +22,4 @@ class SpecDefaults:
     ccmo_defaults: SpecBlock
     ctaea_defaults: SpecBlock
     top_defaults: SpecBlock
+    cmoeams_defaults: SpecBlock

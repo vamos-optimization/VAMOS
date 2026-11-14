@@ -418,6 +418,19 @@ are those of the other real-coded spaces. An assignment without `de_cr`,
 `de_f` or a threshold gets the value of PlatEMO's implementation: CR = 1,
 F = 0.5, and 0.2, 1/3 and 0.9. `vamos tune --algorithm top` tunes it.
 
+**Development after 1.1.0:** `cmoeams` is the real-coded space of
+[CMOEA-MS](../algorithms/cmoeams.md), which also handles constraints itself:
+`pop_size` (20 to 200), `feasible_ratio_threshold` (0.1 to 0.9), the paper's
+`lambda`, and the crossover, which chooses the variation. SBX, BLX-alpha and
+arithmetic crossover select the GA variation, with `crossover_prob` and their
+own parameters; `de` selects the DE variation, with `de_cr` (0 to 1), `de_f`
+(0.1 to 1), `de_variant` (`rand_1_bin` or `rand_1_exp`) and no
+`crossover_prob`. Mutation, initializer and repair are those of the other
+real-coded spaces. An assignment without `crossover_prob`, `de_cr`, `de_f`,
+`de_variant` or `feasible_ratio_threshold` gets the published values: 1.0,
+CR = 1, F = 0.5, the binomial crossover and 0.5. `vamos tune --algorithm
+cmoeams` tunes it.
+
 ### Populations that depend on the number of objectives
 
 The parameter spaces do not know the problem, but two algorithms need its

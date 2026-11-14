@@ -262,6 +262,9 @@ def _effective_run(
     effective_args.ccmo_variation = merge_variation_overrides(getattr(args, "ccmo_variation", None), _override_mapping(override, "ccmo"))
     effective_args.ctaea_variation = merge_variation_overrides(getattr(args, "ctaea_variation", None), _override_mapping(override, "ctaea"))
     effective_args.top_variation = merge_variation_overrides(getattr(args, "top_variation", None), _override_mapping(override, "top"))
+    effective_args.cmoeams_variation = merge_variation_overrides(
+        getattr(args, "cmoeams_variation", None), _override_mapping(override, "cmoeams")
+    )
     effective_args.effective_problem_override = override
     return effective_selection, effective_config, effective_args, override
 

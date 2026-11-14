@@ -11,6 +11,7 @@ from vamos.engine.algorithm.catalog import DEFAULT_ALGORITHM
 from vamos.engine.algorithm.config import (
     AGEMOEAConfig,
     CCMOConfig,
+    CMOEAMSConfig,
     CTAEAConfig,
     IBEAConfig,
     MOEADConfig,
@@ -54,6 +55,7 @@ _CONFIG_MAP: dict[str, type[_SerializableConfig]] = {
     "ccmo": CCMOConfig,
     "ctaea": CTAEAConfig,
     "top": ToPConfig,
+    "cmoeams": CMOEAMSConfig,
 }
 
 
