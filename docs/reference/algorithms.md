@@ -185,6 +185,24 @@ published results or with another framework.
   `aggregation("tchebycheff")` reproduces jMetal's MOEA/D-DE. See
   [MOEA/D](../algorithms/moead.md).
 
+**Development after 1.2.0:** three real-coded mutations scale their steps by
+the range of each variable.
+
+- `non_uniform` is Michalewicz's mutation, as in jMetal: a mutated variable
+  moves towards one of its bounds, chosen at random, by
+  `y * (1 - r ** ((1 - t / T) ** b))`, where `y` is the distance to that bound.
+  The operator does not know the run's progress `t / T`, so it uses 0: the step
+  is `y * (1 - r)`, and `perturbation` (`b`) has no effect. The tuning spaces
+  no longer offer `nonuniform_perturbation`. In VAMOS 1.2.0 the step was
+  `(1 - r ** b)` times the whole range, with a random sign, so 25% to 41% of the
+  mutated genes left their bounds and the repair moved them onto the bound.
+- `gaussian` and `cauchy` read `sigma` and `gamma` as fractions of each
+  variable's range, as pymoo does, and `gaussian` defaults to `sigma = 0.1`.
+  In VAMOS 1.2.0 both were in the variables' units, so the same value was
+  negligible on a range of 1000 and large on a range of 0.01, and `gaussian`
+  had no default. On variables with a range of 1, such as those of DTLZ and
+  most of ZDT, they behave as before.
+
 ### Choose an initial experiment
 
 | Need | Starting point | Check before increasing the budget |
