@@ -140,10 +140,8 @@ that.
   `[analysis,examples]`. `all` installs the user extras without the `dev` and
   `docs` tooling (#268).
 
-<!-- PENDING(UX-25 #276, fix/studio-small-fixes): drop this block if that pull request is not merged. -->
 - `plot_critical_distance` no longer accepts `higher_is_better`, which had no
   effect (#276).
-<!-- /PENDING -->
 
 - Documentation: the README works as the PyPI description, the CLI guide says
   printed hypervolumes compare only within one command, the study guides' retry
@@ -293,11 +291,9 @@ Unless stated otherwise, every run that uses the corrected component changes.
 - `vamos zoo` and `vamos check` report unknown problems and failures, and
   derived tables warn about indicators skipped without moocore (#273).
 - `mixed_design` clips categories instead of wrapping them (#274).
-<!-- PENDING(UX-25 #276, fix/studio-small-fixes): drop this line if that pull request is not merged. -->
 - Studio opens runs with 64-bit seeds, uses the chosen significance level for
   the Nemenyi difference, searches studies in the background, and keeps
   Matplotlib's backend; `reduce_objectives` no longer depends on units (#276).
-<!-- /PENDING -->
 
 ## [1.1.0] - 2026-10-23
 

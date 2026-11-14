@@ -201,7 +201,7 @@ a budget of at least 100 evaluations, made with the same VAMOS version, Run
 Experiment therefore follows the same trajectory; change the seed to run
 another replicate.
 
-**Development after 1.1.0:** Run Experiment accepts any seed from 0 to
+**VAMOS 1.2.0:** Run Experiment accepts any seed from 0 to
 2^64 - 1, the range of the seeds that `optimize` and the CLI draw when none is
 given, and shows it as text so that every digit is kept. It also says when it
 lowers a run's budget to its maximum of 5,000,000 evaluations. VAMOS 1.1.0
@@ -327,7 +327,7 @@ feasible solution. VAMOS 1.1.0 left such runs out of IGD+, so an algorithm that
 was feasible in a few runs could appear significantly better than one that was
 always feasible.
 
-**Development after 1.1.0:** the Ranking tab's critical difference uses the
+**VAMOS 1.2.0:** the Ranking tab's critical difference uses the
 significance level chosen on the page, and the caption of its LaTeX table gives
 that critical difference and level; VAMOS 1.1.0 always used α = 0.05 for the
 diagram and left the critical difference out of the table. The warning
@@ -382,7 +382,7 @@ the canonical studies at or below the chosen folder. A study that cannot be
 loaded is reported as an error; synthetic demo fronts appear only after you
 choose **Load demo data**, and are labelled as such.
 
-**Development after 1.1.0:** Find studies, and the study lists of Batch
+**VAMOS 1.2.0:** Find studies, and the study lists of Batch
 Comparison and Statistical Comparison, search in the background, look at most
 four folders below the chosen one, and read at most 50 studies, the most
 recently changed first. VAMOS 1.1.0 searched the whole folder tree while the
