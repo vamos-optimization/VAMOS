@@ -4,6 +4,7 @@ MOEA/D configuration space builders for tuning.
 
 from __future__ import annotations
 
+from .bridge_space_parts_constraints import subproblem_update_part
 from .bridge_space_parts_discrete import (
     binary_operator_part_full,
     external_archive_part,
@@ -97,6 +98,11 @@ def build_moead_config_space() -> AlgorithmConfigSpace:
     return compose_config_space("moead", _core_part(), _aggregation_part(), _real_operator_part())
 
 
+def build_moead_constrained_config_space() -> AlgorithmConfigSpace:
+    """The real-coded space with the subproblem update criterion, as Evolver's ``MOEADDoubleConstrained``."""
+    return compose_config_space("moead_constrained", _core_part(), _aggregation_part(), _real_operator_part(), subproblem_update_part())
+
+
 def build_moead_permutation_config_space() -> AlgorithmConfigSpace:
     return compose_config_space(
         "moead_permutation",
@@ -120,6 +126,7 @@ def build_moead_integer_config_space() -> AlgorithmConfigSpace:
 
 __all__ = [
     "build_moead_config_space",
+    "build_moead_constrained_config_space",
     "build_moead_permutation_config_space",
     "build_moead_mixed_config_space",
     "build_moead_binary_config_space",

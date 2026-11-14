@@ -1,4 +1,4 @@
-"""Constraint-handling techniques in NSGA-III, SMS-EMOA and AGE-MOEA (see test_constraint_handling_techniques)."""
+"""Constraint-handling techniques in NSGA-III, SMS-EMOA, AGE-MOEA, RVEA and SMPSO (see test_constraint_handling_techniques)."""
 
 from __future__ import annotations
 
@@ -10,17 +10,26 @@ import numpy as np
 import pytest
 
 from vamos import optimize
-from vamos.algorithms import AGEMOEAConfig, NSGAIIConfig, NSGAIIIConfig, SMSEMOAConfig
+from vamos.algorithms import AGEMOEAConfig, NSGAIIConfig, NSGAIIIConfig, RVEAConfig, SMPSOConfig, SMSEMOAConfig
 from vamos.engine.algorithm.agemoea.survival import technique_age_survival
-from vamos.engine.algorithm.components.constraint_handling import CONSTRAINT_HANDLING_TECHNIQUES, ConstraintHandlingTechnique
+from vamos.engine.algorithm.components.constraint_handling import (
+    CONSTRAINT_HANDLING_TECHNIQUES,
+    PAIRWISE_TECHNIQUES,
+    ConstraintHandlingTechnique,
+    make_constraint_handling,
+    preferred,
+)
 from vamos.engine.algorithm.nsgaiii.helpers import nsgaiii_survival
 from vamos.engine.algorithm.nsgaiii.nsgaiii import NSGAIII
+from vamos.engine.algorithm.smpso.helpers import update_personal_bests
 from vamos.engine.algorithm.smsemoa.helpers import survival_selection
 from vamos.engine.algorithm.smsemoa.smsemoa import SMSEMOA
 from vamos.engine.algorithm.smsemoa.state import SMSEMOAState
 from vamos.engine.tuning.racing.bridge import (
     build_agemoea_constrained_config_space,
     build_nsgaiii_constrained_config_space,
+    build_rvea_constrained_config_space,
+    build_smpso_constrained_config_space,
     build_smsemoa_constrained_config_space,
 )
 from vamos.engine.tuning.racing.bridge_assignments import config_from_assignment
@@ -44,8 +53,10 @@ PARAMETERS: dict[str, dict[str, float]] = {
     "self_adaptive_penalty": {},
 }
 ALGORITHMS = ["nsgaiii", "smsemoa", "agemoea"]
+# RVEA and SMPSO take the techniques that judge single solutions.
+PAIRWISE_ALGORITHMS = ["rvea", "smpso"]
 # SMS-EMOA ranks once per offspring, so it runs fewer evaluations.
-EVALUATIONS = {"nsgaiii": 1500, "smsemoa": 500, "agemoea": 1500}
+EVALUATIONS = {"nsgaiii": 1500, "smsemoa": 500, "agemoea": 1500, "rvea": 1500, "smpso": 1500}
 
 
 def _config(algorithm: str, technique: str | None, *, pop_size: int = 30) -> Any:
@@ -53,6 +64,10 @@ def _config(algorithm: str, technique: str | None, *, pop_size: int = 30) -> Any
         config: Any = NSGAIIIConfig.default(pop_size=pop_size, n_obj=2)
     elif algorithm == "smsemoa":
         config = SMSEMOAConfig.default(pop_size=pop_size, n_var=10)
+    elif algorithm == "rvea":
+        config = RVEAConfig.default(n_var=10, n_obj=2)
+    elif algorithm == "smpso":
+        config = SMPSOConfig.default(pop_size=pop_size, n_var=10)
     else:
         config = AGEMOEAConfig.default(pop_size=pop_size, n_var=10)
     if technique is None:
@@ -90,7 +105,7 @@ class _FixedRanks(ConstraintHandlingTechnique):
 # ---- Configuration -----------------------------------------------------------
 
 
-@pytest.mark.parametrize("config_class", [NSGAIIConfig, NSGAIIIConfig, SMSEMOAConfig, AGEMOEAConfig])
+@pytest.mark.parametrize("config_class", [NSGAIIConfig, NSGAIIIConfig, SMSEMOAConfig, AGEMOEAConfig, RVEAConfig, SMPSOConfig])
 def test_constraint_handling_is_the_last_optional_field(config_class: Any) -> None:
     fields = dataclasses.fields(config_class)
 
@@ -98,7 +113,7 @@ def test_constraint_handling_is_the_last_optional_field(config_class: Any) -> No
     assert fields[-1].default is None
 
 
-@pytest.mark.parametrize("algorithm", ALGORITHMS)
+@pytest.mark.parametrize("algorithm", ALGORITHMS + PAIRWISE_ALGORITHMS)
 def test_the_builder_sets_the_technique_and_it_round_trips_through_json(algorithm: str) -> None:
     config_class = type(_config(algorithm, None))
     config = _config(algorithm, "push_pull")
@@ -122,13 +137,83 @@ def test_the_builder_method_validates_the_technique(algorithm: str) -> None:
         builder.constraint_handling("stochastic_ranking")
 
 
-@pytest.mark.parametrize("algorithm", ALGORITHMS)
+@pytest.mark.parametrize("algorithm", ALGORITHMS + PAIRWISE_ALGORITHMS)
 def test_a_technique_needs_the_feasibility_mode(algorithm: str) -> None:
     config = dataclasses.replace(_config(algorithm, None), constraint_mode="none")
 
     with pytest.raises(ValueError, match="needs constraint_mode 'feasibility'"):
         dataclasses.replace(config, constraint_handling=("epsilon_constrained", PARAMETERS["epsilon_constrained"]))
     assert dataclasses.replace(config, constraint_handling="cdp").constraint_handling == ("cdp", {})
+
+
+@pytest.mark.parametrize("algorithm", PAIRWISE_ALGORITHMS)
+@pytest.mark.parametrize("technique", ["stochastic_ranking", "self_adaptive_penalty"])
+def test_rvea_and_smpso_take_only_the_techniques_that_judge_single_solutions(algorithm: str, technique: str) -> None:
+    with pytest.raises(ValueError, match="does not judge the violation of a single solution"):
+        _config(algorithm, technique)
+    for name in PAIRWISE_TECHNIQUES:
+        assert _config(algorithm, name).constraint_handling == (name, PARAMETERS[name])
+
+
+# ---- Effective violation and pairwise preference -----------------------------
+
+
+def test_the_effective_violation_judges_single_rows_as_evolver() -> None:
+    kernel = resolve_kernel("numpy")
+    F = np.zeros((4, 2))
+    G = np.array([[0.0, -1.0], [0.5, 0.0], [0.25, 0.25], [1.0, 1.0]])
+
+    assert make_constraint_handling("cdp").effective_violation(G).tolist() == [0.0, 0.5, 0.5, 2.0]
+    assert make_constraint_handling("violated_constraints").effective_violation(G).tolist() == [0.0, 1.0, 2.0, 2.0]
+    epsilon = make_constraint_handling(("epsilon_constrained", {"initial_quantile": 0.5, "exponent": 1.0, "decay_fraction": 0.5}))
+    epsilon.update(kernel, F, G, 0.0)
+    assert epsilon.effective_violation(G).tolist() == [0.0, 0.0, 0.0, 2.0]
+    push_pull: Any = make_constraint_handling(("push_pull", PARAMETERS["push_pull"]))
+    assert push_pull.effective_violation(G).tolist() == [0.0, 0.0, 0.0, 0.0]
+    push_pull.pushing, push_pull.epsilon = False, 0.5
+    assert push_pull.effective_violation(G).tolist() == [0.0, 0.0, 0.0, 2.0]
+    for name in ("stochastic_ranking", "self_adaptive_penalty"):
+        with pytest.raises(ValueError, match="does not judge the violation of a single solution"):
+            make_constraint_handling((name, PARAMETERS[name])).effective_violation(G)
+
+
+def test_the_pairwise_preference_follows_jmetal_comparators() -> None:
+    # Row by row, a against b: a less violated; two feasible rows, a dominating; two infeasible rows
+    # with the same violation, a dominating; two infeasible rows with the same violation, b dominating.
+    F_a = np.array([[5.0, 5.0], [0.0, 0.0], [0.0, 0.0], [1.0, 1.0]])
+    G_a = np.array([[0.1], [0.0], [0.4], [0.4]])
+    F_b = np.array([[0.0, 0.0], [1.0, 1.0], [1.0, 1.0], [0.0, 0.0]])
+    G_b = np.array([[0.2], [0.0], [0.4], [0.4]])
+    cdp = make_constraint_handling("cdp")
+
+    assert preferred(cdp, F_a, G_a, F_b, G_b).tolist() == [True, True, True, False]
+    assert preferred(cdp, F_b, G_b, F_a, G_a).tolist() == [False, False, False, True]
+    epsilon: Any = make_constraint_handling(("epsilon_constrained", PARAMETERS["epsilon_constrained"]))
+    # Epsilon is 0 before the first update, and equal positive violations prefer neither row.
+    assert preferred(epsilon, F_a, G_a, F_b, G_b).tolist() == [True, True, False, False]
+    assert preferred(epsilon, F_b, G_b, F_a, G_a).tolist() == [False, False, False, False]
+    epsilon.epsilon = 0.5
+    assert preferred(epsilon, F_a, G_a, F_b, G_b).tolist() == [False, True, True, False]
+
+
+def test_smpso_keeps_a_personal_best_that_the_technique_prefers() -> None:
+    technique: Any = make_constraint_handling(("epsilon_constrained", PARAMETERS["epsilon_constrained"]))
+    technique.epsilon = 0.5
+    X = np.array([[1.0], [2.0], [3.0]])
+    F = np.array([[1.0, 1.0], [0.0, 0.0], [2.0, 2.0]])
+    G = np.array([[0.3], [0.9], [0.0]])
+    pbest_X = np.array([[-1.0], [-2.0], [-3.0]])
+    pbest_F = np.array([[0.0, 0.0], [1.0, 1.0], [1.0, 1.0]])
+    pbest_G = np.array([[0.0], [0.6], [0.4]])
+
+    update_personal_bests(X, F, G, pbest_X, pbest_F, pbest_G, "feasibility", technique)
+    # Rows 0 and 2: both rows lie within epsilon and the best dominates; row 1: the best is less violated.
+    assert pbest_X.ravel().tolist() == [-1.0, -2.0, -3.0]
+
+    technique.epsilon = 0.0
+    update_personal_bests(X, F, G, pbest_X, pbest_F, pbest_G, "feasibility", technique)
+    # Row 0: only the best is feasible; row 1: the best is less violated; row 2: only the new position is feasible.
+    assert pbest_X.ravel().tolist() == [-1.0, -2.0, 3.0]
 
 
 # ---- Survival over the technique's fronts ------------------------------------
@@ -204,7 +289,7 @@ def test_agemoea_keeps_whole_fronts_of_the_technique() -> None:
 # ---- Runs ----------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("algorithm", ALGORITHMS)
+@pytest.mark.parametrize("algorithm", ALGORITHMS + PAIRWISE_ALGORITHMS)
 def test_explicit_cdp_reproduces_the_default(algorithm: str) -> None:
     default, explicit = _run(algorithm, None), _run(algorithm, "cdp")
 
@@ -212,8 +297,12 @@ def test_explicit_cdp_reproduces_the_default(algorithm: str) -> None:
     assert np.array_equal(default.F, explicit.F)
 
 
-@pytest.mark.parametrize("technique", CONSTRAINT_HANDLING_TECHNIQUES[1:])
-@pytest.mark.parametrize("algorithm", ALGORITHMS)
+RUNS = [(algorithm, technique) for algorithm in ALGORITHMS for technique in CONSTRAINT_HANDLING_TECHNIQUES[1:]] + [
+    (algorithm, technique) for algorithm in PAIRWISE_ALGORITHMS for technique in PAIRWISE_TECHNIQUES[1:]
+]
+
+
+@pytest.mark.parametrize(("algorithm", "technique"), RUNS)
 def test_each_technique_runs_reproducibly(algorithm: str, technique: str) -> None:
     first, second = _run(algorithm, technique), _run(algorithm, technique)
 
@@ -221,8 +310,7 @@ def test_each_technique_runs_reproducibly(algorithm: str, technique: str) -> Non
     assert np.array_equal(first.F, second.F)
 
 
-@pytest.mark.parametrize("technique", CONSTRAINT_HANDLING_TECHNIQUES[1:])
-@pytest.mark.parametrize("algorithm", ALGORITHMS)
+@pytest.mark.parametrize(("algorithm", "technique"), RUNS)
 def test_engines_give_the_same_run(algorithm: str, technique: str) -> None:
     pytest.importorskip("numba")
     reference, compiled = _run(algorithm, technique, "numpy"), _run(algorithm, technique, "numba")
@@ -231,7 +319,7 @@ def test_engines_give_the_same_run(algorithm: str, technique: str) -> None:
     assert np.array_equal(reference.F, compiled.F)
 
 
-@pytest.mark.parametrize("algorithm", ALGORITHMS)
+@pytest.mark.parametrize("algorithm", ALGORITHMS + PAIRWISE_ALGORITHMS)
 def test_epsilon_changes_the_search(algorithm: str) -> None:
     assert not np.array_equal(_run(algorithm, "cdp").X, _run(algorithm, "epsilon_constrained").X)
 
@@ -265,6 +353,8 @@ def test_ask_and_tell_follow_the_progress_of_run(algorithm: str, algorithm_class
         ("nsgaiii_constrained", build_nsgaiii_constrained_config_space),
         ("smsemoa_constrained", build_smsemoa_constrained_config_space),
         ("agemoea_constrained", build_agemoea_constrained_config_space),
+        ("rvea_constrained", build_rvea_constrained_config_space),
+        ("smpso_constrained", build_smpso_constrained_config_space),
     ],
 )
 def test_the_constrained_spaces_tune_the_technique(space_name: str, build_space: Any) -> None:
@@ -282,3 +372,13 @@ def test_the_constrained_spaces_tune_the_technique(space_name: str, build_space:
     config = config_from_assignment(space_name, assignment)
 
     assert config.constraint_handling == ("epsilon_constrained", {"initial_quantile": 0.3, "exponent": 2.0, "decay_fraction": 0.6})
+
+
+@pytest.mark.parametrize("build_space", [build_rvea_constrained_config_space, build_smpso_constrained_config_space])
+def test_the_rvea_and_smpso_spaces_offer_the_techniques_that_judge_single_solutions(build_space: Any) -> None:
+    space = build_space()
+    technique = next(parameter for parameter in space.flatten() if parameter.name == "constraint_handling")
+    names = {parameter.name for parameter in space.flatten({"constraint_handling": "stochastic_ranking"})}
+
+    assert list(technique.choices) == list(PAIRWISE_TECHNIQUES)
+    assert "stochastic_ranking_probability" not in names

@@ -4,6 +4,8 @@ from typing import Any
 
 import numpy as np
 
+from vamos.foundation.problem._output import objective_output
+
 from .tanabe_ishibuchi_utils import sum_violations_gte0
 
 Array = np.ndarray[Any, Any]
@@ -82,7 +84,7 @@ class RE35Problem:
         (f1, f2), g = speed_reducer(x)
         f3 = sum_violations_gte0(*g)
 
-        Fout = out["F"]
+        Fout = objective_output(out, len(X), self.n_obj)
         Fout[:, 0] = f1
         Fout[:, 1] = f2
         Fout[:, 2] = f3
@@ -105,7 +107,7 @@ class RE36Problem:
         (f1, f2), (g1,) = gear_train(X_int.T.astype(float))
         f3 = np.maximum(-g1, 0.0)
 
-        Fout = out["F"]
+        Fout = objective_output(out, len(X), self.n_obj)
         Fout[:, 0] = f1
         Fout[:, 1] = f2
         Fout[:, 2] = f3
@@ -186,7 +188,7 @@ class RE37Problem:
             - (0.281 * x2 * x1 * x3)
         )
 
-        Fout = out["F"]
+        Fout = objective_output(out, len(X), self.n_obj)
         Fout[:, 0] = f1
         Fout[:, 1] = f2
         Fout[:, 2] = f3

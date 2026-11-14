@@ -9,12 +9,15 @@ This module contains utility functions for SMPSO:
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
 from vamos.engine.operators.impl.registry import get_operator_registry
 from vamos.foundation.constraints.utils import compute_violation, is_feasible
+
+if TYPE_CHECKING:
+    from vamos.engine.algorithm.components.constraint_handling import ConstraintHandlingTechnique
 
 __all__ = [
     "resolve_repair",
@@ -117,6 +120,7 @@ def update_personal_bests(
     pbest_F: np.ndarray[Any, Any],
     pbest_G: np.ndarray[Any, Any] | None,
     constraint_mode: str,
+    technique: ConstraintHandlingTechnique | None = None,
 ) -> None:
     """Update personal bests as jMetal does: replace each one unless it is better than the new position.
 
@@ -142,8 +146,15 @@ def update_personal_bests(
         Personal best constraints (updated in-place).
     constraint_mode : str
         Constraint handling mode.
+    technique : ConstraintHandlingTechnique or None
+        A constraint-handling technique other than cdp, which decides instead whether the personal
+        best is better, as its comparator does in jMetal's ``ConstraintHandlingLocalBestUpdate``.
     """
-    if constraint_mode and constraint_mode != "none" and G is not None and pbest_G is not None:
+    if technique is not None and constraint_mode != "none" and G is not None and pbest_G is not None:
+        from vamos.engine.algorithm.components.constraint_handling import preferred
+
+        update_idx = ~preferred(technique, pbest_F, pbest_G, F, G)
+    elif constraint_mode and constraint_mode != "none" and G is not None and pbest_G is not None:
         feas_new = is_feasible(G)
         feas_old = is_feasible(pbest_G)
         cv_new = compute_violation(G)

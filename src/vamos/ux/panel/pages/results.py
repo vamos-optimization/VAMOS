@@ -10,6 +10,7 @@ from typing import Any
 import panel as pn
 import param
 
+from vamos.ux.panel.components.background import BackgroundWork
 from vamos.ux.panel.components.plots import overlay_figure
 from vamos.ux.studio.algorithm_catalog import algorithm_label
 from vamos.ux.studio.batch import csv_text
@@ -59,22 +60,36 @@ class ResultsState(param.Parameterized):
     def __init__(self, open_experiment: Callable[[ExperimentSetup], None] | None = None, **params: Any) -> None:
         super().__init__(**params)
         self._open_experiment = open_experiment
+        self._search: BackgroundWork[list[Path]] = BackgroundWork()
+        self._focus: str | None = None
 
     def _report(self, message: str, kind: str = "info") -> None:
         self.status_kind = kind
         self.status = message
 
     def find_studies(self, event: Any = None) -> None:
-        """List the canonical studies at or below ``study_dir``."""
+        """List the canonical studies at or below ``study_dir``, in the background."""
         from vamos.ux.studio.services import discover_study_directories
 
+        if event is not None:
+            self._focus = None  # A search the user asks for lists the folder afresh.
         base = Path(self.study_dir).expanduser()
         if not base.is_dir():
             self.param.selected_study.objects = []
             self.selected_study = None
             self._report(f"Directory not found: {base}", "danger")
             return
-        found = [str(path) for path in discover_study_directories(base, limit=50)]
+        self._search.submit(lambda: discover_study_directories(base, limit=50), lambda roots: self._found(base, roots))
+
+    def _found(self, base: Path, roots: list[Path] | Exception) -> None:
+        if isinstance(roots, Exception):
+            self._report(f"Cannot search {base}: {roots}", "danger")
+            return
+        found = [str(path) for path in roots]
+        if self._focus is not None:  # A study opened while the folder was searched stays selected.
+            self.param.selected_study.objects = [self._focus, *(root for root in found if root != self._focus)]
+            self.selected_study = self._focus
+            return
         self.param.selected_study.objects = found
         self.selected_study = found[0] if found else None
         if found:
@@ -100,6 +115,7 @@ class ResultsState(param.Parameterized):
 
     def focus(self, study_root: str) -> None:
         """Select and load one study, for example a batch that has just run."""
+        self._focus = study_root
         objects = list(self.param.selected_study.objects or [])
         if study_root not in objects:
             self.param.selected_study.objects = [study_root, *objects]

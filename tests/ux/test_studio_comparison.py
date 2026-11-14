@@ -231,3 +231,19 @@ def test_comparison_tables_count_feasible_runs(partly_infeasible_study: Comparis
     assert sum(line.endswith(",inf") for line in saes) == 18
     assert "18 of 40 runs" in comparison.infeasible_note(data, IGD_PLUS)
     assert any("18 of 40 runs" in warning for warning in rank_algorithms(data, IGD_PLUS, "NSGA-II").warnings)
+
+
+def test_latex_caption_escapes_pivot() -> None:
+    from vamos.ux.studio.batch import BatchRun
+
+    front = np.array([[0.0, 1.0], [1.0, 0.0]])
+    algorithms = ("my_plugin", "NSGA-II")
+    runs = tuple(BatchRun("zdt1", name, seed, front) for name in algorithms for seed in range(3))
+    values = {HV: {("zdt1", name): np.array([0.7, 0.8, 0.9]) for name in algorithms}}
+    data = ComparisonData(Path("study"), ("zdt1",), algorithms, runs, values)
+    comparisons = compare_with_pivot(data, HV, "my_plugin", correction="holm", alpha=0.05)
+
+    caption = comparison_latex(data, HV, comparisons, "my_plugin", correction="holm", alpha=0.05).split(r"\caption{", 1)[1]
+
+    assert r"with my\_plugin by" in caption
+    assert "my_plugin" not in caption

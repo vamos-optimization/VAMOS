@@ -114,7 +114,7 @@ def comparison_latex(
     worst = "0" if INDICATOR_DIRECTIONS[indicator] else r"\infty"
     caption = (
         f"Median and interquartile range of {indicator} ({direction} is better). Marks compare each algorithm with "
-        f"{pivot} by a two-sided Mann-Whitney test at $\\alpha={alpha:g}$ with {CORRECTIONS.get(correction, correction)} "
+        f"{latex_escape(pivot)} by a two-sided Mann-Whitney test at $\\alpha={alpha:g}$ with {CORRECTIONS.get(correction, correction)} "
         "correction and the Vargha-Delaney A12 effect size: $+$ better, $-$ worse, $=$ no significant difference. "
         "Bold marks the best median of each problem and underline the second best. The fraction gives the runs with "
         f"a feasible solution out of all runs; a run without one counts as the worst value, {indicator} $= {worst}$."
@@ -152,12 +152,13 @@ def comparison_latex(
 
 def ranking_latex(ranking: Ranking, pivot: str, indicator: str) -> str:
     friedman = f"Friedman $p={ranking.friedman[1]:.3g}$" if ranking.friedman else "Friedman test not applicable"
+    nemenyi = f"; Nemenyi critical difference $CD={ranking.cd:.3g}$ at $\\alpha={ranking.alpha:g}$" if ranking.cd is not None else ""
     lines = [
         r"\begin{table}[htbp]",
         r"\centering",
         r"\caption{Average ranks of the median "
         + latex_escape(indicator)
-        + f" over {ranking.problems} problems (1 is best); {friedman}; Holm post-hoc against {latex_escape(pivot)}."
+        + f" over {ranking.problems} problems (1 is best); {friedman}{nemenyi}; Holm post-hoc against {latex_escape(pivot)}."
         + "}",
         r"\label{tab:vamos-ranking}",
         r"\begin{tabular}{lrrr}",

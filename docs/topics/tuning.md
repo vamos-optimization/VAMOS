@@ -387,6 +387,14 @@ spaces, such as `NSGAIIDoubleConstrained`. The parameters are named after the
 technique, such as `epsilon_initial_quantile` or `push_pull_window_fraction`;
 `config_from_assignment("nsgaiii_constrained", assignment)` builds the
 configuration, and `vamos tune --algorithm nsgaiii_constrained` tunes it.
+`rvea_constrained` and `smpso_constrained` offer the four techniques that RVEA
+and SMPSO take, with the parameters of `epsilon_constrained` and `push_pull`,
+as Evolver's `RVEADoubleConstrained` and `MOPSOConstrained`.
+`moead_constrained` adds MOEA/D's `subproblem_update_criterion` and the
+parameters of `improved_epsilon` (`improved_epsilon_tao`,
+`improved_epsilon_feasibility_ratio_threshold`,
+`improved_epsilon_decay_fraction`), with the ranges of Evolver's
+`MOEADDoubleConstrained` space.
 
 **Development after 1.1.0:** `ccmo` is the real-coded space of
 [CCMO](../algorithms/ccmo.md), which handles constraints itself: `pop_size`
