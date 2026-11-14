@@ -55,10 +55,13 @@ _DE_DEFAULTS = {"cr": 1.0, "f": 0.5}
 
 
 def _differential_evolution_parameters(params: dict[str, Any]) -> tuple[float, float]:
-    """CR and F from ``cr`` and ``f`` (or ``CR`` and ``F``); 1.0 and 0.5 by default. CR must be in [0, 1] and F positive and finite."""
+    """CR and F from ``cr`` and ``f`` (or ``CR`` and ``F``, not both); 1.0 and 0.5 by default. CR must be in [0, 1] and F positive and finite."""
     unknown = sorted(set(params) - {"cr", "CR", "f", "F"})
     if unknown:
         raise ValueError(f"ToP's differential evolution takes the parameters cr and f; got {', '.join(unknown)}.")
+    for name in ("cr", "f"):
+        if name in params and name.upper() in params:
+            raise ValueError(f"ToP's differential evolution takes {name} or {name.upper()}, not both.")
     cr = float(params.get("cr", params.get("CR", _DE_DEFAULTS["cr"])))
     f = float(params.get("f", params.get("F", _DE_DEFAULTS["f"])))
     if not 0.0 <= cr <= 1.0:
