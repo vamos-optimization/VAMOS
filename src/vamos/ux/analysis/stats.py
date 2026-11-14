@@ -182,7 +182,6 @@ def plot_critical_distance(
     algo_names: Sequence[str],
     alpha: float = 0.05,
     n_problems: int | None = None,
-    higher_is_better: bool = True,
     ax: Axes | None = None,
     show: bool = False,
 ) -> object:
@@ -190,7 +189,8 @@ def plot_critical_distance(
     Plot average ranks and, when ``n_problems`` is given, the Nemenyi critical difference.
 
     The bar length is :func:`nemenyi_cd` for ``len(algo_names)`` algorithms at ``alpha``,
-    which must lie strictly between 0 and 1.
+    which must lie strictly between 0 and 1. ``avg_ranks`` give rank 1 to the best algorithm,
+    as :func:`compute_ranks` and :func:`friedman_test` do whatever the indicator's direction.
     """
     plt = _require_matplotlib()
     avg_ranks = np.asarray(avg_ranks, dtype=float)
@@ -201,8 +201,6 @@ def plot_critical_distance(
     k = avg_ranks.shape[0]
     cd = nemenyi_cd(k, n_problems, alpha) if n_problems is not None else None
     ax = ax or plt.figure().add_subplot(111)
-    # avg_ranks from compute_ranks always encode rank 1 = best regardless of
-    # higher_is_better; no inversion needed for the CD diagram (lower x = better).
     ranks = avg_ranks
     y = np.zeros_like(ranks)
     ax.scatter(ranks, y, c="black")

@@ -80,7 +80,9 @@ def a12_heatmap(problems: Sequence[str], contenders: Sequence[str], effects: Any
     return fig
 
 
-def cd_figure(algorithms: Sequence[str], ranks: Sequence[float], cd: float | None, groups: Sequence[tuple[int, int]]) -> Any:
+def cd_figure(
+    algorithms: Sequence[str], ranks: Sequence[float], cd: float | None, groups: Sequence[tuple[int, int]], *, alpha: float
+) -> Any:
     """Demsar's critical-difference diagram: average ranks, with bars joining algorithms that do not differ."""
     import plotly.graph_objects as go
 
@@ -105,7 +107,7 @@ def cd_figure(algorithms: Sequence[str], ranks: Sequence[float], cd: float | Non
         fig.add_annotation(x=1 + cd / 2, y=top, text=f"CD = {cd:.2f}", showarrow=False, yshift=12)
     fig.update_xaxes(range=[0.6, max(k, 2) + 0.4], title="Average rank (1 is best)", zeroline=False)
     fig.update_yaxes(visible=False, range=[-0.35 * (k + 1) - 0.2, 0.6 + 0.12 * len(groups)])
-    fig.update_layout(title="Critical difference (Nemenyi, α = 0.05)", height=220 + 40 * k, showlegend=False, plot_bgcolor="white")
+    fig.update_layout(title=f"Critical difference (Nemenyi, α = {alpha:g})", height=220 + 40 * k, showlegend=False, plot_bgcolor="white")
     return fig
 
 

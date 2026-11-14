@@ -7,7 +7,6 @@ report leaves the process-wide matplotlib backend and figure registry untouched.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -21,7 +20,6 @@ def generate_plots(
     alpha: float,
     suite_name: str,
     output_dir: Path,
-    higher_is_better: Callable[[str], bool],
 ) -> dict[str, list[Path]]:
     try:  # pragma: no cover - optional heavy dep
         from matplotlib.figure import Figure
@@ -44,7 +42,6 @@ def generate_plots(
                     algo_names=list(pivot_mean.columns),
                     alpha=alpha,
                     n_problems=pivot_mean.shape[0],
-                    higher_is_better=higher_is_better(metric),
                     ax=ax,
                     show=False,
                 )
