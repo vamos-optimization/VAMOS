@@ -95,6 +95,13 @@ vamos assist go "I have 10 continuous variables, minimize 2 objectives..." --mod
 
 VAMOS requests structured output from the provider (strict schema) and validates the resulting config before running.
 
+**Development after 1.1.0:** the schema follows the rules of OpenAI Structured
+Outputs in strict mode: one object at the root, with `kind` set to `plan` or
+`questions` and the fields of the other kind set to `null`, and overrides sent
+as a list of `{key, value}` pairs whose keys are the announced override keys.
+VAMOS 1.1.0 sends a union at the root and an open `overrides` object, which
+strict mode rejects, so `--provider openai` cannot produce a plan with it.
+
 ### Example (Auto planning with mock provider — no API keys)
 
 ```bash
