@@ -68,6 +68,8 @@ from .bridge_spaces import (
     build_spea2_integer_config_space,
     build_spea2_mixed_config_space,
     build_spea2_permutation_config_space,
+    # ToP
+    build_top_config_space,
 )
 
 __all__ = [
@@ -133,6 +135,8 @@ __all__ = [
     "build_ccmo_config_space",
     # C-TAEA
     "build_ctaea_config_space",
+    # ToP
+    "build_top_config_space",
     # Bridge
     "config_from_assignment",
 ]

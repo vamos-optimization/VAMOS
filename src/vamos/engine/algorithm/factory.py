@@ -14,6 +14,7 @@ from vamos.engine.algorithm.builders import (
     build_smpso_algorithm,
     build_smsemoa_algorithm,
     build_spea2_algorithm,
+    build_top_algorithm,
 )
 from vamos.engine.algorithm.config import GenericAlgorithmConfig
 from vamos.engine.algorithm.config.types import AlgorithmConfigProtocol
@@ -28,7 +29,7 @@ from vamos.foundation.problem.types import ProblemProtocol
 
 # Built-in algorithms that record offspring genealogy through survival.
 GENEALOGY_ALGORITHMS = ("nsgaii", "moead", "smsemoa", "nsgaiii", "spea2", "ibea", "smpso")
-_ALGORITHMS_WITHOUT_GENEALOGY = ("agemoea", "rvea", "ccmo", "ctaea")
+_ALGORITHMS_WITHOUT_GENEALOGY = ("agemoea", "rvea", "ccmo", "ctaea", "top")
 
 
 def _plugin_default_config(
@@ -157,6 +158,12 @@ def build_algorithm(
             problem=problem,
             pop_size=pop_size,
             ctaea_variation=variations.get("ctaea"),
+        ),
+        "top": lambda: build_top_algorithm(
+            kernel=kernel,
+            problem=problem,
+            pop_size=pop_size,
+            top_variation=variations.get("top"),
         ),
     }
 

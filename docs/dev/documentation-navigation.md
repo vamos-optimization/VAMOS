@@ -53,6 +53,7 @@ and reachable through the named parent pages even when absent from the menu.
 | [algorithms/smpso.md](../algorithms/smpso.md) | Tutorial | Tutorials → Algorithms | Add |
 | [algorithms/smsemoa.md](../algorithms/smsemoa.md) | Tutorial | Tutorials → Algorithms | Add |
 | [algorithms/spea2.md](../algorithms/spea2.md) | Tutorial | Tutorials → Algorithms | Add |
+| [algorithms/top.md](../algorithms/top.md) | Tutorial | Tutorials → Algorithms | Add |
 | [dev/coverage-tutorials.md](coverage-tutorials.md) | Development | Developer → Maintainers | Add |
 | [tutorials/controlled-ablation.md](../tutorials/controlled-ablation.md) | Tutorial | Tutorials → Advanced experiments → Controlled Ablation | Add |
 | [tutorials/coverage-setup.md](../tutorials/coverage-setup.md) | How-to | Tutorials → Representations and applications → Coverage Setup | Add |
@@ -131,6 +132,7 @@ and reachable through the named parent pages even when absent from the menu.
 | [reference/api/algorithms/smpso.md](../reference/api/algorithms/smpso.md) | Reference | Reference → API Reference → Algorithm configuration → SMPSO | Keep |
 | [reference/api/algorithms/smsemoa.md](../reference/api/algorithms/smsemoa.md) | Reference | Reference → API Reference → Algorithm configuration → SMS-EMOA | Keep |
 | [reference/api/algorithms/spea2.md](../reference/api/algorithms/spea2.md) | Reference | Reference → API Reference → Algorithm configuration → SPEA2 | Keep |
+| [reference/api/algorithms/top.md](../reference/api/algorithms/top.md) | Reference | Reference → API Reference → Algorithm configuration → ToP | Add |
 | [reference/api/discovery.md](../reference/api/discovery.md) | Reference | Reference → API Reference → Discovery | Keep |
 | [reference/api/experimental/diagnostics.md](../reference/api/experimental/diagnostics.md) | Reference | Reference → API Reference → Experimental APIs → Diagnostics | Keep |
 | [reference/api/experimental/parameter-spaces.md](../reference/api/experimental/parameter-spaces.md) | Reference | Reference → API Reference → Experimental APIs → Parameter spaces | Keep |

@@ -16,6 +16,7 @@ ENABLED_ALGORITHMS = (
     "rvea",
     "ccmo",
     "ctaea",
+    "top",
 )
 
 OPTIONAL_ALGORITHMS: tuple[str, ...] = ()
@@ -28,6 +29,8 @@ OPTIONAL_ALGORITHMS: tuple[str, ...] = ()
 # check their exact lattice size when their configuration is built. CCMO pairs the parents
 # of each population two by two, so each population needs two individuals. C-TAEA draws its
 # parents with replacement from archives of at least two weight vectors, which need two objectives.
+# ToP draws its tournaments and its DE vectors with replacement, and averages the objectives in
+# phase 1, so one individual and one objective suffice.
 ALGORITHM_MINIMUMS: dict[str, dict[str, int]] = {
     "nsgaii": {"pop_size": 2, "n_obj": 1},
     "moead": {"pop_size": 2, "n_obj": 1},
@@ -40,6 +43,7 @@ ALGORITHM_MINIMUMS: dict[str, dict[str, int]] = {
     "rvea": {"pop_size": 2, "n_obj": 2},
     "ccmo": {"pop_size": 2, "n_obj": 1},
     "ctaea": {"pop_size": 1, "n_obj": 2},
+    "top": {"pop_size": 1, "n_obj": 1},
 }
 
 # Built-in algorithms that evaluate several populations of pop_size before their first
@@ -62,6 +66,7 @@ _LABELS = {
     "rvea": "RVEA",
     "ccmo": "CCMO",
     "ctaea": "C-TAEA",
+    "top": "ToP",
 }
 
 

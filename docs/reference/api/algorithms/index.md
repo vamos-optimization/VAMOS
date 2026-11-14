@@ -15,6 +15,7 @@ Choose the configuration class for the algorithm passed to `optimize`. These cla
 | `rvea` | [`RVEAConfig`](rvea.md) |
 | `ccmo` | [`CCMOConfig`](ccmo.md) (development after 1.1.0) |
 | `ctaea` | [`CTAEAConfig`](ctaea.md) (development after 1.1.0) |
+| `top` | [`ToPConfig`](top.md) (development after 1.1.0) |
 
 ## Explicit configuration
 

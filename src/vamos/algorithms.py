@@ -5,8 +5,8 @@ Use this module for algorithm config objects and discovery helpers.
 For running optimizations, use `vamos.optimize`.
 
 The nine configuration classes of VAMOS 1.1.0, the probability types and the
-``available_*`` functions are stable. ``CCMOConfig`` and ``CTAEAConfig`` are new
-after 1.1.0 and not yet covered by the 1.0 compatibility baseline. ``GenericAlgorithmConfig``,
+``available_*`` functions are stable. ``CCMOConfig``, ``CTAEAConfig`` and ``ToPConfig``
+are new after 1.1.0 and not yet covered by the 1.0 compatibility baseline. ``GenericAlgorithmConfig``,
 ``discover_algorithm_plugins`` and ``resolve_algorithm`` serve custom and
 plugin algorithms and are experimental.
 """
@@ -30,6 +30,7 @@ from vamos.engine.algorithm.config import (
     SMPSOConfig,
     SMSEMOAConfig,
     SPEA2Config,
+    ToPConfig,
 )
 from vamos.engine.variation.helpers import (
     BINARY_CROSSOVER,
@@ -151,6 +152,7 @@ __all__ = [
     "RVEAConfig",
     "CCMOConfig",
     "CTAEAConfig",
+    "ToPConfig",
     "GenericAlgorithmConfig",
     "ProbabilityExpression",
     "ProbabilityValue",

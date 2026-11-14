@@ -415,6 +415,17 @@ its own parameters. Mutation, initializer and repair are those of the other
 real-coded spaces. An assignment without `crossover_prob` gets 1.0, the
 published value. `vamos tune --algorithm ctaea` tunes it.
 
+**Development after 1.1.0:** `top` is the real-coded space of
+[ToP](../algorithms/top.md), which also handles constraints itself:
+`pop_size` (20 to 200), the crossover rate `de_cr` (0 to 1) and scale factor
+`de_f` (0.1 to 1) of its differential evolution, which has no crossover
+choice, and the thresholds of its switch between phases, `delta_threshold`
+(0.05 to 0.5), `feasible_ratio_threshold` (0.1 to 0.9) and
+`phase_one_evaluation_fraction` (0.5 to 1). Mutation, initializer and repair
+are those of the other real-coded spaces. An assignment without `de_cr`,
+`de_f` or a threshold gets the value of PlatEMO's implementation: CR = 1,
+F = 0.5, and 0.2, 1/3 and 0.9. `vamos tune --algorithm top` tunes it.
+
 ### Populations that depend on the number of objectives
 
 The parameter spaces do not know the problem, but two algorithms need its

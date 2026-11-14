@@ -19,6 +19,7 @@ from vamos.engine.algorithm.config import (
     SMPSOConfig,
     SMSEMOAConfig,
     SPEA2Config,
+    ToPConfig,
 )
 from vamos.engine.algorithm.config.types import AlgorithmConfigProtocol, EngineName
 from vamos.experiment.types import TerminationSpec
@@ -43,6 +44,7 @@ _CONFIG_TYPES = {
     "smpso": SMPSOConfig,
     "smsemoa": SMSEMOAConfig,
     "spea2": SPEA2Config,
+    "top": ToPConfig,
 }
 _OPERATOR_INPUT_NAMES = {
     "differential_evolution": "de",
