@@ -142,9 +142,9 @@ algorithm with the required constraint support in the [matrix](algorithms.md).
 | `water` | 3 | 5 | 7 | Fixed n and M; water resource planning | [jMetal][jmetal-classics] | 5D |
 | `car_side_impact` | 7 | 3 | 10 | Fixed n and M | [jMetal][jmetal-classics] | 3D |
 | `zxh_cf1`–`zxh_cf4` | 13 | 3 | 1–2 | Configurable M; n = M + 10 unless supplied; type A | [ZXH-CF][zxh-cf] | 3D, each |
-| `zxh_cf5`–`zxh_cf8` | 13 | 3 | 5–6 | Configurable M; type B, 2k + 1 or 2k + 2 constraints | [ZXH-CF][zxh-cf] | 3D, each |
+| `zxh_cf5`–`zxh_cf8` | 13 | 3 | 3–4 | Configurable M; type B, k + 1 or k + 2 constraints | [ZXH-CF][zxh-cf] | 3D, each |
 | `zxh_cf9`–`zxh_cf12` | 13 | 3 | 3–4 | Configurable M; type C, k + 1 or k + 2 constraints | [ZXH-CF][zxh-cf] | 3D, each |
-| `zxh_cf13`–`zxh_cf16` | 13 | 3 | 5–6 | Configurable M; type D, 2k + 1 or 2k + 2 constraints | [ZXH-CF][zxh-cf] | 3D, each |
+| `zxh_cf13`–`zxh_cf16` | 13 | 3 | 3–4 | Configurable M; type D, k + 1 or k + 2 constraints | [ZXH-CF][zxh-cf] | 3D, each |
 
 The constrained real-world suites CRE21–CRE51 and RCM01–RCM50 are listed with the
 [application-inspired benchmarks](#cre-and-rcm-constrained-real-world-suites).
@@ -232,13 +232,23 @@ ZXH-CF1–16 (Zhou, Xiang and He, 2021) follow jMetal's implementation at commit
   (type A, CF1–4), in `[1/4, 3/4]` (type B, CF5–8), outside `(1/4, 3/4)`
   (type C, CF9–12), or outside `(1/10, 2/5)` and `(7/10, 4/5)` (type D,
   CF13–16). k is M − 1 up to three objectives, M // 2 up to eight, and then 3.
-- **Excluded intervals:** a type C or D constraint keeps an angle out of an
-  interval, so it is not two constraints that must both hold. jMetal stores
-  both bounds of each interval and computes the violation and the feasibility
-  itself. VAMOS stores one column per interval,
-  `min(theta - low, high - theta)`, as PlatEMO does. That gives jMetal's
-  feasibility and overall violation. jMetal counts two or three violated
-  constraints for an interval; VAMOS counts one column.
+- **One constraint per angle:** as the paper's `k_theta` constraints
+  `v_j(theta) <= 0` (its equation (6)), each constrained angle has one column:
+  `max(theta - 3/4, 1/4 - theta)` for type B, `min(theta - 1/4, 3/4 - theta)`
+  for type C, and the larger of `min(theta - 1/10, 2/5 - theta)` and
+  `min(theta - 7/10, 4/5 - theta)` for type D. jMetal, whose classes are the
+  authors' Java code, stores both bounds of each angle of type B and of each
+  excluded interval of types C and D, and computes the violation and the
+  feasibility of the intervals itself. The feasibility and the overall
+  violation are the same, since an angle can break only one bound or fall in
+  only one interval at a time; jMetal counts two or three violated constraints
+  for an angle, VAMOS one.
+
+**Development after 1.2.0:** ZXH-CF5–8 and ZXH-CF13–16 have one constraint per
+constrained angle, as ZXH-CF9–12 already had: `k + 1` constraints, or `k + 2`
+with a radius. VAMOS 1.2.0 stored two per angle, `2k + 1` or `2k + 2`. The
+feasibility and the overall violation do not change; the number of constraints
+and of violated constraints does.
 
 **VAMOS 1.2.0:** only MW4, MW8 and MW14 accept an objective
 override; the other MW keys reject a different `n_obj` with `ValueError`.
