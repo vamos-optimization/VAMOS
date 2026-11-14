@@ -50,6 +50,23 @@ This table describes the **VAMOS 1.1.0 package**. Changes since 1.0.0 are listed
 
 **Development after 1.1.0:** every `XConfig.default()` takes an optional `encoding`, and `optimize(problem, algorithm=...)` passes the problem's encoding to it. Discrete and mixed problems then get the operators of the shared encoding table: uniform crossover and bit-flip mutation for binary, OX and swap for permutations, SBX (probability 0.9) and polynomial mutation for integers, and the mixed operators for mixed problems. In VAMOS 1.1.0 only NSGA-II and MOEA/D did this, so 22 of the 33 supported combinations of the nine algorithms with `bin_knapsack`, `tsp6`, `int_alloc` and `mixed_design` failed with an error about `sbx` or `pm`; integer runs of IBEA, AGE-MOEA and RVEA, which worked, now use the table's SBX(0.9, 20) instead of their real-coded crossover. Every `default()` also accepts `pop_size=None` (100, or the lattice size for MOEA/D, NSGA-III and RVEA), and `builder().pop_size()` rejects anything but a positive integer.
 
+**Development after 1.2.0:** three crossovers no longer bias the search or
+collapse its diversity. The integer SBX (`sbx` on integer variables, and
+`int_crossover="sbx"` in mixed problems) rounds each child to the nearest
+integer. jMetal and jMetalPy truncate it with `int()`, which pulls the children
+towards zero: parents 3 and 4 got children with mean 3.25 instead of 3.5. The
+integer arithmetic crossover (`arithmetic`, also `blend`) and the real part of
+the mixed crossover, which is the default for mixed problems, draw a random
+weight `lam` for each mated pair and give the complementary children
+`lam * p1 + (1 - lam) * p2` and `(1 - lam) * p1 + lam * p2`. In VAMOS 1.2.0
+both children were the parents' mean, which halved the variance of those
+variables at every mating; `real_crossover="mean"` still asks for the mean.
+`blx_alpha_beta` defaults to `alpha = beta = 0.5`, jMetal's values. It extends
+the parents' interval by `alpha` below the smaller value and by `beta` above the
+larger one, not towards the better parent as in the published operator, so the
+former defaults of 0.75 and 0.25 drove an unselected population towards the
+lower bounds.
+
 **Development after 1.1.0:** the default real-coded crossover of every algorithm that uses SBX is SBX with probability 0.9, as in Deb et al. (2002), jMetal and pymoo, in `XConfig.default()`, in the CLI and in `build_algorithm`. Each algorithm keeps its distribution index: 20, 30 for NSGA-III and RVEA, and 15 for AGE-MOEA. VAMOS 1.1.0 used probability 1.0 in NSGA-II, NSGA-III, SMS-EMOA, SPEA2, IBEA and RVEA, so their default runs follow a different trajectory now; `.crossover("sbx", prob=1.0, eta=...)` reproduces the earlier setting. MOEA/D (differential evolution by default) and SMPSO are unchanged.
 
 Constraints use `G <= 0`, with positive residuals representing violation. Consult the [constraint reference](constraints.md) for residual construction; an accepted `constraint_mode` field alone does not establish constraint enforcement. NSGA-III now uses the same feasibility-first contract in both survival and parent selection.

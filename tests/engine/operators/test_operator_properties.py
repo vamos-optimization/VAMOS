@@ -29,11 +29,11 @@ _MIXED_SEGMENTS = ("real", "int", "cat")
 _MIXED_INDEX = {"real": "real_idx", "int": "int_idx", "cat": "cat_idx"}
 
 _TWIN_CHILDREN = {
-    ("integer", "crossover", "arithmetic"): "VR-229: the integer arithmetic crossover gives two identical children",
-    ("mixed", "int_crossover", "arithmetic"): "VR-229: the integer arithmetic crossover gives two identical children",
-    ("mixed", "real_crossover", "arithmetic"): "VR-229: the real crossover of the mixed encoding gives two identical children",
     ("permutation", "crossover", "aex"): "VR-324: AEX builds its second child from the first parent, like the first child",
 }
+# The rounded children of the arithmetic crossover meet at the parents' midpoint when it is an integer:
+# with the three integer variables of the mixed problem, in [0, 6], about 6% of the pairs are twins.
+_MIDPOINT_TWINS = {("integer", "crossover", "arithmetic"), ("mixed", "int_crossover", "arithmetic")}
 # PCX and SPX vary all three parents whatever prob_crossover is, and UNDX gives two children per three parents.
 _PROB_ZERO_NOT_A_COPY = {"pcx", "simplex", "undx"}
 # Mutations that act on a whole row (a segment or a reordering), so ``prob`` is a per-row rate.
@@ -182,7 +182,7 @@ def test_the_two_children_of_a_pair_differ(case: tuple[str, str, str]) -> None:
     rng = np.random.default_rng(13)
     children = setup.crossover(setup.population(2000, rng), rng)[:, setup.columns()]
     twins = np.all(children[0::2] == children[1::2], axis=1)
-    assert twins.mean() <= 0.05
+    assert twins.mean() <= (0.1 if case in _MIDPOINT_TWINS else 0.05)
 
 
 @pytest.mark.parametrize("case", _cases("mutation"), ids=_id)
