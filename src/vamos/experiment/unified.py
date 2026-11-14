@@ -182,7 +182,7 @@ def optimize(
         Explicit algorithm config object of ``algorithm``'s configuration class;
         ``GenericAlgorithmConfig`` only for plugin algorithms.
     eval_strategy : EvaluationBackend | str | None, optional
-        Evaluation backend name or backend instance.
+        Evaluation backend name or instance; with "multiprocessing", call optimize under if __name__ == "__main__": (Windows, macOS).
     live_viz : LiveVisualization | None, optional
         Live visualization callback.
     checkpoint : CheckpointPayload | None, optional
