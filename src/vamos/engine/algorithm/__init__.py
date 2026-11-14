@@ -18,6 +18,7 @@ Algorithms
 - CCMO: Coevolutionary framework for constrained multi-objective optimization
 - CTAEA: Two-archive evolutionary algorithm for constrained multi-objective optimization
 - ToP: Two-phase framework for constrained multi-objective optimization
+- CMOEAMS: Constrained multi-objective evolutionary algorithm with multiple stages (CMOEA-MS)
 
 Usage
 -----
@@ -47,6 +48,7 @@ from vamos.engine.algorithm.components.protocol import (
 if TYPE_CHECKING:
     from vamos.engine.algorithm.agemoea import AGEMOEA
     from vamos.engine.algorithm.ccmo import CCMO
+    from vamos.engine.algorithm.cmoeams import CMOEAMS
     from vamos.engine.algorithm.ctaea import CTAEA
     from vamos.engine.algorithm.ibea import IBEA
     from vamos.engine.algorithm.moead import MOEAD
@@ -71,6 +73,7 @@ _ALGORITHM_EXPORTS = {
     "CCMO": ("vamos.engine.algorithm.ccmo", "CCMO"),
     "CTAEA": ("vamos.engine.algorithm.ctaea", "CTAEA"),
     "ToP": ("vamos.engine.algorithm.top", "ToP"),
+    "CMOEAMS": ("vamos.engine.algorithm.cmoeams", "CMOEAMS"),
 }
 
 __all__ = [
@@ -87,6 +90,7 @@ __all__ = [
     "CCMO",
     "CTAEA",
     "ToP",
+    "CMOEAMS",
     # Protocols and enums
     "AlgorithmProtocol",
     "InteractiveAlgorithmProtocol",

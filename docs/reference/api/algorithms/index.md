@@ -16,6 +16,7 @@ Choose the configuration class for the algorithm passed to `optimize`. These cla
 | `ccmo` | [`CCMOConfig`](ccmo.md) (new in VAMOS 1.2.0) |
 | `ctaea` | [`CTAEAConfig`](ctaea.md) (new in VAMOS 1.2.0) |
 | `top` | [`ToPConfig`](top.md) (new in VAMOS 1.2.0) |
+| `cmoeams` | [`CMOEAMSConfig`](cmoeams.md) (new in VAMOS 1.2.0) |
 
 ## Explicit configuration
 

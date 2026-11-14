@@ -151,7 +151,7 @@ def test_agemoea_pipeline_run_integration(mock_kernel):
         assert kwargs["mut_method"] == "bitflip"
 
 
-_ALGORITHMS = ("nsgaii", "moead", "smsemoa", "nsgaiii", "spea2", "ibea", "smpso", "agemoea", "rvea", "ccmo", "ctaea")
+_ALGORITHMS = ("nsgaii", "moead", "smsemoa", "nsgaiii", "spea2", "ibea", "smpso", "agemoea", "rvea", "ccmo", "ctaea", "cmoeams")
 _DISCRETE_PROBLEMS = ("bin_knapsack", "tsp6", "int_alloc", "mixed_design")
 
 

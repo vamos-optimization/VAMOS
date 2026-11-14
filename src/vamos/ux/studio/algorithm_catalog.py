@@ -21,6 +21,7 @@ ALGORITHM_LABELS: dict[str, str] = {
     "ccmo": "CCMO",
     "ctaea": "C-TAEA",
     "top": "ToP",
+    "cmoeams": "CMOEA-MS",
 }
 
 _SPACE_SUFFIX = {
@@ -104,6 +105,9 @@ def config_fields_for(parameter: str) -> tuple[str, ...]:
         return ("aggregation",)
     if parameter.startswith("selection"):
         return ("selection",)
+    if parameter == "de_variant":
+        # CMOEA-MS's DE variant is a field of its own, not a parameter of the crossover.
+        return ("de_variant",)
     if "crossover" in parameter or parameter.startswith(_CROSSOVER_PREFIXES):
         return ("crossover",)
     if "mutation" in parameter or parameter.startswith(_MUTATION_PREFIXES):

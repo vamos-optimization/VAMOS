@@ -30,6 +30,8 @@ Sources, for 30 variables, 2 objectives and 100 individuals:
 - ToP: Liu and Wang (2019) as PlatEMO's implementation and jMetal's port set it, DE with CR = 1.0
   and F = 0.5, polynomial mutation p_m = 1/n, eta_m = 20, and phase 1 while (delta >= 0.2 or
   Pf <= 1/3) within 90% of the budget.
+- CMOEA-MS: Tian, Zhang, Su, Zhang, Tan and Jin (2022), PlatEMO's implementation and jMetal's port,
+  SBX p_c = 1.0, eta_c = 20, polynomial mutation p_m = 1/n, eta_m = 20, and lambda = 0.5.
 """
 
 from __future__ import annotations
@@ -85,6 +87,12 @@ PINNED: dict[str, dict[str, Any]] = {
         "delta_threshold": 0.2,
         "feasible_ratio_threshold": 1.0 / 3.0,
         "phase_one_evaluation_fraction": 0.9,
+    },
+    "cmoeams": {
+        "crossover": ["sbx", {"prob": 1.0, "eta": 20.0}],
+        "mutation": _PM,
+        "feasible_ratio_threshold": 0.5,
+        "de_variant": "rand_1_bin",
     },
     "smpso": {
         "mutation": ["polynomial", {"prob": 1.0 / _N_VAR, "eta": 20.0}],

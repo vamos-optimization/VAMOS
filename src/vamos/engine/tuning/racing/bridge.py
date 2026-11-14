@@ -15,6 +15,8 @@ from .bridge_spaces import (
     build_agemoea_permutation_config_space,
     # CCMO
     build_ccmo_config_space,
+    # CMOEA-MS
+    build_cmoeams_config_space,
     # C-TAEA
     build_ctaea_config_space,
     # IBEA
@@ -137,6 +139,8 @@ __all__ = [
     "build_ctaea_config_space",
     # ToP
     "build_top_config_space",
+    # CMOEA-MS
+    "build_cmoeams_config_space",
     # Bridge
     "config_from_assignment",
 ]

@@ -174,6 +174,10 @@ keeps solutions in the subregions where the convergence archive has few.
 [ToP](../algorithms/top.md) is a third: it first solves the problem as a
 constrained single-objective one, to find the feasible regions that hold the
 front, and then runs NSGA-II with the constrained-domination principle.
+[CMOEA-MS](../algorithms/cmoeams.md) is a fourth: its fitness ranks the
+density of the solutions together with their violation while half of them or
+fewer are feasible, and puts the violation first once more than half of them
+are, after the first 10% of the budget.
 
 ### MOEA/D: subproblem update criteria
 

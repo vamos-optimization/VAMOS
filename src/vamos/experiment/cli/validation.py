@@ -188,5 +188,6 @@ def finalize_args(
     args.ccmo_variation = defaults.get("ccmo", {})
     args.ctaea_variation = defaults.get("ctaea", {})
     args.top_variation = defaults.get("top", {})
+    args.cmoeams_variation = defaults.get("cmoeams", {})
 
     return args

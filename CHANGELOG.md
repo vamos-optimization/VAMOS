@@ -76,6 +76,15 @@ rerun. Run and study artifacts keep the 1.0.0 schemas.
   MW1, MW3, MW11, LIR-CMOP2, LIR-CMOP7, LIR-CMOP10 and C1-DTLZ1 matches
   jMetal's runs. `ToPConfig` and the `top` tuning space configure it, its
   budget is exact, and it stays outside the stable API (#277).
+- CMOEA-MS (`cmoeams`), the multi-stage algorithm for constrained problems of
+  Tian et al. (2022), following jMetal's port: SPEA2's fitness on density and
+  normalized violation in stage A, violation first in stage B, with the
+  paper's defaults and a DE variation with jMetal's binomial and exponential
+  crossovers. Its violation, density, fitness, selections, stage rule and
+  operators match jMetal's on fixed inputs, and its IGD on MW1, MW3, MW7,
+  LIR-CMOP2, LIR-CMOP7, LIR-CMOP8, LIR-CMOP10 and C1-DTLZ1 matches jMetal's
+  runs. `CMOEAMSConfig` and the `cmoeams` tuning space configure it, its
+  budget is exact, and it stays outside the stable API (#278).
 
 - `vamos --version` prints the installed version (#273).
 

@@ -10,6 +10,7 @@ import vamos
 from vamos.engine.algorithm.config import (
     AGEMOEAConfig,
     CCMOConfig,
+    CMOEAMSConfig,
     CTAEAConfig,
     IBEAConfig,
     MOEADConfig,
@@ -65,6 +66,18 @@ def _top_phase_two() -> ToPConfig:
     )
 
 
+def _cmoeams_exp() -> CMOEAMSConfig:
+    return (
+        CMOEAMSConfig.builder()
+        .pop_size(5)
+        .crossover("de", cr=0.9, f=0.5)
+        .de_variant("rand_1_exp")
+        .mutation("pm", prob=1.0 / 6.0, eta=20.0)
+        .feasible_ratio_threshold(0.3)
+        .build()
+    )
+
+
 _ALGORITHMS: tuple[tuple[str, str, Callable[[], Any], dict[str, int]], ...] = (
     ("nsgaii", "zdt1", lambda: NSGAIIConfig.default(pop_size=8, n_var=6), {"n_var": 6}),
     ("nsgaiii", "dtlz2", _nsgaiii, {"n_var": 6, "n_obj": 3}),
@@ -84,6 +97,9 @@ _ALGORITHMS: tuple[tuple[str, str, Callable[[], Any], dict[str, int]], ...] = (
     # ToP: one generation of phase 1 on a constrained problem; phase 2 from the start, with a partial generation.
     ("top", "c1dtlz1", lambda: ToPConfig.default(pop_size=6, n_var=7), {"n_var": 7, "n_obj": 3}),
     ("top", "zdt1", _top_phase_two, {"n_var": 6}),
+    # CMOEA-MS: the GA variation on a constrained problem; the exponential DE variation, with a partial generation.
+    ("cmoeams", "c1dtlz1", lambda: CMOEAMSConfig.default(pop_size=6, n_var=7), {"n_var": 7, "n_obj": 3}),
+    ("cmoeams", "zdt1", _cmoeams_exp, {"n_var": 6}),
 )
 
 

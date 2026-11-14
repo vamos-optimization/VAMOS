@@ -153,11 +153,22 @@ def test_binary_problems_start_from_binary_operators_that_can_be_replaced() -> N
     assert result["F"].shape[1] == 2
 
 
+def test_cmoeams_de_variant_reaches_its_configuration_field() -> None:
+    # CMOEA-MS keeps its DE variant in its own field, not in the crossover tuple.
+    form = _form("cmoeams")
+
+    resolved = form.resolve({**form.start_values(), "crossover": "de", "de_variant": "rand_1_exp"})
+
+    assert resolved.config.to_dict()["crossover"][0] == "de"
+    assert resolved.config.to_dict()["de_variant"] == "rand_1_exp"
+
+
 @pytest.mark.parametrize(
     ("parameter", "fields"),
     [
         ("crossover_eta", ("crossover",)),
         ("de_f", ("crossover",)),
+        ("de_variant", ("de_variant",)),
         ("gaussian_sigma", ("mutation",)),
         ("mutation_prob_factor", ("mutation_prob_factor",)),
         ("selection_pressure", ("selection",)),

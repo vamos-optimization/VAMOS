@@ -13,6 +13,7 @@ ALGORITHM_VARIANT_GROUPS: dict[str, set[str]] = {
     "ccmo": {"ccmo"},
     "ctaea": {"ctaea"},
     "top": {"top"},
+    "cmoeams": {"cmoeams"},
 }
 
 
@@ -69,6 +70,7 @@ VARIANT_TO_CANONICAL: dict[str, str] = {
     "ccmo": "ccmo",
     "ctaea": "ctaea",
     "top": "top",
+    "cmoeams": "cmoeams",
 }
 
 
@@ -81,6 +83,9 @@ PERMUTATION_COMPATIBLE_ALGORITHMS: set[str] = {
     "ibea",
     "agemoea",
     "rvea",
+    "ccmo",
+    "ctaea",
+    "cmoeams",
 }
 
 

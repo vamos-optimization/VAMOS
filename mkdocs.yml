@@ -105,6 +105,7 @@ nav:
       - CCMO: algorithms/ccmo.md
       - C-TAEA: algorithms/ctaea.md
       - ToP: algorithms/top.md
+      - CMOEA-MS: algorithms/cmoeams.md
     - Representations and applications:
       - Coverage Setup: tutorials/coverage-setup.md
       - Decision Representations: tutorials/encodings.md
@@ -150,6 +151,7 @@ nav:
         - CCMO: reference/api/algorithms/ccmo.md
         - C-TAEA: reference/api/algorithms/ctaea.md
         - ToP: reference/api/algorithms/top.md
+        - CMOEA-MS: reference/api/algorithms/cmoeams.md
       - Run artifacts:
         - Save, load, and replay: reference/api/runs.md
         - Stored runs and reports: reference/api/run-models.md
