@@ -564,6 +564,17 @@ from a hash of that name; with one worker, `bohb_optuna` is now reproducible
 for a seed, as the other backends were. VAMOS 1.1.0 let Optuna draw a random
 name, so the same seed gave different searches.
 
+**VAMOS 1.2.1:** the CLI appends
+`__vamos_cli_final_population_hv_v2`. VAMOS 1.2.0 changed the built-in search
+spaces and the scores but kept `_v1`, so a `_v1` study can mix trials from two
+contracts, and Optuna cannot resume a study in which a categorical parameter
+offers other choices: it stops with `ValueError: CategoricalDistribution does
+not support dynamic value space`. Since VAMOS 1.2.1 the CLI uses `_v2`, so a
+study stored by an earlier version is not resumed: the same command starts a
+new study, and the stored one stays in the storage under its `_v1` name.
+Persistent SMPSO studies keep `__vamos_cli_leaders_hv_v1`, the namespace that
+VAMOS 1.2.0 introduced with its leaders-archive score.
+
 ## Split-based tuning
 
 For a larger campaign, use explicit instance splitting and post-tuning stages:

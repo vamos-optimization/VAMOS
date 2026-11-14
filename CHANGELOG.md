@@ -15,29 +15,23 @@ notes](docs/project/release-notes-1.2.1.md).
 
 ### Fixed
 
-<!-- PENDING(#280, fix/c2dtlz2-radius): drop this entry if that pull request is not merged. -->
 - C2-DTLZ2's default radius with two objectives is 0.5, as in Jain and Deb
   (2014) and jMetal, instead of 0.2: the whole quarter circle of its front is
   feasible, and its packaged two-objective front is regenerated. This changes
   the results of two-objective C2-DTLZ2 runs; `r=0.2` gives the former problem
   (#280).
-<!-- /PENDING -->
-<!-- PENDING(#281, fix/zxh-cf-constraint-count): drop this entry if that pull request is not merged. -->
 - ZXH-CF5–8 and ZXH-CF13–16 have one constraint per constrained angle, the
   k_theta constraints of Zhou, Xiang and He (2021), as ZXH-CF9–12 do: `k + 1`
   or `k + 2` constraints instead of `2k + 1` or `2k + 2`. Feasibility and the
   overall constraint violation do not change; techniques that use the
   individual constraints, such as `violated_constraints`, can rank differently
   (#281).
-<!-- /PENDING -->
-<!-- PENDING(#282, fix/optuna-study-namespace-v2): drop this entry if that pull request is not merged. -->
 - `vamos tune` stores persistent Optuna studies under
   `__vamos_cli_final_population_hv_v2`. VAMOS 1.2.0 changed the built-in search
   spaces and scores but kept `_v1`, so resuming an earlier study mixed trials of
   two contracts or stopped with Optuna's `ValueError` ("CategoricalDistribution
   does not support dynamic value space"); such a study now starts afresh
   (#282).
-<!-- /PENDING -->
 - Documentation: the troubleshooting guide no longer lists the removed
   `research` extra and gives notebooks' `[analysis,examples]` install, and the
   algorithms reference describes the removed baselines with the 1.1.0 install

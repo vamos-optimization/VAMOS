@@ -116,7 +116,7 @@ def test_persistent_optuna_study_name_is_versioned_by_scoring_contract() -> None
 
     actual = tune_runtime._versioned_optuna_study_name(args, task)
 
-    assert actual == "legacy-study__vamos_cli_final_population_hv_v1"
+    assert actual == "legacy-study__vamos_cli_final_population_hv_v2"
 
 
 def test_default_persistent_optuna_study_name_is_also_versioned() -> None:
@@ -125,7 +125,7 @@ def test_default_persistent_optuna_study_name_is_also_versioned() -> None:
 
     actual = tune_runtime._versioned_optuna_study_name(args, task)
 
-    assert actual == "tune_zdt1_nsgaii_optuna_optuna_7__vamos_cli_final_population_hv_v1"
+    assert actual == "tune_zdt1_nsgaii_optuna_optuna_7__vamos_cli_final_population_hv_v2"
 
 
 def test_cli_tuning_task_excludes_external_archive_controls() -> None:
