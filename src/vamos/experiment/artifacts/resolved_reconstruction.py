@@ -27,7 +27,7 @@ from vamos.experiment.types import TerminationSpec
 from vamos.foundation.encoding import normalize_encoding
 from vamos.foundation.problem.registry import make_problem_selection
 
-from .component_support import resolved_component_reconstructability
+from .component_support import BUILT_IN_BACKENDS, resolved_component_reconstructability
 from .errors import ComponentNotReconstructableError, ResolvedSpecMismatchError, UnsupportedReplayProviderError
 from .jsonio import canonical_json_bytes, sha256_bytes
 from .models import deep_freeze, deep_thaw
@@ -319,7 +319,7 @@ def _engine(resolved: Mapping[str, Any], root: Path) -> str:
     kernel = _mapping(backend.get("kernel"))
     engine = _component_name(kernel.get("component_id"), "vamos.kernel")
     resolution = _mapping(kernel.get("resolution"))
-    if engine not in {"numpy", "numba", "moocore"} or resolution.get("name") != engine:
+    if engine not in BUILT_IN_BACKENDS or resolution.get("name") != engine:
         raise _component_error(root, "$.resolved_spec.backend.kernel", kernel)
     evaluation = _mapping(backend.get("evaluation"))
     if not is_reconstructable_evaluation_backend(evaluation):

@@ -13,6 +13,7 @@ from typing import Any
 from vamos.foundation.problem.builder import FunctionalProblem
 from vamos.foundation.problem.registry import get_problem_specs, make_problem_selection
 
+from .component_support import BUILT_IN_ALGORITHMS, BUILT_IN_BACKENDS
 from .jsonio import normalize_json
 from .manifest import RESOLVED_SPEC_VERSION
 
@@ -32,21 +33,6 @@ _OPERATOR_ALIASES = {
     "swap": "swap",
     "tournament": "tournament",
     "uniform": "uniform",
-}
-_BUILT_IN_ALGORITHMS = {
-    "agemoea",
-    "ccmo",
-    "cmoeams",
-    "ctaea",
-    "ibea",
-    "moead",
-    "nsgaii",
-    "nsgaiii",
-    "rvea",
-    "smpso",
-    "smsemoa",
-    "spea2",
-    "top",
 }
 
 
@@ -187,7 +173,7 @@ def _resolved_spec(inputs: RunSpecInputs) -> dict[str, Any]:
             "algorithm",
             f"vamos.algorithm:{_slug(inputs.algorithm)}@1",
             algorithm_config,
-            built_in=inputs.algorithm in _BUILT_IN_ALGORITHMS,
+            built_in=inputs.algorithm in BUILT_IN_ALGORITHMS,
         ),
         "operators": operators,
         "backend": {
@@ -266,16 +252,15 @@ def _inactive_operator(role: str, reason: str) -> dict[str, Any]:
 
 
 def _kernel_component(engine: str) -> dict[str, Any]:
-    package = {"numpy": "numpy", "numba": "numba", "moocore": "moocore"}.get(engine, engine)
     try:
-        version = importlib_metadata.version(package)
+        version = importlib_metadata.version(engine)  # Each built-in backend is named after its distribution.
     except importlib_metadata.PackageNotFoundError:
         version = None
     descriptor = _component(
         "kernel_backend",
         f"vamos.kernel:{_slug(engine)}@1",
         {},
-        built_in=engine in {"numpy", "numba", "moocore"},
+        built_in=engine in BUILT_IN_BACKENDS,
     )
     descriptor["resolution"] = {"name": engine, "version": version, "capabilities": []}
     return descriptor
@@ -343,7 +328,7 @@ def _optional_int(value: object) -> int | None:
 
 
 def _is_deterministic(engine: str, evaluation: object) -> bool:
-    return engine in {"numpy", "numba", "moocore"} and (evaluation is None or evaluation == "serial")
+    return engine in BUILT_IN_BACKENDS and (evaluation is None or evaluation == "serial")
 
 
 def _slug(value: str) -> str:

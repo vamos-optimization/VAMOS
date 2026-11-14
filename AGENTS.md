@@ -32,6 +32,8 @@ Do not add readers, migrations, aliases, or deprecation cycles for internal pre-
 
 Permitted dependencies are: foundation -> foundation/resources; engine -> engine/foundation/resources; ux -> ux/foundation/engine/resources; experiment -> experiment/foundation/engine/ux/assist/resources; assist -> assist/foundation/engine/experiment/resources. Do not create reverse imports or import-time initialization to bypass these boundaries.
 
+A root module belongs to the layer it re-exports, so it is no bridge between layers. The one exception is that ux reads stored runs and studies through the stable `vamos.run_artifacts` and `vamos.study_artifacts` facades, and reaches nothing else of experiment. assist sits above experiment and reuses its CLI parsers; the experiment CLI reaches assist only through the lazy import of the `vamos assist` subcommand. `tests/architecture/test_layer_boundaries.py` and `tests/architecture/test_subpackage_cycles.py` enforce these directions.
+
 Read [Architecture Health](docs/dev/architecture_health.md) before adding a module, dependency, or public API.
 
 ## Public and internal APIs

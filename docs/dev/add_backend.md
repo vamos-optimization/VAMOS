@@ -18,7 +18,7 @@ Optional indicator hooks must advertise capability before use (`quality_indicato
 
 1. Treat `NumPyKernel` as the reference behavior and identify a measured hot path.
 2. Implement the abstract interface under `src/vamos/foundation/kernel/`. Preserve input/output shapes, tie handling, stable ordering expectations, RNG consumption contracts, and error semantics.
-3. Add a lazy factory to `KERNELS` in `registry.py`. Import the optional package only inside that factory or backend invocation.
+3. Add a lazy factory to `KERNELS` in `registry.py`. Import the optional package only inside that factory or backend invocation. Add the name to the other lists of built-in backends, which `tests/architecture/test_builtin_component_lists.py` keeps equal to `KERNELS` in `src/vamos/foundation/kernel/registry.py`: the `EngineName` literal in `src/vamos/engine/algorithm/config/types.py`; `BUILT_IN_BACKENDS` in `src/vamos/experiment/artifacts/component_support.py`, which run specifications, exact replay and `vamos check` read; and the engines that `InvalidEngineError` lists by default in `src/vamos/foundation/exceptions.py`, where `BackendNotAvailableError` points an optional backend to the `compute` extra.
 4. Put a non-core dependency in the appropriate optional extra and provide an actionable import error. Do not make `import vamos` load it.
 5. Add parity tests against NumPy, failure tests, and a tiny end-to-end algorithm run. Benchmark only after correctness is established.
 6. Update backend reference docs and exact-replay reconstruction only when the backend becomes an intentionally supported built-in replay target.
