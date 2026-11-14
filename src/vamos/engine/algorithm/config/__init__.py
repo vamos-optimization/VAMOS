@@ -15,6 +15,7 @@ Examples:
 
 from .agemoea import AGEMOEAConfig
 from .ccmo import CCMOConfig
+from .ctaea import CTAEAConfig
 from .generic import GenericAlgorithmConfig
 from .ibea import IBEAConfig
 from .moead import MOEADConfig
@@ -52,6 +53,8 @@ __all__ = [
     "RVEAConfig",
     # CCMO
     "CCMOConfig",
+    # C-TAEA
+    "CTAEAConfig",
     # Plugin/custom
     "GenericAlgorithmConfig",
     # Typing helpers

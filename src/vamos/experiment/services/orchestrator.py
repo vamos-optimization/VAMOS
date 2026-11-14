@@ -61,6 +61,7 @@ def run_single(
             "agemoea": variations.agemoea,
             "rvea": variations.rvea,
             "ccmo": variations.ccmo,
+            "ctaea": variations.ctaea,
         },
         track_genealogy=track_genealogy,
     )

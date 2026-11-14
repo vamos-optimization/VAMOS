@@ -47,6 +47,7 @@ and reachable through the named parent pages even when absent from the menu.
 | --- | --- | --- | --- |
 | [algorithms/agemoea.md](../algorithms/agemoea.md) | Tutorial | Tutorials → Algorithms | Add |
 | [algorithms/ccmo.md](../algorithms/ccmo.md) | Tutorial | Tutorials → Algorithms | Add |
+| [algorithms/ctaea.md](../algorithms/ctaea.md) | Tutorial | Tutorials → Algorithms | Add |
 | [algorithms/ibea.md](../algorithms/ibea.md) | Tutorial | Tutorials → Algorithms | Add |
 | [algorithms/rvea.md](../algorithms/rvea.md) | Tutorial | Tutorials → Algorithms | Add |
 | [algorithms/smpso.md](../algorithms/smpso.md) | Tutorial | Tutorials → Algorithms | Add |
@@ -120,6 +121,7 @@ and reachable through the named parent pages even when absent from the menu.
 | [reference/algorithms.md](../reference/algorithms.md) | Reference | Reference → Algorithms & Backends | Regroup |
 | [reference/api/algorithms/agemoea.md](../reference/api/algorithms/agemoea.md) | Reference | Reference → API Reference → Algorithm configuration → AGE-MOEA | Keep |
 | [reference/api/algorithms/ccmo.md](../reference/api/algorithms/ccmo.md) | Reference | Reference → API Reference → Algorithm configuration → CCMO | Add |
+| [reference/api/algorithms/ctaea.md](../reference/api/algorithms/ctaea.md) | Reference | Reference → API Reference → Algorithm configuration → C-TAEA | Add |
 | [reference/api/algorithms/ibea.md](../reference/api/algorithms/ibea.md) | Reference | Reference → API Reference → Algorithm configuration → IBEA | Keep |
 | [reference/api/algorithms/index.md](../reference/api/algorithms/index.md) | Reference | Reference → API Reference → Algorithm configuration → Overview | Keep |
 | [reference/api/algorithms/moead.md](../reference/api/algorithms/moead.md) | Reference | Reference → API Reference → Algorithm configuration → MOEA/D | Keep |

@@ -406,6 +406,15 @@ initializer and repair are those of the other real-coded spaces. An assignment
 without `crossover_prob`, `de_cr` or `de_f` gets the published values: 1.0, and
 CR = 1 and F = 0.5. `vamos tune --algorithm ccmo` tunes it.
 
+**Development after 1.1.0:** `ctaea` is the real-coded space of
+[C-TAEA](../algorithms/ctaea.md), which also handles constraints itself:
+`pop_size` (20 to 200, the requested number of weight vectors, from which
+C-TAEA generates its population: 91 for 100 and three objectives) and a
+two-parent crossover, SBX, BLX-alpha or arithmetic, with `crossover_prob` and
+its own parameters. Mutation, initializer and repair are those of the other
+real-coded spaces. An assignment without `crossover_prob` gets 1.0, the
+published value. `vamos tune --algorithm ctaea` tunes it.
+
 ### Populations that depend on the number of objectives
 
 The parameter spaces do not know the problem, but two algorithms need its

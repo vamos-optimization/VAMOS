@@ -29,6 +29,7 @@ def load_spec_defaults(config_path: str | None) -> SpecDefaults:
     agemoea_defaults: SpecBlock = {}
     rvea_defaults: SpecBlock = {}
     ccmo_defaults: SpecBlock = {}
+    ctaea_defaults: SpecBlock = {}
     if config_path:
         raw = load_experiment_spec(config_path)
         if raw is None:
@@ -93,6 +94,7 @@ def load_spec_defaults(config_path: str | None) -> SpecDefaults:
         agemoea_defaults = _algo_defaults("agemoea")
         rvea_defaults = _algo_defaults("rvea")
         ccmo_defaults = _algo_defaults("ccmo")
+        ctaea_defaults = _algo_defaults("ctaea")
     return SpecDefaults(
         spec=spec,
         problem_overrides=problem_overrides,
@@ -107,4 +109,5 @@ def load_spec_defaults(config_path: str | None) -> SpecDefaults:
         agemoea_defaults=agemoea_defaults,
         rvea_defaults=rvea_defaults,
         ccmo_defaults=ccmo_defaults,
+        ctaea_defaults=ctaea_defaults,
     )

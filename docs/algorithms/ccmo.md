@@ -66,7 +66,7 @@ The GA variation runs every encoding with its two-parent operators; the DE varia
 
 ## Budget
 
-The two initial populations take `2 * pop_size` evaluations, so `max_evaluations` must be at least `2 * pop_size`; `optimize` and study planning reject a smaller budget before the run. A GA generation then costs `2 * (pop_size // 2)` evaluations and a DE generation `2 * pop_size`. Budgets are exact: when fewer evaluations are left than the last generation creates, it evaluates the first of its offspring in the order `[population 1's offspring, population 2's offspring]`, so population 2's offspring are cut first, and both populations then select from the offspring that were evaluated. The authors' code and jMetal check the budget before each generation, so their last generation can exceed it. The `n_gen` criterion counts `pop_size` evaluations per generation, as for every algorithm.
+The two initial populations take `2 * pop_size` evaluations, so `max_evaluations` must be at least `2 * pop_size`; `optimize`, study planning and the `vamos` command line reject a smaller budget before the run. A GA generation then costs `2 * (pop_size // 2)` evaluations and a DE generation `2 * pop_size`. Budgets are exact: when fewer evaluations are left than the last generation creates, it evaluates the first of its offspring in the order `[population 1's offspring, population 2's offspring]`, so population 2's offspring are cut first, and both populations then select from the offspring that were evaluated. The authors' code and jMetal check the budget before each generation, so their last generation can exceed it. The `n_gen` criterion counts `pop_size` evaluations per generation, as for every algorithm.
 
 ## Agreement with the published results
 

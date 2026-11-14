@@ -9,6 +9,7 @@ from typing import Any, cast
 
 from .agemoea import AGEMOEAConfig
 from .ccmo import CCMOConfig
+from .ctaea import CTAEAConfig
 from .ibea import IBEAConfig
 from .moead import MOEADConfig
 from .nsgaii import NSGAIIConfig
@@ -32,6 +33,7 @@ _DEFAULT_FACTORIES: dict[str, Callable[..., AlgorithmConfigProtocol]] = {
     "agemoea": AGEMOEAConfig.default,
     "rvea": RVEAConfig.default,
     "ccmo": CCMOConfig.default,
+    "ctaea": CTAEAConfig.default,
 }
 
 # The built-in algorithm each configuration class configures.
@@ -46,6 +48,7 @@ _CONFIG_ALGORITHMS: dict[type, str] = {
     AGEMOEAConfig: "agemoea",
     RVEAConfig: "rvea",
     CCMOConfig: "ccmo",
+    CTAEAConfig: "ctaea",
 }
 
 

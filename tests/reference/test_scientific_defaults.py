@@ -25,6 +25,8 @@ Sources, for 30 variables, 2 objectives and 100 individuals:
   the variable range, polynomial mutation p_m = 1/n, eta_m = 20.
 - CCMO: Tian, Zhang, Xiao, Zhang and Jin (2021) and jMetal's port, SBX p_c = 1.0, eta_c = 20,
   polynomial mutation p_m = 1/n, eta_m = 20.
+- C-TAEA: Li, Chen, Fu and Yao (2019) and jMetal's port, SBX p_c = 1.0, eta_c = 20, polynomial
+  mutation p_m = 1/n, eta_m = 20.
 """
 
 from __future__ import annotations
@@ -73,6 +75,7 @@ PINNED: dict[str, dict[str, Any]] = {
     "agemoea": {"crossover": ["sbx", {"prob": 0.9, "eta": 15.0}], "mutation": _PM},
     "rvea": {"crossover": _SBX_30, "mutation": _PM, "alpha": 2.0, "adapt_freq": 0.1, "n_partitions": 99},
     "ccmo": {"crossover": ["sbx", {"prob": 1.0, "eta": 20.0}], "mutation": _PM},
+    "ctaea": {"crossover": ["sbx", {"prob": 1.0, "eta": 20.0}], "mutation": _PM},
     "smpso": {
         "mutation": ["polynomial", {"prob": 1.0 / _N_VAR, "eta": 20.0}],
         "inertia": 0.1,
