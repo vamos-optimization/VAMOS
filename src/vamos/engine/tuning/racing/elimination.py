@@ -1,26 +1,20 @@
 from __future__ import annotations
 
-import logging
 import math
-import warnings
 from typing import TYPE_CHECKING
 
 import numpy as np
+import numpy.typing as npt
 
 from .state import ConfigState, EliteEntry
-from .stats import build_score_matrix, select_configs_by_paired_test
-
-
-def _logger() -> logging.Logger:
-    return logging.getLogger(__name__)
-
+from .stats import build_score_matrix, select_configs_by_frace
 
 if TYPE_CHECKING:
     from .scenario import Scenario
     from .tuning_task import TuningTask
 
 
-def compute_aggregated_scores(configs: list[ConfigState], task: TuningTask) -> tuple[list[int], np.ndarray]:
+def compute_aggregated_scores(configs: list[ConfigState], task: TuningTask) -> tuple[list[int], npt.NDArray[np.float64]]:
     """
     Compute aggregated scores for all alive configs that have at least one score.
     """
@@ -39,7 +33,7 @@ def compute_aggregated_scores(configs: list[ConfigState], task: TuningTask) -> t
 def rank_based_elimination(
     configs: list[ConfigState],
     alive_indices: list[int],
-    agg_scores: np.ndarray,
+    agg_scores: npt.NDArray[np.float64],
     *,
     task: TuningTask,
     scenario: Scenario,
@@ -69,7 +63,7 @@ def rank_based_elimination(
 def force_keep_top_k(
     configs: list[ConfigState],
     alive_indices: list[int],
-    agg_scores: np.ndarray,
+    agg_scores: npt.NDArray[np.float64],
     *,
     task: TuningTask,
     k: int,
@@ -116,8 +110,8 @@ def eliminate_configs(configs: list[ConfigState], *, task: TuningTask, scenario:
             scenario=scenario,
         )
 
-    # In statistical mode, be conservative before enough block evidence.
-    if min_len < scenario.min_blocks_before_elimination or min_len <= 1:
+    # In statistical mode, the first test waits for first_test blocks, as irace's firstTest.
+    if min_len < max(scenario.first_test, scenario.min_blocks_before_elimination) or min_len <= 1:
         return False
 
     # Keep waiting until all alive configs are aligned on the same number of blocks.
@@ -125,40 +119,8 @@ def eliminate_configs(configs: list[ConfigState], *, task: TuningTask, scenario:
         return False
 
     scores, aligned_indices = build_score_matrix(configs)
-
-    # --- Friedman Test Pre-Check ---
-    # Only if we have enough samples to be meaningful (e.g. at least 3 blocks, at least 3 configs)
-    if len(aligned_indices) >= 3 and scores.shape[1] >= 3:
-        try:
-            from scipy.stats import friedmanchisquare  # type: ignore[import-untyped]
-
-            # friedmanchisquare takes arguments as *samples
-            # each sample is an array of measurements for one subject (here config)
-            # We must pass rows of the score matrix
-            with warnings.catch_warnings():
-                # SciPy may emit RuntimeWarning for degenerate tie-correction cases.
-                # In that case the p-value can become NaN; treat it as "test not applicable".
-                warnings.simplefilter("ignore", RuntimeWarning)
-                stat, p_friedman = friedmanchisquare(*[scores[i, :] for i in range(scores.shape[0])])
-            if not np.isfinite(p_friedman):
-                raise ValueError("Friedman test produced non-finite p-value.")
-
-            # If p-value is high, we cannot reject the null hypothesis that all configs are equivalent.
-            # Thus, we should NOT eliminate anyone yet.
-            if p_friedman > scenario.alpha:
-                return False
-        except ImportError:
-            _logger().debug("Could not import scipy for Friedman pre-check", exc_info=True)
-        except ValueError:
-            _logger().debug("Friedman test raised ValueError (e.g. identical scores)", exc_info=True)
-    # -------------------------------
-
-    keep_mask = select_configs_by_paired_test(
-        scores=scores,
-        maximize=task.maximize,
-        alpha=scenario.alpha,
-        aggregator=task.aggregator,
-    )
+    # F-race: Friedman on the ranks of each block and Conover's post-hoc, or Wilcoxon with two alive.
+    keep_mask = select_configs_by_frace(scores, maximize=task.maximize, alpha=scenario.alpha)
 
     num_keep = int(keep_mask.sum())
     if num_keep <= 0:

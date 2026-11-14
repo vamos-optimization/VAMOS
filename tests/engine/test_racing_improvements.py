@@ -272,3 +272,46 @@ def test_racing_raises_when_every_evaluation_fails() -> None:
 
     with pytest.raises(TuningFailedError, match="every one of the 30 evaluations failed"):
         tuner.run(eval_fn, verbose=False)
+
+
+def _maximizing_task():
+    return SimpleNamespace(aggregator=np.mean, maximize=True)
+
+
+def _race_matrix(scores, scenario):
+    configs = [ConfigState(config_id=i, config={}, alive=True, scores=[float(v) for v in row]) for i, row in enumerate(scores)]
+    eliminate_configs(configs, task=_maximizing_task(), scenario=scenario)
+    return np.array([state.alive for state in configs])
+
+
+def test_racing_eliminates_with_heterogeneous_instance_scales():
+    # 50 races of 8 configurations on 10 blocks; the true means rise from the first to the last,
+    # and every other block is on a scale 100 times larger, as hypervolumes of different problems.
+    rng = np.random.default_rng(0)
+    means = np.linspace(0.0, 0.7, 8)
+    eliminated, best_kept = [], 0
+    for _ in range(50):
+        scores = means[:, None] + rng.normal(0.0, 1.0, size=10)[None, :] + rng.normal(0.0, 0.5, size=(8, 10))
+        scores[:, ::2] *= 100.0
+        alive = _race_matrix(scores, Scenario(max_experiments=1000))
+        eliminated.append(int((~alive).sum()))
+        best_kept += bool(alive[-1])
+    # Paired t-tests on the raw values eliminated none; F-race, on the ranks of each block, about three.
+    assert np.mean(eliminated) > 1.0, np.mean(eliminated)
+    assert best_kept >= 48, best_kept
+
+
+def test_racing_uses_wilcoxon_with_two_alive():
+    # The first configuration is better on 11 of 12 blocks, and much worse on the last, a large-scale one.
+    first = np.full(12, 1.0)
+    second = np.full(12, 0.0)
+    second[-1] = 100.0
+    alive = _race_matrix(np.vstack([first, second]), Scenario(max_experiments=1000))
+    # The signed-rank test (p = 0.038) eliminates the second; a t-test on the raw differences kept both.
+    assert alive.tolist() == [True, False]
+
+
+def test_racing_waits_for_first_test_blocks():
+    scores = np.vstack([np.full(4, 1.0) + np.arange(4), np.arange(4.0), np.arange(4.0) - 1.0])
+    assert _race_matrix(scores, Scenario(max_experiments=1000)).all()
+    assert not _race_matrix(scores, Scenario(max_experiments=1000, first_test=3, min_blocks_before_elimination=3)).all()
