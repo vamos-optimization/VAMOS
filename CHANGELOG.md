@@ -4,6 +4,36 @@ All notable public changes to VAMOS are documented here.
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-11-14
+
+VAMOS 1.2.1 is a patch release. It corrects C2-DTLZ2's default radius with two
+objectives, which changes results of affected experiments, keeps persistent
+Optuna studies of the tuning CLI from mixing with those of earlier versions,
+and corrects two install instructions in the documentation. See the
+[1.2.1 release notes](docs/project/release-notes-1.2.1.md).
+
+### Fixed
+
+<!-- PENDING(#280, fix/c2dtlz2-radius): drop this entry if that pull request is not merged. -->
+- C2-DTLZ2's default radius with two objectives is 0.5, as in Jain and Deb
+  (2014) and jMetal, instead of 0.2: the whole quarter circle of its front is
+  feasible, and its packaged two-objective front is regenerated. This changes
+  the results of two-objective C2-DTLZ2 runs; `r=0.2` gives the former problem
+  (#280).
+<!-- /PENDING -->
+<!-- PENDING(#282, fix/optuna-study-namespace-v2): drop this entry if that pull request is not merged. -->
+- `vamos tune` stores persistent Optuna studies under
+  `__vamos_cli_final_population_hv_v2`. VAMOS 1.2.0 changed the built-in search
+  spaces and scores but kept `_v1`, so resuming an earlier study mixed trials of
+  two contracts or stopped with Optuna's `ValueError` ("CategoricalDistribution
+  does not support dynamic value space"); such a study now starts afresh
+  (#282).
+<!-- /PENDING -->
+- Documentation: the troubleshooting guide no longer lists the removed
+  `research` extra and gives notebooks' `[analysis,examples]` install, and the
+  algorithms reference describes the removed baselines with the 1.1.0 install
+  command (RELEASE_PR).
+
 ## [1.2.0] - 2026-11-14
 
 VAMOS 1.2.0 corrects built-in algorithms, operators, problems, reference

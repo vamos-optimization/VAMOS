@@ -2,7 +2,7 @@
 
 Choose a problem by its **formulation, encoding and dimensions**, then check the
 [algorithm compatibility matrix](algorithms.md). This catalog describes the
-251 registered problems in VAMOS **1.2.0**. The named selection helpers are
+251 registered problems in VAMOS **1.2.1**. The named selection helpers are
 [stable public APIs](../project/stability-and-versioning.md). A synthetic or
 engineering benchmark is a test model, not a validated model of your application.
 
@@ -534,7 +534,7 @@ equalities).
 
 ### Learning and mixed engineering examples
 
-Install `python -m pip install "vamos-optimization[examples]==1.2.0"` for the two
+Install `python -m pip install "vamos-optimization[examples]==1.2.1"` for the two
 classifier examples. The base package is sufficient for `welded_beam`.
 See [Installation](../guide/installation.md) for environments and extras.
 
