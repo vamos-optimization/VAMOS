@@ -35,7 +35,7 @@ notes](docs/project/release-notes-1.2.1.md).
 - Documentation: the troubleshooting guide no longer lists the removed
   `research` extra and gives notebooks' `[analysis,examples]` install, and the
   algorithms reference describes the removed baselines with the 1.1.0 install
-  command (RELEASE_PR).
+  command.
 
 ## [1.2.0] - 2026-11-14
 
