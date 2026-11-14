@@ -225,6 +225,38 @@ def test_cli_run_ctrl_c_uses_durable_graceful_cancellation(tmp_path: Path, monke
     assert vamos.load_study(root).status == "cancelled"
 
 
+def test_interrupted_study_message_does_not_promise_resume(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import vamos.experiment.cli.study_command as study_command
+    import vamos.experiment.study.execution as execution
+
+    root = tmp_path / "study"
+    vamos.create_study(
+        vamos.StudySpec(problems=["zdt1"], algorithms=["nsgaii"], seeds=[0], max_evaluations=8, pop_size=4),
+        output=root,
+    )
+
+    def interrupt(_reconstructed: Any, *, root: Path) -> OptimizationResult:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(execution, "_execute_optimization", interrupt)
+    cancelled = execute_study_command(StudyCommandRequest(operation="run", study_dir=root))
+
+    assert cancelled.status == "cancelled"
+    assert not any("resume" in action for action in cancelled.next_actions), cancelled.next_actions
+    assert "resume_to_reconcile" not in vamos.load_study(root).inspect().next_actions
+
+    def interrupted(_request: StudyCommandRequest) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setitem(study_command._COMMANDS, "resume", interrupted)
+    escaped = execute_study_command(StudyCommandRequest(operation="resume", study_dir=root))
+    action = escaped.errors[0]["action"]
+
+    assert escaped.status == "interrupted"
+    assert "resuming" not in action
+    assert "cancelled" in action
+
+
 def test_sa_067_cli_inspect_and_summarize_do_not_materialize_arrays(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import vamos.experiment.artifacts.reader as reader
     import vamos.experiment.study.execution as execution

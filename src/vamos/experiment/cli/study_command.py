@@ -206,7 +206,16 @@ def _interrupted_result(operation: Operation) -> StudyCommandResult:
         changed=False,
         payload={"execution_began": False, "single_owner": operation in {"create", "run", "resume", "retry"}},
         warnings=(SINGLE_OWNER_WARNING,) if operation in {"create", "run", "resume", "retry"} else (),
-        errors=({"category": "interruption", "reason": "PROCESS_INTERRUPTED", "action": "Inspect the study before resuming."},),
+        errors=(
+            {
+                "category": "interruption",
+                "reason": "PROCESS_INTERRUPTED",
+                "action": (
+                    "Inspect the study. If it was running, the interruption cancelled it, which is final: "
+                    "create a new study for the work left. Otherwise nothing changed."
+                ),
+            },
+        ),
         next_actions=("vamos study inspect STUDY_DIR",),
     )
 

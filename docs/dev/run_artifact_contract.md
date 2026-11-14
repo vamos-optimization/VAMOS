@@ -61,6 +61,9 @@ path is an `OutputCollisionError`, including an empty directory or a partial
 run. It snapshots supported arrays, writes a uniquely owned sibling staging
 directory, fsyncs files, commits the terminal manifest last, and publishes with
 one directory rename. Failure removes only staging state owned by that writer.
+It also fsyncs the staging and parent directories, except on Windows, which
+offers no directory fsync: there, a power loss just after publication can lose
+the new directory entry, though never leave a partial run under the final name.
 
 ## 4. Public Python API
 
