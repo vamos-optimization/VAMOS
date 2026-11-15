@@ -376,7 +376,7 @@ keep a grandchild such as `x_eta` (active when `x_kind == 'b'`) while its
 grandparent `use_x` was false, in spaces with conditions on the direct parent
 only. The built-in spaces were not affected.
 
-**Development after 1.2.0:** the SMS-EMOA spaces choose the mating selection,
+**Development after 1.2.1:** the SMS-EMOA spaces choose the mating selection,
 `random` or `tournament`, with `selection_pressure` only for a tournament, and
 the offset of the reference point, `reference_point_offset` in [0.1, 2.0].
 Both ranges include the defaults of `SMSEMOAConfig`: random selection and an
