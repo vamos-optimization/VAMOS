@@ -17,7 +17,9 @@ back to their published definitions, which changes results of affected
 experiments, and adds 115 constrained benchmark problems, jMetal's
 constraint-handling techniques and the CCMO, C-TAEA, ToP and CMOEA-MS
 algorithms. It supports Python 3.13 and 3.14 and is the last minor release for
-Python 3.10. See the
+Python 3.10. VAMOS 1.2.1 corrects C2-DTLZ2's default radius with two objectives
+and keeps persistent Optuna studies from mixing with earlier versions. See the
+[1.2.1 release notes](https://vamos-optimization.org/project/release-notes-1.2.1/), the
 [1.2.0 release notes](https://vamos-optimization.org/project/release-notes-1.2.0/), including
 which results to rerun, and the earlier
 [1.1.0 release notes](https://vamos-optimization.org/project/release-notes-1.1.0/).
@@ -92,7 +94,7 @@ pip install "smac>=2.0"
 | `numba` | Stable optional | Accelerates core numeric kernels such as variation, tournament selection, and MOEA/D neighborhood updates. |
 | `moocore` | Stable optional | Adds accelerated quality-indicator support, especially hypervolume-style metrics. |
 
-In VAMOS 1.2.0, use `engine="auto"` (CLI: `--engine auto`)
+In VAMOS 1.2.1, use `engine="auto"` (CLI: `--engine auto`)
 to prefer loadable Numba for all nine built-in algorithms, with a NumPy fallback.
 Numba remains optional. Omitting `engine` still selects NumPy, preserving the 1.x
 default; explicit `engine="numba"` fails if unavailable. First use can spend more
@@ -399,7 +401,7 @@ If you use VAMOS in published work, cite it directly:
   title = {VAMOS: Vectorized Architecture for Multiobjective Optimization Studies},
   author = {Rodriguez Uribe, Nicolas and Herr{\'a}n, Alberto and Nebro, Antonio J. and Del Ser, Javier and Colmenar, J. Manuel},
   year = {2026},
-  version = {1.2.0},
+  version = {1.2.1},
   url = {https://github.com/vamos-optimization/VAMOS}
 }
 ```

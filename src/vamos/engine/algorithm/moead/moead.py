@@ -28,14 +28,13 @@ from vamos.engine.algorithm.components.hooks import (
 )
 from vamos.engine.algorithm.components.termination import capped_offspring_size
 from vamos.engine.algorithm.components.utils import variation_operator_label
-from vamos.engine.archive.factory import update_archive
 from vamos.foundation.constraints.utils import compute_violation
 from vamos.foundation.kernel import default_kernel
 
 from .helpers import update_neighborhood, update_neighborhood_batch
 from .initialization import initialize_moead_run
 from .neighborhood import update_neighborhoods_recording_replacements, update_neighborhoods_with_criterion
-from .state import MOEADState, build_moead_result
+from .state import MOEADState, archive_baseline, build_moead_result, update_moead_archive
 from .steady_state import SteadyStateStep
 
 if TYPE_CHECKING:
@@ -418,6 +417,7 @@ class MOEAD:
         pop_size = st.pop_size
 
         st.ideal = np.minimum(st.ideal, F_child.min(axis=0))
+        baseline = archive_baseline(st)
         offspring_ids = st.pending_offspring_ids if st.track_genealogy and st.ids is not None else None
         st.pending_offspring_ids = None
 
@@ -457,7 +457,7 @@ class MOEAD:
                 candidate_lengths=candidate_lengths,
             )
 
-        update_archive(st, st.X, st.F, st.G)
+        update_moead_archive(st, baseline)
 
         return st.hv_tracker is not None and st.hv_tracker.enabled and st.hv_tracker.reached(st.hv_points())
 
