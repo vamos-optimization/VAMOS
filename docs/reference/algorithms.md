@@ -232,13 +232,20 @@ differences, which `tests/experiment/test_cli_api_parity.py` keeps listed:
 - Result mode: the command line returns `non_dominated` for AGE-MOEA, CCMO,
   CMOEA-MS, C-TAEA, IBEA, MOEA/D, RVEA, SMS-EMOA, SPEA2 and ToP, where
   `optimize` returns `population`. NSGA-II, NSGA-III and SMPSO agree.
-- NSGA-III: the command line uses SBX with distribution index 20, not 30, and
-  derives the reference directions from the population when the run starts;
-  `optimize` records the lattice's divisions.
+- NSGA-III: the command line derives the reference directions from the
+  population when the run starts; `optimize` records the lattice's divisions.
 - MOEA/D: the command line reads the packaged weight files and records their
   directory, a path inside the installation; `optimize` records the divisions.
 - NSGA-II's offspring size and SMS-EMOA's reference point are written out by
   one path and left to their defaults by the other, with the same effect.
+
+**Development after 1.2.1:** NSGA-III's SBX has distribution index 30 on the
+command line too, as in Deb and Jain (2014), pymoo and the MOEA Framework, and
+as `NSGAIIIConfig.default()` already had (jMetal's NSGA-III examples keep its
+general SBX default, 20). VAMOS 1.2.1 and earlier used 20 on the command line,
+the general SBX default of VAMOS too. Command-line NSGA-III runs on
+real-coded problems therefore follow a different trajectory;
+`--nsga3-crossover-eta 20` reproduces the earlier setting.
 
 When the two must agree, set these options explicitly on both and compare the
 resolved configuration that each run records. Both paths are stable, so their
