@@ -376,7 +376,7 @@ keep a grandchild such as `x_eta` (active when `x_kind == 'b'`) while its
 grandparent `use_x` was false, in spaces with conditions on the direct parent
 only. The built-in spaces were not affected.
 
-**Development after 1.2.0:** the SMS-EMOA spaces choose the mating selection,
+**Development after 1.2.1:** the SMS-EMOA spaces choose the mating selection,
 `random` or `tournament`, with `selection_pressure` only for a tournament, and
 the offset of the reference point, `reference_point_offset` in [0.1, 2.0].
 Both ranges include the defaults of `SMSEMOAConfig`: random selection and an
@@ -526,7 +526,7 @@ cmoeams` tunes it.
 
 ### Parameters that reach the algorithm
 
-**Development after 1.2.0:** every parameter of a built-in space changes the
+**Development after 1.2.1:** every parameter of a built-in space changes the
 configuration that it builds, and the real-coded spaces no longer offer
 `repair="round"` or `blx_repair="round"`: rounding continuous variables to
 integers puts the whole population on the vertices of the bounding box, where
@@ -554,7 +554,7 @@ lattice of nine divisions, and a lattice is never truncated. Before, `vamos
 tune` did not pass `n_obj` to MOEA/D, and every other sampled population failed
 and got the failure score: most MOEA/D candidates on a three-objective problem.
 
-**Development after 1.2.0:** the RVEA spaces sample `pop_size` in [20, 200],
+**Development after 1.2.1:** the RVEA spaces sample `pop_size` in [20, 200],
 as the other algorithms do, instead of `n_partitions` in [4, 12]. RVEA runs the
 largest complete Das-Dennis lattice with at most `pop_size` directions for the
 assignment's `n_obj`: a sampled `pop_size` of 100 runs 100 individuals with two
@@ -684,7 +684,7 @@ new study, and the stored one stays in the storage under its `_v1` name.
 Persistent SMPSO studies keep `__vamos_cli_leaders_hv_v1`, the namespace that
 VAMOS 1.2.0 introduced with its leaders-archive score.
 
-**Development after 1.2.0:** VAMOS 1.3.0 changes the built-in search spaces
+**Development after 1.2.1:** VAMOS 1.3.0 changes the built-in search spaces
 again, with other categorical choices, so the CLI appends
 `__vamos_cli_final_population_hv_v3`, and SMPSO studies, whose spaces also
 change, take `__vamos_cli_leaders_hv_v2`. A study stored by VAMOS 1.2.1 or

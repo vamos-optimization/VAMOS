@@ -211,7 +211,7 @@ accepting a different backend silently is a breaking change.
 Undocumented provider, plugin, tuning, Studio, and internal configuration is
 not covered by this promise.
 
-**Development after 1.2.0:** `mutation_prob_factor` sets the mutation
+**Development after 1.2.1:** `mutation_prob_factor` sets the mutation
 probability to `factor / n_var` (at most 1) in MOEA/D, NSGA-III, SMS-EMOA,
 SPEA2, AGE-MOEA and RVEA, as it already did in NSGA-II and IBEA; in VAMOS
 1.2.0 those six algorithms ignored it. Five stable fields have no effect, so a
