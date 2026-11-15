@@ -6,7 +6,7 @@ description: 'C-TAEA: a convergence archive and a diversity archive for constrai
 
 The **two-archive evolutionary algorithm for constrained multi-objective optimization** keeps two archives of the same size, one solution per weight vector [1]. The convergence archive (CA) is driven by feasibility and convergence, and it is the result. The diversity archive (DA) ignores the constraints and keeps solutions in the subregions where the CA has few, so that the search can cross infeasible regions towards the parts of the front the CA has not reached. Each offspring has one parent from each archive or both from one, chosen from how many non-dominated solutions each archive holds.
 
-**Development after 1.1.0.** C-TAEA is new in the development series after VAMOS 1.1.0. It follows jMetal's port (pull request [jMetal/jMetal#524](https://github.com/jMetal/jMetal/pull/524)), which follows PlatEMO's implementation where it differs from the paper, and its weight vectors, archive updates, mating proportions and tournament are checked against that port's own classes.
+**New in VAMOS 1.2.0.** C-TAEA follows jMetal's port (pull request [jMetal/jMetal#524](https://github.com/jMetal/jMetal/pull/524)), which follows PlatEMO's implementation where it differs from the paper, and its weight vectors, archive updates, mating proportions and tournament are checked against that port's own classes.
 
 [All algorithms](../reference/algorithms.md) · [Configuration reference](../reference/api/algorithms/ctaea.md) · [Constraints](../reference/constraints.md)
 
