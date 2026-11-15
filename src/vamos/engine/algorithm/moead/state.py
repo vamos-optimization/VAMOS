@@ -75,6 +75,7 @@ class MOEADState(AlgorithmState):
     delta: float = 0.9
     replace_limit: int = 2
     # The live callback's generations: one per pop_size evaluations, as for generational algorithms.
+    # live_evals is the evaluation count where the last one ended; checkpoints keep both.
     live_generation: int = 0
     live_evals: int = 0
     batch_size: int = 1

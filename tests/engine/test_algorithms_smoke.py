@@ -473,3 +473,32 @@ def test_live_callback_payload_contract(name: str) -> None:
         assert F is not None and X is not None
         assert F.shape[1] == 2 and X.shape == (F.shape[0], 30)
         assert F.shape[0] == 20 or (name == "rvea" and F.shape[0] <= 20)
+
+
+def _moead_batch_config(pop_size: int, batch_size: int) -> MOEADConfig:
+    return (
+        MOEADConfig.builder()
+        .pop_size(pop_size)
+        .batch_size(batch_size)
+        .neighbor_size(5)
+        .delta(0.9)
+        .replace_limit(2)
+        .crossover("de", cr=1.0, f=0.5)
+        .mutation("pm", prob=0.1, eta=20.0)
+        .aggregation("tchebycheff")
+        .weight_vectors(divisions=pop_size - 1)
+        .build()
+    )
+
+
+def test_moead_live_generations_keep_the_evaluation_remainder() -> None:
+    import vamos
+
+    callback = _RecordingCallback()
+    config = _moead_batch_config(pop_size=20, batch_size=8)
+    vamos.optimize("zdt1", algorithm="moead", algorithm_config=config, max_evaluations=100, seed=1, engine="numpy", live_viz=callback)
+
+    # Batches of 8 end at 28, 36, 44, ...: a generation ends at the first batch past each multiple of 20 evaluations
+    # after the initial population, so the 80 offspring evaluations make four generations.
+    assert [call[0] for call in callback.calls] == [0, 1, 2, 3, 4]
+    assert [call[3]["evals"] for call in callback.calls] == [20, 44, 60, 84, 100]
