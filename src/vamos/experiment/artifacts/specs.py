@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import math
 import numbers
 import re
@@ -229,7 +230,7 @@ def _algorithm_component(inputs: RunSpecInputs, config: Mapping[str, object], po
             )
         except ValueError:
             # A size without weights fails when the run starts, so a study plans the task and records its failure.
-            pass
+            logging.getLogger(__name__).debug("No MOEA/D weight vectors to record for pop_size=%s", pop_size, exc_info=True)
     return descriptor
 
 
