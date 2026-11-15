@@ -115,7 +115,7 @@ Internal interfaces even when the optimization call itself is Stable. Install
 the [analysis extra](guide/installation.md#optional-extras) for notebooks and
 any additional dependencies named by the selected example.
 
-**Development after 1.1.0:** notebooks need the `analysis` and `examples`
+**VAMOS 1.2.0:** notebooks need the `analysis` and `examples`
 extras; seaborn, NetworkX and the Jupyter packages moved from `analysis` to
 `examples`.
 

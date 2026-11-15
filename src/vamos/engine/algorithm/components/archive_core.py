@@ -11,6 +11,7 @@ try:  # pragma: no cover - optional dependency
 except ImportError:  # pragma: no cover - optional dependency
     _moocore = None
 
+from vamos.engine.algorithm.components.archive_insertion import INSERTION_ROWS, drop_rows, insertion
 from vamos.foundation.constraints.utils import compute_violation, is_feasible
 from vamos.foundation.quality_indicators.pareto import pareto_filter
 
@@ -136,7 +137,14 @@ class _BaseArchive:
     Chebyshev distance ``objective_tolerance`` (or ``decision_tolerance``) of a kept
     row. The default objective tolerance is 0, exact equality as in jMetal, so the
     archive does not depend on the scale of the objectives.
+
+    With that default, an update of at most a few rows into an archive whose rows
+    are finite (and feasible, with constraints) inserts them instead of sorting the
+    merged rows, with exactly the same contents, order and truncation.
     """
+
+    # Whether truncating draws from a random generator, so that an update that truncates is not repeatable.
+    _truncation_draws_random_numbers = False
 
     def __init__(
         self,
@@ -192,6 +200,19 @@ class _BaseArchive:
         self._size = 0
         # Rows the last ``update`` removed to respect the capacity (not as dominated or duplicated).
         self.last_capacity_pruned = 0
+        # The contents are mutually non-dominated, with distinct finite objective vectors, feasible when
+        # constraint values are kept, and deduplicated with a zero objective tolerance only.
+        self._clean = False
+        #: Whether the contents cover every row of the last ``update`` and every row archived before it:
+        #: each such row is infeasible while the archive holds feasible rows, or some archived row is no
+        #: worse in every objective. Offering covered rows again, alone or with others, then gives the
+        #: same updates as not offering them. It needs clean contents and no capacity pruning in the
+        #: last update; it stays ``False`` otherwise (decision deduplication, a positive objective
+        #: tolerance, no feasible row yet, or non-finite objectives).
+        self.covers_last_input = False
+        #: Whether an update with exactly the rows of the last one would change nothing: the last update
+        #: left the contents as they were and drew no random numbers, and updates are deterministic.
+        self.unchanged_by_last_input = False
 
     def update(
         self,
@@ -213,6 +234,8 @@ class _BaseArchive:
             raise ValueError(f"population_F has {pop_F.shape[1]} columns, expected {self._n_obj}.")
         self.last_capacity_pruned = 0
         if pop_X.shape[0] == 0:
+            self.covers_last_input = self._clean
+            self.unchanged_by_last_input = True
             return self._snapshot()
 
         pop_G: FloatArray | None = None
@@ -223,11 +246,21 @@ class _BaseArchive:
             if pop_G.shape[0] != pop_X.shape[0]:
                 raise ValueError("population_G must have the same number of rows as population_X.")
 
+        if self._insertable(pop_X.shape[0], pop_G) and self._insert(pop_X, pop_F, pop_G):
+            return self._snapshot()
+
         X_comb, F_comb, G_comb = self._merge_with_existing(pop_X, pop_F, pop_G)
         X_work, F_work, G_work = self._apply_feasibility_filter(X_comb, F_comb, G_comb)
         if F_work.shape[0] == 0:
             self._replace_contents(X_work, F_work, G_work)
+            self._clean = self.covers_last_input = self.unchanged_by_last_input = False
             return self._snapshot()
+        clean = (
+            self._deduplicate_in == "objective"
+            and self._objective_tolerance == 0.0
+            and bool(np.isfinite(F_work).all())
+            and (G_work is None or bool(is_feasible(G_work, n=G_work.shape[0]).all()))
+        )
 
         nd_mask = _nondominated_mask(F_work)
         X_nd = X_work[nd_mask]
@@ -235,8 +268,18 @@ class _BaseArchive:
         G_nd = G_work[nd_mask] if G_work is not None else None
         X_nd, F_nd, G_nd = self._dedupe(X_nd, F_nd, G_nd)
 
+        self._truncate_and_store(X_nd, F_nd, G_nd, clean)
+        return self._snapshot()
+
+    def _truncate_and_store(self, X_nd: DecisionArray, F_nd: FloatArray, G_nd: FloatArray | None, clean: bool) -> None:
+        """Keep the non-dominated rows of an update, truncated to ``truncate_size`` when they exceed the capacity.
+
+        ``clean`` tells whether those rows are clean contents (see :meth:`_insert`).
+        """
+        random = False
         if self.capacity is not None and F_nd.shape[0] > self.capacity:
             assert self.truncate_size is not None
+            random = self._truncation_draws_random_numbers
             keep_idx = np.asarray(self._select_subset(F_nd, self.truncate_size, G_nd), dtype=int)
             if keep_idx.ndim != 1:
                 raise ValueError("_select_subset() must return a 1D index array.")
@@ -245,8 +288,72 @@ class _BaseArchive:
             self.last_capacity_pruned = int(F_nd.shape[0] - keep_idx.size)
             X_nd, F_nd, G_nd = _subset_arrays(X_nd, F_nd, G_nd, keep_idx)
 
+        unchanged = not random and self._holds(X_nd, F_nd, G_nd)
         self._replace_contents(X_nd, F_nd, G_nd)
-        return self._snapshot()
+        self._clean = clean
+        self.covers_last_input = clean and self.last_capacity_pruned == 0
+        self.unchanged_by_last_input = unchanged
+
+    def _holds(self, X: DecisionArray, F: FloatArray, G: FloatArray | None) -> bool:
+        """Whether the contents are exactly these rows, bit for bit and in this order."""
+        size = self._size
+        if F.shape[0] != size or (G is None) != (self._G is None):
+            return False
+        if F.tobytes() != self._F[:size].tobytes() or X.tobytes() != self._X[:size].tobytes():
+            return False
+        return G is None or self._G is None or G.tobytes() == self._G[:size].tobytes()
+
+    def _insertable(self, n_rows: int, pop_G: FloatArray | None) -> bool:
+        """Whether :meth:`_insert` may take an update of ``n_rows`` rows (see :attr:`covers_last_input`)."""
+        if not self._clean or self._size == 0 or n_rows > INSERTION_ROWS or (self._G is None) != (pop_G is None):
+            return False
+        return pop_G is None or (self._G is not None and pop_G.shape[1] == self._G.shape[1])
+
+    def _insert(self, pop_X: DecisionArray, pop_F: FloatArray, pop_G: FloatArray | None) -> bool:
+        """Do what the full update does with a few rows, without sorting the whole archive.
+
+        With clean contents, the full update drops the infeasible incoming rows, keeps the archived
+        rows that no incoming row dominates, in their order, and appends the incoming rows that it
+        keeps (see :func:`insertion`), in their order. The deduplication then finds nothing to drop,
+        and a truncation gets the same rows in the same order. Returns ``False``, with nothing
+        changed, when an incoming feasible row has a non-finite objective: the full update runs.
+        """
+        if pop_G is not None:
+            feasible = np.flatnonzero(is_feasible(pop_G, n=pop_G.shape[0]))
+            if feasible.size < pop_G.shape[0]:
+                pop_X, pop_F, pop_G = pop_X[feasible], pop_F[feasible], pop_G[feasible]
+        if not np.isfinite(pop_F).all():
+            return False
+
+        size = self._size
+        dominated, accepted = insertion(self._F[:size], pop_F)
+        if not accepted.any() and not dominated.any():
+            self.covers_last_input = self.unchanged_by_last_input = True
+            return True
+
+        n_kept = size - int(np.count_nonzero(dominated))
+        new_size = n_kept + int(np.count_nonzero(accepted))
+        if self.capacity is not None and new_size > self.capacity:
+            kept = np.flatnonzero(~dominated)
+            X_nd = np.concatenate((self._X[kept], pop_X[accepted]))
+            F_nd = np.concatenate((self._F[kept], pop_F[accepted]))
+            G_nd = None if self._G is None or pop_G is None else np.concatenate((self._G[kept], pop_G[accepted]))
+            self._truncate_and_store(X_nd, F_nd, G_nd, True)
+            return True
+
+        if n_kept < size:
+            arrays = (self._X, self._F) if self._G is None else (self._X, self._F, self._G)
+            drop_rows(arrays, size, np.flatnonzero(dominated))
+        self._size = n_kept
+        self._ensure_storage(new_size)
+        self._X[n_kept:new_size] = pop_X[accepted]
+        self._F[n_kept:new_size] = pop_F[accepted]
+        if self._G is not None and pop_G is not None:
+            self._G[n_kept:new_size] = pop_G[accepted]
+        self._size = new_size
+        self.covers_last_input = True
+        self.unchanged_by_last_input = False
+        return True
 
     def contents(self) -> tuple[DecisionArray, FloatArray]:
         return self._snapshot()
