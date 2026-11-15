@@ -11,6 +11,7 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
+from vamos.engine.algorithm.components.utils import normalize_objectives
 from vamos.foundation.kernel.numpy_backend import _compute_crowding
 from vamos.foundation.quality_indicators.hypervolume import hypervolume_contributions
 from vamos.foundation.quality_indicators.pareto import pareto_filter
@@ -123,12 +124,8 @@ def select_top_k_farthest(F: NDArray[np.float64], k: int, *, normalize: bool = F
     k:
         Number of solutions to keep.
     normalize:
-        Scale each objective to ``[0, 1]`` by its smallest and largest value in
-        ``F`` before measuring distances, as distance-based subset selection
-        does, so that the selection depends neither on the objectives' units nor
-        on their offsets; an objective that is constant in ``F`` is ignored.
-        ``False`` (the default) measures raw distances, so the objective with
-        the widest range dominates them.
+        Scale each objective to ``[0, 1]`` by its range in ``F`` first, so that units and offsets do not
+        change the selection; a constant objective is ignored. ``False`` (the default) uses raw distances.
 
     Returns
     -------
@@ -140,10 +137,7 @@ def select_top_k_farthest(F: NDArray[np.float64], k: int, *, normalize: bool = F
     n = F.shape[0]
     if n <= k:
         return np.arange(n, dtype=int)
-    if normalize:
-        from vamos.engine.algorithm.components.utils import normalize_objectives
-
-        F = normalize_objectives(F)
+    F = normalize_objectives(F) if normalize else F
 
     # Start from the point with the largest norm (an extreme point)
     selected = [int(np.argmax(np.linalg.norm(F, axis=1)))]
@@ -248,7 +242,6 @@ def select_top_k_reference_directions(F: NDArray[np.float64], k: int, *, divisio
     if n <= k:
         return np.arange(n, dtype=int)
 
-    from vamos.engine.algorithm.components.utils import normalize_objectives
     from vamos.engine.archive.pruning_selectors import select_maxmin_subset
     from vamos.engine.reference_directions import das_dennis, largest_lattice_divisions, lattice_size
 
@@ -341,8 +334,6 @@ def select_top_k_kmeans(
     n = F.shape[0]
     if n <= k:
         return np.arange(n, dtype=int)
-
-    from vamos.engine.algorithm.components.utils import normalize_objectives
 
     F_norm = normalize_objectives(F)
 
@@ -527,10 +518,7 @@ def select_top_k_hv_greedy(
     if n <= k:
         return np.arange(n, dtype=int)
 
-    if ref_point is not None:
-        ref = np.asarray(ref_point, dtype=float)
-    else:
-        ref = np.max(F, axis=0) + ref_offset
+    ref = np.asarray(ref_point, dtype=float) if ref_point is not None else np.max(F, axis=0) + ref_offset
 
     selected: list[int] = []
     remaining = set(range(n))
