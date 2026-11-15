@@ -17,11 +17,11 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from vamos.engine.archive.factory import update_archive
 from vamos.engine.operators.policies.moead import OneOffspringRealVariation, one_offspring_real_variation
 from vamos.foundation.constraints.utils import compute_violation
 
 from .neighborhood_kernels import dummy_buffers, get_update_neighborhood_numba
+from .state import archive_baseline, update_moead_archive
 
 if TYPE_CHECKING:
     from vamos.foundation.eval import EvaluationBackend, EvaluationResult
@@ -273,10 +273,10 @@ class SteadyStateStep:
         child_cv = float(compute_violation(G_child)[0])
         return st.X, st.F, G, st.cv, self._weights, st.ideal, children, F_child, G_child, child_cv, order, 1
 
-    def _replace_with_numpy_ideal(self, st: MOEADState, args: ReplaceArgs) -> None:
+    def _replace_with_numpy_ideal(self, st: MOEADState, args: ReplaceArgs) -> int:
         # The compiled ideal update declined (NaN or signed-zero tie): use the reference np.minimum.
         st.ideal = np.minimum(st.ideal, args[7].min(axis=0))
-        self._replace(*args[:5], st.ideal, *args[6:], self._slots, self._params, False)
+        return self._replace(*args[:5], st.ideal, *args[6:], self._slots, self._params, False)
 
     def tell(self, st: MOEADState, eval_result: EvaluationResult) -> bool | None:
         """Apply one evaluated child, or return ``None`` (state untouched) for the reference ``tell``."""
@@ -287,10 +287,12 @@ class SteadyStateStep:
         st.pending_active_indices = None
         st.pending_parent_pairs = None
         st.pending_use_neighbors = None
-        if self._replace(*args, self._slots, self._params, True) < 0:
-            self._replace_with_numpy_ideal(st, args)
-        if st.archive_manager is not None:
-            update_archive(st, st.X, st.F, st.G)
+        baseline = archive_baseline(st)
+        replaced = self._replace(*args, self._slots, self._params, True)
+        if replaced < 0:
+            replaced = self._replace_with_numpy_ideal(st, args)
+        # The compiled replacement writes only the rows that it replaces.
+        update_moead_archive(st, baseline, changed=replaced > 0)
         hv_tracker = st.hv_tracker
         return hv_tracker is not None and hv_tracker.enabled and hv_tracker.reached(st.hv_points())
 
