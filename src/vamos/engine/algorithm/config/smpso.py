@@ -91,14 +91,22 @@ class _SMPSOConfigBuilder(
         return self
 
     def inertia(self, value: float) -> _SMPSOConfigBuilder:
+        """Fixed weight of a particle's previous velocity in the velocity update (default 0.1)."""
         self._cfg["inertia"] = value
         return self
 
     def c1(self, value: float) -> _SMPSOConfigBuilder:
+        """Lower bound of the personal-best coefficient (default 1.5).
+
+        At every step each particle draws its coefficient from U[value, value + 1], as jMetal does.
+        When the two drawn coefficients add up to more than 4, the constriction coefficient scales the
+        velocity.
+        """
         self._cfg["c1"] = value
         return self
 
     def c2(self, value: float) -> _SMPSOConfigBuilder:
+        """Lower bound of the leader coefficient (default 1.5), drawn like ``c1`` from U[value, value + 1]."""
         self._cfg["c2"] = value
         return self
 

@@ -1,4 +1,4 @@
-"""T01: generated from examples/tutorials/fundamentals.py; VAMOS 1.0.1, core dependencies only."""
+"""T01: generated from examples/tutorials/fundamentals.py; VAMOS 1.2.1, core dependencies only."""
 
 
 def run_t01(max_evaluations=400):
