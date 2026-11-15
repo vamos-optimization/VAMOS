@@ -455,6 +455,16 @@ lattice of nine divisions, and a lattice is never truncated. Before, `vamos
 tune` did not pass `n_obj` to MOEA/D, and every other sampled population failed
 and got the failure score: most MOEA/D candidates on a three-objective problem.
 
+**Development after 1.2.1:** `vamos tune` records the population a trial ran
+when it differs from the sampled one: `"details": {"effective": {"pop_size": 136}}`
+for a sampled 150 with three objectives in `tuning_history.json`, and
+`best_config_effective` in `tuning_summary.json` for the returned configuration
+(`{}` when it runs as sampled). `assignment_adjustments(algorithm, assignment)`
+in `vamos.engine.tuning.racing.bridge_assignments` gives the same values for code
+that builds configurations with `config_from_assignment`, and the resolved spec of
+a run records its population and where its weights come from (see the
+[MOEADConfig reference](../reference/api/algorithms/moead.md)).
+
 `optuna` and `bohb_optuna` suggest parents before the parameters that depend on
 them, whatever their declaration order, and record only active suggestions in
 `trial.params`. `smac3` and `bohb` receive the dependencies as ConfigSpace

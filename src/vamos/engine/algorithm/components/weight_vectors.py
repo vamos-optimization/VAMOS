@@ -114,6 +114,36 @@ def _load_or_generate_jmetalpy_weights(pop_size: int, n_obj: int, path: str | No
     return weights
 
 
+def describe_weight_vectors(
+    pop_size: int,
+    n_obj: int,
+    *,
+    path: str | None = None,
+    divisions: int | None = None,
+) -> dict[str, object]:
+    """Where MOEA/D's weight vectors for ``pop_size`` come from, as a run artifact records it.
+
+    The same choice as ``load_or_generate_weight_vectors(..., mode="jmetalpy")``, without reading
+    or writing a file: ``uniform`` with one or two objectives, ``file`` (a file of ``path``, by its
+    name), ``packaged_file`` (the jMetal file ``W{n_obj}D_{pop_size}.dat`` that VAMOS ships), or
+    ``das_dennis`` with its ``divisions``. ``vectors`` is the number of weight vectors, which is the
+    population. A size without weights raises ``ValueError``, as loading them would.
+    """
+    if n_obj <= 2:
+        return {"source": "uniform", "vectors": pop_size}
+    weight_path = _resolve_jmetalpy_weight_path(path, n_obj, pop_size)
+    if weight_path is None and divisions is None and _exact_divisions(pop_size, n_obj) is None:
+        if _packaged_weights(n_obj, pop_size) is not None:
+            return {"source": "packaged_file", "file": f"W{n_obj}D_{pop_size}.dat", "vectors": pop_size}
+    if weight_path is not None and os.path.exists(weight_path):
+        return {"source": "file", "file": os.path.basename(weight_path), "vectors": pop_size}
+    if divisions is None:
+        divisions = _choose_exact_divisions(pop_size, n_obj)
+    elif lattice_size(n_obj, int(divisions)) != pop_size:
+        raise ValueError(f"Das-Dennis simplex lattice for n_obj={n_obj}, divisions={divisions} does not have pop_size={pop_size} vectors.")
+    return {"source": "das_dennis", "divisions": int(divisions), "vectors": pop_size}
+
+
 def largest_weighted_population(pop_size: int, n_obj: int) -> int:
     """Return the largest population, at most ``pop_size``, for which MOEA/D has weight vectors.
 

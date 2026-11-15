@@ -6,7 +6,7 @@ from typing import Any, cast
 
 from vamos.engine.algorithm.config.types import AlgorithmConfigProtocol
 
-from ._bridge_assignment_builders import build_moead_permutation_config, config_builders
+from ._bridge_assignment_builders import MOEAD_NAMES, _moead_pop_size, build_moead_permutation_config, config_builders
 from ._bridge_assignment_shared import sanitize_assignment
 
 
@@ -36,4 +36,23 @@ def config_from_assignment(algorithm_name: str, assignment: dict[str, Any]) -> A
     raise ValueError(f"Unsupported algorithm for config construction: {algorithm_name}")
 
 
-__all__ = ["config_from_assignment"]
+def assignment_adjustments(algorithm_name: str, assignment: dict[str, Any]) -> dict[str, Any]:
+    """The values :func:`config_from_assignment` runs in place of sampled ones; ``{}`` when it runs them all.
+
+    Only MOEA/D's population changes: with ``n_obj`` of three or more in the assignment, a sampled
+    ``pop_size`` without weight vectors runs the largest population up to it that has them, so a
+    sampled 150 runs 136 with three objectives (``{"pop_size": 136}``). A population smaller than
+    any with weights gives ``{}``: ``config_from_assignment`` rejects it.
+    """
+    algo = algorithm_name.lower()
+    assignment = sanitize_assignment(assignment)
+    if (algo not in MOEAD_NAMES and algo != "moead_permutation") or "pop_size" not in assignment:
+        return {}
+    try:
+        effective = _moead_pop_size(assignment)
+    except ValueError:
+        return {}
+    return {} if effective == int(assignment["pop_size"]) else {"pop_size": effective}
+
+
+__all__ = ["assignment_adjustments", "config_from_assignment"]

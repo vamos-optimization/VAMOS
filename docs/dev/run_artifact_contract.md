@@ -130,6 +130,14 @@ spec. No sentinel represents an unknown seed.
 resolved spec. `run_id` is a unique UUIDv4 for the attempt. Repeated executions
 of the same task share a task ID but have distinct run IDs.
 
+**Development after 1.2.1:** a MOEA/D run's `algorithm.resolution` also holds
+`weight_vectors`, where its weight vectors come from: `source` is `uniform`
+(two objectives), `das_dennis` with its `divisions`, `packaged_file` or `file`
+with the `file` name, and `vectors` is their number, the population. It is
+derived from the configuration, so verification rebuilds it like the rest of
+the resolved spec; a MOEA/D run stored before it does not match its
+reconstruction and is not verified as exact.
+
 ## 6. Run manifest
 
 The manifest requires:
