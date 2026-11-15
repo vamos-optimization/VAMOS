@@ -70,7 +70,7 @@ The default real-coded configuration uses differential evolution (`cr=1.0`, `f=0
 
 For two objectives, `MOEADConfig.default(pop_size=100, n_obj=2, ...)` requests 99 divisions and therefore 100 uniformly spaced weights. For `m` objectives and a simplex lattice with `p` divisions, the count is `comb(p + m - 1, m - 1)`. For example, three objectives and 12 divisions give **91**, not 100. Explicit files must also contain exactly one vector per population member. Incompatible cardinalities raise an error; budget reduction is not a way to repair a mismatched configuration.
 
-**Development after 1.1.0:**
+**VAMOS 1.2.0:**
 - **Replacement order:** a new solution tries its neighbours in random order, as MOEA/D-DE and jMetal do; VAMOS 1.1.0 always tried them from the nearest weight vector, the subproblem itself first. The results of every MOEA/D run change. Equidistant weight vectors join a neighbourhood in index order, so runs with the same seed give the same results on every platform; the order used to depend on NumPy's platform-specific sort.
 - **Packaged weights:** with three or more objectives and a `pop_size` that no complete lattice matches, `MOEADConfig.default(pop_size=...)` and `optimize` use the weight file VAMOS packages for that size, as jMetal does (for example `W3D_100.dat`, so 100 individuals with three objectives work). In VAMOS 1.1.0 this failed with a lattice-size error.
 - **Defaults:** the default DE crossover with PBI aggregation is a VAMOS choice; `aggregation("tchebycheff")` with the other defaults reproduces jMetal's MOEA/D-DE.
@@ -79,7 +79,7 @@ The `n_obj` argument matters: the default factory otherwise assumes three object
 
 ## Constraints, archives and reproducibility
 
-This example is unconstrained. MOEA/D supports feasibility-based comparison with the `G <= 0` convention; the [constraint reference](../reference/constraints.md) explains how to supply residuals. A scatter plot of objectives alone does not establish feasibility. **Development after 1.1.0:** `subproblem_update_criterion` replaces the feasibility rules by jMetal's improved epsilon method or adaptive violation threshold; see [subproblem update criteria](../reference/constraints.md#moead-subproblem-update-criteria).
+This example is unconstrained. MOEA/D supports feasibility-based comparison with the `G <= 0` convention; the [constraint reference](../reference/constraints.md) explains how to supply residuals. A scatter plot of objectives alone does not establish feasibility. **VAMOS 1.2.0:** `subproblem_update_criterion` replaces the feasibility rules by jMetal's improved epsilon method or adaptive violation threshold; see [subproblem update criteria](../reference/constraints.md#moead-subproblem-update-criteria).
 
 An optional external archive stores non-dominated results separately from the working population. Choose `result_mode="population"` explicitly when the final population is the required output; otherwise an enabled external archive becomes the result source. The [MOEADConfig reference](../reference/api/algorithms/moead.md) documents result-archive configuration. The [stopping and archive hooks](../experiment/stopping_and_archive.md) maintain a separate objective-space observation archive. Preserve the resolved configuration, effective backend and seed with the [run lifecycle](../guide/run-artifacts.md).
 

@@ -6,7 +6,7 @@ description: 'CMOEA-MS: a constrained multi-objective algorithm whose fitness ha
 
 The **constrained multi-objective evolutionary algorithm with multiple stages** balances the objectives and the constraints by changing how it ranks its solutions [1]. In **stage A** the objectives have the same priority as the constraints: a solution is ranked by two objectives, its density in the objective space and its constraint violation. In **stage B** the constraints come first: a smaller violation is better, and equal violations are compared by the objectives. The algorithm is in stage B while more than half of the solutions are feasible, once 10% of the budget is spent. Both stages use the fitness and the environmental selection of SPEA2. The result is the final population.
 
-**Development after 1.1.0.** CMOEA-MS is new in the development series after VAMOS 1.1.0. It follows jMetal's port (pull request [jMetal/jMetal#526](https://github.com/jMetal/jMetal/pull/526)), which follows the authors' implementation in PlatEMO where it differs from the paper, and its constraint violation, density, fitness, selections, stage rule and differential evolution are checked against that port's own classes.
+**New in VAMOS 1.2.0.** CMOEA-MS follows jMetal's port (pull request [jMetal/jMetal#526](https://github.com/jMetal/jMetal/pull/526)), which follows the authors' implementation in PlatEMO where it differs from the paper, and its constraint violation, density, fitness, selections, stage rule and differential evolution are checked against that port's own classes.
 
 [All algorithms](../reference/algorithms.md) · [Configuration reference](../reference/api/algorithms/cmoeams.md) · [Constraints](../reference/constraints.md)
 
