@@ -143,7 +143,7 @@ and carried on; MOEA/D, SPEA2 and SMPSO then called `on_generation` a second
 time with the whole population. NSGA-II's `live_callback_mode` accepts
 `nd_only`, `population` and `population_archive`.
 
-**Development after 1.2.0:** every built-in algorithm sends the same payload.
+**Development after 1.2.1:** every built-in algorithm sends the same payload.
 `F` and `X` are the objective and decision vectors of the whole current
 population, row by row (SPEA2's environmental archive, SMPSO's swarm), and
 `stats["evals"]` counts the evaluations used so far. NSGA-II keeps sending its
