@@ -12,7 +12,7 @@ STUDIO_APP_MODULE = "vamos.ux.panel.app"
 
 LOOPBACK_ADDRESS = "127.0.0.1"
 
-_ACCESS_FLAGS = ("allow_remote_binding", "allow_remote_code_execution", "no_auth")
+_ACCESS_FLAGS = ("allow_remote_binding", "allow_remote_code_execution")
 
 
 def _is_loopback_address(value: str) -> bool:
@@ -46,11 +46,6 @@ def add_access_arguments(parser: argparse.ArgumentParser) -> None:
             "With a non-loopback address, still offer Problem Builder and Batch Comparison, which run code with "
             "this account and can use the LLM API keys in its environment."
         ),
-    )
-    parser.add_argument(
-        "--no-auth",
-        action="store_true",
-        help="Serve without the access token of each launch; only on a computer no one else uses.",
     )
 
 

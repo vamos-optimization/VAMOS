@@ -102,7 +102,7 @@ vamos studio --address ::1 --port 5010 --study-dir results/studio-demo
 
 With an IPv6 address, open Studio at `http://localhost:5010/app`.
 
-**Development after 1.2.0:** Studio admits only the browsers that open it with
+**Development after 1.2.1:** Studio admits only the browsers that open it with
 the access token of its launch. Each launch draws a new token and prints a link
 that carries it, such as `http://127.0.0.1:5006/app?token=…`, and the browser
 that `vamos studio` opens receives the link through a file only you can read,
@@ -111,9 +111,8 @@ the rest of the launch; any other request gets a page that asks for the token,
 and a session websocket without the cookie is refused. Without the token, any
 user of the same computer could open a session on the loopback port and,
 through Problem Builder or Batch Comparison, run code and write files with your
-account and spend the LLM API keys in your environment. On a computer no one
-else uses, `--no-auth` serves Studio without a token. VAMOS 1.2.0 and earlier
-serve every request.
+account and spend the LLM API keys in your environment. No option serves
+Studio without the token. VAMOS 1.2.1 and earlier serve every request.
 
 A non-loopback address is rejected unless you separately acknowledge the
 network exposure:
@@ -124,14 +123,14 @@ vamos studio --address 0.0.0.0 --allow-remote-binding --no-browser
 
 Remote binding exposes an experimental local application to other network
 users. Apply operating-system firewall and access controls appropriate to the
-environment. **Development after 1.2.0:** with a non-loopback address, Studio
+environment. **Development after 1.2.1:** with a non-loopback address, Studio
 offers neither Problem Builder nor Batch Comparison, because whoever uses them
 runs code with the account that serves Studio, reads and writes its files, and
 can spend the LLM API keys in its environment; `--allow-remote-code-execution`
 offers them anyway, to everyone who has the link. `python -m
 vamos.ux.panel.app`, which `vamos studio` runs, also refuses a non-loopback
 address without `--allow-remote-binding`, and `vamos studio` rejects options it
-does not know instead of passing them on. VAMOS 1.2.0 and earlier offer both
+does not know instead of passing them on. VAMOS 1.2.1 and earlier offer both
 pages with remote binding, and the server module accepts any address.
 
 Browsers open Studio sessions only from pages served under an allowed

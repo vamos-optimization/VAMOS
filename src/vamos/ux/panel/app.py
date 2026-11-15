@@ -251,18 +251,15 @@ def studio_url(address: str, port: int) -> str:
     return f"http://{host}:{port}/app"
 
 
-def exposure_warnings(address: str, *, auth: bool, code_execution: bool) -> list[str]:
+def exposure_warnings(address: str, *, code_execution: bool) -> list[str]:
     """What the owner should know about who can use this server."""
     warnings: list[str] = []
     if _is_loopback_address(address):
-        if not auth:
-            warnings.append(
-                "WARNING: VAMOS Studio runs without an access token (--no-auth): any user of this computer can open it "
-                "and run code with this account. Use --no-auth only on a computer no one else uses."
-            )
         return warnings
-    reach = "who opens the link with this launch's access token" if auth else "who reaches it, without a token (--no-auth),"
-    warnings.append(f"WARNING: VAMOS Studio is binding beyond loopback. Anyone on the network {reach} can use it.")
+    warnings.append(
+        "WARNING: VAMOS Studio is binding beyond loopback. Anyone on the network who opens the link with this "
+        "launch's access token can use it."
+    )
     if code_execution:
         warnings.append(
             "WARNING: --allow-remote-code-execution offers Problem Builder and Batch Comparison, so they can also run "
@@ -307,23 +304,18 @@ def _local_host_names() -> list[str]:
 def serve(argv: Sequence[str] | None = None) -> int:
     """Serve Studio at ``/app`` until the process is stopped.
 
-    Unless ``--no-auth`` is given, only browsers that open the printed link,
-    which carries a token drawn for this launch, can open a session.
+    Only browsers that open the printed link, which carries a token drawn for
+    this launch, can open a session.
     """
     args = parse_serve_args(argv)
     code_execution = _is_loopback_address(args.address) or args.allow_remote_code_execution
     origins = websocket_origins(args.address, args.port, args.allow_websocket_origin)
-    url = studio_url(args.address, args.port)
-    options: dict[str, Any] = {}
-    if args.no_auth:
-        sys.stdout.write(f"VAMOS Studio: {url}\n")
-    else:
-        token = _access.new_token()
-        options["auth_provider"] = _access.TokenAuth(token, args.port)
-        url = f"{url}?token={token}"
-        sys.stdout.write(f"VAMOS Studio: open it with this link, which carries this launch's access token:\n    {url}\n")
+    token = _access.new_token()
+    options: dict[str, Any] = {"auth_provider": _access.TokenAuth(token, args.port)}
+    url = f"{studio_url(args.address, args.port)}?token={token}"
+    sys.stdout.write(f"VAMOS Studio: open it with this link, which carries this launch's access token:\n    {url}\n")
     sys.stdout.flush()
-    for warning in exposure_warnings(args.address, auth=not args.no_auth, code_execution=code_execution):
+    for warning in exposure_warnings(args.address, code_execution=code_execution):
         sys.stderr.write(warning + "\n")
     redirects: list[Path] = []
     if args.show:  # Once the server listens.

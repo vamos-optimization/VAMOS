@@ -237,7 +237,7 @@ unsupported behavior rather than future compatibility promises.
   timeouts are best-effort controls, not a security sandbox.
 - Reviewed Python executes with the current operating-system user's
   permissions. Remote binding increases exposure and requires explicit opt-in.
-- **Development after 1.2.0:** each Studio launch has an access token, but it
+- **Development after 1.2.1:** each Studio launch has an access token, but it
   travels over plain HTTP, and whoever has the link can use Studio with the
   account that serves it until the launch ends. To reach Studio from another
   computer, prefer an SSH tunnel to the loopback port over remote binding; see

@@ -76,20 +76,27 @@ def test_remote_binding_hides_code_execution_pages(monkeypatch: pytest.MonkeyPat
         assert "--allow-remote-code-execution" in page.object
 
 
-def test_every_launch_draws_its_own_token_unless_told_not_to(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+def test_every_launch_draws_its_own_token(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     calls = _record_serve(monkeypatch)
 
     studio_app.serve(["--port=5010"])
     studio_app.serve(["--port=5010"])
     tokens = re.findall(r"/app\?token=([\w-]+)", capsys.readouterr().out)
-    studio_app.serve(["--port=5010", "--no-auth"])
-    unprotected = capsys.readouterr()
 
-    assert [call["auth_provider"].token for call in calls[:2]] == tokens
+    assert [call["auth_provider"].token for call in calls] == tokens
     assert len(set(tokens)) == 2
-    assert "auth_provider" not in calls[2]
-    assert "http://127.0.0.1:5010/app\n" in unprotected.out
-    assert "WARNING" in unprotected.err and "--no-auth" in unprotected.err
+
+
+def test_no_option_serves_studio_without_the_token(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    calls = _record_serve(monkeypatch)
+    monkeypatch.setattr(launcher.subprocess, "run", lambda *_args, **_kwargs: pytest.fail("the launcher started the server"))
+
+    for entry_point in (studio_app.serve, launcher.main):
+        with pytest.raises(SystemExit) as exited:
+            entry_point(["--port=5010", "--no-auth"])
+        assert exited.value.code == 2
+        assert "unrecognized arguments: --no-auth" in capsys.readouterr().err
+    assert calls == []
 
 
 def test_the_browser_receives_the_token_in_a_private_file(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -140,12 +147,13 @@ def test_launcher_forwards_the_access_options(monkeypatch: pytest.MonkeyPatch) -
         launcher.subprocess, "run", lambda command, check: commands.append(command) or subprocess.CompletedProcess(command, 0)
     )
 
-    argv = ["--address=0.0.0.0", "--allow-remote-binding", "--allow-remote-code-execution", "--no-auth", "--no-browser"]
+    argv = ["--address=0.0.0.0", "--allow-remote-binding", "--allow-remote-code-execution", "--no-browser"]
     assert launcher.main(argv) == 0
 
-    for option in ("--address=0.0.0.0", "--allow-remote-binding", "--allow-remote-code-execution", "--no-auth"):
+    for option in ("--address=0.0.0.0", "--allow-remote-binding", "--allow-remote-code-execution"):
         assert option in commands[0]
-    assert studio_app.parse_serve_args(commands[0][3:]).no_auth is True
+    forwarded = studio_app.parse_serve_args(commands[0][3:])
+    assert forwarded.allow_remote_binding and forwarded.allow_remote_code_execution
 
 
 def _free_port() -> int:
