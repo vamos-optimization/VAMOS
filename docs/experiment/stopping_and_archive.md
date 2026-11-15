@@ -191,7 +191,7 @@ Notes:
 
 ## Reproducibility
 
-**Development after 1.2.0:** the random streams of these hooks follow the run
+**Development after 1.2.1:** the random streams of these hooks follow the run
 seed. Without an `rng_seed`, the `ref_dirs` pruning of the archive and the
 bootstrap of `stopping.hv_convergence.confidence` draw from streams derived
 from the run seed: children of its `SeedSequence` that the algorithm's own
