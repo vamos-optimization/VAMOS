@@ -3,14 +3,14 @@ name: Publish frozen VAMOS release
 on:
   push:
     tags:
-      - "v1.2.0"
+      - "v1.2.1"
 
 permissions:
   contents: read
   actions: read
 
 env:
-  VAMOS_RELEASE_VERSION: "1.2.0"
+  VAMOS_RELEASE_VERSION: "1.2.1"
 
 jobs:
   recover-frozen-artifacts:
