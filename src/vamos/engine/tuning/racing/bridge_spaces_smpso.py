@@ -20,6 +20,7 @@ from .param_space import Categorical, ConditionalBlock, Int, ParamType, Real
 
 
 def _smpso_part() -> SpacePart:
+    # No repair: SMPSO clips each new position to the bounds, and its polynomial mutation keeps it inside.
     ext_params, ext_conds, ext_conditions = external_archive_part()
     params: list[ParamType] = [
         Int("pop_size", 20, 200, log=True, role="population"),
@@ -28,7 +29,6 @@ def _smpso_part() -> SpacePart:
         Real("c1", 0.5, 2.5, role="operator_rate"),
         Real("c2", 0.5, 2.5, role="operator_rate"),
         Real("vmax_fraction", 0.1, 1.0, role="operator_rate"),
-        Categorical("repair", ["clip", "reflect", "random", "round", "wrap", "midpoint"], role="structural"),
         Real("mutation_prob", 0.01, 0.5, role="operator_rate"),
         Real("mutation_eta", 5.0, 40.0, role="operator_rate"),
         *ext_params,
