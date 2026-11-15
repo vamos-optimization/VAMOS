@@ -10,7 +10,7 @@ from vamos.algorithms import NSGAIIIConfig
 
 [Configuration overview](index.md) · [Algorithm contracts](../../algorithms.md) · [Optimization](../optimization.md)
 
-**Development after 1.2.0:** `pop_size_auto` and `enforce_ref_dirs` have no
+**Development after 1.2.1:** `pop_size_auto` and `enforce_ref_dirs` have no
 effect: NSGA-III runs the largest reference-direction lattice that fits in
 `pop_size` and keeps at least one individual per direction. Setting them with
 the builder, or `enforce_ref_dirs=False` in the constructor or `from_dict()`,
