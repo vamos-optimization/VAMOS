@@ -63,7 +63,7 @@ def drop_rows(arrays: Sequence[NDArray[Any]], size: int, dropped: NDArray[np.int
         for array in arrays:
             array[: rows.size] = array[rows]
         return int(rows.size)
-    bounds = [*dropped.tolist(), size]
+    bounds: list[int] = [*dropped.tolist(), size]
     write = bounds[0]
     for start, stop in zip(bounds[:-1], bounds[1:]):
         length = stop - start - 1
