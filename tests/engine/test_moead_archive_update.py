@@ -61,6 +61,8 @@ def _kernel(engine: str) -> Any:
 def _config(problem: Any, archive: str, **changes: Any) -> dict[str, Any]:
     pop_size = 40 if problem.n_obj == 2 else 36
     cfg = MOEADConfig.default(pop_size=pop_size, n_var=problem.n_var, n_obj=problem.n_obj).to_dict()
+    # DE with PBI: the shares of whole-population offers and the hypervolume target below are measured with it.
+    cfg["aggregation"] = ("pbi", {"theta": 5.0})
     if problem.n_constraints:
         cfg["constraint_mode"] = "feasibility"
     cfg["external_archive"] = dict(ARCHIVES[archive])
@@ -161,10 +163,11 @@ def test_archive_matches_whole_population_updates(archive: str, problem: str, en
 
 
 @pytest.mark.parametrize("archive", ["unbounded", "crowding", "ref_dirs"])
-@pytest.mark.parametrize("variant", ["sbx-tchebycheff", "batch", "genealogy", "improved-epsilon"])
+@pytest.mark.parametrize("variant", ["tchebycheff", "sbx-tchebycheff", "batch", "genealogy", "improved-epsilon"])
 def test_reference_step_variants_match_whole_population_updates(archive: str, variant: str) -> None:
     problem = "c1dtlz1" if variant == "improved-epsilon" else "zdt1"
     changes: dict[str, Any] = {
+        "tchebycheff": {"aggregation": ("tchebycheff", {})},  # MOEADConfig.default(), MOEA/D-DE
         "sbx-tchebycheff": {"crossover": ("sbx", {"prob": 0.9, "eta": 20.0}), "aggregation": ("tchebycheff", {})},
         "batch": {"batch_size": 6},
         "genealogy": {"track_genealogy": True},
