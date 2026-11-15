@@ -385,6 +385,30 @@ offset of 0.1, so no assignment reproduced the default configuration; an
 assignment without the new parameters still builds that tournament
 configuration.
 
+**Development after 1.2.1:** the MOEA/D and SMS-EMOA spaces offer what
+Evolver's `MOEADDouble` and `SMSEMOADouble` spaces offer, so that a
+configuration tuned or published with Evolver is a point of them:
+
+- every MOEA/D space: `neighbor_size` in [5, 50] and `delta` in [0, 1]
+  (before, [5, 40] and [0.5, 0.95]), the `modified_tchebycheff` aggregation
+  with `mtch_rho`, which only the permutation space offered, and `pbi_theta`
+  up to 200 (before, 10), log-uniform because the usual value, 5, lies at the
+  low end;
+- the real-coded MOEA/D spaces (`moead`, `moead_constrained`):
+  `linked_polynomial` mutation, with `mutation_eta` active for both polynomial
+  mutations, `initializer` (`random`, `lhs`, `scatter`) and `repair` (`clip`,
+  `reflect`, `random`);
+- the real-coded MOEA/D and SMS-EMOA spaces: `mutation_prob_factor` in
+  [0.25, 3.0], the probability being the factor divided by the number of
+  variables, as in NSGA-II's space, instead of an absolute `mutation_prob` in
+  [0.01, 0.5], which depends on the problem. Evolver's factor lies in [0, 2];
+  VAMOS rejects a factor of 0.
+
+An assignment saved from the earlier spaces builds the configuration it built:
+an absolute `mutation_prob` stays absolute, and without `initializer` or
+`repair` MOEA/D keeps its defaults. Seeded MOEA/D and SMS-EMOA tuning runs draw
+different trials.
+
 ### Constrained spaces
 
 **Development after 1.1.0:** `nsgaii_constrained`, `nsgaiii_constrained`,
