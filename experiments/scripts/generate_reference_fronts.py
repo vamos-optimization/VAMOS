@@ -9,7 +9,8 @@ Run it from the repository root with this checkout's ``src`` importable and the 
 The script writes three groups of files; ``docs/reference/problems.md`` ("Reference fronts") lists the
 provenance of every packaged file, including those this script leaves alone.
 
-- **Analytic samples** of the Pareto front from its closed form: ZDT1-4 and ZDT6, DTLZ1-7 (M = 3), WFG1 and
+- **Analytic samples** of the Pareto front from its closed form: ZDT1-4 and ZDT6, DTLZ1-7 (M = 3, and M = 2 as
+  ``dtlz1.2d`` ... ``dtlz7.2d``), WFG1 and
   WFG2 (M = 2, from the WFG shape functions, so the bias transformations cannot shift them), LSMOP9 (M = 2),
   CEC2009 UF6 and UF9, and the ten C-DTLZ and DC-DTLZ problems at M = 2 and 3 (``c1dtlz1.2d`` ...
   ``dc3dtlz3.3d``), Srinivas, ConstrEx and Tanaka from their Pareto-set pieces and constraint boundaries, and ZXH-CF1-16 at
@@ -179,6 +180,22 @@ def _dtlz(name: str) -> np.ndarray:
         return front[farthest_points(front, 5050)]
     w = simplex_lattice(3, 99)
     return 0.5 * w if name == "dtlz1" else w / np.linalg.norm(w, axis=1, keepdims=True)
+
+
+def _dtlz_two_objective(name: str) -> np.ndarray:
+    """DTLZ1-7 with M = 2, 1000 points spaced evenly along the front.
+
+    DTLZ1's front is the segment f1 + f2 = 0.5, DTLZ7's the non-dominated pieces of f2 = 4 - f1 (1 + sin(3 pi f1)),
+    and the others' the quarter circle: with M = 2, DTLZ5 and DTLZ6 do not degenerate.
+    """
+    if name == "dtlz1":
+        f1 = np.linspace(0.0, 0.5, 1000)
+        return np.column_stack([f1, 0.5 - f1])
+    if name == "dtlz7":
+        f1 = np.linspace(0.0, 1.0, 200_001)
+        return thinned_2d(np.column_stack([f1, 4.0 - f1 * (1.0 + np.sin(3.0 * np.pi * f1))]), 1000)
+    theta = np.linspace(0.0, np.pi / 2.0, 1000)
+    return np.column_stack([np.cos(theta), np.sin(theta)])
 
 
 def _wfg(name: str) -> np.ndarray:
@@ -381,6 +398,7 @@ ANALYTIC: dict[str, Callable[[], np.ndarray]] = {
     "tanaka": _tanaka,
     **{name: (lambda name=name: _zdt(name)) for name in ("zdt1", "zdt2", "zdt3", "zdt4", "zdt6")},
     **{f"dtlz{i}": (lambda i=i: _dtlz(f"dtlz{i}")) for i in range(1, 8)},
+    **{f"dtlz{i}.2d": (lambda i=i: _dtlz_two_objective(f"dtlz{i}")) for i in range(1, 8)},
     "wfg1": lambda: _wfg("wfg1"),
     "wfg2": lambda: _wfg("wfg2"),
     "lsmop9": _lsmop9,
