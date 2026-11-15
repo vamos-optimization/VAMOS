@@ -27,6 +27,7 @@ from .base import (
     _SerializableConfig,
     _TrackGenealogyBuilder,
     _validate_operators,
+    _warn_without_effect,
 )
 from .types import RepairConfigValue
 
@@ -84,6 +85,11 @@ class AGEMOEAConfig(_SerializableConfig):
     external_archive: ExternalArchiveConfig | None = None
     # Fields added after 1.0 go last, so that the constructor keeps the positions of its parameters.
     constraint_handling: tuple[str, dict[str, float]] | None = None
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.track_genealogy:
+            _warn_without_effect("AGE-MOEA", "track_genealogy", "AGE-MOEA records no genealogy", stacklevel=3)
 
     @classmethod
     def default(
