@@ -1,12 +1,12 @@
 ---
-description: Install VAMOS 1.2.0 and select the optional dependencies needed for your optimization workflow.
+description: Install VAMOS 1.2.1 and select the optional dependencies needed for your optimization workflow.
 search:
   boost: 2
 ---
 
 # Installation
 
-The examples on this site target **VAMOS 1.2.0**. Use an isolated Python
+The examples on this site target **VAMOS 1.2.1**. Use an isolated Python
 environment and the pinned commands below to follow the same release.
 
 ## Supported Python and operating systems
@@ -38,7 +38,7 @@ Create an isolated environment and install the package from PyPI:
     python -m venv .venv
     source .venv/bin/activate
     python -m pip install --upgrade pip
-    python -m pip install "vamos-optimization==1.2.0"
+    python -m pip install "vamos-optimization==1.2.1"
     ```
 
 === "Windows PowerShell"
@@ -47,7 +47,7 @@ Create an isolated environment and install the package from PyPI:
     py -m venv .venv
     .\.venv\Scripts\Activate.ps1
     python -m pip install --upgrade pip
-    python -m pip install "vamos-optimization==1.2.0"
+    python -m pip install "vamos-optimization==1.2.1"
     ```
 
 Verify the installation:
@@ -57,7 +57,7 @@ python -c "import vamos; print(vamos.__version__)"
 vamos check
 ```
 
-The version command must print `1.2.0` for this release. To install the latest
+The version command must print `1.2.1` for this release. To install the latest
 published version instead, use `python -m pip install --upgrade vamos-optimization`
 and consult the documentation for that version. Pinning VAMOS alone does not
 freeze dependencies; retain the environment record for scientific runs (see
@@ -93,7 +93,7 @@ now needs `analysis` and `examples`. `all` installs the user extras (`compute`,
 For example:
 
 ```bash
-python -m pip install "vamos-optimization[compute,analysis]==1.2.0"
+python -m pip install "vamos-optimization[compute,analysis]==1.2.1"
 ```
 
 An explicit optional backend fails clearly when its dependency is unavailable.
@@ -115,5 +115,5 @@ python -m pip install -e ".[dev]"
 
 Use the environment setup above before this command. The default branch may
 contain work beyond the published release; record the checked-out commit. To
-inspect the release source, check out the `v1.2.0` tag before installing.
+inspect the release source, check out the `v1.2.1` tag before installing.
 For ordinary use, prefer the PyPI installation under **Core package**.
