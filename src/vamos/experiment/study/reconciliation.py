@@ -18,7 +18,7 @@ from .commits import append_event, checkpoint_attempt, checkpoint_manifest, chec
 from .documents import attempt_document, manifest_checkpoint_document, semantic_hash, task_checkpoint_document
 from .errors import ReferencedRunCorruptError
 from .failure_policy import complete_running, pause_after_task_failure, pause_with_runnable_work
-from .loading import load_study
+from .loading import reload_study
 from .models import AttemptRecord, AttemptReference, PlanTask, Study, TaskRecord
 from .serialization import stored_document_bytes
 from .writing import remove_writer_temporaries
@@ -45,7 +45,7 @@ def reconcile_study(snapshot: Study) -> Study:
         current, attempt = _ensure_running_attempt(current, active[0])
         trigger_task_id = attempt.task_id
         _reconcile_attempt(current, attempt)
-        current = _refresh_lagging_checkpoints(load_study(current.root))
+        current = _refresh_lagging_checkpoints(reload_study(current))
     return _settle_reconciled_execution(current, trigger_task_id=trigger_task_id)
 
 
@@ -128,7 +128,7 @@ def _ensure_running_attempt(study: Study, attempt: AttemptRecord) -> tuple[Study
         tasks=_replace_task(study.tasks, task),
         event=event,
     )
-    loaded = load_study(study.root)
+    loaded = reload_study(study)
     return loaded, next(item for item in loaded.attempts if item.attempt_id == attempt.attempt_id)
 
 
@@ -168,8 +168,8 @@ def _reserved_run_id(study: Study, attempt: AttemptRecord) -> str:
 
 def _verified_expected_run(study: Study, attempt: AttemptRecord, run_id: str, run_root: Path) -> StoredRun:
     try:
-        verify_run(run_root)
-        stored = load_run(run_root, verify="all")
+        verify_run(run_root, limits=study.run_limits)
+        stored = load_run(run_root, verify="all", limits=study.run_limits)
     except RunArtifactError as exc:
         raise ReferencedRunCorruptError(
             operation="reconcile study attempt",
@@ -347,7 +347,7 @@ def _settle_reconciled_execution(study: Study, *, trigger_task_id: str | None) -
         return study
     state = _state_from_study(study)
     if all(task.state == "succeeded" for task in study.tasks):
-        return complete_running(state, lambda _phase: None, load_study)
+        return complete_running(state, lambda _phase: None, reload_study)
     failed = next(
         (task for task in study.tasks if task.state == "failed" and (trigger_task_id is None or task.task_id == trigger_task_id)),
         None,
@@ -356,7 +356,7 @@ def _settle_reconciled_execution(study: Study, *, trigger_task_id: str | None) -
         return pause_after_task_failure(state, failed)
     if any(task.state in {"pending", "interrupted"} for task in study.tasks):
         return pause_with_runnable_work(state)
-    return complete_running(state, lambda _phase: None, load_study)
+    return complete_running(state, lambda _phase: None, reload_study)
 
 
 def _refresh_lagging_checkpoints(study: Study) -> Study:
@@ -410,7 +410,7 @@ def _refresh_lagging_checkpoints(study: Study) -> Study:
             event=study.events[-1],
         )
         changed = True
-    return load_study(study.root) if changed else study
+    return reload_study(study) if changed else study
 
 
 def _state_from_study(study: Study) -> Any:
@@ -425,6 +425,8 @@ def _state_from_study(study: Study) -> Any:
         tasks,
         {task.task_id: index for index, task in enumerate(tasks)},
         study.events[-1],
+        limits=study.limits,
+        run_limits=study.run_limits,
     )
 
 

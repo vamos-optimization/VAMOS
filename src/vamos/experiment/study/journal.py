@@ -8,7 +8,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, NoReturn, cast
 
-from vamos.experiment.artifacts.models import deep_freeze
+from vamos.experiment.artifacts.models import LoadLimits, deep_freeze
 
 from .checkpoint_projection import EffectiveStudyState, project_effective_study, validate_pristine_created_state
 from .errors import StudyIntegrityError
@@ -46,6 +46,7 @@ def derive_effective_study(
     events: tuple[StudyEvent, ...],
     *,
     run_verification: RunVerification = "all",
+    run_limits: LoadLimits | None = None,
     tolerate_run_errors: bool = False,
     observe_run_reference: ObserveRunReference | None = None,
 ) -> EffectiveStudyState:
@@ -63,6 +64,7 @@ def derive_effective_study(
             event,
             manifest.study_id,
             run_verification=run_verification,
+            run_limits=run_limits,
             tolerate_run_errors=tolerate_run_errors,
             observe_run_reference=observe_run_reference,
         )
@@ -111,6 +113,7 @@ def _apply_event(
     study_id: str,
     *,
     run_verification: RunVerification,
+    run_limits: LoadLimits | None,
     tolerate_run_errors: bool,
     observe_run_reference: ObserveRunReference | None,
 ) -> None:
@@ -126,6 +129,7 @@ def _apply_event(
             state,
             event,
             run_verification=run_verification,
+            run_limits=run_limits,
             tolerate_run_errors=tolerate_run_errors,
             observe_run_reference=observe_run_reference,
         )
@@ -273,6 +277,7 @@ def _apply_attempt_event(
     event: StudyEvent,
     *,
     run_verification: RunVerification,
+    run_limits: LoadLimits | None,
     tolerate_run_errors: bool,
     observe_run_reference: ObserveRunReference | None,
 ) -> None:
@@ -288,6 +293,7 @@ def _apply_attempt_event(
             attempt,
             target,
             run_verification=run_verification,
+            run_limits=run_limits,
             tolerate_run_errors=tolerate_run_errors,
             observe_run_reference=observe_run_reference,
         )
@@ -338,6 +344,7 @@ def _apply_terminal_attempt(
     target: AttemptState,
     *,
     run_verification: RunVerification,
+    run_limits: LoadLimits | None,
     tolerate_run_errors: bool,
     observe_run_reference: ObserveRunReference | None,
 ) -> AttemptRecord:
@@ -348,6 +355,7 @@ def _apply_terminal_attempt(
         task_id,
         target,
         run_verification=run_verification,
+        run_limits=run_limits,
         tolerate_run_errors=tolerate_run_errors,
         observe_run_reference=observe_run_reference,
     )
@@ -384,6 +392,7 @@ def _terminal_payload(
     status: str,
     *,
     run_verification: RunVerification,
+    run_limits: LoadLimits | None,
     tolerate_run_errors: bool,
     observe_run_reference: ObserveRunReference | None,
 ) -> Mapping[str, Any]:
@@ -405,6 +414,7 @@ def _terminal_payload(
         expected_task_id=task_id,
         expected_status=status,
         verification=run_verification,
+        run_limits=run_limits,
         tolerate_errors=tolerate_run_errors,
         observer=observe_run_reference,
     )

@@ -12,14 +12,14 @@ from vamos.experiment.artifacts.models import deep_freeze
 from .commits import append_event, checkpoint_attempt, checkpoint_manifest, checkpoint_task
 from .errors import UnsupportedStudyExecutionStateError
 from .identity import new_uuid4
-from .loading import load_study
+from .loading import reload_study
 from .models import AttemptRecord, AttemptReference, Study, TaskRecord
 
 
 def cancel_snapshot(snapshot: Study, active_roots: Mapping[Path, object], requests: dict[Path, None]) -> Study:
     """Cancel now when idle, or request cancellation from this process's runner."""
     root = snapshot.root.resolve(strict=True)
-    current = load_study(root)
+    current = reload_study(snapshot)
     _validate_identity(snapshot, current)
     if root in active_roots:
         requests[root] = None
@@ -95,7 +95,7 @@ def cancel_loaded(study: Study, *, code: str) -> Study:
         tasks=tuple(tasks),
         event=event,
     )
-    return load_study(study.root)
+    return reload_study(study)
 
 
 def _cancel_attempt(

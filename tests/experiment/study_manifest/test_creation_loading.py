@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -273,3 +274,41 @@ def test_same_plan_creates_distinct_study_ids(tmp_path: Path) -> None:
     assert first.study_id != second.study_id
     assert first.plan_id == second.plan_id
     assert [task.task_id for task in first.tasks] == [task.task_id for task in second.tasks]
+
+
+def test_custom_limits_survive_run_and_inspect(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import numpy as np
+
+    import vamos.experiment.study.execution as execution
+    from vamos.experiment.optimization_result import OptimizationResult
+    from vamos.experiment.study.errors import ReferencedRunCorruptError, StudyResourceLimitError, StudyRunVerificationError
+
+    spec = vamos.StudySpec(
+        problems=["zdt1"], algorithms=["nsgaii"], seeds=[0], max_evaluations=24, pop_size=8, metadata={"protocol": "x" * 100_000}
+    )
+    limits = vamos.StudyLoadLimits(max_string_bytes=200_000)
+    run_limits = vamos.LoadLimits(max_artifacts=64)
+    with pytest.raises(StudyResourceLimitError):
+        vamos.create_study(spec, output=tmp_path / "default-limits")
+
+    def execute(reconstructed: Any, *, root: Path) -> OptimizationResult:
+        arrays = {"F": np.zeros((1, reconstructed.n_obj)), "X": np.zeros((1, reconstructed.n_var))}
+        return OptimizationResult({**arrays, "evaluations": 24, "generations": 3})
+
+    monkeypatch.setattr(execution, "_execute_optimization", execute)
+    created = vamos.create_study(spec, output=tmp_path / "study", limits=limits, run_limits=run_limits)
+    assert created.inspect().state == "created"
+    completed = created.run()
+
+    assert completed.status == "completed"
+    assert (completed.limits, completed.run_limits) == (limits, run_limits)
+    assert completed.inspect().verified_run_count == 1
+    reloaded = vamos.load_study(completed.root, limits=limits, run_limits=run_limits)
+    assert reloaded.summarize().rows[0].run_metadata_available
+    assert reloaded.resume().status == "completed"
+    # The run limits bound the runs that a load verifies and those that run() publishes.
+    tight = vamos.LoadLimits(max_artifact_bytes=64)
+    with pytest.raises(ReferencedRunCorruptError):
+        vamos.load_study(completed.root, limits=limits, run_limits=tight)
+    with pytest.raises(StudyRunVerificationError):
+        vamos.create_study(spec, output=tmp_path / "tight", limits=limits, run_limits=tight).run()

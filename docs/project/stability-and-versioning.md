@@ -23,6 +23,13 @@ Every supported surface has one of three labels:
 An importable name is not automatically stable. A surface is stable only when
 it is listed here and represented in the VAMOS 1.0 compatibility baseline.
 
+**Development after 1.2.1:** during 1.x, a stable function, method or class may
+gain optional keyword-only arguments, so every call that worked keeps working.
+The compatibility check accepts such an argument when it has a default and still
+fails when a parameter is removed, renamed, reordered, changes kind or default,
+or when a new argument is positional or has no default. `load_study` and
+`create_study` are the first to use this (see [Studies](../guide/studies.md)).
+
 ## Stable Python API
 
 The stable Python surface is exposed through `vamos`, `vamos.api`,

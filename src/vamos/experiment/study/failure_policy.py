@@ -6,7 +6,7 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any, Protocol, cast
 
-from vamos.experiment.artifacts.models import deep_freeze
+from vamos.experiment.artifacts.models import LoadLimits, deep_freeze
 
 from .commits import append_event, checkpoint_manifest
 from .errors import (
@@ -16,7 +16,8 @@ from .errors import (
     StudyRunVerificationError,
 )
 from .execution_errors import finalization_error
-from .loading import load_study
+from .limits import StudyLoadLimits
+from .loading import Reloadable, reload_study
 from .models import Study, StudyEvent, StudyManifest, StudyState, TaskRecord
 
 
@@ -27,6 +28,8 @@ class FailureExecutionState(Protocol):
     manifest: StudyManifest
     tasks: list[TaskRecord]
     event: StudyEvent
+    limits: StudyLoadLimits
+    run_limits: LoadLimits
 
 
 def pause_after_task_failure(state: FailureExecutionState, task: TaskRecord) -> Study:
@@ -53,13 +56,13 @@ def pause_after_task_failure(state: FailureExecutionState, task: TaskRecord) -> 
         tasks=tuple(state.tasks),
         event=state.event,
     )
-    return load_study(state.root)
+    return reload_study(state)
 
 
 def complete_running(
     state: FailureExecutionState,
     phase: Callable[[str], None],
-    reload_study: Callable[[Path], Study],
+    reload: Callable[[FailureExecutionState], Study],
 ) -> Study:
     """Finalize a fully traversed study according to its retained outcomes."""
     unfinished = [task for task in state.tasks if task.state in {"pending", "interrupted"}]
@@ -105,7 +108,7 @@ def complete_running(
         raise
     except Exception as exc:
         raise finalization_error(state.study_id, "running", True, True, state.root, exc) from exc
-    return reload_study(state.root)
+    return reload(state)
 
 
 def pause_with_runnable_work(state: FailureExecutionState) -> Study:
@@ -139,15 +142,15 @@ def pause_with_runnable_work(state: FailureExecutionState) -> Study:
         tasks=tuple(state.tasks),
         event=state.event,
     )
-    return load_study(state.root)
+    return reload_study(state)
 
 
-def record_infrastructure_failure(root: Path, error: StudyInfrastructureError) -> StudyInfrastructureError:
+def record_infrastructure_failure(source: Reloadable, error: StudyInfrastructureError) -> StudyInfrastructureError:
     """Record a trustworthy root failure when its authority remains writable."""
     if not _may_publish_failure(error):
         return error
     try:
-        current = load_study(root)
+        current = reload_study(source)
     except Exception:
         return error
     if current.status != "running":
@@ -155,7 +158,7 @@ def record_infrastructure_failure(root: Path, error: StudyInfrastructureError) -
     reason = _infrastructure_reason(error)
     try:
         event = append_event(
-            root,
+            current.root,
             current.events[-1],
             event_type="study_failed",
             entity_kind="study",
@@ -166,7 +169,7 @@ def record_infrastructure_failure(root: Path, error: StudyInfrastructureError) -
             reason=reason,
         )
         checkpoint_manifest(
-            root,
+            current.root,
             current.manifest,
             state="failed",
             execution_id=current.manifest.execution_id,
