@@ -439,6 +439,20 @@ real-coded spaces. An assignment without `crossover_prob`, `de_cr`, `de_f`,
 CR = 1, F = 0.5, the binomial crossover and 0.5. `vamos tune --algorithm
 cmoeams` tunes it.
 
+### Parameters that reach the algorithm
+
+**Development after 1.2.1:** every parameter of a built-in space changes the
+configuration that it builds, and the real-coded spaces no longer offer
+`repair="round"` or `blx_repair="round"`: rounding continuous variables to
+integers puts the whole population on the vertices of the bounding box, where
+mutation has no further effect. The SMPSO spaces drop `repair`, which never
+reached the configuration: SMPSO clips each new position to the bounds, and its
+polynomial mutation keeps it inside. The SPEA2 spaces drop
+`selection_pressure`, because SPEA2 always mates with its own binary
+tournament. An assignment saved from an earlier space still builds:
+`repair="round"` as before, while SMPSO and SPEA2 ignore the dropped
+parameters, as they always did.
+
 ### Populations that depend on the number of objectives
 
 The parameter spaces do not know the problem, but two algorithms need its
@@ -454,6 +468,16 @@ sampled `pop_size` of 60 thus runs 55 individuals with three objectives, the
 lattice of nine divisions, and a lattice is never truncated. Before, `vamos
 tune` did not pass `n_obj` to MOEA/D, and every other sampled population failed
 and got the failure score: most MOEA/D candidates on a three-objective problem.
+
+**Development after 1.2.1:** the RVEA spaces sample `pop_size` in [20, 200],
+as the other algorithms do, instead of `n_partitions` in [4, 12]. RVEA runs the
+largest complete Das-Dennis lattice with at most `pop_size` directions for the
+assignment's `n_obj`: a sampled `pop_size` of 100 runs 100 individuals with two
+objectives, 91 with three (12 partitions) and 55 with ten (2 partitions). The
+fixed range of partitions gave 5 to 13 individuals with two objectives and up
+to 293,930 with ten. An assignment with `n_partitions`, saved from an earlier
+space, still builds that lattice, and `--smoke` caps RVEA's `pop_size` as it
+does for the other algorithms.
 
 `optuna` and `bohb_optuna` suggest parents before the parameters that depend on
 them, whatever their declaration order, and record only active suggestions in
@@ -574,6 +598,12 @@ study stored by an earlier version is not resumed: the same command starts a
 new study, and the stored one stays in the storage under its `_v1` name.
 Persistent SMPSO studies keep `__vamos_cli_leaders_hv_v1`, the namespace that
 VAMOS 1.2.0 introduced with its leaders-archive score.
+
+**Development after 1.2.1:** VAMOS 1.3.0 changes the built-in search spaces
+again, with other categorical choices, so the CLI appends
+`__vamos_cli_final_population_hv_v3`, and SMPSO studies, whose spaces also
+change, take `__vamos_cli_leaders_hv_v2`. A study stored by VAMOS 1.2.1 or
+earlier is not resumed under the new names.
 
 ## Split-based tuning
 
