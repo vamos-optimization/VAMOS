@@ -88,9 +88,14 @@ JMETAL_MAIN: dict[str, tuple[str, str]] = {
     **{f"cre{k}": (f"cre.CRE{k}", "") for k in (21, 22, 23, 24, 25, 31, 32, 51)},
     **{f"rcm{k:02d}": (f"cec2021.RCM{k:02d}", "") for k in range(1, 51)},
 }
+# ZXH-CF5-8 keep each constrained angle in [1/4, 3/4]: jMetal stores its two bounds, ``>= 0`` feasible, after
+# the first one or two constraints (two when the radius r > 0). VAMOS stores one column per angle, the paper's
+# k_theta constraints: the larger of the two bounds, negated.
+BOUNDED_HEAD: dict[str, int] = {f"zxh_cf{k}": 1 if k % 4 == 1 else 2 for k in range(5, 9)}
 # ZXH-CF9-16 keep angles out of intervals. jMetal stores both bounds of each interval, ``<= 0`` feasible and
-# not negated, after the first one or two constraints (two when the radius r > 0), and precomputes the
-# violation: the smaller bound of an interval when both are positive. VAMOS stores that smaller value.
+# not negated, and precomputes the violation: the smaller bound of an interval when both are positive. VAMOS
+# stores one column per angle: that smaller value, and for ZXH-CF13-16, whose angles avoid two intervals, the
+# larger of the two intervals' values.
 DISJUNCTIVE_HEAD: dict[str, int] = {f"zxh_cf{k}": 1 if k % 4 == 1 else 2 for k in range(9, 17)}
 # DC-DTLZ with jMetal's constants (a = 3, b = 0.5, g unscaled in the constraints), which STEP also uses:
 # values of jMetal's main at three points for each variant and dimension. jMetal puts DC3's constraint on g
@@ -211,11 +216,16 @@ def _jmetal_values(classpath: str, requests: list[tuple[str, str, np.ndarray]]) 
 
 
 def _vamos_constraints(key: str, G: np.ndarray) -> np.ndarray:
-    """jMetal's constraint values, negated, in VAMOS's columns: one per excluded interval for ZXH-CF9-16."""
+    """jMetal's constraint values, negated, in VAMOS's columns: one per constrained angle for ZXH-CF5-16."""
+    if key in BOUNDED_HEAD:
+        head = BOUNDED_HEAD[key]
+        return np.column_stack([G[:, :head], G[:, head:].reshape(G.shape[0], -1, 2).max(axis=2)])
     if key not in DISJUNCTIVE_HEAD:
         return G
     head, raw = DISJUNCTIVE_HEAD[key], -G
-    return np.column_stack([raw[:, :head], raw[:, head:].reshape(raw.shape[0], -1, 2).min(axis=2)])
+    intervals = raw[:, head:].reshape(raw.shape[0], -1, 2).min(axis=2)
+    per_angle = 2 if int(key.removeprefix("zxh_cf")) >= 13 else 1
+    return np.column_stack([raw[:, :head], intervals.reshape(raw.shape[0], -1, per_angle).max(axis=2)])
 
 
 def _entry(problem: Any, source: str, implementation: str, X: np.ndarray, F: np.ndarray, G: np.ndarray | None) -> dict[str, Any]:
