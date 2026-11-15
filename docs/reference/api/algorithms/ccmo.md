@@ -2,7 +2,7 @@
 
 Configure `ccmo` through `vamos.algorithms.CCMOConfig`. This page is the parameter reference, not a tutorial about the algorithm; see [CCMO](../../../algorithms/ccmo.md) for the algorithm, its variations and its budget rule.
 
-**Development after 1.1.0.** CCMO and `CCMOConfig` are new in the development series after VAMOS 1.1.0; the [1.0 compatibility baseline](../../../project/stability-and-versioning.md) does not cover them yet.
+**New in VAMOS 1.2.0.** The [1.0 compatibility baseline](../../../project/stability-and-versioning.md) does not cover CCMO and `CCMOConfig` yet.
 
 ```python
 from vamos.algorithms import CCMOConfig

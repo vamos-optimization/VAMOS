@@ -125,7 +125,7 @@ The custom model changes how candidate solutions are evaluated; it does not requ
 
 Rows correspond across the returned `X`, `F`, and constraint values `G`. For constrained runs, do not treat objective-space non-dominance as a feasibility test: `result.front()` Pareto-filters the current `F` rows, but it does **not** independently remove rows with positive constraint values.
 
-**Development after 1.1.0:** `result.front()`, `best()` and `top_k()` rank the feasible rows first when the result carries `G`: only feasible rows are Pareto-filtered or, when none is feasible, the least violated ones. Pass `feasible_only=False` for the objective-only filter. Checking `G` yourself remains the clearest evidence when feasibility matters to a conclusion.
+**VAMOS 1.2.0:** `result.front()`, `best()` and `top_k()` rank the feasible rows first when the result carries `G`: only feasible rows are Pareto-filtered or, when none is feasible, the least violated ones. Pass `feasible_only=False` for the objective-only filter. Checking `G` yourself remains the clearest evidence when feasibility matters to a conclusion.
 
 This maintained example deliberately verifies that every returned row is feasible before calling `front()`:
 
@@ -174,7 +174,7 @@ Check at least these properties for your own model:
 
 Objective and constraint values must be finite. A NaN or an infinity stops the run with `EvaluationError`. When an evaluation fails, for example a simulator that does not converge, return a large finite penalty or a violated constraint instead. A NaN can also come from NaN decision variables, for example produced by invalid operator parameters.
 
-**Development after 1.1.0:** a problem that writes constraint values without declaring `n_constraints` stops with `EvaluationError` instead of being optimized as unconstrained. This covers `out["G"]` in a protocol problem (pymoo's `n_ieq_constr` is not read) and an overridden `Problem.constraints()` with `n_constraints = 0`. In VAMOS 1.1.0 the constraints were ignored without warning.
+**VAMOS 1.2.0:** a problem that writes constraint values without declaring `n_constraints` stops with `EvaluationError` instead of being optimized as unconstrained. This covers `out["G"]` in a protocol problem (pymoo's `n_ieq_constr` is not read) and an overridden `Problem.constraints()` with `n_constraints = 0`. In VAMOS 1.1.0 the constraints were ignored without warning.
 
 A seed controls the optimizer. It does not automatically make randomness inside your own evaluator reproducible.
 
@@ -218,13 +218,13 @@ problem = make_problem(
 
 Do not set `vectorized=True` just because VAMOS itself works with populations. If your simulator accepts one design at a time, leave the default `vectorized=False`; VAMOS performs the row-by-row adaptation for you.
 
-**Development after 1.1.0:** a 1-D result is accepted only when its layout is unambiguous: length `N` for one objective (or one constraint), or length `n_obj` for a single solution. A flat array such as `np.hstack([f1, f2])`, of length `N * n_obj`, stops the evaluation with a `ValueError` that points to `np.column_stack`; the same applies to constraints and to `Problem.objectives()` and `Problem.constraints()`. VAMOS 1.1.0 reshaped it to `(N, n_obj)`, which mixes the objectives of different solutions without an error.
+**VAMOS 1.2.0:** a 1-D result is accepted only when its layout is unambiguous: length `N` for one objective (or one constraint), or length `n_obj` for a single solution. A flat array such as `np.hstack([f1, f2])`, of length `N * n_obj`, stops the evaluation with a `ValueError` that points to `np.column_stack`; the same applies to constraints and to `Problem.objectives()` and `Problem.constraints()`. VAMOS 1.1.0 reshaped it to `(N, n_obj)`, which mixes the objectives of different solutions without an error.
 
 ## Bounds and encodings
 
 Use `bounds=[(lower, upper), ...]` when variables have different limits. When every variable shares the same limits, `xl` and `xu` can be scalars. Do not pass `bounds` together with `xl` or `xu`.
 
-**Development after 1.1.0:** `optimize` checks any problem object before the first evaluation and raises `ConfigurationError` naming the attribute at fault: `n_var` and `n_obj` must be positive integers, `n_constraints` (default 0) a non-negative integer, `encoding` (default `"real"`) a known encoding, `evaluate` callable, and `xl` and `xu` finite scalars or arrays of shape `(n_var,)` with `xl <= xu`. VAMOS 1.1.0 failed later with an `AttributeError` or a NumPy error, or used `n_var = 10` and `n_obj = 2` when they were missing.
+**VAMOS 1.2.0:** `optimize` checks any problem object before the first evaluation and raises `ConfigurationError` naming the attribute at fault: `n_var` and `n_obj` must be positive integers, `n_constraints` (default 0) a non-negative integer, `encoding` (default `"real"`) a known encoding, `evaluate` callable, and `xl` and `xu` finite scalars or arrays of shape `(n_var,)` with `xl <= xu`. VAMOS 1.1.0 failed later with an `AttributeError` or a NumPy error, or used `n_var = 10` and `n_obj = 2` when they were missing.
 
 `make_problem(...)` accepts the public encoding names `"real"`, `"binary"`, `"integer"`, `"permutation"`, and `"mixed"`. The encoding describes the decision variables; the selected algorithm and operators must support it. Consult [Algorithms & Backends](../reference/algorithms.md) before assuming that every algorithm supports every encoding.
 

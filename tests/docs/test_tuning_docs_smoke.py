@@ -26,7 +26,7 @@ def _run_vamos(*args: str, timeout: int = 180) -> subprocess.CompletedProcess[st
 def test_tuning_docs_match_current_contract() -> None:
     text = DOC_PATH.read_text(encoding="utf-8")
 
-    assert "Experimental surface in VAMOS 1.1.0" in text
+    assert "Experimental surface in VAMOS 1.2.1" in text
     assert "does **not** expose a curated public programmatic facade" in text
     assert "Maintained user workflows should therefore use\n`vamos tune`" in text
     assert "advanced evaluation and contributors" in text
@@ -55,6 +55,7 @@ def test_tuning_docs_match_current_contract() -> None:
 
     assert "Persistent Optuna studies are scoring-contract versioned" in text
     assert "__vamos_cli_final_population_hv_v1" in text
+    assert "the CLI appends\n`__vamos_cli_final_population_hv_v2`" in text
     assert "must\nnot compete with trials scored under the current final-population HV contract" in text
     assert "Reusing the same base study name resumes only studies from this contract" in text
 
