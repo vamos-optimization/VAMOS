@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 import vamos
+from vamos.engine.hooks.live_viz import NoOpLiveVisualization
 from vamos.foundation.exceptions import ConfigurationError
 
 ALGORITHMS = ("agemoea", "ccmo", "cmoeams", "ctaea", "ibea", "moead", "nsgaii", "nsgaiii", "rvea", "smpso", "smsemoa", "spea2", "top")
@@ -95,6 +96,29 @@ def test_the_user_callback_still_runs_and_can_stop_first(clock: _Clock) -> None:
     assert result.meta["time_limit_reached"] is False
 
 
+def test_a_callback_derived_from_the_no_op_one_is_kept(clock: _Clock) -> None:
+    class Stopper(NoOpLiveVisualization):
+        def __init__(self) -> None:
+            self.generations: list[int] = []
+            self.ended = False
+
+        def on_generation(self, generation: int, F: Any = None, X: Any = None, stats: Any = None) -> None:
+            self.generations.append(generation)
+
+        def on_end(self, final_F: Any = None, final_stats: Any = None) -> None:
+            self.ended = True
+
+        def should_stop(self) -> bool:
+            return len(self.generations) >= 2
+
+    callback = Stopper()
+    result = _run("nsgaii", ("max_time", 1000), live_viz=callback)
+
+    assert callback.generations == [0, 1] and callback.ended
+    assert result.data["evaluations"] == 40
+    assert result.meta["time_limit_reached"] is False
+
+
 def test_the_manifest_records_the_limit_and_refuses_an_exact_replay(clock: _Clock, tmp_path: Path) -> None:
     result = _run("nsgaii", ("max_time", 3))
     resolved = result.meta["run_artifact_resolved_spec"]
@@ -118,6 +142,26 @@ def test_a_capped_run_records_which_limit_stopped_it(clock: _Clock, tmp_path: Pa
 
     assert result.meta["run_artifact_resolved_spec"]["termination"]["config"] == {"seconds": 1000.0, "max_evaluations": 100}
     assert vamos.save_result(result, tmp_path / "run").manifest["outcome"]["termination_reason"] == "max_evaluations"
+
+
+@pytest.mark.parametrize(
+    ("termination", "reason"),
+    [(("max_time", 3), "max_time"), (("max_time", {"seconds": 1000, "max_evaluations": 100}), "max_evaluations")],
+    ids=["time", "cap"],
+)
+def test_saving_a_loaded_run_keeps_its_termination_reason(clock: _Clock, tmp_path: Path, termination: Any, reason: str) -> None:
+    stored = vamos.save_result(_run("nsgaii", termination), tmp_path / "run")
+    assert stored.manifest["outcome"]["termination_reason"] == reason
+
+    loaded = vamos.load_result(stored.root)
+    assert loaded.meta["time_limit_reached"] is (reason == "max_time")
+    copy = vamos.save_result(loaded, tmp_path / "copy")
+    assert copy.manifest["outcome"]["termination_reason"] == reason
+
+
+def test_a_loaded_run_without_a_time_limit_has_no_time_limit_flag(tmp_path: Path) -> None:
+    stored = vamos.save_result(_run("nsgaii", ("max_evaluations", 40)), tmp_path / "run")
+    assert "time_limit_reached" not in vamos.load_result(stored.root).meta
 
 
 @pytest.mark.parametrize(

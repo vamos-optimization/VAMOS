@@ -9,7 +9,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from vamos.engine.algorithm.components.hooks import live_should_stop
-from vamos.engine.hooks.live_viz import LiveVisualization, NoOpLiveVisualization
+from vamos.engine.hooks.live_viz import LiveVisualization
 from vamos.foundation.exceptions import ConfigurationError
 from vamos.foundation.observer import RunContext
 
@@ -46,14 +46,15 @@ def parse_time_limit(value: object) -> tuple[float, int | None]:
 class TimeLimit:
     """A live callback that asks the run to stop once its wall-clock time has passed.
 
-    It forwards every call to the user's callback, whose ``should_stop`` is honored first.
+    It forwards every call to the user's callback, whose ``should_stop`` is honored first;
+    a subclass of ``NoOpLiveVisualization`` is a callback like any other.
     Algorithms check ``should_stop`` after each generation (MOEA/D and SMS-EMOA after each
     ``pop_size`` evaluations or step), so a run can overrun the limit by one generation.
     """
 
     def __init__(self, seconds: float, inner: LiveVisualization | None = None) -> None:
         self._deadline = _clock() + seconds
-        self._inner = None if inner is None or isinstance(inner, NoOpLiveVisualization) else inner
+        self._inner = inner
         self.reached = False
 
     def on_start(self, ctx: RunContext | None = None) -> None:

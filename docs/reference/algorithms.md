@@ -252,7 +252,8 @@ against the budget, such as ToP's phases, CMOEA-MS's stages and the
 constraint-handling techniques that relax over the run, then barely advance, so
 give them `max_evaluations`. A live callback still receives every generation, and
 its `should_stop` still stops the run first. `result.meta["time_limit_reached"]`
-says whether the time limit stopped the run. **A run limited by time is not
+says whether the time limit stopped the run, and `load_result` restores it from
+the manifest. **A run limited by time is not
 reproducible**, on another machine or on the same one: how many evaluations
 fit in the time depends on the hardware and its load. Its resolved spec records
 `vamos.termination:max_time@1` with `{"seconds": s, "max_evaluations": n}`
