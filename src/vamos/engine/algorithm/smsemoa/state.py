@@ -12,6 +12,7 @@ from typing import Any
 import numpy as np
 
 from vamos.engine.algorithm.components.results import (
+    apply_final_archive_subset,
     feasible_result_indices,
     get_external_archive_constraints,
     get_external_archive_contents,
@@ -135,4 +136,4 @@ def build_smsemoa_result(
             {"X": archive_X.copy(), "F": archive_F.copy()}, archive_G.copy() if archive_G is not None else None
         )
 
-    return result
+    return apply_final_archive_subset(result, state)

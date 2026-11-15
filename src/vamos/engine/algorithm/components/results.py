@@ -80,6 +80,35 @@ def _external_archive(
     return None
 
 
+def apply_final_archive_subset(result: dict[str, Any], state: Any) -> dict[str, Any]:
+    """Report the final subset of the external archive in ``result``, when the archive's configuration selects one.
+
+    With ``ExternalArchiveConfig.final_selection`` other than ``"none"``, the rows ``X``, ``F`` and, when
+    the result has them, ``G`` become the archive's rows that the selection keeps (``final_size`` of
+    them, or as many as the population without one), and ``result["archive_subset"]`` records the
+    selection, the size and the indices of the kept rows in the archive. The archive itself stays whole
+    in the result. Nothing changes without an external archive or with ``result_mode="population"``.
+    """
+    holder = next((getattr(state, name) for name in ("result_archive", "archive_manager") if getattr(state, name, None) is not None), None)
+    config = getattr(holder, "external_config", None)
+    if config is None or config.final_selection == "none" or wants_population_result(state):
+        return result
+    archive = _external_archive(state)
+    if archive is None:
+        return result
+    from vamos.engine.archive.final_subset import select_final_subset
+
+    archive_X, archive_F, archive_G = archive
+    size = int(state.pop_size) if config.final_size is None else int(config.final_size)
+    indices = select_final_subset(np.asarray(archive_F), config.final_selection, size, rng_seed=config.rng_seed)
+    result["X"] = np.asarray(archive_X)[indices].copy()
+    result["F"] = np.asarray(archive_F)[indices].copy()
+    if result.get("G") is not None and archive_G is not None:
+        result["G"] = np.asarray(archive_G)[indices].copy()
+    result["archive_subset"] = {"selection": config.final_selection, "size": size, "indices": indices}
+    return result
+
+
 def get_external_archive_contents(state: Any) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]] | None:
     """Return external archive contents regardless of the concrete archive holder."""
     archive = _external_archive(state)
@@ -143,6 +172,7 @@ def feasible_result_indices(
 
 
 __all__ = [
+    "apply_final_archive_subset",
     "build_result",
     "feasible_result_indices",
     "get_external_archive_constraints",

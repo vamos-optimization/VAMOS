@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Literal, TypeAlias
+from typing import TYPE_CHECKING, Any, Literal, TypeAlias
 
 import numpy as np
 from numpy.typing import NDArray
@@ -13,6 +13,9 @@ except ImportError:  # pragma: no cover - optional dependency
 
 from vamos.foundation.constraints.utils import compute_violation, is_feasible
 from vamos.foundation.quality_indicators.pareto import pareto_filter
+
+if TYPE_CHECKING:
+    from vamos.engine.archive.config import ExternalArchiveConfig
 
 DeduplicateIn = Literal["objective", "decision", "both"]
 FloatArray: TypeAlias = NDArray[np.float64]
@@ -192,6 +195,8 @@ class _BaseArchive:
         self._size = 0
         # Rows the last ``update`` removed to respect the capacity (not as dominated or duplicated).
         self.last_capacity_pruned = 0
+        # The configuration of the external archive this archive holds (``setup_archive``), whose final subset the result reports.
+        self.external_config: ExternalArchiveConfig | None = None
 
     def update(
         self,

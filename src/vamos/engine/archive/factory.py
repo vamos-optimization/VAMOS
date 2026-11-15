@@ -146,6 +146,7 @@ def setup_archive(
             selection_kernels=kernel.selection_kernels(),
         )
 
+    manager.external_config = ext_cfg
     archive_X, archive_F = manager.update(X, F, G)
     return archive_X, archive_F, manager
 

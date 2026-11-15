@@ -12,6 +12,7 @@ from typing import Any
 import numpy as np
 
 from vamos.engine.algorithm.components.results import (
+    apply_final_archive_subset,
     feasible_result_indices,
     get_external_archive_constraints,
     get_external_archive_contents,
@@ -120,4 +121,4 @@ def build_nsgaiii_result(
         result["archive_F"] = archive_F.copy()
         result["archive_G"] = archive_G.copy() if archive_G is not None else None
 
-    return result
+    return apply_final_archive_subset(result, state)
