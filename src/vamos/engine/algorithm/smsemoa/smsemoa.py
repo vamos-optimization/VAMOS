@@ -93,7 +93,8 @@ class SMSEMOA:
         - mutation (tuple): Mutation operator config
         - selection (tuple): Parent selection, ("random", {}) or ("tournament", {"size": 2})
         - reference_point (dict): {"offset": float, "adaptive": bool}, with ``offset`` a
-          fraction of each objective's range, or {"vector": list} for a fixed reference
+          fraction of each objective's range, {"vector": list} for a fixed reference, or
+          {"rule": "jmetal"} for jMetal's reference (the worst values times 1.1)
         - eliminate_duplicates (bool, optional): Discard a child that repeats an X or F row
         - external_archive (dict, optional): {"capacity": int | None, "pruning": str, ...}
         An HV target is a termination criterion, ``("hv", {...})``, not a configuration key.
