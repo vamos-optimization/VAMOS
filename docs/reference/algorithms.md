@@ -185,7 +185,7 @@ published results or with another framework.
   `aggregation("tchebycheff")` reproduces jMetal's MOEA/D-DE. See
   [MOEA/D](../algorithms/moead.md).
 
-**Development after 1.2.0:** three real-coded mutations scale their steps by
+**Development after 1.2.1:** three real-coded mutations scale their steps by
 the range of each variable.
 
 - `non_uniform` is Michalewicz's mutation, as in jMetal: a mutated variable
