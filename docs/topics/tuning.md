@@ -260,7 +260,7 @@ anything, as the split-based example below did with `--backend racing`. With
 warm starts, each block now resumes only its own run: a block whose run failed
 starts again from scratch, where it used to receive another block's checkpoint.
 
-**Development after 1.2.0:** the statistical race eliminates with F-race
+**Development after 1.2.1:** the statistical race eliminates with F-race
 (Birattari et al., 2002), as irace does. Each instance/seed block ranks the
 alive configurations, so problems whose scores lie on different scales weigh
 the same. A Friedman test on those ranks comes first; when its p-value is below
