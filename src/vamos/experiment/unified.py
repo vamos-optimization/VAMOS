@@ -157,9 +157,10 @@ def optimize(
         Maximum function evaluations. Auto-determined when omitted.
     termination : TerminationSpec | None, optional
         Explicit termination pair: ``("max_evaluations", n)``, ``("n_gen", g)``
-        (``g * pop_size`` evaluations, the initial population included) or
-        ``("hv", {"target_value": t, "reference_point": r, "max_evaluations": n})``.
-        Every built-in algorithm accepts all three; counts must be positive integers.
+        (``g * pop_size`` evaluations, the initial population included),
+        ``("hv", {"target_value": t, "reference_point": r, "max_evaluations": n})`` or
+        ``("max_time", seconds)``, a wall-clock limit that makes the run not reproducible.
+        Every built-in algorithm accepts all four; counts must be positive integers.
         With ``max_evaluations`` too, it must be ``("max_evaluations", max_evaluations)``.
     pop_size : int | None, optional
         Population size. Auto-determined when omitted.

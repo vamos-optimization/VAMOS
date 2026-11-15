@@ -41,6 +41,16 @@ BUILT_IN_OPERATORS = (
     "uniform",
 )
 BUILT_IN_TERMINATIONS = ("max_evaluations", "n_gen", "hv")
+WALL_CLOCK_TERMINATION = (
+    "The run stopped at a wall-clock time limit, after a number of evaluations that depends on the machine and its load, "
+    "so it cannot be replayed exactly."
+)
+
+
+def is_time_limited(resolved: Mapping[str, Any]) -> bool:
+    """Whether a resolved spec's termination is the ``max_time`` wall-clock limit."""
+    termination = resolved.get("termination")
+    return isinstance(termination, Mapping) and _stable_component_name(termination.get("component_id"), "vamos.termination") == "max_time"
 
 
 def component_reconstructability(manifest: RunManifest) -> tuple[ComponentStatus, tuple[VerificationReason, ...]]:
@@ -56,7 +66,7 @@ def resolved_component_reconstructability(
         _check_descriptor(resolved.get("problem"), "problem", "vamos.problem", frozenset(get_problem_specs())),
         _check_descriptor(resolved.get("algorithm"), "algorithm", "vamos.algorithm", BUILT_IN_ALGORITHMS),
         _check_backend(resolved.get("backend")),
-        _check_descriptor(resolved.get("termination"), "termination", "vamos.termination", BUILT_IN_TERMINATIONS),
+        _check_termination(resolved),
         _check_operators(resolved.get("operators")),
     )
     reasons = tuple(reason for group in checks for reason in group)
@@ -92,6 +102,19 @@ def _check_descriptor(
             ),
         )
     return ()
+
+
+def _check_termination(resolved: Mapping[str, Any]) -> tuple[VerificationReason, ...]:
+    if is_time_limited(resolved):
+        return (
+            VerificationReason(
+                code="wall_clock_termination",
+                field="$.resolved_spec.termination",
+                message=WALL_CLOCK_TERMINATION,
+                action="Run ('max_evaluations', n) with outcome.evaluations for a comparable run with the same budget.",
+            ),
+        )
+    return _check_descriptor(resolved.get("termination"), "termination", "vamos.termination", BUILT_IN_TERMINATIONS)
 
 
 def _check_backend(value: object) -> tuple[VerificationReason, ...]:
@@ -172,6 +195,8 @@ __all__ = [
     "BUILT_IN_BACKENDS",
     "BUILT_IN_OPERATORS",
     "BUILT_IN_TERMINATIONS",
+    "WALL_CLOCK_TERMINATION",
     "component_reconstructability",
+    "is_time_limited",
     "resolved_component_reconstructability",
 ]

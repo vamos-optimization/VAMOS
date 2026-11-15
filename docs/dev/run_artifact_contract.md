@@ -217,6 +217,13 @@ claim requires the same resolved spec, implementation, backend, materially
 equivalent environment, and a deterministic path. Loading does not test replay
 equivalence.
 
+**Development after 1.2.1:** a run stopped by `("max_time", seconds)` has no
+deterministic path: its termination is `vamos.termination:max_time@1`, its
+`determinism.declared` is `false`, its replayability is `best_effort` with the
+reason `wall_clock_termination`, and verification reports that reason and no
+exact replay. `outcome.termination_reason` is `max_time`, or `max_evaluations`
+when the optional evaluation cap stopped it first.
+
 Exact verification compares only material evidence: VAMOS version and
 implementation fingerprint, source kind, Python implementation and major/minor
 version, operating system and architecture, NumPy/SciPy, selected backend and
