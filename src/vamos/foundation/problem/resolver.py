@@ -22,6 +22,9 @@ from vamos.foundation.problem.registry import (
 )
 from vamos.resources import reference_front_path
 
+# The packaged reference fronts that resolve_reference_front_path can search.
+REFERENCE_FRONT_SOURCES = ("vamos", "jmetal")
+
 # Preset names map to problem keys defined in the registry.
 PROBLEM_SET_PRESETS: dict[str, Sequence[str]] = {
     "families": ("zdt1", "dtlz2", "wfg4", "tsp6"),
@@ -125,7 +128,13 @@ def _format_unknown_problem_set(name: str, options: list[str]) -> str:
     return " ".join(parts)
 
 
-def resolve_reference_front_path(problem_key: str, explicit_path: str | None, n_obj: int | None = None) -> str | None:
+def resolve_reference_front_path(
+    problem_key: str,
+    explicit_path: str | None,
+    n_obj: int | None = None,
+    *,
+    source: str = "vamos",
+) -> str | None:
     """
     Return a path to a reference front, using an explicit override when provided.
 
@@ -133,7 +142,15 @@ def resolve_reference_front_path(problem_key: str, explicit_path: str | None, n_
     that, ``<key>.csv``. A file with another number of objectives is never returned. Without
     ``n_obj``, the problem's registered default is used; a key that is not registered takes
     ``<key>.csv`` as it is.
+
+    ``source`` names the packaged fronts to search: ``"vamos"`` (the default), VAMOS's own samples, or
+    ``"jmetal"``, jMetal's files (``resources/referenceFronts`` at commit ``1e4b83cae6``) of ZDT1-4,
+    ZDT6 and DTLZ1-7 with two and three objectives, named ``jmetal-<key>.csv`` and
+    ``jmetal-<key>.<n_obj>d.csv``. A problem without a front of that source gives ``None``: the other
+    source is never used in its place.
     """
+    if source not in REFERENCE_FRONT_SOURCES:
+        raise ValueError(f"Reference front source must be one of {', '.join(map(repr, REFERENCE_FRONT_SOURCES))}; got {source!r}.")
     if explicit_path:
         return explicit_path
 
@@ -141,6 +158,8 @@ def resolve_reference_front_path(problem_key: str, explicit_path: str | None, n_
     if n_obj is None:
         n_obj = _default_n_obj(key)
     candidates = [key] if n_obj is None or "." in key else [f"{key}.{int(n_obj)}d", key]
+    if source == "jmetal":
+        candidates = [f"jmetal-{candidate}" for candidate in candidates]
 
     for candidate in candidates:
         try:

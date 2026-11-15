@@ -21,7 +21,8 @@ provenance of every packaged file, including those this script leaves alone.
   ``--reproblems-dir`` points at a local copy of that directory. Their MIT notice is
   ``LICENSE-reproblems.txt`` next to the CSV files.
 - **jMetal's fronts** for LIR-CMOP1-14, DAS-CMOP1-9, MW4, MW8-14, Binh2, Golinski, Osyczka2, Water, the car side
-  impact problem, CEC2009 CF2-CF10, CRE21-CRE51 and RCM01-RCM50 (except RCM17, RCM23, RCM26 and RCM50), from
+  impact problem, CEC2009 CF2-CF10, CRE21-CRE51 and RCM01-RCM50 (except RCM17, RCM23, RCM26 and RCM50), and the
+  optional jMetal source of ZDT1-4, ZDT6 and DTLZ1-7 at M = 2 and 3 (``jmetal-zdt1.csv``, ``jmetal-dtlz2.3d.csv``), from
   jMetal's ``resources/referenceFronts`` at commit ``JMETAL_COMMIT``, copied line by line without the rows that
   another row of the same file dominates. ``--jmetal-dir`` points at a local copy of that directory. Their MIT
   notice is ``LICENSE-jmetal.txt``.
@@ -71,6 +72,10 @@ JMETAL_FRONTS = {
     # RCM17 has no front (its first objective is unbounded below). Feasible designs dominate rows of jMetal's
     # RCM23, RCM26 and RCM50 fronts (docs/reference/problems.md, "Reference fronts"), so they are not packaged.
     **{f"rcm{k:02d}": f"RCM{k:02d}" for k in range(1, 51) if k not in (17, 23, 26, 50)},
+    # The optional jMetal source of ZDT and DTLZ (resolve_reference_front_path(..., source="jmetal")); VAMOS's
+    # analytic samples of these problems stay the default.
+    **{f"jmetal-zdt{k}": f"ZDT{k}" for k in (1, 2, 3, 4, 6)},
+    **{f"jmetal-dtlz{k}.{m}d": f"DTLZ{k}.{m}D" for k in range(1, 8) for m in (2, 3)},
 }
 
 # Sampled fronts: packaged size, number of uniform samples and grid points per variable (0 = no grid).
