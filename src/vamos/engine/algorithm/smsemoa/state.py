@@ -37,6 +37,8 @@ class SMSEMOAState(AlgorithmState):
         Offset for adaptive reference point updates.
     ref_adaptive : bool
         Whether to adaptively update reference point.
+    ref_rule : str
+        ``"relative"`` (``nadir + ref_offset * range``) or ``"jmetal"`` (the worst values times 1.1).
     pressure : int
         Tournament selection pressure.
     crossover_fn : Callable
@@ -54,6 +56,7 @@ class SMSEMOAState(AlgorithmState):
     ref_point: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
     ref_offset: float = 0.1
     ref_adaptive: bool = True
+    ref_rule: str = "relative"
     pressure: int = 2
     selection_method: str = "random"
     eliminate_duplicates: bool = False

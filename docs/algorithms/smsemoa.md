@@ -171,6 +171,16 @@ Evaluations: 400
 
 **VAMOS 1.2.0:** a `vector` is used as given and stays fixed, so it cannot be combined with `adaptive=True`; points outside its box contribute nothing to the hypervolume and are removed first. Without `vector`, the reference is `nadir + offset * (nadir - ideal)` of the population and the new child, recomputed at every step unless `adaptive=False`. `offset` (default 1.0) is therefore a fraction of each objective's range, the reference 1 + `offset` of the normalized objectives, and the selection does not depend on the objective units. In VAMOS 1.1.0 and earlier, `offset` was added to the maximum in objective units, so rescaling one objective changed which solutions survived. A `vector` was raised to that maximum plus `offset` and, with the default `adaptive=True`, replaced after the first step. The recorded output above comes from VAMOS 1.0.1, which raised this lesson's reference in that way.
 
+**Development after 1.2.1:** `reference_point(rule="jmetal")` uses the reference point of jMetal's and Evolver's SMS-EMOA (`SMSEMOAReplacement` in jMetal 7.11), so that results can be compared with theirs: each coordinate is the worst value of the population and the new child times 1.1, or divided by 1.1 when that value is negative, recomputed at every step. The default rule, `"relative"`, is unchanged. The two differ in three ways:
+
+| | `"relative"` (default) | `"jmetal"` |
+| --- | --- | --- |
+| Coordinate | worst value + `offset` × (worst − best) | worst value × 1.1, or ÷ 1.1 when negative |
+| Margin above the worst value | `offset` (default 1.0) times the objective's range | 10% of the worst value when it is positive, about 9% of its magnitude when negative, none when it is 0 |
+| Rescaling or shifting an objective | rescales or shifts the reference with it: the same solutions survive | rescaling keeps the survivors; shifting the objective changes the margin and can change them |
+
+With jMetal's rule the reference lies close to the worst values, so the extreme solutions of the last front contribute less than with the default `offset=1.0`, and with a worst value of 0 they contribute nothing along that objective. The rule takes no `vector` or `offset`, and is always adaptive.
+
 **VAMOS 1.2.0:** with constraints, SMS-EMOA removes the most violated solution while any is infeasible. `constraint_handling` replaces that rule by another of jMetal's constraint-handling techniques, such as epsilon-constrained or stochastic ranking: the technique ranks the population and the new child, and the least hypervolume contributor of its last front leaves. See [choose a constraint-handling technique](../reference/constraints.md#choose-a-constraint-handling-technique).
 
 **VAMOS 1.2.0:** SMS-EMOA creates one child per evaluation, and a generation is `pop_size` children, as in steady-state NSGA-II. Live callbacks are notified, and an `("hv", ...)` target is checked, once per generation rather than after every child; `result["generation"]` counts these generations. Every child is offered to the external archive as soon as it is evaluated, so a non-dominated child that survival removes as the least contributor is still archived. In VAMOS 1.1.0, every child counted as a generation and the archive received only the survivors.

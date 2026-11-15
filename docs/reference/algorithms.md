@@ -436,7 +436,9 @@ reference contribution call. Other operators and repairs, genealogy tracking,
 kernels that override the ranking or contribution hooks, a platform where
 compiled `pow` differs from `np.power`, and non-finite objective values keep
 the reference step. VAMOS 1.1.0 ran front insertion and contributions in Python
-under every engine.
+under every engine. **Development after 1.2.1:** jMetal's reference point rule
+(`reference_point(rule="jmetal")`) also keeps the reference step, with the
+same results under every engine.
 
 Two compiled paths depend on whether Numba is installed rather than on the
 engine: the MOEA/D neighbourhood update (disable with
