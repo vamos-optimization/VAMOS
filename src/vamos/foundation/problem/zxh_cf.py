@@ -71,19 +71,21 @@ class ZXHCFProblem(Problem):
     """ZXH-CF``variant`` (1-16) with ``n_var`` variables in ``[1e-10, 1 - 1e-10]`` and ``n_obj`` objectives.
 
     Constraints follow VAMOS's convention, ``g <= 0`` feasible. They come first ``S + h - 1`` and, when
-    ``r > 0``, ``r - (S + h)``, which are jMetal's values with the opposite sign. Then, for each of the
-    first k angles:
+    ``r > 0``, ``r - (S + h)``, which are jMetal's values with the opposite sign. Then one constraint for
+    each of the first k angles, the paper's k_theta constraints ``v_j(theta) <= 0`` (its equation (6)):
 
-    - type B: ``theta - 3/4`` and ``1/4 - theta``, as in jMetal;
+    - type B: ``max(theta - 3/4, 1/4 - theta)``, positive only outside [1/4, 3/4];
     - type C: ``min(theta - 1/4, 3/4 - theta)``, positive only inside (1/4, 3/4);
-    - type D: ``min(theta - 1/10, 2/5 - theta)`` and ``min(theta - 7/10, 4/5 - theta)``.
+    - type D: ``max(min(theta - 1/10, 2/5 - theta), min(theta - 7/10, 4/5 - theta))``, positive only inside
+      (1/10, 2/5) or (7/10, 4/5).
 
-    A constraint of type C or D excludes an interval, so it is not a pair of constraints that must both
-    hold. jMetal stores the two bounds of each interval, ``<= 0`` feasible, and sets the overall violation
-    and the number of violated constraints itself: an interval adds the smaller of its two values when both
-    are positive. VAMOS stores that smaller value, which gives jMetal's feasibility and overall violation
-    with one column per interval, as PlatEMO does. jMetal counts two violated constraints for an interval of
-    type C and three for one of type D; VAMOS counts the column once.
+    jMetal, whose classes are the authors' Java code, stores both bounds of each angle of type B, ``>= 0``
+    feasible, and both bounds of each excluded interval of types C and D, positive when violated, with the
+    overall violation and the number of violated constraints precomputed: an interval adds the smaller of its
+    two values when both are positive. VAMOS's column per angle gives the same feasibility and overall
+    violation, because an angle can be outside only one side of [1/4, 3/4] and inside only one excluded
+    interval at a time; jMetal counts two violated constraints for an angle of type B or C and three for one
+    of type D, VAMOS one.
     """
 
     def __init__(self, variant: int, *, n_var: int = 13, n_obj: int = 3) -> None:
@@ -107,7 +109,7 @@ class ZXHCFProblem(Problem):
         self.constraint_type = _TYPES[(number - 1) // 4]
         self.radius = ((number - 1) % 4) / 4.0
         self.k = constrained_angles(n_obj)
-        per_angle = {"A": 0, "B": 2, "C": 1, "D": 2}[self.constraint_type]
+        per_angle = 0 if self.constraint_type == "A" else 1
         self.n_constraints = (2 if self.radius > 0.0 else 1) + per_angle * self.k
         self.xl = np.full(self.n_var, _MARGIN, dtype=float)
         self.xu = np.full(self.n_var, 1.0 - _MARGIN, dtype=float)
@@ -151,11 +153,12 @@ class ZXHCFProblem(Problem):
         for i in range(self.k):
             t = theta[:, i]
             if self.constraint_type == "B":
-                columns.extend([t - _BETA, -(t - _ALPHA)])
+                columns.append(np.maximum(t - _BETA, -(t - _ALPHA)))
             elif self.constraint_type == "C":
                 columns.append(np.minimum(t - _ALPHA, -(t - _BETA)))
             elif self.constraint_type == "D":
-                columns.extend(np.minimum(t - low, -(t - high)) for low, high in _D_INTERVALS)
+                (low1, high1), (low2, high2) = _D_INTERVALS
+                columns.append(np.maximum(np.minimum(t - low1, -(t - high1)), np.minimum(t - low2, -(t - high2))))
         return columns
 
     def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
