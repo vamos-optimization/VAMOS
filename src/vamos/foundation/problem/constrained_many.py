@@ -161,12 +161,8 @@ class CDTLZProblem(Problem):
                 else:
                     r = 15.0
         elif key == "c2dtlz2" and r is None:
-            if self.n_obj == 2:
-                r = 0.2
-            elif self.n_obj == 3:
-                r = 0.4
-            else:
-                r = 0.5
+            # Jain and Deb (2014), as jMetal's C2_DTLZ2: 0.4 with three objectives and 0.5 otherwise.
+            r = 0.4 if self.n_obj == 3 else 0.5
         self._r = float(r) if r is not None else None
 
     def evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
