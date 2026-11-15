@@ -28,6 +28,13 @@ JMETAL = {
 CASES = sorted(JMETAL)
 
 
+def _packaged_name(problem: str, n_obj: int) -> str:
+    if problem.startswith("zdt"):
+        return f"jmetal-{problem}.csv"
+    # jMetal's DTLZ3 and DTLZ4 files are its DTLZ2 file, byte for byte: it is packaged once.
+    return f"jmetal-{'dtlz2' if problem in ('dtlz3', 'dtlz4') else problem}.{n_obj}d.csv"
+
+
 def _front(path: str | None) -> np.ndarray:
     assert path is not None
     return np.loadtxt(path, delimiter=",", ndmin=2)
@@ -38,7 +45,7 @@ def test_the_jmetal_source_resolves_jmetals_front(problem: str, n_obj: int) -> N
     path = resolve_reference_front_path(problem, None, n_obj=n_obj, source="jmetal")
 
     assert path is not None
-    assert Path(path).name == (f"jmetal-{problem}.csv" if problem.startswith("zdt") else f"jmetal-{problem}.{n_obj}d.csv")
+    assert Path(path).name == _packaged_name(problem, n_obj)
     assert _front(path).shape[1] == n_obj
 
 
@@ -51,6 +58,17 @@ def test_jmetals_and_vamoss_fronts_agree_on_the_hypervolume(problem: str, n_obj:
     reference = near_nadir_reference(np.vstack([ours, theirs]))
 
     assert hypervolume(theirs, reference) == pytest.approx(hypervolume(ours, reference), rel=2e-2)
+
+
+@pytest.mark.parametrize("n_obj", [2, 3])
+def test_jmetals_dtlz3_and_dtlz4_fronts_are_its_dtlz2_front(n_obj: int) -> None:
+    dtlz2 = resolve_reference_front_path("dtlz2", None, n_obj=n_obj, source="jmetal")
+
+    assert resolve_reference_front_path("dtlz3", None, n_obj=n_obj, source="jmetal") == dtlz2
+    assert resolve_reference_front_path("dtlz4", None, n_obj=n_obj, source="jmetal") == dtlz2
+    assert resolve_reference_front_path(f"dtlz4.{n_obj}d", None, source="jmetal") == dtlz2
+    packaged = {path.name for path in resources.files("vamos.resources.reference_fronts").iterdir()}
+    assert not {f"jmetal-dtlz3.{n_obj}d.csv", f"jmetal-dtlz4.{n_obj}d.csv"} & packaged
 
 
 def test_the_default_source_is_vamos() -> None:

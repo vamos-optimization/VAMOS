@@ -24,6 +24,8 @@ from vamos.resources import reference_front_path
 
 # The packaged reference fronts that resolve_reference_front_path can search.
 REFERENCE_FRONT_SOURCES = ("vamos", "jmetal")
+# jMetal's DTLZ3 and DTLZ4 fronts are its DTLZ2 file, byte for byte (the three share the unit sphere): it is packaged once.
+_JMETAL_SHARED_FRONTS = {"dtlz3": "dtlz2", "dtlz4": "dtlz2"}
 
 # Preset names map to problem keys defined in the registry.
 PROBLEM_SET_PRESETS: dict[str, Sequence[str]] = {
@@ -146,8 +148,9 @@ def resolve_reference_front_path(
     ``source`` names the packaged fronts to search: ``"vamos"`` (the default), VAMOS's own samples, or
     ``"jmetal"``, jMetal's files (``resources/referenceFronts`` at commit ``1e4b83cae6``) of ZDT1-4,
     ZDT6 and DTLZ1-7 with two and three objectives, named ``jmetal-<key>.csv`` and
-    ``jmetal-<key>.<n_obj>d.csv``. A problem without a front of that source gives ``None``: the other
-    source is never used in its place.
+    ``jmetal-<key>.<n_obj>d.csv``; DTLZ3 and DTLZ4 resolve to ``jmetal-dtlz2.<n_obj>d.csv``, the
+    file jMetal ships under their three names. A problem without a front of that source gives
+    ``None``: the other source is never used in its place.
     """
     if source not in REFERENCE_FRONT_SOURCES:
         raise ValueError(f"Reference front source must be one of {', '.join(map(repr, REFERENCE_FRONT_SOURCES))}; got {source!r}.")
@@ -159,7 +162,8 @@ def resolve_reference_front_path(
         n_obj = _default_n_obj(key)
     candidates = [key] if n_obj is None or "." in key else [f"{key}.{int(n_obj)}d", key]
     if source == "jmetal":
-        candidates = [f"jmetal-{candidate}" for candidate in candidates]
+        shared = [candidate.partition(".") for candidate in candidates]
+        candidates = [f"jmetal-{_JMETAL_SHARED_FRONTS.get(base, base)}{dot}{rest}" for base, dot, rest in shared]
 
     for candidate in candidates:
         try:
