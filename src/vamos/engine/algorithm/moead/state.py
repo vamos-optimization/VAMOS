@@ -21,6 +21,7 @@ from vamos.engine.algorithm.components.results import (
     with_constraints,
 )
 from vamos.engine.algorithm.components.state import AlgorithmState
+from vamos.engine.archive.factory import update_archive
 
 if TYPE_CHECKING:
     from vamos.engine.algorithm.moead.update_criteria import SubproblemUpdateCriterion
@@ -95,6 +96,83 @@ class MOEADState(AlgorithmState):
     pending_parent_pairs: np.ndarray[Any, Any] | None = None
     pending_use_neighbors: np.ndarray[Any, Any] | None = None
 
+    # What the updates of the external archive leave true of the population (see update_moead_archive).
+    archive_covers_population: bool = False
+    archive_offered_population: bool = False
+
+
+# The population (decision vectors, objectives and constraint values) before a step.
+ArchiveBaseline = tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any] | None]
+
+
+def archive_baseline(state: MOEADState) -> ArchiveBaseline | None:
+    """A copy of the population before a step, for :func:`update_moead_archive`; ``None`` without an external archive."""
+    if state.archive_manager is None or state.X.dtype.hasobject:
+        return None
+    return state.X.copy(), state.F.copy(), None if state.G is None else state.G.copy()
+
+
+def update_moead_archive(state: MOEADState, baseline: ArchiveBaseline | None, *, changed: bool = True) -> None:
+    """Offer the population to the external archive after a step, with the result of offering all of it.
+
+    MOEA/D offers its whole population to the archive after every step. This gives the same archive,
+    in the same order and with the same truncations, with less work:
+
+    - When the archive covers the population (``covers_last_input`` of the archive, after every
+      update since the population was last offered whole), the rows that the step left alone change
+      no update. Only the changed rows are offered, in population order, and nothing when none
+      changed. A changed row with a non-finite objective or constraint value gets the whole
+      population.
+    - When no row changed, the last update offered this very population and it left the archive as
+      it was (``unchanged_by_last_input``), the update would repeat it exactly: it is skipped.
+    - Otherwise the whole population is offered, as before.
+
+    ``changed=False`` tells that the step wrote no row of the population, which spares comparing it
+    with ``baseline``.
+    """
+    manager = state.archive_manager
+    if manager is None:
+        return
+    rows = None if baseline is None else _changed_rows(state, baseline) if changed else np.empty(0, dtype=np.intp)
+    if rows is not None and rows.size == 0:
+        if state.archive_covers_population or (state.archive_offered_population and manager.unchanged_by_last_input):
+            return
+    whole = rows is None or not state.archive_covers_population or not _finite_rows(state, rows)
+    if whole:
+        update_archive(state, state.X, state.F, state.G)
+    else:
+        assert rows is not None
+        update_archive(state, state.X[rows], state.F[rows], None if state.G is None else state.G[rows])
+    state.archive_covers_population = manager.covers_last_input
+    state.archive_offered_population = whole
+
+
+def _rows_differ(after: np.ndarray[Any, Any], before: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
+    """Rows of ``after`` whose bits differ from those of ``before``."""
+    if after.shape != before.shape or after.dtype != before.dtype:
+        return np.ones(after.shape[0], dtype=bool)
+    rows = after.shape[0]
+    after_bytes = np.ascontiguousarray(after).view(np.uint8).reshape(rows, -1)
+    before_bytes = np.ascontiguousarray(before).view(np.uint8).reshape(rows, -1)
+    return np.asarray((after_bytes != before_bytes).any(axis=1))
+
+
+def _changed_rows(state: MOEADState, baseline: ArchiveBaseline) -> np.ndarray[Any, Any]:
+    """Population rows whose decision vector, objectives or constraint values changed, bit for bit."""
+    X_before, F_before, G_before = baseline
+    changed = _rows_differ(state.X, X_before) | _rows_differ(state.F, F_before)
+    if state.G is not None and G_before is not None:
+        changed |= _rows_differ(state.G, G_before)
+    elif state.G is not None or G_before is not None:
+        changed[:] = True
+    return np.flatnonzero(changed)
+
+
+def _finite_rows(state: MOEADState, rows: np.ndarray[Any, Any]) -> bool:
+    if not np.isfinite(state.F[rows]).all():
+        return False
+    return state.G is None or bool(np.isfinite(state.G[rows]).all())
+
 
 def build_moead_result(
     state: MOEADState,
@@ -157,6 +235,9 @@ def build_moead_result(
 
 
 __all__ = [
+    "ArchiveBaseline",
     "MOEADState",
+    "archive_baseline",
     "build_moead_result",
+    "update_moead_archive",
 ]

@@ -112,6 +112,9 @@ def build_compiled_step(st: SMSEMOAState, kernel: KernelBackend) -> CompiledStea
     offset = float(st.ref_offset)
     if not math.isfinite(offset) or (offset == 0.0 and math.copysign(1.0, offset) < 0.0):
         return None
+    # The compiled survival computes the relative reference only; jMetal's rule takes the reference path.
+    if st.ref_rule != "relative":
+        return None
 
     crossover, mutation = st.crossover_fn, st.mutation_fn
     if not isinstance(crossover, RepairedRealOperator) or not isinstance(mutation, RepairedRealOperator):
