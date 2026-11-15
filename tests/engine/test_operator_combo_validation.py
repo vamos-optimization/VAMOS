@@ -317,7 +317,7 @@ def _operator_pairs(space: AlgorithmConfigSpace):
     ps = space.to_param_space()
     cx = ps.params.get("crossover")
     mx = ps.params.get("mutation")
-    init = ps.params.get("initializer")
+    init = ps.params.get("initial_solutions")
 
     cx_vals = list(cx.choices) if isinstance(cx, Categorical) else [None]
     mx_vals = list(mx.choices) if isinstance(mx, Categorical) else [None]
@@ -330,7 +330,7 @@ def _operator_pairs(space: AlgorithmConfigSpace):
         if m is not None:
             pair["mutation"] = m
         if i is not None:
-            pair["initializer"] = i
+            pair["initial_solutions"] = i
         yield pair
 
 
@@ -471,7 +471,7 @@ def operator_choices() -> dict[tuple[str, str, str], tuple[str, Any]]:
     choices: dict[tuple[str, str, str], tuple[str, Any]] = {}
     for algo_name, encoding, builder in REGISTRY:
         for name, param in builder().to_param_space().params.items():
-            if isinstance(param, Categorical) and name.endswith(("crossover", "mutation", "initializer", "repair")):
+            if isinstance(param, Categorical) and name.endswith(("crossover", "mutation", "initial_solutions", "repair")):
                 for choice in param.choices:
                     choices.setdefault((encoding, name, str(choice)), (algo_name, builder))
     return choices

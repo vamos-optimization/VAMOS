@@ -21,6 +21,7 @@ from vamos.engine.algorithm.config.types import AlgorithmConfigProtocol
 from vamos.engine.tuning.racing.bridge_assignments import config_from_assignment
 from vamos.engine.tuning.racing.config_space import AlgorithmConfigSpace
 from vamos.engine.tuning.racing.param_space import Boolean, Categorical, Int, ParamType, Real
+from vamos.engine.tuning.racing.parameter_names import bridge_parameter_names
 from vamos.ux.studio.algorithm_catalog import (
     ALGORITHM_LABELS,
     algorithm_label,
@@ -147,7 +148,9 @@ class AlgorithmForm:
         merged = dict(default_dict)
         unapplied: list[str] = []
         for name in changed:
-            fields = [config_field for config_field in config_fields_for(name) if config_field in merged and config_field in tuned]
+            fields = [
+                config_field for config_field in config_fields_for(_bridge_name(name)) if config_field in merged and config_field in tuned
+            ]
             # A change that leaves every field it determines untouched has no effect on the run.
             if not any(_canonical(tuned[config_field]) != _canonical(default_dict[config_field]) for config_field in fields):
                 unapplied.append(name)
@@ -172,11 +175,16 @@ class AlgorithmForm:
             value = values[name]
             if value == VAMOS_DEFAULT_CHOICE:
                 # The bridge requires operator names; it builds its own default for the rest.
-                value = parameters[name].default_value if name in _BRIDGE_REQUIRED_OPERATORS else None
+                value = parameters[name].default_value if _bridge_name(name) in _BRIDGE_REQUIRED_OPERATORS else None
                 if value is None:
                     continue
             assignment[name] = value
         return assignment
+
+
+def _bridge_name(name: str) -> str:
+    """The name the tuning bridges and the lookups below use for a space parameter (spaces use Evolver's names)."""
+    return bridge_parameter_names(name)[0]
 
 
 def configuration_differences(baseline: AlgorithmConfigProtocol, config: AlgorithmConfigProtocol) -> tuple[ConfigDifference, ...]:
@@ -302,9 +310,9 @@ def _flatten_defaults(config: Mapping[str, object]) -> dict[str, object]:
 
 
 def _form_parameter(spec: ParamType, depth: int, defaults: Mapping[str, object]) -> FormParameter:
-    default = defaults.get(_DEFAULT_KEY_ALIASES.get(spec.name, spec.name))
-    if default is None and spec.name in _IMPLICIT_DEFAULTS:
-        default = _IMPLICIT_DEFAULTS[spec.name]
+    name = _bridge_name(spec.name)
+    default = defaults.get(_DEFAULT_KEY_ALIASES.get(name, name))
+    default = _IMPLICIT_DEFAULTS.get(name) if default is None else default
     if isinstance(spec, Boolean):
         return FormParameter(spec.name, "boolean", bool(default) if isinstance(default, bool) else False, depth)
     if isinstance(spec, Categorical):

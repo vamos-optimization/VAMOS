@@ -80,7 +80,7 @@ def test_a_change_keeps_every_other_default_field() -> None:
     form = _form("smsemoa")
     baseline = form.baseline.to_dict()
 
-    resolved = form.resolve({**form.start_values(), "crossover_prob": 0.75})
+    resolved = form.resolve({**form.start_values(), "crossover_probability": 0.75})
     config = resolved.config.to_dict()
 
     assert [difference.field for difference in resolved.differences] == ["crossover"]
@@ -93,11 +93,11 @@ def test_conditional_parameters_follow_their_parent() -> None:
     form = _form("nsgaii")
     start = form.start_values()
 
-    assert "crossover_eta" in form.active_names(start)
+    assert "sbx_distribution_index" in form.active_names(start)
     assert "crossover_alpha" not in form.active_names(start)
     switched = form.active_names({**start, "crossover": "blx_alpha"})
     assert "crossover_alpha" in switched
-    assert "crossover_eta" not in switched
+    assert "sbx_distribution_index" not in switched
 
 
 def test_defaults_outside_the_tuning_range_are_kept_and_explained() -> None:
