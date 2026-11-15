@@ -2,7 +2,7 @@
 
 Choose a problem by its **formulation, encoding and dimensions**, then check the
 [algorithm compatibility matrix](algorithms.md). This catalog describes the
-251 registered problems in VAMOS **1.2.0**. The named selection helpers are
+251 registered problems in VAMOS **1.2.1**. The named selection helpers are
 [stable public APIs](../project/stability-and-versioning.md). A synthetic or
 engineering benchmark is a test model, not a validated model of your application.
 
@@ -183,7 +183,7 @@ objectives, with a single distance variable, as STEP's C3-DTLZ4 with three
 objectives and three variables needs. The tests check them against jMetal 7.10
 with STEP's dimensions and, for C2-DTLZ2, its radius `r = 0.1`.
 
-**Development after 1.2.0:** C2-DTLZ2's default radius is that of Jain and Deb
+**VAMOS 1.2.1:** C2-DTLZ2's default radius is that of Jain and Deb
 (2014) and of jMetal's `C2_DTLZ2`: `r = 0.4` with three objectives and `r = 0.5`
 otherwise. VAMOS 1.2.0 and earlier used `r = 0.2` with two objectives. With
 `r = 0.5` the whole of the unconstrained front, the quarter of the unit circle,
@@ -244,7 +244,7 @@ ZXH-CF1–16 (Zhou, Xiang and He, 2021) follow jMetal's implementation at commit
   only one interval at a time; jMetal counts two or three violated constraints
   for an angle, VAMOS one.
 
-**Development after 1.2.0:** ZXH-CF5–8 and ZXH-CF13–16 have one constraint per
+**VAMOS 1.2.1:** ZXH-CF5–8 and ZXH-CF13–16 have one constraint per
 constrained angle, as ZXH-CF9–12 already had: `k + 1` constraints, or `k + 2`
 with a radius. VAMOS 1.2.0 stored two per angle, `2k + 1` or `2k + 2`. The
 feasibility and the overall violation do not change; the number of constraints
@@ -551,7 +551,7 @@ equalities).
 
 ### Learning and mixed engineering examples
 
-Install `python -m pip install "vamos-optimization[examples]==1.2.0"` for the two
+Install `python -m pip install "vamos-optimization[examples]==1.2.1"` for the two
 classifier examples. The base package is sufficient for `welded_beam`.
 See [Installation](../guide/installation.md) for environments and extras.
 
