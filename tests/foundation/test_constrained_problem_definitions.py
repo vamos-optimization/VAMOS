@@ -105,9 +105,9 @@ def test_cec2009_cf8_to_cf10_constraint_holds_at_the_top_of_the_front(k: int) ->
 
 @pytest.mark.parametrize(("n_obj", "k"), [(2, 1), (3, 2), (5, 2), (8, 4), (9, 3)])
 def test_zxh_cf_constraints_follow_the_number_of_objectives(n_obj: int, k: int) -> None:
-    # One or two radius constraints, then per constrained angle: none (A), two bounds (B), one excluded
-    # interval (C) or two (D).
-    expected = {1: 1, 2: 2, 5: 1 + 2 * k, 6: 2 + 2 * k, 9: 1 + k, 10: 2 + k, 13: 1 + 2 * k, 14: 2 + 2 * k}
+    # One or two radius constraints, then one per constrained angle for types B, C and D (none for A): the
+    # paper's k_theta constraints (Zhou, Xiang and He, 2021, eq. (6)).
+    expected = {1: 1, 2: 2, 5: 1 + k, 6: 2 + k, 9: 1 + k, 10: 2 + k, 13: 1 + k, 14: 2 + k}
     for variant, n_constraints in expected.items():
         selection = make_problem_selection(f"zxh_cf{variant}", n_obj=n_obj)
         problem = selection.instantiate()
@@ -122,6 +122,17 @@ def _zxh_point(theta0: float, theta1: float, n_var: int = 13) -> np.ndarray:
     return x[None, :]
 
 
+def test_zxh_cf_type_b_keeps_each_angle_in_an_interval() -> None:
+    # ZXH-CF7 (r = 1/2): G = [S + h - 1, r - S - h, then max(theta - 3/4, 1/4 - theta) per angle].
+    problem = make_problem_selection("zxh_cf7").instantiate()
+    _, G = evaluate_population_with_constraints(problem, np.vstack([_zxh_point(0.4, 0.1), _zxh_point(0.5, 0.6)]))
+
+    assert G is not None and G.shape == (2, 4)
+    np.testing.assert_allclose(G[0, 2:], [-0.15, 0.15], atol=1e-12)
+    np.testing.assert_allclose(G[1, 2:], [-0.25, -0.15], atol=1e-12)
+    assert np.max(G[1]) <= 1e-12
+
+
 def test_zxh_cf_type_c_excludes_an_interval_of_each_angle() -> None:
     # ZXH-CF11 (r = 1/2): G = [S + h - 1, r - S - h, then min(theta - 1/4, 3/4 - theta) per angle].
     problem = make_problem_selection("zxh_cf11").instantiate()
@@ -134,14 +145,14 @@ def test_zxh_cf_type_c_excludes_an_interval_of_each_angle() -> None:
 
 
 def test_zxh_cf_type_d_excludes_two_intervals_of_each_angle() -> None:
-    # ZXH-CF16 (r = 3/4): per angle, min(theta - 1/10, 2/5 - theta) and min(theta - 7/10, 4/5 - theta).
+    # ZXH-CF16 (r = 3/4): per angle, the larger of min(theta - 1/10, 2/5 - theta) and min(theta - 7/10, 4/5 - theta).
     problem = make_problem_selection("zxh_cf16").instantiate()
     designs = np.vstack([_zxh_point(0.25, 0.05), _zxh_point(0.75, 0.55), _zxh_point(0.55, 0.95)])
     _, G = evaluate_population_with_constraints(problem, designs)
 
-    assert G is not None and G.shape == (3, 6)
-    np.testing.assert_allclose(G[0, 2:], [0.15, -0.45, -0.05, -0.65], atol=1e-12)
-    np.testing.assert_allclose(G[1, 2:], [-0.35, 0.05, -0.15, -0.15], atol=1e-12)
+    assert G is not None and G.shape == (3, 4)
+    np.testing.assert_allclose(G[0, 2:], [0.15, -0.05], atol=1e-12)
+    np.testing.assert_allclose(G[1, 2:], [0.05, -0.15], atol=1e-12)
     assert np.max(G[2]) <= 1e-12
 
 
@@ -151,3 +162,29 @@ def test_zxh_cf_ackley_problems_need_a_distance_variable() -> None:
     for key in ("zxh_cf3", "zxh_cf8", "zxh_cf9", "zxh_cf14"):
         with pytest.raises(ValueError, match="at least 4 variables"):
             make_problem_selection(key, n_var=3).instantiate()
+
+
+@pytest.mark.parametrize("n_obj", [2, 3, 5])
+@pytest.mark.parametrize("variant", [5, 6, 9, 10, 13, 14])
+def test_zxh_cf_one_column_per_angle_keeps_the_violation_of_one_per_bound(variant: int, n_obj: int) -> None:
+    # One column per angle (the paper's k_theta) against one per bound of type B and one per excluded interval
+    # of types C and D (jMetal's columns, with its rule for an interval): same feasibility, same total violation.
+    problem = make_problem_selection(f"zxh_cf{variant}", n_obj=n_obj).instantiate()
+    X = np.random.default_rng(variant * 10 + n_obj).uniform(problem.xl, problem.xu, size=(400, problem.n_var))
+    _, G = evaluate_population_with_constraints(problem, X)
+    position = X[:, :n_obj]
+    S = np.cumsum((position * position)[:, ::-1], axis=1)[:, ::-1]
+    theta = (2.0 / np.pi * np.arctan(np.sqrt(S[:, 1:]) / position[:, :-1]))[:, : problem.k]
+    if variant <= 8:
+        bounds = [theta - 0.75, 0.25 - theta]
+    elif variant <= 12:
+        bounds = [np.minimum(theta - 0.25, 0.75 - theta)]
+    else:
+        bounds = [np.minimum(theta - 0.1, 0.4 - theta), np.minimum(theta - 0.7, 0.8 - theta)]
+    head = 1 if variant % 4 == 1 else 2
+
+    assert G is not None and G.shape[1] == head + problem.k
+    expected = np.maximum(G[:, :head], 0.0).sum(axis=1) + sum(np.maximum(b, 0.0).sum(axis=1) for b in bounds)
+    np.testing.assert_allclose(np.maximum(G, 0.0).sum(axis=1), expected, rtol=1e-14, atol=1e-15)
+    np.testing.assert_array_equal(np.all(G <= 0.0, axis=1), expected == 0.0)
+    assert np.any(expected > 0.0)

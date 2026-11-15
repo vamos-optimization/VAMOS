@@ -220,6 +220,8 @@ class MaxMinArchive(_BaseArchive):
 class ReferenceDirectionsArchive(_BaseArchive):
     """Bounded archive with NSGA-III-style reference-direction niching."""
 
+    _truncation_draws_random_numbers = True
+
     def __init__(
         self,
         capacity: int,
