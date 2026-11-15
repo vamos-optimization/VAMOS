@@ -58,10 +58,10 @@ def _config(name: str, mode: str, *, archive: bool = True) -> Any:
     return dataclasses.replace(config, **changes)
 
 
-def _run(name: str, config: Any) -> tuple[vamos.OptimizationResult, _Recording]:
+def _run(name: str, config: Any, budget: int = 10 * POP_SIZE) -> tuple[vamos.OptimizationResult, _Recording]:
     callback = _Recording()
     result = vamos.optimize(
-        "zdt1", algorithm=name, algorithm_config=config, max_evaluations=10 * POP_SIZE, seed=1, engine="numpy", live_viz=callback
+        "zdt1", algorithm=name, algorithm_config=config, max_evaluations=budget, seed=1, engine="numpy", live_viz=callback
     )
     return result, callback
 
@@ -96,6 +96,20 @@ def test_population_archive_sends_the_archive_and_ends_with_the_result(name: str
     # What a live view shows last is what the run returns.
     np.testing.assert_array_equal(_rows(last["F"]), _rows(result.F))
     np.testing.assert_array_equal(_rows(last["X"]), _rows(result.X))
+
+
+@pytest.mark.parametrize("name", ARCHIVE_ALGORITHMS)
+def test_population_archive_ends_with_the_result_when_the_budget_ends_inside_a_generation(name: str) -> None:
+    # 195 evaluations: the last generation is cut short. Generational algorithms report it as a shorter generation;
+    # MOEA/D and SMS-EMOA, which report one generation per pop_size evaluations, send the last 15 in a final one.
+    result, callback = _run(name, _config(name, "population_archive"), budget=10 * POP_SIZE - 5)
+
+    generations = [call[0] for call in callback.calls]
+    assert generations == sorted(set(generations)), generations
+    last_generation, _, _, stats = callback.calls[-1]
+    assert stats["evals"] == 10 * POP_SIZE - 5
+    np.testing.assert_array_equal(_rows(stats["archive"]["F"]), _rows(result.F))
+    np.testing.assert_array_equal(_rows(stats["archive"]["X"]), _rows(result.X))
 
 
 @pytest.mark.parametrize("name", ["moead", "smsemoa", "spea2"])

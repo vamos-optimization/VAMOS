@@ -66,15 +66,28 @@ def _advance_generation(st: MOEADState, kernel: Any, live_cb: Any, hv_tracker: A
         return False, True
     st.generation += 1
     if _count_live_generations(st) and notify:
+        st.live_sent_evals = st.n_eval
         return notify_generation(live_cb, st.live_generation, st), False
     return False, False
 
 
+def _send_final_live_generation(st: MOEADState, live_cb: Any) -> None:
+    """Send the evaluations after the last notification as one more generation; the counters (and resumes) stay."""
+    if st.n_eval > st.live_sent_evals:
+        st.live_sent_evals = st.n_eval
+        notify_generation(live_cb, st.live_generation + int(st.n_eval > st.live_evals), st)
+
+
 def _finish_run(st: MOEADState, kernel: Any, hv_reached: bool, live_cb: Any | None) -> dict[str, Any]:
-    """Build the result and the checkpoint of the current state; ``live_cb`` (when given) is told the run ended."""
+    """Build the result and the checkpoint of the current state.
+
+    ``live_cb`` (when given) gets the evaluations after its last notification, then is told the run ended.
+    """
     result = build_moead_result(st, hv_reached, kernel=kernel)
     # The compiled steady-state loop and a batch that reached the HV target do not count live generations.
     _count_live_generations(st)
+    if live_cb is not None:
+        _send_final_live_generation(st, live_cb)
     result["checkpoint"] = {
         "version": 1,
         "algorithm": "moead",
@@ -152,6 +165,7 @@ class MOEAD:
 
         generation = st.generation
         send_live_generation(live_cb, st.live_generation, st)
+        st.live_sent_evals = st.n_eval
         stop_requested = live_should_stop(live_cb)
         hv_reached = hv_tracker.enabled and hv_tracker.reached(st.hv_points())
         # notify_generation ignores no-op callbacks, so the loop skips the call for them.
@@ -201,6 +215,7 @@ class MOEAD:
         st = self._st
         assert st is not None, "State not initialized"
         send_live_generation(live_cb, st.live_generation, st)
+        st.live_sent_evals = st.n_eval
         self._session = _AskTellSession(
             live_cb=live_cb,
             hv_tracker=hv_tracker,

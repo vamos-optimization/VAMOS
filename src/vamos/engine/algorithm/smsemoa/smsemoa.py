@@ -69,6 +69,18 @@ def _check_hv_target(st: SMSEMOAState) -> bool:
     return st.hv_reached
 
 
+def _send_final_live_generation(st: SMSEMOAState, live_cb: Any) -> None:
+    """Report the children after the last full generation, so the live view ends with the run's result.
+
+    The budget or a stop can end a run inside a generation, as the shorter last generation of a generational
+    algorithm; it is sent once, as the next generation.
+    """
+    if st.steps % st.pop_size == 0 or st.live_final_steps == st.steps:
+        return
+    st.live_final_steps = st.steps
+    send_live_generation(live_cb, st.generation + 1, st)
+
+
 def _advance_step(st: SMSEMOAState) -> bool:
     """Count one child; return whether it completes a generation of ``pop_size`` children."""
     st.steps += 1
@@ -208,6 +220,7 @@ class SMSEMOA:
             if compiled is not None:
                 compiled.finish()
 
+        _send_final_live_generation(st, live_cb)
         live_cb.on_end(final_F=st.F)
         result = build_smsemoa_result(st, st.hv_reached, kernel=self.kernel)
         finalize_genealogy(result, st, self.kernel)
@@ -443,6 +456,7 @@ class SMSEMOA:
         hv_reached = self._st.hv_reached
 
         if self._live_cb is not None:
+            _send_final_live_generation(self._st, self._live_cb)
             self._live_cb.on_end(final_F=self._st.F)
 
         result = build_smsemoa_result(self._st, hv_reached, kernel=self.kernel)
