@@ -4,6 +4,39 @@ All notable public changes to VAMOS are documented here.
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-11-15
+
+VAMOS 1.2.1 is a patch release. It corrects C2-DTLZ2's default radius with two
+objectives, which changes results of affected experiments, and the constraint
+count of eight ZXH-CF problems, keeps persistent Optuna studies of the tuning
+CLI from mixing with those of earlier versions, and corrects two install
+instructions in the documentation. See the [1.2.1 release
+notes](docs/project/release-notes-1.2.1.md).
+
+### Fixed
+
+- C2-DTLZ2's default radius with two objectives is 0.5, as in Jain and Deb
+  (2014) and jMetal, instead of 0.2: the whole quarter circle of its front is
+  feasible, and its packaged two-objective front is regenerated. This changes
+  the results of two-objective C2-DTLZ2 runs; `r=0.2` gives the former problem
+  (#280).
+- ZXH-CF5–8 and ZXH-CF13–16 have one constraint per constrained angle, the
+  k_theta constraints of Zhou, Xiang and He (2021), as ZXH-CF9–12 do: `k + 1`
+  or `k + 2` constraints instead of `2k + 1` or `2k + 2`. Feasibility and the
+  overall constraint violation do not change; techniques that use the
+  individual constraints, such as `violated_constraints`, can rank differently
+  (#281).
+- `vamos tune` stores persistent Optuna studies under
+  `__vamos_cli_final_population_hv_v2`. VAMOS 1.2.0 changed the built-in search
+  spaces and scores but kept `_v1`, so resuming an earlier study mixed trials of
+  two contracts or stopped with Optuna's `ValueError` ("CategoricalDistribution
+  does not support dynamic value space"); such a study now starts afresh
+  (#282).
+- Documentation: the troubleshooting guide no longer lists the removed
+  `research` extra and gives notebooks' `[analysis,examples]` install, and the
+  algorithms reference describes the removed baselines with the 1.1.0 install
+  command.
+
 ## [1.2.0] - 2026-11-14
 
 VAMOS 1.2.0 corrects built-in algorithms, operators, problems, reference
@@ -606,7 +639,8 @@ development markers; they are not prior public releases.
 - Studio, tuning, visualization, provider integrations, plugin interfaces, and
   non-stable CLI commands remain experimental.
 
-[Unreleased]: https://github.com/vamos-optimization/VAMOS/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/vamos-optimization/VAMOS/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.2.1
 [1.2.0]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.2.0
 [1.1.0]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.1.0
 [1.0.2]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.0.2
