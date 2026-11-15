@@ -6,7 +6,7 @@ For running optimizations, use `vamos.optimize`.
 
 The nine configuration classes of VAMOS 1.1.0, the probability types and the
 ``available_*`` functions are stable. ``CCMOConfig``, ``CTAEAConfig``, ``ToPConfig`` and
-``CMOEAMSConfig`` are new after 1.1.0 and not yet covered by the 1.0 compatibility baseline. ``GenericAlgorithmConfig``,
+``CMOEAMSConfig`` are new in VAMOS 1.2.0 and not yet covered by the 1.0 compatibility baseline. ``GenericAlgorithmConfig``,
 ``discover_algorithm_plugins`` and ``resolve_algorithm`` serve custom and
 plugin algorithms and are experimental.
 """
