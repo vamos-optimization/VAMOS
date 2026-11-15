@@ -121,6 +121,13 @@ execution state:
 - defaults applied and their sources;
 - determinism declaration and RNG family.
 
+**Development after 1.2.1:** the configuration of a registered problem also
+holds the options passed through `problem_kwargs`, such as `capacity_ratio` for
+`bin_knapsack`; a run without options records only the dimensions, the encoding
+and the constraint convention, as before. Verification and replay pass the
+options to the problem's registry factory. A field that the factory does not
+declare as a keyword-only parameter makes the run not reconstructable.
+
 `resolved_spec.seed` is always an integer. Zero is valid. For `seed=None`, VAMOS
 generates an integer before constructing any stochastic execution object,
 exposes it in `OptimizationResult.meta["seed"]`, and persists it in the resolved
