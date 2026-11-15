@@ -1,4 +1,4 @@
-"""`vamos tune --backend racing`: default race and multi-fidelity budget checks (review finding VR-205)."""
+"""`vamos tune --backend racing`: default race and multi-fidelity budget checks."""
 
 from __future__ import annotations
 

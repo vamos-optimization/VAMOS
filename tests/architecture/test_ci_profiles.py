@@ -1,4 +1,4 @@
-"""CI installs what users and the release get: declared pins, declared minimums, and the release build (VR-308, VR-309, VR-315)."""
+"""CI installs what users and the release get: declared pins, declared minimums, and the release build."""
 
 from __future__ import annotations
 
