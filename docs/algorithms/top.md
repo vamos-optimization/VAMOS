@@ -6,7 +6,7 @@ description: 'ToP: a two-phase framework for constrained multi-objective problem
 
 The **two-phase framework** for constrained multi-objective optimization [1] first looks for the feasible regions that hold the front and then searches them. Phase 1 solves the problem as a constrained single-objective one, whose objective is the mean of the objectives, with differential evolution and the feasibility rule. Once the population has enough feasible solutions and the best of them are close in the objective space, or once 90% of the budget is spent, phase 2 runs NSGA-II with the constrained-domination principle until the end. The result is the final population.
 
-**Development after 1.1.0.** ToP is new in the development series after VAMOS 1.1.0. It follows jMetal's port (pull request [jMetal/jMetal#525](https://github.com/jMetal/jMetal/pull/525)), which follows PlatEMO's implementation where it differs from the paper, and its sorting, crowding distance, truncation, tournament, differential evolution, mutation and phase-1 rules are checked against that port's own classes.
+**New in VAMOS 1.2.0.** ToP follows jMetal's port (pull request [jMetal/jMetal#525](https://github.com/jMetal/jMetal/pull/525)), which follows PlatEMO's implementation where it differs from the paper, and its sorting, crowding distance, truncation, tournament, differential evolution, mutation and phase-1 rules are checked against that port's own classes.
 
 [All algorithms](../reference/algorithms.md) · [Configuration reference](../reference/api/algorithms/top.md) · [Constraints](../reference/constraints.md)
 
