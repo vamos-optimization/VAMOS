@@ -220,12 +220,16 @@ def _algorithm_component(inputs: RunSpecInputs, config: Mapping[str, object], po
         weights = config.get("weight_vectors")
         options = weights if isinstance(weights, Mapping) else {}
         path, divisions = options.get("path"), options.get("divisions")
-        descriptor["resolution"]["weight_vectors"] = describe_weight_vectors(
-            pop_size,
-            inputs.n_obj,
-            path=path if isinstance(path, str) else None,
-            divisions=divisions if isinstance(divisions, int) and not isinstance(divisions, bool) else None,
-        )
+        try:
+            descriptor["resolution"]["weight_vectors"] = describe_weight_vectors(
+                pop_size,
+                inputs.n_obj,
+                path=path if isinstance(path, str) else None,
+                divisions=divisions if isinstance(divisions, int) and not isinstance(divisions, bool) else None,
+            )
+        except ValueError:
+            # A size without weights fails when the run starts, so a study plans the task and records its failure.
+            pass
     return descriptor
 
 

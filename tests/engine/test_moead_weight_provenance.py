@@ -53,6 +53,18 @@ def test_the_resolved_spec_records_the_population_and_the_weights(pop_size: int,
     assert resolved["algorithm"]["resolution"]["weight_vectors"] == expected
 
 
+def test_a_population_without_weights_is_planned_and_fails_when_its_run_starts() -> None:
+    # No lattice has 40 vectors for three objectives, and VAMOS ships no W3D_40.dat.
+    spec = vamos.StudySpec(problems=["dtlz2"], algorithms=["moead"], seeds=[0], pop_size=40, max_evaluations=200, engine="numpy")
+
+    plan = vamos.plan_study(spec)
+
+    assert plan.valid
+    assert "weight_vectors" not in plan.plan.tasks[0].resolved_run_spec["algorithm"]["resolution"]
+    with pytest.raises(ValueError, match="pop_size=40"):
+        vamos.optimize("dtlz2", algorithm="moead", pop_size=40, n_obj=3, max_evaluations=80, seed=1, engine="numpy")
+
+
 def test_a_weight_file_is_recorded_by_its_name(tmp_path: Path) -> None:
     weights = das_dennis(3, 4)
     np.savetxt(tmp_path / "W3D_15.dat", weights)
