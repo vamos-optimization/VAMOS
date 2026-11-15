@@ -233,3 +233,41 @@ def test_built_in_algorithms_may_be_added_but_not_removed() -> None:
     generated = json.loads(generator._json_bytes(generator._algorithm_snapshot()))
     for added_id in ("ccmo", "ctaea", "top", "cmoeams"):
         assert added_id in generated["algorithm_ids"] and added_id not in committed["algorithm_ids"]
+
+
+def test_regenerating_a_changed_frozen_value_keeps_the_1_0_baseline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Writing the snapshots records a reviewed change of a frozen value, and none of the additions after 1.0.
+
+    The check accepts fields, algorithms and constructor parameters added after 1.0 without
+    recording them (see ``test_built_in_algorithms_may_be_added_but_not_removed``), so the snapshot
+    written after a changed default holds the 1.0 baseline with only that value changed.
+    """
+    generator = _generator()
+    frozen_configs = {**_configs(["pop_size"], {}, {"pop_size": 100}), "schema_version": "1.0.0"}
+    generated_configs = {
+        **_configs(["pop_size", "constraint_handling"], {"constraint_handling": None}, {"pop_size": 50, "constraint_handling": None}),
+        "algorithm_ids": ["ccmo", "nsgaii"],
+        "schema_version": "1.0.0",
+    }
+    constructor, default = "vamos.algorithms.NSGAIIConfig", "vamos.algorithms.NSGAIIConfig.default"
+    frozen_api = {"modules": {"vamos.algorithms": ["NSGAIIConfig"]}, "signatures": {constructor: "(pop_size)", default: "(pop_size=None)"}}
+    generated_api = {
+        **frozen_api,
+        "signatures": {constructor: "(pop_size, constraint_handling=None)", default: "(pop_size=None, *, variant='de')"},
+    }
+    (tmp_path / generator.CONFIGS_SNAPSHOT).write_bytes(generator._json_bytes(frozen_configs))
+    (tmp_path / generator.API_SNAPSHOT).write_bytes(generator._json_bytes(frozen_api))
+    monkeypatch.setattr(generator, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(generator, "OUTPUT_ROOT", tmp_path)
+    monkeypatch.setattr(
+        generator, "snapshots", lambda: {generator.CONFIGS_SNAPSHOT: generated_configs, generator.API_SNAPSHOT: generated_api}
+    )
+
+    assert generator.main(["--check"]) == 1
+    assert generator.main([]) == 0
+
+    written_configs = json.loads((tmp_path / generator.CONFIGS_SNAPSHOT).read_text(encoding="utf-8"))
+    written_api = json.loads((tmp_path / generator.API_SNAPSHOT).read_text(encoding="utf-8"))
+    assert written_configs == {**frozen_configs, "default_configs": {"NSGAIIConfig": {"pop_size": 50}}}
+    assert written_api == {**frozen_api, "signatures": {constructor: "(pop_size)", default: "(pop_size=None, *, variant='de')"}}
+    assert generator.main(["--check"]) == 0

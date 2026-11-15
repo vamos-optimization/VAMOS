@@ -311,10 +311,8 @@
     },
     "MOEADConfig": {
       "aggregation": [
-        "pbi",
-        {
-          "theta": 5.0
-        }
+        "tchebycheff",
+        {}
       ],
       "batch_size": 1,
       "constraint_mode": "feasibility",

@@ -26,6 +26,11 @@ The check accepts built-in algorithm identifiers added after the frozen ones
 in `stable_algorithm_configs.json` (such as `ccmo`, `ctaea`, `top` and `cmoeams`), but not the loss of one,
 and it does not record the configuration classes of algorithms added after 1.0.
 
+**Development after 1.2.1:** after a reviewed change of a frozen value, such as
+the default aggregation of `MOEADConfig.default()`, the generator rewrites only
+the values that changed. The algorithms, configuration fields and constructor
+parameters added after 1.0 stay out of the snapshots, as the check expects.
+
 Regenerate the structural snapshots only through:
 
 ```bash

@@ -293,7 +293,10 @@ def test_moead_genealogy_credits_the_child_that_replaced_each_subproblem(monkeyp
     from vamos.foundation.eval.backends import SerialEvalBackend
 
     problem = ZDT1Problem(n_var=6)
-    cfg = dataclasses.replace(MOEADConfig.default(pop_size=4, n_var=6, n_obj=2), track_genealogy=True, batch_size=2)
+    # With PBI, the children below beat the initial solutions of both subproblems; with Tchebycheff they may not.
+    cfg = dataclasses.replace(
+        MOEADConfig.default(pop_size=4, n_var=6, n_obj=2), track_genealogy=True, batch_size=2, aggregation=("pbi", {"theta": 5.0})
+    )
     algorithm = MOEAD(cfg.to_dict(), NumPyKernel())
     algorithm.run(problem, termination=("max_evaluations", 4), seed=1)
     st = algorithm._st

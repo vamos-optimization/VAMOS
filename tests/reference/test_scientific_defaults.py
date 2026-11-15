@@ -12,8 +12,8 @@ Sources, for 30 variables, 2 objectives and 100 individuals:
 - NSGA-III: Deb and Jain (2014), eta_c = 30, eta_m = 20, p_m = 1/n, and a complete Das-Dennis
   lattice of the population's size. The paper uses p_c = 1; VAMOS uses 0.9 in every default.
 - MOEA/D: MOEA/D-DE of Li and Zhang (2009), CR = 1, F = 0.5, eta_m = 20, p_m = 1/n,
-  T = 20, delta = 0.9, n_r = 2. PBI with theta = 5 (Zhang and Li, 2007) is the VAMOS choice of
-  aggregation (``docs/algorithms/moead.md``).
+  T = 20, delta = 0.9, n_r = 2, Tchebycheff aggregation, as jMetal's MOEADDEBuilder and Evolver's
+  MOEADDEDefault (``MOEADConfig.default(variant="de")``; ``docs/algorithms/moead.md``).
 - SPEA2: Zitzler, Laumanns and Thiele (2001), archive as large as the population. k = 1, as in
   jMetal; the paper uses sqrt(N + archive size) (``SPEA2`` docstring).
 - SMS-EMOA: Beume, Naujoks and Emmerich (2007), steady state with random parents; the adaptive
@@ -66,7 +66,7 @@ PINNED: dict[str, dict[str, Any]] = {
         "neighbor_size": 20,
         "delta": 0.9,
         "replace_limit": 2,
-        "aggregation": ["pbi", {"theta": 5.0}],
+        "aggregation": ["tchebycheff", {}],
         "weight_vectors": {"divisions": 99, "path": None},
     },
     "spea2": {"crossover": _SBX_20, "mutation": _PM, "selection": ["tournament", {}], "archive_size": _POP, "k_neighbors": None},
