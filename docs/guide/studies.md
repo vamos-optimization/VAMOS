@@ -92,7 +92,7 @@ completed = study.run()
 
 Checking the `plan_id` is useful when a workflow has a review or approval step between planning and execution: it confirms that the study you created is the same resolved plan you inspected.
 
-VAMOS 1.2.0 executes a durable study sequentially under a single mutating owner. `eval_strategy` belongs to evaluation inside an individual optimization task; it does not make the study itself a concurrent multi-owner scheduler.
+VAMOS 1.2.1 executes a durable study sequentially under a single mutating owner. `eval_strategy` belongs to evaluation inside an individual optimization task; it does not make the study itself a concurrent multi-owner scheduler.
 
 **VAMOS 1.2.0:** a study executes tasks with serial evaluation only. `StudySpec` still accepts `eval_strategy="multiprocessing"` or `"dask"`, but `plan_study` and `create_study` now reject them with `UNSUPPORTED_EVALUATION_BACKEND`, and reject negative seeds with `INVALID_STUDY_SPEC`; nothing is published. In 1.1.0 those plans were reported `ready` and every task then failed. Use `vamos.optimize(..., eval_strategy=...)` for parallel evaluation of a single run.
 
@@ -265,7 +265,7 @@ A retry creates new attempt evidence for the same planned task; it does not quie
 
 ## Ownership boundary
 
-VAMOS 1.2.0 permits one mutating owner per study. Do not run `run`, `resume`, or `retry` concurrently against the same directory. Execution is sequential; distributed workers, multiprocess ownership, and cross-process cancellation are unsupported. See [Known limitations](../project/known-limitations.md).
+VAMOS 1.2.1 permits one mutating owner per study. Do not run `run`, `resume`, or `retry` concurrently against the same directory. Execution is sequential; distributed workers, multiprocess ownership, and cross-process cancellation are unsupported. See [Known limitations](../project/known-limitations.md).
 
 **VAMOS 1.2.0:** reading a study while another process runs it (`load_study`, `inspect()`, `summarize()`, `vamos study inspect`, or Studio's Batch Comparison page) no longer fails on the files that process is writing. On Windows, the running process waits for a concurrent read to finish instead of stopping with `CHECKPOINT_WRITE_FAILED`, and the reader waits for a replace to finish instead of failing. A process killed in the middle of a write leaves a `.tmp-` file next to the document; loading ignores it and `resume` deletes it. VAMOS 1.1.0 refused to load such a study until the file was removed by hand.
 
