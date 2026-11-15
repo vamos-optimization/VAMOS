@@ -84,6 +84,16 @@ def send_live_generation(
     live_cb.on_generation(generation, F=live_F, X=live_X, stats=stats)
 
 
+def is_no_op_live_callback(live_cb: object) -> bool:
+    """Whether ``live_cb`` is the default :class:`NoOpLiveVisualization` itself.
+
+    Only the exact class is skipped: a subclass may override a hook, so it is notified like any other callback.
+    """
+    from vamos.engine.hooks.live_viz import NoOpLiveVisualization
+
+    return type(live_cb) is NoOpLiveVisualization
+
+
 def notify_generation(
     live_cb: LiveVisualization,
     generation: int,
@@ -92,16 +102,14 @@ def notify_generation(
     F: FloatArray | None = None,
     X: AnyArray | None = None,
 ) -> bool:
-    """Send a generation with :func:`send_live_generation`, unless the callback is a no-op.
+    """Send a generation with :func:`send_live_generation`, unless the callback is the default no-op.
 
     Returns
     -------
     bool
         True if the callback requests stopping; an exception raised by ``should_stop`` propagates.
     """
-    from vamos.engine.hooks.live_viz import NoOpLiveVisualization
-
-    if isinstance(live_cb, NoOpLiveVisualization):
+    if is_no_op_live_callback(live_cb):
         return False
     send_live_generation(live_cb, generation, state, F=F, X=X)
     return live_should_stop(live_cb)

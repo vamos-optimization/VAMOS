@@ -475,6 +475,27 @@ def test_live_callback_payload_contract(name: str) -> None:
         assert F.shape[0] == 20 or (name == "rvea" and F.shape[0] <= 20)
 
 
+@pytest.mark.parametrize("name", LIVE_CALLBACK_ALGORITHMS)
+def test_live_callback_subclassing_the_no_op_is_notified_like_any_other(name: str) -> None:
+    import vamos
+    from vamos.engine.hooks.live_viz import NoOpLiveVisualization
+
+    class Recorder(NoOpLiveVisualization):
+        def __init__(self) -> None:
+            self.generations: list[int] = []
+
+        def on_generation(self, generation, F=None, X=None, stats=None) -> None:  # noqa: ANN001
+            self.generations.append(generation)
+
+    plain, subclass = _RecordingCallback(), Recorder()
+    for callback in (plain, subclass):
+        vamos.optimize("zdt1", algorithm=name, pop_size=20, max_evaluations=100, seed=1, engine="numpy", live_viz=callback)
+
+    # Only the exact no-op is skipped: a subclass that overrides on_generation sees every generation.
+    assert subclass.generations == [call[0] for call in plain.calls]
+    assert len(subclass.generations) > 1
+
+
 def _moead_batch_config(pop_size: int, batch_size: int) -> MOEADConfig:
     return (
         MOEADConfig.builder()
