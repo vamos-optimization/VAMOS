@@ -303,7 +303,7 @@ def _run_single(
     if termination is not None and (not isinstance(termination, tuple) or len(termination) != 2):
         raise ConfigurationError("termination must be a pair such as ('max_evaluations', 10000).")
     check_budget(max_evaluations, termination)
-    check_problem_arguments(problem, n_var=n_var, n_obj=n_obj, problem_kwargs=problem_kwargs)
+    problem_kwargs = check_problem_arguments(problem, n_var=n_var, n_obj=n_obj, problem_kwargs=problem_kwargs)
     requested_seed = seed
     if seed is None:
         seed = secrets.randbits(64)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 import json
+from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
@@ -70,6 +71,28 @@ def test_an_option_the_factory_does_not_declare_is_rejected() -> None:
 def test_an_option_that_replay_cannot_rebuild_is_rejected(value: object) -> None:
     with pytest.raises(ConfigurationError, match="level"):
         _optimize("zcat1", problem_kwargs={"level": value})
+
+
+def test_a_number_that_the_artifact_would_round_is_rejected() -> None:
+    # The artifact records float(value), 2.0, but ZCAT builds level int(value), 1: replay would build another problem.
+    value = Fraction(2**54 - 1, 2**53)
+    with pytest.raises(ConfigurationError, match="level"):
+        _optimize("zcat1", problem_kwargs={"level": value})
+    with pytest.raises(ConfigurationError, match="level"):
+        make_problem_selection("zcat1").with_options({"level": value})
+
+
+def test_a_number_of_another_type_is_built_as_the_artifact_records_it(tmp_path: Path) -> None:
+    selection = make_problem_selection("zcat1").with_options({"level": np.int64(2), "bias": True})
+    assert dict(selection.options) == {"level": 2, "bias": True}
+    assert type(selection.options["level"]) is int
+    ratio = make_problem_selection("bin_knapsack").with_options({"capacity_ratio": np.float32(0.5)}).options["capacity_ratio"]
+    assert type(ratio) is float and ratio == 0.5
+
+    result = _optimize("zcat1", problem_kwargs={"level": Fraction(4, 2)})
+    assert result.meta["run_artifact_resolved_spec"]["problem"]["config"]["level"] == 2.0
+    replay = vamos.reproduce(vamos.save_result(result, tmp_path / "source").root, output=tmp_path / "replay")
+    assert replay.exact is True
 
 
 def test_replay_refuses_an_option_the_factory_does_not_declare(tmp_path: Path) -> None:

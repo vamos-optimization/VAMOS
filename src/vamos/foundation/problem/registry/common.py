@@ -3,6 +3,7 @@ from __future__ import annotations
 import inspect
 import math
 import numbers
+import unicodedata
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
@@ -69,11 +70,13 @@ class ProblemSpec:
         parameters = inspect.signature(self.factory).parameters.values()
         return {parameter.name: parameter.default for parameter in parameters if parameter.kind is inspect.Parameter.KEYWORD_ONLY}
 
-    def check_options(self, options: Mapping[str, object]) -> None:
+    def check_options(self, options: Mapping[str, object]) -> dict[str, object]:
         """Reject an option the factory does not declare, and a value that a run artifact cannot record exactly.
 
-        A value is ``None``, a boolean, a string, an integer or a finite number, so that the resolved spec
-        records it as JSON and replay passes the same value to the factory.
+        A value is ``None``, a boolean, a string, an integer or a finite number that a float represents exactly,
+        so that the resolved spec records it as JSON and replay passes the same value to the factory. Returns
+        the options as the resolved spec records them (integers as ``int``, other numbers as ``float``, strings
+        in NFC), which are the values to build the problem with.
         """
         dimensions = [name for name in ("n_var", "n_obj") if name in options]
         if dimensions:
@@ -91,13 +94,18 @@ class ProblemSpec:
                 suggestion="Build the problem instance yourself to pass other arguments.",
                 details={"problem": self.key, "unknown": unknown, "accepted": list(declared)},
             )
+        recorded: dict[str, object] = {}
         for name, value in options.items():
-            if not _is_recordable(value):
+            try:
+                recorded[name] = _recorded_value(value)
+            except ValueError:
                 raise ConfigurationError(
                     f"Option {name}={value!r} of problem '{self.key}' must be None, a boolean, a string, an integer or a "
-                    "finite number, so that the run artifact records it and replay rebuilds the same problem.",
+                    "finite number that a float represents exactly, so that the run artifact records it and replay "
+                    "rebuilds the same problem.",
                     details={"problem": self.key, "option": str(name), "type": type(value).__name__},
-                )
+                ) from None
+        return recorded
 
     def build(self, n_var: int, n_obj: int, options: Mapping[str, object]) -> object:
         """Call the factory with the dimensions and the options."""
@@ -105,12 +113,23 @@ class ProblemSpec:
         return factory(n_var, n_obj, **options)
 
 
-def _is_recordable(value: object) -> bool:
-    if value is None or isinstance(value, (bool, str)):
-        return True
+def _recorded_value(value: object) -> object:
+    """The value as JSON records it; ``ValueError`` when the record would differ from it."""
+    if value is None or isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return unicodedata.normalize("NFC", value)
     if isinstance(value, numbers.Integral):
-        return True
-    return isinstance(value, numbers.Real) and math.isfinite(float(value))
+        return int(value)
+    if isinstance(value, numbers.Real):
+        # float() can round a Fraction: the factory would see the exact value and replay the rounded float.
+        try:
+            recorded = float(value)
+        except OverflowError:
+            recorded = math.inf
+        if math.isfinite(recorded) and recorded == value:
+            return recorded
+    raise ValueError(f"{value!r} has no exact JSON record")
 
 
 def _optional_dimension(name: str, value: object) -> int | None:

@@ -29,11 +29,11 @@ class ProblemSelection:
         """Return this selection with the problem's other options, such as ``capacity_ratio`` for ``bin_knapsack``.
 
         The options are the factory's keyword-only parameters (``spec.option_defaults()``); an option it does not
-        declare, or a value other than ``None``, a boolean, a string, an integer or a finite number, raises
-        ``ConfigurationError``.
+        declare, or a value other than ``None``, a boolean, a string, an integer or a finite number that a float
+        represents exactly, raises ``ConfigurationError``. The selection keeps the values as a run artifact records
+        them (``spec.check_options``), so replay builds the same problem.
         """
-        self.spec.check_options(options)
-        return replace(self, options=MappingProxyType(dict(options)))
+        return replace(self, options=MappingProxyType(self.spec.check_options(options)))
 
 
 def make_problem_selection(key: str, *, n_var: int | None = None, n_obj: int | None = None) -> ProblemSelection:
