@@ -643,7 +643,7 @@ for those cases had the wrong number of objectives. The C-DTLZ and DC-DTLZ
 files of 1.1.0 (`c1dtlz1.csv` and so on, two-objective) are replaced by
 `<key>.2d.csv` and `<key>.3d.csv`.
 
-**Development after 1.2.0:** DTLZ1–DTLZ7 also have two-objective samples,
+**Development after 1.2.1:** DTLZ1–DTLZ7 also have two-objective samples,
 `dtlz1.2d.csv` to `dtlz7.2d.csv`, so a two-objective DTLZ run has an automatic
 reference. VAMOS 1.2.0 had none, and VAMOS 1.1.0 returned the three-objective
 file.
@@ -664,7 +664,7 @@ regenerates the files marked as regenerated.
 | `dtlz1`–`dtlz4` | Regenerated: 5050-point simplex lattice, scaled to `sum(f) = 0.5` (DTLZ1) or projected onto the unit sphere |
 | `dtlz5`, `dtlz6` | Regenerated: 1000 points of the front curve |
 | `dtlz7` | Regenerated: 5050 points of the disconnected front |
-| `dtlz1.2d`–`dtlz7.2d` | **Development after 1.2.0:** regenerated, 1000 points spaced evenly along the front: `f1 + f2 = 0.5` (DTLZ1), the quarter circle (DTLZ2–DTLZ6; at M = 2, DTLZ5 and DTLZ6 do not degenerate) and the non-dominated pieces of `f2 = 4 - f1 (1 + sin(3 pi f1))` (DTLZ7) |
+| `dtlz1.2d`–`dtlz7.2d` | **Development after 1.2.1:** regenerated, 1000 points spaced evenly along the front: `f1 + f2 = 0.5` (DTLZ1), the quarter circle (DTLZ2–DTLZ6; at M = 2, DTLZ5 and DTLZ6 do not degenerate) and the non-dominated pieces of `f2 = 4 - f1 (1 + sin(3 pi f1))` (DTLZ7) |
 | `wfg1`, `wfg2` | Regenerated from the WFG shape functions, 10 000 points |
 | `wfg3`–`wfg9` | Closed-form front, 10 000 points, unchanged |
 | `lsmop1`–`lsmop8` | Closed-form front, 1000 points, unchanged |
