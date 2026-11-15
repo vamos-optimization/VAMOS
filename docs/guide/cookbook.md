@@ -149,7 +149,8 @@ population, row by row (SPEA2's environmental archive, SMPSO's swarm), and
 `stats["evals"]` counts the evaluations used so far. NSGA-II keeps sending its
 first front with its default `live_callback_mode="nd_only"`, and its population
 with `"population"`. MOEA/D, which replaces one subproblem at a time, reports one
-generation per `pop_size` evaluations, as SMS-EMOA does. In VAMOS 1.2.0 only
+generation per `pop_size` evaluations, as SMS-EMOA does, and a run resumed from
+its checkpoint continues the numbering. In VAMOS 1.2.0 only
 NSGA-II passed `X`, NSGA-II and SMPSO sent the first front while the others sent
 the population, MOEA/D notified after every evaluation, and IBEA, NSGA-III,
 SPEA2 and SMPSO left out `stats` in `ask`/`tell` runs.
