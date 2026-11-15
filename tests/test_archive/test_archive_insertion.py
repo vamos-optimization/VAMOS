@@ -78,6 +78,33 @@ def _state(archive: Any) -> tuple[Any, ...]:
     return X.tobytes(), F.tobytes(), None if G is None else G.tobytes(), archive.last_capacity_pruned, archive.covers_last_input, rng
 
 
+def _rows(archive: Any) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
+    X, F = archive.contents()
+    return X, F, archive.constraint_values()
+
+
+def _check_flags(archive: Any, before: tuple[np.ndarray, np.ndarray, np.ndarray | None], F: np.ndarray, G: np.ndarray | None) -> None:
+    """What ``unchanged_by_last_input`` and ``covers_last_input`` claim, checked by brute force."""
+    after = _rows(archive)
+    same = all(
+        (left is None and right is None) or (left is not None and right is not None and left.tobytes() == right.tobytes())
+        for left, right in zip(before, after)
+    )
+    random_truncation = isinstance(archive, ReferenceDirectionsArchive) and archive.last_capacity_pruned > 0
+    assert archive.unchanged_by_last_input == (same and not random_truncation)
+    if not archive.covers_last_input:
+        return
+    _, archived_F, archived_G = after
+    feasible_archive = archived_G is None or bool(np.all(archived_G <= 0.0))
+    assert archived_F.shape[0] > 0 and feasible_archive and np.isfinite(archived_F).all()
+    rows_G = None if G is None else np.concatenate((G, before[2])) if before[2] is not None else G
+    rows_F = np.concatenate((F, before[1]))
+    for index, row in enumerate(rows_F):
+        if rows_G is not None and index < rows_G.shape[0] and not np.all(rows_G[index] <= 0.0):
+            continue  # infeasible, while the archive holds feasible rows
+        assert np.isfinite(row).all() and np.all(archived_F <= row, axis=1).any()
+
+
 KINDS = [
     "unbounded",
     "unbounded-tolerance",
@@ -117,6 +144,7 @@ def test_insertion_matches_the_full_update(kind: str, n_con: int | None, moocore
     archive._insert = counting_insert
     for step in range(220):
         X, F, G = _batch(rng, n_obj, n_con, step)
+        before = _rows(archive)
         outcomes = []
         for target in (archive, reference):
             try:
@@ -125,6 +153,8 @@ def test_insertion_matches_the_full_update(kind: str, n_con: int | None, moocore
             except ValueError as error:  # pareto_filter rejects NaN objectives: both must raise alike
                 outcomes.append((type(error), str(error)))
         assert outcomes[0] == outcomes[1], f"step {step}"
+        if len(outcomes[0]) == 3:
+            _check_flags(archive, before, F, G)
         pruned += reference.last_capacity_pruned > 0
     if kind in ("unbounded-tolerance", "unbounded-decision"):
         assert inserted == 0
