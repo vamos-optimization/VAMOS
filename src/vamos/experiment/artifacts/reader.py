@@ -298,7 +298,7 @@ def _result_meta(manifest: RunManifest) -> dict[str, Any]:
     run_artifact_timestamps = dict(timestamps) if isinstance(timestamps, Mapping) else {}
     if isinstance(outcome, Mapping):
         run_artifact_timestamps["runtime_ms"] = outcome.get("runtime_ms", 0.0)
-    return {
+    meta: dict[str, Any] = {
         "algorithm": _component_name(algorithm),
         "engine": _component_name(kernel),
         "seed": resolved.get("seed"),
@@ -312,6 +312,10 @@ def _result_meta(manifest: RunManifest) -> dict[str, Any]:
         "run_artifact_loaded_run_id": manifest.run_id,
         "default_sources": default_sources,
     }
+    # As optimize does, a time-limited run says whether the time, not its evaluation cap, stopped it.
+    if _component_name(resolved.get("termination")) == "max_time" and isinstance(outcome, Mapping):
+        meta["time_limit_reached"] = outcome.get("termination_reason") == "max_time"
+    return meta
 
 
 def _component_name(value: object) -> str | None:

@@ -12,11 +12,6 @@ from numpy.typing import NDArray
 
 from vamos.engine.algorithm.components.matching import match_ids_by_tolerance
 
-
-def _logger() -> logging.Logger:
-    return logging.getLogger(__name__)
-
-
 if TYPE_CHECKING:
     from vamos.engine.algorithm.components.state import AlgorithmState
     from vamos.engine.hooks.genealogy import GenealogyTracker
@@ -51,29 +46,17 @@ def get_live_viz(
 
 def notify_generation(
     live_cb: LiveVisualization,
-    kernel: KernelBackend,
     generation: int,
     F: FloatArray,
-    stats: dict[str, Any] | None = None,
+    X: AnyArray | None,
+    evals: int,
 ) -> bool:
-    """
-    Notify live visualization of generation progress with the non-dominated rows of ``F``.
+    """Tell ``live_cb`` about a generation with the payload of the live-callback contract.
 
-    An exception raised by the callback, or by its ``should_stop``, propagates to the
-    caller; only a failure to rank ``F`` falls back to notifying all its rows.
-
-    Parameters
-    ----------
-    live_cb : LiveVisualization
-        Live visualization callback.
-    kernel : KernelBackend
-        Kernel for computing non-dominated front.
-    generation : int
-        Current generation number.
-    F : np.ndarray
-        Current population objectives.
-    stats : dict[str, Any] | None
-        Optional metrics payload (e.g., evaluation counts).
+    The callback receives the whole current population, ``F`` and the aligned ``X``, and
+    ``stats["evals"]``, the evaluations used so far (see
+    :class:`~vamos.engine.hooks.live_viz.LiveVisualization`). An exception raised by the
+    callback, or by its ``should_stop``, propagates to the caller.
 
     Returns
     -------
@@ -84,15 +67,7 @@ def notify_generation(
 
     if isinstance(live_cb, NoOpLiveVisualization):
         return False
-
-    try:
-        ranks, _ = kernel.nsga2_ranking(F)
-    except (ValueError, IndexError) as exc:
-        _logger().debug("Failed to compute non-dominated front for viz: %s", exc)
-        front = F
-    else:
-        front = F[ranks == ranks.min(initial=0)]
-    live_cb.on_generation(generation, F=front, stats=stats)
+    live_cb.on_generation(generation, F=F, X=X, stats={"evals": int(evals)})
     return live_should_stop(live_cb)
 
 

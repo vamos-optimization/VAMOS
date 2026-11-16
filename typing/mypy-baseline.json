@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "policy": "structured-diagnostic-ratchet",
-  "generation_commit": "0ceb3fb6e21e4f77bc26ba8bccc5c6c183ed1795",
-  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 0ceb3fb6e21e4f77bc26ba8bccc5c6c183ed1795",
+  "generation_commit": "7e235c3f9ee3a7009d503f4f010a5108a9308c08",
+  "generation_command": "python tools/typecheck.py --scope full --update-baseline --generation-commit 7e235c3f9ee3a7009d503f4f010a5108a9308c08",
   "environment": {
     "python": "3.12",
     "mypy": "2.4.1",
@@ -26,14 +26,14 @@
   "scope": [
     "src/vamos"
   ],
-  "diagnostic_count": 106,
-  "files_with_diagnostics": 20,
-  "fingerprint_count": 20,
+  "diagnostic_count": 108,
+  "files_with_diagnostics": 21,
+  "fingerprint_count": 21,
   "error_code_summary": {
-    "type-arg": 106
+    "type-arg": 108
   },
   "layer_summary": {
-    "engine": 96,
+    "engine": 98,
     "foundation": 9,
     "ux": 1
   },
@@ -314,6 +314,36 @@
       ]
     },
     {
+      "fingerprint": "659FFCD24052030DAD7E5ECAEEC775BE6E3FCE0D6A54428056670B39B98D4BB3",
+      "path": "src/vamos/engine/tuning/racing/stats.py",
+      "error_code": "type-arg",
+      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
+      "layer": "engine",
+      "multiplicity": 5,
+      "locations": [
+        {
+          "line": 15,
+          "column": 12
+        },
+        {
+          "line": 31,
+          "column": 16
+        },
+        {
+          "line": 110,
+          "column": 13
+        },
+        {
+          "line": 115,
+          "column": 6
+        },
+        {
+          "line": 195,
+          "column": 27
+        }
+      ]
+    },
+    {
       "fingerprint": "690BECFCB9FF9CC012531C97635595B9937D095F2A61597B5DA2E60D44B340FC",
       "path": "src/vamos/engine/algorithm/components/matching.py",
       "error_code": "type-arg",
@@ -336,6 +366,28 @@
         {
           "line": 17,
           "column": 6
+        }
+      ]
+    },
+    {
+      "fingerprint": "6AF3897313F4DF9C5990A998BBD377484A64B7AA56B997D5CE49FE186881C610",
+      "path": "src/vamos/engine/tuning/racing/elimination.py",
+      "error_code": "type-arg",
+      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
+      "layer": "engine",
+      "multiplicity": 3,
+      "locations": [
+        {
+          "line": 23,
+          "column": 97
+        },
+        {
+          "line": 42,
+          "column": 17
+        },
+        {
+          "line": 72,
+          "column": 17
         }
       ]
     },
@@ -578,40 +630,6 @@
         {
           "line": 453,
           "column": 27
-        }
-      ]
-    },
-    {
-      "fingerprint": "86F37CF9414141F14C1B80EDE6FEF66B64B1A345B4F449986587A1CB8B72A1D3",
-      "path": "src/vamos/engine/hooks/live_viz.py",
-      "error_code": "type-arg",
-      "normalized_message": "Missing type parameters for generic type \"ndarray\"",
-      "layer": "engine",
-      "multiplicity": 6,
-      "locations": [
-        {
-          "line": 18,
-          "column": 12
-        },
-        {
-          "line": 19,
-          "column": 12
-        },
-        {
-          "line": 25,
-          "column": 18
-        },
-        {
-          "line": 39,
-          "column": 12
-        },
-        {
-          "line": 40,
-          "column": 12
-        },
-        {
-          "line": 47,
-          "column": 18
         }
       ]
     },

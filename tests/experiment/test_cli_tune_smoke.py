@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import math
 from pathlib import Path
 from typing import Any
 
@@ -58,15 +57,12 @@ def test_smoke_space_keeps_every_population_within_half_the_budget(algorithm: st
     params = space.params
     assert fixed == {}
 
-    population = params["pop_size"] if "pop_size" in params else params["n_partitions"]
+    population = params["pop_size"]
     assert isinstance(population, Int)
     # SMAC3, BOHB and irace reject an integer range without width.
     assert population.low < population.high
-    if "pop_size" in params:
-        largest = population.high
-    else:
-        # RVEA's population is its number of reference directions.
-        largest = math.comb(population.high + n_obj - 1, n_obj - 1)
+    # MOEA/D, NSGA-III and RVEA run a lattice with at most the sampled number of directions.
+    largest = population.high
     # The opposition-based initializer evaluates a population and its opposite.
     assert 1 <= largest and 2 * largest <= profile["budget"], (largest, profile)
 
@@ -162,13 +158,8 @@ def test_smoke_space_keeps_reference_lattices_feasible(
 
     assert _failures(caplog) == []
     sampled = _artifact(tmp_path, "tuning_history.json")
-    if algorithm == "rvea":
-        # One partition gives the 16 axis directions; two give 136, more than the smoke budget. The
-        # fixed count leaves the search space, and the smoke profile records it.
-        assert all("n_partitions" not in trial["config"] for trial in sampled), sampled
-        assert _artifact(tmp_path, "tuning_summary.json")["smoke_profile"]["fixed_parameters"] == {"n_partitions": 1}
-    else:
-        assert all(trial["config"]["pop_size"] >= 16 for trial in sampled), sampled
+    # RVEA runs the 16 axis directions, the lattice of one partition: two give 136, more than the smoke budget.
+    assert all(trial["config"]["pop_size"] >= 16 for trial in sampled), sampled
 
 
 @pytest.mark.parametrize(("algorithm", "label"), [("nsgaiii", "NSGA-III"), ("moead", "MOEA/D"), ("rvea", "RVEA")])
