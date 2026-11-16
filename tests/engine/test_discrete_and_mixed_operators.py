@@ -221,10 +221,60 @@ def test_mixed_integer_segment_supports_arithmetic_crossover_and_creep_mutation(
     )
     children = mixed_crossover(parents, prob=1.0, spec=spec, rng=rng)
     assert np.array_equal(children[:, :3], parents[:, :3])
-    assert np.array_equal(children[:, 3:], np.array([[5.0, 5.0], [5.0, 5.0]]))
+    # Complementary rounded children of the arithmetic crossover, between the parents' values.
+    assert np.array_equal(children[0, 3:] + children[1, 3:], parents[0, 3:] + parents[1, 3:])
+    assert np.all((children[:, 3:] >= 2.0) & (children[:, 3:] <= 8.0))
 
     before_mutation = children.copy()
     mixed_mutation(children, prob=1.0, spec=spec, rng=rng)
     assert np.array_equal(children[:, :3], before_mutation[:, :3])
     deltas = np.abs(children[:, 3:] - before_mutation[:, 3:])
     assert np.array_equal(deltas, np.full_like(deltas, 2.0))
+
+
+def test_integer_sbx_is_unbiased_away_from_bounds():
+    from vamos.engine.operators.impl.integer import integer_sbx_crossover
+
+    # Parents 3 and 4 in [0, 10]: SBX spreads the children symmetrically around 3.5, far from both bounds.
+    parents = np.tile(np.array([[3.0], [4.0]]), (20_000, 1))
+    children = integer_sbx_crossover(
+        parents, prob=1.0, eta=20.0, lower=np.array([0.0]), upper=np.array([10.0]), rng=np.random.default_rng(0)
+    )
+    assert np.all(children == np.rint(children))
+    # Truncating with int() moved the mean to 3.25.
+    assert abs(float(children.mean()) - 3.5) < 0.02, float(children.mean())
+
+
+def test_integer_arithmetic_crossover_children_are_complementary():
+    from vamos.engine.operators.impl.integer import arithmetic_integer_crossover
+
+    p1, p2 = np.array([1, 2, 0, 9]), np.array([3, 6, 7, 1])
+    parents = np.tile(np.stack([p1, p2]), (500, 1))
+    children = arithmetic_integer_crossover(parents, prob=1.0, rng=np.random.default_rng(1), lower=np.zeros(4), upper=np.full(4, 10))
+    first, second = children[0::2], children[1::2]
+    # lambda p1 + (1 - lambda) p2 and (1 - lambda) p1 + lambda p2, rounded: they add up to the parents' sum.
+    np.testing.assert_array_equal(first + second, np.tile(p1 + p2, (500, 1)))
+    assert np.all((first >= np.minimum(p1, p2)) & (first <= np.maximum(p1, p2)))
+    assert np.mean(np.all(first == second, axis=1)) < 0.05
+
+
+def test_mixed_real_crossover_children_differ():
+    spec = {
+        "real_idx": np.array([0, 1, 2]),
+        "int_idx": np.array([3]),
+        "real_lower": np.zeros(3),
+        "real_upper": np.ones(3),
+        "int_lower": np.array([0]),
+        "int_upper": np.array([5]),
+    }
+    rng = np.random.default_rng(3)
+    parents = np.column_stack([rng.random((400, 3)), rng.integers(0, 6, size=400)]).astype(float)
+    for custom in ({}, {"real_crossover": "arithmetic", "real_crossover_prob": 1.0}):
+        children = mixed_crossover(parents, prob=1.0, spec={**spec, **custom}, rng=rng)
+        real = children[:, spec["real_idx"]]
+        # The parents' mean in both children halved the variance of the real part at every mating.
+        assert np.mean(np.all(real[0::2] == real[1::2], axis=1)) < 0.05
+        np.testing.assert_allclose(real[0::2] + real[1::2], parents[0::2, :3] + parents[1::2, :3])
+    # "mean" keeps the parents' mean in both children.
+    children = mixed_crossover(parents, prob=1.0, spec={**spec, "real_crossover": "mean", "real_crossover_prob": 1.0}, rng=rng)
+    np.testing.assert_allclose(children[0::2, :3], children[1::2, :3])

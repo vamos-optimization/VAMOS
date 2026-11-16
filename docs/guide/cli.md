@@ -313,7 +313,7 @@ Key flags
 - `--no-preflight`: skip optional dependency warnings
 - `--population-size`, `--offspring-population-size`
 - `--max-evaluations`
-- `--hv-threshold` and `--hv-reference-front`
+- `--hv-threshold` and `--hv-reference-front` (**Development after 1.2.1:** a CSV path, or `jmetal` for jMetal's packaged front of ZDT and DTLZ, see [Reference fronts](../reference/problems.md#reference-fronts))
 - `--selection-pressure`, `--external-archive-size`
 - `--eval-strategy`: serial | multiprocessing (with `--n-workers`) | dask (Experimental; with `--dask-address`, see [Dask](../scaling/dask.md))
 - `--live-viz` with `--live-viz-interval`, `--live-viz-max-points`

@@ -8,11 +8,13 @@ grammar.
 
 from __future__ import annotations
 
+import inspect
 from importlib import resources
 
 import pytest
 import yaml
 
+from vamos.engine.operators.impl.real.crossover_blend import BLXAlphaBetaCrossover, BLXAlphaCrossover, WholeArithmeticCrossover
 from vamos.engine.tuning.grammar import (
     ParameterSpace,
     builtin_parameter_space,
@@ -98,6 +100,27 @@ def test_every_default_is_inside_its_domain_and_auto_is_the_default_initializer_
             assert space.parameter(choice).default == "auto"
     if space.encoding == "real" and space.algorithm not in {"smpso"}:
         assert {"initial_solutions", "repair"} <= set(space.names())
+
+
+BLEND_CROSSOVER_PARAMETERS = {
+    # grammar parameter: (crossover, operator class, constructor argument)
+    "crossover_alpha": ("blx_alpha", BLXAlphaCrossover, "alpha"),
+    "blxab_alpha": ("blx_alpha_beta", BLXAlphaBetaCrossover, "alpha"),
+    "blxab_beta": ("blx_alpha_beta", BLXAlphaBetaCrossover, "beta"),
+    "wa_alpha": ("whole_arithmetic", WholeArithmeticCrossover, "alpha"),
+}
+
+
+@pytest.mark.parametrize("name", SPACE_NAMES)
+def test_the_blend_crossovers_default_to_their_operators_own_values(name: str) -> None:
+    # M4: an operator parameter takes the operator's own default, which the bridge also falls back to.
+    space = grammar(name)
+    for parameter, (crossover, operator, argument) in BLEND_CROSSOVER_PARAMETERS.items():
+        if parameter not in space.names():
+            continue
+        assert crossover in space.parameter("crossover").values
+        own = inspect.signature(operator).parameters[argument].default
+        assert space.parameter(parameter).default == own, (parameter, own)
 
 
 @pytest.mark.parametrize("name", SPACE_NAMES)

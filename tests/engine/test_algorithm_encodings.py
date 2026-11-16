@@ -82,6 +82,35 @@ def test_nsgaiii_permutation_encoding_defaults(mock_kernel):
     assert mutation[0] == "swap"
 
 
+class MockRealProblem:
+    encoding = "real"
+    n_var = 12
+    n_obj = 3
+    xl = [0.0] * 12
+    xu = [1.0] * 12
+
+
+def test_nsgaiii_real_encoding_uses_the_reference_sbx(mock_kernel):
+    # Deb and Jain (2014) run NSGA-III with SBX's distribution index 30, as NSGAIIIConfig.default() does.
+    _, config = build_nsgaiii_algorithm(
+        kernel=mock_kernel,
+        problem=MockRealProblem(),
+        pop_size=92,
+        nsgaiii_variation=None,
+        selection_pressure=2,
+    )
+    _, tuned = build_nsgaiii_algorithm(
+        kernel=mock_kernel,
+        problem=MockRealProblem(),
+        pop_size=92,
+        nsgaiii_variation={"crossover": {"method": "sbx", "eta": 15.0}},
+        selection_pressure=2,
+    )
+
+    assert config.to_dict()["crossover"] == ("sbx", {"prob": 0.9, "eta": 30.0})
+    assert tuned.to_dict()["crossover"] == ("sbx", {"prob": 0.9, "eta": 15.0})
+
+
 def test_repair_override_rejected_for_binary_encoding(mock_kernel):
     problem = MockBinaryProblem()
     with pytest.raises(ValueError, match="Repair operators are only supported for real encoding"):

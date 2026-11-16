@@ -1,4 +1,4 @@
-"""Layer-neutral public bridge for canonical StudyManifest operations."""
+"""Stable facade for canonical StudyManifest operations; it re-exports the experiment layer's studies."""
 
 from vamos.experiment.study.creation import create_study
 from vamos.experiment.study.limits import StudyLoadLimits

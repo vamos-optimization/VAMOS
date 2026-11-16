@@ -7,7 +7,7 @@ from __future__ import annotations
 import math
 from collections.abc import Collection, Mapping
 from numbers import Real
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from vamos.engine.operators.impl.mixed import mixed_crossover, mixed_mutation
 from vamos.engine.operators.impl.registry import get_operator_registry
@@ -320,6 +320,22 @@ def ensure_supported_repair_name(encoding: EncodingLike, repair: str) -> RepairN
     return cast(RepairName, repair)
 
 
+_ENCODING_REGISTRY_PREFIX = {"real": "REAL", "binary": "BINARY", "permutation": "PERM", "integer": "INT", "mixed": "MIXED"}
+
+
+def operator_names(kind: Literal["crossover", "mutation"], encoding: str = "real") -> tuple[str, ...]:
+    """The sorted names of the ``kind`` operators that ``encoding`` supports; empty for an unknown encoding."""
+    try:
+        normalized = normalize_encoding(encoding)
+    except ValueError:
+        return ()
+    prefix = _ENCODING_REGISTRY_PREFIX.get(normalized)
+    if prefix is None:
+        return ()
+    _populate_defaults()
+    return tuple(sorted(_get_registry(f"{prefix}_{kind.upper()}").keys()))
+
+
 def __getattr__(name: str) -> Registry[Any]:
     if name in _REGISTRY_LABELS:
         _populate_defaults()
@@ -338,6 +354,7 @@ __all__ = [
     "validate_operator_support",
     "ensure_supported_operator_names",
     "ensure_supported_repair_name",
+    "operator_names",
     "PERM_CROSSOVER",
     "PERM_MUTATION",
     "BINARY_CROSSOVER",

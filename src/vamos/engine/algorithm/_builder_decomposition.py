@@ -90,7 +90,11 @@ def build_nsgaiii_algorithm(
     track_genealogy: bool = False,
 ) -> tuple[NSGAIII, AlgorithmConfigProtocol]:
     encoding = resolve_problem_encoding(problem)
-    var_cfg = resolve_variation_config(encoding=encoding, overrides=nsgaiii_variation)
+    # SBX with distribution index 30, as in Deb and Jain (2014) and NSGAIIIConfig.default().
+    real_defaults = {"crossover": ("sbx", {"prob": 0.9, "eta": 30.0})}
+    var_cfg = resolve_variation_config(
+        encoding=encoding, overrides=nsgaiii_variation, defaults=real_defaults if encoding == "real" else None
+    )
 
     builder = NSGAIIIConfig.builder()
     builder.pop_size(pop_size)

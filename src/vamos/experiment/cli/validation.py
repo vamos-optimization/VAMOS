@@ -169,7 +169,8 @@ def finalize_args(
                     parser.error(
                         "--hv-reference-front is required for the selected problem because no default reference front is available."
                     )
-                args.hv_reference_front = str(default_front)
+                # The packaged source, not its path, so the run records the front as VAMOS's own.
+                args.hv_reference_front = "vamos"
             else:
                 parser.error("--hv-reference-front is required for non-ZDT/ZCAT problems when --hv-threshold is set.")
     elif args.hv_reference_front:
