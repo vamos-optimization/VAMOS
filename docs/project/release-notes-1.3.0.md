@@ -89,7 +89,7 @@ are set and are planned for removal in VAMOS 2.0; the
 lists them.
 
 VAMOS 1.4.0 removes three Experimental features that depend on LLM providers:
-[VAMOS Assist](../assist.md) with the `vamos assist` command, Studio's Problem
+[VAMOS Assist](https://vamos-optimization.org/docs/1.3.0/assist/) with the `vamos assist` command, Studio's Problem
 Builder, and the `openai`, `anthropic` and `gemini` extras. Define a problem
 with `make_problem` or `vamos create-problem`, and run it from Python, the
 command line or Studio.
