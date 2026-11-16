@@ -74,7 +74,7 @@ def publish_success(
     """Publish and fully verify one success before it can enter the journal."""
     run_root = state.root / "runs" / run_id
     try:
-        save_result(result, run_root)
+        save_result(result, run_root, limits=state.run_limits)
     except Exception as exc:
         raise StudyRunPublicationError(
             operation="publish study task run",
@@ -159,6 +159,7 @@ def commit_task_failure(
             },
             outcome=_failed_outcome(plan_task, objective_began),
             timestamps={"started_at": started_at, "completed_at": completed_at},
+            limits=state.run_limits,
         )
         verify_run(run_root, limits=state.run_limits)
         stored = load_run(run_root, verify="all", limits=state.run_limits)

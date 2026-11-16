@@ -598,8 +598,8 @@ Trusted callers may pass an explicit `StudyLoadLimits`; loading never raises a
 limit automatically after rejection. A handle keeps the `StudyLoadLimits` and
 the run `LoadLimits` (`run_limits=`) it was loaded or created with, and every
 reload by execution, recovery, cancellation and projection uses them; run
-publication and reconciliation verify the study's runs with the same
-`LoadLimits`. `load_study(..., verify="metadata")` is the issue-tolerant,
+publication writes and verifies each successful or failed run, and
+reconciliation verifies the study's runs, with the same `LoadLimits`. `load_study(..., verify="metadata")` is the issue-tolerant,
 metadata-only load that projections use; execution never starts from it
 without a complete reload.
 

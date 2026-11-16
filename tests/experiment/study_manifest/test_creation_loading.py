@@ -281,7 +281,7 @@ def test_custom_limits_survive_run_and_inspect(tmp_path: Path, monkeypatch: pyte
 
     import vamos.experiment.study.execution as execution
     from vamos.experiment.optimization_result import OptimizationResult
-    from vamos.experiment.study.errors import ReferencedRunCorruptError, StudyResourceLimitError, StudyRunVerificationError
+    from vamos.experiment.study.errors import ReferencedRunCorruptError, StudyResourceLimitError, StudyRunPublicationError
 
     spec = vamos.StudySpec(
         problems=["zdt1"], algorithms=["nsgaii"], seeds=[0], max_evaluations=24, pop_size=8, metadata={"protocol": "x" * 100_000}
@@ -306,9 +306,41 @@ def test_custom_limits_survive_run_and_inspect(tmp_path: Path, monkeypatch: pyte
     reloaded = vamos.load_study(completed.root, limits=limits, run_limits=run_limits)
     assert reloaded.summarize().rows[0].run_metadata_available
     assert reloaded.resume().status == "completed"
-    # The run limits bound the runs that a load verifies and those that run() publishes.
+    # The run limits bound the runs that a load verifies and those that run() publishes: the writer
+    # itself refuses a run above them, so nothing is published.
     tight = vamos.LoadLimits(max_artifact_bytes=64)
     with pytest.raises(ReferencedRunCorruptError):
         vamos.load_study(completed.root, limits=limits, run_limits=tight)
-    with pytest.raises(StudyRunVerificationError):
+    with pytest.raises(StudyRunPublicationError):
         vamos.create_study(spec, output=tmp_path / "tight", limits=limits, run_limits=tight).run()
+    assert not list((tmp_path / "tight" / "runs").glob("*"))
+
+
+@pytest.mark.parametrize("outcome", ["succeeded", "failed"])
+def test_run_publishes_with_larger_run_limits(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, outcome: str) -> None:
+    import numpy as np
+
+    import vamos.experiment.artifacts.persistence as persistence
+    import vamos.experiment.study.execution as execution
+    from vamos.experiment.optimization_result import OptimizationResult
+
+    # Writer defaults that every run of this study exceeds stand in for a result above the real
+    # 512 MiB default: run() must publish it under the larger run limits the study was created with.
+    small_default = vamos.LoadLimits(max_array_bytes=8, max_environment_bytes=64)
+    monkeypatch.setattr(persistence, "LoadLimits", lambda: small_default)
+    run_limits = vamos.LoadLimits()
+
+    def execute(reconstructed: Any, *, root: Path) -> OptimizationResult:
+        if outcome == "failed":
+            raise RuntimeError("transient failure")
+        arrays = {"F": np.zeros((1, reconstructed.n_obj)), "X": np.zeros((1, reconstructed.n_var))}
+        return OptimizationResult({**arrays, "evaluations": 24, "generations": 3})
+
+    monkeypatch.setattr(execution, "_execute_optimization", execute)
+    finished = vamos.create_study(_spec(), output=tmp_path / "study", run_limits=run_limits).run()
+
+    assert [task.state for task in finished.tasks] == [outcome]
+    reference = finished.attempts[0].run_reference
+    assert reference is not None
+    run = vamos.load_run(finished.root / "runs" / str(reference["run_id"]), verify="all", limits=run_limits)
+    assert run.status == outcome
