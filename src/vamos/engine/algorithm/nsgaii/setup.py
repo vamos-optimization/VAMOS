@@ -42,8 +42,8 @@ if TYPE_CHECKING:
     from .nsgaii import NSGAII
 
 
-def _resolve_archive_settings(cfg: dict[str, Any]) -> ExternalArchiveConfig | None:
-    return resolve_external_archive(cfg)
+def _resolve_archive_settings(cfg: dict[str, Any], seed: int) -> ExternalArchiveConfig | None:
+    return resolve_external_archive(cfg, seed=seed)
 
 
 def initialize_run(
@@ -171,7 +171,7 @@ def initialize_run(
     live_cb.on_start(ctx)
     hv_tracker = HVTracker(hv_config, algo.kernel)
 
-    ext_cfg = _resolve_archive_settings(algo.cfg)
+    ext_cfg = _resolve_archive_settings(algo.cfg, seed)
     archive_X, archive_F, archive_manager = setup_archive(
         algo.kernel,
         X,

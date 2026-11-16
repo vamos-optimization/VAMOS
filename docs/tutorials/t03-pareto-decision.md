@@ -30,7 +30,7 @@ choice without changing the optimization problem.
 | Item | This lesson |
 | --- | --- |
 | Prerequisites | [T02](t02-constrained-problem.md); feasibility, non-dominance, and aligned rows. |
-| Tested package | VAMOS **1.0.1**, Python 3.12; [setup and exact tested dependencies](setup.md). |
+| Tested package | VAMOS **1.2.1**, Python 3.12; [setup and exact tested dependencies](setup.md). |
 | Dependencies | Core VAMOS and NumPy only; no experimental decision helper is required. |
 | Interface status | **Stable** optimization and result facades; the preference calculation is ordinary NumPy code. |
 | Run | The same T02 model, NSGA-II, population 40, 400 evaluations, seed 42, NumPy. |
@@ -66,7 +66,7 @@ python t03-pareto-decision.py
 
 <!-- tutorial:code -->
 ```python
-"""T03: generated from examples/tutorials/fundamentals.py; VAMOS 1.0.1, core dependencies only."""
+"""T03: generated from examples/tutorials/fundamentals.py; VAMOS 1.2.1, core dependencies only."""
 
 
 def process_objectives(x):
@@ -169,11 +169,11 @@ Actual output from the [recorded wheel environment](setup.md#tested-environment-
 ```text
 Feasible non-dominated candidates: 40
 Weights (energy, shortfall): [0.8, 0.2]
-Selected original row: 39
-Decision (temperature, time): (65.884430, 7.249734)
-Objectives (energy, shortfall): (0.202885, 1.128761)
-Constraint g: -27.644581
-Normalized weighted score: 0.197111
+Selected original row: 32
+Decision (temperature, time): (64.959715, 7.101057)
+Objectives (energy, shortfall): (0.192901, 1.157655)
+Constraint g: -11.282649
+Normalized weighted score: 0.194051
 ```
 <!-- /tutorial:output -->
 
@@ -185,8 +185,8 @@ value can be checked together.
 
 ## Interpret the decision
 
-The selected temperature is approximately **65.884430** and residence time
-**7.249734**. Its constraint value is negative, so it satisfies the modeled
+The selected temperature is approximately **64.959715** and residence time
+**7.101057**. Its constraint value is negative, so it satisfies the modeled
 requirement. Re-evaluating `process_objectives(x)` reproduces its two objective
 scores; re-evaluating `process_constraints(x)` verifies feasibility.
 

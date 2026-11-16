@@ -78,6 +78,8 @@ class MOEADState(AlgorithmState):
     # live_evals is the evaluation count where the last one ended; checkpoints keep both.
     live_generation: int = 0
     live_evals: int = 0
+    # The evaluation count of the last notification: a run that ends past it sends a final one.
+    live_sent_evals: int = 0
     batch_size: int = 1
     subproblem_order: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([], dtype=int))
     subproblem_cursor: int = 0

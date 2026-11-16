@@ -79,6 +79,9 @@ class RunSpecInputs:
     default_sources: Mapping[str, str]
     #: Module and qualified name of the user code behind a problem that is not a registry problem.
     problem_code: tuple[str, str] | None = None
+    #: The explicit algorithm configuration as the caller gave it, when ``algorithm_config`` resolves values
+    #: that the request leaves to the run (an external archive's seed derived from the run seed).
+    algorithm_config_requested: Mapping[str, object] | None = None
 
 
 def is_registry_problem(requested: object, instance: object, label: str) -> bool:
@@ -151,7 +154,8 @@ def _requested_spec(inputs: RunSpecInputs) -> dict[str, Any]:
     if inputs.pop_size_requested is not None:
         defaults["population_size"] = inputs.pop_size_requested
     if inputs.algorithm_config_explicit:
-        requested["algorithms"] = {inputs.algorithm: dict(inputs.algorithm_config)}
+        config = inputs.algorithm_config if inputs.algorithm_config_requested is None else inputs.algorithm_config_requested
+        requested["algorithms"] = {inputs.algorithm: dict(config)}
     return requested
 
 

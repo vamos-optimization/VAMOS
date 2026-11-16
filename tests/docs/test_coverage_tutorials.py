@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import runpy
 import subprocess
 import sys
@@ -20,6 +21,22 @@ def lessons():
 
 def test_generated_coverage_is_current():
     subprocess.run([sys.executable, "tools/build_coverage_tutorials.py", "--check"], cwd=ROOT, check=True)
+
+
+def test_lesson_requirements_pin_the_documented_release(monkeypatch):
+    """The three lesson recipes and their generators pin the release that the installation guide installs.
+
+    A release that changes the guide's version must regenerate the lessons with its wheel.
+    """
+    (release,) = set(re.findall(r'"vamos-optimization==([^"]+)"', (ROOT / "docs/guide/installation.md").read_text(encoding="utf-8")))
+    monkeypatch.syspath_prepend(str(ROOT / "tools"))
+    for generator, packages, recipe in (
+        ("build_fundamental_tutorials", "CORE", "docs/assets/tutorials/tutorial-requirements.txt"),
+        ("build_study_tutorials", "PACKAGES", "docs/assets/studies/study-requirements.txt"),
+        ("build_coverage_tutorials", "PACKAGES", "docs/assets/coverage/requirements.txt"),
+    ):
+        assert runpy.run_path(str(ROOT / "tools" / f"{generator}.py"))[packages]["vamos-optimization"] == release, generator
+        assert f"vamos-optimization=={release}\n" in (ROOT / recipe).read_text(encoding="utf-8").splitlines(keepends=True), recipe
 
 
 @pytest.mark.parametrize("source_location", ("checkout", "other-checkout"))

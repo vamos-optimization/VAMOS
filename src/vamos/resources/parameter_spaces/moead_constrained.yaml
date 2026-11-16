@@ -63,9 +63,7 @@ parameters:
       gaussian:
         conditional_parameters:
           gaussian_sigma: {type: real, default: 0.1, range: [0.001, 0.5], role: operator_rate}
-      non_uniform:
-        conditional_parameters:
-          nonuniform_perturbation: {type: real, default: 0.5, range: [0.05, 0.5], role: operator_rate}
+      non_uniform: {}
       cauchy:
         conditional_parameters:
           cauchy_gamma: {type: real, default: 0.1, range: [0.001, 0.5], role: operator_rate}

@@ -306,7 +306,7 @@ def test_hundred_task_mocked_smoke_selects_by_constant_time_index_without_per_ta
     selected: list[tuple[int, str]] = []
     load_calls = 0
 
-    def load(_root: Path) -> vamos.Study:
+    def load(_source: Any) -> vamos.Study:
         nonlocal load_calls
         load_calls += 1
         return created
@@ -334,9 +334,9 @@ def test_hundred_task_mocked_smoke_selects_by_constant_time_index_without_per_ta
         return manifest
 
     def complete(state: Any, _phase: Any, _reload: Any) -> vamos.Study:
-        return load(state.root)
+        return load(state)
 
-    monkeypatch.setattr(execution, "load_study", load)
+    monkeypatch.setattr(execution, "reload_study", load)
     monkeypatch.setattr(execution, "_start_execution", start)
     monkeypatch.setattr(execution, "_run_task_attempt", run_task)
     monkeypatch.setattr(execution, "append_event", append)

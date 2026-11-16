@@ -14,7 +14,7 @@ from typing import Any
 import numpy as np
 
 from vamos.engine.algorithm.components.evaluation import combine_constraints, extract_evaluation_arrays
-from vamos.engine.algorithm.components.hooks import get_live_viz, live_should_stop
+from vamos.engine.algorithm.components.hooks import get_live_viz, live_should_stop, send_live_generation
 from vamos.engine.algorithm.components.metrics import setup_hv_tracker
 from vamos.engine.algorithm.components.population import initialize_evaluated_population, resolve_bounds
 from vamos.engine.algorithm.components.termination import capped_offspring_size, hv_target_reached, parse_termination
@@ -236,7 +236,7 @@ class CCMO:
         fitness, _ = ccmo_fitness(F, _violation(G, F.shape[0]))
         helper_fitness, _ = ccmo_fitness(helper_F, np.zeros(helper_F.shape[0]))
 
-        ext_cfg = resolve_external_archive(self.cfg)
+        ext_cfg = resolve_external_archive(self.cfg, seed=seed)
         archive_X, archive_F, archive_manager = setup_archive(self.kernel, X, F, problem.n_var, problem.n_obj, X.dtype, ext_cfg, G)
 
         self._live_cb = live_cb
@@ -256,6 +256,7 @@ class CCMO:
             archive_F=archive_F,
             archive_manager=archive_manager,
             result_mode=result_mode,
+            live_callback_mode=str(self.cfg.get("live_callback_mode", "population")),
             hv_tracker=setup_hv_tracker(hv_config, self.kernel),
             fitness=fitness,
             helper_X=helper_X,
@@ -270,7 +271,7 @@ class CCMO:
             RunContext(problem=problem, algorithm=self, config=self.cfg, algorithm_name="ccmo", engine_name=str(self.kernel.name))
         )
         # Generation 0 is the evaluated initial population 1, as in every algorithm.
-        live_cb.on_generation(0, F=self._st.F, X=self._st.X, stats={"evals": self._st.n_eval})
+        send_live_generation(live_cb, 0, self._st)
 
     def ask(self) -> np.ndarray[Any, Any]:
         """Offspring of both populations, population 1's first, capped to the remaining budget.
@@ -376,7 +377,7 @@ class CCMO:
         st.hv_reached = st.hv_reached or hv_target_reached(st)
         stop_requested = False
         if self._live_cb is not None:
-            self._live_cb.on_generation(st.generation, F=st.F, X=st.X, stats={"evals": st.n_eval})
+            send_live_generation(self._live_cb, st.generation, st)
             stop_requested = live_should_stop(self._live_cb)
         return stop_requested or st.hv_reached
 

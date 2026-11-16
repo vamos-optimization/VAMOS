@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import numpy.typing as npt
 
 from vamos.engine.tuning import (
     EvalContext,
@@ -159,7 +160,7 @@ def run_statistical_finisher(
 
     agg_scores = np.asarray([float(aggregator(scores[i, :].tolist())) for i in range(n_cfg)], dtype=float)
     winner_idx = int(np.argmax(agg_scores))
-    keep_mask = np.ones(n_cfg, dtype=bool)
+    keep_mask: npt.NDArray[np.bool_] = np.ones(n_cfg, dtype=bool)
     method = "aggregate_only"
     friedman_pvalue: float | None = None
 

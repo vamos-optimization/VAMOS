@@ -22,8 +22,10 @@ import numpy as np
 
 from vamos.engine.algorithm.components.hooks import (
     finalize_genealogy,
+    is_no_op_live_callback,
     live_should_stop,
     notify_generation,
+    send_live_generation,
     track_offspring_genealogy,
 )
 from vamos.engine.algorithm.components.termination import capped_offspring_size
@@ -41,7 +43,7 @@ if TYPE_CHECKING:
     from vamos.foundation.eval.backends import EvaluationBackend
     from vamos.foundation.kernel.backend import KernelBackend
     from vamos.foundation.problem.types import ProblemProtocol
-from vamos.engine.hooks.live_viz import LiveVisualization, NoOpLiveVisualization
+from vamos.engine.hooks.live_viz import LiveVisualization
 
 
 def _count_live_generations(st: MOEADState) -> bool:
@@ -65,15 +67,28 @@ def _advance_generation(st: MOEADState, kernel: Any, live_cb: Any, hv_tracker: A
         return False, True
     st.generation += 1
     if _count_live_generations(st) and notify:
-        return notify_generation(live_cb, st.live_generation, st.F, st.X, st.n_eval), False
+        st.live_sent_evals = st.n_eval
+        return notify_generation(live_cb, st.live_generation, st), False
     return False, False
 
 
+def _send_final_live_generation(st: MOEADState, live_cb: Any) -> None:
+    """Send the evaluations after the last notification as one more generation; the counters (and resumes) stay."""
+    if st.n_eval > st.live_sent_evals:
+        st.live_sent_evals = st.n_eval
+        notify_generation(live_cb, st.live_generation + int(st.n_eval > st.live_evals), st)
+
+
 def _finish_run(st: MOEADState, kernel: Any, hv_reached: bool, live_cb: Any | None) -> dict[str, Any]:
-    """Build the result and the checkpoint of the current state; ``live_cb`` (when given) is told the run ended."""
+    """Build the result and the checkpoint of the current state.
+
+    ``live_cb`` (when given) gets the evaluations after its last notification, then is told the run ended.
+    """
     result = build_moead_result(st, hv_reached, kernel=kernel)
     # The compiled steady-state loop and a batch that reached the HV target do not count live generations.
     _count_live_generations(st)
+    if live_cb is not None:
+        _send_final_live_generation(st, live_cb)
     result["checkpoint"] = {
         "version": 1,
         "algorithm": "moead",
@@ -150,11 +165,12 @@ class MOEAD:
         assert st is not None, "State not initialized"
 
         generation = st.generation
-        live_cb.on_generation(st.live_generation, F=st.F, X=st.X, stats={"evals": st.n_eval})
+        send_live_generation(live_cb, st.live_generation, st)
+        st.live_sent_evals = st.n_eval
         stop_requested = live_should_stop(live_cb)
         hv_reached = hv_tracker.enabled and hv_tracker.reached(st.hv_points())
-        # notify_generation ignores no-op callbacks, so the loop skips the call for them.
-        notify = not isinstance(live_cb, NoOpLiveVisualization)
+        # notify_generation ignores the default no-op callback, so the loop skips the call for it.
+        notify = not is_no_op_live_callback(live_cb)
         # The compiled one-offspring step (numba engine) is called directly; None defers to ask()/tell().
         steady = self._steady
         if steady is not None and not notify and not hv_tracker.enabled and st.archive_manager is None and not stop_requested:
@@ -199,11 +215,12 @@ class MOEAD:
         )
         st = self._st
         assert st is not None, "State not initialized"
-        live_cb.on_generation(st.live_generation, F=st.F, X=st.X, stats={"evals": st.n_eval})
+        send_live_generation(live_cb, st.live_generation, st)
+        st.live_sent_evals = st.n_eval
         self._session = _AskTellSession(
             live_cb=live_cb,
             hv_tracker=hv_tracker,
-            notify=not isinstance(live_cb, NoOpLiveVisualization),
+            notify=not is_no_op_live_callback(live_cb),
             stop_requested=live_should_stop(live_cb),
             hv_reached=bool(hv_tracker.enabled and hv_tracker.reached(st.hv_points())),
         )
@@ -245,6 +262,7 @@ class MOEAD:
             live_viz,
             checkpoint=checkpoint,
         )
+        self._st.live_callback_mode = str(self.cfg.get("live_callback_mode", "population"))
         cross_method = str(self.cfg.get("crossover", ("sbx", {}))[0]).lower()
         self._cross_is_de = cross_method in {"de", "differential", "differential_evolution"}
         self._op_label = variation_operator_label(self.cfg, "sbx+pm")

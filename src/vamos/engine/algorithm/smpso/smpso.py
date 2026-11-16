@@ -21,6 +21,7 @@ from vamos.engine.algorithm.components.hooks import (
     finalize_genealogy,
     live_should_stop,
     notify_generation,
+    send_live_generation,
     track_offspring_genealogy,
 )
 from vamos.engine.algorithm.components.subset_selection import _single_front_crowding
@@ -183,7 +184,7 @@ class SMPSO:
             engine_name=str(self.kernel.name),
         )
         live_cb.on_start(ctx)
-        live_cb.on_generation(0, F=st.F, X=st.X, stats={"evals": st.n_eval})
+        send_live_generation(live_cb, 0, st)
         stop_requested = live_should_stop(live_cb)
 
         hv_reached = hv_tracker.enabled and hv_tracker.reached(st.hv_points())
@@ -195,9 +196,11 @@ class SMPSO:
 
             if hv_tracker.enabled and hv_tracker.reached(st.hv_points()):
                 hv_reached = True
+                # The batch that reaches the target is the result; the live view gets it too.
+                notify_generation(live_cb, st.generation, st)
                 break
 
-            stop_requested = notify_generation(live_cb, st.generation, st.F, st.X, st.n_eval)
+            stop_requested = notify_generation(live_cb, st.generation, st)
 
         result = build_smpso_result(st, hv_reached)
         finalize_genealogy(result, st, self.kernel)
@@ -244,7 +247,7 @@ class SMPSO:
                 engine_name=str(self.kernel.name),
             )
             self._live_cb.on_start(ctx)
-            self._live_cb.on_generation(0, F=self._st.F, X=self._st.X, stats={"evals": self._st.n_eval})
+            send_live_generation(self._live_cb, 0, self._st)
 
     def ask(self) -> np.ndarray[Any, Any]:
         """Generate offspring positions for evaluation.

@@ -344,11 +344,9 @@ def test_tune_smoke_with_suite_split(tmp_path):
         "random",
         "--split-strategy",
         "suite_stratified",
+        # NSGA-II's space draws pop_size from [20, 200]; a smaller budget rejects some configurations.
         "--budget",
-        "30",
-        # The spaces do not tune the population: every run takes --pop-size, which must fit in the budget.
-        "--pop-size",
-        "15",
+        "200",
         "--tune-budget",
         "4",
         "--n-seeds",
@@ -444,11 +442,9 @@ def test_tune_backend_fallback_subprocess(tmp_path):
         "random",
         "--split-strategy",
         "suite_stratified",
+        # NSGA-II's space draws pop_size from [20, 200]; a smaller budget rejects some configurations.
         "--budget",
-        "30",
-        # The spaces do not tune the population: every run takes --pop-size, which must fit in the budget.
-        "--pop-size",
-        "15",
+        "200",
         "--tune-budget",
         "4",
         "--n-seeds",

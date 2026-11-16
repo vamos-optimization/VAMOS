@@ -14,13 +14,13 @@ import subprocess
 import textwrap
 from pathlib import Path
 
-from build_fundamental_tutorials import digest, replace_block
+from build_fundamental_tutorials import LESSON_RELEASE, digest, replace_block
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = "examples/tutorials/study_workflow.py"
 ASSETS = "docs/assets/studies"
 PACKAGES = {
-    "vamos-optimization": "1.0.1",
+    "vamos-optimization": LESSON_RELEASE,
     "numpy": "2.1.3",
     "scipy": "1.15.3",
     "joblib": "1.4.2",
