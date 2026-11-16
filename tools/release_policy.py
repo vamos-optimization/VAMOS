@@ -5,13 +5,9 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+import tomllib
 from pathlib import Path
 from typing import Any
-
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover - exercised by the Python 3.10 CI job
-    import tomli as tomllib
 
 OLD_INTERNAL_TAGS = tuple(f"v1.{minor}.0" for minor in range(6))
 REQUIRED_DOCUMENTS = (

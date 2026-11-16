@@ -13,7 +13,7 @@ import numbers
 import secrets
 import time
 from collections.abc import Mapping
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import overload
 
 from vamos.engine.algorithm.catalog import minimum_violation
@@ -435,11 +435,11 @@ def _run_single(
         live_viz=live_viz,
         checkpoint=checkpoint,
     )
-    started_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    started_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     started_monotonic = time.perf_counter()
     result = _run_config(config)
     runtime_ms = (time.perf_counter() - started_monotonic) * 1000.0
-    completed_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    completed_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     problem_label = _resolve_problem_label(problem, problem_instance)
     pop_size_source = "config" if algorithm_config is not None else ("explicit" if pop_size is not None else "auto")
     max_evaluations_source = "explicit" if max_evaluations is not None or termination is not None else "auto"

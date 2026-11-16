@@ -182,6 +182,10 @@ Notes:
   with ties broken by row order, which can remove an extreme point.
 - For an **algorithm result archive**, use its public configuration builder and
   inspect the resolved `result_mode`; see [Algorithms and backends](../reference/algorithms.md).
+  **VAMOS 1.3.0:** a result archive can report a final subset
+  (`final_selection` and `final_size`, see
+  [Results and cardinality](../reference/algorithms.md#results-and-cardinality));
+  the hook archive has no final subset and rejects those fields.
   Since VAMOS 1.0.1, the SMPSO search leaders and optional external result archive are
   separate, and explicit `population` mode returns the final swarm. See the
   [changes since 1.0.0](../reference/algorithms.md#changes-included-in-101).
@@ -191,7 +195,7 @@ Notes:
 
 ## Reproducibility
 
-**Development after 1.2.1:** the random streams of these hooks follow the run
+**VAMOS 1.3.0:** the random streams of these hooks follow the run
 seed. Without an `rng_seed`, the `ref_dirs` pruning of the archive and the
 bootstrap of `stopping.hv_convergence.confidence` draw from streams derived
 from the run seed: children of its `SeedSequence` that the algorithm's own

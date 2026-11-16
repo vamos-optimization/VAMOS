@@ -10,11 +10,9 @@ The checker examines tracked content only; generated test output belongs in
 ## Documentation toolchain
 
 Install documentation and development extras with `constraints/ci.txt`. The
-reviewed set pairs PyMdown 12.3 with mkdocstrings 1.0.8 on Python 3.11 and newer.
-Python 3.10 retains PyMdown 12.1 and mkdocstrings 1.0.6 because newer mkdocstrings
-requires Python 3.11. The optional dependency markers also preserve this pairing
-when installing without the CI constraints. The Zensical compatibility workflow
-uses the same constraints rather than overriding the API renderer.
+reviewed set pairs PyMdown 12.3 with mkdocstrings 1.0.8, which is also the
+minimum that the `docs` and `dev` extras declare. The Zensical compatibility
+workflow uses the same constraints rather than overriding the API renderer.
 
 ## Test placement
 

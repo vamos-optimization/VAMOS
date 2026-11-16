@@ -188,7 +188,7 @@ dtype, shape, logical order, and exact bytes. The new manifest stores bounded
 source/root lineage and per-array comparison evidence.
 
 Without `--output`, the replay goes to `<source-parent>/replays/<new-run-id>`,
-inside the results tree of its source. **Development after 1.2.1:** `vamos
+inside the results tree of its source. **VAMOS 1.3.0:** `vamos
 summarize`, `vamos open-results` and `discover_runs` in `vamos.ux.analysis`
 leave replays out, so a seed is listed once; `discover_runs(...,
 include_replays=True)` lists them too, with `RunInfo.replay` set. VAMOS 1.2.0

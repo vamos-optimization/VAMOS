@@ -5,7 +5,7 @@ from __future__ import annotations
 from tests.architecture._dependencies import base_distributions
 
 # A new base dependency is a policy change: update this set and docs/dev/architecture_health.md together.
-BASE_DEPENDENCIES = frozenset({"numpy", "scipy", "joblib", "pyyaml", "typing-extensions"})
+BASE_DEPENDENCIES = frozenset({"numpy", "scipy", "joblib", "pyyaml"})
 
 
 def test_base_dependencies_are_a_closed_set() -> None:

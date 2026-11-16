@@ -9,7 +9,7 @@ from collections import Counter
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from types import FrameType
 from typing import Any, cast
@@ -38,7 +38,7 @@ _HELD_SIGNALS = (signal.SIGINT, signal.SIGTERM)
 
 
 def now_utc() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 class _HeldSignals:
@@ -116,7 +116,10 @@ def append_event(
             path=relative,
             expected="absent next event path",
             actual="occupied path",
-            action="Stop execution and inspect the journal; no existing event is overwritten.",
+            action=(
+                "Another process is probably running, resuming or retrying this study; studies have one owner. "
+                "Stop the other process and inspect the journal; no existing event is overwritten."
+            ),
         )
     document = event_document(
         sequence=sequence,

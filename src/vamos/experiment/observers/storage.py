@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +19,7 @@ from vamos.foundation.observer import Observer, RunContext
 
 
 def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 @dataclass(slots=True)

@@ -65,7 +65,7 @@ Research collectors discover `manifest.json` and call the public `load_run`/`loa
 
 ## Environment
 
-VAMOS supports Python 3.10 or newer. Select or create an environment explicitly; a repository-local virtual environment is optional, not assumed.
+VAMOS supports Python 3.11 or newer. Select or create an environment explicitly; a repository-local virtual environment is optional, not assumed.
 
 ```bash
 python -m venv .venv
@@ -102,7 +102,7 @@ Use the narrowest tier that proves the change while iterating, then run every hi
 - Targeted: `python -m pytest -q <nearest-test-files>`, `python tools/typecheck.py --scope strict` for typed production changes, and `python tools/check_agent_docs.py` for agent/docs changes.
 - Quick: `python -m pytest -q tests/test_check_agent_docs.py tests/architecture/test_docs_and_workflows.py tests/docs`.
 - Full: `python tools/health.py`, `python -m pytest -q`, and `mkdocs build --strict`.
-- Release: install the pinned build/release tools, then run the canonical `python tools/release_check.py --version 1.2.1`; it includes the full tier, stable/release typing, informational full-zero typing, frozen distribution inspection, installed-wheel smoke, dependency audits, SBOM, checksums, and provenance described in [Release verification](docs/release_smoke.md).
+- Release: install the pinned build/release tools, then run the canonical `python tools/release_check.py --version 1.3.0`; it includes the full tier, stable/release typing, informational full-zero typing, frozen distribution inspection, installed-wheel smoke, dependency audits, SBOM, checksums, and provenance described in [Release verification](docs/release_smoke.md).
 
 `tools/health.py` is the canonical local fast-fail architecture/tooling suite. CI has a distinct matrix and coverage scope. Both run exactly `python tools/check_agent_docs.py` for agent-documentation integrity; do not describe their complete suites as identical.
 
@@ -243,6 +243,6 @@ command: python tools/typecheck.py --scope full-zero
 command: python -m pytest -q
 command: mkdocs build --strict
 command: python -m build
-command: python tools/release_check.py --version 1.2.1
-command: python tools/release_smoke.py --version 1.2.1 --mode full
+command: python tools/release_check.py --version 1.3.0
+command: python tools/release_smoke.py --version 1.3.0 --mode full
 ```
