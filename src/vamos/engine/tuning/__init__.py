@@ -7,11 +7,13 @@ Parameter types use signature: ParamType(name, ...)
 - Boolean(name)
 
 Also provides RandomSearchTuner, RacingTuner, AlgorithmConfigSpace,
-and config space builders for each algorithm.
+config space builders for each algorithm, and the parameter-space grammars of
+:mod:`vamos.engine.tuning.grammar` (``ParameterSpace``, ``load_parameter_space``).
 """
 
 from .ablation import AblationPlan, AblationTask, AblationVariant, build_ablation_plan
 from .backends import ModelBasedTuner, available_model_based_backends
+from .grammar import ParameterSpace, ParameterSpaceError, load_parameter_space
 from .racing import (
     # Config space
     AlgorithmConfigSpace,
@@ -138,6 +140,10 @@ __all__ = [
     "Scenario",
     # Config space
     "AlgorithmConfigSpace",
+    # Parameter-space grammars (vamos.engine.tuning.grammar)
+    "ParameterSpace",
+    "ParameterSpaceError",
+    "load_parameter_space",
     # Tuners
     "RandomSearchTuner",
     "RacingTuner",
