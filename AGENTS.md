@@ -65,7 +65,7 @@ Research collectors discover `manifest.json` and call the public `load_run`/`loa
 
 ## Environment
 
-VAMOS supports Python 3.10 or newer. Select or create an environment explicitly; a repository-local virtual environment is optional, not assumed.
+VAMOS supports Python 3.11 or newer. Select or create an environment explicitly; a repository-local virtual environment is optional, not assumed.
 
 ```bash
 python -m venv .venv

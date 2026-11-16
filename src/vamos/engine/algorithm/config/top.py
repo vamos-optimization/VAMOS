@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import math
-import sys
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Self
 
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.foundation.exceptions import ConfigurationError
@@ -28,11 +27,6 @@ from .base import (
     _validate_operators,
 )
 from .types import RepairConfigValue
-
-if sys.version_info >= (3, 11):
-    from typing import Self
-else:
-    from typing_extensions import Self
 
 
 @dataclass(frozen=True)
