@@ -301,7 +301,7 @@ class ToP:
             RunContext(problem=problem, algorithm=self, config=self.cfg, algorithm_name="top", engine_name=str(self.kernel.name))
         )
         # Generation 0 is the evaluated initial population.
-        live_cb.on_generation(0, F=self._st.F, stats={"evals": self._st.n_eval})
+        live_cb.on_generation(0, F=self._st.F, X=self._st.X, stats={"evals": self._st.n_eval})
 
     def next_phase(self) -> int:
         """The phase, 1 or 2, of the next generation, from ``delta``, ``Pf`` and the evaluations done.
@@ -463,7 +463,7 @@ class ToP:
         st.hv_reached = st.hv_reached or hv_target_reached(st)
         stop_requested = False
         if self._live_cb is not None:
-            self._live_cb.on_generation(st.generation, F=st.F, stats={"evals": st.n_eval})
+            self._live_cb.on_generation(st.generation, F=st.F, X=st.X, stats={"evals": st.n_eval})
             stop_requested = live_should_stop(self._live_cb)
         return stop_requested or st.hv_reached
 

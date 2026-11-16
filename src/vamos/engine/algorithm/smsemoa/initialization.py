@@ -28,6 +28,7 @@ from vamos.foundation.encoding import EncodingLike, normalize_encoding
 
 from .helpers import (
     initialize_reference_point,
+    reference_point_rule,
     refresh_selection_cache,
 )
 from .state import SMSEMOAState
@@ -121,6 +122,7 @@ def initialize_smsemoa_run(
 
     # Reference point config
     ref_cfg = config.get("reference_point", {}) or {}
+    ref_rule = reference_point_rule(ref_cfg)
 
     # Initialize population
     X, F, G, n_eval = initialize_population(
@@ -164,6 +166,7 @@ def initialize_smsemoa_run(
         ref_point=ref_point,
         ref_offset=ref_offset,
         ref_adaptive=ref_adaptive,
+        ref_rule=ref_rule,
         pressure=pressure,
         selection_method=str(sel_method),
         eliminate_duplicates=eliminate_duplicates,

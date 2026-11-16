@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from importlib import metadata as importlib_metadata
 from typing import Any
 
+from vamos.experiment.time_limit import parse_time_limit
 from vamos.foundation.problem.builder import FunctionalProblem
 from vamos.foundation.problem.registry import get_problem_specs, make_problem_selection
 
@@ -207,9 +208,11 @@ def _resolved_spec(inputs: RunSpecInputs) -> dict[str, Any]:
         },
         "defaults_applied": defaults_applied,
         "determinism": {
+            # A wall-clock limit stops a run after a number of evaluations that depends on the machine.
             "declared": _is_deterministic(inputs.engine, inputs.eval_strategy)
             and inputs.problem_built_in
-            and not _contains_executable(inputs.algorithm_config),
+            and not _contains_executable(inputs.algorithm_config)
+            and inputs.termination[0] != "max_time",
             "rng": "numpy.random.Generator/PCG64",
         },
     }
@@ -303,6 +306,9 @@ def _termination_component(termination: tuple[str, object]) -> dict[str, Any]:
     config: dict[str, Any]
     if name == "max_evaluations":
         config = {"max_evaluations": raw_value, "hard_max_evaluations": raw_value}
+    elif name == "max_time":
+        seconds, cap = parse_time_limit(raw_value)
+        config = {"seconds": seconds, "max_evaluations": cap}
     elif isinstance(raw_value, Mapping):
         config = dict(raw_value)
     else:

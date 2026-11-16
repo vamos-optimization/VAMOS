@@ -29,8 +29,11 @@ from .base import (
     _SerializableConfig,
     _TrackGenealogyBuilder,
     _validate_operators,
+    _warn_without_effect,
 )
 from .types import RepairConfigValue
+
+_REFERENCE_LATTICE_RULE = "since VAMOS 1.2.0, NSGA-III uses the largest reference-direction lattice that fits in pop_size and runs N >= H"
 
 
 @dataclass(frozen=True)
@@ -51,6 +54,14 @@ class NSGAIIIConfig(_SerializableConfig):
     external_archive: ExternalArchiveConfig | None = None
     # Fields added after 1.0 go last, so that the constructor keeps the positions of its parameters.
     constraint_handling: tuple[str, dict[str, float]] | None = None
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        # ``enforce_ref_dirs`` is true in every default, so ``False`` warns wherever it comes from.
+        # ``pop_size_auto`` is true in ``default()`` and false otherwise: only the builder method can
+        # tell that a user set it.
+        if not self.enforce_ref_dirs:
+            _warn_without_effect("NSGA-III", "enforce_ref_dirs", _REFERENCE_LATTICE_RULE, stacklevel=3)
 
     @classmethod
     def default(
@@ -88,16 +99,17 @@ class NSGAIIIConfig(_SerializableConfig):
         crossover, mutation = _encoding_operators(
             encoding, mut_prob, real=(("sbx", {"prob": 0.9, "eta": 30.0}), ("pm", {"prob": mut_prob, "eta": 20.0}))
         )
-        return (
+        builder = (
             cls.builder()
             .pop_size(pop_size)
             .crossover(crossover[0], **crossover[1])
             .mutation(mutation[0], **mutation[1])
             .selection("tournament")
             .reference_directions(divisions=divisions)
-            .pop_size_auto(True)
-            .build()
         )
+        # The stable default keeps ``pop_size_auto=True`` without the warning of the builder method.
+        builder._cfg["pop_size_auto"] = True
+        return builder.build()
 
     @classmethod
     def builder(cls) -> _NSGAIIIConfigBuilder:
@@ -136,10 +148,16 @@ class _NSGAIIIConfigBuilder(
         return self
 
     def enforce_ref_dirs(self, enabled: bool = True) -> _NSGAIIIConfigBuilder:
+        """Kept for compatibility: it has no effect, warns, and goes in VAMOS 2.0."""
+        if enabled:
+            # ``False`` warns once, when the configuration is built.
+            _warn_without_effect("NSGA-III", "enforce_ref_dirs", _REFERENCE_LATTICE_RULE, stacklevel=2)
         self._cfg["enforce_ref_dirs"] = bool(enabled)
         return self
 
     def pop_size_auto(self, enabled: bool = True) -> _NSGAIIIConfigBuilder:
+        """Kept for compatibility: it has no effect, warns, and goes in VAMOS 2.0."""
+        _warn_without_effect("NSGA-III", "pop_size_auto", _REFERENCE_LATTICE_RULE, stacklevel=2)
         self._cfg["pop_size_auto"] = bool(enabled)
         return self
 

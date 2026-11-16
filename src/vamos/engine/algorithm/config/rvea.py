@@ -32,6 +32,7 @@ from .base import (
     _SerializableConfig,
     _TrackGenealogyBuilder,
     _validate_operators,
+    _warn_without_effect,
 )
 from .types import RepairConfigValue
 
@@ -90,6 +91,11 @@ class RVEAConfig(_SerializableConfig):
     constraint_handling: tuple[str, dict[str, float]] | None = None
     #: The techniques that judge the violation of a single solution, the only ones this algorithm takes.
     constraint_handling_techniques: ClassVar[tuple[str, ...]] = PAIRWISE_TECHNIQUES
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.track_genealogy:
+            _warn_without_effect("RVEA", "track_genealogy", "RVEA records no genealogy", stacklevel=3)
 
     @classmethod
     def default(

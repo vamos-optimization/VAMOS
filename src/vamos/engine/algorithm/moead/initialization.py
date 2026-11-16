@@ -116,6 +116,8 @@ def initialize_moead_run(
     generation = 0
     subproblem_order: NDArray[np.generic]
     subproblem_cursor = 0
+    live_generation = 0
+    live_evals: int
     ideal_override: NDArray[np.generic] | None = None
     checkpoint_archive_X: NDArray[np.generic] | None = None
     checkpoint_archive_F: NDArray[np.generic] | None = None
@@ -149,25 +151,10 @@ def initialize_moead_run(
 
             generation = int(checkpoint.get("generation", 0))
             extra = checkpoint.get("extra", {})
-            if isinstance(extra, Mapping):
-                order_raw = extra.get("subproblem_order")
-                if order_raw is not None:
-                    subproblem_order = np.asarray(order_raw, dtype=int)
-                    if subproblem_order.ndim != 1 or not np.array_equal(np.sort(subproblem_order), np.arange(pop_size)):
-                        raise ValueError(f"Checkpoint subproblem_order is not a permutation of {pop_size} subproblems.")
-                else:
-                    subproblem_order = rng.permutation(pop_size).astype(int, copy=False)
-                subproblem_cursor = int(extra.get("subproblem_cursor", 0))
-                # A cursor equal to pop_size means the order is used up: the next step draws a new one.
-                if subproblem_cursor < 0 or subproblem_cursor > pop_size:
-                    raise ValueError(f"Checkpoint subproblem_cursor={subproblem_cursor} is outside [0, {pop_size}].")
-                ideal_raw = extra.get("ideal")
-                if ideal_raw is not None:
-                    ideal_override = np.asarray(ideal_raw, dtype=float)
-                    if ideal_override.ndim != 1 or ideal_override.shape[0] != n_obj:
-                        raise ValueError(f"Checkpoint ideal point has shape {ideal_override.shape}; expected ({n_obj},).")
-            else:
-                subproblem_order = rng.permutation(pop_size).astype(int, copy=False)
+            # An extra that is not a mapping restores nothing: the run draws a new subproblem order.
+            extra = extra if isinstance(extra, Mapping) else {}
+            subproblem_order, subproblem_cursor, ideal_override = _subproblem_progress(extra, pop_size, n_obj, rng)
+            live_generation, live_evals = _live_progress(extra, n_eval, pop_size)
 
             archive_x_raw = checkpoint.get("archive_X")
             archive_f_raw = checkpoint.get("archive_F")
@@ -203,6 +190,7 @@ def initialize_moead_run(
         )
         subproblem_order = rng.permutation(pop_size).astype(int, copy=False)
         subproblem_cursor = 0
+        live_evals = n_eval
 
     cv = compute_violation(G) if constraint_mode != "none" and G is not None else None
 
@@ -283,6 +271,8 @@ def initialize_moead_run(
         batch_size=batch_size,
         subproblem_order=subproblem_order,
         subproblem_cursor=subproblem_cursor,
+        live_generation=live_generation,
+        live_evals=live_evals,
         cv=cv,
         crossover_fn=crossover_fn,
         mutation_fn=mutation_fn,
@@ -318,6 +308,48 @@ def initialize_moead_run(
             state.archive_X, state.archive_F = checkpoint_archive_X, checkpoint_archive_F
 
     return state, live_cb, eval_strategy, max_eval, hv_tracker
+
+
+def _subproblem_progress(
+    extra: Mapping[str, Any], pop_size: int, n_obj: int, rng: np.random.Generator
+) -> tuple[NDArray[np.generic], int, NDArray[np.generic] | None]:
+    """The subproblem order, its cursor and the ideal point of a checkpoint's ``extra``."""
+    order_raw = extra.get("subproblem_order")
+    if order_raw is not None:
+        subproblem_order = np.asarray(order_raw, dtype=int)
+        if subproblem_order.ndim != 1 or not np.array_equal(np.sort(subproblem_order), np.arange(pop_size)):
+            raise ValueError(f"Checkpoint subproblem_order is not a permutation of {pop_size} subproblems.")
+    else:
+        subproblem_order = rng.permutation(pop_size).astype(int, copy=False)
+    subproblem_cursor = int(extra.get("subproblem_cursor", 0))
+    # A cursor equal to pop_size means the order is used up: the next step draws a new one.
+    if subproblem_cursor < 0 or subproblem_cursor > pop_size:
+        raise ValueError(f"Checkpoint subproblem_cursor={subproblem_cursor} is outside [0, {pop_size}].")
+    ideal_override: NDArray[np.generic] | None = None
+    ideal_raw = extra.get("ideal")
+    if ideal_raw is not None:
+        ideal_override = np.asarray(ideal_raw, dtype=float)
+        if ideal_override.ndim != 1 or ideal_override.shape[0] != n_obj:
+            raise ValueError(f"Checkpoint ideal point has shape {ideal_override.shape}; expected ({n_obj},).")
+    return subproblem_order, subproblem_cursor, ideal_override
+
+
+def _live_progress(extra: Mapping[str, Any], n_eval: int, pop_size: int) -> tuple[int, int]:
+    """The live callback's generation and where it ended, from a checkpoint's ``extra``.
+
+    A checkpoint without them counts generations from an initial population of ``pop_size`` evaluations.
+    """
+    if "live_generation" not in extra and "live_evals" not in extra:
+        completed = (n_eval - pop_size) // pop_size
+        return completed, pop_size * (completed + 1)
+    live_generation = int(extra["live_generation"])
+    live_evals = int(extra["live_evals"])
+    if live_generation < 0:
+        raise ValueError(f"Checkpoint live_generation={live_generation} is negative.")
+    # The count is up to date: fewer than pop_size evaluations lie past the end of the last generation.
+    if not 0 <= n_eval - live_evals < pop_size:
+        raise ValueError(f"Checkpoint live_evals={live_evals} is not within {pop_size} evaluations below n_eval={n_eval}.")
+    return live_generation, live_evals
 
 
 def initialize_population(

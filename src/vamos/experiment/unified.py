@@ -157,9 +157,10 @@ def optimize(
         Maximum function evaluations. Auto-determined when omitted.
     termination : TerminationSpec | None, optional
         Explicit termination pair: ``("max_evaluations", n)``, ``("n_gen", g)``
-        (``g * pop_size`` evaluations, the initial population included) or
-        ``("hv", {"target_value": t, "reference_point": r, "max_evaluations": n})``.
-        Every built-in algorithm accepts all three; counts must be positive integers.
+        (``g * pop_size`` evaluations, the initial population included),
+        ``("hv", {"target_value": t, "reference_point": r, "max_evaluations": n})`` or
+        ``("max_time", seconds)``, a wall-clock limit that makes the run not reproducible.
+        Every built-in algorithm accepts all four; counts must be positive integers.
         With ``max_evaluations`` too, it must be ``("max_evaluations", max_evaluations)``.
     pop_size : int | None, optional
         Population size. Auto-determined when omitted.
@@ -176,8 +177,8 @@ def optimize(
         Override problem dimensions of a registered problem name or a problem
         class; a problem instance rejects them.
     problem_kwargs : Mapping[str, object] | None, optional
-        Keyword arguments for a problem class; a registered problem name
-        accepts only ``n_var`` and ``n_obj``, and an instance none.
+        Keyword arguments for a problem class; for a registered name, ``n_var``, ``n_obj`` and the
+        options its factory declares (``capacity_ratio`` for ``"bin_knapsack"``); an instance none.
     algorithm_config : AlgorithmConfigProtocol | None, optional
         Explicit algorithm config object of ``algorithm``'s configuration class;
         ``GenericAlgorithmConfig`` only for plugin algorithms.
@@ -303,7 +304,7 @@ def _run_single(
     if termination is not None and (not isinstance(termination, tuple) or len(termination) != 2):
         raise ConfigurationError("termination must be a pair such as ('max_evaluations', 10000).")
     check_budget(max_evaluations, termination)
-    check_problem_arguments(problem, n_var=n_var, n_obj=n_obj, problem_kwargs=problem_kwargs)
+    problem_kwargs = check_problem_arguments(problem, n_var=n_var, n_obj=n_obj, problem_kwargs=problem_kwargs)
     requested_seed = seed
     if seed is None:
         seed = secrets.randbits(64)
@@ -329,7 +330,6 @@ def _run_single(
     problem_instance = _resolve_problem(problem, n_var=n_var, n_obj=n_obj, problem_kwargs=problem_kwargs)
     validate_problem(problem_instance)
 
-    # Extract metadata
     n_var = int(problem_instance.n_var)
     n_obj = int(problem_instance.n_obj)
     try:

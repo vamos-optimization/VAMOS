@@ -32,6 +32,7 @@ from vamos.engine.config.variation import (
 )
 from vamos.engine.hooks.live_viz import LiveVisualization
 from vamos.engine.variation.helpers import (
+    apply_mutation_prob_factor,
     ensure_supported_operator_names,
     ensure_supported_repair_name,
 )
@@ -78,6 +79,7 @@ def _build_variation(
     var_cfg = {**resolve_default_variation_config(encoding, None), **explicit_overrides}
     c_name, c_kwargs = ensure_operator_tuple(var_cfg.get("crossover", ("sbx", {})), key="crossover")
     m_name, m_kwargs = ensure_operator_tuple(var_cfg.get("mutation", ("polynomial", {})), key="mutation")
+    m_kwargs = apply_mutation_prob_factor(m_kwargs, int(problem.n_var), config.get("mutation_prob_factor"))
     repair_cfg: RepairConfigValue = "auto"
     cross_name, mut_name = ensure_supported_operator_names(encoding, c_name, m_name)
     if "repair" in var_cfg:
@@ -288,7 +290,7 @@ class AGEMOEA:
             )
         )
         # Generation 0 is the evaluated initial population, as in every algorithm.
-        live_cb.on_generation(0, F=self._st.F, stats={"evals": self._st.n_eval})
+        live_cb.on_generation(0, F=self._st.F, X=self._st.X, stats={"evals": self._st.n_eval})
 
     def ask(self) -> np.ndarray[Any, Any]:
         """Generate offspring for external evaluation.
@@ -399,7 +401,7 @@ class AGEMOEA:
         st.hv_reached = st.hv_reached or hv_target_reached(st)
         stop_requested = False
         if self._live_cb is not None:
-            self._live_cb.on_generation(st.generation, F=st.F, stats={"evals": st.n_eval})
+            self._live_cb.on_generation(st.generation, F=st.F, X=st.X, stats={"evals": st.n_eval})
             stop_requested = live_should_stop(self._live_cb)
         return stop_requested or st.hv_reached
 
