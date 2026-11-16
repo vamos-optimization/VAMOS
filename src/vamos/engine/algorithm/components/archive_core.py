@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Literal, TypeAlias
+from typing import TYPE_CHECKING, Any, Literal, TypeAlias
 
 import numpy as np
 from numpy.typing import NDArray
@@ -14,6 +14,9 @@ except ImportError:  # pragma: no cover - optional dependency
 from vamos.engine.algorithm.components.archive_insertion import INSERTION_ROWS, drop_rows, insertion
 from vamos.foundation.constraints.utils import compute_violation, is_feasible
 from vamos.foundation.quality_indicators.pareto import pareto_filter
+
+if TYPE_CHECKING:
+    from vamos.engine.archive.config import ExternalArchiveConfig
 
 DeduplicateIn = Literal["objective", "decision", "both"]
 FloatArray: TypeAlias = NDArray[np.float64]
@@ -213,6 +216,8 @@ class _BaseArchive:
         #: Whether an update with exactly the rows of the last one would change nothing: the last update
         #: left the contents as they were and drew no random numbers, and updates are deterministic.
         self.unchanged_by_last_input = False
+        # The configuration of the external archive this archive holds (``setup_archive``), whose final subset the result reports.
+        self.external_config: ExternalArchiveConfig | None = None
 
     def update(
         self,

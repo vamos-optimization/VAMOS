@@ -668,6 +668,40 @@ def _keeps_frozen_api(frozen: Mapping[str, Any], generated: Mapping[str, Any], a
     )
 
 
+def _as_baseline(name: str, frozen: Mapping[str, Any], generated: Mapping[str, Any], added: Mapping[str, Sequence[str]]) -> dict[str, Any]:
+    """``generated`` without what the check accepts as added after 1.0, so that a rewritten snapshot stays the 1.0 baseline.
+
+    A reviewed change of a frozen value, such as a changed ``Config.default()``, then rewrites that
+    value only: the algorithms, the configuration fields, the constructor parameters and the
+    keyword-only arguments added after 1.0 stay out of the snapshot, as when nothing frozen changes.
+    """
+    baseline = dict(generated)
+    if name == CONFIGS_SNAPSHOT:
+        frozen_ids = set(frozen.get(_ALGORITHM_IDS, []))
+        baseline[_ALGORITHM_IDS] = [algorithm for algorithm in generated.get(_ALGORITHM_IDS, []) if algorithm in frozen_ids]
+        baseline["config_fields"] = {
+            config: [field for field in fields if field not in added.get(config, ())]
+            for config, fields in generated.get("config_fields", {}).items()
+        }
+        for section in _CONFIG_SECTIONS[1:]:
+            baseline[section] = _without_added(generated.get(section, {}), added)
+    elif name == API_SNAPSHOT:
+        frozen_signatures = frozen.get("signatures", {})
+        baseline["signatures"] = {
+            key: (
+                frozen_signatures[key]
+                if key in frozen_signatures
+                and (
+                    _extends_constructor(frozen_signatures[key], signature, added.get(key.rsplit(".", 1)[-1], ()))
+                    or _adds_keyword_arguments(frozen_signatures[key], signature)
+                )
+                else signature
+            )
+            for key, signature in generated.get("signatures", {}).items()
+        }
+    return baseline
+
+
 def _matches(name: str, committed_text: str, expected: bytes, added: Mapping[str, Sequence[str]] | None) -> bool:
     """Whether a committed snapshot holds the generated contract: exactly, or with optional configuration fields added."""
     if committed_text == expected.decode("utf-8"):
@@ -712,7 +746,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             if current is None or not _matches(name, current, expected, added):
                 mismatches.append(path.relative_to(REPO_ROOT).as_posix())
         elif current is None or not _matches(name, current, expected, added):
-            # A snapshot that only lacks optional configuration fields added after 1.0 stays the 1.0 baseline.
+            # A snapshot that only lacks optional configuration fields added after 1.0 stays the 1.0 baseline,
+            # and so does one with a changed frozen value: only that value is rewritten.
+            if current is not None and added is not None and name in {CONFIGS_SNAPSHOT, API_SNAPSHOT}:
+                expected = _json_bytes(_as_baseline(name, json.loads(current), json.loads(expected), added))
             path.write_bytes(expected)
     if mismatches:
         print("VAMOS 1.0 compatibility snapshots differ:")

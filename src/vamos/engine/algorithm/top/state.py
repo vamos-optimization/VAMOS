@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from vamos.engine.algorithm.components.results import (
+    apply_final_archive_subset,
     feasible_result_indices,
     get_external_archive_constraints,
     get_external_archive_contents,
@@ -79,7 +80,7 @@ def build_top_result(state: ToPState, kernel: Any = None) -> dict[str, Any]:
     if archive_contents is not None:
         archive_X, archive_F = archive_contents
         result["archive"] = with_constraints({"X": archive_X, "F": archive_F}, archive_G)
-    return result
+    return apply_final_archive_subset(result, state)
 
 
 __all__ = ["ToPState", "build_top_result"]

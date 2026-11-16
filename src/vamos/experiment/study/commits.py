@@ -116,7 +116,10 @@ def append_event(
             path=relative,
             expected="absent next event path",
             actual="occupied path",
-            action="Stop execution and inspect the journal; no existing event is overwritten.",
+            action=(
+                "Another process is probably running, resuming or retrying this study; studies have one owner. "
+                "Stop the other process and inspect the journal; no existing event is overwritten."
+            ),
         )
     document = event_document(
         sequence=sequence,

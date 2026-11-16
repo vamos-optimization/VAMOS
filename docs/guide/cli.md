@@ -156,7 +156,8 @@ Use `vamos study resume STUDY_DIR` for eligible pending/interrupted work and
 `vamos study retry STUDY_DIR --failed` for explicit bounded failed-task retry.
 Concurrent mutation is unsupported: one process must remain the only mutation
 owner for a study. There is no cross-process cancel command; foreground Ctrl+C
-uses graceful durable cancellation.
+uses graceful durable cancellation, and a cancelled study cannot be resumed
+(see [Resume and retry](studies.md#resume-and-retry)).
 
 **Development after 1.2.1:** a Ctrl+C that arrives while the study writes a
 journal event and the checkpoints that record it takes effect once those writes
