@@ -121,7 +121,7 @@ execution state:
 - defaults applied and their sources;
 - determinism declaration and RNG family.
 
-**Development after 1.2.1:** the configuration of a registered problem also
+**VAMOS 1.3.0:** the configuration of a registered problem also
 holds the options passed through `problem_kwargs`, such as `capacity_ratio` for
 `bin_knapsack`; a run without options records only the dimensions, the encoding
 and the constraint convention, as before. Verification and replay pass the
@@ -224,7 +224,7 @@ claim requires the same resolved spec, implementation, backend, materially
 equivalent environment, and a deterministic path. Loading does not test replay
 equivalence.
 
-**Development after 1.2.1:** a run stopped by `("max_time", seconds)` has no
+**VAMOS 1.3.0:** a run stopped by `("max_time", seconds)` has no
 deterministic path: its termination is `vamos.termination:max_time@1`, its
 `determinism.declared` is `false`, its replayability is `best_effort` with the
 reason `wall_clock_termination`, and verification reports that reason and no

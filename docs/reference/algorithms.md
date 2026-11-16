@@ -28,9 +28,9 @@ To query the installed registry, use `available_algorithms()` from `vamos.algori
 
 ## Capability matrix
 
-This table describes the **VAMOS 1.2.1 package**. Changes since 1.0.0 are listed below. “R / B / I / P / M” means real, binary, integer, permutation and mixed encodings. An encoding requires compatible variation operators and, for mixed problems, the problem's variable specification; a real-coded default configuration does not convert a discrete problem.
+This table describes the **VAMOS 1.3.0 package**. Changes since 1.0.0 are listed below. “R / B / I / P / M” means real, binary, integer, permutation and mixed encodings. An encoding requires compatible variation operators and, for mixed problems, the problem's variable specification; a real-coded default configuration does not convert a discrete problem.
 
-| Algorithm | Encodings | Constraint-aware survival in 1.2.1 | Archive | Backends | API status |
+| Algorithm | Encodings | Constraint-aware survival in 1.3.0 | Archive | Backends | API status |
 | --- | --- | --- | --- | --- | --- |
 | NSGA-II | R / B / I / P / M | Feasibility-based | Optional external result archive | NumPy / Numba / MooCore | Stable |
 | NSGA-III | R / B / I / P / M | Feasibility-first with reference-direction niching ([details](#constraint-handling-in-110)) | Optional external result archive | NumPy / Numba / MooCore | Stable |
@@ -50,7 +50,7 @@ This table describes the **VAMOS 1.2.1 package**. Changes since 1.0.0 are listed
 
 **VAMOS 1.2.0:** every `XConfig.default()` takes an optional `encoding`, and `optimize(problem, algorithm=...)` passes the problem's encoding to it. Discrete and mixed problems then get the operators of the shared encoding table: uniform crossover and bit-flip mutation for binary, OX and swap for permutations, SBX (probability 0.9) and polynomial mutation for integers, and the mixed operators for mixed problems. In VAMOS 1.1.0 only NSGA-II and MOEA/D did this, so 22 of the 33 supported combinations of the nine algorithms with `bin_knapsack`, `tsp6`, `int_alloc` and `mixed_design` failed with an error about `sbx` or `pm`; integer runs of IBEA, AGE-MOEA and RVEA, which worked, now use the table's SBX(0.9, 20) instead of their real-coded crossover. Every `default()` also accepts `pop_size=None` (100, or the lattice size for MOEA/D, NSGA-III and RVEA), and `builder().pop_size()` rejects anything but a positive integer.
 
-**Development after 1.2.1:** three crossovers no longer bias the search or
+**VAMOS 1.3.0:** three crossovers no longer bias the search or
 collapse its diversity. The integer SBX (`sbx` on integer variables, and
 `int_crossover="sbx"` in mixed problems) rounds each child to the nearest
 integer. jMetal and jMetalPy truncate it with `int()`, which pulls the children
@@ -202,7 +202,7 @@ published results or with another framework.
   `aggregation("tchebycheff")` reproduces jMetal's MOEA/D-DE. See
   [MOEA/D](../algorithms/moead.md).
 
-**Development after 1.2.1:** three real-coded mutations scale their steps by
+**VAMOS 1.3.0:** three real-coded mutations scale their steps by
 the range of each variable.
 
 - `non_uniform` is Michalewicz's mutation, as in jMetal: a mutated variable
@@ -274,7 +274,7 @@ differences, which `tests/experiment/test_cli_api_parity.py` keeps listed:
 - NSGA-II's offspring size and SMS-EMOA's reference point are written out by
   one path and left to their defaults by the other, with the same effect.
 
-**Development after 1.2.1:** NSGA-III's SBX has distribution index 30 on the
+**VAMOS 1.3.0:** NSGA-III's SBX has distribution index 30 on the
 command line too, as in Deb and Jain (2014), pymoo and the MOEA Framework, and
 as `NSGAIIIConfig.default()` already had (jMetal's NSGA-III examples keep its
 general SBX default, 20). VAMOS 1.2.1 and earlier used 20 on the command line,
@@ -305,7 +305,7 @@ SMS-EMOA and IBEA keep `hv_converged` as an alias until VAMOS 2.0. In VAMOS
 SMS-EMOA and IBEA reported only `hv_converged`, so the CLI never recorded that
 their HV target was reached.
 
-**Development after 1.2.1:** `optimize(termination=("max_time", seconds))`
+**VAMOS 1.3.0:** `optimize(termination=("max_time", seconds))`
 stops a run of any built-in algorithm once `seconds` of wall-clock time have
 passed since it started, checked after each generation (MOEA/D after each
 `pop_size` evaluations, SMS-EMOA after each step), so a run can overrun the
@@ -358,7 +358,7 @@ These are implementation fixes under the existing stability policy. Record the p
 
 - NumPy (default): vectorized CPU kernels.
 - Numba: JIT acceleration for supported kernels (set `VAMOS_USE_NUMBA_VARIATION=1` for permutation/binary/integer variation).
-- MooCore: accelerated kernels via `moocore`. Install optional backends with `python -m pip install "vamos-optimization[compute]==1.2.1"`; see [installation](../guide/installation.md).
+- MooCore: accelerated kernels via `moocore`. Install optional backends with `python -m pip install "vamos-optimization[compute]==1.3.0"`; see [installation](../guide/installation.md).
 
 ### Backend roles
 
@@ -506,7 +506,7 @@ reference contribution call. Other operators and repairs, genealogy tracking,
 kernels that override the ranking or contribution hooks, a platform where
 compiled `pow` differs from `np.power`, and non-finite objective values keep
 the reference step. VAMOS 1.1.0 ran front insertion and contributions in Python
-under every engine. **Development after 1.2.1:** jMetal's reference point rule
+under every engine. **VAMOS 1.3.0:** jMetal's reference point rule
 (`reference_point(rule="jmetal")`) also keeps the reference step, with the
 same results under every engine.
 
@@ -561,7 +561,7 @@ probability 1.7 or `eta=-5`, `kappa` at or below 0 (which inverts IBEA's
 selection) and `delta=1.5` ran without warning, and a `result_mode` or
 aggregation typo failed only after the initial population was evaluated.
 
-**Development after 1.2.1:** `mutation_prob_factor` reaches every algorithm
+**VAMOS 1.3.0:** `mutation_prob_factor` reaches every algorithm
 whose configuration has it: MOEA/D, NSGA-III, SMS-EMOA, SPEA2, AGE-MOEA and
 RVEA now set the mutation probability to `factor / n_var` (at most 1), as
 NSGA-II and IBEA did. In VAMOS 1.2.0 those six ran with the mutation's own

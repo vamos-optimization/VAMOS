@@ -1,10 +1,10 @@
 # CLI and config files
 
 Install the [published package](installation.md) before using these commands.
-The examples target VAMOS 1.2.1; use `vamos --help` or `vamos <command> --help`
+The examples target VAMOS 1.3.0; use `vamos --help` or `vamos <command> --help`
 for the parser in your installed version.
 
-| Command family | Status in 1.2.1 | Use it for |
+| Command family | Status in 1.3.0 | Use it for |
 | --- | --- | --- |
 | Main optimization runner | **Stable** core invocation | One run or a configured problem set |
 | `results inspect`, `results verify`, `reproduce` | **Stable** | Canonical run inspection, integrity, and exact replay |
@@ -158,7 +158,7 @@ Concurrent mutation is unsupported: one process must remain the only mutation
 owner for a study. There is no cross-process cancel command; foreground Ctrl+C
 uses graceful durable cancellation.
 
-**Development after 1.2.1:** a Ctrl+C that arrives while the study writes a
+**VAMOS 1.3.0:** a Ctrl+C that arrives while the study writes a
 journal event and the checkpoints that record it takes effect once those writes
 finish, so the cancelled study always loads. Before, a Ctrl+C right after
 `execution_started` could leave the root checkpoint behind the journal, and
@@ -214,7 +214,7 @@ vamos --problem zdt1 --experiment backends --max-evaluations 2000
 ```
 
 Install optional kernels with
-`python -m pip install "vamos-optimization[compute]==1.2.1"`.
+`python -m pip install "vamos-optimization[compute]==1.3.0"`.
 The `--experiment backends` comparison skips unavailable optional kernels with
 a warning. An explicit single-run `--engine numba` or `--engine moocore`
 instead fails if that dependency is missing; it never switches silently.
@@ -305,7 +305,7 @@ Key flags
 ---------
 
 - `--algorithm`: agemoea, ccmo, cmoeams, ctaea, ibea, moead, nsgaii, nsgaiii, rvea, smpso, smsemoa, spea2, top, or both
-- `--engine`: numpy | numba | moocore | auto. The deterministic default is `numpy`; `auto` prefers available Numba with a NumPy fallback. See the [automatic engine policy](../reference/algorithms.md#automatic-engine-selection) for the selection and replay rules in VAMOS 1.2.1.
+- `--engine`: numpy | numba | moocore | auto. The deterministic default is `numpy`; `auto` prefers available Numba with a NumPy fallback. See the [automatic engine policy](../reference/algorithms.md#automatic-engine-selection) for the selection and replay rules in VAMOS 1.3.0.
 - `--problem`: any registry key (see [Problems](../reference/problems.md))
 - `--problem-set`: predefined sets (e.g., `families`)
 - `--validate-config`: validate `--config` with the checks that precede a run and exit
@@ -313,7 +313,7 @@ Key flags
 - `--no-preflight`: skip optional dependency warnings
 - `--population-size`, `--offspring-population-size`
 - `--max-evaluations`
-- `--hv-threshold` and `--hv-reference-front` (**Development after 1.2.1:** a CSV path, or `jmetal` for jMetal's packaged front of ZDT and DTLZ, see [Reference fronts](../reference/problems.md#reference-fronts))
+- `--hv-threshold` and `--hv-reference-front` (**VAMOS 1.3.0:** a CSV path, or `jmetal` for jMetal's packaged front of ZDT and DTLZ, see [Reference fronts](../reference/problems.md#reference-fronts))
 - `--selection-pressure`, `--external-archive-size`
 - `--eval-strategy`: serial | multiprocessing (with `--n-workers`) | dask (Experimental; with `--dask-address`, see [Dask](../scaling/dask.md))
 - `--live-viz` with `--live-viz-interval`, `--live-viz-max-points`

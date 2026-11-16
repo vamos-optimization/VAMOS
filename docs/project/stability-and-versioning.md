@@ -23,7 +23,7 @@ Every supported surface has one of three labels:
 An importable name is not automatically stable. A surface is stable only when
 it is listed here and represented in the VAMOS 1.0 compatibility baseline.
 
-**Development after 1.2.1:** during 1.x, a stable function, method or class may
+**VAMOS 1.3.0:** during 1.x, a stable function, method or class may
 gain optional keyword-only arguments, so every call that worked keeps working.
 The compatibility check accepts such an argument when it has a default and still
 fails when a parameter is removed, renamed, reordered, changes kind or default,
@@ -129,7 +129,7 @@ The stable study lifecycle consists of:
   and `retry` methods;
 - `StudyReport` and `StudySummary`.
 
-Study mutation is single-owner in VAMOS 1.2.1. Do not run concurrent
+Study mutation is single-owner in VAMOS 1.3.0. Do not run concurrent
 `run`, `resume`, or `retry` operations against the same study. There is no
 cross-process cancellation command. Inspection and summary are immutable,
 data-only projections.
@@ -218,7 +218,7 @@ accepting a different backend silently is a breaking change.
 Undocumented provider, plugin, tuning, Studio, and internal configuration is
 not covered by this promise.
 
-**Development after 1.2.1:** `mutation_prob_factor` sets the mutation
+**VAMOS 1.3.0:** `mutation_prob_factor` sets the mutation
 probability to `factor / n_var` (at most 1) in MOEA/D, NSGA-III, SMS-EMOA,
 SPEA2, AGE-MOEA and RVEA, as it already did in NSGA-II and IBEA; in VAMOS
 1.2.0 those six algorithms ignored it. Five stable fields have no effect, so a
@@ -237,7 +237,7 @@ removal in 2.0:
 
 ## Experimental surface
 
-The following remain experimental in VAMOS 1.2.1:
+The following remain experimental in VAMOS 1.3.0:
 
 - Studio and all generated-code execution;
 - LLM-provider and provider-specific assist integrations;
@@ -310,7 +310,7 @@ replacement where available, and affected versions.
 
 ## Python and operating-system support
 
-VAMOS 1.2.1 supports only the Python versions and operating systems exercised
+VAMOS 1.3.0 supports only the Python versions and operating systems exercised
 by the final hosted release matrix and declared in package metadata. Dropping
 a supported Python version during 1.x requires advance documentation and a
 minor release. Optional dependencies may have narrower platform support and

@@ -14,7 +14,7 @@ ZDT1, NSGA-II and MOEA/D, seeds 42 and 43, population 100, NumPy backend,
 10,000 evaluations per run. The two seeds are pooled for each algorithm.
 This is a walkthrough dataset, not evidence that one algorithm is better.*
 
-This guide targets **VAMOS 1.2.1**. Since VAMOS 1.1.0 the launcher serves the
+This guide targets **VAMOS 1.3.0**. Since VAMOS 1.1.0 the launcher serves the
 application and honors its study directory. Users of 1.0.2 should upgrade to
 obtain these fixes and the durable batch and comparison pages described here.
 
@@ -84,7 +84,7 @@ ranking table shown on the page, filters included. Use the
 Studio's optional dependencies are installed from PyPI:
 
 ```bash
-python -m pip install "vamos-optimization[studio]==1.2.1"
+python -m pip install "vamos-optimization[studio]==1.3.0"
 ```
 
 The packaged command and its intended study-root argument are:
@@ -102,7 +102,7 @@ vamos studio --address ::1 --port 5010 --study-dir results/studio-demo
 
 With an IPv6 address, open Studio at `http://localhost:5010/app`.
 
-**Development after 1.2.1:** Studio admits only the browsers that open it with
+**VAMOS 1.3.0:** Studio admits only the browsers that open it with
 the access token of its launch. Each launch draws a new token and prints a link
 that carries it, such as `http://127.0.0.1:5006/app?token=…`, and the browser
 that `vamos studio` opens receives the link through a file only you can read,
@@ -123,7 +123,7 @@ vamos studio --address 0.0.0.0 --allow-remote-binding --no-browser
 
 Remote binding exposes an experimental local application to other network
 users. Apply operating-system firewall and access controls appropriate to the
-environment. **Development after 1.2.1:** with a non-loopback address, Studio
+environment. **VAMOS 1.3.0:** with a non-loopback address, Studio
 offers neither Problem Builder nor Batch Comparison, because whoever uses them
 runs code with the account that serves Studio, reads and writes its files, and
 can spend the LLM API keys in its environment; `--allow-remote-code-execution`
@@ -262,7 +262,7 @@ return control to Python before that interruption can take effect. Studio never
 signals a process by its id, which the system may have given to another
 program after a crash. Studio shows **stopping** until the worker acknowledges
 the request; a stale heartbeat is reported as lost, not as a confirmed stop.
-**Development after 1.2.1:** a stop that arrives while the worker writes a
+**VAMOS 1.3.0:** a stop that arrives while the worker writes a
 journal event and the checkpoints that record it waits until those writes
 finish. Before, a stop right after the study started could leave a study that
 `load_study` rejected with `CHECKPOINT_JOURNAL_INCONSISTENCY`.
