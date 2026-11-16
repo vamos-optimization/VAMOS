@@ -5,10 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover - exercised by the Python 3.10 CI job
-    import tomli as tomllib
+import tomllib
 
 PYPROJECT = Path(__file__).resolve().parents[2] / "pyproject.toml"
 

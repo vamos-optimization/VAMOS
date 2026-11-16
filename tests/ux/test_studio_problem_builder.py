@@ -608,12 +608,9 @@ def test_each_llm_provider_installs_from_the_extra_its_error_names(monkeypatch: 
     import sys
     from pathlib import Path
 
-    from vamos.ux.studio import _studio_llm
+    import tomllib
 
-    try:
-        import tomllib
-    except ModuleNotFoundError:  # pragma: no cover - Python < 3.11 fallback
-        import tomli as tomllib  # type: ignore[import-not-found,no-redef]
+    from vamos.ux.studio import _studio_llm
 
     distribution, module = _PROVIDER_PACKAGES[provider]
     pyproject = tomllib.loads((Path(__file__).resolve().parents[2] / "pyproject.toml").read_text(encoding="utf-8"))

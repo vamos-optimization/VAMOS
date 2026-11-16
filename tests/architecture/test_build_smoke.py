@@ -6,10 +6,7 @@ import tarfile
 import zipfile
 from pathlib import Path, PurePosixPath
 
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover - exercised by the Python 3.10 CI job
-    import tomli as tomllib
+import tomllib
 
 from tests.architecture._build_tree import REPO_ROOT, build_from_copy, checkout_build_outputs
 

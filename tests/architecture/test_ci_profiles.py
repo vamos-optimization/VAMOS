@@ -6,14 +6,10 @@ import re
 from collections import Counter
 from pathlib import Path
 
+import tomllib
 import yaml
 from packaging.requirements import Requirement
 from packaging.version import Version
-
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover - Python < 3.11 fallback
-    import tomli as tomllib  # type: ignore[import-not-found,no-redef]
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -40,7 +36,23 @@ def _ci_jobs() -> dict:
     return yaml.load((ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8"), Loader=yaml.BaseLoader)["jobs"]
 
 
+def _tested_pythons() -> list[str]:
+    matrix = _ci_jobs()["tests-full"]["strategy"]["matrix"]
+    return sorted({*matrix["python-version"], *(entry["python-version"] for entry in matrix["include"])}, key=Version)
+
+
+def _ci_requirements() -> list[Requirement]:
+    lines = (line.split("#", 1)[0].strip() for line in (ROOT / "constraints" / "ci.txt").read_text(encoding="utf-8").splitlines())
+    return [Requirement(line) for line in lines if line]
+
+
 _PIP_VALUE_OPTIONS = {"-c", "-r", "-e", "--constraint", "--requirement", "--editable"}
+
+# Distributions that constraints/ci.txt pins without a declaration, by the declared distribution that installs them.
+_PINNED_DEPENDENCIES = {
+    # mkdocs.yml configures the Markdown extensions of PyMdown.
+    "pymdown-extensions": "mkdocs-material",
+}
 
 
 def _workflows() -> list[tuple[str, str]]:
@@ -101,6 +113,8 @@ def test_ci_constraints_pin_only_declared_distributions() -> None:
     declared |= {_name(extra) for requirement in requirements for extra in re.findall(r"\[([^\]]+)\]", requirement)}
     # A maintainer tool's dependency that a workflow installs by name, such as pymoo for tools/benchmark_compare_pymoo.py.
     declared |= {name for _workflow, arguments in _pip_installs() for name in _installed_by_name(arguments)}
+    # A pinned dependency of a declared distribution, which pip installs with it.
+    declared |= {name for name, installer in _PINNED_DEPENDENCIES.items() if installer in declared}
 
     undeclared = sorted(set(_pins(ROOT / "constraints" / "ci.txt")) - declared)
     assert undeclared == [], f"constraints/ci.txt pins distributions that nothing installs: {undeclared}"
@@ -138,8 +152,9 @@ def test_minimum_profile_uses_declared_minimums() -> None:
     assert {_name(pin.split("==")[0]): pin.split("==")[1] for pin in printed} == declared
 
     job = _ci_jobs()["tests-minimum"]
-    assert job["strategy"]["matrix"]["python-version"] == ["3.10"]
-    assert _project()["project"]["requires-python"] == ">=3.10"
+    # The oldest supported Python. VAMOS 1.3.0 requires Python 3.11, as announced with 1.2.0.
+    assert job["strategy"]["matrix"]["python-version"] == ["3.11"]
+    assert _project()["project"]["requires-python"] == ">=3.11"
     scripts = "\n".join(step.get("run", "") for step in job["steps"])
     assert "python tools/minimum_constraints.py" in scripts
     assert "constraints/ci.txt ." not in scripts
@@ -178,18 +193,33 @@ def test_tests_full_runs_every_python_on_linux_and_the_newest_on_every_system() 
 
 
 def test_ci_constraints_pin_each_distribution_at_most_once_for_every_tested_python() -> None:
-    matrix = _ci_jobs()["tests-full"]["strategy"]["matrix"]
-    pythons = sorted({*matrix["python-version"], *(entry["python-version"] for entry in matrix["include"])}, key=Version)
-    lines = (line.split("#", 1)[0].strip() for line in (ROOT / "constraints" / "ci.txt").read_text(encoding="utf-8").splitlines())
-    requirements = [Requirement(line) for line in lines if line]
+    requirements = _ci_requirements()
     core = {_name(requirement) for requirement in _project()["project"]["dependencies"]}
 
-    for python in pythons:
+    for python in _tested_pythons():
         environment = {"python_version": python, "python_full_version": f"{python}.0"}
         applied = Counter(_name(item.name) for item in requirements if item.marker is None or item.marker.evaluate(environment))
         # Two pins for one Python make pip fail; the core dependencies need one on every tested Python.
         assert sorted(name for name, count in applied.items() if count > 1) == [], python
         assert sorted(name for name in core if applied[name] != 1) == [], python
+
+
+def test_python_markers_select_a_tested_python() -> None:
+    # A requirement or a pin whose marker excludes every tested Python serves only a Python that VAMOS no longer supports.
+    data = _project()
+    requirements = [
+        *(Requirement(requirement) for requirement in data["project"]["dependencies"]),
+        *(Requirement(requirement) for group in data["project"]["optional-dependencies"].values() for requirement in group),
+        *_ci_requirements(),
+    ]
+    environments = [{"python_version": python, "python_full_version": f"{python}.0"} for python in _tested_pythons()]
+
+    unused = [
+        str(requirement)
+        for requirement in requirements
+        if requirement.marker is not None and not any(requirement.marker.evaluate(environment) for environment in environments)
+    ]
+    assert unused == [], f"requirements and pins for no tested Python: {unused}"
 
 
 def test_tests_full_runs_in_parallel_and_measures_coverage_in_one_job() -> None:

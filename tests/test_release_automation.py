@@ -11,14 +11,10 @@ import zipfile
 from pathlib import Path
 
 import pytest
+import tomllib
 import yaml
 from packaging.requirements import Requirement
 from packaging.version import Version
-
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover - Python < 3.11 fallback
-    import tomli as tomllib  # type: ignore[import-not-found,no-redef]
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -299,7 +295,7 @@ def test_release_workflows_are_parseable_pinned_and_cover_claimed_matrix() -> No
             assert re.fullmatch(r"[^@]+@[0-9a-f]{40}", action), f"Unpinned action in {path}: {action}"
 
     release = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
-    assert "ubuntu-latest" in release and 'python: "3.10"' in release
+    assert "ubuntu-latest" in release and 'python: "3.11"' in release
     assert "windows-latest" in release and "macos-latest" in release
     assert "primary-maximum-compute" in release
     assert "python -m build --no-isolation --outdir candidate-dist" in release
@@ -325,6 +321,8 @@ def test_classifiers_match_tested_python_versions() -> None:
     assert _project()["requires-python"] == f">={tested[0]}"
     # Python 3.13 and 3.14 are tested and declared since 1.2.0.
     assert {"3.13", "3.14"} <= set(declared)
+    # VAMOS 1.3.0 requires Python 3.11, as announced with 1.2.0 (docs/project/stability-and-versioning.md).
+    assert declared[0] == "3.11"
 
 
 def test_installation_guide_lists_the_tested_python_versions() -> None:
@@ -402,11 +400,14 @@ def test_build_pins_agree_between_ci_and_release() -> None:
         assert constraints[name] >= minimum
 
 
-def test_ci_constraints_retain_declared_python_310_support() -> None:
+def test_ci_constraints_pin_one_documentation_and_notebook_toolchain() -> None:
+    # Python 3.10 needed older IPython, mkdocstrings and PyMdown; every supported Python takes the same pin.
     constraints = (ROOT / "constraints" / "ci.txt").read_text(encoding="utf-8")
+    requirements = [Requirement(line) for line in constraints.splitlines() if line and not line.startswith("#")]
 
-    assert 'ipython==8.39.0 ; python_version < "3.11"' in constraints
-    assert 'ipython==9.0.2 ; python_version >= "3.11"' in constraints
+    for package in ("ipython", "mkdocstrings", "pymdown-extensions"):
+        pins = [requirement for requirement in requirements if requirement.name == package]
+        assert len(pins) == 1 and pins[0].marker is None, package
 
 
 def test_notebook_execution_dependencies_include_a_pinned_kernel() -> None:

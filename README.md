@@ -52,6 +52,9 @@ Canonical customization guide: [Extending VAMOS](https://vamos-optimization.org/
 pip install vamos-optimization
 ```
 
+**Development after 1.2.1:** VAMOS requires Python 3.11 or newer; VAMOS 1.2 is
+the last minor release for Python 3.10.
+
 For development and extras (Windows PowerShell):
 
 ```powershell
