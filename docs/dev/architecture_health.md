@@ -59,9 +59,8 @@ The canonical environment, path inventory, diagnostic fingerprint schema, baseli
 ## Layering Policy (current reality)
 - foundation may depend on foundation/resources only.
 - engine may depend on engine/foundation/resources.
-- experiment may depend on experiment/foundation/engine/ux/assist/resources.
+- experiment may depend on experiment/foundation/engine/ux/resources.
 - ux may depend on ux/foundation/engine/resources.
-- assist may depend on assist/foundation/engine/experiment/resources.
 - resources must not import other VAMOS layers.
 - Facades: prefer `vamos.api`, `vamos.algorithms`, `vamos.problems`, `vamos.ux.api`.
 

@@ -128,7 +128,6 @@ nav:
       - Hyperparameter Tuning: topics/tuning.md
       - Scaling with Dask: scaling/dask.md
       - VAMOS Studio: guide/studio.md
-      - VAMOS Assist: assist.md
   - Reference:
     - Overview: reference/index.md
     - API Reference:

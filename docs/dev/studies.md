@@ -249,7 +249,7 @@ notebook, and CLI consumers all delegate to canonical planning, persistence,
 execution, inspection, and summary services.
 
 Model-tuning and racing services optimize parameter candidates and fidelities;
-Assist plans and `run_experiment` execute a single run. Those workflows are not
+`run_experiment` executes a single run. Those workflows are not
 fixed problem/algorithm/seed StudyManifest matrices and remain on their
 respective canonical service paths.
 

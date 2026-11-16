@@ -22,7 +22,6 @@ Do not add readers, migrations, aliases, or deprecation cycles for internal pre-
 - `src/vamos/engine/`: algorithms, canonical variation pipelines, operator implementations, archives, hooks, and tuning.
 - `src/vamos/experiment/`: orchestration, CLI, studies, diagnostics, and artifacts.
 - `src/vamos/ux/`: public analysis, visualization, and Studio surfaces.
-- `src/vamos/assist/`: assisted workflows built on foundation, engine, and experiment.
 - `src/vamos/resources/`: packaged data; it imports no VAMOS layer.
 - `tests/`: unit, integration, architecture, documentation, and smoke coverage.
 - `docs/`, `examples/`, `notebooks/`: maintained learning and user material.
@@ -30,7 +29,7 @@ Do not add readers, migrations, aliases, or deprecation cycles for internal pre-
 - `experiments/`: research material, not runtime APIs. `paper/` is an optional local manuscript workspace; it is ignored and must not be tracked or published.
 - `experiments/scripts/canonical_runs.py`: the shared research collector for canonical `load_run`/`load_result` access.
 
-Permitted dependencies are: foundation -> foundation/resources; engine -> engine/foundation/resources; ux -> ux/foundation/engine/resources; experiment -> experiment/foundation/engine/ux/assist/resources; assist -> assist/foundation/engine/experiment/resources. Do not create reverse imports or import-time initialization to bypass these boundaries.
+Permitted dependencies are: foundation -> foundation/resources; engine -> engine/foundation/resources; ux -> ux/foundation/engine/resources; experiment -> experiment/foundation/engine/ux/resources. Do not create reverse imports or import-time initialization to bypass these boundaries.
 
 Read [Architecture Health](docs/dev/architecture_health.md) before adding a module, dependency, or public API.
 

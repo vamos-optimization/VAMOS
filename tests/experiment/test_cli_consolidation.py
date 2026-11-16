@@ -332,6 +332,17 @@ def test_subcommands_dict_matches_dispatch():
         assert name in _SUBCOMMANDS, f"'{name}' missing from _SUBCOMMANDS"
 
 
+def test_assist_is_not_a_subcommand():
+    """`vamos assist` was removed with vamos.assist; the word reaches the optimization parser, which rejects it."""
+    from vamos.experiment.cli.main import _SUBCOMMANDS
+
+    assert "assist" not in _SUBCOMMANDS
+    proc = _run_vamos("assist", "go", "a plan")
+    assert proc.returncode == 2
+    assert "unrecognized arguments: assist go a plan" in _decode(proc.stderr)
+    assert "assist" not in _decode(_run_vamos("help").stdout)
+
+
 def test_tune_smoke_with_suite_split(tmp_path):
     out_root = tmp_path / "tune_results"
     proc = _run_vamos(

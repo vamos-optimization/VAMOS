@@ -279,22 +279,6 @@ vamos studio
 
 See [Adding a problem](https://vamos-optimization.org/dev/add_problem/) for all approaches (function, class, or registry).
 
-## VAMOS Assist (no-code workflow)
-
-VAMOS Assist provides an end-to-end no-code flow for creating validated experiment plans, materializing runnable projects, and optionally running smoke checks. You can start with deterministic templates (no API keys), and optionally use provider-backed auto planning.
-
-```bash
-vamos assist go "template-first example" --template demo --smoke
-```
-
-```bash
-pip install vamos-optimization[openai]
-setx OPENAI_API_KEY "..."
-vamos assist go "..." --mode auto --provider openai --smoke
-```
-
-See [VAMOS Assist](https://vamos-optimization.org/assist/) for the full guide (billing, privacy, artifacts, troubleshooting).
-
 Preferred path: start with `optimize(...)`. Use config objects only when you need fully specified, reproducible runs or plugin algorithms.
 See [Getting started](https://vamos-optimization.org/guide/getting-started/) for a short decision guide.
 
