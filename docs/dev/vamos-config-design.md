@@ -149,9 +149,9 @@ identity will replace the hand-bumped suffix of the persistent Optuna studies (p
 then the suffix is bumped with each change of the spaces (`__vamos_cli_final_population_hv_v4`
 from the version after 1.3.0).
 
-VAMOS does not depend on PyYAML. It reads the packaged spaces from `parameter_spaces.json`, their
-canonical form, which `tools/update_parameter_spaces.py` writes from the YAML files; a test fails
-when the two differ. Users' YAML files need PyYAML, as YAML experiment specifications do.
+PyYAML is a dependency of VAMOS, which reads the packaged YAML files at run time with its safe
+loader; no generated copy ships. `tools/update_parameter_spaces.py` checks every file against G1 to
+G6 and writes the snapshot of what the bridges build from the grammars.
 
 ## 5. Configurations
 
@@ -209,14 +209,14 @@ RVEA's earlier `n_partitions`) left every space (decision 4).
 
 Writing the grammars also brought out two defects of the spaces of VAMOS 1.3.0. The segments of
 NSGA-II's mixed space sampled their absolute mutation probabilities in [0.25, 3.0], the range of a
-factor; their grammar samples [0.01, 0.5], as the other mixed spaces. And the mixed spaces of
-MOEA/D, NSGA-III, SMS-EMOA and SPEA2 offer segment operators and probabilities that their mixed
-variation does not use: every point of those spaces runs as the default.
+factor; their grammar samples [0.01, 0.5], as the other mixed spaces. And the mixed variation of
+MOEA/D, NSGA-III, SMS-EMOA and SPEA2 ignored the segment operators and probabilities, so every point
+of their mixed spaces ran as the default; phase 2 fixes it.
 
-Five mixed spaces (NSGA-II's, IBEA's, AGE-MOEA's, RVEA's and SMPSO's) break G7: their segment
-operators draw random numbers in another order than the default mixed operators, which apply one
-probability to every segment, so no point of those spaces runs as the default configuration. A
-strict `xfail` records the departure until the mixed grammars offer the default operators.
+The nine mixed spaces break G7: their segment operators draw random numbers in another order than
+the default mixed operators, which apply one probability to every segment, so no point of those
+spaces runs as the default configuration. A strict `xfail` records the departure until the mixed
+grammars offer the default operators.
 
 ## 8. Names
 
