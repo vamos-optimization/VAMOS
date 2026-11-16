@@ -213,7 +213,7 @@ def _add_nsga_family_arguments(parser: argparse.ArgumentParser, *, spec_defaults
         dest="nsgaiii_crossover_eta",
         type=float,
         default=_as_float(nsgaiii_crossover.get("eta")),
-        help="SBX eta for NSGA-III (real encoding).",
+        help="SBX eta for NSGA-III (real encoding; default: 30.0).",
     )
     parser.add_argument(
         "--nsga3-mutation",
