@@ -255,6 +255,10 @@ differences, which `tests/experiment/test_cli_api_parity.py` keeps listed:
   `optimize` records the lattice's divisions.
 - MOEA/D: the command line reads the packaged weight files and records their
   directory, a path inside the installation; `optimize` records the divisions.
+  **Development after 1.2.1:** with three or more objectives,
+  `algorithm.resolution.weight_vectors` records the weights each path runs: a
+  packaged jMetal file, such as `W3D_91.dat`, on the command line, and the
+  Das-Dennis lattice with `optimize`.
 - NSGA-II's offspring size and SMS-EMOA's reference point are written out by
   one path and left to their defaults by the other, with the same effect.
 
