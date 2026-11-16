@@ -218,10 +218,12 @@ factor; their grammar samples [0.01, 0.5], as the other mixed spaces. And the mi
 MOEA/D, NSGA-III, SMS-EMOA and SPEA2 ignored the segment operators and probabilities, so every point
 of their mixed spaces ran as the default; phase 2 fixes it.
 
-The nine mixed spaces break G7: their segment operators draw random numbers in another order than
+The nine mixed spaces broke G7: their segment operators draw random numbers in another order than
 the default mixed operators, which apply one probability to every segment, so no point of those
-spaces runs as the default configuration. A strict `xfail` records the departure until the mixed
-grammars offer the default operators.
+spaces ran as the default configuration. *In the version after 1.3.0* the mixed grammars offer the
+default operators: `crossover` and `mutation` choose `mixed` (the default, with
+`crossover_probability` and `mutation_probability_factor`) or `per_segment` (the segment operators
+and their probabilities), and every space passes G7.
 
 ## 8. Names
 

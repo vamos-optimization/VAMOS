@@ -28,12 +28,6 @@ PROBLEMS = {
     "permutation": ("tsp6", {}),
     "mixed": ("mixed_design", {}),
 }
-# Every mixed space: each one runs its segment settings (test_mixed_segment_settings.py).
-MIXED_DEPARTURES = {name for name in builtin_parameter_space_names() if name.endswith("_mixed")}
-MIXED_DEPARTURE = pytest.mark.xfail(
-    strict=True,
-    reason="the mixed operators draw per-segment choices in another order than the default mixed operators",
-)
 
 
 def _problem_kind(name: str) -> str:
@@ -46,8 +40,7 @@ def _problem_kind(name: str) -> str:
 def _cases() -> list[object]:
     cases: list[object] = []
     for name in sorted(builtin_parameter_space_names()):
-        marks = [MIXED_DEPARTURE] if name in MIXED_DEPARTURES else []
-        cases.append(pytest.param(name, None, id=name, marks=marks))
+        cases.append(pytest.param(name, None, id=name))
     for name in ("moead", "nsgaiii", "rvea"):
         cases.append(pytest.param(name, ("dtlz2", {"n_obj": 3, "n_var": 12}), id=f"{name}-three-objectives"))
     return cases

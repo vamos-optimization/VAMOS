@@ -603,9 +603,15 @@ what a bridge builds from it, changes without its snapshot. Compared with the sp
   algorithm's `default()` configuration for the encoding, which a test checks
   for every space by comparing seeded runs (rule G7). `initial_solutions` and
   `repair` offer `auto`, the configuration's automatic choice, as their
-  default, as Evolver's `createInitialSolutions: default`. The nine mixed
-  spaces do not pass G7 yet: their segment operators run differently from the
-  default mixed operators.
+  default, as Evolver's `createInitialSolutions: default`.
+- In the mixed spaces, `crossover` and `mutation` choose between `mixed`, the
+  default mixed operators, with one probability for every segment
+  (`crossover_probability`, and `mutation_probability_factor` over the number
+  of variables), and `per_segment`, an operator and a probability per segment
+  (`perm_crossover`, `real_mutation_prob`, ...). Their default is `mixed`, so
+  the mixed spaces pass G7 too; their segment parameters used to be active in
+  every configuration, whose defaults ran differently from the default mixed
+  operators.
 - The segment settings of the mixed spaces of MOEA/D, NSGA-III, SMS-EMOA and
   SPEA2 (`real_mutation`, `int_crossover_prob`, ...) reach the run. Their mixed
   variation gave the operators the problem's segments without the
@@ -627,7 +633,7 @@ what a bridge builds from it, changes without its snapshot. Compared with the sp
   builds it).
 - The mutation probability is `mutation_probability_factor` in [0.25, 3.0],
   divided by the number of variables, in every space but the permutation spaces
-  of the algorithms other than NSGA-II and the segments of the mixed spaces,
+  of the algorithms other than NSGA-II and the `per_segment` operators of the mixed spaces,
   whose probability applies to a whole solution or segment and defaults to a
   constant. The real-coded spaces of NSGA-III, SPEA2, IBEA, SMPSO, AGE-MOEA,
   RVEA, CCMO, C-TAEA, ToP and CMOEA-MS, and the binary and integer spaces of

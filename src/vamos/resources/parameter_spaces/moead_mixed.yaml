@@ -33,80 +33,98 @@ parameters:
       modified_tchebycheff:
         conditional_parameters:
           mtch_rho: {type: real, default: 0.001, range: [0.0001, 0.1], role: operator_rate}
-  crossover: {type: categorical, default: mixed, values: [mixed], role: operator}
-  mutation: {type: categorical, default: mixed, values: [mixed], role: operator}
-  perm_crossover:
+  crossover:
     type: categorical
-    default: ox
+    default: mixed
     role: operator
-    global_sub_parameters:
-      perm_crossover_prob: {type: real, default: 0.9, range: [0.6, 1.0], role: operator_rate}
-    values: [ox, pmx, edge, cycle, position, aex]
-  perm_mutation:
-    type: categorical
-    default: swap
-    role: operator
-    global_sub_parameters:
-      perm_mutation_prob: {type: real, default: 0.1, range: [0.01, 0.5], role: operator_rate}
-    values: [swap, insert, scramble, inversion, displacement, two_opt]
-  real_crossover:
-    type: categorical
-    default: arithmetic
-    role: operator
-    global_sub_parameters:
-      real_crossover_prob: {type: real, default: 0.9, range: [0.6, 1.0], role: operator_rate}
-    values: [arithmetic, mean]
-  real_mutation:
-    type: categorical
-    default: gaussian
-    role: operator
-    global_sub_parameters:
-      real_mutation_prob: {type: real, default: 0.1, range: [0.01, 0.5], role: operator_rate}
     values:
-      gaussian:
+      mixed:
         conditional_parameters:
-          real_mutation_sigma_factor: {type: real, default: 0.1, range: [0.01, 0.5], role: operator_rate}
-      uniform_reset: {}
-      polynomial:
+          crossover_probability: {type: real, default: 0.9, range: [0.6, 1.0], role: operator_rate}
+      per_segment:
         conditional_parameters:
-          real_mutation_eta: {type: real, default: 20.0, range: [5.0, 40.0], role: operator_rate}
-  int_crossover:
+          perm_crossover:
+            type: categorical
+            default: ox
+            role: operator
+            global_sub_parameters:
+              perm_crossover_prob: {type: real, default: 0.9, range: [0.6, 1.0], role: operator_rate}
+            values: [ox, pmx, edge, cycle, position, aex]
+          real_crossover:
+            type: categorical
+            default: arithmetic
+            role: operator
+            global_sub_parameters:
+              real_crossover_prob: {type: real, default: 0.9, range: [0.6, 1.0], role: operator_rate}
+            values: [arithmetic, mean]
+          int_crossover:
+            type: categorical
+            default: uniform
+            role: operator
+            global_sub_parameters:
+              int_crossover_prob: {type: real, default: 0.9, range: [0.6, 1.0], role: operator_rate}
+            values:
+              uniform: {}
+              arithmetic: {}
+              sbx:
+                conditional_parameters:
+                  int_crossover_eta: {type: real, default: 20.0, range: [5.0, 40.0], role: operator_rate}
+          cat_crossover:
+            type: categorical
+            default: uniform
+            role: operator
+            global_sub_parameters:
+              cat_crossover_prob: {type: real, default: 0.9, range: [0.6, 1.0], role: operator_rate}
+            values: [uniform]
+  mutation:
     type: categorical
-    default: uniform
+    default: mixed
     role: operator
-    global_sub_parameters:
-      int_crossover_prob: {type: real, default: 0.9, range: [0.6, 1.0], role: operator_rate}
     values:
-      uniform: {}
-      arithmetic: {}
-      sbx:
+      mixed:
         conditional_parameters:
-          int_crossover_eta: {type: real, default: 20.0, range: [5.0, 40.0], role: operator_rate}
-  int_mutation:
-    type: categorical
-    default: reset
-    role: operator
-    global_sub_parameters:
-      int_mutation_prob: {type: real, default: 0.1, range: [0.01, 0.5], role: operator_rate}
-    values:
-      reset: {}
-      creep:
+          mutation_probability_factor: {type: real, default: 1.0, range: [0.25, 3.0], role: operator_rate}
+      per_segment:
         conditional_parameters:
-          int_mutation_step: {type: int, default: 1, range: [1, 5], role: operator_rate}
-      polynomial:
-        conditional_parameters:
-          int_mutation_eta: {type: real, default: 20.0, range: [5.0, 40.0], role: operator_rate}
-  cat_crossover:
-    type: categorical
-    default: uniform
-    role: operator
-    global_sub_parameters:
-      cat_crossover_prob: {type: real, default: 0.9, range: [0.6, 1.0], role: operator_rate}
-    values: [uniform]
-  cat_mutation:
-    type: categorical
-    default: reset
-    role: operator
-    global_sub_parameters:
-      cat_mutation_prob: {type: real, default: 0.1, range: [0.01, 0.5], role: operator_rate}
-    values: [reset]
+          perm_mutation:
+            type: categorical
+            default: swap
+            role: operator
+            global_sub_parameters:
+              perm_mutation_prob: {type: real, default: 0.1, range: [0.01, 0.5], role: operator_rate}
+            values: [swap, insert, scramble, inversion, displacement, two_opt]
+          real_mutation:
+            type: categorical
+            default: gaussian
+            role: operator
+            global_sub_parameters:
+              real_mutation_prob: {type: real, default: 0.1, range: [0.01, 0.5], role: operator_rate}
+            values:
+              gaussian:
+                conditional_parameters:
+                  real_mutation_sigma_factor: {type: real, default: 0.1, range: [0.01, 0.5], role: operator_rate}
+              uniform_reset: {}
+              polynomial:
+                conditional_parameters:
+                  real_mutation_eta: {type: real, default: 20.0, range: [5.0, 40.0], role: operator_rate}
+          int_mutation:
+            type: categorical
+            default: reset
+            role: operator
+            global_sub_parameters:
+              int_mutation_prob: {type: real, default: 0.1, range: [0.01, 0.5], role: operator_rate}
+            values:
+              reset: {}
+              creep:
+                conditional_parameters:
+                  int_mutation_step: {type: int, default: 1, range: [1, 5], role: operator_rate}
+              polynomial:
+                conditional_parameters:
+                  int_mutation_eta: {type: real, default: 20.0, range: [5.0, 40.0], role: operator_rate}
+          cat_mutation:
+            type: categorical
+            default: reset
+            role: operator
+            global_sub_parameters:
+              cat_mutation_prob: {type: real, default: 0.1, range: [0.01, 0.5], role: operator_rate}
+            values: [reset]

@@ -253,12 +253,15 @@ def test_one_name_per_operator_and_parameter(name: str) -> None:
 @pytest.mark.parametrize("name", SPACE_NAMES)
 def test_the_mutation_probability_is_a_factor_of_one_over_n(name: str) -> None:
     # M7, except where the default is a constant probability per solution: the permutation mutations of
-    # the algorithms other than NSGA-II, and the segments of the mixed operators.
+    # the algorithms other than NSGA-II, and the segments of the mixed operators. The default mixed
+    # mutation takes the factor: its probability is 1/n.
     space = grammar(name)
     names = set(space.names())
-    if space.encoding == "mixed" or (space.encoding == "permutation" and space.algorithm != "nsgaii"):
+    if space.encoding == "permutation" and space.algorithm != "nsgaii":
         assert "mutation_probability_factor" not in names
         return
+    if space.encoding == "mixed":
+        assert [child.name for child in space.parameter("mutation").production("mixed")] == ["mutation_probability_factor"]
     assert "mutation_probability_factor" in names and "mutation_prob" not in names
     factor = space.parameter("mutation_probability_factor")
     assert factor.range == (0.25, 3.0)

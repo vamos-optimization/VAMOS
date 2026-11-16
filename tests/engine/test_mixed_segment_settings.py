@@ -4,7 +4,8 @@ A mixed space offers an operator and a probability per segment of the variables 
 ``int_crossover_prob``, ...). MOEA/D, NSGA-III, SMS-EMOA and SPEA2 build their mixed variation with
 the shared discrete builder, which gave the operators the problem's segment layout without the
 configuration's settings: every point of their mixed spaces ran as the default. Each change below must
-change the configuration and the run.
+change the configuration and the run, from the segment operators' defaults (``per_segment``, the
+second choice of ``crossover`` and ``mutation`` besides the default mixed operators).
 """
 
 from __future__ import annotations
@@ -30,9 +31,19 @@ CHANGES: dict[str, dict[str, Any]] = {
 }
 
 
-def _final_population(name: str, change: dict[str, Any]) -> tuple[dict[str, Any], np.ndarray]:
+def _segment_defaults(name: str) -> dict[str, Any]:
+    """The default configuration with the segment operators, each at its defaults."""
     space = builtin_parameter_space(f"{name}_mixed")
-    values = {**space.default_values(), **change}
+    values: dict[str, Any] = {**space.default_values(), "crossover": "per_segment", "mutation": "per_segment"}
+    while True:  # the segment nodes that become active bring their default productions
+        derived = {parameter.name: values.get(parameter.name, parameter.default) for parameter in space.active_parameters(values)}
+        if derived == values:
+            return values
+        values = derived
+
+
+def _final_population(name: str, change: dict[str, Any]) -> tuple[dict[str, Any], np.ndarray]:
+    values = {**_segment_defaults(name), **change}
     config = config_from_assignment(f"{name}_mixed", {**values, "pop_size": 20, "n_obj": 2})
     problem = make_problem_selection("mixed_design").instantiate()
     result = optimize(problem, algorithm=name, algorithm_config=config, max_evaluations=200, seed=3, engine="numpy")

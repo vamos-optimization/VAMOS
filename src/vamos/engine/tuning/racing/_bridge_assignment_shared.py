@@ -57,6 +57,10 @@ _MIXED_MUTATION_RATE_KEYS = (
 
 def sanitize_assignment(assignment: dict[str, Any]) -> dict[str, Any]:
     sanitized = dict(assignment)
+    # The mixed grammars' segment operators are the mixed operator with the segment settings.
+    for operator in ("crossover", "mutation"):
+        if sanitized.get(operator) == "per_segment":
+            sanitized[operator] = "mixed"
     if "external_archive" in sanitized:
         if sanitized["external_archive"] != "bounded":
             sanitized.pop("archive_prune_policy", None)
