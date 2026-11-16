@@ -274,7 +274,7 @@ where = ["src"]
 
 [tool.ruff]
 line-length = 140
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.format]
 line-ending = "auto"
@@ -289,4 +289,5 @@ ignore = [
     "B905",  # zip() without strict= - existing codebase pattern
     "C408",  # Unnecessary dict() call - dict() reads better in plotly marker kwargs
     "UP038",  # Tuple form keeps isinstance checks readable for mixed runtime types
+    "UP042",  # A str mixin Enum keeps its str() and format(); StrEnum would change them
 ]

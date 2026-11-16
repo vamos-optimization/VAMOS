@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
-
 import tomllib
+from pathlib import Path
 
 from vamos.foundation.version import __version__
 

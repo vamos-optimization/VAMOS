@@ -11,12 +11,11 @@ import os
 import re
 import subprocess
 import sys
+import tomllib
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Literal, cast
-
-import tomllib
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = REPO_ROOT / "pyproject.toml"

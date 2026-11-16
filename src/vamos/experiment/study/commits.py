@@ -9,7 +9,7 @@ from collections import Counter
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from types import FrameType
 from typing import Any, cast
@@ -38,7 +38,7 @@ _HELD_SIGNALS = (signal.SIGINT, signal.SIGTERM)
 
 
 def now_utc() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 class _HeldSignals:

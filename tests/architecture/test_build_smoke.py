@@ -3,10 +3,9 @@ from __future__ import annotations
 import fnmatch
 import subprocess
 import tarfile
+import tomllib
 import zipfile
 from pathlib import Path, PurePosixPath
-
-import tomllib
 
 from tests.architecture._build_tree import REPO_ROOT, build_from_copy, checkout_build_outputs
 

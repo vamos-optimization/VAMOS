@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 import uuid
 from collections.abc import Mapping
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -314,7 +314,7 @@ def _incomplete_metadata(requested: object, resolved: object) -> IncompleteRunMe
 
 
 def _timestamps(meta: Mapping[str, Any]) -> tuple[dict[str, str], float]:
-    now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     raw = meta.get("run_artifact_timestamps")
     if not isinstance(raw, Mapping):
         return {"started_at": now, "completed_at": now}, 0.0

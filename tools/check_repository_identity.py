@@ -6,12 +6,12 @@ import argparse
 import json
 import re
 import subprocess
+import tomllib
 from collections import Counter
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from urllib.parse import unquote
 
-import tomllib
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]

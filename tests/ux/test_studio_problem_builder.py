@@ -606,9 +606,8 @@ def test_every_studio_llm_provider_has_a_package_entry() -> None:
 def test_each_llm_provider_installs_from_the_extra_its_error_names(monkeypatch: pytest.MonkeyPatch, provider: str) -> None:
     import re
     import sys
-    from pathlib import Path
-
     import tomllib
+    from pathlib import Path
 
     from vamos.ux.studio import _studio_llm
 

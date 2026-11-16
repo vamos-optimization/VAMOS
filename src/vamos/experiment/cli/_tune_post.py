@@ -5,7 +5,7 @@ import json
 import logging
 import warnings
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -262,7 +262,7 @@ def persist_artifacts(
     arg_payload = {k: (str(v) if isinstance(v, Path) else v) for k, v in vars(args).items()}
     summary = {
         "schema_version": "vamos_tuning_v1",
-        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "timestamp_utc": datetime.now(UTC).isoformat(),
         "backend": str(args.backend),
         "problem": str(args.problem),
         "algorithm": str(args.algorithm),

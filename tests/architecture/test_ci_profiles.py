@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import re
+import tomllib
 from collections import Counter
 from pathlib import Path
 
-import tomllib
 import yaml
 from packaging.requirements import Requirement
 from packaging.version import Version

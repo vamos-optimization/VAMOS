@@ -7,11 +7,11 @@ import re
 import subprocess
 import sys
 import tarfile
+import tomllib
 import zipfile
 from pathlib import Path
 
 import pytest
-import tomllib
 import yaml
 from packaging.requirements import Requirement
 from packaging.version import Version
