@@ -33,19 +33,7 @@ from vamos.engine.algorithm.config import (
     SPEA2Config,
     ToPConfig,
 )
-from vamos.engine.variation.helpers import (
-    BINARY_CROSSOVER,
-    BINARY_MUTATION,
-    INT_CROSSOVER,
-    INT_MUTATION,
-    MIXED_CROSSOVER,
-    MIXED_MUTATION,
-    PERM_CROSSOVER,
-    PERM_MUTATION,
-    REAL_CROSSOVER,
-    REAL_MUTATION,
-)
-from vamos.foundation.encoding import normalize_encoding
+from vamos.engine.variation.helpers import operator_names
 
 if TYPE_CHECKING:
     from vamos.engine.algorithm.registry import AlgorithmBuilder
@@ -82,21 +70,7 @@ def available_crossover_methods(encoding: str = "real") -> tuple[str, ...]:
     tuple[str, ...]
         Supported crossover method identifiers for the encoding.
     """
-    try:
-        normalized = normalize_encoding(encoding)
-    except ValueError:
-        return ()
-    if normalized == "real":
-        return tuple(sorted(REAL_CROSSOVER.keys()))
-    if normalized == "binary":
-        return tuple(sorted(BINARY_CROSSOVER.keys()))
-    if normalized == "permutation":
-        return tuple(sorted(PERM_CROSSOVER.keys()))
-    if normalized == "integer":
-        return tuple(sorted(INT_CROSSOVER.keys()))
-    if normalized == "mixed":
-        return tuple(sorted(MIXED_CROSSOVER.keys()))
-    return ()
+    return operator_names("crossover", encoding)
 
 
 def available_mutation_methods(encoding: str = "real") -> tuple[str, ...]:
@@ -113,21 +87,7 @@ def available_mutation_methods(encoding: str = "real") -> tuple[str, ...]:
     tuple[str, ...]
         Supported mutation method identifiers for the encoding.
     """
-    try:
-        normalized = normalize_encoding(encoding)
-    except ValueError:
-        return ()
-    if normalized == "real":
-        return tuple(sorted(REAL_MUTATION.keys()))
-    if normalized == "binary":
-        return tuple(sorted(BINARY_MUTATION.keys()))
-    if normalized == "permutation":
-        return tuple(sorted(PERM_MUTATION.keys()))
-    if normalized == "integer":
-        return tuple(sorted(INT_MUTATION.keys()))
-    if normalized == "mixed":
-        return tuple(sorted(MIXED_MUTATION.keys()))
-    return ()
+    return operator_names("mutation", encoding)
 
 
 def resolve_algorithm(name: str) -> AlgorithmBuilder:

@@ -10,6 +10,13 @@ Add an algorithm when VAMOS needs a new search/update lifecycle. A new crossover
 4. Add a builder with the registry signature `(config_mapping, kernel) -> AlgorithmLike`, then register the canonical lower-case name in `_register_algorithms(...)` and `get_builtin_algorithm_names()`.
 5. Wire current construction in `src/vamos/engine/algorithm/builders.py` and related focused builder modules. Validate encoding, reference directions, population size, operator choices, and backend capability before entering the run loop. If the algorithm runs permutation problems, add it to `PERMUTATION_COMPATIBLE_ALGORITHMS` in `src/vamos/engine/algorithm/variants.py`, which the command line and the experiment runner check before a run.
 6. Export a stable config through `vamos.algorithms` only if public callers need it. Update CLI/spec parsing, artifact reconstruction, and public API snapshots whenever the public/resolved configuration surface changes.
+7. Add the name to every list of built-in algorithms; `tests/architecture/test_builtin_component_lists.py` keeps them equal:
+   - `ENABLED_ALGORITHMS`, `ALGORITHM_MINIMUMS` and `_LABELS` in `src/vamos/engine/algorithm/catalog.py`;
+   - `_register_algorithms(...)` and `get_builtin_algorithm_names()` in `src/vamos/engine/algorithm/registry.py`;
+   - `_DEFAULT_FACTORIES` in `src/vamos/engine/algorithm/config/defaults.py`, which `vamos.optimize` uses;
+   - the `builders` of `build_algorithm` in `src/vamos/engine/algorithm/factory.py`, which the command line uses;
+   - the fields of `VariationConfigs` in `src/vamos/experiment/_execution_support.py`, which the command line fills;
+   - `BUILT_IN_ALGORITHMS` in `src/vamos/experiment/artifacts/component_support.py`, which run specifications and exact replay read.
 
 The implementation must honor exact evaluation budgets and explicit seed/RNG ownership. It must not switch backends silently. Reference-direction algorithms must define and validate how direction count constrains population size.
 
