@@ -10,10 +10,12 @@ from typing import Literal, cast
 CanonicalPrunePolicy = Literal["crowding", "hv", "mc_hv", "knn", "maxmin", "ref_dirs"]
 PrunePolicy = CanonicalPrunePolicy
 DeduplicateIn = Literal["objective", "decision", "both"]
+FinalSelection = Literal["none", "farthest", "crowding", "hv_greedy", "kmeans"]
 
 _VALID_PRUNE_POLICIES = {"crowding", "hv", "mc_hv", "knn", "maxmin", "ref_dirs"}
 _VALID_DEDUPLICATE_IN = ("objective", "decision", "both")
 _HV_POLICIES = ("hv", "mc_hv")
+_VALID_FINAL_SELECTIONS = ("none", "farthest", "crowding", "hv_greedy", "kmeans")
 
 
 def normalize_prune_policy(policy: str) -> PrunePolicy:
@@ -39,7 +41,7 @@ def check_external_archive_field(name: str, value: object) -> None:
     Wrong types raise ``TypeError`` and out-of-range values ``ValueError``; both
     messages name the field.
     """
-    if name in ("capacity", "truncate_size"):
+    if name in ("capacity", "truncate_size", "final_size"):
         if value is None:
             return
         if not _is_integer(value):
@@ -69,6 +71,9 @@ def check_external_archive_field(name: str, value: object) -> None:
     elif name == "deduplicate_in":
         if value not in _VALID_DEDUPLICATE_IN:
             raise ValueError(f"deduplicate_in must be one of {', '.join(_VALID_DEDUPLICATE_IN)}, got {value!r}.")
+    elif name == "final_selection":
+        if value not in _VALID_FINAL_SELECTIONS:
+            raise ValueError(f"final_selection must be one of {', '.join(_VALID_FINAL_SELECTIONS)}, got {value!r}.")
     else:
         raise TypeError(f"Unknown external archive field {name!r}.")
 
@@ -81,16 +86,29 @@ class ExternalArchiveConfig:
     vectors count as duplicates. It is absolute, so the default is 0: only identical
     vectors are merged, whatever the scale of the objectives.
 
+    ``final_selection`` chooses the subset of the archive that the result reports
+    when the run ends: ``"none"`` (the default) reports the whole archive;
+    ``"farthest"``, ``"crowding"``, ``"hv_greedy"`` and ``"kmeans"`` select
+    ``final_size`` solutions (the population size when ``None``) with the
+    selection of the same name in
+    :mod:`vamos.engine.algorithm.components.subset_selection`; ``kmeans`` uses
+    ``rng_seed``. The result's ``data["archive"]`` keeps the whole archive, and
+    ``data["archive_subset"]`` records the selection, its size and the indices of
+    the selected rows in the archive. It applies to bounded archives too, and not
+    with ``result_mode="population"``.
+
     Every field is validated when the configuration is built. A field that the
     chosen pruning does not use (``hv_ref_point`` without HV pruning,
-    ``rng_seed`` without ``ref_dirs``, or a pruning other than ``crowding``
-    without a ``capacity``) gives a ``UserWarning``.
+    ``rng_seed`` without ``ref_dirs`` pruning or the ``kmeans`` final selection,
+    a pruning other than ``crowding`` without a ``capacity``, or ``final_size``
+    without a ``final_selection``) gives a ``UserWarning``.
 
-    ``rng_seed`` seeds the random choices of ``ref_dirs`` pruning. ``None``, the default,
-    derives that stream from the run seed (:func:`vamos.foundation.rng.derived_seed`), so the
-    runs of an experiment prune with different streams and a repeated seed prunes the same way;
-    the algorithms resolve it when they build the archive, and ``optimize`` records the
-    effective seed in the resolved configuration. An integer fixes the stream.
+    ``rng_seed`` seeds the random choices of ``ref_dirs`` pruning and of the ``kmeans``
+    final selection. ``None``, the default, derives that stream from the run seed
+    (:func:`vamos.foundation.rng.derived_seed`), so the runs of an experiment prune with
+    different streams and a repeated seed prunes the same way; the algorithms resolve it
+    when they build the archive, and ``optimize`` records the effective seed in the
+    resolved configuration. An integer fixes the stream.
     """
 
     capacity: int | None = None
@@ -101,6 +119,8 @@ class ExternalArchiveConfig:
     truncate_size: int | None = None
     deduplicate_in: DeduplicateIn = "objective"
     decision_tolerance: float = 1e-32
+    final_size: int | None = None
+    final_selection: FinalSelection = "none"
 
     def __post_init__(self) -> None:
         for field in fields(self):
@@ -108,6 +128,8 @@ class ExternalArchiveConfig:
         object.__setattr__(self, "pruning", normalize_prune_policy(self.pruning))
         if self.capacity is not None:
             object.__setattr__(self, "capacity", int(self.capacity))
+        if self.final_size is not None:
+            object.__setattr__(self, "final_size", int(self.final_size))
         if self.truncate_size is not None:
             object.__setattr__(self, "truncate_size", int(self.truncate_size))
             if self.capacity is None:
@@ -128,8 +150,14 @@ class ExternalArchiveConfig:
             unused.append(f"pruning={self.pruning!r} has no effect without a capacity: the archive is unbounded")
         if self.hv_ref_point is not None and (self.capacity is None or self.pruning not in _HV_POLICIES):
             unused.append(f"hv_ref_point is used only by HV pruning of a bounded archive (pruning={self.pruning!r})")
-        if self.rng_seed is not None and (self.capacity is None or self.pruning != "ref_dirs"):
-            unused.append(f"rng_seed is used only by ref_dirs pruning of a bounded archive (pruning={self.pruning!r})")
+        uses_seed = (self.capacity is not None and self.pruning == "ref_dirs") or self.final_selection == "kmeans"
+        if self.rng_seed is not None and not uses_seed:
+            unused.append(
+                "rng_seed is used only by ref_dirs pruning of a bounded archive and by the kmeans final selection "
+                f"(pruning={self.pruning!r}, final_selection={self.final_selection!r})"
+            )
+        if self.final_size is not None and self.final_selection == "none":
+            unused.append("final_size has no effect without a final_selection: the result reports the whole archive")
         for message in unused:
             warnings.warn(f"External archive: {message}.", UserWarning, stacklevel=3)
 
@@ -138,6 +166,7 @@ __all__ = [
     "CanonicalPrunePolicy",
     "DeduplicateIn",
     "ExternalArchiveConfig",
+    "FinalSelection",
     "PrunePolicy",
     "check_external_archive_field",
     "normalize_prune_policy",

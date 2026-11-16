@@ -251,6 +251,24 @@ Use an explicit result mode when output cardinality matters. `population` return
 
 For algorithms with a supported external result archive, enabling it makes that archive the default result source unless `population` is requested explicitly. Inspect `result.data["population"]` and `result.data["archive"]` separately. An internal SPEA2 environmental archive or SMPSO leaders archive influences search; an external result archive serves a different purpose. See [stopping and archives](../experiment/stopping_and_archive.md).
 
+**Development after 1.2.1:** an unbounded external archive returns every non-dominated solution the run found, thousands on long runs, whereas jMetal's `BestSolutionsArchive` and Evolver return a subset as large as the population. `external_archive(capacity=None, final_selection=..., final_size=...)` makes the result report such a subset when the run ends:
+
+```python
+from vamos.algorithms import NSGAIIConfig
+
+config = (
+    NSGAIIConfig.builder()
+    .pop_size(100)
+    .crossover("sbx", prob=0.9, eta=20.0)
+    .mutation("pm", prob="1/n", eta=20.0)
+    .selection("tournament", size=2)
+    .external_archive(capacity=None, final_selection="crowding", final_size=100)
+    .build()
+)
+```
+
+`final_selection` is `"none"` (the default: the whole archive, as before), `"farthest"`, `"crowding"`, `"hv_greedy"` or `"kmeans"`, the selections of `top_k(method=...)`; `kmeans` is seeded with the archive's `rng_seed`, which without a value derives from the run seed (see [Reproducibility](../experiment/stopping_and_archive.md#reproducibility)). `final_size` defaults to the population size. `result.X` and `result.F` hold the subset, the archive stays whole in `result.data["archive"]` (`archive_X`/`archive_F` for NSGA-III and IBEA, `external_archive` for SPEA2), and `result.data["archive_subset"]` records the selection, the size and the indices of the selected rows in the archive. A saved run stores the subset as its result and the whole archive under `archive/` (SPEA2: `external_archive/`, since its `archive/` is the environmental archive), and its resolved specification records `final_selection` and `final_size`, so a replay selects the same subset. The subset also applies to a bounded archive larger than `final_size`, not with `result_mode="population"`, and not to hypervolume termination or live callbacks, which see the whole archive during the run.
+
 NSGA-III and RVEA require a population compatible with the configured reference directions. MOEA/D requires one weight vector per population member. For a simplex lattice with `p` divisions and `m` objectives, use `comb(p + m - 1, m - 1)`; for three objectives and 12 divisions, that is **91**. Explicit incompatible cardinalities fail; they are not warning-only cases. Follow the tutorials before changing objective count or population size.
 
 **VAMOS 1.2.0:** NSGA-III needs at least one individual per reference direction (N >= H) instead of exactly one, as Deb and Jain, jMetal and pymoo do; 100 individuals with 12 divisions and three objectives run with 91 directions, and fewer than 91 fail. Without `divisions`, NSGA-III uses the complete Das-Dennis lattice with the most directions that fit in `pop_size`; VAMOS 1.1.0 and earlier cut the next larger lattice to `pop_size` directions and lost the extreme direction of the first objective. With two objectives, NSGA-III and RVEA default to `pop_size - 1` divisions, or 99 without `pop_size`, instead of 6. RVEA and MOEA/D still need exactly one individual per vector; RVEA then keeps one survivor per occupied vector, so its population can end smaller than `pop_size` (see [RVEA](../algorithms/rvea.md)).

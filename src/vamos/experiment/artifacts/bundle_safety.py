@@ -25,12 +25,16 @@ ALLOWED_ARRAY_NAMES = (
     "archive/X",
     "archive/G",
     "archive/CV",
+    "external_archive/F",
+    "external_archive/X",
+    "external_archive/G",
+    "external_archive/CV",
     "reference_directions",
 )
 _ALLOWED_DTYPE_KINDS = ("b", "i", "u", "f")
 _COLUMN_DIMENSIONS = (
-    ("n_obj", ("F", "population/F", "archive/F", "reference_directions")),
-    ("n_var", ("X", "population/X", "archive/X")),
+    ("n_obj", ("F", "population/F", "archive/F", "external_archive/F", "reference_directions")),
+    ("n_var", ("X", "population/X", "archive/X", "external_archive/X")),
 )
 
 
@@ -90,7 +94,7 @@ def validate_contract_map(
     path: Path,
     operation: str,
 ) -> None:
-    for prefix in ("", "population/", "archive/"):
+    for prefix in ("", "population/", "archive/", "external_archive/"):
         f_name = f"{prefix}F"
         if f_name not in contracts:
             continue

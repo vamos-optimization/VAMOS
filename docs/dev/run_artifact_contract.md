@@ -180,7 +180,17 @@ Whitespace-only reformatting does not change the semantic hash.
 
 - `F`, `X`, `G`, `CV`, and `reference_directions`;
 - `population/F`, `population/X`, `population/G`, `population/CV`;
-- `archive/F`, `archive/X`, `archive/G`, `archive/CV`.
+- `archive/F`, `archive/X`, `archive/G`, `archive/CV`;
+- `external_archive/F`, `external_archive/X`, `external_archive/G`,
+  `external_archive/CV`.
+
+**Development after 1.2.1:** `external_archive/` holds the external archive of
+a SPEA2 run whose `X` and `F` do not: those of a final subset of it
+(`ExternalArchiveConfig.final_selection`) or of the population
+(`result_mode="population"`). SPEA2's `archive/` is its environmental archive.
+No other run writes these members, so a VAMOS 1.2.1 reader, which rejects
+unknown members, still loads every other bundle. Their column and row checks are
+those of `archive/`.
 
 V1 accepts only fixed-width boolean, signed integer, unsigned integer, and
 floating arrays. Object, string, structured, complex, datetime, and
