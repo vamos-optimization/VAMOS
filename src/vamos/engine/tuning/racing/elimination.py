@@ -1,26 +1,20 @@
 from __future__ import annotations
 
-import logging
 import math
-import warnings
 from typing import TYPE_CHECKING
 
 import numpy as np
+import numpy.typing as npt
 
 from .state import ConfigState, EliteEntry
-from .stats import build_score_matrix, select_configs_by_paired_test
-
-
-def _logger() -> logging.Logger:
-    return logging.getLogger(__name__)
-
+from .stats import build_score_matrix, select_configs_by_frace
 
 if TYPE_CHECKING:
     from .scenario import Scenario
     from .tuning_task import TuningTask
 
 
-def compute_aggregated_scores(configs: list[ConfigState], task: TuningTask) -> tuple[list[int], np.ndarray]:
+def compute_aggregated_scores(configs: list[ConfigState], task: TuningTask) -> tuple[list[int], npt.NDArray[np.float64]]:
     """
     Compute aggregated scores for all alive configs that have at least one score.
     """
@@ -39,7 +33,7 @@ def compute_aggregated_scores(configs: list[ConfigState], task: TuningTask) -> t
 def rank_based_elimination(
     configs: list[ConfigState],
     alive_indices: list[int],
-    agg_scores: np.ndarray,
+    agg_scores: npt.NDArray[np.float64],
     *,
     task: TuningTask,
     scenario: Scenario,
@@ -66,29 +60,24 @@ def rank_based_elimination(
     return eliminated_any
 
 
-def force_keep_top_k(
-    configs: list[ConfigState],
-    alive_indices: list[int],
-    agg_scores: np.ndarray,
+def fill_survivors(
+    keep: npt.NDArray[np.bool_],
+    agg_scores: npt.NDArray[np.float64],
     *,
-    task: TuningTask,
+    maximize: bool,
     k: int,
-) -> bool:
-    """Ensure that at least k configs remain alive by keeping the k best."""
-    n_alive = len(alive_indices)
-    if n_alive <= k:
-        return False
+) -> npt.NDArray[np.bool_]:
+    """Return ``keep`` with at least ``k`` rows kept, or all of them when there are fewer.
 
-    order = np.argsort(-agg_scores if task.maximize else agg_scores)
-    keep_rows = {int(idx) for idx in order[:k]}
-
-    eliminated_any = False
-    for row_idx, cfg_idx in enumerate(alive_indices):
-        new_alive = row_idx in keep_rows
-        if configs[cfg_idx].alive != new_alive:
-            configs[cfg_idx].alive = new_alive
-            eliminated_any = True
-    return eliminated_any
+    Every row that ``keep`` already keeps stays kept; the best of the other rows by aggregate
+    score fill the remaining places, the first row winning a tie.
+    """
+    filled = np.array(keep, dtype=bool)
+    missing = min(k, filled.size) - int(filled.sum())
+    if missing > 0:
+        order = np.argsort(-agg_scores if maximize else agg_scores, kind="stable")
+        filled[order[~filled[order]][:missing]] = True
+    return filled
 
 
 def eliminate_configs(configs: list[ConfigState], *, task: TuningTask, scenario: Scenario) -> bool:
@@ -116,8 +105,8 @@ def eliminate_configs(configs: list[ConfigState], *, task: TuningTask, scenario:
             scenario=scenario,
         )
 
-    # In statistical mode, be conservative before enough block evidence.
-    if min_len < scenario.min_blocks_before_elimination or min_len <= 1:
+    # In statistical mode, the first test waits for first_test blocks, as irace's firstTest.
+    if min_len < max(scenario.first_test, scenario.min_blocks_before_elimination) or min_len <= 1:
         return False
 
     # Keep waiting until all alive configs are aligned on the same number of blocks.
@@ -125,55 +114,10 @@ def eliminate_configs(configs: list[ConfigState], *, task: TuningTask, scenario:
         return False
 
     scores, aligned_indices = build_score_matrix(configs)
-
-    # --- Friedman Test Pre-Check ---
-    # Only if we have enough samples to be meaningful (e.g. at least 3 blocks, at least 3 configs)
-    if len(aligned_indices) >= 3 and scores.shape[1] >= 3:
-        try:
-            from scipy.stats import friedmanchisquare  # type: ignore[import-untyped]
-
-            # friedmanchisquare takes arguments as *samples
-            # each sample is an array of measurements for one subject (here config)
-            # We must pass rows of the score matrix
-            with warnings.catch_warnings():
-                # SciPy may emit RuntimeWarning for degenerate tie-correction cases.
-                # In that case the p-value can become NaN; treat it as "test not applicable".
-                warnings.simplefilter("ignore", RuntimeWarning)
-                stat, p_friedman = friedmanchisquare(*[scores[i, :] for i in range(scores.shape[0])])
-            if not np.isfinite(p_friedman):
-                raise ValueError("Friedman test produced non-finite p-value.")
-
-            # If p-value is high, we cannot reject the null hypothesis that all configs are equivalent.
-            # Thus, we should NOT eliminate anyone yet.
-            if p_friedman > scenario.alpha:
-                return False
-        except ImportError:
-            _logger().debug("Could not import scipy for Friedman pre-check", exc_info=True)
-        except ValueError:
-            _logger().debug("Friedman test raised ValueError (e.g. identical scores)", exc_info=True)
-    # -------------------------------
-
-    keep_mask = select_configs_by_paired_test(
-        scores=scores,
-        maximize=task.maximize,
-        alpha=scenario.alpha,
-        aggregator=task.aggregator,
-    )
-
-    num_keep = int(keep_mask.sum())
-    if num_keep <= 0:
-        best_idx = int(np.argmax(agg_scores)) if task.maximize else int(np.argmin(agg_scores))
-        keep_mask[best_idx] = True
-        num_keep = 1
-
-    if num_keep < scenario.min_survivors:
-        return force_keep_top_k(
-            configs,
-            aligned_indices,
-            agg_scores,
-            task=task,
-            k=scenario.min_survivors,
-        )
+    # F-race: Friedman on the ranks of each block and Conover's post-hoc, or Wilcoxon with two alive.
+    keep_mask = select_configs_by_frace(scores, maximize=task.maximize, alpha=scenario.alpha)
+    # Fewer survivors than the minimum: keep those of the test and add the best of the others by aggregate score.
+    keep_mask = fill_survivors(keep_mask, agg_scores, maximize=task.maximize, k=max(1, scenario.min_survivors))
 
     eliminated_any = False
     for row_idx, cfg_idx in enumerate(aligned_indices):
@@ -235,7 +179,7 @@ def update_elite_archive(
 __all__ = [
     "compute_aggregated_scores",
     "eliminate_configs",
+    "fill_survivors",
     "rank_based_elimination",
-    "force_keep_top_k",
     "update_elite_archive",
 ]

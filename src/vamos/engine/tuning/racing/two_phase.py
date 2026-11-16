@@ -1,5 +1,5 @@
 """
-Two-phase tuner: Successive Halving screening + irace-style racing refinement.
+Two-phase tuner: Successive Halving screening + an F-race refinement.
 
 Phase 1 (Screening):
     Samples many configurations and evaluates them at progressively increasing
@@ -7,10 +7,11 @@ Phase 1 (Screening):
     and quickly filters out clearly bad regions of the hyperparameter space.
 
 Phase 2 (Refinement):
-    Takes the survivors from Phase 1 and feeds them into a proper irace-style
-    block-by-block racing loop with Friedman + paired t-tests at full budget.
-    This provides statistically grounded final selection among the promising
-    candidates.
+    Takes the survivors from Phase 1 and races them block by block at full
+    budget with F-race tests (Friedman on the ranks of each block and Conover's
+    post-hoc comparison, or a paired Wilcoxon test with two alive). It is a
+    single race over those survivors, not irace's iterated racing, which samples
+    new configurations around the elites; the ``irace`` backend runs that.
 
 Usage:
 
