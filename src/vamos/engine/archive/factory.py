@@ -35,11 +35,12 @@ else:
 def resolve_archive_seed(ext_cfg: ExternalArchiveConfig, seed: int) -> ExternalArchiveConfig:
     """``ext_cfg`` with the effective ``rng_seed`` of a run with ``seed``.
 
-    Only ``ref_dirs`` pruning of a bounded archive draws random numbers. Without an
-    ``rng_seed`` it gets the stream derived from the run seed; an explicit ``rng_seed`` and
-    the other prunings are kept as they are.
+    Only ``ref_dirs`` pruning of a bounded archive and the ``kmeans`` final selection draw
+    random numbers. Without an ``rng_seed`` they get the stream derived from the run seed; an
+    explicit ``rng_seed`` and the other archives are kept as they are.
     """
-    if ext_cfg.rng_seed is not None or ext_cfg.capacity is None or ext_cfg.pruning != "ref_dirs":
+    uses_seed = (ext_cfg.capacity is not None and ext_cfg.pruning == "ref_dirs") or ext_cfg.final_selection == "kmeans"
+    if ext_cfg.rng_seed is not None or not uses_seed:
         return ext_cfg
     return replace(ext_cfg, rng_seed=derived_seed(seed, "external_archive"))
 
@@ -47,8 +48,8 @@ def resolve_archive_seed(ext_cfg: ExternalArchiveConfig, seed: int) -> ExternalA
 def resolve_external_archive(cfg: dict[str, Any], *, seed: int | None = None) -> ExternalArchiveConfig | None:
     """Extract :class:`ExternalArchiveConfig` from a serialized config dict.
 
-    With the run's ``seed``, ``ref_dirs`` pruning without an ``rng_seed`` gets the stream
-    derived from it (:func:`resolve_archive_seed`).
+    With the run's ``seed``, ``ref_dirs`` pruning and the ``kmeans`` final selection without
+    an ``rng_seed`` get the stream derived from it (:func:`resolve_archive_seed`).
     """
     raw = cfg.get("external_archive")
     if raw is None:
@@ -164,6 +165,7 @@ def setup_archive(
             selection_kernels=kernel.selection_kernels(),
         )
 
+    manager.external_config = ext_cfg
     archive_X, archive_F = manager.update(X, F, G)
     return archive_X, archive_F, manager
 

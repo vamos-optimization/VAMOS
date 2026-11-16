@@ -1,4 +1,4 @@
-"""Verified VAMOS 1.2.1 lesson: permutation. See coverage-setup for dependencies."""
+"""Verified VAMOS 1.3.0 lesson: permutation. See coverage-setup for dependencies."""
 
 
 def execute_example(problem, algorithm, config, budget, seed=42, engine="numpy"):

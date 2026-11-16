@@ -3,14 +3,14 @@ name: Publish frozen VAMOS release
 on:
   push:
     tags:
-      - "v1.2.1"
+      - "v1.3.0"
 
 permissions:
   contents: read
   actions: read
 
 env:
-  VAMOS_RELEASE_VERSION: "1.2.1"
+  VAMOS_RELEASE_VERSION: "1.3.0"
 
 jobs:
   recover-frozen-artifacts:
@@ -120,7 +120,7 @@ jobs:
             test "$(sha256sum "$FILE" | cut -d' ' -f1)" = "$(sha256sum "testpypi-dist/$NAME" | cut -d' ' -f1)"
           done
           python -m pip install --disable-pip-version-check --no-cache-dir -c constraints/ci.txt \
-            numpy scipy joblib pyyaml typing-extensions numba moocore 'dask[distributed]'
+            numpy scipy joblib pyyaml numba moocore 'dask[distributed]'
           python -m pip install --disable-pip-version-check --no-cache-dir --no-deps testpypi-dist/*.whl
           python -m pip check
       - name: Run full installed-package smoke
@@ -182,7 +182,7 @@ jobs:
             test "$(sha256sum "$FILE" | cut -d' ' -f1)" = "$(sha256sum "pypi-dist/$NAME" | cut -d' ' -f1)"
           done
           python -m pip install --disable-pip-version-check --no-cache-dir -c constraints/ci.txt \
-            numpy scipy joblib pyyaml typing-extensions numba moocore 'dask[distributed]'
+            numpy scipy joblib pyyaml numba moocore 'dask[distributed]'
           python -m pip install --disable-pip-version-check --no-cache-dir --no-deps pypi-dist/*.whl
           python -m pip check
       - name: Run full production installed-package smoke

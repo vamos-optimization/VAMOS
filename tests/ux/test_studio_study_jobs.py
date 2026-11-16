@@ -9,7 +9,7 @@ import subprocess
 import sys
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -543,4 +543,4 @@ def test_small_helpers() -> None:
     assert format_duration(42) == "42 s"
     assert format_duration(3725) == "1 h 02 min"
     assert load_study  # the data-only reader stays the only way the monitor reads a study
-    assert datetime.now(timezone.utc)
+    assert datetime.now(UTC)

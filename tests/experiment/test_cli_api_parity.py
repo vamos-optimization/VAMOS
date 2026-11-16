@@ -57,6 +57,16 @@ KNOWN_DIFFERENCES: dict[str, dict[str, tuple[object, object]]] = {
         "algorithm.config.reference_directions.path": (ABSENT, None),
     },
 }
+# Differences of one problem only: (algorithm, problem) -> key -> (command line, optimize). With three
+# objectives MOEA/D runs a packaged jMetal file on the command line and the lattice with optimize, which
+# the resolved weight vectors record; with two objectives both run uniform weights.
+PROBLEM_DIFFERENCES: dict[tuple[str, str], dict[str, tuple[object, object]]] = {
+    ("moead", "dtlz2"): {
+        "algorithm.resolution.weight_vectors.source": ("file", "das_dennis"),
+        "algorithm.resolution.weight_vectors.file": (VARIES, ABSENT),
+        "algorithm.resolution.weight_vectors.divisions": (ABSENT, VARIES),
+    },
+}
 
 
 class _Built(Exception):
@@ -156,7 +166,7 @@ def test_cli_and_optimize_resolve_the_same_config(problem: str, algorithm: str, 
     api = _flat(_resolved_spec(problem, algorithm, _api_config(problem, algorithm, monkeypatch)))
 
     differences = _differences(cli, api)
-    known = KNOWN_DIFFERENCES[algorithm]
+    known = {**KNOWN_DIFFERENCES[algorithm], **PROBLEM_DIFFERENCES.get((algorithm, problem), {})}
     assert set(differences) == set(known), f"new or resolved differences: {differences}"
     for key, (cli_value, api_value) in differences.items():
         expected_cli, expected_api = known[key]
