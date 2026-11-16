@@ -123,7 +123,7 @@ class NSGAIII:
         )
         live_cb.on_start(ctx)
         # Generation 0 is the evaluated initial population, as in every algorithm.
-        live_cb.on_generation(0, F=st.F, stats={"evals": st.n_eval})
+        live_cb.on_generation(0, F=st.F, X=st.X, stats={"evals": st.n_eval})
 
         hv_reached = False
         stop_requested = live_should_stop(live_cb)
@@ -171,7 +171,7 @@ class NSGAIII:
 
             st.generation += 1
 
-            live_cb.on_generation(st.generation, F=st.F, stats={"evals": st.n_eval})
+            live_cb.on_generation(st.generation, F=st.F, X=st.X, stats={"evals": st.n_eval})
             stop_requested = live_should_stop(live_cb)
 
             if hv_tracker is not None and hv_tracker.enabled and hv_tracker.reached(st.hv_points()):
@@ -267,7 +267,7 @@ class NSGAIII:
                 engine_name=str(self.kernel.name),
             )
             self._live_cb.on_start(ctx)
-            self._live_cb.on_generation(0, F=self._st.F, stats={"evals": self._st.n_eval})
+            self._live_cb.on_generation(0, F=self._st.F, X=self._st.X, stats={"evals": self._st.n_eval})
 
     def ask(self) -> DecisionArray:
         """Generate offspring for evaluation."""
@@ -342,7 +342,7 @@ class NSGAIII:
         st.generation += 1
 
         if self._live_cb is not None:
-            self._live_cb.on_generation(st.generation, F=st.F)
+            self._live_cb.on_generation(st.generation, F=st.F, X=st.X, stats={"evals": st.n_eval})
 
         # True once the HV target of an ("hv", ...) termination is reached, as in the other algorithms.
         return hv_target_reached(st)
