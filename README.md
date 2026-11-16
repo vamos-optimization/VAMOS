@@ -394,7 +394,24 @@ The [retained benchmark data guide](https://github.com/vamos-optimization/VAMOS/
 the available scientific inputs and their provenance. Manuscript sources and
 author revision materials are maintained separately from this public repository.
 
-If you use VAMOS in published work, cite it directly:
+If you use VAMOS in published work, cite the paper that describes it, published in
+*Neurocomputing* ([doi:10.1016/j.neucom.2026.135657](https://doi.org/10.1016/j.neucom.2026.135657)):
+
+```bibtex
+@article{uribe2026vamos,
+  title   = {{VAMOS}: A framework for fast, configurable and accessible multiobjective optimization in python},
+  author  = {Uribe, Nicol{\'a}s R. and Herr{\'a}n, Alberto and Nebro, Antonio J. and Del Ser, Javier and Colmenar, J. Manuel},
+  journal = {Neurocomputing},
+  pages   = {135657},
+  year    = {2026},
+  month   = nov,
+  issn    = {0925-2312},
+  doi     = {10.1016/j.neucom.2026.135657},
+  url     = {https://doi.org/10.1016/j.neucom.2026.135657}
+}
+```
+
+To identify the exact version of the software you used, cite it as well:
 
 ```bibtex
 @software{vamos_2026,
