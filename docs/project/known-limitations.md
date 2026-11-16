@@ -225,7 +225,7 @@ unsupported behavior rather than future compatibility promises.
   it put the worst value in bold for some aliases of the epsilon and Hausdorff
   indicators; see [Other subcommands](../guide/cli.md#other-subcommands).
 
-## Studio and generated code
+## Studio
 
 - Studio is experimental and is intended for trusted local use. It is not a
   multi-user hosted service.
@@ -233,18 +233,17 @@ unsupported behavior rather than future compatibility promises.
   feasible solutions as the worst IGD+ (∞). VAMOS 1.1.0 and earlier leave those
   runs out of IGD+, which favors algorithms that are rarely feasible; see
   [Statistical comparison](../guide/studio.md#statistical-comparison).
-- AST checks, restricted builtins, process isolation, resource limits, and
-  timeouts are best-effort controls, not a security sandbox.
-- Reviewed Python executes with the current operating-system user's
-  permissions. Remote binding increases exposure and requires explicit opt-in.
-- LLM-generated code is displayed for review and is never executed
-  automatically.
+- Studio provides no authentication. Remote binding increases exposure and
+  requires explicit opt-in.
+- **Development after 1.3.0:** Studio runs registered problems only. The
+  Problem Builder, which executed reviewed Python typed into Studio or drafted
+  by an LLM provider, is removed, and VAMOS integrates no LLM provider.
 
-## Plugins and providers
+## Plugins
 
-- Plugin descriptors, custom component interfaces, and LLM-provider
-  integrations are experimental and are not covered by the 1.x stable API.
-- Loading and verification never import recorded plugins or contact providers.
+- Plugin descriptors and custom component interfaces are experimental and are
+  not covered by the 1.x stable API.
+- Loading and verification never import recorded plugins.
 
 ## Static typing
 

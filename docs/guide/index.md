@@ -51,7 +51,7 @@ These destinations state their own dependencies and support boundaries:
 
 - [Hyperparameter tuning](../topics/tuning.md): define the scoring, budget, and validation split before using the tuning CLI.
 - [Scaling with Dask](../scaling/dask.md): distribute problem evaluation when its cost justifies coordination overhead.
-- [VAMOS Studio](studio.md): explore stored results and use trusted local Python workflows.
+- [VAMOS Studio](studio.md): explore stored results, run registered problems, and compare algorithms in durable studies.
 
 The [Cookbook](cookbook.md) remains the complete recipe index. For runnable
 scripts and notebooks, use the [Examples gallery](../examples.md).

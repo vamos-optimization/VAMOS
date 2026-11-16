@@ -146,12 +146,6 @@ def _render_catalog(app: StudioApp) -> pn.viewable.Viewable:
     return render_catalog(open_experiment=app.open_experiment)
 
 
-def _render_problem_builder(app: StudioApp) -> pn.viewable.Viewable:
-    from vamos.ux.panel.pages.problem_builder import render_problem_builder
-
-    return render_problem_builder(on_exit=app.on_page_exit)
-
-
 def _render_experiment(app: StudioApp) -> pn.viewable.Viewable:
     from vamos.ux.panel.pages.experiment import render_experiment
 
@@ -184,7 +178,6 @@ def _render_results(app: StudioApp) -> pn.viewable.Viewable:
 PAGE_RENDERERS: dict[str, Callable[[StudioApp], pn.viewable.Viewable]] = {
     "welcome": _render_welcome,
     "catalog": _render_catalog,
-    "problem_builder": _render_problem_builder,
     "experiment": _render_experiment,
     "batch": _render_batch,
     "compare": _render_compare,

@@ -16,8 +16,9 @@ def welcome_markdown() -> str:
 
 **Vectorized Architecture for Multi-Objective Optimization Studies**
 
-VAMOS Studio is an experimental workbench for defining multi-objective
-problems, running VAMOS algorithms on them and exploring saved studies.
+VAMOS Studio is an experimental workbench for browsing the registered
+multi-objective problems, running VAMOS algorithms on them and exploring
+saved studies.
 
 ---
 
@@ -34,8 +35,8 @@ def render_welcome() -> pn.Column:
     hero = pn.pane.Markdown(welcome_markdown(), sizing_mode="stretch_width")
     tips = pn.pane.Alert(
         "**Tip:** for long or many runs, use **Batch Comparison**: it runs a durable study in a background process "
-        "that keeps going if you close the browser. Problem Builder and Run Experiment run one run in the "
-        "background while you watch it, and **Stop** ends it; leaving the page stops it too.",
+        "that keeps going if you close the browser. Run Experiment runs one run in the background while you "
+        "watch it, and **Stop** ends it; leaving the page stops it too.",
         alert_type="info",
     )
     return pn.Column(hero, tips, sizing_mode="stretch_both")

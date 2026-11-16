@@ -41,7 +41,6 @@ markers, not prior public releases. See the
 - **Ready-to-use Tuning Backends**: `racing` and `random` work out of the box; install the optional `tuning` extra to enable `optuna`, `bohb_optuna`, `smac3`, and `bohb` via `vamos tune`.
 - **Performance Driven**: Vectorized NumPy kernels with optional Numba JIT acceleration for core kernels.
 - **Interactive Analysis**: Built-in dashboards with `explore_result_front(result)` and publication-ready LaTeX tables.
-- **Visual Problem Builder**: Define custom problems in the experimental VAMOS Studio; local Python preview requires an explicit trusted-code opt-in.
 - **Extensible**: Standardized protocols for adding custom problems, operators, and algorithms.
 
 Canonical customization guide: [Extending VAMOS](https://vamos-optimization.org/topics/extending/).
@@ -267,14 +266,6 @@ Prefer a file template? The CLI wizard scaffolds a ready-to-run `.py` file:
 vamos create-problem
 # Prompts for: name, variables, objectives, bounds, style
 # Generates a .py file with TODO markers -- fill in your math and run it
-```
-
-Or use the experimental **visual builder** in VAMOS Studio -- review your objectives
-in the browser, pick an algorithm, and see the Pareto front update on each run:
-
-```bash
-vamos studio
-# Open the "Problem Builder" tab
 ```
 
 See [Adding a problem](https://vamos-optimization.org/dev/add_problem/) for all approaches (function, class, or registry).

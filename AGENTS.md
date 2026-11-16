@@ -165,7 +165,7 @@ Documentation is part of the tested interface. Prefer one canonical guide per wo
 - Canonical loading and verification are inert, bounded, data-only operations and use no pickle.
 - Replay executes only explicitly supported built-in components; manifest text never selects arbitrary importable code.
 - Custom/plugin code and artifact input are untrusted by default.
-- Studio execution of raw Python is not a sandbox. Do not claim isolation that the implementation does not provide.
+- Studio runs registered problems and executes no user-entered or generated Python. Do not claim isolation that the implementation does not provide.
 - Never place credentials, access tokens, personal paths, or secrets in fixtures, manifests, logs, examples, or commits.
 
 ## Completion report
