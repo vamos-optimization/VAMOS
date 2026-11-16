@@ -2,7 +2,7 @@
 
 > **A high-performance, unified framework for Multi-Objective Evolutionary Algorithms (MOEA) in Python.**
 
-![VAMOS Banner](https://raw.githubusercontent.com/vamos-optimization/VAMOS/main/docs/assets/vamos1.png)
+![VAMOS: multi-objective optimization built for reproducible studies](https://raw.githubusercontent.com/vamos-optimization/VAMOS/main/docs/assets/vamos1.png)
 
 Official repository: [vamos-optimization/VAMOS](https://github.com/vamos-optimization/VAMOS).
 Issues, pull requests, releases, and development are coordinated there. See
