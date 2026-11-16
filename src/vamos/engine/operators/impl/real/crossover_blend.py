@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+from numpy.typing import NDArray
 
 from ._crossover_base import Crossover
 from .utils import ArrayLike, VariationWorkspace, _ensure_bounds
@@ -27,14 +28,14 @@ class BLXAlphaCrossover(Crossover):
         self.workspace = workspace
         self.allow_inplace = bool(allow_inplace)
 
-    def _rand(self, key: str, shape: tuple[int, ...], rng: np.random.Generator) -> np.ndarray:
+    def _rand(self, key: str, shape: tuple[int, ...], rng: np.random.Generator) -> NDArray[np.float64]:
         if self.workspace is None:
             return rng.random(shape)
         buf = self.workspace.request(key, shape, np.float64)
         rng.random(out=buf)
         return buf
 
-    def _sample_mask(self, n_pairs: int, rng: np.random.Generator) -> np.ndarray:
+    def _sample_mask(self, n_pairs: int, rng: np.random.Generator) -> NDArray[np.bool_]:
         if self.workspace is None:
             return rng.random(n_pairs) <= self.prob
         probs = self.workspace.request("blx_prob", (n_pairs,), np.float64)
@@ -69,12 +70,21 @@ class BLXAlphaCrossover(Crossover):
 
 
 class BLXAlphaBetaCrossover(Crossover):
-    """Asymmetric blend crossover (BLX-alpha-beta)."""
+    """Blend crossover with two extensions (BLX-alpha-beta), positional as in jMetal.
+
+    Each child gene is drawn uniformly from ``[lo - alpha * span, hi + beta * span]``, where
+    ``lo`` and ``hi`` are the smaller and larger parent values and ``span = hi - lo``. The
+    published operator (Eshelman, Mathias and Schaffer, 1997) extends ``alpha`` towards the
+    better parent and ``beta`` towards the worse one, which needs the parents' fitness; this
+    variant extends below and above instead, as jMetal's ``BLXAlphaBetaCrossover`` does. With
+    ``alpha != beta`` it therefore drifts towards one bound, so both default to 0.5, jMetal's
+    values, which make it BLX-0.5.
+    """
 
     def __init__(
         self,
-        alpha: float = 0.75,
-        beta: float = 0.25,
+        alpha: float = 0.5,
+        beta: float = 0.5,
         prob_crossover: float = 0.9,
         *,
         lower: ArrayLike,
@@ -89,14 +99,14 @@ class BLXAlphaBetaCrossover(Crossover):
         self.workspace = workspace
         self.allow_inplace = bool(allow_inplace)
 
-    def _rand(self, key: str, shape: tuple[int, ...], rng: np.random.Generator) -> np.ndarray:
+    def _rand(self, key: str, shape: tuple[int, ...], rng: np.random.Generator) -> NDArray[np.float64]:
         if self.workspace is None:
             return rng.random(shape)
         buf = self.workspace.request(key, shape, np.float64)
         rng.random(out=buf)
         return buf
 
-    def _sample_mask(self, n_pairs: int, rng: np.random.Generator) -> np.ndarray:
+    def _sample_mask(self, n_pairs: int, rng: np.random.Generator) -> NDArray[np.bool_]:
         if self.workspace is None:
             return rng.random(n_pairs) <= self.prob
         probs = self.workspace.request("blxab_prob", (n_pairs,), np.float64)

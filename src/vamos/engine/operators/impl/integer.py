@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, TypeAlias
 
 import numpy as np
+from numpy.typing import NDArray
 
 from .flags import should_use_numba_variation
 
-_RANDOM_RESET_MASKED_JIT: Callable[[np.ndarray, np.ndarray, np.ndarray], None] | None = None
+# Integer genes and bounds; the precision of the integer type is free.
+IntegerArray: TypeAlias = NDArray[np.integer[Any]]
+
+_RANDOM_RESET_MASKED_JIT: Callable[[NDArray[np.generic], NDArray[np.generic], NDArray[np.generic]], None] | None = None
 _RANDOM_RESET_MASKED_DISABLED = False
 
 
@@ -15,7 +19,7 @@ def _use_numba_variation() -> bool:
     return should_use_numba_variation()
 
 
-def _get_random_reset_masked() -> Callable[[np.ndarray, np.ndarray, np.ndarray], None] | None:
+def _get_random_reset_masked() -> Callable[[NDArray[np.generic], NDArray[np.generic], NDArray[np.generic]], None] | None:
     global _RANDOM_RESET_MASKED_JIT, _RANDOM_RESET_MASKED_DISABLED
     if _RANDOM_RESET_MASKED_DISABLED:
         return None
@@ -30,7 +34,7 @@ def _get_random_reset_masked() -> Callable[[np.ndarray, np.ndarray, np.ndarray],
         return None
 
     @njit(cache=True)  # type: ignore[untyped-decorator]
-    def _random_reset_masked(X: np.ndarray, mask: np.ndarray, rand_vals: np.ndarray) -> None:
+    def _random_reset_masked(X: NDArray[np.generic], mask: NDArray[np.generic], rand_vals: NDArray[np.generic]) -> None:
         rows, cols = mask.shape
         for i in range(rows):
             for j in range(cols):
@@ -41,7 +45,9 @@ def _get_random_reset_masked() -> Callable[[np.ndarray, np.ndarray, np.ndarray],
     return _RANDOM_RESET_MASKED_JIT
 
 
-def random_integer_population(pop_size: int, n_var: int, lower: np.ndarray, upper: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+def random_integer_population(
+    pop_size: int, n_var: int, lower: IntegerArray, upper: IntegerArray, rng: np.random.Generator
+) -> NDArray[np.int32]:
     """
     Generate integer-valued individuals within inclusive [lower, upper].
     """
@@ -52,7 +58,7 @@ def random_integer_population(pop_size: int, n_var: int, lower: np.ndarray, uppe
     return rng.integers(lower, upper + 1, size=(pop_size, n_var), dtype=np.int32)
 
 
-def _as_pairs(X_parents: np.ndarray) -> tuple[np.ndarray, int]:
+def _as_pairs(X_parents: NDArray[np.generic]) -> tuple[NDArray[np.generic], int]:
     if X_parents.ndim == 3 and X_parents.shape[1] == 2:
         return X_parents, X_parents.shape[2]
     Np, D = X_parents.shape
@@ -65,13 +71,13 @@ def _as_pairs(X_parents: np.ndarray) -> tuple[np.ndarray, int]:
     return X_parents.reshape(Np // 2, 2, D).copy(), D
 
 
-def _reshape_offspring(pairs: np.ndarray, parents: np.ndarray) -> np.ndarray:
+def _reshape_offspring(pairs: NDArray[np.generic], parents: NDArray[np.generic]) -> NDArray[np.generic]:
     if parents.ndim == 2 and parents.shape[0] % 2 != 0:
         return pairs.reshape(-1, pairs.shape[2])[: parents.shape[0]]
     return pairs.reshape(parents.shape)
 
 
-def uniform_integer_crossover(X_parents: np.ndarray, prob: float, rng: np.random.Generator) -> np.ndarray:
+def uniform_integer_crossover(X_parents: NDArray[np.generic], prob: float, rng: np.random.Generator) -> NDArray[np.generic]:
     """
     Per-gene uniform crossover for integer vectors.
     """
@@ -93,14 +99,19 @@ def uniform_integer_crossover(X_parents: np.ndarray, prob: float, rng: np.random
 
 
 def arithmetic_integer_crossover(
-    X_parents: np.ndarray,
+    X_parents: NDArray[np.generic],
     prob: float,
     rng: np.random.Generator,
-    lower: np.ndarray | None = None,
-    upper: np.ndarray | None = None,
-) -> np.ndarray:
+    lower: NDArray[np.generic] | None = None,
+    upper: NDArray[np.generic] | None = None,
+) -> NDArray[np.generic]:
     """
-    Integer arithmetic crossover: average parents and round, then clip to bounds.
+    Integer arithmetic crossover with complementary children.
+
+    Each mated pair draws ``lam`` uniformly from [0, 1) and gets the children
+    ``lam * p1 + (1 - lam) * p2`` and ``(1 - lam) * p1 + lam * p2``, rounded to the
+    nearest integer and clipped to the bounds, so the children add up to the
+    parents.
     """
     pairs, _ = _as_pairs(X_parents)
     prob = float(np.clip(prob, 0.0, 1.0))
@@ -111,25 +122,29 @@ def arithmetic_integer_crossover(
     if idx.size == 0:
         return _reshape_offspring(pairs, X_parents)
     for row in idx:
-        p1, p2 = pairs[row, 0], pairs[row, 1]
-        mean = np.rint(0.5 * (p1 + p2)).astype(p1.dtype, copy=False)
+        p1, p2 = pairs[row, 0].astype(float), pairs[row, 1].astype(float)
+        lam = rng.random()
+        children = np.rint(np.stack([lam * p1 + (1.0 - lam) * p2, (1.0 - lam) * p1 + lam * p2]))
         if lower is not None and upper is not None:
-            mean = np.clip(mean, lower, upper)
-        pairs[row, 0] = mean
-        pairs[row, 1] = mean
+            children = np.clip(children, lower, upper)
+        pairs[row] = children.astype(pairs.dtype, copy=False)
     return _reshape_offspring(pairs, X_parents)
 
 
 def integer_sbx_crossover(
-    X_parents: np.ndarray,
+    X_parents: NDArray[np.generic],
     prob: float,
     eta: float,
-    lower: np.ndarray,
-    upper: np.ndarray,
+    lower: NDArray[np.generic],
+    upper: NDArray[np.generic],
     rng: np.random.Generator,
-) -> np.ndarray:
+) -> NDArray[np.generic]:
     """
-    Integer-valued SBX crossover aligned with jMetalPy (clamp + int cast).
+    Integer-valued SBX crossover: jMetalPy's SBX on the integer values, each child clamped to
+    the bounds and rounded to the nearest integer.
+
+    jMetal and jMetalPy truncate each child with ``int()`` instead, which pulls the children
+    towards zero: with parents 3 and 4 in [0, 10] their mean is 3.25 rather than 3.5.
     """
     pairs, D = _as_pairs(X_parents)
     if pairs.size == 0 or D == 0:
@@ -197,11 +212,11 @@ def integer_sbx_crossover(
                 c2 = ub
 
             if rng.random() <= 0.5:
-                p1[j] = int(c2)
-                p2[j] = int(c1)
+                p1[j] = np.rint(c2)
+                p2[j] = np.rint(c1)
             else:
-                p1[j] = int(c1)
-                p2[j] = int(c2)
+                p1[j] = np.rint(c1)
+                p2[j] = np.rint(c2)
 
         pairs[row, 0] = p1
         pairs[row, 1] = p2
@@ -209,7 +224,7 @@ def integer_sbx_crossover(
     return _reshape_offspring(pairs, X_parents)
 
 
-def random_reset_mutation(X: np.ndarray, prob: float, lower: np.ndarray, upper: np.ndarray, rng: np.random.Generator) -> None:
+def random_reset_mutation(X: IntegerArray, prob: float, lower: IntegerArray, upper: IntegerArray, rng: np.random.Generator) -> None:
     """
     Per-gene random reset to any value within bounds.
     """
@@ -231,7 +246,9 @@ def random_reset_mutation(X: np.ndarray, prob: float, lower: np.ndarray, upper: 
         X[mask] = rand_vals[mask]
 
 
-def creep_mutation(X: np.ndarray, prob: float, step: int, lower: np.ndarray, upper: np.ndarray, rng: np.random.Generator) -> None:
+def creep_mutation(
+    X: NDArray[np.generic], prob: float, step: int, lower: NDArray[np.generic], upper: NDArray[np.generic], rng: np.random.Generator
+) -> None:
     """
     Small integer step mutation (+/- step).
     """
@@ -253,11 +270,11 @@ def creep_mutation(X: np.ndarray, prob: float, step: int, lower: np.ndarray, upp
 
 
 def gaussian_integer_mutation(
-    X: np.ndarray,
+    X: NDArray[np.generic],
     prob: float,
     sigma: float,
-    lower: np.ndarray,
-    upper: np.ndarray,
+    lower: NDArray[np.generic],
+    upper: NDArray[np.generic],
     rng: np.random.Generator,
 ) -> None:
     """
@@ -283,10 +300,10 @@ def gaussian_integer_mutation(
 
 
 def boundary_integer_mutation(
-    X: np.ndarray,
+    X: NDArray[np.generic],
     prob: float,
-    lower: np.ndarray,
-    upper: np.ndarray,
+    lower: NDArray[np.generic],
+    upper: NDArray[np.generic],
     rng: np.random.Generator,
 ) -> None:
     """
@@ -310,11 +327,11 @@ def boundary_integer_mutation(
 
 
 def integer_polynomial_mutation(
-    X: np.ndarray,
+    X: NDArray[np.generic],
     prob: float,
     eta: float,
-    lower: np.ndarray,
-    upper: np.ndarray,
+    lower: NDArray[np.generic],
+    upper: NDArray[np.generic],
     rng: np.random.Generator,
 ) -> None:
     """
@@ -369,7 +386,7 @@ class UniformIntegerCrossover:
     def __init__(self, prob: float = 0.9, **kwargs: Any) -> None:
         self.prob = float(prob)
 
-    def __call__(self, parents: np.ndarray, rng: np.random.Generator, **kwargs: Any) -> np.ndarray:
+    def __call__(self, parents: NDArray[np.generic], rng: np.random.Generator, **kwargs: Any) -> NDArray[np.generic]:
         return uniform_integer_crossover(parents, self.prob, rng)
 
 
@@ -377,7 +394,7 @@ class ArithmeticIntegerCrossover:
     def __init__(self, prob: float = 0.9, **kwargs: Any) -> None:
         self.prob = float(prob)
 
-    def __call__(self, parents: np.ndarray, rng: np.random.Generator, **kwargs: Any) -> np.ndarray:
+    def __call__(self, parents: NDArray[np.generic], rng: np.random.Generator, **kwargs: Any) -> NDArray[np.generic]:
         return arithmetic_integer_crossover(parents, self.prob, rng)
 
 
@@ -386,7 +403,7 @@ class IntegerSBXCrossover:
         self.prob = float(prob)
         self.eta = float(eta)
 
-    def __call__(self, parents: np.ndarray, rng: np.random.Generator, **kwargs: Any) -> np.ndarray:
+    def __call__(self, parents: NDArray[np.generic], rng: np.random.Generator, **kwargs: Any) -> NDArray[np.generic]:
         lower = kwargs.get("lower")
         upper = kwargs.get("upper")
         if lower is None or upper is None:
@@ -398,7 +415,7 @@ class RandomResetMutation:
     def __init__(self, prob: float = 0.1, **kwargs: Any) -> None:
         self.prob = float(prob)
 
-    def __call__(self, X: np.ndarray, rng: np.random.Generator, **kwargs: Any) -> None:
+    def __call__(self, X: IntegerArray, rng: np.random.Generator, **kwargs: Any) -> None:
         # kwargs must typically contain 'lower' and 'upper'
         lower = kwargs.get("lower")
         upper = kwargs.get("upper")
@@ -412,7 +429,7 @@ class IntegerPolynomialMutation:
         self.prob = float(prob)
         self.eta = float(eta)
 
-    def __call__(self, X: np.ndarray, rng: np.random.Generator, **kwargs: Any) -> None:
+    def __call__(self, X: NDArray[np.generic], rng: np.random.Generator, **kwargs: Any) -> None:
         lower = kwargs.get("lower")
         upper = kwargs.get("upper")
         if lower is None or upper is None:
@@ -425,7 +442,7 @@ class CreepMutation:
         self.prob = float(prob)
         self.step = int(step)
 
-    def __call__(self, X: np.ndarray, rng: np.random.Generator, **kwargs: Any) -> None:
+    def __call__(self, X: NDArray[np.generic], rng: np.random.Generator, **kwargs: Any) -> None:
         lower = kwargs.get("lower")
         upper = kwargs.get("upper")
         if lower is None or upper is None:
@@ -438,7 +455,7 @@ class GaussianIntegerMutation:
         self.prob = float(prob)
         self.sigma = float(sigma)
 
-    def __call__(self, X: np.ndarray, rng: np.random.Generator, **kwargs: Any) -> None:
+    def __call__(self, X: NDArray[np.generic], rng: np.random.Generator, **kwargs: Any) -> None:
         lower = kwargs.get("lower")
         upper = kwargs.get("upper")
         if lower is None or upper is None:
@@ -450,7 +467,7 @@ class BoundaryIntegerMutation:
     def __init__(self, prob: float = 0.1, **kwargs: Any) -> None:
         self.prob = float(prob)
 
-    def __call__(self, X: np.ndarray, rng: np.random.Generator, **kwargs: Any) -> None:
+    def __call__(self, X: NDArray[np.generic], rng: np.random.Generator, **kwargs: Any) -> None:
         lower = kwargs.get("lower")
         upper = kwargs.get("upper")
         if lower is None or upper is None:
