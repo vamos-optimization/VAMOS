@@ -35,7 +35,7 @@ python engineering.py --output engineering-local.svg
 ??? example "Complete runnable script"
 
     ```python
-    """Verified VAMOS 1.2.1 lesson: engineering. See coverage-setup for dependencies."""
+    """Verified VAMOS 1.3.0 lesson: engineering. See coverage-setup for dependencies."""
 
 
     def execute_example(problem, algorithm, config, budget, seed=42, engine="numpy"):
@@ -170,16 +170,16 @@ Algorithm: nsgaii; encoding: mixed; backend: numpy; seed: 42
 Returned X: (40, 6); F: (40, 2); result mode: population
 Feasible rows: 40/40; feasible non-dominated rows: 40
 Evaluations: 400
-Minimum-cost feasible front row: 0
-Decision (h, l, t, b, material, stiffeners): [0.783541, 4.169584, 1.760651, 3.396257, 0.0, 2.0]
-Objectives (cost, deflection proxy): [15.905242, 0.059214]
-Constraint residuals G <= 0: [-9827.611456, -5182.606983, -0.190786, -2.612716]
+Minimum-cost feasible front row: 1
+Decision (h, l, t, b, material, stiffeners): [0.54069, 5.063734, 2.133841, 3.454451, 0.0, 2.0]
+Objectives (cost, deflection proxy): [17.083547, 0.032702]
+Constraint residuals G <= 0: [-9539.915624, -10207.062281, -0.217298, -2.913761]
 ```
 <!-- /tutorial:output -->
 
 ![Actual engineering results from the documented protocol.](../assets/coverage/engineering.svg)
 
-*Measured with VAMOS 1.2.1; the [observations and provenance](coverage-setup.md#recorded-evidence) retain the inputs and results.*
+*Measured with VAMOS 1.3.0; the [observations and provenance](coverage-setup.md#recorded-evidence) retain the inputs and results.*
 
 ## Interpret the result and limits
 

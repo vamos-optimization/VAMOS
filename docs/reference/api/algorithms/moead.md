@@ -10,7 +10,7 @@ from vamos.algorithms import MOEADConfig
 
 [Configuration overview](index.md) · [Algorithm contracts](../../algorithms.md) · [Optimization](../optimization.md)
 
-**Development after 1.2.1:** the resolved spec of a MOEA/D run records where its
+**VAMOS 1.3.0:** the resolved spec of a MOEA/D run records where its
 weight vectors come from, in `algorithm.resolution.weight_vectors`, beside the
 population in `population.initial_size`: `{"source": "das_dennis", "divisions": 12, "vectors": 91}`,
 `{"source": "packaged_file", "file": "W3D_100.dat", "vectors": 100}`, `{"source": "file", "file": ...}`

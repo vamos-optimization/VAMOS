@@ -18,7 +18,12 @@ experiments, and adds 115 constrained benchmark problems, jMetal's
 constraint-handling techniques and the CCMO, C-TAEA, ToP and CMOEA-MS
 algorithms. It supports Python 3.13 and 3.14 and is the last minor release for
 Python 3.10. VAMOS 1.2.1 corrects C2-DTLZ2's default radius with two objectives
-and keeps persistent Optuna studies from mixing with earlier versions. See the
+and keeps persistent Optuna studies from mixing with earlier versions. VAMOS
+1.3.0 requires Python 3.11 or newer, corrects operators whose fixes change
+results, rebuilds the tuning spaces and racing's statistics, and adds a
+wall-clock time limit, problem options by name and jMetal's reference fronts as
+an option. See the
+[1.3.0 release notes](https://vamos-optimization.org/project/release-notes-1.3.0/), the
 [1.2.1 release notes](https://vamos-optimization.org/project/release-notes-1.2.1/), the
 [1.2.0 release notes](https://vamos-optimization.org/project/release-notes-1.2.0/), including
 which results to rerun, and the earlier
@@ -52,7 +57,7 @@ Canonical customization guide: [Extending VAMOS](https://vamos-optimization.org/
 pip install vamos-optimization
 ```
 
-**Development after 1.2.1:** VAMOS requires Python 3.11 or newer; VAMOS 1.2 is
+**VAMOS 1.3.0:** VAMOS requires Python 3.11 or newer; VAMOS 1.2 is
 the last minor release for Python 3.10.
 
 For development and extras (Windows PowerShell):
@@ -97,7 +102,7 @@ pip install "smac>=2.0"
 | `numba` | Stable optional | Accelerates core numeric kernels such as variation, tournament selection, and MOEA/D neighborhood updates. |
 | `moocore` | Stable optional | Adds accelerated quality-indicator support, especially hypervolume-style metrics. |
 
-In VAMOS 1.2.1, use `engine="auto"` (CLI: `--engine auto`)
+In VAMOS 1.3.0, use `engine="auto"` (CLI: `--engine auto`)
 to prefer loadable Numba for all nine built-in algorithms, with a NumPy fallback.
 Numba remains optional. Omitting `engine` still selects NumPy, preserving the 1.x
 default; explicit `engine="numba"` fails if unavailable. First use can spend more
@@ -411,18 +416,6 @@ If you use VAMOS in published work, cite the paper that describes it, published 
   issn    = {0925-2312},
   doi     = {10.1016/j.neucom.2026.135657},
   url     = {https://doi.org/10.1016/j.neucom.2026.135657}
-}
-```
-
-To identify the exact version of the software you used, cite it as well:
-
-```bibtex
-@software{vamos_2026,
-  title = {VAMOS: Vectorized Architecture for Multiobjective Optimization Studies},
-  author = {Rodriguez Uribe, Nicolas and Herr{\'a}n, Alberto and Nebro, Antonio J. and Del Ser, Javier and Colmenar, J. Manuel},
-  year = {2026},
-  version = {1.2.1},
-  url = {https://github.com/vamos-optimization/VAMOS}
 }
 ```
 

@@ -3,11 +3,11 @@
   "purpose": "Small teaching outputs, not comparative or convergence evidence; no run arrays retained.",
   "source": "examples/tutorials/fundamentals.py",
   "source_sha256": "1e436685a20897bb57695ed1d7e1fd4f705e7d008227d448f3db4068264c8e0b",
-  "base_commit": "a6857d55c2f9cb626425d2e6ed7ae9c86f7adacf",
+  "base_commit": "e0e426850eacee8d4083eb0d0ebc1371e9fa56b5",
   "command": "python tools/build_fundamental_tutorials.py --write",
   "python": "3.12.3",
   "packages": {
-    "vamos-optimization": "1.2.1",
+    "vamos-optimization": "1.3.0",
     "numpy": "2.1.3",
     "scipy": "1.15.3",
     "joblib": "1.4.2",
@@ -23,22 +23,22 @@
   "asset_size_budget_bytes": 250000,
   "lessons": {
     "t01": {
-      "download_sha256": "43a69bd71c965f2778dc7709fe404ac60241e1e4bb4a529d41d38c390e1b73f9",
-      "figure_sha256": "f981cc9fe9e6060cf0e6a62115c3f97e1fa3c29c4fb02c4df5d8aa28c493b864",
+      "download_sha256": "3ae985472b5fc38d51fd606e038c01593c905f9f66f983f206f5c676f7da0de3",
+      "figure_sha256": "9ac58076abda7c82e0a8eafd1d136045760aaa6803d4cc7939859bc8d292c121",
       "stdout": "Returned decisions: (40, 30)\nReturned objectives: (40, 2)\nNon-dominated objectives: (12, 2)\nMatching decisions: (12, 30)\nEvaluations: 400\n",
       "returned_rows": 40,
       "front_rows": 12
     },
     "t02": {
-      "download_sha256": "03991b958a1a2edc2a8cc444a13a3e84ebaa2d98424bdb6c9301d64e8e181cee",
-      "figure_sha256": "4591375dfe59b7098d690bbc2433f896dbd948cc8e754fdf15cde226adb49e35",
+      "download_sha256": "8da9a536d8234cbe986f88ed8e3791bec1a4af50913c7062512d469b3c91945c",
+      "figure_sha256": "291565300c1d3893a1ee4484e68afd34178d30a7fc24bd2b7b1f5df0213faa75",
       "stdout": "Check [60.0, 2.0]: F=(0.050000, 2.000000), g=330.0\nCheck [75.0, 6.0]: F=(0.290625, 0.958333), g=0.0\nCheck [90.0, 8.0]: F=(0.762500, 0.500000), g=-270.0\nFeasible returned rows: 40/40\nFeasible non-dominated rows: 40\nEvaluations: 400\n",
       "returned_rows": 40,
       "front_rows": 40
     },
     "t03": {
-      "download_sha256": "da2208c214a1dfacd956d7380f021ac4ae175b9dbd5b190ae59faad7bdd578e9",
-      "figure_sha256": "8bc4007afa2457dbe4a7741721838948d355cd97069a818e069de56b40854327",
+      "download_sha256": "1286adc92c5904494727666102837151c14e33bf6b56405a43e357841df79e24",
+      "figure_sha256": "3a20f8f9850a3865f82ba9341483bbcb6c0251af6ec4fd3fc0b02400ae22c0da",
       "stdout": "Feasible non-dominated candidates: 40\nWeights (energy, shortfall): [0.8, 0.2]\nSelected original row: 32\nDecision (temperature, time): (64.959715, 7.101057)\nObjectives (energy, shortfall): (0.192901, 1.157655)\nConstraint g: -11.282649\nNormalized weighted score: 0.194051\n",
       "returned_rows": 40,
       "front_rows": 40

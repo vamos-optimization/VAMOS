@@ -7,8 +7,8 @@ from pathlib import Path
 from vamos.foundation.version import __version__
 
 ROOT = Path(__file__).resolve().parents[2]
-EXPECTED_VERSION = "1.2.1"
-RELEASE_DATE = "2026-11-15"
+EXPECTED_VERSION = "1.3.0"
+RELEASE_DATE = "2026-11-16"
 
 
 def _read(relative: str) -> str:
@@ -35,6 +35,8 @@ def test_public_release_documents_match_runtime_version() -> None:
     assert re.search(rf"(?m)^version:\s*{re.escape(EXPECTED_VERSION)}\s*$", citation)
     assert re.search(rf"(?m)^date-released:\s*{RELEASE_DATE}\s*$", citation)
     assert f"## [{EXPECTED_VERSION}] - {RELEASE_DATE}" in changelog
-    assert f"version = {{{EXPECTED_VERSION}}}" in readme
+    # The README cites the paper; the versioned software citation is CITATION.cff, so the README names only the notes.
+    assert f"release-notes-{EXPECTED_VERSION}/" in readme
+    assert "@software" not in readme
     assert f"VAMOS {EXPECTED_VERSION} release notes" in release_notes
     assert f"Released {RELEASE_DATE}." in release_notes

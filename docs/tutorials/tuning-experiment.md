@@ -28,7 +28,7 @@ python tuning.py --output tuning-example
 ??? example "Complete runnable script"
 
     ```python
-    """Verified VAMOS 1.2.1 lesson: tuning. See coverage-setup for dependencies."""
+    """Verified VAMOS 1.3.0 lesson: tuning. See coverage-setup for dependencies."""
 
 
     def new_output(output):
@@ -163,7 +163,7 @@ The same ZDT1 instance is reused across splits; held-out seeds are not held-out 
 
 ![Actual tuning results from the documented protocol.](../assets/coverage/tuning.svg)
 
-*Measured with VAMOS 1.2.1; the [observations and provenance](coverage-setup.md#recorded-evidence) retain the inputs and results.*
+*Measured with VAMOS 1.3.0; the [observations and provenance](coverage-setup.md#recorded-evidence) retain the inputs and results.*
 
 ## Interpret the measurements and limits
 
