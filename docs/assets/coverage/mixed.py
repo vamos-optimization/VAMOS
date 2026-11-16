@@ -1,4 +1,4 @@
-"""Verified VAMOS 1.0.1 lesson: mixed. See coverage-setup for dependencies."""
+"""Verified VAMOS 1.3.0 lesson: mixed. See coverage-setup for dependencies."""
 
 
 def execute_example(problem, algorithm, config, budget, seed=42, engine="numpy"):

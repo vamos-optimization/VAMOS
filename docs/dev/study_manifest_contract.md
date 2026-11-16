@@ -510,7 +510,11 @@ duplicates, a broken previous hash, or an invalid transition are corruption.
 All JSON writes use a uniquely owned sibling temporary file, file fsync,
 atomic replace, and parent-directory fsync where supported. The implementation
 must document when a platform cannot fsync a directory; semantic recovery still
-depends on atomic replace and the journal. No valid manifest ever claims
+depends on atomic replace and the journal. Windows offers no directory fsync,
+so there the writers skip that step: a power loss just after a write can lose
+the newest entry of a directory, such as the last event, but never leaves a
+partial document under its final name, and reconciliation works from what the
+journal holds. No valid manifest ever claims
 success before its referenced run is terminal and verified.
 
 The temporary is named `.tmp-` followed by eight lowercase hexadecimal digits.
@@ -595,7 +599,13 @@ The implemented reader defaults are: manifest/spec 8 MiB each, plan 64 MiB,
 task 1 MiB, attempt/event 2 MiB each, 100,000 tasks, 300,000 referenced
 documents, 512 MiB total JSON read, JSON depth 64, and 64 KiB per string.
 Trusted callers may pass an explicit `StudyLoadLimits`; loading never raises a
-limit automatically after rejection.
+limit automatically after rejection. A handle keeps the `StudyLoadLimits` and
+the run `LoadLimits` (`run_limits=`) it was loaded or created with, and every
+reload by execution, recovery, cancellation and projection uses them; run
+publication writes and verifies each successful or failed run, and
+reconciliation verifies the study's runs, with the same `LoadLimits`. `load_study(..., verify="metadata")` is the issue-tolerant,
+metadata-only load that projections use; execution never starts from it
+without a complete reload.
 
 Failures store a stable category/code, bounded sanitized message, retryability,
 and safe action. They exclude uncontrolled tracebacks, environment dumps,

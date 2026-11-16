@@ -5,11 +5,10 @@ from __future__ import annotations
 import dataclasses
 import difflib
 import json
-import sys
 import warnings
 from dataclasses import asdict
 from numbers import Integral
-from typing import Any, Literal, TypeAlias, cast, overload
+from typing import Any, Literal, Self, TypeAlias, cast, overload
 
 from vamos.engine.algorithm.components.constraint_handling import (
     CONSTRAINT_HANDLING_TECHNIQUES,
@@ -21,11 +20,6 @@ from vamos.engine.algorithm.config.validation import OPERATOR_PAIR_FIELDS, did_y
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.foundation.encoding import EncodingLike
 from vamos.foundation.exceptions import ConfigurationError
-
-if sys.version_info >= (3, 11):
-    from typing import Self
-else:
-    from typing_extensions import Self
 
 # ── Shared Literal type aliases ──────────────────────────────────────
 ResultMode = Literal["non_dominated", "population"]
@@ -65,6 +59,8 @@ _EXTERNAL_ARCHIVE_ALLOWED_KWARGS = {
     "truncate_size",
     "deduplicate_in",
     "decision_tolerance",
+    "final_size",
+    "final_selection",
 }
 
 
@@ -289,10 +285,22 @@ class _ResultArchiveBuilder:
         capacity
             Maximum number of solutions. ``None`` means unbounded.
         **kwargs
-            Forwarded to :class:`ExternalArchiveConfig`.
+            Forwarded to :class:`ExternalArchiveConfig`, whose ``final_selection`` (``"farthest"``, ``"crowding"``, ``"hv_greedy"``
+            or ``"kmeans"``) and ``final_size`` make the result report a subset of the archive when the run ends.
         """
         self._cfg["external_archive"] = _build_external_archive_config(capacity, kwargs)
         self._cfg.setdefault("result_mode", "non_dominated")
+        return self
+
+    def live_callback_mode(self, mode: LiveCallbackMode) -> Self:
+        """What a live callback receives each generation as ``F`` and ``X``, and in ``stats``.
+
+        ``"population"`` (the default but in NSGA-II) sends the whole current population,
+        ``"nd_only"`` its first front, and ``"population_archive"`` the population plus the
+        external archive in ``stats["archive"]`` (``{"X": ..., "F": ...}``), which is what a run
+        with an archive returns.
+        """
+        self._cfg["live_callback_mode"] = str(mode)
         return self
 
 
@@ -534,6 +542,9 @@ def _omit_inactive_archive_fields(payload: dict[str, object]) -> dict[str, objec
     external_archive = payload.get("external_archive")
     if isinstance(external_archive, dict) and external_archive.get("capacity") is None:
         external_archive.pop("pruning", None)
+    if isinstance(external_archive, dict) and external_archive.get("final_selection") == "none":  # Serialized as before.
+        external_archive.pop("final_selection", None)
+        external_archive.pop("final_size", None)
     return payload
 
 

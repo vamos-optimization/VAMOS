@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import comb
-from typing import Any, overload
+from typing import Any, Literal, TypeAlias, overload
 
 from vamos.engine.algorithm.moead.update_criteria import normalize_subproblem_update_criterion
 from vamos.engine.archive import ExternalArchiveConfig
@@ -13,6 +13,7 @@ from vamos.foundation.exceptions import ConfigurationError
 
 from .base import (
     ConstraintModeStr,
+    LiveCallbackMode,
     ResultMode,
     _ConfigBuilderState,
     _ConstraintModeBuilder,
@@ -31,9 +32,33 @@ from .base import (
 )
 from .types import AggregationName, RepairConfigValue
 
+MOEADVariant: TypeAlias = Literal["de", "sbx"]
+
+# The real-coded crossover and the aggregation of each default: VAMOS's own (no variant), and jMetal's
+# MOEADDEBuilder (MOEA/D-DE) and MOEADBuilder, which are Evolver's MOEADDEDefault and MOEADDoubleDefault.
+_VARIANTS: dict[str | None, tuple[tuple[str, dict[str, Any]], tuple[str, dict[str, Any]]]] = {
+    None: (("de", {"cr": 1.0, "f": 0.5}), ("pbi", {"theta": 5.0})),
+    "de": (("de", {"cr": 1.0, "f": 0.5}), ("tchebycheff", {})),
+    "sbx": (("sbx", {"prob": 0.9, "eta": 20.0}), ("pbi", {"theta": 5.0})),
+}
+
 
 @dataclass(frozen=True)
 class MOEADConfig(_SerializableConfig):
+    """Configuration of MOEA/D.
+
+    MOEA/D gives each individual one weight vector, so ``pop_size`` must be a size that has
+    weights. With one or two objectives every size has them: uniform weights, as in jMetal. With
+    three or more, the weights are the file of ``weight_vectors(path=...)`` when there is one (a
+    directory holds ``W{n_obj}D_{pop_size}.dat``); otherwise the complete Das-Dennis lattice with
+    exactly ``pop_size`` vectors; otherwise the jMetal file ``W{n_obj}D_{pop_size}.dat`` that VAMOS
+    ships (100 individuals with three objectives). Any other size raises ``ValueError`` when the run
+    starts: a lattice is never truncated, and the configuration never changes ``pop_size``. The
+    tuning bridge does round a sampled population down to the largest size that has weights, so
+    150 becomes 136 with three objectives. The resolved spec of a run records the source in
+    ``algorithm.resolution.weight_vectors``.
+    """
+
     pop_size: int
     batch_size: int
     neighbor_size: int
@@ -53,6 +78,7 @@ class MOEADConfig(_SerializableConfig):
     external_archive: ExternalArchiveConfig | None = None
     # Fields added after 1.0 go last, so that the constructor keeps the positions of its parameters.
     subproblem_update_criterion: tuple[str, dict[str, float]] | None = None
+    live_callback_mode: LiveCallbackMode = "population"
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -68,8 +94,21 @@ class MOEADConfig(_SerializableConfig):
         n_var: int | None = None,
         n_obj: int = 3,
         encoding: EncodingLike | None = None,
+        *,
+        variant: MOEADVariant | None = None,
     ) -> MOEADConfig:
-        """Create a default MOEA/D configuration with sensible defaults.
+        """Create a default MOEA/D configuration: VAMOS's, or one of jMetal's two defaults.
+
+        Without ``variant``, VAMOS's default: DE rand/1/bin with ``cr=1.0`` and
+        ``f=0.5``, and PBI aggregation with ``theta=5``, which is neither of
+        jMetal's. ``"de"`` is MOEA/D-DE (Li and Zhang, 2009): the same DE with
+        Tchebycheff aggregation; ``"sbx"`` is SBX with ``prob=0.9`` and ``eta=20``,
+        and PBI with ``theta=5``. They are jMetal's ``MOEADDEBuilder`` and
+        ``MOEADBuilder``, and Evolver's ``MOEADDEDefault`` and
+        ``MOEADDoubleDefault``. All three use polynomial mutation with probability
+        ``1/n_var`` and ``eta=20``, a neighbourhood of 20, a probability of 0.9
+        of mating in it and at most 2 replaced solutions. VAMOS 2.0 will make
+        ``"de"`` the default.
 
         Without ``pop_size``, the population is the weight-vector lattice: 99
         divisions with two objectives, 12 with three and 6 with more. With
@@ -77,8 +116,12 @@ class MOEADConfig(_SerializableConfig):
         with exactly ``pop_size`` vectors or, without one, the packaged
         ``W{n_obj}D_{pop_size}.dat`` file (as jMetal uses). Discrete and mixed
         ``encoding`` values take their crossover and mutation from the shared
-        encoding table.
+        encoding table, and the variant's aggregation.
         """
+        if variant not in _VARIANTS:
+            names = ", ".join(repr(name) for name in _VARIANTS if name is not None)
+            raise ConfigurationError(f"MOEA/D variant must be one of {names}, or None for VAMOS's default; got {variant!r}.")
+        real_crossover, aggregation = _VARIANTS[variant]
         divisions: int | None
         if pop_size is None:
             divisions = 99 if n_obj == 2 else (12 if n_obj == 3 else 6)
@@ -91,9 +134,7 @@ class MOEADConfig(_SerializableConfig):
             # One objective: every weight vector is (1,), whatever the divisions.
             divisions = 6
         mut_prob = 1.0 / n_var if n_var else 0.1
-        crossover, mutation = _encoding_operators(
-            encoding, mut_prob, real=(("de", {"cr": 1.0, "f": 0.5}), ("pm", {"prob": mut_prob, "eta": 20.0}))
-        )
+        crossover, mutation = _encoding_operators(encoding, mut_prob, real=(real_crossover, ("pm", {"prob": mut_prob, "eta": 20.0})))
         return (
             cls.builder()
             .pop_size(pop_size)
@@ -103,7 +144,7 @@ class MOEADConfig(_SerializableConfig):
             .replace_limit(2)
             .crossover(crossover[0], **crossover[1])
             .mutation(mutation[0], **mutation[1])
-            .aggregation("pbi", theta=5.0)
+            .aggregation(aggregation[0], **aggregation[1])
             .weight_vectors(divisions=divisions)
             .build()
         )
@@ -215,6 +256,7 @@ class _MOEADConfigBuilder(
             track_genealogy=bool(self._cfg.get("track_genealogy", False)),
             result_mode=self._cfg.get("result_mode", "non_dominated"),
             external_archive=self._cfg.get("external_archive"),
+            live_callback_mode=self._cfg.get("live_callback_mode", "population"),
         )
 
 

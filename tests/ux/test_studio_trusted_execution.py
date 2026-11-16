@@ -39,10 +39,7 @@ def test_remote_binding_is_rejected_without_dangerous_use_acknowledgement() -> N
     assert raised.value.code == 2
 
 
-def test_remote_binding_requires_and_accepts_separate_acknowledgement(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
+def test_remote_binding_requires_and_accepts_separate_acknowledgement(monkeypatch: pytest.MonkeyPatch) -> None:
     commands: list[list[str]] = []
     monkeypatch.setitem(sys.modules, "panel", ModuleType("panel"))
 
@@ -55,7 +52,7 @@ def test_remote_binding_requires_and_accepts_separate_acknowledgement(
 
     assert launcher.main(["--address", "0.0.0.0", "--allow-remote-binding", "--no-browser"]) == 0
     assert "--address=0.0.0.0" in commands[0]
-    assert "WARNING" in capsys.readouterr().err
+    assert "--allow-remote-binding" in commands[0]  # The server checks it again, and warns.
 
 
 def test_studio_inspection_module_has_no_execution_primitives() -> None:

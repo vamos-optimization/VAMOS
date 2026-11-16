@@ -17,6 +17,27 @@ authors:
   given-names: "J. Manuel"
   affiliation: "Universidad Rey Juan Carlos, Spain"
 title: "VAMOS: Vectorized Architecture for Multiobjective Optimization Studies"
-version: 1.2.1
-date-released: 2026-11-15
+version: 1.3.0
+date-released: 2026-11-16
 url: "https://github.com/vamos-optimization/VAMOS"
+preferred-citation:
+  type: article
+  title: "VAMOS: A framework for fast, configurable and accessible multiobjective optimization in python"
+  authors:
+  - family-names: "Uribe"
+    given-names: "Nicolás R."
+  - family-names: "Herrán"
+    given-names: "Alberto"
+  - family-names: "Nebro"
+    given-names: "Antonio J."
+  - family-names: "Del Ser"
+    given-names: "Javier"
+  - family-names: "Colmenar"
+    given-names: "J. Manuel"
+  journal: "Neurocomputing"
+  year: 2026
+  month: 11
+  start: 135657
+  issn: "0925-2312"
+  doi: "10.1016/j.neucom.2026.135657"
+  url: "https://doi.org/10.1016/j.neucom.2026.135657"

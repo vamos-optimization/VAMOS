@@ -5,11 +5,12 @@ import json
 import logging
 import warnings
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+import numpy.typing as npt
 
 from vamos.engine.tuning import (
     EvalContext,
@@ -22,6 +23,7 @@ from vamos.engine.tuning import (
     save_history_csv,
     save_history_json,
 )
+from vamos.engine.tuning.racing.bridge_assignments import assignment_adjustments
 from vamos.engine.tuning.racing.eval_types import EvalFn
 from vamos.engine.tuning.racing.stats import select_configs_by_paired_test
 
@@ -159,7 +161,7 @@ def run_statistical_finisher(
 
     agg_scores = np.asarray([float(aggregator(scores[i, :].tolist())) for i in range(n_cfg)], dtype=float)
     winner_idx = int(np.argmax(agg_scores))
-    keep_mask = np.ones(n_cfg, dtype=bool)
+    keep_mask: npt.NDArray[np.bool_] = np.ones(n_cfg, dtype=bool)
     method = "aggregate_only"
     friedman_pvalue: float | None = None
 
@@ -246,6 +248,13 @@ def persist_artifacts(
     )
     best_history_score = max((float(h.score) for h in history), default=float("nan"))
 
+    # What each trial ran where the bridge replaced a sampled value (MOEA/D's population).
+    n_obj = int(args.n_obj)
+    for trial in history:
+        adjusted = assignment_adjustments(str(args.algorithm), {**trial.config, "n_obj": n_obj})
+        if adjusted:
+            trial.details["effective"] = adjusted
+
     best_raw_path = output_dir / "best_config_raw.json"
     best_active_path = output_dir / "best_config_active.json"
     summary_path = output_dir / "tuning_summary.json"
@@ -261,7 +270,7 @@ def persist_artifacts(
     arg_payload = {k: (str(v) if isinstance(v, Path) else v) for k, v in vars(args).items()}
     summary = {
         "schema_version": "vamos_tuning_v1",
-        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "timestamp_utc": datetime.now(UTC).isoformat(),
         "backend": str(args.backend),
         "problem": str(args.problem),
         "algorithm": str(args.algorithm),
@@ -276,6 +285,7 @@ def persist_artifacts(
         "trials_observed": int(len(history)),
         "best_score": float(best_score),
         "best_history_score": float(best_history_score),
+        "best_config_effective": assignment_adjustments(str(args.algorithm), {**best_config, "n_obj": n_obj}),
         "elapsed_seconds": float(elapsed_seconds),
         "available_model_backends": available_backends,
         "args": arg_payload,

@@ -6,11 +6,12 @@ import os
 import secrets
 import shutil
 from collections.abc import Callable, Mapping
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from vamos.experiment.artifacts.jsonio import sha256_bytes
+from vamos.experiment.artifacts.models import LoadLimits
 from vamos.experiment.artifacts.paths import windows_path_length_error
 
 from .documents import (
@@ -38,8 +39,13 @@ def create_study(
     *,
     output: str | Path,
     limits: StudyLoadLimits | None = None,
+    run_limits: LoadLimits | None = None,
 ) -> Study:
-    """Resolve and atomically publish a study without executing any task."""
+    """Resolve and atomically publish a study without executing any task.
+
+    The returned handle keeps ``limits`` and ``run_limits`` (the bounds for the study's runs) for
+    every reload, as a handle from ``load_study`` does.
+    """
     if not isinstance(spec, StudySpec):
         from .errors import InvalidStudySpecError
 
@@ -64,7 +70,7 @@ def create_study(
         ) from exc
     _reject_existing(destination)
     plan = resolve_spec(spec)
-    return publish_study(spec, plan=plan, destination=destination, limits=limits)
+    return publish_study(spec, plan=plan, destination=destination, limits=limits, run_limits=run_limits)
 
 
 def publish_study(
@@ -74,6 +80,7 @@ def publish_study(
     destination: Path,
     limits: StudyLoadLimits | None = None,
     phase_hook: _PhaseHook | None = None,
+    run_limits: LoadLimits | None = None,
 ) -> Study:
     """Publish already resolved state; ``phase_hook`` is an internal test seam."""
     configured = limits or StudyLoadLimits()
@@ -93,7 +100,7 @@ def publish_study(
         _populate_staging(staging, spec=spec, plan=plan, hook=hook)
         fsync_directory(staging)
         hook("documents_written")
-        load_study(staging, limits=configured)
+        load_study(staging, limits=configured, run_limits=run_limits)
         hook("staging_verified")
         _reject_existing(destination)
         hook("before_publish")
@@ -101,7 +108,7 @@ def publish_study(
         published = True
         fsync_directory(destination.parent)
         hook("published")
-        return load_study(destination, limits=configured)
+        return load_study(destination, limits=configured, run_limits=run_limits)
     except StudyError:
         raise
     except Exception as exc:
@@ -135,7 +142,7 @@ def _failure(exc: Exception) -> str:
 def _populate_staging(staging: Path, *, spec: StudySpec, plan: ResolvedStudyPlan, hook: _PhaseHook) -> None:
     study_id = new_uuid4()
     event_id = new_uuid4()
-    timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    timestamp = datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
     spec_doc = study_spec_document(spec, study_id)
     spec_bytes = stored_document_bytes(spec_doc)

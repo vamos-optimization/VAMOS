@@ -526,6 +526,30 @@ def test_replay_reconstructs_hv_stopping_and_external_archive(tmp_path: Path) ->
     assert {"archive/F", "archive/X"}.issubset({item.role for item in replay.comparisons if item.exact})
 
 
+def test_requested_spec_keeps_a_run_derived_archive_seed(tmp_path: Path) -> None:
+    config = (
+        NSGAIIConfig.builder()
+        .pop_size(8)
+        .offspring_size(8)
+        .crossover("sbx", prob=0.9, eta=15.0)
+        .mutation("pm", prob=1.0 / 6.0, eta=20.0)
+        .selection("tournament", size=2)
+        .external_archive(capacity=6, pruning="ref_dirs")
+        .build()
+    )
+    result = vamos.optimize("zdt1", algorithm="nsgaii", algorithm_config=config, max_evaluations=40, engine="numpy", seed=3, n_var=6)
+    source = vamos.save_result(result, tmp_path / "source")
+
+    manifest = vamos.load_run(source.root).manifest
+    requested = manifest.requested_spec["algorithms"]["nsgaii"]["external_archive"]
+    resolved = manifest.resolved_spec["algorithm"]["config"]["external_archive"]
+    # The request derives the pruning stream from the run seed; only the resolved configuration fixes it.
+    assert requested["rng_seed"] is None
+    assert isinstance(resolved["rng_seed"], int)
+    assert {**requested, "rng_seed": resolved["rng_seed"]} == resolved
+    assert vamos.reproduce(source.root, output=tmp_path / "replay").exact
+
+
 def test_replay_reconstructs_a_generation_budget(tmp_path: Path) -> None:
     config = (
         NSGAIIConfig.builder()

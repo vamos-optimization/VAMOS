@@ -184,7 +184,7 @@ def initialize_nsgaiii_run(
     genealogy_tracker, ids = setup_genealogy(pop_size, F, track_genealogy, "nsgaiii")
 
     # Setup external archive
-    ext_cfg = resolve_external_archive(config)
+    ext_cfg = resolve_external_archive(config, seed=seed)
     archive_X, archive_F, archive_manager = setup_archive(kernel, X, F, n_var, n_obj, X.dtype, ext_cfg, G)
     selection_ranks, selection_crowding = nsgaiii_selection_metrics(kernel, F, G, constraint_mode, constraint_handling, rng)
 
@@ -223,6 +223,7 @@ def initialize_nsgaiii_run(
         genealogy_tracker=genealogy_tracker,
         ids=ids,
         result_mode=result_mode,
+        live_callback_mode=str(config.get("live_callback_mode", "population")),
     )
 
     return state, live_cb, eval_strategy, max_eval, hv_tracker

@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import json
 import os
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -223,6 +224,98 @@ def test_cli_run_ctrl_c_uses_durable_graceful_cancellation(tmp_path: Path, monke
     assert result.changed is True
     assert result.payload["execution_began"] is True
     assert vamos.load_study(root).status == "cancelled"
+
+
+def test_cli_run_ctrl_c_between_an_event_and_its_checkpoint_still_cancels(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import vamos.experiment.study.execution as execution
+
+    root = tmp_path / "study"
+    vamos.create_study(
+        vamos.StudySpec(problems=["zdt1"], algorithms=["nsgaii"], seeds=[0], max_evaluations=8, pop_size=4),
+        output=root,
+    )
+    publish = execution.append_event
+
+    def publish_then_ctrl_c(*args: Any, **kwargs: Any) -> Any:
+        event = publish(*args, **kwargs)
+        if kwargs["event_type"] == "execution_started":
+            # Python runs the SIGINT handler when Ctrl+C arrives. Here it arrives once the
+            # journal says "running" and before the root checkpoint records that event.
+            handler = signal.getsignal(signal.SIGINT)
+            assert callable(handler)
+            handler(signal.SIGINT, None)
+        return event
+
+    monkeypatch.setattr(execution, "_execute_optimization", lambda reconstructed, *, root: _result(reconstructed))
+    monkeypatch.setattr(execution, "append_event", publish_then_ctrl_c)
+    result = execute_study_command(StudyCommandRequest(operation="run", study_dir=root, json_output=True))
+
+    assert result.status == "cancelled", result.errors
+    assert result.exit_code == 8
+    cancelled = vamos.load_study(root)
+    assert cancelled.status == "cancelled"
+    assert [event.event_type for event in cancelled.events] == ["study_created", "execution_started", "study_cancelled"]
+
+
+def test_interrupted_study_message_does_not_promise_resume(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import vamos.experiment.cli.study_command as study_command
+    import vamos.experiment.study.execution as execution
+
+    root = tmp_path / "study"
+    vamos.create_study(
+        vamos.StudySpec(problems=["zdt1"], algorithms=["nsgaii"], seeds=[0], max_evaluations=8, pop_size=4),
+        output=root,
+    )
+
+    def interrupt(_reconstructed: Any, *, root: Path) -> OptimizationResult:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(execution, "_execute_optimization", interrupt)
+    cancelled = execute_study_command(StudyCommandRequest(operation="run", study_dir=root))
+
+    assert cancelled.status == "cancelled"
+    assert not any("resume" in action for action in cancelled.next_actions), cancelled.next_actions
+    assert "resume_to_reconcile" not in vamos.load_study(root).inspect().next_actions
+
+    def interrupted(_request: StudyCommandRequest) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setitem(study_command._COMMANDS, "resume", interrupted)
+    escaped = execute_study_command(StudyCommandRequest(operation="resume", study_dir=root))
+    action = escaped.errors[0]["action"]
+
+    assert escaped.status == "interrupted"
+    assert "resuming" not in action
+    assert "inspect" in action.lower()
+
+
+@pytest.mark.parametrize(
+    ("operation", "loader"),
+    [("inspect", "load_study_projection"), ("summarize", "load_study_projection"), ("run", "load_study"), ("resume", "load_study")],
+)
+def test_an_interruption_before_execution_does_not_claim_a_cancellation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, operation: str, loader: str
+) -> None:
+    # Ctrl+C while a read-only command, or the initial load of run or resume, reads the study: nothing cancels it.
+    import vamos.experiment.cli.study_command as study_command
+
+    root = tmp_path / "study"
+    vamos.create_study(
+        vamos.StudySpec(problems=["zdt1"], algorithms=["nsgaii"], seeds=[0], max_evaluations=8, pop_size=4),
+        output=root,
+    )
+
+    def interrupted(*_args: Any, **_kwargs: Any) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(study_command, loader, interrupted)
+    result = execute_study_command(StudyCommandRequest(operation=operation, study_dir=root))
+    action = result.errors[0]["action"]
+
+    assert result.status == "interrupted"
+    assert "cancel" not in action.lower(), action
+    assert "resum" not in action.lower(), action
+    assert vamos.load_study(root).status == "created"
 
 
 def test_sa_067_cli_inspect_and_summarize_do_not_materialize_arrays(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

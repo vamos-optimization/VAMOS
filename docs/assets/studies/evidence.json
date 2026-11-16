@@ -1,18 +1,18 @@
 {
   "schema": "vamos.documentation.study-tutorial-evidence.v1",
   "source": "examples/tutorials/study_workflow.py",
-  "source_sha256": "deb847fb501a823f474e5ffa75b80bc69acae84c0b0154256cdcae3e4931038f",
-  "base_commit": "0e8347a4f537f08c5fb7265264b3dace489ab3c1",
+  "source_sha256": "bdd2494764a88eb0b68d61def2ab006e5b1d82b09e9d02c6b6274a0e5878045e",
+  "base_commit": "e0e426850eacee8d4083eb0d0ebc1371e9fa56b5",
   "command": "python tools/build_study_tutorials.py --write --work-dir <new-directory>",
   "packages": {
-    "vamos-optimization": "1.0.1",
+    "vamos-optimization": "1.3.0",
     "numpy": "2.1.3",
     "scipy": "1.15.3",
     "joblib": "1.4.2",
     "moocore": "0.3.2",
     "matplotlib": "3.10.9"
   },
-  "python": "3.12.14",
+  "python": "3.12.3",
   "outputs": {
     "t06": "Planned tasks: 8\nPlanned evaluations (first attempts): 1600\nStudy state: completed\nSucceeded tasks: 8/8\nVerified run metadata: 8\nInspection issues: 0\n",
     "t07": "Persisted studies: 1\nPlanned rows retained: 8\nMeasured successful rows: 8\nUnavailable rows (not zero-filled): 0\nHV: higher is better; IGD+: lower is better. References fixed before comparison.\n",
@@ -34,63 +34,63 @@
     "t06-fair-study.py": "11c0bcefd7a4ddc5cdcd80f0d1b15b9d8d91e40f446632fbe4ec2747a3e11e6f",
     "t07-quality-and-budget.py": "53ee35a520f9a4d2130e81d7ed27f8abe4483762fb196f769a5d450b759cfad1",
     "t08-study-report.py": "7eb9df8668061451e5ba1f311e0236501f58e002a80cb6eac69cc0471a147a40",
-    "recorded-measurements.json": "09922dd0644a9b53072e4ae492a8abcec334fd8ef8c77f6a1d7b3e1ffc8468aa",
-    "metrics.csv": "6511b18abf298a4306ae01b784e92f6a5c2802b34f4b82fac3406c63f485b79c",
-    "summary.csv": "226fd6834fb57fb1d65f85b188329d0ff3030147e7d40b042c697883dbcb6d7e",
-    "budget-comparison.svg": "4c02b016d061d058ea5bcda8598efd3a388ab86998f27521bae9dec47396a5a5",
-    "final-distributions.svg": "16ada107b734723c0c474994c24c249cca48150590f63e9e83fcd7f76629882b",
-    "study-requirements.txt": "19eb02019277d89248e74a54a32ae174158e1e57af8299d94cd60fb95e5b4e9d",
+    "recorded-measurements.json": "b4a3602d3a086ede9c366dafd27e5bfe0ab2bc2c1ae555a8b98c920162387fb8",
+    "metrics.csv": "79bd7dc2d5684bad08a9ae863cd98b9ac71483dbed4157e839f22228894e1e1a",
+    "summary.csv": "0b1cea7e87e54d0abe152a60971d9f3d521b8c71291ca2e2bd18717d16cba817",
+    "budget-comparison.svg": "aaade9c3b981057bd86011f65c553d90b60ef0e0bb893b8fa7894e7203264bd5",
+    "final-distributions.svg": "49f41e68ed3be8fbca91ddeffb2adb67415ba682c7148bfabe723a1f692cabcf",
+    "study-requirements.txt": "5d3d032f4e1fd6a953f8b64cbc38f51fb0246344facc7ec2c4613ae1d9bd30b5",
     "study-execution.svg": "20ef9e5ed26a054d67efc913fac2ba7930f1be92d8339da713233658c998a343"
   },
-  "report_sha256": "0dc399435bf60fdc0c99663cb896cf2aacc0ffa961c31b2331c000106c769cfe",
+  "report_sha256": "c3c9ec6b9f2e1586914f162375d90c576a5b5d83ca68c03dc3b606f0de45ef60",
   "final_budget_summary": [
     {
       "problem": "zdt1",
       "algorithm": "moead",
       "budget": 2000,
       "n": 10,
-      "hv_q1": 11.110844785129498,
-      "hv_median": 11.391416450816719,
-      "hv_q3": 11.541521529581484,
-      "igd_plus_q1": 0.08029214355268166,
-      "igd_plus_median": 0.1552696061291112,
-      "igd_plus_q3": 0.2610141040942928
+      "hv_q1": 11.000206070376617,
+      "hv_median": 11.23237127456456,
+      "hv_q3": 11.519566488214261,
+      "igd_plus_q1": 0.062228793528809084,
+      "igd_plus_median": 0.18972028522475815,
+      "igd_plus_q3": 0.27433926578819584
     },
     {
       "problem": "zdt1",
       "algorithm": "nsgaii",
       "budget": 2000,
       "n": 10,
-      "hv_q1": 11.720343985550212,
-      "hv_median": 11.72742837757986,
-      "hv_q3": 11.730542459342118,
-      "igd_plus_q1": 0.018246294480909808,
-      "igd_plus_median": 0.020584312952280984,
-      "igd_plus_q3": 0.02388189779284
+      "hv_q1": 11.692250528918802,
+      "hv_median": 11.707686263682962,
+      "hv_q3": 11.7189758543049,
+      "igd_plus_q1": 0.025193446294462265,
+      "igd_plus_median": 0.030541485440009716,
+      "igd_plus_q3": 0.04497677615427615
     },
     {
       "problem": "zdt2",
       "algorithm": "moead",
       "budget": 2000,
       "n": 10,
-      "hv_q1": 10.811057694578393,
-      "hv_median": 10.91789503603768,
-      "hv_q3": 10.939341594649035,
-      "igd_plus_q1": 0.3881239818044459,
-      "igd_plus_median": 0.3972267326728185,
-      "igd_plus_q3": 0.45944210990660633
+      "hv_q1": 10.93250420336022,
+      "hv_median": 10.988769846789962,
+      "hv_q3": 11.087342597181703,
+      "igd_plus_q1": 0.21580383336211081,
+      "igd_plus_median": 0.3443530848530343,
+      "igd_plus_q3": 0.39460211655920696
     },
     {
       "problem": "zdt2",
       "algorithm": "nsgaii",
       "budget": 2000,
       "n": 10,
-      "hv_q1": 11.02273809209394,
-      "hv_median": 11.299353125197424,
-      "hv_q3": 11.334468308113488,
-      "igd_plus_q1": 0.051961481352209925,
-      "igd_plus_median": 0.0785496070566683,
-      "igd_plus_q3": 0.3136296351602399
+      "hv_q1": 11.008922170212294,
+      "hv_median": 11.039830335725354,
+      "hv_q3": 11.247592148441512,
+      "igd_plus_q1": 0.11758724121016874,
+      "igd_plus_median": 0.2981048204478468,
+      "igd_plus_q3": 0.32609860588916667
     }
   ]
 }

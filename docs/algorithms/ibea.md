@@ -10,7 +10,7 @@ downloads:
 
 Indicator-based selection turns pairwise objective comparisons into fitness [1]. Here the additive epsilon indicator drives search; the indicator chosen for selection need not be the metric used to report final quality.
 
-**Goal:** run the stable public API in VAMOS 1.0.1, interpret its returned population, and identify which settings control this mechanism.
+**Goal:** run the stable public API in VAMOS 1.3.0, interpret its returned population, and identify which settings control this mechanism.
 
 [Capability matrix](../reference/algorithms.md) · [Exact configuration reference](../reference/api/algorithms/ibea.md) · [Setup and recorded evidence](../tutorials/coverage-setup.md)
 
@@ -31,7 +31,7 @@ The second command reruns the same protocol and requires Matplotlib. Use a new f
 ??? example "Complete runnable script"
 
     ```python
-    """Verified VAMOS 1.0.1 lesson: ibea. See coverage-setup for dependencies."""
+    """Verified VAMOS 1.3.0 lesson: ibea. See coverage-setup for dependencies."""
 
 
     def execute_example(problem, algorithm, config, budget, seed=42, engine="numpy"):
@@ -152,14 +152,14 @@ The second command reruns the same protocol and requires Matplotlib. Use a new f
 ```text
 Algorithm: ibea; encoding: real; backend: numpy; seed: 42
 Returned X: (40, 10); F: (40, 2); result mode: population
-Feasible rows: 40/40; feasible non-dominated rows: 15
+Feasible rows: 40/40; feasible non-dominated rows: 14
 Evaluations: 400
 ```
 <!-- /tutorial:output -->
 
 ![Actual ibea results from the documented protocol.](../assets/coverage/ibea.svg)
 
-*Measured with VAMOS 1.0.1; the [observations and provenance](../tutorials/coverage-setup.md#recorded-evidence) retain the inputs and results.*
+*Measured with VAMOS 1.3.0; the [observations and provenance](../tutorials/coverage-setup.md#recorded-evidence) retain the inputs and results.*
 
 ## Understand the configuration
 
@@ -175,7 +175,7 @@ Evaluations: 400
 Each `X` row aligns with the same `F` row. This lesson explicitly requests `population` mode, then computes the feasible non-dominated subset separately. All objectives are minimized. A non-dominated row is only non-dominated among the available rows; it need not be Pareto optimal. The retained [observations](../assets/coverage/observations.json) contain the actual arrays and configuration.
 
 IBEA normalizes each objective over the population before computing either indicator, as adaptive IBEA does [1].
-- **Units:** a positive affine change of the units of any objective leaves its selection unchanged. The recorded run, measured with VAMOS 1.0.1, predates this normalization of the epsilon indicator.
+- **Units:** a positive affine change of the units of any objective leaves its selection unchanged.
 - **Limitation:** solutions far behind the others widen the normalization range and slow convergence on multimodal problems.
 - **Quality:** do not infer superior quality from the indicator name.
 - **The figure:** it reports objectives in their original units. It does not show a hypervolume-optimized run.

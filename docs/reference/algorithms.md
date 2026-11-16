@@ -28,9 +28,9 @@ To query the installed registry, use `available_algorithms()` from `vamos.algori
 
 ## Capability matrix
 
-This table describes the **VAMOS 1.2.1 package**. Changes since 1.0.0 are listed below. “R / B / I / P / M” means real, binary, integer, permutation and mixed encodings. An encoding requires compatible variation operators and, for mixed problems, the problem's variable specification; a real-coded default configuration does not convert a discrete problem.
+This table describes the **VAMOS 1.3.0 package**. Changes since 1.0.0 are listed below. “R / B / I / P / M” means real, binary, integer, permutation and mixed encodings. An encoding requires compatible variation operators and, for mixed problems, the problem's variable specification; a real-coded default configuration does not convert a discrete problem.
 
-| Algorithm | Encodings | Constraint-aware survival in 1.2.1 | Archive | Backends | API status |
+| Algorithm | Encodings | Constraint-aware survival in 1.3.0 | Archive | Backends | API status |
 | --- | --- | --- | --- | --- | --- |
 | NSGA-II | R / B / I / P / M | Feasibility-based | Optional external result archive | NumPy / Numba / MooCore | Stable |
 | NSGA-III | R / B / I / P / M | Feasibility-first with reference-direction niching ([details](#constraint-handling-in-110)) | Optional external result archive | NumPy / Numba / MooCore | Stable |
@@ -49,6 +49,23 @@ This table describes the **VAMOS 1.2.1 package**. Changes since 1.0.0 are listed
 **Evidence and scope.** The encoding families are exercised by repository operator-combination tests and encoding integration tests. Historical real-coded, unconstrained ZDT1 smoke runs were checked for all nine algorithms on each of the three backends against the installed 1.0.0 package. That is not a validation of the full encoding × constraints × archive × backend Cartesian product, nor a convergence or speed benchmark. Custom operators and untested combinations require a representative check before a large study. SMPSO rejects standalone binary, integer and permutation encodings; its mixed path requires mixed-variable mutation.
 
 **VAMOS 1.2.0:** every `XConfig.default()` takes an optional `encoding`, and `optimize(problem, algorithm=...)` passes the problem's encoding to it. Discrete and mixed problems then get the operators of the shared encoding table: uniform crossover and bit-flip mutation for binary, OX and swap for permutations, SBX (probability 0.9) and polynomial mutation for integers, and the mixed operators for mixed problems. In VAMOS 1.1.0 only NSGA-II and MOEA/D did this, so 22 of the 33 supported combinations of the nine algorithms with `bin_knapsack`, `tsp6`, `int_alloc` and `mixed_design` failed with an error about `sbx` or `pm`; integer runs of IBEA, AGE-MOEA and RVEA, which worked, now use the table's SBX(0.9, 20) instead of their real-coded crossover. Every `default()` also accepts `pop_size=None` (100, or the lattice size for MOEA/D, NSGA-III and RVEA), and `builder().pop_size()` rejects anything but a positive integer.
+
+**VAMOS 1.3.0:** three crossovers no longer bias the search or
+collapse its diversity. The integer SBX (`sbx` on integer variables, and
+`int_crossover="sbx"` in mixed problems) rounds each child to the nearest
+integer. jMetal and jMetalPy truncate it with `int()`, which pulls the children
+towards zero: parents 3 and 4 got children with mean 3.25 instead of 3.5. The
+integer arithmetic crossover (`arithmetic`, also `blend`) and the real part of
+the mixed crossover, which is the default for mixed problems, draw a random
+weight `lam` for each mated pair and give the complementary children
+`lam * p1 + (1 - lam) * p2` and `(1 - lam) * p1 + lam * p2`. In VAMOS 1.2.1
+and earlier both children were the parents' mean, which halved the variance of those
+variables at every mating; `real_crossover="mean"` still asks for the mean.
+`blx_alpha_beta` defaults to `alpha = beta = 0.5`, jMetal's values. It extends
+the parents' interval by `alpha` below the smaller value and by `beta` above the
+larger one, not towards the better parent as in the published operator, so the
+former defaults of 0.75 and 0.25 drove an unselected population towards the
+lower bounds.
 
 **VAMOS 1.2.0:** the default real-coded crossover of every algorithm that uses SBX is SBX with probability 0.9, as in Deb et al. (2002), jMetal and pymoo, in `XConfig.default()`, in the CLI and in `build_algorithm`. Each algorithm keeps its distribution index: 20, 30 for NSGA-III and RVEA, and 15 for AGE-MOEA. VAMOS 1.1.0 used probability 1.0 in NSGA-II, NSGA-III, SMS-EMOA, SPEA2, IBEA and RVEA, so their default runs follow a different trajectory now; `.crossover("sbx", prob=1.0, eta=...)` reproduces the earlier setting. MOEA/D (differential evolution by default) and SMPSO are unchanged.
 
@@ -182,8 +199,28 @@ published results or with another framework.
   approximation, so each step's cost grows exponentially with the number of
   objectives. See [SMS-EMOA](../algorithms/smsemoa.md#interpret-the-result-and-its-limits).
 - **MOEA/D** defaults to differential evolution with PBI aggregation;
-  `aggregation("tchebycheff")` reproduces jMetal's MOEA/D-DE. See
-  [MOEA/D](../algorithms/moead.md).
+  `aggregation("tchebycheff")` reproduces jMetal's MOEA/D-DE.
+  **VAMOS 1.3.0:** `MOEADConfig.default(variant="de")` gives MOEA/D-DE and
+  `variant="sbx"` jMetal's MOEA/D with SBX and PBI; VAMOS 2.0 will make
+  `"de"` the default. See [MOEA/D](../algorithms/moead.md#what-the-configuration-means).
+
+**VAMOS 1.3.0:** three real-coded mutations scale their steps by
+the range of each variable.
+
+- `non_uniform` is Michalewicz's mutation, as in jMetal: a mutated variable
+  moves towards one of its bounds, chosen at random, by
+  `y * (1 - r ** ((1 - t / T) ** b))`, where `y` is the distance to that bound.
+  The operator does not know the run's progress `t / T`, so it uses 0: the step
+  is `y * (1 - r)`, and `perturbation` (`b`) has no effect. The tuning spaces
+  no longer offer `nonuniform_perturbation`. In VAMOS 1.2.0 the step was
+  `(1 - r ** b)` times the whole range, with a random sign, so 25% to 41% of the
+  mutated genes left their bounds and the repair moved them onto the bound.
+- `gaussian` and `cauchy` read `sigma` and `gamma` as fractions of each
+  variable's range, as pymoo does, and `gaussian` defaults to `sigma = 0.1`.
+  In VAMOS 1.2.0 both were in the variables' units, so the same value was
+  negligible on a range of 1000 and large on a range of 0.01, and `gaussian`
+  had no default. On variables with a range of 1, such as those of DTLZ and
+  most of ZDT, they behave as before.
 
 ### Choose an initial experiment
 
@@ -214,6 +251,24 @@ Use an explicit result mode when output cardinality matters. `population` return
 
 For algorithms with a supported external result archive, enabling it makes that archive the default result source unless `population` is requested explicitly. Inspect `result.data["population"]` and `result.data["archive"]` separately. An internal SPEA2 environmental archive or SMPSO leaders archive influences search; an external result archive serves a different purpose. See [stopping and archives](../experiment/stopping_and_archive.md).
 
+**VAMOS 1.3.0:** an unbounded external archive returns every non-dominated solution the run found, thousands on long runs, whereas jMetal's `BestSolutionsArchive` and Evolver return a subset as large as the population. `external_archive(capacity=None, final_selection=..., final_size=...)` makes the result report such a subset when the run ends:
+
+```python
+from vamos.algorithms import NSGAIIConfig
+
+config = (
+    NSGAIIConfig.builder()
+    .pop_size(100)
+    .crossover("sbx", prob=0.9, eta=20.0)
+    .mutation("pm", prob="1/n", eta=20.0)
+    .selection("tournament", size=2)
+    .external_archive(capacity=None, final_selection="crowding", final_size=100)
+    .build()
+)
+```
+
+`final_selection` is `"none"` (the default: the whole archive, as before), `"farthest"`, `"crowding"`, `"hv_greedy"` or `"kmeans"`, the selections of `top_k(method=...)`; `kmeans` is seeded with the archive's `rng_seed`, which without a value derives from the run seed (see [Reproducibility](../experiment/stopping_and_archive.md#reproducibility)). `final_size` defaults to the population size. `result.X` and `result.F` hold the subset, the archive stays whole in `result.data["archive"]` (`archive_X`/`archive_F` for NSGA-III and IBEA, `external_archive` for SPEA2), and `result.data["archive_subset"]` records the selection, the size and the indices of the selected rows in the archive. A saved run stores the subset as its result and the whole archive under `archive/` (SPEA2: `external_archive/`, since its `archive/` is the environmental archive), and its resolved specification records `final_selection` and `final_size`, so a replay selects the same subset. The subset also applies to a bounded archive larger than `final_size`, not with `result_mode="population"`, and not to hypervolume termination or live callbacks, which see the whole archive during the run.
+
 NSGA-III and RVEA require a population compatible with the configured reference directions. MOEA/D requires one weight vector per population member. For a simplex lattice with `p` divisions and `m` objectives, use `comb(p + m - 1, m - 1)`; for three objectives and 12 divisions, that is **91**. Explicit incompatible cardinalities fail; they are not warning-only cases. Follow the tutorials before changing objective count or population size.
 
 **VAMOS 1.2.0:** NSGA-III needs at least one individual per reference direction (N >= H) instead of exactly one, as Deb and Jain, jMetal and pymoo do; 100 individuals with 12 divisions and three objectives run with 91 directions, and fewer than 91 fail. Without `divisions`, NSGA-III uses the complete Das-Dennis lattice with the most directions that fit in `pop_size`; VAMOS 1.1.0 and earlier cut the next larger lattice to `pop_size` directions and lost the extreme direction of the first objective. With two objectives, NSGA-III and RVEA default to `pop_size - 1` divisions, or 99 without `pop_size`, instead of 6. RVEA and MOEA/D still need exactly one individual per vector; RVEA then keeps one survivor per occupied vector, so its population can end smaller than `pop_size` (see [RVEA](../algorithms/rvea.md)).
@@ -221,6 +276,39 @@ NSGA-III and RVEA require a population compatible with the configured reference 
 **VAMOS 1.2.0:** `optimize` and study planning check each built-in algorithm's smallest population and number of objectives before the run and raise `ConfigurationError` (or, when planning, `UnresolvedStudyTaskError` with `INVALID_POPULATION_SIZE` or `UNSUPPORTED_OBJECTIVE_COUNT`) that names the minimum. NSGA-II, IBEA, AGE-MOEA, MOEA/D, NSGA-III and RVEA need `pop_size >= 2` (for NSGA-II and IBEA the selection decides: a tournament needs as many individuals as its size, 2 by default, and random, Boltzmann, ranking and SUS selection one); SMS-EMOA, AGE-MOEA, NSGA-III and RVEA need at least two objectives. The table is `vamos.engine.algorithm.catalog.ALGORITHM_MINIMUMS`. VAMOS 1.1.0 failed later with an error from the parent tournament or from moocore, and AGE-MOEA ran a single-objective problem.
 
 **VAMOS 1.2.0:** with `pop_size`, `NSGAIIIConfig.default()` uses the complete lattice with the most directions that fit in it, for any number of objectives (four divisions, 70 directions, for 100 individuals and five objectives, which used to fail with six divisions and 210 directions); `RVEAConfig.default()` uses the lattice of exactly `pop_size` vectors and otherwise fails at once naming the nearest valid sizes, such as 91 or 105 for three objectives. Without `pop_size`, both still use 12 divisions for three objectives and 6 for four or more.
+
+### The command line and `optimize`
+
+A top-level `vamos` run and `vamos.optimize` build a run separately, so with the
+same problem, algorithm, population, budget and seed, and no algorithm
+configuration, they resolve the same configuration except for these
+differences, which `tests/experiment/test_cli_api_parity.py` keeps listed:
+
+- Result mode: the command line returns `non_dominated` for AGE-MOEA, CCMO,
+  CMOEA-MS, C-TAEA, IBEA, MOEA/D, RVEA, SMS-EMOA, SPEA2 and ToP, where
+  `optimize` returns `population`. NSGA-II, NSGA-III and SMPSO agree.
+- NSGA-III: the command line derives the reference directions from the
+  population when the run starts; `optimize` records the lattice's divisions.
+- MOEA/D: the command line reads the packaged weight files and records their
+  directory, a path inside the installation; `optimize` records the divisions.
+  **VAMOS 1.3.0:** with three or more objectives,
+  `algorithm.resolution.weight_vectors` records the weights each path runs: a
+  packaged jMetal file, such as `W3D_91.dat`, on the command line, and the
+  Das-Dennis lattice with `optimize`.
+- NSGA-II's offspring size and SMS-EMOA's reference point are written out by
+  one path and left to their defaults by the other, with the same effect.
+
+**VAMOS 1.3.0:** NSGA-III's SBX has distribution index 30 on the
+command line too, as in Deb and Jain (2014), pymoo and the MOEA Framework, and
+as `NSGAIIIConfig.default()` already had (jMetal's NSGA-III examples keep its
+general SBX default, 20). VAMOS 1.2.1 and earlier used 20 on the command line,
+the general SBX default of VAMOS too. Command-line NSGA-III runs on
+real-coded problems therefore follow a different trajectory;
+`--nsga3-crossover-eta 20` reproduces the earlier setting.
+
+When the two must agree, set these options explicitly on both and compare the
+resolved configuration that each run records. Both paths are stable, so their
+defaults stay until one execution path replaces them in 2.0.
 
 ### Termination criteria
 
@@ -241,7 +329,7 @@ SMS-EMOA and IBEA keep `hv_converged` as an alias until VAMOS 2.0. In VAMOS
 SMS-EMOA and IBEA reported only `hv_converged`, so the CLI never recorded that
 their HV target was reached.
 
-**Development after 1.2.1:** `optimize(termination=("max_time", seconds))`
+**VAMOS 1.3.0:** `optimize(termination=("max_time", seconds))`
 stops a run of any built-in algorithm once `seconds` of wall-clock time have
 passed since it started, checked after each generation (MOEA/D after each
 `pop_size` evaluations, SMS-EMOA after each step), so a run can overrun the
@@ -294,7 +382,7 @@ These are implementation fixes under the existing stability policy. Record the p
 
 - NumPy (default): vectorized CPU kernels.
 - Numba: JIT acceleration for supported kernels (set `VAMOS_USE_NUMBA_VARIATION=1` for permutation/binary/integer variation).
-- MooCore: accelerated kernels via `moocore`. Install optional backends with `python -m pip install "vamos-optimization[compute]==1.2.1"`; see [installation](../guide/installation.md).
+- MooCore: accelerated kernels via `moocore`. Install optional backends with `python -m pip install "vamos-optimization[compute]==1.3.0"`; see [installation](../guide/installation.md).
 
 ### Backend roles
 
@@ -442,7 +530,7 @@ reference contribution call. Other operators and repairs, genealogy tracking,
 kernels that override the ranking or contribution hooks, a platform where
 compiled `pow` differs from `np.power`, and non-finite objective values keep
 the reference step. VAMOS 1.1.0 ran front insertion and contributions in Python
-under every engine. **Development after 1.2.1:** jMetal's reference point rule
+under every engine. **VAMOS 1.3.0:** jMetal's reference point rule
 (`reference_point(rule="jmetal")`) also keeps the reference step, with the
 same results under every engine.
 
@@ -497,7 +585,7 @@ probability 1.7 or `eta=-5`, `kappa` at or below 0 (which inverts IBEA's
 selection) and `delta=1.5` ran without warning, and a `result_mode` or
 aggregation typo failed only after the initial population was evaluated.
 
-**Development after 1.2.1:** `mutation_prob_factor` reaches every algorithm
+**VAMOS 1.3.0:** `mutation_prob_factor` reaches every algorithm
 whose configuration has it: MOEA/D, NSGA-III, SMS-EMOA, SPEA2, AGE-MOEA and
 RVEA now set the mutation probability to `factor / n_var` (at most 1), as
 NSGA-II and IBEA did. In VAMOS 1.2.0 those six ran with the mutation's own

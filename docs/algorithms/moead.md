@@ -1,6 +1,6 @@
 # MOEA/D
 
-**Multiobjective Evolutionary Algorithm based on Decomposition** assigns a scalar subproblem to each weight vector and shares solutions between neighbouring subproblems [1]. This tutorial runs an unconstrained, real-coded example using the stable public API in **VAMOS 1.0.1**.
+**Multiobjective Evolutionary Algorithm based on Decomposition** assigns a scalar subproblem to each weight vector and shares solutions between neighbouring subproblems [1]. This tutorial runs an unconstrained, real-coded example using the stable public API.
 
 [All algorithms](../reference/algorithms.md) · [Configuration reference](../reference/api/algorithms/moead.md) · [Installation](../guide/installation.md)
 
@@ -59,6 +59,15 @@ Existing files are refused. For a fast execution check, use `--pop-size 20 --max
 
 The default real-coded configuration uses differential evolution (`cr=1.0`, `f=0.5`), polynomial mutation (`eta=20`, probability `1/n_var`), PBI aggregation (`theta=5`), neighbour size 20, neighbourhood selection probability 0.9 and replacement limit 2. These are VAMOS configuration choices, not a claim that every MOEA/D variant uses them.
 
+**VAMOS 1.3.0:** `MOEADConfig.default(variant=...)` gives jMetal's two default configurations, which are also Evolver's:
+
+| `variant` | jMetal | Evolver | Variation | Aggregation |
+| --- | --- | --- | --- | --- |
+| `"de"`, MOEA/D-DE [2] | `MOEADDEBuilder` | `MOEADDEDefault` | DE rand/1/bin, `cr=1.0`, `f=0.5` | Tchebycheff |
+| `"sbx"` | `MOEADBuilder` | `MOEADDoubleDefault` | SBX, `prob=0.9`, `eta=20` | PBI, `theta=5` |
+
+Both add polynomial mutation with probability `1/n_var` (Evolver's factor 1.0) and `eta=20`, and use the same neighbourhood and replacement settings as the default above. With a discrete or mixed `encoding`, the crossover and mutation come from the encoding's defaults and the aggregation from the variant. Without `variant`, the default above stays: it differs from MOEA/D-DE only in its PBI aggregation. VAMOS 2.0 will make `"de"` the default.
+
 | Decision | Consequence |
 | --- | --- |
 | Population and weights | One incumbent is associated with each weight vector; use matching cardinalities. |
@@ -86,3 +95,5 @@ An optional external archive stores non-dominated results separately from the wo
 ## References
 
 [1] Zhang, Q., and Li, H. (2007). [MOEA/D: A Multiobjective Evolutionary Algorithm Based on Decomposition](https://doi.org/10.1109/TEVC.2007.892759). *IEEE Transactions on Evolutionary Computation*, 11(6), 712–731.
+
+[2] Li, H., and Zhang, Q. (2009). [Multiobjective Optimization Problems With Complicated Pareto Sets, MOEA/D and NSGA-II](https://doi.org/10.1109/TEVC.2008.925798). *IEEE Transactions on Evolutionary Computation*, 13(2), 284–302.

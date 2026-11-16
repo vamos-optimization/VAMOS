@@ -196,3 +196,18 @@ def test_undx_matches_reference_moments():
     on_line = operator(np.repeat(np.stack([p1, p2, p3_on_line])[None], 500, axis=0), np.random.default_rng(5))
     orth_on_line = _perpendicular(on_line.reshape(-1, n_var) - middle, d)
     assert np.abs(orth_on_line).max() < 1e-12 * np.linalg.norm(d) * 10
+
+
+def test_blx_alpha_beta_default_does_not_drift():
+    from vamos.engine.operators.impl.real import BLXAlphaBetaCrossover
+
+    # 30 generations of crossover alone, random pairing and clipping: without selection the mean stays put.
+    rng = np.random.default_rng(0)
+    lower, upper = np.zeros(5), np.ones(5)
+    operator = BLXAlphaBetaCrossover(prob_crossover=1.0, lower=lower, upper=upper)
+    population = rng.uniform(0.4, 0.6, size=(100, 5))
+    for _ in range(30):
+        mates = population[rng.permutation(100)].reshape(50, 2, 5)
+        population = np.clip(np.asarray(operator(mates, rng)).reshape(100, 5), lower, upper)
+    # alpha = 0.75 below and beta = 0.25 above the parents drove the mean to 0.006.
+    assert abs(float(population.mean()) - 0.5) < 0.1, float(population.mean())

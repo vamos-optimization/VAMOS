@@ -106,11 +106,15 @@ class _FixedRanks(ConstraintHandlingTechnique):
 
 
 @pytest.mark.parametrize("config_class", [NSGAIIConfig, NSGAIIIConfig, SMSEMOAConfig, AGEMOEAConfig, RVEAConfig, SMPSOConfig])
-def test_constraint_handling_is_the_last_optional_field(config_class: Any) -> None:
+def test_constraint_handling_follows_the_fields_of_1_0(config_class: Any) -> None:
     fields = dataclasses.fields(config_class)
+    names = [field.name for field in fields]
+    position = names.index("constraint_handling")
 
-    assert fields[-1].name == "constraint_handling"
-    assert fields[-1].default is None
+    # Fields added after 1.0 go last, in the order they were added; NSGA-II had live_callback_mode in 1.0.
+    added = ["constraint_handling"] if config_class is NSGAIIConfig else ["constraint_handling", "live_callback_mode"]
+    assert names[position:] == added
+    assert fields[position].default is None
 
 
 @pytest.mark.parametrize("algorithm", ALGORITHMS + PAIRWISE_ALGORITHMS)

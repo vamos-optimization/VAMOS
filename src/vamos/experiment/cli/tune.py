@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import logging
 from collections.abc import Callable, Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -99,7 +99,7 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
 
 
 def _resolve_output_dir(base: Path, run_name: str, *, problems: Sequence[str], algorithm: str, backend: str, seed: int) -> Path:
-    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     label = "-".join(problems[:3]) + (f"-and-{len(problems) - 3}-more" if len(problems) > 3 else "")
     suffix = run_name.strip() or f"{label}_{algorithm}_{backend}_seed{seed}_{ts}"
     out = base.expanduser().resolve() / suffix

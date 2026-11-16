@@ -12,7 +12,9 @@ from typing import TYPE_CHECKING, Any
 import panel as pn
 import param
 
-from vamos.ux.panel.shell import PAGES, build_sidebar_nav, build_template
+from vamos.ux.panel import _access
+from vamos.ux.panel.launcher import _is_loopback_address, add_access_arguments, check_binding
+from vamos.ux.panel.shell import CODE_EXECUTION_PAGES, PAGES, build_sidebar_nav, build_template
 
 if TYPE_CHECKING:
     from vamos.ux.studio.experiment_setup import ExperimentSetup
@@ -33,6 +35,11 @@ class StudioApp(param.Parameterized):
     study_dir = param.String(default="results", doc="Root directory for study results.")
     focus_study = param.String(default="", doc="Study that Explore Results loads when it opens next.")
     pending_setup = param.Parameter(default=None, precedence=-1, doc="Settings that Run Experiment loads when it opens next.")
+    code_execution = param.Boolean(
+        default=True,
+        constant=True,
+        doc="Whether Studio offers Batch Comparison, whose study workers run code with the account that serves it.",
+    )
 
     # ---- internal ----
     _nav_col = param.ClassSelector(class_=pn.Column, precedence=-1)
@@ -40,7 +47,7 @@ class StudioApp(param.Parameterized):
 
     def __init__(self, **params: Any) -> None:
         super().__init__(**params)
-        self._nav_col = build_sidebar_nav(self.page)
+        self._nav_col = build_sidebar_nav(self.page, self.offered_pages)
         self._main_area = pn.Column(sizing_mode="stretch_both")
         self._exit_hooks: list[Callable[[], None]] = []
         self._wire_nav_buttons()
@@ -72,10 +79,22 @@ class StudioApp(param.Parameterized):
         self._main_area.clear()
         self._main_area.append(self._load_page(self.page))
 
+    @property
+    def offered_pages(self) -> list[str]:
+        """The pages this session offers, in the order of the page registry."""
+        return [slug for slug in PAGES if self.code_execution or slug not in CODE_EXECUTION_PAGES]
+
     def _load_page(self, slug: str) -> pn.viewable.Viewable:
         renderer = PAGE_RENDERERS.get(slug)
         if renderer is None:
             return pn.pane.Markdown(f"## Unknown page: {slug}")
+        if slug not in self.offered_pages:
+            return pn.pane.Alert(
+                f"**{PAGES[slug][0]}** is off: this Studio serves a non-loopback address, and the page runs code with "
+                "the account that serves it. Its owner can offer it by starting Studio with "
+                "`--allow-remote-code-execution`.",
+                alert_type="warning",
+            )
         try:
             return renderer(self)
         except Exception as exc:
@@ -134,10 +153,10 @@ class StudioApp(param.Parameterized):
 # ---------------------------------------------------------------------------
 
 
-def _render_welcome(_app: StudioApp) -> pn.viewable.Viewable:
+def _render_welcome(app: StudioApp) -> pn.viewable.Viewable:
     from vamos.ux.panel.pages.welcome import render_welcome
 
-    return render_welcome()
+    return render_welcome(app.offered_pages)
 
 
 def _render_catalog(app: StudioApp) -> pn.viewable.Viewable:
@@ -190,10 +209,10 @@ PAGE_RENDERERS: dict[str, Callable[[StudioApp], pn.viewable.Viewable]] = {
 # ---------------------------------------------------------------------------
 
 
-def create_app(study_dir: str = "results") -> pn.template.FastListTemplate:
+def create_app(study_dir: str = "results", *, code_execution: bool = True) -> pn.template.FastListTemplate:
     """Build one Studio session; Panel calls this for every browser session."""
     _ensure_panel_extension()
-    app = StudioApp(study_dir=study_dir)
+    app = StudioApp(study_dir=study_dir, code_execution=code_execution)
     return app.view()
 
 
@@ -203,13 +222,45 @@ def parse_serve_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--address", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=5006)
     parser.add_argument("--show", action="store_true", help="Open a browser tab.")
+    add_access_arguments(parser)
     parser.add_argument(
         "--allow-websocket-origin",
         action="append",
         default=[],
         help="Extra host[:port] allowed to open the session websocket (repeatable).",
     )
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    check_binding(parser, args)
+    return args
+
+
+def _is_wildcard(address: str) -> bool:
+    return address.strip("[]") in {"0.0.0.0", "::", ""}
+
+
+def studio_url(address: str, port: int) -> str:
+    """Where a browser on this computer opens Studio."""
+    host = "localhost" if _is_wildcard(address) or ":" in address else address
+    return f"http://{host}:{port}/app"
+
+
+def exposure_warnings(address: str, *, code_execution: bool) -> list[str]:
+    """What the owner should know about who can use this server."""
+    warnings: list[str] = []
+    if _is_loopback_address(address):
+        return warnings
+    warnings.append(
+        "WARNING: VAMOS Studio is binding beyond loopback. Anyone on the network who opens the link with this "
+        "launch's access token can use it."
+    )
+    if code_execution:
+        warnings.append(
+            "WARNING: --allow-remote-code-execution offers Batch Comparison, so it can also run code with this "
+            "account and read and write its files."
+        )
+    else:
+        warnings.append("Batch Comparison is off, because it runs code with this account; --allow-remote-code-execution offers it.")
+    return warnings
 
 
 def websocket_origins(address: str, port: int, extra: Sequence[str] = ()) -> list[str]:
@@ -221,7 +272,7 @@ def websocket_origins(address: str, port: int, extra: Sequence[str] = ()) -> lis
     computer cannot see, such as a proxy or DNS alias, go in ``extra``.
     """
     origins = [f"localhost:{port}", *extra]
-    if address.strip("[]") in {"0.0.0.0", "::", ""}:
+    if _is_wildcard(address):
         origins += [f"{host}:{port}" for host in _local_host_names() if f"{host}:{port}" not in origins]
     elif ":" not in address:  # Bokeh's allowlist cannot express IPv6 literals; browse those via localhost.
         origins.append(f"{address}:{port}")
@@ -241,17 +292,42 @@ def _local_host_names() -> list[str]:
 
 
 def serve(argv: Sequence[str] | None = None) -> int:
-    """Serve Studio at ``/app`` until the process is stopped."""
+    """Serve Studio at ``/app`` until the process is stopped.
+
+    Only browsers that open the printed link, which carries a token drawn for
+    this launch, can open a session.
+    """
     args = parse_serve_args(argv)
+    code_execution = _is_loopback_address(args.address) or args.allow_remote_code_execution
     origins = websocket_origins(args.address, args.port, args.allow_websocket_origin)
-    pn.serve(
-        {"app": lambda: create_app(args.study_dir)},
-        address=args.address,
-        port=args.port,
-        show=args.show,
-        websocket_origin=origins,
-        title="VAMOS Studio",
-    )
+    token = _access.new_token()
+    options: dict[str, Any] = {"auth_provider": _access.TokenAuth(token, args.port)}
+    url = f"{studio_url(args.address, args.port)}?token={token}"
+    sys.stdout.write(f"VAMOS Studio: open it with this link, which carries this launch's access token:\n    {url}\n")
+    sys.stdout.flush()
+    for warning in exposure_warnings(args.address, code_execution=code_execution):
+        sys.stderr.write(warning + "\n")
+    redirects: list[Path] = []
+    if args.show:  # Once the server listens.
+        from tornado.ioloop import IOLoop
+
+        loop = IOLoop.current()
+        loop.add_callback(lambda: redirects.append(_access.open_in_browser(url)))
+        options["loop"] = loop
+    try:
+        pn.serve(
+            {"app": lambda: create_app(args.study_dir, code_execution=code_execution)},
+            address=args.address,
+            port=args.port,
+            show=False,
+            verbose=False,
+            websocket_origin=origins,
+            title="VAMOS Studio",
+            **options,
+        )
+    finally:
+        for redirect in redirects:
+            redirect.unlink(missing_ok=True)
     return 0
 
 

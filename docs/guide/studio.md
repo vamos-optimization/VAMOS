@@ -14,7 +14,7 @@ ZDT1, NSGA-II and MOEA/D, seeds 42 and 43, population 100, NumPy backend,
 10,000 evaluations per run. The two seeds are pooled for each algorithm.
 This is a walkthrough dataset, not evidence that one algorithm is better.*
 
-This guide targets **VAMOS 1.2.1**. Since VAMOS 1.1.0 the launcher serves the
+This guide targets **VAMOS 1.3.0**. Since VAMOS 1.1.0 the launcher serves the
 application and honors its study directory. Users of 1.0.2 should upgrade to
 obtain these fixes and the durable batch and comparison pages described here.
 
@@ -84,7 +84,7 @@ ranking table shown on the page, filters included. Use the
 Studio's optional dependencies are installed from PyPI:
 
 ```bash
-python -m pip install "vamos-optimization[studio]==1.2.1"
+python -m pip install "vamos-optimization[studio]==1.3.0"
 ```
 
 The packaged command and its intended study-root argument are:
@@ -102,6 +102,18 @@ vamos studio --address ::1 --port 5010 --study-dir results/studio-demo
 
 With an IPv6 address, open Studio at `http://localhost:5010/app`.
 
+**VAMOS 1.3.0:** Studio admits only the browsers that open it with
+the access token of its launch. Each launch draws a new token and prints a link
+that carries it, such as `http://127.0.0.1:5006/app?token=…`, and the browser
+that `vamos studio` opens receives the link through a file only you can read,
+not on its command line. A browser that has opened the link keeps a cookie for
+the rest of the launch; any other request gets a page that asks for the token,
+and a session websocket without the cookie is refused. Without the token, any
+user of the same computer could open a session on the loopback port and,
+through Batch Comparison, run code and write files with your account. No
+option serves
+Studio without the token. VAMOS 1.2.1 and earlier serve every request.
+
 A non-loopback address is rejected unless you separately acknowledge the
 network exposure:
 
@@ -111,7 +123,14 @@ vamos studio --address 0.0.0.0 --allow-remote-binding --no-browser
 
 Remote binding exposes an experimental local application to other network
 users. Apply operating-system firewall and access controls appropriate to the
-environment; Studio does not provide an authentication boundary.
+environment. **VAMOS 1.3.0:** with a non-loopback address, Studio
+does not offer Batch Comparison, because whoever uses it runs code with the
+account that serves Studio and reads and writes its files;
+`--allow-remote-code-execution` offers it anyway, to everyone who has the link. `python -m
+vamos.ux.panel.app`, which `vamos studio` runs, also refuses a non-loopback
+address without `--allow-remote-binding`, and `vamos studio` rejects options it
+does not know instead of passing them on. VAMOS 1.2.1 and earlier offer both
+pages with remote binding, and the server module accepts any address.
 
 Browsers open Studio sessions only from pages served under an allowed
 `host:port`. With a wildcard address such as `0.0.0.0`, these are `localhost`
@@ -243,6 +262,10 @@ return control to Python before that interruption can take effect. Studio never
 signals a process by its id, which the system may have given to another
 program after a crash. Studio shows **stopping** until the worker acknowledges
 the request; a stale heartbeat is reported as lost, not as a confirmed stop.
+**VAMOS 1.3.0:** a stop that arrives while the worker writes a
+journal event and the checkpoints that record it waits until those writes
+finish. Before, a stop right after the study started could leave a study that
+`load_study` rejected with `CHECKPOINT_JOURNAL_INCONSISTENCY`.
 The run in progress is lost and
 the study stays `running`; **Resume** reconciles the study and continues with
 the pending runs, rerunning the interrupted one. Resuming requires the same

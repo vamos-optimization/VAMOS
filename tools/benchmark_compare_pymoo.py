@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import time
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -78,7 +79,67 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Optional Markdown summary path.",
     )
     parser.add_argument("--overwrite", action="store_true", help="Replace existing output files.")
+    parser.add_argument(
+        "--fail-below",
+        type=_percent,
+        default=None,
+        metavar="PERCENT",
+        help=(
+            "Exit with status 1 when, for a case and an algorithm, the median hypervolume of VAMOS over the seeds "
+            "is more than PERCENT below pymoo's. Runtimes stay informational."
+        ),
+    )
+    parser.add_argument(
+        "--check",
+        type=Path,
+        default=None,
+        metavar="REPORT",
+        help="Apply --fail-below to an existing JSON report instead of running the benchmarks.",
+    )
     return parser
+
+
+def _percent(value: str) -> float:
+    percent = float(value)
+    if not 0.0 < percent < 100.0:
+        raise argparse.ArgumentTypeError("PERCENT must be between 0 and 100")
+    return percent
+
+
+def hv_regressions(runs: Iterable[dict[str, Any]], *, tolerance_percent: float) -> list[str]:
+    """Each case and algorithm whose median VAMOS hypervolume is more than the tolerance below pymoo's.
+
+    Medians over the seeds keep one unlucky seed from deciding; with fixed seeds the check is
+    deterministic. A case without both frameworks, or with no positive pymoo hypervolume, is skipped.
+    """
+    values: dict[tuple[str, str], dict[str, list[float]]] = {}
+    for run in runs:
+        key = (str(run["case"]), str(run["algorithm"]))
+        values.setdefault(key, {}).setdefault(str(run["framework"]), []).append(float(run["hv"]))
+    messages: list[str] = []
+    for (case, algorithm), frameworks in sorted(values.items()):
+        if "vamos" not in frameworks or "pymoo" not in frameworks:
+            continue
+        vamos_hv = float(np.median(frameworks["vamos"]))
+        pymoo_hv = float(np.median(frameworks["pymoo"]))
+        if pymoo_hv <= 0.0:
+            continue
+        drop = 100.0 * (pymoo_hv - vamos_hv) / pymoo_hv
+        if drop > tolerance_percent:
+            messages.append(
+                f"{case}/{algorithm}: median HV {vamos_hv:.6f} is {drop:.1f}% below pymoo's {pymoo_hv:.6f} "
+                f"(tolerance {tolerance_percent:g}%)"
+            )
+    return messages
+
+
+def _report_regressions(runs: Iterable[dict[str, Any]], tolerance_percent: float) -> int:
+    messages = hv_regressions(runs, tolerance_percent=tolerance_percent)
+    for message in messages:
+        print(f"HV regression: {message}", file=sys.stderr)
+    if not messages:
+        print(f"No median HV more than {tolerance_percent:g}% below pymoo's.")
+    return 1 if messages else 0
 
 
 def _require_optional_deps() -> None:
@@ -309,6 +370,7 @@ def _aggregate_runs(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
             values = np.asarray([float(item[metric]) for item in bucket], dtype=float)
             entry[f"{metric}_mean"] = float(values.mean())
             entry[f"{metric}_std"] = float(values.std(ddof=0))
+            entry[f"{metric}_median"] = float(np.median(values))
         summary.append(entry)
     return summary
 
@@ -356,6 +418,11 @@ def _selected_cases(names: Iterable[str], *, smoke: bool) -> list[BenchmarkCase]
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
+    if args.check is not None:
+        if args.fail_below is None:
+            parser.error("--check needs --fail-below")
+        report = json.loads(args.check.read_text(encoding="utf-8"))
+        return _report_regressions(report["runs"], args.fail_below)
     _require_optional_deps()
 
     cases = _selected_cases(args.cases, smoke=bool(args.smoke))
@@ -370,7 +437,7 @@ def main(argv: list[str] | None = None) -> int:
                 runs.append(_with_metrics(_run_pymoo(case, algorithm, seed=seed), reference_front))
 
     payload = {
-        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "generated_at_utc": datetime.now(UTC).isoformat(),
         "vamos_engine": str(args.engine),
         "cases": [case.name for case in cases],
         "algorithms": [str(name) for name in args.algorithms],
@@ -396,7 +463,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Wrote JSON report to {output_path}")
     if markdown_path is not None:
         print(f"Wrote Markdown report to {markdown_path}")
-    return 0
+    return 0 if args.fail_below is None else _report_regressions(runs, args.fail_below)
 
 
 if __name__ == "__main__":

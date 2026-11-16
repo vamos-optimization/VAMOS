@@ -29,7 +29,7 @@ and inspect the durable evidence before interpreting any objective values.
 | Item | This lesson |
 | --- | --- |
 | Prerequisites | [T01](t01-first-result.md); population, objectives, evaluations; Python scripts and directories |
-| Tested package | VAMOS **1.0.1**, Python 3.12; [setup and downloads](study-setup.md) |
+| Tested package | VAMOS **1.3.0**, Python 3.12; [setup and downloads](study-setup.md) |
 | Dependencies/status | Core VAMOS; **Stable** `StudySpec`, `plan_study`, `create_study`, inspect/summary lifecycle |
 | Small run | Two problems × two algorithms × two explicit seeds; population 20; 200 evaluations per task; NumPy |
 
@@ -178,7 +178,7 @@ workflow when appropriate, and retain the selected-attempt provenance.
 With at most two attempts per task, retrying all tasks could double the planned
 evaluation allowance; record actual consumption rather than hiding retries.
 
-VAMOS 1.0.1 permits a single mutating owner per study and executes tasks
+VAMOS permits a single mutating owner per study and executes tasks
 sequentially. Never run, resume, or retry the same directory concurrently.
 
 ## Try one change

@@ -58,7 +58,7 @@ def _committed(name: str) -> Any:
 
 
 def test_cli_snapshot_detects_a_removed_option_that_is_a_substring(monkeypatch: pytest.MonkeyPatch) -> None:
-    """`--population-size` is a substring of `--offspring-population-size` (VR-091)."""
+    """`--population-size` is a substring of `--offspring-population-size`."""
     generator = _generator()
     monkeypatch.setattr(generator, "STABLE_CLI", {"vamos": generator.STABLE_CLI["vamos"]})
     actual = generator._cli_arguments
@@ -72,7 +72,7 @@ def test_cli_snapshot_detects_a_removed_option_that_is_a_substring(monkeypatch: 
 
 
 def test_snapshot_detects_a_changed_config_default(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A changed default of a stable configuration changes the snapshot (VR-091)."""
+    """A changed default of a stable configuration changes the snapshot."""
     from vamos.algorithms import NSGAIIConfig
 
     generator = _generator()
@@ -94,7 +94,7 @@ def test_snapshot_detects_a_changed_config_default(monkeypatch: pytest.MonkeyPat
 
 
 def test_snapshot_detects_a_changed_signature(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A changed default or parameter of a stable function changes the snapshot (VR-091)."""
+    """A changed default or parameter of a stable function changes the snapshot."""
     import vamos
 
     generator = _generator()
@@ -135,7 +135,7 @@ def test_type_aliases_record_no_signature() -> None:
 
 
 def test_exit_code_snapshot_reads_the_cli_mapping(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The frozen exit codes come from the code that maps errors to codes (VR-091)."""
+    """The frozen exit codes come from the code that maps errors to codes."""
     from vamos.experiment.artifacts.errors import OutputCollisionError
     from vamos.experiment.cli import run_artifact_cli
 
@@ -233,3 +233,69 @@ def test_built_in_algorithms_may_be_added_but_not_removed() -> None:
     generated = json.loads(generator._json_bytes(generator._algorithm_snapshot()))
     for added_id in ("ccmo", "ctaea", "top", "cmoeams"):
         assert added_id in generated["algorithm_ids"] and added_id not in committed["algorithm_ids"]
+
+
+def test_stable_functions_may_gain_optional_keyword_only_arguments() -> None:
+    generator = _generator()
+    frozen = "(path, *, limits=None)"
+    api: dict[str, Any] = {"modules": {"vamos": ["load_study"]}, "signatures": {"vamos.load_study": frozen}}
+
+    def keeps(signature: str) -> bool:
+        return bool(generator._keeps_frozen_api(api, {**api, "signatures": {"vamos.load_study": signature}}, {}))
+
+    assert keeps("(path, *, limits=None, verify='all', run_limits=None)")
+    assert keeps("(path, *, verify='all', limits=None)")
+    assert not keeps("(path, *, limits=None, verify)")  # a new argument without a default
+    assert not keeps("(path, verify='all', *, limits=None)")  # a new positional argument
+    assert not keeps("(path, *, verify='all')")  # a frozen argument removed
+    assert not keeps("(source, *, limits=None, verify='all')")  # a frozen argument renamed
+    assert not keeps("(path, *, limits=1, verify='all')")  # a frozen default changed
+    assert not keeps("(path, limits=None, *, verify='all')")  # a frozen keyword-only argument made positional
+    assert not keeps("(path, **kwargs)")
+    assert generator._adds_keyword_arguments("(a, *, b=1, c=2)", "(a, *, c=2, b=1, d=3)") is False  # reordered
+    assert generator._adds_keyword_arguments("(a, *, b=1)", "(a, *, b=1, d=<factory>)") is False  # no source default
+
+
+def test_regenerating_a_changed_frozen_value_keeps_the_1_0_baseline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Writing the snapshots records a reviewed change of a frozen value, and none of the additions after 1.0.
+
+    The check accepts fields, algorithms, constructor parameters and keyword-only arguments added
+    after 1.0 without recording them (see ``test_built_in_algorithms_may_be_added_but_not_removed``
+    and ``test_stable_functions_may_gain_optional_keyword_only_arguments``), so the snapshot written
+    after a changed default holds the 1.0 baseline with only that value changed.
+    """
+    generator = _generator()
+    frozen_configs = {**_configs(["pop_size"], {}, {"pop_size": 100}), "schema_version": "1.0.0"}
+    generated_configs = {
+        **_configs(["pop_size", "constraint_handling"], {"constraint_handling": None}, {"pop_size": 50, "constraint_handling": None}),
+        "algorithm_ids": ["ccmo", "nsgaii"],
+        "schema_version": "1.0.0",
+    }
+    constructor, default = "vamos.algorithms.NSGAIIConfig", "vamos.algorithms.NSGAIIConfig.default"
+    operators = "vamos.algorithms.NSGAIIConfig.default_operators"
+    frozen_signatures = {constructor: "(pop_size)", default: "(pop_size=None)", operators: "(encoding='real')"}
+    frozen_api = {"modules": {"vamos.algorithms": ["NSGAIIConfig"]}, "signatures": frozen_signatures}
+    generated_api = {
+        **frozen_api,
+        "signatures": {
+            constructor: "(pop_size, constraint_handling=None)",
+            default: "(pop_size=None, *, variant='de')",
+            operators: "(encoding='binary')",
+        },
+    }
+    (tmp_path / generator.CONFIGS_SNAPSHOT).write_bytes(generator._json_bytes(frozen_configs))
+    (tmp_path / generator.API_SNAPSHOT).write_bytes(generator._json_bytes(frozen_api))
+    monkeypatch.setattr(generator, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(generator, "OUTPUT_ROOT", tmp_path)
+    monkeypatch.setattr(
+        generator, "snapshots", lambda: {generator.CONFIGS_SNAPSHOT: generated_configs, generator.API_SNAPSHOT: generated_api}
+    )
+
+    assert generator.main(["--check"]) == 1
+    assert generator.main([]) == 0
+
+    written_configs = json.loads((tmp_path / generator.CONFIGS_SNAPSHOT).read_text(encoding="utf-8"))
+    written_api = json.loads((tmp_path / generator.API_SNAPSHOT).read_text(encoding="utf-8"))
+    assert written_configs == {**frozen_configs, "default_configs": {"NSGAIIConfig": {"pop_size": 50}}}
+    assert written_api == {**frozen_api, "signatures": {**frozen_signatures, operators: "(encoding='binary')"}}
+    assert generator.main(["--check"]) == 0

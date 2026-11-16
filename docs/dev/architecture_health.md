@@ -62,6 +62,8 @@ The canonical environment, path inventory, diagnostic fingerprint schema, baseli
 - experiment may depend on experiment/foundation/engine/ux/resources.
 - ux may depend on ux/foundation/engine/resources.
 - resources must not import other VAMOS layers.
+- A root module belongs to the layer it re-exports: `vamos`, `vamos.api`, `vamos.exceptions`, `vamos.run_artifacts` and `vamos.study_artifacts` to experiment, `vamos.algorithms` to engine, `vamos.problems` and `vamos.selection` to foundation. `tests/architecture/test_layer_boundaries.py` classifies every root module and fails on one it does not know.
+- ux reaches experiment only to read stored runs and studies, through `vamos.run_artifacts` and `vamos.study_artifacts`. No layer imports any other facade (`tests/architecture/test_no_facade_imports.py`).
 - Facades: prefer `vamos.api`, `vamos.algorithms`, `vamos.problems`, `vamos.ux.api`.
 
 ## Optional Dependencies Policy
@@ -70,7 +72,7 @@ The canonical environment, path inventory, diagnostic fingerprint schema, baseli
 - ux/panel/** and ux/studio/**: the Studio UI imports the `studio` extra (Panel and its stack) at top level.
 - Elsewhere, a top-level import of an optional dependency is guarded with `try/except ImportError`.
 - Dynamic import loopholes (`importlib.import_module`, `__import__`) are disallowed at top-level.
-- `[project].dependencies` is the closed set numpy, scipy, joblib and typing-extensions (`tests/architecture/test_dependency_policy.py`), and importing a public module loads no other third-party package (`tests/test_import_time_smoke.py`).
+- `[project].dependencies` is the closed set numpy, scipy and joblib (`tests/architecture/test_dependency_policy.py`), and importing a public module loads no other third-party package (`tests/test_import_time_smoke.py`).
 
 ## Public API Snapshot
 - Public facades (`vamos`, every public top-level module, and `vamos.ux.api`) are frozen via `tests/architecture/test_public_api_snapshot.py`, which also fails when a top-level module is missing from the snapshot.
@@ -97,7 +99,12 @@ The canonical environment, path inventory, diagnostic fingerprint schema, baseli
 
 ## Current Guard Limits
 - `tests/test_monolith_guard.py` currently classifies only `src/vamos/experiment/cli/` and `src/vamos/ux/studio/` as CLI/UI. If additional UI surfaces such as `src/vamos/ux/panel/` grow, update the categorizer instead of assuming the guard already covers them.
-- `tests/architecture/test_experiment_import_cycles.py` currently scans `vamos.experiment` only. It is an important guard, but it is not proof that the whole package is cycle-free.
+- `tests/architecture/test_experiment_import_cycles.py` scans the module-level imports of `vamos.experiment` and `vamos.engine.algorithm`. `tests/architecture/test_subpackage_cycles.py` covers the subpackages of all of `src/vamos`, counting imports inside functions, and lists the cycles that exist today with the reason each stays; a new or grown cycle fails, and a cycle that shrinks updates its entry. Neither test runs in `tools/health.py`; the full suite runs both.
+- `tests/architecture/test_builtin_component_lists.py` keeps the lists of built-in algorithms and kernel backends equal; [add algorithm](add_algorithm.md) and [add backend](add_backend.md) name every list.
+
+## Known architecture debt
+- `engine.algorithm`, `engine.operators`, `engine.variation`, `engine.config`, `engine.archive` and `engine.hooks` form one import cycle: the algorithm-specific variation in `engine/operators/policies/` uses internals of `engine/algorithm`, and `engine/variation` uses those policies. Each module import is acyclic, but no order exists between the subpackages. Moving the policies next to their algorithms, and what they share below both, would break the cycle; it is a large refactoring with no effect for users, so it waits until `engine/operators/policies` changes for another reason.
+- `foundation/core` holds experiment configuration and execution (`experiment_config`, `execution`, `hv_stop`), which belong to experiment. `engine/algorithm/factory.py` and the command-line run path depend on them, so moving them comes with one execution path for the command line and `vamos.optimize`, planned for 2.0.
 
 ## Logging/Printing Policy
 - No `print()` in library code (allowed only in CLI/UI).

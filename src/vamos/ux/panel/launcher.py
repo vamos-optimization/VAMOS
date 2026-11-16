@@ -12,6 +12,8 @@ STUDIO_APP_MODULE = "vamos.ux.panel.app"
 
 LOOPBACK_ADDRESS = "127.0.0.1"
 
+_ACCESS_FLAGS = ("allow_remote_binding", "allow_remote_code_execution")
+
 
 def _is_loopback_address(value: str) -> bool:
     address = value.strip().strip("[]")
@@ -30,9 +32,29 @@ def _port(value: str) -> int:
     return port
 
 
+def add_access_arguments(parser: argparse.ArgumentParser) -> None:
+    """The options on who may reach Studio, shared by ``vamos studio`` and the server module."""
+    parser.add_argument(
+        "--allow-remote-binding",
+        action="store_true",
+        help="Acknowledge the risk and allow a non-loopback bind address.",
+    )
+    parser.add_argument(
+        "--allow-remote-code-execution",
+        action="store_true",
+        help=("With a non-loopback address, still offer Batch Comparison, whose study workers run code with this account."),
+    )
+
+
+def check_binding(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
+    """Refuse a non-loopback address unless ``--allow-remote-binding`` acknowledges it."""
+    if not _is_loopback_address(args.address) and not args.allow_remote_binding:
+        parser.error("non-loopback binding is disabled; pass --allow-remote-binding to acknowledge the exposure risk")
+
+
 def _build_panel_command(
     study_dir: str,
-    panel_args: Sequence[str],
+    server_args: Sequence[str],
     *,
     address: str = LOOPBACK_ADDRESS,
     port: int = 5006,
@@ -45,7 +67,7 @@ def _build_panel_command(
         f"--address={address}",
         f"--port={port}",
         f"--study-dir={study_dir}",
-        *panel_args,
+        *server_args,
     ]
     if show:
         command.append("--show")
@@ -58,11 +80,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--address", default=LOOPBACK_ADDRESS, help="Bind address (default: loopback 127.0.0.1).")
     parser.add_argument("--port", type=_port, default=5006, help="Port for the Panel server.")
     parser.add_argument("--no-browser", action="store_true", help="Don't auto-open a browser tab.")
-    parser.add_argument(
-        "--allow-remote-binding",
-        action="store_true",
-        help="Acknowledge the risk and allow a non-loopback bind address.",
-    )
+    add_access_arguments(parser)
     parser.add_argument(
         "--allow-websocket-origin",
         action="append",
@@ -73,15 +91,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             "this computer's names and addresses are allowed already; add proxies or DNS aliases here."
         ),
     )
-    args, panel_args = parser.parse_known_args(argv)
-    panel_args = [*(f"--allow-websocket-origin={origin}" for origin in args.allow_websocket_origin), *panel_args]
-
-    if not _is_loopback_address(args.address) and not args.allow_remote_binding:
-        parser.error("non-loopback binding is disabled; pass --allow-remote-binding to acknowledge the exposure risk")
-    if not _is_loopback_address(args.address):
-        sys.stderr.write(
-            "WARNING: VAMOS Studio is binding beyond loopback. Anyone with network access may reach this experimental local app.\n"
-        )
+    args = parser.parse_args(argv)
+    check_binding(parser, args)
+    server_args = [
+        *(f"--{flag.replace('_', '-')}" for flag in _ACCESS_FLAGS if getattr(args, flag)),
+        *(f"--allow-websocket-origin={origin}" for origin in args.allow_websocket_origin),
+    ]
 
     try:
         import panel  # noqa: F401
@@ -90,7 +105,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     cmd = _build_panel_command(
         args.study_dir,
-        panel_args,
+        server_args,
         address=args.address,
         port=args.port,
         show=not args.no_browser,
@@ -100,4 +115,4 @@ def main(argv: Sequence[str] | None = None) -> int:
     return int(completed.returncode)
 
 
-__all__ = ["LOOPBACK_ADDRESS", "main"]
+__all__ = ["LOOPBACK_ADDRESS", "add_access_arguments", "check_binding", "main"]

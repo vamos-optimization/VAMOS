@@ -41,8 +41,13 @@ def _core_part() -> SpacePart:
 
 
 def _real_operator_part() -> SpacePart:
-    # Parents are mated two by two, so three-parent crossovers cannot run.
-    return real_operator_part_medium(crossovers=PAIRWISE_REAL_CROSSOVERS_MEDIUM)
+    # Parents are mated two by two, so three-parent crossovers cannot run. The mutation probability
+    # is a factor of 1/n_var, as in NSGA-II's space and Evolver's mutationProbabilityFactor.
+    return real_operator_part_medium(
+        crossovers=PAIRWISE_REAL_CROSSOVERS_MEDIUM,
+        mutation_prob_param="mutation_prob_factor",
+        mutation_prob_bounds=(0.25, 3.0),
+    )
 
 
 def _mixed_operator_part() -> SpacePart:

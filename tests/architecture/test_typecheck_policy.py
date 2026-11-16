@@ -414,7 +414,7 @@ def test_type_affecting_pins_cover_the_canonical_imports() -> None:
                 imported.add(node.module.split(".")[0])
     used = {distribution for distribution in canonical if _top_level_modules(distribution) & imported}
 
-    assert {"numpy", "scipy", "joblib", "typing-extensions"} <= used
+    assert {"numpy", "scipy", "joblib"} <= used
     assert used <= set(typecheck.TYPE_AFFECTING_PINS)
     assert {"mypy", "typing-extensions"} <= set(typecheck.TYPE_AFFECTING_PINS)
 

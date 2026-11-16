@@ -23,6 +23,13 @@ Every supported surface has one of three labels:
 An importable name is not automatically stable. A surface is stable only when
 it is listed here and represented in the VAMOS 1.0 compatibility baseline.
 
+**VAMOS 1.3.0:** during 1.x, a stable function, method or class may
+gain optional keyword-only arguments, so every call that worked keeps working.
+The compatibility check accepts such an argument when it has a default and still
+fails when a parameter is removed, renamed, reordered, changes kind or default,
+or when a new argument is positional or has no default. `load_study` and
+`create_study` are the first to use this (see [Studies](../guide/studies.md)).
+
 ## Stable Python API
 
 The stable Python surface is exposed through `vamos`, `vamos.api`,
@@ -122,7 +129,7 @@ The stable study lifecycle consists of:
   and `retry` methods;
 - `StudyReport` and `StudySummary`.
 
-Study mutation is single-owner in VAMOS 1.2.1. Do not run concurrent
+Study mutation is single-owner in VAMOS 1.3.0. Do not run concurrent
 `run`, `resume`, or `retry` operations against the same study. There is no
 cross-process cancellation command. Inspection and summary are immutable,
 data-only projections.
@@ -211,7 +218,7 @@ accepting a different backend silently is a breaking change.
 Undocumented provider, plugin, tuning, Studio, and internal configuration is
 not covered by this promise.
 
-**Development after 1.2.1:** `mutation_prob_factor` sets the mutation
+**VAMOS 1.3.0:** `mutation_prob_factor` sets the mutation
 probability to `factor / n_var` (at most 1) in MOEA/D, NSGA-III, SMS-EMOA,
 SPEA2, AGE-MOEA and RVEA, as it already did in NSGA-II and IBEA; in VAMOS
 1.2.0 those six algorithms ignored it. Five stable fields have no effect, so a
@@ -230,7 +237,7 @@ removal in 2.0:
 
 ## Experimental surface
 
-The following remain experimental in VAMOS 1.2.1:
+The following remain experimental in VAMOS 1.3.0:
 
 - Studio;
 - plugin discovery and custom component interfaces without a frozen
@@ -304,7 +311,7 @@ replacement where available, and affected versions.
 
 ## Python and operating-system support
 
-VAMOS 1.2.1 supports only the Python versions and operating systems exercised
+VAMOS 1.3.0 supports only the Python versions and operating systems exercised
 by the final hosted release matrix and declared in package metadata. Dropping
 a supported Python version during 1.x requires advance documentation and a
 minor release. Optional dependencies may have narrower platform support and
@@ -319,6 +326,11 @@ declared Python 3.10 to 3.12 and the status "Beta".
 **VAMOS 1.2.0:** Python 3.10 reached its end of life in October
 2026. VAMOS 1.2.0 is the last minor release that supports it: VAMOS 1.3.0 will
 require Python 3.11 or newer, and the 1.2 patch releases keep Python 3.10.
+
+**VAMOS 1.3.0:** VAMOS requires Python 3.11 or newer
+(`Requires-Python: >=3.11`), so pip does not install it on Python 3.10. CI
+tests Python 3.11 to 3.14 on Linux and Python 3.12 to 3.14 on Windows and
+macOS, and the package metadata declares Python 3.11 to 3.14.
 
 ## Support window
 

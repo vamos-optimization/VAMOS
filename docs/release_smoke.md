@@ -12,10 +12,10 @@ subsequent publication job depends on that guard.
 
 ## Preparing the next release
 
-The current candidate is **1.2.1**, dated **2026-11-15**. The published
-`v1.0.0`, `v1.0.1`, `v1.0.2`, `v1.1.0` and `v1.2.0` tags and distributions remain immutable. Keep the
+The current candidate is **1.3.0**, dated **2026-11-16**. The published
+`v1.0.0`, `v1.0.1`, `v1.0.2`, `v1.1.0`, `v1.2.0` and `v1.2.1` tags and distributions remain immutable. Keep the
 historical 1.0.0 compatibility fixtures and artifact schemas unchanged.
-See the [1.2.1 release notes](project/release-notes-1.2.1.md) for the included changes.
+See the [1.3.0 release notes](project/release-notes-1.3.0.md) for the included changes.
 
 Update the runtime version, citation, changelog, release notes (with their entry
 under Reference → Support & Versions in `mkdocs.yml`), version consistency test,
@@ -27,7 +27,7 @@ commit changes, produce new evidence before publishing. Verify the actual
 publication date before freezing.
 
 Run full local and hosted release validation. The candidate workflow accepts
-`release/final-1.2.1` pull requests and manual dispatch. After merging, dispatch
+`release/final-1.3.0` pull requests and manual dispatch. After merging, dispatch
 `release.yml` on the final `main` commit and wait for all source and installed
 wheel gates, including the frozen-evidence job, to succeed. The pre-release tag
 check requires the new tag to be absent and all previous public annotated tags
@@ -41,8 +41,8 @@ Trusted Publisher identities remain:
 | PyPI | vamos-optimization | vamos-optimization | VAMOS | upload_pypi.yml | pypi |
 
 Confirm both existing publisher registrations and the GitHub environments
-before creating the annotated `v1.2.1` tag. If deployment restrictions still
-allow only earlier tags, an authorized maintainer must add `v1.2.1` while preserving
+before creating the annotated `v1.3.0` tag. If deployment restrictions still
+allow only earlier tags, an authorized maintainer must add `v1.3.0` while preserving
 production approval requirements. Use OIDC; do not introduce API tokens or
 publish through a mirror. A required deployment approval must be completed
 through the normal environment approval flow.
@@ -57,6 +57,30 @@ checks installation and hashes, then publishes to PyPI and creates the GitHub
 Release. Verify the production package, hashes, and release before declaring
 completion. Never replace an existing version or move a published tag.
 
+### Regenerate the lessons
+
+The fundamental, study and coverage lessons, including the algorithm guides
+with recorded output, show what the release they name prints. Every release
+regenerates them on its release branch with a wheel built from that branch,
+before the release pull request merges. The wheel contains neither the lessons
+nor their sources, so the regeneration commit leaves the distributions
+unchanged:
+
+1. Set `LESSON_RELEASE` in `tools/build_fundamental_tutorials.py` to the new
+   version. The three lesson generators and their requirement files take it
+   from there, and `tests/docs/test_coverage_tutorials.py` fails while it
+   differs from the version that the [installation guide](guide/installation.md)
+   installs.
+2. Install the candidate wheel and the pinned lesson dependencies into a new,
+   non-editable environment, without `PYTHONPATH`.
+3. Run each generator with `--write` (with a new `--work-dir` where it asks
+   for one), as [fundamental](dev/fundamental-tutorials.md),
+   [study](dev/study-tutorials.md) and [coverage](dev/coverage-tutorials.md)
+   tutorial maintenance describe, and then with `--check`.
+4. Compare each changed output with the text of its page, update the prose
+   that cites the old numbers, and name the corrections that changed them in
+   the release pull request.
+
 ## Organization Pages
 
 In the organization repository, open **Settings > Pages > Build and deployment**
@@ -69,7 +93,7 @@ only when the redirect changes. The personal mirror must not deploy Pages. The
 describes the redirect. Documentation is published through the Cloudflare
 production workflow, which attaches the portal archive to the GitHub Release.
 
-`tools/build_release_docs.py --version 1.2.1 --output <new-directory>` builds
+`tools/build_release_docs.py --version 1.3.0 --output <new-directory>` builds
 the complete deployment layout. It builds the current documentation and the
 immutable release separately so each has the correct canonical URL, preserves
 previous immutable `docs/<version>/` trees when an archive directory or portal
@@ -85,7 +109,7 @@ both documentation sites, distributions, installed wheel, dependencies, and
 release evidence in one command:
 
 ```bash
-python tools/release_check.py --version 1.2.1
+python tools/release_check.py --version 1.3.0
 ```
 
 Run it from a clean release branch with the development, documentation,
@@ -109,8 +133,8 @@ evidence outside the repository:
 
 ```bash
 python tools/release_check.py \
-  --version 1.2.1 \
-  --expected-branch release/final-1.2.1 \
+  --version 1.3.0 \
+  --expected-branch release/final-1.3.0 \
   --expected-commit <full-commit-sha> \
   --tag-state pre-release \
   --typing-python <typing-venv>/bin/python \
@@ -136,7 +160,7 @@ candidate, pass its directory instead of rebuilding it:
 
 ```bash
 python tools/release_check.py \
-  --version 1.2.1 \
+  --version 1.3.0 \
   --artifacts <directory-with-one-wheel-and-one-sdist> \
   --output-dir <new-empty-evidence-directory>
 ```
@@ -161,7 +185,7 @@ from making pip treat an uninstalled wheel as already installed. Run the full
 smoke with:
 
 ```bash
-python tools/release_smoke.py --version 1.2.1 --mode full
+python tools/release_smoke.py --version 1.3.0 --mode full
 ```
 
 `--mode core` omits the optional-backend failure scenario and is used by the
@@ -192,3 +216,11 @@ TestPyPI is published first using trusted publishing. Only after its exact
 wheel installs and passes the full smoke may the same immutable wheel and sdist
 be sent to PyPI and attached to the GitHub release with their checksums, SBOM,
 manifest, provenance, stability contract, and known limitations.
+
+**VAMOS 1.3.0:** the GitHub release's text is the version's release
+notes with absolute links, written by `tools/github_release_notes.py`: links to
+documentation pages point to the version's archive,
+`https://vamos-optimization.org/docs/<version>/`, and links to other files to
+the version's tag on GitHub. The notes' relative links broke on the release
+page. To correct an earlier release, run the tool on that tag's notes and pass
+the output to `gh release edit v<version> --notes-file`.

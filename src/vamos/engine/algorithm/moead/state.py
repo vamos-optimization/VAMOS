@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from vamos.engine.algorithm.components.results import (
+    apply_final_archive_subset,
     feasible_result_indices,
     get_external_archive_constraints,
     get_external_archive_contents,
@@ -74,6 +75,12 @@ class MOEADState(AlgorithmState):
     neighbor_size: int = 20
     delta: float = 0.9
     replace_limit: int = 2
+    # The live callback's generations: one per pop_size evaluations, as for generational algorithms.
+    # live_evals is the evaluation count where the last one ended; checkpoints keep both.
+    live_generation: int = 0
+    live_evals: int = 0
+    # The evaluation count of the last notification: a run that ends past it sends a final one.
+    live_sent_evals: int = 0
     batch_size: int = 1
     subproblem_order: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([], dtype=int))
     subproblem_cursor: int = 0
@@ -231,7 +238,7 @@ def build_moead_result(
         arch_X, arch_F = archive_contents
         result["archive"] = with_constraints({"X": arch_X, "F": arch_F}, archive_G)
 
-    return result
+    return apply_final_archive_subset(result, state)
 
 
 __all__ = [

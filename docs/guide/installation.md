@@ -1,19 +1,19 @@
 ---
-description: Install VAMOS 1.2.1 and select the optional dependencies needed for your optimization workflow.
+description: Install VAMOS 1.3.0 and select the optional dependencies needed for your optimization workflow.
 search:
   boost: 2
 ---
 
 # Installation
 
-The examples on this site target **VAMOS 1.2.1**. Use an isolated Python
+The examples on this site target **VAMOS 1.3.0**. Use an isolated Python
 environment and the pinned commands below to follow the same release.
 
 ## Supported Python and operating systems
 
 | Operating system | Python versions covered by CI | Installed-wheel release checks |
 | --- | --- | --- |
-| Linux | 3.10, 3.11, 3.12, 3.13, 3.14 | Core on 3.10 and 3.13; core and compute on 3.12 and 3.14 |
+| Linux | 3.11, 3.12, 3.13, 3.14 | Core on 3.11 and 3.13; core and compute on 3.12 and 3.14 |
 | Windows | 3.12, 3.13, 3.14 | Core on 3.12 |
 | macOS | 3.12, 3.13, 3.14 | Core on 3.12 |
 
@@ -24,8 +24,11 @@ interpreter/platform combinations are unclaimed. See
 
 **VAMOS 1.2.0:** CI tests Python 3.13 and 3.14 on the three
 systems, and the release checks install the wheel on both. VAMOS 1.1.0 was
-tested on Python 3.10, 3.11 and 3.12 only. VAMOS 1.3.0 will require Python
-3.11 or newer; see
+tested on Python 3.10, 3.11 and 3.12 only.
+
+**VAMOS 1.3.0:** VAMOS requires Python 3.11 or newer, as announced
+with 1.2.0, and CI no longer tests Python 3.10. pip does not install it on
+Python 3.10, where an unpinned install selects the newest 1.2 release; see
 [Stability and versioning](../project/stability-and-versioning.md#python-and-operating-system-support).
 
 ## Core package
@@ -38,7 +41,7 @@ Create an isolated environment and install the package from PyPI:
     python -m venv .venv
     source .venv/bin/activate
     python -m pip install --upgrade pip
-    python -m pip install "vamos-optimization==1.2.1"
+    python -m pip install "vamos-optimization==1.3.0"
     ```
 
 === "Windows PowerShell"
@@ -47,7 +50,7 @@ Create an isolated environment and install the package from PyPI:
     py -m venv .venv
     .\.venv\Scripts\Activate.ps1
     python -m pip install --upgrade pip
-    python -m pip install "vamos-optimization==1.2.1"
+    python -m pip install "vamos-optimization==1.3.0"
     ```
 
 Verify the installation:
@@ -57,7 +60,7 @@ python -c "import vamos; print(vamos.__version__)"
 vamos check
 ```
 
-The version command must print `1.2.1` for this release. To install the latest
+The version command must print `1.3.0` for this release. To install the latest
 published version instead, use `python -m pip install --upgrade vamos-optimization`
 and consult the documentation for that version. Pinning VAMOS alone does not
 freeze dependencies; retain the environment record for scientific runs (see
@@ -96,7 +99,7 @@ of VAMOS that used them. No extra, `all` included, installs an LLM client.
 For example:
 
 ```bash
-python -m pip install "vamos-optimization[compute,analysis]==1.2.1"
+python -m pip install "vamos-optimization[compute,analysis]==1.3.0"
 ```
 
 An explicit optional backend fails clearly when its dependency is unavailable.
@@ -118,5 +121,5 @@ python -m pip install -e ".[dev]"
 
 Use the environment setup above before this command. The default branch may
 contain work beyond the published release; record the checked-out commit. To
-inspect the release source, check out the `v1.2.1` tag before installing.
+inspect the release source, check out the `v1.3.0` tag before installing.
 For ordinary use, prefer the PyPI installation under **Core package**.

@@ -1,4 +1,4 @@
-"""Verified VAMOS 1.0.1 lesson: engineering. See coverage-setup for dependencies."""
+"""Verified VAMOS 1.3.0 lesson: engineering. See coverage-setup for dependencies."""
 
 
 def execute_example(problem, algorithm, config, budget, seed=42, engine="numpy"):
@@ -39,8 +39,6 @@ def run_engineering(budget=400):
     from vamos.problems import WeldedBeamDesignProblem
 
     problem = WeldedBeamDesignProblem()
-    # This 1.0.1 class emits four G columns but omits their protocol metadata.
-    problem.n_constraints = 4
     config = (
         NSGAIIConfig.builder()
         .pop_size(40)

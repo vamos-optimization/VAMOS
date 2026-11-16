@@ -57,7 +57,9 @@ class _EvidenceCollector:
 def project_study(snapshot: Study) -> StudyProjection:
     """Reload once and derive every supported read model from the same view."""
     collector = _EvidenceCollector({}, {})
-    study = load_study_projection(snapshot.root, observe_run_reference=collector.observe)
+    study = load_study_projection(
+        snapshot.root, limits=snapshot.limits, run_limits=snapshot.run_limits, observe_run_reference=collector.observe
+    )
     issues = tuple(collector.issues[key] for key in sorted(collector.issues, key=lambda item: (item[0], item[1], item[2] or "")))
     report = _report(study, collector.runs, issues)
     summary = _summary(study, collector.runs, issues)
@@ -227,7 +229,9 @@ def _next_actions(
     actions: list[str] = []
     if issues:
         actions.append("restore_referenced_run_evidence")
-    if study.reconciliation_required:
+    # Resume reconciles a paused or completed study; a cancelled or failed one is terminal, and readers
+    # already derive its state from the journal.
+    if study.reconciliation_required and study.status not in {"cancelled", "failed"}:
         actions.append("resume_to_reconcile")
     if study.status == "running" and not study.reconciliation_required:
         actions.append("wait_for_current_owner_or_resume_after_interruption")

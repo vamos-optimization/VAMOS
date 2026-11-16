@@ -1,4 +1,4 @@
-# Known limitations in VAMOS 1.2.1
+# Known limitations in VAMOS 1.3.0
 
 These limitations are part of the current release scope. They describe
 unsupported behavior rather than future compatibility promises.
@@ -48,12 +48,6 @@ unsupported behavior rather than future compatibility promises.
 - Deterministic same-environment runs do not imply bitwise equality across
   different kernels, BLAS implementations, operating systems, architectures,
   or optional third-party engines.
-- `optimize` passes the run's `numpy.random.Generator` to the stochastic
-  components it builds, but two random streams do not follow the run seed:
-  the `ref_dirs` pruning of a bounded external archive draws from its
-  `rng_seed` (0 unless set), and the hypervolume convergence monitor
-  bootstraps with Python's `random.Random` seeded by its own `rng_seed`
-  (also 0). Every seed of an experiment therefore shares those two streams.
 
 ## Benchmark validation
 
@@ -150,7 +144,9 @@ unsupported behavior rather than future compatibility promises.
   research frameworks are no longer an extra (the `research` extra is removed).
 - **VAMOS 1.2.0:** the release CI claims Python 3.10 to 3.14 on
   Linux, and Python 3.12 to 3.14 on Windows and macOS; VAMOS 1.1.0 claimed
-  Python 3.10 to 3.12 on Linux and 3.12 on Windows and macOS. Other
+  Python 3.10 to 3.12 on Linux and 3.12 on Windows and macOS.
+  **VAMOS 1.3.0:** VAMOS requires Python 3.11 or newer, and the
+  release CI claims Python 3.11 to 3.14 on Linux. Other
   interpreter/platform combinations are unclaimed. The tuning extra is tested
   only on Linux with Python 3.12.
 
@@ -190,8 +186,16 @@ unsupported behavior rather than future compatibility promises.
 ## Durable studies
 
 - Study mutation is single-owner. Do not run, resume, or retry the same study
-  concurrently from multiple processes.
-- Study execution is sequential in 1.2.1. Distributed workers, multiprocess
+  concurrently from multiple processes: nothing detects a second owner, so a
+  task can run twice, and one process usually stops with
+  `EVENT_APPEND_COLLISION`.
+- Ctrl+C cancels a running study, and a cancelled study cannot be resumed; a
+  killed or crashed process leaves it resumable. See
+  [Resume and retry](../guide/studies.md#resume-and-retry).
+- Windows offers no directory fsync, so study and run writers skip it there: a
+  power loss just after a write can lose the newest entry of a directory, but
+  never leaves a partial document or run under its final name.
+- Study execution is sequential in 1.3.0. Distributed workers, multiprocess
   ownership, and cross-process cancellation are unsupported.
 - **VAMOS 1.2.0:** study tasks run with serial evaluation only;
   planning and creation reject `eval_strategy="multiprocessing"` or `"dask"`
@@ -224,6 +228,11 @@ unsupported behavior rather than future compatibility promises.
   so with five or fewer seeds its tables showed no significant difference, and
   it put the worst value in bold for some aliases of the epsilon and Hausdorff
   indicators; see [Other subcommands](../guide/cli.md#other-subcommands).
+- **VAMOS 1.3.0:** in the mixed-encoding tuning spaces of MOEA/D, NSGA-III,
+  SMS-EMOA and SPEA2, the per-type segment settings (the real, integer and
+  categorical crossovers and mutations and their probabilities) do not reach
+  the run, so tuning them has no effect. The next minor release fixes them with
+  the grammar-based spaces.
 
 ## Studio
 
@@ -233,8 +242,12 @@ unsupported behavior rather than future compatibility promises.
   feasible solutions as the worst IGD+ (∞). VAMOS 1.1.0 and earlier leave those
   runs out of IGD+, which favors algorithms that are rarely feasible; see
   [Statistical comparison](../guide/studio.md#statistical-comparison).
-- Studio provides no authentication. Remote binding increases exposure and
-  requires explicit opt-in.
+- Remote binding increases exposure and requires explicit opt-in.
+- **VAMOS 1.3.0:** each Studio launch has an access token, but it
+  travels over plain HTTP, and whoever has the link can use Studio with the
+  account that serves it until the launch ends. To reach Studio from another
+  computer, prefer an SSH tunnel to the loopback port over remote binding; see
+  [Installation and launch options](../guide/studio.md#installation-and-launch-options).
 - **Development after 1.3.0:** Studio runs registered problems only. The
   Problem Builder, which executed reviewed Python typed into Studio or drafted
   by an LLM provider, is removed, and VAMOS integrates no LLM provider.

@@ -118,6 +118,7 @@ class MockScenario:
         self.elimination_fraction = 0.5
         self.use_statistical_tests = True
         self.min_blocks_before_elimination = 2
+        self.first_test = 5
         self.neighbor_fraction = 0.2
         self.use_elitist_restarts = False
         self.max_elite_archive_size = 5

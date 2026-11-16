@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import math
 import numbers
 import re
@@ -10,10 +11,12 @@ from dataclasses import dataclass
 from importlib import metadata as importlib_metadata
 from typing import Any
 
+from vamos.engine.algorithm.components.weight_vectors import describe_weight_vectors
 from vamos.experiment.time_limit import parse_time_limit
 from vamos.foundation.problem.builder import FunctionalProblem
 from vamos.foundation.problem.registry import get_problem_specs, make_problem_selection
 
+from .component_support import BUILT_IN_ALGORITHMS, BUILT_IN_BACKENDS
 from .jsonio import normalize_json
 from .manifest import RESOLVED_SPEC_VERSION
 
@@ -33,21 +36,6 @@ _OPERATOR_ALIASES = {
     "swap": "swap",
     "tournament": "tournament",
     "uniform": "uniform",
-}
-_BUILT_IN_ALGORITHMS = {
-    "agemoea",
-    "ccmo",
-    "cmoeams",
-    "ctaea",
-    "ibea",
-    "moead",
-    "nsgaii",
-    "nsgaiii",
-    "rvea",
-    "smpso",
-    "smsemoa",
-    "spea2",
-    "top",
 }
 
 
@@ -79,6 +67,9 @@ class RunSpecInputs:
     default_sources: Mapping[str, str]
     #: Module and qualified name of the user code behind a problem that is not a registry problem.
     problem_code: tuple[str, str] | None = None
+    #: The explicit algorithm configuration as the caller gave it, when ``algorithm_config`` resolves values
+    #: that the request leaves to the run (an external archive's seed derived from the run seed).
+    algorithm_config_requested: Mapping[str, object] | None = None
 
 
 def is_registry_problem(requested: object, instance: object, label: str) -> bool:
@@ -151,7 +142,8 @@ def _requested_spec(inputs: RunSpecInputs) -> dict[str, Any]:
     if inputs.pop_size_requested is not None:
         defaults["population_size"] = inputs.pop_size_requested
     if inputs.algorithm_config_explicit:
-        requested["algorithms"] = {inputs.algorithm: dict(inputs.algorithm_config)}
+        config = inputs.algorithm_config if inputs.algorithm_config_requested is None else inputs.algorithm_config_requested
+        requested["algorithms"] = {inputs.algorithm: dict(config)}
     return requested
 
 
@@ -184,12 +176,7 @@ def _resolved_spec(inputs: RunSpecInputs) -> dict[str, Any]:
     result: dict[str, Any] = {
         "spec_version": RESOLVED_SPEC_VERSION,
         "problem": _problem_component(inputs, problem_config),
-        "algorithm": _component(
-            "algorithm",
-            f"vamos.algorithm:{_slug(inputs.algorithm)}@1",
-            algorithm_config,
-            built_in=inputs.algorithm in _BUILT_IN_ALGORITHMS,
-        ),
+        "algorithm": _algorithm_component(inputs, algorithm_config, pop_size),
         "operators": operators,
         "backend": {
             "kernel": _kernel_component(inputs.engine),
@@ -213,6 +200,31 @@ def _resolved_spec(inputs: RunSpecInputs) -> dict[str, Any]:
         },
     }
     return result
+
+
+def _algorithm_component(inputs: RunSpecInputs, config: Mapping[str, object], pop_size: int | None) -> dict[str, Any]:
+    descriptor = _component(
+        "algorithm",
+        f"vamos.algorithm:{_slug(inputs.algorithm)}@1",
+        config,
+        built_in=inputs.algorithm in BUILT_IN_ALGORITHMS,
+    )
+    if inputs.algorithm == "moead" and pop_size is not None:
+        # Which weight vectors MOEA/D runs: a Das-Dennis lattice, a jMetal file or uniform weights.
+        weights = config.get("weight_vectors")
+        options = weights if isinstance(weights, Mapping) else {}
+        path, divisions = options.get("path"), options.get("divisions")
+        try:
+            descriptor["resolution"]["weight_vectors"] = describe_weight_vectors(
+                pop_size,
+                inputs.n_obj,
+                path=path if isinstance(path, str) else None,
+                divisions=divisions if isinstance(divisions, int) and not isinstance(divisions, bool) else None,
+            )
+        except ValueError:
+            # A size without weights fails when the run starts, so a study plans the task and records its failure.
+            logging.getLogger(__name__).debug("No MOEA/D weight vectors to record for pop_size=%s", pop_size, exc_info=True)
+    return descriptor
 
 
 def _operators(config: Mapping[str, object], *, encoding: str, n_var: int, algorithm: str) -> dict[str, Any]:
@@ -269,16 +281,15 @@ def _inactive_operator(role: str, reason: str) -> dict[str, Any]:
 
 
 def _kernel_component(engine: str) -> dict[str, Any]:
-    package = {"numpy": "numpy", "numba": "numba", "moocore": "moocore"}.get(engine, engine)
     try:
-        version = importlib_metadata.version(package)
+        version = importlib_metadata.version(engine)  # Each built-in backend is named after its distribution.
     except importlib_metadata.PackageNotFoundError:
         version = None
     descriptor = _component(
         "kernel_backend",
         f"vamos.kernel:{_slug(engine)}@1",
         {},
-        built_in=engine in {"numpy", "numba", "moocore"},
+        built_in=engine in BUILT_IN_BACKENDS,
     )
     descriptor["resolution"] = {"name": engine, "version": version, "capabilities": []}
     return descriptor
@@ -349,7 +360,7 @@ def _optional_int(value: object) -> int | None:
 
 
 def _is_deterministic(engine: str, evaluation: object) -> bool:
-    return engine in {"numpy", "numba", "moocore"} and (evaluation is None or evaluation == "serial")
+    return engine in BUILT_IN_BACKENDS and (evaluation is None or evaluation == "serial")
 
 
 def _slug(value: str) -> str:

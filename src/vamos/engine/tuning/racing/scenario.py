@@ -71,9 +71,10 @@ class Scenario:
 
     use_statistical_tests: bool = True
     """
-    If True, use statistical tests (paired tests vs the current best configuration)
-    to decide which configurations to eliminate during racing. If False, fallback
-    to a simple rank-based elimination.
+    If True, eliminate configurations during racing with F-race tests: Friedman on
+    the ranks of each block followed by Conover's post-hoc comparison, or a paired
+    Wilcoxon signed-rank test with two configurations alive. If False, fall back to
+    a simple rank-based elimination.
     """
 
     alpha: float = 0.05
@@ -87,6 +88,14 @@ class Scenario:
     Minimum number of blocks (instance x seed combinations) that must be evaluated
     before elimination is allowed. In statistical mode this gates hypothesis tests;
     in rank-only mode it acts as a grace period to reduce noisy early pruning.
+    """
+
+    first_test: int = 5
+    """
+    Number of blocks before the first statistical test, as irace's ``firstTest``.
+    With ``use_statistical_tests=True``, a race tests only when every alive
+    configuration has at least ``max(first_test, min_blocks_before_elimination)``
+    blocks.
     """
 
     use_adaptive_budget: bool = False
@@ -229,6 +238,8 @@ class Scenario:
             raise ValueError("alpha must be in (0, 1)")
         if self.min_blocks_before_elimination < 1:
             raise ValueError("min_blocks_before_elimination must be >= 1")
+        if self.first_test < 1:
+            raise ValueError("first_test must be >= 1")
         if self.use_adaptive_budget and self.initial_budget_per_run is not None and self.initial_budget_per_run <= 0:
             raise ValueError("initial_budget_per_run must be > 0 when use_adaptive_budget is True")
         if self.max_budget_per_run is not None and self.max_budget_per_run <= 0:

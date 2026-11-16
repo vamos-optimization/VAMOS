@@ -4,6 +4,304 @@ All notable public changes to VAMOS are documented here.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-16
+
+VAMOS 1.3.0 is a minor release. It requires Python 3.11 or newer, as announced
+with 1.2.0. It corrects operators and settings that departed from their
+published definitions, which changes results: the non-uniform, Gaussian and
+Cauchy mutations, three crossovers, `mutation_prob_factor` in six algorithms and
+command-line NSGA-III's SBX index. It rebuilds the built-in tuning spaces and
+racing's statistics, gives every algorithm one live-callback contract, makes
+studies robust to interruptions, and adds a wall-clock time limit, problem
+options by name, jMetal's reference fronts and MOEA/D configurations as options,
+a final archive subset, and an access token for VAMOS Studio. See the [1.3.0
+release notes](docs/project/release-notes-1.3.0.md).
+
+### Added
+
+- Two-objective reference fronts for DTLZ1–DTLZ7 (`dtlz1.2d.csv` to
+  `dtlz7.2d.csv`, 1000 points of each closed-form front), so a two-objective
+  DTLZ run has an automatic reference (#285).
+- `SMSEMOAConfig.builder().reference_point(rule="jmetal")`: SMS-EMOA measures
+  the hypervolume contributions from jMetal's and Evolver's reference point,
+  each coordinate the worst value of the population and the new child times 1.1
+  (divided by 1.1 when negative), so that results can be compared with theirs.
+  The default rule, `nadir + offset * (nadir - ideal)`, does not change (#290).
+- `optimize(name, problem_kwargs=...)` and a study's `problem_kwargs` accept the
+  options a registered problem's factory declares besides `n_var` and `n_obj`:
+  `capacity_ratio` for `bin_knapsack`, and `complicated_pareto_set`, `level`,
+  `bias` and `imbalance` for `zcat1`–`zcat20`. They are recorded in
+  `resolved_spec.problem.config`, and `verify_run` and `reproduce` rebuild the
+  same problem. `make_problem_selection(name).with_options({...})` builds such
+  an instance, and `ProblemSpec.option_defaults()` lists the options. An
+  undeclared option still raises `ConfigurationError`, which now lists the
+  accepted ones, and so does a number that the run artifact cannot record
+  exactly (#286).
+- `optimize(termination=("max_time", seconds))` stops a run of any built-in
+  algorithm once `seconds` of wall-clock time have passed, checked after each
+  generation; `("max_time", {"seconds": s, "max_evaluations": n})` also caps the
+  evaluations, and `result.meta["time_limit_reached"]` says which stopped it.
+  Runs limited by time are not reproducible across machines or even on the same
+  one: their resolved spec records `vamos.termination:max_time@1` and
+  `determinism.declared: false`, the manifest gives the replayability reason
+  `wall_clock_termination`, and `verify_run` and `reproduce` refuse an exact
+  replay (#289).
+- `live_callback_mode` (`"population"`, `"nd_only"`, `"population_archive"`) in
+  the configurations of AGE-MOEA, CCMO, CMOEA-MS, C-TAEA, IBEA, MOEA/D,
+  NSGA-III, RVEA, SMPSO, SMS-EMOA, SPEA2 and ToP, as in NSGA-II. Their default,
+  `"population"`, keeps today's payload; `"population_archive"` adds the
+  external archive in `stats["archive"]`, so a live view of a run with an
+  archive ends with what the run returns (#288).
+- `load_study(path, verify="metadata")` loads a study whose runs are damaged or
+  missing, so that `inspect()` and `summarize()` report them as issues instead
+  of raising; `run()`, `resume()` and `retry()` still verify every run (#303).
+- `load_study` and `create_study` accept `run_limits=`, a `LoadLimits` for the
+  study's runs, and the returned `Study` keeps it and its `StudyLoadLimits` as
+  `Study.run_limits` and `Study.limits` (#303).
+- Stable functions may gain optional keyword-only arguments during 1.x; the
+  compatibility check accepts them and still rejects removed, renamed, reordered
+  or required parameters (#303).
+- `select_top_k_farthest(..., normalize=True)` scales each objective to [0, 1]
+  by its range before measuring distances, so the farthest-point subset no
+  longer depends on the objectives' units or offsets. The default keeps raw
+  distances (#320).
+- jMetal's reference fronts of ZDT1–ZDT4, ZDT6 and DTLZ1–DTLZ7 with two and
+  three objectives (commit `1e4b83cae6`, MIT), packaged as an optional source
+  next to VAMOS's samples, which stay the default:
+  `resolve_reference_front_path(..., source="jmetal")`, and `vamos
+  --hv-reference-front jmetal`, which records `reference_front_source` in the
+  run. They make IGD-like indicators comparable with jMetal's and Evolver's
+  (#322).
+- `MOEADConfig.default(variant=...)`: `"de"` gives jMetal's MOEA/D-DE (DE
+  rand/1/bin with CR = 1.0 and F = 0.5, Tchebycheff aggregation; Evolver's
+  `MOEADDEDefault`), and `"sbx"` jMetal's MOEA/D with SBX (p = 0.9, eta = 20,
+  PBI with theta = 5; Evolver's `MOEADDoubleDefault`). Without `variant`, the
+  default is unchanged (DE with PBI); VAMOS 2.0 will make `"de"` the default
+  (#326).
+- `ExternalArchiveConfig.final_selection` (`"farthest"`, `"crowding"`,
+  `"hv_greedy"` or `"kmeans"`) and `final_size` (the population size by
+  default), also through `external_archive(...)`: the result reports that subset
+  of the external archive when the run ends, as jMetal's and Evolver's results
+  do, while `result.data["archive"]` and the saved run keep the whole archive
+  and `result.data["archive_subset"]` records the selection. The default,
+  `"none"`, reports the whole archive as before (#323).
+- The resolved spec of a MOEA/D run records where its weight vectors come from,
+  in `algorithm.resolution.weight_vectors`: a Das-Dennis lattice with its
+  divisions, a packaged jMetal file such as `W3D_100.dat`, a user's file, or
+  uniform weights with two objectives, and their number. `vamos tune` records
+  the population a MOEA/D trial ran when the bridge lowered the sampled one
+  (`details.effective` in `tuning_history.json`, `best_config_effective` in
+  `tuning_summary.json`), and `assignment_adjustments` returns it for code that
+  calls `config_from_assignment`. MOEA/D runs stored by earlier versions are not
+  verified as exact (#321).
+
+### Changed
+
+- The built-in tuning spaces tune only what reaches the algorithm. The
+  real-coded spaces no longer offer `repair="round"` or `blx_repair="round"`,
+  which put the whole population on the vertices of the bounding box. The SMPSO
+  spaces drop `repair`, which never reached SMPSO, and the SPEA2 spaces drop
+  `selection_pressure`, since SPEA2 always mates with its own binary tournament.
+  The RVEA spaces sample `pop_size` in [20, 200] instead of `n_partitions` in
+  [4, 12], and run the largest Das-Dennis lattice with at most `pop_size`
+  directions for the problem's number of objectives. The fixed range of
+  partitions gave 5 to 13 individuals with two objectives and up to 293,930 with
+  ten. Assignments saved from earlier spaces still build. Seeded tuning runs
+  draw different trials. Persistent Optuna studies move to
+  `__vamos_cli_final_population_hv_v3` and, for SMPSO,
+  `__vamos_cli_leaders_hv_v2`, so studies stored by VAMOS 1.2.1 or earlier are
+  not resumed (#291).
+- Stable configuration fields that have no effect emit a `FutureWarning` when
+  they are set and are planned for removal in VAMOS 2.0. They are
+  `NSGAIIIConfig.pop_size_auto` and `enforce_ref_dirs` (NSGA-III runs the
+  largest lattice that fits in `pop_size`, with at least one individual per
+  direction), `track_genealogy` of `AGEMOEAConfig` and `RVEAConfig`, and a
+  `SPEA2Config.selection` other than a binary tournament.
+  `NSGAIIIConfig.default()` does not warn (#292).
+- The SMS-EMOA tuning spaces choose the mating selection, `random` or
+  `tournament` (with `selection_pressure` only for a tournament), and
+  `reference_point_offset` in [0.1, 2.0], so they include `SMSEMOAConfig`'s
+  defaults. They always used a tournament and an offset of 0.1, which an
+  assignment without the new parameters still builds. Seeded SMS-EMOA tuning
+  runs draw different trials (#293).
+- VAMOS Studio admits only browsers that open it with the access token of its
+  launch: `vamos studio` prints a link with the token and opens it through a
+  private file, the browser keeps a cookie, and session websockets without it
+  are refused. Before, any user of the same computer could open a session and
+  run code with the owner's account and LLM keys. No option turns the token off
+  (#302).
+- With a non-loopback address, Studio no longer offers Problem Builder or Batch
+  Comparison, which run code with the account that serves it, unless
+  `--allow-remote-code-execution` is given. `python -m vamos.ux.panel.app` now
+  refuses a non-loopback address without `--allow-remote-binding`, like `vamos
+  studio`, and `vamos studio` rejects unknown options instead of passing them to
+  the server (#302).
+- Live callbacks (`live_viz`) receive one documented payload from every built-in
+  algorithm: `on_generation` gets the objective and decision vectors of the
+  whole current population, row by row, and `stats["evals"]`, starting at
+  generation 0. MOEA/D reports one generation per `pop_size` evaluations instead
+  of one per evaluation, and a run resumed from a checkpoint continues the
+  numbering. NSGA-II keeps sending its first front with its default
+  `live_callback_mode="nd_only"`. Only NSGA-II passed `X`; MOEA/D and SMPSO sent
+  the first front; and some `ask`/`tell` paths left out `stats`. With MOEA/D,
+  the CLI's convergence hooks sample once per `pop_size` evaluations (#287).
+- The MOEA/D tuning spaces take Evolver's ranges, `neighbor_size` in [5, 50],
+  `delta` in [0, 1] and `pbi_theta` up to 200, and offer the
+  `modified_tchebycheff` aggregation; the real-coded ones add
+  `linked_polynomial` mutation, `initializer` and `repair`. The real-coded
+  MOEA/D and SMS-EMOA spaces tune `mutation_prob_factor` (probability = factor /
+  n, as in NSGA-II's space) instead of an absolute `mutation_prob`. Assignments
+  from earlier spaces build the same configurations; seeded tuning runs draw
+  different trials (#294).
+- When a run ends inside a generation (the budget, the HV target or a stop),
+  MOEA/D and SMS-EMOA send the evaluations after their last notification as a
+  final, shorter generation, as the generational algorithms do, so a live view
+  ends with the run's result. SMS-EMOA stopped notifying at the last multiple of
+  `pop_size`: with 67 evaluations and `pop_size=12`, a callback got generations
+  up to 4 (60 evaluations) and now also 5 (67) (#288).
+- The random streams of an external archive's `ref_dirs` pruning and of the
+  hypervolume convergence monitor's bootstrap follow the run seed.
+  `ExternalArchiveConfig.rng_seed` and `HVConvergenceConfig.rng_seed` default to
+  `None`, which derives each stream from the run seed as a child of its
+  `SeedSequence`, so the algorithm's own stream does not change. An integer
+  still fixes the stream, and `optimize` records the effective archive seed in
+  the run's resolved configuration while its requested specification keeps
+  `None`. The monitor bootstraps with a `numpy.random.Generator` instead of
+  Python's `random.Random`. Both fields defaulted to 0, so every seed of an
+  experiment shared those streams. Runs that use `ref_dirs` pruning without
+  `rng_seed`, or a convergence monitor with `confidence`, give different results
+  (#304).
+- Racing's statistical race eliminates configurations with F-race, as irace
+  does. A Friedman test on the ranks of each instance/seed block is followed by
+  Conover's post-hoc test on the rank sums, and a paired Wilcoxon signed-rank
+  test decides when two configurations are alive. The first test waits for
+  `Scenario.first_test` blocks (5, irace's `firstTest`) or
+  `min_blocks_before_elimination`, whichever is larger. Before, paired t-tests
+  on the raw scores against the configuration of best mean eliminated nothing
+  when instances had scores on different scales: 0 configurations of 8 on 10
+  blocks with half the instances 100 times larger, against about 3 for F-race.
+  Seeded racing runs eliminate different configurations (#305).
+- The tuning spaces name their parameters after Evolver's, in snake_case
+  (`sbx_distribution_index`, `neighborhood_size`, `de_crossover_rate`,
+  `tournament_size`, …), and `undx` becomes `undc`; the real-coded spaces say
+  `polynomial` instead of `pm`. `config_from_assignment` accepts both the new
+  and the earlier names, so saved assignments build the same configurations.
+  `vamos.engine.tuning.racing.parameter_names` holds the table and converts
+  assignments to and from Evolver's camelCase names (`to_evolver`,
+  `from_evolver`). Seeded tuning runs draw different trials. Configuration
+  fields do not change (#295).
+- `gaussian` and `cauchy` read `sigma` and `gamma` as fractions of each
+  variable's range, as pymoo does, and `gaussian` defaults to `sigma = 0.1`.
+  They were in the variables' units, so the same value was negligible or huge
+  depending on the range, and `gaussian` needed an explicit `sigma`. Runs on
+  variables with a range of 1 do not change (#307).
+- The tutorials and the recorded output of the algorithm guides are regenerated
+  with VAMOS 1.2.1. Their requirement files install `vamos-optimization==1.2.1`
+  instead of 1.0.1, and the outputs that the 1.1.0 and 1.2.0 corrections changed
+  are updated (T01, T03, SMS-EMOA, SPEA2, IBEA, SMPSO, RVEA, the
+  model-hyperparameter and tuning lessons, and the recorded study report). The
+  NSGA-III guide no longer says that its survival ignores constraints, and the
+  SMPSO guide explains that `c1` and `c2` are the lower bounds of the
+  coefficients drawn at every step (#318).
+- VAMOS requires Python 3.11 or newer, as announced with 1.2.0: Python 3.10
+  reached its end of life in October 2026, and pip no longer installs VAMOS
+  1.3.0 on it. CI and the release checks test Python 3.11 to 3.14 on Linux and
+  3.12 to 3.14 on Windows and macOS (#329).
+- The declared minimum of NumPy is 1.23.2, the first NumPy release for Python
+  3.11 (#329).
+- MOEA/D with an external archive offers the archive only the rows that each
+  step changes, skips the updates that would repeat the last one, and the
+  archive inserts a few rows instead of sorting itself; results are
+  bit-identical. A 25,000-evaluation MOEA/D run on WFG with an external archive
+  is 1.6 to 14 times faster (1.1 times with `ref_dirs` pruning, whose
+  truncations draw random numbers) (#284).
+
+### Deprecated
+
+- VAMOS 1.4.0 removes three Experimental features that depend on LLM providers:
+  VAMOS Assist with the `vamos assist` command, Studio's Problem Builder, and
+  the `openai`, `anthropic` and `gemini` extras. Define a problem with
+  `make_problem` or `vamos create-problem` instead.
+
+### Removed
+
+- Support for Python 3.10 (#329).
+- The typing-extensions dependency, which only Python 3.10 needed (#329).
+
+### Fixed
+
+- `mutation_prob_factor` now sets the mutation probability to `factor / n_var`
+  (at most 1) in MOEA/D, NSGA-III, SMS-EMOA, SPEA2, AGE-MOEA and RVEA, as it did
+  in NSGA-II and IBEA. Those six ignored it, so a run that sets it now changes
+  (#292).
+- A Ctrl+C in `vamos study run`, `resume` or `retry`, or a Stop in VAMOS Studio,
+  that arrived just after a study wrote a journal event and before it recorded
+  that event in its checkpoints left a study that `load_study` rejected with
+  `CHECKPOINT_JOURNAL_INCONSISTENCY`; the CLI then failed with
+  `CANCELLATION_PUBLICATION_FAILED`. The study layer now holds those
+  interruptions until the event and its checkpoints are written (#301).
+- A study whose process was killed after its first journal event
+  (`execution_started`, or the `study_cancelled`/`study_completed` of an idle or
+  empty study) and before its root checkpoint recorded it could not be loaded
+  (`CHECKPOINT_JOURNAL_INCONSISTENCY`), although a checkpoint behind any later
+  event loaded. It now loads with the journal's view, without writing, and
+  resumes (#301).
+- A `Study` handle loaded or created with larger `StudyLoadLimits` reloaded with
+  the defaults in `run()`, `resume()`, `retry()`, `cancel()`, `inspect()` and
+  `summarize()`, so a study that needed them could be created but not run or
+  inspected; the study's runs were always read with the default `LoadLimits`
+  (#303).
+- `vamos summarize`, `vamos open-results` and `discover_runs` no longer count a
+  replay written by `vamos reproduce` (by default under
+  `<source-parent>/replays/`) as one more run of its seed;
+  `discover_runs(include_replays=True)` lists replays, marked by
+  `RunInfo.replay`. The run-artifacts guide explains how to tell a mismatching
+  replay, stored as a completed run, from an exact one (#308).
+- `non_uniform` is Michalewicz's non-uniform mutation, as in jMetal: each
+  mutated variable moves towards a bound chosen at random, by a fraction of its
+  distance to it, and never leaves its bounds. The step was the whole range with
+  a random sign, so 25% to 41% of the mutated genes left their bounds. Without
+  the run's progress, `perturbation` has no effect, and the tuning spaces no
+  longer offer `nonuniform_perturbation` (#307).
+- MOEA/D, SPEA2 and SMPSO notify a live callback that subclasses
+  `NoOpLiveVisualization` every generation, as the other algorithms do. They
+  skipped every instance of the no-op class, so such a callback received
+  generation 0 only (#310).
+- `vamos` warns before a run that Numba or MooCore is not installed when the
+  config spells the engine in another case, such as `engine: NUMBA`; the config
+  check and the run already accepted any case, but the run started without the
+  warning (#317).
+- Command-line NSGA-III (`vamos --algorithm nsgaiii`, experiment configuration
+  files, `vamos zoo`) uses SBX with distribution index 30, as Deb and Jain
+  (2014), pymoo, the MOEA Framework, `NSGAIIIConfig.default()` and
+  `vamos.optimize` do; it used VAMOS's general index 20. Command-line NSGA-III
+  runs on real-coded problems follow a different trajectory;
+  `--nsga3-crossover-eta 20` reproduces the earlier setting (#312).
+- Three crossovers no longer bias the search or collapse its diversity:
+  - The integer SBX rounds each child to the nearest integer instead of
+    truncating it towards zero, as jMetal and jMetalPy do: parents 3 and 4 gave
+    children with mean 3.25 instead of 3.5.
+  - The integer arithmetic crossover (`arithmetic`, `blend`) and the real part
+    of the mixed crossover, which is the default for mixed problems, give
+    complementary children with a random weight per pair, where both children
+    were the parents' mean. `real_crossover="mean"` keeps the mean.
+  - `blx_alpha_beta` defaults to `alpha = beta = 0.5`, jMetal's values. With
+    0.75 and 0.25, crossover alone drove a population from a mean of 0.5 to
+    0.006 in 30 generations (#324).
+  Runs on mixed problems with the default crossover, integer runs with
+  SBX or the arithmetic crossover, and `blx_alpha_beta` without explicit
+  parameters give different results (#324).
+- After Ctrl+C, `vamos study run`, `resume` and `retry` no longer tell you to
+  run `vamos study resume`: the interruption cancels the study, which cannot be
+  resumed, and `inspect()` no longer suggests `resume_to_reconcile` for a
+  cancelled or failed study. The studies guide now says so, and documents that a
+  second process running the same study is not detected and that Windows writes
+  skip the directory fsync (#325).
+- A saved SPEA2 run keeps its external archive in `result.npz`
+  (`external_archive/F`, `X`, `G` and `CV`) when the result's `X`/`F` do not
+  hold it, as with `result_mode="population"`: it was lost before. A VAMOS 1.2.1
+  reader rejects these bundles; every other bundle is unchanged (#323).
+
 ## [1.2.1] - 2026-11-15
 
 VAMOS 1.2.1 is a patch release. It corrects C2-DTLZ2's default radius with two
@@ -639,7 +937,8 @@ development markers; they are not prior public releases.
 - Studio, tuning, visualization, provider integrations, plugin interfaces, and
   non-stable CLI commands remain experimental.
 
-[Unreleased]: https://github.com/vamos-optimization/VAMOS/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/vamos-optimization/VAMOS/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.3.0
 [1.2.1]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.2.1
 [1.2.0]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.2.0
 [1.1.0]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.1.0

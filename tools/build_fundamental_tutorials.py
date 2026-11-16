@@ -21,7 +21,10 @@ LESSONS = {
     "t02": ("t02-constrained-problem", ("process_objectives", "process_constraints", "solve_process", "run_t02")),
     "t03": ("t03-pareto-decision", ("process_objectives", "process_constraints", "solve_process", "run_t03")),
 }
-CORE = {"vamos-optimization": "1.0.1", "numpy": "2.1.3", "scipy": "1.15.3", "joblib": "1.4.2"}
+# The published VAMOS release that every lesson is recorded with. The three lesson generators and
+# their requirement files take it from here; each release regenerates the lessons with its wheel.
+LESSON_RELEASE = "1.3.0"
+CORE = {"vamos-optimization": LESSON_RELEASE, "numpy": "2.1.3", "scipy": "1.15.3", "joblib": "1.4.2"}
 
 
 def digest(text: str) -> str:
@@ -33,7 +36,7 @@ def lesson_source(source: str, lesson: str) -> str:
     nodes = {node.name: node for node in ast.parse(source).body if isinstance(node, ast.FunctionDef)}
     functions = [ast.get_source_segment(source, nodes[name]) for name in LESSONS[lesson][1]]
     return (
-        f'"""{lesson.upper()}: generated from {SOURCE}; VAMOS 1.0.1, core dependencies only."""\n\n\n'
+        f'"""{lesson.upper()}: generated from {SOURCE}; VAMOS {LESSON_RELEASE}, core dependencies only."""\n\n\n'
         + "\n\n\n".join(functions)
         + f'\n\n\nif __name__ == "__main__":\n    run_{lesson}()\n'
     )
@@ -89,7 +92,7 @@ def draw_figure(lesson: str, data: dict, path: Path, source_hash: str) -> None:
             )
         ax.grid(alpha=0.18)
         ax.legend(fontsize=9)
-        fig.savefig(path, metadata={"Date": None, "Description": f"Actual VAMOS 1.0.1 output; source sha256={source_hash}"})
+        fig.savefig(path, metadata={"Date": None, "Description": f"Actual VAMOS {LESSON_RELEASE} output; source sha256={source_hash}"})
         plt.close(fig)
     if path.suffix == ".svg":
         # Matplotlib emits trailing spaces in multiline SVG paths.

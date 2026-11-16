@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import math
-import sys
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Self
 
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.foundation.exceptions import ConfigurationError
@@ -13,6 +12,7 @@ from vamos.foundation.exceptions import ConfigurationError
 from .base import (
     DEFAULT_POP_SIZE,
     ConstraintModeStr,
+    LiveCallbackMode,
     ResultMode,
     _ConfigBuilderState,
     _ConstraintModeBuilder,
@@ -27,11 +27,6 @@ from .base import (
     _validate_operators,
 )
 from .types import RepairConfigValue
-
-if sys.version_info >= (3, 11):
-    from typing import Self
-else:
-    from typing_extensions import Self
 
 
 @dataclass(frozen=True)
@@ -57,6 +52,7 @@ class ToPConfig(_SerializableConfig):
     constraint_mode: ConstraintModeStr = "feasibility"
     result_mode: ResultMode | None = None
     external_archive: ExternalArchiveConfig | None = None
+    live_callback_mode: LiveCallbackMode = "population"
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -140,6 +136,7 @@ class _ToPConfigBuilder(
             constraint_mode=self._cfg.get("constraint_mode", "feasibility"),
             result_mode=self._cfg.get("result_mode", "non_dominated"),
             external_archive=self._cfg.get("external_archive"),
+            live_callback_mode=self._cfg.get("live_callback_mode", "population"),
         )
 
 

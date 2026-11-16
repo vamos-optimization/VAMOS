@@ -2,7 +2,7 @@
 
 Choose a problem by its **formulation, encoding and dimensions**, then check the
 [algorithm compatibility matrix](algorithms.md). This catalog describes the
-251 registered problems in VAMOS **1.2.1**. The named selection helpers are
+251 registered problems in VAMOS **1.3.0**. The named selection helpers are
 [stable public APIs](../project/stability-and-versioning.md). A synthetic or
 engineering benchmark is a test model, not a validated model of your application.
 
@@ -46,7 +46,7 @@ MW, C-DTLZ, LSMOP, ZCAT, RE, and RWA), is available by name through
 `optimize("name")` and `make_problem_selection`, the stable way to build any
 of them.
 
-**Development after 1.2.1:** some registered problems also take options
+**VAMOS 1.3.0:** some registered problems also take options
 besides `n_var` and `n_obj`: `capacity_ratio` for `bin_knapsack`, and
 `complicated_pareto_set`, `level`, `bias` and `imbalance` for
 `zcat1`–`zcat20`, with the defaults in the tables below. Pass them by name with
@@ -173,6 +173,15 @@ unscaled `g` in the constraints of all six problems. PlatEMO also uses a factor
 of 10 in DC3-DTLZ3's `g`. Their problems therefore differ from these. Their DC1
 and DC3 fronts differ too. Their DC2 fronts do not, because DC2's constraints
 hold on the whole DTLZ front.
+
+The paper's [supplementary document][dcdtlz-supplement] defines the six
+problems, and its text sets `a = 3`, `b = 0.5` for DC1 and gives DC3 M + 1
+constraints, on `x1` to `xM` and on `g`. Its Table II, the share of uniform
+samples that is feasible, matches the authors' code instead: 10.11 % in DC1,
+which is `arccos(0.95) / pi`, against a third with `b = 0.5`; and 3.70 %, 0.41 %
+and 0.02 % in DC3 at M = 3, 5 and 8, which is `(1/3)^M` with M constraints,
+against `(1/3)^(M + 1)` with M + 1. The tests check VAMOS's defaults against
+that table. The text gives no constants for DC2 and DC3.
 
 **VAMOS 1.2.0:** `vamos.problems.DCDTLZ(key, n_var=..., n_obj=...,
 a=..., b=..., g_factor=..., constraint_g_scale=...)` builds any of these
@@ -561,7 +570,7 @@ equalities).
 
 ### Learning and mixed engineering examples
 
-Install `python -m pip install "vamos-optimization[examples]==1.2.1"` for the two
+Install `python -m pip install "vamos-optimization[examples]==1.3.0"` for the two
 classifier examples. The base package is sufficient for `welded_beam`.
 See [Installation](../guide/installation.md) for environments and extras.
 
@@ -653,7 +662,7 @@ for those cases had the wrong number of objectives. The C-DTLZ and DC-DTLZ
 files of 1.1.0 (`c1dtlz1.csv` and so on, two-objective) are replaced by
 `<key>.2d.csv` and `<key>.3d.csv`.
 
-**Development after 1.2.1:** DTLZ1–DTLZ7 also have two-objective samples,
+**VAMOS 1.3.0:** DTLZ1–DTLZ7 also have two-objective samples,
 `dtlz1.2d.csv` to `dtlz7.2d.csv`, so a two-objective DTLZ run has an automatic
 reference. VAMOS 1.2.0 had none, and VAMOS 1.1.0 returned the three-objective
 file.
@@ -674,7 +683,7 @@ regenerates the files marked as regenerated.
 | `dtlz1`–`dtlz4` | Regenerated: 5050-point simplex lattice, scaled to `sum(f) = 0.5` (DTLZ1) or projected onto the unit sphere |
 | `dtlz5`, `dtlz6` | Regenerated: 1000 points of the front curve |
 | `dtlz7` | Regenerated: 5050 points of the disconnected front |
-| `dtlz1.2d`–`dtlz7.2d` | **Development after 1.2.1:** regenerated, 1000 points spaced evenly along the front: `f1 + f2 = 0.5` (DTLZ1), the quarter circle (DTLZ2–DTLZ6; at M = 2, DTLZ5 and DTLZ6 do not degenerate) and the non-dominated pieces of `f2 = 4 - f1 (1 + sin(3 pi f1))` (DTLZ7) |
+| `dtlz1.2d`–`dtlz7.2d` | **VAMOS 1.3.0:** regenerated, 1000 points spaced evenly along the front: `f1 + f2 = 0.5` (DTLZ1), the quarter circle (DTLZ2–DTLZ6; at M = 2, DTLZ5 and DTLZ6 do not degenerate) and the non-dominated pieces of `f2 = 4 - f1 (1 + sin(3 pi f1))` (DTLZ7) |
 | `wfg1`, `wfg2` | Regenerated from the WFG shape functions, 10 000 points |
 | `wfg3`–`wfg9` | Closed-form front, 10 000 points, unchanged |
 | `lsmop1`–`lsmop8` | Closed-form front, 1000 points, unchanged |
@@ -692,11 +701,31 @@ regenerates the files marked as regenerated.
 | `cre21`–`cre25`, `cre31`, `cre32`, `cre51`, `rcm01`–`rcm49` except `rcm17`, `rcm23` and `rcm26` | jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), unchanged, under `LICENSE-jmetal.txt`; approximations (see the notes on jMetal's CRE and RCM fronts). `cre51` and `rcm11` are the same file |
 | `c1dtlz1`–`dc3dtlz3`, `.2d` and `.3d`, `c3dtlz4` included | Regenerated: the feasible, non-dominated part of DTLZ's front (C3-DTLZ1 and C3-DTLZ4: of their constraint boundaries), as VAMOS evaluates it; 1000 points at M = 2 and up to 5050 at M = 3 |
 | `zcat*` | Unchanged samples |
+| `jmetal-zdt1`–`jmetal-zdt4`, `jmetal-zdt6`, `jmetal-dtlz1`, `jmetal-dtlz2` and `jmetal-dtlz5`–`jmetal-dtlz7`, `.2d` and `.3d` | **VAMOS 1.3.0:** jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), unchanged, under `LICENSE-jmetal.txt`; the optional `jmetal` source described below. jMetal's DTLZ3 and DTLZ4 files are its DTLZ2 file, so `jmetal-dtlz2` serves the three |
 | `re21`, `re24`, `re31`–`re34`, `re37`, `re41`, `re42`, `re61` | Tanabe and Ishibuchi's approximated fronts (`reference_points_RE*.dat`) |
 | `re91` | Regenerated by dense sampling of the deterministic RE91, 1806 points |
 | `rwa1`, `rwa2`, `rwa4`–`rwa6` | Unchanged samples |
 | `rwa3`, `rwa9`, `rwa10` | Regenerated by dense sampling, 1484, 1343 and 1493 points |
 | `rwa7`, `rwa8` | Regenerated for the normalized formulation (see the RWA notes above) |
+
+**VAMOS 1.3.0:** jMetal's fronts of ZDT1–ZDT4, ZDT6 and DTLZ1–DTLZ7
+at M = 2 and 3, the files Evolver also uses, are packaged as an optional
+source. VAMOS's own samples stay the default. Both kinds agree on the
+hypervolume (within 0.02 % for ZDT and 1.6 % for DTLZ, measured at the nadir
+plus 10 % of the range of the two together), but their points lie at different
+places along the front, so IGD, IGD+ and Δp computed against one differ from
+those computed against the other. Choose jMetal's to compare those indicators
+with jMetal's and Evolver's:
+
+- The files are `jmetal-<key>.csv` (ZDT) and `jmetal-<key>.<m>d.csv` (DTLZ;
+  `jmetal-dtlz2.<m>d.csv` for DTLZ2, DTLZ3 and DTLZ4, whose jMetal files are the
+  same). For a problem or objective count that jMetal's set lacks there is no
+  jMetal front, and VAMOS never falls back to its own file.
+- `vamos --hv-threshold 0.9 --hv-reference-front jmetal` measures the stopping
+  target against jMetal's front; `vamos` names VAMOS's front and any other
+  value is a CSV path. The run records `reference_front_source` (`vamos`,
+  `jmetal` or `file`) next to `reference_front_path` in its resolved
+  termination.
 
 Notes on the table:
 
@@ -798,6 +827,7 @@ scalable formulations. For a new objective function, follow
 [zcat]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/zcat/core.py
 [constrained]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/constrained_many.py
 [dcdtlz-authors]: https://github.com/COLA-Laboratory/cola_www_src/tree/main/content/codes/Samaritan/testproblem/DCDTLZ
+[dcdtlz-supplement]: https://doi.org/10.1109/TEVC.2018.2855411
 [jmetal-classics]: https://github.com/jMetal/jMetal/tree/1e4b83cae6/jmetal-problem/src/main/java/org/uma/jmetal/problem/multiobjective
 [lircmop]: https://doi.org/10.1007/s00500-019-03794-x
 [dascmop]: https://doi.org/10.1162/evco_a_00259

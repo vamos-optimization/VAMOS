@@ -102,7 +102,7 @@ def build_archive_cfg(d: Mapping[str, object] | None) -> ExternalArchiveConfig:
         truncate_size=cast("int | None", data.get("truncate_size")),
         pruning=cast(PrunePolicy, data.get("pruning", "crowding")),
         hv_ref_point=cast("list[float] | None", data.get("hv_ref_point")),
-        rng_seed=cast(int, data.get("rng_seed", 0)),
+        rng_seed=cast("int | None", data.get("rng_seed")),
         objective_tolerance=cast(float, data.get("objective_tolerance", 0.0)),
         deduplicate_in=HOOK_ARCHIVE_DEDUPLICATE_IN,
         decision_tolerance=cast(float, data.get("decision_tolerance", 1e-32)),

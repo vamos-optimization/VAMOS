@@ -30,7 +30,7 @@ You can stop after this lesson with a meaningful first result.
 | Item | This lesson |
 | --- | --- |
 | Prerequisites | Run a Python script; use the [Minimal Python Track](../guide/minimal-python.md) if needed. |
-| Tested package | VAMOS **1.0.1**, Python 3.12; [setup and exact tested dependencies](setup.md). |
+| Tested package | VAMOS **1.3.0**, Python 3.12; [setup and exact tested dependencies](setup.md). |
 | Dependencies | Core package only; no plotting extra is needed to execute the download. |
 | Interface status | **Stable** `optimize`, `OptimizationResult`, and `front`; NumPy backend. |
 | Run | ZDT1, 30 variables, NSGA-II, population 40, 400 evaluations, seed 42. |
@@ -52,7 +52,7 @@ summary without creating any files.
 
 <!-- tutorial:code -->
 ```python
-"""T01: generated from examples/tutorials/fundamentals.py; VAMOS 1.0.1, core dependencies only."""
+"""T01: generated from examples/tutorials/fundamentals.py; VAMOS 1.3.0, core dependencies only."""
 
 
 def run_t01(max_evaluations=400):
@@ -84,20 +84,20 @@ if __name__ == "__main__":
 
 ## Observed result
 
-This is actual output from the installed 1.0.1 wheel in the
+This is actual output from the installed 1.3.0 wheel in the
 [recorded environment](setup.md#tested-environment-and-evidence).
 
 <!-- tutorial:output -->
 ```text
 Returned decisions: (40, 30)
 Returned objectives: (40, 2)
-Non-dominated objectives: (9, 2)
-Matching decisions: (9, 30)
+Non-dominated objectives: (12, 2)
+Matching decisions: (12, 30)
 Evaluations: 400
 ```
 <!-- /tutorial:output -->
 
-![Actual ZDT1 output: 40 grey population points and nine teal non-dominated markers.](../assets/tutorials/t01-first-result.svg)
+![Actual ZDT1 output: 40 grey population points and twelve teal non-dominated markers.](../assets/tutorials/t01-first-result.svg)
 
 The figure is generated from the same execution as the printed output. It
 shows returned candidates, not the analytical Pareto front or a second run.
@@ -109,7 +109,7 @@ shows returned candidates, not the analytical Pareto front or a second run.
 - The **400 evaluations** are the search budget. They are not the number of
   solutions returned. In this NSGA-II configuration the returned set is the
   final population of **40** rows.
-- The **nine non-dominated rows** have no other returned row that is at least
+- The **twelve non-dominated rows** have no other returned row that is at least
   as good in both objectives and strictly better in one. This is a statement
   about the returned candidates, not global optimality.
 - `front(return_indices=True)` supplies indices into the current result.

@@ -1,10 +1,10 @@
 # Coverage tutorial setup
 
-These lessons extend the first-result and study tutorials to all nine built-in algorithm families, five representations, three practical cases and advanced experiments. The new downloads are verified against the published **VAMOS 1.0.1** wheel, using Python 3.12.14. They import only the public VAMOS facades.
+These lessons extend the first-result and study tutorials to all nine built-in algorithm families, five representations, three practical cases and advanced experiments. The new downloads are verified against the published **VAMOS 1.3.0** wheel, using Python 3.12.3. They import only the public VAMOS facades.
 
 ## Install and run
 
-Start with a fresh virtual environment using the [installation guide](../guide/installation.md). Core runs need `vamos-optimization==1.0.1`; figures add Matplotlib, the two learning cases add scikit-learn, and the advanced comparison needs MooCore and Numba. For the complete recorded environment, download [requirements.txt](../assets/coverage/requirements.txt) and run:
+Start with a fresh virtual environment using the [installation guide](../guide/installation.md). Core runs need `vamos-optimization==1.3.0`; figures add Matplotlib, the two learning cases add scikit-learn, and the advanced comparison needs MooCore and Numba. For the complete recorded environment, download [requirements.txt](../assets/coverage/requirements.txt) and run:
 
 ```bash
 python -m pip install -r requirements.txt

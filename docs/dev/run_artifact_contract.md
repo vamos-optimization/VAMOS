@@ -61,6 +61,9 @@ path is an `OutputCollisionError`, including an empty directory or a partial
 run. It snapshots supported arrays, writes a uniquely owned sibling staging
 directory, fsyncs files, commits the terminal manifest last, and publishes with
 one directory rename. Failure removes only staging state owned by that writer.
+It also fsyncs the staging and parent directories, except on Windows, which
+offers no directory fsync: there, a power loss just after publication can lose
+the new directory entry, though never leave a partial run under the final name.
 
 ## 4. Public Python API
 
@@ -121,7 +124,7 @@ execution state:
 - defaults applied and their sources;
 - determinism declaration and RNG family.
 
-**Development after 1.2.1:** the configuration of a registered problem also
+**VAMOS 1.3.0:** the configuration of a registered problem also
 holds the options passed through `problem_kwargs`, such as `capacity_ratio` for
 `bin_knapsack`; a run without options records only the dimensions, the encoding
 and the constraint convention, as before. Verification and replay pass the
@@ -136,6 +139,14 @@ spec. No sentinel represents an unknown seed.
 `task_id` is `sha256:` plus the SHA-256 of canonical JSON bytes for the complete
 resolved spec. `run_id` is a unique UUIDv4 for the attempt. Repeated executions
 of the same task share a task ID but have distinct run IDs.
+
+**VAMOS 1.3.0:** a MOEA/D run's `algorithm.resolution` also holds
+`weight_vectors`, where its weight vectors come from: `source` is `uniform`
+(two objectives), `das_dennis` with its `divisions`, `packaged_file` or `file`
+with the `file` name, and `vectors` is their number, the population. It is
+derived from the configuration, so verification rebuilds it like the rest of
+the resolved spec; a MOEA/D run stored before it does not match its
+reconstruction and is not verified as exact.
 
 ## 6. Run manifest
 
@@ -177,7 +188,17 @@ Whitespace-only reformatting does not change the semantic hash.
 
 - `F`, `X`, `G`, `CV`, and `reference_directions`;
 - `population/F`, `population/X`, `population/G`, `population/CV`;
-- `archive/F`, `archive/X`, `archive/G`, `archive/CV`.
+- `archive/F`, `archive/X`, `archive/G`, `archive/CV`;
+- `external_archive/F`, `external_archive/X`, `external_archive/G`,
+  `external_archive/CV`.
+
+**VAMOS 1.3.0:** `external_archive/` holds the external archive of
+a SPEA2 run whose `X` and `F` do not: those of a final subset of it
+(`ExternalArchiveConfig.final_selection`) or of the population
+(`result_mode="population"`). SPEA2's `archive/` is its environmental archive.
+No other run writes these members, so a VAMOS 1.2.1 reader, which rejects
+unknown members, still loads every other bundle. Their column and row checks are
+those of `archive/`.
 
 V1 accepts only fixed-width boolean, signed integer, unsigned integer, and
 floating arrays. Object, string, structured, complex, datetime, and
@@ -224,7 +245,7 @@ claim requires the same resolved spec, implementation, backend, materially
 equivalent environment, and a deterministic path. Loading does not test replay
 equivalence.
 
-**Development after 1.2.1:** a run stopped by `("max_time", seconds)` has no
+**VAMOS 1.3.0:** a run stopped by `("max_time", seconds)` has no
 deterministic path: its termination is `vamos.termination:max_time@1`, its
 `determinism.declared` is `false`, its replayability is `best_effort` with the
 reason `wall_clock_termination`, and verification reports that reason and no
@@ -311,7 +332,8 @@ verify` exits with 3 for both, and study loading reports them as
 ## 11. Consumers
 
 `discover_runs` finds `manifest.json` and accepts only manifests validated by
-the canonical reader. `load_run_data` and Studio load numerical values only
+the canonical reader. It leaves out replays (`lineage.execution_kind` is
+`replay`) unless `include_replays=True`, which marks them in `RunInfo.replay`. `load_run_data` and Studio load numerical values only
 through `load_run`/`load_result`. Aggregation reads resolved identity, seed,
 timestamps, outcome counters, runtime, termination, and optional metrics from
 the manifest. Directory names are presentation, not data recovery heuristics.

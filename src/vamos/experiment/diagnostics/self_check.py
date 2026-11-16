@@ -14,6 +14,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 
+from vamos.experiment.artifacts.component_support import BUILT_IN_BACKENDS
 from vamos.experiment.runner import run_single
 from vamos.foundation.core.experiment_config import ExperimentConfig
 from vamos.foundation.problem.registry import make_problem_selection
@@ -108,7 +109,7 @@ def run_self_check(verbose: bool = False) -> list[CheckResult]:
     """
     checks: list[CheckResult] = []
     with tempfile.TemporaryDirectory(prefix="vamos-self-check-") as output_root, _quiet_runs():
-        for engine in ("numpy", "numba", "moocore"):
+        for engine in BUILT_IN_BACKENDS:
             result = _run_backend_check(engine, output_root=output_root)
             checks.append(result)
             if verbose:

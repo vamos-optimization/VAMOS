@@ -16,7 +16,7 @@ Prerequisites: [T02](t02-constrained-problem.md), [T03](t03-pareto-decision.md),
 
 The built-in welded-beam teaching model has six decisions: weld thickness `h`, weld length `l`, beam height `t`, beam width `b`, material category and integer stiffener count. It minimizes a cost expression and a deflection proxy. This is a simplified model; a numerical optimum does not validate an engineering design.
 
-**VAMOS 1.0.1 detail:** this class emits four residual columns but does not declare `n_constraints`. The script explicitly sets `problem.n_constraints = 4` before optimization. Without that protocol metadata, the evaluator does not activate the emitted constraints. The example also refuses to treat missing `G` as evidence of feasibility.
+The class declares its four constraint residuals (`n_constraints` is 4), so the result carries `G`. VAMOS 1.0.1 emitted the four columns without declaring them, and the evaluator ignored them unless a script set `n_constraints` itself. The example also refuses to treat missing `G` as evidence of feasibility.
 
 Residuals follow `G <= 0`: shear stress minus its limit, normal stress minus its limit, deflection minus its limit, and `h - b`. Read the [constraint reference](../reference/constraints.md) before adapting units, constants or physical assumptions.
 
@@ -35,7 +35,7 @@ python engineering.py --output engineering-local.svg
 ??? example "Complete runnable script"
 
     ```python
-    """Verified VAMOS 1.0.1 lesson: engineering. See coverage-setup for dependencies."""
+    """Verified VAMOS 1.3.0 lesson: engineering. See coverage-setup for dependencies."""
 
 
     def execute_example(problem, algorithm, config, budget, seed=42, engine="numpy"):
@@ -76,8 +76,6 @@ python engineering.py --output engineering-local.svg
         from vamos.problems import WeldedBeamDesignProblem
 
         problem = WeldedBeamDesignProblem()
-        # This 1.0.1 class emits four G columns but omits their protocol metadata.
-        problem.n_constraints = 4
         config = (
             NSGAIIConfig.builder()
             .pop_size(40)
@@ -172,16 +170,16 @@ Algorithm: nsgaii; encoding: mixed; backend: numpy; seed: 42
 Returned X: (40, 6); F: (40, 2); result mode: population
 Feasible rows: 40/40; feasible non-dominated rows: 40
 Evaluations: 400
-Minimum-cost feasible front row: 0
-Decision (h, l, t, b, material, stiffeners): [0.783541, 4.169584, 1.760651, 3.396257, 0.0, 2.0]
-Objectives (cost, deflection proxy): [15.905242, 0.059214]
-Constraint residuals G <= 0: [-9827.611456, -5182.606983, -0.190786, -2.612716]
+Minimum-cost feasible front row: 1
+Decision (h, l, t, b, material, stiffeners): [0.54069, 5.063734, 2.133841, 3.454451, 0.0, 2.0]
+Objectives (cost, deflection proxy): [17.083547, 0.032702]
+Constraint residuals G <= 0: [-9539.915624, -10207.062281, -0.217298, -2.913761]
 ```
 <!-- /tutorial:output -->
 
 ![Actual engineering results from the documented protocol.](../assets/coverage/engineering.svg)
 
-*Measured with VAMOS 1.0.1; the [observations and provenance](coverage-setup.md#recorded-evidence) retain the inputs and results.*
+*Measured with VAMOS 1.3.0; the [observations and provenance](coverage-setup.md#recorded-evidence) retain the inputs and results.*
 
 ## Interpret the result and limits
 

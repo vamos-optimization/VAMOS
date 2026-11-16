@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import os
+import signal
+import threading
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
+from types import FrameType
 from typing import Any, cast
 
 from vamos.experiment.artifacts.jsonio import sha256_bytes
@@ -29,9 +33,62 @@ from .models import (
 from .record_decoding import decode_attempt, decode_event, decode_task
 from .writing import write_document_atomic
 
+_SignalHandler = Callable[[int, FrameType | None], Any]
+_HELD_SIGNALS = (signal.SIGINT, signal.SIGTERM)
+
 
 def now_utc() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+
+class _HeldSignals:
+    """Record SIGINT/SIGTERM while active, then run the original handlers."""
+
+    def __init__(self) -> None:
+        self.active = True
+        self.received: list[int] = []
+        self.originals: dict[int, _SignalHandler] = {}
+
+    def handle(self, signum: int, frame: FrameType | None) -> None:
+        if self.active:
+            self.received.append(signum)
+        else:  # A wrapper left installed by an interrupted release only forwards.
+            self.originals[signum](signum, frame)
+
+    def hold(self) -> None:
+        for signum in _HELD_SIGNALS:
+            current = signal.getsignal(signum)
+            if callable(current):  # Default and ignored dispositions are not Python handlers.
+                self.originals[signum] = current
+                signal.signal(signum, self.handle)
+
+    def release(self) -> None:
+        self.active = False
+        for signum, original in self.originals.items():
+            signal.signal(signum, original)
+        for signum in dict.fromkeys(self.received):
+            self.originals[signum](signum, None)
+
+
+@contextmanager
+def commit_section() -> Iterator[None]:
+    """Write one journal event and the checkpoints that record it without a stop in between.
+
+    Ctrl+C and the Studio worker's stop reach the owning thread as Python signal
+    handlers that raise. A handler that runs after an event is published and before
+    its checkpoints are written would leave them behind the journal. Inside this
+    section such handlers only record the signal; they run, once each, as soon as
+    the section ends. Only the main thread receives Python signals.
+    """
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+    held = _HeldSignals()
+    try:
+        held.hold()
+        yield
+    finally:
+        held.release()
 
 
 def append_event(
@@ -59,7 +116,10 @@ def append_event(
             path=relative,
             expected="absent next event path",
             actual="occupied path",
-            action="Stop execution and inspect the journal; no existing event is overwritten.",
+            action=(
+                "Another process is probably running, resuming or retrying this study; studies have one owner. "
+                "Stop the other process and inspect the journal; no existing event is overwritten."
+            ),
         )
     document = event_document(
         sequence=sequence,
@@ -215,6 +275,7 @@ __all__ = [
     "checkpoint_attempt",
     "checkpoint_manifest",
     "checkpoint_task",
+    "commit_section",
     "counts_for_tasks",
     "now_utc",
     "run_reference",

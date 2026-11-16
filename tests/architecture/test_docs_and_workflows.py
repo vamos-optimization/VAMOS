@@ -98,10 +98,7 @@ _COVERAGE_FLOOR_PACKAGES = ("foundation/problem", "foundation/quality_indicators
 
 
 def test_ci_measures_branch_coverage_with_floors() -> None:
-    try:
-        import tomllib
-    except ModuleNotFoundError:  # pragma: no cover - Python < 3.11 fallback
-        import tomli as tomllib  # type: ignore[import-not-found,no-redef]
+    import tomllib
 
     coverage = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["coverage"]
     assert coverage["run"]["branch"] is True
@@ -118,6 +115,16 @@ def test_slow_tier_runs_every_night() -> None:
     assert "schedule" in triggers
     scripts = "\n".join(step.get("run", "") for job in workflow["jobs"].values() for step in job["steps"])
     assert "pytest -m slow" in scripts
+
+
+def test_fast_tier_runs_in_parallel_in_ci_and_in_one_process_every_night() -> None:
+    ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert 'pytest -m "not slow" -n auto' in ci
+    workflow = yaml.safe_load((ROOT / ".github" / "workflows" / "slow-tests.yml").read_text(encoding="utf-8"))
+    assert "schedule" in workflow.get("on", workflow.get(True))
+    # The nightly serial run catches tests that depend on what an earlier test in the same process left behind.
+    scripts = [step.get("run", "") for job in workflow["jobs"].values() for step in job["steps"]]
+    assert 'pytest -m "not slow" -p no:xdist' in scripts
 
 
 def test_slow_test_list_names_existing_tests() -> None:

@@ -1,4 +1,4 @@
-"""Layer-neutral public bridge for canonical run-artifact operations."""
+"""Stable facade for canonical run-artifact operations; it re-exports the experiment layer's artifacts."""
 
 from vamos.experiment.artifacts import (
     CompatibilityReport,
