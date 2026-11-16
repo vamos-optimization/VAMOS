@@ -305,7 +305,7 @@ def test_agemoea_config_space_builds_and_constructs_config():
     assert cfg.pop_size > 0
     assert cfg.crossover[0] in ("sbx", "blx_alpha", "arithmetic", "pcx", "undx", "simplex")
     assert cfg.mutation[0] in (
-        "pm",
+        "polynomial",
         "linked_polynomial",
         "non_uniform",
         "gaussian",
@@ -326,7 +326,7 @@ def test_rvea_config_space_builds_and_constructs_config():
     assert cfg.pop_size == lattice_size(3, cfg.n_partitions) <= 120 < lattice_size(3, cfg.n_partitions + 1)
     assert cfg.crossover[0] in ("sbx", "blx_alpha", "arithmetic", "pcx", "undx", "simplex")
     assert cfg.mutation[0] in (
-        "pm",
+        "polynomial",
         "linked_polynomial",
         "non_uniform",
         "gaussian",

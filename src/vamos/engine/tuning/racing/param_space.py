@@ -27,11 +27,14 @@ import math
 import operator
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from vamos.foundation.rng import require_generator
+
+if TYPE_CHECKING:
+    from ..grammar.model import ParameterSpace
 
 
 @dataclass
@@ -200,15 +203,21 @@ class ParamSpace:
 
     params: dict[str, ParamType] = field(default_factory=dict)
     conditions: list[Condition] = field(default_factory=list)
+    # The grammar that this space is a view of, for the built-in spaces (vamos.engine.tuning.grammar).
+    grammar: ParameterSpace | None = field(default=None, compare=False, repr=False)
 
     def sample(self, rng: np.random.Generator | None = None) -> dict[str, Any]:
         """Sample a configuration from the space.
 
-        Every parameter is drawn in declaration order, so the random stream does not depend on
-        which parameters end up active. A parameter is kept when its conditions hold for the
-        parents already kept, so descendants of an inactive parameter are left out.
+        The view of a grammar walks its tree: a production at every categorical node, and a draw for
+        every active terminal, in depth-first order. Otherwise every parameter is drawn in declaration
+        order, so the random stream does not depend on which parameters end up active, and a
+        parameter is kept when its conditions hold for the parents already kept, so descendants of an
+        inactive parameter are left out.
         """
         rng = require_generator(rng, "ParamSpace.sample")
+        if self.grammar is not None:
+            return dict(self.grammar.sample(rng))
         return _active_assignment(self, {name: spec.sample(rng) for name, spec in self.params.items()})
 
     def is_active(self, param_name: str, config: dict[str, Any]) -> bool:

@@ -117,6 +117,10 @@ def run_optuna_like(
     # A resumed study runs only the trials its budget still allows; finished trials of earlier runs count.
     finished = sum(1 for trial in study.trials if trial.state.is_finished())
     remaining_trials = max(0, int(tuner.max_trials) - finished)
+    grammar = tuner.task.param_space.grammar
+    if grammar is not None and not study.trials and remaining_trials > 0:
+        # The first trial of a new study is the space's default configuration, the algorithm's default.
+        study.enqueue_trial(dict(grammar.default_values()))
 
     def objective(trial: Any) -> float:
         config = _sample_from_optuna_trial(trial, tuner.task.param_space)

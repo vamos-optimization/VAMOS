@@ -10,8 +10,8 @@ determines it. See ``docs/dev/vamos-config-design.md``.
 from __future__ import annotations
 
 import math
-from collections.abc import Callable, Iterator, Mapping
-from dataclasses import dataclass, field
+from collections.abc import Callable, Collection, Iterator, Mapping
+from dataclasses import dataclass, field, replace
 from typing import Literal
 
 import numpy as np
@@ -194,6 +194,37 @@ class ParameterSpace:
         from .document import space_sha256
 
         return SpaceIdentity(self.name, self.schema_version, space_sha256(self))
+
+    def without(self, names: Collection[str]) -> ParameterSpace:
+        """This space without the parameters ``names`` and every parameter below them.
+
+        The CLI searches the built-in spaces without their archive controls, for example. The result is
+        another space, so its identity differs.
+        """
+        removed = set(names)
+        unknown = removed - set(self.names())
+        if unknown:
+            raise KeyError(f"The space {self.name!r} has no parameters {sorted(unknown)}.")
+
+        def prune(parameters: tuple[Parameter, ...]) -> tuple[Parameter, ...]:
+            return tuple(
+                replace(
+                    parameter,
+                    productions=tuple(prune(production) for production in parameter.productions),
+                    global_sub_parameters=prune(parameter.global_sub_parameters),
+                )
+                for parameter in parameters
+                if parameter.name not in removed
+            )
+
+        return ParameterSpace(
+            name=self.name,
+            algorithm=self.algorithm,
+            encoding=self.encoding,
+            parameters=prune(self.parameters),
+            description=self.description,
+            schema_version=self.schema_version,
+        )
 
     def default_values(self) -> dict[str, Scalar]:
         """The default configuration: every parameter that the defaults activate, at its default."""
