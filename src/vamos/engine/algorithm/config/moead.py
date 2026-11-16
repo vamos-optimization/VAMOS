@@ -45,6 +45,20 @@ _VARIANTS: dict[str | None, tuple[tuple[str, dict[str, Any]], tuple[str, dict[st
 
 @dataclass(frozen=True)
 class MOEADConfig(_SerializableConfig):
+    """Configuration of MOEA/D.
+
+    MOEA/D gives each individual one weight vector, so ``pop_size`` must be a size that has
+    weights. With one or two objectives every size has them: uniform weights, as in jMetal. With
+    three or more, the weights are the file of ``weight_vectors(path=...)`` when there is one (a
+    directory holds ``W{n_obj}D_{pop_size}.dat``); otherwise the complete Das-Dennis lattice with
+    exactly ``pop_size`` vectors; otherwise the jMetal file ``W{n_obj}D_{pop_size}.dat`` that VAMOS
+    ships (100 individuals with three objectives). Any other size raises ``ValueError`` when the run
+    starts: a lattice is never truncated, and the configuration never changes ``pop_size``. The
+    tuning bridge does round a sampled population down to the largest size that has weights, so
+    150 becomes 136 with three objectives. The resolved spec of a run records the source in
+    ``algorithm.resolution.weight_vectors``.
+    """
+
     pop_size: int
     batch_size: int
     neighbor_size: int

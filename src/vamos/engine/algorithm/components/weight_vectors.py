@@ -1,4 +1,6 @@
+import io
 import os
+import stat
 import warnings
 
 import numpy as np
@@ -112,6 +114,66 @@ def _load_or_generate_jmetalpy_weights(pop_size: int, n_obj: int, path: str | No
             )
         return weights
     return weights
+
+
+def describe_weight_vectors(
+    pop_size: int,
+    n_obj: int,
+    *,
+    path: str | None = None,
+    divisions: int | None = None,
+) -> dict[str, object]:
+    """Where MOEA/D's weight vectors for ``pop_size`` come from, as a run artifact records it.
+
+    The same choice as ``load_or_generate_weight_vectors(..., mode="jmetalpy")``, without writing a
+    file: ``uniform`` with one or two objectives, ``file`` (a file of ``path``, by its name),
+    ``packaged_file`` (the jMetal file ``W{n_obj}D_{pop_size}.dat`` that VAMOS ships), or
+    ``das_dennis`` with its ``divisions``. ``vectors`` is the number of weight vectors, which is the
+    population. A size without weights raises ``ValueError``, as loading them would.
+
+    A run whose ``path`` lacks the file generates the lattice and saves it there, so a file that holds
+    exactly that lattice is still ``das_dennis``: the description does not depend on whether an earlier
+    run has written it.
+    """
+    if n_obj <= 2:
+        return {"source": "uniform", "vectors": pop_size}
+    weight_path = _resolve_jmetalpy_weight_path(path, n_obj, pop_size)
+    if weight_path is None and divisions is None and _exact_divisions(pop_size, n_obj) is None:
+        if _packaged_weights(n_obj, pop_size) is not None:
+            return {"source": "packaged_file", "file": f"W{n_obj}D_{pop_size}.dat", "vectors": pop_size}
+    if weight_path is not None and os.path.exists(weight_path) and not _holds_saved_lattice(weight_path, pop_size, n_obj, divisions):
+        return {"source": "file", "file": os.path.basename(weight_path), "vectors": pop_size}
+    if divisions is None:
+        divisions = _choose_exact_divisions(pop_size, n_obj)
+    elif lattice_size(n_obj, int(divisions)) != pop_size:
+        raise ValueError(f"Das-Dennis simplex lattice for n_obj={n_obj}, divisions={divisions} does not have pop_size={pop_size} vectors.")
+    return {"source": "das_dennis", "divisions": int(divisions), "vectors": pop_size}
+
+
+def _holds_saved_lattice(path: str, pop_size: int, n_obj: int, divisions: int | None) -> bool:
+    """Whether the weight file holds exactly the Das-Dennis lattice that a run saves there when the file is missing.
+
+    Verification rebuilds the description from a stored configuration, so the path is untrusted: only a
+    regular file no larger than the lattice's ``np.savetxt`` text is read, and a FIFO is never opened.
+    """
+    exact = _exact_divisions(pop_size, n_obj)
+    if exact is None or (divisions is not None and int(divisions) != exact):
+        return False
+    limit = pop_size * (n_obj * 26 + 2)  # "%.18e" values of at most 25 characters, a separator, either line ending
+    flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0)
+    try:
+        info = os.stat(path)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > limit:
+            return False
+        descriptor = os.open(path, flags)
+        try:
+            data = os.read(descriptor, limit + 1)
+        finally:
+            os.close(descriptor)
+        weights = np.atleast_2d(np.loadtxt(io.BytesIO(data))) if len(data) <= limit else None
+    except (OSError, ValueError):
+        return False
+    return bool(weights is not None and weights.shape == (pop_size, n_obj) and np.array_equal(weights, das_dennis(n_obj, exact)))
 
 
 def largest_weighted_population(pop_size: int, n_obj: int) -> int:
