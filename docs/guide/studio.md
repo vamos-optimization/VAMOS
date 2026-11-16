@@ -242,6 +242,10 @@ return control to Python before that interruption can take effect. Studio never
 signals a process by its id, which the system may have given to another
 program after a crash. Studio shows **stopping** until the worker acknowledges
 the request; a stale heartbeat is reported as lost, not as a confirmed stop.
+**Development after 1.2.1:** a stop that arrives while the worker writes a
+journal event and the checkpoints that record it waits until those writes
+finish. Before, a stop right after the study started could leave a study that
+`load_study` rejected with `CHECKPOINT_JOURNAL_INCONSISTENCY`.
 The run in progress is lost and
 the study stays `running`; **Resume** reconciles the study and continues with
 the pending runs, rerunning the interrupted one. Resuming requires the same
