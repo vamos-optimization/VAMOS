@@ -131,7 +131,7 @@ def initialize_ibea_run(
     )
 
     # Setup external archive
-    ext_cfg = resolve_external_archive(cfg)
+    ext_cfg = resolve_external_archive(cfg, seed=seed)
     archive_X, archive_F, archive_manager = setup_archive(kernel, X, F, n_var, n_obj, X.dtype, ext_cfg, G)
 
     # Setup genealogy
@@ -170,6 +170,7 @@ def initialize_ibea_run(
         archive_F=archive_F,
         archive_manager=archive_manager,
         result_mode=str(cfg.get("result_mode", "non_dominated")),
+        live_callback_mode=str(cfg.get("live_callback_mode", "population")),
         # Termination
         hv_tracker=hv_tracker,
         # Genealogy

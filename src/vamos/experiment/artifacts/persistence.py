@@ -16,6 +16,7 @@ from vamos.experiment.optimization_result import OptimizationResult
 
 from .bundle import snapshot_result_arrays
 from .bundle_safety import result_descriptor, validate_problem_columns
+from .component_support import WALL_CLOCK_TERMINATION, is_time_limited
 from .errors import IncompleteRunMetadataError
 from .jsonio import canonical_json_bytes, normalize_json, sha256_bytes
 from .manifest import DOCUMENT_TYPE, SCHEMA_VERSION
@@ -73,6 +74,8 @@ def save_result(
     )
     deterministic = _declared_deterministic(resolved)
     replayability = replayability_from_provenance(provenance, deterministic=deterministic)
+    if is_time_limited(resolved):
+        replayability["reasons"].append({"code": "wall_clock_termination", "message": WALL_CLOCK_TERMINATION})
     unavailable_reason = _find_unavailable_reason(resolved)
     if unavailable_reason is not None:
         replayability = {
@@ -348,6 +351,8 @@ def _outcome(
     termination = resolved.get("termination")
     termination_id = termination.get("component_id") if isinstance(termination, Mapping) else None
     termination_reason = "interrupted" if data.get("interrupted") is True else _component_suffix(termination_id)
+    if termination_reason == "max_time" and _result_meta_mapping(result).get("time_limit_reached") is not True:
+        termination_reason = "max_evaluations"  # the cap of the time limit stopped it
     recorded_metrics = data.get("metrics")
     metrics: dict[str, Any] = (
         dict(normalize_json(recorded_metrics, field="$.outcome.metrics")) if isinstance(recorded_metrics, Mapping) else {}

@@ -431,3 +431,95 @@ def test_nsgaii_permutation_smoke():
     assert result["F"].shape[1] == problem.n_obj
     # Full population still available
     assert result["population"]["F"].shape == (pop_size, problem.n_obj)
+
+
+class _RecordingCallback:
+    def __init__(self) -> None:
+        self.calls: list[tuple[int, np.ndarray | None, np.ndarray | None, dict]] = []
+
+    def on_start(self, ctx=None) -> None:  # noqa: ANN001 - the RunContext of the protocol
+        return None
+
+    def on_generation(self, generation, F=None, X=None, stats=None) -> None:  # noqa: ANN001
+        self.calls.append((generation, None if F is None else np.array(F), None if X is None else np.array(X), dict(stats or {})))
+
+    def on_end(self, final_F=None, final_stats=None) -> None:  # noqa: ANN001
+        return None
+
+
+LIVE_CALLBACK_ALGORITHMS = ("nsgaii", "moead", "nsgaiii", "smsemoa", "spea2", "ibea", "smpso", "agemoea", "rvea")
+
+
+@pytest.mark.parametrize("name", LIVE_CALLBACK_ALGORITHMS)
+def test_live_callback_payload_contract(name: str) -> None:
+    import vamos
+
+    config = None
+    if name == "nsgaii":
+        config = NSGAIIConfig.builder().pop_size(20).crossover("sbx", prob=0.9, eta=20.0).mutation("pm", prob=0.1, eta=20.0)
+        config = config.selection("tournament").live_callback_mode("population").build()
+    callback = _RecordingCallback()
+    kwargs = {"algorithm_config": config} if config is not None else {"pop_size": 20}
+    vamos.optimize("zdt1", algorithm=name, max_evaluations=100, seed=1, engine="numpy", live_viz=callback, **kwargs)
+
+    generations = [call[0] for call in callback.calls]
+    evals = [call[3].get("evals") for call in callback.calls]
+    # Generation 0 right after the initial population, then one notification per generation of pop_size evaluations.
+    assert generations == list(range(len(generations))), generations
+    assert evals == [20 * (index + 1) for index in range(len(evals))], evals
+    for _, F, X, _ in callback.calls:
+        # The whole population, with its decision vectors aligned to its objective vectors. RVEA keeps
+        # one individual per reference vector that some solution is closest to, so it can hold fewer.
+        assert F is not None and X is not None
+        assert F.shape[1] == 2 and X.shape == (F.shape[0], 30)
+        assert F.shape[0] == 20 or (name == "rvea" and F.shape[0] <= 20)
+
+
+@pytest.mark.parametrize("name", LIVE_CALLBACK_ALGORITHMS)
+def test_live_callback_subclassing_the_no_op_is_notified_like_any_other(name: str) -> None:
+    import vamos
+    from vamos.engine.hooks.live_viz import NoOpLiveVisualization
+
+    class Recorder(NoOpLiveVisualization):
+        def __init__(self) -> None:
+            self.generations: list[int] = []
+
+        def on_generation(self, generation, F=None, X=None, stats=None) -> None:  # noqa: ANN001
+            self.generations.append(generation)
+
+    plain, subclass = _RecordingCallback(), Recorder()
+    for callback in (plain, subclass):
+        vamos.optimize("zdt1", algorithm=name, pop_size=20, max_evaluations=100, seed=1, engine="numpy", live_viz=callback)
+
+    # Only the exact no-op is skipped: a subclass that overrides on_generation sees every generation.
+    assert subclass.generations == [call[0] for call in plain.calls]
+    assert len(subclass.generations) > 1
+
+
+def _moead_batch_config(pop_size: int, batch_size: int) -> MOEADConfig:
+    return (
+        MOEADConfig.builder()
+        .pop_size(pop_size)
+        .batch_size(batch_size)
+        .neighbor_size(5)
+        .delta(0.9)
+        .replace_limit(2)
+        .crossover("de", cr=1.0, f=0.5)
+        .mutation("pm", prob=0.1, eta=20.0)
+        .aggregation("tchebycheff")
+        .weight_vectors(divisions=pop_size - 1)
+        .build()
+    )
+
+
+def test_moead_live_generations_keep_the_evaluation_remainder() -> None:
+    import vamos
+
+    callback = _RecordingCallback()
+    config = _moead_batch_config(pop_size=20, batch_size=8)
+    vamos.optimize("zdt1", algorithm="moead", algorithm_config=config, max_evaluations=100, seed=1, engine="numpy", live_viz=callback)
+
+    # Batches of 8 end at 28, 36, 44, ...: a generation ends at the first batch past each multiple of 20 evaluations
+    # after the initial population, so the 80 offspring evaluations make four generations.
+    assert [call[0] for call in callback.calls] == [0, 1, 2, 3, 4]
+    assert [call[3]["evals"] for call in callback.calls] == [20, 44, 60, 84, 100]

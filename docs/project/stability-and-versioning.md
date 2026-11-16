@@ -23,6 +23,13 @@ Every supported surface has one of three labels:
 An importable name is not automatically stable. A surface is stable only when
 it is listed here and represented in the VAMOS 1.0 compatibility baseline.
 
+**Development after 1.2.1:** during 1.x, a stable function, method or class may
+gain optional keyword-only arguments, so every call that worked keeps working.
+The compatibility check accepts such an argument when it has a default and still
+fails when a parameter is removed, renamed, reordered, changes kind or default,
+or when a new argument is positional or has no default. `load_study` and
+`create_study` are the first to use this (see [Studies](../guide/studies.md)).
+
 ## Stable Python API
 
 The stable Python surface is exposed through `vamos`, `vamos.api`,
@@ -210,6 +217,23 @@ accepting a different backend silently is a breaking change.
 
 Undocumented provider, plugin, tuning, Studio, and internal configuration is
 not covered by this promise.
+
+**Development after 1.2.1:** `mutation_prob_factor` sets the mutation
+probability to `factor / n_var` (at most 1) in MOEA/D, NSGA-III, SMS-EMOA,
+SPEA2, AGE-MOEA and RVEA, as it already did in NSGA-II and IBEA; in VAMOS
+1.2.0 those six algorithms ignored it. Five stable fields have no effect, so a
+`FutureWarning` reports them when they are set, and they are planned for
+removal in 2.0:
+
+- `NSGAIIIConfig.pop_size_auto` and `enforce_ref_dirs`: NSGA-III runs the
+  largest reference-direction lattice that fits in `pop_size` and keeps at
+  least one individual per direction. The builder methods warn,
+  and so does `enforce_ref_dirs=False` in the constructor or `from_dict()`;
+  `NSGAIIIConfig.default()`, which sets `pop_size_auto`, does not.
+- `track_genealogy` of `AGEMOEAConfig` and `RVEAConfig`, when true: neither
+  algorithm records a genealogy.
+- `SPEA2Config.selection`, when it is not a binary tournament: SPEA2 always
+  mates with its own binary tournament on strength and density.
 
 ## Experimental surface
 

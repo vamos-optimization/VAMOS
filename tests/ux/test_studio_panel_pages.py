@@ -101,7 +101,7 @@ def _served_origins(monkeypatch: pytest.MonkeyPatch, *argv: str) -> list[str]:
 def test_wildcard_binding_accepts_browsers_that_use_this_computers_name(monkeypatch: pytest.MonkeyPatch) -> None:
     import socket
 
-    origins = _served_origins(monkeypatch, "--address=0.0.0.0", "--port=5010")
+    origins = _served_origins(monkeypatch, "--address=0.0.0.0", "--port=5010", "--allow-remote-binding")
 
     assert f"{socket.gethostname()}:5010".lower() in [origin.lower() for origin in origins]
     assert "localhost:5010" in origins
@@ -109,7 +109,9 @@ def test_wildcard_binding_accepts_browsers_that_use_this_computers_name(monkeypa
 
 
 def test_specific_bindings_keep_a_narrow_websocket_allowlist(monkeypatch: pytest.MonkeyPatch) -> None:
-    origins = _served_origins(monkeypatch, "--address=192.168.1.20", "--port=5010", "--allow-websocket-origin=studio.example.org:443")
+    origins = _served_origins(
+        monkeypatch, "--address=192.168.1.20", "--port=5010", "--allow-remote-binding", "--allow-websocket-origin=studio.example.org:443"
+    )
 
     assert origins == ["localhost:5010", "studio.example.org:443", "192.168.1.20:5010"]
 

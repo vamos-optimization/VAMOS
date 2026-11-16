@@ -11,6 +11,10 @@ def _tsp_factory(n_var: int, _ignored: int | None = None) -> TSPProblem:
     return TSPProblem(n_cities=n_var)
 
 
+def _knapsack_factory(n_var: int, _n_obj: int | None, *, capacity_ratio: float = 0.4) -> BinaryKnapsackProblem:
+    return BinaryKnapsackProblem(n_var=n_var, capacity_ratio=capacity_ratio)
+
+
 def _tsplib_tsp_factory(dataset: str) -> ProblemFactory:
     def _factory(_n_var: int, _ignored: int | None = None) -> TSPProblem:
         return TSPProblem(dataset=dataset)
@@ -109,7 +113,7 @@ def get_specs() -> dict[str, ProblemSpec]:
                 allow_n_obj_override=False,
                 encoding="binary",
                 description="Knapsack-like binary benchmark trading value vs capacity deviation.",
-                factory=lambda n_var, _n_obj: BinaryKnapsackProblem(n_var=n_var),
+                factory=_knapsack_factory,
             ),
             "bin_qubo": ProblemSpec(
                 key="bin_qubo",

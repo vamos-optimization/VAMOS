@@ -734,7 +734,7 @@ def test_study_planning_checks_the_budget() -> None:
 def test_tuning_space_builds_ga_and_de_configurations() -> None:
     space = build_cmoeams_config_space()
     names = {param.name for param in space.params}
-    assert {"pop_size", "crossover", "crossover_prob", "mutation", "feasible_ratio_threshold"} <= names
+    assert {"pop_size", "crossover", "crossover_probability", "mutation", "feasible_ratio_threshold"} <= names
     rng = np.random.default_rng(0)
     crossovers, variants = set(), set()
     for _ in range(60):
@@ -745,8 +745,8 @@ def test_tuning_space_builds_ga_and_de_configurations() -> None:
         assert config.feasible_ratio_threshold == assignment["feasible_ratio_threshold"]
         assert 20 <= config.pop_size <= 200
         if config.crossover[0] == "de":
-            assert config.crossover == ("de", {"cr": assignment["de_cr"], "f": assignment["de_f"]})
-            assert "crossover_prob" not in assignment
+            assert config.crossover == ("de", {"cr": assignment["de_crossover_rate"], "f": assignment["de_scale_factor"]})
+            assert "crossover_probability" not in assignment
             variants.add(config.de_variant)
         else:
             assert config.de_variant == "rand_1_bin" and "de_variant" not in assignment

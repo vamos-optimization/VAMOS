@@ -1,4 +1,4 @@
-"""Properties that every operator of the configuration spaces keeps (VR-069).
+"""Properties that every operator of the configuration spaces keeps.
 
 Each crossover and mutation that a configuration space can select is built as the algorithms
 build it, through ``VariationPipeline`` with the parameters of the space's default assignment,
@@ -29,13 +29,13 @@ _MIXED_SEGMENTS = ("real", "int", "cat")
 _MIXED_INDEX = {"real": "real_idx", "int": "int_idx", "cat": "cat_idx"}
 
 _TWIN_CHILDREN = {
-    ("permutation", "crossover", "aex"): "VR-324: AEX builds its second child from the first parent, like the first child",
+    ("permutation", "crossover", "aex"): "AEX builds its second child from the first parent, like the first child",
 }
 # The rounded children of the arithmetic crossover meet at the parents' midpoint when it is an integer:
 # with the three integer variables of the mixed problem, in [0, 6], about 6% of the pairs are twins.
 _MIDPOINT_TWINS = {("integer", "crossover", "arithmetic"), ("mixed", "int_crossover", "arithmetic")}
 # PCX and SPX vary all three parents whatever prob_crossover is, and UNDX gives two children per three parents.
-_PROB_ZERO_NOT_A_COPY = {"pcx", "simplex", "undx"}
+_PROB_ZERO_NOT_A_COPY = {"pcx", "simplex", "undc"}
 # Mutations that act on a whole row (a segment or a reordering), so ``prob`` is a per-row rate.
 _ROW_MUTATIONS = {"segment_inversion"}
 

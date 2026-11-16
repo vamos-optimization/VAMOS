@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import math
-import random
 from dataclasses import dataclass, field, fields
 from typing import Any, Literal, cast
+
+import numpy as np
+
+from vamos.foundation.rng import derived_seed
 
 Statistic = Literal["mean", "median", "min"]
 EpsilonMode = Literal["abs", "rel"]
@@ -52,8 +55,8 @@ def check_hv_convergence_field(name: str, value: object) -> None:
         if cast(int, value) < minimum:
             raise ValueError(f"{name} must be >= {minimum}, got {value!r}.")
     elif name == "rng_seed":
-        if not _is_integer(value):
-            raise TypeError(f"rng_seed must be an integer, got {value!r}.")
+        if value is not None and not _is_integer(value):
+            raise TypeError(f"rng_seed must be an integer or null, got {value!r}.")
     elif name == "epsilon":
         if not _is_real(value):
             raise TypeError(f"epsilon must be a number, got {value!r}.")
@@ -89,7 +92,8 @@ class HVConvergenceConfig:
     min_points: int = 25
     confidence: float | None = None  # e.g., 0.95
     bootstrap_samples: int = 300
-    rng_seed: int = 0
+    # The bootstrap's stream: None derives it from the run seed, an integer fixes it.
+    rng_seed: int | None = None
 
     def __post_init__(self) -> None:
         for item in fields(self):
@@ -110,9 +114,12 @@ class HVConvergenceMonitor:
     """
     Algorithm-agnostic monitor: you feed (evals, hv) samples; it returns stop decisions.
     Logging is done by caller using `trace_rows()`.
+
+    The bootstrap of ``confidence`` draws from a ``numpy.random.Generator`` seeded with
+    ``cfg.rng_seed`` or, when it is ``None``, with the stream derived from ``run_seed``.
     """
 
-    def __init__(self, cfg: HVConvergenceConfig):
+    def __init__(self, cfg: HVConvergenceConfig, *, run_seed: int = 0):
         if cfg.every_k <= 0:
             raise ValueError("every_k must be > 0")
         if cfg.window <= 1:
@@ -126,7 +133,9 @@ class HVConvergenceMonitor:
         self._hv: list[float] = []
         self._bad_streak: int = 0
         self._stopped: bool = False
-        self._rng = random.Random(cfg.rng_seed)
+        # An explicit seed may be negative, as validation allows; NumPy needs it reduced, as derived_seed does.
+        seed = derived_seed(run_seed, "hv_convergence") if cfg.rng_seed is None else int(cfg.rng_seed) % 2**64
+        self._rng = np.random.default_rng(seed)
 
     def add_sample(self, evals: int, hv: float) -> HVDecision:
         if self._stopped:
@@ -255,17 +264,13 @@ class HVConvergenceMonitor:
         B = int(self.cfg.bootstrap_samples)
         if B <= 0:
             return None
-        stats = []
-        for _ in range(B):
-            sample = [self._rng.choice(deltas) for _ in range(len(deltas))]
-            if self.cfg.statistic == "mean":
-                stats.append(sum(sample) / len(sample))
-            elif self.cfg.statistic == "min":
-                stats.append(min(sample))
-            else:
-                s = sorted(sample)
-                mid = len(s) // 2
-                stats.append(s[mid] if len(s) % 2 == 1 else 0.5 * (s[mid - 1] + s[mid]))
+        samples = self._rng.choice(np.asarray(deltas, dtype=float), size=(B, len(deltas)), replace=True)
+        if self.cfg.statistic == "mean":
+            stats = samples.mean(axis=1)
+        elif self.cfg.statistic == "min":
+            stats = samples.min(axis=1)
+        else:
+            stats = np.median(samples, axis=1)
         stats.sort()
         # upper bound at conf
         q = min(max(conf, 0.0), 1.0)

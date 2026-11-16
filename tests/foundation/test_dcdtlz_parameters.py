@@ -42,6 +42,36 @@ def test_dcdtlz_defaults_are_the_authors_constants(key: str) -> None:
         np.testing.assert_array_equal(got, expected)
 
 
+# Table II of the supplementary document of Li et al. (2019, doi:10.1109/TEVC.2018.2855411): the share of
+# 10^7 uniform samples of the decision space that is feasible, at M = 3, 5 and 8.
+_AUTHORS_FEASIBLE_RATIOS = {"dc1": (0.1011, 0.1012, 0.1011), "dc2": (0.0, 0.0, 0.0), "dc3": (0.0370, 0.0041, 0.0002)}
+
+
+def _feasible_ratio(problem: Any, n_samples: int) -> float:
+    X = np.random.default_rng(3).random((n_samples, problem.n_var))
+    _, G = evaluate_population_with_constraints(problem, X)
+    assert G is not None
+    return float(np.mean(np.all(G <= 0.0, axis=1)))
+
+
+@pytest.mark.parametrize("key", _VARIANTS)
+def test_dcdtlz_defaults_reproduce_the_feasible_ratios_of_the_authors_study(key: str) -> None:
+    # DC1's b = 0.95 makes arccos(0.95) / pi = 10.11 % of x1 feasible. DC3 has M constraints, one on g and one
+    # on each of the M - 1 position variables, each met by a third of the samples, so (1/3)^M is feasible.
+    for n_obj, expected in zip((3, 5, 8), _AUTHORS_FEASIBLE_RATIOS[key[:3]]):
+        problem = DCDTLZ(key, n_var=n_obj + 9, n_obj=n_obj)
+
+        assert _feasible_ratio(problem, 200_000) == pytest.approx(expected, abs=0.003), n_obj
+
+
+def test_dc1_with_the_constants_of_the_supplements_text_does_not_reproduce_its_table() -> None:
+    # The supplement's text gives a = 3 and b = 0.5 for DC1, which jMetal, PlatEMO and STEP use: then a third
+    # of the samples is feasible, not the 10.11 % that its Table II reports and the authors' code produces.
+    problem = DCDTLZ("dc1dtlz1", a=3.0, b=0.5, constraint_g_scale=1.0)
+
+    assert _feasible_ratio(problem, 200_000) == pytest.approx(1.0 / 3.0, abs=0.005)
+
+
 @pytest.mark.parametrize("key", _VARIANTS)
 def test_dcdtlz_without_distance_variables_has_g_zero(key: str) -> None:
     # STEP16 and STEP18 have three objectives and two variables: every design lies on DTLZ's front.

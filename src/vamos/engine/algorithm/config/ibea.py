@@ -12,6 +12,7 @@ from .base import (
     DEFAULT_POP_SIZE,
     ConstraintModeStr,
     IndicatorType,
+    LiveCallbackMode,
     ResultMode,
     _ConfigBuilderState,
     _ConstraintModeBuilder,
@@ -47,6 +48,8 @@ class IBEAConfig(_SerializableConfig):
     track_genealogy: bool = False
     result_mode: ResultMode | None = None
     external_archive: ExternalArchiveConfig | None = None
+    # Fields added after 1.0 go last, so that the constructor keeps the positions of its parameters.
+    live_callback_mode: LiveCallbackMode = "population"
 
     @classmethod
     def default(
@@ -130,4 +133,5 @@ class _IBEAConfigBuilder(
             track_genealogy=bool(self._cfg.get("track_genealogy", False)),
             result_mode=self._cfg.get("result_mode", "non_dominated"),
             external_archive=self._cfg.get("external_archive"),
+            live_callback_mode=self._cfg.get("live_callback_mode", "population"),
         )

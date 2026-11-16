@@ -1,4 +1,4 @@
-"""`vamos tune --smoke`: populations within the smoke budget, failure warning and output folder (review finding VR-296)."""
+"""`vamos tune --smoke`: populations within the smoke budget, failure warning and output folder."""
 
 from __future__ import annotations
 

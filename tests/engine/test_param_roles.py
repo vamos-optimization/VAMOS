@@ -71,14 +71,14 @@ def test_moead_aggregation_is_structural():
     cs = build_moead_config_space()
     groups = cs.group_by_role()
     structural_names = {p.name for p in groups["structural"]}
-    assert "aggregation" in structural_names
+    assert "aggregation_function" in structural_names
 
 
 def test_moead_neighbor_size_is_population():
     cs = build_moead_config_space()
     groups = cs.group_by_role()
     pop_names = {p.name for p in groups["population"]}
-    assert "neighbor_size" in pop_names
+    assert "neighborhood_size" in pop_names
 
 
 def test_rvea_adapt_freq_is_adaptive():

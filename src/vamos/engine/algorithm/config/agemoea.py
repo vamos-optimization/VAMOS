@@ -11,6 +11,7 @@ from vamos.foundation.encoding import EncodingLike
 from .base import (
     DEFAULT_POP_SIZE,
     ConstraintModeStr,
+    LiveCallbackMode,
     ResultMode,
     _ConfigBuilderState,
     _ConstraintHandlingBuilder,
@@ -27,6 +28,7 @@ from .base import (
     _SerializableConfig,
     _TrackGenealogyBuilder,
     _validate_operators,
+    _warn_without_effect,
 )
 from .types import RepairConfigValue
 
@@ -67,6 +69,7 @@ class _AGEMOEAConfigBuilder(
             track_genealogy=bool(self._cfg.get("track_genealogy", False)),
             result_mode=self._cfg.get("result_mode", "non_dominated"),
             external_archive=self._cfg.get("external_archive"),
+            live_callback_mode=self._cfg.get("live_callback_mode", "population"),
         )
 
 
@@ -84,6 +87,12 @@ class AGEMOEAConfig(_SerializableConfig):
     external_archive: ExternalArchiveConfig | None = None
     # Fields added after 1.0 go last, so that the constructor keeps the positions of its parameters.
     constraint_handling: tuple[str, dict[str, float]] | None = None
+    live_callback_mode: LiveCallbackMode = "population"
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.track_genealogy:
+            _warn_without_effect("AGE-MOEA", "track_genealogy", "AGE-MOEA records no genealogy", stacklevel=3)
 
     @classmethod
     def default(

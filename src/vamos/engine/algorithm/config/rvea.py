@@ -14,6 +14,7 @@ from vamos.foundation.exceptions import ConfigurationError
 
 from .base import (
     ConstraintModeStr,
+    LiveCallbackMode,
     ReferenceDirectionPopulationError,
     ResultMode,
     _ConfigBuilderState,
@@ -32,6 +33,7 @@ from .base import (
     _SerializableConfig,
     _TrackGenealogyBuilder,
     _validate_operators,
+    _warn_without_effect,
 )
 from .types import RepairConfigValue
 
@@ -88,8 +90,14 @@ class RVEAConfig(_SerializableConfig):
     external_archive: ExternalArchiveConfig | None = None
     # Fields added after 1.0 go last, so that the constructor keeps the positions of its parameters.
     constraint_handling: tuple[str, dict[str, float]] | None = None
+    live_callback_mode: LiveCallbackMode = "population"
     #: The techniques that judge the violation of a single solution, the only ones this algorithm takes.
     constraint_handling_techniques: ClassVar[tuple[str, ...]] = PAIRWISE_TECHNIQUES
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.track_genealogy:
+            _warn_without_effect("RVEA", "track_genealogy", "RVEA records no genealogy", stacklevel=3)
 
     @classmethod
     def default(
@@ -195,4 +203,5 @@ class _RVEAConfigBuilder(
             track_genealogy=bool(self._cfg.get("track_genealogy", False)),
             result_mode=self._cfg.get("result_mode", "non_dominated"),
             external_archive=self._cfg.get("external_archive"),
+            live_callback_mode=self._cfg.get("live_callback_mode", "population"),
         )
