@@ -52,6 +52,8 @@ _PIP_VALUE_OPTIONS = {"-c", "-r", "-e", "--constraint", "--requirement", "--edit
 _PINNED_DEPENDENCIES = {
     # mkdocs.yml configures the Markdown extensions of PyMdown.
     "pymdown-extensions": "mkdocs-material",
+    # tools/typecheck.py requires the version that the typing baseline records.
+    "typing-extensions": "mypy",
 }
 
 
