@@ -14,7 +14,7 @@ from vamos.experiment.artifacts.models import StoredRun, deep_freeze
 from vamos.experiment.artifacts.persistence import load_run
 from vamos.experiment.artifacts.verification import verify_run
 
-from .commits import append_event, checkpoint_attempt, checkpoint_manifest, checkpoint_task, run_reference
+from .commits import append_event, checkpoint_attempt, checkpoint_manifest, checkpoint_task, commit_section, run_reference
 from .documents import attempt_document, manifest_checkpoint_document, semantic_hash, task_checkpoint_document
 from .errors import ReferencedRunCorruptError
 from .failure_policy import complete_running, pause_after_task_failure, pause_with_runnable_work
@@ -79,55 +79,56 @@ def _ensure_running_attempt(study: Study, attempt: AttemptRecord) -> tuple[Study
     )
     event = study.events[-1]
     task = _task(study, attempt.task_id)
-    if matching_claim is None:
-        from .execution import _distinct_run_id
+    with commit_section():
+        if matching_claim is None:
+            from .execution import _distinct_run_id
 
+            event = append_event(
+                study.root,
+                event,
+                event_type="task_claimed",
+                entity_kind="task",
+                entity_id=task.task_id,
+                transition_from=task.state,
+                transition_to="running",
+                execution_id=attempt.execution_id,
+                payload={"attempt_id": attempt.attempt_id, "run_id": _distinct_run_id(attempt.attempt_id)},
+            )
         event = append_event(
             study.root,
             event,
-            event_type="task_claimed",
-            entity_kind="task",
-            entity_id=task.task_id,
-            transition_from=task.state,
+            event_type="attempt_started",
+            entity_kind="attempt",
+            entity_id=attempt.attempt_id,
+            transition_from="created",
             transition_to="running",
             execution_id=attempt.execution_id,
-            payload={"attempt_id": attempt.attempt_id, "run_id": _distinct_run_id(attempt.attempt_id)},
         )
-    event = append_event(
-        study.root,
-        event,
-        event_type="attempt_started",
-        entity_kind="attempt",
-        entity_id=attempt.attempt_id,
-        transition_from="created",
-        transition_to="running",
-        execution_id=attempt.execution_id,
-    )
-    timestamps = dict(attempt.timestamps)
-    timestamps["started_at"] = event.timestamp
-    attempt, reference = checkpoint_attempt(
-        study.root,
-        replace(attempt, status="running", timestamps=deep_freeze(timestamps)),
-    )
-    task = checkpoint_task(
-        study.root,
-        replace(
-            task,
+        timestamps = dict(attempt.timestamps)
+        timestamps["started_at"] = event.timestamp
+        attempt, reference = checkpoint_attempt(
+            study.root,
+            replace(attempt, status="running", timestamps=deep_freeze(timestamps)),
+        )
+        task = checkpoint_task(
+            study.root,
+            replace(
+                task,
+                state="running",
+                attempts=_replace_attempt_reference(task.attempts, reference),
+                current_attempt_id=attempt.attempt_id,
+                selected_success_attempt_id=None,
+                claim_epoch=max(task.claim_epoch, attempt.attempt_number),
+            ),
+        )
+        checkpoint_manifest(
+            study.root,
+            study.manifest,
             state="running",
-            attempts=_replace_attempt_reference(task.attempts, reference),
-            current_attempt_id=attempt.attempt_id,
-            selected_success_attempt_id=None,
-            claim_epoch=max(task.claim_epoch, attempt.attempt_number),
-        ),
-    )
-    checkpoint_manifest(
-        study.root,
-        study.manifest,
-        state="running",
-        execution_id=attempt.execution_id,
-        tasks=_replace_task(study.tasks, task),
-        event=event,
-    )
+            execution_id=attempt.execution_id,
+            tasks=_replace_task(study.tasks, task),
+            event=event,
+        )
     loaded = reload_study(study)
     return loaded, next(item for item in loaded.attempts if item.attempt_id == attempt.attempt_id)
 
@@ -217,103 +218,105 @@ def _commit_interrupted(study: Study, attempt: AttemptRecord) -> None:
             }
         ),
     )
-    event = append_event(
-        study.root,
-        study.events[-1],
-        event_type="attempt_interrupted",
-        entity_kind="attempt",
-        entity_id=attempt.attempt_id,
-        transition_from="running",
-        transition_to="interrupted",
-        execution_id=attempt.execution_id,
-        reason=reason,
-    )
-    timestamps = dict(attempt.timestamps)
-    timestamps["completed_at"] = event.timestamp
-    attempt, reference = checkpoint_attempt(
-        study.root,
-        replace(attempt, status="interrupted", timestamps=deep_freeze(timestamps)),
-    )
-    task = _task(study, attempt.task_id)
-    task = checkpoint_task(
-        study.root,
-        replace(
-            task,
-            state="interrupted",
-            attempts=_replace_attempt_reference(task.attempts, reference),
-            current_attempt_id=None,
-            selected_success_attempt_id=None,
-            retryability=replace(
-                task.retryability,
-                retryable=task.retryability.attempts_remaining > 0,
-                category="interruption",
-            ),
+    with commit_section():
+        event = append_event(
+            study.root,
+            study.events[-1],
+            event_type="attempt_interrupted",
+            entity_kind="attempt",
+            entity_id=attempt.attempt_id,
+            transition_from="running",
+            transition_to="interrupted",
+            execution_id=attempt.execution_id,
             reason=reason,
-        ),
-    )
-    checkpoint_manifest(
-        study.root,
-        study.manifest,
-        state="running",
-        execution_id=attempt.execution_id,
-        tasks=_replace_task(study.tasks, task),
-        event=event,
-    )
+        )
+        timestamps = dict(attempt.timestamps)
+        timestamps["completed_at"] = event.timestamp
+        attempt, reference = checkpoint_attempt(
+            study.root,
+            replace(attempt, status="interrupted", timestamps=deep_freeze(timestamps)),
+        )
+        task = _task(study, attempt.task_id)
+        task = checkpoint_task(
+            study.root,
+            replace(
+                task,
+                state="interrupted",
+                attempts=_replace_attempt_reference(task.attempts, reference),
+                current_attempt_id=None,
+                selected_success_attempt_id=None,
+                retryability=replace(
+                    task.retryability,
+                    retryable=task.retryability.attempts_remaining > 0,
+                    category="interruption",
+                ),
+                reason=reason,
+            ),
+        )
+        checkpoint_manifest(
+            study.root,
+            study.manifest,
+            state="running",
+            execution_id=attempt.execution_id,
+            tasks=_replace_task(study.tasks, task),
+            event=event,
+        )
 
 
 def _commit_recovered_run(study: Study, attempt: AttemptRecord, stored: StoredRun) -> None:
     reference = run_reference(stored, study_root=study.root)
     failure = _recovered_failure(stored) if stored.status == "failed" else None
-    event = append_event(
-        study.root,
-        study.events[-1],
-        event_type="attempt_failed" if stored.status == "failed" else "attempt_succeeded",
-        entity_kind="attempt",
-        entity_id=attempt.attempt_id,
-        transition_from="running",
-        transition_to=cast(Any, stored.status),
-        execution_id=attempt.execution_id,
-        reason=failure,
-        payload={"task_id": attempt.task_id, "run_reference": reference, **({"failure": failure} if failure else {})},
-    )
-    timestamps = dict(attempt.timestamps)
-    timestamps["completed_at"] = event.timestamp
-    attempt, attempt_reference = checkpoint_attempt(
-        study.root,
-        replace(
-            attempt,
-            status=cast(Any, stored.status),
-            timestamps=deep_freeze(timestamps),
-            failure=failure,
-            run_reference=reference,
-        ),
-    )
-    task = _task(study, attempt.task_id)
-    retryable = bool(failure and failure["retryable"] and task.retryability.attempts_remaining > 0)
-    task = checkpoint_task(
-        study.root,
-        replace(
-            task,
-            state=cast(Any, stored.status),
-            attempts=_replace_attempt_reference(task.attempts, attempt_reference),
-            current_attempt_id=None,
-            selected_success_attempt_id=attempt.attempt_id if stored.status == "succeeded" else None,
-            retryability=replace(
-                task.retryability,
-                retryable=retryable,
-                category=str(failure["category"]) if failure is not None else None,
-            ),
+    with commit_section():
+        event = append_event(
+            study.root,
+            study.events[-1],
+            event_type="attempt_failed" if stored.status == "failed" else "attempt_succeeded",
+            entity_kind="attempt",
+            entity_id=attempt.attempt_id,
+            transition_from="running",
+            transition_to=cast(Any, stored.status),
+            execution_id=attempt.execution_id,
             reason=failure,
-        ),
-    )
-    checkpoint_manifest(
-        study.root,
-        study.manifest,
-        state="running",
-        execution_id=attempt.execution_id,
-        tasks=_replace_task(study.tasks, task),
-        event=event,
-    )
+            payload={"task_id": attempt.task_id, "run_reference": reference, **({"failure": failure} if failure else {})},
+        )
+        timestamps = dict(attempt.timestamps)
+        timestamps["completed_at"] = event.timestamp
+        attempt, attempt_reference = checkpoint_attempt(
+            study.root,
+            replace(
+                attempt,
+                status=cast(Any, stored.status),
+                timestamps=deep_freeze(timestamps),
+                failure=failure,
+                run_reference=reference,
+            ),
+        )
+        task = _task(study, attempt.task_id)
+        retryable = bool(failure and failure["retryable"] and task.retryability.attempts_remaining > 0)
+        task = checkpoint_task(
+            study.root,
+            replace(
+                task,
+                state=cast(Any, stored.status),
+                attempts=_replace_attempt_reference(task.attempts, attempt_reference),
+                current_attempt_id=None,
+                selected_success_attempt_id=attempt.attempt_id if stored.status == "succeeded" else None,
+                retryability=replace(
+                    task.retryability,
+                    retryable=retryable,
+                    category=str(failure["category"]) if failure is not None else None,
+                ),
+                reason=failure,
+            ),
+        )
+        checkpoint_manifest(
+            study.root,
+            study.manifest,
+            state="running",
+            execution_id=attempt.execution_id,
+            tasks=_replace_task(study.tasks, task),
+            event=event,
+        )
 
 
 def _recovered_failure(stored: StoredRun) -> Mapping[str, Any]:

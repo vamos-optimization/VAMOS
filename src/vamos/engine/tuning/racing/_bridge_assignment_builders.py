@@ -22,6 +22,7 @@ from vamos.engine.algorithm.config import (
     ToPConfig,
 )
 from vamos.engine.algorithm.variants import ALGORITHM_VARIANT_GROUPS
+from vamos.engine.reference_directions import largest_lattice_divisions, lattice_size
 
 from ._bridge_assignment_shared import (
     apply_initializer,
@@ -203,8 +204,13 @@ def build_smsemoa_config(assignment: dict[str, Any], *, mixed: bool = False) -> 
         mut_params["prob"] = float(assignment["mutation_prob"])
     extend_mutation_params(mut, assignment, mut_params, mixed=mixed)
     builder.mutation(mut, **mut_params)
-    builder.selection("tournament", size=int(assignment["selection_pressure"]))
-    builder.reference_point(offset=0.1, adaptive=True)
+    # Assignments from earlier spaces name only the tournament size and used an offset of 0.1.
+    selection = str(assignment.get("selection", "tournament"))
+    if selection == "tournament":
+        builder.selection(selection, size=int(assignment["selection_pressure"]))
+    else:
+        builder.selection(selection)
+    builder.reference_point(offset=float(assignment.get("reference_point_offset", 0.1)), adaptive=True)
     apply_optional_repair(builder, assignment)
     apply_optional_external_archive(builder, assignment, pop_size)
     apply_constraint_handling(builder, assignment)
@@ -229,7 +235,8 @@ def build_spea2_config(assignment: dict[str, Any], *, mixed: bool = False) -> SP
         mut_params["prob"] = float(assignment["mutation_prob"])
     extend_mutation_params(mut, assignment, mut_params, mixed=mixed)
     builder.mutation(mut, **mut_params)
-    builder.selection("tournament", size=int(assignment["selection_pressure"]))
+    # SPEA2 mates with its own binary tournament: a ``selection_pressure`` saved from an earlier space has no effect.
+    builder.selection("tournament")
     builder.k_neighbors(int(assignment.get("k_neighbors", max(1, int(np.sqrt(pop_size))))))
     apply_optional_repair(builder, assignment)
     apply_optional_external_archive(builder, assignment, pop_size)
@@ -310,11 +317,24 @@ def build_agemoea_config(assignment: dict[str, Any], *, mixed: bool = False) -> 
     return builder.build()
 
 
+def _rvea_population(assignment: dict[str, Any]) -> tuple[int, int]:
+    """RVEA's population and partitions: one individual per direction of a complete Das-Dennis lattice.
+
+    The lattice is the largest with at most the sampled ``pop_size`` directions for the assignment's
+    ``n_obj`` (two objectives without it). An assignment with ``n_partitions``, saved from an earlier
+    space, keeps that lattice, and one with neither gets 12 partitions.
+    """
+    n_obj = max(2, int(assignment.get("n_obj", 2)))
+    if "n_partitions" in assignment or "pop_size" not in assignment:
+        n_partitions = int(assignment.get("n_partitions", 12))
+    else:
+        n_partitions = largest_lattice_divisions(int(assignment["pop_size"]), n_obj)
+    return lattice_size(n_obj, n_partitions), n_partitions
+
+
 def build_rvea_config(assignment: dict[str, Any], *, mixed: bool = False) -> RVEAConfig:
     builder = RVEAConfig.builder()
-    n_partitions = int(assignment.get("n_partitions", 12))
-    n_obj = max(2, int(assignment.get("n_obj", 2)))
-    pop_size = int(math.comb(n_partitions + n_obj - 1, n_obj - 1))
+    pop_size, n_partitions = _rvea_population(assignment)
     builder.pop_size(pop_size)
     builder.n_partitions(n_partitions)
     builder.alpha(float(assignment.get("alpha", 2.0)))

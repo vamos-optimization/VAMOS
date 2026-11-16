@@ -56,7 +56,9 @@ def derive_effective_study(
     state = _initial_state(manifest, tasks, attempts, events[0])
     if len(events) == 1:
         validate_pristine_created_state(manifest, tasks, attempts)
-    checkpoint_state: _ReplayState | None = None
+    # The root checkpoint names the event it records; at the first event that is the created state,
+    # however many valid events a stopped writer published after it.
+    checkpoint_state = _copy_state(state) if manifest.checkpoint_sequence == 1 else None
     for event in events[1:]:
         _apply_event(
             root,
@@ -70,8 +72,6 @@ def derive_effective_study(
         )
         if event.sequence == manifest.checkpoint_sequence:
             checkpoint_state = _copy_state(state)
-    if manifest.checkpoint_sequence == 1:
-        checkpoint_state = _copy_state(state)
     assert checkpoint_state is not None
     return project_effective_study(root, manifest, tasks, attempts, events, state, checkpoint_state)
 

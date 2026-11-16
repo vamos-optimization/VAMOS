@@ -9,7 +9,7 @@ from typing import Any, cast
 
 from vamos.experiment.artifacts.models import deep_freeze
 
-from .commits import append_event, checkpoint_attempt, checkpoint_manifest, checkpoint_task
+from .commits import append_event, checkpoint_attempt, checkpoint_manifest, checkpoint_task, commit_section
 from .errors import UnsupportedStudyExecutionStateError
 from .identity import new_uuid4
 from .loading import reload_study
@@ -61,40 +61,43 @@ def cancel_loaded(study: Study, *, code: str) -> Study:
         attempt = attempts_by_task.get(task.task_id)
         if attempt is None:
             continue
-        event, task = _cancel_attempt(study.root, event, task, attempt, execution_id, reason)
-        tasks[index] = task
-        manifest = checkpoint_manifest(
+        with commit_section():
+            event, task = _cancel_attempt(study.root, event, task, attempt, execution_id, reason)
+            tasks[index] = task
+            manifest = checkpoint_manifest(
+                study.root,
+                manifest,
+                state=study.status,
+                execution_id=execution_id,
+                tasks=tuple(tasks),
+                event=event,
+            )
+    pending_ids = [task.task_id for task in tasks if task.state == "pending"]
+    with commit_section():
+        event = append_event(
+            study.root,
+            event,
+            event_type="study_cancelled",
+            entity_kind="study",
+            entity_id=study.study_id,
+            transition_from=study.status,
+            transition_to="cancelled",
+            execution_id=execution_id,
+            reason=reason,
+            payload={"cancelled_task_ids": pending_ids},
+        )
+        tasks = [
+            checkpoint_task(study.root, replace(task, state="cancelled", reason=reason)) if task.state == "pending" else task
+            for task in tasks
+        ]
+        checkpoint_manifest(
             study.root,
             manifest,
-            state=study.status,
+            state="cancelled",
             execution_id=execution_id,
             tasks=tuple(tasks),
             event=event,
         )
-    pending_ids = [task.task_id for task in tasks if task.state == "pending"]
-    event = append_event(
-        study.root,
-        event,
-        event_type="study_cancelled",
-        entity_kind="study",
-        entity_id=study.study_id,
-        transition_from=study.status,
-        transition_to="cancelled",
-        execution_id=execution_id,
-        reason=reason,
-        payload={"cancelled_task_ids": pending_ids},
-    )
-    tasks = [
-        checkpoint_task(study.root, replace(task, state="cancelled", reason=reason)) if task.state == "pending" else task for task in tasks
-    ]
-    checkpoint_manifest(
-        study.root,
-        manifest,
-        state="cancelled",
-        execution_id=execution_id,
-        tasks=tuple(tasks),
-        event=event,
-    )
     return reload_study(study)
 
 

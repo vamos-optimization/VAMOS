@@ -183,7 +183,7 @@ class SMPSO:
             engine_name=str(self.kernel.name),
         )
         live_cb.on_start(ctx)
-        live_cb.on_generation(0, F=st.hv_points(), stats={"evals": st.n_eval})
+        live_cb.on_generation(0, F=st.F, X=st.X, stats={"evals": st.n_eval})
         stop_requested = live_should_stop(live_cb)
 
         hv_reached = hv_tracker.enabled and hv_tracker.reached(st.hv_points())
@@ -197,7 +197,7 @@ class SMPSO:
                 hv_reached = True
                 break
 
-            stop_requested = notify_generation(live_cb, self.kernel, st.generation, st.hv_points(), stats={"evals": st.n_eval})
+            stop_requested = notify_generation(live_cb, st.generation, st.F, st.X, st.n_eval)
 
         result = build_smpso_result(st, hv_reached)
         finalize_genealogy(result, st, self.kernel)
@@ -244,7 +244,7 @@ class SMPSO:
                 engine_name=str(self.kernel.name),
             )
             self._live_cb.on_start(ctx)
-            self._live_cb.on_generation(0, F=self._st.hv_points())
+            self._live_cb.on_generation(0, F=self._st.F, X=self._st.X, stats={"evals": self._st.n_eval})
 
     def ask(self) -> np.ndarray[Any, Any]:
         """Generate offspring positions for evaluation.
