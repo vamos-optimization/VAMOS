@@ -131,7 +131,7 @@ _LSMOP_LINKAGE = (
 )
 _RWA_C_FACTOR = (
     "The authors' C code (evo-mx/MO-RWA) and jMetal 7.8 write coefficients as '4.148 * 10e-3', ten times the "
-    "paper's 4.148e-3; VAMOS uses the paper's values (VR-332)."
+    "paper's 4.148e-3; VAMOS uses the paper's values."
 )
 # Problems whose counterpart is not the same problem; the fixture records why.
 EXCLUDED = {
@@ -140,9 +140,9 @@ EXCLUDED = {
     "rwa6": _RWA_C_FACTOR,
     "rwa9": (
         "The authors' C code and jMetal 7.8 define RWA9 with 6 variables and compute a2, b2 and d2 as products of them "
-        "(a2 = l1 * w1 * l2 * w2, about 2500, where the regression uses a2 - 11); VAMOS has the 10 variables (VR-331)."
+        "(a2 = l1 * w1 * l2 * w2, about 2500, where the regression uses a2 - 11); VAMOS has the 10 variables."
     ),
-    "rwa10": "The authors' C code and jMetal 7.8 add a constant to each objective, which the paper's Eq. 11 and VAMOS omit (VR-332).",
+    "rwa10": "The authors' C code and jMetal 7.8 add a constant to each objective, which the paper's Eq. 11 and VAMOS omit.",
     "re41": (
         "jMetal 7.8's RE41 differs from the authors' reproblem.py (ryojitanabe/reproblems), which VAMOS follows: "
         "at the first fixture point the authors' f1 is 32.0024, VAMOS's 32.0024 and jMetal's 29.0500."

@@ -155,6 +155,25 @@ NSGA-II passed `X`, NSGA-II and SMPSO sent the first front while the others sent
 the population, MOEA/D notified after every evaluation, and IBEA, NSGA-III,
 SPEA2 and SMPSO left out `stats` in `ask`/`tell` runs.
 
+**Development after 1.2.1:** only the default `NoOpLiveVisualization` itself is
+skipped. A callback that subclasses it and overrides `on_generation` receives
+every generation in every algorithm. In VAMOS 1.2.1 MOEA/D, SPEA2 and SMPSO
+sent such a callback generation 0 only.
+
+**Development after 1.2.1:** every algorithm that takes an external archive
+has `live_callback_mode`, as NSGA-II does: `population` (their default) sends
+the population, `nd_only` (NSGA-II's default) its first front, and
+`population_archive` the population plus `stats["archive"]`, the archive's
+`{"X": ..., "F": ...}`. With an archive, the run returns that archive, so a
+live view in this mode ends with what `optimize` returns. When the budget, the
+HV target or a stop ends a run inside a generation, MOEA/D and SMS-EMOA send
+the evaluations since their last notification as a final, shorter generation,
+as the generational algorithms do with their last one, and every algorithm
+notifies the generation that reaches the HV target before it stops. SMPSO without an
+external archive sends its leaders, which it returns. Set it with the
+builder, for example `MOEADConfig.builder()...external_archive(capacity=None).live_callback_mode("population_archive")`.
+Before, only `NSGAIIConfig` had the field.
+
 ## 4. Saving work and resuming a study
 
 **Stable:** save completed results with `save_result` (recipe 13), and use the
@@ -320,6 +339,21 @@ vamos --problem zdt1 --algorithm nsgaii --engine numpy --population-size 40 --ma
 The single-run CLI is **Stable**; custom evaluators and distributed study
 ownership remain **Experimental**. This command distributes evaluations
 within one run, not concurrent mutation of a durable study.
+
+From Python, pass `eval_strategy="multiprocessing"` to `optimize`. On Windows
+and macOS the workers start by importing the main module, so put the call under
+the main guard; without it, the run fails with `BrokenProcessPool`:
+
+```python
+import vamos
+
+if __name__ == "__main__":
+    result = vamos.optimize("zdt1", algorithm="nsgaii", max_evaluations=400, seed=7, eval_strategy="multiprocessing")
+```
+
+Such a run is recorded with replayability `best_effort`, so `vamos reproduce`
+refuses it. To check it, run the same configuration serially with the same
+seed; see [parallel evaluation](run-artifacts.md#parallel-evaluation).
 
 **VAMOS 1.2.0:** the multiprocessing backend starts its pool of
 worker processes at the first evaluation and keeps it for the rest of the run.

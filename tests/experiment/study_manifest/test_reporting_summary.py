@@ -287,3 +287,36 @@ def test_journal_newer_than_checkpoint_is_reported_without_reconciliation(tmp_pa
     assert report.journal_checkpoint_relation == "journal_ahead"
     assert report.changed is False
     assert report.next_actions[0] == "resume_to_reconcile"
+
+
+@pytest.mark.parametrize("mutation", ["missing_manifest", "corrupt_result"])
+def test_inspect_reports_corrupt_run_instead_of_failing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str) -> None:
+    from vamos.experiment.study.errors import StudyError
+
+    completed = _complete(tmp_path / mutation, monkeypatch)
+    reference = completed.attempts[0].run_reference
+    assert reference is not None
+    run_root = completed.root / "runs" / str(reference["run_id"])
+    if mutation == "missing_manifest":
+        (run_root / "manifest.json").unlink()
+    else:
+        result_path = run_root / "result.npz"
+        result_path.write_bytes(result_path.read_bytes() + b"corrupt")
+    with pytest.raises(StudyError):
+        vamos.load_study(completed.root)
+    before = _tree(completed.root)
+
+    loaded = vamos.load_study(completed.root, verify="metadata")
+    report = loaded.inspect()
+    summary = loaded.summarize()
+
+    assert _tree(completed.root) == before
+    assert loaded.status == "completed"
+    assert len(report.issues) == 1
+    assert report.issues[0].reason in {"REFERENCED_RUN_MISSING", "REFERENCED_RUN_CORRUPT"}
+    assert summary.rows[0].run_metadata_available is False
+    # Running work still verifies every run.
+    with pytest.raises(StudyError):
+        loaded.resume()
+    with pytest.raises(ValueError, match="verify must be"):
+        vamos.load_study(completed.root, verify="none")  # type: ignore[arg-type]

@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import time
 import uuid
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, cast
 
 from vamos.experiment.artifacts.compatibility import reuse_current_environment
-from vamos.experiment.artifacts.models import deep_freeze
+from vamos.experiment.artifacts.models import LoadLimits, deep_freeze
 from vamos.experiment.artifacts.reconstruction import (
     ReconstructedRun,
     instantiate_reconstructed_problem,
@@ -42,7 +42,8 @@ from .execution_errors import (
 )
 from .failure_policy import complete_running, pause_after_task_failure, record_infrastructure_failure
 from .identity import new_uuid4
-from .loading import load_study
+from .limits import StudyLoadLimits
+from .loading import reload_study
 from .models import AttemptRecord, PlanTask, Study, StudyEvent, StudyManifest, TaskRecord
 from .run_publication import attach_run_metadata, commit_task_failure, publish_success
 
@@ -63,6 +64,8 @@ class _ExecutionState:
     active_attempt_id: str | None = None
     active_run_id: str | None = None
     objective_evaluation_began: bool = False
+    limits: StudyLoadLimits = field(default_factory=StudyLoadLimits)
+    run_limits: LoadLimits = field(default_factory=LoadLimits)
 
 
 def execute_study(snapshot: Study) -> Study:
@@ -78,26 +81,26 @@ def _execute_study(snapshot: Study) -> Study:
         raise state_error(snapshot, "REENTRANT_STUDY_EXECUTION", snapshot.status)
     _ACTIVE_ROOTS[root] = None
     try:
-        current = load_study(root)
+        current = reload_study(snapshot)
         _validate_snapshot(snapshot, current)
         if not current.tasks:
             return _complete_empty(current)
         state = _start_execution(current)
         for plan_task in current.plan.tasks:
             if _consume_cancellation(root):
-                return cancel_loaded(load_study(root), code="USER_CANCELLATION")
+                return cancel_loaded(reload_study(snapshot), code="USER_CANCELLATION")
             index = state.task_indexes[plan_task.task_id]
             if _run_task_attempt(state, index, plan_task):
-                return load_study(root)
+                return reload_study(snapshot)
             if _consume_cancellation(root):
-                return cancel_loaded(load_study(root), code="USER_CANCELLATION")
+                return cancel_loaded(reload_study(snapshot), code="USER_CANCELLATION")
             task = state.tasks[index]
             if task.state == "failed" and state.manifest.on_error == "fail_fast":
                 return pause_after_task_failure(state, task)
-        return complete_running(state, _execution_phase, load_study)
+        return complete_running(state, _execution_phase, reload_study)
     except KeyboardInterrupt as exc:
         try:
-            return cancel_loaded(load_study(root), code="PROCESS_INTERRUPTION")
+            return cancel_loaded(reload_study(snapshot), code="PROCESS_INTERRUPTION")
         except Exception as cancellation_error:
             raise StudyInfrastructureError(
                 operation="cancel interrupted study execution",
@@ -116,7 +119,7 @@ def _execute_study(snapshot: Study) -> Study:
             ) from exc
     except StudyInfrastructureError as exc:
         enrich_execution_error(exc, snapshot, state)
-        recorded = record_infrastructure_failure(root, exc)
+        recorded = record_infrastructure_failure(snapshot, exc)
         if recorded is exc:
             raise
         raise recorded from exc
@@ -139,7 +142,7 @@ def _execute_study(snapshot: Study) -> Study:
             actual=type(exc).__name__,
             action="Load the study to inspect authoritative journal state.",
         )
-        recorded = record_infrastructure_failure(root, error)
+        recorded = record_infrastructure_failure(snapshot, error)
         raise recorded from exc
     finally:
         _ACTIVE_ROOTS.pop(root, None)
@@ -206,7 +209,7 @@ def _complete_empty(study: Study) -> Study:
         raise
     except Exception as exc:
         raise finalization_error(study.study_id, "created", False, False, study.root, exc) from exc
-    return load_study(study.root)
+    return reload_study(study)
 
 
 def _start_execution(study: Study, *, parent_execution_id: str | None = None) -> _ExecutionState:
@@ -233,7 +236,9 @@ def _start_execution(study: Study, *, parent_execution_id: str | None = None) ->
         )
     tasks = list(study.tasks)
     indexes = {task.task_id: index for index, task in enumerate(tasks)}
-    return _ExecutionState(study.root, study.study_id, execution_id, manifest, tasks, indexes, event)
+    return _ExecutionState(
+        study.root, study.study_id, execution_id, manifest, tasks, indexes, event, limits=study.limits, run_limits=study.run_limits
+    )
 
 
 def _run_task_attempt(state: _ExecutionState, index: int, plan_task: PlanTask) -> bool:
@@ -330,7 +335,7 @@ def _execute_and_commit(
     try:
         reconstructed = reconstruct_resolved_run(plan_task.resolved_run_spec, root=state.root)
     except KeyboardInterrupt:
-        cancel_loaded(load_study(state.root), code="PROCESS_INTERRUPTION")
+        cancel_loaded(reload_study(state), code="PROCESS_INTERRUPTION")
         return True
     except Exception as exc:
         commit_task_failure(
@@ -352,7 +357,7 @@ def _execute_and_commit(
     try:
         result = _execute_optimization(reconstructed, root=state.root)
     except KeyboardInterrupt:
-        cancel_loaded(load_study(state.root), code="PROCESS_INTERRUPTION")
+        cancel_loaded(reload_study(state), code="PROCESS_INTERRUPTION")
         return True
     except Exception as exc:
         commit_task_failure(
@@ -371,7 +376,7 @@ def _execute_and_commit(
     runtime_ms = (time.perf_counter() - started_monotonic) * 1000.0
     _execution_phase("after_optimization_result_exists")
     if _consume_cancellation(state.root):
-        cancel_loaded(load_study(state.root), code="USER_CANCELLATION")
+        cancel_loaded(reload_study(state), code="USER_CANCELLATION")
         return True
     attach_run_metadata(result, plan_task, run_id, started_at, completed_at, runtime_ms)
     stored = publish_success(state, task, plan_task, run_id, result, _execution_phase)

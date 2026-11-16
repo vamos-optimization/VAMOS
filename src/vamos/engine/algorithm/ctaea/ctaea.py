@@ -14,7 +14,7 @@ from typing import Any
 import numpy as np
 
 from vamos.engine.algorithm.components.evaluation import combine_constraints, extract_evaluation_arrays
-from vamos.engine.algorithm.components.hooks import get_live_viz, live_should_stop
+from vamos.engine.algorithm.components.hooks import get_live_viz, live_should_stop, send_live_generation
 from vamos.engine.algorithm.components.metrics import setup_hv_tracker
 from vamos.engine.algorithm.components.population import initialize_evaluated_population, resolve_bounds
 from vamos.engine.algorithm.components.termination import capped_offspring_size, hv_target_reached, parse_termination
@@ -219,7 +219,7 @@ class CTAEA:
         kept = convergence_archive_update(F, violation, weights)
         diverse = diversity_archive_update(F[kept], F, weights)
 
-        ext_cfg = resolve_external_archive(self.cfg)
+        ext_cfg = resolve_external_archive(self.cfg, seed=seed)
         CA_X, CA_F, CA_G = X[kept], F[kept], None if G is None else G[kept]
         archive_X, archive_F, archive_manager = setup_archive(self.kernel, CA_X, CA_F, problem.n_var, problem.n_obj, X.dtype, ext_cfg, CA_G)
 
@@ -240,6 +240,7 @@ class CTAEA:
             archive_F=archive_F,
             archive_manager=archive_manager,
             result_mode=result_mode,
+            live_callback_mode=str(self.cfg.get("live_callback_mode", "population")),
             hv_tracker=setup_hv_tracker(hv_config, self.kernel),
             weights=weights,
             diversity_X=X[diverse],
@@ -252,7 +253,7 @@ class CTAEA:
             RunContext(problem=problem, algorithm=self, config=self.cfg, algorithm_name="ctaea", engine_name=str(self.kernel.name))
         )
         # Generation 0 is the CA built from the evaluated initial population.
-        live_cb.on_generation(0, F=self._st.F, X=self._st.X, stats={"evals": self._st.n_eval})
+        send_live_generation(live_cb, 0, self._st)
 
     def ask(self) -> np.ndarray[Any, Any]:
         """One offspring per weight vector, capped to the remaining budget: the first ones, in the order of the weight vectors.
@@ -361,7 +362,7 @@ class CTAEA:
         st.hv_reached = st.hv_reached or hv_target_reached(st)
         stop_requested = False
         if self._live_cb is not None:
-            self._live_cb.on_generation(st.generation, F=st.F, X=st.X, stats={"evals": st.n_eval})
+            send_live_generation(self._live_cb, st.generation, st)
             stop_requested = live_should_stop(self._live_cb)
         return stop_requested or st.hv_reached
 

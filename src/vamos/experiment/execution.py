@@ -50,7 +50,7 @@ def _logger() -> logging.Logger:
 Metrics = dict[str, Any]
 
 
-def build_hook_manager(config_spec: ExperimentSpec | None, problem_key: str) -> HookManager | None:
+def build_hook_manager(config_spec: ExperimentSpec | None, problem_key: str, *, seed: int = 0) -> HookManager | None:
     """Build the stopping and archive hooks that a config file enables for one problem.
 
     Parameters
@@ -59,6 +59,9 @@ def build_hook_manager(config_spec: ExperimentSpec | None, problem_key: str) -> 
         The loaded config file, or None when the run has none.
     problem_key : str
         Registry key of the problem, which selects its ``problems.<key>`` overrides.
+    seed : int
+        The run seed, from which the hook archive's ``ref_dirs`` pruning and the convergence
+        monitor's bootstrap derive their streams when the config gives no ``rng_seed``.
 
     Returns
     -------
@@ -88,6 +91,7 @@ def build_hook_manager(config_spec: ExperimentSpec | None, problem_key: str) -> 
                 archive_enabled=hook_cfg["archive_enabled"],
                 archive_cfg=hook_cfg["archive_cfg"],
                 hv_ref_point=hook_cfg["hv_ref_point"],
+                run_seed=seed,
             ),
         )
     except (TypeError, ValueError) as exc:
@@ -180,7 +184,7 @@ def run_single(
     observers.append(storage)
 
     # Hooks
-    hook_mgr = build_hook_manager(config_spec, selection.spec.key)
+    hook_mgr = build_hook_manager(config_spec, selection.spec.key, seed=config.seed)
     if hook_mgr is not None:
         observers.append(hook_mgr)
 

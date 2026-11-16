@@ -17,7 +17,7 @@ import numpy as np
 
 from vamos.engine.algorithm.components.constraint_handling import PAIRWISE_TECHNIQUES, run_progress, run_technique
 from vamos.engine.algorithm.components.evaluation import combine_constraints, extract_evaluation_arrays
-from vamos.engine.algorithm.components.hooks import get_live_viz, live_should_stop
+from vamos.engine.algorithm.components.hooks import get_live_viz, live_should_stop, send_live_generation
 from vamos.engine.algorithm.components.metrics import setup_hv_tracker
 from vamos.engine.algorithm.components.population import initialize_evaluated_population, resolve_bounds
 from vamos.engine.algorithm.components.termination import (
@@ -268,7 +268,7 @@ class RVEA:
         )
 
         variation = _build_variation(self.cfg, encoding, xl, xu, problem, self.kernel.variation_kernels())
-        ext_cfg = resolve_external_archive(self.cfg)
+        ext_cfg = resolve_external_archive(self.cfg, seed=seed)
         archive_X, archive_F, archive_manager = setup_archive(
             self.kernel,
             X,
@@ -315,6 +315,7 @@ class RVEA:
             adapt_interval=adapt_interval,
             n_obj=n_obj,
             result_mode=result_mode,
+            live_callback_mode=str(self.cfg.get("live_callback_mode", "population")),
             hv_tracker=setup_hv_tracker(hv_config, self.kernel),
         )
         self._st.hv_reached = hv_target_reached(self._st)
@@ -328,7 +329,7 @@ class RVEA:
             )
         )
         # Generation 0 is the evaluated initial population, as in every algorithm.
-        live_cb.on_generation(0, F=self._st.F, X=self._st.X, stats={"evals": self._st.n_eval})
+        send_live_generation(live_cb, 0, self._st)
 
     def ask(self) -> np.ndarray[Any, Any]:
         """Generate offspring for external evaluation.
@@ -443,7 +444,7 @@ class RVEA:
         stop_requested = False
         if self._live_cb is not None:
             # ``st.generation`` starts at 1 for the APD penalty; callbacks count completed generations.
-            self._live_cb.on_generation(st.generation - 1, F=st.F, X=st.X, stats={"evals": st.n_eval})
+            send_live_generation(self._live_cb, st.generation - 1, st)
             stop_requested = live_should_stop(self._live_cb)
         return stop_requested or st.hv_reached
 

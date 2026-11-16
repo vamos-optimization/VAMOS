@@ -57,6 +57,9 @@ def _check_plotting(args: object) -> None:
 
 def _check_engine(args: object) -> None:
     engine = getattr(args, "engine", None)
+    # A config may spell the engine in any case; its check and the run lower-case it.
+    if isinstance(engine, str):
+        engine = engine.lower()
     if engine == "numba" and not _has_module("numba"):
         _warn(f"Engine 'numba' selected but numba is not installed. Install with: {_EXTRA_HINTS['compute']}.")
     if engine == "moocore" and not _has_module("moocore"):

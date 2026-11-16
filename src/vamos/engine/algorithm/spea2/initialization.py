@@ -133,7 +133,7 @@ def initialize_spea2_run(
     env_G = G[env_selected] if G is not None else None
 
     # Setup external archive (optional, separate from internal)
-    ext_cfg = resolve_external_archive(cfg)
+    ext_cfg = resolve_external_archive(cfg, seed=seed)
     archive_X, archive_F, archive_manager = setup_archive(
         kernel,
         env_X,
@@ -182,6 +182,7 @@ def initialize_spea2_run(
         archive_F=archive_F,
         archive_manager=archive_manager,
         result_mode=str(cfg.get("result_mode", "non_dominated")),
+        live_callback_mode=str(cfg.get("live_callback_mode", "population")),
         # HV tracking
         hv_tracker=hv_tracker,
         # SPEA2-specific internal archive

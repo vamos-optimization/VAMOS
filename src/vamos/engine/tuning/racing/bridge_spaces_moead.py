@@ -65,7 +65,6 @@ def _real_operator_part() -> SpacePart:
             [Real("crossover_prob", 0.6, 1.0, role="operator_rate"), Real("crossover_eta", 10.0, 40.0, role="operator_rate")],
         ),
         ConditionalBlock("crossover", "de", [Real("de_cr", 0.0, 1.0, role="operator_rate"), Real("de_f", 0.0, 1.0, role="operator_rate")]),
-        ConditionalBlock("mutation", "non_uniform", [Real("nonuniform_perturbation", 0.05, 0.5, role="operator_rate")]),
         ConditionalBlock("mutation", "gaussian", [Real("gaussian_sigma", 0.001, 0.5, role="operator_rate")]),
         ConditionalBlock("mutation", "cauchy", [Real("cauchy_gamma", 0.001, 0.5, role="operator_rate")]),
         ConditionalBlock("mutation", "uniform", [Real("uniform_perturb", 0.01, 0.5, role="operator_rate")]),

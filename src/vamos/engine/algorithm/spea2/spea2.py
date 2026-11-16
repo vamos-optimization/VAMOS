@@ -24,6 +24,7 @@ from vamos.engine.algorithm.components.hooks import (
     finalize_genealogy,
     live_should_stop,
     notify_generation,
+    send_live_generation,
     survivor_genealogy_ids,
     track_offspring_genealogy,
 )
@@ -187,7 +188,7 @@ class SPEA2:
         assert st.env_F is not None
 
         generation = 0
-        live_cb.on_generation(generation, F=st.env_F, X=st.env_X, stats={"evals": st.n_eval})
+        send_live_generation(live_cb, generation, st, F=st.env_F, X=st.env_X)
         stop_requested = live_should_stop(live_cb)
         hv_reached = hv_tracker.enabled and hv_tracker.reached(st.env_F)
 
@@ -202,12 +203,14 @@ class SPEA2:
             assert st.env_F is not None
             if hv_tracker.enabled and hv_tracker.reached(st.env_F):
                 hv_reached = True
+                # The batch that reaches the target is the result; the live view gets it too.
+                notify_generation(live_cb, generation + 1, st, F=st.env_F, X=st.env_X)
                 break
 
             generation += 1
             st.generation = generation
             assert st.env_F is not None
-            stop_requested = notify_generation(live_cb, generation, st.env_F, st.env_X, st.n_eval)
+            stop_requested = notify_generation(live_cb, generation, st, F=st.env_F, X=st.env_X)
 
         result = build_spea2_result(st, hv_reached, self.kernel)
         # The genealogy ids follow the archive, which can differ from the initial population.
@@ -251,7 +254,7 @@ class SPEA2:
         )
         self._problem = problem
         if self._st is not None and self._live_cb is not None and self._st.env_F is not None:
-            self._live_cb.on_generation(0, F=self._st.env_F, X=self._st.env_X, stats={"evals": self._st.n_eval})
+            send_live_generation(self._live_cb, 0, self._st, F=self._st.env_F, X=self._st.env_X)
 
     def ask(self) -> np.ndarray[Any, Any]:
         """Generate offspring for external evaluation.

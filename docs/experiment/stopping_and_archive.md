@@ -100,7 +100,7 @@ archive:
     truncate_size: 200
     pruning: crowding          # crowding|hv|mc_hv|knn|maxmin|ref_dirs
     hv_ref_point: null         # optional; hv-based policies use a relative reference without it
-    rng_seed: 0
+    rng_seed: null             # ref_dirs pruning's stream; null derives it from the run seed
     objective_tolerance: 0.0
     deduplicate_in: objective  # the only value the hook archive accepts
     decision_tolerance: 1.0e-32
@@ -190,6 +190,21 @@ Notes:
   [Tuning version differences](../topics/tuning.md#changes-included-in-101).
 
 ## Reproducibility
+
+**Development after 1.2.1:** the random streams of these hooks follow the run
+seed. Without an `rng_seed`, the `ref_dirs` pruning of the archive and the
+bootstrap of `stopping.hv_convergence.confidence` draw from streams derived
+from the run seed: children of its `SeedSequence` that the algorithm's own
+generator never draws from, so the optimization does not change. The runs of an
+experiment therefore prune and bootstrap with different streams, and a repeated
+seed repeats them. An integer `rng_seed` fixes the stream, as before. The same
+rule applies to `ExternalArchiveConfig.rng_seed` of an algorithm's external
+archive, and `optimize` records the effective seed in the run's resolved
+configuration; its requested specification keeps the `null` `rng_seed`, so a
+saved run tells a derived stream from a fixed one. The monitor bootstraps with
+a `numpy.random.Generator`. In VAMOS 1.2.0 both `rng_seed` fields defaulted to
+0, so every seed of an experiment shared those streams, and the monitor used
+Python's `random.Random`.
 
 Runs should be launched with fixed seeds and fixed budgets. Early stopping changes executed evaluations,
 but the run still reports the original max budget in the resolved spec. Use the

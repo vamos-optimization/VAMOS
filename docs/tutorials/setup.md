@@ -1,6 +1,6 @@
 # Set up the fundamental tutorials
 
-T01–T03 run with the published **VAMOS 1.0.1** package. They use the Stable
+T01–T03 run with the published **VAMOS 1.2.1** package. They use the Stable
 public facades, the NumPy backend, and the core dependencies. No repository
 checkout, notebook server, plotting package, API key, or optional backend is
 needed to execute the downloadable examples.
@@ -19,7 +19,7 @@ and install from the directory containing it:
 python -m pip install -r tutorial-requirements.txt
 ```
 
-That file pins VAMOS 1.0.1, NumPy 2.1.3, SciPy 1.15.3, and joblib 1.4.2.
+That file pins VAMOS 1.2.1, NumPy 2.1.3, SciPy 1.15.3, and joblib 1.4.2.
 It is a reproducible tutorial recipe, not a change to VAMOS's supported
 dependency ranges. If you use a different environment, compare the scientific
 invariants (shapes, budget, feasibility, and row alignment) rather than

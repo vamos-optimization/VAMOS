@@ -116,10 +116,6 @@ class _NSGAIIConfigBuilder(
         self._cfg["parent_selection_filter"] = fn
         return self
 
-    def live_callback_mode(self, mode: LiveCallbackMode) -> _NSGAIIConfigBuilder:
-        self._cfg["live_callback_mode"] = str(mode)
-        return self
-
     def generation_callback(
         self,
         fn: Any | None,

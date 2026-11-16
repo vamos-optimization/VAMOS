@@ -260,6 +260,27 @@ anything, as the split-based example below did with `--backend racing`. With
 warm starts, each block now resumes only its own run: a block whose run failed
 starts again from scratch, where it used to receive another block's checkpoint.
 
+**Development after 1.2.1:** the statistical race eliminates with F-race
+(Birattari et al., 2002), as irace does. Each instance/seed block ranks the
+alive configurations, so problems whose scores lie on different scales weigh
+the same. A Friedman test on those ranks comes first; when its p-value is below
+`--alpha`, Conover's post-hoc test on the rank sums keeps the best
+configuration and every configuration within the critical difference of it.
+With two configurations alive, a paired Wilcoxon signed-rank test decides
+instead. It drops the blocks where the two tie, and the sign of its statistic
+over the other blocks says which configuration it eliminates, whatever their
+order. When `Scenario.min_survivors` asks for more configurations than a test
+keeps, the race keeps them all and adds the best of the others by aggregate
+score. The first test waits for `Scenario.first_test` blocks (5, irace's
+`firstTest`) or `--min-blocks-before-elimination`, whichever is larger. VAMOS
+1.2.0 compared each configuration with the one of best mean through paired
+t-tests on the raw scores, with Holm's correction. When half of the blocks had
+scores 100 times larger, those tests eliminated no configuration out of eight
+on ten blocks, against about three for F-race. `racing` runs a single race over
+its initial configurations: it does not sample new ones around the elites as
+irace's iterated racing does. For that, use `--backend irace`; see
+[The irace backend](#the-irace-backend).
+
 ### Model-based backends run one fidelity unless given levels
 
 **VAMOS 1.2.0:** without `--fidelity-levels` (`budget_levels=None`

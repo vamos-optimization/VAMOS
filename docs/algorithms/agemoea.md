@@ -10,7 +10,7 @@ downloads:
 
 Adaptive geometry estimation uses an estimated non-Euclidean front geometry to support diversity selection in many-objective search [1]. Three-objective DTLZ2 provides a small, inspectable demonstration.
 
-**Goal:** run the stable public API in VAMOS 1.0.1, interpret its returned population, and identify which settings control this mechanism.
+**Goal:** run the stable public API in VAMOS 1.2.1, interpret its returned population, and identify which settings control this mechanism.
 
 [Capability matrix](../reference/algorithms.md) · [Exact configuration reference](../reference/api/algorithms/agemoea.md) · [Setup and recorded evidence](../tutorials/coverage-setup.md)
 
@@ -31,7 +31,7 @@ The second command reruns the same protocol and requires Matplotlib. Use a new f
 ??? example "Complete runnable script"
 
     ```python
-    """Verified VAMOS 1.0.1 lesson: agemoea. See coverage-setup for dependencies."""
+    """Verified VAMOS 1.2.1 lesson: agemoea. See coverage-setup for dependencies."""
 
 
     def execute_example(problem, algorithm, config, budget, seed=42, engine="numpy"):
@@ -157,7 +157,7 @@ Evaluations: 400
 
 ![Actual agemoea results from the documented protocol.](../assets/coverage/agemoea.svg)
 
-*Measured with VAMOS 1.0.1; the [observations and provenance](../tutorials/coverage-setup.md#recorded-evidence) retain the inputs and results.*
+*Measured with VAMOS 1.2.1; the [observations and provenance](../tutorials/coverage-setup.md#recorded-evidence) retain the inputs and results.*
 
 ## Understand the configuration
 
@@ -166,7 +166,7 @@ Evaluations: 400
 | Population 40 | Does not require the simplex direction/population matching used by NSGA-III and RVEA. |
 | SBX probability 0.9, eta 15 | Real-coded recombination in this explicit example. |
 | Polynomial mutation | Numeric probability `1/12`, eta 20. |
-| `constraint_mode("feasibility")` | Enables the 1.0.1 feasibility path if constraints exist; DTLZ2 here is unconstrained. |
+| `constraint_mode("feasibility")` | Enables feasibility-based selection if constraints exist; DTLZ2 here is unconstrained. |
 | `constraint_handling(name, ...)` | **VAMOS 1.2.0:** ranks a constrained population with another of jMetal's techniques; its fronts take the place of the non-dominated ones in the survival and the tournament. See [choose a constraint-handling technique](../reference/constraints.md#choose-a-constraint-handling-technique). |
 
 ## Interpret the result and its limits

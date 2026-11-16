@@ -1,4 +1,4 @@
-"""Properties that every operator of the configuration spaces keeps (VR-069).
+"""Properties that every operator of the configuration spaces keeps.
 
 Each crossover and mutation that a configuration space can select is built as the algorithms
 build it, through ``VariationPipeline`` with the parameters of the space's default assignment,
@@ -29,10 +29,10 @@ _MIXED_SEGMENTS = ("real", "int", "cat")
 _MIXED_INDEX = {"real": "real_idx", "int": "int_idx", "cat": "cat_idx"}
 
 _TWIN_CHILDREN = {
-    ("integer", "crossover", "arithmetic"): "VR-229: the integer arithmetic crossover gives two identical children",
-    ("mixed", "int_crossover", "arithmetic"): "VR-229: the integer arithmetic crossover gives two identical children",
-    ("mixed", "real_crossover", "arithmetic"): "VR-229: the real crossover of the mixed encoding gives two identical children",
-    ("permutation", "crossover", "aex"): "VR-324: AEX builds its second child from the first parent, like the first child",
+    ("integer", "crossover", "arithmetic"): "the integer arithmetic crossover gives two identical children",
+    ("mixed", "int_crossover", "arithmetic"): "the integer arithmetic crossover gives two identical children",
+    ("mixed", "real_crossover", "arithmetic"): "the real crossover of the mixed encoding gives two identical children",
+    ("permutation", "crossover", "aex"): "AEX builds its second child from the first parent, like the first child",
 }
 # PCX and SPX vary all three parents whatever prob_crossover is, and UNDX gives two children per three parents.
 _PROB_ZERO_NOT_A_COPY = {"pcx", "simplex", "undc"}

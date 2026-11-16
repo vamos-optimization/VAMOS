@@ -61,6 +61,8 @@ class AlgorithmState:
         CrowdingDistanceArchive | HypervolumeArchive | MaxMinArchive | ReferenceDirectionsArchive | SPEA2Archive | UnboundedArchive | None
     ) = None
     result_mode: str = "non_dominated"
+    # What the live callback receives: "population", "nd_only" or "population_archive".
+    live_callback_mode: str = "population"
 
     # Termination
     hv_tracker: HVTracker | None = None
