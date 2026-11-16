@@ -580,10 +580,15 @@ what a bridge builds from it, changes without its snapshot. Compared with the sp
   algorithm's `default()` configuration for the encoding, which a test checks
   for every space by comparing seeded runs (rule G7). `initial_solutions` and
   `repair` offer `auto`, the configuration's automatic choice, as their
-  default, as Evolver's `createInitialSolutions: default`. Five mixed spaces
-  (`nsgaii_mixed`, `ibea_mixed`, `agemoea_mixed`, `rvea_mixed` and
-  `smpso_mixed`) do not pass G7 yet: their segment operators run differently
-  from the default mixed operators.
+  default, as Evolver's `createInitialSolutions: default`. The nine mixed
+  spaces do not pass G7 yet: their segment operators run differently from the
+  default mixed operators.
+- The segment settings of the mixed spaces of MOEA/D, NSGA-III, SMS-EMOA and
+  SPEA2 (`real_mutation`, `int_crossover_prob`, ...) reach the run. Their mixed
+  variation gave the operators the problem's segments without the
+  configuration's settings, so every point of those spaces ran as the default
+  mixed operators, and a mixed configuration of these algorithms that sets them
+  runs differently now.
 - The external archive is one choice, `external_archive`: `none`,
   `unbounded` or `bounded`, with `archive_prune_policy` under `bounded`, instead
   of `use_external_archive` and `archive_unbounded`.

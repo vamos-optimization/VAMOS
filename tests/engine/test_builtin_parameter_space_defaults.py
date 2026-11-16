@@ -5,7 +5,7 @@ seed on a problem of its encoding and compares the final populations. The refere
 algorithms (MOEA/D, NSGA-III and RVEA), whose population depends on the number of objectives, also
 run a three-objective problem.
 
-Five mixed spaces do not pass yet: their operators take a choice and a probability per segment
+The nine mixed spaces do not pass yet: their operators take a choice and a probability per segment
 (``perm_mutation``, ``real_mutation_prob``, ...), while the default mixed operators apply one
 probability to every segment and draw their random numbers in another order, so no point of those
 spaces runs as the default. The strict ``xfail`` records the departure until the mixed grammars
@@ -28,9 +28,8 @@ PROBLEMS = {
     "permutation": ("tsp6", {}),
     "mixed": ("mixed_design", {}),
 }
-# The mixed spaces whose algorithms run the segment settings; MOEA/D's, NSGA-III's, SMS-EMOA's and SPEA2's
-# mixed variation applies its own default operators to every segment.
-MIXED_DEPARTURES = {"agemoea_mixed", "ibea_mixed", "nsgaii_mixed", "rvea_mixed", "smpso_mixed"}
+# Every mixed space: each one runs its segment settings (test_mixed_segment_settings.py).
+MIXED_DEPARTURES = {name for name in builtin_parameter_space_names() if name.endswith("_mixed")}
 MIXED_DEPARTURE = pytest.mark.xfail(
     strict=True,
     reason="the mixed operators draw per-segment choices in another order than the default mixed operators",
