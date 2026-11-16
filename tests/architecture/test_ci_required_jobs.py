@@ -34,17 +34,25 @@ def test_build_wheel_reads_every_job_of_its_run_whatever_happened_before() -> No
     assert guard["if"].replace(" ", "") == "${{always()}}"
     assert job["permissions"] == {"contents": "read", "actions": "read"}
     assert guard["env"] == {"GH_TOKEN": "${{ github.token }}"}
-    assert "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs" in guard["run"]
+    # Every attempt's jobs: "Re-run failed jobs" lists only the rerun jobs under the new attempt, and keeps the rest.
+    assert "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=all" in guard["run"]
 
 
 @pytest.mark.skipif(_posix_bash() is None, reason="needs a POSIX bash")
 @pytest.mark.parametrize(
     ("jobs", "passes"),
+    # What `gh api ... --jq` prints for each job of every attempt: the attempt, the conclusion and the name.
     [
-        ("success typing\nsuccess tests-full (ubuntu-latest, 3.12)\nsuccess tests-full (macos-latest, 3.12)\n", True),
-        ("success typing\ncancelled tests-full (macos-latest, 3.12)\nsuccess tests-minimal (3.12)\n", False),
-        ("success typing\nfailure tests-full (windows-latest, 3.12)\n", False),
-        ("success typing\nskipped tests-minimal (3.12)\n", False),
+        ("1\tsuccess\ttyping\n1\tsuccess\ttests-full (ubuntu-latest, 3.12)\n1\tsuccess\ttests-full (macos-latest, 3.12)\n", True),
+        ("1\tsuccess\ttyping\n1\tcancelled\ttests-full (macos-latest, 3.12)\n1\tsuccess\ttests-minimal (3.12)\n", False),
+        ("1\tsuccess\ttyping\n1\tfailure\ttests-full (windows-latest, 3.12)\n", False),
+        ("1\tsuccess\ttyping\n1\tskipped\ttests-minimal (3.12)\n", False),
+        # Only build-wheel was rerun: its new attempt lists no other job, and attempt 1's results still count.
+        ("1\tsuccess\ttyping\n1\tsuccess\ttests-full (macos-latest, 3.12)\n", True),
+        # A rerun fixed a cancelled leg: its latest attempt counts.
+        ("1\tsuccess\ttyping\n1\tcancelled\ttests-full (macos-latest, 3.12)\n2\tsuccess\ttests-full (macos-latest, 3.12)\n", True),
+        # A rerun that failed again fails, even after an earlier success.
+        ("1\tsuccess\ttyping\n1\tsuccess\ttests-full (macos-latest, 3.12)\n2\tfailure\ttests-full (macos-latest, 3.12)\n", False),
         ("", False),
         (None, False),  # the jobs API failed
     ],
