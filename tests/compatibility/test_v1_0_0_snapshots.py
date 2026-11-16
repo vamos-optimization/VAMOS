@@ -233,3 +233,24 @@ def test_built_in_algorithms_may_be_added_but_not_removed() -> None:
     generated = json.loads(generator._json_bytes(generator._algorithm_snapshot()))
     for added_id in ("ccmo", "ctaea", "top", "cmoeams"):
         assert added_id in generated["algorithm_ids"] and added_id not in committed["algorithm_ids"]
+
+
+def test_stable_functions_may_gain_optional_keyword_only_arguments() -> None:
+    generator = _generator()
+    frozen = "(path, *, limits=None)"
+    api: dict[str, Any] = {"modules": {"vamos": ["load_study"]}, "signatures": {"vamos.load_study": frozen}}
+
+    def keeps(signature: str) -> bool:
+        return bool(generator._keeps_frozen_api(api, {**api, "signatures": {"vamos.load_study": signature}}, {}))
+
+    assert keeps("(path, *, limits=None, verify='all', run_limits=None)")
+    assert keeps("(path, *, verify='all', limits=None)")
+    assert not keeps("(path, *, limits=None, verify)")  # a new argument without a default
+    assert not keeps("(path, verify='all', *, limits=None)")  # a new positional argument
+    assert not keeps("(path, *, verify='all')")  # a frozen argument removed
+    assert not keeps("(source, *, limits=None, verify='all')")  # a frozen argument renamed
+    assert not keeps("(path, *, limits=1, verify='all')")  # a frozen default changed
+    assert not keeps("(path, limits=None, *, verify='all')")  # a frozen keyword-only argument made positional
+    assert not keeps("(path, **kwargs)")
+    assert generator._adds_keyword_arguments("(a, *, b=1, c=2)", "(a, *, c=2, b=1, d=3)") is False  # reordered
+    assert generator._adds_keyword_arguments("(a, *, b=1)", "(a, *, b=1, d=<factory>)") is False  # no source default
