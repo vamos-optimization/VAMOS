@@ -1,5 +1,5 @@
 # Tested direct dependency set for CI and reproducible release smoke runs.
-# NumPy 2.2.6 and SciPy 1.15.3, the last releases for Python 3.10, publish no Python 3.14 wheels.
+# NumPy 2.2.6 and SciPy 1.15.3 publish no Python 3.14 wheels.
 # Typing reads the pin for Python 3.12 (tools/typecheck.py).
 numpy==2.2.6 ; python_version < "3.14"
 numpy==2.3.5 ; python_version >= "3.14"
@@ -10,17 +10,15 @@ pytest==9.2.0
 pytest-cov==7.1.0
 pytest-xdist==3.8.0
 mypy==2.4.1
+# Not declared: mypy installs it, and tools/typecheck.py requires this version.
 typing-extensions==4.16.0
-tomli==2.5.0 ; python_version < "3.11"
-ruff==0.17.4
+ruff==0.17.5
 build==1.6.1
 setuptools==84.2.1
 wheel==0.48.0
 mkdocs==1.6.1
 mkdocs-material==9.7.7
-# mkdocstrings 1.0.7+ fixes PyMdown 12.2+ but requires Python >=3.11.
-mkdocstrings==1.0.6 ; python_version < "3.11"
-mkdocstrings==1.0.8 ; python_version >= "3.11"
+mkdocstrings==1.0.8
 jinja2==3.1.6
 pyyaml==6.0.3
 numba==0.68.1
@@ -33,9 +31,7 @@ seaborn==0.13.2
 networkx==3.4.2
 plotly==7.1.0
 scikit-learn==1.7.2
-# IPython 9 requires Python >=3.11; retain the declared Python 3.10 matrix.
-ipython==8.39.0 ; python_version < "3.11"
-ipython==9.0.2 ; python_version >= "3.11"
+ipython==9.0.2
 ipykernel==7.3.0
 ipywidgets==8.1.9
 nbformat==5.11.1
@@ -43,8 +39,8 @@ nbconvert==7.17.2
 panel==1.9.4
 param==2.4.2
 bokeh==3.9.2
-pymdown-extensions==12.1 ; python_version < "3.11"
-pymdown-extensions==12.3 ; python_version >= "3.11"
+# Not declared: mkdocs-material installs PyMdown, whose Markdown extensions mkdocs.yml configures.
+pymdown-extensions==12.3
 # Not a VAMOS dependency: the scheduled performance job installs it for tools/benchmark_compare_pymoo.py.
 pymoo==0.6.2
 # Optional tuning backends, exercised by the Ubuntu Python 3.12 test job.

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import argparse
 import logging
-from collections.abc import Callable, Sequence
-from datetime import datetime, timezone
+from collections.abc import Callable, Mapping, Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -99,7 +99,7 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
 
 
 def _resolve_output_dir(base: Path, run_name: str, *, problems: Sequence[str], algorithm: str, backend: str, seed: int) -> Path:
-    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     label = "-".join(problems[:3]) + (f"-and-{len(problems) - 3}-more" if len(problems) > 3 else "")
     suffix = run_name.strip() or f"{label}_{algorithm}_{backend}_seed{seed}_{ts}"
     out = base.expanduser().resolve() / suffix
@@ -142,6 +142,7 @@ def _persist_artifacts(
     history: list[TrialResult],
     elapsed_seconds: float,
     resolved_jobs: int,
+    fixed_assignment: Mapping[str, object] | None = None,
 ) -> None:
     _persist_artifacts_impl(
         output_dir=output_dir,
@@ -152,6 +153,7 @@ def _persist_artifacts(
         elapsed_seconds=elapsed_seconds,
         resolved_jobs=resolved_jobs,
         available_backends_fn=lambda: _backend_availability(args, available_model_based_backends),
+        fixed_assignment=fixed_assignment,
     )
 
 
@@ -303,6 +305,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         history=history,
         elapsed_seconds=elapsed,
         resolved_jobs=resolved_jobs,
+        fixed_assignment=smoke_profile.get("fixed_parameters") if smoke_profile else None,
     )
     if finisher_summary_updates or finisher_artifacts:
         _append_summary(

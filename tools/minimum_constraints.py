@@ -8,12 +8,8 @@ update cannot move them away from pyproject.toml.
 from __future__ import annotations
 
 import re
+import tomllib
 from pathlib import Path
-
-try:
-    import tomllib
-except ModuleNotFoundError:  # Python 3.10, the version the minimum profile runs on.
-    import tomli as tomllib  # type: ignore[import-not-found,no-redef]
 
 ROOT = Path(__file__).resolve().parents[1]
 _MINIMUM = re.compile(r"([A-Za-z0-9._-]+)\s*>=\s*([0-9][0-9.]*)")

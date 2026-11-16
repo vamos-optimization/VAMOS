@@ -1,9 +1,15 @@
 # VAMOS Assist
 
-!!! warning "Experimental workflow in VAMOS 1.2.1"
+!!! warning "Experimental workflow in VAMOS 1.3.0"
     The Assist CLI, provider integrations, generated plans, and convenience
     artifacts are Experimental. They may change in a minor release; see
     [Stability and versioning](project/stability-and-versioning.md).
+
+!!! warning "Removed in VAMOS 1.4.0"
+    VAMOS 1.4.0 removes VAMOS Assist, the `vamos assist` command and the
+    `openai`, `anthropic` and `gemini` extras; VAMOS will call no LLM provider.
+    Define a problem with `make_problem` or `vamos create-problem`, and run it
+    from Python or the command line.
 
 Start with the [core installation](guide/installation.md). Template-first
 planning needs no provider extra.
@@ -58,7 +64,7 @@ Note: `execution_mode` can be `"in_process"` or `"subprocess"` (fallback). The a
 Install optional dependencies:
 
 ```bash
-python -m pip install "vamos-optimization[openai]==1.2.1"
+python -m pip install "vamos-optimization[openai]==1.3.0"
 ```
 
 Alternative:
@@ -133,7 +139,7 @@ Expected JSON output (example):
 Install optional dependency support:
 
 ```bash
-python -m pip install "vamos-optimization[openai]==1.2.1"
+python -m pip install "vamos-optimization[openai]==1.3.0"
 ```
 
 Alternative:
@@ -265,7 +271,7 @@ Run directory (`assist run` / `assist go --smoke`):
 
 ## Troubleshooting
 
-- Missing OpenAI SDK: install optional deps with `python -m pip install "vamos-optimization[openai]==1.2.1"` (or `python -m pip install openai`).
+- Missing OpenAI SDK: install optional deps with `python -m pip install "vamos-optimization[openai]==1.3.0"` (or `python -m pip install openai`).
 - Missing API key: set `OPENAI_API_KEY` and open a new shell session if needed.
 - Run diagnostics first: `vamos assist doctor`.
 - Invalid auto overrides: VAMOS filters/rejects unsupported keys and records requested/applied/rejected overrides in `plan.json`.

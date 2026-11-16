@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
@@ -179,7 +179,7 @@ def _timing(
         if begin is not None and end is not None:
             durations.append((end - begin).total_seconds())
             completed.append(end)
-    current = now or datetime.now(timezone.utc)
+    current = now or datetime.now(UTC)
     end_time = max(completed) if terminal and completed else current
     elapsed = (end_time - min(started)).total_seconds()
     remaining = int(counts.get("pending", 0)) + int(counts.get("running", 0)) + int(counts.get("interrupted", 0))
@@ -194,7 +194,7 @@ def _timestamp(value: object) -> datetime | None:
         moment = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return None
-    return moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)
+    return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
 
 
 def _mapping(value: object) -> Mapping[str, object]:

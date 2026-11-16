@@ -30,7 +30,7 @@ preserving their original row indices.
 | Item | This lesson |
 | --- | --- |
 | Prerequisites | [T01](t01-first-result.md); Python functions and array rows. |
-| Tested package | VAMOS **1.2.1**, Python 3.12; [setup and exact tested dependencies](setup.md). |
+| Tested package | VAMOS **1.3.0**, Python 3.12; [setup and exact tested dependencies](setup.md). |
 | Dependencies | Core VAMOS and its NumPy dependency; the download is self-contained. |
 | Interface status | **Stable** `make_problem`, `optimize`, `OptimizationResult`, and `front`. |
 | Run | NSGA-II, population 40, 400 evaluations, seed 42, NumPy. |
@@ -64,7 +64,7 @@ python t02-constrained-problem.py
 
 <!-- tutorial:code -->
 ```python
-"""T02: generated from examples/tutorials/fundamentals.py; VAMOS 1.2.1, core dependencies only."""
+"""T02: generated from examples/tutorials/fundamentals.py; VAMOS 1.3.0, core dependencies only."""
 
 
 def process_objectives(x):
