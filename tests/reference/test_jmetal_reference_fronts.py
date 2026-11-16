@@ -143,4 +143,5 @@ def test_the_cli_records_the_default_front_as_vamos(tmp_path: Path, monkeypatch:
     (manifest,) = tmp_path.rglob("manifest.json")
     termination = json.loads(manifest.read_text(encoding="utf-8"))["resolved_spec"]["termination"]["config"]
     assert termination["reference_front_source"] == "vamos"
-    assert Path(termination["reference_front_path"]).name == "zdt1.csv"
+    # The packaged file is ZDT1.csv; a case-insensitive file system can report it in lower case.
+    assert Path(termination["reference_front_path"]).name.lower() == "zdt1.csv"
