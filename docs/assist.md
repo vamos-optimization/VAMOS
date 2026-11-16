@@ -5,6 +5,12 @@
     artifacts are Experimental. They may change in a minor release; see
     [Stability and versioning](project/stability-and-versioning.md).
 
+!!! warning "Removed in VAMOS 1.4.0"
+    VAMOS 1.4.0 removes VAMOS Assist, the `vamos assist` command and the
+    `openai`, `anthropic` and `gemini` extras; VAMOS will call no LLM provider.
+    Define a problem with `make_problem` or `vamos create-problem`, and run it
+    from Python or the command line.
+
 Start with the [core installation](guide/installation.md). Template-first
 planning needs no provider extra.
 

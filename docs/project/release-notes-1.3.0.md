@@ -53,7 +53,10 @@ runs, give the same results as before.
   DTLZ1–DTLZ7 also gain two-objective reference fronts.
 - `ExternalArchiveConfig.final_selection` and `final_size` report a subset of
   the external archive when the run ends, as jMetal's and Evolver's results do,
-  while the saved run keeps the whole archive.
+  while the saved run keeps the whole archive. A saved SPEA2 run whose result
+  does not hold its external archive, as with a final subset or
+  `result_mode="population"`, now stores that archive too; VAMOS 1.2.1 cannot
+  read such a run.
 - Every algorithm with an external archive takes `live_callback_mode`, and
   `population_archive` sends the archive to a live view, which ends with what
   the run returns.
@@ -81,6 +84,12 @@ Stable configuration fields that have no effect emit a `FutureWarning` when they
 are set and are planned for removal in VAMOS 2.0; the
 [changelog](https://github.com/vamos-optimization/VAMOS/blob/main/CHANGELOG.md)
 lists them.
+
+VAMOS 1.4.0 removes three Experimental features that depend on LLM providers:
+[VAMOS Assist](../assist.md) with the `vamos assist` command, Studio's Problem
+Builder, and the `openai`, `anthropic` and `gemini` extras. Define a problem
+with `make_problem` or `vamos create-problem`, and run it from Python, the
+command line or Studio.
 
 ## Python support
 

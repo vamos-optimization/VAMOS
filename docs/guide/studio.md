@@ -149,7 +149,9 @@ vamos studio --address 0.0.0.0 --allow-remote-binding --no-browser --allow-webso
   algorithms, and opens either in Run Experiment.
 - **Problem Builder** defines a problem in Python, or starts from a template
   with its bounds and constraints, previews its Pareto front, runs it with a
-  configurable algorithm and generates a standalone script.
+  configurable algorithm and generates a standalone script. **VAMOS 1.3.0:**
+  VAMOS 1.4.0 removes the Problem Builder; Studio will run registered problems
+  only, and `make_problem` or `vamos create-problem` define new ones.
 - **Run Experiment** runs a registered problem, with the number of variables
   and, where the problem allows it, of objectives that you choose, and lets
   you browse the population of every generation.

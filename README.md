@@ -416,18 +416,6 @@ If you use VAMOS in published work, cite the paper that describes it, published 
 }
 ```
 
-To identify the exact version of the software you used, cite it as well:
-
-```bibtex
-@software{vamos_2026,
-  title = {VAMOS: Vectorized Architecture for Multiobjective Optimization Studies},
-  author = {Rodriguez Uribe, Nicolas and Herr{\'a}n, Alberto and Nebro, Antonio J. and Del Ser, Javier and Colmenar, J. Manuel},
-  year = {2026},
-  version = {1.3.0},
-  url = {https://github.com/vamos-optimization/VAMOS}
-}
-```
-
 The maintained citation metadata lives in [CITATION.cff](https://github.com/vamos-optimization/VAMOS/blob/main/CITATION.cff).
 
 ## Contributing
