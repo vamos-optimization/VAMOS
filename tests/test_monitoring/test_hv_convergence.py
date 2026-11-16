@@ -143,3 +143,15 @@ def test_hv_monitor_bootstrap_uses_numpy_generator():
     assert upper_bound(cfg, 3) == upper_bound(cfg, 3)
     fixed = HVConvergenceConfig(window=6, min_points=8, confidence=0.95, bootstrap_samples=200, rng_seed=7)
     assert upper_bound(fixed, 3) == upper_bound(fixed, 4)
+
+
+def test_hv_monitor_accepts_a_negative_rng_seed():
+    # Configuration validation accepts any integer seed, and VAMOS 1.2.1's random.Random took negative ones.
+    # The NumPy generator needs a nonnegative seed, so a negative one is reduced as the run seed is (mod 2**64).
+    def draws(seed: int) -> list[float]:
+        monitor = HVConvergenceMonitor(HVConvergenceConfig(rng_seed=seed))
+        return [float(value) for value in monitor._rng.random(3)]
+
+    assert draws(-1) == draws(-1)
+    assert draws(-1) == draws(2**64 - 1)
+    assert draws(-1) != draws(1)

@@ -133,7 +133,8 @@ class HVConvergenceMonitor:
         self._hv: list[float] = []
         self._bad_streak: int = 0
         self._stopped: bool = False
-        seed = derived_seed(run_seed, "hv_convergence") if cfg.rng_seed is None else cfg.rng_seed
+        # An explicit seed may be negative, as validation allows; NumPy needs it reduced, as derived_seed does.
+        seed = derived_seed(run_seed, "hv_convergence") if cfg.rng_seed is None else int(cfg.rng_seed) % 2**64
         self._rng = np.random.default_rng(seed)
 
     def add_sample(self, evals: int, hv: float) -> HVDecision:
