@@ -339,6 +339,38 @@ def test_frace_wilcoxon_survivor_does_not_depend_on_the_order(maximize):
     assert eliminations > 0
 
 
+def test_racing_minimum_survivors_keep_the_frace_survivors():
+    # Maximizing, F-race keeps only the first configuration, better on 6 of 7 blocks. The other two
+    # have the better mean through one large block, and the mean ranking alone kept those two.
+    scores = np.array([[0.0] + [10.0] * 6, [1000.0] + [9.0] * 6, [1000.0] + [9.0] * 6])
+    assert select_configs_by_frace(scores, True, 0.05).tolist() == [True, False, False]
+    alive = _race_matrix(scores, Scenario(max_experiments=1000, min_survivors=2))
+    assert alive[0], alive
+    assert alive.sum() == 2, alive
+
+
+def test_racing_minimum_survivors_fill_by_the_aggregate_ranking():
+    # Random races with one block on a scale 100 times larger, so that the ranks and the means disagree.
+    rng = np.random.default_rng(3)
+    conflicts = 0
+    for _ in range(200):
+        n_configs = int(rng.integers(3, 7))
+        scores = np.linspace(0.0, 1.0, n_configs)[:, None] + rng.normal(0.0, 0.5, size=(n_configs, 8))
+        scores[:, 0] *= 100.0
+        min_survivors = int(rng.integers(1, n_configs + 1))
+        frace = select_configs_by_frace(scores, True, 0.05)
+        alive = _race_matrix(scores, Scenario(max_experiments=1000, min_survivors=min_survivors))
+        # Every F-race survivor stays, and the minimum adds the best of the others by mean.
+        assert alive[frace].all(), scores
+        assert alive.sum() == max(int(frace.sum()), min_survivors), scores
+        means = scores.mean(axis=1)
+        if (alive & ~frace).any() and (~alive).any():
+            assert means[alive & ~frace].min() >= means[~alive].max(), scores
+        top_by_mean = set(np.argsort(-means)[:min_survivors].tolist())
+        conflicts += bool(frace.sum() < min_survivors and not set(np.flatnonzero(frace).tolist()) <= top_by_mean)
+    assert conflicts > 0
+
+
 def test_racing_waits_for_first_test_blocks():
     scores = np.vstack([np.full(4, 1.0) + np.arange(4), np.arange(4.0), np.arange(4.0) - 1.0])
     assert _race_matrix(scores, Scenario(max_experiments=1000)).all()

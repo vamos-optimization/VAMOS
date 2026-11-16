@@ -60,29 +60,24 @@ def rank_based_elimination(
     return eliminated_any
 
 
-def force_keep_top_k(
-    configs: list[ConfigState],
-    alive_indices: list[int],
+def fill_survivors(
+    keep: npt.NDArray[np.bool_],
     agg_scores: npt.NDArray[np.float64],
     *,
-    task: TuningTask,
+    maximize: bool,
     k: int,
-) -> bool:
-    """Ensure that at least k configs remain alive by keeping the k best."""
-    n_alive = len(alive_indices)
-    if n_alive <= k:
-        return False
+) -> npt.NDArray[np.bool_]:
+    """Return ``keep`` with at least ``k`` rows kept, or all of them when there are fewer.
 
-    order = np.argsort(-agg_scores if task.maximize else agg_scores)
-    keep_rows = {int(idx) for idx in order[:k]}
-
-    eliminated_any = False
-    for row_idx, cfg_idx in enumerate(alive_indices):
-        new_alive = row_idx in keep_rows
-        if configs[cfg_idx].alive != new_alive:
-            configs[cfg_idx].alive = new_alive
-            eliminated_any = True
-    return eliminated_any
+    Every row that ``keep`` already keeps stays kept; the best of the other rows by aggregate
+    score fill the remaining places, the first row winning a tie.
+    """
+    filled = np.array(keep, dtype=bool)
+    missing = min(k, filled.size) - int(filled.sum())
+    if missing > 0:
+        order = np.argsort(-agg_scores if maximize else agg_scores, kind="stable")
+        filled[order[~filled[order]][:missing]] = True
+    return filled
 
 
 def eliminate_configs(configs: list[ConfigState], *, task: TuningTask, scenario: Scenario) -> bool:
@@ -121,21 +116,8 @@ def eliminate_configs(configs: list[ConfigState], *, task: TuningTask, scenario:
     scores, aligned_indices = build_score_matrix(configs)
     # F-race: Friedman on the ranks of each block and Conover's post-hoc, or Wilcoxon with two alive.
     keep_mask = select_configs_by_frace(scores, maximize=task.maximize, alpha=scenario.alpha)
-
-    num_keep = int(keep_mask.sum())
-    if num_keep <= 0:
-        best_idx = int(np.argmax(agg_scores)) if task.maximize else int(np.argmin(agg_scores))
-        keep_mask[best_idx] = True
-        num_keep = 1
-
-    if num_keep < scenario.min_survivors:
-        return force_keep_top_k(
-            configs,
-            aligned_indices,
-            agg_scores,
-            task=task,
-            k=scenario.min_survivors,
-        )
+    # Fewer survivors than the minimum: keep those of the test and add the best of the others by aggregate score.
+    keep_mask = fill_survivors(keep_mask, agg_scores, maximize=task.maximize, k=max(1, scenario.min_survivors))
 
     eliminated_any = False
     for row_idx, cfg_idx in enumerate(aligned_indices):
@@ -197,7 +179,7 @@ def update_elite_archive(
 __all__ = [
     "compute_aggregated_scores",
     "eliminate_configs",
+    "fill_survivors",
     "rank_based_elimination",
-    "force_keep_top_k",
     "update_elite_archive",
 ]
