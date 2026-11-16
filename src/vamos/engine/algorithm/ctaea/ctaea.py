@@ -219,7 +219,7 @@ class CTAEA:
         kept = convergence_archive_update(F, violation, weights)
         diverse = diversity_archive_update(F[kept], F, weights)
 
-        ext_cfg = resolve_external_archive(self.cfg)
+        ext_cfg = resolve_external_archive(self.cfg, seed=seed)
         CA_X, CA_F, CA_G = X[kept], F[kept], None if G is None else G[kept]
         archive_X, archive_F, archive_manager = setup_archive(self.kernel, CA_X, CA_F, problem.n_var, problem.n_obj, X.dtype, ext_cfg, CA_G)
 

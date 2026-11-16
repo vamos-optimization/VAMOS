@@ -125,3 +125,33 @@ def test_hook_manager_rejects_reference_point_of_wrong_length():
                     hv_ref_point=ref,
                 )
             )
+
+
+def test_hv_monitor_bootstrap_uses_numpy_generator():
+    import numpy as np
+
+    def upper_bound(cfg, run_seed):
+        monitor = HVConvergenceMonitor(cfg, run_seed=run_seed)
+        for index, value in enumerate([0.1, 0.2, 0.25, 0.27, 0.28, 0.285, 0.287, 0.288, 0.2885, 0.2887, 0.2888, 0.2889]):
+            monitor.add_sample((index + 1) * 100, value)
+        assert isinstance(monitor._rng, np.random.Generator)
+        return monitor._bootstrap_ci_upper_recent(len(monitor._hv) - 1, conf=0.95)
+
+    cfg = HVConvergenceConfig(window=6, min_points=8, confidence=0.95, bootstrap_samples=200)
+    # Without rng_seed the bootstrap stream derives from the run seed; an explicit seed fixes it.
+    assert cfg.rng_seed is None
+    assert upper_bound(cfg, 3) == upper_bound(cfg, 3)
+    fixed = HVConvergenceConfig(window=6, min_points=8, confidence=0.95, bootstrap_samples=200, rng_seed=7)
+    assert upper_bound(fixed, 3) == upper_bound(fixed, 4)
+
+
+def test_hv_monitor_accepts_a_negative_rng_seed():
+    # Configuration validation accepts any integer seed, and VAMOS 1.2.1's random.Random took negative ones.
+    # The NumPy generator needs a nonnegative seed, so a negative one is reduced as the run seed is (mod 2**64).
+    def draws(seed: int) -> list[float]:
+        monitor = HVConvergenceMonitor(HVConvergenceConfig(rng_seed=seed))
+        return [float(value) for value in monitor._rng.random(3)]
+
+    assert draws(-1) == draws(-1)
+    assert draws(-1) == draws(2**64 - 1)
+    assert draws(-1) != draws(1)

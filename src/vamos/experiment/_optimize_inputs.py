@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Mapping
 
 from vamos.engine.algorithm.catalog import ENABLED_ALGORITHMS
 from vamos.engine.algorithm.config import GenericAlgorithmConfig
 from vamos.engine.algorithm.config.defaults import config_algorithm
+from vamos.engine.algorithm.config.types import AlgorithmConfigProtocol
 from vamos.engine.algorithm.variants import canonical_algorithm_name
+from vamos.engine.archive import ExternalArchiveConfig
+from vamos.engine.archive.factory import resolve_archive_seed
 from vamos.foundation.exceptions import ConfigurationError
 from vamos.foundation.problem.registry import get_problem_specs
 
@@ -78,4 +82,24 @@ def check_algorithm_config(algorithm: str, algorithm_config: object) -> None:
         )
 
 
-__all__ = ["check_algorithm_config", "check_budget", "check_problem_arguments"]
+def with_archive_seed(algorithm_config: AlgorithmConfigProtocol, seed: int) -> AlgorithmConfigProtocol:
+    """``algorithm_config`` with the effective ``rng_seed`` of its external archive for the run ``seed``.
+
+    ``ref_dirs`` pruning without an ``rng_seed`` draws from the stream derived from the run
+    seed; resolving it here records the seed in the run's resolved configuration, which
+    replay then reuses.
+    """
+    archive = getattr(algorithm_config, "external_archive", None)
+    if (
+        not isinstance(archive, ExternalArchiveConfig)
+        or not dataclasses.is_dataclass(algorithm_config)
+        or isinstance(algorithm_config, type)
+    ):
+        return algorithm_config
+    resolved = resolve_archive_seed(archive, seed)
+    if resolved is archive:
+        return algorithm_config
+    return dataclasses.replace(algorithm_config, external_archive=resolved)
+
+
+__all__ = ["check_algorithm_config", "check_budget", "check_problem_arguments", "with_archive_seed"]

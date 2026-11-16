@@ -266,7 +266,7 @@ class ToP:
             algorithm="ToP",
         )
 
-        ext_cfg = resolve_external_archive(self.cfg)
+        ext_cfg = resolve_external_archive(self.cfg, seed=seed)
         archive_X, archive_F, archive_manager = setup_archive(self.kernel, X, F, problem.n_var, problem.n_obj, X.dtype, ext_cfg, G)
 
         self._live_cb = live_cb

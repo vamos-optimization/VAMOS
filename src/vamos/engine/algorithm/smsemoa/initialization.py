@@ -147,7 +147,7 @@ def initialize_smsemoa_run(
     ref_point, ref_offset, ref_adaptive = initialize_reference_point(F, ref_cfg)
 
     # Setup external archive
-    ext_cfg = resolve_external_archive(config)
+    ext_cfg = resolve_external_archive(config, seed=seed)
     archive_X, archive_F, archive_manager = setup_archive(kernel, X, F, n_var, n_obj, X.dtype, ext_cfg, G)
 
     # Create state

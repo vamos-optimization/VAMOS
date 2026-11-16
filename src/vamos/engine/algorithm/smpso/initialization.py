@@ -246,7 +246,7 @@ def initialize_smpso_run(
 
     # Optional external archive: result storage only. It must not influence
     # leader tournaments, swarm dynamics, or HV termination.
-    ext_cfg = resolve_external_archive(config)
+    ext_cfg = resolve_external_archive(config, seed=seed)
     _, _, result_archive = setup_archive(
         kernel,
         X,
