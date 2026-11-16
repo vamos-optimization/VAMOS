@@ -8,10 +8,10 @@ grammar.
 
 from __future__ import annotations
 
-import json
 from importlib import resources
 
 import pytest
+import yaml
 
 from vamos.engine.tuning.grammar import (
     ParameterSpace,
@@ -39,7 +39,6 @@ def test_every_built_in_space_has_a_grammar() -> None:
 
 @pytest.mark.parametrize("name", SPACE_NAMES)
 def test_every_grammar_validates_and_names_its_algorithm_and_encoding(name: str) -> None:
-    yaml = pytest.importorskip("yaml")
     text = (GRAMMARS / f"{name}.yaml").read_text(encoding="utf-8")
     space = parameter_space_from_yaml(text)
 
@@ -48,20 +47,15 @@ def test_every_grammar_validates_and_names_its_algorithm_and_encoding(name: str)
     assert space.algorithm == base
     assert space.encoding == (suffix if suffix in {"permutation", "mixed", "binary", "integer"} else "real")
     assert space.variant == name
-    assert isinstance(yaml.safe_load(text), dict)
+    assert isinstance(yaml.safe_load(text), dict)  # plain YAML, which any YAML reader reads
 
 
-def test_the_packaged_bundle_is_the_yaml_files() -> None:
-    pytest.importorskip("yaml")
-    bundle = json.loads((GRAMMARS / "parameter_spaces.json").read_text(encoding="utf-8"))
-    from_yaml = {
-        name: parameter_space_document(parameter_space_from_yaml((GRAMMARS / f"{name}.yaml").read_text(encoding="utf-8")))
-        for name in SPACE_NAMES
-    }
-
-    assert bundle == {"schema": "vamos.parameter-space", "schema_version": "1.0.0", "spaces": from_yaml}, (
-        "The YAML grammars and parameter_spaces.json differ: run python tools/update_parameter_spaces.py"
-    )
+def test_vamos_reads_the_built_in_spaces_from_their_yaml_files() -> None:
+    # The YAML files are the source of truth and VAMOS reads them at run time: no generated copy ships.
+    assert sorted(entry.name for entry in GRAMMARS.iterdir() if entry.is_file()) == [f"{name}.yaml" for name in SPACE_NAMES]
+    for name in SPACE_NAMES:
+        text = (GRAMMARS / f"{name}.yaml").read_text(encoding="utf-8")
+        assert parameter_space_document(builtin_parameter_space(name)) == parameter_space_document(parameter_space_from_yaml(text))
 
 
 @pytest.mark.parametrize("name", SPACE_NAMES)

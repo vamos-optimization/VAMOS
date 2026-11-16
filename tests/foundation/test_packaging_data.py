@@ -92,3 +92,11 @@ def test_tsplib_packaged_and_accessible():
     coords = load_tsplib_coords("kroA100")
     assert coords.ndim == 2
     assert coords.shape[1] == 2
+
+
+def test_tuning_space_grammars_packaged_and_accessible():
+    # VAMOS reads the built-in tuning spaces from these YAML files at run time.
+    grammars = resources.files("vamos.resources").joinpath("parameter_spaces")
+    names = sorted(entry.name for entry in grammars.iterdir() if entry.name.endswith(".yaml"))
+    assert len(names) == 53 and "nsgaii.yaml" in names
+    assert grammars.joinpath("nsgaii.yaml").read_text(encoding="utf-8").count("schema: vamos.parameter-space") == 1

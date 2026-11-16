@@ -565,12 +565,11 @@ packaged with VAMOS as YAML files in `vamos/resources/parameter_spaces`, one
 per space (`nsgaii.yaml`, `moead_permutation.yaml`, ...).
 `builtin_parameter_space("nsgaii")` reads one, and `build_nsgaii_config_space()`
 returns the flat view that the tuners sample. The YAML files are the source of
-truth: they were written once from the Python builders of VAMOS 1.3.0 and are
-maintained as YAML. VAMOS does not depend on PyYAML, so at run time it reads
-`parameter_spaces.json`, the canonical form that
-`python tools/update_parameter_spaces.py` writes from them; a test fails when
-the two differ, and another when a grammar, or what a bridge builds from it,
-changes without its snapshot. Compared with the spaces of VAMOS 1.3.0:
+truth, which VAMOS reads at run time: they were written once from the Python
+builders of VAMOS 1.3.0 and are maintained as YAML.
+`python tools/update_parameter_spaces.py` checks every file and writes the
+snapshot of what the bridges build from them; a test fails when a grammar, or
+what a bridge builds from it, changes without its snapshot. Compared with the spaces of VAMOS 1.3.0:
 
 - `pop_size` is not a parameter of any space: it is a run setting, as for
   Evolver and Studio. The caller adds it to the assignment, as it adds `n_obj`
