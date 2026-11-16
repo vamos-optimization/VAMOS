@@ -2,10 +2,37 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
+from numpy.typing import NDArray
 
 from ._crossover_base import Crossover
 from .utils import ArrayLike, _check_nvars, _ensure_bounds
+
+
+def exponential_crossover(
+    base: NDArray[Any], mutant: NDArray[Any], start: NDArray[Any], draws: NDArray[Any], cr: float
+) -> NDArray[np.float64]:
+    """The trial vectors of the exponential crossover of each row of ``base`` with the same row of ``mutant``.
+
+    This is the exponential crossover of jMetal's ``DifferentialEvolutionCrossover`` (jMetal 7.8,
+    ``RAND_1_EXP`` and ``RAND_2_EXP``), which CMOEA-MS's ``de_variant="rand_1_exp"`` and MOEA/D's
+    DE schemes ``rand_1_exp`` and ``rand_2_exp`` use: row ``i`` takes from the mutant its variable
+    ``start[i]`` and the following ones, cyclically, while the draws ``draws[i, 0]``,
+    ``draws[i, 1]``, ... are lower than ``cr``, up to all the variables; the other variables come
+    from ``base``. jMetal tests the ``n``-th draw too before it stops, so a row consumes the draws
+    up to the first one that is not lower than ``cr``, or ``n``.
+    """
+    base_values = np.asarray(base, dtype=float)
+    mutant_values = np.asarray(mutant, dtype=float)
+    n_rows, n_var = base_values.shape
+    uniforms = np.asarray(draws, dtype=float).reshape(n_rows, -1)
+    first = np.asarray(start, dtype=int).reshape(n_rows)
+    continued = uniforms[:, : n_var - 1] < float(cr)
+    length = 1 + np.cumprod(continued, axis=1).sum(axis=1)
+    offset = (np.arange(n_var)[None, :] - first[:, None]) % n_var
+    return np.asarray(np.where(offset < length[:, None], mutant_values, base_values), dtype=float)
 
 
 class DifferentialCrossover(Crossover):
@@ -77,4 +104,4 @@ class DEMatingCrossover(Crossover):
         return trial[:, np.newaxis, :]
 
 
-__all__ = ["DEMatingCrossover", "DifferentialCrossover"]
+__all__ = ["DEMatingCrossover", "DifferentialCrossover", "exponential_crossover"]
