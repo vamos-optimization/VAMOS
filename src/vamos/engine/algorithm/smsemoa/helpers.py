@@ -29,8 +29,13 @@ FloatArray = NDArray[np.float64]
 IntArray = NDArray[np.int_]
 AnyArray = NDArray[np.generic]
 
+# SMSEMOAReplacement.REFERENCE_POINT_OFFSET_FACTOR in jMetal.
+_JMETAL_REFERENCE_FACTOR = 1.1
+
 __all__ = [
     "initialize_reference_point",
+    "jmetal_reference_point",
+    "reference_point_rule",
     "update_reference_point",
     "least_contributor",
     "fronts_from_ranks",
@@ -51,6 +56,26 @@ def _is_duplicate_row(matrix: AnyArray, row: AnyArray) -> bool:
     return bool(np.any(np.all(matrix == row, axis=1)))
 
 
+def jmetal_reference_point(F: FloatArray) -> FloatArray:
+    """jMetal's SMS-EMOA reference: each objective's worst value of ``F`` times 1.1, or divided by 1.1 if negative.
+
+    It is ``SMSEMOAReplacement``'s reference point (jMetal 7.11), which lies 10% above the
+    worst value also when that value is negative, and is 0 when it is 0.
+    """
+    top = np.max(np.asarray(F, dtype=float), axis=0)
+    return np.asarray(np.where(top >= 0.0, top * _JMETAL_REFERENCE_FACTOR, top / _JMETAL_REFERENCE_FACTOR), dtype=float)
+
+
+def reference_point_rule(ref_cfg: Mapping[str, object]) -> str:
+    """The rule of a reference point configuration, ``"relative"`` unless it says ``"jmetal"``; ValueError for another."""
+    rule = ref_cfg.get("rule", "relative")
+    if rule not in {"relative", "jmetal"}:
+        raise ValueError(f"reference_point rule must be 'relative' or 'jmetal', got {rule!r}.")
+    if rule == "jmetal" and (ref_cfg.get("vector") is not None or ref_cfg.get("adaptive") is False):
+        raise ValueError("The 'jmetal' reference_point rule takes no vector or adaptive=False.")
+    return str(rule)
+
+
 def initialize_reference_point(
     F: FloatArray,
     ref_cfg: Mapping[str, object],
@@ -60,11 +85,14 @@ def initialize_reference_point(
     A user ``vector`` is the reference as given and stays fixed: ``adaptive`` does not
     apply to it, and points outside its box contribute 0. Otherwise the reference is
     ``nadir + offset * (nadir - ideal)`` of ``F`` (see :func:`relative_reference_point`),
-    recomputed at every step when ``adaptive`` (the default).
+    recomputed at every step when ``adaptive`` (the default). With ``rule="jmetal"`` it is
+    :func:`jmetal_reference_point` of ``F``, recomputed at every step.
     """
     offset_raw = ref_cfg.get("offset", 1.0)
     offset = float(offset_raw) if isinstance(offset_raw, (int, float, str)) else 1.0
     vector = ref_cfg.get("vector")
+    if reference_point_rule(ref_cfg) == "jmetal":
+        return jmetal_reference_point(F), offset, True
 
     if vector is not None:
         ref = np.array(vector, dtype=float)
@@ -83,9 +111,12 @@ def update_reference_point(
     ref_point: FloatArray,
     F_new: FloatArray,
     ref_offset: float,
+    rule: str = "relative",
 ) -> FloatArray:
-    """The adaptive reference of the population and the child: ``nadir + offset * range``."""
+    """The adaptive reference of the population and the child: ``nadir + offset * range``, or jMetal's with ``rule="jmetal"``."""
     del ref_point
+    if rule == "jmetal":
+        return jmetal_reference_point(F_new)
     return relative_reference_point(F_new, ref_offset)
 
 
@@ -396,7 +427,7 @@ def survival_selection(
     F_work[pop_n] = F_child[0]
 
     if st.ref_adaptive:
-        st.ref_point = update_reference_point(st.ref_point, F_work, st.ref_offset)
+        st.ref_point = update_reference_point(st.ref_point, F_work, st.ref_offset, st.ref_rule)
 
     G_work: FloatArray | None = None
     constraints_active = _constraints_active(st.G, st.constraint_mode)

@@ -20,6 +20,7 @@ from vamos.engine.algorithm.components.constraint_handling import run_progress
 from vamos.engine.algorithm.components.hooks import (
     finalize_genealogy,
     live_should_stop,
+    send_live_generation,
     track_offspring_genealogy,
 )
 from vamos.engine.algorithm.components.termination import HVTracker, remaining_evaluations
@@ -68,6 +69,18 @@ def _check_hv_target(st: SMSEMOAState) -> bool:
     return st.hv_reached
 
 
+def _send_final_live_generation(st: SMSEMOAState, live_cb: Any) -> None:
+    """Report the children after the last full generation, so the live view ends with the run's result.
+
+    The budget or a stop can end a run inside a generation, as the shorter last generation of a generational
+    algorithm; it is sent once, as the next generation.
+    """
+    if st.steps % st.pop_size == 0 or st.live_final_steps == st.steps:
+        return
+    st.live_final_steps = st.steps
+    send_live_generation(live_cb, st.generation + 1, st)
+
+
 def _advance_step(st: SMSEMOAState) -> bool:
     """Count one child; return whether it completes a generation of ``pop_size`` children."""
     st.steps += 1
@@ -93,7 +106,8 @@ class SMSEMOA:
         - mutation (tuple): Mutation operator config
         - selection (tuple): Parent selection, ("random", {}) or ("tournament", {"size": 2})
         - reference_point (dict): {"offset": float, "adaptive": bool}, with ``offset`` a
-          fraction of each objective's range, or {"vector": list} for a fixed reference
+          fraction of each objective's range, {"vector": list} for a fixed reference, or
+          {"rule": "jmetal"} for jMetal's reference (the worst values times 1.1)
         - eliminate_duplicates (bool, optional): Discard a child that repeats an X or F row
         - external_archive (dict, optional): {"capacity": int | None, "pruning": str, ...}
         An HV target is a termination criterion, ``("hv", {...})``, not a configuration key.
@@ -181,7 +195,7 @@ class SMSEMOA:
         )
         live_cb.on_start(ctx)
         # Generation 0 is the evaluated initial population, as in every algorithm.
-        live_cb.on_generation(0, F=st.F, stats={"evals": st.n_eval})
+        send_live_generation(live_cb, 0, st)
 
         # Compiled kernels reproduce the step below when the configuration allows it.
         compiled = build_compiled_step(st, self.kernel)
@@ -197,7 +211,7 @@ class SMSEMOA:
 
                 new_generation = _advance_step(st)
                 if new_generation:
-                    live_cb.on_generation(st.generation, F=st.F, stats={"evals": st.n_eval})
+                    send_live_generation(live_cb, st.generation, st)
                 stop_requested = live_should_stop(live_cb)
 
                 # The HV target is checked once per generation, as in steady-state NSGA-II.
@@ -207,6 +221,7 @@ class SMSEMOA:
             if compiled is not None:
                 compiled.finish()
 
+        _send_final_live_generation(st, live_cb)
         live_cb.on_end(final_F=st.F)
         result = build_smsemoa_result(st, st.hv_reached, kernel=self.kernel)
         finalize_genealogy(result, st, self.kernel)
@@ -326,7 +341,7 @@ class SMSEMOA:
                 engine_name=str(self.kernel.name),
             )
             self._live_cb.on_start(ctx)
-            self._live_cb.on_generation(0, F=self._st.F, stats={"evals": self._st.n_eval})
+            send_live_generation(self._live_cb, 0, self._st)
 
     def ask(self) -> NDArray[Any]:
         """Generate offspring for evaluation.
@@ -399,7 +414,7 @@ class SMSEMOA:
 
         if _advance_step(st):
             if self._live_cb is not None:
-                self._live_cb.on_generation(st.generation, F=st.F, stats={"evals": st.n_eval})
+                send_live_generation(self._live_cb, st.generation, st)
             _check_hv_target(st)
 
         # True once the HV target of an ("hv", ...) termination is reached, as in the other algorithms;
@@ -442,6 +457,7 @@ class SMSEMOA:
         hv_reached = self._st.hv_reached
 
         if self._live_cb is not None:
+            _send_final_live_generation(self._st, self._live_cb)
             self._live_cb.on_end(final_F=self._st.F)
 
         result = build_smsemoa_result(self._st, hv_reached, kernel=self.kernel)

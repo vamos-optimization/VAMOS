@@ -10,6 +10,7 @@ from typing import Any
 import numpy as np
 
 from .param_space import PARAM_ROLES, Condition, ParamSpace, ParamType, _dependency_order
+from .parameter_names import canonical_condition, canonical_conditional, canonical_parameter
 from .parameters import ConditionalBlock
 
 # Type alias for composable space parts: (params, conditionals, conditions).
@@ -127,13 +128,15 @@ def compose_config_space(algorithm_name: str, *parts: SpacePart) -> AlgorithmCon
                 _mixed_operator_part(),
             )
     """
+    # The parts name parameters as the bridges read them; the space names them canonically,
+    # after Evolver's names (see vamos.engine.tuning.racing.parameter_names).
     all_params: list[ParamType] = []
     all_conditionals: list[ConditionalBlock] = []
     all_conditions: list[Condition] = []
     for params, conditionals, conditions in parts:
-        all_params.extend(params)
-        all_conditionals.extend(conditionals)
-        all_conditions.extend(conditions)
+        all_params.extend(canonical_parameter(param) for param in params)
+        all_conditionals.extend(canonical_conditional(block) for block in conditionals)
+        all_conditions.extend(canonical_condition(condition) for condition in conditions)
     return AlgorithmConfigSpace(
         algorithm_name=algorithm_name,
         params=all_params,

@@ -186,7 +186,7 @@ def test_study_plan_rejects_unused_algorithm_configs(tmp_path: Path, payload: di
 
 
 def test_human_plan_errors_show_field_and_value(tmp_path: Path) -> None:
-    """The human output names the field and the value that the JSON error carries (VR-129)."""
+    """The human output names the field and the value that the JSON error carries."""
     config = tmp_path / "study.json"
     _write_spec(config, algorithm_configs={"nsgaii": {"crossover": {"method": "nope"}}})
 

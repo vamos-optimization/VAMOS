@@ -9,6 +9,7 @@ from vamos.engine.tuning.racing.param_space import Categorical, Condition, Param
 from vamos.engine.tuning.racing.sampler import ModelBasedSampler
 from vamos.engine.tuning.racing.scenario import Scenario
 from vamos.engine.tuning.racing.state import ConfigState
+from vamos.engine.tuning.racing.stats import select_configs_by_frace
 from vamos.engine.tuning.racing.tuning_task import Instance, TuningTask
 
 
@@ -272,3 +273,105 @@ def test_racing_raises_when_every_evaluation_fails() -> None:
 
     with pytest.raises(TuningFailedError, match="every one of the 30 evaluations failed"):
         tuner.run(eval_fn, verbose=False)
+
+
+def _race_matrix(scores, scenario, *, maximize=True):
+    configs = [ConfigState(config_id=i, config={}, alive=True, scores=[float(v) for v in row]) for i, row in enumerate(scores)]
+    eliminate_configs(configs, task=SimpleNamespace(aggregator=np.mean, maximize=maximize), scenario=scenario)
+    return np.array([state.alive for state in configs])
+
+
+def test_racing_eliminates_with_heterogeneous_instance_scales():
+    # 50 races of 8 configurations on 10 blocks; the true means rise from the first to the last,
+    # and every other block is on a scale 100 times larger, as hypervolumes of different problems.
+    rng = np.random.default_rng(0)
+    means = np.linspace(0.0, 0.7, 8)
+    eliminated, best_kept = [], 0
+    for _ in range(50):
+        scores = means[:, None] + rng.normal(0.0, 1.0, size=10)[None, :] + rng.normal(0.0, 0.5, size=(8, 10))
+        scores[:, ::2] *= 100.0
+        alive = _race_matrix(scores, Scenario(max_experiments=1000))
+        eliminated.append(int((~alive).sum()))
+        best_kept += bool(alive[-1])
+    # Paired t-tests on the raw values eliminated none; F-race, on the ranks of each block, about three.
+    assert np.mean(eliminated) > 1.0, np.mean(eliminated)
+    assert best_kept >= 48, best_kept
+
+
+def test_racing_uses_wilcoxon_with_two_alive():
+    # The first configuration is better on 11 of 12 blocks, and much worse on the last, a large-scale one.
+    first = np.full(12, 1.0)
+    second = np.full(12, 0.0)
+    second[-1] = 100.0
+    alive = _race_matrix(np.vstack([first, second]), Scenario(max_experiments=1000))
+    # The signed-rank test (p = 0.038) eliminates the second; a t-test on the raw differences kept both.
+    assert alive.tolist() == [True, False]
+
+
+def test_racing_wilcoxon_eliminates_the_worse_when_most_blocks_tie():
+    # Minimizing, the first configuration is better by 1 on 6 blocks and ties on the other 7, so the
+    # median difference is 0. The signed-rank test drops the ties and rejects equality (p = 0.0197);
+    # it is the second configuration that is worse, in either order.
+    first = np.concatenate([np.zeros(6), np.full(7, 5.0)])
+    second = first + np.concatenate([np.ones(6), np.zeros(7)])
+    scores = np.vstack([first, second])
+    assert _race_matrix(scores, Scenario(max_experiments=1000), maximize=False).tolist() == [True, False]
+    assert _race_matrix(scores[::-1], Scenario(max_experiments=1000), maximize=False).tolist() == [False, True]
+
+
+@pytest.mark.parametrize("maximize", [False, True])
+def test_frace_wilcoxon_survivor_does_not_depend_on_the_order(maximize):
+    # Two configurations on few distinct score values, so that many blocks tie.
+    rng = np.random.default_rng(7)
+    eliminations = 0
+    for _ in range(300):
+        first = rng.integers(0, 3, size=int(rng.integers(5, 21))).astype(float)
+        second = first + rng.choice([-1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 2.0], size=first.size)
+        scores = np.vstack([first, second])
+        keep = select_configs_by_frace(scores, maximize, 0.05)
+        assert keep.tolist() == select_configs_by_frace(scores[::-1], maximize, 0.05)[::-1].tolist(), scores
+        # A configuration that is never worse on any block is never the one eliminated.
+        oriented = -scores if maximize else scores
+        for better, worse in ((0, 1), (1, 0)):
+            if np.all(oriented[better] <= oriented[worse]):
+                assert keep[better], scores
+        eliminations += int((~keep).sum())
+    assert eliminations > 0
+
+
+def test_racing_minimum_survivors_keep_the_frace_survivors():
+    # Maximizing, F-race keeps only the first configuration, better on 6 of 7 blocks. The other two
+    # have the better mean through one large block, and the mean ranking alone kept those two.
+    scores = np.array([[0.0] + [10.0] * 6, [1000.0] + [9.0] * 6, [1000.0] + [9.0] * 6])
+    assert select_configs_by_frace(scores, True, 0.05).tolist() == [True, False, False]
+    alive = _race_matrix(scores, Scenario(max_experiments=1000, min_survivors=2))
+    assert alive[0], alive
+    assert alive.sum() == 2, alive
+
+
+def test_racing_minimum_survivors_fill_by_the_aggregate_ranking():
+    # Random races with one block on a scale 100 times larger, so that the ranks and the means disagree.
+    rng = np.random.default_rng(3)
+    conflicts = 0
+    for _ in range(200):
+        n_configs = int(rng.integers(3, 7))
+        scores = np.linspace(0.0, 1.0, n_configs)[:, None] + rng.normal(0.0, 0.5, size=(n_configs, 8))
+        scores[:, 0] *= 100.0
+        min_survivors = int(rng.integers(1, n_configs + 1))
+        frace = select_configs_by_frace(scores, True, 0.05)
+        alive = _race_matrix(scores, Scenario(max_experiments=1000, min_survivors=min_survivors))
+        # Every F-race survivor stays, and the minimum adds the best of the others by mean.
+        assert alive[frace].all(), scores
+        assert alive.sum() == max(int(frace.sum()), min_survivors), scores
+        means = scores.mean(axis=1)
+        if (alive & ~frace).any() and (~alive).any():
+            assert means[alive & ~frace].min() >= means[~alive].max(), scores
+        top_by_mean = set(np.argsort(-means)[:min_survivors].tolist())
+        conflicts += bool(frace.sum() < min_survivors and not set(np.flatnonzero(frace).tolist()) <= top_by_mean)
+    assert conflicts > 0
+
+
+def test_racing_waits_for_first_test_blocks():
+    scores = np.vstack([np.full(4, 1.0) + np.arange(4), np.arange(4.0), np.arange(4.0) - 1.0])
+    assert _race_matrix(scores, Scenario(max_experiments=1000)).all()
+    assert not _race_matrix(scores, Scenario(max_experiments=1000, first_test=3, min_blocks_before_elimination=3)).all()

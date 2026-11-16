@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal, TypeAlias
 
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.foundation.encoding import EncodingLike
@@ -12,6 +12,7 @@ from vamos.foundation.encoding import EncodingLike
 from .base import (
     DEFAULT_POP_SIZE,
     ConstraintModeStr,
+    LiveCallbackMode,
     ResultMode,
     _ConfigBuilderState,
     _ConstraintHandlingBuilder,
@@ -32,6 +33,11 @@ from .base import (
 )
 from .types import RepairConfigValue
 
+ReferencePointRule: TypeAlias = Literal["relative", "jmetal"]
+
+# The default rule goes unrecorded, so that configurations without a rule keep their 1.0 form.
+_REFERENCE_POINT_RULES = ("relative", "jmetal")
+
 
 @dataclass(frozen=True)
 class SMSEMOAConfig(_SerializableConfig):
@@ -50,6 +56,7 @@ class SMSEMOAConfig(_SerializableConfig):
     external_archive: ExternalArchiveConfig | None = None
     # Fields added after 1.0 go last, so that the constructor keeps the positions of its parameters.
     constraint_handling: tuple[str, dict[str, float]] | None = None
+    live_callback_mode: LiveCallbackMode = "population"
 
     @classmethod
     def default(
@@ -112,19 +119,33 @@ class _SMSEMOAConfigBuilder(
         self,
         *,
         vector: Any = None,
-        offset: float = 1.0,
+        offset: float | None = None,
         adaptive: bool | None = None,
+        rule: ReferencePointRule = "relative",
     ) -> _SMSEMOAConfigBuilder:
         """Reference point of the hypervolume contributions.
 
-        Without ``vector`` the reference is ``nadir + offset * (nadir - ideal)`` of the
-        population and the new child, so ``offset`` is a fraction of each objective's
-        range and the selection does not depend on objective units; it is recomputed
-        at every step unless ``adaptive=False``. A ``vector`` is used as given and stays
-        fixed, so it cannot be combined with ``adaptive=True``; points outside its box
-        contribute 0.
+        With the ``"relative"`` rule (the default) and without ``vector``, the reference
+        is ``nadir + offset * (nadir - ideal)`` of the population and the new child, so
+        ``offset`` (default 1.0) is a fraction of each objective's range and the
+        selection does not depend on objective units; it is recomputed at every step
+        unless ``adaptive=False``. A ``vector`` is used as given and stays fixed, so it
+        cannot be combined with ``adaptive=True``; points outside its box contribute 0.
+
+        ``rule="jmetal"`` is the reference of jMetal's and Evolver's SMS-EMOA
+        (``SMSEMOAReplacement``): each coordinate is the worst value of the population
+        and the new child times 1.1, or divided by 1.1 when it is negative, recomputed
+        at every step. It depends on where each objective's zero lies, and takes no
+        ``vector``, ``offset`` or ``adaptive=False``.
         """
-        offset_value = float(offset)
+        if rule not in _REFERENCE_POINT_RULES:
+            raise ValueError(f"reference_point rule must be one of {', '.join(map(repr, _REFERENCE_POINT_RULES))}; got {rule!r}.")
+        if rule == "jmetal":
+            if vector is not None or offset is not None or adaptive is False:
+                raise ValueError("The 'jmetal' reference_point rule takes no vector, offset or adaptive=False.")
+            self._cfg["reference_point"] = {"vector": None, "adaptive": True, "rule": "jmetal"}
+            return self
+        offset_value = 1.0 if offset is None else float(offset)
         if not math.isfinite(offset_value) or offset_value < 0.0:
             raise ValueError(f"reference_point offset must be a finite number >= 0, got {offset!r}.")
         if vector is not None and adaptive:
@@ -159,4 +180,5 @@ class _SMSEMOAConfigBuilder(
             track_genealogy=bool(self._cfg.get("track_genealogy", False)),
             result_mode=self._cfg.get("result_mode", "non_dominated"),
             external_archive=self._cfg.get("external_archive"),
+            live_callback_mode=self._cfg.get("live_callback_mode", "population"),
         )

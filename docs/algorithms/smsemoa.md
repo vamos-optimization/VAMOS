@@ -10,7 +10,7 @@ downloads:
 
 Hypervolume contribution provides the environmental selection criterion: candidates compete through the objective-space volume they add relative to a reference point [1]. This steady-state example makes that point explicit.
 
-**Goal:** run the stable public API in VAMOS 1.0.1, interpret its returned population, and identify which settings control this mechanism.
+**Goal:** run the stable public API in VAMOS 1.2.1, interpret its returned population, and identify which settings control this mechanism.
 
 [Capability matrix](../reference/algorithms.md) · [Exact configuration reference](../reference/api/algorithms/smsemoa.md) · [Setup and recorded evidence](../tutorials/coverage-setup.md)
 
@@ -31,7 +31,7 @@ The second command reruns the same protocol and requires Matplotlib. Use a new f
 ??? example "Complete runnable script"
 
     ```python
-    """Verified VAMOS 1.0.1 lesson: smsemoa. See coverage-setup for dependencies."""
+    """Verified VAMOS 1.2.1 lesson: smsemoa. See coverage-setup for dependencies."""
 
 
     def execute_example(problem, algorithm, config, budget, seed=42, engine="numpy"):
@@ -151,14 +151,14 @@ The second command reruns the same protocol and requires Matplotlib. Use a new f
 ```text
 Algorithm: smsemoa; encoding: real; backend: numpy; seed: 42
 Returned X: (40, 10); F: (40, 2); result mode: population
-Feasible rows: 40/40; feasible non-dominated rows: 13
+Feasible rows: 40/40; feasible non-dominated rows: 8
 Evaluations: 400
 ```
 <!-- /tutorial:output -->
 
 ![Actual smsemoa results from the documented protocol.](../assets/coverage/smsemoa.svg)
 
-*Measured with VAMOS 1.0.1; the [observations and provenance](../tutorials/coverage-setup.md#recorded-evidence) retain the inputs and results.*
+*Measured with VAMOS 1.2.1; the [observations and provenance](../tutorials/coverage-setup.md#recorded-evidence) retain the inputs and results.*
 
 ## Understand the configuration
 
@@ -169,7 +169,17 @@ Evaluations: 400
 | SBX + polynomial mutation | Real-coded variation; mutation probability is explicitly `1/10`. |
 | `selection("random")` | Parent selection is separate from hypervolume-based environmental selection. |
 
-**VAMOS 1.2.0:** a `vector` is used as given and stays fixed, so it cannot be combined with `adaptive=True`; points outside its box contribute nothing to the hypervolume and are removed first. Without `vector`, the reference is `nadir + offset * (nadir - ideal)` of the population and the new child, recomputed at every step unless `adaptive=False`. `offset` (default 1.0) is therefore a fraction of each objective's range, the reference 1 + `offset` of the normalized objectives, and the selection does not depend on the objective units. In VAMOS 1.1.0 and earlier, `offset` was added to the maximum in objective units, so rescaling one objective changed which solutions survived. A `vector` was raised to that maximum plus `offset` and, with the default `adaptive=True`, replaced after the first step. The recorded output above comes from VAMOS 1.0.1, which raised this lesson's reference in that way.
+**VAMOS 1.2.0:** a `vector` is used as given and stays fixed, so it cannot be combined with `adaptive=True`; points outside its box contribute nothing to the hypervolume and are removed first. Without `vector`, the reference is `nadir + offset * (nadir - ideal)` of the population and the new child, recomputed at every step unless `adaptive=False`. `offset` (default 1.0) is therefore a fraction of each objective's range, the reference 1 + `offset` of the normalized objectives, and the selection does not depend on the objective units. In VAMOS 1.1.0 and earlier, `offset` was added to the maximum in objective units, so rescaling one objective changed which solutions survived. A `vector` was raised to that maximum plus `offset` and, with the default `adaptive=True`, replaced after the first step. The recorded output above uses this lesson's `[1.1, 11.0]` as given.
+
+**Development after 1.2.1:** `reference_point(rule="jmetal")` uses the reference point of jMetal's and Evolver's SMS-EMOA (`SMSEMOAReplacement` in jMetal 7.11), so that results can be compared with theirs: each coordinate is the worst value of the population and the new child times 1.1, or divided by 1.1 when that value is negative, recomputed at every step. The default rule, `"relative"`, is unchanged. The two differ in three ways:
+
+| | `"relative"` (default) | `"jmetal"` |
+| --- | --- | --- |
+| Coordinate | worst value + `offset` × (worst − best) | worst value × 1.1, or ÷ 1.1 when negative |
+| Margin above the worst value | `offset` (default 1.0) times the objective's range | 10% of the worst value when it is positive, about 9% of its magnitude when negative, none when it is 0 |
+| Rescaling or shifting an objective | rescales or shifts the reference with it: the same solutions survive | rescaling keeps the survivors; shifting the objective changes the margin and can change them |
+
+With jMetal's rule the reference lies close to the worst values, so the extreme solutions of the last front contribute less than with the default `offset=1.0`, and with a worst value of 0 they contribute nothing along that objective. The rule takes no `vector` or `offset`, and is always adaptive.
 
 **VAMOS 1.2.0:** with constraints, SMS-EMOA removes the most violated solution while any is infeasible. `constraint_handling` replaces that rule by another of jMetal's constraint-handling techniques, such as epsilon-constrained or stochastic ranking: the technique ranks the population and the new child, and the least hypervolume contributor of its last front leaves. See [choose a constraint-handling technique](../reference/constraints.md#choose-a-constraint-handling-technique).
 

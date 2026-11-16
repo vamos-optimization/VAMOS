@@ -1,4 +1,4 @@
-"""The test suite contains only tests that can fail and modules pytest collects as intended (VR-131, VR-133, VR-319)."""
+"""The test suite contains only tests that can fail and modules pytest collects as intended."""
 
 from __future__ import annotations
 

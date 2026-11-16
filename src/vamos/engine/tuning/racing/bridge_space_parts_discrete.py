@@ -29,7 +29,7 @@ def real_operator_part_medium(
             Real("crossover_prob", crossover_prob_bounds[0], crossover_prob_bounds[1], role="operator_rate"),
             Categorical(
                 "mutation",
-                ["pm", "linked_polynomial", "non_uniform", "gaussian", "uniform_reset", "cauchy", "uniform"],
+                ["polynomial", "linked_polynomial", "non_uniform", "gaussian", "uniform_reset", "cauchy", "uniform"],
                 role="operator",
             ),
             Real(mutation_prob_param, mutation_prob_bounds[0], mutation_prob_bounds[1], role="operator_rate"),
@@ -37,7 +37,7 @@ def real_operator_part_medium(
         ]
     )
     if include_repair:
-        params.append(Categorical("repair", ["clip", "reflect", "random", "round"], role="structural"))
+        params.append(Categorical("repair", ["clip", "reflect", "random"], role="structural"))
 
     conditionals = [
         ConditionalBlock("crossover", "sbx", [Real("crossover_eta", 5.0, 40.0, role="operator_rate")]),
@@ -46,10 +46,9 @@ def real_operator_part_medium(
             "blx_alpha",
             [
                 Real("crossover_alpha", 0.0, 1.0, role="operator_rate"),
-                Categorical("blx_repair", ["clip", "random", "reflect", "round"], role="structural"),
+                Categorical("blx_repair", ["clip", "random", "reflect"], role="structural"),
             ],
         ),
-        ConditionalBlock("mutation", "non_uniform", [Real("nonuniform_perturbation", 0.05, 0.5, role="operator_rate")]),
         ConditionalBlock("mutation", "gaussian", [Real("gaussian_sigma", 0.001, 0.5, role="operator_rate")]),
         ConditionalBlock("mutation", "cauchy", [Real("cauchy_gamma", 0.001, 0.5, role="operator_rate")]),
         ConditionalBlock("mutation", "uniform", [Real("uniform_perturb", 0.01, 0.5, role="operator_rate")]),
@@ -82,7 +81,7 @@ def real_operator_part_medium(
                 [Categorical("scatter_base_size_factor", [0.1, 0.2, 0.3, 0.5, 0.75, 1.0], role="structural")],
             ),
         )
-    return params, conditionals, [Condition("mutation_eta", "cfg['mutation'] == 'pm' or cfg['mutation'] == 'linked_polynomial'")]
+    return params, conditionals, [Condition("mutation_eta", "cfg['mutation'] == 'polynomial' or cfg['mutation'] == 'linked_polynomial'")]
 
 
 def permutation_operator_part_full(

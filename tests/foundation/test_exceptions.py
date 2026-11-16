@@ -308,7 +308,7 @@ class TestExceptionUsage:
 
 
 def test_install_hints_name_the_distribution() -> None:
-    """Install hints name the PyPI distribution, not `vamos` (another project) or a checkout install (VR-128)."""
+    """Install hints name the PyPI distribution, not `vamos` (another project) or a checkout install."""
     import re
     from pathlib import Path
 
@@ -332,7 +332,7 @@ def test_install_hints_name_the_distribution() -> None:
 
 
 def test_artifact_and_study_errors_are_vamos_errors():
-    """Run-artifact and study errors share the VAMOSError base and the public namespace (VR-090)."""
+    """Run-artifact and study errors share the VAMOSError base and the public namespace."""
     import vamos.exceptions as public
     from vamos.experiment.artifacts.errors import OutputCollisionError, RunArtifactError
     from vamos.experiment.study.errors import InvalidStudySpecError, StudyError
@@ -355,7 +355,7 @@ def test_artifact_and_study_errors_are_vamos_errors():
 
 
 def test_unknown_problem_raises_invalid_problem_error():
-    """An unknown problem name raises InvalidProblemError, still a KeyError (VR-090)."""
+    """An unknown problem name raises InvalidProblemError, still a KeyError."""
     from vamos import optimize
     from vamos.exceptions import InvalidProblemError
     from vamos.foundation.problem.registry import available_problem_names, make_problem_selection

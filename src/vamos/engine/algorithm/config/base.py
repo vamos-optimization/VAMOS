@@ -295,6 +295,17 @@ class _ResultArchiveBuilder:
         self._cfg.setdefault("result_mode", "non_dominated")
         return self
 
+    def live_callback_mode(self, mode: LiveCallbackMode) -> Self:
+        """What a live callback receives each generation as ``F`` and ``X``, and in ``stats``.
+
+        ``"population"`` (the default but in NSGA-II) sends the whole current population,
+        ``"nd_only"`` its first front, and ``"population_archive"`` the population plus the
+        external archive in ``stats["archive"]`` (``{"X": ..., "F": ...}``), which is what a run
+        with an archive returns.
+        """
+        self._cfg["live_callback_mode"] = str(mode)
+        return self
+
 
 class _SerializableConfig:
     """Mixin to serialize dataclass configs."""
@@ -503,6 +514,15 @@ def _lattice_divisions_within(pop_size: int, n_obj: int, *, algorithm: str) -> i
         return largest_lattice_divisions(int(pop_size), int(n_obj))
     except ValueError as exc:
         raise ReferenceDirectionPopulationError(f"{algorithm} cannot build reference directions for pop_size={pop_size}: {exc}") from exc
+
+
+def _warn_without_effect(algorithm: str, field: str, reason: str, *, stacklevel: int) -> None:
+    """Warn that a stable configuration field has no effect on ``algorithm``; it goes in VAMOS 2.0."""
+    warnings.warn(
+        f"{algorithm}'s `{field}` has no effect: {reason}. The field will be removed in VAMOS 2.0.",
+        FutureWarning,
+        stacklevel=stacklevel + 1,
+    )
 
 
 def _require_fields(cfg: dict[str, Any], fields: tuple[str, ...], name: str) -> None:

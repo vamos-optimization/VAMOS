@@ -22,10 +22,10 @@ from .param_space import Int, ParamType
 
 
 def _core_part() -> SpacePart:
+    # No mating selection: SPEA2 always mates with its own binary tournament.
     params: list[ParamType] = [
         Int("pop_size", 20, 200, log=True, role="population"),
         Int("archive_size", 20, 200, log=True, role="population"),
-        Int("selection_pressure", 2, 10, role="structural"),
         Int("k_neighbors", 1, 25, role="structural"),
     ]
     arch_params, arch_conds, arch_conditions = external_archive_part()

@@ -260,6 +260,27 @@ anything, as the split-based example below did with `--backend racing`. With
 warm starts, each block now resumes only its own run: a block whose run failed
 starts again from scratch, where it used to receive another block's checkpoint.
 
+**Development after 1.2.1:** the statistical race eliminates with F-race
+(Birattari et al., 2002), as irace does. Each instance/seed block ranks the
+alive configurations, so problems whose scores lie on different scales weigh
+the same. A Friedman test on those ranks comes first; when its p-value is below
+`--alpha`, Conover's post-hoc test on the rank sums keeps the best
+configuration and every configuration within the critical difference of it.
+With two configurations alive, a paired Wilcoxon signed-rank test decides
+instead. It drops the blocks where the two tie, and the sign of its statistic
+over the other blocks says which configuration it eliminates, whatever their
+order. When `Scenario.min_survivors` asks for more configurations than a test
+keeps, the race keeps them all and adds the best of the others by aggregate
+score. The first test waits for `Scenario.first_test` blocks (5, irace's
+`firstTest`) or `--min-blocks-before-elimination`, whichever is larger. VAMOS
+1.2.0 compared each configuration with the one of best mean through paired
+t-tests on the raw scores, with Holm's correction. When half of the blocks had
+scores 100 times larger, those tests eliminated no configuration out of eight
+on ten blocks, against about three for F-race. `racing` runs a single race over
+its initial configurations: it does not sample new ones around the elites as
+irace's iterated racing does. For that, use `--backend irace`; see
+[The irace backend](#the-irace-backend).
+
 ### Model-based backends run one fidelity unless given levels
 
 **VAMOS 1.2.0:** without `--fidelity-levels` (`budget_levels=None`
@@ -376,6 +397,92 @@ keep a grandchild such as `x_eta` (active when `x_kind == 'b'`) while its
 grandparent `use_x` was false, in spaces with conditions on the direct parent
 only. The built-in spaces were not affected.
 
+**Development after 1.2.1:** the SMS-EMOA spaces choose the mating selection,
+`random` or `tournament`, with `selection_pressure` only for a tournament, and
+the offset of the reference point, `reference_point_offset` in [0.1, 2.0].
+Both ranges include the defaults of `SMSEMOAConfig`: random selection and an
+offset of 1.0. The spaces of VAMOS 1.2.0 always used a tournament and an
+offset of 0.1, so no assignment reproduced the default configuration; an
+assignment without the new parameters still builds that tournament
+configuration.
+
+**Development after 1.2.1:** the MOEA/D and SMS-EMOA spaces offer what
+Evolver's `MOEADDouble` and `SMSEMOADouble` spaces offer, so that a
+configuration tuned or published with Evolver is a point of them:
+
+- every MOEA/D space: `neighbor_size` in [5, 50] and `delta` in [0, 1]
+  (before, [5, 40] and [0.5, 0.95]), the `modified_tchebycheff` aggregation
+  with `mtch_rho`, which only the permutation space offered, and `pbi_theta`
+  up to 200 (before, 10), log-uniform because the usual value, 5, lies at the
+  low end;
+- the real-coded MOEA/D spaces (`moead`, `moead_constrained`):
+  `linked_polynomial` mutation, with `mutation_eta` active for both polynomial
+  mutations, `initializer` (`random`, `lhs`, `scatter`) and `repair` (`clip`,
+  `reflect`, `random`);
+- the real-coded MOEA/D and SMS-EMOA spaces: `mutation_prob_factor` in
+  [0.25, 3.0], the probability being the factor divided by the number of
+  variables, as in NSGA-II's space, instead of an absolute `mutation_prob` in
+  [0.01, 0.5], which depends on the problem. Evolver's factor lies in [0, 2];
+  VAMOS rejects a factor of 0.
+
+An assignment saved from the earlier spaces builds the configuration it built:
+an absolute `mutation_prob` stays absolute, and without `initializer` or
+`repair` MOEA/D keeps its defaults. Seeded MOEA/D and SMS-EMOA tuning runs draw
+different trials.
+
+### Parameter names and Evolver's
+
+**Development after 1.2.1:** the built-in spaces name their parameters after
+Evolver's, in snake_case, so that a configuration tuned with VAMOS can be read
+by Evolver and the other way round. The earlier names remain aliases:
+`config_from_assignment` accepts both, and an assignment saved from an earlier
+space builds the configuration it built. The fields of the configuration
+classes (`MOEADConfig.neighbor_size`, ...) keep their names until VAMOS 2.0.
+The paragraphs above use the earlier names.
+`vamos.engine.tuning.racing.parameter_names` holds the table, with
+`to_evolver` and `from_evolver` to exchange assignments:
+
+| Earlier name | Space name | Evolver |
+| --- | --- | --- |
+| `pop_size` | `pop_size` | `populationSize` |
+| `crossover_prob` | `crossover_probability` | `crossoverProbability` |
+| `crossover_eta` | `sbx_distribution_index` | `sbxDistributionIndex` |
+| `mutation_eta` | `polynomial_mutation_distribution_index` | `polynomialMutationDistributionIndex` |
+| `mutation_prob_factor` | `mutation_probability_factor` | `mutationProbabilityFactor` |
+| `neighbor_size` | `neighborhood_size` | `neighborhoodSize` |
+| `delta` | `neighborhood_selection_probability` | `neighborhoodSelectionProbability` |
+| `replace_limit` | `maximum_number_of_replaced_solutions` | `maximumNumberOfReplacedSolutions` |
+| `aggregation` | `aggregation_function` | `aggregationFunction` |
+| `pbi_theta` | `pbi_theta` | `pbiTheta` |
+| `de_cr` | `de_crossover_rate` | `CR` |
+| `de_f` | `de_scale_factor` | `F` |
+| `initializer` | `initial_solutions` | `createInitialSolutions` |
+| `selection_pressure` | `tournament_size` | `selectionTournamentSize` |
+| `selection_size` | `tournament_size` | `selectionTournamentSize` |
+| `crossover` | `crossover` | `crossover` |
+| `mutation` | `mutation` | `mutation` |
+| `selection` | `selection` | `selection` |
+
+Values that change: mutation `pm` becomes `polynomial` (the name the other
+spaces already used) and crossover `undx` becomes `undc` (Evolver's `UNDC`).
+The real-coded `uniform_reset` keeps its name: `random_reset` is the integer
+reset mutation, and renaming one to the other broke integer runs. Evolver writes some values
+differently, and the exchange functions translate them: `SBX`, `blxAlpha`,
+`blxAlphaBeta`, `wholeArithmetic`, `fuzzyRecombination`, `PCX` and `UNDC`;
+`linkedPolynomial`, `nonUniform`, `levyFlight` and `powerLaw`;
+`tschebyscheff`, `weightedSum`, `penaltyBoundaryIntersection` and
+`modifiedTschebyscheff`; `default` (random), `latinHypercubeSampling`,
+`scatterSearch` and `oppositionBased`; `stochasticUniversalSampling`.
+
+`pop_size` keeps its name: Evolver passes the population size to the algorithm
+rather than tuning it, and the CLI and Studio treat it as a run setting. The
+external archive parameters (`use_external_archive`, `archive_unbounded`,
+`archive_prune_policy`) keep theirs until they become one choice, Evolver's
+`algorithmResult` and `archiveType`, in the planned VAMOS-CONFIG grammar.
+The exchange translates names and values only: parameters that VAMOS and
+Evolver structure differently, such as Evolver's `variation` or its per-operator
+repair strategies, keep their names and are ignored by the other side.
+
 ### Constrained spaces
 
 **VAMOS 1.2.0:** `nsgaii_constrained`, `nsgaiii_constrained`,
@@ -439,6 +546,20 @@ real-coded spaces. An assignment without `crossover_prob`, `de_cr`, `de_f`,
 CR = 1, F = 0.5, the binomial crossover and 0.5. `vamos tune --algorithm
 cmoeams` tunes it.
 
+### Parameters that reach the algorithm
+
+**Development after 1.2.1:** every parameter of a built-in space changes the
+configuration that it builds, and the real-coded spaces no longer offer
+`repair="round"` or `blx_repair="round"`: rounding continuous variables to
+integers puts the whole population on the vertices of the bounding box, where
+mutation has no further effect. The SMPSO spaces drop `repair`, which never
+reached the configuration: SMPSO clips each new position to the bounds, and its
+polynomial mutation keeps it inside. The SPEA2 spaces drop
+`selection_pressure`, because SPEA2 always mates with its own binary
+tournament. An assignment saved from an earlier space still builds:
+`repair="round"` as before, while SMPSO and SPEA2 ignore the dropped
+parameters, as they always did.
+
 ### Populations that depend on the number of objectives
 
 The parameter spaces do not know the problem, but two algorithms need its
@@ -454,6 +575,16 @@ sampled `pop_size` of 60 thus runs 55 individuals with three objectives, the
 lattice of nine divisions, and a lattice is never truncated. Before, `vamos
 tune` did not pass `n_obj` to MOEA/D, and every other sampled population failed
 and got the failure score: most MOEA/D candidates on a three-objective problem.
+
+**Development after 1.2.1:** the RVEA spaces sample `pop_size` in [20, 200],
+as the other algorithms do, instead of `n_partitions` in [4, 12]. RVEA runs the
+largest complete Das-Dennis lattice with at most `pop_size` directions for the
+assignment's `n_obj`: a sampled `pop_size` of 100 runs 100 individuals with two
+objectives, 91 with three (12 partitions) and 55 with ten (2 partitions). The
+fixed range of partitions gave 5 to 13 individuals with two objectives and up
+to 293,930 with ten. An assignment with `n_partitions`, saved from an earlier
+space, still builds that lattice, and `--smoke` caps RVEA's `pop_size` as it
+does for the other algorithms.
 
 `optuna` and `bohb_optuna` suggest parents before the parameters that depend on
 them, whatever their declaration order, and record only active suggestions in
@@ -574,6 +705,12 @@ study stored by an earlier version is not resumed: the same command starts a
 new study, and the stored one stays in the storage under its `_v1` name.
 Persistent SMPSO studies keep `__vamos_cli_leaders_hv_v1`, the namespace that
 VAMOS 1.2.0 introduced with its leaders-archive score.
+
+**Development after 1.2.1:** VAMOS 1.3.0 changes the built-in search spaces
+again, with other categorical choices, so the CLI appends
+`__vamos_cli_final_population_hv_v3`, and SMPSO studies, whose spaces also
+change, take `__vamos_cli_leaders_hv_v2`. A study stored by VAMOS 1.2.1 or
+earlier is not resumed under the new names.
 
 ## Split-based tuning
 
