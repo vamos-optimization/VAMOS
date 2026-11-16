@@ -4,7 +4,7 @@ import argparse
 import json
 import logging
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -238,7 +238,14 @@ def persist_artifacts(
     resolved_jobs: int,
     *,
     available_backends_fn: Callable[[], dict[str, bool]] | None = None,
+    fixed_assignment: Mapping[str, object] | None = None,
 ) -> None:
+    """Write the tuning artifacts of a run to ``output_dir``.
+
+    ``fixed_assignment`` holds the settings that the evaluator added to every configuration
+    (``--smoke``'s fixed parameters); without a ``pop_size`` there or in a configuration, a trial
+    ran ``args.pop_size``, the population of every run since the spaces stopped sampling it.
+    """
     best_active = filter_active_config(best_config, task.param_space)
     # The score of the returned configuration (racing's final choice, the finisher's winner or
     # irace's elite), which need not be the highest score in the history.
@@ -248,10 +255,16 @@ def persist_artifacts(
     )
     best_history_score = max((float(h.score) for h in history), default=float("nan"))
 
-    # What each trial ran where the bridge replaced a sampled value (MOEA/D's population).
+    # What each trial ran where the bridge replaced a given value (MOEA/D's population).
     n_obj = int(args.n_obj)
+    run_population = {} if getattr(args, "pop_size", None) is None else {"pop_size": int(args.pop_size)}
+
+    def _run_assignment(config: Mapping[str, Any]) -> dict[str, Any]:
+        # The assignment that the evaluator built: the fixed settings, the configuration, the run's population.
+        return {**run_population, **(fixed_assignment or {}), **config, "n_obj": n_obj}
+
     for trial in history:
-        adjusted = assignment_adjustments(str(args.algorithm), {**trial.config, "n_obj": n_obj})
+        adjusted = assignment_adjustments(str(args.algorithm), _run_assignment(trial.config))
         if adjusted:
             trial.details["effective"] = adjusted
 
@@ -285,7 +298,7 @@ def persist_artifacts(
         "trials_observed": int(len(history)),
         "best_score": float(best_score),
         "best_history_score": float(best_history_score),
-        "best_config_effective": assignment_adjustments(str(args.algorithm), {**best_config, "n_obj": n_obj}),
+        "best_config_effective": assignment_adjustments(str(args.algorithm), _run_assignment(best_config)),
         "elapsed_seconds": float(elapsed_seconds),
         "available_model_backends": available_backends,
         "args": arg_payload,

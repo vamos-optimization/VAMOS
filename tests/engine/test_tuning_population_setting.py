@@ -8,12 +8,17 @@ objectives, as they derived them from the sampled one: MOEA/D runs the largest p
 
 from __future__ import annotations
 
+import argparse
+import json
+from pathlib import Path
+
 import pytest
 
 from vamos.engine.algorithm.components.weight_vectors import largest_weighted_population
 from vamos.engine.reference_directions import largest_lattice_divisions, lattice_size
 from vamos.engine.tuning import config_from_assignment
 from vamos.engine.tuning.grammar import builtin_parameter_space, builtin_parameter_space_names
+from vamos.engine.tuning.racing.bridge_spaces import build_moead_config_space
 
 REFERENCE_SPACES = sorted(name for name in builtin_parameter_space_names() if name.split("_")[0] in {"moead", "nsgaiii", "rvea"})
 
@@ -48,3 +53,63 @@ def test_an_assignment_without_a_population_runs_the_default_size(name: str) -> 
     config = config_from_assignment(name, {**space.default_values(), "n_obj": 2})
 
     assert config.pop_size == 100
+
+
+def _persist_moead_trial(output_dir: Path, pop_size: int, fixed_assignment: dict[str, int] | None = None) -> tuple[dict, dict]:
+    from vamos.engine.tuning import Instance, TrialResult, TuningTask
+    from vamos.experiment.cli._tune_post import persist_artifacts
+
+    output_dir.mkdir()
+    default = builtin_parameter_space("moead").default_values()
+    task = TuningTask(
+        name="moead",
+        param_space=build_moead_config_space().to_param_space(),
+        instances=[Instance(name="dtlz2", n_var=12, kwargs={})],
+        seeds=[1],
+        budget_per_run=300,
+    )
+    args = argparse.Namespace(
+        backend="random",
+        problem="dtlz2",
+        algorithm="moead",
+        n_var=12,
+        n_obj=3,
+        pop_size=pop_size,
+        seed=1,
+        aggregate_mode="mean",
+        runtime_penalty=0.0,
+        failure_score=0.0,
+    )
+    persist_artifacts(
+        output_dir,
+        args,
+        task,
+        dict(default),
+        [TrialResult(0, dict(default), 0.5)],
+        1.0,
+        1,
+        available_backends_fn=dict,
+        fixed_assignment=fixed_assignment,
+    )
+    record = json.loads((output_dir / "tuning_history.json").read_text(encoding="utf-8"))[0]
+    summary = json.loads((output_dir / "tuning_summary.json").read_text(encoding="utf-8"))
+    return record, summary
+
+
+def test_tune_records_the_population_moead_runs_instead_of_the_fixed_one(tmp_path: Path) -> None:
+    # The trials hold no pop_size: the run's --pop-size is what MOEA/D replaces. 150 individuals
+    # have no weight vectors with three objectives, so it runs 136, a complete lattice.
+    record, summary = _persist_moead_trial(tmp_path / "adjusted", 150)
+    assert record["details"]["effective"] == {"pop_size": 136}
+    assert summary["best_config_effective"] == {"pop_size": 136}
+
+    record, summary = _persist_moead_trial(tmp_path / "exact", 91)
+    assert "effective" not in record["details"]
+    assert summary["best_config_effective"] == {}
+
+
+def test_tune_records_the_population_of_the_smoke_profile(tmp_path: Path) -> None:
+    # --smoke fixes the population in its profile, which the evaluator sets in every configuration.
+    record, summary = _persist_moead_trial(tmp_path / "smoke", 15, fixed_assignment={"pop_size": 150})
+    assert record["details"]["effective"] == {"pop_size": 136}
+    assert summary["best_config_effective"] == {"pop_size": 136}

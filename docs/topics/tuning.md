@@ -740,9 +740,12 @@ does for the other algorithms.
 derivations start from the fixed `pop_size` of the run, which the caller adds
 to the assignment with `n_obj` and which `vamos tune` takes from `--pop-size`
 for every algorithm, RVEA included: with three objectives and `--pop-size 100`,
-MOEA/D, NSGA-III and RVEA run the lattice of 91 directions (NSGA-III keeps a
-population of 100). The rules do not change, so a saved assignment with its
-`pop_size` builds the population it built.
+NSGA-III and RVEA use the lattice of 91 directions (NSGA-III keeps a population
+of 100) and MOEA/D the packaged jMetal weights of 100 individuals. The rules do
+not change, so a saved assignment with its `pop_size` builds the population it
+built. The `effective` record compares with that fixed population: with
+`--pop-size 150` and three objectives, every MOEA/D trial records
+`{"pop_size": 136}`.
 
 `optuna` and `bohb_optuna` suggest parents before the parameters that depend on
 them, whatever their declaration order, and record only active suggestions in
