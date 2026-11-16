@@ -508,6 +508,13 @@ tracking, `batch_size > 1`, other operators or repairs, other array types, and
 platforms where compiled variation stays disabled (see below) keep the
 per-operator path described in the table.
 
+**Development after 1.3.0:** the compiled MOEA/D step also covers
+`subproblem_order="cyclic"` and the `augmented_tchebycheff` aggregation. The DE
+schemes other than rand/1/bin, the normalization of the objectives and the
+`inverted_pbi` aggregation keep the per-operator path, whose neighbourhood update
+is compiled, so both engines give the same results (see the
+[MOEA/D configuration](api/algorithms/moead.md)).
+
 Compiled SBX and polynomial mutation are enabled only after a one-time check
 that compiled `pow` matches `np.power` bit for bit on the platform (some NumPy
 builds use vendor SIMD power). Otherwise the Numba engine keeps the NumPy

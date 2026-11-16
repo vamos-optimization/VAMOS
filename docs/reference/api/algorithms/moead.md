@@ -26,6 +26,59 @@ lattice by about `1e-16`, so a tool that reads the file can drift from VAMOS wit
 the same seed. `vamos tune` records the population a trial ran
 when it differs from the sampled one (see [Tuning](../../../topics/tuning.md#populations-that-depend-on-the-number-of-objectives)).
 
+**Development after 1.3.0:** three options of Evolver's MOEA/D. Each is off by
+default, so a configuration that leaves them out runs exactly as in VAMOS 1.3.0.
+
+| Option | Values | Reference |
+| --- | --- | --- |
+| `subproblem_order` (field and builder method) | `"random_permutation"` (default), `"cyclic"` | Evolver's `subProblemIdGenerator`: jMetal's `RandomPermutationCycle` and `CyclicIntegerSequence` |
+| `scheme` of `crossover("de", cr=..., f=..., scheme=...)` | `"rand_1_bin"` (default), `"rand_1_exp"`, `"rand_2_bin"`, `"rand_2_exp"` | jMetal's `DifferentialEvolutionCrossover`: `RAND_1_BIN`, `RAND_1_EXP`, `RAND_2_BIN`, `RAND_2_EXP` |
+| `aggregation(...)` | `"augmented_tchebycheff"` (`rho`, default `1e-4`), `"inverted_pbi"` (`theta`, default `0.1`) | jMetal's `AugmentedTschebyscheff` and `InvertedPenaltyBoundaryIntersection` |
+| `normalize` and `epsilon` of any `aggregation(...)` | `normalize=False` (default) or `True`; `epsilon > 0`, default `1e-6`, only with `normalize=True` | jMetal's `normalizeObjectives` and `epsilon` (Evolver's `epsilonParameterForNormalization`) |
+
+The definitions follow jMetal 7.8, the version Evolver uses:
+
+- **Order of the subproblems.** `"random_permutation"` visits a new random permutation of
+  the subproblems in each cycle. `"cyclic"` visits 0, 1, ..., `pop_size - 1` and starts
+  again, and draws no random number for it. A checkpoint keeps the order and its cursor;
+  a cyclic run refuses the checkpoint of a random order. `to_dict()` leaves out the
+  default order, so a run that does not set it keeps the resolved specification, and the
+  task id, that VAMOS 1.3.0 gives it.
+- **DE schemes.** The child starts as the subproblem's current solution `x`. The mutant
+  is `x + F (x_r1 - x_r2)` with rand/1 and `x + F (x_r1 - x_r2) + F (x_r3 - x_r4)`
+  with rand/2: its base is the current solution, as in jMetal's `MOEADDEBuilder` and in
+  MOEA/D-DE. Evolver's MOEA/D draws one more random parent instead and takes it as the
+  base, so its mutants differ from these, for rand/1/bin too. The random parents are distinct and come from the neighbourhood (probability
+  `delta`) or the population, so rand/2 needs `neighbor_size >= 4`. The binomial
+  crossover takes each variable from the mutant when its draw is lower than `cr`, and one
+  variable at random always. The exponential crossover takes a random variable and the next
+  ones, cyclically, while a draw is lower than `cr`, up to all of them; it is CMOEA-MS's
+  `rand_1_exp`. The repair then clips the child to the bounds.
+- **Augmented Tchebycheff.** `max_i w_i |f_i - z*_i| + rho sum_i w_i |f_i - z*_i|`, where
+  a zero weight counts `1e-4 |f_i - z*_i|`. This is the formula of `modified_tchebycheff`,
+  whose `rho` defaults to `1e-3`. jMetal's `ModifiedTschebyscheff`, which Evolver calls
+  `modifiedTschebyscheff`, is another function, `max_i |f_i - z*_i| / w_i`.
+- **Inverted PBI** (Sato, 2014). With the displacement `u = z^nad - f` from the nadir
+  point, `d1 = |u . w| / ||w||` and `d2 = ||u - d1 w / ||w|| ||`, the value is
+  `theta d2 - d1`, which is minimized (Sato's IPBI maximizes `d1 - theta d2`).
+- **Normalization.** `normalize=True` divides the displacement of each objective by
+  `z^nad_i - z*_i + epsilon`: `(f_i - z*_i) / (z^nad_i - z*_i + epsilon)`, which the weighted
+  sum uses in place of `f_i`, and `(z^nad_i - f_i) / (z^nad_i - z*_i + epsilon)` for the
+  inverted PBI. The nadir point is jMetal's estimate: the largest value of each objective
+  among the non-dominated solutions of the initial population and of every evaluated child.
+  Solutions compare by their constraint violation first (feasible before infeasible, then
+  the less violated) and by Pareto dominance at equal violation. The ideal and nadir points
+  are updated with each child before its replacements, or with the whole batch when
+  `batch_size > 1`. The inverted PBI reads the nadir point with or without normalization.
+  Evolver always normalizes it, so its `invertedPenaltyBoundaryIntersection` is
+  `inverted_pbi` with `normalize=True`. A checkpoint keeps the non-dominated set, in
+  `extra["nadir_front"]` and `extra["nadir_front_cv"]`.
+
+The compiled neighbourhood update computes every aggregation, with and without
+normalization. The compiled one-offspring step of `engine="numba"` covers the cyclic order
+and the augmented Tchebycheff aggregation. The other DE schemes, the normalization and the
+inverted PBI keep the reference step, so both engines give the same results.
+
 ::: vamos.algorithms.MOEADConfig
     options:
       heading_level: 2
