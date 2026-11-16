@@ -8,7 +8,7 @@ from typing import Any, TypeAlias
 from vamos.engine.hooks.live_viz import LiveVisualization
 
 CheckpointPayload: TypeAlias = Mapping[str, Any]
-TerminationValue: TypeAlias = int | Mapping[str, Any]
+TerminationValue: TypeAlias = int | float | Mapping[str, Any]
 TerminationSpec: TypeAlias = tuple[str, TerminationValue]
 
 __all__ = ["CheckpointPayload", "LiveVisualization", "TerminationSpec", "TerminationValue"]

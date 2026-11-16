@@ -30,7 +30,7 @@ The CLI scaffold is discoverable with `vamos create-problem --help`.
 
 1. Read `ProblemProtocol` in `src/vamos/foundation/problem/types.py` and a neighboring implementation with the same encoding.
 2. Implement `n_var`, `n_obj`, `n_constraints`, `xl`, `xu`, `encoding`, and `evaluate(X, out)`. Evaluation is batched, writes `out["F"]`, and writes `out["G"]` for constraints with `g <= 0` feasible.
-3. Add a `ProblemSpec` to the appropriate `src/vamos/foundation/problem/registry/families/*.py` module. The family exposes `get_specs()`; `registry/specs.py` assembles those maps and is not the per-problem registration file.
+3. Add a `ProblemSpec` to the appropriate `src/vamos/foundation/problem/registry/families/*.py` module. The family exposes `get_specs()`; `registry/specs.py` assembles those maps and is not the per-problem registration file. The factory takes `n_var` and `n_obj` positionally; the options a user may set by name (`problem_kwargs`) are its keyword-only parameters, with the class's defaults, and their values must be JSON scalars so that replay rebuilds the problem.
 4. Add packaged reference data under `src/vamos/resources/` only when the problem has an authoritative dataset/front, and verify package-data coverage.
 5. Export the class from `vamos.problems` only when direct construction is part of the intentional public API. Named access through `vamos.optimize("key", ...)` does not require a class export.
 6. Document dimensions, objective direction, constraints, encoding, and source. Never silently choose dimensions that the `ProblemSpec` marks fixed.

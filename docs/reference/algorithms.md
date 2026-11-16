@@ -243,6 +243,30 @@ SMS-EMOA and IBEA keep `hv_converged` as an alias until VAMOS 2.0. In VAMOS
 SMS-EMOA and IBEA reported only `hv_converged`, so the CLI never recorded that
 their HV target was reached.
 
+**Development after 1.2.1:** `optimize(termination=("max_time", seconds))`
+stops a run of any built-in algorithm once `seconds` of wall-clock time have
+passed since it started, checked after each generation (MOEA/D after each
+`pop_size` evaluations, SMS-EMOA after each step), so a run can overrun the
+limit by one generation. `("max_time", {"seconds": s, "max_evaluations": n})`
+also stops it after `n` evaluations, whichever comes first; without
+`max_evaluations` there is no evaluation budget. Schedules that measure progress
+against the budget, such as ToP's phases, CMOEA-MS's stages and the
+constraint-handling techniques that relax over the run, then barely advance, so
+give them `max_evaluations`. A live callback still receives every generation, and
+its `should_stop` still stops the run first. `result.meta["time_limit_reached"]`
+says whether the time limit stopped the run, and `load_result` restores it from
+the manifest. **A run limited by time is not
+reproducible**, on another machine or on the same one: how many evaluations
+fit in the time depends on the hardware and its load. Its resolved spec records
+`vamos.termination:max_time@1` with `{"seconds": s, "max_evaluations": n}`
+(`null` without a cap) and `determinism.declared: false`; its manifest's
+`replayability` gives the reason `wall_clock_termination`, and
+`outcome.termination_reason` is `max_time` or, when the cap stopped it,
+`max_evaluations`. `verify_run` reports it as not exactly replayable and
+`reproduce` refuses it; rerun `("max_evaluations", n)` with its
+`outcome.evaluations` for a run with the same budget. Only `optimize` takes this
+criterion; an algorithm's own `run()` and `initialize()` do not.
+
 **VAMOS 1.2.0:** all nine algorithms implement the same
 step-by-step protocol: `initialize(problem, termination, seed)` evaluates the
 initial population; repeat `ask()`, evaluate the returned decision vectors, and
@@ -474,6 +498,13 @@ operator pairs that JSON turns into lists, so
 probability 1.7 or `eta=-5`, `kappa` at or below 0 (which inverts IBEA's
 selection) and `delta=1.5` ran without warning, and a `result_mode` or
 aggregation typo failed only after the initial population was evaluated.
+
+**Development after 1.2.1:** `mutation_prob_factor` reaches every algorithm
+whose configuration has it: MOEA/D, NSGA-III, SMS-EMOA, SPEA2, AGE-MOEA and
+RVEA now set the mutation probability to `factor / n_var` (at most 1), as
+NSGA-II and IBEA did. In VAMOS 1.2.0 those six ran with the mutation's own
+`prob`. The fields that still have no effect warn; see
+[stable configuration](../project/stability-and-versioning.md#stable-configuration).
 
 For a measured first-call/subsequent-call example, follow [Measure backend performance](../tutorials/measure-performance.md).
 
