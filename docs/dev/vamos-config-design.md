@@ -133,7 +133,7 @@ and the place in the document:
 | G2 | Each parameter has one parent; there are no expressions. A parameter that applies to some values of a node is duplicated under each of their productions, with its own name. |
 | G3 | Every parameter has a `default`, and it belongs to its domain. |
 | G4 | Ranges are ordered, `log` needs a positive lower end, and integer ranges have integer ends. |
-| G5 | `values` is not empty and has no duplicates; a value with a production is a string. |
+| G5 | `values` is not empty and has no duplicates, and no two values are written alike on the command line (`1` and `"1"`); a categorical with a production has string values only, since its document is a mapping whose keys are text. |
 | G6 | `schema` and `schema_version` are known; `algorithm` and `encoding` exist in VAMOS, and so does the algorithm's variant for the encoding. |
 | G7 | The default configuration runs as `XConfig.default()` (decision 2). |
 
