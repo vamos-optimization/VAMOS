@@ -72,6 +72,19 @@ release notes](docs/project/release-notes-1.3.0.md).
   --hv-reference-front jmetal`, which records `reference_front_source` in the
   run. They make IGD-like indicators comparable with jMetal's and Evolver's
   (#322).
+- `MOEADConfig.default(variant=...)`: `"de"` gives jMetal's MOEA/D-DE (DE
+  rand/1/bin with CR = 1.0 and F = 0.5, Tchebycheff aggregation; Evolver's
+  `MOEADDEDefault`), and `"sbx"` jMetal's MOEA/D with SBX (p = 0.9, eta = 20,
+  PBI with theta = 5; Evolver's `MOEADDoubleDefault`). Without `variant`, the
+  default is unchanged (DE with PBI); VAMOS 2.0 will make `"de"` the default
+  (#326).
+- `ExternalArchiveConfig.final_selection` (`"farthest"`, `"crowding"`,
+  `"hv_greedy"` or `"kmeans"`) and `final_size` (the population size by
+  default), also through `external_archive(...)`: the result reports that subset
+  of the external archive when the run ends, as jMetal's and Evolver's results
+  do, while `result.data["archive"]` and the saved run keep the whole archive
+  and `result.data["archive_subset"]` records the selection. The default,
+  `"none"`, reports the whole archive as before (#323).
 
 ### Changed
 
@@ -251,6 +264,16 @@ release notes](docs/project/release-notes-1.3.0.md).
   Runs on mixed problems with the default crossover, integer runs with
   SBX or the arithmetic crossover, and `blx_alpha_beta` without explicit
   parameters give different results (#324).
+- After Ctrl+C, `vamos study run`, `resume` and `retry` no longer tell you to
+  run `vamos study resume`: the interruption cancels the study, which cannot be
+  resumed, and `inspect()` no longer suggests `resume_to_reconcile` for a
+  cancelled or failed study. The studies guide now says so, and documents that a
+  second process running the same study is not detected and that Windows writes
+  skip the directory fsync (#325).
+- A saved SPEA2 run keeps its external archive in `result.npz`
+  (`external_archive/F`, `X`, `G` and `CV`) when the result's `X`/`F` do not
+  hold it, as with `result_mode="population"`: it was lost before. A VAMOS 1.2.1
+  reader rejects these bundles; every other bundle is unchanged (#323).
 
 ## [1.2.1] - 2026-11-15
 
