@@ -32,9 +32,26 @@ _SPACE_SUFFIX = {
     "permutation": "_permutation",
     "mixed": "_mixed",
 }
-_ARCHIVE_PARAMETERS = {"use_external_archive", "archive_unbounded", "archive_prune_policy"}
+_ARCHIVE_PARAMETERS = {"external_archive", "use_external_archive", "archive_unbounded", "archive_prune_policy"}
 _CROSSOVER_PREFIXES = ("blx", "wa_", "laplace_", "fuzzy_", "pcx_", "undx_", "simplex_", "de_")
 _MUTATION_PREFIXES = ("nonuniform_", "gaussian_", "cauchy_", "uniform_", "levy_", "power_", "creep_")
+# Space parameters whose default lives under another flattened config key.
+_DEFAULT_KEY_ALIASES = {
+    "de_cr": "crossover_cr",
+    "de_f": "crossover_f",
+    "pbi_theta": "aggregation_theta",
+    "selection_pressure": "selection_size",
+}
+# Concrete equivalents of defaults that the default configuration leaves implicit.
+_IMPLICIT_DEFAULTS: dict[str, object] = {
+    "mutation_prob_factor": 1.0,
+    "offspring_ratio": 1.0,
+    "selection_size": 2,
+    "selection_pressure": 2,
+    "use_external_archive": False,
+    "initializer": "auto",
+    "external_archive": "none",
+}
 # Algorithms whose population size must equal their number of reference directions.
 _REFERENCE_DIRECTION_ALGORITHMS = {"nsgaiii", "rvea"}
 
@@ -94,7 +111,11 @@ def config_fields_for(parameter: str) -> tuple[str, ...]:
     if parameter in _ARCHIVE_PARAMETERS:
         return ("external_archive",)
     if parameter == "mutation_prob_factor":
-        return ("mutation_prob_factor",)
+        # Configurations without the field take the factor as their mutation probability.
+        return ("mutation_prob_factor", "mutation")
+    if parameter == "variation":
+        # CCMO's and CMOEA-MS's choice between the GA crossovers and differential evolution.
+        return ("crossover",)
     if parameter == "offspring_ratio":
         return ("offspring_size",)
     if parameter == "n_partitions":

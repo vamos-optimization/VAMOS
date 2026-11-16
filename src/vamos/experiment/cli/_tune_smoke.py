@@ -1,4 +1,4 @@
-"""Smoke profile of ``vamos tune``: tiny budgets, and a search space whose populations fit them."""
+"""Smoke profile of ``vamos tune``: tiny budgets, and a population that fits them."""
 
 from __future__ import annotations
 
@@ -59,13 +59,6 @@ def apply_smoke_mode(args: argparse.Namespace) -> dict[str, Any]:
 _LATTICE_LABELS = {"moead": "MOEA/D", "nsgaiii": "NSGA-III", "rvea": "RVEA"}
 
 
-def _capped(param: Int, ceiling: int, *, floor: int = 1) -> Int:
-    high = min(int(param.high), int(ceiling))
-    # Keep two values at least: SMAC3, BOHB and irace reject an integer range without width.
-    low = max(int(floor), min(int(param.low), high - 1))
-    return Int(param.name, low, high, log=param.log, role=param.role)
-
-
 def smallest_population(algorithm: str, n_obj: int) -> int:
     """The smallest population ``algorithm`` runs with on ``n_obj`` objectives.
 
@@ -83,23 +76,19 @@ def smallest_population(algorithm: str, n_obj: int) -> int:
 def smoke_param_space(
     param_space: ParamSpace, *, max_population: int, n_obj: int, algorithm: str, budget: int
 ) -> tuple[ParamSpace, dict[str, int]]:
-    """``param_space`` with every sampled population at most ``max_population`` and feasible.
+    """``param_space`` for a smoke run, and the settings that the run fixes, its population among them.
 
-    The built-in spaces sample ``pop_size`` in [20, 200], while a smoke run has a few dozen
-    evaluations: without the cap, ``optimize`` rejects most sampled configurations. The cap never
-    goes below the algorithm's smallest population (:func:`smallest_population`): with many
-    objectives, a reference-direction algorithm samples its smallest lattice, and a size one above
-    it, which MOEA/D, NSGA-III and RVEA round down to that lattice. When even that does not fit the
-    smoke budget, the command stops with a message instead of failing every evaluation.
+    The spaces do not tune ``pop_size``: every run takes the one of the command, which the smoke
+    profile caps at half its budget of a few dozen evaluations. The population never goes below the
+    algorithm's smallest one (:func:`smallest_population`): with many objectives, a
+    reference-direction algorithm runs its smallest lattice. When even that does not fit the smoke
+    budget, the command stops with a message instead of failing every evaluation.
 
-    Returns the space and the parameters that the caps fix to one value, which leave the space:
-    MOEA/D, NSGA-III and RVEA fit one population when their smallest lattice is the whole budget,
-    and SMAC3, BOHB and irace reject an integer range without width. The evaluator sets them in
-    every configuration.
+    Returns the space and the fixed settings, which the evaluator sets in every configuration:
+    ``pop_size``, and any integer parameter of a single value, which leaves the space because SMAC3,
+    BOHB and irace reject an integer range without width.
     """
     floor = smallest_population(algorithm, n_obj)
-    params = dict(param_space.params)
-    pop_size = params.get("pop_size")
     if floor > budget:
         label = _LATTICE_LABELS.get(canonical_algorithm_name(algorithm).split("_")[0])
         why = " (its smallest reference lattice)" if label else ""
@@ -108,12 +97,11 @@ def smoke_param_space(
             f"which does not fit the smoke budget of {budget} evaluations per run. "
             "Run it without --smoke, with a --budget above that population."
         )
-    if isinstance(pop_size, Int):
-        # When the smallest lattice is the whole budget, pop_size is fixed to it (below).
-        params["pop_size"] = _capped(pop_size, min(budget, max(max_population, floor + 1)), floor=floor)
+    params = dict(param_space.params)
     fixed = {name: int(spec.low) for name, spec in params.items() if isinstance(spec, Int) and spec.low == spec.high}
     params = {name: spec for name, spec in params.items() if name not in fixed}
     conditions = [condition for condition in param_space.conditions if condition.param_name in params]
+    fixed["pop_size"] = max(int(max_population), floor)
     return ParamSpace(params=params, conditions=conditions), fixed
 
 

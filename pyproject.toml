@@ -267,7 +267,7 @@ branch = true
 
 [tool.setuptools.package-data]
 "vamos" = ["py.typed"]
-"vamos.resources" = ["reference_fronts/*.csv", "reference_fronts/LICENSE-*.txt", "weights/*.csv", "weights/*.dat", "tsplib/*.tsp"]
+"vamos.resources" = ["reference_fronts/*.csv", "reference_fronts/LICENSE-*.txt", "weights/*.csv", "weights/*.dat", "tsplib/*.tsp", "parameter_spaces/*.yaml", "parameter_spaces/*.json"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}

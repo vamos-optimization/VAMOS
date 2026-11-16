@@ -23,6 +23,8 @@ from vamos.engine.tuning.racing.config_space import AlgorithmConfigSpace
 from vamos.engine.tuning.racing.param_space import Boolean, Categorical, Int, ParamType, Real
 from vamos.engine.tuning.racing.parameter_names import bridge_parameter_names
 from vamos.ux.studio.algorithm_catalog import (
+    _DEFAULT_KEY_ALIASES,
+    _IMPLICIT_DEFAULTS,
     ALGORITHM_LABELS,
     algorithm_label,
     algorithms_for_encoding,
@@ -38,21 +40,6 @@ ParameterKind = Literal["real", "int", "categorical", "boolean"]
 # Shown as the first choice when the VAMOS default is not one of the space's choices.
 VAMOS_DEFAULT_CHOICE = "VAMOS default"
 
-# Space parameters whose default lives under another flattened config key.
-_DEFAULT_KEY_ALIASES = {
-    "de_cr": "crossover_cr",
-    "de_f": "crossover_f",
-    "pbi_theta": "aggregation_theta",
-    "selection_pressure": "selection_size",
-}
-# Concrete equivalents of defaults that the default configuration leaves implicit.
-_IMPLICIT_DEFAULTS: dict[str, object] = {
-    "mutation_prob_factor": 1.0,
-    "offspring_ratio": 1.0,
-    "selection_size": 2,
-    "selection_pressure": 2,
-    "use_external_archive": False,
-}
 _OPERATOR_ALIASES = {"pm": "polynomial", "polynomial": "pm"}
 _BRIDGE_REQUIRED_OPERATORS = {"crossover", "mutation", "aggregation", "selection"}
 # Population size is a general setting of every Studio run, not a form field.
@@ -151,6 +138,7 @@ class AlgorithmForm:
             fields = [
                 config_field for config_field in config_fields_for(_bridge_name(name)) if config_field in merged and config_field in tuned
             ]
+            fields = fields[:1] if fields[:1] == ["mutation_prob_factor"] else fields  # the factor's field, where there is one
             # A change that leaves every field it determines untouched has no effect on the run.
             if not any(_canonical(tuned[config_field]) != _canonical(default_dict[config_field]) for config_field in fields):
                 unapplied.append(name)

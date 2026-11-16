@@ -1,0 +1,46 @@
+# The real-coded tuning space of SMPSO, with the constraint-handling technique.
+# Written once from the Python builders of VAMOS 1.3.0; maintained as YAML since then.
+schema: vamos.parameter-space
+schema_version: 1.0.0
+name: smpso_constrained
+algorithm: smpso
+encoding: real
+description: The real-coded tuning space of SMPSO, with the constraint-handling technique.
+parameters:
+  archive_size: {type: int, default: 100, range: [20, 200], log: true, role: population}
+  inertia: {type: real, default: 0.1, range: [0.1, 0.9], role: operator_rate}
+  c1: {type: real, default: 1.5, range: [0.5, 2.5], role: operator_rate}
+  c2: {type: real, default: 1.5, range: [0.5, 2.5], role: operator_rate}
+  vmax_fraction: {type: real, default: 0.5, range: [0.1, 1.0], role: operator_rate}
+  mutation_probability_factor: {type: real, default: 1.0, range: [0.25, 3.0], role: operator_rate}
+  polynomial_mutation_distribution_index: {type: real, default: 20.0, range: [5.0, 40.0], role: operator_rate}
+  external_archive:
+    type: categorical
+    default: none
+    role: adaptive
+    values:
+      none: {}
+      unbounded: {}
+      bounded:
+        conditional_parameters:
+          archive_prune_policy: {type: categorical, default: crowding, values: [crowding, hv, mc_hv, knn, maxmin, ref_dirs], role: adaptive}
+  constraint_handling:
+    type: categorical
+    default: cdp
+    role: structural
+    values:
+      cdp: {}
+      violated_constraints: {}
+      epsilon_constrained:
+        conditional_parameters:
+          epsilon_initial_quantile: {type: real, default: 0.2, range: [0.05, 0.95], role: operator_rate}
+          epsilon_exponent: {type: real, default: 5.0, range: [1.0, 10.0], role: operator_rate}
+          epsilon_decay_fraction: {type: real, default: 0.2, range: [0.1, 0.95], role: operator_rate}
+      push_pull:
+        conditional_parameters:
+          push_pull_change_threshold: {type: real, default: 0.001, range: [0.0001, 0.05], role: operator_rate}
+          push_pull_window_fraction: {type: real, default: 0.02, range: [0.01, 0.1], role: operator_rate}
+          push_pull_decay_fraction: {type: real, default: 0.8, range: [0.1, 0.95], role: operator_rate}
+          push_pull_exponent: {type: real, default: 2.0, range: [1.0, 10.0], role: operator_rate}
+          push_pull_feasibility_threshold: {type: real, default: 0.95, range: [0.5, 1.0], role: operator_rate}
+          push_pull_reduction_rate: {type: real, default: 0.1, range: [0.01, 0.5], role: operator_rate}

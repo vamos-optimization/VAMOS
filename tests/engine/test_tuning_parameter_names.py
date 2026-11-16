@@ -60,7 +60,9 @@ def _parse(line: str) -> dict[str, object]:
 
 
 def test_the_table_covers_every_parameter_of_the_request() -> None:
-    rows = {vamos: (canonical, evolver) for vamos, canonical, evolver in PARAMETER_NAMES}
+    rows: dict[str, tuple[str, str | None]] = {}
+    for vamos, canonical, evolver in PARAMETER_NAMES:
+        rows.setdefault(vamos, (canonical, evolver))
 
     assert rows["crossover_eta"] == ("sbx_distribution_index", "sbxDistributionIndex")
     assert rows["mutation_eta"] == ("polynomial_mutation_distribution_index", "polynomialMutationDistributionIndex")

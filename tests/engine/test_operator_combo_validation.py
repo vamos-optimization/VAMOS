@@ -335,7 +335,8 @@ def _operator_pairs(space: AlgorithmConfigSpace):
 
 
 def _inject_special_params(algo_name: str, assignment: dict[str, Any]) -> None:
-    """Inject algorithm-specific params that are not part of the config space."""
+    """Inject the run settings that are not part of the config space: the population, and RVEA's objectives."""
+    assignment.setdefault("pop_size", _INT_DEFAULTS["pop_size"])
     if algo_name in _RVEA_ALGOS:
         assignment.setdefault("n_obj", 2)
 
