@@ -93,6 +93,10 @@ _RESIDUALS: dict[str, Callable[[np.ndarray], np.ndarray]] = {
     "dtlz5": lambda F: np.maximum(np.abs(_sphere(F)), np.abs(F[:, 0] - F[:, 1])),
     "dtlz6": lambda F: np.maximum(np.abs(_sphere(F)), np.abs(F[:, 0] - F[:, 1])),
     "dtlz7": _dtlz7,
+    # With M = 2, DTLZ5 and DTLZ6 do not degenerate: their front is DTLZ2's quarter circle.
+    "dtlz1.2d": _sum(0.5),
+    **{f"dtlz{k}.2d": _sphere for k in range(2, 7)},
+    "dtlz7.2d": _dtlz7,
     "wfg1": _wfg1,
     "wfg2": _wfg2,
     "wfg3": lambda F: F[:, 0] / 2.0 + F[:, 1] / 4.0 - 1.0,
@@ -195,6 +199,32 @@ def _evaluate(problem: object, X: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     F, G = evaluate_population_with_constraints(problem, X)
     assert G is not None
     return np.asarray(F), np.asarray(G)
+
+
+def _two_objective_dtlz_designs(k: int, front: np.ndarray, n_var: int) -> np.ndarray:
+    """Pareto-optimal designs of DTLZ<k> with M = 2 whose objectives are ``front``."""
+    if k == 1:
+        position = 2.0 * front[:, 0]
+    elif k == 7:
+        position = front[:, 0]
+    else:
+        position = np.arctan2(front[:, 1], front[:, 0]) * 2.0 / np.pi
+        if k == 4:
+            position = position ** (1.0 / 100.0)
+    X = np.full((front.shape[0], n_var), 0.0 if k in (6, 7) else 0.5)
+    X[:, 0] = position
+    return X
+
+
+@pytest.mark.parametrize("k", range(1, 8))
+def test_two_objective_dtlz_fronts_are_reached_by_pareto_optimal_designs(k: int) -> None:
+    problem = make_problem_selection(f"dtlz{k}", n_obj=2).instantiate()
+    front = _load(f"dtlz{k}.2d")
+    assert front.shape[1] == 2
+
+    F, _ = evaluate_population_with_constraints(problem, _two_objective_dtlz_designs(k, front, problem.n_var))
+
+    assert np.max(np.abs(np.asarray(F) - front)) <= 1e-9
 
 
 @pytest.mark.parametrize(("name", "m"), CONSTRAINED_DTLZ_FRONTS)
@@ -422,6 +452,9 @@ def test_reference_fronts_are_chosen_by_number_of_objectives() -> None:
     assert resolved("c1dtlz1", 5) is None
     assert resolved("zcat1", 4) == "zcat1.4d.csv"
     assert resolved("dtlz2", None) == "dtlz2.csv"
+    for k in range(1, 8):
+        assert resolved(f"dtlz{k}", 2) == f"dtlz{k}.2d.csv"
+        assert resolved(f"dtlz{k}", 3) == f"dtlz{k}.csv"
     # WFG's packaged front has two objectives, and the problem three by default.
     assert resolved("wfg4", None) is None
     assert resolved("wfg4", 2) == "wfg4.csv"
