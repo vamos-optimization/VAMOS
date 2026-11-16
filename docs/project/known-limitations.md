@@ -144,7 +144,9 @@ unsupported behavior rather than future compatibility promises.
   research frameworks are no longer an extra (the `research` extra is removed).
 - **VAMOS 1.2.0:** the release CI claims Python 3.10 to 3.14 on
   Linux, and Python 3.12 to 3.14 on Windows and macOS; VAMOS 1.1.0 claimed
-  Python 3.10 to 3.12 on Linux and 3.12 on Windows and macOS. Other
+  Python 3.10 to 3.12 on Linux and 3.12 on Windows and macOS.
+  **Development after 1.2.1:** VAMOS requires Python 3.11 or newer, and the
+  release CI claims Python 3.11 to 3.14 on Linux. Other
   interpreter/platform combinations are unclaimed. The tuning extra is tested
   only on Linux with Python 3.12.
 

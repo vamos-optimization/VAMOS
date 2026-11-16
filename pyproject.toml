@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "vamos-optimization"
 dynamic = ["version"]
 description = "Vectorized Architecture for Multiobjective Optimization Studies"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [
@@ -33,7 +33,6 @@ classifiers = [
   "Intended Audience :: Science/Research",
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
@@ -42,10 +41,9 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Mathematics",
 ]
 dependencies = [
-  "numpy>=1.23",
+  "numpy>=1.23.2",
   "scipy>=1.10",
   "joblib>=1.3",
-  "typing-extensions>=4.0.0",
 ]
 readme = { file = "README.md", content-type = "text/markdown" }
 
@@ -98,9 +96,7 @@ examples = [
 docs = [
   "mkdocs>=1.6",
   "mkdocs-material>=9.7.7",
-  "mkdocstrings[python]>=1.0.6,<1.0.7; python_version < '3.11'",
-  "pymdown-extensions<12.2; python_version < '3.11'",
-  "mkdocstrings[python]>=1.0.8; python_version >= '3.11'",
+  "mkdocstrings[python]>=1.0.8",
   "jinja2>=3.1",
 ]
 openai = [
@@ -114,7 +110,6 @@ gemini = [
 ]
 # Development and documentation
 dev = [
-  "tomli>=1.1.0; python_version < '3.11'",
   "pytest>=9.0.3",
   "pytest-cov>=4.1",
   "pytest-xdist>=3.5",
@@ -125,9 +120,7 @@ dev = [
   "wheel>=0.46.2",
   "mkdocs>=1.6",
   "mkdocs-material>=9.7.7",
-  "mkdocstrings[python]>=1.0.6,<1.0.7; python_version < '3.11'",
-  "pymdown-extensions<12.2; python_version < '3.11'",
-  "mkdocstrings[python]>=1.0.8; python_version >= '3.11'",
+  "mkdocstrings[python]>=1.0.8",
   "nbformat>=5.9",
   "nbconvert>=7.17.1",
   "jinja2>=3.1",
@@ -281,7 +274,7 @@ where = ["src"]
 
 [tool.ruff]
 line-length = 140
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.format]
 line-ending = "auto"
@@ -296,4 +289,5 @@ ignore = [
     "B905",  # zip() without strict= - existing codebase pattern
     "C408",  # Unnecessary dict() call - dict() reads better in plotly marker kwargs
     "UP038",  # Tuple form keeps isinstance checks readable for mixed runtime types
+    "UP042",  # A str mixin Enum keeps its str() and format(); StrEnum would change them
 ]
