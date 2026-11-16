@@ -200,6 +200,43 @@ def test_every_algorithm_with_an_external_archive_reports_its_final_subset(algor
     assert result.data["archive_subset"]["selection"] == "crowding"
 
 
+@pytest.mark.parametrize(("algorithm", "config_factory"), ALGORITHMS, ids=[name for name, _ in ALGORITHMS])
+def test_every_saved_run_keeps_the_whole_external_archive(algorithm: str, config_factory: Callable[[], Any], tmp_path: Path) -> None:
+    # X and F hold the final subset, so the artifact must keep the whole external archive elsewhere: SPEA2's
+    # "archive" is its environmental archive, and its external archive is "external_archive".
+    result = _run(_with_archive(config_factory()), algorithm=algorithm, evaluations=400)
+    stored = vamos.save_result(result, tmp_path / "run")
+    loaded = vamos.load_result(stored.root)
+
+    np.testing.assert_array_equal(loaded.F, result.F)
+    np.testing.assert_array_equal(_archive(loaded), _archive(result))
+    np.testing.assert_array_equal(_archive(loaded, "X"), _archive(result, "X"))
+    if algorithm == "spea2":
+        np.testing.assert_array_equal(loaded.data["archive"]["F"], result.data["archive"]["F"])
+        assert vamos.verify_run(stored.root).effective_replayability == "exact"
+        assert vamos.reproduce(stored.root, output=tmp_path / "replay").exact
+
+
+def test_a_spea2_population_result_keeps_its_external_archive_in_the_artifact(tmp_path: Path) -> None:
+    config = dataclasses.replace(_with_archive(SPEA2Config.default(pop_size=8, n_var=6)), result_mode="population")
+    result = _run(config, algorithm="spea2", evaluations=400)
+    stored = vamos.save_result(result, tmp_path / "run")
+    loaded = vamos.load_result(stored.root)
+
+    np.testing.assert_array_equal(loaded.F, result.data["population"]["F"])
+    np.testing.assert_array_equal(loaded.data["external_archive"]["F"], result.data["external_archive"]["F"])
+    assert vamos.reproduce(stored.root, output=tmp_path / "replay").exact
+
+
+def test_a_spea2_result_that_holds_its_external_archive_saves_it_once(tmp_path: Path) -> None:
+    config = dataclasses.replace(SPEA2Config.default(pop_size=8, n_var=6), external_archive=ExternalArchiveConfig(capacity=None))
+    result = _run(dataclasses.replace(config, result_mode="non_dominated"), algorithm="spea2", evaluations=400)
+    loaded = vamos.load_result(vamos.save_result(result, tmp_path / "run").root)
+
+    np.testing.assert_array_equal(loaded.F, result.data["external_archive"]["F"])
+    assert "external_archive" not in loaded.data
+
+
 def test_the_artifact_keeps_the_whole_archive_and_records_the_selection(tmp_path: Path) -> None:
     result = _run(_nsgaii(final_size=10, final_selection="farthest"))
     stored = vamos.save_result(result, tmp_path / "run")
