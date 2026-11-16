@@ -24,8 +24,10 @@ from .param_space import Int, ParamType, Real
 
 
 def _core_part() -> SpacePart:
+    # The requested population: RVEA runs the largest Das-Dennis lattice with at most that many
+    # directions for the problem's number of objectives, so the population scales with it.
     params: list[ParamType] = [
-        Int("n_partitions", 4, 12, role="structural"),
+        Int("pop_size", 20, 200, log=True, role="population"),
         Real("alpha", 1.0, 4.0, role="operator_rate"),
         Real("adapt_freq", 0.05, 0.3, role="adaptive"),
     ]

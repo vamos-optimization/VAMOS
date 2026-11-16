@@ -5,14 +5,18 @@ from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
+import numpy.typing as npt
 
 if TYPE_CHECKING:  # pragma: no cover
     from .state import ConfigState
 
+FloatArray = npt.NDArray[np.float64]
+BoolArray = npt.NDArray[np.bool_]
+
 
 def build_score_matrix(
     configs: Sequence[ConfigState],
-) -> tuple[np.ndarray, list[int]]:
+) -> tuple[FloatArray, list[int]]:
     """
     Build a score matrix from the given configs, trimmed to the minimum history
     length across alive configs.
@@ -28,7 +32,7 @@ def build_score_matrix(
             rows in the returned score matrix (i.e., only alive configs with
             at least one score).
     """
-    rows: list[np.ndarray] = []
+    rows: list[FloatArray] = []
     alive_indices: list[int] = []
 
     for idx, state in enumerate(configs):
@@ -107,12 +111,12 @@ def _get_p_value(t_stat: float, df: int) -> float:
 
 
 def select_configs_by_paired_test(
-    scores: np.ndarray,
+    scores: FloatArray,
     maximize: bool,
     alpha: float,
     *,
     aggregator: Callable[[list[float]], float] | None = None,
-) -> np.ndarray:
+) -> BoolArray:
     """
     Perform pairwise t-tests against the best configuration with Holm-Bonferroni correction.
 
@@ -192,7 +196,83 @@ def select_configs_by_paired_test(
     return keep
 
 
-def vargha_delaney_a12(a: np.ndarray, b: np.ndarray) -> float:
+def _wilcoxon_signed_rank(differences: FloatArray) -> tuple[float, float]:
+    """Paired Wilcoxon signed-rank test, as R's ``wilcox.test(exact=FALSE)``.
+
+    Zero differences are dropped; the normal approximation corrects for ties and continuity.
+    Returns the two-sided p-value and the signed-rank statistic of the remaining differences: the
+    sum of the ranks of the positive ones minus the sum of the ranks of the negative ones. Its sign
+    says which way the test leans, and it is zero when the two sums balance.
+    """
+    from scipy.stats import norm, rankdata
+
+    d = differences[differences != 0.0]
+    n = int(d.size)
+    if n == 0:
+        return 1.0, 0.0
+    ranks = rankdata(np.abs(d))
+    signed_rank = float(ranks[d > 0.0].sum()) - float(ranks[d < 0.0].sum())
+    _, counts = np.unique(ranks, return_counts=True)
+    variance = n * (n + 1) * (2 * n + 1) / 24.0 - float(np.sum(counts**3 - counts)) / 48.0
+    if variance <= 0.0:
+        return 1.0, signed_rank
+    # Half the statistic is the sum of the positive ranks minus its mean, n * (n + 1) / 4.
+    centred = 0.5 * signed_rank
+    z = (centred - 0.5 * math.copysign(1.0, centred)) / math.sqrt(variance) if centred else 0.0
+    return float(min(1.0, 2.0 * norm.sf(abs(z)))), signed_rank
+
+
+def select_configs_by_frace(scores: FloatArray, maximize: bool, alpha: float) -> BoolArray:
+    """Configurations that survive one F-race test (Birattari et al., 2002), as irace runs it.
+
+    ``scores`` has one row per configuration and one column per block (instance and seed). Each
+    block ranks the configurations, with average ranks for ties, so blocks on different scales
+    weigh the same. With two configurations, a paired Wilcoxon signed-rank test decides: when its
+    p-value is below ``alpha``, it eliminates the configuration that the signed ranks of the nonzero
+    differences find worse, and blocks where the two tie count for neither. With more,
+    a Friedman test on the ranks comes first; when its p-value is below ``alpha``, Conover's
+    post-hoc comparison keeps the configuration with the best rank sum and every configuration
+    whose rank sum is within the critical difference of it (Conover, *Practical Nonparametric
+    Statistics*, 1999, pp. 369-371; irace's ``aux.friedman``).
+
+    Returns a boolean mask that is true for the configurations to keep.
+    """
+    from scipy.stats import chi2, rankdata, t
+
+    n_configs, n_blocks = scores.shape
+    keep = np.ones(n_configs, dtype=bool)
+    if n_configs <= 1 or n_blocks <= 1:
+        return keep
+    # Lower is better from here on.
+    oriented = -scores if maximize else scores
+    if n_configs == 2:
+        p_value, signed_rank = _wilcoxon_signed_rank(oriented[0] - oriented[1])
+        # A positive statistic means the first configuration scored higher, that is worse.
+        if p_value < alpha and signed_rank != 0.0:
+            keep[0 if signed_rank > 0.0 else 1] = False
+        return keep
+
+    ranks = np.vstack([rankdata(oriented[:, block]) for block in range(n_blocks)])  # blocks x configurations
+    rank_sums = ranks.sum(axis=0)
+    ties = sum(float(np.sum(counts**3 - counts)) for counts in (np.unique(row, return_counts=True)[1] for row in ranks))
+    expected = n_blocks * (n_configs + 1) / 2.0
+    denominator = n_blocks * n_configs * (n_configs + 1) - ties / (n_configs - 1)
+    if denominator <= 0.0:
+        return keep
+    statistic = 12.0 * float(np.sum((rank_sums - expected) ** 2)) / denominator
+    if not float(chi2.sf(statistic, n_configs - 1)) < alpha:
+        return keep
+
+    df = (n_blocks - 1) * (n_configs - 1)
+    spread = 2.0 * (n_blocks * float(np.sum(ranks**2)) - float(np.sum(rank_sums**2))) / df
+    critical = float(t.ppf(1.0 - alpha / 2.0, df)) * math.sqrt(max(spread, 0.0))
+    best = int(np.argmin(rank_sums))
+    keep = rank_sums - rank_sums[best] <= critical
+    keep[best] = True
+    return np.asarray(keep, dtype=bool)
+
+
+def vargha_delaney_a12(a: npt.ArrayLike, b: npt.ArrayLike) -> float:
     """Compute Vargha-Delaney A12 effect size.
 
     A12 = P(a > b) + 0.5 * P(a == b)
@@ -236,6 +316,7 @@ def a12_magnitude(a12: float) -> str:
 __all__ = [
     "a12_magnitude",
     "build_score_matrix",
+    "select_configs_by_frace",
     "select_configs_by_paired_test",
     "vargha_delaney_a12",
 ]

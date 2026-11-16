@@ -6,9 +6,10 @@ import hmac
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, Protocol
 
 from vamos.experiment.artifacts.jsonio import sha256_bytes
+from vamos.experiment.artifacts.models import LoadLimits
 
 from .decoding import decode_manifest, decode_plan, decode_spec
 from .errors import (
@@ -54,21 +55,65 @@ class _ReadBudget:
         )
 
 
-def load_study(path: str | Path, *, limits: StudyLoadLimits | None = None) -> Study:
-    """Load and fully verify one canonical study without executing code."""
-    return _load_study(path, limits=limits, run_verification="all", tolerate_run_errors=False)
+StudyVerification = Literal["all", "metadata"]
+
+
+def load_study(
+    path: str | Path,
+    *,
+    limits: StudyLoadLimits | None = None,
+    verify: StudyVerification = "all",
+    run_limits: LoadLimits | None = None,
+) -> Study:
+    """Load one canonical study without executing code.
+
+    ``verify="all"`` verifies every referenced run completely, and a damaged or missing run raises.
+    ``verify="metadata"`` checks each run's manifest and artifact hashes without loading its arrays,
+    and keeps a damaged or missing run out of the handle so that ``inspect()`` and ``summarize()``
+    report it as an issue. Running work always reloads with complete verification. The returned
+    handle keeps ``limits`` and ``run_limits`` (the bounds for the study's runs) for every reload.
+    """
+    if verify not in ("all", "metadata"):
+        raise ValueError("verify must be 'all' or 'metadata'.")
+    return _load_study(
+        path,
+        limits=limits,
+        run_limits=run_limits,
+        run_verification=verify,
+        tolerate_run_errors=verify == "metadata",
+    )
+
+
+class Reloadable(Protocol):
+    """A study handle or an execution's state: a root and the limits it was loaded with."""
+
+    @property
+    def root(self) -> Path: ...
+
+    @property
+    def limits(self) -> StudyLoadLimits: ...
+
+    @property
+    def run_limits(self) -> LoadLimits: ...
+
+
+def reload_study(source: Reloadable) -> Study:
+    """Load ``source``'s study again, completely verified, with the limits it was loaded with."""
+    return load_study(source.root, limits=source.limits, run_limits=source.run_limits)
 
 
 def load_study_projection(
     path: str | Path,
     *,
     limits: StudyLoadLimits | None = None,
+    run_limits: LoadLimits | None = None,
     observe_run_reference: ObserveRunReference | None = None,
 ) -> Study:
     """Load a report projection with metadata-only, issue-tolerant run checks."""
     return _load_study(
         path,
         limits=limits,
+        run_limits=run_limits,
         run_verification="metadata",
         tolerate_run_errors=True,
         observe_run_reference=observe_run_reference,
@@ -79,11 +124,13 @@ def _load_study(
     path: str | Path,
     *,
     limits: StudyLoadLimits | None,
+    run_limits: LoadLimits | None,
     run_verification: RunVerification,
     tolerate_run_errors: bool,
     observe_run_reference: ObserveRunReference | None = None,
 ) -> Study:
     configured = limits or StudyLoadLimits()
+    configured_runs = run_limits or LoadLimits()
     root = _root(path)
     budget = _ReadBudget(configured)
     manifest_raw, _ = _read(root, "study-manifest.json", "study_manifest", configured.max_manifest_bytes, budget)
@@ -119,6 +166,7 @@ def _load_study(
         configured,
         read,
         run_verification=run_verification,
+        run_limits=configured_runs,
         tolerate_run_errors=tolerate_run_errors,
         observe_run_reference=observe_run_reference,
     )
@@ -131,6 +179,7 @@ def _load_study(
         attempts,
         events,
         run_verification=run_verification,
+        run_limits=configured_runs,
         tolerate_run_errors=tolerate_run_errors,
         observe_run_reference=observe_run_reference,
     )
@@ -148,6 +197,8 @@ def _load_study(
         stored_checkpoint_sequence=manifest.checkpoint_sequence,
         stored_checkpoint_event_sha256=manifest.checkpoint_event_sha256,
         reconciliation_required=reconciliation_required,
+        limits=configured,
+        run_limits=configured_runs,
     )
 
 
@@ -345,4 +396,4 @@ def _unexpected(role: str, expected: object, actual: object, *, reason: str = "U
     )
 
 
-__all__ = ["load_study", "load_study_projection"]
+__all__ = ["Reloadable", "StudyVerification", "load_study", "load_study_projection", "reload_study"]

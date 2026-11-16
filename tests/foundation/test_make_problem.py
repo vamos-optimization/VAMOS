@@ -399,7 +399,7 @@ def _raises_section() -> str:
     ],
 )
 def test_make_problem_raises_documented_exceptions(kwargs: dict[str, object], expected: type[Exception]) -> None:
-    """Every invalid input raises a VAMOSError named in the Raises section (VR-089)."""
+    """Every invalid input raises a VAMOSError named in the Raises section."""
     from vamos.exceptions import VAMOSError
 
     arguments: dict[str, object] = {"fn": lambda x: [x[0], x[1]], "n_var": 2, "n_obj": 2, **kwargs}
@@ -411,7 +411,7 @@ def test_make_problem_raises_documented_exceptions(kwargs: dict[str, object], ex
 
 
 def test_make_problem_accepts_numpy_integers() -> None:
-    """Dimensions accept any integral type, as optimize does (VR-089)."""
+    """Dimensions accept any integral type, as optimize does."""
     problem = make_problem(
         lambda x: [x[0], x[1]],
         n_var=np.int64(2),

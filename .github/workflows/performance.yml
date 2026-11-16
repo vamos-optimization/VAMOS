@@ -38,11 +38,11 @@ jobs:
             pip install -c constraints/ci.txt -e ".[dev,compute]"
           fi
 
-      - name: Benchmark smoke
+      - name: Kernel benchmark smoke (timings informational)
         run: |
           python tools/benchmark_kernels.py --smoke --output artifacts/performance/kernel_smoke.json
 
-      - name: Cross-framework smoke
+      - name: Cross-framework smoke (scheduled only)
         if: github.event_name == 'schedule'
         run: |
           python tools/benchmark_compare_pymoo.py \
@@ -54,19 +54,9 @@ jobs:
             --output artifacts/performance/pymoo_comparison_smoke.json \
             --markdown artifacts/performance/pymoo_comparison_smoke.md
 
-      - name: Compare against baseline (scheduled only)
-        if: github.event_name == 'schedule'
-        run: |
-          if [ -f tests/performance/baselines/kernel_smoke_ubuntu_py310.json ]; then
-            python tools/benchmark_kernels.py \
-              --smoke \
-              --output artifacts/performance/kernel_smoke_compare.json \
-              --baseline tests/performance/baselines/kernel_smoke_ubuntu_py310.json
-          else
-            echo "No committed performance baseline found; skipping regression compare."
-          fi
-
-      - name: Seeded cross-framework report (scheduled only)
+      # Fails when the median hypervolume of VAMOS falls more than 5% below pymoo's for a case and an
+      # algorithm, with the same seeds. Shared runners time too noisily to gate on, so runtimes stay informational.
+      - name: Seeded cross-framework quality check (scheduled only)
         if: github.event_name == 'schedule'
         run: |
           python tools/benchmark_compare_pymoo.py \
@@ -74,10 +64,12 @@ jobs:
             --algorithms nsgaii moead \
             --seeds 42 1337 2024 \
             --engine numba \
+            --fail-below 5 \
             --output artifacts/performance/pymoo_comparison_nightly.json \
             --markdown artifacts/performance/pymoo_comparison_nightly.md
 
       - name: Upload benchmark artifacts
+        if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: kernel-benchmarks

@@ -66,6 +66,7 @@ def load_records(
     read: ReadDocument,
     *,
     run_verification: RunVerification = "all",
+    run_limits: LoadLimits | None = None,
     tolerate_run_errors: bool = False,
     observe_run_reference: ObserveRunReference | None = None,
 ) -> tuple[tuple[TaskRecord, ...], tuple[AttemptRecord, ...]]:
@@ -89,6 +90,7 @@ def load_records(
             limits,
             read,
             run_verification=run_verification,
+            run_limits=run_limits,
             tolerate_run_errors=tolerate_run_errors,
             observe_run_reference=observe_run_reference,
         )
@@ -106,6 +108,7 @@ def validate_run_reference(
     expected_task_id: str,
     expected_status: str | None = None,
     verification: RunVerification = "all",
+    run_limits: LoadLimits | None = None,
 ) -> StoredRun:
     """Validate an approved bounded reference and its complete canonical run."""
     run_id = reference.get("run_id")
@@ -154,11 +157,11 @@ def validate_run_reference(
             action="Restore the referenced canonical run directory.",
         ) from exc
     try:
-        run_limits = LoadLimits()
+        bounds = run_limits or LoadLimits()
         stored = load_run(
             manifest_path.parent,
             verify="all" if verification == "all" else "manifest",
-            limits=run_limits,
+            limits=bounds,
         )
         if verification == "metadata":
             for descriptor in stored.manifest.artifacts:
@@ -167,7 +170,7 @@ def validate_run_reference(
                 verify_artifact(
                     stored.root,
                     descriptor,
-                    limits=run_limits,
+                    limits=bounds,
                     operation="inspect study run reference",
                 )
     except RunArtifactError as exc:
@@ -245,6 +248,7 @@ def _load_attempts(
     read: ReadDocument,
     *,
     run_verification: RunVerification,
+    run_limits: LoadLimits | None,
     tolerate_run_errors: bool,
     observe_run_reference: ObserveRunReference | None,
 ) -> tuple[_LoadedAttempt, ...]:
@@ -275,6 +279,7 @@ def _load_attempts(
                 attempt,
                 expected_status=expected_status,
                 verification=run_verification,
+                run_limits=run_limits,
                 tolerate_errors=tolerate_run_errors,
                 observer=observe_run_reference,
             )
@@ -296,6 +301,7 @@ def validate_observed_run(
     verification: RunVerification,
     tolerate_errors: bool,
     observer: ObserveRunReference | None,
+    run_limits: LoadLimits | None = None,
 ) -> StoredRun | None:
     """Validate one run reference and optionally report a typed issue."""
     try:
@@ -305,6 +311,7 @@ def validate_observed_run(
             expected_task_id=expected_task_id,
             expected_status=expected_status,
             verification=verification,
+            run_limits=run_limits,
         )
     except StudyError as exc:
         if observer is not None:
@@ -323,6 +330,7 @@ def _validate_observed_run(
     *,
     expected_status: str | None,
     verification: RunVerification,
+    run_limits: LoadLimits | None,
     tolerate_errors: bool,
     observer: ObserveRunReference | None,
 ) -> None:
@@ -338,6 +346,7 @@ def _validate_observed_run(
         verification=verification,
         tolerate_errors=tolerate_errors,
         observer=observer,
+        run_limits=run_limits,
     )
 
 

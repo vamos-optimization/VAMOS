@@ -551,7 +551,7 @@ def test_tuning_space_builds_two_parent_configurations() -> None:
         assert isinstance(config, CTAEAConfig)
         name, params = config.crossover
         seen.add(name)
-        assert params["prob"] == assignment["crossover_prob"]
+        assert params["prob"] == assignment["crossover_probability"]
         assert 20 <= config.pop_size <= 200
     assert seen == {"sbx", "blx_alpha", "arithmetic"}
 

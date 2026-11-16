@@ -15,6 +15,7 @@ from vamos.engine.algorithm.registry import (
     resolve_algorithm,
     resolve_builtin_algorithm,
 )
+from vamos.experiment.time_limit import UNBOUNDED_EVALUATIONS, TimeLimit, parse_time_limit
 from vamos.experiment.types import CheckpointPayload, LiveVisualization, TerminationSpec
 from vamos.foundation.eval import EvaluationBackend
 from vamos.foundation.eval.backends import resolve_eval_strategy
@@ -141,10 +142,16 @@ def _run_config(
     if not isinstance(config, _OptimizeConfig):
         raise ConfigurationError("_run_config() expects an internal optimize config instance.")
     cfg = config
+    # A time limit runs as an evaluation budget, its cap or none, that a TimeLimit callback cuts short.
+    termination = cfg.termination
+    seconds: float | None = None
+    if termination[0] == "max_time":
+        seconds, cap = parse_time_limit(termination[1])
+        termination = ("max_evaluations", UNBOUNDED_EVALUATIONS if cap is None else cap)
 
     cfg_dict = _normalize_cfg(cfg.algorithm_config)
     _validate_algorithm_config(cfg_dict)
-    _validate_budget_covers_population(cfg_dict, cfg.termination, cfg.algorithm or "", getattr(cfg.problem, "n_obj", None))
+    _validate_budget_covers_population(cfg_dict, termination, cfg.algorithm or "", getattr(cfg.problem, "n_obj", None))
     if "engine" in cfg_dict:
         raise ConfigurationError("engine must be configured via optimize(engine=...) rather than algorithm_config.")
     algorithm_raw = cfg.algorithm or ""
@@ -179,13 +186,14 @@ def _run_config(
     else:
         backend_name = str(cfg_dict.get("eval_strategy", "serial"))
         backend = resolve_eval_strategy(backend_name)
+    time_limit = None if seconds is None else TimeLimit(seconds, cfg.live_viz)
     try:
         result = run_fn(
             problem=cfg.problem,
-            termination=cfg.termination,
+            termination=termination,
             seed=cfg.seed,
             eval_strategy=backend,
-            live_viz=cfg.live_viz,
+            live_viz=cfg.live_viz if time_limit is None else time_limit,
             **run_kwargs,
         )
     finally:
@@ -193,16 +201,16 @@ def _run_config(
             backend.close()
     from .optimization_result import OptimizationResult
 
-    return OptimizationResult(
-        result,
-        meta={
-            "algorithm": algorithm_name,
-            "engine": effective_engine,
-            "kernel_backend": kernel.name,
-            "seed": cfg.seed,
-            "termination": cfg.termination,
-        },
-    )
+    meta: dict[str, Any] = {
+        "algorithm": algorithm_name,
+        "engine": effective_engine,
+        "kernel_backend": kernel.name,
+        "seed": cfg.seed,
+        "termination": cfg.termination,
+    }
+    if time_limit is not None:
+        meta["time_limit_reached"] = time_limit.reached
+    return OptimizationResult(result, meta=meta)
 
 
 def _build_algorithm_config(

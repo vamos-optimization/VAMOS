@@ -129,6 +129,18 @@ def _mutation_prob_factor(value: object) -> float:
     return float(value)
 
 
+def apply_mutation_prob_factor(mut_params: Mapping[str, Any], n_var: int, factor: object) -> dict[str, Any]:
+    """``mut_params`` with ``prob = factor / n_var``, capped at 1, when the configuration sets ``mutation_prob_factor``.
+
+    This is how NSGA-II and IBEA read the field (see :func:`prepare_mutation_params`); without a
+    factor, the parameters come back unchanged.
+    """
+    params = dict(mut_params)
+    if factor is not None:
+        params["prob"] = min(1.0, _mutation_prob_factor(factor) / max(1, n_var))
+    return params
+
+
 def prepare_mutation_params(
     mut_params: dict[str, float | int | str | None],
     encoding: EncodingLike,
@@ -149,7 +161,7 @@ def prepare_mutation_params(
     aliased_factor = params.pop("mutation_prob_factor", None)
     factor = next((value for value in (prob_factor, keyed_factor, aliased_factor) if value is not None), None)
     if factor is not None:
-        params["prob"] = min(1.0, _mutation_prob_factor(factor) / max(1, n_var))
+        params = apply_mutation_prob_factor(params, n_var, factor)
     elif "prob" in params:
         params["prob"] = resolve_prob_expression(params["prob"], n_var, 1.0)
     else:
@@ -337,6 +349,7 @@ __all__ = [
     "THREE_PARENT_REAL_CROSSOVERS",
     "validate_pairwise_real_operators",
     "resolve_prob_expression",
+    "apply_mutation_prob_factor",
     "prepare_mutation_params",
     "validate_operator_support",
     "ensure_supported_operator_names",

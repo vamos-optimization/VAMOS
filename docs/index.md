@@ -89,4 +89,20 @@ For precise signatures and configuration contracts, use the [API reference](refe
 
 ## Project and citation
 
+If you use VAMOS in published work, cite the paper that describes it, published in *Neurocomputing* ([doi:10.1016/j.neucom.2026.135657](https://doi.org/10.1016/j.neucom.2026.135657)):
+
+```bibtex
+@article{uribe2026vamos,
+  title   = {{VAMOS}: A framework for fast, configurable and accessible multiobjective optimization in python},
+  author  = {Uribe, Nicol{\'a}s R. and Herr{\'a}n, Alberto and Nebro, Antonio J. and Del Ser, Javier and Colmenar, J. Manuel},
+  journal = {Neurocomputing},
+  pages   = {135657},
+  year    = {2026},
+  month   = nov,
+  issn    = {0925-2312},
+  doi     = {10.1016/j.neucom.2026.135657},
+  url     = {https://doi.org/10.1016/j.neucom.2026.135657}
+}
+```
+
 Citation metadata is maintained in [`CITATION.cff`](https://github.com/vamos-optimization/VAMOS/blob/main/CITATION.cff). Security policy and supported reporting channels are maintained in [`SECURITY.md`](https://github.com/vamos-optimization/VAMOS/blob/main/SECURITY.md). See [Known limitations](project/known-limitations.md), the [roadmap](roadmap.md), and [repository governance](project/repository-governance.md) for project-level information.

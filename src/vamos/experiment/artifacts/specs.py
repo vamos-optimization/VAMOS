@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from importlib import metadata as importlib_metadata
 from typing import Any
 
+from vamos.experiment.time_limit import parse_time_limit
 from vamos.foundation.problem.builder import FunctionalProblem
 from vamos.foundation.problem.registry import get_problem_specs, make_problem_selection
 
@@ -64,6 +65,9 @@ class RunSpecInputs:
     default_sources: Mapping[str, str]
     #: Module and qualified name of the user code behind a problem that is not a registry problem.
     problem_code: tuple[str, str] | None = None
+    #: The explicit algorithm configuration as the caller gave it, when ``algorithm_config`` resolves values
+    #: that the request leaves to the run (an external archive's seed derived from the run seed).
+    algorithm_config_requested: Mapping[str, object] | None = None
 
 
 def is_registry_problem(requested: object, instance: object, label: str) -> bool:
@@ -136,7 +140,8 @@ def _requested_spec(inputs: RunSpecInputs) -> dict[str, Any]:
     if inputs.pop_size_requested is not None:
         defaults["population_size"] = inputs.pop_size_requested
     if inputs.algorithm_config_explicit:
-        requested["algorithms"] = {inputs.algorithm: dict(inputs.algorithm_config)}
+        config = inputs.algorithm_config if inputs.algorithm_config_requested is None else inputs.algorithm_config_requested
+        requested["algorithms"] = {inputs.algorithm: dict(config)}
     return requested
 
 
@@ -189,9 +194,11 @@ def _resolved_spec(inputs: RunSpecInputs) -> dict[str, Any]:
         },
         "defaults_applied": defaults_applied,
         "determinism": {
+            # A wall-clock limit stops a run after a number of evaluations that depends on the machine.
             "declared": _is_deterministic(inputs.engine, inputs.eval_strategy)
             and inputs.problem_built_in
-            and not _contains_executable(inputs.algorithm_config),
+            and not _contains_executable(inputs.algorithm_config)
+            and inputs.termination[0] != "max_time",
             "rng": "numpy.random.Generator/PCG64",
         },
     }
@@ -284,6 +291,9 @@ def _termination_component(termination: tuple[str, object]) -> dict[str, Any]:
     config: dict[str, Any]
     if name == "max_evaluations":
         config = {"max_evaluations": raw_value, "hard_max_evaluations": raw_value}
+    elif name == "max_time":
+        seconds, cap = parse_time_limit(raw_value)
+        config = {"seconds": seconds, "max_evaluations": cap}
     elif isinstance(raw_value, Mapping):
         config = dict(raw_value)
     else:

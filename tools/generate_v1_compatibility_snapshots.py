@@ -600,8 +600,60 @@ def _extends_constructor(frozen: str, generated: str, added: Sequence[str]) -> b
     return plain and trailing == list(added) and len(arguments.defaults) >= len(added)
 
 
+def _parameters(signature: str) -> list[tuple[str, str, str | None]] | None:
+    """``(name, kind, default source)`` of each parameter of a recorded signature, in order; None if unparsable."""
+    try:
+        definition = ast.parse(f"def _function{signature}: pass").body[0]
+    except SyntaxError:
+        return None
+    if not isinstance(definition, ast.FunctionDef):
+        return None
+    arguments = definition.args
+    positional = [*arguments.posonlyargs, *arguments.args]
+    defaults: list[ast.expr | None] = [None] * (len(positional) - len(arguments.defaults)) + list(arguments.defaults)
+    parameters: list[tuple[str, str, str | None]] = [
+        (
+            argument.arg,
+            "positional_only" if index < len(arguments.posonlyargs) else "positional",
+            None if default is None else ast.unparse(default),
+        )
+        for index, (argument, default) in enumerate(zip(positional, defaults))
+    ]
+    if arguments.vararg is not None:
+        parameters.append((arguments.vararg.arg, "var_positional", None))
+    parameters += [
+        (argument.arg, "keyword_only", None if default is None else ast.unparse(default))
+        for argument, default in zip(arguments.kwonlyargs, arguments.kw_defaults)
+    ]
+    if arguments.kwarg is not None:
+        parameters.append((arguments.kwarg.arg, "var_keyword", None))
+    return parameters
+
+
+def _adds_keyword_arguments(frozen: str, generated: str) -> bool:
+    """Whether a stable callable's signature is the frozen one plus keyword-only arguments with defaults.
+
+    A stable function or method may gain optional keyword-only arguments during 1.x (see
+    ``docs/project/stability-and-versioning.md``): every call that worked keeps working. Each frozen
+    parameter keeps its name, kind, default and order; a removed, renamed, reordered or retyped
+    parameter, a new positional one, or a new one without a default changes the contract.
+    """
+    before = _parameters(frozen)
+    after = _parameters(generated)
+    if before is None or after is None:
+        return False
+    names = {name for name, _, _ in before}
+    new = [parameter for parameter in after if parameter[0] not in names]
+    kept = [parameter for parameter in after if parameter[0] in names]
+    return bool(new) and kept == before and all(kind == "keyword_only" and default is not None for _, kind, default in new)
+
+
 def _keeps_frozen_api(frozen: Mapping[str, Any], generated: Mapping[str, Any], added: Mapping[str, Sequence[str]]) -> bool:
-    """Whether the API snapshot is the frozen one, but for the constructors of configuration classes with added fields."""
+    """Whether the API snapshot is the frozen one, but for added optional arguments.
+
+    Configuration classes with added fields extend their constructors, and any stable callable may
+    gain optional keyword-only arguments.
+    """
     frozen_signatures = frozen.get("signatures", {})
     signatures = generated.get("signatures", {})
     if {key: value for key, value in frozen.items() if key != "signatures"} != {
@@ -609,7 +661,9 @@ def _keeps_frozen_api(frozen: Mapping[str, Any], generated: Mapping[str, Any], a
     } or frozen_signatures.keys() != signatures.keys():
         return False
     return all(
-        signatures[key] == signature or _extends_constructor(signature, signatures[key], added.get(key.rsplit(".", 1)[-1], ()))
+        signatures[key] == signature
+        or _extends_constructor(signature, signatures[key], added.get(key.rsplit(".", 1)[-1], ()))
+        or _adds_keyword_arguments(signature, signatures[key])
         for key, signature in frozen_signatures.items()
     )
 

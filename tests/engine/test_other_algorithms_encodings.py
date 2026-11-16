@@ -144,7 +144,7 @@ _DISCRETE_ALGORITHMS = ("agemoea", "ibea", "moead", "nsgaii", "nsgaiii", "rvea",
 @pytest.mark.parametrize("encoding", sorted(_ADVERTISED_PROBLEMS))
 @pytest.mark.parametrize("algorithm", _DISCRETE_ALGORITHMS)
 def test_advertised_operator_methods_work_for_every_algorithm(algorithm: str, encoding: str) -> None:
-    """Every name that available_*_methods advertises runs with every algorithm of the encoding (VR-109)."""
+    """Every name that available_*_methods advertises runs with every algorithm of the encoding."""
     import dataclasses
 
     import vamos

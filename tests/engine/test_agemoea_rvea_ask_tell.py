@@ -307,7 +307,7 @@ class TestRVEAAskTell:
 
 
 # ---------------------------------------------------------------------------
-# Probability expressions (review finding VR-021)
+# Probability expressions
 # ---------------------------------------------------------------------------
 
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any, cast
 
@@ -25,6 +25,7 @@ from vamos.engine.algorithm.config import (
 from vamos.engine.algorithm.config.types import AlgorithmConfigProtocol, EngineName
 from vamos.experiment.types import TerminationSpec
 from vamos.foundation.encoding import normalize_encoding
+from vamos.foundation.exceptions import ConfigurationError
 from vamos.foundation.problem.registry import make_problem_selection
 
 from .component_support import BUILT_IN_BACKENDS, resolved_component_reconstructability
@@ -71,13 +72,15 @@ class ReconstructedRun:
     engine: EngineName
     eval_strategy: str | None
     seed: int
+    #: The registered problem's other options, recorded in ``resolved_spec.problem.config``.
+    problem_options: Mapping[str, Any] = field(default_factory=dict)
 
 
 def reconstruct_resolved_run(resolved_spec: Mapping[str, Any], *, root: Path) -> ReconstructedRun:
     """Reconstruct and prove executable built-in inputs from a resolved spec."""
     _ensure_resolved_components(resolved_spec, root)
     resolved = cast(dict[str, Any], deep_thaw(deep_freeze(resolved_spec)))
-    problem, n_var, n_obj, encoding = _problem_fields(resolved, root)
+    problem, n_var, n_obj, encoding, options = _problem_fields(resolved, root)
     algorithm = _component_name(_mapping(resolved.get("algorithm")).get("component_id"), "vamos.algorithm")
     if algorithm is None or algorithm not in _CONFIG_TYPES:
         raise _component_error(root, "$.resolved_spec.algorithm.component_id", algorithm)
@@ -86,8 +89,8 @@ def reconstruct_resolved_run(resolved_spec: Mapping[str, Any], *, root: Path) ->
     engine = _engine(resolved, root)
     eval_strategy = _evaluation_strategy(resolved)
     seed = _integer(resolved.get("seed"), root, "$.resolved_spec.seed")
-    _assert_problem_registered(problem, n_var, n_obj, encoding, root)
-    _assert_semantic_equality(resolved, problem, n_var, n_obj, encoding, algorithm, config, termination, engine, seed, root)
+    _assert_problem_registered(problem, n_var, n_obj, encoding, options, root)
+    _assert_semantic_equality(resolved, problem, n_var, n_obj, encoding, options, algorithm, config, termination, engine, seed, root)
     return ReconstructedRun(
         resolved_spec=cast(Mapping[str, Any], deep_freeze(resolved)),
         problem=problem,
@@ -100,6 +103,7 @@ def reconstruct_resolved_run(resolved_spec: Mapping[str, Any], *, root: Path) ->
         engine=cast(EngineName, engine),
         eval_strategy=eval_strategy,
         seed=seed,
+        problem_options=options,
     )
 
 
@@ -110,7 +114,7 @@ def instantiate_reconstructed_problem(reconstructed: ReconstructedRun, *, root: 
             reconstructed.problem,
             n_var=reconstructed.n_var,
             n_obj=reconstructed.n_obj,
-        )
+        ).with_options(reconstructed.problem_options)
         problem = selection.instantiate()
     except (KeyError, TypeError, ValueError) as exc:
         raise ComponentNotReconstructableError(
@@ -211,6 +215,7 @@ def _assert_semantic_equality(
     n_var: int,
     n_obj: int,
     encoding: str,
+    options: Mapping[str, Any],
     algorithm: str,
     config: AlgorithmConfigProtocol,
     termination: TerminationSpec,
@@ -222,7 +227,7 @@ def _assert_semantic_equality(
         RunSpecInputs(
             problem_built_in=True,
             problem_label=problem,
-            problem_kwargs=None,
+            problem_kwargs=options,
             n_var_requested=n_var,
             n_obj_requested=n_obj,
             n_var=n_var,
@@ -259,7 +264,7 @@ def _assert_semantic_equality(
     )
 
 
-def _problem_fields(resolved: Mapping[str, Any], root: Path) -> tuple[str, int, int, str]:
+def _problem_fields(resolved: Mapping[str, Any], root: Path) -> tuple[str, int, int, str, dict[str, Any]]:
     descriptor = _mapping(resolved.get("problem"))
     problem = _component_name(descriptor.get("component_id"), "vamos.problem")
     config = _mapping(descriptor.get("config"))
@@ -270,17 +275,20 @@ def _problem_fields(resolved: Mapping[str, Any], root: Path) -> tuple[str, int, 
     encoding = config.get("encoding")
     if not isinstance(encoding, str):
         raise _component_error(root, "$.resolved_spec.problem.config.encoding", encoding)
-    extras = set(config) - {"constraint_convention", "encoding", "n_obj", "n_var"}
-    if extras:
-        raise _component_error(root, "$.resolved_spec.problem.config", {"unsupported_fields": sorted(extras)})
-    return problem, n_var, n_obj, encoding
+    # The other fields are the problem's options, which the registered factory must declare.
+    options = {key: value for key, value in config.items() if key not in {"constraint_convention", "encoding", "n_obj", "n_var"}}
+    return problem, n_var, n_obj, encoding, options
 
 
-def _assert_problem_registered(problem: str, n_var: int, n_obj: int, encoding: str, root: Path) -> None:
+def _assert_problem_registered(problem: str, n_var: int, n_obj: int, encoding: str, options: Mapping[str, Any], root: Path) -> None:
     try:
         selection = make_problem_selection(problem, n_var=n_var, n_obj=n_obj)
     except (KeyError, TypeError, ValueError) as exc:
         raise _component_error(root, "$.resolved_spec.problem", problem) from exc
+    try:
+        selection.spec.check_options(options)
+    except ConfigurationError as exc:
+        raise _component_error(root, "$.resolved_spec.problem.config", exc.details) from exc
     registered_encoding = normalize_encoding(selection.spec.encoding)
     if registered_encoding != encoding:
         raise ResolvedSpecMismatchError(

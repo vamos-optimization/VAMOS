@@ -1,7 +1,8 @@
 """Sources for T06–T08: durable studies, measured quality, and a derived report.
 
-T06 needs core VAMOS 1.0.1; T07 also needs moocore 0.3.2; T08 needs
-Matplotlib 3.10.9. Downloads are assembled by build_study_tutorials.py.
+T06 needs core VAMOS; T07 also needs moocore; T08 needs Matplotlib.
+docs/assets/studies/study-requirements.txt pins the recorded versions.
+Downloads are assembled by build_study_tutorials.py.
 All output directories must be new. This is a descriptive teaching experiment.
 """
 
