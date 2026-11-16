@@ -1,7 +1,7 @@
-"""The scientific default values of the built-in algorithms, pinned with their sources (VR-271).
+"""The scientific default values of the built-in algorithms, pinned with their sources.
 
 Tests elsewhere pass these values explicitly (``kappa=0.05``, explicit ``divisions``), so a default
-could drift without any test noticing; IBEA's kappa did (VR-013). Here the ``default()``
+could drift without any test noticing; IBEA's kappa did. Here the ``default()``
 configuration of each built-in algorithm is pinned, and ``optimize``, the ``vamos`` CLI and a
 study, none given an algorithm configuration, must resolve the same values.
 
@@ -174,8 +174,8 @@ def test_optimize_without_a_configuration_resolves_the_defaults(algorithm: str) 
 
 
 _CLI_DIVERGENCES = {
-    "moead": "VR-329: the CLI gives MOEA/D the packaged weights directory instead of the default lattice",
-    "nsgaiii": "VR-330: the CLI builds NSGA-III with SBX eta 20 instead of the default 30",
+    "moead": "the CLI gives MOEA/D the packaged weights directory instead of the default lattice",
+    "nsgaiii": "the CLI builds NSGA-III with SBX eta 20 instead of the default 30",
 }
 
 

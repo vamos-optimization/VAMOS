@@ -247,7 +247,7 @@ def test_optimize_rejects_ignored_problem_arguments(arguments: dict[str, object]
 
 
 def test_optimize_rejects_unsupported_problem_kwargs():
-    with pytest.raises(ConfigurationError, match=r"only n_var and n_obj.*n_cities"):
+    with pytest.raises(ConfigurationError, match=r"no options besides n_var and n_obj; got n_cities"):
         optimize("tsp6", algorithm="nsgaii", problem_kwargs={"n_cities": 8}, max_evaluations=40, pop_size=20, seed=0)
 
 

@@ -100,7 +100,9 @@ def apply_final_archive_subset(result: dict[str, Any], state: Any) -> dict[str, 
 
     archive_X, archive_F, archive_G = archive
     size = int(state.pop_size) if config.final_size is None else int(config.final_size)
-    indices = select_final_subset(np.asarray(archive_F), config.final_selection, size, rng_seed=config.rng_seed)
+    # The algorithms resolve rng_seed from the run seed; an unresolved None falls back to 0, as setup_archive does.
+    seed = 0 if config.rng_seed is None else config.rng_seed
+    indices = select_final_subset(np.asarray(archive_F), config.final_selection, size, rng_seed=seed)
     result["X"] = np.asarray(archive_X)[indices].copy()
     result["F"] = np.asarray(archive_F)[indices].copy()
     if result.get("G") is not None and archive_G is not None:

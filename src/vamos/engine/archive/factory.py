@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import TYPE_CHECKING, Any, TypeAlias
 
 import numpy as np
+
+from vamos.foundation.rng import derived_seed
 
 from .config import ExternalArchiveConfig
 
@@ -29,14 +32,30 @@ else:
     ResultArchiveManager: TypeAlias = Any
 
 
-def resolve_external_archive(cfg: dict[str, Any]) -> ExternalArchiveConfig | None:
-    """Extract :class:`ExternalArchiveConfig` from a serialized config dict."""
+def resolve_archive_seed(ext_cfg: ExternalArchiveConfig, seed: int) -> ExternalArchiveConfig:
+    """``ext_cfg`` with the effective ``rng_seed`` of a run with ``seed``.
+
+    Only ``ref_dirs`` pruning of a bounded archive and the ``kmeans`` final selection draw
+    random numbers. Without an ``rng_seed`` they get the stream derived from the run seed; an
+    explicit ``rng_seed`` and the other archives are kept as they are.
+    """
+    uses_seed = (ext_cfg.capacity is not None and ext_cfg.pruning == "ref_dirs") or ext_cfg.final_selection == "kmeans"
+    if ext_cfg.rng_seed is not None or not uses_seed:
+        return ext_cfg
+    return replace(ext_cfg, rng_seed=derived_seed(seed, "external_archive"))
+
+
+def resolve_external_archive(cfg: dict[str, Any], *, seed: int | None = None) -> ExternalArchiveConfig | None:
+    """Extract :class:`ExternalArchiveConfig` from a serialized config dict.
+
+    With the run's ``seed``, ``ref_dirs`` pruning and the ``kmeans`` final selection without
+    an ``rng_seed`` get the stream derived from it (:func:`resolve_archive_seed`).
+    """
     raw = cfg.get("external_archive")
     if raw is None:
         return None
-    if isinstance(raw, ExternalArchiveConfig):
-        return raw
-    return ExternalArchiveConfig(**raw)
+    ext_cfg = raw if isinstance(raw, ExternalArchiveConfig) else ExternalArchiveConfig(**raw)
+    return ext_cfg if seed is None else resolve_archive_seed(ext_cfg, seed)
 
 
 def setup_archive(
@@ -125,7 +144,7 @@ def setup_archive(
             n_var,
             n_obj,
             dtype,
-            rng_seed=ext_cfg.rng_seed,
+            rng_seed=0 if ext_cfg.rng_seed is None else ext_cfg.rng_seed,
             truncate_size=truncate_size,
             objective_tolerance=tol,
             deduplicate_in=dedup_mode,
@@ -215,7 +234,7 @@ def setup_result_archive(
             n_var,
             n_obj,
             dtype,
-            rng_seed=ext_cfg.rng_seed,
+            rng_seed=0 if ext_cfg.rng_seed is None else ext_cfg.rng_seed,
             truncate_size=truncate_size,
             objective_tolerance=tol,
             deduplicate_in=dedup_mode,
@@ -253,6 +272,7 @@ def update_archive(
 __all__ = [
     "ArchiveManager",
     "ResultArchiveManager",
+    "resolve_archive_seed",
     "resolve_external_archive",
     "setup_archive",
     "setup_result_archive",

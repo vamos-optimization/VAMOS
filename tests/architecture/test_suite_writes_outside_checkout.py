@@ -1,4 +1,4 @@
-"""The suite's caches stay outside the checkout (VR-134)."""
+"""The suite's caches stay outside the checkout."""
 
 from __future__ import annotations
 

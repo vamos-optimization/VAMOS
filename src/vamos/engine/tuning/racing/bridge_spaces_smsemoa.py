@@ -15,7 +15,7 @@ from .bridge_space_parts_discrete import (
     real_operator_part_medium,
 )
 from .config_space import AlgorithmConfigSpace, SpacePart, compose_config_space
-from .param_space import Int, ParamType
+from .param_space import Categorical, ConditionalBlock, Int, ParamType, Real
 
 # ---------------------------------------------------------------------------
 # Core part (shared by ALL SMS-EMOA encoding variants)
@@ -23,12 +23,16 @@ from .param_space import Int, ParamType
 
 
 def _core_part() -> SpacePart:
+    # The mating selection and the offset of the reference point include the
+    # defaults of SMSEMOAConfig (random selection, offset 1.0).
     params: list[ParamType] = [
         Int("pop_size", 20, 200, log=True, role="population"),
-        Int("selection_pressure", 2, 10, role="structural"),
+        Categorical("selection", ["random", "tournament"], role="structural"),
+        Real("reference_point_offset", 0.1, 2.0, role="operator_rate"),
     ]
+    conditionals = [ConditionalBlock("selection", "tournament", [Int("selection_pressure", 2, 10, role="structural")])]
     arch_params, arch_conds, arch_conditions = external_archive_part()
-    return [*params, *arch_params], arch_conds, arch_conditions
+    return [*params, *arch_params], [*conditionals, *arch_conds], arch_conditions
 
 
 # ---------------------------------------------------------------------------
@@ -37,8 +41,13 @@ def _core_part() -> SpacePart:
 
 
 def _real_operator_part() -> SpacePart:
-    # Parents are mated two by two, so three-parent crossovers cannot run.
-    return real_operator_part_medium(crossovers=PAIRWISE_REAL_CROSSOVERS_MEDIUM)
+    # Parents are mated two by two, so three-parent crossovers cannot run. The mutation probability
+    # is a factor of 1/n_var, as in NSGA-II's space and Evolver's mutationProbabilityFactor.
+    return real_operator_part_medium(
+        crossovers=PAIRWISE_REAL_CROSSOVERS_MEDIUM,
+        mutation_prob_param="mutation_prob_factor",
+        mutation_prob_bounds=(0.25, 3.0),
+    )
 
 
 def _mixed_operator_part() -> SpacePart:

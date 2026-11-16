@@ -52,13 +52,14 @@ def test_gaussian_mutation_matches_reference_output():
     )
     rng = np.random.default_rng(8)
     mutated = operator(POPULATION, rng)
+    # sigma is a fraction of the range of 10: the steps are 10 times those of an absolute sigma.
     expected = np.array(
         [
-            [-0.9389648854, 0.0, 1.5720008363],
-            [1.0, 2.5, 3.0181169297],
-            [-2.4741889733, 0.6721104075, 0.5180077616],
-            [1.98815023, -1.5479495698, 3.9922349169],
-            [0.5218971705, -0.8632791323, 2.0],
+            [-0.3896488542, 0.0, 2.2200083627],
+            [1.0, 2.5, 3.1811692966],
+            [-2.241889733, -2.2788959249, 0.6800776161],
+            [1.8815023005, -1.9794956984, 3.922349169],
+            [0.7189717051, -4.1327913229, 2.0],
         ]
     )
     assert_allclose(mutated, expected)
@@ -90,13 +91,14 @@ def test_non_uniform_mutation_with_workspace_matches_reference_output():
     )
     rng = np.random.default_rng(10)
     mutated = operator(POPULATION, rng)
+    # Each step is a fraction of the distance to the chosen bound, so every value stays in [-5, 5].
     expected = np.array(
         [
-            [-1.0, -7.866553827, 1.5],
-            [8.93324473, 1.7449649285, -3.9558739707],
-            [-2.5, 1.0, 0.2579058442],
-            [2.0, -1.5, 10.3630863699],
-            [-2.8026855648, -0.5, 2.0],
+            [-1.0, 4.2750265253, 1.5],
+            [-4.1638916368, 2.7336781097, 4.5477711327],
+            [-2.5, 1.0, 0.6357633431],
+            [2.0, -1.5, -2.4580983455],
+            [2.2736075188, -0.5, 2.0],
         ]
     )
     assert_allclose(mutated, expected)
@@ -112,3 +114,39 @@ def test_uniform_mutation_can_leave_bounds_without_pipeline_repair():
     )
     mutated = operator(np.full(4, 0.95, dtype=float))
     assert np.any((mutated < 0.0) | (mutated > 1.0))
+
+
+def test_non_uniform_mutation_stays_inside_bounds():
+    # Michalewicz's step towards the chosen bound is a fraction of the distance to it.
+    lower, upper = np.zeros(4), np.ones(4)
+    for x in (0.5, 0.9):
+        population = np.full((5000, 4), x)
+        for workspace in (None, VariationWorkspace()):
+            operator = NonUniformMutation(prob_mutation=1.0, perturbation=0.5, lower=lower, upper=upper, workspace=workspace)
+            mutated = operator(population.copy(), np.random.default_rng(1))
+            # The full-range step with a random sign left [0, 1] for 25% of the genes at 0.5 and 41% at 0.9.
+            assert np.all((mutated >= 0.0) & (mutated <= 1.0)), (x, float(np.mean((mutated < 0.0) | (mutated > 1.0))))
+            assert np.all(mutated != x)
+
+
+def test_gaussian_and_cauchy_steps_scale_with_variable_range():
+    from vamos.engine.operators.impl.real import CauchyMutation
+
+    def median_step(operator_type, upper, **params):
+        lower = np.zeros(3)
+        centre = np.tile(upper / 2.0, (4000, 1))
+        operator = operator_type(prob_mutation=1.0, lower=lower, upper=upper, **params)
+        return float(np.median(np.abs(operator(centre.copy(), np.random.default_rng(2)) - centre)))
+
+    for operator_type, params in ((GaussianMutation, {"sigma": 0.1}), (CauchyMutation, {"gamma": 0.1})):
+        small = median_step(operator_type, np.ones(3), **params)
+        large = median_step(operator_type, np.full(3, 1000.0), **params)
+        # sigma and gamma are fractions of the range, as in pymoo; the absolute steps were the same for both.
+        assert 900.0 < large / small < 1100.0, (operator_type.__name__, small, large)
+
+
+def test_gaussian_mutation_has_default_sigma():
+    from vamos.engine.operators.impl.registry import get_operator_registry
+
+    operator = get_operator_registry().get("gaussian")(prob_mutation=0.5, lower=LOWER, upper=UPPER)
+    assert float(operator.sigma) == 0.1

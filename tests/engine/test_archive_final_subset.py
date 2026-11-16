@@ -39,12 +39,14 @@ from vamos.engine.algorithm.config import (
     ToPConfig,
 )
 from vamos.engine.archive import ExternalArchiveConfig
+from vamos.foundation.rng import derived_seed
 
 SELECTORS: dict[str, Callable[[np.ndarray, int], np.ndarray]] = {
     "crowding": select_top_k_crowding,
     "farthest": select_top_k_farthest,
     "hv_greedy": select_top_k_hv_greedy,
-    "kmeans": lambda F, k: select_top_k_kmeans(F, k, rng=0),
+    # Without an rng_seed, kmeans draws from the archive's stream derived from the run seed of _run.
+    "kmeans": lambda F, k: select_top_k_kmeans(F, k, rng=derived_seed(4, "external_archive")),
 }
 
 
@@ -207,6 +209,15 @@ def test_the_artifact_keeps_the_whole_archive_and_records_the_selection(tmp_path
     np.testing.assert_array_equal(loaded.data["archive"]["F"], result.data["archive"]["F"])
     archive = stored.manifest.resolved_spec["algorithm"]["config"]["external_archive"]
     assert (archive["final_size"], archive["final_selection"]) == (10, "farthest")
+    assert vamos.reproduce(stored.root, output=tmp_path / "replay").exact
+
+
+def test_the_kmeans_final_selection_records_the_seed_derived_from_the_run_seed(tmp_path: Path) -> None:
+    result = _run(_nsgaii(final_size=10, final_selection="kmeans"))
+    stored = vamos.save_result(result, tmp_path / "run")
+
+    archive = stored.manifest.resolved_spec["algorithm"]["config"]["external_archive"]
+    assert archive["rng_seed"] == derived_seed(4, "external_archive")
     assert vamos.reproduce(stored.root, output=tmp_path / "replay").exact
 
 

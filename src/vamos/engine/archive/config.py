@@ -60,8 +60,8 @@ def check_external_archive_field(name: str, value: object) -> None:
         if len(value) == 0 or not all(_is_real(item) and math.isfinite(float(cast(float, item))) for item in value):
             raise ValueError(f"hv_ref_point must be a non-empty list of finite numbers, got {list(value)!r}.")
     elif name == "rng_seed":
-        if not _is_integer(value):
-            raise TypeError(f"rng_seed must be an integer, got {value!r}.")
+        if value is not None and not _is_integer(value):
+            raise TypeError(f"rng_seed must be an integer or null, got {value!r}.")
     elif name in ("objective_tolerance", "decision_tolerance"):
         if not _is_real(value):
             raise TypeError(f"{name} must be a number, got {value!r}.")
@@ -102,12 +102,19 @@ class ExternalArchiveConfig:
     ``rng_seed`` without ``ref_dirs`` pruning or the ``kmeans`` final selection,
     a pruning other than ``crowding`` without a ``capacity``, or ``final_size``
     without a ``final_selection``) gives a ``UserWarning``.
+
+    ``rng_seed`` seeds the random choices of ``ref_dirs`` pruning and of the ``kmeans``
+    final selection. ``None``, the default, derives that stream from the run seed
+    (:func:`vamos.foundation.rng.derived_seed`), so the runs of an experiment prune with
+    different streams and a repeated seed prunes the same way; the algorithms resolve it
+    when they build the archive, and ``optimize`` records the effective seed in the
+    resolved configuration. An integer fixes the stream.
     """
 
     capacity: int | None = None
     pruning: PrunePolicy = "crowding"
     hv_ref_point: list[float] | None = None
-    rng_seed: int = 0
+    rng_seed: int | None = None
     objective_tolerance: float = 0.0
     truncate_size: int | None = None
     deduplicate_in: DeduplicateIn = "objective"
@@ -131,7 +138,8 @@ class ExternalArchiveConfig:
                 raise ValueError("truncate_size must be <= capacity.")
         if self.hv_ref_point is not None:
             object.__setattr__(self, "hv_ref_point", [float(value) for value in self.hv_ref_point])
-        object.__setattr__(self, "rng_seed", int(self.rng_seed))
+        if self.rng_seed is not None:
+            object.__setattr__(self, "rng_seed", int(self.rng_seed))
         object.__setattr__(self, "objective_tolerance", float(self.objective_tolerance))
         object.__setattr__(self, "decision_tolerance", float(self.decision_tolerance))
         self._warn_about_unused_fields()
@@ -143,7 +151,7 @@ class ExternalArchiveConfig:
         if self.hv_ref_point is not None and (self.capacity is None or self.pruning not in _HV_POLICIES):
             unused.append(f"hv_ref_point is used only by HV pruning of a bounded archive (pruning={self.pruning!r})")
         uses_seed = (self.capacity is not None and self.pruning == "ref_dirs") or self.final_selection == "kmeans"
-        if self.rng_seed != 0 and not uses_seed:
+        if self.rng_seed is not None and not uses_seed:
             unused.append(
                 "rng_seed is used only by ref_dirs pruning of a bounded archive and by the kmeans final selection "
                 f"(pruning={self.pruning!r}, final_selection={self.final_selection!r})"

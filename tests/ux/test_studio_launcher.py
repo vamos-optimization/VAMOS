@@ -1,4 +1,4 @@
-"""`vamos studio` without its optional extra (review finding VR-128)."""
+"""`vamos studio` without its optional extra."""
 
 from __future__ import annotations
 
