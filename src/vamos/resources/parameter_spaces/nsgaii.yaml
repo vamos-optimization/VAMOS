@@ -59,8 +59,8 @@ parameters:
           crossover_alpha: {type: real, default: 0.5, range: [0.0, 1.0], role: operator_rate}
       blx_alpha_beta:
         conditional_parameters:
-          blxab_alpha: {type: real, default: 0.75, range: [0.0, 1.0], role: operator_rate}
-          blxab_beta: {type: real, default: 0.25, range: [0.0, 1.0], role: operator_rate}
+          blxab_alpha: {type: real, default: 0.5, range: [0.0, 1.0], role: operator_rate}
+          blxab_beta: {type: real, default: 0.5, range: [0.0, 1.0], role: operator_rate}
       arithmetic: {}
       whole_arithmetic:
         conditional_parameters:

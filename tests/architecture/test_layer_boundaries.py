@@ -19,6 +19,25 @@ ALLOWED_LAYER_IMPORTS: dict[str, set[str]] = {
     "resources": {"resources"},
 }
 
+# Root modules belong to the layer of what they re-export, so a layer cannot reach
+# another through them. The top-level ``vamos`` package re-exports ``vamos.api``.
+ROOT_MODULE_LAYERS: dict[str, str] = {
+    "vamos": "experiment",
+    "vamos.algorithms": "engine",
+    "vamos.api": "experiment",
+    "vamos.exceptions": "experiment",
+    "vamos.problems": "foundation",
+    "vamos.run_artifacts": "experiment",
+    "vamos.selection": "foundation",
+    "vamos.study_artifacts": "experiment",
+}
+
+# The only imports of a layer that the layer table forbids: ux reads stored runs and
+# studies through the stable artifact facades, and reaches nothing else of experiment.
+ALLOWED_FACADE_IMPORTS: dict[str, set[str]] = {
+    "ux": {"vamos.run_artifacts", "vamos.study_artifacts"},
+}
+
 
 def _layer_from_path(path: Path) -> str | None:
     try:
@@ -42,12 +61,13 @@ def _module_from_path(path: Path) -> str:
 
 
 def _layer_from_module(module: str) -> str | None:
-    if not module.startswith("vamos."):
-        return None
     parts = module.split(".")
-    if len(parts) < 2:
+    if parts[0] != "vamos":
         return None
-    return parts[1] if parts[1] in LAYERS else None
+    if len(parts) > 1 and parts[1] in LAYERS:
+        return parts[1]
+    # A root module, or a name that ``from vamos import ...`` takes from the package.
+    return ROOT_MODULE_LAYERS.get(".".join(parts[:2]), ROOT_MODULE_LAYERS["vamos"])
 
 
 def _resolve_relative(current_module: str, module: str | None, level: int) -> str:
@@ -89,7 +109,7 @@ def _detect_violations():
             if isinstance(node, ast.Import):
                 for alias in node.names:
                     module = alias.name
-                    if not module.startswith("vamos."):
+                    if module != "vamos" and not module.startswith("vamos."):
                         continue
                     target_layer = _layer_from_module(module)
                     record = _violation_record(source_layer, target_layer, rel_path, module)
@@ -148,7 +168,7 @@ def _violation_record(source_layer: str, target_layer: str | None, rel_path: str
     if source_layer == target_layer:
         return None
     allowed = ALLOWED_LAYER_IMPORTS.get(source_layer, {source_layer})
-    if target_layer in allowed:
+    if target_layer in allowed or module in ALLOWED_FACADE_IMPORTS.get(source_layer, set()):
         return None
     return (f"{source_layer}->{target_layer}", rel_path, module)
 
@@ -187,3 +207,20 @@ def test_layer_boundaries_do_not_regress():
 
     if new or missing:
         raise AssertionError(_format_diff(new, missing, line_map))
+
+
+def test_root_facades_resolve_to_their_layer() -> None:
+    root_modules = {"vamos", *(f"vamos.{path.stem}" for path in SRC_ROOT.glob("*.py") if path.stem not in {"__init__", "__main__"})}
+
+    assert set(ROOT_MODULE_LAYERS) == root_modules, "classify every root module by the layer it re-exports"
+    assert _layer_from_module("vamos.run_artifacts") == "experiment"
+    assert _layer_from_module("vamos.study_artifacts") == "experiment"
+    assert _layer_from_module("vamos.optimize") == "experiment"  # from vamos import optimize
+
+
+def test_ux_reaches_experiment_only_through_the_artifact_facades() -> None:
+    assert _violation_record("ux", "experiment", "src/vamos/ux/x.py", "vamos.run_artifacts") is None
+    assert _violation_record("ux", "experiment", "src/vamos/ux/x.py", "vamos.study_artifacts") is None
+    assert _violation_record("ux", "experiment", "src/vamos/ux/x.py", "vamos.api") is not None
+    assert _violation_record("ux", "experiment", "src/vamos/ux/x.py", "vamos.experiment.artifacts") is not None
+    assert _violation_record("engine", "experiment", "src/vamos/engine/x.py", "vamos.run_artifacts") is not None

@@ -462,12 +462,11 @@ def _source_package_hash() -> tuple[str | None, str | None]:
 
 
 def _backend_distribution(backend: str) -> dict[str, str | None]:
-    package = {"numpy": "numpy", "numba": "numba", "moocore": "moocore"}.get(backend, backend)
     try:
-        version = importlib_metadata.version(package)
+        version = importlib_metadata.version(backend)  # Each built-in backend is named after its distribution.
     except importlib_metadata.PackageNotFoundError:
         version = None
-    return {"name": package, "version": version}
+    return {"name": backend, "version": version}
 
 
 def _blas_metadata() -> dict[str, Any]:

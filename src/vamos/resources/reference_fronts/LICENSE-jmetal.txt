@@ -22,6 +22,15 @@ two rows each, which another row of the same file dominates.
   CRE25.csv, CRE31.csv, CRE32.csv and CRE51.csv
 - rcm01.csv to rcm49.csv, except rcm17.csv, rcm23.csv and rcm26.csv: RCM01.csv
   to RCM49.csv
+- jmetal-zdt1.csv to jmetal-zdt4.csv and jmetal-zdt6.csv: ZDT1.csv to ZDT4.csv
+  and ZDT6.csv, the optional jMetal source of ZDT
+- jmetal-dtlz1.2d.csv, jmetal-dtlz2.2d.csv and jmetal-dtlz5.2d.csv to
+  jmetal-dtlz7.2d.csv: DTLZ1.2D.csv, DTLZ2.2D.csv and DTLZ5.2D.csv to
+  DTLZ7.2D.csv; jmetal-dtlz1.3d.csv, jmetal-dtlz2.3d.csv and jmetal-dtlz5.3d.csv
+  to jmetal-dtlz7.3d.csv: DTLZ1.3D.csv, DTLZ2.3D.csv and DTLZ5.3D.csv to
+  DTLZ7.3D.csv; the optional jMetal source of DTLZ. DTLZ3.2D.csv, DTLZ3.3D.csv,
+  DTLZ4.2D.csv and DTLZ4.3D.csv are the DTLZ2 files byte for byte, so
+  jmetal-dtlz2.2d.csv and jmetal-dtlz2.3d.csv also stand for them
 
 These files are distributed under the license of that repository:
 
