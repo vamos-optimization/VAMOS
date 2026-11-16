@@ -8,14 +8,14 @@ ZIP**. You do not need a repository clone.
 ## Environment and downloads
 
 Create an isolated environment using [Installation](../guide/installation.md).
-The recorded experiment uses Python 3.12 and the published **VAMOS 1.0.1 wheel**.
+The recorded experiment uses Python 3.12 and the published **VAMOS 1.2.1 wheel**.
 Download [study-requirements.txt](../assets/studies/study-requirements.txt), then:
 
 ```bash
 python -m pip install -r study-requirements.txt
 ```
 
-The recipe pins VAMOS 1.0.1, NumPy 2.1.3, SciPy 1.15.3, joblib 1.4.2,
+The recipe pins VAMOS 1.2.1, NumPy 2.1.3, SciPy 1.15.3, joblib 1.4.2,
 MooCore 0.3.2, and Matplotlib 3.10.9. T06 needs only core VAMOS; T07 adds
 MooCore for indicators; T08 adds Matplotlib for plots. These optional packages
 do not change the optimization backend, which remains NumPy. No notebook,
@@ -60,7 +60,7 @@ observations:
 | Factor | Frozen choice |
 | --- | --- |
 | Problems | ZDT1 and ZDT2; 10 variables; both objectives minimized; no constraints |
-| Algorithms | NSGA-II and MOEA/D; VAMOS 1.0.1 resolved defaults, no tuning campaign |
+| Algorithms | NSGA-II and MOEA/D; VAMOS 1.2.1 resolved defaults, no tuning campaign |
 | Population/backend | 40; NumPy; serial evaluation; one study owner |
 | Seed schedule | 0 through 9 for every problem/algorithm/budget cell |
 | Budgets | 200, 800, 2,000; a separate durable study at each budget |
