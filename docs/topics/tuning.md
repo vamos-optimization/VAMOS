@@ -643,6 +643,16 @@ parameters of `improved_epsilon` (`improved_epsilon_tao`,
 `improved_epsilon_decay_fraction`), with the ranges of Evolver's
 `MOEADDoubleConstrained` space.
 
+**Development after 1.3.0:** the technique parameters have no default in VAMOS,
+jMetal or Evolver, so the grammars default to the settings of the papers that
+introduced the techniques: for `epsilon_constrained`, the quantile 0.2, the
+exponent 5 and the decay fraction 0.8 (Takahama and Sakai: epsilon starts at
+the individual at 0.2N and reaches 0 at 0.8 of the run); for `push_pull`, the
+threshold 0.001, the window 0.02, the decay fraction 0.8, the exponent 2, the
+feasibility threshold 0.95 and the reduction 0.1 (Fan et al.); 0.45 for
+`stochastic_ranking` (Runarsson and Yao); and 0.1, 0.95 and 0.8 for
+`improved_epsilon`.
+
 **VAMOS 1.2.0:** `ccmo` is the real-coded space of
 [CCMO](../algorithms/ccmo.md), which handles constraints itself: `pop_size`
 (20 to 200, the size of each of its two populations) and the crossover, which

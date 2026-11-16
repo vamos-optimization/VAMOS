@@ -89,7 +89,7 @@ parameters:
         conditional_parameters:
           epsilon_initial_quantile: {type: real, default: 0.2, range: [0.05, 0.95], role: operator_rate}
           epsilon_exponent: {type: real, default: 5.0, range: [1.0, 10.0], role: operator_rate}
-          epsilon_decay_fraction: {type: real, default: 0.2, range: [0.1, 0.95], role: operator_rate}
+          epsilon_decay_fraction: {type: real, default: 0.8, range: [0.1, 0.95], role: operator_rate}
       push_pull:
         conditional_parameters:
           push_pull_change_threshold: {type: real, default: 0.001, range: [0.0001, 0.05], role: operator_rate}

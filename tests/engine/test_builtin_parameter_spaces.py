@@ -15,6 +15,17 @@ import pytest
 import yaml
 
 from vamos.engine.operators.impl.real.crossover_blend import BLXAlphaBetaCrossover, BLXAlphaCrossover, WholeArithmeticCrossover
+from vamos.engine.operators.impl.real.crossover_multi_parent import PCXCrossover, UNDXCrossover
+from vamos.engine.operators.impl.real.crossover_stochastic import FuzzyCrossover, LaplaceCrossover
+from vamos.engine.operators.impl.real.mutation import (
+    CauchyMutation,
+    GaussianMutation,
+    LevyFlightMutation,
+    LinkedPolynomialMutation,
+    PolynomialMutation,
+    PowerLawMutation,
+    UniformMutation,
+)
 from vamos.engine.tuning.grammar import (
     ParameterSpace,
     builtin_parameter_space,
@@ -102,25 +113,84 @@ def test_every_default_is_inside_its_domain_and_auto_is_the_default_initializer_
         assert {"initial_solutions", "repair"} <= set(space.names())
 
 
-BLEND_CROSSOVER_PARAMETERS = {
-    # grammar parameter: (crossover, operator class, constructor argument)
-    "crossover_alpha": ("blx_alpha", BLXAlphaCrossover, "alpha"),
-    "blxab_alpha": ("blx_alpha_beta", BLXAlphaBetaCrossover, "alpha"),
-    "blxab_beta": ("blx_alpha_beta", BLXAlphaBetaCrossover, "beta"),
-    "wa_alpha": ("whole_arithmetic", WholeArithmeticCrossover, "alpha"),
+REAL_OPERATOR_PARAMETERS = {
+    # grammar parameter: (operator node, value, operator class, constructor argument)
+    "crossover_alpha": ("crossover", "blx_alpha", BLXAlphaCrossover, "alpha"),
+    "blxab_alpha": ("crossover", "blx_alpha_beta", BLXAlphaBetaCrossover, "alpha"),
+    "blxab_beta": ("crossover", "blx_alpha_beta", BLXAlphaBetaCrossover, "beta"),
+    "wa_alpha": ("crossover", "whole_arithmetic", WholeArithmeticCrossover, "alpha"),
+    "laplace_a": ("crossover", "laplace", LaplaceCrossover, "a"),
+    "laplace_b": ("crossover", "laplace", LaplaceCrossover, "b"),
+    "fuzzy_d": ("crossover", "fuzzy", FuzzyCrossover, "d"),
+    "pcx_sigma_eta": ("crossover", "pcx", PCXCrossover, "sigma_eta"),
+    "pcx_sigma_zeta": ("crossover", "pcx", PCXCrossover, "sigma_zeta"),
+    "undx_zeta": ("crossover", "undc", UNDXCrossover, "zeta"),
+    "undx_eta": ("crossover", "undc", UNDXCrossover, "eta"),
+    "polynomial_mutation_distribution_index": ("mutation", "polynomial", PolynomialMutation, "eta"),
+    "linked_polynomial_mutation_distribution_index": ("mutation", "linked_polynomial", LinkedPolynomialMutation, "eta"),
+    "gaussian_sigma": ("mutation", "gaussian", GaussianMutation, "sigma"),
+    "cauchy_gamma": ("mutation", "cauchy", CauchyMutation, "gamma"),
+    "uniform_perturb": ("mutation", "uniform", UniformMutation, "perturb"),
+    "levy_beta": ("mutation", "levy_flight", LevyFlightMutation, "beta"),
+    "levy_scale": ("mutation", "levy_flight", LevyFlightMutation, "scale"),
+    "power_index": ("mutation", "power_law", PowerLawMutation, "index"),
 }
 
 
 @pytest.mark.parametrize("name", SPACE_NAMES)
-def test_the_blend_crossovers_default_to_their_operators_own_values(name: str) -> None:
+def test_the_real_operators_parameters_default_to_their_constructor_values(name: str) -> None:
     # M4: an operator parameter takes the operator's own default, which the bridge also falls back to.
+    # SBX is the exception: every configuration sets its index (20, 30 or 15), the class's 10 never runs.
     space = grammar(name)
-    for parameter, (crossover, operator, argument) in BLEND_CROSSOVER_PARAMETERS.items():
+    if space.encoding != "real":
+        return
+    for parameter, (node, value, operator, argument) in REAL_OPERATOR_PARAMETERS.items():
         if parameter not in space.names():
             continue
-        assert crossover in space.parameter("crossover").values
+        if node in space.names():  # SMPSO's polynomial mutation is fixed, with its index at the top
+            assert parameter in {child.name for child in space.parameter(node).production(value)}, parameter
         own = inspect.signature(operator).parameters[argument].default
         assert space.parameter(parameter).default == own, (parameter, own)
+
+
+# The constraint-handling techniques have no default in VAMOS, jMetal or Evolver, so the grammars take the
+# settings of the papers that introduced them.
+PUBLISHED_TECHNIQUE_SETTINGS = {
+    # Takahama and Sakai's epsilon level control: epsilon(0) the violation of the individual at 0.2N, cp = 5
+    # and Tc = 0.8 Tmax (S. Sakai, T. Takahama, RIMS Kokyuroku 1584:90-101, 2008, eq. (10)).
+    "epsilon_initial_quantile": 0.2,
+    "epsilon_exponent": 5.0,
+    "epsilon_decay_fraction": 0.8,
+    # Fan et al.'s push and pull search: threshold 1e-3 on the change of the ideal and nadir points over
+    # l = 20 of 1000 generations, Tc = 0.8 Tmax, cp = 2, alpha = 0.95 and tau = 0.1 (arXiv:1709.05915,
+    # eq. (4) and section IV-A).
+    "push_pull_change_threshold": 1e-3,
+    "push_pull_window_fraction": 0.02,
+    "push_pull_decay_fraction": 0.8,
+    "push_pull_exponent": 2.0,
+    "push_pull_feasibility_threshold": 0.95,
+    "push_pull_reduction_rate": 0.1,
+    # Runarsson and Yao's P_f (IEEE TEC 4(3):284-294, 2000, table II).
+    "stochastic_ranking_probability": 0.45,
+    # Fan et al.'s improved epsilon in MOEA/D, as MOEA/D-IEpsilon in the push and pull paper: tau = 0.1,
+    # alpha = 0.95 and Tc = 0.8 Tmax (arXiv:1709.05915, section IV-A).
+    "improved_epsilon_tao": 0.1,
+    "improved_epsilon_feasibility_ratio_threshold": 0.95,
+    "improved_epsilon_decay_fraction": 0.8,
+}
+
+
+def test_every_published_setting_has_a_parameter() -> None:
+    names = {name for space in SPACE_NAMES for name in grammar(space).names()}
+    assert set(PUBLISHED_TECHNIQUE_SETTINGS) <= names
+
+
+@pytest.mark.parametrize("name", SPACE_NAMES)
+def test_the_constraint_handling_parameters_default_to_the_published_settings(name: str) -> None:
+    space = grammar(name)
+    for parameter, published in PUBLISHED_TECHNIQUE_SETTINGS.items():
+        if parameter in space.names():
+            assert space.parameter(parameter).default == pytest.approx(published), parameter
 
 
 @pytest.mark.parametrize("name", SPACE_NAMES)
