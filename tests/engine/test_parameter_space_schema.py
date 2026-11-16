@@ -250,6 +250,38 @@ def test_g5_rejects_a_production_on_a_value_that_is_not_a_string() -> None:
     assert "a value with a production is a string" in str(error)
 
 
+def test_g5_rejects_a_number_beside_a_production() -> None:
+    # The document of a categorical with a production is a mapping, whose keys are text: 1 would read back as "1".
+    def edit(document: dict[str, Any]) -> None:
+        params(document)["selection"]["values"] = {1: {}, "tournament": params(document)["selection"]["values"]["tournament"]}
+        params(document)["selection"]["default"] = 1
+
+    error = rejects(broken(edit), "G5", "selection.values.1")
+    assert "string values only" in str(error)
+
+
+@pytest.mark.parametrize(
+    ("values", "default"),
+    [([1, "1"], "1"), (["0.5", 0.5], 0.5), ([1.0, "1.0"], 1.0)],
+    ids=["int-and-text", "text-and-float", "float-and-text"],
+)
+def test_g5_rejects_values_that_the_command_line_writes_alike(values: list[object], default: object) -> None:
+    def edit(document: dict[str, Any]) -> None:
+        params(document)["offspring_ratio"]["values"] = values
+        params(document)["offspring_ratio"]["default"] = default
+
+    error = rejects(broken(edit), "G5", "offspring_ratio")
+    assert "written alike" in str(error)
+
+
+def test_the_canonical_document_of_a_space_with_numbers_and_productions_reads_back() -> None:
+    # Numbers stay in list-form categoricals, which keep their types; text keys keep theirs.
+    space = parameter_space_from_document(small_space())
+    document = json.loads(json.dumps(parameter_space_document(space)))
+
+    assert parameter_space_from_document(document) == space
+
+
 # -- G6 ------------------------------------------------------------------------------------------
 
 

@@ -22,7 +22,17 @@ from vamos.engine.algorithm.variants import ALGORITHM_VARIANT_GROUPS
 from vamos.foundation.encoding import ENCODINGS
 
 from ..racing.param_space import PARAM_ROLES
-from .model import SCHEMA, SCHEMA_VERSION, Parameter, ParameterSpace, ParameterSpaceError, ParameterType, Scalar, same_scalar
+from .model import (
+    SCHEMA,
+    SCHEMA_VERSION,
+    Parameter,
+    ParameterSpace,
+    ParameterSpaceError,
+    ParameterType,
+    Scalar,
+    format_value,
+    same_scalar,
+)
 
 NAME_PATTERN = r"^[a-z][a-z0-9_]*$"
 _TOP_KEYS = ("schema", "schema_version", "name", "algorithm", "encoding", "description", "parameters")
@@ -137,11 +147,23 @@ def _categorical(name: str, raw: Mapping[str, Any], path: str, seen: dict[str, s
             raise ParameterSpaceError("G5", where, f"{value!r} is not a string, number or boolean")
         if any(same_scalar(value, other) for other in values):
             raise ParameterSpaceError("G5", where, f"{value!r} is listed twice")
+        twin = next((other for other in values if format_value(other) == format_value(value)), None)
+        if twin is not None:
+            raise ParameterSpaceError(
+                "G5", where, f"{twin!r} and {value!r} are written alike ({format_value(value)}): a command line could not tell them apart"
+            )
         values.append(value)
         productions.append(_production(value, production, where, seen))
     for value, production in zip(values, productions):
         if production and not isinstance(value, str):
             raise ParameterSpaceError("G5", f"{path}.values.{value}", "a value with a production is a string")
+    if any(productions):
+        # The document writes this node's values as the keys of a mapping, which are text.
+        for value in values:
+            if not isinstance(value, str):
+                raise ParameterSpaceError(
+                    "G5", f"{path}.values.{value}", f"a categorical with productions has string values only: write {str(value)!r}"
+                )
     default = raw["default"]
     globals_raw = raw.get("global_sub_parameters", {})
     if not isinstance(globals_raw, Mapping):
