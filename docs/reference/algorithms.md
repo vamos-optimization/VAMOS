@@ -185,6 +185,24 @@ published results or with another framework.
   `aggregation("tchebycheff")` reproduces jMetal's MOEA/D-DE. See
   [MOEA/D](../algorithms/moead.md).
 
+**Development after 1.2.1:** three real-coded mutations scale their steps by
+the range of each variable.
+
+- `non_uniform` is Michalewicz's mutation, as in jMetal: a mutated variable
+  moves towards one of its bounds, chosen at random, by
+  `y * (1 - r ** ((1 - t / T) ** b))`, where `y` is the distance to that bound.
+  The operator does not know the run's progress `t / T`, so it uses 0: the step
+  is `y * (1 - r)`, and `perturbation` (`b`) has no effect. The tuning spaces
+  no longer offer `nonuniform_perturbation`. In VAMOS 1.2.0 the step was
+  `(1 - r ** b)` times the whole range, with a random sign, so 25% to 41% of the
+  mutated genes left their bounds and the repair moved them onto the bound.
+- `gaussian` and `cauchy` read `sigma` and `gamma` as fractions of each
+  variable's range, as pymoo does, and `gaussian` defaults to `sigma = 0.1`.
+  In VAMOS 1.2.0 both were in the variables' units, so the same value was
+  negligible on a range of 1000 and large on a range of 0.01, and `gaussian`
+  had no default. On variables with a range of 1, such as those of DTLZ and
+  most of ZDT, they behave as before.
+
 ### Choose an initial experiment
 
 | Need | Starting point | Check before increasing the budget |
@@ -222,6 +240,28 @@ NSGA-III and RVEA require a population compatible with the configured reference 
 
 **VAMOS 1.2.0:** with `pop_size`, `NSGAIIIConfig.default()` uses the complete lattice with the most directions that fit in it, for any number of objectives (four divisions, 70 directions, for 100 individuals and five objectives, which used to fail with six divisions and 210 directions); `RVEAConfig.default()` uses the lattice of exactly `pop_size` vectors and otherwise fails at once naming the nearest valid sizes, such as 91 or 105 for three objectives. Without `pop_size`, both still use 12 divisions for three objectives and 6 for four or more.
 
+### The command line and `optimize`
+
+A top-level `vamos` run and `vamos.optimize` build a run separately, so with the
+same problem, algorithm, population, budget and seed, and no algorithm
+configuration, they resolve the same configuration except for these
+differences, which `tests/experiment/test_cli_api_parity.py` keeps listed:
+
+- Result mode: the command line returns `non_dominated` for AGE-MOEA, CCMO,
+  CMOEA-MS, C-TAEA, IBEA, MOEA/D, RVEA, SMS-EMOA, SPEA2 and ToP, where
+  `optimize` returns `population`. NSGA-II, NSGA-III and SMPSO agree.
+- NSGA-III: the command line uses SBX with distribution index 20, not 30, and
+  derives the reference directions from the population when the run starts;
+  `optimize` records the lattice's divisions.
+- MOEA/D: the command line reads the packaged weight files and records their
+  directory, a path inside the installation; `optimize` records the divisions.
+- NSGA-II's offspring size and SMS-EMOA's reference point are written out by
+  one path and left to their defaults by the other, with the same effect.
+
+When the two must agree, set these options explicitly on both and compare the
+resolved configuration that each run records. Both paths are stable, so their
+defaults stay until one execution path replaces them in 2.0.
+
 ### Termination criteria
 
 **VAMOS 1.2.0:** every algorithm's `run(problem, termination=...)`
@@ -240,6 +280,30 @@ SMS-EMOA and IBEA keep `hv_converged` as an alias until VAMOS 2.0. In VAMOS
 `hv` but not `n_gen`, `run()` truncated a fractional budget, and NSGA-III,
 SMS-EMOA and IBEA reported only `hv_converged`, so the CLI never recorded that
 their HV target was reached.
+
+**Development after 1.2.1:** `optimize(termination=("max_time", seconds))`
+stops a run of any built-in algorithm once `seconds` of wall-clock time have
+passed since it started, checked after each generation (MOEA/D after each
+`pop_size` evaluations, SMS-EMOA after each step), so a run can overrun the
+limit by one generation. `("max_time", {"seconds": s, "max_evaluations": n})`
+also stops it after `n` evaluations, whichever comes first; without
+`max_evaluations` there is no evaluation budget. Schedules that measure progress
+against the budget, such as ToP's phases, CMOEA-MS's stages and the
+constraint-handling techniques that relax over the run, then barely advance, so
+give them `max_evaluations`. A live callback still receives every generation, and
+its `should_stop` still stops the run first. `result.meta["time_limit_reached"]`
+says whether the time limit stopped the run, and `load_result` restores it from
+the manifest. **A run limited by time is not
+reproducible**, on another machine or on the same one: how many evaluations
+fit in the time depends on the hardware and its load. Its resolved spec records
+`vamos.termination:max_time@1` with `{"seconds": s, "max_evaluations": n}`
+(`null` without a cap) and `determinism.declared: false`; its manifest's
+`replayability` gives the reason `wall_clock_termination`, and
+`outcome.termination_reason` is `max_time` or, when the cap stopped it,
+`max_evaluations`. `verify_run` reports it as not exactly replayable and
+`reproduce` refuses it; rerun `("max_evaluations", n)` with its
+`outcome.evaluations` for a run with the same budget. Only `optimize` takes this
+criterion; an algorithm's own `run()` and `initialize()` do not.
 
 **VAMOS 1.2.0:** all nine algorithms implement the same
 step-by-step protocol: `initialize(problem, termination, seed)` evaluates the
@@ -472,6 +536,13 @@ operator pairs that JSON turns into lists, so
 probability 1.7 or `eta=-5`, `kappa` at or below 0 (which inverts IBEA's
 selection) and `delta=1.5` ran without warning, and a `result_mode` or
 aggregation typo failed only after the initial population was evaluated.
+
+**Development after 1.2.1:** `mutation_prob_factor` reaches every algorithm
+whose configuration has it: MOEA/D, NSGA-III, SMS-EMOA, SPEA2, AGE-MOEA and
+RVEA now set the mutation probability to `factor / n_var` (at most 1), as
+NSGA-II and IBEA did. In VAMOS 1.2.0 those six ran with the mutation's own
+`prob`. The fields that still have no effect warn; see
+[stable configuration](../project/stability-and-versioning.md#stable-configuration).
 
 For a measured first-call/subsequent-call example, follow [Measure backend performance](../tutorials/measure-performance.md).
 

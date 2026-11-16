@@ -33,9 +33,9 @@ MODEL_BACKENDS = ("optuna", "bohb_optuna", "smac3", "bohb", "irace")
 NON_MODEL_BACKENDS = ("racing", "random")
 ALL_BACKENDS = NON_MODEL_BACKENDS + MODEL_BACKENDS
 _ARCHIVE_TUNING_PARAMS = {"use_external_archive", "archive_unbounded", "archive_prune_policy"}
-_OPTUNA_CLI_STUDY_SUFFIX = "__vamos_cli_final_population_hv_v2"
+_OPTUNA_CLI_STUDY_SUFFIX = "__vamos_cli_final_population_hv_v3"
 # SMPSO is scored on its leaders archive instead of its final swarm, a separate scoring contract.
-_OPTUNA_CLI_LEADERS_SUFFIX = "__vamos_cli_leaders_hv_v1"
+_OPTUNA_CLI_LEADERS_SUFFIX = "__vamos_cli_leaders_hv_v2"
 _LEADER_SCORED_ALGORITHMS = ("smpso",)
 
 

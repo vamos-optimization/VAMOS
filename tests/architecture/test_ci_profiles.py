@@ -1,4 +1,4 @@
-"""CI installs what users and the release get: declared pins, declared minimums, and the release build (VR-308, VR-309, VR-315)."""
+"""CI installs what users and the release get: declared pins, declared minimums, and the release build."""
 
 from __future__ import annotations
 
@@ -163,8 +163,11 @@ def test_tests_full_runs_every_python_on_linux_and_the_newest_on_every_system() 
     versions = matrix["python-version"]
     excluded = {(entry["os"], entry["python-version"]) for entry in matrix["exclude"]}
 
-    # Pull requests run Linux only; the merge queue and main add Windows and macOS.
-    assert "github.event_name == 'pull_request' && '[\"ubuntu-latest\"]'" in matrix["os"]
+    # Only the merge queue adds Windows and macOS; pull requests and pushes to main, already tested there, run Linux.
+    assert matrix["os"].startswith(
+        '${{ fromJSON(github.event_name == \'merge_group\' && \'["ubuntu-latest", "windows-latest", "macos-latest"]\''
+    )
+    assert matrix["os"].endswith("|| '[\"ubuntu-latest\"]') }}")
     assert [version for version in versions if ("ubuntu-latest", version) in excluded] == []
     # Windows and macOS skip only the versions older than the primary Python 3.12.
     for system in ("windows-latest", "macos-latest"):
@@ -187,3 +190,15 @@ def test_ci_constraints_pin_each_distribution_at_most_once_for_every_tested_pyth
         # Two pins for one Python make pip fail; the core dependencies need one on every tested Python.
         assert sorted(name for name, count in applied.items() if count > 1) == [], python
         assert sorted(name for name in core if applied[name] != 1) == [], python
+
+
+def test_tests_full_runs_in_parallel_and_measures_coverage_in_one_job() -> None:
+    steps = {step.get("name"): step for step in _ci_jobs()["tests-full"]["steps"]}
+    run = steps["Run tests"]["run"]
+
+    assert 'pytest -m "not slow" -n auto' in run
+    # Coverage only where the floors are checked: the same condition as the "Coverage floors" step.
+    assert "(matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12') && '--cov=src/vamos" in run
+    assert steps["Coverage floors"]["if"] == "matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'"
+    dev = _project()["project"]["optional-dependencies"]["dev"]
+    assert any(requirement.startswith("pytest-xdist") for requirement in dev)

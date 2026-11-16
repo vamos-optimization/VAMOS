@@ -27,6 +27,8 @@ class RunInfo:
     seed: int
     study: str | None
     completed_at: str | None
+    #: Whether ``vamos reproduce`` wrote this run as the replay of another.
+    replay: bool = False
 
 
 @dataclass
@@ -41,8 +43,12 @@ class RunData:
     metadata: dict[str, object]
 
 
-def discover_runs(base_dir: str | Path = "results") -> list[RunInfo]:
-    """Return valid canonical runs found beneath *base_dir*."""
+def discover_runs(base_dir: str | Path = "results", *, include_replays: bool = False) -> list[RunInfo]:
+    """Return valid canonical runs found beneath *base_dir*.
+
+    ``vamos reproduce`` writes a replay next to its source, under ``replays/``, so the
+    replays are left out unless ``include_replays`` is true; ``RunInfo.replay`` marks them.
+    """
     runs: list[RunInfo] = []
     for manifest_path in Path(base_dir).rglob("manifest.json"):
         try:
@@ -50,8 +56,10 @@ def discover_runs(base_dir: str | Path = "results") -> list[RunInfo]:
             resolved = manifest.resolved_spec
             timestamps = manifest.get("timestamps")
             labels = manifest.get("labels")
+            lineage = manifest.get("lineage")
+            replay = isinstance(lineage, Mapping) and lineage.get("execution_kind") == "replay"
             seed = resolved.get("seed")
-            if isinstance(seed, bool) or not isinstance(seed, int):
+            if isinstance(seed, bool) or not isinstance(seed, int) or (replay and not include_replays):
                 continue
             runs.append(
                 RunInfo(
@@ -65,6 +73,7 @@ def discover_runs(base_dir: str | Path = "results") -> list[RunInfo]:
                     completed_at=(
                         str(timestamps.get("completed_at")) if isinstance(timestamps, Mapping) and timestamps.get("completed_at") else None
                     ),
+                    replay=replay,
                 )
             )
         except Exception:

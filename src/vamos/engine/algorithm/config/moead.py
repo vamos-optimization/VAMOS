@@ -13,6 +13,7 @@ from vamos.foundation.exceptions import ConfigurationError
 
 from .base import (
     ConstraintModeStr,
+    LiveCallbackMode,
     ResultMode,
     _ConfigBuilderState,
     _ConstraintModeBuilder,
@@ -67,6 +68,7 @@ class MOEADConfig(_SerializableConfig):
     external_archive: ExternalArchiveConfig | None = None
     # Fields added after 1.0 go last, so that the constructor keeps the positions of its parameters.
     subproblem_update_criterion: tuple[str, dict[str, float]] | None = None
+    live_callback_mode: LiveCallbackMode = "population"
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -229,6 +231,7 @@ class _MOEADConfigBuilder(
             track_genealogy=bool(self._cfg.get("track_genealogy", False)),
             result_mode=self._cfg.get("result_mode", "non_dominated"),
             external_archive=self._cfg.get("external_archive"),
+            live_callback_mode=self._cfg.get("live_callback_mode", "population"),
         )
 
 

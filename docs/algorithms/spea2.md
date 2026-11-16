@@ -10,7 +10,7 @@ downloads:
 
 Strength-based fitness combines dominance information with density estimation, while an environmental archive preserves candidates for further search [1]. The archive is part of the algorithm, not simply a saved result.
 
-**Goal:** run the stable public API in VAMOS 1.0.1, interpret its returned population, and identify which settings control this mechanism.
+**Goal:** run the stable public API in VAMOS 1.2.1, interpret its returned population, and identify which settings control this mechanism.
 
 [Capability matrix](../reference/algorithms.md) · [Exact configuration reference](../reference/api/algorithms/spea2.md) · [Setup and recorded evidence](../tutorials/coverage-setup.md)
 
@@ -31,7 +31,7 @@ The second command reruns the same protocol and requires Matplotlib. Use a new f
 ??? example "Complete runnable script"
 
     ```python
-    """Verified VAMOS 1.0.1 lesson: spea2. See coverage-setup for dependencies."""
+    """Verified VAMOS 1.2.1 lesson: spea2. See coverage-setup for dependencies."""
 
 
     def execute_example(problem, algorithm, config, budget, seed=42, engine="numpy"):
@@ -151,14 +151,14 @@ The second command reruns the same protocol and requires Matplotlib. Use a new f
 ```text
 Algorithm: spea2; encoding: real; backend: numpy; seed: 42
 Returned X: (40, 10); F: (40, 2); result mode: population
-Feasible rows: 40/40; feasible non-dominated rows: 16
+Feasible rows: 40/40; feasible non-dominated rows: 12
 Evaluations: 400
 ```
 <!-- /tutorial:output -->
 
 ![Actual spea2 results from the documented protocol.](../assets/coverage/spea2.svg)
 
-*Measured with VAMOS 1.0.1; the [observations and provenance](../tutorials/coverage-setup.md#recorded-evidence) retain the inputs and results.*
+*Measured with VAMOS 1.2.1; the [observations and provenance](../tutorials/coverage-setup.md#recorded-evidence) retain the inputs and results.*
 
 ## Understand the configuration
 

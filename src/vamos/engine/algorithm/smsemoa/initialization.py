@@ -147,7 +147,7 @@ def initialize_smsemoa_run(
     ref_point, ref_offset, ref_adaptive = initialize_reference_point(F, ref_cfg)
 
     # Setup external archive
-    ext_cfg = resolve_external_archive(config)
+    ext_cfg = resolve_external_archive(config, seed=seed)
     archive_X, archive_F, archive_manager = setup_archive(kernel, X, F, n_var, n_obj, X.dtype, ext_cfg, G)
 
     # Create state
@@ -184,6 +184,7 @@ def initialize_smsemoa_run(
         genealogy_tracker=genealogy_tracker,
         ids=ids,
         result_mode=config.get("result_mode", "non_dominated"),
+        live_callback_mode=str(config.get("live_callback_mode", "population")),
     )
 
     refresh_selection_cache(state, kernel)

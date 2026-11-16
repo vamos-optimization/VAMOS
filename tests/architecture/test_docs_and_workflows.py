@@ -120,6 +120,16 @@ def test_slow_tier_runs_every_night() -> None:
     assert "pytest -m slow" in scripts
 
 
+def test_fast_tier_runs_in_parallel_in_ci_and_in_one_process_every_night() -> None:
+    ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert 'pytest -m "not slow" -n auto' in ci
+    workflow = yaml.safe_load((ROOT / ".github" / "workflows" / "slow-tests.yml").read_text(encoding="utf-8"))
+    assert "schedule" in workflow.get("on", workflow.get(True))
+    # The nightly serial run catches tests that depend on what an earlier test in the same process left behind.
+    scripts = [step.get("run", "") for job in workflow["jobs"].values() for step in job["steps"]]
+    assert 'pytest -m "not slow" -p no:xdist' in scripts
+
+
 def test_slow_test_list_names_existing_tests() -> None:
     from tests.conftest import SLOW_TESTS
 

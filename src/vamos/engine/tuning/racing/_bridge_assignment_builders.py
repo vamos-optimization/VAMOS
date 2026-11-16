@@ -22,6 +22,7 @@ from vamos.engine.algorithm.config import (
     ToPConfig,
 )
 from vamos.engine.algorithm.variants import ALGORITHM_VARIANT_GROUPS
+from vamos.engine.reference_directions import largest_lattice_divisions, lattice_size
 
 from ._bridge_assignment_shared import (
     apply_initializer,
@@ -108,10 +109,23 @@ def _moead_pop_size(assignment: dict[str, Any]) -> int:
     return pop_size
 
 
+def _moead_aggregation(builder: Any, assignment: dict[str, Any]) -> None:
+    aggregation = str(assignment["aggregation"])
+    if aggregation == "pbi":
+        builder.aggregation("pbi", theta=float(assignment.get("pbi_theta", 5.0)))
+    elif aggregation == "modified_tchebycheff":
+        builder.aggregation("modified_tchebycheff", rho=float(assignment.get("mtch_rho", 0.001)))
+    else:
+        builder.aggregation(aggregation)
+
+
 def build_moead_config(assignment: dict[str, Any], *, mixed: bool = False) -> MOEADConfig:
     builder = MOEADConfig.builder()
     pop_size = _moead_pop_size(assignment)
     builder.pop_size(pop_size)
+    # Assignments from spaces without an initializer leave MOEA/D's default.
+    if "initializer" in assignment:
+        apply_initializer(builder, assignment, pop_size)
     builder.neighbor_size(min(int(assignment["neighbor_size"]), pop_size))
     builder.delta(float(assignment["delta"]))
     builder.replace_limit(int(assignment["replace_limit"]))
@@ -127,16 +141,16 @@ def build_moead_config(assignment: dict[str, Any], *, mixed: bool = False) -> MO
 
     mut = str(assignment["mutation"])
     mut_params: dict[str, Any] = {}
+    # Assignments from the earlier real-coded space give an absolute probability.
     if "mutation_prob" in assignment:
         mut_params["prob"] = float(assignment["mutation_prob"])
+    if assignment.get("mutation_prob_factor") is not None:
+        builder.mutation_prob_factor(float(assignment["mutation_prob_factor"]))
     extend_mutation_params(mut, assignment, mut_params, mixed=mixed)
     builder.mutation(mut, **mut_params)
 
-    aggregation = str(assignment["aggregation"])
-    if aggregation == "pbi":
-        builder.aggregation("pbi", theta=float(assignment.get("pbi_theta", 5.0)))
-    else:
-        builder.aggregation(aggregation)
+    _moead_aggregation(builder, assignment)
+    apply_optional_repair(builder, assignment)
     apply_optional_external_archive(builder, assignment, pop_size)
     apply_subproblem_update_criterion(builder, assignment)
     return builder.build()
@@ -151,13 +165,7 @@ def build_moead_permutation_config(assignment: dict[str, Any]) -> MOEADConfig:
     builder.replace_limit(int(assignment["replace_limit"]))
     builder.crossover(str(assignment["crossover"]), prob=float(assignment.get("crossover_prob", 0.9)))
     builder.mutation(str(assignment["mutation"]), prob=assignment.get("mutation_prob", 0.1))
-    aggregation = str(assignment["aggregation"])
-    if aggregation == "pbi":
-        builder.aggregation("pbi", theta=float(assignment.get("pbi_theta", 5.0)))
-    elif aggregation == "modified_tchebycheff":
-        builder.aggregation("modified_tchebycheff", rho=float(assignment.get("mtch_rho", 0.001)))
-    else:
-        builder.aggregation(aggregation)
+    _moead_aggregation(builder, assignment)
     apply_optional_external_archive(builder, assignment, pop_size)
     return builder.build()
 
@@ -199,12 +207,20 @@ def build_smsemoa_config(assignment: dict[str, Any], *, mixed: bool = False) -> 
     builder.crossover(cross, **cross_params)
     mut = str(assignment["mutation"])
     mut_params: dict[str, Any] = {}
+    # Assignments from the earlier real-coded spaces give an absolute probability.
     if "mutation_prob" in assignment:
         mut_params["prob"] = float(assignment["mutation_prob"])
+    if assignment.get("mutation_prob_factor") is not None:
+        builder.mutation_prob_factor(float(assignment["mutation_prob_factor"]))
     extend_mutation_params(mut, assignment, mut_params, mixed=mixed)
     builder.mutation(mut, **mut_params)
-    builder.selection("tournament", size=int(assignment["selection_pressure"]))
-    builder.reference_point(offset=0.1, adaptive=True)
+    # Assignments from earlier spaces name only the tournament size and used an offset of 0.1.
+    selection = str(assignment.get("selection", "tournament"))
+    if selection == "tournament":
+        builder.selection(selection, size=int(assignment["selection_pressure"]))
+    else:
+        builder.selection(selection)
+    builder.reference_point(offset=float(assignment.get("reference_point_offset", 0.1)), adaptive=True)
     apply_optional_repair(builder, assignment)
     apply_optional_external_archive(builder, assignment, pop_size)
     apply_constraint_handling(builder, assignment)
@@ -229,7 +245,8 @@ def build_spea2_config(assignment: dict[str, Any], *, mixed: bool = False) -> SP
         mut_params["prob"] = float(assignment["mutation_prob"])
     extend_mutation_params(mut, assignment, mut_params, mixed=mixed)
     builder.mutation(mut, **mut_params)
-    builder.selection("tournament", size=int(assignment["selection_pressure"]))
+    # SPEA2 mates with its own binary tournament: a ``selection_pressure`` saved from an earlier space has no effect.
+    builder.selection("tournament")
     builder.k_neighbors(int(assignment.get("k_neighbors", max(1, int(np.sqrt(pop_size))))))
     apply_optional_repair(builder, assignment)
     apply_optional_external_archive(builder, assignment, pop_size)
@@ -310,11 +327,24 @@ def build_agemoea_config(assignment: dict[str, Any], *, mixed: bool = False) -> 
     return builder.build()
 
 
+def _rvea_population(assignment: dict[str, Any]) -> tuple[int, int]:
+    """RVEA's population and partitions: one individual per direction of a complete Das-Dennis lattice.
+
+    The lattice is the largest with at most the sampled ``pop_size`` directions for the assignment's
+    ``n_obj`` (two objectives without it). An assignment with ``n_partitions``, saved from an earlier
+    space, keeps that lattice, and one with neither gets 12 partitions.
+    """
+    n_obj = max(2, int(assignment.get("n_obj", 2)))
+    if "n_partitions" in assignment or "pop_size" not in assignment:
+        n_partitions = int(assignment.get("n_partitions", 12))
+    else:
+        n_partitions = largest_lattice_divisions(int(assignment["pop_size"]), n_obj)
+    return lattice_size(n_obj, n_partitions), n_partitions
+
+
 def build_rvea_config(assignment: dict[str, Any], *, mixed: bool = False) -> RVEAConfig:
     builder = RVEAConfig.builder()
-    n_partitions = int(assignment.get("n_partitions", 12))
-    n_obj = max(2, int(assignment.get("n_obj", 2)))
-    pop_size = int(math.comb(n_partitions + n_obj - 1, n_obj - 1))
+    pop_size, n_partitions = _rvea_population(assignment)
     builder.pop_size(pop_size)
     builder.n_partitions(n_partitions)
     builder.alpha(float(assignment.get("alpha", 2.0)))

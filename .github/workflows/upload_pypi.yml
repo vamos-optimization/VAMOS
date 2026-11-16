@@ -217,9 +217,11 @@ jobs:
         run: |
           cp docs/project/stability-and-versioning.md frozen/stability-and-versioning.md
           cp docs/project/known-limitations.md frozen/known-limitations.md
+          # The notes link to other documentation pages relatively; on the Release page they point to this version's docs.
+          python3 tools/github_release_notes.py "$VAMOS_RELEASE_VERSION" --output frozen/github-release-notes.md
           gh release create "$GITHUB_REF_NAME" \
             frozen/dist/* frozen/SHA256SUMS frozen/SBOM.cdx.json \
             frozen/artifact-manifest.json frozen/build-provenance.json \
             frozen/stability-and-versioning.md frozen/known-limitations.md \
             --verify-tag --title "VAMOS $VAMOS_RELEASE_VERSION" \
-            --notes-file "docs/project/release-notes-${VAMOS_RELEASE_VERSION}.md"
+            --notes-file frozen/github-release-notes.md

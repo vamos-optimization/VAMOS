@@ -52,7 +52,9 @@ def _beat(job_dir: Path, stop: threading.Event, worker_id: str) -> None:
                 requested = True
                 # Schedule an exception in this process's owning thread. Unlike
                 # os._exit(), unwinding executes atomic writers' cleanup before
-                # main() acknowledges the stop. No signal is sent to a PID.
+                # main() acknowledges the stop. No signal is sent to a PID. The
+                # study layer holds the handler while it writes a journal event
+                # and its checkpoints, so the stop lands between commits.
                 _thread.interrupt_main(signal.SIGTERM)
             if time.monotonic() >= next_beat:
                 write_json(job_dir / HEARTBEAT_FILE, {"pid": os.getpid(), "worker_id": worker_id, "time": time.time()})

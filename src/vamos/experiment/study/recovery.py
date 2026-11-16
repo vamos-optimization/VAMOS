@@ -19,7 +19,7 @@ from .errors import (
 )
 from .execution_errors import enrich_execution_error
 from .failure_policy import complete_running, pause_after_task_failure, record_infrastructure_failure
-from .loading import load_study
+from .loading import reload_study
 from .models import Study, TaskRecord
 from .reconciliation import reconcile_study
 
@@ -60,7 +60,7 @@ def _operate(
         raise _ownership_error(snapshot, operation)
     execution._ACTIVE_ROOTS[root] = None
     try:
-        current = load_study(root)
+        current = reload_study(snapshot)
         _validate_snapshot(snapshot, current, operation)
         current = reconcile_study(current)
         selected = _select_tasks(
@@ -71,7 +71,7 @@ def _operate(
             include_interrupted=include_interrupted,
         )
         if not selected:
-            return load_study(root)
+            return reload_study(snapshot)
         _verify_resume_environment(current, selected, operation)
         parent_execution_id = current.manifest.execution_id
         state = execution._start_execution(current, parent_execution_id=parent_execution_id)
@@ -80,14 +80,14 @@ def _operate(
                 continue
             index = state.task_indexes[plan_task.task_id]
             if execution._run_task_attempt(state, index, plan_task):
-                return load_study(root)
+                return reload_study(snapshot)
             task = state.tasks[index]
             if task.state == "failed" and state.manifest.on_error == "fail_fast":
                 return pause_after_task_failure(state, task)
-        return complete_running(state, execution._execution_phase, load_study)
+        return complete_running(state, execution._execution_phase, reload_study)
     except KeyboardInterrupt as exc:
         try:
-            return cancel_loaded(load_study(root), code="PROCESS_INTERRUPTION")
+            return cancel_loaded(reload_study(snapshot), code="PROCESS_INTERRUPTION")
         except Exception as cancellation_error:
             raise StudyInfrastructureError(
                 operation=f"cancel interrupted study {operation}",
@@ -104,7 +104,7 @@ def _operate(
         if state is None:
             raise
         enrich_execution_error(exc, snapshot, state)
-        recorded = record_infrastructure_failure(root, exc)
+        recorded = record_infrastructure_failure(snapshot, exc)
         if recorded is exc:
             raise
         raise recorded from exc
@@ -124,7 +124,7 @@ def _operate(
         )
         if state is None:
             raise error from exc
-        raise record_infrastructure_failure(root, error) from exc
+        raise record_infrastructure_failure(snapshot, error) from exc
     finally:
         execution._ACTIVE_ROOTS.pop(root, None)
         execution._CANCELLATION_REQUESTS.pop(root, None)
@@ -198,7 +198,7 @@ def _verify_resume_environment(study: Study, selected: set[str], operation: _Ope
         run_id = attempt.run_reference.get("run_id")
         if not isinstance(run_id, str):
             continue
-        stored = load_run(study.root / "runs" / run_id, verify="manifest")
+        stored = load_run(study.root / "runs" / run_id, verify="manifest", limits=study.run_limits)
         report = compare_current_environment(stored.manifest, stored.environment)
         if report.level != "exact":
             raise ResumeEnvironmentIncompatibilityError(

@@ -1,4 +1,4 @@
-"""`vamos tune --backend racing`: default race and multi-fidelity budget checks (review finding VR-205)."""
+"""`vamos tune --backend racing`: default race and multi-fidelity budget checks."""
 
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ def _record_evaluations(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, int,
     def fake_make_evaluator(**_: object):
         def evaluate(config, ctx):
             seen.append((ctx.instance.name, int(ctx.seed), int(ctx.budget)))
-            return float(config["crossover_prob"])
+            return float(config["crossover_probability"])
 
         return evaluate
 
