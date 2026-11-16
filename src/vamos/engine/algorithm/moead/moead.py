@@ -22,6 +22,7 @@ import numpy as np
 
 from vamos.engine.algorithm.components.hooks import (
     finalize_genealogy,
+    is_no_op_live_callback,
     live_should_stop,
     notify_generation,
     send_live_generation,
@@ -42,7 +43,7 @@ if TYPE_CHECKING:
     from vamos.foundation.eval.backends import EvaluationBackend
     from vamos.foundation.kernel.backend import KernelBackend
     from vamos.foundation.problem.types import ProblemProtocol
-from vamos.engine.hooks.live_viz import LiveVisualization, NoOpLiveVisualization
+from vamos.engine.hooks.live_viz import LiveVisualization
 
 
 def _count_live_generations(st: MOEADState) -> bool:
@@ -168,8 +169,8 @@ class MOEAD:
         st.live_sent_evals = st.n_eval
         stop_requested = live_should_stop(live_cb)
         hv_reached = hv_tracker.enabled and hv_tracker.reached(st.hv_points())
-        # notify_generation ignores no-op callbacks, so the loop skips the call for them.
-        notify = not isinstance(live_cb, NoOpLiveVisualization)
+        # notify_generation ignores the default no-op callback, so the loop skips the call for it.
+        notify = not is_no_op_live_callback(live_cb)
         # The compiled one-offspring step (numba engine) is called directly; None defers to ask()/tell().
         steady = self._steady
         if steady is not None and not notify and not hv_tracker.enabled and st.archive_manager is None and not stop_requested:
@@ -219,7 +220,7 @@ class MOEAD:
         self._session = _AskTellSession(
             live_cb=live_cb,
             hv_tracker=hv_tracker,
-            notify=not isinstance(live_cb, NoOpLiveVisualization),
+            notify=not is_no_op_live_callback(live_cb),
             stop_requested=live_should_stop(live_cb),
             hv_reached=bool(hv_tracker.enabled and hv_tracker.reached(st.hv_points())),
         )

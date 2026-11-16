@@ -155,6 +155,11 @@ NSGA-II passed `X`, NSGA-II and SMPSO sent the first front while the others sent
 the population, MOEA/D notified after every evaluation, and IBEA, NSGA-III,
 SPEA2 and SMPSO left out `stats` in `ask`/`tell` runs.
 
+**Development after 1.2.1:** only the default `NoOpLiveVisualization` itself is
+skipped. A callback that subclasses it and overrides `on_generation` receives
+every generation in every algorithm. In VAMOS 1.2.1 MOEA/D, SPEA2 and SMPSO
+sent such a callback generation 0 only.
+
 **Development after 1.2.1:** every algorithm that takes an external archive
 has `live_callback_mode`, as NSGA-II does: `population` (their default) sends
 the population, `nd_only` (NSGA-II's default) its first front, and
