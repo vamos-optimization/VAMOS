@@ -317,7 +317,7 @@ def _operator_pairs(space: AlgorithmConfigSpace):
     ps = space.to_param_space()
     cx = ps.params.get("crossover")
     mx = ps.params.get("mutation")
-    init = ps.params.get("initializer")
+    init = ps.params.get("initial_solutions")
 
     cx_vals = list(cx.choices) if isinstance(cx, Categorical) else [None]
     mx_vals = list(mx.choices) if isinstance(mx, Categorical) else [None]
@@ -330,7 +330,7 @@ def _operator_pairs(space: AlgorithmConfigSpace):
         if m is not None:
             pair["mutation"] = m
         if i is not None:
-            pair["initializer"] = i
+            pair["initial_solutions"] = i
         yield pair
 
 
@@ -347,7 +347,7 @@ def _inject_special_params(algo_name: str, assignment: dict[str, Any]) -> None:
 _REGISTRY_IDS = [f"{algo}_{enc}" for algo, enc, _ in REGISTRY]
 # Spaces with more than 100 000 combinations: building them all takes minutes, so the
 # exhaustive check runs in the slow tier and the fast tier builds a sample of them.
-_LARGE_SPACES = {"nsgaii_real", "nsgaii_mixed_mixed"}
+_LARGE_SPACES = {"nsgaii_real", "nsgaii_mixed_mixed", "nsgaii_constrained_real"}
 # A prime stride over the base product reaches every value of every base parameter.
 _SAMPLE_BASE_STRIDE = 211
 
@@ -471,7 +471,7 @@ def operator_choices() -> dict[tuple[str, str, str], tuple[str, Any]]:
     choices: dict[tuple[str, str, str], tuple[str, Any]] = {}
     for algo_name, encoding, builder in REGISTRY:
         for name, param in builder().to_param_space().params.items():
-            if isinstance(param, Categorical) and name.endswith(("crossover", "mutation", "initializer", "repair")):
+            if isinstance(param, Categorical) and name.endswith(("crossover", "mutation", "initial_solutions", "repair")):
                 for choice in param.choices:
                     choices.setdefault((encoding, name, str(choice)), (algo_name, builder))
     return choices
@@ -579,3 +579,11 @@ def test_pair_based_algorithms_still_run_pairwise_real_operators(algorithm: str)
     cfg = _pair_based_builders()[algorithm]().crossover(crossover, prob=0.9).mutation("pm", prob="1/n", eta=20.0).build()
     result = optimize(_counting_zdt1(), algorithm=algorithm, algorithm_config=cfg, max_evaluations=100, seed=1, engine="numpy")
     assert result.F.shape[1] == 2
+
+
+@pytest.mark.slow
+def test_every_space_over_the_threshold_is_sampled_in_the_fast_tier() -> None:
+    """A space past 100 000 combinations takes minutes to build in full, so the fast tier samples it."""
+    large = {f"{algo}_{enc}" for algo, enc, builder in REGISTRY if sum(1 for _ in _enumerate_discrete_combos(builder())) > 100_000}
+
+    assert large <= _LARGE_SPACES, sorted(large - _LARGE_SPACES)

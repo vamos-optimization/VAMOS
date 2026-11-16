@@ -1,4 +1,4 @@
-"""Every script in tools/ has an owner that runs or documents it, and points at code that exists (VR-314, VR-322)."""
+"""Every script in tools/ has an owner that runs or documents it, and points at code that exists."""
 
 from __future__ import annotations
 

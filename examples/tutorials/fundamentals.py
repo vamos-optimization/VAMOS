@@ -1,4 +1,6 @@
-"""Sources for T01–T03; core VAMOS 1.0.1 only, no optional extras.
+"""Sources for T01–T03; core VAMOS only, no optional extras.
+
+docs/assets/tutorials/tutorial-requirements.txt pins the recorded VAMOS release and dependencies.
 
 Run a lesson from the repository root:
     python examples/tutorials/fundamentals.py t01

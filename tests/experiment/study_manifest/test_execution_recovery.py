@@ -3,6 +3,7 @@ from __future__ import annotations
 import collections
 import json
 import os
+import signal
 import time
 from pathlib import Path
 from typing import Any
@@ -253,6 +254,36 @@ def test_verification_interruption_leaves_only_an_unreferenced_orphan_run(tmp_pa
     assert vamos.load_run(orphan_runs[0], verify="all").status == "succeeded"
 
 
+def test_root_checkpoint_left_at_creation_loads_the_journal_view(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import vamos.experiment.study.execution as execution
+    from vamos.experiment.study.commits import append_event
+    from vamos.experiment.study.identity import new_uuid4
+
+    root = tmp_path / "study"
+    created = vamos.create_study(_spec(), output=root)
+    # What a process killed between the first event and its root checkpoint leaves behind.
+    append_event(
+        root,
+        created.events[-1],
+        event_type="execution_started",
+        entity_kind="study",
+        entity_id=created.study_id,
+        transition_from="created",
+        transition_to="running",
+        execution_id=new_uuid4(),
+    )
+
+    before = _snapshot(root)
+    lagging = vamos.load_study(root)
+    assert _snapshot(root) == before
+    assert lagging.status == "running"
+    assert (lagging.stored_checkpoint_sequence, lagging.events[-1].sequence) == (1, 2)
+    assert lagging.reconciliation_required
+
+    monkeypatch.setattr(execution, "_execute_optimization", lambda reconstructed, *, root: _result(reconstructed))
+    assert lagging.resume().status == "completed"
+
+
 def test_checkpoint_ahead_of_journal_is_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     completed = _run_mocked(tmp_path, monkeypatch)
     path = completed.root / "study-manifest.json"
@@ -447,3 +478,27 @@ def test_document_read_retries_sharing_violation(tmp_path: Path, monkeypatch: py
 
     assert vamos.load_study(root).status == "completed"
     assert len(refused) == 2
+
+
+def test_commit_section_runs_a_held_signal_handler_once_after_the_commit() -> None:
+    from vamos.experiment.study.commits import commit_section
+
+    received: list[int] = []
+
+    def handler(signum: int, _frame: object) -> None:
+        received.append(signum)
+
+    interrupt_handler = signal.getsignal(signal.SIGINT)
+    previous = signal.signal(signal.SIGTERM, handler)
+    try:
+        with commit_section():
+            for _ in range(2):
+                current = signal.getsignal(signal.SIGTERM)
+                assert callable(current)
+                current(signal.SIGTERM, None)
+            assert received == []
+        assert received == [signal.SIGTERM]
+        assert signal.getsignal(signal.SIGTERM) is handler
+        assert signal.getsignal(signal.SIGINT) is interrupt_handler
+    finally:
+        signal.signal(signal.SIGTERM, previous)

@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 
 from vamos.engine.archive import ExternalArchiveConfig
-from vamos.engine.archive.factory import ArchiveManager, setup_result_archive
+from vamos.engine.archive.factory import ArchiveManager, resolve_archive_seed, setup_result_archive
 from vamos.engine.hooks.config_parse import HOOK_ARCHIVE_DEDUPLICATE_IN, check_hook_reference_point
 from vamos.engine.hooks.hv_convergence import HVConvergenceConfig, HVConvergenceMonitor, HVDecision
 from vamos.foundation.core.hv_stop import near_nadir_reference
@@ -67,6 +67,9 @@ class HookManagerConfig:
     archive_enabled: bool
     archive_cfg: ExternalArchiveConfig
     hv_ref_point: list[float] | None = None
+    # The run seed, from which the archive's ref_dirs pruning and the monitor's bootstrap
+    # derive their streams when the config gives them no rng_seed.
+    run_seed: int = 0
 
 
 class HookManager:
@@ -92,7 +95,7 @@ class HookManager:
         self._hv_trace: list[dict[str, Any]] = []
         self._archive_stats: list[dict[str, Any]] = []
 
-        self.monitor = HVConvergenceMonitor(cfg.stop_cfg) if cfg.stopping_enabled else None
+        self.monitor = HVConvergenceMonitor(cfg.stop_cfg, run_seed=cfg.run_seed) if cfg.stopping_enabled else None
         self.archive: ArchiveManager | None = None
         self._archive_F: np.ndarray[Any, Any] | None = None
         self._archive_total_inserted = 0
@@ -111,7 +114,7 @@ class HookManager:
     def _ensure_archive(self, F: np.ndarray[Any, Any]) -> None:
         if not self.cfg.archive_enabled or self.archive is not None:
             return
-        archive_cfg = self.cfg.archive_cfg
+        archive_cfg = resolve_archive_seed(self.cfg.archive_cfg, self.cfg.run_seed)
         if archive_cfg.capacity is None:
             # ``capacity: null`` keeps every non-dominated objective vector.
             from vamos.engine.algorithm.components.archive import UnboundedArchive

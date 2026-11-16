@@ -295,6 +295,17 @@ class _ResultArchiveBuilder:
         self._cfg.setdefault("result_mode", "non_dominated")
         return self
 
+    def live_callback_mode(self, mode: LiveCallbackMode) -> Self:
+        """What a live callback receives each generation as ``F`` and ``X``, and in ``stats``.
+
+        ``"population"`` (the default but in NSGA-II) sends the whole current population,
+        ``"nd_only"`` its first front, and ``"population_archive"`` the population plus the
+        external archive in ``stats["archive"]`` (``{"X": ..., "F": ...}``), which is what a run
+        with an archive returns.
+        """
+        self._cfg["live_callback_mode"] = str(mode)
+        return self
+
 
 class _SerializableConfig:
     """Mixin to serialize dataclass configs."""

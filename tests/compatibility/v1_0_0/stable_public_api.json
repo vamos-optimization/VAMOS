@@ -203,7 +203,7 @@
     "vamos.algorithms.MOEADConfig": "(pop_size, batch_size, neighbor_size, delta, replace_limit, crossover, mutation, aggregation, weight_vectors, constraint_mode='feasibility', repair='auto', initializer=None, mutation_prob_factor=None, use_numba_variation=None, track_genealogy=False, result_mode=None, external_archive=None)",
     "vamos.algorithms.MOEADConfig.available_operators": "(category=None)",
     "vamos.algorithms.MOEADConfig.builder": "()",
-    "vamos.algorithms.MOEADConfig.default": "(pop_size=None, n_var=None, n_obj=3, encoding=None, *, variant=None)",
+    "vamos.algorithms.MOEADConfig.default": "(pop_size=None, n_var=None, n_obj=3, encoding=None)",
     "vamos.algorithms.MOEADConfig.default_operators": "(encoding='real')",
     "vamos.algorithms.MOEADConfig.describe": "(self)",
     "vamos.algorithms.MOEADConfig.diff": "(self, other)",

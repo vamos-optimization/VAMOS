@@ -187,6 +187,24 @@ published results or with another framework.
   `variant="sbx"` jMetal's MOEA/D with SBX and PBI; VAMOS 2.0 will make
   `"de"` the default. See [MOEA/D](../algorithms/moead.md#what-the-configuration-means).
 
+**Development after 1.2.1:** three real-coded mutations scale their steps by
+the range of each variable.
+
+- `non_uniform` is Michalewicz's mutation, as in jMetal: a mutated variable
+  moves towards one of its bounds, chosen at random, by
+  `y * (1 - r ** ((1 - t / T) ** b))`, where `y` is the distance to that bound.
+  The operator does not know the run's progress `t / T`, so it uses 0: the step
+  is `y * (1 - r)`, and `perturbation` (`b`) has no effect. The tuning spaces
+  no longer offer `nonuniform_perturbation`. In VAMOS 1.2.0 the step was
+  `(1 - r ** b)` times the whole range, with a random sign, so 25% to 41% of the
+  mutated genes left their bounds and the repair moved them onto the bound.
+- `gaussian` and `cauchy` read `sigma` and `gamma` as fractions of each
+  variable's range, as pymoo does, and `gaussian` defaults to `sigma = 0.1`.
+  In VAMOS 1.2.0 both were in the variables' units, so the same value was
+  negligible on a range of 1000 and large on a range of 0.01, and `gaussian`
+  had no default. On variables with a range of 1, such as those of DTLZ and
+  most of ZDT, they behave as before.
+
 ### Choose an initial experiment
 
 | Need | Starting point | Check before increasing the budget |
@@ -223,6 +241,28 @@ NSGA-III and RVEA require a population compatible with the configured reference 
 **VAMOS 1.2.0:** `optimize` and study planning check each built-in algorithm's smallest population and number of objectives before the run and raise `ConfigurationError` (or, when planning, `UnresolvedStudyTaskError` with `INVALID_POPULATION_SIZE` or `UNSUPPORTED_OBJECTIVE_COUNT`) that names the minimum. NSGA-II, IBEA, AGE-MOEA, MOEA/D, NSGA-III and RVEA need `pop_size >= 2` (for NSGA-II and IBEA the selection decides: a tournament needs as many individuals as its size, 2 by default, and random, Boltzmann, ranking and SUS selection one); SMS-EMOA, AGE-MOEA, NSGA-III and RVEA need at least two objectives. The table is `vamos.engine.algorithm.catalog.ALGORITHM_MINIMUMS`. VAMOS 1.1.0 failed later with an error from the parent tournament or from moocore, and AGE-MOEA ran a single-objective problem.
 
 **VAMOS 1.2.0:** with `pop_size`, `NSGAIIIConfig.default()` uses the complete lattice with the most directions that fit in it, for any number of objectives (four divisions, 70 directions, for 100 individuals and five objectives, which used to fail with six divisions and 210 directions); `RVEAConfig.default()` uses the lattice of exactly `pop_size` vectors and otherwise fails at once naming the nearest valid sizes, such as 91 or 105 for three objectives. Without `pop_size`, both still use 12 divisions for three objectives and 6 for four or more.
+
+### The command line and `optimize`
+
+A top-level `vamos` run and `vamos.optimize` build a run separately, so with the
+same problem, algorithm, population, budget and seed, and no algorithm
+configuration, they resolve the same configuration except for these
+differences, which `tests/experiment/test_cli_api_parity.py` keeps listed:
+
+- Result mode: the command line returns `non_dominated` for AGE-MOEA, CCMO,
+  CMOEA-MS, C-TAEA, IBEA, MOEA/D, RVEA, SMS-EMOA, SPEA2 and ToP, where
+  `optimize` returns `population`. NSGA-II, NSGA-III and SMPSO agree.
+- NSGA-III: the command line uses SBX with distribution index 20, not 30, and
+  derives the reference directions from the population when the run starts;
+  `optimize` records the lattice's divisions.
+- MOEA/D: the command line reads the packaged weight files and records their
+  directory, a path inside the installation; `optimize` records the divisions.
+- NSGA-II's offspring size and SMS-EMOA's reference point are written out by
+  one path and left to their defaults by the other, with the same effect.
+
+When the two must agree, set these options explicitly on both and compare the
+resolved configuration that each run records. Both paths are stable, so their
+defaults stay until one execution path replaces them in 2.0.
 
 ### Termination criteria
 
