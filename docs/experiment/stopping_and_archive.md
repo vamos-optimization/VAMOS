@@ -200,9 +200,11 @@ experiment therefore prune and bootstrap with different streams, and a repeated
 seed repeats them. An integer `rng_seed` fixes the stream, as before. The same
 rule applies to `ExternalArchiveConfig.rng_seed` of an algorithm's external
 archive, and `optimize` records the effective seed in the run's resolved
-configuration. The monitor bootstraps with a `numpy.random.Generator`. In VAMOS
-1.2.0 both `rng_seed` fields defaulted to 0, so every seed of an experiment
-shared those streams, and the monitor used Python's `random.Random`.
+configuration; its requested specification keeps the `null` `rng_seed`, so a
+saved run tells a derived stream from a fixed one. The monitor bootstraps with
+a `numpy.random.Generator`. In VAMOS 1.2.0 both `rng_seed` fields defaulted to
+0, so every seed of an experiment shared those streams, and the monitor used
+Python's `random.Random`.
 
 Runs should be launched with fixed seeds and fixed budgets. Early stopping changes executed evaluations,
 but the run still reports the original max budget in the resolved spec. Use the

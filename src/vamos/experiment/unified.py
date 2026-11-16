@@ -479,6 +479,7 @@ def _run_single(
             seed=seed,
             default_sources=result.meta["default_sources"],
             problem_code=None if problem_built_in else custom_problem_code(problem_instance),
+            algorithm_config_requested=None if algorithm_config is None else dict(algorithm_config.to_dict()),
         )
     )
     result.meta["run_artifact_requested_spec"] = requested_spec
