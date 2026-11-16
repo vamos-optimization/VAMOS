@@ -63,7 +63,10 @@ def add_output_arguments(
         parser,
         "--hv-reference-front",
         default=experiment_defaults.get("hv_reference_front"),
-        help=("Path to a CSV reference front (two columns) used when --hv-threshold is set. Defaults to built-in fronts for ZDT problems."),
+        help=(
+            "Path to a CSV reference front (two columns) used when --hv-threshold is set, or a packaged source: "
+            "'vamos' (VAMOS's fronts) or 'jmetal' (jMetal's fronts of ZDT and DTLZ). Defaults to built-in fronts for ZDT problems."
+        ),
     )
     add_spec_argument(
         parser,

@@ -85,6 +85,23 @@ class TestSelectTopKFarthest:
         # Should pick the two extremes and the middle, not the near-duplicate
         assert 0 in idx and 2 in idx
 
+    def test_raw_distances_depend_on_the_scale_of_the_objectives(self):
+        F = np.random.default_rng(1).random((300, 3))
+        assert np.array_equal(select_top_k_farthest(F, 20), select_top_k_farthest(F, 20, normalize=False))
+        assert not np.array_equal(np.sort(select_top_k_farthest(F, 20)), np.sort(select_top_k_farthest(F * [1.0, 1.0, 100.0], 20)))
+
+    def test_normalized_selection_ignores_the_scale_and_offset_of_each_objective(self):
+        F = np.random.default_rng(1).random((300, 3))
+        expected = select_top_k_farthest(F, 20, normalize=True)
+        assert np.array_equal(select_top_k_farthest(F * [1.0, 1.0, 100.0], 20, normalize=True), expected)
+        assert np.array_equal(select_top_k_farthest(F * [0.001, 7.0, 1.0] + [5.0, -3.0, 0.0], 20, normalize=True), expected)
+
+    def test_normalized_selection_ignores_a_constant_objective(self):
+        F = np.random.default_rng(2).random((200, 2))
+        with_constant = np.column_stack([F, np.full(200, 4.0)])
+        idx = select_top_k_farthest(with_constant, 15, normalize=True)
+        assert np.array_equal(idx, select_top_k_farthest(F, 15, normalize=True))
+
 
 class TestSelectTopKKnn:
     def test_removes_crowded_point(self):
@@ -195,3 +212,12 @@ class TestSelectTopKHvGreedy:
         idx = select_top_k_hv_greedy(F, 3, ref_point=[20.0, 20.0])
         assert idx.shape == (3,)
         assert len(set(idx.tolist())) == 3
+
+
+def test_farthest_normalization_scales_an_objective_with_a_tiny_range() -> None:
+    # The second objective varies by 1e-12: it is not constant, so it must weigh as much as the first.
+    F = np.array([[0.0, 1.0], [1.0, 0.0], [0.9, 0.9]])
+    tiny = F * np.array([1.0, 1e-12])
+
+    assert select_top_k_farthest(F, 1, normalize=True).tolist() == [2]
+    assert select_top_k_farthest(tiny, 1, normalize=True).tolist() == [2]
