@@ -184,7 +184,15 @@ unsupported behavior rather than future compatibility promises.
 ## Durable studies
 
 - Study mutation is single-owner. Do not run, resume, or retry the same study
-  concurrently from multiple processes.
+  concurrently from multiple processes: nothing detects a second owner, so a
+  task can run twice, and one process usually stops with
+  `EVENT_APPEND_COLLISION`.
+- Ctrl+C cancels a running study, and a cancelled study cannot be resumed; a
+  killed or crashed process leaves it resumable. See
+  [Resume and retry](../guide/studies.md#resume-and-retry).
+- Windows offers no directory fsync, so study and run writers skip it there: a
+  power loss just after a write can lose the newest entry of a directory, but
+  never leaves a partial document or run under its final name.
 - Study execution is sequential in 1.2.1. Distributed workers, multiprocess
   ownership, and cross-process cancellation are unsupported.
 - **VAMOS 1.2.0:** study tasks run with serial evaluation only;
