@@ -57,23 +57,16 @@ Existing files are refused. For a fast execution check, use `--pop-size 20 --max
 
 ## What the configuration means
 
-**Development after 1.2.1:** the default real-coded configuration is MOEA/D-DE [2]: differential evolution rand/1/bin (`cr=1.0`, `f=0.5`), polynomial mutation (`eta=20`, probability `1/n_var`), Tchebycheff aggregation, neighbour size 20, neighbourhood selection probability 0.9 and replacement limit 2. These are the defaults of one MOEA/D variant, not a claim that every MOEA/D variant uses them. `MOEADConfig.default()` takes `variant`, one of the two default configurations of jMetal and Evolver:
+The default real-coded configuration uses differential evolution (`cr=1.0`, `f=0.5`), polynomial mutation (`eta=20`, probability `1/n_var`), PBI aggregation (`theta=5`), neighbour size 20, neighbourhood selection probability 0.9 and replacement limit 2. These are VAMOS configuration choices, not a claim that every MOEA/D variant uses them.
+
+**Development after 1.2.1:** `MOEADConfig.default(variant=...)` gives jMetal's two default configurations, which are also Evolver's:
 
 | `variant` | jMetal | Evolver | Variation | Aggregation |
 | --- | --- | --- | --- | --- |
-| `"de"` (the default) | `MOEADDEBuilder` | `MOEADDEDefault` | DE rand/1/bin, `cr=1.0`, `f=0.5` | Tchebycheff |
+| `"de"`, MOEA/D-DE [2] | `MOEADDEBuilder` | `MOEADDEDefault` | DE rand/1/bin, `cr=1.0`, `f=0.5` | Tchebycheff |
 | `"sbx"` | `MOEADBuilder` | `MOEADDoubleDefault` | SBX, `prob=0.9`, `eta=20` | PBI, `theta=5` |
 
-Both add polynomial mutation with probability `1/n_var` (Evolver's factor 1.0) and `eta=20`, and use neighbour size 20, neighbourhood selection probability 0.9 and replacement limit 2. With a discrete or mixed `encoding`, the crossover and mutation come from the encoding's defaults and the aggregation from the variant. Up to VAMOS 1.2.1 the default combined DE with PBI (`theta=5`), which matches neither jMetal default, so the results of MOEA/D runs with the default configuration change, through `optimize`, studies and the `vamos` CLI alike. To rerun the earlier default, replace its aggregation:
-
-```python
-import dataclasses
-
-config = dataclasses.replace(
-    MOEADConfig.default(pop_size=100, n_var=30, n_obj=2),
-    aggregation=("pbi", {"theta": 5.0}),
-)
-```
+Both add polynomial mutation with probability `1/n_var` (Evolver's factor 1.0) and `eta=20`, and use the same neighbourhood and replacement settings as the default above. With a discrete or mixed `encoding`, the crossover and mutation come from the encoding's defaults and the aggregation from the variant. Without `variant`, the default above stays: it differs from MOEA/D-DE only in its PBI aggregation. VAMOS 2.0 will make `"de"` the default.
 
 | Decision | Consequence |
 | --- | --- |

@@ -115,7 +115,7 @@ class TestMOEADConfigShortcuts:
         assert cfg.neighbor_size == 20
         assert cfg.delta == 0.9
         assert cfg.replace_limit == 2
-        assert cfg.aggregation[0] == "tchebycheff"
+        assert cfg.aggregation[0] == "pbi"
         assert cfg.repair == "auto"
 
     def test_default_mutation_operator_id_is_valid(self):

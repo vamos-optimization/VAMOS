@@ -1,4 +1,4 @@
-"""MOEADConfig.default's two variants: jMetal's and Evolver's two default MOEA/D configurations.
+"""MOEADConfig.default: VAMOS's default, and jMetal's and Evolver's two default MOEA/D configurations as variants.
 
 Evolver's ``defaultConfigurations/MOEADDEDefault.txt`` and ``MOEADDoubleDefault.txt``, and jMetal's
 ``MOEADDEBuilder`` and ``MOEADBuilder`` (``MOEADDEDefaultConfigurationExample`` and
@@ -8,10 +8,13 @@ Evolver's ``defaultConfigurations/MOEADDEDefault.txt`` and ``MOEADDoubleDefault.
 - MOEA/D with SBX: SBX with p = 0.9 and eta = 20, PBI with theta = 5.
 
 Both use polynomial mutation with p = 1/n (a factor of 1.0) and eta = 20, a neighbourhood of 20,
-a probability of 0.9 of mating in the neighbourhood, and at most 2 replaced solutions.
+a probability of 0.9 of mating in the neighbourhood, and at most 2 replaced solutions. Without a
+variant, VAMOS's default combines MOEA/D-DE's operators with PBI (theta = 5) and stays until 2.0.
 """
 
 from __future__ import annotations
+
+import dataclasses
 
 import pytest
 
@@ -49,11 +52,14 @@ def test_each_variant_is_its_jmetal_default_configuration(variant: str) -> None:
     assert config.mutation == MUTATION
 
 
-def test_the_default_variant_is_moead_de_with_tchebycheff() -> None:
+def test_without_a_variant_the_default_keeps_de_with_pbi() -> None:
     config = MOEADConfig.default(pop_size=100, n_var=N_VAR, n_obj=2)
 
-    assert config == MOEADConfig.default(pop_size=100, n_var=N_VAR, n_obj=2, variant="de")
-    assert config.aggregation == ("tchebycheff", {})
+    assert _fields(config) == {"crossover": ("de", {"cr": 1.0, "f": 0.5}), "aggregation": ("pbi", {"theta": 5.0}), **NEIGHBOURHOOD}
+    assert config.mutation == MUTATION
+    # MOEA/D-DE differs from it only in the aggregation.
+    de = MOEADConfig.default(pop_size=100, n_var=N_VAR, n_obj=2, variant="de")
+    assert config == dataclasses.replace(de, aggregation=("pbi", {"theta": 5.0}))
 
 
 def test_the_variant_is_a_keyword_argument() -> None:
@@ -75,9 +81,9 @@ def test_a_discrete_encoding_keeps_its_operators_and_takes_the_variants_aggregat
     assert config.aggregation == VARIANTS[variant]["aggregation"]
 
 
-def test_the_cli_builder_aggregates_as_the_default_variant() -> None:
+def test_the_cli_builder_aggregates_as_the_default() -> None:
     # The `vamos` CLI builds MOEA/D with build_moead_algorithm when no aggregation is given.
     _, config = build_moead_algorithm(kernel=NumPyKernel(), problem=ZDT1Problem(n_var=6), pop_size=10, moead_variation=None)
 
     assert isinstance(config, MOEADConfig)
-    assert config.aggregation == ("tchebycheff", {})
+    assert config.aggregation == ("pbi", {"theta": 5.0})

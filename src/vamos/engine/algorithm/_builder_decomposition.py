@@ -42,7 +42,7 @@ def build_moead_algorithm(
         "mutation": ("polynomial", {"prob": 1.0 / problem.n_var, "eta": 20.0}),
     }
     var_cfg = resolve_variation_config(encoding=encoding, overrides=moead_overrides, defaults=real_defaults if encoding == "real" else None)
-    var_cfg.setdefault("aggregation", ("tchebycheff", {}))
+    var_cfg.setdefault("aggregation", ("pbi", {"theta": 5.0}))
 
     builder = MOEADConfig.builder()
     builder.pop_size(pop_size)

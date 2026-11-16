@@ -181,13 +181,11 @@ published results or with another framework.
 - **SMS-EMOA contributions** are exact, with no Monte Carlo or HypE
   approximation, so each step's cost grows exponentially with the number of
   objectives. See [SMS-EMOA](../algorithms/smsemoa.md#interpret-the-result-and-its-limits).
-- **MOEA/D defaults.** **Development after 1.2.1:** MOEA/D defaults to
-  MOEA/D-DE, differential evolution with Tchebycheff aggregation, as jMetal's
-  `MOEADDEBuilder` and Evolver's `MOEADDEDefault`;
-  `MOEADConfig.default(variant="sbx")` gives jMetal's other default, SBX with
-  PBI aggregation (`theta=5`). Up to VAMOS 1.2.1 the default combined
-  differential evolution with PBI. See
-  [MOEA/D](../algorithms/moead.md#what-the-configuration-means).
+- **MOEA/D** defaults to differential evolution with PBI aggregation;
+  `aggregation("tchebycheff")` reproduces jMetal's MOEA/D-DE. **Development
+  after 1.2.1:** `MOEADConfig.default(variant="de")` gives MOEA/D-DE and
+  `variant="sbx"` jMetal's MOEA/D with SBX and PBI; VAMOS 2.0 will make
+  `"de"` the default. See [MOEA/D](../algorithms/moead.md#what-the-configuration-means).
 
 ### Choose an initial experiment
 

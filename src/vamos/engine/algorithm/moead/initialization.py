@@ -225,7 +225,7 @@ def initialize_moead_run(
     neighbor_size = max(2, min(neighbor_size, pop_size))
     neighbors = compute_neighbors(weights, neighbor_size)
 
-    aggregation = cfg.get("aggregation", ("tchebycheff", {}))
+    aggregation = cfg.get("aggregation", ("pbi", {"theta": 5.0}))
     agg_method, agg_params = aggregation
     aggregator = build_aggregator(agg_method, agg_params)
     agg_id, agg_theta, agg_rho = resolve_aggregation_spec(agg_method, agg_params)
