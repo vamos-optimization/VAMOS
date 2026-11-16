@@ -16,7 +16,6 @@ PYPROJECT = Path(__file__).resolve().parents[2] / "pyproject.toml"
 # Without an entry, the policy tests would watch a module name that is never imported.
 IMPORT_NAMES: dict[str, tuple[str, ...]] = {
     "configspace": ("ConfigSpace",),
-    "google-genai": ("google.genai",),
     "ipython": ("IPython",),
     "mkdocs-material": ("material",),
     "pymdown-extensions": ("pymdownx",),
@@ -35,6 +34,19 @@ OPTIMIZATION_FRAMEWORKS: dict[str, tuple[str, ...]] = {
     "pygmo": ("pygmo",),
     "pymoo": ("pymoo",),
     "pymoode": ("pymoode",),
+}
+
+# Clients of hosted language models, by distribution and import name. VAMOS neither declares nor imports them.
+LLM_SDKS: dict[str, tuple[str, ...]] = {
+    "anthropic": ("anthropic",),
+    "cohere": ("cohere",),
+    "google-genai": ("google.genai",),
+    "google-generativeai": ("google.generativeai",),
+    "langchain": ("langchain",),
+    "litellm": ("litellm",),
+    "mistralai": ("mistralai",),
+    "ollama": ("ollama",),
+    "openai": ("openai",),
 }
 
 _REQUIREMENT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")

@@ -75,7 +75,6 @@ Install only the capability groups you use:
 | `tuning` | Optional model-based tuning backends | Experimental |
 | `studio` | Panel-based local Studio | Experimental; see [Studio](studio.md) for release limitations |
 | `examples` | Dependencies used by selected examples | Depends on the example's interfaces |
-| `openai`, `anthropic`, `gemini` | LLM provider SDKs: Assist uses `openai`, and the Studio Problem Builder uses any of the three (`gemini` is new in 1.2.0) | Experimental integrations |
 | `docs` | Documentation toolchain | Developer tooling |
 | `dev` | Tests, linting, typing, building, and docs checks | Developer tooling |
 | `all` | All optional and development groups | Mixed; does not change interface guarantees |
@@ -89,6 +88,10 @@ examples and notebooks; in VAMOS 1.1.0 they came with `analysis`, so a notebook
 now needs `analysis` and `examples`. `all` installs the user extras (`compute`,
 `analysis`, `tuning`, `studio`, `examples`, `openai`, `anthropic` and
 `gemini`) and no longer the `dev` and `docs` tooling.
+
+**Development after 1.3.0:** the `openai`, `anthropic` and `gemini` extras
+are removed, with `vamos assist` and Studio's Problem Builder, the only parts
+of VAMOS that used them. No extra, `all` included, installs an LLM client.
 
 For example:
 
