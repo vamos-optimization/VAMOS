@@ -20,6 +20,7 @@ IMPORT_NAMES: dict[str, tuple[str, ...]] = {
     "ipython": ("IPython",),
     "mkdocs-material": ("material",),
     "pymdown-extensions": ("pymdownx",),
+    "pytest-xdist": ("xdist",),
     "pyyaml": ("yaml",),
     "scikit-learn": ("sklearn",),
 }
