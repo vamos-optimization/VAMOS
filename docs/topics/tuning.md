@@ -443,8 +443,9 @@ The paragraphs above use the earlier names.
 | `selection` | `selection` | `selection` |
 
 Values that change: mutation `pm` becomes `polynomial` (the name the other
-spaces already used), crossover `undx` becomes `undc` (Evolver's `UNDC`) and
-mutation `uniform_reset` becomes `random_reset`. Evolver writes some values
+spaces already used) and crossover `undx` becomes `undc` (Evolver's `UNDC`).
+The real-coded `uniform_reset` keeps its name: `random_reset` is the integer
+reset mutation, and renaming one to the other broke integer runs. Evolver writes some values
 differently, and the exchange functions translate them: `SBX`, `blxAlpha`,
 `blxAlphaBeta`, `wholeArithmetic`, `fuzzyRecombination`, `PCX` and `UNDC`;
 `linkedPolynomial`, `nonUniform`, `levyFlight` and `powerLaw`;

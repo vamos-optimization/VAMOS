@@ -1,8 +1,9 @@
 """Names of the tuning parameters: the spaces' canonical names, VAMOS's earlier names and Evolver's.
 
 The built-in spaces name their parameters after Evolver's, in snake_case (``sbx_distribution_index``
-for Evolver's ``sbxDistributionIndex``), and two values after Evolver's (``undc`` for ``undx``) or
-descriptively (``random_reset`` for ``uniform_reset``). The names the spaces
+for Evolver's ``sbxDistributionIndex``), and some values after Evolver's (``undc`` for ``undx``). A value
+is never renamed to another operator's name: ``uniform_reset`` keeps its name, because ``random_reset`` is
+the integer reset mutation. The names the spaces
 used up to VAMOS 1.2.1 stay aliases: :func:`bridge_assignment` turns an assignment written with either
 into the names that the configuration bridges read, so stored assignments keep building the same
 configurations. :func:`to_evolver` and :func:`from_evolver` exchange assignments with Evolver's
@@ -63,7 +64,6 @@ VALUE_NAMES: dict[str, tuple[tuple[str, str, str | None], ...]] = {
         ("uniform", "uniform", "uniform"),
         ("levy_flight", "levy_flight", "levyFlight"),
         ("power_law", "power_law", "powerLaw"),
-        ("uniform_reset", "random_reset", None),
     ),
     "aggregation": (
         ("tchebycheff", "tchebycheff", "tschebyscheff"),

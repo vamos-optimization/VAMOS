@@ -8,7 +8,7 @@ from typing import Any, Protocol, cast
 
 from vamos.experiment.artifacts.models import deep_freeze
 
-from .commits import append_event, checkpoint_manifest
+from .commits import append_event, checkpoint_manifest, commit_section
 from .errors import (
     StudyEventAppendError,
     StudyInfrastructureError,
@@ -33,26 +33,27 @@ def pause_after_task_failure(state: FailureExecutionState, task: TaskRecord) -> 
     """Finish fail-fast by pausing after the task failure is fully durable."""
     reason = task.reason or _task_failure_fallback()
     failed_attempt = task.attempts[-1].attempt_id if task.attempts else None
-    state.event = append_event(
-        state.root,
-        state.event,
-        event_type="study_paused",
-        entity_kind="study",
-        entity_id=state.study_id,
-        transition_from="running",
-        transition_to="paused",
-        execution_id=state.execution_id,
-        reason=reason,
-        payload={"failed_task_id": task.task_id, "failed_attempt_id": failed_attempt},
-    )
-    state.manifest = checkpoint_manifest(
-        state.root,
-        state.manifest,
-        state="paused",
-        execution_id=state.execution_id,
-        tasks=tuple(state.tasks),
-        event=state.event,
-    )
+    with commit_section():
+        state.event = append_event(
+            state.root,
+            state.event,
+            event_type="study_paused",
+            entity_kind="study",
+            entity_id=state.study_id,
+            transition_from="running",
+            transition_to="paused",
+            execution_id=state.execution_id,
+            reason=reason,
+            payload={"failed_task_id": task.task_id, "failed_attempt_id": failed_attempt},
+        )
+        state.manifest = checkpoint_manifest(
+            state.root,
+            state.manifest,
+            state="paused",
+            execution_id=state.execution_id,
+            tasks=tuple(state.tasks),
+            event=state.event,
+        )
     return load_study(state.root)
 
 
@@ -81,26 +82,27 @@ def complete_running(
         payload = {"failed_task_ids": failed_task_ids}
     try:
         phase("before_final_completed_event")
-        state.event = append_event(
-            state.root,
-            state.event,
-            event_type=event_type,
-            entity_kind="study",
-            entity_id=state.study_id,
-            transition_from="running",
-            transition_to=completed_state,
-            execution_id=state.execution_id,
-            reason=reason,
-            payload=payload,
-        )
-        state.manifest = checkpoint_manifest(
-            state.root,
-            state.manifest,
-            state=completed_state,
-            execution_id=state.execution_id,
-            tasks=tuple(state.tasks),
-            event=state.event,
-        )
+        with commit_section():
+            state.event = append_event(
+                state.root,
+                state.event,
+                event_type=event_type,
+                entity_kind="study",
+                entity_id=state.study_id,
+                transition_from="running",
+                transition_to=completed_state,
+                execution_id=state.execution_id,
+                reason=reason,
+                payload=payload,
+            )
+            state.manifest = checkpoint_manifest(
+                state.root,
+                state.manifest,
+                state=completed_state,
+                execution_id=state.execution_id,
+                tasks=tuple(state.tasks),
+                event=state.event,
+            )
     except StudyEventAppendError:
         raise
     except Exception as exc:
@@ -119,26 +121,27 @@ def pause_with_runnable_work(state: FailureExecutionState) -> Study:
         "retryable": True,
         "safe_action": "Resume pending/interrupted work or explicitly retry failed work.",
     }
-    state.event = append_event(
-        state.root,
-        state.event,
-        event_type="study_paused",
-        entity_kind="study",
-        entity_id=state.study_id,
-        transition_from="running",
-        transition_to="paused",
-        execution_id=state.execution_id,
-        reason=reason,
-        payload={"pending_task_ids": pending, "interrupted_task_ids": interrupted},
-    )
-    state.manifest = checkpoint_manifest(
-        state.root,
-        state.manifest,
-        state="paused",
-        execution_id=state.execution_id,
-        tasks=tuple(state.tasks),
-        event=state.event,
-    )
+    with commit_section():
+        state.event = append_event(
+            state.root,
+            state.event,
+            event_type="study_paused",
+            entity_kind="study",
+            entity_id=state.study_id,
+            transition_from="running",
+            transition_to="paused",
+            execution_id=state.execution_id,
+            reason=reason,
+            payload={"pending_task_ids": pending, "interrupted_task_ids": interrupted},
+        )
+        state.manifest = checkpoint_manifest(
+            state.root,
+            state.manifest,
+            state="paused",
+            execution_id=state.execution_id,
+            tasks=tuple(state.tasks),
+            event=state.event,
+        )
     return load_study(state.root)
 
 
@@ -154,25 +157,26 @@ def record_infrastructure_failure(root: Path, error: StudyInfrastructureError) -
         return error
     reason = _infrastructure_reason(error)
     try:
-        event = append_event(
-            root,
-            current.events[-1],
-            event_type="study_failed",
-            entity_kind="study",
-            entity_id=current.study_id,
-            transition_from="running",
-            transition_to="failed",
-            execution_id=current.manifest.execution_id,
-            reason=reason,
-        )
-        checkpoint_manifest(
-            root,
-            current.manifest,
-            state="failed",
-            execution_id=current.manifest.execution_id,
-            tasks=current.tasks,
-            event=event,
-        )
+        with commit_section():
+            event = append_event(
+                root,
+                current.events[-1],
+                event_type="study_failed",
+                entity_kind="study",
+                entity_id=current.study_id,
+                transition_from="running",
+                transition_to="failed",
+                execution_id=current.manifest.execution_id,
+                reason=reason,
+            )
+            checkpoint_manifest(
+                root,
+                current.manifest,
+                state="failed",
+                execution_id=current.manifest.execution_id,
+                tasks=current.tasks,
+                event=event,
+            )
     except Exception:
         return error
     return StudyInfrastructureError(

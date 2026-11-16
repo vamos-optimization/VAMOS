@@ -50,13 +50,24 @@ _ZCAT_CLASSES: dict[int, Callable[..., object]] = {
 }
 
 
-def _zcat_factory(cls: Callable[..., object], n_var: int, n_obj: int | None) -> object:
-    return cls(n_var=n_var, n_obj=n_obj if n_obj is not None else 2)
-
-
 def _make_factory(cls: Callable[..., object]) -> Callable[[int, int | None], object]:
-    def _factory(n_var: int, n_obj: int | None) -> object:
-        return _zcat_factory(cls, n_var, n_obj)
+    def _factory(
+        n_var: int,
+        n_obj: int | None,
+        *,
+        complicated_pareto_set: bool = False,
+        level: int = 1,
+        bias: bool = False,
+        imbalance: bool = False,
+    ) -> object:
+        return cls(
+            n_var=n_var,
+            n_obj=n_obj if n_obj is not None else 2,
+            complicated_pareto_set=complicated_pareto_set,
+            level=level,
+            bias=bias,
+            imbalance=imbalance,
+        )
 
     return _factory
 

@@ -55,6 +55,7 @@ class ReplayPlan:
     seed: int
     expected_arrays: tuple[str, ...]
     replay_plan_sha256: str
+    problem_options: Mapping[str, Any]
 
 
 def build_replay_plan(stored: StoredRun, verification: VerificationReport, output: str | Path | None) -> ReplayPlan:
@@ -112,6 +113,7 @@ def build_replay_plan(stored: StoredRun, verification: VerificationReport, outpu
         seed=reconstructed.seed,
         expected_arrays=expected_arrays,
         replay_plan_sha256=plan_hash,
+        problem_options=reconstructed.problem_options,
     )
 
 
