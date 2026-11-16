@@ -510,7 +510,11 @@ duplicates, a broken previous hash, or an invalid transition are corruption.
 All JSON writes use a uniquely owned sibling temporary file, file fsync,
 atomic replace, and parent-directory fsync where supported. The implementation
 must document when a platform cannot fsync a directory; semantic recovery still
-depends on atomic replace and the journal. No valid manifest ever claims
+depends on atomic replace and the journal. Windows offers no directory fsync,
+so there the writers skip that step: a power loss just after a write can lose
+the newest entry of a directory, such as the last event, but never leaves a
+partial document under its final name, and reconciliation works from what the
+journal holds. No valid manifest ever claims
 success before its referenced run is terminal and verified.
 
 The temporary is named `.tmp-` followed by eight lowercase hexadecimal digits.

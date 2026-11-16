@@ -7,7 +7,7 @@ from typing import Any
 
 import numpy as np
 
-from vamos.engine.algorithm.components.results import with_constraints
+from vamos.engine.algorithm.components.results import apply_final_archive_subset, with_constraints
 from vamos.engine.algorithm.components.state import AlgorithmState
 
 
@@ -107,7 +107,7 @@ def build_smpso_result(state: SMPSOState, hv_reached: bool = False) -> dict[str,
         "population": pop,
     }
     with_constraints(result, result_G)
-    return result
+    return apply_final_archive_subset(result, state)
 
 
 __all__ = ["SMPSOState", "build_smpso_result"]

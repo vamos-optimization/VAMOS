@@ -25,6 +25,7 @@ from vamos.engine.algorithm.components.archive import (
 )
 from vamos.engine.algorithm.components.constraint_handling import ConstraintHandlingTechnique
 from vamos.engine.algorithm.components.results import (
+    apply_final_archive_subset,
     feasible_result_indices,
     get_external_archive_constraints,
     get_external_archive_contents,
@@ -209,7 +210,7 @@ def build_result(
         arch_X, arch_F = archive_contents
         result["archive"] = with_constraints({"X": arch_X, "F": arch_F}, archive_G)
 
-    return result
+    return apply_final_archive_subset(result, state)
 
 
 def get_archive_contents(state: NSGAIIState) -> dict[str, Any] | None:

@@ -65,6 +65,8 @@ _EXTERNAL_ARCHIVE_ALLOWED_KWARGS = {
     "truncate_size",
     "deduplicate_in",
     "decision_tolerance",
+    "final_size",
+    "final_selection",
 }
 
 
@@ -289,7 +291,8 @@ class _ResultArchiveBuilder:
         capacity
             Maximum number of solutions. ``None`` means unbounded.
         **kwargs
-            Forwarded to :class:`ExternalArchiveConfig`.
+            Forwarded to :class:`ExternalArchiveConfig`, whose ``final_selection`` (``"farthest"``, ``"crowding"``, ``"hv_greedy"``
+            or ``"kmeans"``) and ``final_size`` make the result report a subset of the archive when the run ends.
         """
         self._cfg["external_archive"] = _build_external_archive_config(capacity, kwargs)
         self._cfg.setdefault("result_mode", "non_dominated")
@@ -545,6 +548,9 @@ def _omit_inactive_archive_fields(payload: dict[str, object]) -> dict[str, objec
     external_archive = payload.get("external_archive")
     if isinstance(external_archive, dict) and external_archive.get("capacity") is None:
         external_archive.pop("pruning", None)
+    if isinstance(external_archive, dict) and external_archive.get("final_selection") == "none":  # Serialized as before.
+        external_archive.pop("final_selection", None)
+        external_archive.pop("final_size", None)
     return payload
 
 
