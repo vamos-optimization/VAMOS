@@ -139,7 +139,10 @@ def test_constrained_checkpoint_without_constraint_values_raises(algorithm: str)
         vamos.optimize("mw1", algorithm=algorithm, engine="numpy", seed=3, max_evaluations=600, checkpoint=checkpoint)
 
 
-@pytest.mark.parametrize(("key", "value"), [("subproblem_cursor", 10**6), ("subproblem_order", [0, 0, 1])])
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [("subproblem_cursor", 10**6), ("subproblem_order", [0, 0, 1]), ("live_generation", -1), ("live_evals", 10**6)],
+)
 def test_moead_checkpoint_with_malformed_subproblem_state_raises(key: str, value: Any) -> None:
     stage = vamos.optimize("zdt1", algorithm="moead", engine="numpy", seed=3, max_evaluations=300)
     checkpoint = dict(stage.data["checkpoint"])
@@ -147,6 +150,49 @@ def test_moead_checkpoint_with_malformed_subproblem_state_raises(key: str, value
 
     with pytest.raises(ConfigurationError, match=key):
         vamos.optimize("zdt1", algorithm="moead", engine="numpy", seed=3, max_evaluations=600, checkpoint=checkpoint)
+
+
+class _Recorder:
+    def __init__(self) -> None:
+        self.calls: list[tuple[int, int, bytes]] = []
+
+    def on_start(self, ctx: object = None) -> None:
+        return None
+
+    def on_generation(self, generation: int, F: Any = None, X: Any = None, stats: Any = None) -> None:
+        self.calls.append((generation, int(stats["evals"]), np.asarray(F).tobytes()))
+
+    def on_end(self, final_F: Any = None, final_stats: Any = None) -> None:
+        return None
+
+
+def test_moead_resumed_run_notifies_like_an_uninterrupted_one() -> None:
+    # Batches of 8 with 20 individuals: the checkpoint at 116 evaluations is 16 evaluations into generation 5.
+    config = (
+        MOEADConfig.builder()
+        .pop_size(20)
+        .batch_size(8)
+        .neighbor_size(5)
+        .delta(0.9)
+        .replace_limit(2)
+        .crossover("de", cr=1.0, f=0.5)
+        .mutation("polynomial", prob="1/n", eta=20.0)
+        .aggregation("tchebycheff")
+        .weight_vectors(divisions=19)
+        .build()
+    )
+    kwargs: dict[str, Any] = {"algorithm": "moead", "algorithm_config": config, "engine": "numpy", "seed": 5}
+    full = _Recorder()
+    vamos.optimize("zdt1", max_evaluations=200, live_viz=full, **kwargs)
+    # The first run has no callback, so nothing but the checkpoint carries the numbering.
+    stage = vamos.optimize("zdt1", max_evaluations=116, **kwargs)
+    resumed = _Recorder()
+    vamos.optimize("zdt1", max_evaluations=200, live_viz=resumed, checkpoint=stage.data["checkpoint"], **kwargs)
+
+    # The resumed run first reports the checkpoint's population under the last completed generation,
+    # then the same generations, at the same evaluations, as the uninterrupted run.
+    assert resumed.calls[0][:2] == (4, 116)
+    assert resumed.calls[1:] == [call for call in full.calls if call[1] > 116]
 
 
 def test_moead_default_continuation_matches_uninterrupted() -> None:

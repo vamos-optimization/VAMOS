@@ -1,4 +1,4 @@
-"""Bounded algorithm, encoding and application lessons for VAMOS 1.0.1.
+"""Bounded algorithm, encoding and application lessons for the VAMOS release in docs/assets/coverage/requirements.txt.
 
 Core VAMOS suffices except for feature selection / model tuning (scikit-learn).
 Plotting adds Matplotlib. Downloads are generated from these functions.
@@ -205,8 +205,6 @@ def run_engineering(budget=400):
     from vamos.problems import WeldedBeamDesignProblem
 
     problem = WeldedBeamDesignProblem()
-    # This 1.0.1 class emits four G columns but omits their protocol metadata.
-    problem.n_constraints = 4
     config = (
         NSGAIIConfig.builder()
         .pop_size(40)

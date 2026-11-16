@@ -1,4 +1,4 @@
-"""Bounded tuning, controlled ablation and backend measurements for VAMOS 1.0.1."""
+"""Bounded tuning, controlled ablation and backend measurements for the VAMOS release in docs/assets/coverage/requirements.txt."""
 
 from __future__ import annotations
 

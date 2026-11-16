@@ -88,7 +88,7 @@ def _plugin_builder(cfg: AlgorithmConfigMapping, kernel: KernelBackend | None = 
 
 
 def test_plugin_named_like_builtin_warns(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A plugin with a built-in name is ignored with a warning, not silently (VR-105)."""
+    """A plugin with a built-in name is ignored with a warning, not silently."""
     _fresh_registry(monkeypatch, [_FakeEntryPoint("NSGAII", _plugin_builder)])
 
     with pytest.warns(RuntimeWarning, match="'NSGAII'.*built-in"):
@@ -98,7 +98,7 @@ def test_plugin_named_like_builtin_warns(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 def test_plugin_discovery_can_be_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
-    """VAMOS_DISABLE_PLUGINS=1 keeps the stable API from loading entry points (VR-105)."""
+    """VAMOS_DISABLE_PLUGINS=1 keeps the stable API from loading entry points."""
     _fresh_registry(monkeypatch, [_FakeEntryPoint("_pytest_disabled_plugin", _plugin_builder)])
     monkeypatch.setenv("VAMOS_DISABLE_PLUGINS", "1")
 
@@ -108,7 +108,7 @@ def test_plugin_discovery_can_be_disabled(monkeypatch: pytest.MonkeyPatch) -> No
 
 
 def test_compatibility_snapshot_ignores_plugins(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The 1.0 snapshot lists the built-in algorithms, whatever plugins are installed (VR-105)."""
+    """The 1.0 snapshot lists the built-in algorithms, whatever plugins are installed."""
     import importlib.util
     from pathlib import Path
 

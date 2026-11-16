@@ -665,21 +665,21 @@ def test_tuning_space_builds_differential_evolution_configurations() -> None:
     names = {param.name for param in space.params}
     assert {
         "pop_size",
-        "de_cr",
-        "de_f",
+        "de_crossover_rate",
+        "de_scale_factor",
         "mutation",
         "delta_threshold",
         "feasible_ratio_threshold",
         "phase_one_evaluation_fraction",
     } <= names
-    assert not {"crossover", "crossover_prob"} & names
+    assert not {"crossover", "crossover_probability"} & names
     rng = np.random.default_rng(0)
     mutations = set()
     for _ in range(40):
         assignment = space.sample(rng)
         config = config_from_assignment("top", assignment)
         assert isinstance(config, ToPConfig)
-        assert config.crossover == ("de", {"cr": assignment["de_cr"], "f": assignment["de_f"]})
+        assert config.crossover == ("de", {"cr": assignment["de_crossover_rate"], "f": assignment["de_scale_factor"]})
         assert config.delta_threshold == assignment["delta_threshold"]
         mutations.add(config.mutation[0])
         assert 20 <= config.pop_size <= 200

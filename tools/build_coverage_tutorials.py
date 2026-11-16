@@ -15,13 +15,13 @@ import sys
 import textwrap
 from pathlib import Path
 
-from build_fundamental_tutorials import digest, replace_block
+from build_fundamental_tutorials import LESSON_RELEASE, digest, replace_block
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ("examples/tutorials/capability_examples.py", "examples/tutorials/advanced_workflows.py")
 ASSETS = "docs/assets/coverage"
 PACKAGES = {
-    "vamos-optimization": "1.0.1",
+    "vamos-optimization": LESSON_RELEASE,
     "numpy": "2.1.3",
     "scipy": "1.15.3",
     "joblib": "1.4.2",
@@ -55,7 +55,7 @@ def download_source(sources: dict, lesson: str) -> str:
         function = "run_lesson" if lesson in ENCODINGS else f"run_{lesson}"
         entry = f"lesson_cli({function}, default_budget={80 if lesson in ('feature_selection', 'model_tuning') else 400})"
     code = "\n\n\n".join(ast.get_source_segment(source, nodes[name]) for name in names)
-    return f'"""Verified VAMOS 1.0.1 lesson: {lesson}. See coverage-setup for dependencies."""\n\n\n{code}{wrapper}\n\n\nif __name__ == "__main__":\n    {entry}\n'
+    return f'"""Verified VAMOS {LESSON_RELEASE} lesson: {lesson}. See coverage-setup for dependencies."""\n\n\n{code}{wrapper}\n\n\nif __name__ == "__main__":\n    {entry}\n'
 
 
 def code_block(code):

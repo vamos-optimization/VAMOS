@@ -29,3 +29,20 @@ def test_discover_and_load_results(tmp_path):
         assert any(rec.get("algorithm") == "nsgaii" for rec in agg)
     else:
         assert "algorithm" in agg.columns
+
+
+def test_discover_runs_skips_replays(tmp_path):
+    import vamos
+
+    for seed in (1, 2):
+        result = vamos.optimize("zdt1", algorithm="nsgaii", max_evaluations=40, pop_size=8, seed=seed, engine="numpy")
+        vamos.save_result(result, tmp_path / f"seed-{seed}")
+    replay = vamos.reproduce(tmp_path / "seed-1")
+    assert replay.output_root.parent == tmp_path / "replays"  # Inside the tree that discover_runs searches.
+
+    runs = discover_runs(tmp_path)
+
+    assert sorted(run.seed for run in runs) == [1, 2]
+    assert not any(run.replay for run in runs)
+    everything = discover_runs(tmp_path, include_replays=True)
+    assert sorted((run.seed, run.replay) for run in everything) == [(1, False), (1, True), (2, False)]

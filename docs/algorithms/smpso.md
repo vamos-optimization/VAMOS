@@ -10,7 +10,7 @@ downloads:
 
 Speed-constrained particle swarm optimization moves particles using velocity, personal experience and archive leaders [1]. Mutation adds perturbations; crossover is not part of this configuration.
 
-**Goal:** run the stable public API in VAMOS 1.0.1, interpret its returned population, and identify which settings control this mechanism.
+**Goal:** run the stable public API in VAMOS 1.2.1, interpret its returned population, and identify which settings control this mechanism.
 
 [Capability matrix](../reference/algorithms.md) · [Exact configuration reference](../reference/api/algorithms/smpso.md) · [Setup and recorded evidence](../tutorials/coverage-setup.md)
 
@@ -31,7 +31,7 @@ The second command reruns the same protocol and requires Matplotlib. Use a new f
 ??? example "Complete runnable script"
 
     ```python
-    """Verified VAMOS 1.0.1 lesson: smpso. See coverage-setup for dependencies."""
+    """Verified VAMOS 1.2.1 lesson: smpso. See coverage-setup for dependencies."""
 
 
     def execute_example(problem, algorithm, config, budget, seed=42, engine="numpy"):
@@ -153,22 +153,22 @@ The second command reruns the same protocol and requires Matplotlib. Use a new f
 ```text
 Algorithm: smpso; encoding: real; backend: numpy; seed: 42
 Returned X: (40, 10); F: (40, 2); result mode: population
-Feasible rows: 40/40; feasible non-dominated rows: 9
+Feasible rows: 40/40; feasible non-dominated rows: 6
 Evaluations: 400
 ```
 <!-- /tutorial:output -->
 
 ![Actual smpso results from the documented protocol.](../assets/coverage/smpso.svg)
 
-*Measured with VAMOS 1.0.1; the [observations and provenance](../tutorials/coverage-setup.md#recorded-evidence) retain the inputs and results.*
+*Measured with VAMOS 1.2.1; the [observations and provenance](../tutorials/coverage-setup.md#recorded-evidence) retain the inputs and results.*
 
 ## Understand the configuration
 
 | Setting | Meaning in this example |
 | --- | --- |
 | `archive_size(40)` | Capacity of the leaders archive used by the swarm. |
-| `inertia(0.1)` | Contribution of the previous velocity. |
-| `c1(1.5)`, `c2(1.5)` | Personal-best and leader attraction coefficients. |
+| `inertia(0.1)` | Fixed weight of the previous velocity. |
+| `c1(1.5)`, `c2(1.5)` | Lower bounds of the personal-best and leader coefficients: each particle draws them from `[1.5, 2.5]` at every step. When the two drawn values add up to more than 4, a constriction coefficient scales the velocity, as in jMetal. |
 | `vmax_fraction(0.5)` | Bounds velocity relative to each variable’s range. |
 | Polynomial mutation | Additional real-valued perturbation, probability `1/10`. |
 
@@ -178,7 +178,7 @@ Evaluations: 400
 
 Each `X` row aligns with the same `F` row. This lesson explicitly requests `population` mode, then computes the feasible non-dominated subset separately. All objectives are minimized. A non-dominated row is only non-dominated among the available rows; it need not be Pareto optimal. The retained [observations](../assets/coverage/observations.json) contain the actual arrays and configuration.
 
-In VAMOS 1.0.1, explicit population mode returns the final swarm. The leaders archive and optional external result archive remain separate. Standalone binary, integer and permutation problems are rejected; mixed problems require mixed-compatible mutation. This real-valued run does not verify every supported combination.
+Explicit population mode returns the final swarm. The leaders archive and optional external result archive remain separate. Standalone binary, integer and permutation problems are rejected; mixed problems require mixed-compatible mutation. This real-valued run does not verify every supported combination.
 
 **VAMOS 1.2.0:** `constraint_handling` makes the replacement of personal bests follow one of jMetal's constraint-handling techniques, `cdp` (the default), `violated_constraints`, `epsilon_constrained` or `push_pull`, as Evolver's MOPSO does; the leaders archive still compares by the constrained-domination principle. See [choose a constraint-handling technique](../reference/constraints.md#choose-a-constraint-handling-technique).
 

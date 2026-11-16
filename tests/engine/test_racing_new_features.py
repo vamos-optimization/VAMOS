@@ -181,8 +181,8 @@ def test_elitist_restarts_with_builtin_space_do_not_crash(use_statistical_tests:
     scenario = Scenario(max_experiments=300, use_statistical_tests=use_statistical_tests, use_elitist_restarts=True, verbose=False)
 
     def eval_fn(config, ctx):
-        noise = np.random.default_rng([ctx.seed, int(config["crossover_prob"] * 1e9)]).normal(0.0, 0.05)
-        return float(config["crossover_prob"]) + float(noise)
+        noise = np.random.default_rng([ctx.seed, int(config["crossover_probability"] * 1e9)]).normal(0.0, 0.05)
+        return float(config["crossover_probability"]) + float(noise)
 
     best, history = RacingTuner(task, scenario, seed=0).run(eval_fn)
 

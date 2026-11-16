@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import panel as pn
 
 # ---------------------------------------------------------------------------
@@ -137,6 +139,12 @@ PAGES: dict[str, tuple[str, str]] = {
 }
 
 
+# Pages that run code with the account that serves Studio: Python that the user
+# writes, and study workers in background processes. A server bound beyond
+# loopback offers them only when its owner asks for it.
+CODE_EXECUTION_PAGES = ("problem_builder", "batch")
+
+
 def build_template(title: str = "VAMOS Studio") -> pn.template.FastListTemplate:
     """Return a configured FastListTemplate with the VAMOS theme.
 
@@ -155,10 +163,11 @@ def build_template(title: str = "VAMOS Studio") -> pn.template.FastListTemplate:
     )
 
 
-def build_sidebar_nav(current: str = "welcome") -> pn.Column:
-    """Build the sidebar navigation column. Returns a Column of buttons."""
+def build_sidebar_nav(current: str = "welcome", pages: Sequence[str] | None = None) -> pn.Column:
+    """Build the sidebar navigation column for ``pages`` (all by default). Returns a Column of buttons."""
     buttons: list[pn.widgets.Button] = []
-    for slug, (label, _summary) in PAGES.items():
+    for slug in PAGES if pages is None else pages:
+        label = PAGES[slug][0]
         btn = pn.widgets.Button(
             name=label,
             button_type="primary" if slug == current else "light",

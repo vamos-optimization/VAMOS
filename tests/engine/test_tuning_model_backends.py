@@ -262,7 +262,7 @@ def test_builtin_configspace_preserves_combined_archive_conditions(builder):
         enabled = config["use_external_archive"]
         unbounded = config.get("archive_unbounded")
         assert ("archive_prune_policy" in config) == (enabled and not unbounded)
-        assert ("mutation_eta" in config) == (config["mutation"] in {"pm", "polynomial", "linked_polynomial"})
+        assert ("polynomial_mutation_distribution_index" in config) == (config["mutation"] in {"pm", "polynomial", "linked_polynomial"})
         seen.add((enabled, unbounded))
     assert seen == {(False, None), (True, False), (True, True)}
 

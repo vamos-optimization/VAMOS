@@ -11,11 +11,8 @@ import numpy as np
 from numpy.typing import NDArray
 
 from vamos.engine.algorithm.components.matching import match_ids_by_tolerance
-
-
-def _logger() -> logging.Logger:
-    return logging.getLogger(__name__)
-
+from vamos.engine.algorithm.components.results import get_external_archive_contents
+from vamos.foundation.quality_indicators.pareto import pareto_filter
 
 if TYPE_CHECKING:
     from vamos.engine.algorithm.components.state import AlgorithmState
@@ -49,51 +46,82 @@ def get_live_viz(
     return live_viz or NoOpLiveVisualization()
 
 
+def send_live_generation(
+    live_cb: LiveVisualization,
+    generation: int,
+    state: AlgorithmState,
+    *,
+    F: FloatArray | None = None,
+    X: AnyArray | None = None,
+) -> None:
+    """Call ``live_cb.on_generation`` with the payload of the live-callback contract.
+
+    ``F`` and ``X`` default to the state's population (SPEA2 passes its environmental archive).
+    ``state.live_callback_mode`` chooses what the callback receives:
+
+    - ``"population"``: the rows of ``F`` and ``X``;
+    - ``"nd_only"``: their first front, in their order;
+    - ``"population_archive"``: the rows of ``F`` and ``X``, and ``stats["archive"]``, the
+      external archive (``{"X": ..., "F": ...}``) that the run returns, when there is one.
+
+    ``stats["evals"]`` is always the evaluations used so far (see
+    :class:`~vamos.engine.hooks.live_viz.LiveVisualization`). An exception raised by the
+    callback propagates to the caller.
+    """
+    live_F = np.asarray(state.F if F is None else F)
+    live_X = state.X if X is None else X
+    stats: dict[str, Any] = {"evals": int(state.n_eval)}
+    mode = str(state.live_callback_mode).lower()
+    if mode == "nd_only":
+        front = _first_front(live_F)
+        if front is not None:
+            live_F = live_F[front]
+            live_X = None if live_X is None else np.asarray(live_X)[front]
+    elif mode == "population_archive":
+        archive = get_external_archive_contents(state)
+        if archive is not None:
+            stats["archive"] = {"X": np.asarray(archive[0]), "F": np.asarray(archive[1])}
+    live_cb.on_generation(generation, F=live_F, X=live_X, stats=stats)
+
+
+def is_no_op_live_callback(live_cb: object) -> bool:
+    """Whether ``live_cb`` is the default :class:`NoOpLiveVisualization` itself.
+
+    Only the exact class is skipped: a subclass may override a hook, so it is notified like any other callback.
+    """
+    from vamos.engine.hooks.live_viz import NoOpLiveVisualization
+
+    return type(live_cb) is NoOpLiveVisualization
+
+
 def notify_generation(
     live_cb: LiveVisualization,
-    kernel: KernelBackend,
     generation: int,
-    F: FloatArray,
-    stats: dict[str, Any] | None = None,
+    state: AlgorithmState,
+    *,
+    F: FloatArray | None = None,
+    X: AnyArray | None = None,
 ) -> bool:
-    """
-    Notify live visualization of generation progress with the non-dominated rows of ``F``.
-
-    An exception raised by the callback, or by its ``should_stop``, propagates to the
-    caller; only a failure to rank ``F`` falls back to notifying all its rows.
-
-    Parameters
-    ----------
-    live_cb : LiveVisualization
-        Live visualization callback.
-    kernel : KernelBackend
-        Kernel for computing non-dominated front.
-    generation : int
-        Current generation number.
-    F : np.ndarray
-        Current population objectives.
-    stats : dict[str, Any] | None
-        Optional metrics payload (e.g., evaluation counts).
+    """Send a generation with :func:`send_live_generation`, unless the callback is the default no-op.
 
     Returns
     -------
     bool
-        True if the callback requests stopping.
+        True if the callback requests stopping; an exception raised by ``should_stop`` propagates.
     """
-    from vamos.engine.hooks.live_viz import NoOpLiveVisualization
-
-    if isinstance(live_cb, NoOpLiveVisualization):
+    if is_no_op_live_callback(live_cb):
         return False
-
-    try:
-        ranks, _ = kernel.nsga2_ranking(F)
-    except (ValueError, IndexError) as exc:
-        _logger().debug("Failed to compute non-dominated front for viz: %s", exc)
-        front = F
-    else:
-        front = F[ranks == ranks.min(initial=0)]
-    live_cb.on_generation(generation, F=front, stats=stats)
+    send_live_generation(live_cb, generation, state, F=F, X=X)
     return live_should_stop(live_cb)
+
+
+def _first_front(F: FloatArray) -> IntArray | None:
+    """Indices of the first front of ``F`` in row order; ``None`` when ``F`` cannot be ranked (NaN rows)."""
+    try:
+        _, indices = pareto_filter(F, return_indices=True)
+    except ValueError:
+        return None
+    return np.sort(np.asarray(indices, dtype=np.int_))
 
 
 def live_should_stop(live_cb: LiveVisualization) -> bool:
@@ -292,6 +320,7 @@ def match_ids(
 __all__ = [
     "get_live_viz",
     "notify_generation",
+    "send_live_generation",
     "live_should_stop",
     "setup_genealogy",
     "track_offspring_genealogy",

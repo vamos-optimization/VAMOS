@@ -12,12 +12,12 @@ from typing import Any, Protocol
 
 from vamos.experiment.artifacts.errors import RunArtifactError, sanitized_message
 from vamos.experiment.artifacts.jsonio import canonical_json_bytes
-from vamos.experiment.artifacts.models import StoredRun, deep_freeze, deep_thaw
+from vamos.experiment.artifacts.models import LoadLimits, StoredRun, deep_freeze, deep_thaw
 from vamos.experiment.artifacts.persistence import load_run, save_failed_execution, save_result
 from vamos.experiment.artifacts.verification import verify_run
 from vamos.foundation.exceptions import ConfigurationError, EvaluationError, ProblemError, VAMOSError
 
-from .commits import append_event, checkpoint_attempt, checkpoint_manifest, checkpoint_task, now_utc, run_reference
+from .commits import append_event, checkpoint_attempt, checkpoint_manifest, checkpoint_task, commit_section, now_utc, run_reference
 from .errors import StudyError, StudyRunPublicationError, StudyRunVerificationError
 from .models import AttemptRecord, PlanTask, StudyEvent, StudyManifest, TaskRecord
 
@@ -38,6 +38,7 @@ class ExecutionState(Protocol):
     manifest: StudyManifest
     tasks: list[TaskRecord]
     event: StudyEvent
+    run_limits: LoadLimits
 
 
 def attach_run_metadata(
@@ -73,7 +74,7 @@ def publish_success(
     """Publish and fully verify one success before it can enter the journal."""
     run_root = state.root / "runs" / run_id
     try:
-        save_result(result, run_root)
+        save_result(result, run_root, limits=state.run_limits)
     except Exception as exc:
         raise StudyRunPublicationError(
             operation="publish study task run",
@@ -92,8 +93,8 @@ def publish_success(
         ) from exc
     phase("after_canonical_run_publication")
     try:
-        report = verify_run(run_root)
-        verified = load_run(run_root, verify="all")
+        report = verify_run(run_root, limits=state.run_limits)
+        verified = load_run(run_root, verify="all", limits=state.run_limits)
         _validate_published_run(verified, report.numerical_bundle_safety, plan_task, run_id)
     except Exception as exc:
         raise StudyRunVerificationError(
@@ -158,9 +159,10 @@ def commit_task_failure(
             },
             outcome=_failed_outcome(plan_task, objective_began),
             timestamps={"started_at": started_at, "completed_at": completed_at},
+            limits=state.run_limits,
         )
-        verify_run(run_root)
-        stored = load_run(run_root, verify="all")
+        verify_run(run_root, limits=state.run_limits)
+        stored = load_run(run_root, verify="all", limits=state.run_limits)
         if stored.status != "failed" or stored.manifest.task_id != task.task_id:
             raise ValueError("failed run identity or status differs")
         reference = run_reference(stored, study_root=state.root)
@@ -180,51 +182,52 @@ def commit_task_failure(
             actual=type(publication_error).__name__,
             action="Inspect the unreferenced path; no terminal task outcome was fabricated.",
         ) from publication_error
-    state.event = append_event(
-        state.root,
-        state.event,
-        event_type="attempt_failed",
-        entity_kind="attempt",
-        entity_id=attempt.attempt_id,
-        transition_from="running",
-        transition_to="failed",
-        execution_id=state.execution_id,
-        reason=failure,
-        payload={"task_id": task.task_id, "run_reference": reference, "failure": failure},
-    )
-    timestamps = dict(attempt.timestamps)
-    timestamps["completed_at"] = state.event.timestamp
-    attempt = replace(
-        attempt,
-        status="failed",
-        timestamps=deep_freeze(timestamps),
-        failure=deep_freeze(failure),
-        run_reference=reference,
-    )
-    attempt, attempt_ref = checkpoint_attempt(state.root, attempt)
-    task = replace(
-        task,
-        state="failed",
-        attempts=(*task.attempts[:-1], attempt_ref),
-        current_attempt_id=None,
-        selected_success_attempt_id=None,
-        retryability=replace(
-            task.retryability,
-            retryable=bool(failure["retryable"]) and task.retryability.attempts_remaining > 0,
-            category=str(failure["category"]),
-        ),
-        reason=deep_freeze(failure),
-    )
-    task = checkpoint_task(state.root, task)
-    state.tasks[index] = task
-    state.manifest = checkpoint_manifest(
-        state.root,
-        state.manifest,
-        state="running",
-        execution_id=state.execution_id,
-        tasks=tuple(state.tasks),
-        event=state.event,
-    )
+    with commit_section():
+        state.event = append_event(
+            state.root,
+            state.event,
+            event_type="attempt_failed",
+            entity_kind="attempt",
+            entity_id=attempt.attempt_id,
+            transition_from="running",
+            transition_to="failed",
+            execution_id=state.execution_id,
+            reason=failure,
+            payload={"task_id": task.task_id, "run_reference": reference, "failure": failure},
+        )
+        timestamps = dict(attempt.timestamps)
+        timestamps["completed_at"] = state.event.timestamp
+        attempt = replace(
+            attempt,
+            status="failed",
+            timestamps=deep_freeze(timestamps),
+            failure=deep_freeze(failure),
+            run_reference=reference,
+        )
+        attempt, attempt_ref = checkpoint_attempt(state.root, attempt)
+        task = replace(
+            task,
+            state="failed",
+            attempts=(*task.attempts[:-1], attempt_ref),
+            current_attempt_id=None,
+            selected_success_attempt_id=None,
+            retryability=replace(
+                task.retryability,
+                retryable=bool(failure["retryable"]) and task.retryability.attempts_remaining > 0,
+                category=str(failure["category"]),
+            ),
+            reason=deep_freeze(failure),
+        )
+        task = checkpoint_task(state.root, task)
+        state.tasks[index] = task
+        state.manifest = checkpoint_manifest(
+            state.root,
+            state.manifest,
+            state="running",
+            execution_id=state.execution_id,
+            tasks=tuple(state.tasks),
+            event=state.event,
+        )
 
 
 def _validate_published_run(stored: StoredRun, bundle_status: str, task: PlanTask, run_id: str) -> None:

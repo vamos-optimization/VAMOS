@@ -260,6 +260,27 @@ anything, as the split-based example below did with `--backend racing`. With
 warm starts, each block now resumes only its own run: a block whose run failed
 starts again from scratch, where it used to receive another block's checkpoint.
 
+**Development after 1.2.1:** the statistical race eliminates with F-race
+(Birattari et al., 2002), as irace does. Each instance/seed block ranks the
+alive configurations, so problems whose scores lie on different scales weigh
+the same. A Friedman test on those ranks comes first; when its p-value is below
+`--alpha`, Conover's post-hoc test on the rank sums keeps the best
+configuration and every configuration within the critical difference of it.
+With two configurations alive, a paired Wilcoxon signed-rank test decides
+instead. It drops the blocks where the two tie, and the sign of its statistic
+over the other blocks says which configuration it eliminates, whatever their
+order. When `Scenario.min_survivors` asks for more configurations than a test
+keeps, the race keeps them all and adds the best of the others by aggregate
+score. The first test waits for `Scenario.first_test` blocks (5, irace's
+`firstTest`) or `--min-blocks-before-elimination`, whichever is larger. VAMOS
+1.2.0 compared each configuration with the one of best mean through paired
+t-tests on the raw scores, with Holm's correction. When half of the blocks had
+scores 100 times larger, those tests eliminated no configuration out of eight
+on ten blocks, against about three for F-race. `racing` runs a single race over
+its initial configurations: it does not sample new ones around the elites as
+irace's iterated racing does. For that, use `--backend irace`; see
+[The irace backend](#the-irace-backend).
+
 ### Model-based backends run one fidelity unless given levels
 
 **VAMOS 1.2.0:** without `--fidelity-levels` (`budget_levels=None`
@@ -384,6 +405,83 @@ offset of 1.0. The spaces of VAMOS 1.2.0 always used a tournament and an
 offset of 0.1, so no assignment reproduced the default configuration; an
 assignment without the new parameters still builds that tournament
 configuration.
+
+**Development after 1.2.1:** the MOEA/D and SMS-EMOA spaces offer what
+Evolver's `MOEADDouble` and `SMSEMOADouble` spaces offer, so that a
+configuration tuned or published with Evolver is a point of them:
+
+- every MOEA/D space: `neighbor_size` in [5, 50] and `delta` in [0, 1]
+  (before, [5, 40] and [0.5, 0.95]), the `modified_tchebycheff` aggregation
+  with `mtch_rho`, which only the permutation space offered, and `pbi_theta`
+  up to 200 (before, 10), log-uniform because the usual value, 5, lies at the
+  low end;
+- the real-coded MOEA/D spaces (`moead`, `moead_constrained`):
+  `linked_polynomial` mutation, with `mutation_eta` active for both polynomial
+  mutations, `initializer` (`random`, `lhs`, `scatter`) and `repair` (`clip`,
+  `reflect`, `random`);
+- the real-coded MOEA/D and SMS-EMOA spaces: `mutation_prob_factor` in
+  [0.25, 3.0], the probability being the factor divided by the number of
+  variables, as in NSGA-II's space, instead of an absolute `mutation_prob` in
+  [0.01, 0.5], which depends on the problem. Evolver's factor lies in [0, 2];
+  VAMOS rejects a factor of 0.
+
+An assignment saved from the earlier spaces builds the configuration it built:
+an absolute `mutation_prob` stays absolute, and without `initializer` or
+`repair` MOEA/D keeps its defaults. Seeded MOEA/D and SMS-EMOA tuning runs draw
+different trials.
+
+### Parameter names and Evolver's
+
+**Development after 1.2.1:** the built-in spaces name their parameters after
+Evolver's, in snake_case, so that a configuration tuned with VAMOS can be read
+by Evolver and the other way round. The earlier names remain aliases:
+`config_from_assignment` accepts both, and an assignment saved from an earlier
+space builds the configuration it built. The fields of the configuration
+classes (`MOEADConfig.neighbor_size`, ...) keep their names until VAMOS 2.0.
+The paragraphs above use the earlier names.
+`vamos.engine.tuning.racing.parameter_names` holds the table, with
+`to_evolver` and `from_evolver` to exchange assignments:
+
+| Earlier name | Space name | Evolver |
+| --- | --- | --- |
+| `pop_size` | `pop_size` | `populationSize` |
+| `crossover_prob` | `crossover_probability` | `crossoverProbability` |
+| `crossover_eta` | `sbx_distribution_index` | `sbxDistributionIndex` |
+| `mutation_eta` | `polynomial_mutation_distribution_index` | `polynomialMutationDistributionIndex` |
+| `mutation_prob_factor` | `mutation_probability_factor` | `mutationProbabilityFactor` |
+| `neighbor_size` | `neighborhood_size` | `neighborhoodSize` |
+| `delta` | `neighborhood_selection_probability` | `neighborhoodSelectionProbability` |
+| `replace_limit` | `maximum_number_of_replaced_solutions` | `maximumNumberOfReplacedSolutions` |
+| `aggregation` | `aggregation_function` | `aggregationFunction` |
+| `pbi_theta` | `pbi_theta` | `pbiTheta` |
+| `de_cr` | `de_crossover_rate` | `CR` |
+| `de_f` | `de_scale_factor` | `F` |
+| `initializer` | `initial_solutions` | `createInitialSolutions` |
+| `selection_pressure` | `tournament_size` | `selectionTournamentSize` |
+| `selection_size` | `tournament_size` | `selectionTournamentSize` |
+| `crossover` | `crossover` | `crossover` |
+| `mutation` | `mutation` | `mutation` |
+| `selection` | `selection` | `selection` |
+
+Values that change: mutation `pm` becomes `polynomial` (the name the other
+spaces already used) and crossover `undx` becomes `undc` (Evolver's `UNDC`).
+The real-coded `uniform_reset` keeps its name: `random_reset` is the integer
+reset mutation, and renaming one to the other broke integer runs. Evolver writes some values
+differently, and the exchange functions translate them: `SBX`, `blxAlpha`,
+`blxAlphaBeta`, `wholeArithmetic`, `fuzzyRecombination`, `PCX` and `UNDC`;
+`linkedPolynomial`, `nonUniform`, `levyFlight` and `powerLaw`;
+`tschebyscheff`, `weightedSum`, `penaltyBoundaryIntersection` and
+`modifiedTschebyscheff`; `default` (random), `latinHypercubeSampling`,
+`scatterSearch` and `oppositionBased`; `stochasticUniversalSampling`.
+
+`pop_size` keeps its name: Evolver passes the population size to the algorithm
+rather than tuning it, and the CLI and Studio treat it as a run setting. The
+external archive parameters (`use_external_archive`, `archive_unbounded`,
+`archive_prune_policy`) keep theirs until they become one choice, Evolver's
+`algorithmResult` and `archiveType`, in the planned VAMOS-CONFIG grammar.
+The exchange translates names and values only: parameters that VAMOS and
+Evolver structure differently, such as Evolver's `variation` or its per-operator
+repair strategies, keep their names and are ignored by the other side.
 
 ### Constrained spaces
 

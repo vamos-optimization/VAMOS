@@ -52,7 +52,7 @@ def test_logging_policy() -> None:
 
 
 def test_auto_selected_log_lists_only_auto_values(caplog) -> None:
-    """The "Auto-selected defaults" log names only what optimize chose (VR-127)."""
+    """The "Auto-selected defaults" log names only what optimize chose."""
     import vamos
     from vamos.algorithms import NSGAIIConfig
 
@@ -75,7 +75,7 @@ def test_auto_selected_log_lists_only_auto_values(caplog) -> None:
 
 
 def test_verbose_does_not_configure_logger_permanently() -> None:
-    """``verbose=True`` logs the run and leaves the "vamos" logger as it was (VR-127)."""
+    """``verbose=True`` logs the run and leaves the "vamos" logger as it was."""
     import json
     import subprocess
     import sys

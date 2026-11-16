@@ -112,12 +112,12 @@ class PolynomialMutation(Mutation):
 
 
 class GaussianMutation(Mutation):
-    """Gaussian mutation with optional bounds metadata."""
+    """Gaussian mutation by ``N(0, (sigma * (upper - lower))^2)``: ``sigma`` is a fraction of the range, as in pymoo."""
 
     def __init__(
         self,
         prob_mutation: float,
-        sigma: float | ArrayLike,
+        sigma: float | ArrayLike = 0.1,
         *,
         lower: ArrayLike | None = None,
         upper: ArrayLike | None = None,
@@ -146,11 +146,9 @@ class GaussianMutation(Mutation):
         mask = rng.random((n_ind, n_var)) <= self.prob
         if not np.any(mask):
             return X
-        if np.ndim(self.sigma) == 0:
-            noise = rng.normal(0.0, float(self.sigma), size=(n_ind, n_var))
-        else:
-            sigma = np.broadcast_to(self.sigma, (n_ind, n_var))
-            noise = rng.normal(0.0, sigma)
+        span = 1.0 if self.lower is None or self.upper is None else self.upper - self.lower
+        scale = np.broadcast_to(np.asarray(self.sigma * span, dtype=float), (n_ind, n_var))
+        noise = rng.normal(0.0, scale)
         X[mask] += noise[mask]
         return X
 
@@ -184,9 +182,10 @@ class UniformResetMutation(Mutation):
 
 
 class NonUniformMutation(Mutation):
-    """
-    Non-uniform mutation that samples perturbations biased toward the bounds
-    using the simplified formulation employed by our NSGA-II variant.
+    """Michalewicz's non-uniform mutation, as jMetal's: a step ``y * (1 - r ** ((1 - t / T) ** b))`` towards a bound.
+
+    ``y`` is the distance to the bound chosen with probability 1/2, ``b`` is ``perturbation`` and ``t / T``
+    the run's progress, which the operator does not receive: with ``t / T = 0`` the step is ``y * (1 - r)``.
     """
 
     def __init__(
@@ -200,8 +199,8 @@ class NonUniformMutation(Mutation):
     ) -> None:
         self.prob = float(np.clip(prob_mutation, 0.0, 1.0))
         self.perturbation = max(float(perturbation), 1e-8)
+        self.progress = 0.0
         self.lower, self.upper = _ensure_bounds(lower, upper)
-        self.span = self.upper - self.lower
         self.workspace = workspace
 
     def _rand(self, key: str, shape: tuple[int, ...], rng: np.random.Generator) -> ArrayLike:
@@ -228,13 +227,13 @@ class NonUniformMutation(Mutation):
             return X
 
         rand = self._rand("nu_rand", X.shape, rng)
-        np.power(rand, self.perturbation, out=rand)
+        # (1 - t / T) ** b with the progress t / T unknown, and therefore 0.
+        np.power(rand, (1.0 - self.progress) ** self.perturbation, out=rand)
         delta = self.workspace.request("nu_delta", X.shape, np.float64) if self.workspace else np.empty(X.shape, dtype=float)
         np.subtract(1.0, rand, out=delta)
-        delta *= self.span
         direction_rand = self._rand("nu_direction", X.shape, rng)
-        direction = np.where(direction_rand <= 0.5, -1.0, 1.0)
-        update = delta * direction
+        distance = np.where(direction_rand <= 0.5, self.upper - X, self.lower - X)
+        update = delta * distance
         if self.workspace is None:
             X += np.where(mask, update, 0.0)
         else:
@@ -345,7 +344,7 @@ class LinkedPolynomialMutation(Mutation):
 
 
 class CauchyMutation(Mutation):
-    """Cauchy mutation with heavy-tailed perturbations."""
+    """Cauchy mutation with scale ``gamma * (upper - lower)``: ``gamma`` is a fraction of the range."""
 
     def __init__(
         self,
@@ -367,7 +366,7 @@ class CauchyMutation(Mutation):
         mask = rng.random(shape) <= self.prob
         if not np.any(mask):
             return X
-        noise = rng.standard_cauchy(size=shape) * self.gamma
+        noise = rng.standard_cauchy(size=shape) * (self.gamma * (self.upper - self.lower))
         X[mask] += noise[mask]
         return X
 

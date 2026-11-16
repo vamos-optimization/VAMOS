@@ -65,6 +65,8 @@ class SMSEMOAState(AlgorithmState):
     ranks: np.ndarray[Any, Any] | None = None
     crowding: np.ndarray[Any, Any] | None = None
     steps: int = 0
+    # The step count at which a final, shorter generation was sent to the live callback.
+    live_final_steps: int = 0
     hv_reached: bool = False
 
     # Workspace buffers (avoid per-iteration allocations in steady-state SMS-EMOA)
