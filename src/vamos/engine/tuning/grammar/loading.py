@@ -1,8 +1,8 @@
 """Loading parameter spaces from JSON or YAML files.
 
-JSON needs only the standard library. YAML needs PyYAML, which is not a dependency of VAMOS: install it
-with ``pip install pyyaml``. Both readers reject a key repeated in one mapping, which JSON and YAML
-parsers otherwise resolve silently by keeping the last value.
+YAML is read with PyYAML's safe loader (PyYAML is a dependency of VAMOS), JSON with the standard library.
+Both readers reject a key repeated in one mapping, which JSON and YAML parsers otherwise resolve
+silently by keeping the last value.
 """
 
 from __future__ import annotations
@@ -33,16 +33,13 @@ def parameter_space_from_json(text: str) -> ParameterSpace:
 
 
 def parameter_space_from_yaml(text: str) -> ParameterSpace:
-    """The space in a YAML ``vamos.parameter-space`` document; needs PyYAML."""
+    """The space in a YAML ``vamos.parameter-space`` document."""
     return parameter_space_from_document(read_yaml(text))
 
 
 def read_yaml(text: str) -> Any:
-    """Plain data from YAML text, rejecting repeated keys; needs PyYAML."""
-    try:
-        import yaml  # type: ignore[import-untyped]
-    except ImportError as exc:
-        raise ImportError("Reading a YAML parameter space needs PyYAML: pip install pyyaml.") from exc
+    """Plain data from YAML text, rejecting repeated keys."""
+    import yaml  # type: ignore[import-untyped]
 
     def construct_mapping(loader: Any, node: Any) -> dict[Any, Any]:
         keys = [loader.construct_object(key_node, deep=True) for key_node, _ in node.value]

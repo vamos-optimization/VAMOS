@@ -71,7 +71,7 @@ The canonical environment, path inventory, diagnostic fingerprint schema, baseli
 - ux/panel/** and ux/studio/**: the Studio UI imports the `studio` extra (Panel and its stack) at top level.
 - Elsewhere, a top-level import of an optional dependency is guarded with `try/except ImportError`.
 - Dynamic import loopholes (`importlib.import_module`, `__import__`) are disallowed at top-level.
-- `[project].dependencies` is the closed set numpy, scipy, joblib and typing-extensions (`tests/architecture/test_dependency_policy.py`), and importing a public module loads no other third-party package (`tests/test_import_time_smoke.py`).
+- `[project].dependencies` is the closed set numpy, scipy, joblib, PyYAML (which reads the YAML tuning spaces) and typing-extensions (`tests/architecture/test_dependency_policy.py`), and importing a public module loads no other third-party package (`tests/test_import_time_smoke.py`).
 
 ## Public API Snapshot
 - Public facades (`vamos`, every public top-level module, and `vamos.ux.api`) are frozen via `tests/architecture/test_public_api_snapshot.py`, which also fails when a top-level module is missing from the snapshot.

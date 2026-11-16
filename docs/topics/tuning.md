@@ -501,8 +501,8 @@ repair strategies, keep their names and are ignored by the other side.
 
 **Development after 1.3.0:** `vamos.engine.tuning.grammar` reads parameter
 spaces written as strict grammars with defaults, under the schema
-`vamos.parameter-space` 1.0.0, from JSON, from YAML (with PyYAML installed) or
-from a parsed mapping. A categorical parameter chooses between productions,
+`vamos.parameter-space` 1.0.0, from YAML, from JSON or from a parsed mapping.
+PyYAML, which reads the YAML, is a dependency of VAMOS. A categorical parameter chooses between productions,
 one per value, and the production of a value holds the parameters that the
 value activates; `global_sub_parameters` are active whatever the value.
 Numeric and boolean parameters are terminals, with a `range` (both ends

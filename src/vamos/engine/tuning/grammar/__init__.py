@@ -1,7 +1,7 @@
 """Parameter spaces as strict grammars with defaults: the ``vamos.parameter-space`` 1.0.0 schema.
 
 A space is a tree of parameters in the vocabulary of the algorithm configurations; a configuration
-is a derivation of it. Rules G1 to G6 are checked whenever a space is read
+is a derivation of it, and spaces are read from YAML or JSON. Rules G1 to G6 are checked whenever a space is read
 (:func:`parameter_space_from_document`, :func:`load_parameter_space`); rule G7 runs the algorithm
 and is checked on demand (:func:`check_default_configuration`).
 
