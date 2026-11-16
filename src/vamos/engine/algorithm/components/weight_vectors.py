@@ -1,4 +1,6 @@
+import io
 import os
+import stat
 import warnings
 
 import numpy as np
@@ -149,15 +151,29 @@ def describe_weight_vectors(
 
 
 def _holds_saved_lattice(path: str, pop_size: int, n_obj: int, divisions: int | None) -> bool:
-    """Whether the weight file holds exactly the Das-Dennis lattice that a run saves there when the file is missing."""
+    """Whether the weight file holds exactly the Das-Dennis lattice that a run saves there when the file is missing.
+
+    Verification rebuilds the description from a stored configuration, so the path is untrusted: only a
+    regular file no larger than the lattice's ``np.savetxt`` text is read, and a FIFO is never opened.
+    """
     exact = _exact_divisions(pop_size, n_obj)
     if exact is None or (divisions is not None and int(divisions) != exact):
         return False
+    limit = pop_size * (n_obj * 26 + 2)  # "%.18e" values of at most 25 characters, a separator, either line ending
+    flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0)
     try:
-        weights = _load_weights(path, delimiter=None)
+        info = os.stat(path)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > limit:
+            return False
+        descriptor = os.open(path, flags)
+        try:
+            data = os.read(descriptor, limit + 1)
+        finally:
+            os.close(descriptor)
+        weights = np.atleast_2d(np.loadtxt(io.BytesIO(data))) if len(data) <= limit else None
     except (OSError, ValueError):
         return False
-    return bool(weights.shape == (pop_size, n_obj) and np.array_equal(weights, das_dennis(n_obj, exact)))
+    return bool(weights is not None and weights.shape == (pop_size, n_obj) and np.array_equal(weights, das_dennis(n_obj, exact)))
 
 
 def largest_weighted_population(pop_size: int, n_obj: int) -> int:

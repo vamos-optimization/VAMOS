@@ -5,7 +5,9 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
+import os
 import shutil
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -102,6 +104,36 @@ def test_a_jmetal_file_is_a_file_and_the_lattice_a_run_saves_is_the_lattice(tmp_
 
     lattice = {"source": "das_dennis", "divisions": 12, "vectors": 91}
     assert weight_vectors.describe_weight_vectors(91, 3, path=str(tmp_path)) == lattice
+
+
+def test_a_weight_file_larger_than_the_saved_lattice_is_a_file_and_is_not_read_whole(tmp_path: Path) -> None:
+    # The path comes from a stored configuration, which verification rebuilds: a large file must not be loaded.
+    np.savetxt(tmp_path / "W3D_91.dat", das_dennis(3, 12))
+    with open(tmp_path / "W3D_91.dat", "a", encoding="utf-8") as handle:
+        handle.write("# padding\n" * 4000)  # np.loadtxt ignores it, so the values are still the lattice
+    loaded: list[object] = []
+    original = np.loadtxt
+    real_loadtxt = lambda source, *args, **kwargs: (loaded.append(source), original(source, *args, **kwargs))[1]  # noqa: E731
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(weight_vectors.np, "loadtxt", real_loadtxt)
+        description = weight_vectors.describe_weight_vectors(91, 3, path=str(tmp_path))
+
+    assert description == {"source": "file", "file": "W3D_91.dat", "vectors": 91}
+    assert loaded == []
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="FIFOs are POSIX")
+def test_a_weight_fifo_does_not_block_the_description(tmp_path: Path) -> None:
+    os.mkfifo(tmp_path / "W3D_91.dat")
+    result: list[object] = []
+    worker = threading.Thread(target=lambda: result.append(weight_vectors.describe_weight_vectors(91, 3, path=str(tmp_path))), daemon=True)
+
+    worker.start()
+    worker.join(timeout=10)
+
+    assert not worker.is_alive(), "describing a FIFO blocked"
+    assert result == [{"source": "file", "file": "W3D_91.dat", "vectors": 91}]
 
 
 def test_a_study_whose_weight_directory_starts_empty_records_the_lattice_for_every_seed(tmp_path: Path) -> None:
