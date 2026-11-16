@@ -109,10 +109,23 @@ def _moead_pop_size(assignment: dict[str, Any]) -> int:
     return pop_size
 
 
+def _moead_aggregation(builder: Any, assignment: dict[str, Any]) -> None:
+    aggregation = str(assignment["aggregation"])
+    if aggregation == "pbi":
+        builder.aggregation("pbi", theta=float(assignment.get("pbi_theta", 5.0)))
+    elif aggregation == "modified_tchebycheff":
+        builder.aggregation("modified_tchebycheff", rho=float(assignment.get("mtch_rho", 0.001)))
+    else:
+        builder.aggregation(aggregation)
+
+
 def build_moead_config(assignment: dict[str, Any], *, mixed: bool = False) -> MOEADConfig:
     builder = MOEADConfig.builder()
     pop_size = _moead_pop_size(assignment)
     builder.pop_size(pop_size)
+    # Assignments from spaces without an initializer leave MOEA/D's default.
+    if "initializer" in assignment:
+        apply_initializer(builder, assignment, pop_size)
     builder.neighbor_size(min(int(assignment["neighbor_size"]), pop_size))
     builder.delta(float(assignment["delta"]))
     builder.replace_limit(int(assignment["replace_limit"]))
@@ -128,16 +141,16 @@ def build_moead_config(assignment: dict[str, Any], *, mixed: bool = False) -> MO
 
     mut = str(assignment["mutation"])
     mut_params: dict[str, Any] = {}
+    # Assignments from the earlier real-coded space give an absolute probability.
     if "mutation_prob" in assignment:
         mut_params["prob"] = float(assignment["mutation_prob"])
+    if assignment.get("mutation_prob_factor") is not None:
+        builder.mutation_prob_factor(float(assignment["mutation_prob_factor"]))
     extend_mutation_params(mut, assignment, mut_params, mixed=mixed)
     builder.mutation(mut, **mut_params)
 
-    aggregation = str(assignment["aggregation"])
-    if aggregation == "pbi":
-        builder.aggregation("pbi", theta=float(assignment.get("pbi_theta", 5.0)))
-    else:
-        builder.aggregation(aggregation)
+    _moead_aggregation(builder, assignment)
+    apply_optional_repair(builder, assignment)
     apply_optional_external_archive(builder, assignment, pop_size)
     apply_subproblem_update_criterion(builder, assignment)
     return builder.build()
@@ -152,13 +165,7 @@ def build_moead_permutation_config(assignment: dict[str, Any]) -> MOEADConfig:
     builder.replace_limit(int(assignment["replace_limit"]))
     builder.crossover(str(assignment["crossover"]), prob=float(assignment.get("crossover_prob", 0.9)))
     builder.mutation(str(assignment["mutation"]), prob=assignment.get("mutation_prob", 0.1))
-    aggregation = str(assignment["aggregation"])
-    if aggregation == "pbi":
-        builder.aggregation("pbi", theta=float(assignment.get("pbi_theta", 5.0)))
-    elif aggregation == "modified_tchebycheff":
-        builder.aggregation("modified_tchebycheff", rho=float(assignment.get("mtch_rho", 0.001)))
-    else:
-        builder.aggregation(aggregation)
+    _moead_aggregation(builder, assignment)
     apply_optional_external_archive(builder, assignment, pop_size)
     return builder.build()
 
@@ -200,8 +207,11 @@ def build_smsemoa_config(assignment: dict[str, Any], *, mixed: bool = False) -> 
     builder.crossover(cross, **cross_params)
     mut = str(assignment["mutation"])
     mut_params: dict[str, Any] = {}
+    # Assignments from the earlier real-coded spaces give an absolute probability.
     if "mutation_prob" in assignment:
         mut_params["prob"] = float(assignment["mutation_prob"])
+    if assignment.get("mutation_prob_factor") is not None:
+        builder.mutation_prob_factor(float(assignment["mutation_prob_factor"]))
     extend_mutation_params(mut, assignment, mut_params, mixed=mixed)
     builder.mutation(mut, **mut_params)
     # Assignments from earlier spaces name only the tournament size and used an offset of 0.1.
