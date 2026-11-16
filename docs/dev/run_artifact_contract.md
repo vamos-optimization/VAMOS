@@ -124,6 +124,13 @@ execution state:
 - defaults applied and their sources;
 - determinism declaration and RNG family.
 
+**Development after 1.2.1:** the configuration of a registered problem also
+holds the options passed through `problem_kwargs`, such as `capacity_ratio` for
+`bin_knapsack`; a run without options records only the dimensions, the encoding
+and the constraint convention, as before. Verification and replay pass the
+options to the problem's registry factory. A field that the factory does not
+declare as a keyword-only parameter makes the run not reconstructable.
+
 `resolved_spec.seed` is always an integer. Zero is valid. For `seed=None`, VAMOS
 generates an integer before constructing any stochastic execution object,
 exposes it in `OptimizationResult.meta["seed"]`, and persists it in the resolved
@@ -220,6 +227,13 @@ claim requires the same resolved spec, implementation, backend, materially
 equivalent environment, and a deterministic path. Loading does not test replay
 equivalence.
 
+**Development after 1.2.1:** a run stopped by `("max_time", seconds)` has no
+deterministic path: its termination is `vamos.termination:max_time@1`, its
+`determinism.declared` is `false`, its replayability is `best_effort` with the
+reason `wall_clock_termination`, and verification reports that reason and no
+exact replay. `outcome.termination_reason` is `max_time`, or `max_evaluations`
+when the optional evaluation cap stopped it first.
+
 Exact verification compares only material evidence: VAMOS version and
 implementation fingerprint, source kind, Python implementation and major/minor
 version, operating system and architecture, NumPy/SciPy, selected backend and
@@ -300,7 +314,8 @@ verify` exits with 3 for both, and study loading reports them as
 ## 11. Consumers
 
 `discover_runs` finds `manifest.json` and accepts only manifests validated by
-the canonical reader. `load_run_data` and Studio load numerical values only
+the canonical reader. It leaves out replays (`lineage.execution_kind` is
+`replay`) unless `include_replays=True`, which marks them in `RunInfo.replay`. `load_run_data` and Studio load numerical values only
 through `load_run`/`load_result`. Aggregation reads resolved identity, seed,
 timestamps, outcome counters, runtime, termination, and optional metrics from
 the manifest. Directory names are presentation, not data recovery heuristics.

@@ -30,7 +30,7 @@ from inferential claims.
 | Item | This lesson |
 | --- | --- |
 | Prerequisites | [T07 measurements](t07-quality-and-budget.md), or the downloadable recorded observations |
-| Tested environment | VAMOS **1.0.1**, MooCore **0.3.2**, Matplotlib **3.10.9**; [setup](study-setup.md) |
+| Tested environment | VAMOS **1.2.1**, MooCore **0.3.2**, Matplotlib **3.10.9**; [setup](study-setup.md) |
 | Interface status | **Experimental** `vamos.ux.api.compute_ranks` and `plot_hv_convergence`; ordinary Python CSV/JSON and Matplotlib |
 | Work | Recompute/validate metrics from retained fronts and render; **no optimization executes** |
 

@@ -12,6 +12,7 @@ from vamos.foundation.encoding import EncodingLike
 from .base import (
     DEFAULT_POP_SIZE,
     ConstraintModeStr,
+    LiveCallbackMode,
     ResultMode,
     _build_external_archive_config,
     _ConfigBuilderState,
@@ -48,6 +49,7 @@ class SMPSOConfig(_SerializableConfig):
     external_archive: ExternalArchiveConfig | None = None
     # Fields added after 1.0 go last, so that the constructor keeps the positions of its parameters.
     constraint_handling: tuple[str, dict[str, float]] | None = None
+    live_callback_mode: LiveCallbackMode = "population"
     #: The techniques that judge the violation of a single solution, the only ones this algorithm takes.
     constraint_handling_techniques: ClassVar[tuple[str, ...]] = PAIRWISE_TECHNIQUES
 
@@ -91,14 +93,22 @@ class _SMPSOConfigBuilder(
         return self
 
     def inertia(self, value: float) -> _SMPSOConfigBuilder:
+        """Fixed weight of a particle's previous velocity in the velocity update (default 0.1)."""
         self._cfg["inertia"] = value
         return self
 
     def c1(self, value: float) -> _SMPSOConfigBuilder:
+        """Lower bound of the personal-best coefficient (default 1.5).
+
+        At every step each particle draws its coefficient from U[value, value + 1], as jMetal does.
+        When the two drawn coefficients add up to more than 4, the constriction coefficient scales the
+        velocity.
+        """
         self._cfg["c1"] = value
         return self
 
     def c2(self, value: float) -> _SMPSOConfigBuilder:
+        """Lower bound of the leader coefficient (default 1.5), drawn like ``c1`` from U[value, value + 1]."""
         self._cfg["c2"] = value
         return self
 
@@ -146,4 +156,5 @@ class _SMPSOConfigBuilder(
             track_genealogy=bool(self._cfg.get("track_genealogy", False)),
             result_mode=self._cfg.get("result_mode", "non_dominated"),
             external_archive=self._cfg.get("external_archive"),
+            live_callback_mode=self._cfg.get("live_callback_mode", "population"),
         )

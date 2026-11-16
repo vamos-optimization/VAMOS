@@ -48,12 +48,6 @@ unsupported behavior rather than future compatibility promises.
 - Deterministic same-environment runs do not imply bitwise equality across
   different kernels, BLAS implementations, operating systems, architectures,
   or optional third-party engines.
-- `optimize` passes the run's `numpy.random.Generator` to the stochastic
-  components it builds, but two random streams do not follow the run seed:
-  the `ref_dirs` pruning of a bounded external archive draws from its
-  `rng_seed` (0 unless set), and the hypervolume convergence monitor
-  bootstraps with Python's `random.Random` seeded by its own `rng_seed`
-  (also 0). Every seed of an experiment therefore shares those two streams.
 
 ## Benchmark validation
 
@@ -245,6 +239,11 @@ unsupported behavior rather than future compatibility promises.
   timeouts are best-effort controls, not a security sandbox.
 - Reviewed Python executes with the current operating-system user's
   permissions. Remote binding increases exposure and requires explicit opt-in.
+- **Development after 1.2.1:** each Studio launch has an access token, but it
+  travels over plain HTTP, and whoever has the link can use Studio with the
+  account that serves it until the launch ends. To reach Studio from another
+  computer, prefer an SSH tunnel to the loopback port over remote binding; see
+  [Installation and launch options](../guide/studio.md#installation-and-launch-options).
 - LLM-generated code is displayed for review and is never executed
   automatically.
 

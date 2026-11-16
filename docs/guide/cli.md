@@ -159,6 +159,12 @@ owner for a study. There is no cross-process cancel command; foreground Ctrl+C
 uses graceful durable cancellation, and a cancelled study cannot be resumed
 (see [Resume and retry](studies.md#resume-and-retry)).
 
+**Development after 1.2.1:** a Ctrl+C that arrives while the study writes a
+journal event and the checkpoints that record it takes effect once those writes
+finish, so the cancelled study always loads. Before, a Ctrl+C right after
+`execution_started` could leave the root checkpoint behind the journal, and
+`vamos study run` then failed with `CANCELLATION_PUBLICATION_FAILED`.
+
 Main runner
 -----------
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from vamos.engine.algorithm.catalog import ENABLED_ALGORITHMS
 from vamos.engine.algorithm.config.types import AlgorithmConfigProtocol
 from vamos.engine.tuning.racing import bridge_spaces
@@ -103,6 +105,9 @@ def config_fields_for(parameter: str) -> tuple[str, ...]:
         return ("initializer",)
     if parameter in {"aggregation", "pbi_theta"}:
         return ("aggregation",)
+    if parameter == "reference_point_offset":
+        # SMSEMOAConfig keeps the offset inside its reference_point mapping.
+        return ("reference_point",)
     if parameter.startswith("selection"):
         return ("selection",)
     if parameter == "de_variant":
@@ -115,6 +120,27 @@ def config_fields_for(parameter: str) -> tuple[str, ...]:
     return (parameter,)
 
 
+def flatten_config_defaults(config: Mapping[str, object]) -> dict[str, object]:
+    """Flatten ``(name, params)`` operator entries into ``<field>_<param>`` keys."""
+    flat: dict[str, object] = {}
+    for key, value in config.items():
+        if isinstance(value, (tuple, list)) and len(value) == 2 and isinstance(value[0], str) and isinstance(value[1], Mapping):
+            flat[key] = value[0]
+            for param_name, param_value in value[1].items():
+                flat[f"{key}_{param_name}"] = param_value
+                if value[0] == "mixed":
+                    # Mixed operators nest per-type settings such as ``perm_crossover``.
+                    flat.setdefault(str(param_name), param_value)
+        elif isinstance(value, Mapping):
+            # Settings kept in a mapping field, such as reference_point's offset, are <field>_<setting>.
+            for setting, setting_value in value.items():
+                if not isinstance(setting_value, (Mapping, list, tuple)):
+                    flat.setdefault(f"{key}_{setting}", setting_value)
+        else:
+            flat[key] = value
+    return flat
+
+
 __all__ = [
     "ALGORITHM_LABELS",
     "algorithm_label",
@@ -122,6 +148,7 @@ __all__ = [
     "config_fields_for",
     "config_space_for",
     "default_algorithm_config",
+    "flatten_config_defaults",
     "population_is_derived",
     "studio_algorithms",
 ]

@@ -26,12 +26,15 @@ def _resolve_problem(
 ) -> Any:
     """Resolve problem from string, class, or instance."""
     if isinstance(problem, str):
-        kwargs = dict(problem_kwargs or {})
+        options = dict(problem_kwargs or {})
+        dimensions = {"n_var": options.pop("n_var", None), "n_obj": options.pop("n_obj", None)}
         if n_var is not None:
-            kwargs["n_var"] = n_var
+            dimensions["n_var"] = n_var
         if n_obj is not None:
-            kwargs["n_obj"] = n_obj
-        selection = make_problem_selection(problem, **kwargs)
+            dimensions["n_obj"] = n_obj
+        selection = make_problem_selection(problem, **dimensions)
+        if options:
+            selection = selection.with_options(options)
         return selection.instantiate()
     if isinstance(problem, type):
         kwargs = dict(problem_kwargs or {})

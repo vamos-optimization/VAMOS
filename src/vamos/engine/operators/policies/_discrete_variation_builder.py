@@ -29,7 +29,7 @@ from vamos.engine.operators.policies.discrete_operator_maps import (
     PermCrossoverOp,
     PermMutationOp,
 )
-from vamos.engine.variation.helpers import resolve_prob_expression
+from vamos.engine.variation.helpers import apply_mutation_prob_factor, resolve_prob_expression
 from vamos.engine.variation.protocol import RepairConfigValue
 from vamos.foundation.encoding import EncodingLike, normalize_encoding
 
@@ -85,6 +85,7 @@ def build_discrete_variation_operators(
     variation_kernels: VariationKernels | None = None,
 ) -> tuple[VariationFn, VariationFn]:
     cross_method, cross_params, mut_method, mut_params = unpack_variation_methods(config)
+    mut_params = apply_mutation_prob_factor(mut_params, n_var, config.get("mutation_prob_factor"))
 
     normalized = normalize_encoding(encoding)
     repair_cfg = cast(RepairConfigValue, config.get("repair", "auto"))

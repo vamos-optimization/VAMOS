@@ -46,6 +46,16 @@ MW, C-DTLZ, LSMOP, ZCAT, RE, and RWA), is available by name through
 `optimize("name")` and `make_problem_selection`, the stable way to build any
 of them.
 
+**Development after 1.2.1:** some registered problems also take options
+besides `n_var` and `n_obj`: `capacity_ratio` for `bin_knapsack`, and
+`complicated_pareto_set`, `level`, `bias` and `imbalance` for
+`zcat1`–`zcat20`, with the defaults in the tables below. Pass them by name with
+`optimize(name, problem_kwargs={...})`, a study's `problem_kwargs`, or
+`make_problem_selection(name).with_options({...})`; `selection.spec.option_defaults()`
+lists them. A run records them in `resolved_spec.problem.config` and replays them
+exactly. The other problems take no options, and arguments that identify a
+registered problem, such as a family's variant, stay fixed by its name.
+
 The tables report the **instantiated** default dimensions. `n` is the number of
 decision variables, `M` the number of objectives, and `G` the number of explicit
 inequality outputs (`G <= 0` is feasible). Zero G means no separate inequality
@@ -163,6 +173,15 @@ unscaled `g` in the constraints of all six problems. PlatEMO also uses a factor
 of 10 in DC3-DTLZ3's `g`. Their problems therefore differ from these. Their DC1
 and DC3 fronts differ too. Their DC2 fronts do not, because DC2's constraints
 hold on the whole DTLZ front.
+
+The paper's [supplementary document][dcdtlz-supplement] defines the six
+problems, and its text sets `a = 3`, `b = 0.5` for DC1 and gives DC3 M + 1
+constraints, on `x1` to `xM` and on `g`. Its Table II, the share of uniform
+samples that is feasible, matches the authors' code instead: 10.11 % in DC1,
+which is `arccos(0.95) / pi`, against a third with `b = 0.5`; and 3.70 %, 0.41 %
+and 0.02 % in DC3 at M = 3, 5 and 8, which is `(1/3)^M` with M constraints,
+against `(1/3)^(M + 1)` with M + 1. The tests check VAMOS's defaults against
+that table. The text gives no constants for DC2 and DC3.
 
 **VAMOS 1.2.0:** `vamos.problems.DCDTLZ(key, n_var=..., n_obj=...,
 a=..., b=..., g_factor=..., constraint_g_scale=...)` builds any of these
@@ -788,6 +807,7 @@ scalable formulations. For a new objective function, follow
 [zcat]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/zcat/core.py
 [constrained]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/constrained_many.py
 [dcdtlz-authors]: https://github.com/COLA-Laboratory/cola_www_src/tree/main/content/codes/Samaritan/testproblem/DCDTLZ
+[dcdtlz-supplement]: https://doi.org/10.1109/TEVC.2018.2855411
 [jmetal-classics]: https://github.com/jMetal/jMetal/tree/1e4b83cae6/jmetal-problem/src/main/java/org/uma/jmetal/problem/multiobjective
 [lircmop]: https://doi.org/10.1007/s00500-019-03794-x
 [dascmop]: https://doi.org/10.1162/evco_a_00259

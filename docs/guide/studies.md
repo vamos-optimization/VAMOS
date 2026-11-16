@@ -111,6 +111,17 @@ print(report.issues)
 
 `inspect()` answers operational questions: which tasks succeeded, which failed or remain unfinished, whether referenced run metadata could be verified, and whether recovery work is required.
 
+**Development after 1.2.1:** `load_study(path)` verifies every referenced run completely, so one damaged or missing run makes it raise. To inspect such a study, load it with `verify="metadata"`: the load checks each run's manifest and artifact hashes without reading its arrays, and `inspect()` and `summarize()` report the damaged run as an issue instead of failing. `run()`, `resume()` and `retry()` still reload with complete verification and refuse damaged evidence.
+
+```python
+from vamos import load_study
+
+report = load_study("studies/example", verify="metadata").inspect()
+print(report.issues)
+```
+
+A trusted study that needs larger bounds, such as long `metadata` strings or very large result arrays, takes them once: `load_study` and `create_study` accept `limits=` (a `StudyLoadLimits` for the study documents) and `run_limits=` (a `LoadLimits` for the study's runs), and the returned handle keeps both for every reload by `run()`, `resume()`, `retry()`, `cancel()`, `inspect()` and `summarize()`. VAMOS 1.2.1 and earlier had no tolerant load in the public API, accepted no run limits, and reloaded with the default limits, so a study created with larger limits could be loaded but not inspected or run.
+
 A completed study is not automatically a scientifically adequate study. Operational success means the planned tasks and their evidence are in a coherent durable state; it does not establish convergence, sufficient replication, a meaningful indicator, fair tuning, statistical significance, or practical importance.
 
 ## 5. Trace every summary row to its run
@@ -237,6 +248,11 @@ study = load_study("studies/example").resume()
 if study.inspect().retryable_failed_work:
     study = study.retry(failed_only=True)
 ```
+
+**Development after 1.2.1:** a study whose process was killed after it wrote
+its first journal event and before its root checkpoint recorded that event
+loads and resumes like one stopped at any later event. VAMOS 1.2.1 and earlier
+rejected it with `CHECKPOINT_JOURNAL_INCONSISTENCY`.
 
 `resume()` does nothing when no task is pending or interrupted. `retry()` needs
 a failed task that can be retried. On a study whose tasks all succeeded, it

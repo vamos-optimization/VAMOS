@@ -57,6 +57,30 @@ checks installation and hashes, then publishes to PyPI and creates the GitHub
 Release. Verify the production package, hashes, and release before declaring
 completion. Never replace an existing version or move a published tag.
 
+### Regenerate the lessons
+
+The fundamental, study and coverage lessons, including the algorithm guides
+with recorded output, show what the release they name prints. Every release
+regenerates them on its release branch with a wheel built from that branch,
+before the release pull request merges. The wheel contains neither the lessons
+nor their sources, so the regeneration commit leaves the distributions
+unchanged:
+
+1. Set `LESSON_RELEASE` in `tools/build_fundamental_tutorials.py` to the new
+   version. The three lesson generators and their requirement files take it
+   from there, and `tests/docs/test_coverage_tutorials.py` fails while it
+   differs from the version that the [installation guide](guide/installation.md)
+   installs.
+2. Install the candidate wheel and the pinned lesson dependencies into a new,
+   non-editable environment, without `PYTHONPATH`.
+3. Run each generator with `--write` (with a new `--work-dir` where it asks
+   for one), as [fundamental](dev/fundamental-tutorials.md),
+   [study](dev/study-tutorials.md) and [coverage](dev/coverage-tutorials.md)
+   tutorial maintenance describe, and then with `--check`.
+4. Compare each changed output with the text of its page, update the prose
+   that cites the old numbers, and name the corrections that changed them in
+   the release pull request.
+
 ## Organization Pages
 
 In the organization repository, open **Settings > Pages > Build and deployment**
@@ -192,3 +216,11 @@ TestPyPI is published first using trusted publishing. Only after its exact
 wheel installs and passes the full smoke may the same immutable wheel and sdist
 be sent to PyPI and attached to the GitHub release with their checksums, SBOM,
 manifest, provenance, stability contract, and known limitations.
+
+**Development after 1.2.1:** the GitHub release's text is the version's release
+notes with absolute links, written by `tools/github_release_notes.py`: links to
+documentation pages point to the version's archive,
+`https://vamos-optimization.org/docs/<version>/`, and links to other files to
+the version's tag on GitHub. The notes' relative links broke on the release
+page. To correct an earlier release, run the tool on that tag's notes and pass
+the output to `gh release edit v<version> --notes-file`.

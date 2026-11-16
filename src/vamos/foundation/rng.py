@@ -19,4 +19,20 @@ def require_generator(rng: object, owner: str) -> np.random.Generator:
     return rng
 
 
-__all__ = ["require_generator"]
+# Spawn keys of the streams that components derive from the run seed; each is a child of the
+# run's SeedSequence that the algorithm's own generator, ``default_rng(seed)``, never draws from.
+_DERIVED_STREAMS = {"external_archive": 1, "hv_convergence": 2}
+
+
+def derived_seed(run_seed: int, stream: str) -> int:
+    """Seed of the component ``stream`` of a run, derived from ``run_seed``.
+
+    The value is ``SeedSequence(run_seed, spawn_key=(k,))`` for the stream's fixed key ``k``,
+    the child that ``SeedSequence(run_seed).spawn`` would give, so it differs between run seeds,
+    repeats for the same seed, and does not consume the algorithm's stream.
+    """
+    sequence = np.random.SeedSequence(int(run_seed) % 2**64, spawn_key=(_DERIVED_STREAMS[stream],))
+    return int(sequence.generate_state(1, dtype=np.uint32)[0])
+
+
+__all__ = ["derived_seed", "require_generator"]

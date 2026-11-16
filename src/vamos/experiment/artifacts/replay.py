@@ -120,6 +120,7 @@ def _instantiate_problem(plan: ReplayPlan) -> Any:
         engine=plan.engine,
         eval_strategy=plan.eval_strategy,
         seed=plan.seed,
+        problem_options=plan.problem_options,
     )
     return instantiate_reconstructed_problem(reconstructed, root=plan.source_root)
 

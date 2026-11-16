@@ -26,6 +26,13 @@ The check accepts built-in algorithm identifiers added after the frozen ones
 in `stable_algorithm_configs.json` (such as `ccmo`, `ctaea`, `top` and `cmoeams`), but not the loss of one,
 and it does not record the configuration classes of algorithms added after 1.0.
 
+**Development after 1.2.1:** the check also accepts a stable signature that
+adds keyword-only arguments with defaults to the frozen one, such as
+`verify='all'` and `run_limits=None` on `load_study`. Every frozen parameter
+must keep its name, kind, default and order, and a new positional argument or a
+new argument without a default still fails. The committed snapshot stays the
+1.0 baseline.
+
 Regenerate the structural snapshots only through:
 
 ```bash

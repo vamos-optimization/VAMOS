@@ -246,7 +246,7 @@ def initialize_smpso_run(
 
     # Optional external archive: result storage only. It must not influence
     # leader tournaments, swarm dynamics, or HV termination.
-    ext_cfg = resolve_external_archive(config)
+    ext_cfg = resolve_external_archive(config, seed=seed)
     _, _, result_archive = setup_archive(
         kernel,
         X,
@@ -289,6 +289,7 @@ def initialize_smpso_run(
         archive_manager=cast(Any, archive_manager),
         result_archive=result_archive,
         result_mode=result_mode,
+        live_callback_mode=str(config.get("live_callback_mode", "population")),
         # Termination
         hv_tracker=hv_tracker,
         # PSO state

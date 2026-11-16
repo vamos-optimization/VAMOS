@@ -11,6 +11,7 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -160,6 +161,37 @@ def test_stop_ends_the_detached_worker_without_terminal_study_cancellation(tmp_p
     beat = (job_dir / "heartbeat.json").stat().st_mtime
     time.sleep(1.5 * study_jobs.HEARTBEAT_SECONDS)
     assert (job_dir / "heartbeat.json").stat().st_mtime == beat
+
+
+def test_a_stop_between_an_event_and_its_checkpoint_waits_for_the_checkpoint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import vamos.experiment.study.execution as execution
+
+    study = create_study(_tiny_spec(seeds=[0]), output=tmp_path / "study")
+    job_dir = tmp_path / "job"
+    job_dir.mkdir()
+    publish = execution.append_event
+
+    def publish_then_stop(*args: Any, **kwargs: Any) -> Any:
+        event = publish(*args, **kwargs)
+        if kwargs["event_type"] == "execution_started":
+            # The heartbeat's interrupt_main(SIGTERM) makes Python run the worker's handler in
+            # the main thread. Here it runs after the journal says "running" and before the
+            # root checkpoint records that event.
+            handler = signal.getsignal(signal.SIGTERM)
+            assert callable(handler)
+            handler(signal.SIGTERM, None)
+        return event
+
+    monkeypatch.setattr(execution, "append_event", publish_then_stop)
+    code = study_worker.main(["--study", str(study.root), "--job-dir", str(job_dir), "--operation", "run", "--worker-id", "worker-a"])
+
+    assert code == study_worker.STOPPED_EXIT_CODE
+    assert json.loads((job_dir / "outcome.json").read_text())["status"] == "stopped"
+    stopped = load_study(study.root)
+    assert stopped.status == "running"
+    assert not stopped.reconciliation_required, "the stop must wait until the root checkpoint records the event"
+    monkeypatch.undo()
+    assert stopped.resume().status == "completed"
 
 
 def test_stop_during_an_atomic_attempt_write_cleans_up_before_acknowledgment(tmp_path: Path) -> None:

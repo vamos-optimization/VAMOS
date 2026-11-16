@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import json
 import os
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -223,6 +224,37 @@ def test_cli_run_ctrl_c_uses_durable_graceful_cancellation(tmp_path: Path, monke
     assert result.changed is True
     assert result.payload["execution_began"] is True
     assert vamos.load_study(root).status == "cancelled"
+
+
+def test_cli_run_ctrl_c_between_an_event_and_its_checkpoint_still_cancels(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import vamos.experiment.study.execution as execution
+
+    root = tmp_path / "study"
+    vamos.create_study(
+        vamos.StudySpec(problems=["zdt1"], algorithms=["nsgaii"], seeds=[0], max_evaluations=8, pop_size=4),
+        output=root,
+    )
+    publish = execution.append_event
+
+    def publish_then_ctrl_c(*args: Any, **kwargs: Any) -> Any:
+        event = publish(*args, **kwargs)
+        if kwargs["event_type"] == "execution_started":
+            # Python runs the SIGINT handler when Ctrl+C arrives. Here it arrives once the
+            # journal says "running" and before the root checkpoint records that event.
+            handler = signal.getsignal(signal.SIGINT)
+            assert callable(handler)
+            handler(signal.SIGINT, None)
+        return event
+
+    monkeypatch.setattr(execution, "_execute_optimization", lambda reconstructed, *, root: _result(reconstructed))
+    monkeypatch.setattr(execution, "append_event", publish_then_ctrl_c)
+    result = execute_study_command(StudyCommandRequest(operation="run", study_dir=root, json_output=True))
+
+    assert result.status == "cancelled", result.errors
+    assert result.exit_code == 8
+    cancelled = vamos.load_study(root)
+    assert cancelled.status == "cancelled"
+    assert [event.event_type for event in cancelled.events] == ["study_created", "execution_started", "study_cancelled"]
 
 
 def test_interrupted_study_message_does_not_promise_resume(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
