@@ -8,9 +8,8 @@ needed to execute the downloadable examples.
 ## Prepare an environment
 
 Follow [Installation](../guide/installation.md) to create and activate an
-isolated Python environment. VAMOS 1.2.1 supports Python 3.10 or newer; these
+isolated Python environment. VAMOS 1.3.0 requires Python 3.11 or newer; these
 recorded tutorial outputs were generated with Python 3.12.
-**Development after 1.2.1:** VAMOS requires Python 3.11 or newer.
 
 For the exact tested numerical dependencies, download
 [tutorial-requirements.txt](../assets/tutorials/tutorial-requirements.txt)

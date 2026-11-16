@@ -26,7 +26,7 @@ interpreter/platform combinations are unclaimed. See
 systems, and the release checks install the wheel on both. VAMOS 1.1.0 was
 tested on Python 3.10, 3.11 and 3.12 only.
 
-**Development after 1.2.1:** VAMOS requires Python 3.11 or newer, as announced
+**VAMOS 1.3.0:** VAMOS requires Python 3.11 or newer, as announced
 with 1.2.0, and CI no longer tests Python 3.10. pip does not install it on
 Python 3.10, where an unpinned install selects the newest 1.2 release; see
 [Stability and versioning](../project/stability-and-versioning.md#python-and-operating-system-support).

@@ -326,7 +326,7 @@ declared Python 3.10 to 3.12 and the status "Beta".
 2026. VAMOS 1.2.0 is the last minor release that supports it: VAMOS 1.3.0 will
 require Python 3.11 or newer, and the 1.2 patch releases keep Python 3.10.
 
-**Development after 1.2.1:** VAMOS requires Python 3.11 or newer
+**VAMOS 1.3.0:** VAMOS requires Python 3.11 or newer
 (`Requires-Python: >=3.11`), so pip does not install it on Python 3.10. CI
 tests Python 3.11 to 3.14 on Linux and Python 3.12 to 3.14 on Windows and
 macOS, and the package metadata declares Python 3.11 to 3.14.
