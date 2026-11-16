@@ -311,7 +311,8 @@ verify` exits with 3 for both, and study loading reports them as
 ## 11. Consumers
 
 `discover_runs` finds `manifest.json` and accepts only manifests validated by
-the canonical reader. `load_run_data` and Studio load numerical values only
+the canonical reader. It leaves out replays (`lineage.execution_kind` is
+`replay`) unless `include_replays=True`, which marks them in `RunInfo.replay`. `load_run_data` and Studio load numerical values only
 through `load_run`/`load_result`. Aggregation reads resolved identity, seed,
 timestamps, outcome counters, runtime, termination, and optional metrics from
 the manifest. Directory names are presentation, not data recovery heuristics.
