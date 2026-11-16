@@ -290,7 +290,7 @@ class AGEMOEA:
             )
         )
         # Generation 0 is the evaluated initial population, as in every algorithm.
-        live_cb.on_generation(0, F=self._st.F, stats={"evals": self._st.n_eval})
+        live_cb.on_generation(0, F=self._st.F, X=self._st.X, stats={"evals": self._st.n_eval})
 
     def ask(self) -> np.ndarray[Any, Any]:
         """Generate offspring for external evaluation.
@@ -401,7 +401,7 @@ class AGEMOEA:
         st.hv_reached = st.hv_reached or hv_target_reached(st)
         stop_requested = False
         if self._live_cb is not None:
-            self._live_cb.on_generation(st.generation, F=st.F, stats={"evals": st.n_eval})
+            self._live_cb.on_generation(st.generation, F=st.F, X=st.X, stats={"evals": st.n_eval})
             stop_requested = live_should_stop(self._live_cb)
         return stop_requested or st.hv_reached
 

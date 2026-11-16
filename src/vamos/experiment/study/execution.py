@@ -23,6 +23,7 @@ from .commits import (
     checkpoint_attempt,
     checkpoint_manifest,
     checkpoint_task,
+    commit_section,
     now_utc,
     run_reference,
 )
@@ -182,24 +183,25 @@ def _complete_empty(study: Study) -> Study:
     execution_id = new_uuid4()
     try:
         _execution_phase("before_final_completed_event")
-        event = append_event(
-            study.root,
-            study.events[-1],
-            event_type="study_completed",
-            entity_kind="study",
-            entity_id=study.study_id,
-            transition_from="created",
-            transition_to="completed",
-            execution_id=execution_id,
-        )
-        checkpoint_manifest(
-            study.root,
-            study.manifest,
-            state="completed",
-            execution_id=execution_id,
-            tasks=(),
-            event=event,
-        )
+        with commit_section():
+            event = append_event(
+                study.root,
+                study.events[-1],
+                event_type="study_completed",
+                entity_kind="study",
+                entity_id=study.study_id,
+                transition_from="created",
+                transition_to="completed",
+                execution_id=execution_id,
+            )
+            checkpoint_manifest(
+                study.root,
+                study.manifest,
+                state="completed",
+                execution_id=execution_id,
+                tasks=(),
+                event=event,
+            )
     except StudyEventAppendError:
         raise
     except Exception as exc:
@@ -209,25 +211,26 @@ def _complete_empty(study: Study) -> Study:
 
 def _start_execution(study: Study, *, parent_execution_id: str | None = None) -> _ExecutionState:
     execution_id = new_uuid4()
-    event = append_event(
-        study.root,
-        study.events[-1],
-        event_type="execution_started",
-        entity_kind="study",
-        entity_id=study.study_id,
-        transition_from=study.status,
-        transition_to="running",
-        execution_id=execution_id,
-        payload={"parent_execution_id": parent_execution_id} if parent_execution_id is not None else None,
-    )
-    manifest = checkpoint_manifest(
-        study.root,
-        study.manifest,
-        state="running",
-        execution_id=execution_id,
-        tasks=study.tasks,
-        event=event,
-    )
+    with commit_section():
+        event = append_event(
+            study.root,
+            study.events[-1],
+            event_type="execution_started",
+            entity_kind="study",
+            entity_id=study.study_id,
+            transition_from=study.status,
+            transition_to="running",
+            execution_id=execution_id,
+            payload={"parent_execution_id": parent_execution_id} if parent_execution_id is not None else None,
+        )
+        manifest = checkpoint_manifest(
+            study.root,
+            study.manifest,
+            state="running",
+            execution_id=execution_id,
+            tasks=study.tasks,
+            event=event,
+        )
     tasks = list(study.tasks)
     indexes = {task.task_id: index for index, task in enumerate(tasks)}
     return _ExecutionState(study.root, study.study_id, execution_id, manifest, tasks, indexes, event)
@@ -262,54 +265,55 @@ def _run_task_attempt(state: _ExecutionState, index: int, plan_task: PlanTask) -
     )
     attempt, attempt_ref = checkpoint_attempt(state.root, attempt)
     _execution_phase("after_attempt_record_creation")
-    state.event = append_event(
-        state.root,
-        state.event,
-        event_type="task_claimed",
-        entity_kind="task",
-        entity_id=task.task_id,
-        transition_from=task.state,
-        transition_to="running",
-        execution_id=state.execution_id,
-        payload={"attempt_id": attempt_id, "run_id": run_id},
-    )
-    state.event = append_event(
-        state.root,
-        state.event,
-        event_type="attempt_started",
-        entity_kind="attempt",
-        entity_id=attempt.attempt_id,
-        transition_from="created",
-        transition_to="running",
-        execution_id=state.execution_id,
-    )
-    _execution_phase("after_running_event_publication")
-    timestamps = dict(attempt.timestamps)
-    timestamps["started_at"] = state.event.timestamp
-    attempt = replace(attempt, status="running", timestamps=deep_freeze(timestamps))
-    attempt, attempt_ref = checkpoint_attempt(state.root, attempt)
-    task = replace(
-        task,
-        state="running",
-        attempts=(*task.attempts, attempt_ref),
-        current_attempt_id=attempt.attempt_id,
-        selected_success_attempt_id=None,
-        retryability=replace(
-            task.retryability, retryable=False, category=None, attempts_remaining=task.retryability.attempts_remaining - 1
-        ),
-        claim_epoch=task.claim_epoch + 1,
-    )
-    task = checkpoint_task(state.root, task)
-    state.tasks[index] = task
-    _execution_phase("after_task_running_checkpoint")
-    state.manifest = checkpoint_manifest(
-        state.root,
-        state.manifest,
-        state="running",
-        execution_id=state.execution_id,
-        tasks=tuple(state.tasks),
-        event=state.event,
-    )
+    with commit_section():
+        state.event = append_event(
+            state.root,
+            state.event,
+            event_type="task_claimed",
+            entity_kind="task",
+            entity_id=task.task_id,
+            transition_from=task.state,
+            transition_to="running",
+            execution_id=state.execution_id,
+            payload={"attempt_id": attempt_id, "run_id": run_id},
+        )
+        state.event = append_event(
+            state.root,
+            state.event,
+            event_type="attempt_started",
+            entity_kind="attempt",
+            entity_id=attempt.attempt_id,
+            transition_from="created",
+            transition_to="running",
+            execution_id=state.execution_id,
+        )
+        _execution_phase("after_running_event_publication")
+        timestamps = dict(attempt.timestamps)
+        timestamps["started_at"] = state.event.timestamp
+        attempt = replace(attempt, status="running", timestamps=deep_freeze(timestamps))
+        attempt, attempt_ref = checkpoint_attempt(state.root, attempt)
+        task = replace(
+            task,
+            state="running",
+            attempts=(*task.attempts, attempt_ref),
+            current_attempt_id=attempt.attempt_id,
+            selected_success_attempt_id=None,
+            retryability=replace(
+                task.retryability, retryable=False, category=None, attempts_remaining=task.retryability.attempts_remaining - 1
+            ),
+            claim_epoch=task.claim_epoch + 1,
+        )
+        task = checkpoint_task(state.root, task)
+        state.tasks[index] = task
+        _execution_phase("after_task_running_checkpoint")
+        state.manifest = checkpoint_manifest(
+            state.root,
+            state.manifest,
+            state="running",
+            execution_id=state.execution_id,
+            tasks=tuple(state.tasks),
+            event=state.event,
+        )
     return _execute_and_commit(state, index, task, attempt, plan_task, run_id)
 
 
@@ -373,48 +377,49 @@ def _execute_and_commit(
     stored = publish_success(state, task, plan_task, run_id, result, _execution_phase)
     del result
     reference = run_reference(stored, study_root=state.root)
-    state.event = append_event(
-        state.root,
-        state.event,
-        event_type="attempt_succeeded",
-        entity_kind="attempt",
-        entity_id=attempt.attempt_id,
-        transition_from="running",
-        transition_to="succeeded",
-        execution_id=state.execution_id,
-        payload={"task_id": task.task_id, "run_reference": reference},
-    )
-    _execution_phase("after_terminal_success_event")
-    timestamps = dict(attempt.timestamps)
-    timestamps["completed_at"] = state.event.timestamp
-    attempt = replace(
-        attempt,
-        status="succeeded",
-        timestamps=deep_freeze(timestamps),
-        failure=None,
-        run_reference=reference,
-    )
-    attempt, attempt_ref = checkpoint_attempt(state.root, attempt)
-    _execution_phase("before_terminal_task_checkpoint")
-    task = replace(
-        task,
-        state="succeeded",
-        attempts=(*task.attempts[:-1], attempt_ref),
-        current_attempt_id=None,
-        selected_success_attempt_id=attempt.attempt_id,
-        retryability=replace(task.retryability, retryable=False, category=None),
-    )
-    task = checkpoint_task(state.root, task)
-    state.tasks[index] = task
-    _execution_phase("before_terminal_study_checkpoint")
-    state.manifest = checkpoint_manifest(
-        state.root,
-        state.manifest,
-        state="running",
-        execution_id=state.execution_id,
-        tasks=tuple(state.tasks),
-        event=state.event,
-    )
+    with commit_section():
+        state.event = append_event(
+            state.root,
+            state.event,
+            event_type="attempt_succeeded",
+            entity_kind="attempt",
+            entity_id=attempt.attempt_id,
+            transition_from="running",
+            transition_to="succeeded",
+            execution_id=state.execution_id,
+            payload={"task_id": task.task_id, "run_reference": reference},
+        )
+        _execution_phase("after_terminal_success_event")
+        timestamps = dict(attempt.timestamps)
+        timestamps["completed_at"] = state.event.timestamp
+        attempt = replace(
+            attempt,
+            status="succeeded",
+            timestamps=deep_freeze(timestamps),
+            failure=None,
+            run_reference=reference,
+        )
+        attempt, attempt_ref = checkpoint_attempt(state.root, attempt)
+        _execution_phase("before_terminal_task_checkpoint")
+        task = replace(
+            task,
+            state="succeeded",
+            attempts=(*task.attempts[:-1], attempt_ref),
+            current_attempt_id=None,
+            selected_success_attempt_id=attempt.attempt_id,
+            retryability=replace(task.retryability, retryable=False, category=None),
+        )
+        task = checkpoint_task(state.root, task)
+        state.tasks[index] = task
+        _execution_phase("before_terminal_study_checkpoint")
+        state.manifest = checkpoint_manifest(
+            state.root,
+            state.manifest,
+            state="running",
+            execution_id=state.execution_id,
+            tasks=tuple(state.tasks),
+            event=state.event,
+        )
     return False
 
 

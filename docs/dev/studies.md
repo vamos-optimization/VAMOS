@@ -174,6 +174,14 @@ the terminal cancelled state.
 `KeyboardInterrupt` during reconstruction or objective evaluation follows the
 same durable cancellation protocol. A forced process death performs no later
 write and leaves running work for the next explicit reconciliation operation.
+
+Every journal event and the checkpoints that record it are written inside
+`commits.commit_section()`. In the main thread it holds the Python handlers of
+SIGINT and SIGTERM and runs each received one once the section ends, so Ctrl+C
+and the Studio worker's stop take effect between commits, never between an
+event and its root checkpoint. A new event/checkpoint pair goes inside the
+section; a write before the event, such as the `created` attempt checkpoint,
+stays outside, so a stop can still interrupt it.
 This slice does not claim that another process can safely cancel a running
 study.
 
