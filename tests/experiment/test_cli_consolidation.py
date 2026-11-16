@@ -346,6 +346,9 @@ def test_tune_smoke_with_suite_split(tmp_path):
         "suite_stratified",
         "--budget",
         "30",
+        # The spaces do not tune the population: every run takes --pop-size, which must fit in the budget.
+        "--pop-size",
+        "15",
         "--tune-budget",
         "4",
         "--n-seeds",
@@ -443,6 +446,9 @@ def test_tune_backend_fallback_subprocess(tmp_path):
         "suite_stratified",
         "--budget",
         "30",
+        # The spaces do not tune the population: every run takes --pop-size, which must fit in the budget.
+        "--pop-size",
+        "15",
         "--tune-budget",
         "4",
         "--n-seeds",

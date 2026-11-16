@@ -553,8 +553,8 @@ changes without its snapshot. Compared with the spaces of VAMOS 1.3.0:
 - `pop_size` is not a parameter of any space: it is a run setting, as for
   Evolver and Studio. The caller adds it to the assignment, as it adds `n_obj`
   (see [Populations that depend on the number of objectives](#populations-that-depend-on-the-number-of-objectives));
-  `vamos tune` gives every algorithm `--pop-size`. An assignment without it
-  builds a population of 100.
+  `vamos tune` gives every algorithm `--pop-size` (100 by default), which must
+  fit in `--budget`. An assignment without it builds a population of 100.
 - Every parameter has a default, and the defaults of a space run as its
   algorithm's `default()` configuration for the encoding, which a test checks
   for every space by comparing seeded runs (rule G7). `initial_solutions` and
