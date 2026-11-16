@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -66,7 +67,8 @@ def test_a_population_without_weights_is_planned_and_fails_when_its_run_starts()
 
 
 def test_a_weight_file_is_recorded_by_its_name(tmp_path: Path) -> None:
-    weights = das_dennis(3, 4)
+    # Weights other than the lattice that a run would generate and save, here in another order.
+    weights = das_dennis(3, 4)[::-1]
     np.savetxt(tmp_path / "W3D_15.dat", weights)
     base = MOEADConfig.default(pop_size=15, n_var=12, n_obj=3)
     config = dataclasses.replace(base, weight_vectors={"path": str(tmp_path), "divisions": None})
@@ -89,6 +91,48 @@ def test_the_description_names_the_weights_the_run_uses(pop_size: int, n_obj: in
         np.testing.assert_array_equal(weights, stored / stored.sum(axis=1, keepdims=True))
     else:
         assert described == {"source": "uniform", "vectors": pop_size}
+
+
+def test_a_jmetal_file_is_a_file_and_the_lattice_a_run_saves_is_the_lattice(tmp_path: Path) -> None:
+    shutil.copy(weight_path("W3D_91.dat"), tmp_path / "W3D_91.dat")
+
+    assert weight_vectors.describe_weight_vectors(91, 3, path=str(tmp_path)) == {"source": "file", "file": "W3D_91.dat", "vectors": 91}
+
+    np.savetxt(tmp_path / "W3D_91.dat", das_dennis(3, 12))  # as a run saves the lattice it generates
+
+    lattice = {"source": "das_dennis", "divisions": 12, "vectors": 91}
+    assert weight_vectors.describe_weight_vectors(91, 3, path=str(tmp_path)) == lattice
+
+
+def test_a_study_whose_weight_directory_starts_empty_records_the_lattice_for_every_seed(tmp_path: Path) -> None:
+    # The first run writes the lattice it generates to W3D_91.dat; later tasks and verification then find that file.
+    weights = tmp_path / "weights"
+    weights.mkdir()
+    spec = vamos.StudySpec(
+        problems=["dtlz2"],
+        algorithms=["moead"],
+        seeds=[0, 1, 2],
+        pop_size=91,
+        n_obj=3,
+        max_evaluations=182,
+        engine="numpy",
+        algorithm_configs={"moead": {"weight_vectors": {"path": str(weights), "divisions": None}}},
+    )
+    root = tmp_path / "study"
+
+    with pytest.warns(RuntimeWarning, match="Generated and saved"):
+        study = vamos.create_study(spec, output=root).run()
+
+    assert study.status == "completed"
+    np.testing.assert_array_equal(np.loadtxt(weights / "W3D_91.dat"), das_dennis(3, 12))
+    lattice = {"source": "das_dennis", "divisions": 12, "vectors": 91}
+    for task in vamos.load_study(root).plan.tasks:
+        assert task.resolved_run_spec["algorithm"]["resolution"]["weight_vectors"] == lattice
+    for attempt in study.attempts:
+        assert attempt.run_reference is not None
+        run = root / "runs" / str(attempt.run_reference["run_id"])
+        assert vamos.load_run(run).manifest.resolved_spec["algorithm"]["resolution"]["weight_vectors"] == lattice
+        assert vamos.verify_run(run).effective_replayability == "exact"
 
 
 def test_a_moead_run_with_packaged_weights_still_replays_exactly(tmp_path: Path) -> None:

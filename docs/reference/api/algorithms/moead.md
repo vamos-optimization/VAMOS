@@ -15,6 +15,10 @@ weight vectors come from, in `algorithm.resolution.weight_vectors`, beside the
 population in `population.initial_size`: `{"source": "das_dennis", "divisions": 12, "vectors": 91}`,
 `{"source": "packaged_file", "file": "W3D_100.dat", "vectors": 100}`, `{"source": "file", "file": ...}`
 for a file of `weight_vectors(path=...)`, or `{"source": "uniform", ...}` with two objectives.
+A run whose `weight_vectors(path=...)` directory lacks the file generates the
+lattice and saves it there; a file that holds exactly that lattice is recorded as
+`das_dennis`, so every seed of a study records the same source whether or not an
+earlier run wrote the file.
 A complete lattice comes before a packaged file of the same size, so 91 and 120
 individuals with three objectives use the lattice although VAMOS ships
 `W3D_91.dat` and `W3D_120.dat`. Once normalized, `W3D_120.dat` differs from the
