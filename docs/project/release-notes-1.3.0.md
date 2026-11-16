@@ -95,7 +95,9 @@ command line or Studio.
 
 VAMOS 1.3.0 requires Python 3.11 or newer and is tested on Python 3.11 to 3.14.
 Python 3.10 reached its end of life in October 2026; VAMOS 1.2.1 is the last
-release that installs on it.
+release that installs on it. The declared minimum of NumPy rises to 1.23.2, the
+first NumPy release for Python 3.11, and VAMOS no longer depends on
+typing-extensions, which only Python 3.10 needed.
 
 ## Known limitations
 
