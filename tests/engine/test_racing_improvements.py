@@ -9,6 +9,7 @@ from vamos.engine.tuning.racing.param_space import Categorical, Condition, Param
 from vamos.engine.tuning.racing.sampler import ModelBasedSampler
 from vamos.engine.tuning.racing.scenario import Scenario
 from vamos.engine.tuning.racing.state import ConfigState
+from vamos.engine.tuning.racing.stats import select_configs_by_frace
 from vamos.engine.tuning.racing.tuning_task import Instance, TuningTask
 
 
@@ -274,13 +275,9 @@ def test_racing_raises_when_every_evaluation_fails() -> None:
         tuner.run(eval_fn, verbose=False)
 
 
-def _maximizing_task():
-    return SimpleNamespace(aggregator=np.mean, maximize=True)
-
-
-def _race_matrix(scores, scenario):
+def _race_matrix(scores, scenario, *, maximize=True):
     configs = [ConfigState(config_id=i, config={}, alive=True, scores=[float(v) for v in row]) for i, row in enumerate(scores)]
-    eliminate_configs(configs, task=_maximizing_task(), scenario=scenario)
+    eliminate_configs(configs, task=SimpleNamespace(aggregator=np.mean, maximize=maximize), scenario=scenario)
     return np.array([state.alive for state in configs])
 
 
@@ -309,6 +306,37 @@ def test_racing_uses_wilcoxon_with_two_alive():
     alive = _race_matrix(np.vstack([first, second]), Scenario(max_experiments=1000))
     # The signed-rank test (p = 0.038) eliminates the second; a t-test on the raw differences kept both.
     assert alive.tolist() == [True, False]
+
+
+def test_racing_wilcoxon_eliminates_the_worse_when_most_blocks_tie():
+    # Minimizing, the first configuration is better by 1 on 6 blocks and ties on the other 7, so the
+    # median difference is 0. The signed-rank test drops the ties and rejects equality (p = 0.0197);
+    # it is the second configuration that is worse, in either order.
+    first = np.concatenate([np.zeros(6), np.full(7, 5.0)])
+    second = first + np.concatenate([np.ones(6), np.zeros(7)])
+    scores = np.vstack([first, second])
+    assert _race_matrix(scores, Scenario(max_experiments=1000), maximize=False).tolist() == [True, False]
+    assert _race_matrix(scores[::-1], Scenario(max_experiments=1000), maximize=False).tolist() == [False, True]
+
+
+@pytest.mark.parametrize("maximize", [False, True])
+def test_frace_wilcoxon_survivor_does_not_depend_on_the_order(maximize):
+    # Two configurations on few distinct score values, so that many blocks tie.
+    rng = np.random.default_rng(7)
+    eliminations = 0
+    for _ in range(300):
+        first = rng.integers(0, 3, size=int(rng.integers(5, 21))).astype(float)
+        second = first + rng.choice([-1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 2.0], size=first.size)
+        scores = np.vstack([first, second])
+        keep = select_configs_by_frace(scores, maximize, 0.05)
+        assert keep.tolist() == select_configs_by_frace(scores[::-1], maximize, 0.05)[::-1].tolist(), scores
+        # A configuration that is never worse on any block is never the one eliminated.
+        oriented = -scores if maximize else scores
+        for better, worse in ((0, 1), (1, 0)):
+            if np.all(oriented[better] <= oriented[worse]):
+                assert keep[better], scores
+        eliminations += int((~keep).sum())
+    assert eliminations > 0
 
 
 def test_racing_waits_for_first_test_blocks():

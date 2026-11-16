@@ -196,26 +196,30 @@ def select_configs_by_paired_test(
     return keep
 
 
-def _wilcoxon_signed_rank_p(differences: FloatArray) -> float:
-    """Two-sided p-value of the paired Wilcoxon signed-rank test, as R's ``wilcox.test(exact=FALSE)``.
+def _wilcoxon_signed_rank(differences: FloatArray) -> tuple[float, float]:
+    """Paired Wilcoxon signed-rank test, as R's ``wilcox.test(exact=FALSE)``.
 
     Zero differences are dropped; the normal approximation corrects for ties and continuity.
+    Returns the two-sided p-value and the signed-rank statistic of the remaining differences: the
+    sum of the ranks of the positive ones minus the sum of the ranks of the negative ones. Its sign
+    says which way the test leans, and it is zero when the two sums balance.
     """
     from scipy.stats import norm, rankdata
 
     d = differences[differences != 0.0]
     n = int(d.size)
     if n == 0:
-        return 1.0
+        return 1.0, 0.0
     ranks = rankdata(np.abs(d))
-    statistic = float(ranks[d > 0.0].sum())
+    signed_rank = float(ranks[d > 0.0].sum()) - float(ranks[d < 0.0].sum())
     _, counts = np.unique(ranks, return_counts=True)
     variance = n * (n + 1) * (2 * n + 1) / 24.0 - float(np.sum(counts**3 - counts)) / 48.0
     if variance <= 0.0:
-        return 1.0
-    centred = statistic - n * (n + 1) / 4.0
+        return 1.0, signed_rank
+    # Half the statistic is the sum of the positive ranks minus its mean, n * (n + 1) / 4.
+    centred = 0.5 * signed_rank
     z = (centred - 0.5 * math.copysign(1.0, centred)) / math.sqrt(variance) if centred else 0.0
-    return float(min(1.0, 2.0 * norm.sf(abs(z))))
+    return float(min(1.0, 2.0 * norm.sf(abs(z)))), signed_rank
 
 
 def select_configs_by_frace(scores: FloatArray, maximize: bool, alpha: float) -> BoolArray:
@@ -223,8 +227,9 @@ def select_configs_by_frace(scores: FloatArray, maximize: bool, alpha: float) ->
 
     ``scores`` has one row per configuration and one column per block (instance and seed). Each
     block ranks the configurations, with average ranks for ties, so blocks on different scales
-    weigh the same. With two configurations, a paired Wilcoxon signed-rank test eliminates the
-    worse one, by the median of the differences, when its p-value is below ``alpha``. With more,
+    weigh the same. With two configurations, a paired Wilcoxon signed-rank test decides: when its
+    p-value is below ``alpha``, it eliminates the configuration that the signed ranks of the nonzero
+    differences find worse, and blocks where the two tie count for neither. With more,
     a Friedman test on the ranks comes first; when its p-value is below ``alpha``, Conover's
     post-hoc comparison keeps the configuration with the best rank sum and every configuration
     whose rank sum is within the critical difference of it (Conover, *Practical Nonparametric
@@ -241,9 +246,10 @@ def select_configs_by_frace(scores: FloatArray, maximize: bool, alpha: float) ->
     # Lower is better from here on.
     oriented = -scores if maximize else scores
     if n_configs == 2:
-        differences = oriented[0] - oriented[1]
-        if _wilcoxon_signed_rank_p(differences) < alpha:
-            keep[1 if float(np.median(differences)) < 0.0 else 0] = False
+        p_value, signed_rank = _wilcoxon_signed_rank(oriented[0] - oriented[1])
+        # A positive statistic means the first configuration scored higher, that is worse.
+        if p_value < alpha and signed_rank != 0.0:
+            keep[0 if signed_rank > 0.0 else 1] = False
         return keep
 
     ranks = np.vstack([rankdata(oriented[:, block]) for block in range(n_blocks)])  # blocks x configurations

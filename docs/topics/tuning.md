@@ -267,7 +267,9 @@ the same. A Friedman test on those ranks comes first; when its p-value is below
 `--alpha`, Conover's post-hoc test on the rank sums keeps the best
 configuration and every configuration within the critical difference of it.
 With two configurations alive, a paired Wilcoxon signed-rank test decides
-instead. The first test waits for `Scenario.first_test` blocks (5, irace's
+instead. It drops the blocks where the two tie, and the sign of its statistic
+over the other blocks says which configuration it eliminates, whatever their
+order. The first test waits for `Scenario.first_test` blocks (5, irace's
 `firstTest`) or `--min-blocks-before-elimination`, whichever is larger. VAMOS
 1.2.0 compared each configuration with the one of best mean through paired
 t-tests on the raw scores, with Holm's correction. When half of the blocks had
