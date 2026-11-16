@@ -747,6 +747,21 @@ samples and encodes parameters in the same dependency order, so a parameter
 may be declared before its parent. `irace` receives the same subset as
 irace conditions; see [The irace backend](#the-irace-backend).
 
+**Development after 1.3.0:** a built-in space reaches every backend as the
+view of its grammar (see [Parameter spaces as grammars](#parameter-spaces-as-grammars)),
+and the backends read the grammar instead of condition expressions. ConfigSpace
+(`smac3`, `bohb`) gets hyperparameters with the grammar's defaults, an
+`EqualsCondition` for every parameter of a production and an `InCondition` with
+all the values of a node for its global sub-parameters below the root. `optuna`
+and `bohb_optuna` walk the tree depth-first, suggesting each active parameter,
+and the first trial of a new study is the space's default configuration, which
+runs as the algorithm's `default()`. irace gets `parent == "value"` and
+`node %in% c(...)` conditions and the default configuration as its first
+initial configuration. `racing` samples by walking the tree, so only the
+active parameters draw values, and races the default configuration with its
+draws; `random` samples the same way. Seeded runs of every backend draw other
+trials. A hand-written `ParamSpace` keeps the condition translation above.
+
 HpBandSter's native BOHB accepts no seed, and its configuration generator draws
 from NumPy's global random state. The `bohb` backend gives the generator of
 each search a private random stream derived from the tuning seed instead.
@@ -800,7 +815,9 @@ cause of a `RuntimeError`.
   conditions with `or` or `not` also require every parent they read to be
   active, as VAMOS does. Categorical choices must have distinct tokens made of
   letters, digits, `_`, `.`, `+` or `-`. irace rounds real values to four
-  decimal places by default.
+  decimal places by default. **Development after 1.3.0:** a built-in space
+  gives one condition per edge of its grammar's tree, and its default
+  configuration is the first of the initial configurations.
 - **Instances and seeds:** by default each instance/seed pair of the task is an
   irace instance of a deterministic race, so `ctx.seed` always comes from
   `task.seeds`. With `irace_instance_seeds="irace"`, irace receives the
@@ -860,11 +877,14 @@ again, with other categorical choices, so the CLI appends
 change, take `__vamos_cli_leaders_hv_v2`. A study stored by VAMOS 1.2.1 or
 earlier is not resumed under the new names.
 
-**Development after 1.3.0:** the built-in spaces become grammars without
-`pop_size` and with other categorical choices (`auto` for the initializer and
-the repair), so the CLI appends `__vamos_cli_final_population_hv_v4`, and SMPSO
-studies take `__vamos_cli_leaders_hv_v3`. A study stored by VAMOS 1.3.0 or
-earlier is not resumed under the new names.
+**Development after 1.3.0:** the hash of the searched space replaces the
+version suffix. The CLI appends the scoring contract and the first 16
+hexadecimal digits of the SHA-256 of the space it searches (the built-in
+grammar without the archive controls, `space.identity`):
+`__vamos_cli_final_population_hv_<hash>`, or `__vamos_cli_leaders_hv_<hash>`
+for SMPSO. A changed space is therefore a new study, without a hand-bumped
+suffix, and a study stored by VAMOS 1.3.0 or earlier, whose names end in `_v1`
+to `_v3`, is not resumed.
 
 ## Split-based tuning
 
