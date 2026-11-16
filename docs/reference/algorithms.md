@@ -199,8 +199,10 @@ published results or with another framework.
   approximation, so each step's cost grows exponentially with the number of
   objectives. See [SMS-EMOA](../algorithms/smsemoa.md#interpret-the-result-and-its-limits).
 - **MOEA/D** defaults to differential evolution with PBI aggregation;
-  `aggregation("tchebycheff")` reproduces jMetal's MOEA/D-DE. See
-  [MOEA/D](../algorithms/moead.md).
+  `aggregation("tchebycheff")` reproduces jMetal's MOEA/D-DE. **Development
+  after 1.2.1:** `MOEADConfig.default(variant="de")` gives MOEA/D-DE and
+  `variant="sbx"` jMetal's MOEA/D with SBX and PBI; VAMOS 2.0 will make
+  `"de"` the default. See [MOEA/D](../algorithms/moead.md#what-the-configuration-means).
 
 **Development after 1.2.1:** three real-coded mutations scale their steps by
 the range of each variable.

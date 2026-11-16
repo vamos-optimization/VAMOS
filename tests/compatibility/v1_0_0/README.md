@@ -33,6 +33,12 @@ must keep its name, kind, default and order, and a new positional argument or a
 new argument without a default still fails. The committed snapshot stays the
 1.0 baseline.
 
+**Development after 1.2.1:** after a reviewed change of a frozen value, the
+generator rewrites only the values that changed. The algorithms, configuration
+fields, constructor parameters and keyword-only arguments added after 1.0 stay
+out of the snapshots, as the check expects; the keyword-only `variant` of
+`MOEADConfig.default()` is one of them.
+
 Regenerate the structural snapshots only through:
 
 ```bash
