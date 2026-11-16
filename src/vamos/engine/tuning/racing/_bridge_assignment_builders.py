@@ -204,8 +204,13 @@ def build_smsemoa_config(assignment: dict[str, Any], *, mixed: bool = False) -> 
         mut_params["prob"] = float(assignment["mutation_prob"])
     extend_mutation_params(mut, assignment, mut_params, mixed=mixed)
     builder.mutation(mut, **mut_params)
-    builder.selection("tournament", size=int(assignment["selection_pressure"]))
-    builder.reference_point(offset=0.1, adaptive=True)
+    # Assignments from earlier spaces name only the tournament size and used an offset of 0.1.
+    selection = str(assignment.get("selection", "tournament"))
+    if selection == "tournament":
+        builder.selection(selection, size=int(assignment["selection_pressure"]))
+    else:
+        builder.selection(selection)
+    builder.reference_point(offset=float(assignment.get("reference_point_offset", 0.1)), adaptive=True)
     apply_optional_repair(builder, assignment)
     apply_optional_external_archive(builder, assignment, pop_size)
     apply_constraint_handling(builder, assignment)

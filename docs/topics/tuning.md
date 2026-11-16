@@ -376,6 +376,15 @@ keep a grandchild such as `x_eta` (active when `x_kind == 'b'`) while its
 grandparent `use_x` was false, in spaces with conditions on the direct parent
 only. The built-in spaces were not affected.
 
+**Development after 1.2.1:** the SMS-EMOA spaces choose the mating selection,
+`random` or `tournament`, with `selection_pressure` only for a tournament, and
+the offset of the reference point, `reference_point_offset` in [0.1, 2.0].
+Both ranges include the defaults of `SMSEMOAConfig`: random selection and an
+offset of 1.0. The spaces of VAMOS 1.2.0 always used a tournament and an
+offset of 0.1, so no assignment reproduced the default configuration; an
+assignment without the new parameters still builds that tournament
+configuration.
+
 ### Constrained spaces
 
 **VAMOS 1.2.0:** `nsgaii_constrained`, `nsgaiii_constrained`,
