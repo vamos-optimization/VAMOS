@@ -130,3 +130,17 @@ def test_the_cli_records_jmetals_front_in_the_run(tmp_path: Path, monkeypatch: p
     termination = json.loads(manifest.read_text(encoding="utf-8"))["resolved_spec"]["termination"]["config"]
     assert termination["reference_front_source"] == "jmetal"
     assert Path(termination["reference_front_path"]).name == "jmetal-zdt1.csv"
+
+
+def test_the_cli_records_the_default_front_as_vamos(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Without --hv-reference-front the run uses VAMOS's packaged front, the same as --hv-reference-front vamos.
+    from vamos.experiment.cli.main import main
+
+    argv = ["--problem", "zdt1", "--algorithm", "nsgaii", "--max-evaluations", "200", "--hv-threshold", "0.5"]
+    monkeypatch.setattr(sys, "argv", ["vamos", *argv, "--output-root", str(tmp_path)])
+    main()
+
+    (manifest,) = tmp_path.rglob("manifest.json")
+    termination = json.loads(manifest.read_text(encoding="utf-8"))["resolved_spec"]["termination"]["config"]
+    assert termination["reference_front_source"] == "vamos"
+    assert Path(termination["reference_front_path"]).name == "zdt1.csv"
