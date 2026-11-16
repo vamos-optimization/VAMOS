@@ -192,3 +192,11 @@ TestPyPI is published first using trusted publishing. Only after its exact
 wheel installs and passes the full smoke may the same immutable wheel and sdist
 be sent to PyPI and attached to the GitHub release with their checksums, SBOM,
 manifest, provenance, stability contract, and known limitations.
+
+**Development after 1.2.1:** the GitHub release's text is the version's release
+notes with absolute links, written by `tools/github_release_notes.py`: links to
+documentation pages point to the version's archive,
+`https://vamos-optimization.org/docs/<version>/`, and links to other files to
+the version's tag on GitHub. The notes' relative links broke on the release
+page. To correct an earlier release, run the tool on that tag's notes and pass
+the output to `gh release edit v<version> --notes-file`.
