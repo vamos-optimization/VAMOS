@@ -180,3 +180,15 @@ def test_cmoeams_de_variant_reaches_its_configuration_field() -> None:
 )
 def test_space_parameters_map_to_configuration_fields(parameter: str, fields: tuple[str, ...]) -> None:
     assert config_fields_for(parameter) == fields
+
+
+def test_the_smsemoa_reference_point_offset_control_changes_the_reference_point() -> None:
+    form = _form("smsemoa")
+    start = form.start_values()
+    # The control starts at the default configuration's offset, which SMSEMOAConfig keeps inside reference_point.
+    assert start["reference_point_offset"] == form.baseline.to_dict()["reference_point"]["offset"]
+
+    resolved = form.resolve({**start, "reference_point_offset": 0.5})
+
+    assert resolved.unapplied == ()
+    assert resolved.config.to_dict()["reference_point"]["offset"] == 0.5
