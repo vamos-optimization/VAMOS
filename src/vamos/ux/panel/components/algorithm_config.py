@@ -8,7 +8,6 @@ from typing import Any
 import panel as pn
 
 from vamos.ux.studio.algorithm_form import (
-    VAMOS_DEFAULT_CHOICE,
     AlgorithmForm,
     FormParameter,
     ResolvedConfiguration,
@@ -229,7 +228,7 @@ class AlgorithmConfigurator:
             self._summary.object = ""
             self._details.object = ""
             return
-        self._show_message(self._warnings(resolved, self._unsupported_defaults(values if custom else None)))
+        self._show_message(self._warnings(resolved))
         self._summary.object = self._summary_text(resolved, custom)
         self._details.object = f"```json\n{resolved.as_json()}\n```"
 
@@ -245,27 +244,9 @@ class AlgorithmConfigurator:
         )
         self._population_note.visible = True
 
-    def _unsupported_defaults(self, values: dict[str, object] | None) -> list[FormParameter]:
-        """Default operators that are not among the encoding's operators and are still selected."""
-        if self._form is None:
-            return []
-        return [
-            parameter
-            for parameter in self._form.parameters
-            if parameter.name in {"crossover", "mutation"}
-            and parameter.start == VAMOS_DEFAULT_CHOICE
-            and (values is None or values.get(parameter.name) == VAMOS_DEFAULT_CHOICE)
-        ]
-
-    def _warnings(self, resolved: ResolvedConfiguration, unsupported: list[FormParameter]) -> str:
+    def _warnings(self, resolved: ResolvedConfiguration) -> str:
+        # The forms start from their grammar's defaults, which are always among its values.
         messages: list[str] = []
-        if unsupported:
-            names = ", ".join(f"{parameter.name} `{format_config_value(parameter.default_value)}`" for parameter in unsupported)
-            verb = "is" if len(unsupported) == 1 else "are"
-            messages.append(
-                f"The VAMOS default {names} {verb} not among the {self._encoding} operators that the tuning space "
-                f"offers for {algorithm_label(self.selected_algorithm)}. Choose *Customize* and select {self._encoding} operators."
-            )
         if resolved.unapplied:
             names = ", ".join(f"`{name}`" for name in resolved.unapplied)
             messages.append(f"These changes have no effect on the configuration VAMOS builds: {names}.")

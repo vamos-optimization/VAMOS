@@ -15,7 +15,7 @@ from vamos.ux.studio.algorithm_catalog import (
     population_is_derived,
     studio_algorithms,
 )
-from vamos.ux.studio.algorithm_form import VAMOS_DEFAULT_CHOICE, FormParameter, build_algorithm_form, choice_label, format_config_value
+from vamos.ux.studio.algorithm_form import FormParameter, build_algorithm_form, choice_label, format_config_value
 
 ENCODINGS = ("real", "binary", "integer", "permutation", "mixed")
 
@@ -151,8 +151,6 @@ def _default_text(parameter: FormParameter) -> str:
         return "yes" if parameter.start else "no"
     if parameter.kind == "categorical":
         return choice_label(parameter, parameter.start)
-    if not parameter.from_default:
-        return "none (set when customized)"
     return format_config_value(parameter.start)
 
 
@@ -160,7 +158,7 @@ def _allowed_values(parameter: FormParameter) -> str:
     if parameter.kind == "boolean":
         return "yes / no"
     if parameter.kind == "categorical":
-        return ", ".join(format_config_value(choice) for choice in parameter.choices if choice != VAMOS_DEFAULT_CHOICE)
+        return ", ".join(format_config_value(choice) for choice in parameter.choices)
     scale = " (log scale)" if parameter.log else ""
     return f"{format_config_value(parameter.low)} to {format_config_value(parameter.high)}{scale}"
 

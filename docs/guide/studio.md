@@ -287,6 +287,16 @@ offered. Studio applies only the configuration fields you change on top of the
 default configuration and lists every difference before the run. When a VAMOS
 default lies outside the tuning range, Studio keeps it and says so.
 
+**Development after 1.3.0:** the controls are the grammar of the tuning space
+(see [Parameter spaces as grammars](../topics/tuning.md#parameter-spaces-as-grammars)):
+they follow its tree, each control indented under the parameter it depends on,
+start from its defaults, which are the VAMOS default configuration, and edit
+each parameter within the same range that tuning uses. Every default lies in
+its range and among its choices, so Studio no longer offers a separate
+"VAMOS default" choice or widens a range: the initializer and the repair start
+at `auto`, their automatic choice. Every space offers its encoding's default
+operators, so Studio no longer warns about default operators it cannot offer.
+
 NSGA-III, RVEA, and MOEA/D with three or more objectives take their population
 size from their reference directions or weight vectors, so Studio shows that
 size instead of accepting another one. For binary, integer, permutation, and
