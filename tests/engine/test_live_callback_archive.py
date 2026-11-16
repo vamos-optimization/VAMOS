@@ -128,3 +128,24 @@ def test_nd_only_sends_the_first_front(name: str) -> None:
         _, indices = pareto_filter(F_all, return_indices=True)
         np.testing.assert_array_equal(F, F_all[np.sort(indices)])
         np.testing.assert_array_equal(X, X_all[np.sort(indices)])
+
+
+@pytest.mark.parametrize("name", ["nsgaii", "nsgaiii", "moead", "smsemoa", "spea2", "ibea", "smpso"])
+def test_population_archive_ends_with_the_result_when_the_hv_target_stops_the_run(name: str) -> None:
+    # The batch that reaches the hypervolume target ends the run; its archive still reaches the callback last.
+    callback = _Recording()
+    termination = ("hv", {"target_value": 0.3, "reference_point": [1.1, 1.1], "max_evaluations": 6000})
+    result = vamos.optimize(
+        "zdt1",
+        algorithm=name,
+        algorithm_config=_config(name, "population_archive"),
+        termination=termination,
+        seed=1,
+        engine="numpy",
+        live_viz=callback,
+    )
+
+    assert result.data["hv_reached"] is True, name
+    last = callback.calls[-1][3]["archive"]
+    np.testing.assert_array_equal(_rows(last["F"]), _rows(result.F))
+    np.testing.assert_array_equal(_rows(last["X"]), _rows(result.X))
