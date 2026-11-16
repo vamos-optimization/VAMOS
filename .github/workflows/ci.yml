@@ -47,8 +47,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Pull requests test Linux only, to save runners; the merge queue and main also test Windows and macOS.
-        os: ${{ fromJSON(github.event_name == 'pull_request' && '["ubuntu-latest"]' || '["ubuntu-latest", "windows-latest", "macos-latest"]') }}
+        # Only the merge queue tests Windows and macOS. Pull requests and pushes to main test Linux, to save runners:
+        # a push to main is a commit that the merge queue has already tested on the three systems.
+        os: ${{ fromJSON(github.event_name == 'merge_group' && '["ubuntu-latest", "windows-latest", "macos-latest"]' || '["ubuntu-latest"]') }}
         # Keep this list and the Python classifiers in pyproject.toml identical.
         python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
         # Windows and macOS test the primary Python 3.12 and every newer version.
@@ -121,8 +122,11 @@ jobs:
             tests/engine/test_moead_weight_vectors.py \
             tests/foundation/test_hypervolume_fallback.py \
             tests/architecture/test_docs_and_workflows.py
+      # The tests run on every core. Coverage is measured once, on Linux with the primary Python, where the floors below apply.
       - name: Run tests
-        run: pytest -m "not slow" --cov=src/vamos --cov-report=term-missing
+        run: >-
+          pytest -m "not slow" -n auto
+          ${{ (matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12') && '--cov=src/vamos --cov-report=term-missing' || '' }}
       # Compiled Numba kernels are invisible to coverage; their tests run once more as plain Python.
       # The *_are_nopython tests check compilation itself, so they are left out of this run.
       - name: Measure the Numba kernels as Python

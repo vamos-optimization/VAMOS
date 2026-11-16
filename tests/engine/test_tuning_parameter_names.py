@@ -72,7 +72,6 @@ def test_the_table_covers_every_parameter_of_the_request() -> None:
     assert rows["de_cr"] == ("de_crossover_rate", "CR") and rows["de_f"] == ("de_scale_factor", "F")
     assert rows["selection_pressure"] == ("tournament_size", "selectionTournamentSize")
     assert ("undx", "undc", "UNDC") in VALUE_NAMES["crossover"]
-    assert ("uniform_reset", "random_reset", None) in VALUE_NAMES["mutation"]
 
 
 @pytest.mark.parametrize("name", sorted(SPACES))
@@ -142,3 +141,17 @@ def test_the_tuning_guide_lists_the_table() -> None:
 
     expected = {(vamos, canonical, evolver or "") for vamos, canonical, evolver in PARAMETER_NAMES if vamos != canonical or evolver}
     assert expected <= rows
+
+
+def test_no_value_is_renamed_to_another_operators_name() -> None:
+    # A renamed value that is also an operator's own name is translated back whatever the encoding:
+    # "random_reset", an integer mutation, became the real-coded "uniform_reset" and broke integer runs.
+    from typing import get_args
+
+    from vamos.engine.algorithm.config.types import CrossoverName, MutationName
+
+    operators = {"crossover": set(get_args(CrossoverName)), "mutation": set(get_args(MutationName))}
+    for parameter, names in operators.items():
+        clashes = [(vamos, canonical) for vamos, canonical, _ in VALUE_NAMES[parameter] if canonical != vamos and canonical in names]
+        assert clashes == [], parameter
+    assert bridge_assignment({"mutation": "random_reset"})["mutation"] == "random_reset"

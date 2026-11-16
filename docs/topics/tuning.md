@@ -451,8 +451,9 @@ The paragraphs above use the earlier names.
 | `variation` | `variation` | `variation` |
 
 Values that change: mutation `pm` becomes `polynomial` (the name the other
-spaces already used), crossover `undx` becomes `undc` (Evolver's `UNDC`) and
-mutation `uniform_reset` becomes `random_reset`. Evolver writes some values
+spaces already used) and crossover `undx` becomes `undc` (Evolver's `UNDC`).
+The real-coded `uniform_reset` keeps its name: `random_reset` is the integer
+reset mutation, and renaming one to the other broke integer runs. Evolver writes some values
 differently, and the exchange functions translate them: `SBX`, `blxAlpha`,
 `blxAlphaBeta`, `wholeArithmetic`, `fuzzyRecombination`, `PCX` and `UNDC`;
 `linkedPolynomial`, `nonUniform`, `levyFlight` and `powerLaw`;
@@ -574,8 +575,8 @@ changes without its snapshot. Compared with the spaces of VAMOS 1.3.0:
   spaces choose a `variation`, `crossover_and_mutation` (with `crossover` and its
   probability) or `differential_evolution` (with `de_crossover_rate`,
   `de_scale_factor` and, for CMOEA-MS, `de_variant`), as Evolver's.
-- Polynomial mutation is `polynomial` in the integer spaces too, and the mixed
-  spaces' `real_mutation` resets with `random_reset`.
+- Polynomial mutation is `polynomial` in the integer spaces too (`pm` still
+  builds it).
 - The mutation probability is `mutation_probability_factor` in [0.25, 3.0],
   divided by the number of variables, in every space but the permutation spaces
   of the algorithms other than NSGA-II and the segments of the mixed spaces,

@@ -1,13 +1,14 @@
 """Names of the tuning parameters: the spaces' canonical names, VAMOS's earlier names and Evolver's.
 
 The built-in spaces name their parameters after Evolver's, in snake_case (``sbx_distribution_index``
-for Evolver's ``sbxDistributionIndex``), and some values after Evolver's (``undc`` for ``undx``) or
-descriptively (``random_reset`` for ``uniform_reset``, ``polynomial`` for the integer spaces'
-``pm``). The names the spaces used up to VAMOS 1.2.1 stay aliases: :func:`bridge_assignment` turns an
-assignment written with either into the names that the configuration bridges read, so stored
-assignments keep building the same configurations. :func:`to_evolver` and :func:`from_evolver`
-exchange assignments with Evolver's camelCase parameters and values. The fields of the configuration
-classes do not change.
+for Evolver's ``sbxDistributionIndex``), and some values after Evolver's (``undc`` for ``undx``). A value
+is never renamed to another operator's name: ``uniform_reset`` keeps its name, because ``random_reset`` is
+the integer reset mutation. The grammars name polynomial mutation ``polynomial`` in every space, the
+integer ones too, whose earlier ``pm`` stays a name of its own. The names the spaces
+used up to VAMOS 1.2.1 stay aliases: :func:`bridge_assignment` turns an assignment written with either
+into the names that the configuration bridges read, so stored assignments keep building the same
+configurations. :func:`to_evolver` and :func:`from_evolver` exchange assignments with Evolver's
+camelCase parameters and values. The fields of the configuration classes do not change.
 """
 
 from __future__ import annotations
@@ -55,14 +56,14 @@ VALUE_NAMES: dict[str, tuple[tuple[str, str, str | None], ...]] = {
     ),
     "mutation": (
         ("polynomial", "polynomial", "polynomial"),
-        # The integer spaces of VAMOS 1.3.0 named polynomial mutation "pm"; the operator registries know both.
-        ("pm", "polynomial", "polynomial"),
+        # The integer spaces of VAMOS 1.3.0 named polynomial mutation "pm", which the operator registries also know;
+        # the grammars name it "polynomial", so "pm" is not renamed (it is an operator's own name).
+        ("pm", "pm", "polynomial"),
         ("linked_polynomial", "linked_polynomial", "linkedPolynomial"),
         ("non_uniform", "non_uniform", "nonUniform"),
         ("uniform", "uniform", "uniform"),
         ("levy_flight", "levy_flight", "levyFlight"),
         ("power_law", "power_law", "powerLaw"),
-        ("uniform_reset", "random_reset", None),
     ),
     "aggregation": (
         ("tchebycheff", "tchebycheff", "tschebyscheff"),
@@ -83,8 +84,6 @@ VALUE_NAMES: dict[str, tuple[tuple[str, str, str | None], ...]] = {
         ("crossover_and_mutation", "crossover_and_mutation", "crossoverAndMutationVariation"),
         ("differential_evolution", "differential_evolution", "differentialEvolutionVariation"),
     ),
-    # The mixed spaces' segment mutations: reset is "random_reset" in the grammars, as in the other spaces.
-    "real_mutation": (("uniform_reset", "random_reset", None),),
     "selection": (
         ("tournament", "tournament", "tournament"),
         ("random", "random", "random"),

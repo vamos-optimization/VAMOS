@@ -63,7 +63,7 @@ parameters:
       gaussian:
         conditional_parameters:
           real_mutation_sigma_factor: {type: real, default: 0.1, range: [0.01, 0.5], role: operator_rate}
-      random_reset: {}
+      uniform_reset: {}
       polynomial:
         conditional_parameters:
           real_mutation_eta: {type: real, default: 20.0, range: [5.0, 40.0], role: operator_rate}

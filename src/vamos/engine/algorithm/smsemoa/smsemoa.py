@@ -93,7 +93,8 @@ class SMSEMOA:
         - mutation (tuple): Mutation operator config
         - selection (tuple): Parent selection, ("random", {}) or ("tournament", {"size": 2})
         - reference_point (dict): {"offset": float, "adaptive": bool}, with ``offset`` a
-          fraction of each objective's range, or {"vector": list} for a fixed reference
+          fraction of each objective's range, {"vector": list} for a fixed reference, or
+          {"rule": "jmetal"} for jMetal's reference (the worst values times 1.1)
         - eliminate_duplicates (bool, optional): Discard a child that repeats an X or F row
         - external_archive (dict, optional): {"capacity": int | None, "pruning": str, ...}
         An HV target is a termination criterion, ``("hv", {...})``, not a configuration key.
@@ -181,7 +182,7 @@ class SMSEMOA:
         )
         live_cb.on_start(ctx)
         # Generation 0 is the evaluated initial population, as in every algorithm.
-        live_cb.on_generation(0, F=st.F, stats={"evals": st.n_eval})
+        live_cb.on_generation(0, F=st.F, X=st.X, stats={"evals": st.n_eval})
 
         # Compiled kernels reproduce the step below when the configuration allows it.
         compiled = build_compiled_step(st, self.kernel)
@@ -197,7 +198,7 @@ class SMSEMOA:
 
                 new_generation = _advance_step(st)
                 if new_generation:
-                    live_cb.on_generation(st.generation, F=st.F, stats={"evals": st.n_eval})
+                    live_cb.on_generation(st.generation, F=st.F, X=st.X, stats={"evals": st.n_eval})
                 stop_requested = live_should_stop(live_cb)
 
                 # The HV target is checked once per generation, as in steady-state NSGA-II.
@@ -326,7 +327,7 @@ class SMSEMOA:
                 engine_name=str(self.kernel.name),
             )
             self._live_cb.on_start(ctx)
-            self._live_cb.on_generation(0, F=self._st.F, stats={"evals": self._st.n_eval})
+            self._live_cb.on_generation(0, F=self._st.F, X=self._st.X, stats={"evals": self._st.n_eval})
 
     def ask(self) -> NDArray[Any]:
         """Generate offspring for evaluation.
@@ -399,7 +400,7 @@ class SMSEMOA:
 
         if _advance_step(st):
             if self._live_cb is not None:
-                self._live_cb.on_generation(st.generation, F=st.F, stats={"evals": st.n_eval})
+                self._live_cb.on_generation(st.generation, F=st.F, X=st.X, stats={"evals": st.n_eval})
             _check_hv_target(st)
 
         # True once the HV target of an ("hv", ...) termination is reached, as in the other algorithms;

@@ -157,7 +157,10 @@ def test_one_name_per_operator_and_parameter(name: str) -> None:
     earlier = {vamos for vamos, canonical, _ in PARAMETER_NAMES if vamos != canonical}
     assert not earlier & set(space.names())
     values = {value for parameter in space.walk() for value in parameter.values}
-    assert not {"pm", "undx", "uniform_reset"} & values
+    assert not {"pm", "undx"} & values
+    # No value takes another operator's name: the real-coded reset keeps "uniform_reset" ("random_reset" is the integer one).
+    if space.encoding == "real" and "mutation" in space.names():
+        assert "random_reset" not in space.parameter("mutation").values
 
 
 @pytest.mark.parametrize("name", SPACE_NAMES)

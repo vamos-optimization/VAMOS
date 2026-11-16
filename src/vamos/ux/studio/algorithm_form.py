@@ -31,6 +31,7 @@ from vamos.ux.studio.algorithm_catalog import (
     config_fields_for,
     config_space_for,
     default_algorithm_config,
+    flatten_config_defaults,
     population_is_derived,
     studio_algorithms,
 )
@@ -198,7 +199,7 @@ def build_algorithm_form(
     if space is None:
         return None
     baseline = default_algorithm_config(algorithm, encoding=encoding, n_var=n_var, n_obj=n_obj, pop_size=pop_size)
-    defaults = _flatten_defaults(baseline.to_dict())
+    defaults = flatten_config_defaults(baseline.to_dict())
     order = _ordered_parameters(space)
     parameters = tuple(_form_parameter(spec, depth, defaults) for spec, depth in order if spec.name not in _GENERAL_PARAMETERS)
     form = AlgorithmForm(
@@ -279,22 +280,6 @@ def _ordered_parameters(space: AlgorithmConfigSpace) -> list[tuple[ParamType, in
     for spec in _conditional_parameters(space):
         visit(spec, 1)
     return ordered
-
-
-def _flatten_defaults(config: Mapping[str, object]) -> dict[str, object]:
-    """Flatten ``(name, params)`` operator entries into ``<field>_<param>`` keys."""
-    flat: dict[str, object] = {}
-    for key, value in config.items():
-        if isinstance(value, (tuple, list)) and len(value) == 2 and isinstance(value[0], str) and isinstance(value[1], Mapping):
-            flat[key] = value[0]
-            for param_name, param_value in value[1].items():
-                flat[f"{key}_{param_name}"] = param_value
-                if value[0] == "mixed":
-                    # Mixed operators nest per-type settings such as ``perm_crossover``.
-                    flat.setdefault(str(param_name), param_value)
-        elif not isinstance(value, Mapping):
-            flat[key] = value
-    return flat
 
 
 def _form_parameter(spec: ParamType, depth: int, defaults: Mapping[str, object]) -> FormParameter:
