@@ -207,6 +207,52 @@ are outside the exact-replay contract, and it never installs dependencies. A pre
 refusal creates nothing; a failure after execution begins creates an inspectable
 failed canonical attempt.
 
+### Replayable operators
+
+Replay rebuilds the crossover, mutation, selection, initializer and repair of a
+run only when each has one of the names below. The manifest records the stable
+name, so either spelling of a pair replays the same way. Every other operator,
+such as `blx_alpha`, `pcx`, `gaussian` or `pmx`, is recorded as a component
+that replay cannot rebuild, and `vamos reproduce` refuses the run before
+executing anything.
+
+| Configuration name | Recorded as |
+| --- | --- |
+| `bitflip` | `bitflip` |
+| `clip` | `clip` |
+| `de` | `differential_evolution` |
+| `differential_evolution` | `differential_evolution` |
+| `mixed` | `mixed` |
+| `neighborhood` | `neighborhood` |
+| `order` | `order` |
+| `ox` | `order` |
+| `pm` | `polynomial` |
+| `polynomial` | `polynomial` |
+| `random` | `random` |
+| `sbx` | `sbx` |
+| `swap` | `swap` |
+| `tournament` | `tournament` |
+| `uniform` | `uniform` |
+
+These cover the default operators of every built-in algorithm and encoding: SBX
+and polynomial mutation, differential evolution, OX and swap, bit-flip, uniform
+crossover, the mixed operators, tournament or random selection, MOEA/D's
+neighbourhood selection, random initialization and clipping repair.
+
+### Parallel evaluation
+
+A run with `eval_strategy="multiprocessing"` or `"dask"` (CLI:
+`--eval-strategy`) is recorded with replayability `best_effort`, because those
+execution paths are not declared deterministic, and `vamos reproduce` refuses
+it. The evaluation backend changes only where the objectives are computed, not
+the algorithm's random stream. To check such a run, repeat it serially with the
+same seed and resolved configuration. For built-in algorithms on a built-in
+problem, the serial run returns the same `F` and `X`. On Windows and macOS,
+worker processes start by importing the main module, so a script that calls
+`optimize(..., eval_strategy="multiprocessing")` must run under
+`if __name__ == "__main__":`; see the
+[cookbook recipe](cookbook.md#11-multiprocessing-evaluation).
+
 ## Numerical safety and limits
 
 NPZ loading always uses `allow_pickle=False`. V1 accepts fixed-width boolean,

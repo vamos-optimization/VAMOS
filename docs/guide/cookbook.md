@@ -340,6 +340,21 @@ The single-run CLI is **Stable**; custom evaluators and distributed study
 ownership remain **Experimental**. This command distributes evaluations
 within one run, not concurrent mutation of a durable study.
 
+From Python, pass `eval_strategy="multiprocessing"` to `optimize`. On Windows
+and macOS the workers start by importing the main module, so put the call under
+the main guard; without it, the run fails with `BrokenProcessPool`:
+
+```python
+import vamos
+
+if __name__ == "__main__":
+    result = vamos.optimize("zdt1", algorithm="nsgaii", max_evaluations=400, seed=7, eval_strategy="multiprocessing")
+```
+
+Such a run is recorded with replayability `best_effort`, so `vamos reproduce`
+refuses it. To check it, run the same configuration serially with the same
+seed; see [parallel evaluation](run-artifacts.md#parallel-evaluation).
+
 **VAMOS 1.2.0:** the multiprocessing backend starts its pool of
 worker processes at the first evaluation and keeps it for the rest of the run.
 `optimize(..., eval_strategy="multiprocessing")` and the CLI close the pool
