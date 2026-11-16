@@ -61,7 +61,7 @@ def test_the_tournament_size_is_active_only_with_a_tournament(builder: Callable[
 
     assert {draw["selection"] for draw in draws} == {"random", "tournament"}
     for draw in draws:
-        assert ("selection_pressure" in draw) == (draw["selection"] == "tournament")
+        assert ("tournament_size" in draw) == (draw["selection"] == "tournament")
         assert "reference_point_offset" in draw
 
 

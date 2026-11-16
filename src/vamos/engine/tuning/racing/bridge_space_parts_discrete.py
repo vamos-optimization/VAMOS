@@ -29,7 +29,7 @@ def real_operator_part_medium(
             Real("crossover_prob", crossover_prob_bounds[0], crossover_prob_bounds[1], role="operator_rate"),
             Categorical(
                 "mutation",
-                ["pm", "linked_polynomial", "non_uniform", "gaussian", "uniform_reset", "cauchy", "uniform"],
+                ["polynomial", "linked_polynomial", "non_uniform", "gaussian", "uniform_reset", "cauchy", "uniform"],
                 role="operator",
             ),
             Real(mutation_prob_param, mutation_prob_bounds[0], mutation_prob_bounds[1], role="operator_rate"),
@@ -82,7 +82,7 @@ def real_operator_part_medium(
                 [Categorical("scatter_base_size_factor", [0.1, 0.2, 0.3, 0.5, 0.75, 1.0], role="structural")],
             ),
         )
-    return params, conditionals, [Condition("mutation_eta", "cfg['mutation'] == 'pm' or cfg['mutation'] == 'linked_polynomial'")]
+    return params, conditionals, [Condition("mutation_eta", "cfg['mutation'] == 'polynomial' or cfg['mutation'] == 'linked_polynomial'")]
 
 
 def permutation_operator_part_full(

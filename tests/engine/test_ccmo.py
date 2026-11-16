@@ -400,10 +400,10 @@ def test_tuning_space_builds_ga_and_de_configurations() -> None:
         name, params = config.crossover
         seen.add(name)
         if name == "de":
-            assert "crossover_prob" not in assignment
-            assert params == {"cr": assignment["de_cr"], "f": assignment["de_f"]}
+            assert "crossover_probability" not in assignment
+            assert params == {"cr": assignment["de_crossover_rate"], "f": assignment["de_scale_factor"]}
         else:
-            assert params["prob"] == assignment["crossover_prob"]
+            assert params["prob"] == assignment["crossover_probability"]
     assert seen == {"sbx", "blx_alpha", "arithmetic", "de"}
 
     paper = config_from_assignment("ccmo", {"pop_size": 100, "crossover": "sbx", "mutation": "pm"})

@@ -90,7 +90,7 @@ def test_mutation_eta_is_active_only_for_polynomial_mutations(builder):
     for _ in range(80):
         config = space.sample(rng)
         active = config["mutation"] in {"pm", "polynomial", "linked_polynomial"}
-        assert ("mutation_eta" in config) == active
+        assert ("polynomial_mutation_distribution_index" in config) == active
         assert {param.name for param in space.flatten(config)} == set(config)
         param_space.validate(config)
         seen.add(active)
@@ -187,15 +187,15 @@ def test_nsgaii_config_space_supports_full_selection_catalog(selection: str):
 def test_nsgaii_archive_unbounded_disables_archive_params():
     space = build_nsgaii_config_space()
     param_space = space.to_param_space()
-    assert "selection_size" in param_space.params
+    assert "tournament_size" in param_space.params
     cfg_disabled = {"use_external_archive": False}
-    assert not param_space.is_active("selection_size", cfg_disabled)
+    assert not param_space.is_active("tournament_size", cfg_disabled)
     assert not param_space.is_active("archive_unbounded", cfg_disabled)
     assert not param_space.is_active("archive_prune_policy", cfg_disabled)
     cfg_random = {"selection": "random", "use_external_archive": False}
-    assert not param_space.is_active("selection_size", cfg_random)
+    assert not param_space.is_active("tournament_size", cfg_random)
     cfg_tournament = {"selection": "tournament", "use_external_archive": False}
-    assert param_space.is_active("selection_size", cfg_tournament)
+    assert param_space.is_active("tournament_size", cfg_tournament)
     cfg = {"use_external_archive": True, "archive_unbounded": True}
     assert param_space.is_active("archive_unbounded", cfg)
     assert not param_space.is_active("archive_prune_policy", cfg)
@@ -769,17 +769,17 @@ def test_real_spaces_offer_only_runnable_crossovers():
         build_spea2_config_space,
     )
 
-    three_parent = {"pcx", "undx", "simplex", "de"}
+    three_parent = {"pcx", "undc", "simplex", "de"}
     for builder in (build_nsgaiii_config_space, build_smsemoa_config_space, build_spea2_config_space):
         param_space = builder().to_param_space()
         crossovers = set(param_space.params["crossover"].choices)
         assert crossovers.isdisjoint(three_parent), (builder.__name__, sorted(crossovers & three_parent))
         assert not {"pcx_sigma_eta", "undx_zeta", "simplex_epsilon"} & set(param_space.params), builder.__name__
     moead_crossovers = set(build_moead_config_space().to_param_space().params["crossover"].choices)
-    assert moead_crossovers.isdisjoint({"pcx", "undx", "simplex"})
+    assert moead_crossovers.isdisjoint({"pcx", "undc", "simplex"})
     # Algorithms that group parents through VariationPipeline keep the multi-parent crossovers.
     for builder in (build_ibea_config_space, build_agemoea_config_space, build_rvea_config_space):
-        assert {"pcx", "undx", "simplex"} <= set(builder().to_param_space().params["crossover"].choices)
+        assert {"pcx", "undc", "simplex"} <= set(builder().to_param_space().params["crossover"].choices)
 
 
 BUILT_IN_SPACES = [getattr(bridge_spaces, name) for name in bridge_spaces.__all__]

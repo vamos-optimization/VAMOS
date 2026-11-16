@@ -35,7 +35,7 @@ _TWIN_CHILDREN = {
     ("permutation", "crossover", "aex"): "VR-324: AEX builds its second child from the first parent, like the first child",
 }
 # PCX and SPX vary all three parents whatever prob_crossover is, and UNDX gives two children per three parents.
-_PROB_ZERO_NOT_A_COPY = {"pcx", "simplex", "undx"}
+_PROB_ZERO_NOT_A_COPY = {"pcx", "simplex", "undc"}
 # Mutations that act on a whole row (a segment or a reordering), so ``prob`` is a per-row rate.
 _ROW_MUTATIONS = {"segment_inversion"}
 

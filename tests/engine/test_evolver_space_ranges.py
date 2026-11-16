@@ -29,6 +29,7 @@ from vamos.engine.tuning.racing.bridge_spaces_moead import (
 from vamos.engine.tuning.racing.bridge_spaces_smsemoa import build_smsemoa_config_space, build_smsemoa_constrained_config_space
 from vamos.engine.tuning.racing.config_space import AlgorithmConfigSpace
 from vamos.engine.tuning.racing.param_space import Categorical, Int, Real
+from vamos.engine.tuning.racing.parameter_names import canonical_parameter_name
 
 MOEAD_SPACES: dict[str, Callable[[], AlgorithmConfigSpace]] = {
     "moead": build_moead_config_space,
@@ -55,11 +56,12 @@ def _params(builder: Callable[[], AlgorithmConfigSpace]) -> dict[str, Any]:
 def test_every_moead_space_has_evolvers_neighbourhood_and_aggregation_ranges(name: str) -> None:
     params = _params(MOEAD_SPACES[name])
 
-    neighbor_size, delta, theta = params["neighbor_size"], params["delta"], params["pbi_theta"]
+    neighbor_size, delta = params["neighborhood_size"], params["neighborhood_selection_probability"]
+    theta = params["pbi_theta"]
     assert isinstance(neighbor_size, Int) and (neighbor_size.low, neighbor_size.high) == (5, 50)
     assert isinstance(delta, Real) and (delta.low, delta.high) == (0.0, 1.0)
     assert isinstance(theta, Real) and (theta.low, theta.high) == (1.0, 200.0)
-    aggregation = params["aggregation"]
+    aggregation = params["aggregation_function"]
     assert isinstance(aggregation, Categorical)
     assert set(aggregation.choices) == {"tchebycheff", "weighted_sum", "pbi", "modified_tchebycheff"}
     assert "mtch_rho" in params
@@ -71,10 +73,10 @@ def test_real_coded_moead_spaces_have_evolvers_mutation_repair_and_initializer(n
 
     assert "linked_polynomial" in params["mutation"].choices
     assert "mutation_prob" not in params
-    factor = params["mutation_prob_factor"]
+    factor = params["mutation_probability_factor"]
     assert isinstance(factor, Real) and factor.low <= 1.0 <= factor.high
     assert set(params["repair"].choices) == {"clip", "reflect", "random"}
-    assert set(params["initializer"].choices) >= {"random", "lhs", "scatter"}
+    assert set(params["initial_solutions"].choices) >= {"random", "lhs", "scatter"}
 
 
 @pytest.mark.parametrize("name", MOEAD_REAL)
@@ -84,7 +86,7 @@ def test_the_polynomial_index_is_active_only_for_the_polynomial_mutations(name: 
 
     assert {"polynomial", "linked_polynomial"} <= {draw["mutation"] for draw in draws}
     for draw in draws:
-        assert ("mutation_eta" in draw) == (draw["mutation"] in {"polynomial", "linked_polynomial"})
+        assert ("polynomial_mutation_distribution_index" in draw) == (draw["mutation"] in {"polynomial", "linked_polynomial"})
 
 
 @pytest.mark.parametrize("name", sorted(MOEAD_SPACES))
@@ -141,7 +143,7 @@ def test_evolvers_default_moead_configurations_are_points_of_the_space(
     full = {**MOEAD_BASE, **assignment, "mutation": "polynomial", "mutation_prob_factor": 1.0, "mutation_eta": 20.0}
     params = _params(build_moead_config_space)
     for key, value in full.items():
-        param = params[key]
+        param = params[canonical_parameter_name(key)]
         if isinstance(param, Categorical):
             assert value in param.choices, key
         else:
@@ -181,7 +183,7 @@ def test_real_coded_smsemoa_spaces_have_a_mutation_probability_factor(name: str)
     params = _params(SMSEMOA_REAL[name])
 
     assert "mutation_prob" not in params
-    factor = params["mutation_prob_factor"]
+    factor = params["mutation_probability_factor"]
     assert isinstance(factor, Real) and factor.low <= 1.0 <= factor.high
 
 

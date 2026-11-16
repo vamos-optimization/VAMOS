@@ -430,6 +430,59 @@ an absolute `mutation_prob` stays absolute, and without `initializer` or
 `repair` MOEA/D keeps its defaults. Seeded MOEA/D and SMS-EMOA tuning runs draw
 different trials.
 
+### Parameter names and Evolver's
+
+**Development after 1.2.1:** the built-in spaces name their parameters after
+Evolver's, in snake_case, so that a configuration tuned with VAMOS can be read
+by Evolver and the other way round. The earlier names remain aliases:
+`config_from_assignment` accepts both, and an assignment saved from an earlier
+space builds the configuration it built. The fields of the configuration
+classes (`MOEADConfig.neighbor_size`, ...) keep their names until VAMOS 2.0.
+The paragraphs above use the earlier names.
+`vamos.engine.tuning.racing.parameter_names` holds the table, with
+`to_evolver` and `from_evolver` to exchange assignments:
+
+| Earlier name | Space name | Evolver |
+| --- | --- | --- |
+| `pop_size` | `pop_size` | `populationSize` |
+| `crossover_prob` | `crossover_probability` | `crossoverProbability` |
+| `crossover_eta` | `sbx_distribution_index` | `sbxDistributionIndex` |
+| `mutation_eta` | `polynomial_mutation_distribution_index` | `polynomialMutationDistributionIndex` |
+| `mutation_prob_factor` | `mutation_probability_factor` | `mutationProbabilityFactor` |
+| `neighbor_size` | `neighborhood_size` | `neighborhoodSize` |
+| `delta` | `neighborhood_selection_probability` | `neighborhoodSelectionProbability` |
+| `replace_limit` | `maximum_number_of_replaced_solutions` | `maximumNumberOfReplacedSolutions` |
+| `aggregation` | `aggregation_function` | `aggregationFunction` |
+| `pbi_theta` | `pbi_theta` | `pbiTheta` |
+| `de_cr` | `de_crossover_rate` | `CR` |
+| `de_f` | `de_scale_factor` | `F` |
+| `initializer` | `initial_solutions` | `createInitialSolutions` |
+| `selection_pressure` | `tournament_size` | `selectionTournamentSize` |
+| `selection_size` | `tournament_size` | `selectionTournamentSize` |
+| `crossover` | `crossover` | `crossover` |
+| `mutation` | `mutation` | `mutation` |
+| `selection` | `selection` | `selection` |
+
+Values that change: mutation `pm` becomes `polynomial` (the name the other
+spaces already used) and crossover `undx` becomes `undc` (Evolver's `UNDC`).
+The real-coded `uniform_reset` keeps its name: `random_reset` is the integer
+reset mutation, and renaming one to the other broke integer runs. Evolver writes some values
+differently, and the exchange functions translate them: `SBX`, `blxAlpha`,
+`blxAlphaBeta`, `wholeArithmetic`, `fuzzyRecombination`, `PCX` and `UNDC`;
+`linkedPolynomial`, `nonUniform`, `levyFlight` and `powerLaw`;
+`tschebyscheff`, `weightedSum`, `penaltyBoundaryIntersection` and
+`modifiedTschebyscheff`; `default` (random), `latinHypercubeSampling`,
+`scatterSearch` and `oppositionBased`; `stochasticUniversalSampling`.
+
+`pop_size` keeps its name: Evolver passes the population size to the algorithm
+rather than tuning it, and the CLI and Studio treat it as a run setting. The
+external archive parameters (`use_external_archive`, `archive_unbounded`,
+`archive_prune_policy`) keep theirs until they become one choice, Evolver's
+`algorithmResult` and `archiveType`, in the planned VAMOS-CONFIG grammar.
+The exchange translates names and values only: parameters that VAMOS and
+Evolver structure differently, such as Evolver's `variation` or its per-operator
+repair strategies, keep their names and are ignored by the other side.
+
 ### Constrained spaces
 
 **VAMOS 1.2.0:** `nsgaii_constrained`, `nsgaiii_constrained`,
