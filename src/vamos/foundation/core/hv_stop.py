@@ -10,7 +10,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from vamos.foundation.core.experiment_config import HV_REFERENCE_OFFSET
-from vamos.foundation.problem.resolver import resolve_reference_front_path
+from vamos.foundation.problem.resolver import REFERENCE_FRONT_SOURCES, resolve_reference_front_path
 from vamos.foundation.quality_indicators.hypervolume import hypervolume
 
 
@@ -22,12 +22,23 @@ def build_hv_stop_config(
 ) -> dict[str, object] | None:
     """
     Build an early-stop configuration for hypervolume-based termination.
+
+    ``hv_reference_front`` is a CSV path, or the name of a packaged source, ``"vamos"`` or ``"jmetal"``
+    (see :func:`resolve_reference_front_path`); without it, the problem's VAMOS front is used. The
+    configuration records the front's path and ``reference_front_source``: ``"vamos"``, ``"jmetal"``
+    or ``"file"``.
     """
     if hv_threshold is None:
         return None
-    front_path = resolve_reference_front_path(problem_key, hv_reference_front, n_obj=n_obj)
+    if hv_reference_front in REFERENCE_FRONT_SOURCES:
+        source, explicit = str(hv_reference_front), None
+    else:
+        source, explicit = ("file" if hv_reference_front else "vamos"), hv_reference_front
+    front_path = resolve_reference_front_path(problem_key, explicit, n_obj=n_obj, source="vamos" if source == "file" else source)
     if front_path is None:
-        raise ValueError(f"No reference front found for problem '{problem_key}'. Provide --hv-reference-front or add a built-in front.")
+        raise ValueError(
+            f"No {source} reference front found for problem '{problem_key}'. Provide --hv-reference-front or add a built-in front."
+        )
     reference_front = np.loadtxt(front_path, delimiter=",")
     if reference_front.ndim != 2 or reference_front.shape[1] < 2:
         raise ValueError(f"Reference front '{front_path}' must be a 2D array with at least two objectives.")
@@ -41,6 +52,7 @@ def build_hv_stop_config(
         "threshold_fraction": threshold_fraction,
         "reference_point": ref_point.astype(float, copy=False).tolist(),
         "reference_front_path": str(front_path),
+        "reference_front_source": source,
     }
 
 
