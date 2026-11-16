@@ -1,7 +1,7 @@
 # VAMOS-CONFIG design: parameter spaces as grammars
 
 **Development after 1.3.0:** this design was reviewed on 2026-11-15, and the decisions of the
-review are part of it (section 3). Its first two phases (section 10) ship in the version after
+review are part of it (section 3). Its first three phases (section 10) ship in the version after
 1.3.0; they do not describe the behaviour of any released version. The tuning spaces it discusses
 are Experimental (see [Stability and versioning](../project/stability-and-versioning.md)).
 
@@ -145,9 +145,10 @@ clause, a `limits` range, a type that is not one of the four) is rejected as wel
 A space is identified in configurations and run manifests by `name`, `schema_version` and the
 SHA-256 of its canonical JSON form (insertion order kept: it is the depth-first order of the
 tree), without `label` and `description`, so that editing documentation does not change it. This
-identity will replace the hand-bumped suffix of the persistent Optuna studies (phase 3); until
-then the suffix is bumped with each change of the spaces (`__vamos_cli_final_population_hv_v4`
-from the version after 1.3.0).
+identity replaces the hand-bumped suffix of the persistent Optuna studies (phase 3): `vamos tune`
+appends the scoring contract and the first 16 hexadecimal digits of the hash of the space it
+searches, `__vamos_cli_final_population_hv_<hash>` (SMPSO: `__vamos_cli_leaders_hv_<hash>`), so a
+changed space is a new study.
 
 PyYAML is a dependency of VAMOS, which reads the packaged YAML files at run time with its safe
 loader; no generated copy ships. `tools/update_parameter_spaces.py` checks every file against G1 to
@@ -185,11 +186,15 @@ which point produced it.
 | VAMOS's racing tuner | The flat mapping, sampled by walking the tree, so that the active-parameter rule of today's `filter_active_config` becomes structural. |
 | VAMOS-Studio | The tree itself: the form shows the active branch and starts from the defaults, with the grammar's single range (decision 8). |
 
-Until phase 3, the current tuners sample a flat view of each grammar: an `AlgorithmConfigSpace`
+The tuners receive a flat view of each grammar, an `AlgorithmConfigSpace` and its `ParamSpace`,
 in which each production is a conditional block of its parameter and a global sub-parameter
 shares the block of its node, so that a parameter of the view is active exactly when it is active
-in the grammar. Rewriting `_model_backend_utils.py` and `_irace_space.py` over the grammar removes
-their parsing of condition expressions.
+in the grammar. The views keep the grammar, and the backends derive their spaces from it as the
+table says, so `_model_backend_utils.py` and `_irace_space.py` parse no condition expression for a
+built-in space; a hand-written `ParamSpace` keeps that translation. `ParameterSpace.without`
+removes parameters with their subtrees, which the CLI uses to search without the archive controls.
+SMAC3 receives the defaults in the `ConfigurationSpace` but no enqueued configuration: its initial
+design is its own.
 
 ## 7. Migrating the current spaces
 
@@ -262,15 +267,17 @@ factor, `repair` and `initializer` in MOEA/D's space). These need the grammar, t
    canonical names and the new structure, and keep the current names and structure as aliases, so
    stored assignments still build what they built. *In the version after 1.3.0.*
 3. **Backends over the grammar**: ConfigSpace, Optuna (with the default configuration enqueued),
-   irace and racing; the space hash replaces the persistent-study suffix; Studio's forms from the
-   grammar, with its single range.
+   irace and racing (both with the default configuration first); the space hash replaces the
+   persistent-study suffix; Studio's forms from the grammar, with its single range. *In the version
+   after 1.3.0.*
 4. **Tree and flat encodings** for meta-optimization, after their own design (section 6).
 5. **Engine items** of section 9 and M8, each as its own change with references and tests.
 
 Tuning spaces are Experimental, so their parameters can change in a minor release; each change
 says in the changelog that seeded tuning runs draw different trials, and stored assignments keep
 building the configuration they built. Phase 2 changes every seeded tuning run, because every
-space loses `pop_size`. Stable configuration fields do not change before 2.0.
+space loses `pop_size`, and phase 3 changes them again, because the backends sample the tree and
+start from the default configuration. Stable configuration fields do not change before 2.0.
 
 ## 11. Review
 
