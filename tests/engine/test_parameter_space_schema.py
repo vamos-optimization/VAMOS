@@ -335,7 +335,8 @@ def test_the_identity_ignores_labels_and_descriptions_and_follows_the_tree() -> 
 
 
 def test_yaml_and_json_files_read_the_same_space(tmp_path: Any) -> None:
-    yaml = pytest.importorskip("yaml")
+    import yaml
+
     json_file = tmp_path / "space.json"
     yaml_file = tmp_path / "space.yaml"
     json_file.write_text(json.dumps(small_space()), encoding="utf-8")
@@ -345,7 +346,7 @@ def test_yaml_and_json_files_read_the_same_space(tmp_path: Any) -> None:
 
 
 def test_a_yaml_key_repeated_in_one_mapping_is_rejected() -> None:
-    pytest.importorskip("yaml")
+
     text = "schema: vamos.parameter-space\nschema: vamos.parameter-space\n"
 
     with pytest.raises(ParameterSpaceError, match="G1.*repeated"):
