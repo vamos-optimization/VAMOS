@@ -85,6 +85,15 @@ release notes](docs/project/release-notes-1.3.0.md).
   do, while `result.data["archive"]` and the saved run keep the whole archive
   and `result.data["archive_subset"]` records the selection. The default,
   `"none"`, reports the whole archive as before (#323).
+- The resolved spec of a MOEA/D run records where its weight vectors come from,
+  in `algorithm.resolution.weight_vectors`: a Das-Dennis lattice with its
+  divisions, a packaged jMetal file such as `W3D_100.dat`, a user's file, or
+  uniform weights with two objectives, and their number. `vamos tune` records
+  the population a MOEA/D trial ran when the bridge lowered the sampled one
+  (`details.effective` in `tuning_history.json`, `best_config_effective` in
+  `tuning_summary.json`), and `assignment_adjustments` returns it for code that
+  calls `config_from_assignment`. MOEA/D runs stored by earlier versions are not
+  verified as exact (#321).
 
 ### Changed
 
@@ -194,12 +203,30 @@ release notes](docs/project/release-notes-1.3.0.md).
   NSGA-III guide no longer says that its survival ignores constraints, and the
   SMPSO guide explains that `c1` and `c2` are the lower bounds of the
   coefficients drawn at every step (#318).
+- VAMOS requires Python 3.11 or newer, as announced with 1.2.0: Python 3.10
+  reached its end of life in October 2026, and pip no longer installs VAMOS
+  1.3.0 on it. CI and the release checks test Python 3.11 to 3.14 on Linux and
+  3.12 to 3.14 on Windows and macOS (#329).
+- The declared minimum of NumPy is 1.23.2, the first NumPy release for Python
+  3.11 (#329).
 - MOEA/D with an external archive offers the archive only the rows that each
   step changes, skips the updates that would repeat the last one, and the
   archive inserts a few rows instead of sorting itself; results are
   bit-identical. A 25,000-evaluation MOEA/D run on WFG with an external archive
   is 1.6 to 14 times faster (1.1 times with `ref_dirs` pruning, whose
   truncations draw random numbers) (#284).
+
+### Deprecated
+
+- VAMOS 1.4.0 removes three Experimental features that depend on LLM providers:
+  VAMOS Assist with the `vamos assist` command, Studio's Problem Builder, and
+  the `openai`, `anthropic` and `gemini` extras. Define a problem with
+  `make_problem` or `vamos create-problem` instead.
+
+### Removed
+
+- Support for Python 3.10 (#329).
+- The typing-extensions dependency, which only Python 3.10 needed (#329).
 
 ### Fixed
 

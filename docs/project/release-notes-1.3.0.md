@@ -62,7 +62,10 @@ runs, give the same results as before.
   the run returns.
 - `select_top_k_farthest(..., normalize=True)` makes the farthest-point subset
   independent of the objectives' units.
-- MOEA/D's resolved specification records where its weight vectors come from.
+- MOEA/D's resolved specification records where its weight vectors come from,
+  and `vamos tune` records the population a MOEA/D trial ran. Its results do
+  not change, but a MOEA/D run stored by an earlier version, which lacks that
+  record, is no longer verified as exact.
 
 ## Studies
 
