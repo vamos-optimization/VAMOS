@@ -130,10 +130,21 @@ def test_the_bridge_builds_evolvers_moead_options() -> None:
     ("assignment", "crossover", "aggregation"),
     [
         # Evolver's MOEADDEDefault.
-        ({"crossover": "de", "de_cr": 1.0, "de_f": 0.5, "aggregation": "tchebycheff"}, ("de", {"cr": 1.0, "f": 0.5}), ("tchebycheff", {})),
+        (
+            {"variation": "differential_evolution", "de_cr": 1.0, "de_f": 0.5, "aggregation": "tchebycheff"},
+            ("de", {"cr": 1.0, "f": 0.5}),
+            ("tchebycheff", {}),
+        ),
         # Evolver's MOEADDoubleDefault.
         (
-            {"crossover": "sbx", "crossover_prob": 0.9, "crossover_eta": 20.0, "aggregation": "pbi", "pbi_theta": 5.0},
+            {
+                "variation": "crossover_and_mutation",
+                "crossover": "sbx",
+                "crossover_prob": 0.9,
+                "crossover_eta": 20.0,
+                "aggregation": "pbi",
+                "pbi_theta": 5.0,
+            },
             ("sbx", {"prob": 0.9, "eta": 20.0}),
             ("pbi", {"theta": 5.0}),
         ),

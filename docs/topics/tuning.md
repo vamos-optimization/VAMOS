@@ -436,6 +436,29 @@ an absolute `mutation_prob` stays absolute, and without `initializer` or
 `repair` MOEA/D keeps its defaults. Seeded MOEA/D and SMS-EMOA tuning runs draw
 different trials.
 
+**Development after 1.3.0:** the real-coded MOEA/D and SMS-EMOA grammars
+(`moead`, `moead_constrained`, `smsemoa`, `smsemoa_constrained`) also offer
+the choices of Evolver's spaces that VAMOS runs for them:
+
+- `sobol` among the `initial_solutions`;
+- the `levy_flight` (`levy_beta`, `levy_scale`) and `power_law`
+  (`power_index`) mutations;
+- the `laplace` (`laplace_a`, `laplace_b`) and `fuzzy` (`fuzzy_d`) crossovers,
+  and in SMS-EMOA `blx_alpha_beta` and `whole_arithmetic`, so that both offer
+  the two-parent crossovers of NSGA-II's space;
+- in MOEA/D, a `variation` node, as Evolver's `MOEADDouble`:
+  `differential_evolution` (the default, with `de_crossover_rate` and
+  `de_scale_factor`) or `crossover_and_mutation`, whose `crossover` is `sbx`,
+  `blx_alpha`, `blx_alpha_beta`, `whole_arithmetic`, `arithmetic`, `laplace` or
+  `fuzzy`, with `crossover_probability`;
+- `sbx_distribution_index` and the two polynomial indices in [5, 400], Evolver's
+  range (the default stays 20).
+
+PCX and UNDC stay out: MOEA/D and SMS-EMOA mate two parents, and those
+crossovers need three. Each new parameter defaults to its operator's own value,
+and an assignment saved with `crossover: de` or `crossover: sbx` builds what it
+built.
+
 ### Parameter names and Evolver's
 
 **VAMOS 1.3.0:** the built-in spaces name their parameters after

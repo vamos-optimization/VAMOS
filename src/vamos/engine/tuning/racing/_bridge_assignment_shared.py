@@ -215,6 +215,13 @@ def has_mixed_mutation_assignment(assignment: dict[str, Any]) -> bool:
     return any(key in assignment for key in _MIXED_MUTATION_ASSIGNMENT_KEYS)
 
 
+def crossover_or_de(assignment: dict[str, Any], default: str = "sbx") -> str:
+    """The crossover, or ``de`` for the grammars' ``variation: differential_evolution`` and the earlier ``crossover: de``."""
+    if assignment.get("variation") == "differential_evolution":
+        return "de"
+    return str(assignment.get("crossover", default))
+
+
 def extend_crossover_params(
     cross: str,
     assignment: dict[str, Any],
@@ -252,6 +259,7 @@ __all__ = [
     "apply_mutation_prob_factor",
     "apply_optional_external_archive",
     "apply_optional_repair",
+    "crossover_or_de",
     "extend_crossover_params",
     "extend_mutation_params",
     "has_mixed_mutation_assignment",

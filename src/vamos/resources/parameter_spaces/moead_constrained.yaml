@@ -33,17 +33,43 @@ parameters:
       modified_tchebycheff:
         conditional_parameters:
           mtch_rho: {type: real, default: 0.001, range: [0.0001, 0.1], role: operator_rate}
-  initial_solutions: {type: categorical, default: auto, values: [auto, random, lhs, scatter], role: structural}
-  crossover:
+  initial_solutions: {type: categorical, default: auto, values: [auto, random, lhs, scatter, sobol], role: structural}
+  variation:
     type: categorical
-    default: de
-    role: operator
+    default: differential_evolution
+    role: structural
     values:
-      sbx:
+      crossover_and_mutation:
         conditional_parameters:
-          crossover_probability: {type: real, default: 0.9, range: [0.6, 1.0], role: operator_rate}
-          sbx_distribution_index: {type: real, default: 20.0, range: [10.0, 40.0], role: operator_rate}
-      de:
+          crossover:
+            type: categorical
+            default: sbx
+            role: operator
+            global_sub_parameters:
+              crossover_probability: {type: real, default: 0.9, range: [0.6, 1.0], role: operator_rate}
+            values:
+              sbx:
+                conditional_parameters:
+                  sbx_distribution_index: {type: real, default: 20.0, range: [5.0, 400.0], role: operator_rate}
+              blx_alpha:
+                conditional_parameters:
+                  crossover_alpha: {type: real, default: 0.5, range: [0.0, 1.0], role: operator_rate}
+              blx_alpha_beta:
+                conditional_parameters:
+                  blxab_alpha: {type: real, default: 0.5, range: [0.0, 1.0], role: operator_rate}
+                  blxab_beta: {type: real, default: 0.5, range: [0.0, 1.0], role: operator_rate}
+              arithmetic: {}
+              whole_arithmetic:
+                conditional_parameters:
+                  wa_alpha: {type: real, default: 0.5, range: [0.0, 1.0], role: operator_rate}
+              laplace:
+                conditional_parameters:
+                  laplace_a: {type: real, default: 0.0, range: [-1.0, 1.0], role: operator_rate}
+                  laplace_b: {type: real, default: 0.5, range: [0.01, 2.0], role: operator_rate}
+              fuzzy:
+                conditional_parameters:
+                  fuzzy_d: {type: real, default: 0.5, range: [0.0, 2.0], role: operator_rate}
+      differential_evolution:
         conditional_parameters:
           de_crossover_rate: {type: real, default: 1.0, range: [0.0, 1.0], role: operator_rate}
           de_scale_factor: {type: real, default: 0.5, range: [0.0, 1.0], role: operator_rate}
@@ -56,10 +82,10 @@ parameters:
     values:
       polynomial:
         conditional_parameters:
-          polynomial_mutation_distribution_index: {type: real, default: 20.0, range: [5.0, 40.0], role: operator_rate}
+          polynomial_mutation_distribution_index: {type: real, default: 20.0, range: [5.0, 400.0], role: operator_rate}
       linked_polynomial:
         conditional_parameters:
-          linked_polynomial_mutation_distribution_index: {type: real, default: 20.0, range: [5.0, 40.0], role: operator_rate}
+          linked_polynomial_mutation_distribution_index: {type: real, default: 20.0, range: [5.0, 400.0], role: operator_rate}
       gaussian:
         conditional_parameters:
           gaussian_sigma: {type: real, default: 0.1, range: [0.001, 0.5], role: operator_rate}
@@ -70,6 +96,13 @@ parameters:
       uniform:
         conditional_parameters:
           uniform_perturb: {type: real, default: 0.1, range: [0.01, 0.5], role: operator_rate}
+      levy_flight:
+        conditional_parameters:
+          levy_beta: {type: real, default: 1.5, range: [0.5, 2.0], role: operator_rate}
+          levy_scale: {type: real, default: 0.01, range: [0.001, 0.1], role: operator_rate}
+      power_law:
+        conditional_parameters:
+          power_index: {type: real, default: 1.0, range: [0.5, 5.0], role: operator_rate}
   repair: {type: categorical, default: auto, values: [auto, clip, reflect, random], role: structural}
   subproblem_update_criterion:
     type: categorical
