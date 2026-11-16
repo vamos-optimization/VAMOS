@@ -85,9 +85,9 @@ def check_algorithm_config(algorithm: str, algorithm_config: object) -> None:
 def with_archive_seed(algorithm_config: AlgorithmConfigProtocol, seed: int) -> AlgorithmConfigProtocol:
     """``algorithm_config`` with the effective ``rng_seed`` of its external archive for the run ``seed``.
 
-    ``ref_dirs`` pruning without an ``rng_seed`` draws from the stream derived from the run
-    seed; resolving it here records the seed in the run's resolved configuration, which
-    replay then reuses.
+    ``ref_dirs`` pruning and the ``kmeans`` final selection without an ``rng_seed`` draw from
+    the stream derived from the run seed; resolving it here records the seed in the run's
+    resolved configuration, which replay then reuses.
     """
     archive = getattr(algorithm_config, "external_archive", None)
     if (

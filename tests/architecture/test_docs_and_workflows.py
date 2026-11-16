@@ -98,10 +98,7 @@ _COVERAGE_FLOOR_PACKAGES = ("foundation/problem", "foundation/quality_indicators
 
 
 def test_ci_measures_branch_coverage_with_floors() -> None:
-    try:
-        import tomllib
-    except ModuleNotFoundError:  # pragma: no cover - Python < 3.11 fallback
-        import tomli as tomllib  # type: ignore[import-not-found,no-redef]
+    import tomllib
 
     coverage = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["coverage"]
     assert coverage["run"]["branch"] is True

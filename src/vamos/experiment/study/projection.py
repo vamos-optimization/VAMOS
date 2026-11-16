@@ -229,7 +229,9 @@ def _next_actions(
     actions: list[str] = []
     if issues:
         actions.append("restore_referenced_run_evidence")
-    if study.reconciliation_required:
+    # Resume reconciles a paused or completed study; a cancelled or failed one is terminal, and readers
+    # already derive its state from the journal.
+    if study.reconciliation_required and study.status not in {"cancelled", "failed"}:
         actions.append("resume_to_reconcile")
     if study.status == "running" and not study.reconciliation_required:
         actions.append("wait_for_current_owner_or_resume_after_interruption")

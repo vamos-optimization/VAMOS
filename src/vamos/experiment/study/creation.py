@@ -6,7 +6,7 @@ import os
 import secrets
 import shutil
 from collections.abc import Callable, Mapping
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -142,7 +142,7 @@ def _failure(exc: Exception) -> str:
 def _populate_staging(staging: Path, *, spec: StudySpec, plan: ResolvedStudyPlan, hook: _PhaseHook) -> None:
     study_id = new_uuid4()
     event_id = new_uuid4()
-    timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    timestamp = datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
     spec_doc = study_spec_document(spec, study_id)
     spec_bytes = stored_document_bytes(spec_doc)

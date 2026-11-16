@@ -1,16 +1,11 @@
 from __future__ import annotations
 
-import sys
 from functools import cache
 from importlib import resources
+from importlib.resources.abc import Traversable
 
 import numpy as np
-
-if sys.version_info >= (3, 11):
-    from importlib.resources.abc import Traversable
-else:
-    from importlib.abc import Traversable
-
+from numpy.typing import NDArray
 
 _FILE_NAME_MAP = {
     "kroa100": "kroA100.tsp",
@@ -26,7 +21,7 @@ def _data_dir() -> Traversable:
 
 
 @cache
-def load_tsplib_coords(name: str) -> np.ndarray:
+def load_tsplib_coords(name: str) -> NDArray[np.float64]:
     """
     Parse a TSPLIB .tsp file and return coordinates as a NumPy array.
     Results are cached for repeated calls.

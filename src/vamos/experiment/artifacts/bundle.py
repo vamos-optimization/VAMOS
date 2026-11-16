@@ -60,8 +60,19 @@ def snapshot_result_arrays(result: ResultLike, *, limits: LoadLimits) -> dict[st
             _capture_array(arrays, f"{namespace}/{key}", nested.get(key), limits=limits)
     for key in ("F", "X", "G", "CV"):
         _capture_array(arrays, f"archive/{key}", data.get(f"archive_{key}"), limits=limits)
+    # SPEA2's "archive" is its environmental archive, and X and F hold its external archive unless they hold a final
+    # subset of it or the population: then the external archive is saved too, and a reloaded run saves it again.
+    external = data.get("external_archive")
+    if isinstance(external, Mapping) and not _holds(arrays, external):
+        for key in ("F", "X", "G", "CV"):
+            _capture_array(arrays, f"external_archive/{key}", external.get(key), limits=limits)
     validate_array_collection(arrays, required_f=True, limits=limits, operation="save result")
     return arrays
+
+
+def _holds(arrays: Mapping[str, np.ndarray[Any, Any]], rows: Mapping[str, Any]) -> bool:
+    """Whether the captured top-level F and X are exactly the rows of ``rows``."""
+    return all(key in arrays and rows.get(key) is not None and np.array_equal(arrays[key], np.asarray(rows.get(key))) for key in ("F", "X"))
 
 
 def write_result_bundle(path: Path, arrays: Mapping[str, np.ndarray[Any, Any]], *, limits: LoadLimits) -> None:

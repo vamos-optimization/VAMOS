@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import sys
 from collections.abc import Callable, Mapping
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import TextIO
@@ -40,7 +40,7 @@ def _canonical_problem_type(problem_type: str) -> str:
 def _resolve_plan_dir(out_dir: Path | None) -> Path:
     if out_dir is not None:
         return out_dir
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")
+    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S_%f")
     return Path("results") / "assist_plans" / f"plan_{timestamp}"
 
 
@@ -301,7 +301,7 @@ def create_plan(
     validate_experiment_spec(config, allowed_overrides=_spec_allowed_overrides())
 
     metadata: dict[str, object] = {
-        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "template": selected_template,
         "problem_type": selected_problem_type,
         "schema_version": EXPERIMENT_SPEC_VERSION,

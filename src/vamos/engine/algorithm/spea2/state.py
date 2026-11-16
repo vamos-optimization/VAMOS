@@ -16,6 +16,7 @@ from typing import Any
 import numpy as np
 
 from vamos.engine.algorithm.components.results import (
+    apply_final_archive_subset,
     feasible_result_indices,
     get_external_archive_constraints,
     get_external_archive_contents,
@@ -114,7 +115,7 @@ def build_spea2_result(state: SPEA2State, hv_reached: bool = False, kernel: Any 
         archive_X, archive_F = archive_contents
         result["external_archive"] = with_constraints({"X": archive_X, "F": archive_F}, archive_G)
 
-    return result
+    return apply_final_archive_subset(result, state)
 
 
 __all__ = [

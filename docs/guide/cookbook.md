@@ -1,6 +1,6 @@
 # VAMOS Cookbook
 
-Copy-paste recipes for the published **VAMOS 1.2.1** package. Install the core
+Copy-paste recipes for the published **VAMOS 1.3.0** package. Install the core
 package using [Installation](installation.md); recipes that need an extra say
 so explicitly. Budgets below are demonstrations, not evidence of convergence
 or comparative performance.
@@ -143,7 +143,7 @@ and carried on; MOEA/D, SPEA2 and SMPSO then called `on_generation` a second
 time with the whole population. NSGA-II's `live_callback_mode` accepts
 `nd_only`, `population` and `population_archive`.
 
-**Development after 1.2.1:** every built-in algorithm sends the same payload.
+**VAMOS 1.3.0:** every built-in algorithm sends the same payload.
 `F` and `X` are the objective and decision vectors of the whole current
 population, row by row (SPEA2's environmental archive, SMPSO's swarm), and
 `stats["evals"]` counts the evaluations used so far. NSGA-II keeps sending its
@@ -155,12 +155,12 @@ NSGA-II passed `X`, NSGA-II and SMPSO sent the first front while the others sent
 the population, MOEA/D notified after every evaluation, and IBEA, NSGA-III,
 SPEA2 and SMPSO left out `stats` in `ask`/`tell` runs.
 
-**Development after 1.2.1:** only the default `NoOpLiveVisualization` itself is
+**VAMOS 1.3.0:** only the default `NoOpLiveVisualization` itself is
 skipped. A callback that subclasses it and overrides `on_generation` receives
 every generation in every algorithm. In VAMOS 1.2.1 MOEA/D, SPEA2 and SMPSO
 sent such a callback generation 0 only.
 
-**Development after 1.2.1:** every algorithm that takes an external archive
+**VAMOS 1.3.0:** every algorithm that takes an external archive
 has `live_callback_mode`, as NSGA-II does: `population` (their default) sends
 the population, `nd_only` (NSGA-II's default) its first front, and
 `population_archive` the population plus `stats["archive"]`, the archive's

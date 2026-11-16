@@ -5,14 +5,9 @@ Packaged data assets for VAMOS (reference fronts, weight vectors, etc.).
 from __future__ import annotations
 
 import os
-import sys
 from importlib import resources
+from importlib.resources.abc import Traversable
 from pathlib import Path
-
-if sys.version_info >= (3, 11):
-    from importlib.resources.abc import Traversable
-else:
-    from importlib.abc import Traversable
 
 ResourceLocation = Path | Traversable
 

@@ -10,7 +10,7 @@ downloads:
 
 Reference vectors divide objective space, and angle-penalized distance balances convergence and diversity during selection. Vector adaptation accounts for objective-space scales [1].
 
-**Goal:** run the stable public API in VAMOS 1.2.1, interpret its returned population, and identify which settings control this mechanism.
+**Goal:** run the stable public API in VAMOS 1.3.0, interpret its returned population, and identify which settings control this mechanism.
 
 [Capability matrix](../reference/algorithms.md) · [Exact configuration reference](../reference/api/algorithms/rvea.md) · [Setup and recorded evidence](../tutorials/coverage-setup.md)
 
@@ -31,7 +31,7 @@ The second command reruns the same protocol and requires Matplotlib. Use a new f
 ??? example "Complete runnable script"
 
     ```python
-    """Verified VAMOS 1.2.1 lesson: rvea. See coverage-setup for dependencies."""
+    """Verified VAMOS 1.3.0 lesson: rvea. See coverage-setup for dependencies."""
 
 
     def execute_example(problem, algorithm, config, budget, seed=42, engine="numpy"):
@@ -164,7 +164,7 @@ Evaluations: 400
 
 ![Actual rvea results from the documented protocol.](../assets/coverage/rvea.svg)
 
-*Measured with VAMOS 1.2.1; the [observations and provenance](../tutorials/coverage-setup.md#recorded-evidence) retain the inputs and results.*
+*Measured with VAMOS 1.3.0; the [observations and provenance](../tutorials/coverage-setup.md#recorded-evidence) retain the inputs and results.*
 
 ## Understand the configuration
 

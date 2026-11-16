@@ -30,7 +30,7 @@ of convergence.
 | Item | This lesson |
 | --- | --- |
 | Prerequisites | A saved [T06 study](t06-fair-study.md); non-dominance and feasibility from [T02](t02-constrained-problem.md) |
-| Tested environment | VAMOS **1.2.1**, MooCore **0.3.2**, Python 3.12; [dependency recipe](study-setup.md) |
+| Tested environment | VAMOS **1.3.0**, MooCore **0.3.2**, Python 3.12; [dependency recipe](study-setup.md) |
 | Interface status | **Stable** study/result loading and `verify_run`; MooCore is an optional third-party indicator API |
 | Work | Load and measure; **no optimization executes** |
 
