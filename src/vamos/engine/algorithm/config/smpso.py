@@ -12,6 +12,7 @@ from vamos.foundation.encoding import EncodingLike
 from .base import (
     DEFAULT_POP_SIZE,
     ConstraintModeStr,
+    LiveCallbackMode,
     ResultMode,
     _build_external_archive_config,
     _ConfigBuilderState,
@@ -48,6 +49,7 @@ class SMPSOConfig(_SerializableConfig):
     external_archive: ExternalArchiveConfig | None = None
     # Fields added after 1.0 go last, so that the constructor keeps the positions of its parameters.
     constraint_handling: tuple[str, dict[str, float]] | None = None
+    live_callback_mode: LiveCallbackMode = "population"
     #: The techniques that judge the violation of a single solution, the only ones this algorithm takes.
     constraint_handling_techniques: ClassVar[tuple[str, ...]] = PAIRWISE_TECHNIQUES
 
@@ -146,4 +148,5 @@ class _SMPSOConfigBuilder(
             track_genealogy=bool(self._cfg.get("track_genealogy", False)),
             result_mode=self._cfg.get("result_mode", "non_dominated"),
             external_archive=self._cfg.get("external_archive"),
+            live_callback_mode=self._cfg.get("live_callback_mode", "population"),
         )

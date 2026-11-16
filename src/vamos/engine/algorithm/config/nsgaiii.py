@@ -11,6 +11,7 @@ from vamos.foundation.encoding import EncodingLike
 
 from .base import (
     ConstraintModeStr,
+    LiveCallbackMode,
     ResultMode,
     _ConfigBuilderState,
     _ConstraintHandlingBuilder,
@@ -54,6 +55,7 @@ class NSGAIIIConfig(_SerializableConfig):
     external_archive: ExternalArchiveConfig | None = None
     # Fields added after 1.0 go last, so that the constructor keeps the positions of its parameters.
     constraint_handling: tuple[str, dict[str, float]] | None = None
+    live_callback_mode: LiveCallbackMode = "population"
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -185,4 +187,5 @@ class _NSGAIIIConfigBuilder(
             track_genealogy=bool(self._cfg.get("track_genealogy", False)),
             result_mode=self._cfg.get("result_mode", "population"),
             external_archive=self._cfg.get("external_archive"),
+            live_callback_mode=self._cfg.get("live_callback_mode", "population"),
         )

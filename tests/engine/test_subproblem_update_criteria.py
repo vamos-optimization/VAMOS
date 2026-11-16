@@ -112,10 +112,11 @@ def test_invalid_criteria_are_rejected(value: object, message: str) -> None:
 # ---- MOEA/D configuration ----------------------------------------------------
 
 
-def test_the_criterion_is_the_last_optional_field_and_round_trips_through_json() -> None:
+def test_the_criterion_follows_the_fields_of_1_0_and_round_trips_through_json() -> None:
     fields = dataclasses.fields(MOEADConfig)
-    assert fields[-1].name == "subproblem_update_criterion"
-    assert fields[-1].default is None
+    # Fields added after 1.0 go last, in the order they were added.
+    assert [field.name for field in fields[-2:]] == ["subproblem_update_criterion", "live_callback_mode"]
+    assert fields[-2].default is None
 
     builder = MOEADConfig.builder()
     assert builder.subproblem_update_criterion(IMPROVED_EPSILON[0], **IMPROVED_EPSILON[1]) is builder

@@ -17,10 +17,13 @@ class LiveVisualization(Protocol):
       per generation; steady-state algorithms (SMS-EMOA, MOEA/D) report one generation per
       ``pop_size`` evaluations;
     - ``F`` and ``X`` are the objective and decision vectors of the whole current population,
-      row by row (SPEA2's environmental archive, SMPSO's swarm). NSGA-II sends its first front
-      instead with its default ``live_callback_mode="nd_only"``, and its population with
-      ``"population"``;
-    - ``stats["evals"]`` is the number of evaluations used so far.
+      row by row (SPEA2's environmental archive, SMPSO's swarm), with the configuration's
+      ``live_callback_mode="population"``, the default of every algorithm but NSGA-II;
+      ``"nd_only"``, NSGA-II's default, sends the population's first front instead;
+    - ``stats["evals"]`` is the number of evaluations used so far;
+    - with ``live_callback_mode="population_archive"``, ``stats["archive"]`` also holds the
+      external archive, ``{"X": ..., "F": ...}``, which is what a run with an archive returns
+      (SMPSO's leaders when it has no external archive); without an archive the key is absent.
 
     An exception raised by a callback propagates and stops the run.
     """

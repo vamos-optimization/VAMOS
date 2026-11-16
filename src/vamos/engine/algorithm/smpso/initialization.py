@@ -289,6 +289,7 @@ def initialize_smpso_run(
         archive_manager=cast(Any, archive_manager),
         result_archive=result_archive,
         result_mode=result_mode,
+        live_callback_mode=str(config.get("live_callback_mode", "population")),
         # Termination
         hv_tracker=hv_tracker,
         # PSO state
