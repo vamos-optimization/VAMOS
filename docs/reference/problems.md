@@ -698,11 +698,10 @@ places along the front, so IGD, IGD+ and Δp computed against one differ from
 those computed against the other. Choose jMetal's to compare those indicators
 with jMetal's and Evolver's:
 
-- `resolve_reference_front_path(problem, None, n_obj=m, source="jmetal")`
-  (`vamos.foundation.problem.resolver`) returns `jmetal-<key>.csv` (ZDT) or
-  `jmetal-<key>.<m>d.csv` (DTLZ; `jmetal-dtlz2.<m>d.csv` for DTLZ2, DTLZ3 and
-  DTLZ4, whose jMetal files are the same), and `None` for a problem or objective
-  count that jMetal's set lacks; it never falls back to VAMOS's file.
+- The files are `jmetal-<key>.csv` (ZDT) and `jmetal-<key>.<m>d.csv` (DTLZ;
+  `jmetal-dtlz2.<m>d.csv` for DTLZ2, DTLZ3 and DTLZ4, whose jMetal files are the
+  same). For a problem or objective count that jMetal's set lacks there is no
+  jMetal front, and VAMOS never falls back to its own file.
 - `vamos --hv-threshold 0.9 --hv-reference-front jmetal` measures the stopping
   target against jMetal's front; `vamos` names VAMOS's front and any other
   value is a CSV path. The run records `reference_front_source` (`vamos`,
