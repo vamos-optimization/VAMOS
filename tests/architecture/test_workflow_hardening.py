@@ -1,4 +1,4 @@
-"""The documentation and CI workflows keep secrets, inputs and tool versions under control (VR-150, VR-307, VR-317)."""
+"""The documentation and CI workflows keep secrets, inputs and tool versions under control."""
 
 from __future__ import annotations
 

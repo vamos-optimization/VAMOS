@@ -1,4 +1,4 @@
-"""VAMOS's hypervolume against pymoo's on the same configurations (VR-067).
+"""VAMOS's hypervolume against pymoo's on the same configurations.
 
 ``data/external_conformance.json`` holds pymoo 0.6.2's mean and standard deviation of the final
 hypervolume over 30 seeds; ``tools/reference_conformance_baselines.py`` regenerates it, with the

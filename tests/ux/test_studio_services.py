@@ -111,7 +111,7 @@ def test_studio_run_closes_only_the_backends_it_builds(monkeypatch) -> None:
 
 
 def test_studio_and_optimize_build_the_same_default_configs() -> None:
-    """Studio and optimize share one default-configuration builder (VR-109).
+    """Studio and optimize share one default-configuration builder.
 
     The only difference is the result mode of SMPSO: optimize returns its leaders archive, while
     Studio shows the final swarm, as for every other algorithm.

@@ -58,7 +58,7 @@ def _committed(name: str) -> Any:
 
 
 def test_cli_snapshot_detects_a_removed_option_that_is_a_substring(monkeypatch: pytest.MonkeyPatch) -> None:
-    """`--population-size` is a substring of `--offspring-population-size` (VR-091)."""
+    """`--population-size` is a substring of `--offspring-population-size`."""
     generator = _generator()
     monkeypatch.setattr(generator, "STABLE_CLI", {"vamos": generator.STABLE_CLI["vamos"]})
     actual = generator._cli_arguments
@@ -72,7 +72,7 @@ def test_cli_snapshot_detects_a_removed_option_that_is_a_substring(monkeypatch: 
 
 
 def test_snapshot_detects_a_changed_config_default(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A changed default of a stable configuration changes the snapshot (VR-091)."""
+    """A changed default of a stable configuration changes the snapshot."""
     from vamos.algorithms import NSGAIIConfig
 
     generator = _generator()
@@ -94,7 +94,7 @@ def test_snapshot_detects_a_changed_config_default(monkeypatch: pytest.MonkeyPat
 
 
 def test_snapshot_detects_a_changed_signature(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A changed default or parameter of a stable function changes the snapshot (VR-091)."""
+    """A changed default or parameter of a stable function changes the snapshot."""
     import vamos
 
     generator = _generator()
@@ -135,7 +135,7 @@ def test_type_aliases_record_no_signature() -> None:
 
 
 def test_exit_code_snapshot_reads_the_cli_mapping(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The frozen exit codes come from the code that maps errors to codes (VR-091)."""
+    """The frozen exit codes come from the code that maps errors to codes."""
     from vamos.experiment.artifacts.errors import OutputCollisionError
     from vamos.experiment.cli import run_artifact_cli
 

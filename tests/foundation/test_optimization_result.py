@@ -425,7 +425,7 @@ def _constrained_population_result():
 
 
 class TestOptimizationResultFeasibility:
-    """Selection helpers rank feasible solutions first (review finding VR-015)."""
+    """Selection helpers rank feasible solutions first."""
 
     def test_front_and_best_prefer_feasible_solutions(self):
         result = _constrained_population_result()
