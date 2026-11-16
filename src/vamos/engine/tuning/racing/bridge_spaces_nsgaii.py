@@ -76,7 +76,7 @@ def _real_operator_part() -> SpacePart:
         ),
         Real("mutation_prob_factor", 0.25, 3.0, role="operator_rate"),
         Real("mutation_eta", 5.0, 40.0, role="operator_rate"),
-        Categorical("repair", ["clip", "reflect", "random", "round", "wrap", "midpoint"], role="structural"),
+        Categorical("repair", ["clip", "reflect", "random", "wrap", "midpoint"], role="structural"),
     ]
     conditionals = [
         ConditionalBlock("crossover", "sbx", [Real("crossover_eta", 5.0, 40.0)]),

@@ -505,6 +505,15 @@ def _lattice_divisions_within(pop_size: int, n_obj: int, *, algorithm: str) -> i
         raise ReferenceDirectionPopulationError(f"{algorithm} cannot build reference directions for pop_size={pop_size}: {exc}") from exc
 
 
+def _warn_without_effect(algorithm: str, field: str, reason: str, *, stacklevel: int) -> None:
+    """Warn that a stable configuration field has no effect on ``algorithm``; it goes in VAMOS 2.0."""
+    warnings.warn(
+        f"{algorithm}'s `{field}` has no effect: {reason}. The field will be removed in VAMOS 2.0.",
+        FutureWarning,
+        stacklevel=stacklevel + 1,
+    )
+
+
 def _require_fields(cfg: dict[str, Any], fields: tuple[str, ...], name: str) -> None:
     """Validate that required fields are present in configuration."""
     missing = [field for field in fields if field not in cfg]
