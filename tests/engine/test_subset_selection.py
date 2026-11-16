@@ -212,3 +212,12 @@ class TestSelectTopKHvGreedy:
         idx = select_top_k_hv_greedy(F, 3, ref_point=[20.0, 20.0])
         assert idx.shape == (3,)
         assert len(set(idx.tolist())) == 3
+
+
+def test_farthest_normalization_scales_an_objective_with_a_tiny_range() -> None:
+    # The second objective varies by 1e-12: it is not constant, so it must weigh as much as the first.
+    F = np.array([[0.0, 1.0], [1.0, 0.0], [0.9, 0.9]])
+    tiny = F * np.array([1.0, 1e-12])
+
+    assert select_top_k_farthest(F, 1, normalize=True).tolist() == [2]
+    assert select_top_k_farthest(tiny, 1, normalize=True).tolist() == [2]

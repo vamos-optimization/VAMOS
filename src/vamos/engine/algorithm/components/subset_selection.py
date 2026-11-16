@@ -137,7 +137,8 @@ def select_top_k_farthest(F: NDArray[np.float64], k: int, *, normalize: bool = F
     n = F.shape[0]
     if n <= k:
         return np.arange(n, dtype=int)
-    F = normalize_objectives(F) if normalize else F
+    if normalize:  # each nonconstant objective spans [0, 1], however small its range; a constant one is ignored
+        F = (F - F.min(axis=0)) / np.where((span := np.ptp(F, axis=0)) > 0, span, 1.0)
 
     # Start from the point with the largest norm (an extreme point)
     selected = [int(np.argmax(np.linalg.norm(F, axis=1)))]
