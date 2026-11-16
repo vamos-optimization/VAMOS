@@ -286,7 +286,36 @@ def test_interrupted_study_message_does_not_promise_resume(tmp_path: Path, monke
 
     assert escaped.status == "interrupted"
     assert "resuming" not in action
-    assert "cancelled" in action
+    assert "inspect" in action.lower()
+
+
+@pytest.mark.parametrize(
+    ("operation", "loader"),
+    [("inspect", "load_study_projection"), ("summarize", "load_study_projection"), ("run", "load_study"), ("resume", "load_study")],
+)
+def test_an_interruption_before_execution_does_not_claim_a_cancellation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, operation: str, loader: str
+) -> None:
+    # Ctrl+C while a read-only command, or the initial load of run or resume, reads the study: nothing cancels it.
+    import vamos.experiment.cli.study_command as study_command
+
+    root = tmp_path / "study"
+    vamos.create_study(
+        vamos.StudySpec(problems=["zdt1"], algorithms=["nsgaii"], seeds=[0], max_evaluations=8, pop_size=4),
+        output=root,
+    )
+
+    def interrupted(*_args: Any, **_kwargs: Any) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(study_command, loader, interrupted)
+    result = execute_study_command(StudyCommandRequest(operation=operation, study_dir=root))
+    action = result.errors[0]["action"]
+
+    assert result.status == "interrupted"
+    assert "cancel" not in action.lower(), action
+    assert "resum" not in action.lower(), action
+    assert vamos.load_study(root).status == "created"
 
 
 def test_sa_067_cli_inspect_and_summarize_do_not_materialize_arrays(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -282,7 +282,10 @@ cancelling the study, which can then be resumed. **Development after 1.2.1:**
 `inspect()` and the `vamos study` commands no longer suggest resuming a
 cancelled or failed study. VAMOS 1.2.1 and earlier told `vamos study run` users to run
 `vamos study resume` after Ctrl+C, which then failed with
-`INVALID_STATE_TRANSITION`.
+`INVALID_STATE_TRANSITION`. A Ctrl+C that arrives before execution starts, or
+while `vamos study inspect` or `summarize` reads the study, changes nothing:
+the command reports `interrupted` and points to `vamos study inspect` without
+claiming that the study was cancelled.
 
 Retry is explicit and bounded by `max_attempts_per_task`. VAMOS does not mutate the immutable study plan or silently substitute current convenience defaults.
 

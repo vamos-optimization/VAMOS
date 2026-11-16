@@ -197,6 +197,14 @@ def _error_result(operation: Operation, error: StudyError) -> StudyCommandResult
 
 
 def _interrupted_result(operation: Operation) -> StudyCommandResult:
+    # A cancellation that execution confirms comes back as a cancelled report, never here, so this result
+    # does not know whether the study changed: it points to the journal instead of claiming an outcome.
+    mutating = operation in {"create", "run", "resume", "retry"}
+    action = (
+        "The command was interrupted before it reported an outcome. Inspect the study: its journal holds the current state."
+        if mutating
+        else "The command was interrupted. It changes no study, so nothing changed."
+    )
     return StudyCommandResult(
         operation=operation,
         status="interrupted",
@@ -204,18 +212,9 @@ def _interrupted_result(operation: Operation) -> StudyCommandResult:
         study_id=None,
         plan_id=None,
         changed=False,
-        payload={"execution_began": False, "single_owner": operation in {"create", "run", "resume", "retry"}},
-        warnings=(SINGLE_OWNER_WARNING,) if operation in {"create", "run", "resume", "retry"} else (),
-        errors=(
-            {
-                "category": "interruption",
-                "reason": "PROCESS_INTERRUPTED",
-                "action": (
-                    "Inspect the study. If it was running, the interruption cancelled it, which is final: "
-                    "create a new study for the work left. Otherwise nothing changed."
-                ),
-            },
-        ),
+        payload={"execution_began": False, "single_owner": mutating},
+        warnings=(SINGLE_OWNER_WARNING,) if mutating else (),
+        errors=({"category": "interruption", "reason": "PROCESS_INTERRUPTED", "action": action},),
         next_actions=("vamos study inspect STUDY_DIR",),
     )
 
