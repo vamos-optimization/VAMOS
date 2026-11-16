@@ -30,8 +30,8 @@ def test_cli_hv_threshold_uses_builtin_reference_for_zdt1(monkeypatch):
     argv = ["prog", "--problem", "zdt1", "--hv-threshold", "0.25"]
     monkeypatch.setattr(sys, "argv", argv)
     args = cli.parse_args(default_cfg)
-    assert args.hv_reference_front
-    assert "ZDT1" in args.hv_reference_front.upper()
+    # The default is VAMOS's packaged source; build_hv_stop_config resolves it per problem.
+    assert args.hv_reference_front == "vamos"
 
 
 def test_cli_hv_threshold_uses_builtin_reference_for_zcat(monkeypatch):
@@ -39,8 +39,7 @@ def test_cli_hv_threshold_uses_builtin_reference_for_zcat(monkeypatch):
     argv = ["prog", "--problem", "zcat1", "--n-obj", "3", "--hv-threshold", "0.25"]
     monkeypatch.setattr(sys, "argv", argv)
     args = cli.parse_args(default_cfg)
-    assert args.hv_reference_front
-    assert args.hv_reference_front.lower().endswith("zcat1.3d.csv")
+    assert args.hv_reference_front == "vamos"
 
 
 def test_cli_external_archive_bounded_configuration(monkeypatch):

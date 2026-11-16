@@ -126,8 +126,8 @@ def _extend_real_crossover_params(cross: str, assignment: dict[str, Any], cross_
     elif cross == "simplex":
         cross_params["epsilon"] = float(assignment.get("simplex_epsilon", 2.0))
     elif cross == "blx_alpha_beta":
-        cross_params["alpha"] = float(assignment.get("blxab_alpha", 0.75))
-        cross_params["beta"] = float(assignment.get("blxab_beta", 0.25))
+        cross_params["alpha"] = float(assignment.get("blxab_alpha", 0.5))
+        cross_params["beta"] = float(assignment.get("blxab_beta", 0.5))
     elif cross == "whole_arithmetic":
         cross_params["alpha"] = float(assignment.get("wa_alpha", 0.5))
     elif cross == "laplace":
