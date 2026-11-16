@@ -165,7 +165,11 @@ has `live_callback_mode`, as NSGA-II does: `population` (their default) sends
 the population, `nd_only` (NSGA-II's default) its first front, and
 `population_archive` the population plus `stats["archive"]`, the archive's
 `{"X": ..., "F": ...}`. With an archive, the run returns that archive, so a
-live view in this mode ends with what `optimize` returns. SMPSO without an
+live view in this mode ends with what `optimize` returns. When the budget, the
+HV target or a stop ends a run inside a generation, MOEA/D and SMS-EMOA send
+the evaluations since their last notification as a final, shorter generation,
+as the generational algorithms do with their last one, and every algorithm
+notifies the generation that reaches the HV target before it stops. SMPSO without an
 external archive sends its leaders, which it returns. Set it with the
 builder, for example `MOEADConfig.builder()...external_archive(capacity=None).live_callback_mode("population_archive")`.
 Before, only `NSGAIIConfig` had the field.

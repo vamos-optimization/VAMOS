@@ -46,6 +46,16 @@ MW, C-DTLZ, LSMOP, ZCAT, RE, and RWA), is available by name through
 `optimize("name")` and `make_problem_selection`, the stable way to build any
 of them.
 
+**Development after 1.2.1:** some registered problems also take options
+besides `n_var` and `n_obj`: `capacity_ratio` for `bin_knapsack`, and
+`complicated_pareto_set`, `level`, `bias` and `imbalance` for
+`zcat1`–`zcat20`, with the defaults in the tables below. Pass them by name with
+`optimize(name, problem_kwargs={...})`, a study's `problem_kwargs`, or
+`make_problem_selection(name).with_options({...})`; `selection.spec.option_defaults()`
+lists them. A run records them in `resolved_spec.problem.config` and replays them
+exactly. The other problems take no options, and arguments that identify a
+registered problem, such as a family's variant, stay fixed by its name.
+
 The tables report the **instantiated** default dimensions. `n` is the number of
 decision variables, `M` the number of objectives, and `G` the number of explicit
 inequality outputs (`G <= 0` is feasible). Zero G means no separate inequality
@@ -68,9 +78,9 @@ the corresponding implementation or family registration in the 1.0.1 release.
 | `zdt1`, `zdt2`, `zdt3` | 30 | 2 | 0 | Variables in `[0, 1]`; fixed M | [ZDT][zdt] | 2D, each |
 | `zdt4` | 10 | 2 | 0 | First variable `[0, 1]`, remainder `[-5, 5]`; fixed M | [ZDT][zdt] | 2D |
 | `zdt6` | 10 | 2 | 0 | Variables in `[0, 1]`; fixed M | [ZDT][zdt] | 2D |
-| `dtlz1` | 7 | 3 | 0 | `n = M + 4` (`k = 5`) when n is omitted | [DTLZ][dtlz] | 3D |
-| `dtlz2`–`dtlz6` | 12 | 3 | 0 | `n = M + 9` (`k = 10`); DTLZ4 uses `alpha = 100` | [DTLZ][dtlz] | 3D, each |
-| `dtlz7` | 22 | 3 | 0 | `n = M + 19` (`k = 20`) | [DTLZ][dtlz] | 3D |
+| `dtlz1` | 7 | 3 | 0 | `n = M + 4` (`k = 5`) when n is omitted | [DTLZ][dtlz] | 2D and 3D |
+| `dtlz2`–`dtlz6` | 12 | 3 | 0 | `n = M + 9` (`k = 10`); DTLZ4 uses `alpha = 100` | [DTLZ][dtlz] | 2D and 3D, each |
+| `dtlz7` | 22 | 3 | 0 | `n = M + 19` (`k = 20`) | [DTLZ][dtlz] | 2D and 3D |
 | `wfg1`–`wfg9` | 24 | 3 | 0 | `k = 4`, `l = 20`; bounds `[0, 2i]` for variable i | [WFG][wfg] | **2D only**, each |
 | `lz09_f1`, `lz09_f7`, `lz09_f8` | 10 | 2 | 0 | Fixed M; family-specific linkage | [Li–Zhang LZ09][lz] | None packaged |
 | `lz09_f2`–`lz09_f5`, `lz09_f9` | 30 | 2 | 0 | Fixed M; family-specific linkage | [Li–Zhang LZ09][lz] | None packaged |
@@ -623,7 +633,8 @@ settings against the run. A file's existence alone is insufficient evidence of
 compatibility or a certified optimum.
 
 - ZDT fronts have two columns; ZDT5's sample is tied to its default 80 bits.
-- DTLZ fronts have three columns. Changing M needs a corresponding reference.
+- DTLZ fronts have three columns, and `dtlz<k>.2d.csv` two. Other values of M
+  need a supplied reference.
 - WFG and LSMOP samples have **two columns**, even though their registered
   default is three objectives. Supply a matching reference for default runs; do
   not use those two-column files for three-objective indicators.
@@ -641,6 +652,11 @@ returned the file it found, whatever its columns, so its automatic references
 for those cases had the wrong number of objectives. The C-DTLZ and DC-DTLZ
 files of 1.1.0 (`c1dtlz1.csv` and so on, two-objective) are replaced by
 `<key>.2d.csv` and `<key>.3d.csv`.
+
+**Development after 1.2.1:** DTLZ1–DTLZ7 also have two-objective samples,
+`dtlz1.2d.csv` to `dtlz7.2d.csv`, so a two-objective DTLZ run has an automatic
+reference. VAMOS 1.2.0 had none, and VAMOS 1.1.0 returned the three-objective
+file.
 - RE/RWA samples have the dimensions shown above. Their presence does not imply
   that every sample point is a certified global Pareto optimum.
 - Families marked “None packaged” require a suitable external reference or a
@@ -658,6 +674,7 @@ regenerates the files marked as regenerated.
 | `dtlz1`–`dtlz4` | Regenerated: 5050-point simplex lattice, scaled to `sum(f) = 0.5` (DTLZ1) or projected onto the unit sphere |
 | `dtlz5`, `dtlz6` | Regenerated: 1000 points of the front curve |
 | `dtlz7` | Regenerated: 5050 points of the disconnected front |
+| `dtlz1.2d`–`dtlz7.2d` | **Development after 1.2.1:** regenerated, 1000 points spaced evenly along the front: `f1 + f2 = 0.5` (DTLZ1), the quarter circle (DTLZ2–DTLZ6; at M = 2, DTLZ5 and DTLZ6 do not degenerate) and the non-dominated pieces of `f2 = 4 - f1 (1 + sin(3 pi f1))` (DTLZ7) |
 | `wfg1`, `wfg2` | Regenerated from the WFG shape functions, 10 000 points |
 | `wfg3`–`wfg9` | Closed-form front, 10 000 points, unchanged |
 | `lsmop1`–`lsmop8` | Closed-form front, 1000 points, unchanged |

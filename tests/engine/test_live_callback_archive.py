@@ -58,10 +58,10 @@ def _config(name: str, mode: str, *, archive: bool = True) -> Any:
     return dataclasses.replace(config, **changes)
 
 
-def _run(name: str, config: Any) -> tuple[vamos.OptimizationResult, _Recording]:
+def _run(name: str, config: Any, budget: int = 10 * POP_SIZE) -> tuple[vamos.OptimizationResult, _Recording]:
     callback = _Recording()
     result = vamos.optimize(
-        "zdt1", algorithm=name, algorithm_config=config, max_evaluations=10 * POP_SIZE, seed=1, engine="numpy", live_viz=callback
+        "zdt1", algorithm=name, algorithm_config=config, max_evaluations=budget, seed=1, engine="numpy", live_viz=callback
     )
     return result, callback
 
@@ -98,6 +98,20 @@ def test_population_archive_sends_the_archive_and_ends_with_the_result(name: str
     np.testing.assert_array_equal(_rows(last["X"]), _rows(result.X))
 
 
+@pytest.mark.parametrize("name", ARCHIVE_ALGORITHMS)
+def test_population_archive_ends_with_the_result_when_the_budget_ends_inside_a_generation(name: str) -> None:
+    # 195 evaluations: the last generation is cut short. Generational algorithms report it as a shorter generation;
+    # MOEA/D and SMS-EMOA, which report one generation per pop_size evaluations, send the last 15 in a final one.
+    result, callback = _run(name, _config(name, "population_archive"), budget=10 * POP_SIZE - 5)
+
+    generations = [call[0] for call in callback.calls]
+    assert generations == sorted(set(generations)), generations
+    last_generation, _, _, stats = callback.calls[-1]
+    assert stats["evals"] == 10 * POP_SIZE - 5
+    np.testing.assert_array_equal(_rows(stats["archive"]["F"]), _rows(result.F))
+    np.testing.assert_array_equal(_rows(stats["archive"]["X"]), _rows(result.X))
+
+
 @pytest.mark.parametrize("name", ["moead", "smsemoa", "spea2"])
 def test_population_archive_without_an_archive_sends_the_population_only(name: str) -> None:
     _, callback = _run(name, _config(name, "population_archive", archive=False))
@@ -114,3 +128,24 @@ def test_nd_only_sends_the_first_front(name: str) -> None:
         _, indices = pareto_filter(F_all, return_indices=True)
         np.testing.assert_array_equal(F, F_all[np.sort(indices)])
         np.testing.assert_array_equal(X, X_all[np.sort(indices)])
+
+
+@pytest.mark.parametrize("name", ["nsgaii", "nsgaiii", "moead", "smsemoa", "spea2", "ibea", "smpso"])
+def test_population_archive_ends_with_the_result_when_the_hv_target_stops_the_run(name: str) -> None:
+    # The batch that reaches the hypervolume target ends the run; its archive still reaches the callback last.
+    callback = _Recording()
+    termination = ("hv", {"target_value": 0.3, "reference_point": [1.1, 1.1], "max_evaluations": 6000})
+    result = vamos.optimize(
+        "zdt1",
+        algorithm=name,
+        algorithm_config=_config(name, "population_archive"),
+        termination=termination,
+        seed=1,
+        engine="numpy",
+        live_viz=callback,
+    )
+
+    assert result.data["hv_reached"] is True, name
+    last = callback.calls[-1][3]["archive"]
+    np.testing.assert_array_equal(_rows(last["F"]), _rows(result.F))
+    np.testing.assert_array_equal(_rows(last["X"]), _rows(result.X))

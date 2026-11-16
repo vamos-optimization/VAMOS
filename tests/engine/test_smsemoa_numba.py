@@ -253,8 +253,9 @@ def test_smsemoa_generation_counts_pop_size_evaluations() -> None:
             ZDT1Problem(n_var=6), termination=("max_evaluations", 12 * 5 + 7), seed=0, live_viz=callback
         )
 
-        # Generation 0 is the initial population; each later generation is pop_size (12) children.
-        assert callback.generations == [(0, 12), (1, 24), (2, 36), (3, 48), (4, 60)], type(kernel).__name__
+        # Generation 0 is the initial population; each later generation is pop_size (12) children. The 7 children
+        # after the last full generation come as a final, shorter one, so the live view ends with the result.
+        assert callback.generations == [(0, 12), (1, 24), (2, 36), (3, 48), (4, 60), (5, 67)], type(kernel).__name__
         assert result["generation"] == 4
 
 

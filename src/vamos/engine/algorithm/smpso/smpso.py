@@ -196,6 +196,8 @@ class SMPSO:
 
             if hv_tracker.enabled and hv_tracker.reached(st.hv_points()):
                 hv_reached = True
+                # The batch that reaches the target is the result; the live view gets it too.
+                notify_generation(live_cb, st.generation, st)
                 break
 
             stop_requested = notify_generation(live_cb, st.generation, st)

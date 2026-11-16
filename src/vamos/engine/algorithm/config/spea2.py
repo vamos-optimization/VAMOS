@@ -29,8 +29,12 @@ from .base import (
     _SerializableConfig,
     _TrackGenealogyBuilder,
     _validate_operators,
+    _warn_without_effect,
 )
 from .types import RepairConfigValue
+
+# The selections that describe SPEA2's own binary tournament. SPEA2 ignores the field, and any other value warns.
+_SPEA2_OWN_SELECTIONS: tuple[tuple[str, dict[str, Any]], ...] = (("tournament", {}), ("tournament", {"size": 2}))
 
 
 @dataclass(frozen=True)
@@ -50,6 +54,13 @@ class SPEA2Config(_SerializableConfig):
     external_archive: ExternalArchiveConfig | None = None
     # Fields added after 1.0 go last, so that the constructor keeps the positions of its parameters.
     live_callback_mode: LiveCallbackMode = "population"
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.selection not in _SPEA2_OWN_SELECTIONS:
+            _warn_without_effect(
+                "SPEA2", "selection", "SPEA2 always mates with its own binary tournament on strength and density", stacklevel=3
+            )
 
     @classmethod
     def default(

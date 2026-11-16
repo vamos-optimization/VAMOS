@@ -203,6 +203,8 @@ class SPEA2:
             assert st.env_F is not None
             if hv_tracker.enabled and hv_tracker.reached(st.env_F):
                 hv_reached = True
+                # The batch that reaches the target is the result; the live view gets it too.
+                notify_generation(live_cb, generation + 1, st, F=st.env_F, X=st.env_X)
                 break
 
             generation += 1

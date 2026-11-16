@@ -238,6 +238,11 @@ if study.inspect().retryable_failed_work:
     study = study.retry(failed_only=True)
 ```
 
+**Development after 1.2.1:** a study whose process was killed after it wrote
+its first journal event and before its root checkpoint recorded that event
+loads and resumes like one stopped at any later event. VAMOS 1.2.1 and earlier
+rejected it with `CHECKPOINT_JOURNAL_INCONSISTENCY`.
+
 `resume()` does nothing when no task is pending or interrupted. `retry()` needs
 a failed task that can be retried. On a study whose tasks all succeeded, it
 raises `RetryNotAllowedError` (a `StudyError`) with reason

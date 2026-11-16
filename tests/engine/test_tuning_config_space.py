@@ -1,6 +1,9 @@
 import numpy as np
 import pytest
 
+from vamos.engine.algorithm.config import SPEA2Config
+from vamos.engine.reference_directions import lattice_size
+from vamos.engine.tuning.racing import bridge_spaces
 from vamos.engine.tuning.racing.bridge import (
     build_agemoea_binary_config_space,
     build_agemoea_config_space,
@@ -320,8 +323,8 @@ def test_rvea_config_space_builds_and_constructs_config():
     assignment = space.sample(rng)
     assignment["n_obj"] = 3
     cfg = config_from_assignment("rvea", assignment)
-    assert cfg.pop_size > 0
-    assert cfg.n_partitions == int(assignment["n_partitions"])
+    # The largest complete lattice with at most the sampled number of directions.
+    assert cfg.pop_size == lattice_size(3, cfg.n_partitions) <= int(assignment["pop_size"]) < lattice_size(3, cfg.n_partitions + 1)
     assert cfg.crossover[0] in ("sbx", "blx_alpha", "arithmetic", "pcx", "undx", "simplex")
     assert cfg.mutation[0] in (
         "pm",
@@ -777,3 +780,91 @@ def test_real_spaces_offer_only_runnable_crossovers():
     # Algorithms that group parents through VariationPipeline keep the multi-parent crossovers.
     for builder in (build_ibea_config_space, build_agemoea_config_space, build_rvea_config_space):
         assert {"pcx", "undx", "simplex"} <= set(builder().to_param_space().params["crossover"].choices)
+
+
+BUILT_IN_SPACES = [getattr(bridge_spaces, name) for name in bridge_spaces.__all__]
+_DISCRETE_SUFFIXES = ("_permutation_config_space", "_binary_config_space", "_integer_config_space", "_mixed_config_space")
+REAL_CODED_SPACES = [builder for builder in BUILT_IN_SPACES if not builder.__name__.endswith(_DISCRETE_SUFFIXES)]
+
+
+def _another_value(spec, value):
+    if isinstance(spec, Boolean):
+        return not value
+    if isinstance(spec, Categorical):
+        return next(choice for choice in spec.choices if choice != value)
+    return spec.high if value != spec.high else spec.low
+
+
+def _with_another_value(param_space, assignment, name, rng):
+    """``assignment`` with ``name`` changed; the parameters that the change activates are drawn from their ranges."""
+    changed = {**assignment, name: _another_value(param_space.params[name], assignment[name])}
+    while missing := [p for p in param_space.params if p not in changed and param_space.is_active(p, changed)]:
+        changed.update({p: param_space.params[p].sample(rng) for p in missing})
+    return _active_assignment(param_space, changed)
+
+
+@pytest.mark.parametrize("builder", BUILT_IN_SPACES, ids=lambda builder: builder.__name__)
+def test_every_tuned_parameter_changes_the_built_config(builder):
+    space = builder()
+    param_space = space.to_param_space()
+    rng = np.random.default_rng(3)
+
+    def built(assignment):
+        return config_from_assignment(space.algorithm_name, {**assignment, "n_obj": 3}).to_dict()
+
+    changed, unchanged = set(), set()
+    for _ in range(15):
+        assignment = space.sample(rng)
+        config = built(assignment)
+        for name, spec in param_space.params.items():
+            if name not in assignment or (isinstance(spec, Categorical) and len(spec.choices) < 2):
+                continue
+            other = built(_with_another_value(param_space, assignment, name, rng))
+            (changed if other != config else unchanged).add(name)
+
+    assert unchanged <= changed, (
+        f"{space.algorithm_name} tunes parameters that never reach its configuration: {sorted(unchanged - changed)}"
+    )
+
+
+@pytest.mark.parametrize("builder", REAL_CODED_SPACES, ids=lambda builder: builder.__name__)
+def test_real_spaces_do_not_offer_round_repair(builder):
+    # Rounding continuous variables sends the whole population to the vertices of the box.
+    params = builder().to_param_space().params
+    offered = {name: params[name].choices for name in ("repair", "blx_repair") if name in params}
+    assert not any("round" in choices for choices in offered.values()), offered
+
+
+@pytest.mark.parametrize(
+    "builder",
+    [
+        bridge_spaces.build_spea2_config_space,
+        bridge_spaces.build_spea2_mixed_config_space,
+        bridge_spaces.build_spea2_permutation_config_space,
+        bridge_spaces.build_spea2_binary_config_space,
+        bridge_spaces.build_spea2_integer_config_space,
+    ],
+)
+def test_spea2_spaces_do_not_tune_the_mating_selection_spea2_ignores(builder):
+    space = builder()
+    assert "selection_pressure" not in space.to_param_space().params
+    # An assignment saved from an earlier space builds SPEA2's own selection, which runs the same.
+    assignment = {**space.sample(np.random.default_rng(5)), "selection_pressure": 9}
+    assert config_from_assignment(space.algorithm_name, assignment).selection == SPEA2Config.default().selection
+
+
+def test_rvea_partition_range_scales_with_objectives():
+    space = build_rvea_config_space()
+    rng = np.random.default_rng(13)
+    draws = [space.sample(rng) for _ in range(60)]
+    for n_obj in (2, 3, 5, 10):
+        sizes = [config_from_assignment("rvea", {**draw, "n_obj": n_obj}).pop_size for draw in draws]
+        assert n_obj <= min(sizes) and max(sizes) <= 200, (n_obj, min(sizes), max(sizes))
+    # With two objectives the population spans the range of the other algorithms.
+    assert max(config_from_assignment("rvea", {**draw, "n_obj": 2}).pop_size for draw in draws) >= 100
+
+
+def test_rvea_assignment_with_partitions_keeps_its_lattice():
+    assignment = {**build_rvea_config_space().sample(np.random.default_rng(2)), "n_obj": 3, "n_partitions": 12}
+    cfg = config_from_assignment("rvea", assignment)
+    assert (cfg.pop_size, cfg.n_partitions) == (91, 12)
