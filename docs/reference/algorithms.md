@@ -50,6 +50,23 @@ This table describes the **VAMOS 1.2.1 package**. Changes since 1.0.0 are listed
 
 **VAMOS 1.2.0:** every `XConfig.default()` takes an optional `encoding`, and `optimize(problem, algorithm=...)` passes the problem's encoding to it. Discrete and mixed problems then get the operators of the shared encoding table: uniform crossover and bit-flip mutation for binary, OX and swap for permutations, SBX (probability 0.9) and polynomial mutation for integers, and the mixed operators for mixed problems. In VAMOS 1.1.0 only NSGA-II and MOEA/D did this, so 22 of the 33 supported combinations of the nine algorithms with `bin_knapsack`, `tsp6`, `int_alloc` and `mixed_design` failed with an error about `sbx` or `pm`; integer runs of IBEA, AGE-MOEA and RVEA, which worked, now use the table's SBX(0.9, 20) instead of their real-coded crossover. Every `default()` also accepts `pop_size=None` (100, or the lattice size for MOEA/D, NSGA-III and RVEA), and `builder().pop_size()` rejects anything but a positive integer.
 
+**Development after 1.2.1:** three crossovers no longer bias the search or
+collapse its diversity. The integer SBX (`sbx` on integer variables, and
+`int_crossover="sbx"` in mixed problems) rounds each child to the nearest
+integer. jMetal and jMetalPy truncate it with `int()`, which pulls the children
+towards zero: parents 3 and 4 got children with mean 3.25 instead of 3.5. The
+integer arithmetic crossover (`arithmetic`, also `blend`) and the real part of
+the mixed crossover, which is the default for mixed problems, draw a random
+weight `lam` for each mated pair and give the complementary children
+`lam * p1 + (1 - lam) * p2` and `(1 - lam) * p1 + lam * p2`. In VAMOS 1.2.1
+and earlier both children were the parents' mean, which halved the variance of those
+variables at every mating; `real_crossover="mean"` still asks for the mean.
+`blx_alpha_beta` defaults to `alpha = beta = 0.5`, jMetal's values. It extends
+the parents' interval by `alpha` below the smaller value and by `beta` above the
+larger one, not towards the better parent as in the published operator, so the
+former defaults of 0.75 and 0.25 drove an unselected population towards the
+lower bounds.
+
 **VAMOS 1.2.0:** the default real-coded crossover of every algorithm that uses SBX is SBX with probability 0.9, as in Deb et al. (2002), jMetal and pymoo, in `XConfig.default()`, in the CLI and in `build_algorithm`. Each algorithm keeps its distribution index: 20, 30 for NSGA-III and RVEA, and 15 for AGE-MOEA. VAMOS 1.1.0 used probability 1.0 in NSGA-II, NSGA-III, SMS-EMOA, SPEA2, IBEA and RVEA, so their default runs follow a different trajectory now; `.crossover("sbx", prob=1.0, eta=...)` reproduces the earlier setting. MOEA/D (differential evolution by default) and SMPSO are unchanged.
 
 Constraints use `G <= 0`, with positive residuals representing violation. Consult the [constraint reference](constraints.md) for residual construction; an accepted `constraint_mode` field alone does not establish constraint enforcement. NSGA-III now uses the same feasibility-first contract in both survival and parent selection.
@@ -250,9 +267,8 @@ differences, which `tests/experiment/test_cli_api_parity.py` keeps listed:
 - Result mode: the command line returns `non_dominated` for AGE-MOEA, CCMO,
   CMOEA-MS, C-TAEA, IBEA, MOEA/D, RVEA, SMS-EMOA, SPEA2 and ToP, where
   `optimize` returns `population`. NSGA-II, NSGA-III and SMPSO agree.
-- NSGA-III: the command line uses SBX with distribution index 20, not 30, and
-  derives the reference directions from the population when the run starts;
-  `optimize` records the lattice's divisions.
+- NSGA-III: the command line derives the reference directions from the
+  population when the run starts; `optimize` records the lattice's divisions.
 - MOEA/D: the command line reads the packaged weight files and records their
   directory, a path inside the installation; `optimize` records the divisions.
   **Development after 1.2.1:** with three or more objectives,
@@ -261,6 +277,14 @@ differences, which `tests/experiment/test_cli_api_parity.py` keeps listed:
   Das-Dennis lattice with `optimize`.
 - NSGA-II's offspring size and SMS-EMOA's reference point are written out by
   one path and left to their defaults by the other, with the same effect.
+
+**Development after 1.2.1:** NSGA-III's SBX has distribution index 30 on the
+command line too, as in Deb and Jain (2014), pymoo and the MOEA Framework, and
+as `NSGAIIIConfig.default()` already had (jMetal's NSGA-III examples keep its
+general SBX default, 20). VAMOS 1.2.1 and earlier used 20 on the command line,
+the general SBX default of VAMOS too. Command-line NSGA-III runs on
+real-coded problems therefore follow a different trajectory;
+`--nsga3-crossover-eta 20` reproduces the earlier setting.
 
 When the two must agree, set these options explicitly on both and compare the
 resolved configuration that each run records. Both paths are stable, so their

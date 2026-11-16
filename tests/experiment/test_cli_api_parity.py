@@ -49,10 +49,9 @@ KNOWN_DIFFERENCES: dict[str, dict[str, tuple[object, object]]] = {
         "algorithm.config.weight_vectors.divisions": (None, VARIES),
         "algorithm.config.weight_vectors.path": (VARIES, None),
     },
-    # The command line uses SBX's distribution index 20 and derives the reference directions from the
-    # population when the run starts; optimize uses 30 and records the lattice.
+    # The command line derives the reference directions from the population when the run starts;
+    # optimize records the lattice.
     "nsgaiii": {
-        "operators.crossover.config.eta": (20.0, 30.0),
         "algorithm.config.pop_size_auto": (False, True),
         "algorithm.config.reference_directions.divisions": (ABSENT, VARIES),
         "algorithm.config.reference_directions.path": (ABSENT, None),

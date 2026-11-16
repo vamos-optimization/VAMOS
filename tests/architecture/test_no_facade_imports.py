@@ -5,8 +5,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC_ROOT = ROOT / "src" / "vamos"
-LAYER_DIRS = ("foundation", "engine", "ux", "experiment")
-FACADES = {"vamos.api", "vamos.algorithms", "vamos.ux.api"}
+LAYER_DIRS = ("foundation", "engine", "ux", "experiment", "assist")
+# Layers import the modules these facades re-export. The artifact facades
+# `vamos.run_artifacts` and `vamos.study_artifacts` are the exception: ux reads
+# stored runs and studies through them (tests/architecture/test_layer_boundaries.py).
+FACADES = {"vamos.api", "vamos.algorithms", "vamos.ux.api", "vamos.problems", "vamos.exceptions", "vamos.selection"}
 
 
 def _iter_layer_files() -> list[Path]:

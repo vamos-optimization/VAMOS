@@ -15,11 +15,11 @@ from vamos.engine.algorithm.registry import (
     resolve_algorithm,
     resolve_builtin_algorithm,
 )
-from vamos.exceptions import ConfigurationError, InvalidAlgorithmError
 from vamos.experiment.time_limit import UNBOUNDED_EVALUATIONS, TimeLimit, parse_time_limit
 from vamos.experiment.types import CheckpointPayload, LiveVisualization, TerminationSpec
 from vamos.foundation.eval import EvaluationBackend
 from vamos.foundation.eval.backends import resolve_eval_strategy
+from vamos.foundation.exceptions import ConfigurationError, InvalidAlgorithmError
 from vamos.foundation.kernel.registry import resolve_kernel
 from vamos.foundation.problem.types import ProblemProtocol
 
