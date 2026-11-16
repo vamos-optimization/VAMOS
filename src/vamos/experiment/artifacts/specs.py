@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import math
 import numbers
 import re
@@ -10,6 +11,7 @@ from dataclasses import dataclass
 from importlib import metadata as importlib_metadata
 from typing import Any
 
+from vamos.engine.algorithm.components.weight_vectors import describe_weight_vectors
 from vamos.experiment.time_limit import parse_time_limit
 from vamos.foundation.problem.builder import FunctionalProblem
 from vamos.foundation.problem.registry import get_problem_specs, make_problem_selection
@@ -174,12 +176,7 @@ def _resolved_spec(inputs: RunSpecInputs) -> dict[str, Any]:
     result: dict[str, Any] = {
         "spec_version": RESOLVED_SPEC_VERSION,
         "problem": _problem_component(inputs, problem_config),
-        "algorithm": _component(
-            "algorithm",
-            f"vamos.algorithm:{_slug(inputs.algorithm)}@1",
-            algorithm_config,
-            built_in=inputs.algorithm in BUILT_IN_ALGORITHMS,
-        ),
+        "algorithm": _algorithm_component(inputs, algorithm_config, pop_size),
         "operators": operators,
         "backend": {
             "kernel": _kernel_component(inputs.engine),
@@ -203,6 +200,31 @@ def _resolved_spec(inputs: RunSpecInputs) -> dict[str, Any]:
         },
     }
     return result
+
+
+def _algorithm_component(inputs: RunSpecInputs, config: Mapping[str, object], pop_size: int | None) -> dict[str, Any]:
+    descriptor = _component(
+        "algorithm",
+        f"vamos.algorithm:{_slug(inputs.algorithm)}@1",
+        config,
+        built_in=inputs.algorithm in BUILT_IN_ALGORITHMS,
+    )
+    if inputs.algorithm == "moead" and pop_size is not None:
+        # Which weight vectors MOEA/D runs: a Das-Dennis lattice, a jMetal file or uniform weights.
+        weights = config.get("weight_vectors")
+        options = weights if isinstance(weights, Mapping) else {}
+        path, divisions = options.get("path"), options.get("divisions")
+        try:
+            descriptor["resolution"]["weight_vectors"] = describe_weight_vectors(
+                pop_size,
+                inputs.n_obj,
+                path=path if isinstance(path, str) else None,
+                divisions=divisions if isinstance(divisions, int) and not isinstance(divisions, bool) else None,
+            )
+        except ValueError:
+            # A size without weights fails when the run starts, so a study plans the task and records its failure.
+            logging.getLogger(__name__).debug("No MOEA/D weight vectors to record for pop_size=%s", pop_size, exc_info=True)
+    return descriptor
 
 
 def _operators(config: Mapping[str, object], *, encoding: str, n_var: int, algorithm: str) -> dict[str, Any]:

@@ -5,11 +5,10 @@ from __future__ import annotations
 import dataclasses
 import difflib
 import json
-import sys
 import warnings
 from dataclasses import asdict
 from numbers import Integral
-from typing import Any, Literal, TypeAlias, cast, overload
+from typing import Any, Literal, Self, TypeAlias, cast, overload
 
 from vamos.engine.algorithm.components.constraint_handling import (
     CONSTRAINT_HANDLING_TECHNIQUES,
@@ -21,11 +20,6 @@ from vamos.engine.algorithm.config.validation import OPERATOR_PAIR_FIELDS, did_y
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.foundation.encoding import EncodingLike
 from vamos.foundation.exceptions import ConfigurationError
-
-if sys.version_info >= (3, 11):
-    from typing import Self
-else:
-    from typing_extensions import Self
 
 # ── Shared Literal type aliases ──────────────────────────────────────
 ResultMode = Literal["non_dominated", "population"]

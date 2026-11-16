@@ -1,4 +1,4 @@
-# Known limitations in VAMOS 1.2.1
+# Known limitations in VAMOS 1.3.0
 
 These limitations are part of the current release scope. They describe
 unsupported behavior rather than future compatibility promises.
@@ -144,7 +144,9 @@ unsupported behavior rather than future compatibility promises.
   research frameworks are no longer an extra (the `research` extra is removed).
 - **VAMOS 1.2.0:** the release CI claims Python 3.10 to 3.14 on
   Linux, and Python 3.12 to 3.14 on Windows and macOS; VAMOS 1.1.0 claimed
-  Python 3.10 to 3.12 on Linux and 3.12 on Windows and macOS. Other
+  Python 3.10 to 3.12 on Linux and 3.12 on Windows and macOS.
+  **VAMOS 1.3.0:** VAMOS requires Python 3.11 or newer, and the
+  release CI claims Python 3.11 to 3.14 on Linux. Other
   interpreter/platform combinations are unclaimed. The tuning extra is tested
   only on Linux with Python 3.12.
 
@@ -193,7 +195,7 @@ unsupported behavior rather than future compatibility promises.
 - Windows offers no directory fsync, so study and run writers skip it there: a
   power loss just after a write can lose the newest entry of a directory, but
   never leaves a partial document or run under its final name.
-- Study execution is sequential in 1.2.1. Distributed workers, multiprocess
+- Study execution is sequential in 1.3.0. Distributed workers, multiprocess
   ownership, and cross-process cancellation are unsupported.
 - **VAMOS 1.2.0:** study tasks run with serial evaluation only;
   planning and creation reject `eval_strategy="multiprocessing"` or `"dask"`
@@ -226,6 +228,11 @@ unsupported behavior rather than future compatibility promises.
   so with five or fewer seeds its tables showed no significant difference, and
   it put the worst value in bold for some aliases of the epsilon and Hausdorff
   indicators; see [Other subcommands](../guide/cli.md#other-subcommands).
+- **VAMOS 1.3.0:** in the mixed-encoding tuning spaces of MOEA/D, NSGA-III,
+  SMS-EMOA and SPEA2, the per-type segment settings (the real, integer and
+  categorical crossovers and mutations and their probabilities) do not reach
+  the run, so tuning them has no effect. The next minor release fixes them with
+  the grammar-based spaces.
 
 ## Studio and generated code
 
@@ -239,7 +246,7 @@ unsupported behavior rather than future compatibility promises.
   timeouts are best-effort controls, not a security sandbox.
 - Reviewed Python executes with the current operating-system user's
   permissions. Remote binding increases exposure and requires explicit opt-in.
-- **Development after 1.2.1:** each Studio launch has an access token, but it
+- **VAMOS 1.3.0:** each Studio launch has an access token, but it
   travels over plain HTTP, and whoever has the link can use Studio with the
   account that serves it until the launch ends. To reach Studio from another
   computer, prefer an SSH tunnel to the loopback port over remote binding; see

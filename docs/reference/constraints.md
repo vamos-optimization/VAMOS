@@ -1,7 +1,7 @@
 # Constraints
 
 !!! info "Stable problem-definition API"
-    `make_problem` and `optimize` are Stable in VAMOS 1.2.1. The violation
+    `make_problem` and `optimize` are Stable in VAMOS 1.3.0. The violation
     helpers are Internal. See
     [Stability and versioning](../project/stability-and-versioning.md).
     **VAMOS 1.2.0:** the internal symbolic constraint DSL

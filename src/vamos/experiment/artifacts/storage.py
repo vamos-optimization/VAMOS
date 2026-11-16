@@ -11,7 +11,7 @@ import shutil
 import socket
 import stat
 from collections.abc import Mapping
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -259,7 +259,7 @@ def _collision(path: Path, reason: str) -> OutputCollisionError:
 
 def _lock_record(token: str) -> bytes:
     """Who holds a save lock: the token, process, host and UTC start time."""
-    created_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    created_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     record = {"token": token, "pid": os.getpid(), "host": socket.gethostname(), "created_at": created_at}
     return json.dumps(record, sort_keys=True).encode("utf-8")
 

@@ -6,17 +6,13 @@ import argparse
 import json
 import re
 import subprocess
+import tomllib
 from collections import Counter
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from urllib.parse import unquote
 
 import yaml
-
-try:
-    import tomllib
-except ModuleNotFoundError:  # Python 3.10
-    import tomli as tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 CANONICAL_REPOSITORY = "vamos-optimization/VAMOS"

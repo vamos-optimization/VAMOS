@@ -124,7 +124,7 @@ execution state:
 - defaults applied and their sources;
 - determinism declaration and RNG family.
 
-**Development after 1.2.1:** the configuration of a registered problem also
+**VAMOS 1.3.0:** the configuration of a registered problem also
 holds the options passed through `problem_kwargs`, such as `capacity_ratio` for
 `bin_knapsack`; a run without options records only the dimensions, the encoding
 and the constraint convention, as before. Verification and replay pass the
@@ -139,6 +139,14 @@ spec. No sentinel represents an unknown seed.
 `task_id` is `sha256:` plus the SHA-256 of canonical JSON bytes for the complete
 resolved spec. `run_id` is a unique UUIDv4 for the attempt. Repeated executions
 of the same task share a task ID but have distinct run IDs.
+
+**VAMOS 1.3.0:** a MOEA/D run's `algorithm.resolution` also holds
+`weight_vectors`, where its weight vectors come from: `source` is `uniform`
+(two objectives), `das_dennis` with its `divisions`, `packaged_file` or `file`
+with the `file` name, and `vectors` is their number, the population. It is
+derived from the configuration, so verification rebuilds it like the rest of
+the resolved spec; a MOEA/D run stored before it does not match its
+reconstruction and is not verified as exact.
 
 ## 6. Run manifest
 
@@ -184,7 +192,7 @@ Whitespace-only reformatting does not change the semantic hash.
 - `external_archive/F`, `external_archive/X`, `external_archive/G`,
   `external_archive/CV`.
 
-**Development after 1.2.1:** `external_archive/` holds the external archive of
+**VAMOS 1.3.0:** `external_archive/` holds the external archive of
 a SPEA2 run whose `X` and `F` do not: those of a final subset of it
 (`ExternalArchiveConfig.final_selection`) or of the population
 (`result_mode="population"`). SPEA2's `archive/` is its environmental archive.
@@ -237,7 +245,7 @@ claim requires the same resolved spec, implementation, backend, materially
 equivalent environment, and a deterministic path. Loading does not test replay
 equivalence.
 
-**Development after 1.2.1:** a run stopped by `("max_time", seconds)` has no
+**VAMOS 1.3.0:** a run stopped by `("max_time", seconds)` has no
 deterministic path: its termination is `vamos.termination:max_time@1`, its
 `determinism.declared` is `false`, its replayability is `best_effort` with the
 reason `wall_clock_termination`, and verification reports that reason and no

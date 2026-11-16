@@ -5,7 +5,7 @@ indices, population-related settings, and other parameters that control a MOEA.
 A tuning campaign evaluates candidate configurations over explicit problem and
 seed blocks and ranks them by a scalar quality score.
 
-!!! warning "Experimental surface in VAMOS 1.2.1"
+!!! warning "Experimental surface in VAMOS 1.3.0"
     The tuning/racing implementation and the `vamos tune` and `vamos ablation`
     commands are **experimental**. They are supported for evaluation but may
     change incompatibly in a minor release. Stable optimization calls used by
@@ -19,7 +19,7 @@ This page is about configuring optimization algorithms. If the variables in
 
 ## Changes included in 1.0.1
 
-The install command below selects **VAMOS 1.2.1**, which keeps the corrected
+The install command below selects **VAMOS 1.3.0**, which keeps the corrected
 scoring, archive-search, and persistence behavior introduced in 1.0.1 and
 described on this page:
 
@@ -37,7 +37,7 @@ search spaces differ. See also the
 
 ## Programmatic API status
 
-VAMOS 1.2.1 does **not** expose a curated public programmatic facade for the
+VAMOS 1.3.0 does **not** expose a curated public programmatic facade for the
 algorithm-configuration tuner. Maintained user workflows should therefore use
 `vamos tune` rather than import deep `vamos.engine.*` implementation modules.
 
@@ -73,7 +73,7 @@ comparison:
 
 ### CLI scoring contract: hypervolume
 
-In VAMOS 1.2.1, the maintained `vamos tune` CLI has **no metric selector**. It scores
+In VAMOS 1.3.0, the maintained `vamos tune` CLI has **no metric selector**. It scores
 candidate runs with **hypervolume (HV) and maximizes that score**.
 
 The score source is fixed: VAMOS takes the **final population**, removes
@@ -166,7 +166,7 @@ Model-based backends (`optuna`, `smac3`, `bohb`, and `bohb_optuna`) require the
 optional tuning dependencies:
 
 ```bash
-python -m pip install "vamos-optimization[tuning]==1.2.1"
+python -m pip install "vamos-optimization[tuning]==1.3.0"
 ```
 
 For an editable development installation, follow
@@ -260,7 +260,7 @@ anything, as the split-based example below did with `--backend racing`. With
 warm starts, each block now resumes only its own run: a block whose run failed
 starts again from scratch, where it used to receive another block's checkpoint.
 
-**Development after 1.2.1:** the statistical race eliminates with F-race
+**VAMOS 1.3.0:** the statistical race eliminates with F-race
 (Birattari et al., 2002), as irace does. Each instance/seed block ranks the
 alive configurations, so problems whose scores lie on different scales weigh
 the same. A Friedman test on those ranks comes first; when its p-value is below
@@ -397,7 +397,7 @@ keep a grandchild such as `x_eta` (active when `x_kind == 'b'`) while its
 grandparent `use_x` was false, in spaces with conditions on the direct parent
 only. The built-in spaces were not affected.
 
-**Development after 1.2.1:** the SMS-EMOA spaces choose the mating selection,
+**VAMOS 1.3.0:** the SMS-EMOA spaces choose the mating selection,
 `random` or `tournament`, with `selection_pressure` only for a tournament, and
 the offset of the reference point, `reference_point_offset` in [0.1, 2.0].
 Both ranges include the defaults of `SMSEMOAConfig`: random selection and an
@@ -406,7 +406,7 @@ offset of 0.1, so no assignment reproduced the default configuration; an
 assignment without the new parameters still builds that tournament
 configuration.
 
-**Development after 1.2.1:** the MOEA/D and SMS-EMOA spaces offer what
+**VAMOS 1.3.0:** the MOEA/D and SMS-EMOA spaces offer what
 Evolver's `MOEADDouble` and `SMSEMOADouble` spaces offer, so that a
 configuration tuned or published with Evolver is a point of them:
 
@@ -432,7 +432,7 @@ different trials.
 
 ### Parameter names and Evolver's
 
-**Development after 1.2.1:** the built-in spaces name their parameters after
+**VAMOS 1.3.0:** the built-in spaces name their parameters after
 Evolver's, in snake_case, so that a configuration tuned with VAMOS can be read
 by Evolver and the other way round. The earlier names remain aliases:
 `config_from_assignment` accepts both, and an assignment saved from an earlier
@@ -548,7 +548,7 @@ cmoeams` tunes it.
 
 ### Parameters that reach the algorithm
 
-**Development after 1.2.1:** every parameter of a built-in space changes the
+**VAMOS 1.3.0:** every parameter of a built-in space changes the
 configuration that it builds, and the real-coded spaces no longer offer
 `repair="round"` or `blx_repair="round"`: rounding continuous variables to
 integers puts the whole population on the vertices of the bounding box, where
@@ -576,7 +576,17 @@ lattice of nine divisions, and a lattice is never truncated. Before, `vamos
 tune` did not pass `n_obj` to MOEA/D, and every other sampled population failed
 and got the failure score: most MOEA/D candidates on a three-objective problem.
 
-**Development after 1.2.1:** the RVEA spaces sample `pop_size` in [20, 200],
+**VAMOS 1.3.0:** `vamos tune` records the population a trial ran
+when it differs from the sampled one: `"details": {"effective": {"pop_size": 136}}`
+for a sampled 150 with three objectives in `tuning_history.json`, and
+`best_config_effective` in `tuning_summary.json` for the returned configuration
+(`{}` when it runs as sampled). `assignment_adjustments(algorithm, assignment)`
+in `vamos.engine.tuning.racing.bridge_assignments` gives the same values for code
+that builds configurations with `config_from_assignment`, and the resolved spec of
+a run records its population and where its weights come from (see the
+[MOEADConfig reference](../reference/api/algorithms/moead.md)).
+
+**VAMOS 1.3.0:** the RVEA spaces sample `pop_size` in [20, 200],
 as the other algorithms do, instead of `n_partitions` in [4, 12]. RVEA runs the
 largest complete Das-Dennis lattice with at most `pop_size` directions for the
 assignment's `n_obj`: a sampled `pop_size` of 100 runs 100 individuals with two
@@ -706,7 +716,7 @@ new study, and the stored one stays in the storage under its `_v1` name.
 Persistent SMPSO studies keep `__vamos_cli_leaders_hv_v1`, the namespace that
 VAMOS 1.2.0 introduced with its leaders-archive score.
 
-**Development after 1.2.1:** VAMOS 1.3.0 changes the built-in search spaces
+**VAMOS 1.3.0:** VAMOS 1.3.0 changes the built-in search spaces
 again, with other categorical choices, so the CLI appends
 `__vamos_cli_final_population_hv_v3`, and SMPSO studies, whose spaces also
 change, take `__vamos_cli_leaders_hv_v2`. A study stored by VAMOS 1.2.1 or
@@ -795,7 +805,7 @@ schedule, and split is not a reproducible tuning result.
 
 ## Archive studies are separate from ordinary CLI tuning
 
-The 1.2.1 CLI intentionally excludes external-archive controls from its
+The 1.3.0 CLI intentionally excludes external-archive controls from its
 ordinary algorithm-configuration search so every candidate is compared on the
 same final-population basis. If archive capacity, pruning, or archive-enabled
 result semantics are themselves the research question, define them explicitly

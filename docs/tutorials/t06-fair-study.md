@@ -29,7 +29,7 @@ and inspect the durable evidence before interpreting any objective values.
 | Item | This lesson |
 | --- | --- |
 | Prerequisites | [T01](t01-first-result.md); population, objectives, evaluations; Python scripts and directories |
-| Tested package | VAMOS **1.2.1**, Python 3.12; [setup and downloads](study-setup.md) |
+| Tested package | VAMOS **1.3.0**, Python 3.12; [setup and downloads](study-setup.md) |
 | Dependencies/status | Core VAMOS; **Stable** `StudySpec`, `plan_study`, `create_study`, inspect/summary lifecycle |
 | Small run | Two problems × two algorithms × two explicit seeds; population 20; 200 evaluations per task; NumPy |
 

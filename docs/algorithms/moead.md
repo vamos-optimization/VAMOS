@@ -59,7 +59,7 @@ Existing files are refused. For a fast execution check, use `--pop-size 20 --max
 
 The default real-coded configuration uses differential evolution (`cr=1.0`, `f=0.5`), polynomial mutation (`eta=20`, probability `1/n_var`), PBI aggregation (`theta=5`), neighbour size 20, neighbourhood selection probability 0.9 and replacement limit 2. These are VAMOS configuration choices, not a claim that every MOEA/D variant uses them.
 
-**Development after 1.2.1:** `MOEADConfig.default(variant=...)` gives jMetal's two default configurations, which are also Evolver's:
+**VAMOS 1.3.0:** `MOEADConfig.default(variant=...)` gives jMetal's two default configurations, which are also Evolver's:
 
 | `variant` | jMetal | Evolver | Variation | Aggregation |
 | --- | --- | --- | --- | --- |
