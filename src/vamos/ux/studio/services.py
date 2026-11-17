@@ -15,7 +15,6 @@ from vamos.foundation.eval.backends import resolve_eval_strategy
 from vamos.foundation.kernel.registry import resolve_kernel
 from vamos.foundation.problem.types import ProblemProtocol
 from vamos.study_artifacts import load_study
-from vamos.ux.studio._studio_llm import llm_generate_problem_code
 from vamos.ux.studio.data import build_fronts, load_runs_from_study
 from vamos.ux.studio.study_search import study_roots
 
@@ -167,6 +166,5 @@ __all__ = [
     "DynamicsCallback",
     "build_demo_study_data",
     "discover_study_directories",
-    "llm_generate_problem_code",
     "load_studio_data",
 ]

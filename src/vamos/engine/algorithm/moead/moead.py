@@ -35,9 +35,11 @@ from vamos.foundation.kernel import default_kernel
 
 from .helpers import update_neighborhood, update_neighborhood_batch
 from .initialization import initialize_moead_run
+from .nadir import update_nadir
 from .neighborhood import update_neighborhoods_recording_replacements, update_neighborhoods_with_criterion
 from .state import MOEADState, archive_baseline, build_moead_result, update_moead_archive
 from .steady_state import SteadyStateStep
+from .subproblems import next_active_indices, sample_parents
 
 if TYPE_CHECKING:
     from vamos.foundation.eval.backends import EvaluationBackend
@@ -108,6 +110,7 @@ def _finish_run(st: MOEADState, kernel: Any, hv_reached: bool, live_cb: Any | No
             "live_generation": st.live_generation,
             "live_evals": st.live_evals,
             **({"subproblem_update_criterion": st.subproblem_update.state()} if st.subproblem_update is not None else {}),
+            **({"nadir_front": st.nadir_front, "nadir_front_cv": st.nadir_front_cv} if st.nadir_front is not None else {}),
         },
     }
     finalize_genealogy(result, st, kernel)
@@ -269,9 +272,9 @@ class MOEAD:
         self._steady = SteadyStateStep.build(self._st, self.kernel, self._cross_is_de)
         return live_cb, eval_strategy, max_eval, hv_tracker
 
-    def _ensure_parent_pair_buffer(self, batch_size: int) -> np.ndarray[Any, Any]:
-        if self._parent_pairs is None or self._parent_pairs.shape[0] < batch_size:
-            self._parent_pairs = np.empty((batch_size, 2), dtype=int)
+    def _ensure_parent_pair_buffer(self, batch_size: int, width: int = 2) -> np.ndarray[Any, Any]:
+        if self._parent_pairs is None or self._parent_pairs.shape[0] < batch_size or self._parent_pairs.shape[1] != width:
+            self._parent_pairs = np.empty((batch_size, width), dtype=int)
         return self._parent_pairs[:batch_size]
 
     def _ensure_candidate_order_buffers(self, batch_size: int, pop_size: int) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
@@ -292,12 +295,13 @@ class MOEAD:
         active: np.ndarray[Any, Any],
         use_neighbors: np.ndarray[Any, Any],
     ) -> np.ndarray[Any, Any]:
-        """Sample one ordered parent pair per active subproblem."""
+        """Sample the ordered random parents of each active subproblem: a pair, or four for DE rand/2."""
         batch_size = active.shape[0]
-        parent_pairs = self._ensure_parent_pair_buffer(batch_size)
+        width = int(getattr(st, "de_random_parents", 2))
+        parent_pairs = self._ensure_parent_pair_buffer(batch_size, width)
         if batch_size == 0:
             return parent_pairs
-        if batch_size == 1:
+        if batch_size == 1 and width == 2:
             # One offspring per step: same generator calls and pairs as the batch path below.
             if bool(use_neighbors[0]):
                 row = st.neighbors[active[0]]
@@ -311,29 +315,8 @@ class MOEAD:
                 parent_pairs[0, 0] = first[0]
                 parent_pairs[0, 1] = second[0] + (second[0] >= first[0])
             return parent_pairs
-
-        neighbor_mask = np.asarray(use_neighbors, dtype=bool)
-        if bool(np.any(neighbor_mask)):
-            active_neighbors = st.neighbors[active[neighbor_mask]]
-            local_count = active_neighbors.shape[0]
-            local_size = active_neighbors.shape[1]
-            first_local = st.rng.integers(0, local_size, size=local_count, dtype=np.int64)
-            second_local = st.rng.integers(0, local_size - 1, size=local_count, dtype=np.int64)
-            second_local += second_local >= first_local
-            rows = self._ensure_row_index(local_count)
-            parent_pairs[neighbor_mask, 0] = active_neighbors[rows, first_local]
-            parent_pairs[neighbor_mask, 1] = active_neighbors[rows, second_local]
-
-        global_mask = ~neighbor_mask
-        if bool(np.any(global_mask)):
-            global_count = int(np.sum(global_mask))
-            first_global = st.rng.integers(0, st.pop_size, size=global_count, dtype=np.int64)
-            second_global = st.rng.integers(0, st.pop_size - 1, size=global_count, dtype=np.int64)
-            second_global += second_global >= first_global
-            parent_pairs[global_mask, 0] = first_global
-            parent_pairs[global_mask, 1] = second_global
-
-        return parent_pairs
+        # The same draws as the pair above: all the first parents, then all the second ones.
+        return sample_parents(st, active, use_neighbors, parent_pairs, self._ensure_row_index(batch_size))
 
     def _build_candidate_orders(
         self,
@@ -384,10 +367,12 @@ class MOEAD:
 
         n_var = st.X.shape[1]
         if self._cross_is_de:
-            parents = np.empty((batch_size, 3, n_var), dtype=st.X.dtype)
-            parents[:, 0, :] = st.X[parent_pairs[:, 0]]
-            parents[:, 1, :] = st.X[parent_pairs[:, 1]]
-            parents[:, 2, :] = st.X[active]
+            # (random parents..., current solution): jMetal's MOEADDEBuilder, or Evolver's pool and the current one.
+            width = parent_pairs.shape[1]
+            parents = np.empty((batch_size, width + 1, n_var), dtype=st.X.dtype)
+            for slot in range(width):
+                parents[:, slot, :] = st.X[parent_pairs[:, slot]]
+            parents[:, width, :] = st.X[active]
             offspring = st.crossover_fn(parents, st.rng)
             children = offspring[:, 0, :].copy()
         else:
@@ -454,6 +439,7 @@ class MOEAD:
         pop_size = st.pop_size
 
         st.ideal = np.minimum(st.ideal, F_child.min(axis=0))
+        update_nadir(st, F_child, G_child)
         baseline = archive_baseline(st)
         offspring_ids = st.pending_offspring_ids if st.track_genealogy and st.ids is not None else None
         st.pending_offspring_ids = None
@@ -500,19 +486,8 @@ class MOEAD:
 
     @staticmethod
     def _next_active_indices(st: MOEADState, batch_size: int) -> np.ndarray[Any, Any]:
-        """Return next subproblem indices using a rolling permutation."""
-        if st.subproblem_order.size != st.pop_size:
-            st.subproblem_order = st.rng.permutation(st.pop_size).astype(int, copy=False)
-            st.subproblem_cursor = 0
-
-        active = np.empty(batch_size, dtype=int)
-        for i in range(batch_size):
-            if st.subproblem_cursor >= st.pop_size:
-                st.subproblem_order = st.rng.permutation(st.pop_size).astype(int, copy=False)
-                st.subproblem_cursor = 0
-            active[i] = int(st.subproblem_order[st.subproblem_cursor])
-            st.subproblem_cursor += 1
-        return active
+        """Return the next subproblem indices of the subproblem order (see :mod:`.subproblems`)."""
+        return next_active_indices(st, batch_size)
 
 
 __all__ = ["MOEAD"]

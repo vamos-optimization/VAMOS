@@ -182,7 +182,7 @@ field, but existing valid invocations and fields retain their meaning. JSON
 mode writes exactly one JSON document to stdout; diagnostics and warnings use
 stderr.
 
-Other commands, including `studio`, `assist`, `tune`, `ablation`, `profile`,
+Other commands, including `studio`, `tune`, `ablation`, `profile`,
 `bench`, `zoo`, `quickstart`, `create-problem`, `summarize`, `open-results`,
 and development diagnostics, are experimental unless a later stability policy
 explicitly promotes them.
@@ -239,8 +239,7 @@ removal in 2.0:
 
 The following remain experimental in VAMOS 1.3.0:
 
-- Studio and all generated-code execution;
-- LLM-provider and provider-specific assist integrations;
+- Studio;
 - plugin discovery and custom component interfaces without a frozen
   descriptor contract;
 - tuning and racing APIs outside the stable facade;
@@ -251,8 +250,10 @@ The following remain experimental in VAMOS 1.3.0:
   above;
 - multiprocess ownership, worker pools, and distributed study execution.
 
-Studio executes reviewed Python only as explicitly trusted local code. Its AST
-validation is input validation, not a security sandbox.
+**Development after 1.3.0:** the experimental `vamos.assist` package with the
+`vamos assist` command, Studio's Problem Builder, and the `openai`,
+`anthropic` and `gemini` extras are removed. VAMOS no longer calls an LLM
+provider, and Studio no longer runs Python typed into it.
 
 ## Internal surface
 

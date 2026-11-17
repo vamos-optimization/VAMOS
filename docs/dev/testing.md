@@ -10,7 +10,7 @@ The checker examines tracked content only; generated test output belongs in
 ## Documentation toolchain
 
 Install documentation and development extras with `constraints/ci.txt`. The
-reviewed set pairs PyMdown 12.3 with mkdocstrings 1.0.8, which is also the
+reviewed set pairs PyMdown 13.1 with mkdocstrings 1.0.8, which is also the
 minimum that the `docs` and `dev` extras declare. The Zensical compatibility
 workflow uses the same constraints rather than overriding the API renderer.
 
@@ -52,6 +52,8 @@ mkdocs build --strict
 ### Fast and slow tiers in CI
 
 Pull requests and the merge queue run the fast tier, `pytest -m "not slow" -n auto`, on every core of the runner. The nightly `slow-tests.yml` workflow also runs the fast tier in one process (`-p no:xdist`), in file order, to catch a test that depends on what an earlier test left behind. A test that takes more than about 10 seconds goes into `SLOW_TESTS` in `tests/conftest.py`, or carries `@pytest.mark.slow`, and the nightly `slow-tests.yml` workflow runs those with `pytest -m slow`. A test that is the only check of a stable contract, such as the compatibility snapshots, the study CLI, or resume and retry, stays in the fast tier however long it takes. When a slow test checks something every change can break, keep a cheap version of it in the fast tier, as `test_large_discrete_spaces_build_config_on_a_sample` does for the exhaustive configuration test. `python -m pytest -q` locally runs both tiers.
+
+The `build-wheel` job is the CI workflow's required check. Pull requests run only the Linux legs of the matrix, so the required checks cannot name legs one by one. `build-wheel` therefore runs whatever happened before it, and passes only when every other job of its run, each matrix leg by name, succeeded. A leg that failed, was skipped, or was cancelled before it got a runner keeps the merge queue from merging.
 
 The Ubuntu Python 3.12 job is the only one that measures coverage. It measures branch coverage (`[tool.coverage.run] branch = true`). It runs the Numba kernel tests a second time with `NUMBA_DISABLE_JIT=1`, because compiled kernels are invisible to coverage. It then holds `foundation/problem`, `foundation/quality_indicators`, `engine/algorithm`, and `engine/operators` at the floors in `ci.yml`, and reports all four before failing. A floor only rises: raise it when coverage of its package rises, and add tests instead of lowering it. The floors hold on every runner. Where compiled `pow` differs from `np.power`, which depends on the CPU, the Numba engine keeps its reference paths and the tests of its compiled steady-state steps skip, so `engine/algorithm` measures about four points lower there (80 instead of 84 on the Ubuntu runners).
 

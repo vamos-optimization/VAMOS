@@ -38,7 +38,7 @@ class StudioApp(param.Parameterized):
     code_execution = param.Boolean(
         default=True,
         constant=True,
-        doc="Whether Studio offers Problem Builder and Batch Comparison, which run code with the account that serves it.",
+        doc="Whether Studio offers Batch Comparison, whose study workers run code with the account that serves it.",
     )
 
     # ---- internal ----
@@ -165,12 +165,6 @@ def _render_catalog(app: StudioApp) -> pn.viewable.Viewable:
     return render_catalog(open_experiment=app.open_experiment)
 
 
-def _render_problem_builder(app: StudioApp) -> pn.viewable.Viewable:
-    from vamos.ux.panel.pages.problem_builder import render_problem_builder
-
-    return render_problem_builder(on_exit=app.on_page_exit)
-
-
 def _render_experiment(app: StudioApp) -> pn.viewable.Viewable:
     from vamos.ux.panel.pages.experiment import render_experiment
 
@@ -203,7 +197,6 @@ def _render_results(app: StudioApp) -> pn.viewable.Viewable:
 PAGE_RENDERERS: dict[str, Callable[[StudioApp], pn.viewable.Viewable]] = {
     "welcome": _render_welcome,
     "catalog": _render_catalog,
-    "problem_builder": _render_problem_builder,
     "experiment": _render_experiment,
     "batch": _render_batch,
     "compare": _render_compare,
@@ -262,14 +255,11 @@ def exposure_warnings(address: str, *, code_execution: bool) -> list[str]:
     )
     if code_execution:
         warnings.append(
-            "WARNING: --allow-remote-code-execution offers Problem Builder and Batch Comparison, so they can also run "
-            "code with this account, read and write its files, and use the LLM API keys in its environment."
+            "WARNING: --allow-remote-code-execution offers Batch Comparison, so it can also run code with this "
+            "account and read and write its files."
         )
     else:
-        warnings.append(
-            "Problem Builder and Batch Comparison are off, because they run code with this account; "
-            "--allow-remote-code-execution offers them."
-        )
+        warnings.append("Batch Comparison is off, because it runs code with this account; --allow-remote-code-execution offers it.")
     return warnings
 
 

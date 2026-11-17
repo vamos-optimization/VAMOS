@@ -29,6 +29,15 @@ def compute_neighbors(weights: np.ndarray[Any, Any], neighbor_size: int) -> np.n
     return order[:, :neighbor_size]
 
 
+def _normalization(st: MOEADState) -> tuple[np.ndarray[Any, Any], float, int]:
+    """The nadir point, epsilon and normalization switch of the compiled update.
+
+    Without an estimate the update reads no nadir point; the ideal point fills its place.
+    """
+    nadir = st.nadir if st.nadir is not None else st.ideal
+    return nadir, float(st.aggregation_epsilon), 1 if st.aggregation_normalize else 0
+
+
 def update_neighborhood(
     st: MOEADState,
     idx: int,
@@ -79,6 +88,7 @@ def update_neighborhood(
         float(st.aggregation_theta),
         float(st.aggregation_rho),
         1 if use_constraints else 0,
+        *_normalization(st),
     )
 
 
@@ -137,6 +147,7 @@ def update_neighborhood_batch(
         float(st.aggregation_theta),
         float(st.aggregation_rho),
         1 if use_constraints else 0,
+        *_normalization(st),
     )
 
 
@@ -188,17 +199,23 @@ def update_neighborhoods_with_criterion(
     Before each child's replacements the criterion adapts to the population. The child replaces, in
     the order of its candidates, at most ``replace_limit`` of the solutions that the criterion lets it
     replace, comparing the aggregation values of the child and of each solution in that solution's
-    subproblem. A replaced subproblem takes the child's id when genealogy is tracked.
+    subproblem. A replaced subproblem takes the child's id when genealogy is tracked. The
+    normalization and the inverted PBI read the nadir point of the whole batch.
     """
-    assert st.aggregator is not None and st.G is not None
+    aggregator = st.aggregator
+    assert aggregator is not None and st.G is not None
     for pos, order in enumerate(orders):
         criterion.update(st.G, G_child[pos])
         candidates = np.asarray(order, dtype=int)
         if candidates.size == 0:
             continue
         weights = st.weights[candidates]
-        child_values = st.aggregator(np.broadcast_to(F_child[pos], (candidates.size, F_child.shape[1])), weights, st.ideal)
-        values = st.aggregator(st.F[candidates], weights, st.ideal)
+        child_F = np.broadcast_to(F_child[pos], (candidates.size, F_child.shape[1]))
+        if st.nadir is None:
+            child_values, values = aggregator(child_F, weights, st.ideal), aggregator(st.F[candidates], weights, st.ideal)
+        else:
+            child_values = aggregator(child_F, weights, st.ideal, st.nadir)
+            values = aggregator(st.F[candidates], weights, st.ideal, st.nadir)
         replaced = candidates[criterion.replaces(G_child[pos], child_values, st.G[candidates], values)][: int(st.replace_limit)]
         if replaced.size == 0:
             continue

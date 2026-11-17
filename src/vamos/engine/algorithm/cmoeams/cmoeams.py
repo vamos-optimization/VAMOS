@@ -23,6 +23,7 @@ from vamos.engine.algorithm.config.base import normalize_constraint_mode
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
 from vamos.engine.config.variation import ensure_operator_tuple, resolve_default_variation_config
 from vamos.engine.hooks.live_viz import LiveVisualization
+from vamos.engine.operators.impl.real.crossover_differential import exponential_crossover
 from vamos.engine.variation.helpers import ensure_supported_operator_names, ensure_supported_repair_name
 from vamos.engine.variation.pipeline import VariationPipeline
 from vamos.engine.variation.protocol import RepairConfigValue
@@ -33,7 +34,6 @@ from vamos.foundation.kernel.backend import KernelBackend, VariationKernels
 from vamos.foundation.observer import RunContext
 from vamos.foundation.problem.types import ProblemProtocol
 
-from .differential_evolution import exponential_crossover
 from .fitness import is_stage_b, normalized_violation, stage_a_fitness, stage_b_fitness
 from .selection import cmoeams_tournament, environmental_selection
 from .state import CMOEAMSState, build_cmoeams_result
@@ -164,9 +164,9 @@ class CMOEAMS:
       by tournament and creates, for the i-th solution ``x_i``, the mutant ``x_i + F (x_r1 -
       x_r2)``, crossed with ``x_i`` by the binomial crossover of rate ``CR`` with one variable
       always from the mutant (``de_variant="rand_1_bin"``, VAMOS's ``de`` operator) or by the
-      exponential crossover (``"rand_1_exp"``, see
-      :mod:`vamos.engine.algorithm.cmoeams.differential_evolution`), then repairs (clamps by
-      default) and mutates it: ``pop_size`` offspring.
+      exponential crossover of jMetal's ``DifferentialEvolutionCrossover`` (``"rand_1_exp"``, see
+      :func:`vamos.engine.operators.impl.real.crossover_differential.exponential_crossover`), then
+      repairs (clamps by default) and mutates it: ``pop_size`` offspring.
 
     The initial population takes ``pop_size`` evaluations, so the budget must cover them. Budgets
     are exact: when fewer evaluations are left than offspring, the last generation creates the

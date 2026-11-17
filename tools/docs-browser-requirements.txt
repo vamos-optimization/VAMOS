@@ -1,2 +1,2 @@
 # Isolated CI documentation QA; not a VAMOS runtime dependency.
-playwright==1.65.1
+playwright==1.65.2

@@ -7,15 +7,14 @@ BASELINE_VIOLATIONS: set[tuple[str, str, str]] = set()
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC_ROOT = ROOT / "src" / "vamos"
-LAYERS = {"foundation", "engine", "ux", "experiment", "assist", "resources"}
+LAYERS = {"foundation", "engine", "ux", "experiment", "resources"}
 
 # Allowed direct layer imports (source -> set(targets)).
 ALLOWED_LAYER_IMPORTS: dict[str, set[str]] = {
     "foundation": {"foundation", "resources"},
     "engine": {"engine", "foundation", "resources"},
-    "experiment": {"experiment", "foundation", "engine", "ux", "assist", "resources"},
+    "experiment": {"experiment", "foundation", "engine", "ux", "resources"},
     "ux": {"ux", "foundation", "engine", "resources"},
-    "assist": {"assist", "foundation", "engine", "experiment", "resources"},
     "resources": {"resources"},
 }
 
@@ -198,6 +197,15 @@ def _format_diff(new, missing, line_map) -> str:
         for record in sorted(missing):
             lines.append(f"- {_format_record(record)}")
     return "\n".join(lines)
+
+
+def test_every_vamos_package_is_a_layer():
+    # A new top-level package needs a place in the layering policy of AGENTS.md first.
+    packages = {path.parent.name for path in SRC_ROOT.glob("*/__init__.py")}
+
+    assert packages == LAYERS
+    # vamos.assist, the LLM-assisted planning workflow, was removed; stale bytecode may remain in a checkout.
+    assert not list((SRC_ROOT / "assist").rglob("*.py"))
 
 
 def test_layer_boundaries_do_not_regress():

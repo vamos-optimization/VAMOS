@@ -18,8 +18,9 @@ def welcome_markdown(offered: Sequence[str] | None = None) -> str:
 
 **Vectorized Architecture for Multi-Objective Optimization Studies**
 
-VAMOS Studio is an experimental workbench for defining multi-objective
-problems, running VAMOS algorithms on them and exploring saved studies.
+VAMOS Studio is an experimental workbench for browsing the registered
+multi-objective problems, running VAMOS algorithms on them and exploring
+saved studies.
 
 ---
 
@@ -37,13 +38,13 @@ def render_welcome(offered: Sequence[str] | None = None) -> pn.Column:
     if offered is None or set(CODE_EXECUTION_PAGES) <= set(offered):
         tip = (
             "**Tip:** for long or many runs, use **Batch Comparison**: it runs a durable study in a background process "
-            "that keeps going if you close the browser. Problem Builder and Run Experiment run one run in the "
-            "background while you watch it, and **Stop** ends it; leaving the page stops it too."
+            "that keeps going if you close the browser. Run Experiment runs one run in the background while you "
+            "watch it, and **Stop** ends it; leaving the page stops it too."
         )
     else:
         tip = (
-            "**Problem Builder** and **Batch Comparison** are off: this Studio serves a non-loopback address, and "
-            "those pages run code with the account that serves it. Its owner can offer them by starting Studio "
-            "with `--allow-remote-code-execution`."
+            "**Batch Comparison** is off: this Studio serves a non-loopback address, and that page runs study "
+            "workers with the account that serves it. Its owner can offer it by starting Studio with "
+            "`--allow-remote-code-execution`."
         )
     return pn.Column(hero, pn.pane.Alert(tip, alert_type="info"), sizing_mode="stretch_both")

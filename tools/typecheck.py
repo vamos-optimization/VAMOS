@@ -30,12 +30,10 @@ EXPECTED_MYPY_BUILD = "compiled"
 EXPECTED_STUB_PACKAGES: tuple[str, ...] = ()
 ALLOWED_MYPY_EXCLUSIONS = frozenset({"build/", "dist/"})
 TYPE_AFFECTING_OPTIONAL_DISTRIBUTIONS = (
-    "anthropic",
     "bokeh",
     "configspace",
     "dask",
     "distributed",
-    "google-genai",
     "hpbandster",
     "ipython",
     "ipywidgets",
@@ -43,7 +41,6 @@ TYPE_AFFECTING_OPTIONAL_DISTRIBUTIONS = (
     "moocore",
     "networkx",
     "numba",
-    "openai",
     "optuna",
     "pandas",
     "panel",

@@ -41,7 +41,6 @@ _SUBCOMMANDS: dict[str, str] = {
     "reproduce": "Execute an exact built-in replay",
     "study": "Manage the single-owner durable study lifecycle",
     "ablation": "Ablation study runner",
-    "assist": "AI-assisted experiment planning",
     "check": "Verify installation and backends",
     "bench": "Benchmark suite across algorithms",
     "studio": "Launch the interactive dashboard",
@@ -91,11 +90,6 @@ def _dispatch_subcommand(argv: list[str]) -> bool:
         from vamos.experiment.cli.ablation import run_ablation
 
         run_ablation(argv[1:])
-        return True
-    if command == "assist":
-        from vamos.assist.cli import run_assist
-
-        run_assist(argv[1:])
         return True
     if command == "open-results":
         from vamos.experiment.cli.results_cli import run_open_results
