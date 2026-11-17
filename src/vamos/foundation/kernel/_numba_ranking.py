@@ -13,7 +13,7 @@ RankArray: TypeAlias = NDArray[np.int64]
 
 
 @njit(cache=True)
-def _fast_non_dominated_sort_ranks_2d_sorted(F_sorted: FloatArray, y_codes: RankArray) -> RankArray:
+def _fast_non_dominated_sort_ranks_2d_sorted(F_sorted: RealArray, y_codes: RankArray) -> RankArray:
     N = F_sorted.shape[0]
     if N == 0:
         return np.empty(0, dtype=np.int64)

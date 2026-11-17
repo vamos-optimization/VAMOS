@@ -367,7 +367,7 @@ class ToP:
         st = self._st
         assert st is not None
         X = np.asarray(st.X, dtype=float)
-        n = X.shape[0]
+        n = int(X.shape[0])
         best = X[index_of_lowest_mean_objective(st.F)]
         current_to_rand = st.rng.random(n) < CURRENT_TO_RAND_PROBABILITY
         drawn = st.rng.integers(0, n, size=(n, 3))
