@@ -9,7 +9,8 @@ ids of :mod:`vamos.foundation.kernel.moead_kernels`.
 **Development after 1.3.0:** the update takes the nadir point, the epsilon and
 the switch of the normalization of the objectives, and computes the augmented
 Tchebycheff (``AGG_AUGMENTED_TCHEBYCHEFF``, the formula of the modified one) and
-inverted PBI (``AGG_INVERTED_PBI``) aggregations. Without normalization and
+inverted PBI (``AGG_INVERTED_PBI``) aggregations, and jMetal's modified
+Tchebycheff (``AGG_INVERSE_WEIGHT_TCHEBYCHEFF``). Without normalization and
 inverted PBI, ``nadir`` is not read; callers pass the ideal point in its place.
 """
 
@@ -18,7 +19,7 @@ from __future__ import annotations
 import numpy as np
 
 from .backend import DecisionArray, FloatArray, IndexArray
-from .moead_kernels import AGG_INVERTED_PBI, AGG_PBI, AGG_TCHEBYCHEFF, AGG_WEIGHTED_SUM
+from .moead_kernels import AGG_INVERSE_WEIGHT_TCHEBYCHEFF, AGG_INVERTED_PBI, AGG_PBI, AGG_TCHEBYCHEFF, AGG_WEIGHTED_SUM
 from .numba_ops import njit
 
 
@@ -118,6 +119,24 @@ def update_neighborhood_numba(
             else:
                 current_val = d1 + agg_theta * d2
                 child_val = d1_child + agg_theta * d2_child
+        elif agg_id == AGG_INVERSE_WEIGHT_TCHEBYCHEFF:
+            # jMetal's ModifiedTschebyscheff: the largest difference divided by its weight; a zero weight counts 1e-7 times it.
+            current_val = -1.0
+            child_val = -1.0
+            for j in range(n_obj):
+                diff_c = abs(objective_gap(F[k, j], ideal[j], nadir[j], agg_epsilon, normalize, False))
+                diff_child = abs(objective_gap(child_f[j], ideal[j], nadir[j], agg_epsilon, normalize, False))
+                w = weights[k, j]
+                if w == 0.0:
+                    val_c = 1e-7 * diff_c
+                    val_child = 1e-7 * diff_child
+                else:
+                    val_c = diff_c / w
+                    val_child = diff_child / w
+                if val_c > current_val:
+                    current_val = val_c
+                if val_child > child_val:
+                    child_val = val_child
         else:
             # Modified and augmented Tchebycheff: the largest weighted difference plus rho times their sum.
             current_val = -1.0

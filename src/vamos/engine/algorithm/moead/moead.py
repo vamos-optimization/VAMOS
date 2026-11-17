@@ -367,7 +367,7 @@ class MOEAD:
 
         n_var = st.X.shape[1]
         if self._cross_is_de:
-            # (random parents..., current solution), as jMetal's MOEADDEBuilder hands them to DE.
+            # (random parents..., current solution): jMetal's MOEADDEBuilder, or Evolver's pool and the current one.
             width = parent_pairs.shape[1]
             parents = np.empty((batch_size, width + 1, n_var), dtype=st.X.dtype)
             for slot in range(width):

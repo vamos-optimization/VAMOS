@@ -10,6 +10,14 @@ rand/2, whose base is that current solution, as in jMetal's ``MOEADDEBuilder`` (
 the mating pool) and in MOEA/D-DE. The binomial crossover takes each variable from the mutant when
 its draw is lower than CR, and one variable at random always; the exponential crossover takes a
 block of consecutive variables (:func:`~vamos.engine.operators.impl.real.crossover_differential.exponential_crossover`).
+
+**Development after 1.3.0:** the ``base`` of the ``de`` crossover chooses the mutant's base vector:
+``"current"`` (the default), the current solution as above, or ``"random"``, one more random parent,
+distinct from those of the difference vectors, as in Evolver's MOEA/D, whose
+``populationAndNeighborhoodMatingPoolSelection`` passes ``selectCurrentSolution = false``: the mating
+pool holds three (rand/1) or five (rand/2) random parents, jMetal's ``DifferentialEvolutionCrossover``
+takes the last of them as the base, and the child still starts as the current solution. The parents
+are then ``(x_r1, x_r2, [x_r3, x_r4,] x_base, x)``.
 """
 
 from __future__ import annotations
@@ -67,9 +75,33 @@ def normalize_de_scheme(value: object) -> str:
     return name
 
 
-def de_random_parents(scheme: str) -> int:
-    """Random parents of a scheme besides the current solution: 2 for rand/1, 4 for rand/2."""
-    return 4 if scheme.startswith("rand_2") else 2
+#: The base vectors of the ``de`` crossover's mutant; the first is the default.
+DE_BASES: tuple[str, ...] = ("current", "random")
+
+
+def normalize_de_base(value: object) -> str:
+    """``value`` in lower case, or ``ConfigurationError`` unless it is one of :data:`DE_BASES`."""
+    name = value.strip().lower() if isinstance(value, str) else None
+    if name not in DE_BASES:
+        raise ConfigurationError(f"DE crossover base must be one of {', '.join(map(repr, DE_BASES))}; got {value!r}.")
+    return name
+
+
+def de_random_parents(scheme: str, base: str = "current") -> int:
+    """Random parents of a scheme besides the current solution: 2 for rand/1, 4 for rand/2, one more with a random base."""
+    return (4 if scheme.startswith("rand_2") else 2) + (1 if base == "random" else 0)
+
+
+def check_de_neighbourhood(scheme: str, base: str, neighbor_size: int) -> int:
+    """The random parents of the scheme and base; ``ConfigurationError`` when the neighbourhood holds fewer."""
+    parents = de_random_parents(scheme, base)
+    if neighbor_size < parents:
+        with_base = " with base='random'" if base == "random" else ""
+        raise ConfigurationError(
+            f"The DE crossover scheme {scheme}{with_base} needs neighbor_size >= {parents} "
+            f"({parents} distinct random parents); got {neighbor_size}."
+        )
+    return parents
 
 
 def build_variation_operators(
@@ -131,13 +163,15 @@ def _build_continuous_operators(
     assert repair_operator is not None
 
     crossover: DifferentialCrossoverStep | RepairedOperatorStep
-    if method not in de_aliases and "scheme" in cross_params:
-        raise ConfigurationError(f"The scheme applies to the DE crossover ('de'), not to crossover {cross_method!r}.")
+    for key in ("scheme", "base"):
+        if method not in de_aliases and key in cross_params:
+            raise ConfigurationError(f"The {key} applies to the DE crossover ('de'), not to crossover {cross_method!r}.")
     if method in de_aliases:
         crossover = DifferentialCrossoverStep(
             f=float(cross_params.get("f", cross_params.get("F", 0.5))),
             cr=float(cross_params.get("cr", cross_params.get("CR", 1.0))),
             scheme=normalize_de_scheme(cross_params.get("scheme", "rand_1_bin")),
+            base=normalize_de_base(cross_params.get("base", "current")),
             repair=repair_operator,
             xl=xl,
             xu=xu,
@@ -186,10 +220,12 @@ class DifferentialCrossoverStep:
         rng: np.random.Generator,
         variation_kernels: VariationKernels | None,
         scheme: str = "rand_1_bin",
+        base: str = "current",
     ) -> None:
         self.f = f
         self.cr = cr
         self.scheme = scheme
+        self.base = base
         self.repair = repair
         self.xl = xl
         self.xu = xu
@@ -199,13 +235,13 @@ class DifferentialCrossoverStep:
     def __call__(self, parents: NDArray[np.floating[Any]], _rng: np.random.Generator | None = None) -> NDArray[np.generic]:
         rng = self.rng if _rng is None else _rng
         parents_arr = np.asarray(parents)
-        width = 1 + de_random_parents(self.scheme)
+        width = 1 + de_random_parents(self.scheme, self.base)
         if parents_arr.ndim != 3 or parents_arr.shape[1] != width:
             raise ValueError(f"DE crossover {self.scheme} expects parents shaped (n_pairs, {width}, n_var).")
         n_pairs, _, n_vars = parents_arr.shape
         f, cr = self.f, self.cr
-        if self.scheme != "rand_1_bin":
-            child = _scheme_child(self.scheme, parents_arr, f, cr, rng)
+        if self.scheme != "rand_1_bin" or self.base != "current":
+            child = _scheme_child(self.scheme, parents_arr, f, cr, rng, random_base=self.base == "random")
         elif self.variation_kernels is not None and parents_arr.dtype == np.float64:
             # Same draws (uniform grid, then one forced index per child) and arithmetic.
             rand = rng.random((n_pairs, n_vars))
@@ -225,21 +261,28 @@ class DifferentialCrossoverStep:
         return apply_policy_repair(self.repair, offspring, self.xl, self.xu, rng)
 
 
-def _scheme_child(scheme: str, parents: NDArray[Any], f: float, cr: float, rng: np.random.Generator) -> NDArray[np.float64]:
-    """The children of the schemes other than rand/1/bin, with jMetal's operations in jMetal's order."""
-    base = np.asarray(parents[:, -1, :], dtype=float)
+def _scheme_child(
+    scheme: str, parents: NDArray[Any], f: float, cr: float, rng: np.random.Generator, *, random_base: bool = False
+) -> NDArray[np.float64]:
+    """The children of the schemes and bases other than rand/1/bin from the current solution, with jMetal's operations in jMetal's order.
+
+    The last parent is the current solution, which the child starts from; the mutant's base is that
+    solution, or with ``random_base`` the parent before it.
+    """
+    current = np.asarray(parents[:, -1, :], dtype=float)
+    base = np.asarray(parents[:, -2, :], dtype=float) if random_base else current
     mutant = base + f * (parents[:, 0, :] - parents[:, 1, :])
     if scheme.startswith("rand_2"):
         mutant = mutant + f * (parents[:, 2, :] - parents[:, 3, :])
-    n_pairs, n_vars = base.shape
+    n_pairs, n_vars = current.shape
     if scheme.endswith("_bin"):
         # The draws of rand/1/bin: the uniform grid, then the variable that always comes from the mutant.
         mask = rng.random((n_pairs, n_vars)) < cr
         mask[np.arange(n_pairs), rng.integers(0, n_vars, size=n_pairs)] = True
-        return np.asarray(np.where(mask, mutant, base), dtype=float)
+        return np.asarray(np.where(mask, mutant, current), dtype=float)
     # The draws of CMOEA-MS's rand/1/exp: the first variable of each block, then the uniform grid.
     start = rng.integers(0, n_vars, size=n_pairs)
-    return exponential_crossover(base, mutant, start, rng.random((n_pairs, n_vars)), cr)
+    return exponential_crossover(current, mutant, start, rng.random((n_pairs, n_vars)), cr)
 
 
 class RepairedOperatorStep:
@@ -305,7 +348,7 @@ def one_offspring_real_variation(crossover: object, mutation: object, n_var: int
         return None
     sbx: SBXCrossover | None = None
     if type(crossover) is DifferentialCrossoverStep:
-        if crossover.variation_kernels is None or crossover.scheme != "rand_1_bin":
+        if crossover.variation_kernels is None or crossover.scheme != "rand_1_bin" or crossover.base != "current":
             return None
     elif type(crossover) is RepairedOperatorStep and type(crossover.operator) is SBXCrossover:
         sbx = crossover.operator
@@ -358,12 +401,15 @@ __all__ = [
     "INT_MUTATION",
     "PERM_CROSSOVER",
     "PERM_MUTATION",
+    "DE_BASES",
     "DE_SCHEMES",
     "DifferentialCrossoverStep",
     "OneOffspringRealVariation",
     "RepairedOperatorStep",
     "build_variation_operators",
+    "check_de_neighbourhood",
     "de_random_parents",
+    "normalize_de_base",
     "normalize_de_scheme",
     "one_offspring_real_variation",
 ]

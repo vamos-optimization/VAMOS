@@ -30,7 +30,7 @@ from vamos.engine.algorithm.moead.update_criteria import (
 )
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
 from vamos.engine.operators.impl.flags import set_numba_variation
-from vamos.engine.operators.policies.moead import build_variation_operators, de_random_parents
+from vamos.engine.operators.policies.moead import build_variation_operators, check_de_neighbourhood
 from vamos.foundation.checkpoint import restore_rng
 from vamos.foundation.constraints.utils import compute_violation
 from vamos.foundation.encoding import EncodingLike, normalize_encoding
@@ -310,16 +310,11 @@ def initialize_moead_run(
 
 
 def _neighbourhood_size(cfg: Mapping[str, Any], pop_size: int, crossover_fn: object) -> tuple[int, int]:
-    """The neighbourhood size of the run and the random parents of its DE scheme, which must fit in it."""
+    """The neighbourhood size of the run and the random parents of its DE scheme and base, which must fit in it."""
     neighbor_size = max(2, min(cfg.get("neighbor_size", min(20, pop_size)), pop_size))
     scheme = str(getattr(crossover_fn, "scheme", "rand_1_bin"))
-    random_parents = de_random_parents(scheme)
-    if random_parents > neighbor_size:
-        raise ConfigurationError(
-            f"The DE crossover scheme {scheme} needs neighbor_size >= {random_parents} "
-            f"({random_parents} distinct random parents); got {neighbor_size}."
-        )
-    return neighbor_size, random_parents
+    base = str(getattr(crossover_fn, "base", "current"))
+    return neighbor_size, check_de_neighbourhood(scheme, base, neighbor_size)
 
 
 def _weights(cfg: Mapping[str, Any], pop_size: int, n_obj: int) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:

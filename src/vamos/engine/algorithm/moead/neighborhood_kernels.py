@@ -7,7 +7,7 @@ import numpy as np
 from vamos.foundation.kernel.backend import DecisionArray, FloatArray, IndexArray
 from vamos.foundation.kernel.moead_kernels import available_moead_neighborhood_kernels
 
-from .aggregation import AGG_INVERTED_PBI, AGG_PBI, AGG_TCHEBYCHEFF, AGG_WEIGHTED_SUM
+from .aggregation import AGG_INVERSE_WEIGHT_TCHEBYCHEFF, AGG_INVERTED_PBI, AGG_PBI, AGG_TCHEBYCHEFF, AGG_WEIGHTED_SUM
 
 _UPDATE_NEIGHBORHOOD_JIT: Callable[..., int] | None = None
 _UPDATE_NEIGHBORHOOD_BATCH_JIT: Callable[..., None] | None = None
@@ -86,8 +86,8 @@ def _scalar_aggregation(
 ) -> float:
     """The aggregation value of ``f`` in subproblem ``k`` with the loops of the compiled update.
 
-    Used for the inverted PBI and the normalized objectives, so that this fallback gives the
-    compiled update's values bit for bit.
+    Used for the inverted PBI, jMetal's modified Tchebycheff and the normalized objectives, so that
+    this fallback gives the compiled update's values bit for bit.
     """
     n_obj = ideal.shape[0]
     if agg_id == AGG_WEIGHTED_SUM:
@@ -108,6 +108,13 @@ def _scalar_aggregation(
             d2 += diff * diff
         d2 = float(np.sqrt(d2))
         return agg_theta * d2 - d1 if inverted else d1 + agg_theta * d2
+    if agg_id == AGG_INVERSE_WEIGHT_TCHEBYCHEFF:
+        largest = -1.0
+        for j in range(n_obj):
+            diff = abs(_gap(float(f[j]), float(ideal[j]), float(nadir[j]), agg_epsilon, normalize, False))
+            w = float(weights[k, j])
+            largest = max(largest, 1e-7 * diff if w == 0.0 else diff / w)
+        return largest
     largest = -1.0
     total = 0.0
     for j in range(n_obj):
@@ -152,7 +159,7 @@ def update_neighborhood_python(
         diff_current = np.abs(F[k] - ideal)
         diff_child = np.abs(child_f - ideal)
 
-        if normalize == 1 or agg_id == AGG_INVERTED_PBI:
+        if normalize == 1 or agg_id in {AGG_INVERTED_PBI, AGG_INVERSE_WEIGHT_TCHEBYCHEFF}:
             args = (k, weights, weights_safe, weights_unit, ideal, nadir, agg_id, agg_theta, agg_rho, agg_epsilon, normalize)
             current_val = _scalar_aggregation(F[k], *args)
             child_val = _scalar_aggregation(child_f, *args)

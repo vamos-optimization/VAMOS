@@ -11,7 +11,12 @@ jMetal 7.8 (``org.uma.jmetal.util.aggregationfunction.impl``, which Evolver's
   ``max_i w_i |f_i - z*_i| + rho sum_i w_i |f_i - z*_i|``, a zero weight counting
   ``1e-4 |f_i - z*_i|``, with jMetal's ``rho = 1e-4``. This is the formula of VAMOS's
   ``modified_tchebycheff``, whose ``rho`` is ``1e-3``; jMetal's ``ModifiedTschebyscheff``
-  (``max_i |f_i - z*_i| / w_i``) is another function.
+  (``max_i |f_i - z*_i| / w_i``) is another function, ``inverse_weight_tchebycheff`` below.
+- ``inverse_weight_tchebycheff`` (jMetal's ``ModifiedTschebyscheff``, which Evolver calls
+  ``modifiedTschebyscheff``): ``max_i |f_i - z*_i| / w_i``, a zero weight counting
+  ``1e-7 |f_i - z*_i|``. Up to a positive factor per weight vector, which leaves the comparisons
+  of a subproblem unchanged, it is the Tchebycheff function with the weights that Qi et al.
+  (2014, Eq. 3) call the WS-transformation, ``(1 / w_i) / sum_j (1 / w_j)``. It has no parameter.
 - ``inverted_pbi`` (jMetal's ``InvertedPenaltyBoundaryIntersection``; Sato, 2014): with the
   displacement ``u = z^nad - f`` from the nadir point, ``d1 = |u . w| / ||w||`` and
   ``d2 = ||u - d1 w / ||w|| ||``, the value ``theta d2 - d1`` (Sato's IPBI maximizes
@@ -38,6 +43,7 @@ import numpy as np
 from vamos.foundation.exceptions import ConfigurationError
 from vamos.foundation.kernel.moead_kernels import (
     AGG_AUGMENTED_TCHEBYCHEFF,
+    AGG_INVERSE_WEIGHT_TCHEBYCHEFF,
     AGG_INVERTED_PBI,
     AGG_MODIFIED_TCHEBYCHEFF,
     AGG_PBI,
@@ -55,6 +61,8 @@ class AggregatorFn(Protocol):
 
 
 ZERO_WEIGHT_EPS: float = 1e-4
+#: The factor of a zero weight's difference in jMetal's ModifiedTschebyscheff.
+INVERSE_ZERO_WEIGHT_EPS: float = 1e-7
 #: jMetal's epsilon of the normalization (``AggregationFunction.epsilon``).
 NORMALIZATION_EPSILON: float = 1e-6
 
@@ -71,11 +79,13 @@ _AGGREGATION_IDS: dict[str, int] = {
     "modified_tchebycheff": AGG_MODIFIED_TCHEBYCHEFF,
     "augmented_tchebycheff": AGG_AUGMENTED_TCHEBYCHEFF,
     "inverted_pbi": AGG_INVERTED_PBI,
+    "inverse_weight_tchebycheff": AGG_INVERSE_WEIGHT_TCHEBYCHEFF,
 }
 # The parameters of the aggregations added after 1.3.0, which reject any other.
 _PARAMETERS: dict[int, tuple[str, ...]] = {
     AGG_AUGMENTED_TCHEBYCHEFF: ("rho", "normalize", "epsilon"),
     AGG_INVERTED_PBI: ("theta", "normalize", "epsilon"),
+    AGG_INVERSE_WEIGHT_TCHEBYCHEFF: ("normalize", "epsilon"),
 }
 
 
@@ -188,6 +198,14 @@ def augmented_tchebycheff(fvals: Array, weights: Array, ideal: Array, rho: float
     return modified_tchebycheff(fvals, weights, ideal, rho)
 
 
+def inverse_weight_tchebycheff(fvals: Array, weights: Array, ideal: Array) -> Array:
+    """jMetal's ``ModifiedTschebyscheff``: ``max(|f - z*| / w)``, a zero weight counting ``1e-7 |f - z*|``."""
+    diff = np.abs(fvals - ideal)
+    weights = np.broadcast_to(weights, diff.shape)
+    weighted = np.divide(diff, weights, out=INVERSE_ZERO_WEIGHT_EPS * diff, where=weights != 0)
+    return np.asarray(np.max(weighted, axis=-1), dtype=float)
+
+
 def inverted_pbi(fvals: Array, weights: Array, nadir: Array, theta: float = 0.1) -> Array:
     """Inverted PBI (Sato, 2014; jMetal's ``InvertedPenaltyBoundaryIntersection``): ``theta d2 - d1`` of ``z^nad - f``."""
     d1, d2 = _pbi_distances(nadir - fvals, weights)
@@ -212,6 +230,8 @@ def build_aggregator(name: str, params: Mapping[str, object]) -> AggregatorFn:
             return weighted_sum(fvals, weights, ideal)
         if method_id == AGG_PBI:
             return pbi(fvals, weights, ideal, theta)
+        if method_id == AGG_INVERSE_WEIGHT_TCHEBYCHEFF:
+            return inverse_weight_tchebycheff(fvals, weights, ideal)
         return modified_tchebycheff(fvals, weights, ideal, rho)
 
     if method_id == AGG_INVERTED_PBI:
@@ -251,6 +271,7 @@ def resolve_aggregation_spec(name: str, params: Mapping[str, object]) -> tuple[i
 
 __all__ = [
     "AGG_AUGMENTED_TCHEBYCHEFF",
+    "AGG_INVERSE_WEIGHT_TCHEBYCHEFF",
     "AGG_INVERTED_PBI",
     "AGG_MODIFIED_TCHEBYCHEFF",
     "AGG_PBI",
@@ -259,10 +280,12 @@ __all__ = [
     "NORMALIZATION_EPSILON",
     "AggregationSpec",
     "AggregatorFn",
+    "INVERSE_ZERO_WEIGHT_EPS",
     "ZERO_WEIGHT_EPS",
     "aggregation_methods",
     "augmented_tchebycheff",
     "build_aggregator",
+    "inverse_weight_tchebycheff",
     "inverted_pbi",
     "modified_tchebycheff",
     "pbi",

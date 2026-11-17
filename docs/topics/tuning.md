@@ -474,6 +474,14 @@ differently, and the exchange functions translate them: `SBX`, `blxAlpha`,
 `modifiedTschebyscheff`; `default` (random), `latinHypercubeSampling`,
 `scatterSearch` and `oppositionBased`; `stochasticUniversalSampling`.
 
+**Development after 1.3.0:** Evolver's `modifiedTschebyscheff` is jMetal's
+`ModifiedTschebyscheff`, `max |f - z*| / w`, which VAMOS calls
+`inverse_weight_tchebycheff`: the exchange translates it to that name, where it
+used to give `modified_tchebycheff`, and `augmentedTschebyscheff` to
+`augmented_tchebycheff`. VAMOS's `modified_tchebycheff` (the augmented formula
+with `rho = 1e-3`) has no Evolver equivalent, and `to_evolver` raises
+`ValueError` for it instead of writing `modifiedTschebyscheff`.
+
 `pop_size` keeps its name: Evolver passes the population size to the algorithm
 rather than tuning it, and the CLI and Studio treat it as a run setting. The
 external archive parameters (`use_external_archive`, `archive_unbounded`,
