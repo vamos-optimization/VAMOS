@@ -12,7 +12,7 @@ from ._numba_ranking import compute_crowding_numba, fast_non_dominated_sort_rank
 from ._numba_selection import binary_tournament_winners_numba
 from ._numba_steady_state import numba_steady_state_kernels
 from ._numba_survival import numba_selection_kernels
-from ._numba_variation import numpy_power_squares, polynomial_mutation_apply, verified_variation_kernels
+from ._numba_variation import numpy_power_paths, polynomial_mutation_apply, verified_variation_kernels
 from .backend import (
     DecisionArray,
     FloatArray,
@@ -221,7 +221,7 @@ class NumbaKernel(KernelBackend):
             upper,
             rnd_mask,
             rnd_delta,
-            numpy_power_squares(),
+            numpy_power_paths(),
         )
 
     @overload

@@ -25,6 +25,11 @@ IndexArray: TypeAlias = NDArray[np.intp]
 
 _SBX_EPS = 1.0e-14
 
+#: Bits of :func:`numpy_power_paths`: the scalar exponents that ``np.power`` evaluates without ``pow``.
+POWER_SQUARE = 1  # exponent 2: ``x * x`` (NumPy 2)
+POWER_SQRT = 2  # exponent 0.5: ``sqrt(x)`` (NumPy 2.4)
+POWER_RECIPROCAL = 4  # exponent -1: ``1 / x`` (NumPy 2.4)
+
 
 @cache
 def numpy_power_squares() -> bool:
@@ -38,17 +43,50 @@ def numpy_power_squares() -> bool:
     return bool(np.array_equal(np.power(probe, 2.0), probe * probe))
 
 
+def _same_floats(a: FloatArray, b: FloatArray) -> bool:
+    """Equal values and signs of zero; NaNs equal whatever their payload."""
+    nan = np.isnan(a)
+    if not np.array_equal(nan, np.isnan(b)):
+        return False
+    return bool(np.array_equal(a[~nan], b[~nan]) and np.array_equal(np.signbit(a[~nan]), np.signbit(b[~nan])))
+
+
+@cache
+def numpy_power_paths() -> int:
+    """Return the scalar exponents that ``np.power`` evaluates without ``pow``, as ``POWER_*`` bits.
+
+    NumPy 2 computes ``np.power(x, 2.0)`` as ``x * x`` (:func:`numpy_power_squares`), and NumPy 2.4
+    also ``np.power(x, 0.5)`` as ``sqrt(x)`` and ``np.power(x, -1.0)`` as ``1 / x``; these can differ
+    from the C library's ``pow`` by one ULP, and ``sqrt(-0.0)`` is ``-0.0`` where ``pow`` gives
+    ``+0.0``. Compiled kernels receive these bits so that they take the same path as the installed
+    NumPy and reproduce it bit for bit.
+    """
+    probe = np.concatenate((np.linspace(0.5, 3.0, 1 << 16), np.geomspace(1.0e-300, 1.0e300, 4097), np.array([0.0, -0.0, np.inf])))
+    paths = POWER_SQUARE if numpy_power_squares() else 0
+    with np.errstate(all="ignore"):
+        if _same_floats(np.power(probe, 0.5), np.sqrt(probe)):
+            paths |= POWER_SQRT
+        if _same_floats(np.power(probe, -1.0), 1.0 / probe):
+            paths |= POWER_RECIPROCAL
+    return paths
+
+
 @njit(cache=True, error_model="numpy")
-def _numpy_power(base: float, exponent: float, squares_exponent_two: bool) -> float:
-    if squares_exponent_two and exponent == 2.0:
+def _numpy_power(base: float, exponent: float, power_paths: int) -> float:
+    """``np.power(base, exponent)`` for a scalar exponent, with the fast paths of ``power_paths``."""
+    if exponent == 2.0 and power_paths & POWER_SQUARE:
         return base * base
+    if exponent == 0.5 and power_paths & POWER_SQRT:
+        return float(np.sqrt(base))
+    if exponent == -1.0 and power_paths & POWER_RECIPROCAL:
+        return 1.0 / base
     return float(base**exponent)
 
 
 @njit(cache=True, error_model="numpy")
-def _numpy_power_vector(bases: FloatArray, exponent: float, squares_exponent_two: bool, out: FloatArray) -> None:
+def _numpy_power_vector(bases: FloatArray, exponent: float, power_paths: int, out: FloatArray) -> None:
     for i in range(bases.shape[0]):
-        out[i] = _numpy_power(bases[i], exponent, squares_exponent_two)
+        out[i] = _numpy_power(bases[i], exponent, power_paths)
 
 
 @cache
@@ -58,7 +96,8 @@ def compiled_power_matches_numpy() -> bool:
     NumPy may evaluate ``power`` with vendor SIMD libraries (for example SVML on
     AVX-512 Linux builds) whose results can differ from the C library by one
     ULP. Compiled variation is enabled only when a probe over SBX and
-    polynomial-mutation style bases and exponents matches bit for bit.
+    polynomial-mutation style bases and exponents matches bit for bit, with the
+    fast paths of :func:`numpy_power_paths`.
     """
     bases = np.concatenate(
         (
@@ -72,7 +111,7 @@ def compiled_power_matches_numpy() -> bool:
     out = np.empty_like(bases)
     with np.errstate(all="ignore"):
         for exponent in exponents:
-            _numpy_power_vector(bases, float(exponent), numpy_power_squares(), out)
+            _numpy_power_vector(bases, float(exponent), numpy_power_paths(), out)
             if not np.array_equal(out, np.power(bases, float(exponent)), equal_nan=True):
                 return False
     return True
@@ -119,7 +158,7 @@ def _sbx_apply(
     upper: FloatArray,
     neg_eta_plus_one: float,
     inv_eta_plus_one: float,
-    squares_exponent_two: bool,
+    power_paths: int,
 ) -> None:
     """Write SBX children in place for the selected pairs."""
     n_var = offspring.shape[2]
@@ -142,25 +181,25 @@ def _sbx_apply(
             beta = 1.0 + (2.0 * (y1 - lower[j]) / diff)
             if beta < _SBX_EPS:
                 beta = _SBX_EPS
-            alpha = 2.0 - _numpy_power(beta, neg_eta_plus_one, squares_exponent_two)
+            alpha = 2.0 - _numpy_power(beta, neg_eta_plus_one, power_paths)
             if alpha < _SBX_EPS:
                 alpha = _SBX_EPS
             if r <= (1.0 / alpha):
-                betaq = _numpy_power(r * alpha, inv_eta_plus_one, squares_exponent_two)
+                betaq = _numpy_power(r * alpha, inv_eta_plus_one, power_paths)
             else:
-                betaq = _numpy_power(1.0 / (2.0 - r * alpha), inv_eta_plus_one, squares_exponent_two)
+                betaq = _numpy_power(1.0 / (2.0 - r * alpha), inv_eta_plus_one, power_paths)
             c1 = 0.5 * ((y1 + y2) - betaq * diff)
 
             beta = 1.0 + (2.0 * (upper[j] - y2) / diff)
             if beta < _SBX_EPS:
                 beta = _SBX_EPS
-            alpha = 2.0 - _numpy_power(beta, neg_eta_plus_one, squares_exponent_two)
+            alpha = 2.0 - _numpy_power(beta, neg_eta_plus_one, power_paths)
             if alpha < _SBX_EPS:
                 alpha = _SBX_EPS
             if r <= (1.0 / alpha):
-                betaq = _numpy_power(r * alpha, inv_eta_plus_one, squares_exponent_two)
+                betaq = _numpy_power(r * alpha, inv_eta_plus_one, power_paths)
             else:
-                betaq = _numpy_power(1.0 / (2.0 - r * alpha), inv_eta_plus_one, squares_exponent_two)
+                betaq = _numpy_power(1.0 / (2.0 - r * alpha), inv_eta_plus_one, power_paths)
             c2 = 0.5 * ((y1 + y2) + betaq * diff)
 
             if swap[row, j] <= 0.5:
@@ -180,7 +219,7 @@ def polynomial_mutation_apply(
     upper: FloatArray,
     rnd_mask: FloatArray,
     rnd_delta: FloatArray,
-    squares_exponent_two: bool,
+    power_paths: int,
 ) -> None:
     """Apply polynomial mutation in place from caller-provided draws."""
     n_ind, n_var = X.shape
@@ -201,12 +240,12 @@ def polynomial_mutation_apply(
             rnd = rnd_delta[i, j]
             if rnd <= 0.5:
                 xy = 1.0 - delta1
-                val = 2.0 * rnd + (1.0 - 2.0 * rnd) * _numpy_power(xy, eta_plus_one, squares_exponent_two)
-                deltaq = _numpy_power(val, mut_pow, squares_exponent_two) - 1.0
+                val = 2.0 * rnd + (1.0 - 2.0 * rnd) * _numpy_power(xy, eta_plus_one, power_paths)
+                deltaq = _numpy_power(val, mut_pow, power_paths) - 1.0
             else:
                 xy = 1.0 - delta2
-                val = 2.0 * (1.0 - rnd) + 2.0 * (rnd - 0.5) * _numpy_power(xy, eta_plus_one, squares_exponent_two)
-                deltaq = 1.0 - _numpy_power(val, mut_pow, squares_exponent_two)
+                val = 2.0 * (1.0 - rnd) + 2.0 * (rnd - 0.5) * _numpy_power(xy, eta_plus_one, power_paths)
+                deltaq = 1.0 - _numpy_power(val, mut_pow, power_paths)
             mutated = y + deltaq * span
             if mutated < yl:
                 mutated = yl
@@ -276,7 +315,7 @@ def sbx_crossover_pairs_compiled(
         upper,
         -(eta + 1.0),
         1.0 / (eta + 1.0),
-        numpy_power_squares(),
+        numpy_power_paths(),
     )
     return offspring
 
@@ -300,7 +339,7 @@ def polynomial_mutation_from_draws(
         upper,
         rnd_mask,
         rnd_delta,
-        numpy_power_squares(),
+        numpy_power_paths(),
     )
 
 
@@ -407,6 +446,10 @@ def verified_variation_kernels() -> NumbaVariationKernels | None:
 
 
 __all__ = [
+    "POWER_RECIPROCAL",
+    "POWER_SQRT",
+    "POWER_SQUARE",
+    "numpy_power_paths",
     "numpy_power_squares",
     "numba_variation_kernels",
     "NumbaVariationKernels",

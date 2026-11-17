@@ -522,6 +522,13 @@ builds use vendor SIMD power). Otherwise the Numba engine keeps the NumPy
 operators. Compiled ranking, survival and archive truncation fall back to NumPy
 for non-finite objective values.
 
+**Development after 1.3.0:** the compiled power takes the same shortcuts as
+`np.power` for a scalar exponent, which a run-time probe detects: the exponent 2
+as `x * x` (NumPy 2) and, with NumPy 2.4, the exponent 0.5 as `sqrt(x)` and -1
+as `1 / x`. With NumPy 2.4 the check failed on these exponents and the Numba
+engine kept the NumPy operators; it now keeps its compiled variation, with the
+same results.
+
 **VAMOS 1.2.0:** under `engine="numba"`, SMS-EMOA runs each
 steady-state step (one child) in two compiled calls for the child and one for
 survival, instead of per-step NumPy and Python code. Parents and every
