@@ -96,11 +96,6 @@ class AlgorithmForm:
     def start_values(self) -> dict[str, object]:
         return {parameter.name: parameter.start for parameter in self.parameters}
 
-    def edited_values(self, values: Mapping[str, object]) -> dict[str, object]:
-        """The values that differ from their starting values, active or not: what the user entered."""
-        starts = self.start_values()
-        return {name: value for name, value in values.items() if name in starts and not _same_value(value, starts[name])}
-
     def active_names(self, values: Mapping[str, object]) -> tuple[str, ...]:
         """Return the active parameters, in form order, for the current values: the derivation of the grammar."""
         active = {parameter.name for parameter in self.grammar.active_parameters(values)}

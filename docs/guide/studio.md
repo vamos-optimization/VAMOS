@@ -110,8 +110,8 @@ not on its command line. A browser that has opened the link keeps a cookie for
 the rest of the launch; any other request gets a page that asks for the token,
 and a session websocket without the cookie is refused. Without the token, any
 user of the same computer could open a session on the loopback port and,
-through Problem Builder or Batch Comparison, run code and write files with your
-account and spend the LLM API keys in your environment. No option serves
+through Batch Comparison, run code and write files with your account. No
+option serves
 Studio without the token. VAMOS 1.2.1 and earlier serve every request.
 
 A non-loopback address is rejected unless you separately acknowledge the
@@ -124,10 +124,9 @@ vamos studio --address 0.0.0.0 --allow-remote-binding --no-browser
 Remote binding exposes an experimental local application to other network
 users. Apply operating-system firewall and access controls appropriate to the
 environment. **VAMOS 1.3.0:** with a non-loopback address, Studio
-offers neither Problem Builder nor Batch Comparison, because whoever uses them
-runs code with the account that serves Studio, reads and writes its files, and
-can spend the LLM API keys in its environment; `--allow-remote-code-execution`
-offers them anyway, to everyone who has the link. `python -m
+does not offer Batch Comparison, because whoever uses it runs code with the
+account that serves Studio and reads and writes its files;
+`--allow-remote-code-execution` offers it anyway, to everyone who has the link. `python -m
 vamos.ux.panel.app`, which `vamos studio` runs, also refuses a non-loopback
 address without `--allow-remote-binding`, and `vamos studio` rejects options it
 does not know instead of passing them on. VAMOS 1.2.1 and earlier offer both
@@ -147,11 +146,6 @@ vamos studio --address 0.0.0.0 --allow-remote-binding --no-browser --allow-webso
 
 - **Problems & Algorithms** lists the registered problems and the built-in
   algorithms, and opens either in Run Experiment.
-- **Problem Builder** defines a problem in Python, or starts from a template
-  with its bounds and constraints, previews its Pareto front, runs it with a
-  configurable algorithm and generates a standalone script. **VAMOS 1.3.0:**
-  VAMOS 1.4.0 removes the Problem Builder; Studio will run registered problems
-  only, and `make_problem` or `vamos create-problem` define new ones.
 - **Run Experiment** runs a registered problem, with the number of variables
   and, where the problem allows it, of objectives that you choose, and lets
   you browse the population of every generation.
@@ -176,6 +170,13 @@ vamos studio --address 0.0.0.0 --allow-remote-binding --no-browser --allow-webso
   among the feasible ones, with each row's decision variables. VAMOS 1.1.0
   merged every row of every seed, ranked infeasible solutions too, and could
   pair a point with another solution's variables.
+
+**Development after 1.3.0:** the experimental **Problem Builder** page is
+removed. It ran Python objective code typed into Studio or drafted by an LLM
+provider, and its code generation needed the `openai`, `anthropic` or `gemini`
+extra, which are removed too. Studio runs registered problems only. To define
+your own problem, use `make_problem` or `vamos create-problem`; see
+[Adding a problem](../dev/add_problem.md).
 
 The **Environment** panel at the bottom of the sidebar lists the VAMOS and
 Python versions, the installed kernel backends, and which optional extras are
@@ -230,16 +231,13 @@ lowers a run's budget to its maximum of 5,000,000 evaluations. VAMOS 1.1.0
 could not open a run whose seed was 2^31 or more, which includes most runs made
 without a seed, and lowered a larger budget without saying so.
 
-Problem Builder and Run Experiment start a single run in the background, so
-the rest of Studio stays responsive while it runs. Run Experiment follows the
-run every second, with its progress through the evaluation budget, the current
-generation and the front recorded so far. Its **Stop** button ends the run after
-the current generation and keeps every front recorded up to then. The Problem
-Builder runs your code in a child process and shows the time elapsed. Its
-**Stop** button ends that process, and nothing from the run is kept. Leaving
-either page stops its run. These runs end with the Studio server and are not
-saved as studies, so use Batch Comparison for runs that need to last or be
-compared.
+Run Experiment starts a single run in the background, so the rest of Studio
+stays responsive while it runs. It follows the run every second, with its
+progress through the evaluation budget, the current generation and the front
+recorded so far. Its **Stop** button ends the run after the current generation
+and keeps every front recorded up to then. Leaving the page stops its run.
+These runs end with the Studio server and are not saved as studies, so use
+Batch Comparison for runs that need to last or be compared.
 
 ## Batch studies
 
@@ -309,18 +307,6 @@ size instead of accepting another one. For binary, integer, permutation, and
 mixed problems, some algorithms have no default operators for the encoding;
 Studio warns about them, and Customize offers operators for that encoding.
 
-A script generated from a customized configuration rebuilds it with the
-configuration class's `from_dict`; otherwise the script uses the default
-configuration and the chosen population size.
-
-**VAMOS 1.2.0:** the Problem Builder's script always rebuilds the
-configuration Studio runs with `from_dict`, default or customized, uses the
-seed of the form, and imports `math` and `numpy as np`, the names the
-objective code can use in Studio. It reports the number of returned
-solutions, which need not be non-dominated. VAMOS 1.1.0 scripts failed with
-`NameError` for code that used `np` or `math`, always used seed 42 and could
-run another default configuration than Studio.
-
 ## Batch hypervolume
 
 Batch Comparison computes the hypervolume of each run's feasible final front on
@@ -378,40 +364,6 @@ ten times larger with nine runs per sample. VAMOS 1.1.0 used the exact test's
 bound for every run count, so with more runs the warning could be missing. The
 LaTeX comparison caption escapes the pivot's name.
 
-## Trusted local Python
-
-The **Problem Builder** can compile and execute Python entered by the user or
-generated by an LLM. This is disabled by default. Before a preview can run,
-Studio displays the complete objective and constraint code and requires the
-user to select an explicit acknowledgement for the current code. Editing or
-regenerating that code clears the acknowledgement.
-
-> Trusted local Python code executes with the permissions of your current
-> operating-system user. Review the complete code before opting in.
-
-**VAMOS 1.2.0:** the answer of every provider goes through one
-check before the form changes: a surrounding Markdown code fence is removed,
-the answer must be a JSON object, and `objective_code`, `constraint_code` and
-`bounds` must be strings, `n_var` an integer from 1 to 100 and `n_obj` from
-2 to 10. A rejected answer leaves the form as it was. The request runs in the
-background and is abandoned after 120 seconds, and an unknown provider name is
-refused before any request. VAMOS 1.1.0 rejected a fenced OpenAI answer, could
-fill part of the form before failing, and sent an unknown provider to OpenAI.
-
-Generated code is never executed automatically. Syntax-tree validation,
-restricted built-ins, a child process, timeouts, and best-effort resource
-limits reject some unsupported inputs and reduce accidental damage; they do
-not isolate untrusted Python and are not a security boundary. Do not opt in for
-code from an untrusted source. Studio does not log generated code or API-key
-values.
-
-A preview reports a timeout when its elapsed-time limit expires or the
-operating system reports an exhausted CPU budget. Other worker failures
-remain distinct errors.
-
-Generating a standalone script only displays text; running that exported
-script remains a separate user action outside Studio.
-
 ## Data-only exploration
 
 Explore Results reads `vamos.run-manifest` and StudyManifest artifacts through
@@ -435,24 +387,4 @@ are not part of the stable VAMOS 1.x compatibility surface.
 ## Optional dependencies
 
 Interactive plots and tables use Panel, Plotly, and pandas from the `studio`
-extra. Problem Builder code generation also needs the SDK of the chosen LLM
-provider and an API key. The provider selector starts on `gemini`.
-
-| Provider | Install | Default model | Model variable | API key |
-| --- | --- | --- | --- | --- |
-| gemini | `pip install "vamos-optimization[gemini]"` | `gemini-2.0-flash` | `VAMOS_ASSIST_GEMINI_MODEL` | `GEMINI_API_KEY` |
-| openai | `pip install "vamos-optimization[openai]"` | `gpt-4o` | `VAMOS_ASSIST_OPENAI_MODEL` | `OPENAI_API_KEY` |
-| anthropic | `pip install "vamos-optimization[anthropic]"` | `claude-sonnet-4-20250514` | `VAMOS_ASSIST_ANTHROPIC_MODEL` | `ANTHROPIC_API_KEY`, or another credential the Anthropic SDK finds |
-
-**VAMOS 1.2.0:** the `gemini` extra is new. With VAMOS 1.1.0,
-install the Gemini SDK with `pip install google-genai`.
-
-`VAMOS_ASSIST_OPENAI_MODEL` also sets the model of `vamos assist`, whose
-default is `gpt-5.2`; set it to the model you want for both.
-
-Studio sends the provider the instructions for the expected answer and the
-problem description you typed. It sends no data, results, or files. Usage is
-billed to the owner of the API key.
-
-Prefer environment-based credentials; values entered in the password field are
-held only in the running process and are not included in Studio status output.
+extra.

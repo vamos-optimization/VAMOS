@@ -130,7 +130,7 @@ def nsga2_steady_offspring(
     without writing ``child``; the caller draws the rest and calls it again.
     Returns ``0`` once ``child`` is written.
     """
-    n_var = X.shape[1]
+    n_var: int = X.shape[1]
     squares_exponent_two = params[PARAM_SQUARES_EXPONENT_TWO] != 0.0
     tie = 0
     for i in range(2):
@@ -202,7 +202,7 @@ def nsga2_steady_draws(stream: FloatArray, differing: IntArray, count: int, para
     SBX consumes its variable draws when the pair is selected and its spread
     and swap grids only when some variable changes, as the compiled SBX does.
     """
-    n_var = differing.shape[0]
+    n_var: int = differing.shape[0]
     needed = 1 + 4 * n_var
     if stream[0] <= params[PARAM_PROB_CROSSOVER]:
         changes = count > 0

@@ -184,11 +184,11 @@ def inspect_result_bundle(
                     operation=operation,
                 )
                 with archive.open(member, "r") as stream:
-                    version = npformat.read_magic(stream)  # type: ignore[no-untyped-call]
+                    version = npformat.read_magic(stream)
                     if version == (1, 0):
-                        shape, _fortran, dtype = npformat.read_array_header_1_0(stream, max_header_size=limits.max_npy_header_bytes)  # type: ignore[no-untyped-call,call-arg]
+                        shape, _fortran, dtype = npformat.read_array_header_1_0(stream, max_header_size=limits.max_npy_header_bytes)
                     elif version == (2, 0):
-                        shape, _fortran, dtype = npformat.read_array_header_2_0(stream, max_header_size=limits.max_npy_header_bytes)  # type: ignore[no-untyped-call,call-arg]
+                        shape, _fortran, dtype = npformat.read_array_header_2_0(stream, max_header_size=limits.max_npy_header_bytes)
                     else:
                         raise_malformed(
                             descriptor,

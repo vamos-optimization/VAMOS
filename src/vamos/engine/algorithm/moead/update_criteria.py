@@ -90,7 +90,7 @@ def _violation(G: NDArray[Any]) -> NDArray[np.float64]:
 
 def _feasibility_ratio(G: NDArray[Any]) -> float:
     G = np.asarray(G, dtype=np.float64)
-    return float(np.count_nonzero(np.all(G <= 0.0, axis=1))) / G.shape[0]
+    return float(np.count_nonzero(np.all(G <= 0.0, axis=1))) / int(G.shape[0])
 
 
 class SubproblemUpdateCriterion:

@@ -22,7 +22,6 @@ Do not add readers, migrations, aliases, or deprecation cycles for internal pre-
 - `src/vamos/engine/`: algorithms, canonical variation pipelines, operator implementations, archives, hooks, and tuning.
 - `src/vamos/experiment/`: orchestration, CLI, studies, diagnostics, and artifacts.
 - `src/vamos/ux/`: public analysis, visualization, and Studio surfaces.
-- `src/vamos/assist/`: assisted workflows built on foundation, engine, and experiment.
 - `src/vamos/resources/`: packaged data; it imports no VAMOS layer.
 - `tests/`: unit, integration, architecture, documentation, and smoke coverage.
 - `docs/`, `examples/`, `notebooks/`: maintained learning and user material.
@@ -30,7 +29,7 @@ Do not add readers, migrations, aliases, or deprecation cycles for internal pre-
 - `experiments/`: research material, not runtime APIs. `paper/` is an optional local manuscript workspace; it is ignored and must not be tracked or published.
 - `experiments/scripts/canonical_runs.py`: the shared research collector for canonical `load_run`/`load_result` access.
 
-Permitted dependencies are: foundation -> foundation/resources; engine -> engine/foundation/resources; ux -> ux/foundation/engine/resources; experiment -> experiment/foundation/engine/ux/assist/resources; assist -> assist/foundation/engine/experiment/resources. Do not create reverse imports or import-time initialization to bypass these boundaries.
+Permitted dependencies are: foundation -> foundation/resources; engine -> engine/foundation/resources; ux -> ux/foundation/engine/resources; experiment -> experiment/foundation/engine/ux/resources. Do not create reverse imports or import-time initialization to bypass these boundaries.
 
 A root module belongs to the layer it re-exports, so it is no bridge between layers. The one exception is that ux reads stored runs and studies through the stable `vamos.run_artifacts` and `vamos.study_artifacts` facades, and reaches nothing else of experiment. assist sits above experiment and reuses its CLI parsers; the experiment CLI reaches assist only through the lazy import of the `vamos assist` subcommand. `tests/architecture/test_layer_boundaries.py` and `tests/architecture/test_subpackage_cycles.py` enforce these directions.
 
@@ -168,7 +167,7 @@ Documentation is part of the tested interface. Prefer one canonical guide per wo
 - Canonical loading and verification are inert, bounded, data-only operations and use no pickle.
 - Replay executes only explicitly supported built-in components; manifest text never selects arbitrary importable code.
 - Custom/plugin code and artifact input are untrusted by default.
-- Studio execution of raw Python is not a sandbox. Do not claim isolation that the implementation does not provide.
+- Studio runs registered problems and executes no user-entered or generated Python. Do not claim isolation that the implementation does not provide.
 - Never place credentials, access tokens, personal paths, or secrets in fixtures, manifests, logs, examples, or commits.
 
 ## Completion report
