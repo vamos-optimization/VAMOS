@@ -142,6 +142,25 @@ def test_configurator_offers_only_algorithms_for_the_encoding() -> None:
     assert configurator.selected_algorithm == "nsgaii"
 
 
+def test_a_new_population_gives_the_untouched_controls_their_new_defaults() -> None:
+    # SPEA2's archive follows the population: an untouched control follows it, an edited one keeps the edit.
+    configurator = AlgorithmConfigurator(algorithm="spea2", pop_size=40)
+    configurator.mode.value = CUSTOM_MODE
+    assert configurator.values()["archive_size"] == 40
+
+    configurator.pop_size.value = 60
+
+    assert configurator.values()["archive_size"] == 60
+    assert configurator.resolve().changed == ()
+    assert configurator.resolve().config.to_dict()["archive_size"] == 60
+
+    configurator.set_values({"archive_size": 100})
+    configurator.pop_size.value = 80
+
+    assert configurator.values()["archive_size"] == 100
+    assert configurator.resolve().config.to_dict()["archive_size"] == 100
+
+
 def test_experiment_runs_with_the_customized_configuration(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, Any] = {}
 

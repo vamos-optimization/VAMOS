@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from vamos.engine.tuning.grammar import Parameter, ParameterSpace
+from vamos.engine.tuning.racing.bridge_assignments import config_from_assignment
 from vamos.foundation.problem.registry import make_problem_selection
 from vamos.ux.studio.algorithm_form import (
     AlgorithmForm,
@@ -126,12 +129,53 @@ def test_a_form_is_its_grammar(algorithm: str, encoding: str) -> None:
     assert [parameter.name for parameter in form.parameters] == [name for name in order if name in form.start_values()]
     for parameter in form.parameters:
         node = grammar.parameter(parameter.name)
-        assert parameter.start == node.default and parameter.depth == depths[node.name]
+        assert parameter.depth == depths[node.name]
+        if parameter.name in POPULATION_DEFAULTS.get(algorithm, ()):
+            # The grammar's default is that of 100 individuals; the form starts at this run's.
+            assert parameter.start == form.baseline.to_dict()[parameter.name] == 40 and "population" in parameter.note
+        else:
+            assert parameter.start == node.default and parameter.note == ""
         if node.type == "categorical":
             assert parameter.choices == node.values
         elif node.range is not None:
             assert (parameter.low, parameter.high, parameter.log) == (*node.range, node.log)
-        assert parameter.note == ""
+
+
+# The parameters whose default configuration follows the population; the grammars give the value of 100 individuals.
+POPULATION_DEFAULTS = {"spea2": ("archive_size",), "smpso": ("archive_size",)}
+
+
+@pytest.mark.parametrize("pop_size", [12, 40, 150])
+@pytest.mark.parametrize(("algorithm", "encoding"), FORM_CASES)
+def test_an_untouched_form_shows_what_it_runs(algorithm: str, encoding: str, pop_size: int) -> None:
+    # Building the starting values gives the default configuration of the run's population, field by
+    # field, for every population: no control shows a value that the run does not use.
+    form = build_algorithm_form(algorithm, encoding=encoding, n_var=12, n_obj=2, pop_size=pop_size)
+    if form is None:
+        pytest.skip(f"{algorithm} has no {encoding} configuration space")
+    reference = build_algorithm_form(algorithm, encoding=encoding, n_var=12, n_obj=2, pop_size=100)
+    assert reference is not None
+
+    assert _start_differences(form) <= _start_differences(reference)
+
+
+def _start_differences(form: AlgorithmForm) -> set[str]:
+    """The configuration fields that the starting values build differently from the baseline."""
+    baseline = form.baseline.to_dict()
+    assignment = {name: form.start_values()[name] for name in form.active_names(form.start_values())}
+    built = config_from_assignment(form.grammar.variant, {**assignment, "pop_size": baseline["pop_size"], "n_obj": form.n_obj}).to_dict()
+    return {
+        key for key in set(baseline) | set(built) if json.dumps(baseline.get(key), default=str) != json.dumps(built.get(key), default=str)
+    }
+
+
+@pytest.mark.parametrize("algorithm", sorted(POPULATION_DEFAULTS))
+def test_the_default_of_100_individuals_is_a_change_for_another_population(algorithm: str) -> None:
+    form = _form(algorithm)  # 40 individuals
+    resolved = form.resolve({**form.start_values(), "archive_size": 100})
+
+    assert resolved.changed == ("archive_size",)
+    assert resolved.config.to_dict()["archive_size"] == 100
 
 
 def test_forms_start_from_the_automatic_initializer_and_repair() -> None:

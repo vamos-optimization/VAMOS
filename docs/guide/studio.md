@@ -298,6 +298,10 @@ its range and among its choices, so Studio no longer offers a separate
 "VAMOS default" choice or widens a range: the initializer and the repair start
 at `auto`, their automatic choice. Every space offers its encoding's default
 operators, so Studio no longer warns about default operators it cannot offer.
+The grammars' defaults are those of 100 individuals; where VAMOS's default
+follows the population, as SPEA2's and SMPSO's archive size, the control starts
+at the run's value and says so, and a new population size moves every control
+you have not changed to its new default.
 
 NSGA-III, RVEA, and MOEA/D with three or more objectives take their population
 size from their reference directions or weight vectors, so Studio shows that
