@@ -28,7 +28,7 @@ python ablation.py --output ablation-example
 ??? example "Complete runnable script"
 
     ```python
-    """Verified VAMOS 1.3.0 lesson: ablation. See coverage-setup for dependencies."""
+    """Verified VAMOS 1.4.0 lesson: ablation. See coverage-setup for dependencies."""
 
 
     def new_output(output):
@@ -155,7 +155,7 @@ One removed component, three seeds, one problem: descriptive evidence only.
 
 ![Actual ablation results from the documented protocol.](../assets/coverage/ablation.svg)
 
-*Measured with VAMOS 1.3.0; the [observations and provenance](coverage-setup.md#recorded-evidence) retain the inputs and results.*
+*Measured with VAMOS 1.4.0; the [observations and provenance](coverage-setup.md#recorded-evidence) retain the inputs and results.*
 
 ## Interpret the measurements and limits
 

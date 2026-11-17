@@ -62,7 +62,7 @@ class MOEADConfig(_SerializableConfig):
     150 becomes 136 with three objectives. The resolved spec of a run records the source in
     ``algorithm.resolution.weight_vectors``.
 
-    **Development after 1.3.0:** the options of Evolver's MOEA/D, all off by default:
+    **VAMOS 1.4.0:** the options of Evolver's MOEA/D, all off by default:
 
     - ``subproblem_order``: ``"random_permutation"`` (the default) or ``"cyclic"``, the order in
       which the subproblems are visited (Evolver's ``subProblemIdGenerator``,
@@ -221,7 +221,7 @@ class _MOEADConfigBuilder(
         return self
 
     def subproblem_order(self, value: SubproblemOrder) -> _MOEADConfigBuilder:
-        """**Development after 1.3.0:** the order of the subproblems, ``"random_permutation"`` (default) or ``"cyclic"``.
+        """**VAMOS 1.4.0:** the order of the subproblems, ``"random_permutation"`` (default) or ``"cyclic"``.
 
         ``"random_permutation"`` visits a new random permutation of the subproblems in each cycle;
         ``"cyclic"`` visits them in index order and draws no random number for it (jMetal's
@@ -256,7 +256,7 @@ class _MOEADConfigBuilder(
         """The aggregation function and its parameters.
 
         ``tchebycheff``, ``weighted_sum``, ``pbi`` (``theta``, default 5), ``modified_tchebycheff``
-        (``rho``, default ``1e-3``) and, **Development after 1.3.0**, ``augmented_tchebycheff``
+        (``rho``, default ``1e-3``) and, **VAMOS 1.4.0**, ``augmented_tchebycheff``
         (``rho``, default ``1e-4``), ``inverted_pbi`` (``theta``, default 0.1) and
         ``inverse_weight_tchebycheff`` (jMetal's ``ModifiedTschebyscheff``, ``max |f - z*| / w``). Any of them takes
         ``normalize=True`` and ``epsilon`` (default ``1e-6``): each objective becomes

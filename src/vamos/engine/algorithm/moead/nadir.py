@@ -1,6 +1,6 @@
 """The nadir point that MOEA/D's normalized aggregations and its inverted PBI read.
 
-**Development after 1.3.0.** This is jMetal 7.8's estimate (``MOEADReplacement`` with
+**VAMOS 1.4.0.** This is jMetal 7.8's estimate (``MOEADReplacement`` with
 ``normalize``): an unbounded ``NonDominatedSolutionListArchive`` receives the initial population
 and then each new solution before its replacements, and the nadir point is the largest value of
 each objective in that archive (``NadirPoint``, which ignores NaN). The archive compares

@@ -28,9 +28,9 @@ To query the installed registry, use `available_algorithms()` from `vamos.algori
 
 ## Capability matrix
 
-This table describes the **VAMOS 1.3.0 package**. Changes since 1.0.0 are listed below. “R / B / I / P / M” means real, binary, integer, permutation and mixed encodings. An encoding requires compatible variation operators and, for mixed problems, the problem's variable specification; a real-coded default configuration does not convert a discrete problem.
+This table describes the **VAMOS 1.4.0 package**. Changes since 1.0.0 are listed below. “R / B / I / P / M” means real, binary, integer, permutation and mixed encodings. An encoding requires compatible variation operators and, for mixed problems, the problem's variable specification; a real-coded default configuration does not convert a discrete problem.
 
-| Algorithm | Encodings | Constraint-aware survival in 1.3.0 | Archive | Backends | API status |
+| Algorithm | Encodings | Constraint-aware survival in 1.4.0 | Archive | Backends | API status |
 | --- | --- | --- | --- | --- | --- |
 | NSGA-II | R / B / I / P / M | Feasibility-based | Optional external result archive | NumPy / Numba / MooCore | Stable |
 | NSGA-III | R / B / I / P / M | Feasibility-first with reference-direction niching ([details](#constraint-handling-in-110)) | Optional external result archive | NumPy / Numba / MooCore | Stable |
@@ -382,7 +382,7 @@ These are implementation fixes under the existing stability policy. Record the p
 
 - NumPy (default): vectorized CPU kernels.
 - Numba: JIT acceleration for supported kernels (set `VAMOS_USE_NUMBA_VARIATION=1` for permutation/binary/integer variation).
-- MooCore: accelerated kernels via `moocore`. Install optional backends with `python -m pip install "vamos-optimization[compute]==1.3.0"`; see [installation](../guide/installation.md).
+- MooCore: accelerated kernels via `moocore`. Install optional backends with `python -m pip install "vamos-optimization[compute]==1.4.0"`; see [installation](../guide/installation.md).
 
 ### Backend roles
 
@@ -508,7 +508,7 @@ tracking, `batch_size > 1`, other operators or repairs, other array types, and
 platforms where compiled variation stays disabled (see below) keep the
 per-operator path described in the table.
 
-**Development after 1.3.0:** the compiled MOEA/D step also covers
+**VAMOS 1.4.0:** the compiled MOEA/D step also covers
 `subproblem_order="cyclic"` and the `augmented_tchebycheff` and
 `inverse_weight_tchebycheff` aggregations. The DE schemes other than rand/1/bin,
 the random DE base, the normalization of the objectives and the `inverted_pbi`
@@ -522,7 +522,7 @@ builds use vendor SIMD power). Otherwise the Numba engine keeps the NumPy
 operators. Compiled ranking, survival and archive truncation fall back to NumPy
 for non-finite objective values.
 
-**Development after 1.3.0:** the compiled power takes the same shortcuts as
+**VAMOS 1.4.0:** the compiled power takes the same shortcuts as
 `np.power` for a scalar exponent, which a run-time probe detects: the exponent 2
 as `x * x` (NumPy 2) and, with NumPy 2.4, the exponent 0.5 as `sqrt(x)` and -1
 as `1 / x`. With NumPy 2.4 the check failed on these exponents and the Numba

@@ -25,6 +25,7 @@ PACKAGES = {
     "numpy": "2.1.3",
     "scipy": "1.15.3",
     "joblib": "1.4.2",
+    "pyyaml": "6.0.3",
     "moocore": "0.3.2",
     "matplotlib": "3.10.9",
     "scikit-learn": "1.7.2",

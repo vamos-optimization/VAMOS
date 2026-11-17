@@ -2,13 +2,14 @@
   "schema": "vamos.documentation.study-tutorial-evidence.v1",
   "source": "examples/tutorials/study_workflow.py",
   "source_sha256": "bdd2494764a88eb0b68d61def2ab006e5b1d82b09e9d02c6b6274a0e5878045e",
-  "base_commit": "e0e426850eacee8d4083eb0d0ebc1371e9fa56b5",
+  "base_commit": "dac6c5f572f8cc846456d93ccf748473b286149a",
   "command": "python tools/build_study_tutorials.py --write --work-dir <new-directory>",
   "packages": {
-    "vamos-optimization": "1.3.0",
+    "vamos-optimization": "1.4.0",
     "numpy": "2.1.3",
     "scipy": "1.15.3",
     "joblib": "1.4.2",
+    "pyyaml": "6.0.3",
     "moocore": "0.3.2",
     "matplotlib": "3.10.9"
   },
@@ -34,15 +35,15 @@
     "t06-fair-study.py": "11c0bcefd7a4ddc5cdcd80f0d1b15b9d8d91e40f446632fbe4ec2747a3e11e6f",
     "t07-quality-and-budget.py": "53ee35a520f9a4d2130e81d7ed27f8abe4483762fb196f769a5d450b759cfad1",
     "t08-study-report.py": "7eb9df8668061451e5ba1f311e0236501f58e002a80cb6eac69cc0471a147a40",
-    "recorded-measurements.json": "b4a3602d3a086ede9c366dafd27e5bfe0ab2bc2c1ae555a8b98c920162387fb8",
-    "metrics.csv": "79bd7dc2d5684bad08a9ae863cd98b9ac71483dbed4157e839f22228894e1e1a",
+    "recorded-measurements.json": "43057b52b132120fb9d95be2170619187662d7443906775eec1f4e9fdac0156a",
+    "metrics.csv": "e317b469e39b692d10c7017303b7a0e682f319798c9c210d347a48044dfd11ad",
     "summary.csv": "0b1cea7e87e54d0abe152a60971d9f3d521b8c71291ca2e2bd18717d16cba817",
     "budget-comparison.svg": "aaade9c3b981057bd86011f65c553d90b60ef0e0bb893b8fa7894e7203264bd5",
     "final-distributions.svg": "49f41e68ed3be8fbca91ddeffb2adb67415ba682c7148bfabe723a1f692cabcf",
-    "study-requirements.txt": "5d3d032f4e1fd6a953f8b64cbc38f51fb0246344facc7ec2c4613ae1d9bd30b5",
+    "study-requirements.txt": "a765aec8cc1579204b4a91b396112f54da5b53989e6f8470ebdca4980716aa95",
     "study-execution.svg": "20ef9e5ed26a054d67efc913fac2ba7930f1be92d8339da713233658c998a343"
   },
-  "report_sha256": "c3c9ec6b9f2e1586914f162375d90c576a5b5d83ca68c03dc3b606f0de45ef60",
+  "report_sha256": "49912f99d546484ea7641bfc2ba28a70d79e2afbd993399ccced4c99dda073c0",
   "final_budget_summary": [
     {
       "problem": "zdt1",

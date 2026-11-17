@@ -72,7 +72,7 @@ class MOEADState(AlgorithmState):
     aggregation_id: int = -1
     aggregation_theta: float = 5.0
     aggregation_rho: float = 0.001
-    # Development after 1.3.0: the normalization of the objectives and the nadir point it reads (with the
+    # VAMOS 1.4.0: the normalization of the objectives and the nadir point it reads (with the
     # inverted PBI too), estimated from the non-dominated solutions evaluated so far (see nadir.py).
     aggregation_normalize: bool = False
     aggregation_epsilon: float = 1e-6
@@ -91,7 +91,7 @@ class MOEADState(AlgorithmState):
     batch_size: int = 1
     subproblem_order: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([], dtype=int))
     subproblem_cursor: int = 0
-    # Development after 1.3.0: visit the subproblems in index order instead of random permutations.
+    # VAMOS 1.4.0: visit the subproblems in index order instead of random permutations.
     subproblem_cyclic: bool = False
     # Random parents of the DE variation per child: 2 for rand/1, 4 for rand/2, one more with a random base.
     de_random_parents: int = 2

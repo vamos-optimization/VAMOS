@@ -5,7 +5,7 @@ indices, population-related settings, and other parameters that control a MOEA.
 A tuning campaign evaluates candidate configurations over explicit problem and
 seed blocks and ranks them by a scalar quality score.
 
-!!! warning "Experimental surface in VAMOS 1.3.0"
+!!! warning "Experimental surface in VAMOS 1.4.0"
     The tuning/racing implementation and the `vamos tune` and `vamos ablation`
     commands are **experimental**. They are supported for evaluation but may
     change incompatibly in a minor release. Stable optimization calls used by
@@ -19,7 +19,7 @@ This page is about configuring optimization algorithms. If the variables in
 
 ## Changes included in 1.0.1
 
-The install command below selects **VAMOS 1.3.0**, which keeps the corrected
+The install command below selects **VAMOS 1.4.0**, which keeps the corrected
 scoring, archive-search, and persistence behavior introduced in 1.0.1 and
 described on this page:
 
@@ -37,7 +37,7 @@ search spaces differ. See also the
 
 ## Programmatic API status
 
-VAMOS 1.3.0 does **not** expose a curated public programmatic facade for the
+VAMOS 1.4.0 does **not** expose a curated public programmatic facade for the
 algorithm-configuration tuner. Maintained user workflows should therefore use
 `vamos tune` rather than import deep `vamos.engine.*` implementation modules.
 
@@ -73,7 +73,7 @@ comparison:
 
 ### CLI scoring contract: hypervolume
 
-In VAMOS 1.3.0, the maintained `vamos tune` CLI has **no metric selector**. It scores
+In VAMOS 1.4.0, the maintained `vamos tune` CLI has **no metric selector**. It scores
 candidate runs with **hypervolume (HV) and maximizes that score**.
 
 The score source is fixed: VAMOS takes the **final population**, removes
@@ -94,7 +94,7 @@ The maintained CLI also removes `use_external_archive`, `archive_unbounded`, and
 parameter space aligned with the set actually used for scoring. Archive design
 can still be studied explicitly in a separate controlled experiment, but it is
 not mixed into ordinary `vamos tune` comparisons.
-**Development after 1.3.0:** the built-in spaces express the archive as one
+**VAMOS 1.4.0:** the built-in spaces express the archive as one
 choice, `external_archive`, which the CLI removes with `archive_prune_policy`.
 
 !!! note "Constrained AGE-MOEA and RVEA (1.0.1)"
@@ -168,7 +168,7 @@ Model-based backends (`optuna`, `smac3`, `bohb`, and `bohb_optuna`) require the
 optional tuning dependencies:
 
 ```bash
-python -m pip install "vamos-optimization[tuning]==1.3.0"
+python -m pip install "vamos-optimization[tuning]==1.4.0"
 ```
 
 For an editable development installation, follow
@@ -339,7 +339,7 @@ reference directions are the population. VAMOS 1.1.0 kept the [20, 200]
 population range, and `optimize` rejected most smoke configurations, which
 received `--failure-score`. A `vamos tune` run in which more than half of the
 evaluations fail, but not all of them, now ends with a warning.
-**Development after 1.3.0:** the spaces no longer sample the population, so
+**VAMOS 1.4.0:** the spaces no longer sample the population, so
 `--smoke` runs every configuration with `--pop-size` capped at 15, or with the
 smallest reference lattice of MOEA/D, NSGA-III or RVEA when that is larger, and
 records it under `fixed_parameters` in its smoke profile. When that lattice is
@@ -439,7 +439,7 @@ an absolute `mutation_prob` stays absolute, and without `initializer` or
 `repair` MOEA/D keeps its defaults. Seeded MOEA/D and SMS-EMOA tuning runs draw
 different trials.
 
-**Development after 1.3.0:** the real-coded MOEA/D and SMS-EMOA grammars
+**VAMOS 1.4.0:** the real-coded MOEA/D and SMS-EMOA grammars
 (`moead`, `moead_constrained`, `smsemoa`, `smsemoa_constrained`) also offer
 the choices of Evolver's spaces that VAMOS runs for them:
 
@@ -465,7 +465,7 @@ crossovers need three. Each new parameter defaults to its operator's own value,
 and an assignment saved with `crossover: de` or `crossover: sbx` builds what it
 built.
 
-**Development after 1.3.0:** every MOEA/D grammar also offers the options of
+**VAMOS 1.4.0:** every MOEA/D grammar also offers the options of
 Evolver's MOEA/D that the engine runs (see
 [the MOEA/D configuration](../reference/api/algorithms/moead.md)), each off by
 default, so the defaults still build the configuration of VAMOS 1.3.0:
@@ -545,10 +545,10 @@ differently, and the exchange functions translate them: `SBX`, `blxAlpha`,
 `blxAlphaBeta`, `wholeArithmetic`, `fuzzyRecombination`, `PCX` and `UNDC`;
 `linkedPolynomial`, `nonUniform`, `levyFlight` and `powerLaw`;
 `tschebyscheff`, `weightedSum`, `penaltyBoundaryIntersection` and
-`modifiedTschebyscheff`; `default` (random; **Development after 1.3.0:** `auto`), `latinHypercubeSampling`,
+`modifiedTschebyscheff`; `default` (random; **VAMOS 1.4.0:** `auto`), `latinHypercubeSampling`,
 `scatterSearch` and `oppositionBased`; `stochasticUniversalSampling`.
 
-**Development after 1.3.0:** Evolver's `modifiedTschebyscheff` is jMetal's
+**VAMOS 1.4.0:** Evolver's `modifiedTschebyscheff` is jMetal's
 `ModifiedTschebyscheff`, `max |f - z*| / w`, which VAMOS calls
 `inverse_weight_tchebycheff`: the exchange translates it to that name, where it
 used to give `modified_tchebycheff`, and `augmentedTschebyscheff` to
@@ -558,11 +558,11 @@ with `rho = 1e-3`) has no Evolver equivalent, and `to_evolver` raises
 
 `pop_size` keeps its name: Evolver passes the population size to the algorithm
 rather than tuning it, and the CLI and Studio treat it as a run setting
-(**Development after 1.3.0:** the spaces no longer offer it). The
+(**VAMOS 1.4.0:** the spaces no longer offer it). The
 external archive parameters (`use_external_archive`, `archive_unbounded`,
 `archive_prune_policy`) keep theirs until they become one choice, Evolver's
 `algorithmResult` and `archiveType`, in the planned VAMOS-CONFIG grammar.
-**Development after 1.3.0:** the archive is one choice, `external_archive`; the
+**VAMOS 1.4.0:** the archive is one choice, `external_archive`; the
 table gains `linked_polynomial_mutation_distribution_index` and CCMO's and
 CMOEA-MS's `variation` (`crossoverAndMutationVariation`,
 `differentialEvolutionVariation`), and Evolver's
@@ -573,7 +573,7 @@ repair strategies, keep their names and are ignored by the other side.
 
 ### Parameter spaces as grammars
 
-**Development after 1.3.0:** `vamos.engine.tuning.grammar` reads parameter
+**VAMOS 1.4.0:** `vamos.engine.tuning.grammar` reads parameter
 spaces written as strict grammars with defaults, under the schema
 `vamos.parameter-space` 1.0.0, from YAML, from JSON or from a parsed mapping.
 PyYAML, which reads the YAML, is a dependency of VAMOS. A categorical parameter chooses between productions,
@@ -634,7 +634,7 @@ space's identity), the flat mapping of its values (`to_values()`), which
 `VAR_CONF.txt` (`to_command_line()`), with VAMOS's names or, with
 `evolver=True`, Evolver's: `--crossover SBX --sbxDistributionIndex 20.0`.
 
-**Development after 1.3.0:** the built-in tuning spaces are such grammars,
+**VAMOS 1.4.0:** the built-in tuning spaces are such grammars,
 packaged with VAMOS as YAML files in `vamos/resources/parameter_spaces`, one
 per space (`nsgaii.yaml`, `moead_permutation.yaml`, ...).
 `builtin_parameter_space("nsgaii")` reads one, and `build_nsgaii_config_space()`
@@ -723,7 +723,7 @@ parameters of `improved_epsilon` (`improved_epsilon_tao`,
 `improved_epsilon_decay_fraction`), with the ranges of Evolver's
 `MOEADDoubleConstrained` space.
 
-**Development after 1.3.0:** the technique parameters have no default in VAMOS,
+**VAMOS 1.4.0:** the technique parameters have no default in VAMOS,
 jMetal or Evolver, so the grammars default to the settings of the papers that
 introduced the techniques: for `epsilon_constrained`, the quantile 0.2, the
 exponent 5 and the decay fraction 0.8 (Takahama and Sakai: epsilon starts at
@@ -826,7 +826,7 @@ to 293,930 with ten. An assignment with `n_partitions`, saved from an earlier
 space, still builds that lattice, and `--smoke` caps RVEA's `pop_size` as it
 does for the other algorithms.
 
-**Development after 1.3.0:** the spaces do not sample `pop_size`, so these
+**VAMOS 1.4.0:** the spaces do not sample `pop_size`, so these
 derivations start from the fixed `pop_size` of the run, which the caller adds
 to the assignment with `n_obj` and which `vamos tune` takes from `--pop-size`
 for every algorithm, RVEA included: with three objectives and `--pop-size 100`,
@@ -850,7 +850,7 @@ samples and encodes parameters in the same dependency order, so a parameter
 may be declared before its parent. `irace` receives the same subset as
 irace conditions; see [The irace backend](#the-irace-backend).
 
-**Development after 1.3.0:** a built-in space reaches every backend as the
+**VAMOS 1.4.0:** a built-in space reaches every backend as the
 view of its grammar (see [Parameter spaces as grammars](#parameter-spaces-as-grammars)),
 and the backends read the grammar instead of condition expressions. ConfigSpace
 (`smac3`, `bohb`) gets hyperparameters with the grammar's defaults, an
@@ -918,7 +918,7 @@ cause of a `RuntimeError`.
   conditions with `or` or `not` also require every parent they read to be
   active, as VAMOS does. Categorical choices must have distinct tokens made of
   letters, digits, `_`, `.`, `+` or `-`. irace rounds real values to four
-  decimal places by default. **Development after 1.3.0:** a built-in space
+  decimal places by default. **VAMOS 1.4.0:** a built-in space
   gives one condition per edge of its grammar's tree, and its default
   configuration is the first of the initial configurations.
 - **Instances and seeds:** by default each instance/seed pair of the task is an
@@ -980,7 +980,7 @@ again, with other categorical choices, so the CLI appends
 change, take `__vamos_cli_leaders_hv_v2`. A study stored by VAMOS 1.2.1 or
 earlier is not resumed under the new names.
 
-**Development after 1.3.0:** the hash of the searched space replaces the
+**VAMOS 1.4.0:** the hash of the searched space replaces the
 version suffix. The CLI appends the scoring contract and the first 16
 hexadecimal digits of the SHA-256 of the space it searches (the built-in
 grammar without the archive controls, `space.identity`):
@@ -1072,7 +1072,7 @@ schedule, and split is not a reproducible tuning result.
 
 ## Archive studies are separate from ordinary CLI tuning
 
-The 1.3.0 CLI intentionally excludes external-archive controls from its
+The 1.4.0 CLI intentionally excludes external-archive controls from its
 ordinary algorithm-configuration search so every candidate is compared on the
 same final-population basis. If archive capacity, pruning, or archive-enabled
 result semantics are themselves the research question, define them explicitly
