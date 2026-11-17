@@ -75,18 +75,18 @@ notes](docs/project/release-notes-1.4.0.md).
   tune` runs every algorithm, RVEA included, with `--pop-size`; MOEA/D, NSGA-III
   and RVEA derive their populations from it as from the sampled one. Every
   parameter has a default, and a space's defaults run as its algorithm's
-  `default()` configuration (the mixed spaces excepted). `initial_solutions` and
-  `repair` offer `auto`, their default. The external archive is one choice,
-  `external_archive` (`none`, `unbounded` or `bounded`); polynomial and linked
-  polynomial mutation have an index each; rates hang from their operators; CCMO
-  and CMOEA-MS choose a `variation`; the integer spaces name polynomial mutation
-  `polynomial`; and the mutation probability is `mutation_probability_factor` in
-  every space but the permutation spaces of the algorithms other than NSGA-II.
-  Every seeded tuning run draws different trials. The `effective` record of
-  `tuning_history.json` and `best_config_effective` of `tuning_summary.json`
-  give the population MOEA/D runs instead of `--pop-size` (136 for 150 with
-  three objectives). Assignments saved from earlier spaces build the
-  configurations they built (#334).
+  `default()` configuration. `initial_solutions` and `repair` offer `auto`,
+  their default. The external archive is one choice, `external_archive` (`none`,
+  `unbounded` or `bounded`); polynomial and linked polynomial mutation have an
+  index each; rates hang from their operators; CCMO and CMOEA-MS choose a
+  `variation`; the integer spaces name polynomial mutation `polynomial`; and the
+  mutation probability is `mutation_probability_factor` in every space but the
+  permutation spaces of the algorithms other than NSGA-II. Every seeded tuning
+  run draws different trials. The `effective` record of `tuning_history.json`
+  and `best_config_effective` of `tuning_summary.json` give the population
+  MOEA/D runs instead of `--pop-size` (136 for 150 with three objectives).
+  Assignments saved from earlier spaces build the configurations they built
+  (#334).
 - The segments of NSGA-II's mixed tuning space sample their mutation
   probabilities in [0.01, 0.5], as the other mixed spaces; they sampled [0.25,
   3.0], so above 1 every mutation applied (#334).
