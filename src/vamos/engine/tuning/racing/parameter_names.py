@@ -69,7 +69,7 @@ VALUE_NAMES: dict[str, tuple[tuple[str, str, str | None], ...]] = {
         ("tchebycheff", "tchebycheff", "tschebyscheff"),
         ("weighted_sum", "weighted_sum", "weightedSum"),
         ("pbi", "pbi", "penaltyBoundaryIntersection"),
-        # Development after 1.3.0: Evolver's modifiedTschebyscheff is jMetal's ModifiedTschebyscheff,
+        # VAMOS 1.4.0: Evolver's modifiedTschebyscheff is jMetal's ModifiedTschebyscheff,
         # max |f - z*| / w; VAMOS's modified_tchebycheff (the augmented formula, rho = 1e-3) has no Evolver name.
         ("modified_tchebycheff", "modified_tchebycheff", None),
         ("inverse_weight_tchebycheff", "inverse_weight_tchebycheff", "modifiedTschebyscheff"),

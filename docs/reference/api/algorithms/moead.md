@@ -26,7 +26,7 @@ lattice by about `1e-16`, so a tool that reads the file can drift from VAMOS wit
 the same seed. `vamos tune` records the population a trial ran
 when it differs from the sampled one (see [Tuning](../../../topics/tuning.md#populations-that-depend-on-the-number-of-objectives)).
 
-**Development after 1.3.0:** the options of Evolver's MOEA/D. Each is off by
+**VAMOS 1.4.0:** the options of Evolver's MOEA/D. Each is off by
 default, so a configuration that leaves them out runs exactly as in VAMOS 1.3.0.
 
 | Option | Values | Reference |

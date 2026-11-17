@@ -3,7 +3,7 @@
 Each function maps objective vectors ``fvals`` and weight vectors ``weights`` (row by row) to the
 value of the subproblem, to be minimized, with the ideal point ``ideal`` as reference.
 
-**Development after 1.3.0:** two more functions and the normalization of the objectives, after
+**VAMOS 1.4.0:** two more functions and the normalization of the objectives, after
 jMetal 7.8 (``org.uma.jmetal.util.aggregationfunction.impl``, which Evolver's
 ``AggregationFunctionParameter`` builds):
 

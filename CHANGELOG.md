@@ -4,6 +4,156 @@ All notable public changes to VAMOS are documented here.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-17
+
+VAMOS 1.4.0 is a minor release. The built-in tuning spaces become YAML grammars
+with a default for every parameter (schema `vamos.parameter-space` 1.0.0), which
+the tuning backends and Studio's algorithm forms read; seeded tuning runs draw
+different trials, and persistent Optuna studies of 1.3.0 are not resumed. MOEA/D
+and SMS-EMOA come closer to Evolver: MOEA/D gains Evolver's order of the
+subproblems, DE schemes and base vector, and aggregation functions with the
+normalization of the objectives, and the spaces offer Evolver's operators. As
+announced with 1.3.0, VAMOS Assist, Studio's Problem Builder and the LLM extras
+are removed. PyYAML becomes a dependency, and the Numba engine keeps its
+compiled variation with NumPy 2.4. The default configurations of the algorithms
+give the results of 1.3.0. See the [1.4.0 release
+notes](docs/project/release-notes-1.4.0.md).
+
+### Added
+
+- MOEA/D: `subproblem_order="cyclic"` visits the subproblems in index order, as
+  Evolver's `cyclicIntegerSequence`; the default, `"random_permutation"`, is the
+  order of earlier versions (#337).
+- MOEA/D: the DE crossover takes `scheme="rand_1_exp"`, `"rand_2_bin"` or
+  `"rand_2_exp"`, jMetal's `DifferentialEvolutionCrossover` variants; the
+  default is `"rand_1_bin"`. rand/2 needs `neighbor_size >= 4` (#337).
+- MOEA/D: the `augmented_tchebycheff` (`rho`, default `1e-4`) and `inverted_pbi`
+  (`theta`, default `0.1`; Sato, 2014) aggregations, and `normalize=True` with
+  `epsilon` (default `1e-6`) in any aggregation, which normalizes the objectives
+  with the ideal point and jMetal's estimate of the nadir point. Off by default
+  (#337).
+- `vamos.engine.tuning.grammar` (Experimental) reads tuning parameter spaces
+  written as strict grammars with defaults, under the schema
+  `vamos.parameter-space` 1.0.0, from YAML or JSON, and rejects a space that
+  breaks one of the rules G1–G6 with an error that names the rule and the place:
+  unique snake_case names, one parent per parameter and no condition
+  expressions, a default inside every domain, ordered ranges, non-empty values
+  without duplicates or values written alike, and string values where one has a
+  production, and a known schema, algorithm and encoding. The schema has no
+  forbidden clauses and one range per parameter.
+  `check_default_configuration(space, problem)` checks rule G7 by running the
+  space's defaults and the algorithm's `default()` configuration with the same
+  seed. A configuration of a space has three forms that read back into it: the
+  document `vamos.parameter-configuration` 1.0.0, with the space's name, version
+  and SHA-256; the flat mapping that `config_from_assignment` reads; and the
+  command line of Evolver's `VAR_CONF.txt`, with VAMOS's names or Evolver's
+  (#333).
+- MOEA/D: the `inverse_weight_tchebycheff` aggregation, jMetal's
+  `ModifiedTschebyscheff` (Evolver's `modifiedTschebyscheff`), `max_i |f_i -
+  z*_i| / w_i`: the Tchebycheff function with Qi et al.'s WS-transformed weights
+  (#349).
+- MOEA/D: the DE crossover takes `base="random"`, which takes the mutant's base
+  vector from one more random parent, as Evolver's MOEA/D; the default,
+  `"current"`, keeps the current solution (#349).
+- The built-in tuning spaces are YAML grammars (`vamos.parameter-space` 1.0.0)
+  packaged in `vamos/resources/parameter_spaces`, one per space and maintained
+  as YAML, which VAMOS reads at run time.
+  `vamos.engine.tuning.grammar.builtin_parameter_space(name)` reads one and
+  `to_algorithm_config_space` gives the flat view that
+  `build_<space>_config_space()` returns. `python
+  tools/update_parameter_spaces.py` checks the files and writes the test
+  snapshot of what the bridges build from them (#334).
+
+### Changed
+
+- PyYAML is a dependency of VAMOS (`pyyaml>=6.0`), which reads its YAML tuning
+  spaces at run time; it was in the `dev` extra (#333).
+- The CLI's `--moead-aggregation` help lists every aggregation it accepts
+  (#349).
+- The built-in tuning spaces no longer tune `pop_size`: it is a run setting that
+  the caller adds to an assignment, as `n_obj` (100 without it), and `vamos
+  tune` runs every algorithm, RVEA included, with `--pop-size`; MOEA/D, NSGA-III
+  and RVEA derive their populations from it as from the sampled one. Every
+  parameter has a default, and a space's defaults run as its algorithm's
+  `default()` configuration (the mixed spaces excepted). `initial_solutions` and
+  `repair` offer `auto`, their default. The external archive is one choice,
+  `external_archive` (`none`, `unbounded` or `bounded`); polynomial and linked
+  polynomial mutation have an index each; rates hang from their operators; CCMO
+  and CMOEA-MS choose a `variation`; the integer spaces name polynomial mutation
+  `polynomial`; and the mutation probability is `mutation_probability_factor` in
+  every space but the permutation spaces of the algorithms other than NSGA-II.
+  Every seeded tuning run draws different trials. The `effective` record of
+  `tuning_history.json` and `best_config_effective` of `tuning_summary.json`
+  give the population MOEA/D runs instead of `--pop-size` (136 for 150 with
+  three objectives). Assignments saved from earlier spaces build the
+  configurations they built (#334).
+- The segments of NSGA-II's mixed tuning space sample their mutation
+  probabilities in [0.01, 0.5], as the other mixed spaces; they sampled [0.25,
+  3.0], so above 1 every mutation applied (#334).
+- The tuning backends read a built-in space's grammar instead of condition
+  expressions. ConfigSpace (SMAC3, BOHB) gets hyperparameters with the grammar's
+  defaults and its tree as conditions. Optuna walks the tree and starts a new
+  study from the default configuration, and irace and racing also race the
+  default configuration first. Racing and random search draw only active
+  parameters. Every seeded tuning run draws different trials (#335).
+- `vamos tune` names persistent Optuna studies after the space it searches:
+  `__vamos_cli_final_population_hv_<hash>` (SMPSO:
+  `__vamos_cli_leaders_hv_<hash>`), with 16 hexadecimal digits of the space's
+  SHA-256, instead of a version suffix. A changed space is a new study; studies
+  of VAMOS 1.3.0 and earlier are not resumed (#335).
+- Studio's algorithm forms are the grammar of the tuning space. The controls
+  follow its tree, start from its defaults (the VAMOS default configuration),
+  and edit each parameter within the range that tuning uses. `initial_solutions`
+  and `repair` start at `auto`. The forms no longer offer a "VAMOS default"
+  choice or widen a range, and Studio no longer warns about default operators
+  that a space did not offer (#336).
+- The real-coded MOEA/D and SMS-EMOA tuning spaces offer what Evolver gives
+  these algorithms and VAMOS runs:
+  - Sobol initialization;
+  - the Lévy flight and power-law mutations;
+  - the Laplace and fuzzy crossovers, plus BLX-αβ and whole arithmetic in
+    SMS-EMOA;
+  - in MOEA/D, a `variation` choice between differential evolution, the default,
+    and crossover and mutation with SBX, BLX-α, BLX-αβ, whole arithmetic,
+    arithmetic, Laplace or fuzzy recombination;
+  - SBX and polynomial distribution indices in [5, 400].
+  Assignments saved with `crossover: de` or `sbx` build what they built (#350).
+- The mixed tuning spaces choose between the default mixed operators (`mixed`,
+  the default, with a crossover probability and a mutation factor) and an
+  operator per segment (`per_segment`). Their defaults now run as the
+  algorithm's default configuration (#350).
+- Seeded tuning runs of the real-coded MOEA/D and SMS-EMOA spaces and of the
+  mixed spaces draw different trials (#350).
+
+### Removed
+
+- `vamos.assist` and the Experimental `vamos assist` command, which planned and
+  ran experiments from templates or with an OpenAI planner. VAMOS calls no LLM
+  provider. `vamos assist ...` now fails as unrecognized arguments (exit status
+  2) (#332).
+- Studio's Experimental Problem Builder page, which ran Python objective code
+  typed into Studio or drafted by Gemini, OpenAI or Anthropic, and exported
+  scripts. Studio runs registered problems only; define a problem with
+  `make_problem` or `vamos create-problem` (#332).
+- The `openai`, `anthropic` and `gemini` extras, also from `all`. No extra
+  installs an LLM client (#332).
+
+### Fixed
+
+- The tuning name table read Evolver's `modifiedTschebyscheff` as VAMOS's
+  `modified_tchebycheff`, a different function, so a configuration from Evolver
+  ran another aggregation. It now reads it as `inverse_weight_tchebycheff`, and
+  `augmentedTschebyscheff` as `augmented_tchebycheff`; `to_evolver` raises
+  `ValueError` for `modified_tchebycheff`, which Evolver does not have, instead
+  of writing `modifiedTschebyscheff` (#349).
+- The mixed variation of MOEA/D, NSGA-III, SMS-EMOA and SPEA2 runs the segment
+  settings of its configuration (`perm_crossover`, `real_mutation_prob`,
+  `int_mutation_step`, ...). It ran the default mixed operators whatever they
+  said, so every point of these algorithms' mixed tuning spaces ran as the
+  default. Default configurations, which set no segment, do not change (#334).
+- The default `epsilon_decay_fraction` of the constrained tuning spaces is 0.8,
+  Takahama and Sakai's Tc = 0.8 Tmax; it was 0.2 (#350).
+
 ## [1.3.0] - 2026-11-16
 
 VAMOS 1.3.0 is a minor release. It requires Python 3.11 or newer, as announced
@@ -937,7 +1087,8 @@ development markers; they are not prior public releases.
 - Studio, tuning, visualization, provider integrations, plugin interfaces, and
   non-stable CLI commands remain experimental.
 
-[Unreleased]: https://github.com/vamos-optimization/VAMOS/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/vamos-optimization/VAMOS/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.4.0
 [1.3.0]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.3.0
 [1.2.1]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.2.1
 [1.2.0]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.2.0

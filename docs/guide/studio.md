@@ -14,7 +14,7 @@ ZDT1, NSGA-II and MOEA/D, seeds 42 and 43, population 100, NumPy backend,
 10,000 evaluations per run. The two seeds are pooled for each algorithm.
 This is a walkthrough dataset, not evidence that one algorithm is better.*
 
-This guide targets **VAMOS 1.3.0**. Since VAMOS 1.1.0 the launcher serves the
+This guide targets **VAMOS 1.4.0**. Since VAMOS 1.1.0 the launcher serves the
 application and honors its study directory. Users of 1.0.2 should upgrade to
 obtain these fixes and the durable batch and comparison pages described here.
 
@@ -84,7 +84,7 @@ ranking table shown on the page, filters included. Use the
 Studio's optional dependencies are installed from PyPI:
 
 ```bash
-python -m pip install "vamos-optimization[studio]==1.3.0"
+python -m pip install "vamos-optimization[studio]==1.4.0"
 ```
 
 The packaged command and its intended study-root argument are:
@@ -171,7 +171,7 @@ vamos studio --address 0.0.0.0 --allow-remote-binding --no-browser --allow-webso
   merged every row of every seed, ranked infeasible solutions too, and could
   pair a point with another solution's variables.
 
-**Development after 1.3.0:** the experimental **Problem Builder** page is
+**VAMOS 1.4.0:** the experimental **Problem Builder** page is
 removed. It ran Python objective code typed into Studio or drafted by an LLM
 provider, and its code generation needed the `openai`, `anthropic` or `gemini`
 extra, which are removed too. Studio runs registered problems only. To define
@@ -287,7 +287,7 @@ offered. Studio applies only the configuration fields you change on top of the
 default configuration and lists every difference before the run. When a VAMOS
 default lies outside the tuning range, Studio keeps it and says so.
 
-**Development after 1.3.0:** the controls are the grammar of the tuning space
+**VAMOS 1.4.0:** the controls are the grammar of the tuning space
 (see [Parameter spaces as grammars](../topics/tuning.md#parameter-spaces-as-grammars)):
 they follow its tree, each control indented under the parameter it depends on,
 start from its defaults, which are the VAMOS default configuration, and edit

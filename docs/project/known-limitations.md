@@ -1,4 +1,4 @@
-# Known limitations in VAMOS 1.3.0
+# Known limitations in VAMOS 1.4.0
 
 These limitations are part of the current release scope. They describe
 unsupported behavior rather than future compatibility promises.
@@ -195,7 +195,7 @@ unsupported behavior rather than future compatibility promises.
 - Windows offers no directory fsync, so study and run writers skip it there: a
   power loss just after a write can lose the newest entry of a directory, but
   never leaves a partial document or run under its final name.
-- Study execution is sequential in 1.3.0. Distributed workers, multiprocess
+- Study execution is sequential in 1.4.0. Distributed workers, multiprocess
   ownership, and cross-process cancellation are unsupported.
 - **VAMOS 1.2.0:** study tasks run with serial evaluation only;
   planning and creation reject `eval_strategy="multiprocessing"` or `"dask"`
@@ -228,11 +228,6 @@ unsupported behavior rather than future compatibility promises.
   so with five or fewer seeds its tables showed no significant difference, and
   it put the worst value in bold for some aliases of the epsilon and Hausdorff
   indicators; see [Other subcommands](../guide/cli.md#other-subcommands).
-- **VAMOS 1.3.0:** in the mixed-encoding tuning spaces of MOEA/D, NSGA-III,
-  SMS-EMOA and SPEA2, the per-type segment settings (the real, integer and
-  categorical crossovers and mutations and their probabilities) do not reach
-  the run, so tuning them has no effect. The next minor release fixes them with
-  the grammar-based spaces.
 
 ## Studio
 
@@ -248,7 +243,7 @@ unsupported behavior rather than future compatibility promises.
   account that serves it until the launch ends. To reach Studio from another
   computer, prefer an SSH tunnel to the loopback port over remote binding; see
   [Installation and launch options](../guide/studio.md#installation-and-launch-options).
-- **Development after 1.3.0:** Studio runs registered problems only. The
+- **VAMOS 1.4.0:** Studio runs registered problems only. The
   Problem Builder, which executed reviewed Python typed into Studio or drafted
   by an LLM provider, is removed, and VAMOS integrates no LLM provider.
 

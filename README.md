@@ -22,7 +22,10 @@ and keeps persistent Optuna studies from mixing with earlier versions. VAMOS
 1.3.0 requires Python 3.11 or newer, corrects operators whose fixes change
 results, rebuilds the tuning spaces and racing's statistics, and adds a
 wall-clock time limit, problem options by name and jMetal's reference fronts as
-an option. See the
+an option. VAMOS 1.4.0 turns the tuning spaces into YAML grammars with defaults,
+which the tuning backends and Studio read, gives MOEA/D and SMS-EMOA the choices
+that Evolver offers, and removes VAMOS Assist and the LLM extras. See the
+[1.4.0 release notes](https://vamos-optimization.org/project/release-notes-1.4.0/), the
 [1.3.0 release notes](https://vamos-optimization.org/project/release-notes-1.3.0/), the
 [1.2.1 release notes](https://vamos-optimization.org/project/release-notes-1.2.1/), the
 [1.2.0 release notes](https://vamos-optimization.org/project/release-notes-1.2.0/), including
@@ -101,7 +104,7 @@ pip install "smac>=2.0"
 | `numba` | Stable optional | Accelerates core numeric kernels such as variation, tournament selection, and MOEA/D neighborhood updates. |
 | `moocore` | Stable optional | Adds accelerated quality-indicator support, especially hypervolume-style metrics. |
 
-In VAMOS 1.3.0, use `engine="auto"` (CLI: `--engine auto`)
+In VAMOS 1.4.0, use `engine="auto"` (CLI: `--engine auto`)
 to prefer loadable Numba for all nine built-in algorithms, with a NumPy fallback.
 Numba remains optional. Omitting `engine` still selects NumPy, preserving the 1.x
 default; explicit `engine="numba"` fails if unavailable. First use can spend more

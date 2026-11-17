@@ -6,7 +6,7 @@ This module imports numba at import time. MOEA/D reaches it through
 ``KernelBackend.moead_steady_state_kernels``; ``agg_id`` takes the aggregation
 ids of :mod:`vamos.foundation.kernel.moead_kernels`.
 
-**Development after 1.3.0:** the update takes the nadir point, the epsilon and
+**VAMOS 1.4.0:** the update takes the nadir point, the epsilon and
 the switch of the normalization of the objectives, and computes the augmented
 Tchebycheff (``AGG_AUGMENTED_TCHEBYCHEFF``, the formula of the modified one) and
 inverted PBI (``AGG_INVERTED_PBI``) aggregations, and jMetal's modified

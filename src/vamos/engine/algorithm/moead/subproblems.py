@@ -1,6 +1,6 @@
 """The order in which MOEA/D visits its subproblems, and the parents it draws for each.
 
-**Development after 1.3.0:** ``subproblem_order`` chooses the order, as Evolver's
+**VAMOS 1.4.0:** ``subproblem_order`` chooses the order, as Evolver's
 ``subProblemIdGenerator`` does:
 
 - ``"random_permutation"`` (the default, VAMOS's only order before): a new random permutation of

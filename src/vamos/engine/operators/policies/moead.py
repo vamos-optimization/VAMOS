@@ -1,7 +1,7 @@
 # operators/policies/moead.py
 """Operator building for MOEA/D.
 
-**Development after 1.3.0:** the ``de`` crossover takes a ``scheme``, one of jMetal's
+**VAMOS 1.4.0:** the ``de`` crossover takes a ``scheme``, one of jMetal's
 ``DifferentialEvolutionCrossover`` variants (jMetal 7.8; Evolver's ``differentialEvolutionCrossover``):
 ``"rand_1_bin"`` (the default, VAMOS's only scheme before), ``"rand_1_exp"``, ``"rand_2_bin"`` and
 ``"rand_2_exp"``. The child starts as the current solution of the subproblem, the last parent; the
@@ -11,7 +11,7 @@ the mating pool) and in MOEA/D-DE. The binomial crossover takes each variable fr
 its draw is lower than CR, and one variable at random always; the exponential crossover takes a
 block of consecutive variables (:func:`~vamos.engine.operators.impl.real.crossover_differential.exponential_crossover`).
 
-**Development after 1.3.0:** the ``base`` of the ``de`` crossover chooses the mutant's base vector:
+**VAMOS 1.4.0:** the ``base`` of the ``de`` crossover chooses the mutant's base vector:
 ``"current"`` (the default), the current solution as above, or ``"random"``, one more random parent,
 distinct from those of the difference vectors, as in Evolver's MOEA/D, whose
 ``populationAndNeighborhoodMatingPoolSelection`` passes ``selectCurrentSolution = false``: the mating

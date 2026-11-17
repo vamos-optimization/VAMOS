@@ -1,8 +1,7 @@
 # VAMOS-CONFIG design: parameter spaces as grammars
 
-**Development after 1.3.0:** this design was reviewed on 2026-11-15, and the decisions of the
-review are part of it (section 3). Its first three phases (section 10) ship in the version after
-1.3.0; they do not describe the behaviour of any released version. The tuning spaces it discusses
+**VAMOS 1.4.0:** this design was reviewed on 2026-11-15, and the decisions of the
+review are part of it (section 3). Its first three phases (section 10) ship in VAMOS 1.4.0. The tuning spaces it discusses
 are Experimental (see [Stability and versioning](../project/stability-and-versioning.md)).
 
 VAMOS-Studio's design note
@@ -210,7 +209,7 @@ RVEA's earlier `n_partitions`) left every space (decision 4).
 | M5 | Operator rates as global sub-parameters of their operator node (`crossover_probability` under `crossover`, `mutation_probability_factor` under `mutation`, a mixed segment's probability under its operator), so that a subtree crossover moves them with their operator. | Encoding quality | every space |
 | M6 | One name per operator and parameter: `polynomial` everywhere (the integer spaces' `pm` too), Evolver's snake_case names for the parameters of the name table, no value renamed to another operator's name (`uniform_reset` keeps its name: `random_reset` is the integer reset mutation), and the current names accepted when reading old assignments. The operators' own parameters (`crossover_alpha`, `undx_zeta`, ...) keep VAMOS's names. | P5 | every space |
 | M7 | `mutation_probability_factor` in [0.25, 3.0] instead of an absolute probability in every space whose default probability is 1/n: the real-coded, binary and integer spaces, and NSGA-II's permutation space (default 2.0, the 2/n of `NSGAIIConfig.default()`). The permutation spaces of the other algorithms and the segments of the mixed spaces keep an absolute probability in [0.01, 0.5], which applies to a whole solution or segment and whose default is a constant. | P5 | 37 spaces |
-| M8 | A `variation` node in MOEA/D's real-coded space, with `differential_evolution` and `crossover_and_mutation` productions, as Evolver's `MOEADDouble`. *In the version after 1.3.0, without `de_scheme`, which waits for the DE schemes of the engine.* | DE schemes in section 9 | 2 spaces, with the engine items of section 9 |
+| M8 | A `variation` node in MOEA/D's real-coded space, with `differential_evolution` and `crossover_and_mutation` productions, as Evolver's `MOEADDouble`. *In VAMOS 1.4.0, without `de_scheme`, which waits for the DE schemes of the engine.* | DE schemes in section 9 | 2 spaces, with the engine items of section 9 |
 
 Writing the grammars also brought out two defects of the spaces of VAMOS 1.3.0. The segments of
 NSGA-II's mixed space sampled their absolute mutation probabilities in [0.25, 3.0], the range of a
@@ -220,7 +219,7 @@ of their mixed spaces ran as the default; phase 2 fixes it.
 
 The nine mixed spaces broke G7: their segment operators draw random numbers in another order than
 the default mixed operators, which apply one probability to every segment, so no point of those
-spaces ran as the default configuration. *In the version after 1.3.0* the mixed grammars offer the
+spaces ran as the default configuration. *In VAMOS 1.4.0* the mixed grammars offer the
 default operators: `crossover` and `mutation` choose `mixed` (the default, with
 `crossover_probability` and `mutation_probability_factor`) or `per_segment` (the segment operators
 and their probabilities), and every space passes G7.
@@ -256,22 +255,22 @@ factor, `repair` and `initializer` in MOEA/D's space). These need the grammar, t
 | DE schemes | `de_scheme` with `rand_1_bin`, `rand_1_exp`, `rand_2_bin` and `rand_2_exp`, under M8's `differential_evolution` production; the same crossover set as NSGA-II's space under `crossover_and_mutation`, except PCX, UNDC and simplex, which need three parents while MOEA/D pairs them; SBX's index in [5, 400] as Evolver. | MOEA/D's `DifferentialCrossoverStep` implements rand/1/bin only; CMOEA-MS already has `rand_1_exp`. Rand/2 needs five parents from the neighbourhood. |
 | Normalization in the aggregation | A global sub-parameter of `aggregation_function`, `normalize_objectives` (boolean) with `normalization_epsilon` in [1e-8, 25], as Evolver; candidates `augmented_tchebycheff` and `inverted_pbi` (`ipbi_theta` in [0.01, 200]). | Normalization by the ideal and nadir points in the aggregation functions and in the compiled neighbourhood kernel, which must keep its parity with NumPy. |
 | Order of the subproblems | `subproblem_order: random_permutation \| cyclic`, Evolver's `subProblemIdGenerator`. | A cyclic order in MOEA/D's step; the steady-state kernels take the order as input. |
-| Operators of SMS-EMOA and MOEA/D | The crossovers and mutations that VAMOS implements and NSGA-II's space already offers (whole arithmetic, Laplace, fuzzy recombination, BLX-αβ, Lévy flight, power law), and SBX's and polynomial mutation's indices up to 400, in both spaces; the Sobol and opposition-based initializers of NSGA-II's space. | Grammars only; the operators exist. *In the version after 1.3.0, with Sobol; MOEA/D's crossovers under M8's `crossover_and_mutation`.* |
+| Operators of SMS-EMOA and MOEA/D | The crossovers and mutations that VAMOS implements and NSGA-II's space already offers (whole arithmetic, Laplace, fuzzy recombination, BLX-αβ, Lévy flight, power law), and SBX's and polynomial mutation's indices up to 400, in both spaces; the Sobol and opposition-based initializers of NSGA-II's space. | Grammars only; the operators exist. *In VAMOS 1.4.0, with Sobol; MOEA/D's crossovers under M8's `crossover_and_mutation`.* |
 | Binary MOEA/D and SMS-EMOA | The crossover probabilities of Evolver (MOEA/D [0.6, 0.9], SMS-EMOA [0, 1]); the same aggregation, archive and selection changes as the real-coded spaces. The `bitflip` factor is M7. | Grammars only. |
 
 ## 10. Plan and compatibility
 
 1. **Schema and validator** (`vamos.parameter-space` 1.0.0, rules G1–G7), with the configuration
-   document and its three serializations. No behaviour changes. *In the version after 1.3.0.*
+   document and its three serializations. No behaviour changes. *In VAMOS 1.4.0.*
 2. **Shipped grammars**, written once from the builders of VAMOS 1.3.0 with M1–M7 applied and
    maintained as YAML, a snapshot that detects drift between the grammars and what the bridges
    build from them, and tests of G7 and of seeded draws for every space. The bridges read the
    canonical names and the new structure, and keep the current names and structure as aliases, so
-   stored assignments still build what they built. *In the version after 1.3.0.*
+   stored assignments still build what they built. *In VAMOS 1.4.0.*
 3. **Backends over the grammar**: ConfigSpace, Optuna (with the default configuration enqueued),
    irace and racing (both with the default configuration first); the space hash replaces the
-   persistent-study suffix; Studio's forms from the grammar, with its single range. *In the version
-   after 1.3.0.*
+   persistent-study suffix; Studio's forms from the grammar, with its single range. *In VAMOS
+   1.4.0.*
 4. **Tree and flat encodings** for meta-optimization, after their own design (section 6).
 5. **Engine items** of section 9 and M8, each as its own change with references and tests.
 

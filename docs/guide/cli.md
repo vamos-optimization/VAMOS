@@ -1,10 +1,10 @@
 # CLI and config files
 
 Install the [published package](installation.md) before using these commands.
-The examples target VAMOS 1.3.0; use `vamos --help` or `vamos <command> --help`
+The examples target VAMOS 1.4.0; use `vamos --help` or `vamos <command> --help`
 for the parser in your installed version.
 
-| Command family | Status in 1.3.0 | Use it for |
+| Command family | Status in 1.4.0 | Use it for |
 | --- | --- | --- |
 | Main optimization runner | **Stable** core invocation | One run or a configured problem set |
 | `results inspect`, `results verify`, `reproduce` | **Stable** | Canonical run inspection, integrity, and exact replay |
@@ -17,7 +17,7 @@ Stable commands have compatibility guarantees under the
 workflows may change in a minor release. Dask, third-party integrations, and
 visualization remain Experimental even when selected through the main runner.
 
-**Development after 1.3.0:** the experimental `vamos assist` command is
+**VAMOS 1.4.0:** the experimental `vamos assist` command is
 removed with the `vamos.assist` package, and VAMOS no longer calls any LLM
 provider. Use `vamos quickstart` to write a config file, or
 `vamos study plan` to check a study before running it.
@@ -220,7 +220,7 @@ vamos --problem zdt1 --experiment backends --max-evaluations 2000
 ```
 
 Install optional kernels with
-`python -m pip install "vamos-optimization[compute]==1.3.0"`.
+`python -m pip install "vamos-optimization[compute]==1.4.0"`.
 The `--experiment backends` comparison skips unavailable optional kernels with
 a warning. An explicit single-run `--engine numba` or `--engine moocore`
 instead fails if that dependency is missing; it never switches silently.
@@ -311,7 +311,7 @@ Key flags
 ---------
 
 - `--algorithm`: agemoea, ccmo, cmoeams, ctaea, ibea, moead, nsgaii, nsgaiii, rvea, smpso, smsemoa, spea2, top, or both
-- `--engine`: numpy | numba | moocore | auto. The deterministic default is `numpy`; `auto` prefers available Numba with a NumPy fallback. See the [automatic engine policy](../reference/algorithms.md#automatic-engine-selection) for the selection and replay rules in VAMOS 1.3.0.
+- `--engine`: numpy | numba | moocore | auto. The deterministic default is `numpy`; `auto` prefers available Numba with a NumPy fallback. See the [automatic engine policy](../reference/algorithms.md#automatic-engine-selection) for the selection and replay rules in VAMOS 1.4.0.
 - `--problem`: any registry key (see [Problems](../reference/problems.md))
 - `--problem-set`: predefined sets (e.g., `families`)
 - `--validate-config`: validate `--config` with the checks that precede a run and exit
