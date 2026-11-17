@@ -483,6 +483,69 @@ The exchange translates names and values only: parameters that VAMOS and
 Evolver structure differently, such as Evolver's `variation` or its per-operator
 repair strategies, keep their names and are ignored by the other side.
 
+### Parameter spaces as grammars
+
+**Development after 1.3.0:** `vamos.engine.tuning.grammar` reads parameter
+spaces written as strict grammars with defaults, under the schema
+`vamos.parameter-space` 1.0.0, from YAML, from JSON or from a parsed mapping.
+PyYAML, which reads the YAML, is a dependency of VAMOS. A categorical parameter chooses between productions,
+one per value, and the production of a value holds the parameters that the
+value activates; `global_sub_parameters` are active whatever the value.
+Numeric and boolean parameters are terminals, with a `range` (both ends
+included, `log` for a log-uniform scale) or nothing more:
+
+```yaml
+schema: vamos.parameter-space
+schema_version: 1.0.0
+name: nsgaii_small
+algorithm: nsgaii
+encoding: real
+parameters:
+  crossover:
+    type: categorical
+    default: sbx
+    global_sub_parameters:
+      crossover_probability: {type: real, range: [0.6, 1.0], default: 0.9}
+    values:
+      sbx:
+        conditional_parameters:
+          sbx_distribution_index: {type: real, range: [5.0, 40.0], default: 20.0}
+      blx_alpha:
+        conditional_parameters:
+          crossover_alpha: {type: real, range: [0.0, 1.0], default: 0.5}
+```
+
+Reading a space checks rules G1 to G6 and fails with a `ParameterSpaceError`
+that names the rule and the place:
+
+| Rule | Statement |
+| --- | --- |
+| G1 | Parameter names are unique in the space and match `^[a-z][a-z0-9_]*$`. |
+| G2 | Each parameter has one parent; there are no condition expressions. A parameter that applies to some values of a node is duplicated under each of their productions, with its own name. |
+| G3 | Every parameter has a `default`, inside its domain. |
+| G4 | Ranges have finite ends and are ordered, `log` needs a positive lower end, and integer ranges have integer ends. |
+| G5 | `values` is not empty and has no duplicates, and no two values are written alike on the command line (`1` and `"1"`); a string value is one command-line token (not empty, no whitespace) and a number is finite; a categorical with a production has string values only, since its document is a mapping whose keys are text. |
+| G6 | `schema` and `schema_version` are known; `algorithm` and `encoding` exist in VAMOS. |
+| G7 | The default configuration runs as the algorithm's `default()` configuration. |
+
+G7 runs the algorithm, so reading a space does not check it:
+`check_default_configuration(space, problem)` runs the space's defaults and
+the algorithm's `default()` configuration with the same seed and fails unless
+both give the same final population. The schema has no forbidden clauses,
+because a space offers only configurations that run, and one `range` per
+parameter, the same for tuning and for editing a configuration by hand. A
+space is identified by its `name`, its `schema_version` and the SHA-256 of its
+canonical JSON form without labels and descriptions (`space.identity`).
+
+A configuration is a derivation of the grammar: it holds exactly the active
+parameters, each inside its domain. `configuration(space, values)` checks one,
+and it has three forms that read back into the same configuration: the
+document `vamos.parameter-configuration` 1.0.0 (`to_document()`, with the
+space's identity), the flat mapping of its values (`to_values()`), which
+`config_from_assignment` reads, and the command line of Evolver's
+`VAR_CONF.txt` (`to_command_line()`), with VAMOS's names or, with
+`evolver=True`, Evolver's: `--crossover SBX --sbxDistributionIndex 20.0`.
+
 ### Constrained spaces
 
 **VAMOS 1.2.0:** `nsgaii_constrained`, `nsgaiii_constrained`,
