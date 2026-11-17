@@ -17,7 +17,7 @@ pytest.importorskip("panel")
 from vamos.ux.panel import app as studio_app  # noqa: E402
 from vamos.ux.panel.components.algorithm_config import CUSTOM_MODE, AlgorithmConfigurator  # noqa: E402
 from vamos.ux.panel.launcher import _build_panel_command  # noqa: E402
-from vamos.ux.panel.pages import batch, experiment, problem_builder, results, welcome  # noqa: E402
+from vamos.ux.panel.pages import batch, experiment, results, welcome  # noqa: E402
 from vamos.ux.panel.shell import PAGES  # noqa: E402
 
 pytestmark = pytest.mark.studio
@@ -55,6 +55,16 @@ def test_every_registered_page_has_a_renderer_and_opens() -> None:
     for slug in PAGES:
         view = app._load_page(slug)
         assert type(view).__name__ != "Alert", f"page {slug} failed to open: {getattr(view, 'object', '')}"
+
+
+def test_studio_has_no_problem_builder() -> None:
+    import importlib.util
+
+    # The Problem Builder, which ran Python typed or drafted by an LLM, was removed with its modules.
+    assert "problem_builder" not in PAGES
+    assert "Problem Builder" not in welcome.welcome_markdown()
+    for module in ("vamos.ux.panel.pages.problem_builder", "vamos.ux.studio.problem_builder_backend", "vamos.ux.studio._studio_llm"):
+        assert importlib.util.find_spec(module) is None, module
 
 
 def test_welcome_lists_every_page() -> None:
@@ -172,59 +182,6 @@ def test_experiment_problem_change_updates_the_algorithm_form() -> None:
     assert state.configurator.form is not None
     assert state.configurator.form.n_obj == 3
     assert "3 objectives" in state.problem_info
-
-
-def test_problem_builder_full_run_uses_the_defined_problem(monkeypatch: pytest.MonkeyPatch) -> None:
-    captured: dict[str, Any] = {}
-
-    def fake_preview(fn: Any, **kwargs: Any) -> dict[str, Any]:
-        captured.update(kwargs)
-        return {"F": np.array([[0.0, 1.0]]), "X": None, "history": [np.array([[0.0, 1.0]]), np.array([[0.1, 0.9]])]}
-
-    monkeypatch.setattr(problem_builder, "run_preview_optimization", fake_preview)
-    state = problem_builder.ProblemBuilderState()
-    state.objective_code = "return [x[0], 1.0 - x[0]]"
-    state.trusted_local_code = True
-
-    state.run_full_experiment()
-
-    assert captured["objective_code"] == "return [x[0], 1.0 - x[0]]"
-    assert captured["record_history"] is True
-    assert captured["timeout_seconds"] == state.time_limit
-    assert captured["algorithm_config"] is not None
-    assert len(state.generation_history) == 2
-
-
-def test_problem_builder_template_brings_its_bounds_and_constraints() -> None:
-    state = problem_builder.ProblemBuilderState()
-
-    state.template_name = "Engineering: beam design (cost vs deflection)"
-
-    assert state.bounds_text == "1.0, 10.0"
-    assert "stress" in state.constraint_code
-    assert state.n_constraints == 1
-
-
-def test_generated_script_rebuilds_the_customized_configuration() -> None:
-    state = problem_builder.ProblemBuilderState()
-    state.configurator.mode.value = CUSTOM_MODE
-    state.configurator.set_values({"crossover": "blx_alpha"})
-
-    state.do_generate_script()
-    namespace: dict[str, Any] = {"__name__": "generated_script"}
-    exec(compile(state.generated_script, "<generated>", "exec"), namespace)  # noqa: S102 - script built by Studio itself
-
-    assert "from vamos.algorithms import NSGAIIConfig" in state.generated_script
-    assert namespace["ALGORITHM_CONFIG"].to_dict()["crossover"][0] == "blx_alpha"
-
-
-def test_generated_script_includes_constraints() -> None:
-    state = problem_builder.ProblemBuilderState()
-    state.template_name = "Engineering: beam design (cost vs deflection)"
-
-    state.do_generate_script()
-
-    assert "n_constraints=1" in state.generated_script
 
 
 def _run_in_process(spec: Any, output: Path) -> Any:
@@ -418,20 +375,6 @@ def test_experiment_reports_a_stopped_run(monkeypatch: pytest.MonkeyPatch) -> No
     assert "300 evaluations" in state.status
     assert state.generation_numbers == [0, 1, 2]
     assert state.progress == pytest.approx(0.3)
-    assert not state.running
-
-
-def test_problem_builder_reports_a_stopped_run(monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake_preview(fn: Any, **kwargs: Any) -> dict[str, Any]:
-        raise InterruptedError("Stopped from Studio.")
-
-    monkeypatch.setattr(problem_builder, "run_preview_optimization", fake_preview)
-    state = problem_builder.ProblemBuilderState()
-    state.trusted_local_code = True
-
-    state.run_full_experiment()
-
-    assert state.status_text == "Stopped."
     assert not state.running
 
 

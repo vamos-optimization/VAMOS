@@ -23,7 +23,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, cast
 
-from ..racing.parameter_names import from_evolver, to_evolver
+from ..racing.parameter_names import evolver_value_candidates, from_evolver, to_evolver
 from .model import (
     CONFIGURATION_SCHEMA,
     CONFIGURATION_SCHEMA_VERSION,
@@ -32,6 +32,7 @@ from .model import (
     ParameterSpaceError,
     Scalar,
     SpaceIdentity,
+    format_value,
     same_scalar,
 )
 
@@ -60,15 +61,6 @@ class ParameterConfiguration:
         """``--name value`` pairs in depth-first order; with ``evolver``, Evolver's names and values where Evolver has them."""
         values: Mapping[str, Any] = to_evolver(self.to_values()) if evolver else self.to_values()
         return " ".join(f"--{name} {format_value(value)}" for name, value in values.items())
-
-
-def format_value(value: object) -> str:
-    """A value as the command line writes it: ``true``/``false``, ``repr`` for floats, the text otherwise."""
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, float):
-        return repr(value)
-    return str(value)
 
 
 def configuration(space: ParameterSpace, values: Mapping[str, object]) -> ParameterConfiguration:
@@ -151,11 +143,25 @@ def configuration_from_command_line(space: ParameterSpace, text: str, *, evolver
         if name[2:] in raw:
             raise ParameterSpaceError("configuration", name[2:], "the parameter is given twice")
         raw[name[2:]] = value
-    named: Mapping[str, object] = from_evolver(raw) if evolver else raw
+    # Each parameter's spellings: one, or with ``evolver`` every VAMOS value that Evolver writes alike.
+    spellings: dict[str, tuple[str, ...]] = {}
+    for name, value in raw.items():
+        if evolver:
+            ((canonical, read),) = from_evolver({name: value}).items()
+            others = tuple(str(other) for other in evolver_value_candidates(canonical, value) if str(other) != str(read))
+            spellings[canonical] = (str(read), *others)
+        else:
+            spellings[name] = (value,)
     known = set(space.names())
     return configuration(
-        space, {name: _parse(space.parameter(name), str(value)) if name in known else value for name, value in named.items()}
+        space, {name: _parse_spellings(space.parameter(name), texts) if name in known else texts[0] for name, texts in spellings.items()}
     )
+
+
+def _parse_spellings(parameter: Parameter, texts: tuple[str, ...]) -> object:
+    """The first spelling that names a value of the domain: Evolver's ``polynomial`` is the integer spaces' ``pm`` too."""
+    parsed = [_parse(parameter, text) for text in texts]
+    return next((value for value in parsed if parameter.contains(value)), parsed[0])
 
 
 def _parse(parameter: Parameter, text: str) -> object:

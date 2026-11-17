@@ -153,6 +153,9 @@ AggregationName: TypeAlias = Literal[
     "tchebycheff",
     "weighted_sum",
     "modified_tchebycheff",
+    "augmented_tchebycheff",
+    "inverted_pbi",
+    "inverse_weight_tchebycheff",
 ]
 
 __all__ = [

@@ -205,12 +205,27 @@ jobs:
     # A required check: it runs even when a needed job fails, and then fails itself, because
     # GitHub counts a skipped required check as passing, also in the merge queue.
     if: ${{ always() }}
+    permissions:
+      contents: read
+      actions: read
     steps:
-      - name: Require typing and tests
-        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}
+      - name: Require typing and every test job
+        # Every job of this run, each matrix leg by name, must have succeeded. A check of needs.*.result was
+        # skipped when a leg was cancelled before it got a runner, so the merge queue merged without that leg.
+        # Each job counts with its latest attempt: "Re-run failed jobs" lists only the rerun jobs under the new
+        # attempt and keeps the others' results.
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          echo "typing=${{ needs.typing.result }} tests-full=${{ needs.tests-full.result }} tests-minimal=${{ needs.tests-minimal.result }} tests-minimum=${{ needs.tests-minimum.result }}"
-          exit 1
+          jobs=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=all&per_page=100" \
+            --jq '.jobs[] | select(.name != "build-wheel") | "\(.run_attempt)\t\(.conclusion // .status)\t\(.name)"')
+          latest=$(printf '%s\n' "$jobs" | sort -s -n -k1,1 | awk -F '\t' 'NF == 3 { last[$3] = $2 } END { for (name in last) print last[name] " " name }' | sort -k2)
+          echo "$latest"
+          if [ -z "$latest" ] || grep -qv '^success ' <<< "$latest"; then
+            echo "Every typing and test job of this run must succeed."
+            exit 1
+          fi
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Python

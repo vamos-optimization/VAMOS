@@ -20,6 +20,7 @@ from vamos.engine.tuning.racing import bridge_spaces
 from vamos.engine.tuning.racing.config_space import AlgorithmConfigSpace
 from vamos.engine.tuning.racing.param_space import Categorical
 from vamos.engine.tuning.racing.parameter_names import (
+    NO_EVOLVER_EQUIVALENT,
     PARAMETER_NAMES,
     VALUE_NAMES,
     bridge_assignment,
@@ -107,7 +108,11 @@ def test_earlier_values_are_still_accepted() -> None:
 
 @pytest.mark.parametrize("name", ["nsgaii", "moead", "smsemoa"])
 def test_assignments_round_trip_through_evolvers_names(name: str) -> None:
-    draw = SPACES[name]().sample(np.random.default_rng(3))
+    rng = np.random.default_rng(3)
+    draw = SPACES[name]().sample(rng)
+    # Draw again while the assignment holds a value that Evolver does not have, which to_evolver refuses.
+    while any(str(value) in NO_EVOLVER_EQUIVALENT.get(key, {}) for key, value in bridge_assignment(draw).items()):
+        draw = SPACES[name]().sample(rng)
 
     assert from_evolver(to_evolver(draw)) == canonical_assignment(draw)
 

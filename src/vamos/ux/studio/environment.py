@@ -17,8 +17,6 @@ EXTRA_PURPOSES: dict[str, str] = {
     "compute": "Numba and MooCore kernels, Dask evaluation",
     "analysis": "plots and data analysis",
     "tuning": "Optuna and SMAC tuning backends",
-    "openai": "OpenAI code generation in Problem Builder",
-    "anthropic": "Anthropic code generation in Problem Builder",
 }
 _NAME = r"\s*([A-Za-z0-9][A-Za-z0-9._-]*)"
 _EXTRA_MARKER = r"""^extra\s*==\s*["']([^"']+)["']$"""

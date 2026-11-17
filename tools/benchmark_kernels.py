@@ -217,6 +217,9 @@ def _moead_cases(smoke: bool) -> dict[str, Any]:
             5.0,
             1e-6,
             0,
+            ideal,  # nadir: unread without normalization or the inverted PBI
+            0.0,
+            0,
         )
 
     cases: dict[str, Any] = {
@@ -249,6 +252,9 @@ def _moead_cases(smoke: bool) -> dict[str, Any]:
             5.0,
             1e-6,
             0,
+            ideal,  # nadir: unread without normalization or the inverted PBI
+            0.0,
+            0,
         )
 
         def _run_numba() -> None:
@@ -272,6 +278,9 @@ def _moead_cases(smoke: bool) -> dict[str, Any]:
                 AGG_TCHEBYCHEFF,
                 5.0,
                 1e-6,
+                0,
+                ideal,  # nadir: unread without normalization or the inverted PBI
+                0.0,
                 0,
             )
 

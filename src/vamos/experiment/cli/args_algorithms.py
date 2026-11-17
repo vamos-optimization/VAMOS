@@ -156,7 +156,10 @@ def _add_nsga_family_arguments(parser: argparse.ArgumentParser, *, spec_defaults
     parser.add_argument(
         "--moead-aggregation",
         default=_as_str(moead_defaults.get("aggregation")),
-        help="Aggregation method for MOEA/D (tchebycheff, weighted_sum, pbi).",
+        help=(
+            "Aggregation method for MOEA/D, with its default parameters: tchebycheff, weighted_sum, pbi, "
+            "modified_tchebycheff, augmented_tchebycheff, inverted_pbi or inverse_weight_tchebycheff."
+        ),
     )
 
     parser.add_argument(

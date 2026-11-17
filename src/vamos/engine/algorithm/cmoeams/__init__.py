@@ -1,7 +1,8 @@
 """CMOEA-MS: the constrained multi-objective evolutionary algorithm with multiple stages (Tian et al., 2022)."""
 
+from vamos.engine.operators.impl.real.crossover_differential import exponential_crossover
+
 from .cmoeams import CMOEAMS
-from .differential_evolution import exponential_crossover
 from .fitness import (
     cosine_distances,
     dominance_matrix,
