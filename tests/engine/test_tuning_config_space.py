@@ -89,8 +89,10 @@ def test_mutation_eta_is_active_only_for_polynomial_mutations(builder):
     seen = set()
     for _ in range(80):
         config = space.sample(rng)
-        active = config["mutation"] in {"pm", "polynomial", "linked_polynomial"}
-        assert ("polynomial_mutation_distribution_index" in config) == active
+        active = config["mutation"] in {"polynomial", "linked_polynomial"}
+        # Each polynomial mutation has its own index: a parameter has one parent.
+        assert ("polynomial_mutation_distribution_index" in config) == (config["mutation"] == "polynomial")
+        assert ("linked_polynomial_mutation_distribution_index" in config) == (config["mutation"] == "linked_polynomial")
         assert {param.name for param in space.flatten(config)} == set(config)
         param_space.validate(config)
         seen.add(active)
@@ -188,20 +190,16 @@ def test_nsgaii_archive_unbounded_disables_archive_params():
     space = build_nsgaii_config_space()
     param_space = space.to_param_space()
     assert "tournament_size" in param_space.params
-    cfg_disabled = {"use_external_archive": False}
+    assert not {"use_external_archive", "archive_unbounded"} & set(param_space.params)
+    cfg_disabled = {"external_archive": "none"}
     assert not param_space.is_active("tournament_size", cfg_disabled)
-    assert not param_space.is_active("archive_unbounded", cfg_disabled)
     assert not param_space.is_active("archive_prune_policy", cfg_disabled)
-    cfg_random = {"selection": "random", "use_external_archive": False}
+    cfg_random = {"selection": "random", "external_archive": "none"}
     assert not param_space.is_active("tournament_size", cfg_random)
-    cfg_tournament = {"selection": "tournament", "use_external_archive": False}
+    cfg_tournament = {"selection": "tournament", "external_archive": "none"}
     assert param_space.is_active("tournament_size", cfg_tournament)
-    cfg = {"use_external_archive": True, "archive_unbounded": True}
-    assert param_space.is_active("archive_unbounded", cfg)
-    assert not param_space.is_active("archive_prune_policy", cfg)
-    cfg_bounded = {"use_external_archive": True, "archive_unbounded": False}
-    assert param_space.is_active("archive_unbounded", cfg_bounded)
-    assert param_space.is_active("archive_prune_policy", cfg_bounded)
+    assert not param_space.is_active("archive_prune_policy", {"external_archive": "unbounded"})
+    assert param_space.is_active("archive_prune_policy", {"external_archive": "bounded"})
 
 
 def test_real_tuning_spaces_do_not_expose_none_repair():
@@ -321,10 +319,11 @@ def test_rvea_config_space_builds_and_constructs_config():
     rng = np.random.default_rng(7)
     space = build_rvea_config_space()
     assignment = space.sample(rng)
-    assignment["n_obj"] = 3
+    # The population is a run setting, which the caller adds with the number of objectives.
+    assignment.update(n_obj=3, pop_size=120)
     cfg = config_from_assignment("rvea", assignment)
-    # The largest complete lattice with at most the sampled number of directions.
-    assert cfg.pop_size == lattice_size(3, cfg.n_partitions) <= int(assignment["pop_size"]) < lattice_size(3, cfg.n_partitions + 1)
+    # The largest complete lattice with at most that many directions.
+    assert cfg.pop_size == lattice_size(3, cfg.n_partitions) <= 120 < lattice_size(3, cfg.n_partitions + 1)
     assert cfg.crossover[0] in ("sbx", "blx_alpha", "arithmetic", "pcx", "undx", "simplex")
     assert cfg.mutation[0] in (
         "pm",
@@ -380,8 +379,7 @@ def test_rvea_external_archive_config():
     assignment.update(
         {
             "n_obj": 3,
-            "use_external_archive": True,
-            "archive_unbounded": False,
+            "external_archive": "bounded",
             "archive_prune_policy": "crowding",
         }
     )
@@ -535,7 +533,7 @@ def test_binary_integer_config_spaces_build_and_construct_config():
             build_nsgaii_integer_config_space,
             "nsgaii_integer",
             {"uniform", "arithmetic", "sbx"},
-            {"reset", "creep", "pm", "gaussian", "boundary"},
+            {"reset", "creep", "polynomial", "gaussian", "boundary"},
         ),
         (
             build_moead_binary_config_space,
@@ -547,7 +545,7 @@ def test_binary_integer_config_spaces_build_and_construct_config():
             build_moead_integer_config_space,
             "moead_integer",
             {"uniform", "arithmetic", "sbx"},
-            {"reset", "creep", "pm", "gaussian", "boundary"},
+            {"reset", "creep", "polynomial", "gaussian", "boundary"},
         ),
         (
             build_nsgaiii_binary_config_space,
@@ -559,7 +557,7 @@ def test_binary_integer_config_spaces_build_and_construct_config():
             build_nsgaiii_integer_config_space,
             "nsgaiii_integer",
             {"uniform", "arithmetic", "sbx"},
-            {"reset", "creep", "pm", "gaussian", "boundary"},
+            {"reset", "creep", "polynomial", "gaussian", "boundary"},
         ),
         (
             build_smsemoa_binary_config_space,
@@ -571,7 +569,7 @@ def test_binary_integer_config_spaces_build_and_construct_config():
             build_smsemoa_integer_config_space,
             "smsemoa_integer",
             {"uniform", "arithmetic", "sbx"},
-            {"reset", "creep", "pm", "gaussian", "boundary"},
+            {"reset", "creep", "polynomial", "gaussian", "boundary"},
         ),
         (
             build_ibea_binary_config_space,
@@ -583,7 +581,7 @@ def test_binary_integer_config_spaces_build_and_construct_config():
             build_ibea_integer_config_space,
             "ibea_integer",
             {"uniform", "arithmetic", "sbx"},
-            {"reset", "creep", "pm", "gaussian", "boundary"},
+            {"reset", "creep", "polynomial", "gaussian", "boundary"},
         ),
     ]
 
@@ -616,7 +614,7 @@ def test_new_permutation_binary_integer_builders_construct_configs():
             build_agemoea_integer_config_space,
             "agemoea_integer",
             {"uniform", "arithmetic", "sbx"},
-            {"reset", "creep", "pm", "gaussian", "boundary"},
+            {"reset", "creep", "polynomial", "gaussian", "boundary"},
             False,
         ),
         (
@@ -637,7 +635,7 @@ def test_new_permutation_binary_integer_builders_construct_configs():
             build_rvea_integer_config_space,
             "rvea_integer",
             {"uniform", "arithmetic", "sbx"},
-            {"reset", "creep", "pm", "gaussian", "boundary"},
+            {"reset", "creep", "polynomial", "gaussian", "boundary"},
             True,
         ),
         (
@@ -658,7 +656,7 @@ def test_new_permutation_binary_integer_builders_construct_configs():
             build_spea2_integer_config_space,
             "spea2_integer",
             {"uniform", "arithmetic", "sbx"},
-            {"reset", "creep", "pm", "gaussian", "boundary"},
+            {"reset", "creep", "polynomial", "gaussian", "boundary"},
             False,
         ),
         (
@@ -856,12 +854,16 @@ def test_spea2_spaces_do_not_tune_the_mating_selection_spea2_ignores(builder):
 def test_rvea_partition_range_scales_with_objectives():
     space = build_rvea_config_space()
     rng = np.random.default_rng(13)
-    draws = [space.sample(rng) for _ in range(60)]
+    draws = [space.sample(rng) for _ in range(20)]
+    # The run's population, which the spaces no longer sample, over the range they sampled.
+    populations = (20, 50, 100, 200)
     for n_obj in (2, 3, 5, 10):
-        sizes = [config_from_assignment("rvea", {**draw, "n_obj": n_obj}).pop_size for draw in draws]
+        sizes = [
+            config_from_assignment("rvea", {**draw, "n_obj": n_obj, "pop_size": size}).pop_size for draw in draws for size in populations
+        ]
         assert n_obj <= min(sizes) and max(sizes) <= 200, (n_obj, min(sizes), max(sizes))
-    # With two objectives the population spans the range of the other algorithms.
-    assert max(config_from_assignment("rvea", {**draw, "n_obj": 2}).pop_size for draw in draws) >= 100
+    # With two objectives the population is the run's.
+    assert {config_from_assignment("rvea", {**draws[0], "n_obj": 2, "pop_size": size}).pop_size for size in populations} == set(populations)
 
 
 def test_rvea_assignment_with_partitions_keeps_its_lattice():

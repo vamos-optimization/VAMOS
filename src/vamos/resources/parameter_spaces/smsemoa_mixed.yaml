@@ -1,0 +1,106 @@
+# The mixed tuning space of SMS-EMOA.
+# Written once from the Python builders of VAMOS 1.3.0; maintained as YAML since then.
+schema: vamos.parameter-space
+schema_version: 1.0.0
+name: smsemoa_mixed
+algorithm: smsemoa
+encoding: mixed
+description: The mixed tuning space of SMS-EMOA.
+parameters:
+  selection:
+    type: categorical
+    default: random
+    role: structural
+    values:
+      random: {}
+      tournament:
+        conditional_parameters:
+          tournament_size: {type: int, default: 2, range: [2, 10], role: structural}
+  reference_point_offset: {type: real, default: 1.0, range: [0.1, 2.0], role: operator_rate}
+  external_archive:
+    type: categorical
+    default: none
+    role: adaptive
+    values:
+      none: {}
+      unbounded: {}
+      bounded:
+        conditional_parameters:
+          archive_prune_policy: {type: categorical, default: crowding, values: [crowding, hv, mc_hv, knn, maxmin, ref_dirs], role: adaptive}
+  crossover: {type: categorical, default: mixed, values: [mixed], role: operator}
+  mutation: {type: categorical, default: mixed, values: [mixed], role: operator}
+  perm_crossover:
+    type: categorical
+    default: ox
+    role: operator
+    global_sub_parameters:
+      perm_crossover_prob: {type: real, default: 0.9, range: [0.6, 1.0], role: operator_rate}
+    values: [ox, pmx, edge, cycle, position, aex]
+  perm_mutation:
+    type: categorical
+    default: swap
+    role: operator
+    global_sub_parameters:
+      perm_mutation_prob: {type: real, default: 0.1, range: [0.01, 0.5], role: operator_rate}
+    values: [swap, insert, scramble, inversion, displacement, two_opt]
+  real_crossover:
+    type: categorical
+    default: arithmetic
+    role: operator
+    global_sub_parameters:
+      real_crossover_prob: {type: real, default: 0.9, range: [0.6, 1.0], role: operator_rate}
+    values: [arithmetic, mean]
+  real_mutation:
+    type: categorical
+    default: gaussian
+    role: operator
+    global_sub_parameters:
+      real_mutation_prob: {type: real, default: 0.1, range: [0.01, 0.5], role: operator_rate}
+    values:
+      gaussian:
+        conditional_parameters:
+          real_mutation_sigma_factor: {type: real, default: 0.1, range: [0.01, 0.5], role: operator_rate}
+      uniform_reset: {}
+      polynomial:
+        conditional_parameters:
+          real_mutation_eta: {type: real, default: 20.0, range: [5.0, 40.0], role: operator_rate}
+  int_crossover:
+    type: categorical
+    default: uniform
+    role: operator
+    global_sub_parameters:
+      int_crossover_prob: {type: real, default: 0.9, range: [0.6, 1.0], role: operator_rate}
+    values:
+      uniform: {}
+      arithmetic: {}
+      sbx:
+        conditional_parameters:
+          int_crossover_eta: {type: real, default: 20.0, range: [5.0, 40.0], role: operator_rate}
+  int_mutation:
+    type: categorical
+    default: reset
+    role: operator
+    global_sub_parameters:
+      int_mutation_prob: {type: real, default: 0.1, range: [0.01, 0.5], role: operator_rate}
+    values:
+      reset: {}
+      creep:
+        conditional_parameters:
+          int_mutation_step: {type: int, default: 1, range: [1, 5], role: operator_rate}
+      polynomial:
+        conditional_parameters:
+          int_mutation_eta: {type: real, default: 20.0, range: [5.0, 40.0], role: operator_rate}
+  cat_crossover:
+    type: categorical
+    default: uniform
+    role: operator
+    global_sub_parameters:
+      cat_crossover_prob: {type: real, default: 0.9, range: [0.6, 1.0], role: operator_rate}
+    values: [uniform]
+  cat_mutation:
+    type: categorical
+    default: reset
+    role: operator
+    global_sub_parameters:
+      cat_mutation_prob: {type: real, default: 0.1, range: [0.01, 0.5], role: operator_rate}
+    values: [reset]

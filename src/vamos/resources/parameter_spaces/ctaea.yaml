@@ -1,0 +1,60 @@
+# The real-coded tuning space of C-TAEA.
+# Written once from the Python builders of VAMOS 1.3.0; maintained as YAML since then.
+schema: vamos.parameter-space
+schema_version: 1.0.0
+name: ctaea
+algorithm: ctaea
+encoding: real
+description: The real-coded tuning space of C-TAEA.
+parameters:
+  initial_solutions:
+    type: categorical
+    default: auto
+    role: structural
+    values:
+      auto: {}
+      random: {}
+      lhs: {}
+      scatter:
+        conditional_parameters:
+          scatter_base_size_factor: {type: categorical, default: 0.2, values: [0.1, 0.2, 0.3, 0.5, 0.75, 1.0], role: structural}
+  crossover:
+    type: categorical
+    default: sbx
+    role: operator
+    global_sub_parameters:
+      crossover_probability: {type: real, default: 1.0, range: [0.6, 1.0], role: operator_rate}
+    values:
+      sbx:
+        conditional_parameters:
+          sbx_distribution_index: {type: real, default: 20.0, range: [5.0, 40.0], role: operator_rate}
+      blx_alpha:
+        conditional_parameters:
+          crossover_alpha: {type: real, default: 0.5, range: [0.0, 1.0], role: operator_rate}
+          blx_repair: {type: categorical, default: clip, values: [clip, random, reflect], role: structural}
+      arithmetic: {}
+  mutation:
+    type: categorical
+    default: polynomial
+    role: operator
+    global_sub_parameters:
+      mutation_probability_factor: {type: real, default: 1.0, range: [0.25, 3.0], role: operator_rate}
+    values:
+      polynomial:
+        conditional_parameters:
+          polynomial_mutation_distribution_index: {type: real, default: 20.0, range: [5.0, 40.0], role: operator_rate}
+      linked_polynomial:
+        conditional_parameters:
+          linked_polynomial_mutation_distribution_index: {type: real, default: 20.0, range: [5.0, 40.0], role: operator_rate}
+      non_uniform: {}
+      gaussian:
+        conditional_parameters:
+          gaussian_sigma: {type: real, default: 0.1, range: [0.001, 0.5], role: operator_rate}
+      uniform_reset: {}
+      cauchy:
+        conditional_parameters:
+          cauchy_gamma: {type: real, default: 0.1, range: [0.001, 0.5], role: operator_rate}
+      uniform:
+        conditional_parameters:
+          uniform_perturb: {type: real, default: 0.1, range: [0.01, 0.5], role: operator_rate}
+  repair: {type: categorical, default: auto, values: [auto, clip, reflect, random], role: structural}

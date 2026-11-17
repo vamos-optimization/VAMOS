@@ -42,9 +42,11 @@ def test_tune_smoke_samples_feasible_population(tmp_path: Path, caplog: pytest.L
         assert tune_cli.main([*GUIDE_SMOKE, "--output-dir", str(tmp_path)]) == 0
 
     assert _failures(caplog) == []
-    budget = _artifact(tmp_path, "tuning_summary.json")["smoke_profile"]["budget"]
-    sampled = [trial["config"]["pop_size"] for trial in _artifact(tmp_path, "tuning_history.json")]
-    assert sampled and all(1 <= pop_size <= budget // 2 for pop_size in sampled), sampled
+    profile = _artifact(tmp_path, "tuning_summary.json")["smoke_profile"]
+    # The spaces do not sample the population: every run takes the smoke profile's, half the budget.
+    assert profile["fixed_parameters"]["pop_size"] == profile["budget"] // 2
+    history = _artifact(tmp_path, "tuning_history.json")
+    assert history and all("pop_size" not in trial["config"] for trial in history)
 
 
 @pytest.mark.parametrize("n_obj", [2, 3])
@@ -55,25 +57,21 @@ def test_smoke_space_keeps_every_population_within_half_the_budget(algorithm: st
         _param_space(algorithm), max_population=profile["pop_size"], n_obj=n_obj, algorithm=algorithm, budget=profile["budget"]
     )
     params = space.params
-    assert fixed == {}
-
-    population = params["pop_size"]
-    assert isinstance(population, Int)
+    assert "pop_size" not in params and set(fixed) == {"pop_size"}
     # SMAC3, BOHB and irace reject an integer range without width.
-    assert population.low < population.high
-    # MOEA/D, NSGA-III and RVEA run a lattice with at most the sampled number of directions.
-    largest = population.high
-    # The opposition-based initializer evaluates a population and its opposite.
-    assert 1 <= largest and 2 * largest <= profile["budget"], (largest, profile)
+    assert all(spec.low < spec.high for spec in params.values() if isinstance(spec, Int))
+    # MOEA/D, NSGA-III and RVEA run a lattice with at most that many directions. The opposition-based
+    # initializer evaluates a population and its opposite.
+    assert 1 <= fixed["pop_size"] and 2 * fixed["pop_size"] <= profile["budget"], (fixed, profile)
 
 
 def test_smoke_population_leaves_room_for_the_opposition_based_initializer(caplog: pytest.LogCaptureFixture) -> None:
     profile = _smoke_profile(["--problem", "zdt1"])
-    space, _ = smoke_param_space(
+    space, fixed = smoke_param_space(
         _param_space("nsgaii"), max_population=profile["pop_size"], n_obj=2, algorithm="nsgaii", budget=profile["budget"]
     )
     config = space.sample(np.random.default_rng(0))
-    config.update(initializer="obl", pop_size=space.params["pop_size"].high)
+    config.update(initial_solutions="obl", pop_size=fixed["pop_size"])
     logger = logging.getLogger("test_cli_tune_smoke")
     evaluate = _tune_runtime.make_evaluator("zdt1", 30, 2, "nsgaii", profile["pop_size"], None, False, 0.0, -1.0, logger=lambda: logger)
 
@@ -157,9 +155,9 @@ def test_smoke_space_keeps_reference_lattices_feasible(
         assert tune_cli.main([*argv, "--output-dir", str(tmp_path)]) == 0
 
     assert _failures(caplog) == []
-    sampled = _artifact(tmp_path, "tuning_history.json")
+    # The smoke population is the smallest lattice, one direction per objective, above half the budget (15).
     # RVEA runs the 16 axis directions, the lattice of one partition: two give 136, more than the smoke budget.
-    assert all(trial["config"]["pop_size"] >= 16 for trial in sampled), sampled
+    assert _artifact(tmp_path, "tuning_summary.json")["smoke_profile"]["fixed_parameters"]["pop_size"] == 16
 
 
 @pytest.mark.parametrize(("algorithm", "label"), [("nsgaiii", "NSGA-III"), ("moead", "MOEA/D"), ("rvea", "RVEA")])

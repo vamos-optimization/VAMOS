@@ -1,0 +1,85 @@
+# The real-coded tuning space of MOEA/D, with the subproblem update criterion.
+# Written once from the Python builders of VAMOS 1.3.0; maintained as YAML since then.
+schema: vamos.parameter-space
+schema_version: 1.0.0
+name: moead_constrained
+algorithm: moead
+encoding: real
+description: The real-coded tuning space of MOEA/D, with the subproblem update criterion.
+parameters:
+  neighborhood_size: {type: int, default: 20, range: [5, 50], role: population}
+  neighborhood_selection_probability: {type: real, default: 0.9, range: [0.0, 1.0], role: operator_rate}
+  maximum_number_of_replaced_solutions: {type: int, default: 2, range: [1, 5], role: population}
+  external_archive:
+    type: categorical
+    default: none
+    role: adaptive
+    values:
+      none: {}
+      unbounded: {}
+      bounded:
+        conditional_parameters:
+          archive_prune_policy: {type: categorical, default: crowding, values: [crowding, hv, mc_hv, knn, maxmin, ref_dirs], role: adaptive}
+  aggregation_function:
+    type: categorical
+    default: pbi
+    role: structural
+    values:
+      tchebycheff: {}
+      weighted_sum: {}
+      pbi:
+        conditional_parameters:
+          pbi_theta: {type: real, default: 5.0, range: [1.0, 200.0], log: true, role: operator_rate}
+      modified_tchebycheff:
+        conditional_parameters:
+          mtch_rho: {type: real, default: 0.001, range: [0.0001, 0.1], role: operator_rate}
+  initial_solutions: {type: categorical, default: auto, values: [auto, random, lhs, scatter], role: structural}
+  crossover:
+    type: categorical
+    default: de
+    role: operator
+    values:
+      sbx:
+        conditional_parameters:
+          crossover_probability: {type: real, default: 0.9, range: [0.6, 1.0], role: operator_rate}
+          sbx_distribution_index: {type: real, default: 20.0, range: [10.0, 40.0], role: operator_rate}
+      de:
+        conditional_parameters:
+          de_crossover_rate: {type: real, default: 1.0, range: [0.0, 1.0], role: operator_rate}
+          de_scale_factor: {type: real, default: 0.5, range: [0.0, 1.0], role: operator_rate}
+  mutation:
+    type: categorical
+    default: polynomial
+    role: operator
+    global_sub_parameters:
+      mutation_probability_factor: {type: real, default: 1.0, range: [0.25, 3.0], role: operator_rate}
+    values:
+      polynomial:
+        conditional_parameters:
+          polynomial_mutation_distribution_index: {type: real, default: 20.0, range: [5.0, 40.0], role: operator_rate}
+      linked_polynomial:
+        conditional_parameters:
+          linked_polynomial_mutation_distribution_index: {type: real, default: 20.0, range: [5.0, 40.0], role: operator_rate}
+      gaussian:
+        conditional_parameters:
+          gaussian_sigma: {type: real, default: 0.1, range: [0.001, 0.5], role: operator_rate}
+      non_uniform: {}
+      cauchy:
+        conditional_parameters:
+          cauchy_gamma: {type: real, default: 0.1, range: [0.001, 0.5], role: operator_rate}
+      uniform:
+        conditional_parameters:
+          uniform_perturb: {type: real, default: 0.1, range: [0.01, 0.5], role: operator_rate}
+  repair: {type: categorical, default: auto, values: [auto, clip, reflect, random], role: structural}
+  subproblem_update_criterion:
+    type: categorical
+    default: feasibility_rules
+    role: structural
+    values:
+      feasibility_rules: {}
+      improved_epsilon:
+        conditional_parameters:
+          improved_epsilon_tao: {type: real, default: 0.1, range: [0.01, 0.5], role: operator_rate}
+          improved_epsilon_feasibility_ratio_threshold: {type: real, default: 0.95, range: [0.5, 1.0], role: operator_rate}
+          improved_epsilon_decay_fraction: {type: real, default: 0.8, range: [0.1, 0.95], role: operator_rate}
+      violation_threshold: {}

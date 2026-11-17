@@ -1,0 +1,46 @@
+# The binary tuning space of NSGA-II.
+# Written once from the Python builders of VAMOS 1.3.0; maintained as YAML since then.
+schema: vamos.parameter-space
+schema_version: 1.0.0
+name: nsgaii_binary
+algorithm: nsgaii
+encoding: binary
+description: The binary tuning space of NSGA-II.
+parameters:
+  offspring_ratio: {type: categorical, default: 1.0, values: [0, 0.25, 0.5, 0.75, 1.0], role: population}
+  selection:
+    type: categorical
+    default: tournament
+    role: structural
+    values:
+      tournament:
+        conditional_parameters:
+          tournament_size: {type: int, default: 2, range: [2, 10], role: structural}
+      random: {}
+      boltzmann: {}
+      ranking: {}
+      sus: {}
+  external_archive:
+    type: categorical
+    default: none
+    role: adaptive
+    values:
+      none: {}
+      unbounded: {}
+      bounded:
+        conditional_parameters:
+          archive_prune_policy: {type: categorical, default: crowding, values: [crowding, hv, mc_hv, knn, maxmin, ref_dirs], role: adaptive}
+  crossover:
+    type: categorical
+    default: uniform
+    role: operator
+    global_sub_parameters:
+      crossover_probability: {type: real, default: 0.9, range: [0.6, 1.0], role: operator_rate}
+    values: [hux, uniform, one_point, two_point]
+  mutation:
+    type: categorical
+    default: bitflip
+    role: operator
+    global_sub_parameters:
+      mutation_probability_factor: {type: real, default: 1.0, range: [0.25, 3.0], role: operator_rate}
+    values: [bitflip, segment_inversion]

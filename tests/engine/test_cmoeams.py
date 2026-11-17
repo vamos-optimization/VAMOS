@@ -733,8 +733,10 @@ def test_study_planning_checks_the_budget() -> None:
 
 def test_tuning_space_builds_ga_and_de_configurations() -> None:
     space = build_cmoeams_config_space()
-    names = {param.name for param in space.params}
-    assert {"pop_size", "crossover", "crossover_probability", "mutation", "feasible_ratio_threshold"} <= names
+    names = set(space.to_param_space().params)
+    # The variation chooses the GA crossovers or DE, as Evolver's; the population is a run setting.
+    assert {"variation", "crossover", "crossover_probability", "mutation", "feasible_ratio_threshold"} <= names
+    assert "pop_size" not in names
     rng = np.random.default_rng(0)
     crossovers, variants = set(), set()
     for _ in range(60):
@@ -743,7 +745,8 @@ def test_tuning_space_builds_ga_and_de_configurations() -> None:
         assert isinstance(config, CMOEAMSConfig)
         crossovers.add(config.crossover[0])
         assert config.feasible_ratio_threshold == assignment["feasible_ratio_threshold"]
-        assert 20 <= config.pop_size <= 200
+        assert config.pop_size == 100
+        assert (config.crossover[0] == "de") == (assignment["variation"] == "differential_evolution")
         if config.crossover[0] == "de":
             assert config.crossover == ("de", {"cr": assignment["de_crossover_rate"], "f": assignment["de_scale_factor"]})
             assert "crossover_probability" not in assignment

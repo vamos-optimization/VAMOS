@@ -32,10 +32,10 @@ from ._tune_utils import build_aggregator, parse_csv_strings, parse_ref_point, p
 MODEL_BACKENDS = ("optuna", "bohb_optuna", "smac3", "bohb", "irace")
 NON_MODEL_BACKENDS = ("racing", "random")
 ALL_BACKENDS = NON_MODEL_BACKENDS + MODEL_BACKENDS
-_ARCHIVE_TUNING_PARAMS = {"use_external_archive", "archive_unbounded", "archive_prune_policy"}
-_OPTUNA_CLI_STUDY_SUFFIX = "__vamos_cli_final_population_hv_v3"
+_ARCHIVE_TUNING_PARAMS = {"external_archive", "use_external_archive", "archive_unbounded", "archive_prune_policy"}
+_OPTUNA_CLI_STUDY_SUFFIX = "__vamos_cli_final_population_hv_v4"
 # SMPSO is scored on its leaders archive instead of its final swarm, a separate scoring contract.
-_OPTUNA_CLI_LEADERS_SUFFIX = "__vamos_cli_leaders_hv_v2"
+_OPTUNA_CLI_LEADERS_SUFFIX = "__vamos_cli_leaders_hv_v3"
 _LEADER_SCORED_ALGORITHMS = ("smpso",)
 
 
@@ -132,7 +132,8 @@ def make_evaluator(
             # RVEA's population and MOEA/D's weight vectors depend on the number of objectives.
             if canonical_algorithm_name(algorithm_name) in ("moead", "rvea"):
                 start_config["n_obj"] = n_obj
-            if algorithm_name != "rvea" and "pop_size" not in start_config:
+            # The spaces do not tune the population: every run takes --pop-size (or the smoke profile's).
+            if "pop_size" not in start_config:
                 start_config["pop_size"] = fixed_pop_size
 
             cfg = _tuning_config(config_from_assignment(algorithm_name, start_config), algorithm_name)

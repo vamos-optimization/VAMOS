@@ -335,7 +335,8 @@ def _operator_pairs(space: AlgorithmConfigSpace):
 
 
 def _inject_special_params(algo_name: str, assignment: dict[str, Any]) -> None:
-    """Inject algorithm-specific params that are not part of the config space."""
+    """Inject the run settings that are not part of the config space: the population, and RVEA's objectives."""
+    assignment.setdefault("pop_size", _INT_DEFAULTS["pop_size"])
     if algo_name in _RVEA_ALGOS:
         assignment.setdefault("n_obj", 2)
 
@@ -347,7 +348,7 @@ def _inject_special_params(algo_name: str, assignment: dict[str, Any]) -> None:
 _REGISTRY_IDS = [f"{algo}_{enc}" for algo, enc, _ in REGISTRY]
 # Spaces with more than 100 000 combinations: building them all takes minutes, so the
 # exhaustive check runs in the slow tier and the fast tier builds a sample of them.
-_LARGE_SPACES = {"nsgaii_real", "nsgaii_mixed_mixed", "nsgaii_constrained_real"}
+_LARGE_SPACES = {"nsgaii_real", "nsgaii_mixed_mixed", "nsgaii_constrained_real", "smsemoa_constrained_real"}
 # A prime stride over the base product reaches every value of every base parameter.
 _SAMPLE_BASE_STRIDE = 211
 

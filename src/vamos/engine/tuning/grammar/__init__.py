@@ -16,12 +16,14 @@ and is checked on demand (:func:`check_default_configuration`).
 | G7 | The default configuration runs as the algorithm's ``default()`` configuration. |
 
 The schema has no forbidden clauses, because a space offers only configurations that run, and one
-range per parameter, the same for tuning and for editing by hand. This package is Experimental, as
-the tuning spaces are.
+range per parameter, the same for tuning and for editing by hand. The built-in tuning spaces are
+grammars packaged with VAMOS (:func:`builtin_parameter_space`), and the tuners sample their flat
+views (:func:`to_algorithm_config_space`). This package is Experimental, as the tuning spaces are.
 """
 
 from __future__ import annotations
 
+from .builtin import builtin_parameter_space, builtin_parameter_space_names
 from .configuration import (
     ParameterConfiguration,
     configuration,
@@ -42,6 +44,7 @@ from .model import (
     ParameterSpaceError,
     SpaceIdentity,
 )
+from .view import to_algorithm_config_space
 
 __all__ = [
     "CONFIGURATION_SCHEMA",
@@ -53,6 +56,8 @@ __all__ = [
     "SCHEMA",
     "SCHEMA_VERSION",
     "SpaceIdentity",
+    "builtin_parameter_space",
+    "builtin_parameter_space_names",
     "canonical_json",
     "check_default_configuration",
     "configuration",
@@ -66,4 +71,5 @@ __all__ = [
     "parameter_space_from_json",
     "parameter_space_from_yaml",
     "space_sha256",
+    "to_algorithm_config_space",
 ]

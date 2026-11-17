@@ -157,7 +157,7 @@ def test_cmoeams_de_variant_reaches_its_configuration_field() -> None:
     # CMOEA-MS keeps its DE variant in its own field, not in the crossover tuple.
     form = _form("cmoeams")
 
-    resolved = form.resolve({**form.start_values(), "crossover": "de", "de_variant": "rand_1_exp"})
+    resolved = form.resolve({**form.start_values(), "variation": "differential_evolution", "de_variant": "rand_1_exp"})
 
     assert resolved.config.to_dict()["crossover"][0] == "de"
     assert resolved.config.to_dict()["de_variant"] == "rand_1_exp"
@@ -170,7 +170,10 @@ def test_cmoeams_de_variant_reaches_its_configuration_field() -> None:
         ("de_f", ("crossover",)),
         ("de_variant", ("de_variant",)),
         ("gaussian_sigma", ("mutation",)),
-        ("mutation_prob_factor", ("mutation_prob_factor",)),
+        # Configurations without the field take the factor as their mutation probability.
+        ("mutation_prob_factor", ("mutation_prob_factor", "mutation")),
+        ("variation", ("crossover",)),
+        ("external_archive", ("external_archive",)),
         ("selection_pressure", ("selection",)),
         ("archive_prune_policy", ("external_archive",)),
         ("blx_repair", ("repair",)),

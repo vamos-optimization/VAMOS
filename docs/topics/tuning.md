@@ -94,6 +94,8 @@ The maintained CLI also removes `use_external_archive`, `archive_unbounded`, and
 parameter space aligned with the set actually used for scoring. Archive design
 can still be studied explicitly in a separate controlled experiment, but it is
 not mixed into ordinary `vamos tune` comparisons.
+**Development after 1.3.0:** the built-in spaces express the archive as one
+choice, `external_archive`, which the CLI removes with `archive_prune_policy`.
 
 !!! note "Constrained AGE-MOEA and RVEA (1.0.1)"
     Since VAMOS 1.0.1, AGE-MOEA and RVEA preserve population-aligned constraint values whenever
@@ -337,6 +339,10 @@ reference directions are the population. VAMOS 1.1.0 kept the [20, 200]
 population range, and `optimize` rejected most smoke configurations, which
 received `--failure-score`. A `vamos tune` run in which more than half of the
 evaluations fail, but not all of them, now ends with a warning.
+**Development after 1.3.0:** the spaces no longer sample the population, so
+`--smoke` runs every configuration with `--pop-size` capped at 15, or with the
+smallest reference lattice of MOEA/D, NSGA-III or RVEA when that is larger, and
+records it under `fixed_parameters` in its smoke profile.
 Without `--name`, the output folder is named after the `--instances` (the first
 three and the number of the others), not after `--problem`.
 
@@ -448,6 +454,7 @@ The paragraphs above use the earlier names.
 | `crossover_prob` | `crossover_probability` | `crossoverProbability` |
 | `crossover_eta` | `sbx_distribution_index` | `sbxDistributionIndex` |
 | `mutation_eta` | `polynomial_mutation_distribution_index` | `polynomialMutationDistributionIndex` |
+| `mutation_eta` | `linked_polynomial_mutation_distribution_index` | `linkedPolynomialMutationDistributionIndex` |
 | `mutation_prob_factor` | `mutation_probability_factor` | `mutationProbabilityFactor` |
 | `neighbor_size` | `neighborhood_size` | `neighborhoodSize` |
 | `delta` | `neighborhood_selection_probability` | `neighborhoodSelectionProbability` |
@@ -462,6 +469,7 @@ The paragraphs above use the earlier names.
 | `crossover` | `crossover` | `crossover` |
 | `mutation` | `mutation` | `mutation` |
 | `selection` | `selection` | `selection` |
+| `variation` | `variation` | `variation` |
 
 Values that change: mutation `pm` becomes `polynomial` (the name the other
 spaces already used) and crossover `undx` becomes `undc` (Evolver's `UNDC`).
@@ -471,7 +479,7 @@ differently, and the exchange functions translate them: `SBX`, `blxAlpha`,
 `blxAlphaBeta`, `wholeArithmetic`, `fuzzyRecombination`, `PCX` and `UNDC`;
 `linkedPolynomial`, `nonUniform`, `levyFlight` and `powerLaw`;
 `tschebyscheff`, `weightedSum`, `penaltyBoundaryIntersection` and
-`modifiedTschebyscheff`; `default` (random), `latinHypercubeSampling`,
+`modifiedTschebyscheff`; `default` (random; **Development after 1.3.0:** `auto`), `latinHypercubeSampling`,
 `scatterSearch` and `oppositionBased`; `stochasticUniversalSampling`.
 
 **Development after 1.3.0:** Evolver's `modifiedTschebyscheff` is jMetal's
@@ -483,10 +491,16 @@ with `rho = 1e-3`) has no Evolver equivalent, and `to_evolver` raises
 `ValueError` for it instead of writing `modifiedTschebyscheff`.
 
 `pop_size` keeps its name: Evolver passes the population size to the algorithm
-rather than tuning it, and the CLI and Studio treat it as a run setting. The
+rather than tuning it, and the CLI and Studio treat it as a run setting
+(**Development after 1.3.0:** the spaces no longer offer it). The
 external archive parameters (`use_external_archive`, `archive_unbounded`,
 `archive_prune_policy`) keep theirs until they become one choice, Evolver's
 `algorithmResult` and `archiveType`, in the planned VAMOS-CONFIG grammar.
+**Development after 1.3.0:** the archive is one choice, `external_archive`; the
+table gains `linked_polynomial_mutation_distribution_index` and CCMO's and
+CMOEA-MS's `variation` (`crossoverAndMutationVariation`,
+`differentialEvolutionVariation`), and Evolver's
+`createInitialSolutions default` reads as `auto`.
 The exchange translates names and values only: parameters that VAMOS and
 Evolver structure differently, such as Evolver's `variation` or its per-operator
 repair strategies, keep their names and are ignored by the other side.
@@ -553,6 +567,69 @@ space's identity), the flat mapping of its values (`to_values()`), which
 `config_from_assignment` reads, and the command line of Evolver's
 `VAR_CONF.txt` (`to_command_line()`), with VAMOS's names or, with
 `evolver=True`, Evolver's: `--crossover SBX --sbxDistributionIndex 20.0`.
+
+**Development after 1.3.0:** the built-in tuning spaces are such grammars,
+packaged with VAMOS as YAML files in `vamos/resources/parameter_spaces`, one
+per space (`nsgaii.yaml`, `moead_permutation.yaml`, ...).
+`builtin_parameter_space("nsgaii")` reads one, and `build_nsgaii_config_space()`
+returns the flat view that the tuners sample. The YAML files are the source of
+truth, which VAMOS reads at run time: they were written once from the Python
+builders of VAMOS 1.3.0 and are maintained as YAML.
+`python tools/update_parameter_spaces.py` checks every file and writes the
+snapshot of what the bridges build from them; a test fails when a grammar, or
+what a bridge builds from it, changes without its snapshot. Compared with the spaces of VAMOS 1.3.0:
+
+- `pop_size` is not a parameter of any space: it is a run setting, as for
+  Evolver and Studio. The caller adds it to the assignment, as it adds `n_obj`
+  (see [Populations that depend on the number of objectives](#populations-that-depend-on-the-number-of-objectives));
+  `vamos tune` gives every algorithm `--pop-size` (100 by default), which must
+  fit in `--budget`. An assignment without it builds a population of 100.
+- Every parameter has a default, and the defaults of a space run as its
+  algorithm's `default()` configuration for the encoding, which a test checks
+  for every space by comparing seeded runs (rule G7). `initial_solutions` and
+  `repair` offer `auto`, the configuration's automatic choice, as their
+  default, as Evolver's `createInitialSolutions: default`. The nine mixed
+  spaces do not pass G7 yet: their segment operators run differently from the
+  default mixed operators.
+- The segment settings of the mixed spaces of MOEA/D, NSGA-III, SMS-EMOA and
+  SPEA2 (`real_mutation`, `int_crossover_prob`, ...) reach the run. Their mixed
+  variation gave the operators the problem's segments without the
+  configuration's settings, so every point of those spaces ran as the default
+  mixed operators, and a mixed configuration of these algorithms that sets them
+  runs differently now.
+- The external archive is one choice, `external_archive`: `none`,
+  `unbounded` or `bounded`, with `archive_prune_policy` under `bounded`, instead
+  of `use_external_archive` and `archive_unbounded`.
+- Polynomial and linked polynomial mutation have an index each,
+  `polynomial_mutation_distribution_index` and
+  `linked_polynomial_mutation_distribution_index`, instead of one shared by both.
+- The rates hang from their operators: `crossover_probability` from
+  `crossover`, the mutation probability from `mutation`. CCMO's and CMOEA-MS's
+  spaces choose a `variation`, `crossover_and_mutation` (with `crossover` and its
+  probability) or `differential_evolution` (with `de_crossover_rate`,
+  `de_scale_factor` and, for CMOEA-MS, `de_variant`), as Evolver's.
+- Polynomial mutation is `polynomial` in the integer spaces too (`pm` still
+  builds it).
+- The mutation probability is `mutation_probability_factor` in [0.25, 3.0],
+  divided by the number of variables, in every space but the permutation spaces
+  of the algorithms other than NSGA-II and the segments of the mixed spaces,
+  whose probability applies to a whole solution or segment and defaults to a
+  constant. The real-coded spaces of NSGA-III, SPEA2, IBEA, SMPSO, AGE-MOEA,
+  RVEA, CCMO, C-TAEA, ToP and CMOEA-MS, and the binary and integer spaces of
+  every algorithm but NSGA-II, sampled an absolute probability in [0.01, 0.5];
+  NSGA-II's permutation space defaults to 2.0, the 2/n of
+  `NSGAIIConfig.default()`.
+- The segments of NSGA-II's mixed space sample their mutation probabilities in
+  [0.01, 0.5], as the other mixed spaces do; they took the range of a factor,
+  [0.25, 3.0], so above 1 every mutation applied.
+
+The schema has no forbidden clauses: each space offers only what its algorithm
+and encoding run, which a test checks by building and running seeded draws of
+every space. Every seeded tuning run draws other trials, because every space
+loses `pop_size` and gains or changes parameters. An assignment saved from the
+spaces of VAMOS 1.3.0, with `pop_size`, `use_external_archive` or an absolute
+`mutation_prob`, or with the names of VAMOS 1.2.1, builds the configuration it
+built.
 
 ### Constrained spaces
 
@@ -666,6 +743,17 @@ fixed range of partitions gave 5 to 13 individuals with two objectives and up
 to 293,930 with ten. An assignment with `n_partitions`, saved from an earlier
 space, still builds that lattice, and `--smoke` caps RVEA's `pop_size` as it
 does for the other algorithms.
+
+**Development after 1.3.0:** the spaces do not sample `pop_size`, so these
+derivations start from the fixed `pop_size` of the run, which the caller adds
+to the assignment with `n_obj` and which `vamos tune` takes from `--pop-size`
+for every algorithm, RVEA included: with three objectives and `--pop-size 100`,
+NSGA-III and RVEA use the lattice of 91 directions (NSGA-III keeps a population
+of 100) and MOEA/D the packaged jMetal weights of 100 individuals. The rules do
+not change, so a saved assignment with its `pop_size` builds the population it
+built. The `effective` record compares with that fixed population: with
+`--pop-size 150` and three objectives, every MOEA/D trial records
+`{"pop_size": 136}`.
 
 `optuna` and `bohb_optuna` suggest parents before the parameters that depend on
 them, whatever their declaration order, and record only active suggestions in
@@ -791,6 +879,12 @@ VAMOS 1.2.0 introduced with its leaders-archive score.
 again, with other categorical choices, so the CLI appends
 `__vamos_cli_final_population_hv_v3`, and SMPSO studies, whose spaces also
 change, take `__vamos_cli_leaders_hv_v2`. A study stored by VAMOS 1.2.1 or
+earlier is not resumed under the new names.
+
+**Development after 1.3.0:** the built-in spaces become grammars without
+`pop_size` and with other categorical choices (`auto` for the initializer and
+the repair), so the CLI appends `__vamos_cli_final_population_hv_v4`, and SMPSO
+studies take `__vamos_cli_leaders_hv_v3`. A study stored by VAMOS 1.3.0 or
 earlier is not resumed under the new names.
 
 ## Split-based tuning

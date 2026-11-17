@@ -662,9 +662,9 @@ def test_study_planning_checks_the_budget() -> None:
 
 def test_tuning_space_builds_differential_evolution_configurations() -> None:
     space = build_top_config_space()
-    names = {param.name for param in space.params}
+    names = set(space.to_param_space().params)
+    assert "pop_size" not in names
     assert {
-        "pop_size",
         "de_crossover_rate",
         "de_scale_factor",
         "mutation",
@@ -682,7 +682,7 @@ def test_tuning_space_builds_differential_evolution_configurations() -> None:
         assert config.crossover == ("de", {"cr": assignment["de_crossover_rate"], "f": assignment["de_scale_factor"]})
         assert config.delta_threshold == assignment["delta_threshold"]
         mutations.add(config.mutation[0])
-        assert 20 <= config.pop_size <= 200
+        assert config.pop_size == 100
     assert len(mutations) > 3
 
     platemo = config_from_assignment("top", {"pop_size": 100, "mutation": "pm"})

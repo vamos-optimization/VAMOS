@@ -18,15 +18,16 @@ import pytest
 import vamos
 from vamos.algorithms import MOEADConfig, SMSEMOAConfig
 from vamos.engine.tuning import config_from_assignment
-from vamos.engine.tuning.racing.bridge_spaces_moead import (
+from vamos.engine.tuning.racing.bridge_spaces import (
     build_moead_binary_config_space,
     build_moead_config_space,
     build_moead_constrained_config_space,
     build_moead_integer_config_space,
     build_moead_mixed_config_space,
     build_moead_permutation_config_space,
+    build_smsemoa_config_space,
+    build_smsemoa_constrained_config_space,
 )
-from vamos.engine.tuning.racing.bridge_spaces_smsemoa import build_smsemoa_config_space, build_smsemoa_constrained_config_space
 from vamos.engine.tuning.racing.config_space import AlgorithmConfigSpace
 from vamos.engine.tuning.racing.param_space import Categorical, Int, Real
 from vamos.engine.tuning.racing.parameter_names import canonical_parameter_name
@@ -75,7 +76,7 @@ def test_real_coded_moead_spaces_have_evolvers_mutation_repair_and_initializer(n
     assert "mutation_prob" not in params
     factor = params["mutation_probability_factor"]
     assert isinstance(factor, Real) and factor.low <= 1.0 <= factor.high
-    assert set(params["repair"].choices) == {"clip", "reflect", "random"}
+    assert set(params["repair"].choices) == {"auto", "clip", "reflect", "random"}
     assert set(params["initial_solutions"].choices) >= {"random", "lhs", "scatter"}
 
 
@@ -86,7 +87,9 @@ def test_the_polynomial_index_is_active_only_for_the_polynomial_mutations(name: 
 
     assert {"polynomial", "linked_polynomial"} <= {draw["mutation"] for draw in draws}
     for draw in draws:
-        assert ("polynomial_mutation_distribution_index" in draw) == (draw["mutation"] in {"polynomial", "linked_polynomial"})
+        # Each polynomial mutation has its own index (one parent per parameter).
+        assert ("polynomial_mutation_distribution_index" in draw) == (draw["mutation"] == "polynomial")
+        assert ("linked_polynomial_mutation_distribution_index" in draw) == (draw["mutation"] == "linked_polynomial")
 
 
 @pytest.mark.parametrize("name", sorted(MOEAD_SPACES))
@@ -143,6 +146,8 @@ def test_evolvers_default_moead_configurations_are_points_of_the_space(
     full = {**MOEAD_BASE, **assignment, "mutation": "polynomial", "mutation_prob_factor": 1.0, "mutation_eta": 20.0}
     params = _params(build_moead_config_space)
     for key, value in full.items():
+        if key == "pop_size":  # a run setting, not a parameter of the space
+            continue
         param = params[canonical_parameter_name(key)]
         if isinstance(param, Categorical):
             assert value in param.choices, key

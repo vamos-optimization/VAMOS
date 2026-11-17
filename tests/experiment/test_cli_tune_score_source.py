@@ -116,7 +116,7 @@ def test_persistent_optuna_study_name_is_versioned_by_scoring_contract() -> None
 
     actual = tune_runtime._versioned_optuna_study_name(args, task)
 
-    assert actual == "legacy-study__vamos_cli_final_population_hv_v3"
+    assert actual == "legacy-study__vamos_cli_final_population_hv_v4"
 
 
 def test_default_persistent_optuna_study_name_is_also_versioned() -> None:
@@ -125,13 +125,13 @@ def test_default_persistent_optuna_study_name_is_also_versioned() -> None:
 
     actual = tune_runtime._versioned_optuna_study_name(args, task)
 
-    assert actual == "tune_zdt1_nsgaii_optuna_optuna_7__vamos_cli_final_population_hv_v3"
+    assert actual == "tune_zdt1_nsgaii_optuna_optuna_7__vamos_cli_final_population_hv_v4"
 
 
 def test_cli_tuning_task_excludes_external_archive_controls() -> None:
     algo_space = BUILDERS["nsgaii"]()
     param_space = algo_space.to_param_space()
-    assert "use_external_archive" in param_space.params
+    assert "external_archive" in param_space.params
 
     args = SimpleNamespace(
         instances="",
@@ -146,11 +146,10 @@ def test_cli_tuning_task_excludes_external_archive_controls() -> None:
     )
     task = build_task(args, param_space, budget_per_run=100)
 
-    assert "use_external_archive" not in task.param_space.params
-    assert "archive_unbounded" not in task.param_space.params
+    assert "external_archive" not in task.param_space.params
     assert "archive_prune_policy" not in task.param_space.params
     sample = task.param_space.sample(np.random.default_rng(7))
-    assert not {"use_external_archive", "archive_unbounded", "archive_prune_policy"} & sample.keys()
+    assert not {"external_archive", "use_external_archive", "archive_unbounded", "archive_prune_policy"} & sample.keys()
 
 
 def test_smpso_tuning_scores_the_leaders_archive() -> None:
@@ -179,7 +178,7 @@ def test_persistent_optuna_study_name_separates_smpso_leader_scoring() -> None:
     args = SimpleNamespace(optuna_study_name="study", backend="optuna", seed=7, algorithm="smpso")
     task = SimpleNamespace(name="tune_zdt1_smpso_optuna")
 
-    assert tune_runtime._versioned_optuna_study_name(args, task) == "study__vamos_cli_leaders_hv_v2"
+    assert tune_runtime._versioned_optuna_study_name(args, task) == "study__vamos_cli_leaders_hv_v3"
 
 
 @pytest.mark.parametrize(("algorithm_name", "n_constraints", "expected"), [("smpso", 0, True), ("smpso", 2, False), ("nsgaii", 0, False)])
