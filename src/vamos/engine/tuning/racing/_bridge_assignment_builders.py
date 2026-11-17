@@ -8,9 +8,6 @@ import numpy as np
 from vamos.engine.algorithm.components.weight_vectors import largest_weighted_population
 from vamos.engine.algorithm.config import (
     AGEMOEAConfig,
-    CCMOConfig,
-    CMOEAMSConfig,
-    CTAEAConfig,
     IBEAConfig,
     MOEADConfig,
     NSGAIIConfig,
@@ -19,18 +16,20 @@ from vamos.engine.algorithm.config import (
     SMPSOConfig,
     SMSEMOAConfig,
     SPEA2Config,
-    ToPConfig,
 )
 from vamos.engine.algorithm.variants import ALGORITHM_VARIANT_GROUPS
 from vamos.engine.reference_directions import largest_lattice_divisions, lattice_size
 
+from ._bridge_assignment_constrained import build_ccmo_config, build_cmoeams_config, build_ctaea_config, build_top_config
 from ._bridge_assignment_shared import (
     apply_initializer,
+    apply_mutation_prob_factor,
     apply_optional_external_archive,
     apply_optional_repair,
     extend_crossover_params,
     extend_mutation_params,
     has_mixed_mutation_assignment,
+    run_pop_size,
 )
 from .bridge_space_parts_constraints import apply_constraint_handling, apply_subproblem_update_criterion
 
@@ -51,7 +50,7 @@ CMOEAMS_NAMES = ALGORITHM_VARIANT_GROUPS["cmoeams"]
 
 def build_nsgaii_config(assignment: dict[str, Any], *, mixed: bool = False) -> NSGAIIConfig:
     builder = NSGAIIConfig.builder()
-    pop_size = int(assignment["pop_size"])
+    pop_size = run_pop_size(assignment)
     builder.pop_size(pop_size)
     apply_initializer(builder, assignment, pop_size)
 
@@ -76,12 +75,10 @@ def build_nsgaii_config(assignment: dict[str, Any], *, mixed: bool = False) -> N
     builder.crossover(cross, **cross_params)
 
     mut = assignment["mutation"]
-    mut_factor = assignment.get("mutation_prob_factor")
     mut_params: dict[str, Any] = {}
     if "mutation_prob" in assignment:
         mut_params["prob"] = assignment["mutation_prob"]
-    if mut_factor is not None:
-        builder.mutation_prob_factor(float(mut_factor))
+    apply_mutation_prob_factor(builder, assignment, mut_params, factor_field=True)
     extend_mutation_params(str(mut), assignment, mut_params, mixed=mixed)
     builder.mutation(mut, **mut_params)
 
@@ -98,12 +95,12 @@ def build_nsgaii_config(assignment: dict[str, Any], *, mixed: bool = False) -> N
 
 
 def _moead_pop_size(assignment: dict[str, Any]) -> int:
-    """The sampled ``pop_size``; with ``n_obj`` in the assignment, the largest population up to it that has MOEA/D weights.
+    """The run's ``pop_size``; with ``n_obj`` in the assignment, the largest population up to it that has MOEA/D weights.
 
     With three or more objectives MOEA/D runs only populations whose weights are a complete
     Das-Dennis lattice or a packaged jMetal file, which the sampled range does not know about.
     """
-    pop_size = int(assignment["pop_size"])
+    pop_size = run_pop_size(assignment)
     if "n_obj" in assignment:
         return largest_weighted_population(pop_size, int(assignment["n_obj"]))
     return pop_size
@@ -144,8 +141,7 @@ def build_moead_config(assignment: dict[str, Any], *, mixed: bool = False) -> MO
     # Assignments from the earlier real-coded space give an absolute probability.
     if "mutation_prob" in assignment:
         mut_params["prob"] = float(assignment["mutation_prob"])
-    if assignment.get("mutation_prob_factor") is not None:
-        builder.mutation_prob_factor(float(assignment["mutation_prob_factor"]))
+    apply_mutation_prob_factor(builder, assignment, mut_params, factor_field=True)
     extend_mutation_params(mut, assignment, mut_params, mixed=mixed)
     builder.mutation(mut, **mut_params)
 
@@ -172,7 +168,7 @@ def build_moead_permutation_config(assignment: dict[str, Any]) -> MOEADConfig:
 
 def build_nsgaiii_config(assignment: dict[str, Any], *, mixed: bool = False) -> NSGAIIIConfig:
     builder = NSGAIIIConfig.builder()
-    pop_size = int(assignment["pop_size"])
+    pop_size = run_pop_size(assignment)
     builder.pop_size(pop_size)
     apply_initializer(builder, assignment, pop_size)
     cross = str(assignment["crossover"])
@@ -185,6 +181,7 @@ def build_nsgaiii_config(assignment: dict[str, Any], *, mixed: bool = False) -> 
     mut_params: dict[str, Any] = {}
     if "mutation_prob" in assignment:
         mut_params["prob"] = float(assignment["mutation_prob"])
+    apply_mutation_prob_factor(builder, assignment, mut_params, factor_field=True)
     extend_mutation_params(mut, assignment, mut_params, mixed=mixed)
     builder.mutation(mut, **mut_params)
     builder.selection("tournament", size=int(assignment["selection_pressure"]))
@@ -196,7 +193,7 @@ def build_nsgaiii_config(assignment: dict[str, Any], *, mixed: bool = False) -> 
 
 def build_smsemoa_config(assignment: dict[str, Any], *, mixed: bool = False) -> SMSEMOAConfig:
     builder = SMSEMOAConfig.builder()
-    pop_size = int(assignment["pop_size"])
+    pop_size = run_pop_size(assignment)
     builder.pop_size(pop_size)
     apply_initializer(builder, assignment, pop_size)
     cross = str(assignment["crossover"])
@@ -210,8 +207,7 @@ def build_smsemoa_config(assignment: dict[str, Any], *, mixed: bool = False) -> 
     # Assignments from the earlier real-coded spaces give an absolute probability.
     if "mutation_prob" in assignment:
         mut_params["prob"] = float(assignment["mutation_prob"])
-    if assignment.get("mutation_prob_factor") is not None:
-        builder.mutation_prob_factor(float(assignment["mutation_prob_factor"]))
+    apply_mutation_prob_factor(builder, assignment, mut_params, factor_field=True)
     extend_mutation_params(mut, assignment, mut_params, mixed=mixed)
     builder.mutation(mut, **mut_params)
     # Assignments from earlier spaces name only the tournament size and used an offset of 0.1.
@@ -229,7 +225,7 @@ def build_smsemoa_config(assignment: dict[str, Any], *, mixed: bool = False) -> 
 
 def build_spea2_config(assignment: dict[str, Any], *, mixed: bool = False) -> SPEA2Config:
     builder = SPEA2Config.builder()
-    pop_size = int(assignment["pop_size"])
+    pop_size = run_pop_size(assignment)
     builder.pop_size(pop_size)
     builder.archive_size(int(assignment.get("archive_size", pop_size)))
     apply_initializer(builder, assignment, pop_size)
@@ -243,6 +239,7 @@ def build_spea2_config(assignment: dict[str, Any], *, mixed: bool = False) -> SP
     mut_params: dict[str, Any] = {}
     if "mutation_prob" in assignment:
         mut_params["prob"] = float(assignment["mutation_prob"])
+    apply_mutation_prob_factor(builder, assignment, mut_params, factor_field=True)
     extend_mutation_params(mut, assignment, mut_params, mixed=mixed)
     builder.mutation(mut, **mut_params)
     # SPEA2 mates with its own binary tournament: a ``selection_pressure`` saved from an earlier space has no effect.
@@ -255,7 +252,7 @@ def build_spea2_config(assignment: dict[str, Any], *, mixed: bool = False) -> SP
 
 def build_ibea_config(assignment: dict[str, Any], *, mixed: bool = False) -> IBEAConfig:
     builder = IBEAConfig.builder()
-    pop_size = int(assignment["pop_size"])
+    pop_size = run_pop_size(assignment)
     builder.pop_size(pop_size)
     apply_initializer(builder, assignment, pop_size)
     cross = str(assignment["crossover"])
@@ -268,6 +265,7 @@ def build_ibea_config(assignment: dict[str, Any], *, mixed: bool = False) -> IBE
     mut_params: dict[str, Any] = {}
     if "mutation_prob" in assignment:
         mut_params["prob"] = float(assignment["mutation_prob"])
+    apply_mutation_prob_factor(builder, assignment, mut_params, factor_field=True)
     extend_mutation_params(mut, assignment, mut_params, mixed=mixed)
     builder.mutation(mut, **mut_params)
     builder.selection("tournament", size=int(assignment["selection_pressure"]))
@@ -280,7 +278,7 @@ def build_ibea_config(assignment: dict[str, Any], *, mixed: bool = False) -> IBE
 
 def build_smpso_config(assignment: dict[str, Any], *, mixed: bool = False) -> SMPSOConfig:
     builder = SMPSOConfig.builder()
-    pop_size = int(assignment["pop_size"])
+    pop_size = run_pop_size(assignment)
     builder.pop_size(pop_size)
     builder.archive_size(int(assignment.get("archive_size", pop_size)))
     builder.inertia(float(assignment["inertia"]))
@@ -291,6 +289,7 @@ def build_smpso_config(assignment: dict[str, Any], *, mixed: bool = False) -> SM
     mut_params: dict[str, Any] = {}
     if "mutation_prob" in assignment:
         mut_params["prob"] = float(assignment["mutation_prob"])
+    apply_mutation_prob_factor(builder, assignment, mut_params, factor_field=False)
     if mut in {"pm", "polynomial"}:
         mut_params["eta"] = float(assignment.get("mutation_eta", 20.0))
     elif mixed or has_mixed_mutation_assignment(assignment):
@@ -303,7 +302,7 @@ def build_smpso_config(assignment: dict[str, Any], *, mixed: bool = False) -> SM
 
 def build_agemoea_config(assignment: dict[str, Any], *, mixed: bool = False) -> AGEMOEAConfig:
     builder = AGEMOEAConfig.builder()
-    pop_size = int(assignment["pop_size"])
+    pop_size = run_pop_size(assignment)
     builder.pop_size(pop_size)
     apply_initializer(builder, assignment, pop_size)
 
@@ -318,6 +317,7 @@ def build_agemoea_config(assignment: dict[str, Any], *, mixed: bool = False) -> 
     mut_params: dict[str, Any] = {}
     if "mutation_prob" in assignment:
         mut_params["prob"] = assignment["mutation_prob"]
+    apply_mutation_prob_factor(builder, assignment, mut_params, factor_field=True)
     extend_mutation_params(mut, assignment, mut_params, mixed=mixed)
     builder.mutation(mut, **mut_params)
 
@@ -330,15 +330,15 @@ def build_agemoea_config(assignment: dict[str, Any], *, mixed: bool = False) -> 
 def _rvea_population(assignment: dict[str, Any]) -> tuple[int, int]:
     """RVEA's population and partitions: one individual per direction of a complete Das-Dennis lattice.
 
-    The lattice is the largest with at most the sampled ``pop_size`` directions for the assignment's
-    ``n_obj`` (two objectives without it). An assignment with ``n_partitions``, saved from an earlier
-    space, keeps that lattice, and one with neither gets 12 partitions.
+    The lattice is the largest with at most the run's ``pop_size`` directions (100 without it) for the
+    assignment's ``n_obj`` (two objectives without it). An assignment with ``n_partitions``, saved from
+    a space of VAMOS 1.2.1, keeps that lattice.
     """
     n_obj = max(2, int(assignment.get("n_obj", 2)))
-    if "n_partitions" in assignment or "pop_size" not in assignment:
-        n_partitions = int(assignment.get("n_partitions", 12))
+    if "n_partitions" in assignment:
+        n_partitions = int(assignment["n_partitions"])
     else:
-        n_partitions = largest_lattice_divisions(int(assignment["pop_size"]), n_obj)
+        n_partitions = largest_lattice_divisions(run_pop_size(assignment), n_obj)
     return lattice_size(n_obj, n_partitions), n_partitions
 
 
@@ -362,130 +362,13 @@ def build_rvea_config(assignment: dict[str, Any], *, mixed: bool = False) -> RVE
     mut_params: dict[str, Any] = {}
     if "mutation_prob" in assignment:
         mut_params["prob"] = assignment["mutation_prob"]
+    apply_mutation_prob_factor(builder, assignment, mut_params, factor_field=True)
     extend_mutation_params(mut, assignment, mut_params, mixed=mixed)
     builder.mutation(mut, **mut_params)
 
     apply_optional_repair(builder, assignment)
     apply_optional_external_archive(builder, assignment, pop_size)
     apply_constraint_handling(builder, assignment)
-    return builder.build()
-
-
-def build_ccmo_config(assignment: dict[str, Any], *, mixed: bool = False) -> CCMOConfig:
-    """CCMO's configuration: crossover ``de`` is the DE variation (``de_cr``, ``de_f``), any other the GA variation.
-
-    A missing crossover probability is 1.0, CCMO's default.
-    """
-    builder = CCMOConfig.builder()
-    pop_size = int(assignment["pop_size"])
-    builder.pop_size(pop_size)
-    apply_initializer(builder, assignment, pop_size)
-
-    cross = str(assignment.get("crossover", "sbx"))
-    if cross == "de":
-        builder.crossover("de", cr=float(assignment.get("de_cr", 1.0)), f=float(assignment.get("de_f", 0.5)))
-    else:
-        cross_params: dict[str, Any] = {"prob": float(assignment.get("crossover_prob", 1.0))}
-        extend_crossover_params(cross, assignment, cross_params, mixed=mixed)
-        builder.crossover(cross, **cross_params)
-
-    mut = str(assignment.get("mutation", "pm"))
-    mut_params: dict[str, Any] = {}
-    if "mutation_prob" in assignment:
-        mut_params["prob"] = assignment["mutation_prob"]
-    extend_mutation_params(mut, assignment, mut_params, mixed=mixed)
-    builder.mutation(mut, **mut_params)
-
-    apply_optional_repair(builder, assignment)
-    apply_optional_external_archive(builder, assignment, pop_size)
-    return builder.build()
-
-
-def build_ctaea_config(assignment: dict[str, Any], *, mixed: bool = False) -> CTAEAConfig:
-    """C-TAEA's configuration: ``pop_size`` is the requested number of weight vectors, and the crossover mates two parents.
-
-    A missing crossover probability is 1.0, C-TAEA's default.
-    """
-    builder = CTAEAConfig.builder()
-    pop_size = int(assignment["pop_size"])
-    builder.pop_size(pop_size)
-    apply_initializer(builder, assignment, pop_size)
-
-    cross = str(assignment.get("crossover", "sbx"))
-    cross_params: dict[str, Any] = {"prob": float(assignment.get("crossover_prob", 1.0))}
-    extend_crossover_params(cross, assignment, cross_params, mixed=mixed)
-    builder.crossover(cross, **cross_params)
-
-    mut = str(assignment.get("mutation", "pm"))
-    mut_params: dict[str, Any] = {}
-    if "mutation_prob" in assignment:
-        mut_params["prob"] = assignment["mutation_prob"]
-    extend_mutation_params(mut, assignment, mut_params, mixed=mixed)
-    builder.mutation(mut, **mut_params)
-
-    apply_optional_repair(builder, assignment)
-    apply_optional_external_archive(builder, assignment, pop_size)
-    return builder.build()
-
-
-def build_top_config(assignment: dict[str, Any], *, mixed: bool = False) -> ToPConfig:
-    """ToP's configuration: DE with ``de_cr`` and ``de_f``, the mutation of its trial vectors and the switch thresholds.
-
-    A missing ``de_cr``, ``de_f`` or threshold gets the value of PlatEMO's implementation: CR = 1.0,
-    F = 0.5, 0.2 for ``delta``, 1/3 for ``Pf`` and 0.9 of the budget.
-    """
-    builder = ToPConfig.builder()
-    pop_size = int(assignment["pop_size"])
-    builder.pop_size(pop_size)
-    apply_initializer(builder, assignment, pop_size)
-    builder.crossover("de", cr=float(assignment.get("de_cr", 1.0)), f=float(assignment.get("de_f", 0.5)))
-
-    mut = str(assignment.get("mutation", "pm"))
-    mut_params: dict[str, Any] = {}
-    if "mutation_prob" in assignment:
-        mut_params["prob"] = assignment["mutation_prob"]
-    extend_mutation_params(mut, assignment, mut_params, mixed=mixed)
-    builder.mutation(mut, **mut_params)
-
-    builder.delta_threshold(float(assignment.get("delta_threshold", 0.2)))
-    builder.feasible_ratio_threshold(float(assignment.get("feasible_ratio_threshold", 1.0 / 3.0)))
-    builder.phase_one_evaluation_fraction(float(assignment.get("phase_one_evaluation_fraction", 0.9)))
-    apply_optional_repair(builder, assignment)
-    apply_optional_external_archive(builder, assignment, pop_size)
-    return builder.build()
-
-
-def build_cmoeams_config(assignment: dict[str, Any], *, mixed: bool = False) -> CMOEAMSConfig:
-    """CMOEA-MS's configuration: crossover ``de`` is the DE variation (``de_cr``, ``de_f``, ``de_variant``), any other the GA variation.
-
-    A missing crossover probability is 1.0, a missing ``de_cr``, ``de_f`` or ``de_variant`` CR = 1.0,
-    F = 0.5 and ``rand_1_bin``, and a missing ``feasible_ratio_threshold`` 0.5: the values of the
-    paper and of PlatEMO's implementation.
-    """
-    builder = CMOEAMSConfig.builder()
-    pop_size = int(assignment["pop_size"])
-    builder.pop_size(pop_size)
-    apply_initializer(builder, assignment, pop_size)
-
-    cross = str(assignment.get("crossover", "sbx"))
-    if cross == "de":
-        builder.crossover("de", cr=float(assignment.get("de_cr", 1.0)), f=float(assignment.get("de_f", 0.5)))
-        builder.de_variant(str(assignment.get("de_variant", "rand_1_bin")))
-    else:
-        cross_params: dict[str, Any] = {"prob": float(assignment.get("crossover_prob", 1.0))}
-        extend_crossover_params(cross, assignment, cross_params, mixed=mixed)
-        builder.crossover(cross, **cross_params)
-
-    mut = str(assignment.get("mutation", "pm"))
-    mut_params: dict[str, Any] = {}
-    if "mutation_prob" in assignment:
-        mut_params["prob"] = assignment["mutation_prob"]
-    extend_mutation_params(mut, assignment, mut_params, mixed=mixed)
-    builder.mutation(mut, **mut_params)
-
-    builder.feasible_ratio_threshold(float(assignment.get("feasible_ratio_threshold", 0.5)))
-    apply_optional_repair(builder, assignment)
-    apply_optional_external_archive(builder, assignment, pop_size)
     return builder.build()
 
 

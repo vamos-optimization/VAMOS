@@ -259,12 +259,13 @@ def test_builtin_configspace_preserves_combined_archive_conditions(builder):
         config = dict(sampled)
         space.validate(config)
         assert set(config) == {name for name in space.params if space.is_active(name, config)}
-        enabled = config["use_external_archive"]
-        unbounded = config.get("archive_unbounded")
-        assert ("archive_prune_policy" in config) == (enabled and not unbounded)
-        assert ("polynomial_mutation_distribution_index" in config) == (config["mutation"] in {"pm", "polynomial", "linked_polynomial"})
-        seen.add((enabled, unbounded))
-    assert seen == {(False, None), (True, False), (True, True)}
+        # The archive is one choice; its pruning policy hangs from the bounded archive.
+        archive = config["external_archive"]
+        assert ("archive_prune_policy" in config) == (archive == "bounded")
+        assert ("polynomial_mutation_distribution_index" in config) == (config["mutation"] == "polynomial")
+        assert ("linked_polynomial_mutation_distribution_index" in config) == (config["mutation"] == "linked_polynomial")
+        seen.add(archive)
+    assert seen == {"none", "unbounded", "bounded"}
 
 
 @pytest.mark.parametrize(

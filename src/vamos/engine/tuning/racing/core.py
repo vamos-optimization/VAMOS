@@ -122,10 +122,13 @@ class RacingTuner:
         self._next_config_id: int = 0  # Re-indexed below
         self._best_score_history: list[float] = []  # For convergence detection
 
-        # Injection of default/user configurations
-        self.initial_configs_payload = initial_configs or []
-
         self.param_space: ParamSpace = task.param_space
+        # Injection of default/user configurations: a grammar's default configuration (the algorithm's
+        # default) races first, as irace's initial configurations do.
+        self.initial_configs_payload = list(initial_configs or [])
+        grammar = self.param_space.grammar
+        if grammar is not None and initial_configs is None:
+            self.initial_configs_payload = [dict(grammar.default_values())]
         self.instances: Sequence[Instance] = list(task.instances)
         self.seeds: Sequence[int] = list(task.seeds)
 

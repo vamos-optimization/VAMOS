@@ -193,6 +193,16 @@ def _serve(evaluations: _Evaluations, token: str) -> socketserver.ThreadingTCPSe
     return server
 
 
+def initial_configurations(tuner: IraceTunerLike) -> list[dict[str, Any]]:
+    """irace's initial configurations: the space's default configuration first, when the space is a grammar, then the given ones."""
+    given = [dict(config) for config in tuner.irace_initial_configs or []]
+    grammar = tuner.task.param_space.grammar
+    if grammar is None:
+        return given
+    default = dict(grammar.default_values())
+    return [default, *(config for config in given if config != default)]
+
+
 def _write_inputs(tuner: IraceTunerLike, work: Path, max_experiments: int) -> dict[str, tuple[Instance, int | None]]:
     space = tuner.task.param_space
     (work / "parameters.txt").write_text(parameter_file(space), encoding="utf-8")
@@ -222,8 +232,9 @@ def _write_inputs(tuner: IraceTunerLike, work: Path, max_experiments: int) -> di
     if tuner.irace_instance_seeds == "task":
         # A deterministic race cannot start on more instances than the task has pairs.
         options["firstTest"] = min(5, len(lines))
-    if tuner.irace_initial_configs:
-        (work / "configurations.txt").write_text(configurations_file(space, tuner.irace_initial_configs), encoding="utf-8")
+    initial = initial_configurations(tuner)
+    if initial:
+        (work / "configurations.txt").write_text(configurations_file(space, initial), encoding="utf-8")
         options["configurationsFile"] = (work / "configurations.txt").as_posix()
     options.update(tuner.irace_options or {})
     (work / "scenario.txt").write_text("".join(f"{k} = {_r_value(v)}\n" for k, v in options.items()), encoding="utf-8")
@@ -292,4 +303,4 @@ def run_irace(tuner: IraceTunerLike, eval_fn: ScoreEvalFn) -> tuple[dict[str, An
         return _history(tuner, evaluations.records, elites)
 
 
-__all__ = ["run_irace"]
+__all__ = ["initial_configurations", "run_irace"]

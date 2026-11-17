@@ -300,15 +300,19 @@ def _build_mixed_operators(
 
     cross_prob = float(cross_params.get("prob", 0.9))
     mut_prob = resolve_prob_expression(mut_params.get("prob"), n_var, 1.0 / max(1, n_var))
+    # The configuration's segment settings (perm_crossover, real_mutation_prob, ...) join the problem's
+    # segment layout, as in the variation pipeline's mixed strategy; without them, the default mixed operators run.
+    cross_spec = {**mixed_spec, **{key: value for key, value in cross_params.items() if key != "prob"}}
+    mut_spec = {**mixed_spec, **{key: value for key, value in mut_params.items() if key != "prob"}}
 
     def crossover(parents: NDArray[np.generic], _rng: np.random.Generator = rng) -> NDArray[np.generic]:
         parent_shape = parents.shape
         parents_flat = parents.reshape(-1, parent_shape[-1])
-        offspring_flat = mixed_crossover(parents_flat, cross_prob, mixed_spec, _rng)
+        offspring_flat = mixed_crossover(parents_flat, cross_prob, cross_spec, _rng)
         return offspring_flat.reshape(parent_shape)
 
     def mutation(X_child: NDArray[np.generic], _rng: np.random.Generator = rng) -> NDArray[np.generic]:
-        mixed_mutation(X_child, mut_prob, mixed_spec, _rng)
+        mixed_mutation(X_child, mut_prob, mut_spec, _rng)
         return X_child
 
     return crossover, mutation

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -142,6 +142,7 @@ def _persist_artifacts(
     history: list[TrialResult],
     elapsed_seconds: float,
     resolved_jobs: int,
+    fixed_assignment: Mapping[str, object] | None = None,
 ) -> None:
     _persist_artifacts_impl(
         output_dir=output_dir,
@@ -152,6 +153,7 @@ def _persist_artifacts(
         elapsed_seconds=elapsed_seconds,
         resolved_jobs=resolved_jobs,
         available_backends_fn=lambda: _backend_availability(args, available_model_based_backends),
+        fixed_assignment=fixed_assignment,
     )
 
 
@@ -303,6 +305,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         history=history,
         elapsed_seconds=elapsed,
         resolved_jobs=resolved_jobs,
+        fixed_assignment=smoke_profile.get("fixed_parameters") if smoke_profile else None,
     )
     if finisher_summary_updates or finisher_artifacts:
         _append_summary(

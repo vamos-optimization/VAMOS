@@ -3,7 +3,8 @@
 The built-in spaces name their parameters after Evolver's, in snake_case (``sbx_distribution_index``
 for Evolver's ``sbxDistributionIndex``), and some values after Evolver's (``undc`` for ``undx``). A value
 is never renamed to another operator's name: ``uniform_reset`` keeps its name, because ``random_reset`` is
-the integer reset mutation. The names the spaces
+the integer reset mutation. The grammars name polynomial mutation ``polynomial`` in every space, the
+integer ones too, whose earlier ``pm`` stays a name of its own. The names the spaces
 used up to VAMOS 1.2.1 stay aliases: :func:`bridge_assignment` turns an assignment written with either
 into the names that the configuration bridges read, so stored assignments keep building the same
 configurations. :func:`to_evolver` and :func:`from_evolver` exchange assignments with Evolver's
@@ -12,12 +13,8 @@ camelCase parameters and values. The fields of the configuration classes do not 
 
 from __future__ import annotations
 
-import re
 from collections.abc import Mapping
-from dataclasses import replace
 from typing import Any
-
-from .param_space import Categorical, Condition, ConditionalBlock, ParamType
 
 # (name the bridges read and the spaces used up to VAMOS 1.2.1, canonical name, Evolver's name or None).
 PARAMETER_NAMES: tuple[tuple[str, str, str | None], ...] = (
@@ -25,6 +22,8 @@ PARAMETER_NAMES: tuple[tuple[str, str, str | None], ...] = (
     ("crossover_prob", "crossover_probability", "crossoverProbability"),
     ("crossover_eta", "sbx_distribution_index", "sbxDistributionIndex"),
     ("mutation_eta", "polynomial_mutation_distribution_index", "polynomialMutationDistributionIndex"),
+    # One parent per parameter: the two polynomial mutations of the grammars have an index each.
+    ("mutation_eta", "linked_polynomial_mutation_distribution_index", "linkedPolynomialMutationDistributionIndex"),
     ("mutation_prob_factor", "mutation_probability_factor", "mutationProbabilityFactor"),
     ("neighbor_size", "neighborhood_size", "neighborhoodSize"),
     ("delta", "neighborhood_selection_probability", "neighborhoodSelectionProbability"),
@@ -39,6 +38,7 @@ PARAMETER_NAMES: tuple[tuple[str, str, str | None], ...] = (
     ("crossover", "crossover", "crossover"),
     ("mutation", "mutation", "mutation"),
     ("selection", "selection", "selection"),
+    ("variation", "variation", "variation"),
 )
 
 # The values of categorical parameters, by the parameter's earlier name, in the same three forms.
@@ -56,8 +56,8 @@ VALUE_NAMES: dict[str, tuple[tuple[str, str, str | None], ...]] = {
     ),
     "mutation": (
         ("polynomial", "polynomial", "polynomial"),
-        # The integer spaces' polynomial mutation is "pm" in the integer operator registry, so "pm" is not
-        # renamed; the real-coded spaces name it "polynomial" (bridge_space_parts_discrete).
+        # The integer spaces of VAMOS 1.3.0 named polynomial mutation "pm", which the operator registries also know;
+        # the grammars name it "polynomial", so "pm" is not renamed (it is an operator's own name).
         ("pm", "pm", "polynomial"),
         ("linked_polynomial", "linked_polynomial", "linkedPolynomial"),
         ("non_uniform", "non_uniform", "nonUniform"),
@@ -76,11 +76,17 @@ VALUE_NAMES: dict[str, tuple[tuple[str, str, str | None], ...]] = {
         ("augmented_tchebycheff", "augmented_tchebycheff", "augmentedTschebyscheff"),
     ),
     "initializer": (
-        ("random", "random", "default"),
+        # The automatic choice of the configuration, as Evolver's "default" (random sampling, which VAMOS names).
+        ("auto", "auto", "default"),
+        ("random", "random", None),
         ("lhs", "lhs", "latinHypercubeSampling"),
         ("scatter", "scatter", "scatterSearch"),
         ("sobol", "sobol", "sobol"),
         ("obl", "obl", "oppositionBased"),
+    ),
+    "variation": (
+        ("crossover_and_mutation", "crossover_and_mutation", "crossoverAndMutationVariation"),
+        ("differential_evolution", "differential_evolution", "differentialEvolutionVariation"),
     ),
     "selection": (
         ("tournament", "tournament", "tournament"),
@@ -150,8 +156,17 @@ def bridge_assignment(assignment: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def canonical_assignment(assignment: Mapping[str, Any]) -> dict[str, Any]:
-    """``assignment`` with the spaces' canonical names and values."""
-    return {canonical_parameter_name(name): canonical_value(name, value) for name, value in assignment.items()}
+    """``assignment`` with the spaces' canonical names and values.
+
+    The earlier ``mutation_eta`` served both polynomial mutations; with linked polynomial mutation it
+    is ``linked_polynomial_mutation_distribution_index``.
+    """
+    linked = assignment.get("mutation") == "linked_polynomial"
+    result: dict[str, Any] = {}
+    for name, value in assignment.items():
+        canonical = "linked_polynomial_mutation_distribution_index" if linked and name == "mutation_eta" else canonical_parameter_name(name)
+        result[canonical] = canonical_value(name, value)
+    return result
 
 
 def to_evolver(assignment: Mapping[str, Any]) -> dict[str, Any]:
@@ -164,7 +179,7 @@ def to_evolver(assignment: Mapping[str, Any]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for name, value in canonical_assignment(assignment).items():
         bridge = _bridge_parameter(name)
-        evolver_name = next((evolver for vamos, _, evolver in PARAMETER_NAMES if vamos == bridge and evolver), name)
+        evolver_name = next((evolver for _, canonical, evolver in PARAMETER_NAMES if canonical == name and evolver), name)
         evolver_value = next((evolver for _, canonical, evolver in VALUE_NAMES.get(bridge, ()) if value == canonical and evolver), value)
         result[evolver_name] = evolver_value
     return result
@@ -203,45 +218,6 @@ def evolver_value_candidates(parameter: str, value: object) -> tuple[object, ...
     return tuple(canonical for _, canonical, evolver in VALUE_NAMES.get(bridge, ()) if evolver is not None and value == evolver)
 
 
-# A comparison of a parameter with a quoted value in a condition, and a parameter on its own.
-_CONDITION_TERM = r"cfg\['(\w+)'\](\s*[!=]=\s*)'([^']*)'"
-_CONDITION_NAME = r"cfg\['(\w+)'\]"
-
-
-def _canonical_expression(expr: str) -> str:
-    def term(match: re.Match[str]) -> str:
-        name, operator, value = match.groups()
-        return f"cfg['{canonical_parameter_name(name)}']{operator}'{canonical_value(name, value)}'"
-
-    renamed = re.sub(_CONDITION_TERM, term, expr)
-    return re.sub(_CONDITION_NAME, lambda match: f"cfg['{canonical_parameter_name(match.group(1))}']", renamed)
-
-
-def canonical_parameter(param: ParamType) -> ParamType:
-    """``param`` under its canonical name, with canonical values for a categorical one."""
-    renamed = replace(param, name=canonical_parameter_name(param.name))
-    if isinstance(renamed, Categorical):
-        choices: list[Any] = []
-        for choice in renamed.choices:
-            value = canonical_value(param.name, choice)
-            if value not in choices:
-                choices.append(value)
-        renamed = replace(renamed, choices=choices)
-    return renamed
-
-
-def canonical_conditional(block: ConditionalBlock) -> ConditionalBlock:
-    return ConditionalBlock(
-        canonical_parameter_name(block.parent_name),
-        canonical_value(block.parent_name, block.parent_value),
-        [canonical_parameter(param) for param in block.params],
-    )
-
-
-def canonical_condition(condition: Condition) -> Condition:
-    return Condition(canonical_parameter_name(condition.param_name), _canonical_expression(condition.expr))
-
-
 __all__ = [
     "NO_EVOLVER_EQUIVALENT",
     "PARAMETER_NAMES",
@@ -249,9 +225,6 @@ __all__ = [
     "bridge_assignment",
     "bridge_parameter_names",
     "canonical_assignment",
-    "canonical_condition",
-    "canonical_conditional",
-    "canonical_parameter",
     "canonical_parameter_name",
     "canonical_value",
     "evolver_value_candidates",

@@ -1,20 +1,22 @@
 """
 Algorithm configuration space with conditional parameters.
+
+The built-in spaces are views of YAML grammars (:mod:`vamos.engine.tuning.grammar`); a space for
+another algorithm can still be written directly as an ``AlgorithmConfigSpace``.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from .param_space import PARAM_ROLES, Condition, ParamSpace, ParamType, _dependency_order
-from .parameter_names import canonical_condition, canonical_conditional, canonical_parameter
 from .parameters import ConditionalBlock
 
-# Type alias for composable space parts: (params, conditionals, conditions).
-SpacePart = tuple[list[ParamType], list[ConditionalBlock], list[Condition]]
+if TYPE_CHECKING:
+    from ..grammar.model import ParameterSpace
 
 
 @dataclass
@@ -27,6 +29,8 @@ class AlgorithmConfigSpace:
     params: list[ParamType]
     conditionals: list[ConditionalBlock] | None = None
     conditions: list[Condition] | None = None
+    # The grammar that this space is a view of (built-in spaces); the views sample by walking its tree.
+    grammar: ParameterSpace | None = None
 
     def _conditional_params(self) -> list[ParamType]:
         params: list[ParamType] = []
@@ -71,6 +75,8 @@ class AlgorithmConfigSpace:
         """
         Sample a concrete assignment dict for all active params.
         """
+        if self.grammar is not None:
+            return dict(self.grammar.sample(rng))
         assignment: dict[str, Any] = {}
         param_space = self.to_param_space()
         for p in self._dependency_ordered(param_space):
@@ -109,37 +115,4 @@ class AlgorithmConfigSpace:
                 if cond.param_name not in params:
                     raise ValueError(f"Condition references unknown parameter '{cond.param_name}'.")
 
-        return ParamSpace(params=params, conditions=conditions)
-
-
-def compose_config_space(algorithm_name: str, *parts: SpacePart) -> AlgorithmConfigSpace:
-    """
-    Compose an :class:`AlgorithmConfigSpace` from multiple
-    ``(params, conditionals, conditions)`` parts.
-
-    This enables separating algorithm-specific parameters from
-    encoding-specific operator parameters and combining them cleanly::
-
-        def build_moead_mixed_config_space():
-            return compose_config_space(
-                "moead_mixed",
-                _moead_core_part(),
-                _moead_aggregation_part(),
-                _mixed_operator_part(),
-            )
-    """
-    # The parts name parameters as the bridges read them; the space names them canonically,
-    # after Evolver's names (see vamos.engine.tuning.racing.parameter_names).
-    all_params: list[ParamType] = []
-    all_conditionals: list[ConditionalBlock] = []
-    all_conditions: list[Condition] = []
-    for params, conditionals, conditions in parts:
-        all_params.extend(canonical_parameter(param) for param in params)
-        all_conditionals.extend(canonical_conditional(block) for block in conditionals)
-        all_conditions.extend(canonical_condition(condition) for condition in conditions)
-    return AlgorithmConfigSpace(
-        algorithm_name=algorithm_name,
-        params=all_params,
-        conditionals=all_conditionals or None,
-        conditions=all_conditions or None,
-    )
+        return ParamSpace(params=params, conditions=conditions, grammar=self.grammar)

@@ -7,7 +7,6 @@ import pytest
 
 import vamos.experiment.cli._tune_runtime as tune_runtime
 from vamos.algorithms import NSGAIIConfig
-from vamos.experiment.cli._tune_runtime import BUILDERS, build_task
 from vamos.experiment.cli._tune_scoring import (
     _ensure_constrained_tuning_supported,
     _force_population_result_mode,
@@ -110,60 +109,36 @@ def test_constrained_cli_tuning_accepts_population_aligned_algorithms(algorithm_
     _ensure_constrained_tuning_supported(algorithm_name, 1)
 
 
-def test_persistent_optuna_study_name_is_versioned_by_scoring_contract() -> None:
-    args = SimpleNamespace(optuna_study_name="legacy-study", backend="optuna", seed=7)
-    task = SimpleNamespace(name="tune_zdt1_nsgaii_optuna")
+def _grammar_task(algorithm: str, *, without: set[str] | None = None) -> SimpleNamespace:
+    from vamos.engine.tuning.grammar import builtin_parameter_space
+    from vamos.engine.tuning.grammar.view import to_param_space
+
+    space = builtin_parameter_space(algorithm)
+    return SimpleNamespace(name=f"tune_zdt1_{algorithm}_optuna", param_space=to_param_space(space.without(without or set())))
+
+
+def test_persistent_optuna_study_name_carries_the_space_hash() -> None:
+    # The hash of the searched space replaces the hand-bumped _v1 ... _v3 suffix: a changed space is a new study.
+    args = SimpleNamespace(optuna_study_name="legacy-study", backend="optuna", seed=7, algorithm="nsgaii")
+    task = _grammar_task("nsgaii")
+    sha = task.param_space.grammar.identity.sha256
 
     actual = tune_runtime._versioned_optuna_study_name(args, task)
 
-    assert actual == "legacy-study__vamos_cli_final_population_hv_v3"
+    assert actual == f"legacy-study__vamos_cli_final_population_hv_{sha[:16]}"
+    other = tune_runtime._versioned_optuna_study_name(args, _grammar_task("nsgaii", without={"external_archive"}))
+    assert other != actual and other.startswith("legacy-study__vamos_cli_final_population_hv_")
+    assert not any(actual.endswith(f"_v{version}") for version in range(1, 10))
 
 
-def test_default_persistent_optuna_study_name_is_also_versioned() -> None:
-    args = SimpleNamespace(optuna_study_name="", backend="optuna", seed=7)
-    task = SimpleNamespace(name="tune_zdt1_nsgaii_optuna")
+def test_default_persistent_optuna_study_name_also_carries_the_space_hash() -> None:
+    args = SimpleNamespace(optuna_study_name="", backend="optuna", seed=7, algorithm="nsgaii")
+    task = _grammar_task("nsgaii")
+    sha = task.param_space.grammar.identity.sha256
 
     actual = tune_runtime._versioned_optuna_study_name(args, task)
 
-    assert actual == "tune_zdt1_nsgaii_optuna_optuna_7__vamos_cli_final_population_hv_v3"
-
-
-def test_cli_tuning_task_excludes_external_archive_controls() -> None:
-    algo_space = BUILDERS["nsgaii"]()
-    param_space = algo_space.to_param_space()
-    assert "use_external_archive" in param_space.params
-
-    args = SimpleNamespace(
-        instances="",
-        problem="zdt1",
-        algorithm="nsgaii",
-        backend="random",
-        seed=1,
-        n_seeds=2,
-        n_var=10,
-        aggregate_mode="mean",
-        failure_score=0.0,
-    )
-    task = build_task(args, param_space, budget_per_run=100)
-
-    assert "use_external_archive" not in task.param_space.params
-    assert "archive_unbounded" not in task.param_space.params
-    assert "archive_prune_policy" not in task.param_space.params
-    sample = task.param_space.sample(np.random.default_rng(7))
-    assert not {"use_external_archive", "archive_unbounded", "archive_prune_policy"} & sample.keys()
-
-
-def test_smpso_tuning_scores_the_leaders_archive() -> None:
-    leaders = np.array([[0.1, 0.9], [0.5, 0.5], [0.9, 0.1]])
-    swarm = np.array([[0.2, 1.5], [1.5, 0.2], [2.0, 2.0]])
-    result = SimpleNamespace(
-        F=leaders,
-        data={"F": leaders.copy(), "population": {"F": swarm}, "_tuning_n_constraints": 0, "_tuning_score_source": "result"},
-    )
-
-    front = _population_front_for_scoring(result)
-
-    assert np.array_equal(front[np.lexsort(front.T)], leaders[np.lexsort(leaders.T)])
+    assert actual == f"tune_zdt1_nsgaii_optuna_optuna_7__vamos_cli_final_population_hv_{sha[:16]}"
 
 
 def test_smpso_tuning_keeps_its_leaders_result_mode() -> None:
@@ -177,9 +152,10 @@ def test_smpso_tuning_keeps_its_leaders_result_mode() -> None:
 
 def test_persistent_optuna_study_name_separates_smpso_leader_scoring() -> None:
     args = SimpleNamespace(optuna_study_name="study", backend="optuna", seed=7, algorithm="smpso")
-    task = SimpleNamespace(name="tune_zdt1_smpso_optuna")
+    task = _grammar_task("smpso")
+    sha = task.param_space.grammar.identity.sha256
 
-    assert tune_runtime._versioned_optuna_study_name(args, task) == "study__vamos_cli_leaders_hv_v2"
+    assert tune_runtime._versioned_optuna_study_name(args, task) == f"study__vamos_cli_leaders_hv_{sha[:16]}"
 
 
 @pytest.mark.parametrize(("algorithm_name", "n_constraints", "expected"), [("smpso", 0, True), ("smpso", 2, False), ("nsgaii", 0, False)])

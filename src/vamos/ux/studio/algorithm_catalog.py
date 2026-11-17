@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-
 from vamos.engine.algorithm.catalog import ENABLED_ALGORITHMS
 from vamos.engine.algorithm.config.types import AlgorithmConfigProtocol
+from vamos.engine.tuning.grammar import ParameterSpace, builtin_parameter_space, builtin_parameter_space_names
 from vamos.engine.tuning.racing import bridge_spaces
 from vamos.engine.tuning.racing.config_space import AlgorithmConfigSpace
 from vamos.ux.studio.services import _build_algorithm_config
@@ -34,7 +33,7 @@ _SPACE_SUFFIX = {
     "permutation": "_permutation",
     "mixed": "_mixed",
 }
-_ARCHIVE_PARAMETERS = {"use_external_archive", "archive_unbounded", "archive_prune_policy"}
+_ARCHIVE_PARAMETERS = {"external_archive", "use_external_archive", "archive_unbounded", "archive_prune_policy"}
 _CROSSOVER_PREFIXES = ("blx", "wa_", "laplace_", "fuzzy_", "pcx_", "undx_", "simplex_", "de_")
 _MUTATION_PREFIXES = ("nonuniform_", "gaussian_", "cauchy_", "uniform_", "levy_", "power_", "creep_")
 # Algorithms whose population size must equal their number of reference directions.
@@ -47,6 +46,15 @@ def studio_algorithms() -> tuple[str, ...]:
 
 def algorithm_label(algorithm: str) -> str:
     return ALGORITHM_LABELS.get(algorithm, algorithm.upper())
+
+
+def grammar_for(algorithm: str, encoding: str | None) -> ParameterSpace | None:
+    """The grammar of ``algorithm``'s tuning space for ``encoding``, if VAMOS defines one."""
+    suffix = _SPACE_SUFFIX.get(str(encoding or "real").lower())
+    if suffix is None:
+        return None
+    name = f"{algorithm.lower()}{suffix}"
+    return builtin_parameter_space(name) if name in builtin_parameter_space_names() else None
 
 
 def config_space_for(algorithm: str, encoding: str | None) -> AlgorithmConfigSpace | None:
@@ -96,7 +104,11 @@ def config_fields_for(parameter: str) -> tuple[str, ...]:
     if parameter in _ARCHIVE_PARAMETERS:
         return ("external_archive",)
     if parameter == "mutation_prob_factor":
-        return ("mutation_prob_factor",)
+        # Configurations without the field take the factor as their mutation probability.
+        return ("mutation_prob_factor", "mutation")
+    if parameter == "variation":
+        # CCMO's and CMOEA-MS's choice between the GA crossovers and differential evolution.
+        return ("crossover",)
     if parameter == "offspring_ratio":
         return ("offspring_size",)
     if parameter == "n_partitions":
@@ -120,27 +132,6 @@ def config_fields_for(parameter: str) -> tuple[str, ...]:
     return (parameter,)
 
 
-def flatten_config_defaults(config: Mapping[str, object]) -> dict[str, object]:
-    """Flatten ``(name, params)`` operator entries into ``<field>_<param>`` keys."""
-    flat: dict[str, object] = {}
-    for key, value in config.items():
-        if isinstance(value, (tuple, list)) and len(value) == 2 and isinstance(value[0], str) and isinstance(value[1], Mapping):
-            flat[key] = value[0]
-            for param_name, param_value in value[1].items():
-                flat[f"{key}_{param_name}"] = param_value
-                if value[0] == "mixed":
-                    # Mixed operators nest per-type settings such as ``perm_crossover``.
-                    flat.setdefault(str(param_name), param_value)
-        elif isinstance(value, Mapping):
-            # Settings kept in a mapping field, such as reference_point's offset, are <field>_<setting>.
-            for setting, setting_value in value.items():
-                if not isinstance(setting_value, (Mapping, list, tuple)):
-                    flat.setdefault(f"{key}_{setting}", setting_value)
-        else:
-            flat[key] = value
-    return flat
-
-
 __all__ = [
     "ALGORITHM_LABELS",
     "algorithm_label",
@@ -148,7 +139,7 @@ __all__ = [
     "config_fields_for",
     "config_space_for",
     "default_algorithm_config",
-    "flatten_config_defaults",
+    "grammar_for",
     "population_is_derived",
     "studio_algorithms",
 ]

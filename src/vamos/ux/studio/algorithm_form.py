@@ -1,11 +1,13 @@
 """Panel-free algorithm configuration forms for VAMOS Studio.
 
-A form is generated from the algorithm's tuning configuration space for the
-problem encoding, so Studio offers exactly the operators and conditional
-parameters that VAMOS can build. Its starting values are the VAMOS default
-configuration. Resolving a form applies only the configuration fields that the
-user changed on top of that default, so untouched settings keep their exact
-default values even where the tuning space would build them differently.
+A form is the grammar of the algorithm's tuning space for the problem encoding
+(:mod:`vamos.engine.tuning.grammar`): it shows the grammar's tree, starts from
+its defaults, which are the VAMOS default configuration, and edits each
+parameter within the one range that tuning uses. Studio therefore offers
+exactly the operators and conditional parameters that VAMOS can build.
+Resolving a form applies only the configuration fields that the user changed
+on top of the default configuration, so untouched settings keep their exact
+default values.
 """
 
 from __future__ import annotations
@@ -13,14 +15,13 @@ from __future__ import annotations
 import json
 import math
 from collections.abc import Mapping
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from typing import Literal, cast
 
 from vamos.engine.algorithm.config.base import _SerializableConfig
 from vamos.engine.algorithm.config.types import AlgorithmConfigProtocol
+from vamos.engine.tuning.grammar import Parameter, ParameterSpace
 from vamos.engine.tuning.racing.bridge_assignments import config_from_assignment
-from vamos.engine.tuning.racing.config_space import AlgorithmConfigSpace
-from vamos.engine.tuning.racing.param_space import Boolean, Categorical, Int, ParamType, Real
 from vamos.engine.tuning.racing.parameter_names import bridge_parameter_names
 from vamos.ux.studio.algorithm_catalog import (
     ALGORITHM_LABELS,
@@ -29,35 +30,12 @@ from vamos.ux.studio.algorithm_catalog import (
     config_fields_for,
     config_space_for,
     default_algorithm_config,
-    flatten_config_defaults,
+    grammar_for,
     population_is_derived,
     studio_algorithms,
 )
 
 ParameterKind = Literal["real", "int", "categorical", "boolean"]
-
-# Shown as the first choice when the VAMOS default is not one of the space's choices.
-VAMOS_DEFAULT_CHOICE = "VAMOS default"
-
-# Space parameters whose default lives under another flattened config key.
-_DEFAULT_KEY_ALIASES = {
-    "de_cr": "crossover_cr",
-    "de_f": "crossover_f",
-    "pbi_theta": "aggregation_theta",
-    "selection_pressure": "selection_size",
-}
-# Concrete equivalents of defaults that the default configuration leaves implicit.
-_IMPLICIT_DEFAULTS: dict[str, object] = {
-    "mutation_prob_factor": 1.0,
-    "offspring_ratio": 1.0,
-    "selection_size": 2,
-    "selection_pressure": 2,
-    "use_external_archive": False,
-}
-_OPERATOR_ALIASES = {"pm": "polynomial", "polynomial": "pm"}
-_BRIDGE_REQUIRED_OPERATORS = {"crossover", "mutation", "aggregation", "selection"}
-# Population size is a general setting of every Studio run, not a form field.
-_GENERAL_PARAMETERS = {"pop_size"}
 
 
 @dataclass(frozen=True)
@@ -72,13 +50,13 @@ class FormParameter:
     low: float | None = None
     high: float | None = None
     log: bool = False
-    from_default: bool = True
     note: str = ""
-    default_value: object = None
+    title: str | None = None
 
     @property
     def label(self) -> str:
-        return self.name.replace("_", " ").capitalize()
+        """The grammar's label for the parameter, or its name in words."""
+        return self.title or self.name.replace("_", " ").capitalize()
 
 
 @dataclass(frozen=True)
@@ -111,22 +89,17 @@ class AlgorithmForm:
     encoding: str
     n_obj: int
     pop_size: int | None
-    space: AlgorithmConfigSpace
+    grammar: ParameterSpace
     parameters: tuple[FormParameter, ...]
     baseline: AlgorithmConfigProtocol
-    _order: tuple[ParamType, ...] = field(default=(), repr=False)
 
     def start_values(self) -> dict[str, object]:
         return {parameter.name: parameter.start for parameter in self.parameters}
 
     def active_names(self, values: Mapping[str, object]) -> tuple[str, ...]:
-        """Return the active parameters, in form order, for the current values."""
-        param_space = self.space.to_param_space()
-        partial: dict[str, object] = {}
-        for spec in self._order:
-            if spec.name in values and param_space.is_active(spec.name, partial):
-                partial[spec.name] = values[spec.name]
-        return tuple(parameter.name for parameter in self.parameters if parameter.name in partial)
+        """Return the active parameters, in form order, for the current values: the derivation of the grammar."""
+        active = {parameter.name for parameter in self.grammar.active_parameters(values)}
+        return tuple(parameter.name for parameter in self.parameters if parameter.name in active and parameter.name in values)
 
     def changed_names(self, values: Mapping[str, object]) -> tuple[str, ...]:
         starts = self.start_values()
@@ -144,7 +117,7 @@ class AlgorithmForm:
         assignment["pop_size"] = baseline_pop if isinstance(baseline_pop, int) else (self.pop_size or 100)
         if self.algorithm == "rvea":
             assignment["n_obj"] = self.n_obj
-        tuned = config_from_assignment(self.space.algorithm_name, assignment).to_dict()
+        tuned = config_from_assignment(self.grammar.variant, assignment).to_dict()
         default_dict = self.baseline.to_dict()
         merged = dict(default_dict)
         unapplied: list[str] = []
@@ -152,6 +125,7 @@ class AlgorithmForm:
             fields = [
                 config_field for config_field in config_fields_for(_bridge_name(name)) if config_field in merged and config_field in tuned
             ]
+            fields = fields[:1] if fields[:1] == ["mutation_prob_factor"] else fields  # the factor's field, where there is one
             # A change that leaves every field it determines untouched has no effect on the run.
             if not any(_canonical(tuned[config_field]) != _canonical(default_dict[config_field]) for config_field in fields):
                 unapplied.append(name)
@@ -169,18 +143,8 @@ class AlgorithmForm:
         )
 
     def _assignment(self, values: Mapping[str, object]) -> dict[str, object]:
-        """Active values for the tuning bridge, with VAMOS-default choices made concrete."""
-        parameters = {parameter.name: parameter for parameter in self.parameters}
-        assignment: dict[str, object] = {}
-        for name in self.active_names(values):
-            value = values[name]
-            if value == VAMOS_DEFAULT_CHOICE:
-                # The bridge requires operator names; it builds its own default for the rest.
-                value = parameters[name].default_value if _bridge_name(name) in _BRIDGE_REQUIRED_OPERATORS else None
-                if value is None:
-                    continue
-            assignment[name] = value
-        return assignment
+        """The active values, for the tuning bridge."""
+        return {name: values[name] for name in self.active_names(values)}
 
 
 def _bridge_name(name: str) -> str:
@@ -207,24 +171,73 @@ def build_algorithm_form(
     pop_size: int | None,
 ) -> AlgorithmForm | None:
     """Build the form of ``algorithm`` for a problem, or ``None`` without a tuning space."""
-    space = config_space_for(algorithm, encoding)
-    if space is None:
+    grammar = grammar_for(algorithm, encoding)
+    if grammar is None:
         return None
     baseline = default_algorithm_config(algorithm, encoding=encoding, n_var=n_var, n_obj=n_obj, pop_size=pop_size)
-    defaults = flatten_config_defaults(baseline.to_dict())
-    order = _ordered_parameters(space)
-    parameters = tuple(_form_parameter(spec, depth, defaults) for spec, depth in order if spec.name not in _GENERAL_PARAMETERS)
     form = AlgorithmForm(
         algorithm=algorithm,
         encoding=str(encoding or "real"),
         n_obj=int(n_obj),
         pop_size=pop_size,
-        space=space,
-        parameters=parameters,
+        grammar=grammar,
+        parameters=_tree_parameters(grammar),
         baseline=baseline,
-        _order=tuple(list(space.params) + _conditional_parameters(space)),
     )
+    form = replace(form, parameters=_population_starts(form))
     return replace(form, parameters=_effective_parameters(form))
+
+
+def _tree_parameters(grammar: ParameterSpace) -> tuple[FormParameter, ...]:
+    """Every parameter of the grammar in depth-first order, indented by its depth in the tree."""
+    parameters: list[FormParameter] = []
+
+    def visit(nodes: tuple[Parameter, ...], depth: int) -> None:
+        for node in nodes:
+            parameters.append(_form_parameter(node, depth))
+            visit(node.global_sub_parameters, depth + 1)
+            for production in node.productions:
+                visit(production, depth + 1)
+
+    visit(grammar.parameters, 0)
+    return tuple(parameters)
+
+
+def _form_parameter(node: Parameter, depth: int) -> FormParameter:
+    """A form control that starts at the grammar's default and edits within its one range."""
+    note, title = node.description or "", node.label
+    if node.type == "categorical":
+        return FormParameter(node.name, "categorical", node.default, depth, choices=node.values, note=note, title=title)
+    if node.type == "boolean":
+        return FormParameter(node.name, "boolean", node.default, depth, note=note, title=title)
+    assert node.range is not None
+    low, high = node.range
+    kind: ParameterKind = "int" if node.type == "int" else "real"
+    return FormParameter(node.name, kind, node.default, depth, low=float(low), high=float(high), log=node.log, note=note, title=title)
+
+
+def _population_starts(form: AlgorithmForm) -> tuple[FormParameter, ...]:
+    """Start a population parameter at the run's default where the default configuration follows the population.
+
+    The grammar's defaults are the default configuration of 100 individuals: SPEA2's and SMPSO's
+    ``archive_size`` is 100 there, and the population in any other run. A form for another
+    population starts such a parameter at the baseline's value, so the untouched form shows what it
+    runs and entering the grammar's default is a change. The control keeps the grammar's one range,
+    which the run's value may lie outside of.
+    """
+    baseline = form.baseline.to_dict()
+    parameters: list[FormParameter] = []
+    for parameter in form.parameters:
+        node = form.grammar.parameter(parameter.name)
+        fields = config_fields_for(_bridge_name(parameter.name))
+        value = baseline.get(fields[0]) if len(fields) == 1 else None
+        numeric = isinstance(value, (int, float)) and not isinstance(value, bool)
+        if node.role == "population" and parameter.kind in {"int", "real"} and numeric and not _same_value(value, parameter.start):
+            start = int(cast(int, value)) if parameter.kind == "int" else float(cast(float, value))
+            note = f"VAMOS's default follows the population: {start} here, {parameter.start} for 100 individuals."
+            parameter = replace(parameter, start=start, note=" ".join(text for text in (note, parameter.note) if text))
+        parameters.append(parameter)
+    return tuple(parameters)
 
 
 def _effective_parameters(form: AlgorithmForm) -> tuple[FormParameter, ...]:
@@ -254,93 +267,10 @@ def _alternatives(parameter: FormParameter) -> list[object]:
     if parameter.kind == "boolean":
         return [not parameter.start]
     if parameter.kind == "categorical":
-        return [choice for choice in parameter.choices if choice not in (parameter.start, VAMOS_DEFAULT_CHOICE)][:2]
+        return [choice for choice in parameter.choices if choice != parameter.start][:2]
     bounds = [bound for bound in (parameter.high, parameter.low) if bound is not None]
     values: list[object] = [int(bound) if parameter.kind == "int" else bound for bound in bounds]
     return [value for value in values if not _same_value(value, parameter.start)]
-
-
-def _conditional_parameters(space: AlgorithmConfigSpace) -> list[ParamType]:
-    seen = {spec.name for spec in space.params}
-    ordered: list[ParamType] = []
-    for block in space.conditionals or []:
-        for spec in block.params:
-            if spec.name not in seen:
-                ordered.append(spec)
-                seen.add(spec.name)
-    return ordered
-
-
-def _ordered_parameters(space: AlgorithmConfigSpace) -> list[tuple[ParamType, int]]:
-    """Place every conditional parameter right after the parameter it depends on."""
-    children: dict[str, list[ParamType]] = {}
-    for block in space.conditionals or []:
-        children.setdefault(block.parent_name, []).extend(block.params)
-    ordered: list[tuple[ParamType, int]] = []
-    seen: set[str] = set()
-
-    def visit(spec: ParamType, depth: int) -> None:
-        if spec.name in seen:
-            return
-        seen.add(spec.name)
-        ordered.append((spec, depth))
-        for child in children.get(spec.name, []):
-            visit(child, depth + 1)
-
-    for spec in space.params:
-        visit(spec, 0)
-    for spec in _conditional_parameters(space):
-        visit(spec, 1)
-    return ordered
-
-
-def _form_parameter(spec: ParamType, depth: int, defaults: Mapping[str, object]) -> FormParameter:
-    name = _bridge_name(spec.name)
-    default = defaults.get(_DEFAULT_KEY_ALIASES.get(name, name))
-    default = _IMPLICIT_DEFAULTS.get(name) if default is None else default
-    if isinstance(spec, Boolean):
-        return FormParameter(spec.name, "boolean", bool(default) if isinstance(default, bool) else False, depth)
-    if isinstance(spec, Categorical):
-        return _categorical_parameter(spec, depth, default)
-    return _numeric_parameter(spec, depth, default)
-
-
-def _categorical_parameter(spec: Categorical, depth: int, default: object) -> FormParameter:
-    choices = tuple(spec.choices)
-    if default in choices:
-        return FormParameter(spec.name, "categorical", default, depth, choices=choices)
-    alias = _OPERATOR_ALIASES.get(str(default))
-    if alias in choices:
-        return FormParameter(spec.name, "categorical", alias, depth, choices=choices)
-    if default is None and depth > 0:
-        # A sub-parameter of an inactive default option has no VAMOS default of its own.
-        return FormParameter(spec.name, "categorical", choices[0], depth, choices=choices, from_default=False)
-    shown = "automatic" if default is None else default
-    note = f"The VAMOS default ({shown}) is not one of the choices of the tuning space; it is kept unless you choose another value."
-    return FormParameter(
-        spec.name,
-        "categorical",
-        VAMOS_DEFAULT_CHOICE,
-        depth,
-        choices=(VAMOS_DEFAULT_CHOICE, *choices),
-        note=note,
-        default_value=default,
-    )
-
-
-def _numeric_parameter(spec: Real | Int, depth: int, default: object) -> FormParameter:
-    kind: ParameterKind = "int" if isinstance(spec, Int) else "real"
-    low, high = float(spec.low), float(spec.high)
-    if isinstance(default, (int, float)) and not isinstance(default, bool) and math.isfinite(float(default)):
-        start: float | int = int(default) if kind == "int" else float(default)
-        note = ""
-        if not low <= float(start) <= high:
-            note = f"The VAMOS default ({start:g}) is outside the tuning range [{low:g}, {high:g}]."
-            low, high = min(low, float(start)), max(high, float(start))
-        return FormParameter(spec.name, kind, start, depth, low=low, high=high, log=spec.log, note=note)
-    middle = math.sqrt(low * high) if spec.log else (low + high) / 2.0
-    start = int(round(middle)) if kind == "int" else middle
-    return FormParameter(spec.name, kind, start, depth, low=low, high=high, log=spec.log, from_default=False)
 
 
 def _same_value(left: object, right: object) -> bool:
@@ -364,11 +294,8 @@ def format_config_value(value: object) -> str:
 
 
 def choice_label(parameter: FormParameter, choice: object) -> str:
-    """How a form shows one choice of a categorical parameter, marking the VAMOS default."""
-    if choice == VAMOS_DEFAULT_CHOICE:
-        shown = "automatic" if parameter.default_value is None else format_config_value(parameter.default_value)
-        return f"VAMOS default ({shown})"
-    if choice == parameter.start and parameter.from_default:
+    """How a form shows one choice of a categorical parameter, marking the default."""
+    if choice == parameter.start:
         return f"{choice} (VAMOS default)"
     return str(choice)
 
@@ -385,7 +312,6 @@ __all__ = [
     "ConfigDifference",
     "FormParameter",
     "ResolvedConfiguration",
-    "VAMOS_DEFAULT_CHOICE",
     "algorithm_label",
     "algorithms_for_encoding",
     "build_algorithm_form",
@@ -395,6 +321,7 @@ __all__ = [
     "configuration_differences",
     "default_algorithm_config",
     "format_config_value",
+    "grammar_for",
     "population_is_derived",
     "studio_algorithms",
 ]

@@ -1,7 +1,18 @@
+"""What the configuration bridges share: the run settings, the initializer, the repair, the archive and the mutation rate.
+
+The bridges read the names of VAMOS 1.2.1 (``parameter_names.bridge_assignment`` translates the
+grammars' names into them) and the structure of the grammars: ``external_archive`` (``none``,
+``unbounded`` or ``bounded``), ``auto`` for the initializer and the repair, and
+``mutation_prob_factor``. Assignments saved from the spaces of VAMOS 1.3.0, with
+``use_external_archive``, ``archive_unbounded`` and an absolute ``mutation_prob``, build what they built.
+"""
+
 from __future__ import annotations
 
 import math
 from typing import Any
+
+from vamos.engine.algorithm.config.base import DEFAULT_POP_SIZE
 
 _TUNING_ARCHIVE_PRUNE_POLICIES = {"crowding", "hv", "mc_hv", "knn", "maxmin", "ref_dirs"}
 _MIXED_CROSSOVER_ASSIGNMENT_KEYS = (
@@ -46,9 +57,10 @@ _MIXED_MUTATION_RATE_KEYS = (
 
 def sanitize_assignment(assignment: dict[str, Any]) -> dict[str, Any]:
     sanitized = dict(assignment)
-    use_external_archive = bool(sanitized.get("use_external_archive", False))
-    archive_unbounded = bool(sanitized.get("archive_unbounded", False))
-    if not use_external_archive or archive_unbounded:
+    if "external_archive" in sanitized:
+        if sanitized["external_archive"] != "bounded":
+            sanitized.pop("archive_prune_policy", None)
+    elif not bool(sanitized.get("use_external_archive", False)) or bool(sanitized.get("archive_unbounded", False)):
         sanitized.pop("archive_prune_policy", None)
     if any(key in sanitized for key in _MIXED_CROSSOVER_ASSIGNMENT_KEYS):
         sanitized.setdefault("crossover", "mixed")
@@ -62,8 +74,22 @@ def sanitize_assignment(assignment: dict[str, Any]) -> dict[str, Any]:
     return sanitized
 
 
+def run_pop_size(assignment: dict[str, Any]) -> int:
+    """The run's population: ``pop_size``, which the caller adds to the assignment as the grammars do not tune it.
+
+    Without it, the size of a default configuration, 100.
+    """
+    return int(assignment.get("pop_size", DEFAULT_POP_SIZE))
+
+
 def apply_initializer(builder: Any, assignment: dict[str, Any], pop_size: int) -> None:
+    """The initializer of the assignment; ``auto`` leaves the configuration's automatic choice.
+
+    An assignment without an initializer, saved from an earlier space, gets ``random``, as before.
+    """
     initializer = str(assignment.get("initializer", "random")).strip().lower()
+    if initializer == "auto":
+        return
     if initializer == "random":
         builder.initializer("random")
     elif initializer == "lhs":
@@ -87,13 +113,19 @@ def apply_initializer(builder: Any, assignment: dict[str, Any], pop_size: int) -
 
 
 def apply_optional_external_archive(builder: Any, assignment: dict[str, Any], pop_size: int) -> None:
-    use_external_archive = bool(assignment.get("use_external_archive", False))
-    if not use_external_archive:
+    """The archive of ``external_archive`` (``none``, ``unbounded`` or ``bounded`` at ``pop_size``), or of the earlier booleans."""
+    choice = assignment.get("external_archive")
+    if choice is None:
+        if not bool(assignment.get("use_external_archive", False)):
+            return
+        choice = "unbounded" if bool(assignment.get("archive_unbounded", False)) else "bounded"
+    if choice == "none":
         return
-    archive_unbounded = bool(assignment.get("archive_unbounded", False))
-    if archive_unbounded:
+    if choice == "unbounded":
         builder.external_archive(capacity=None)
         return
+    if choice != "bounded":
+        raise ValueError(f"Unsupported external_archive {choice!r}. Expected none, unbounded or bounded.")
     pruning = str(assignment.get("archive_prune_policy", "crowding"))
     if pruning not in _TUNING_ARCHIVE_PRUNE_POLICIES:
         valid = ", ".join(sorted(_TUNING_ARCHIVE_PRUNE_POLICIES))
@@ -108,8 +140,26 @@ def apply_optional_repair(builder: Any, assignment: dict[str, Any]) -> None:
     if repair is None:
         return
     repair_name = str(repair).strip().lower()
+    if repair_name == "auto":  # the configuration's automatic choice, its default
+        return
     if repair_name and repair_name not in {"none", "disabled", "false", "0"}:
         builder.repair(repair_name)
+
+
+def apply_mutation_prob_factor(builder: Any, assignment: dict[str, Any], mut_params: dict[str, Any], *, factor_field: bool) -> None:
+    """``mutation_prob_factor``, the mutation probability as a factor of ``1/n_var``.
+
+    A configuration with a ``mutation_prob_factor`` field takes it there (``factor_field``); the others
+    take the probability ``"<factor>/n"``, which they resolve to the same number when the run knows
+    ``n_var``. An absolute ``prob`` already in ``mut_params``, saved from an earlier space, wins.
+    """
+    factor = assignment.get("mutation_prob_factor")
+    if factor is None:
+        return
+    if factor_field:
+        builder.mutation_prob_factor(float(factor))
+    elif "prob" not in mut_params:
+        mut_params["prob"] = f"{float(factor)!r}/n"
 
 
 def _extend_real_crossover_params(cross: str, assignment: dict[str, Any], cross_params: dict[str, Any]) -> None:
@@ -199,10 +249,12 @@ def extend_mutation_params(
 
 __all__ = [
     "apply_initializer",
+    "apply_mutation_prob_factor",
     "apply_optional_external_archive",
     "apply_optional_repair",
     "extend_crossover_params",
     "extend_mutation_params",
     "has_mixed_mutation_assignment",
+    "run_pop_size",
     "sanitize_assignment",
 ]

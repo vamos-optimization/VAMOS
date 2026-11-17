@@ -11,7 +11,6 @@ import pytest
 import vamos
 from vamos.foundation.problem.registry import get_problem_specs
 from vamos.ux.studio import environment
-from vamos.ux.studio.algorithm_form import VAMOS_DEFAULT_CHOICE
 from vamos.ux.studio.catalog import (
     algorithm_entries,
     filter_problems,
@@ -67,9 +66,9 @@ def test_parameter_rows_show_vamos_defaults_and_allowed_values() -> None:
 
     assert "sbx" in str(rows["Crossover"]["VAMOS default"])
     assert "sbx" in str(rows["Crossover"]["Allowed values"])
-    assert rows["Use external archive"]["VAMOS default"] == "no"
+    assert rows["External archive"]["VAMOS default"] == "none (VAMOS default)"
     assert any(str(row["Parameter"]).startswith("↳ ") for row in parameter_rows("nsgaii", zdt1))
-    assert all(VAMOS_DEFAULT_CHOICE not in str(row["Allowed values"]) for row in rows.values())
+    assert all("VAMOS default" not in str(row["Allowed values"]) for row in rows.values())
 
 
 def test_population_rule_follows_reference_directions() -> None:

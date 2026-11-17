@@ -9,7 +9,7 @@ import pytest
 
 from vamos.algorithms import SMSEMOAConfig
 from vamos.engine.tuning import config_from_assignment
-from vamos.engine.tuning.racing.bridge_spaces_smsemoa import (
+from vamos.engine.tuning.racing.bridge_spaces import (
     build_smsemoa_binary_config_space,
     build_smsemoa_config_space,
     build_smsemoa_constrained_config_space,
