@@ -238,6 +238,10 @@ def replace_neighbors(
         params[PARAM_THETA],
         params[PARAM_RHO],
         use_constraints,
+        # No nadir point: MOEA/D keeps its reference step for the normalization and the inverted PBI.
+        ideal,
+        0.0,
+        0,
     )
 
 

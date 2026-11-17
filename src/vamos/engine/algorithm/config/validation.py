@@ -84,12 +84,14 @@ def _check_operator_params(field: str, method: str, params: dict[str, Any]) -> N
         _check_positive_int("selection 'tournament' parameter size", params["size"])
 
 
-def _check_aggregation(method: str) -> None:
-    from vamos.engine.algorithm.moead.aggregation import aggregation_methods
+def _check_aggregation(method: str, params: dict[str, Any]) -> None:
+    from vamos.engine.algorithm.moead.aggregation import aggregation_methods, resolve_aggregation
 
     options = aggregation_methods()
     if method.lower() not in options:
         raise ConfigurationError(f"aggregation must be one of {', '.join(options)}; got {method!r}.{did_you_mean(method.lower(), options)}")
+    # The normalization, its epsilon, and the parameters of the aggregations added after 1.3.0.
+    resolve_aggregation(method, params)
 
 
 # Domain of each scalar field, wherever a config declares it.
@@ -137,7 +139,7 @@ def validate_config_fields(config: Any, fields: dict[str, Any]) -> None:
         pair = getattr(config, name, None) if name in fields else None
         if isinstance(pair, tuple) and len(pair) == 2 and isinstance(pair[0], str) and isinstance(pair[1], dict):
             if name == "aggregation":
-                _check_aggregation(pair[0])
+                _check_aggregation(pair[0], pair[1])
             else:
                 _check_operator_params(name, pair[0], pair[1])
 
