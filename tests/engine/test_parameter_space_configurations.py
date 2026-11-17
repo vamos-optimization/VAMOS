@@ -148,3 +148,20 @@ def test_sampling_draws_only_the_active_branch() -> None:
     assert {draw["keep_duplicates"] for draw in draws} == {True, False}
     # Seeded draws repeat.
     assert [SPACE.sample(np.random.default_rng(5)) for _ in range(2)] == [SPACE.sample(np.random.default_rng(5))] * 2
+
+
+def test_an_evolver_value_with_two_vamos_spellings_reads_back_as_the_spaces_own() -> None:
+    # Evolver writes the integer spaces' "pm" and the real spaces' "polynomial" as "polynomial"; reading it
+    # back takes the spelling that the space offers.
+    document = small_space()
+    document["encoding"] = "integer"
+    document["parameters"]["mutation"]["values"] = {
+        "pm": document["parameters"]["mutation"]["values"]["polynomial"],
+        "reset": {},
+    }
+    document["parameters"]["mutation"]["default"] = "pm"
+    space = parameter_space_from_document(document)
+    built = default_configuration(space)
+
+    assert "--mutation polynomial" in built.to_command_line(evolver=True)
+    assert configuration_from_command_line(space, built.to_command_line(evolver=True), evolver=True) == built

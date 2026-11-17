@@ -234,7 +234,7 @@ unsupported behavior rather than future compatibility promises.
   the run, so tuning them has no effect. The next minor release fixes them with
   the grammar-based spaces.
 
-## Studio and generated code
+## Studio
 
 - Studio is experimental and is intended for trusted local use. It is not a
   multi-user hosted service.
@@ -242,23 +242,21 @@ unsupported behavior rather than future compatibility promises.
   feasible solutions as the worst IGD+ (∞). VAMOS 1.1.0 and earlier leave those
   runs out of IGD+, which favors algorithms that are rarely feasible; see
   [Statistical comparison](../guide/studio.md#statistical-comparison).
-- AST checks, restricted builtins, process isolation, resource limits, and
-  timeouts are best-effort controls, not a security sandbox.
-- Reviewed Python executes with the current operating-system user's
-  permissions. Remote binding increases exposure and requires explicit opt-in.
+- Remote binding increases exposure and requires explicit opt-in.
 - **VAMOS 1.3.0:** each Studio launch has an access token, but it
   travels over plain HTTP, and whoever has the link can use Studio with the
   account that serves it until the launch ends. To reach Studio from another
   computer, prefer an SSH tunnel to the loopback port over remote binding; see
   [Installation and launch options](../guide/studio.md#installation-and-launch-options).
-- LLM-generated code is displayed for review and is never executed
-  automatically.
+- **Development after 1.3.0:** Studio runs registered problems only. The
+  Problem Builder, which executed reviewed Python typed into Studio or drafted
+  by an LLM provider, is removed, and VAMOS integrates no LLM provider.
 
-## Plugins and providers
+## Plugins
 
-- Plugin descriptors, custom component interfaces, and LLM-provider
-  integrations are experimental and are not covered by the 1.x stable API.
-- Loading and verification never import recorded plugins or contact providers.
+- Plugin descriptors and custom component interfaces are experimental and are
+  not covered by the 1.x stable API.
+- Loading and verification never import recorded plugins.
 
 ## Static typing
 

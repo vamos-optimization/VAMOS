@@ -6,8 +6,10 @@ from dataclasses import dataclass
 from math import comb
 from typing import Any, Literal, TypeAlias, overload
 
+from vamos.engine.algorithm.moead.subproblems import normalize_subproblem_order
 from vamos.engine.algorithm.moead.update_criteria import normalize_subproblem_update_criterion
 from vamos.engine.archive import ExternalArchiveConfig
+from vamos.engine.operators.policies.moead import check_de_neighbourhood, normalize_de_base, normalize_de_scheme
 from vamos.foundation.encoding import EncodingLike
 from vamos.foundation.exceptions import ConfigurationError
 
@@ -33,6 +35,8 @@ from .base import (
 from .types import AggregationName, RepairConfigValue
 
 MOEADVariant: TypeAlias = Literal["de", "sbx"]
+SubproblemOrder: TypeAlias = Literal["random_permutation", "cyclic"]
+_DE_NAMES = ("de", "differential", "differential_evolution")
 
 # The real-coded crossover and the aggregation of each default: VAMOS's own (no variant), and jMetal's
 # MOEADDEBuilder (MOEA/D-DE) and MOEADBuilder, which are Evolver's MOEADDEDefault and MOEADDoubleDefault.
@@ -57,6 +61,24 @@ class MOEADConfig(_SerializableConfig):
     tuning bridge does round a sampled population down to the largest size that has weights, so
     150 becomes 136 with three objectives. The resolved spec of a run records the source in
     ``algorithm.resolution.weight_vectors``.
+
+    **Development after 1.3.0:** the options of Evolver's MOEA/D, all off by default:
+
+    - ``subproblem_order``: ``"random_permutation"`` (the default) or ``"cyclic"``, the order in
+      which the subproblems are visited (Evolver's ``subProblemIdGenerator``,
+      ``randomPermutationCycle`` or ``cyclicIntegerSequence``);
+    - the ``scheme`` of the ``de`` crossover: ``"rand_1_bin"`` (the default), ``"rand_1_exp"``,
+      ``"rand_2_bin"`` or ``"rand_2_exp"`` (jMetal's ``DifferentialEvolutionCrossover`` variants),
+      and its ``base``: ``"current"`` (the default), the subproblem's solution, or ``"random"``, one
+      more random parent, as Evolver's MOEA/D; the random parents (2 for rand/1, 4 for rand/2, one
+      more with a random base) must fit in ``neighbor_size``;
+    - the aggregations ``augmented_tchebycheff`` (``rho``, default ``1e-4``), ``inverted_pbi``
+      (``theta``, default ``0.1``) and ``inverse_weight_tchebycheff`` (jMetal's and Evolver's
+      modified Tchebycheff), and ``normalize=True`` with ``epsilon`` (default ``1e-6``) for any
+      aggregation, which normalizes the objectives with the ideal and nadir points as jMetal does.
+
+    See :mod:`vamos.engine.algorithm.moead.aggregation` and :mod:`vamos.engine.operators.policies.moead`
+    for the definitions.
     """
 
     pop_size: int
@@ -79,6 +101,7 @@ class MOEADConfig(_SerializableConfig):
     # Fields added after 1.0 go last, so that the constructor keeps the positions of its parameters.
     subproblem_update_criterion: tuple[str, dict[str, float]] | None = None
     live_callback_mode: LiveCallbackMode = "population"
+    subproblem_order: SubproblemOrder = "random_permutation"
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -86,6 +109,16 @@ class MOEADConfig(_SerializableConfig):
         if criterion is not None and criterion[0] != "feasibility_rules" and self.constraint_mode == "none":
             raise ValueError(f"subproblem_update_criterion {criterion[0]!r} needs constraint_mode 'feasibility'.")
         object.__setattr__(self, "subproblem_update_criterion", criterion)
+        object.__setattr__(self, "subproblem_order", normalize_subproblem_order(self.subproblem_order))
+        object.__setattr__(self, "crossover", _check_de_scheme(self.crossover, self.neighbor_size))
+
+    def to_dict(self) -> dict[str, object]:
+        payload = super().to_dict()
+        # The default order is serialized as in VAMOS 1.3.0, without the field, so a configuration that does not
+        # set it keeps the resolved specification, and the task id, that VAMOS 1.3.0 gives it.
+        if payload.get("subproblem_order") == "random_permutation":
+            del payload["subproblem_order"]
+        return payload
 
     @classmethod
     def default(
@@ -187,6 +220,16 @@ class _MOEADConfigBuilder(
         self._cfg["subproblem_update_criterion"] = normalize_subproblem_update_criterion((name, params))
         return self
 
+    def subproblem_order(self, value: SubproblemOrder) -> _MOEADConfigBuilder:
+        """**Development after 1.3.0:** the order of the subproblems, ``"random_permutation"`` (default) or ``"cyclic"``.
+
+        ``"random_permutation"`` visits a new random permutation of the subproblems in each cycle;
+        ``"cyclic"`` visits them in index order and draws no random number for it (jMetal's
+        ``RandomPermutationCycle`` and ``CyclicIntegerSequence``).
+        """
+        self._cfg["subproblem_order"] = normalize_subproblem_order(value)
+        return self
+
     def batch_size(self, value: int) -> _MOEADConfigBuilder:
         self._cfg["batch_size"] = value
         return self
@@ -210,6 +253,16 @@ class _MOEADConfigBuilder(
     def aggregation(self, method: str, **kwargs: Any) -> _MOEADConfigBuilder: ...
 
     def aggregation(self, method: str, **kwargs: Any) -> _MOEADConfigBuilder:
+        """The aggregation function and its parameters.
+
+        ``tchebycheff``, ``weighted_sum``, ``pbi`` (``theta``, default 5), ``modified_tchebycheff``
+        (``rho``, default ``1e-3``) and, **Development after 1.3.0**, ``augmented_tchebycheff``
+        (``rho``, default ``1e-4``), ``inverted_pbi`` (``theta``, default 0.1) and
+        ``inverse_weight_tchebycheff`` (jMetal's ``ModifiedTschebyscheff``, ``max |f - z*| / w``). Any of them takes
+        ``normalize=True`` and ``epsilon`` (default ``1e-6``): each objective becomes
+        ``(f - z*) / (z^nad - z* + epsilon)`` with the ideal point ``z*`` and the nadir point
+        ``z^nad`` of the non-dominated solutions evaluated so far, as in jMetal.
+        """
         self._cfg["aggregation"] = (method, kwargs)
         return self
 
@@ -257,6 +310,7 @@ class _MOEADConfigBuilder(
             result_mode=self._cfg.get("result_mode", "non_dominated"),
             external_archive=self._cfg.get("external_archive"),
             live_callback_mode=self._cfg.get("live_callback_mode", "population"),
+            subproblem_order=self._cfg.get("subproblem_order", "random_permutation"),
         )
 
 
@@ -268,6 +322,32 @@ def _exact_lattice_divisions(n_obj: int, pop_size: int) -> int | None:
     while (size := comb(divisions + n_obj - 1, n_obj - 1)) < pop_size:
         divisions += 1
     return divisions if size == pop_size else None
+
+
+def _check_de_scheme(crossover: object, neighbor_size: object) -> object:
+    """The crossover with its DE ``scheme`` and ``base`` in lower case.
+
+    Both belong to the DE crossover, and its random parents must fit in the neighbourhood: 2 for
+    rand/1, 4 for rand/2, one more with ``base="random"``.
+    """
+    if not (isinstance(crossover, tuple) and len(crossover) == 2 and isinstance(crossover[1], dict)):
+        return crossover
+    name, params = crossover
+    options = [key for key in ("scheme", "base") if key in params]
+    if not options:
+        return crossover
+    if str(name).strip().lower() not in _DE_NAMES:
+        raise ConfigurationError(f"The {options[0]} applies to the DE crossover ('de'), not to crossover {name!r}.")
+    scheme = normalize_de_scheme(params.get("scheme", "rand_1_bin"))
+    base = normalize_de_base(params.get("base", "current"))
+    if isinstance(neighbor_size, int):
+        check_de_neighbourhood(scheme, base, neighbor_size)
+    normalized = {**params}
+    if "scheme" in params:
+        normalized["scheme"] = scheme
+    if "base" in params:
+        normalized["base"] = base
+    return (name, normalized)
 
 
 def _check_neighbourhood(neighbor_size: object, pop_size: int) -> None:

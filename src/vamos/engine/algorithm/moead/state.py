@@ -27,7 +27,7 @@ from vamos.engine.archive.factory import update_archive
 if TYPE_CHECKING:
     from vamos.engine.algorithm.moead.update_criteria import SubproblemUpdateCriterion
 
-    pass
+    from .aggregation import AggregatorFn
 
 
 @dataclass
@@ -68,10 +68,17 @@ class MOEADState(AlgorithmState):
     weights_unit: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
     neighbors: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
     ideal: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
-    aggregator: Callable[[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any]], np.ndarray[Any, Any]] | None = None
+    aggregator: AggregatorFn | None = None
     aggregation_id: int = -1
     aggregation_theta: float = 5.0
     aggregation_rho: float = 0.001
+    # Development after 1.3.0: the normalization of the objectives and the nadir point it reads (with the
+    # inverted PBI too), estimated from the non-dominated solutions evaluated so far (see nadir.py).
+    aggregation_normalize: bool = False
+    aggregation_epsilon: float = 1e-6
+    nadir: np.ndarray[Any, Any] | None = None
+    nadir_front: np.ndarray[Any, Any] | None = None
+    nadir_front_cv: np.ndarray[Any, Any] | None = None
     neighbor_size: int = 20
     delta: float = 0.9
     replace_limit: int = 2
@@ -84,6 +91,10 @@ class MOEADState(AlgorithmState):
     batch_size: int = 1
     subproblem_order: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([], dtype=int))
     subproblem_cursor: int = 0
+    # Development after 1.3.0: visit the subproblems in index order instead of random permutations.
+    subproblem_cyclic: bool = False
+    # Random parents of the DE variation per child: 2 for rand/1, 4 for rand/2, one more with a random base.
+    de_random_parents: int = 2
 
     # Cached constraint violation (sum of positive parts), when constraints are enabled.
     cv: np.ndarray[Any, Any] | None = None

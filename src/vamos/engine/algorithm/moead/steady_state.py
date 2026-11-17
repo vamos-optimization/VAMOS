@@ -22,6 +22,7 @@ from vamos.foundation.constraints.utils import compute_violation
 
 from .neighborhood_kernels import dummy_buffers, get_update_neighborhood_numba
 from .state import archive_baseline, update_moead_archive
+from .subproblems import new_subproblem_order
 
 if TYPE_CHECKING:
     from vamos.foundation.eval import EvaluationBackend, EvaluationResult
@@ -68,11 +69,13 @@ class SteadyStateStep:
 
     Build it with :meth:`build`; ``None`` means the configuration is not covered
     and MOEA/D keeps its reference step. Covered: real encoding with float64
-    arrays, DE or SBX crossover with polynomial mutation and the clip repair
-    (the defaults), every aggregation, constraints, external archives, live
-    callbacks and HV termination. Genealogy tracking and ``batch_size > 1``
-    keep the reference step. A call that meets anything unexpected returns
-    ``None`` before touching the state, and MOEA/D runs its reference code.
+    arrays, DE rand/1/bin or SBX crossover with polynomial mutation and the clip
+    repair (the defaults), both subproblem orders, every aggregation without
+    normalization except the inverted PBI, constraints, external archives, live
+    callbacks and HV termination. Genealogy tracking, ``batch_size > 1``, the other
+    DE schemes and the aggregations that read the nadir point keep the reference
+    step. A call that meets anything unexpected returns ``None`` before touching
+    the state, and MOEA/D runs its reference code.
     """
 
     def __init__(self, st: MOEADState, variation: OneOffspringRealVariation, kernels: MOEADSteadyStateKernels) -> None:
@@ -139,6 +142,9 @@ class SteadyStateStep:
             return None
         if int(st.batch_size) != 1 or st.track_genealogy or not _supported_state(st):
             return None
+        # The compiled replacement reads no nadir point, and draws two random parents.
+        if st.nadir_front is not None or st.de_random_parents != 2:
+            return None
         variation = one_offspring_real_variation(st.crossover_fn, st.mutation_fn, st.X.shape[1])
         if variation is None or (variation.crossover == "de") != cross_is_de:
             return None
@@ -154,7 +160,7 @@ class SteadyStateStep:
         pop_size = st.pop_size
         cursor = st.subproblem_cursor
         if st.subproblem_order.size != pop_size or cursor >= pop_size:
-            st.subproblem_order = rng.permutation(pop_size).astype(int, copy=False)
+            st.subproblem_order = new_subproblem_order(rng, pop_size, st.subproblem_cyclic)
             cursor = 0
         index = int(st.subproblem_order[cursor])
         st.subproblem_cursor = cursor + 1

@@ -83,11 +83,6 @@ h1, h2, h3, h4, h5 {{
     border-radius: 8px !important;
 }}
 
-/* ---------- Code editor ---------- */
-.ace_editor {{
-    border-radius: 8px !important;
-}}
-
 /* ---------- Tabulator (tables) ---------- */
 .pnx-tabulator .tabulator {{
     border-radius: 8px !important;
@@ -109,11 +104,6 @@ PAGES: dict[str, tuple[str, str]] = {
         "Problems & Algorithms",
         "Browse the registered problems by encoding, dimensions and reference front, and the built-in algorithms "
         "with their configurable parameters, and open any of them in Run Experiment.",
-    ),
-    "problem_builder": (
-        "Problem Builder",
-        "Define a problem in Python or start from a template, preview its Pareto front, run it with a configurable "
-        "algorithm and export a ready-to-run script.",
     ),
     "experiment": (
         "Run Experiment",
@@ -139,10 +129,10 @@ PAGES: dict[str, tuple[str, str]] = {
 }
 
 
-# Pages that run code with the account that serves Studio: Python that the user
-# writes, and study workers in background processes. A server bound beyond
-# loopback offers them only when its owner asks for it.
-CODE_EXECUTION_PAGES = ("problem_builder", "batch")
+# Pages that run code with the account that serves Studio: study workers in
+# background processes. A server bound beyond loopback offers them only when its
+# owner asks for it.
+CODE_EXECUTION_PAGES = ("batch",)
 
 
 def build_template(title: str = "VAMOS Studio") -> pn.template.FastListTemplate:

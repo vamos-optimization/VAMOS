@@ -482,6 +482,14 @@ differently, and the exchange functions translate them: `SBX`, `blxAlpha`,
 `modifiedTschebyscheff`; `default` (random; **Development after 1.3.0:** `auto`), `latinHypercubeSampling`,
 `scatterSearch` and `oppositionBased`; `stochasticUniversalSampling`.
 
+**Development after 1.3.0:** Evolver's `modifiedTschebyscheff` is jMetal's
+`ModifiedTschebyscheff`, `max |f - z*| / w`, which VAMOS calls
+`inverse_weight_tchebycheff`: the exchange translates it to that name, where it
+used to give `modified_tchebycheff`, and `augmentedTschebyscheff` to
+`augmented_tchebycheff`. VAMOS's `modified_tchebycheff` (the augmented formula
+with `rho = 1e-3`) has no Evolver equivalent, and `to_evolver` raises
+`ValueError` for it instead of writing `modifiedTschebyscheff`.
+
 `pop_size` keeps its name: Evolver passes the population size to the algorithm
 rather than tuning it, and the CLI and Studio treat it as a run setting
 (**Development after 1.3.0:** the spaces no longer offer it). The
@@ -537,8 +545,8 @@ that names the rule and the place:
 | G1 | Parameter names are unique in the space and match `^[a-z][a-z0-9_]*$`. |
 | G2 | Each parameter has one parent; there are no condition expressions. A parameter that applies to some values of a node is duplicated under each of their productions, with its own name. |
 | G3 | Every parameter has a `default`, inside its domain. |
-| G4 | Ranges are ordered, `log` needs a positive lower end, and integer ranges have integer ends. |
-| G5 | `values` is not empty and has no duplicates; a value with a production is a string. |
+| G4 | Ranges have finite ends and are ordered, `log` needs a positive lower end, and integer ranges have integer ends. |
+| G5 | `values` is not empty and has no duplicates, and no two values are written alike on the command line (`1` and `"1"`); a string value is one command-line token (not empty, no whitespace) and a number is finite; a categorical with a production has string values only, since its document is a mapping whose keys are text. |
 | G6 | `schema` and `schema_version` are known; `algorithm` and `encoding` exist in VAMOS. |
 | G7 | The default configuration runs as the algorithm's `default()` configuration. |
 

@@ -63,7 +63,7 @@ def test_toolchain_drift_is_rejected() -> None:
         "interpreted",
         "4.15.0",
         ("types-example",),
-        ("openai",),
+        ("pandas",),
     )
 
     assert len(errors) == 6
