@@ -27,7 +27,7 @@ from vamos.ux.panel import launcher  # noqa: E402
 
 pytestmark = pytest.mark.studio
 
-CODE_EXECUTION_LABELS = {"Problem Builder", "Batch Comparison"}
+CODE_EXECUTION_LABELS = {"Batch Comparison"}
 
 
 def _record_serve(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
@@ -70,7 +70,7 @@ def test_remote_binding_hides_code_execution_pages(monkeypatch: pytest.MonkeyPat
     assert CODE_EXECUTION_LABELS <= local
     assert "--allow-remote-code-execution" in warning
     app = studio_app.StudioApp(code_execution=False)
-    for slug in ("problem_builder", "batch"):
+    for slug in ("batch",):
         page = app._load_page(slug)
         assert type(page).__name__ == "Alert"
         assert "--allow-remote-code-execution" in page.object

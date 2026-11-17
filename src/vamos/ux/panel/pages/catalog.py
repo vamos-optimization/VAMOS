@@ -103,7 +103,7 @@ class CatalogState(param.Parameterized):
         summary = pn.pane.Markdown(
             f"### {algorithm_label(self.algorithm)} on {self.algorithm_encoding} problems\n\n"
             f"Defaults shown for **{entry.label}**: {entry.n_var} variables, {entry.n_obj} objectives. "
-            f"{population_rule(self.algorithm, entry.n_obj)} Run Experiment and the Problem Builder offer these "
+            f"{population_rule(self.algorithm, entry.n_obj)} Run Experiment offers these "
             "parameters under **Customize**; `vamos tune` searches the same space.",
             sizing_mode="stretch_width",
         )

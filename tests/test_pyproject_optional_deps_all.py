@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from tests.architecture._dependencies import OPTIMIZATION_FRAMEWORKS, distribution_name, optional_requirements
+from tests.architecture._dependencies import LLM_SDKS, OPTIMIZATION_FRAMEWORKS, distribution_name, optional_requirements
 
 # The extras for users of VAMOS, in the order ``all`` gathers them, and those for working on VAMOS itself.
-USER_EXTRAS = ("compute", "analysis", "tuning", "studio", "examples", "openai", "anthropic", "gemini")
+USER_EXTRAS = ("compute", "analysis", "tuning", "studio", "examples")
 TOOLING_EXTRAS = ("dev", "docs")
 
 
@@ -47,3 +47,10 @@ def test_no_extra_installs_another_optimization_framework() -> None:
 
     declared = {group: names for group, names in frameworks.items() if names}
     assert declared == {}, f"extras that install another optimization framework: {declared}"
+
+
+def test_no_extra_installs_an_llm_sdk() -> None:
+    sdks = {group: sorted(_distributions(requirements) & set(LLM_SDKS)) for group, requirements in optional_requirements().items()}
+
+    declared = {group: names for group, names in sdks.items() if names}
+    assert declared == {}, f"extras that install an LLM client: {declared}"
