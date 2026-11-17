@@ -67,7 +67,6 @@ and reachable through the named parent pages even when absent from the menu.
 | [algorithms/moead.md](../algorithms/moead.md) | Tutorial | Tutorials → Algorithms → MOEA/D | Regroup |
 | [algorithms/nsgaii.md](../algorithms/nsgaii.md) | Tutorial | Tutorials → Algorithms → NSGA-II | Regroup |
 | [algorithms/nsgaiii.md](../algorithms/nsgaiii.md) | Tutorial | Tutorials → Algorithms → NSGA-III | Regroup |
-| [assist.md](../assist.md) | How-to | How-to Guides → Experimental → VAMOS Assist | Regroup |
 | [dev/add_algorithm.md](add_algorithm.md) | Development | Developer → Extending VAMOS → Add an Algorithm | Regroup |
 | [dev/add_backend.md](add_backend.md) | Development | Developer → Extending VAMOS → Add a Backend | Regroup |
 | [dev/add_metric.md](add_metric.md) | Development | Developer → Extending VAMOS → Add a Metric | Regroup |

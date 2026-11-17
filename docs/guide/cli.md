@@ -10,12 +10,17 @@ for the parser in your installed version.
 | `results inspect`, `results verify`, `reproduce` | **Stable** | Canonical run inspection, integrity, and exact replay |
 | `study plan/create/run/inspect/resume/retry/summarize` | **Stable**, single-owner | Durable experiment matrices |
 | `quickstart`, `summarize`, `open-results` | **Experimental** | Interactive onboarding and convenience helpers |
-| `bench`, `tune`, `ablation`, `profile`, `zoo`, `studio`, `assist`, `check` | **Experimental** | Optional workflows and diagnostics |
+| `bench`, `tune`, `ablation`, `profile`, `zoo`, `studio`, `check` | **Experimental** | Optional workflows and diagnostics |
 
 Stable commands have compatibility guarantees under the
 [stability policy](../project/stability-and-versioning.md). Experimental
 workflows may change in a minor release. Dask, third-party integrations, and
 visualization remain Experimental even when selected through the main runner.
+
+**Development after 1.3.0:** the experimental `vamos assist` command is
+removed with the `vamos.assist` package, and VAMOS no longer calls any LLM
+provider. Use `vamos quickstart` to write a config file, or
+`vamos study plan` to check a study before running it.
 
 Quickstart wizard
 -----------------

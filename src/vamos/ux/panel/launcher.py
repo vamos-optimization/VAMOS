@@ -42,10 +42,7 @@ def add_access_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--allow-remote-code-execution",
         action="store_true",
-        help=(
-            "With a non-loopback address, still offer Problem Builder and Batch Comparison, which run code with "
-            "this account and can use the LLM API keys in its environment."
-        ),
+        help=("With a non-loopback address, still offer Batch Comparison, whose study workers run code with this account."),
     )
 
 
