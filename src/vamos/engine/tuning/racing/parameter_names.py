@@ -69,7 +69,11 @@ VALUE_NAMES: dict[str, tuple[tuple[str, str, str | None], ...]] = {
         ("tchebycheff", "tchebycheff", "tschebyscheff"),
         ("weighted_sum", "weighted_sum", "weightedSum"),
         ("pbi", "pbi", "penaltyBoundaryIntersection"),
-        ("modified_tchebycheff", "modified_tchebycheff", "modifiedTschebyscheff"),
+        # Development after 1.3.0: Evolver's modifiedTschebyscheff is jMetal's ModifiedTschebyscheff,
+        # max |f - z*| / w; VAMOS's modified_tchebycheff (the augmented formula, rho = 1e-3) has no Evolver name.
+        ("modified_tchebycheff", "modified_tchebycheff", None),
+        ("inverse_weight_tchebycheff", "inverse_weight_tchebycheff", "modifiedTschebyscheff"),
+        ("augmented_tchebycheff", "augmented_tchebycheff", "augmentedTschebyscheff"),
     ),
     "initializer": (
         ("random", "random", "default"),
@@ -85,6 +89,18 @@ VALUE_NAMES: dict[str, tuple[tuple[str, str, str | None], ...]] = {
         ("ranking", "ranking", "ranking"),
         ("sus", "sus", "stochasticUniversalSampling"),
     ),
+}
+
+
+# Values that Evolver does not have and that :func:`to_evolver` refuses, with the reason, by the
+# parameter's earlier name: Evolver has a value of that name for another function.
+NO_EVOLVER_EQUIVALENT: dict[str, dict[str, str]] = {
+    "aggregation": {
+        "modified_tchebycheff": (
+            "VAMOS's modified_tchebycheff is the augmented Tchebycheff formula with rho = 1e-3, which Evolver does not offer; "
+            "Evolver's modifiedTschebyscheff is VAMOS's inverse_weight_tchebycheff"
+        ),
+    },
 }
 
 
@@ -141,8 +157,10 @@ def canonical_assignment(assignment: Mapping[str, Any]) -> dict[str, Any]:
 def to_evolver(assignment: Mapping[str, Any]) -> dict[str, Any]:
     """``assignment`` (canonical or earlier names) with Evolver's camelCase parameters and values.
 
-    Parameters and values that Evolver does not have keep their canonical names.
+    Parameters and values that Evolver does not have keep their canonical names, except those of
+    :data:`NO_EVOLVER_EQUIVALENT`, which raise ``ValueError``.
     """
+    _check_evolver_equivalents(assignment)
     result: dict[str, Any] = {}
     for name, value in canonical_assignment(assignment).items():
         bridge = _bridge_parameter(name)
@@ -150,6 +168,13 @@ def to_evolver(assignment: Mapping[str, Any]) -> dict[str, Any]:
         evolver_value = next((evolver for _, canonical, evolver in VALUE_NAMES.get(bridge, ()) if value == canonical and evolver), value)
         result[evolver_name] = evolver_value
     return result
+
+
+def _check_evolver_equivalents(assignment: Mapping[str, Any]) -> None:
+    for name, value in assignment.items():
+        reason = NO_EVOLVER_EQUIVALENT.get(_bridge_parameter(name), {}).get(str(value))
+        if reason is not None:
+            raise ValueError(f"{value} has no Evolver equivalent ({name}): {reason}.")
 
 
 def from_evolver(configuration: Mapping[str, Any]) -> dict[str, Any]:
@@ -218,6 +243,7 @@ def canonical_condition(condition: Condition) -> Condition:
 
 
 __all__ = [
+    "NO_EVOLVER_EQUIVALENT",
     "PARAMETER_NAMES",
     "VALUE_NAMES",
     "bridge_assignment",

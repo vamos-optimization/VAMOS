@@ -9,7 +9,7 @@ from typing import Any, Literal, TypeAlias, overload
 from vamos.engine.algorithm.moead.subproblems import normalize_subproblem_order
 from vamos.engine.algorithm.moead.update_criteria import normalize_subproblem_update_criterion
 from vamos.engine.archive import ExternalArchiveConfig
-from vamos.engine.operators.policies.moead import de_random_parents, normalize_de_scheme
+from vamos.engine.operators.policies.moead import check_de_neighbourhood, normalize_de_base, normalize_de_scheme
 from vamos.foundation.encoding import EncodingLike
 from vamos.foundation.exceptions import ConfigurationError
 
@@ -62,16 +62,19 @@ class MOEADConfig(_SerializableConfig):
     150 becomes 136 with three objectives. The resolved spec of a run records the source in
     ``algorithm.resolution.weight_vectors``.
 
-    **Development after 1.3.0:** three options of Evolver's MOEA/D, all off by default:
+    **Development after 1.3.0:** the options of Evolver's MOEA/D, all off by default:
 
     - ``subproblem_order``: ``"random_permutation"`` (the default) or ``"cyclic"``, the order in
       which the subproblems are visited (Evolver's ``subProblemIdGenerator``,
       ``randomPermutationCycle`` or ``cyclicIntegerSequence``);
     - the ``scheme`` of the ``de`` crossover: ``"rand_1_bin"`` (the default), ``"rand_1_exp"``,
-      ``"rand_2_bin"`` or ``"rand_2_exp"`` (jMetal's ``DifferentialEvolutionCrossover`` variants);
-      rand/2 draws four random parents, so it needs ``neighbor_size >= 4``;
-    - the aggregations ``augmented_tchebycheff`` (``rho``, default ``1e-4``) and ``inverted_pbi``
-      (``theta``, default ``0.1``), and ``normalize=True`` with ``epsilon`` (default ``1e-6``) for any
+      ``"rand_2_bin"`` or ``"rand_2_exp"`` (jMetal's ``DifferentialEvolutionCrossover`` variants),
+      and its ``base``: ``"current"`` (the default), the subproblem's solution, or ``"random"``, one
+      more random parent, as Evolver's MOEA/D; the random parents (2 for rand/1, 4 for rand/2, one
+      more with a random base) must fit in ``neighbor_size``;
+    - the aggregations ``augmented_tchebycheff`` (``rho``, default ``1e-4``), ``inverted_pbi``
+      (``theta``, default ``0.1``) and ``inverse_weight_tchebycheff`` (jMetal's and Evolver's
+      modified Tchebycheff), and ``normalize=True`` with ``epsilon`` (default ``1e-6``) for any
       aggregation, which normalizes the objectives with the ideal and nadir points as jMetal does.
 
     See :mod:`vamos.engine.algorithm.moead.aggregation` and :mod:`vamos.engine.operators.policies.moead`
@@ -254,7 +257,8 @@ class _MOEADConfigBuilder(
 
         ``tchebycheff``, ``weighted_sum``, ``pbi`` (``theta``, default 5), ``modified_tchebycheff``
         (``rho``, default ``1e-3``) and, **Development after 1.3.0**, ``augmented_tchebycheff``
-        (``rho``, default ``1e-4``) and ``inverted_pbi`` (``theta``, default 0.1). Any of them takes
+        (``rho``, default ``1e-4``), ``inverted_pbi`` (``theta``, default 0.1) and
+        ``inverse_weight_tchebycheff`` (jMetal's ``ModifiedTschebyscheff``, ``max |f - z*| / w``). Any of them takes
         ``normalize=True`` and ``epsilon`` (default ``1e-6``): each objective becomes
         ``(f - z*) / (z^nad - z* + epsilon)`` with the ideal point ``z*`` and the nadir point
         ``z^nad`` of the non-dominated solutions evaluated so far, as in jMetal.
@@ -321,19 +325,29 @@ def _exact_lattice_divisions(n_obj: int, pop_size: int) -> int | None:
 
 
 def _check_de_scheme(crossover: object, neighbor_size: object) -> object:
-    """The crossover with its DE ``scheme`` in lower case; a scheme belongs to DE, and rand/2 needs four neighbours."""
-    if not (isinstance(crossover, tuple) and len(crossover) == 2 and isinstance(crossover[1], dict) and "scheme" in crossover[1]):
+    """The crossover with its DE ``scheme`` and ``base`` in lower case.
+
+    Both belong to the DE crossover, and its random parents must fit in the neighbourhood: 2 for
+    rand/1, 4 for rand/2, one more with ``base="random"``.
+    """
+    if not (isinstance(crossover, tuple) and len(crossover) == 2 and isinstance(crossover[1], dict)):
         return crossover
     name, params = crossover
+    options = [key for key in ("scheme", "base") if key in params]
+    if not options:
+        return crossover
     if str(name).strip().lower() not in _DE_NAMES:
-        raise ConfigurationError(f"The scheme applies to the DE crossover ('de'), not to crossover {name!r}.")
-    scheme = normalize_de_scheme(params["scheme"])
-    parents = de_random_parents(scheme)
-    if isinstance(neighbor_size, int) and neighbor_size < parents:
-        raise ConfigurationError(
-            f"The DE crossover scheme {scheme} needs neighbor_size >= {parents} ({parents} distinct random parents); got {neighbor_size}."
-        )
-    return (name, {**params, "scheme": scheme})
+        raise ConfigurationError(f"The {options[0]} applies to the DE crossover ('de'), not to crossover {name!r}.")
+    scheme = normalize_de_scheme(params.get("scheme", "rand_1_bin"))
+    base = normalize_de_base(params.get("base", "current"))
+    if isinstance(neighbor_size, int):
+        check_de_neighbourhood(scheme, base, neighbor_size)
+    normalized = {**params}
+    if "scheme" in params:
+        normalized["scheme"] = scheme
+    if "base" in params:
+        normalized["base"] = base
+    return (name, normalized)
 
 
 def _check_neighbourhood(neighbor_size: object, pop_size: int) -> None:

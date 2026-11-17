@@ -509,9 +509,10 @@ platforms where compiled variation stays disabled (see below) keep the
 per-operator path described in the table.
 
 **Development after 1.3.0:** the compiled MOEA/D step also covers
-`subproblem_order="cyclic"` and the `augmented_tchebycheff` aggregation. The DE
-schemes other than rand/1/bin, the normalization of the objectives and the
-`inverted_pbi` aggregation keep the per-operator path, whose neighbourhood update
+`subproblem_order="cyclic"` and the `augmented_tchebycheff` and
+`inverse_weight_tchebycheff` aggregations. The DE schemes other than rand/1/bin,
+the random DE base, the normalization of the objectives and the `inverted_pbi`
+aggregation keep the per-operator path, whose neighbourhood update
 is compiled, so both engines give the same results (see the
 [MOEA/D configuration](api/algorithms/moead.md)).
 

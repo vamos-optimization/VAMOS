@@ -26,14 +26,15 @@ lattice by about `1e-16`, so a tool that reads the file can drift from VAMOS wit
 the same seed. `vamos tune` records the population a trial ran
 when it differs from the sampled one (see [Tuning](../../../topics/tuning.md#populations-that-depend-on-the-number-of-objectives)).
 
-**Development after 1.3.0:** three options of Evolver's MOEA/D. Each is off by
+**Development after 1.3.0:** the options of Evolver's MOEA/D. Each is off by
 default, so a configuration that leaves them out runs exactly as in VAMOS 1.3.0.
 
 | Option | Values | Reference |
 | --- | --- | --- |
 | `subproblem_order` (field and builder method) | `"random_permutation"` (default), `"cyclic"` | Evolver's `subProblemIdGenerator`: jMetal's `RandomPermutationCycle` and `CyclicIntegerSequence` |
 | `scheme` of `crossover("de", cr=..., f=..., scheme=...)` | `"rand_1_bin"` (default), `"rand_1_exp"`, `"rand_2_bin"`, `"rand_2_exp"` | jMetal's `DifferentialEvolutionCrossover`: `RAND_1_BIN`, `RAND_1_EXP`, `RAND_2_BIN`, `RAND_2_EXP` |
-| `aggregation(...)` | `"augmented_tchebycheff"` (`rho`, default `1e-4`), `"inverted_pbi"` (`theta`, default `0.1`) | jMetal's `AugmentedTschebyscheff` and `InvertedPenaltyBoundaryIntersection` |
+| `base` of `crossover("de", ..., base=...)` | `"current"` (default), `"random"` | Evolver's MOEA/D, whose mating pool holds random parents only (`selectCurrentSolution = false`) |
+| `aggregation(...)` | `"augmented_tchebycheff"` (`rho`, default `1e-4`), `"inverted_pbi"` (`theta`, default `0.1`), `"inverse_weight_tchebycheff"` | jMetal's `AugmentedTschebyscheff`, `InvertedPenaltyBoundaryIntersection` and `ModifiedTschebyscheff` |
 | `normalize` and `epsilon` of any `aggregation(...)` | `normalize=False` (default) or `True`; `epsilon > 0`, default `1e-6`, only with `normalize=True` | jMetal's `normalizeObjectives` and `epsilon` (Evolver's `epsilonParameterForNormalization`) |
 
 The definitions follow jMetal 7.8, the version Evolver uses:
@@ -47,17 +48,26 @@ The definitions follow jMetal 7.8, the version Evolver uses:
 - **DE schemes.** The child starts as the subproblem's current solution `x`. The mutant
   is `x + F (x_r1 - x_r2)` with rand/1 and `x + F (x_r1 - x_r2) + F (x_r3 - x_r4)`
   with rand/2: its base is the current solution, as in jMetal's `MOEADDEBuilder` and in
-  MOEA/D-DE. Evolver's MOEA/D draws one more random parent instead and takes it as the
-  base, so its mutants differ from these, for rand/1/bin too. The random parents are distinct and come from the neighbourhood (probability
-  `delta`) or the population, so rand/2 needs `neighbor_size >= 4`. The binomial
+  MOEA/D-DE. With `base="random"` the base is one more random parent, `x_r3` (rand/1) or
+  `x_r5` (rand/2), as in Evolver's MOEA/D, whose mating pool holds three or five random
+  parents; jMetal's `DifferentialEvolutionCrossover` takes the last as the base, and the
+  child still starts as the current solution. The random parents are distinct and come
+  from the neighbourhood (probability `delta`) or the population, so the neighbourhood must
+  hold them: `neighbor_size >= 2` for rand/1, 3 with a random base, 4 for rand/2 and 5
+  with a random base. The binomial
   crossover takes each variable from the mutant when its draw is lower than `cr`, and one
   variable at random always. The exponential crossover takes a random variable and the next
   ones, cyclically, while a draw is lower than `cr`, up to all of them; it is CMOEA-MS's
   `rand_1_exp`. The repair then clips the child to the bounds.
 - **Augmented Tchebycheff.** `max_i w_i |f_i - z*_i| + rho sum_i w_i |f_i - z*_i|`, where
   a zero weight counts `1e-4 |f_i - z*_i|`. This is the formula of `modified_tchebycheff`,
-  whose `rho` defaults to `1e-3`. jMetal's `ModifiedTschebyscheff`, which Evolver calls
-  `modifiedTschebyscheff`, is another function, `max_i |f_i - z*_i| / w_i`.
+  whose `rho` defaults to `1e-3`, and which Evolver does not have.
+- **Inverse-weight Tchebycheff** (`inverse_weight_tchebycheff`, no parameter). jMetal's
+  `ModifiedTschebyscheff`, which Evolver calls `modifiedTschebyscheff`:
+  `max_i |f_i - z*_i| / w_i`, where a zero weight counts `1e-7 |f_i - z*_i|`. Up to a positive
+  factor per weight vector, which leaves the comparisons of a subproblem unchanged, it is the
+  Tchebycheff function with the weights that Qi et al. (2014, Eq. 3) call the
+  WS-transformation, `(1 / w_i) / sum_j (1 / w_j)`.
 - **Inverted PBI** (Sato, 2014). With the displacement `u = z^nad - f` from the nadir
   point, `d1 = |u . w| / ||w||` and `d2 = ||u - d1 w / ||w|| ||`, the value is
   `theta d2 - d1`, which is minimized (Sato's IPBI maximizes `d1 - theta d2`).
@@ -76,8 +86,14 @@ The definitions follow jMetal 7.8, the version Evolver uses:
 
 The compiled neighbourhood update computes every aggregation, with and without
 normalization. The compiled one-offspring step of `engine="numba"` covers the cyclic order
-and the augmented Tchebycheff aggregation. The other DE schemes, the normalization and the
-inverted PBI keep the reference step, so both engines give the same results.
+and the augmented and inverse-weight Tchebycheff aggregations. The other DE schemes, the
+random base, the normalization and the inverted PBI keep the reference step, so both
+engines give the same results.
+
+The tuning name table (`vamos.engine.tuning.racing.parameter_names`) reads Evolver's
+`modifiedTschebyscheff` as `inverse_weight_tchebycheff` and `augmentedTschebyscheff` as
+`augmented_tchebycheff`, and writes them back; `to_evolver` refuses `modified_tchebycheff`,
+which Evolver does not have.
 
 ::: vamos.algorithms.MOEADConfig
     options:

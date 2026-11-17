@@ -84,16 +84,17 @@ For two objectives, `MOEADConfig.default(pop_size=100, n_obj=2, ...)` requests 9
 - **Packaged weights:** with three or more objectives and a `pop_size` that no complete lattice matches, `MOEADConfig.default(pop_size=...)` and `optimize` use the weight file VAMOS packages for that size, as jMetal does (for example `W3D_100.dat`, so 100 individuals with three objectives work). In VAMOS 1.1.0 this failed with a lattice-size error.
 - **Defaults:** the default DE crossover with PBI aggregation is a VAMOS choice; `aggregation("tchebycheff")` with the other defaults reproduces jMetal's MOEA/D-DE.
 
-**Development after 1.3.0:** MOEA/D gains three choices of Evolver's MOEA/D, with jMetal's definitions. Each is off by default, and a configuration without them runs as in 1.3.0:
+**Development after 1.3.0:** MOEA/D gains the choices of Evolver's MOEA/D, with jMetal's definitions. Each is off by default, and a configuration without them runs as in 1.3.0:
 
 | Choice | How to set it | Values |
 | --- | --- | --- |
 | Order of the subproblems | `subproblem_order` | `"random_permutation"` (default, a new random permutation in each cycle), `"cyclic"` (0, 1, ..., `pop_size - 1`, again and again) |
 | DE scheme | `crossover("de", cr=..., f=..., scheme=...)` | `"rand_1_bin"` (default), `"rand_1_exp"`, `"rand_2_bin"`, `"rand_2_exp"` [3] |
-| Aggregation | `aggregation(...)` | also `"augmented_tchebycheff"` [4] (`rho`, default `1e-4`) and `"inverted_pbi"` [5] (`theta`, default `0.1`), which measures from the nadir point |
+| Base of the DE mutant | `crossover("de", ..., base=...)` | `"current"` (default, the subproblem's solution, as MOEA/D-DE [2]), `"random"` (one more random parent, as Evolver's MOEA/D) |
+| Aggregation | `aggregation(...)` | also `"augmented_tchebycheff"` [4] (`rho`, default `1e-4`), `"inverted_pbi"` [5] (`theta`, default `0.1`), which measures from the nadir point, and `"inverse_weight_tchebycheff"` [6], jMetal's and Evolver's modified Tchebycheff, which divides by the weights |
 | Normalization of the objectives | `normalize=True` and `epsilon` (default `1e-6`) in any `aggregation(...)` | each objective becomes `(f - z*) / (z^nad - z* + epsilon)`, with the ideal point `z*` and the nadir point `z^nad` of the non-dominated solutions found so far |
 
-The normalization makes the aggregation independent of the scale of each objective, which the decisions above leave to the user; rand/2 draws four random parents, so it needs a neighbour size of at least 4. The [configuration reference](../reference/api/algorithms/moead.md) gives the formulas, the estimate of the nadir point and how each choice maps to Evolver's parameters.
+The normalization makes the aggregation independent of the scale of each objective, which the decisions above leave to the user; rand/2 draws four random parents, so it needs a neighbour size of at least 4, and a random base needs one more neighbour. The [configuration reference](../reference/api/algorithms/moead.md) gives the formulas, the estimate of the nadir point and how each choice maps to Evolver's parameters.
 
 The `n_obj` argument matters: the default factory otherwise assumes three objectives. Supply the real problem dimension and objective count as above. Its default operators are real-coded; for discrete problems, choose compatible operators through the builder or the encoding-aware optimization setup. See the [capability matrix](../reference/algorithms.md#capability-matrix).
 
@@ -114,3 +115,5 @@ An optional external archive stores non-dominated results separately from the wo
 [4] Steuer, R. E., and Choo, E.-U. (1983). [An interactive weighted Tchebycheff procedure for multiple objective programming](https://doi.org/10.1007/BF02591870). *Mathematical Programming*, 26(3), 326–344.
 
 [5] Sato, H. (2014). [Inverted PBI in MOEA/D and its impact on the search performance on multi and many-objective optimization](https://doi.org/10.1145/2576768.2598297). *Proceedings of the 2014 Annual Conference on Genetic and Evolutionary Computation (GECCO '14)*, 645–652.
+
+[6] Qi, Y., Ma, X., Liu, F., Jiao, L., Sun, J., and Wu, J. (2014). [MOEA/D with Adaptive Weight Adjustment](https://doi.org/10.1162/EVCO_a_00109). *Evolutionary Computation*, 22(2), 231–264.

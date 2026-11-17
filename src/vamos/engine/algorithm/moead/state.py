@@ -93,7 +93,7 @@ class MOEADState(AlgorithmState):
     subproblem_cursor: int = 0
     # Development after 1.3.0: visit the subproblems in index order instead of random permutations.
     subproblem_cyclic: bool = False
-    # Random parents of the DE variation per child: 2 for rand/1, 4 for rand/2.
+    # Random parents of the DE variation per child: 2 for rand/1, 4 for rand/2, one more with a random base.
     de_random_parents: int = 2
 
     # Cached constraint violation (sum of positive parts), when constraints are enabled.
