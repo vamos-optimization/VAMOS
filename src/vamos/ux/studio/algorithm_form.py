@@ -127,12 +127,11 @@ class AlgorithmForm:
         merged = dict(default_dict)
         unapplied: list[str] = []
         for name in changed:
-            fields = [
-                config_field for config_field in config_fields_for(_bridge_name(name)) if config_field in merged and config_field in tuned
-            ]
+            # A field may be missing from the baseline, which leaves out a default (MOEA/D's subproblem_order).
+            fields = [config_field for config_field in config_fields_for(_bridge_name(name)) if config_field in tuned]
             fields = fields[:1] if fields[:1] == ["mutation_prob_factor"] else fields  # the factor's field, where there is one
             # A change that leaves every field it determines untouched has no effect on the run.
-            if not any(_canonical(tuned[config_field]) != _canonical(default_dict[config_field]) for config_field in fields):
+            if not any(_canonical(tuned[config_field]) != _canonical(default_dict.get(config_field)) for config_field in fields):
                 unapplied.append(name)
             for config_field in fields:
                 merged[config_field] = tuned[config_field]
