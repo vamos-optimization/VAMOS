@@ -1,8 +1,9 @@
 """MOEA/D and SMS-EMOA offer the operators and initializers that Evolver gives them and VAMOS runs.
 
 A configuration tuned or published with Evolver for these two algorithms should be expressible in
-VAMOS, so their real-coded grammars (and the constrained variants built on them) offer Sobol
-initialization, the Levy flight and power-law mutations, and the two-parent crossovers of NSGA-II's
+VAMOS, so their real-coded grammars (and the constrained variants built on them) offer the Sobol,
+opposition-based and Halton initializers of NSGA-II's space (Evolver's Cauchy initialization has no
+VAMOS counterpart), the Levy flight and power-law mutations, and the two-parent crossovers of NSGA-II's
 space: Laplace and fuzzy recombination in both, and, for MOEA/D, BLX-alpha, BLX-alpha-beta, whole
 arithmetic and arithmetic, under a ``variation`` node as in Evolver's ``MOEADDouble``. PCX and UNDC
 stay out: MOEA/D and SMS-EMOA mate two parents. The SBX and polynomial indices span Evolver's
@@ -26,13 +27,13 @@ from .test_builtin_parameter_space_defaults import PROBLEMS, _problem_kind
 TWO_PARENT_CROSSOVERS = ("blx_alpha", "blx_alpha_beta", "whole_arithmetic", "arithmetic", "laplace", "fuzzy")
 NEW_CHOICES: dict[str, dict[str, tuple[str, ...]]] = {
     "moead": {
-        "initial_solutions": ("sobol",),
+        "initial_solutions": ("sobol", "obl", "halton"),
         "mutation": ("levy_flight", "power_law"),
         "variation": ("crossover_and_mutation",),
         "crossover": ("sbx", *TWO_PARENT_CROSSOVERS),
     },
     "smsemoa": {
-        "initial_solutions": ("sobol",),
+        "initial_solutions": ("sobol", "obl", "halton"),
         "mutation": ("levy_flight", "power_law"),
         "crossover": ("blx_alpha_beta", "whole_arithmetic", "laplace", "fuzzy"),
     },
@@ -112,3 +113,10 @@ def test_the_indices_span_evolvers_range(name: str) -> None:
     for index in WIDE_INDICES:
         assert space.parameter(index).range == (5.0, 400.0), index
         assert space.parameter(index).default == 20.0, index
+
+
+def test_opposition_based_initialization_has_evolvers_name() -> None:
+    from vamos.engine.tuning.racing.parameter_names import from_evolver, to_evolver
+
+    assert to_evolver({"initial_solutions": "obl"}) == {"createInitialSolutions": "oppositionBased"}
+    assert from_evolver({"createInitialSolutions": "oppositionBased"}) == {"initial_solutions": "obl"}

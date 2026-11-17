@@ -68,6 +68,19 @@ def test_without_removes_a_parameter_and_its_subtree() -> None:
         space.without({"no_such_parameter"})
 
 
+def test_without_values_drops_choices_and_their_productions() -> None:
+    space = builtin_parameter_space("smsemoa")
+    pruned = space.without_values("initial_solutions", {"obl", "scatter"})
+
+    assert pruned.parameter("initial_solutions").values == tuple(
+        value for value in space.parameter("initial_solutions").values if value not in {"obl", "scatter"}
+    )
+    assert "scatter_base_size_factor" not in pruned.names()
+    assert pruned.identity.sha256 != space.identity.sha256 and pruned.default_values() == space.default_values()
+    with pytest.raises(ValueError, match="keeps its default"):
+        space.without_values("initial_solutions", {"auto"})
+
+
 @pytest.mark.parametrize("name", SPACE_NAMES)
 def test_configspace_carries_the_grammar_defaults_and_its_tree(name: str) -> None:
     pytest.importorskip("ConfigSpace")

@@ -39,6 +39,13 @@ PARAMETER_NAMES: tuple[tuple[str, str, str | None], ...] = (
     ("mutation", "mutation", "mutation"),
     ("selection", "selection", "selection"),
     ("variation", "variation", "variation"),
+    # Development after 1.3.0: the options of Evolver's MOEA/D. Evolver's MOEA/D names its sequence
+    # generator (the catalogue's sequenceGenerator) subProblemIdGenerator.
+    ("subproblem_order", "subproblem_order", "subProblemIdGenerator"),
+    ("normalize_objectives", "normalize_objectives", "normalizeObjectives"),
+    ("normalization_epsilon", "normalization_epsilon", "epsilonParameterForNormalization"),
+    ("ipbi_theta", "ipbi_theta", "ipbiTheta"),
+    ("de_scheme", "de_scheme", "differentialEvolutionCrossover"),
 )
 
 # The values of categorical parameters, by the parameter's earlier name, in the same three forms.
@@ -74,6 +81,18 @@ VALUE_NAMES: dict[str, tuple[tuple[str, str, str | None], ...]] = {
         ("modified_tchebycheff", "modified_tchebycheff", None),
         ("inverse_weight_tchebycheff", "inverse_weight_tchebycheff", "modifiedTschebyscheff"),
         ("augmented_tchebycheff", "augmented_tchebycheff", "augmentedTschebyscheff"),
+        # Evolver always normalizes its IPBI (see to_evolver and from_evolver).
+        ("inverted_pbi", "inverted_pbi", "invertedPenaltyBoundaryIntersection"),
+    ),
+    "subproblem_order": (
+        ("random_permutation", "random_permutation", "randomPermutationCycle"),
+        ("cyclic", "cyclic", "cyclicIntegerSequence"),
+    ),
+    "de_scheme": (
+        ("rand_1_bin", "rand_1_bin", "RAND_1_BIN"),
+        ("rand_1_exp", "rand_1_exp", "RAND_1_EXP"),
+        ("rand_2_bin", "rand_2_bin", "RAND_2_BIN"),
+        ("rand_2_exp", "rand_2_exp", "RAND_2_EXP"),
     ),
     "initializer": (
         # The automatic choice of the configuration, as Evolver's "default" (random sampling, which VAMOS names).
@@ -173,11 +192,18 @@ def to_evolver(assignment: Mapping[str, Any]) -> dict[str, Any]:
     """``assignment`` (canonical or earlier names) with Evolver's camelCase parameters and values.
 
     Parameters and values that Evolver does not have keep their canonical names, except those of
-    :data:`NO_EVOLVER_EQUIVALENT`, which raise ``ValueError``.
+    :data:`NO_EVOLVER_EQUIVALENT`, which raise ``ValueError``. Two choices of VAMOS's MOEA/D have no
+    Evolver form either, and raise: ``inverted_pbi`` without ``normalize_objectives``, since Evolver
+    always normalizes its IPBI, and the DE ``de_base: current``, since Evolver's MOEA/D draws the base
+    of the mutant at random; ``de_base: random`` is Evolver's own and is not written.
     """
     _check_evolver_equivalents(assignment)
+    canonical = canonical_assignment(assignment)
+    _check_moead_evolver_equivalents(canonical)
     result: dict[str, Any] = {}
-    for name, value in canonical_assignment(assignment).items():
+    for name, value in canonical.items():
+        if name == "de_base":
+            continue
         bridge = _bridge_parameter(name)
         evolver_name = next((evolver for _, canonical, evolver in PARAMETER_NAMES if canonical == name and evolver), name)
         evolver_value = next((evolver for _, canonical, evolver in VALUE_NAMES.get(bridge, ()) if value == canonical and evolver), value)
@@ -192,11 +218,26 @@ def _check_evolver_equivalents(assignment: Mapping[str, Any]) -> None:
             raise ValueError(f"{value} has no Evolver equivalent ({name}): {reason}.")
 
 
+def _check_moead_evolver_equivalents(canonical: Mapping[str, Any]) -> None:
+    if canonical.get("aggregation_function") == "inverted_pbi" and str(canonical.get("normalize_objectives", "false")) != "true":
+        raise ValueError(
+            "inverted_pbi without normalize_objectives has no Evolver equivalent: "
+            "Evolver's invertedPenaltyBoundaryIntersection always normalizes the objectives"
+        )
+    if canonical.get("de_base") == "current":
+        raise ValueError(
+            "de_base current has no Evolver equivalent: Evolver's MOEA/D draws the base of the DE mutant at random (de_base random)"
+        )
+
+
 def from_evolver(configuration: Mapping[str, Any]) -> dict[str, Any]:
     """An assignment with the spaces' canonical names from Evolver's camelCase parameters and values.
 
     Evolver's ``--name value`` pairs of a ``VAR_CONF.txt`` line give this mapping; keys that are not
-    Evolver names are taken as canonical or earlier VAMOS names.
+    Evolver names are taken as canonical or earlier VAMOS names. Evolver's MOEA/D settings that it does
+    not write are added: its ``invertedPenaltyBoundaryIntersection`` always normalizes the objectives
+    (``normalize_objectives: true``, with jMetal's epsilon of ``1e-6`` unless the line gives one), and
+    its DE crossover draws the base of the mutant at random (``de_base: random``).
     """
     result: dict[str, Any] = {}
     for name, value in configuration.items():
@@ -204,7 +245,18 @@ def from_evolver(configuration: Mapping[str, Any]) -> dict[str, Any]:
         bridge, canonical = (row[0], row[1]) if row is not None else (_bridge_parameter(name), canonical_parameter_name(name))
         canonical_value_ = next((c for _, c, evolver in VALUE_NAMES.get(bridge, ()) if value == evolver), canonical_value(bridge, value))
         result[canonical] = canonical_value_
+    if result.get("aggregation_function") == "inverted_pbi":
+        result["normalize_objectives"] = "true"
+        result.setdefault("normalization_epsilon", 1e-6)
+    if "de_scheme" in result:
+        result.setdefault("de_base", "random")
     return result
+
+
+def canonical_name_from_evolver(name: str) -> str:
+    """The canonical name of ``name``, an Evolver name or a canonical or earlier VAMOS one, as :func:`from_evolver` reads it."""
+    row = next((row for row in PARAMETER_NAMES if row[2] == name), None)
+    return row[1] if row is not None else canonical_parameter_name(name)
 
 
 def evolver_value_candidates(parameter: str, value: object) -> tuple[object, ...]:
@@ -226,6 +278,7 @@ __all__ = [
     "bridge_parameter_names",
     "canonical_assignment",
     "canonical_parameter_name",
+    "canonical_name_from_evolver",
     "canonical_value",
     "evolver_value_candidates",
     "from_evolver",

@@ -108,13 +108,41 @@ def _moead_pop_size(assignment: dict[str, Any]) -> int:
 
 
 def _moead_aggregation(builder: Any, assignment: dict[str, Any]) -> None:
+    """The aggregation, its parameter, and the normalization of the objectives when it is on.
+
+    Options left at their defaults are left out, so a configuration without them is the one VAMOS
+    1.3.0 built, with its task id.
+    """
     aggregation = str(assignment["aggregation"])
+    params: dict[str, Any] = {}
     if aggregation == "pbi":
-        builder.aggregation("pbi", theta=float(assignment.get("pbi_theta", 5.0)))
+        params["theta"] = float(assignment.get("pbi_theta", 5.0))
     elif aggregation == "modified_tchebycheff":
-        builder.aggregation("modified_tchebycheff", rho=float(assignment.get("mtch_rho", 0.001)))
-    else:
-        builder.aggregation(aggregation)
+        params["rho"] = float(assignment.get("mtch_rho", 0.001))
+    elif aggregation == "augmented_tchebycheff" and float(assignment.get("atch_rho", 1e-4)) != 1e-4:
+        params["rho"] = float(assignment["atch_rho"])
+    elif aggregation == "inverted_pbi" and float(assignment.get("ipbi_theta", 0.1)) != 0.1:
+        params["theta"] = float(assignment["ipbi_theta"])
+    if str(assignment.get("normalize_objectives", "false")).strip().lower() == "true":
+        params |= {"normalize": True, "epsilon": float(assignment.get("normalization_epsilon", 1e-6))}
+    builder.aggregation(aggregation, **params)
+
+
+def _moead_order(builder: Any, assignment: dict[str, Any]) -> None:
+    """The order of the subproblems, where it is not the default random permutation."""
+    order = assignment.get("subproblem_order")
+    if order is not None and order != "random_permutation":
+        builder.subproblem_order(str(order))
+
+
+def _moead_de(assignment: dict[str, Any]) -> dict[str, Any]:
+    """The DE crossover's parameters: ``cr`` and ``f``, and the scheme and base where they are not the defaults."""
+    params: dict[str, Any] = {"cr": float(assignment.get("de_cr", 1.0)), "f": float(assignment.get("de_f", 0.5))}
+    if assignment.get("de_scheme", "rand_1_bin") != "rand_1_bin":
+        params["scheme"] = str(assignment["de_scheme"])
+    if assignment.get("de_base", "current") != "current":
+        params["base"] = str(assignment["de_base"])
+    return params
 
 
 def build_moead_config(assignment: dict[str, Any], *, mixed: bool = False) -> MOEADConfig:
@@ -130,7 +158,7 @@ def build_moead_config(assignment: dict[str, Any], *, mixed: bool = False) -> MO
     # The grammar's variation (Evolver's MOEADDouble), or the crossover of earlier assignments.
     cross = crossover_or_de(assignment, default="de")
     if cross == "de":
-        builder.crossover("de", cr=float(assignment.get("de_cr", 1.0)), f=float(assignment.get("de_f", 0.5)))
+        builder.crossover("de", **_moead_de(assignment))
     else:
         cross_params: dict[str, Any] = {}
         if "crossover_prob" in assignment:
@@ -148,6 +176,7 @@ def build_moead_config(assignment: dict[str, Any], *, mixed: bool = False) -> MO
     builder.mutation(mut, **mut_params)
 
     _moead_aggregation(builder, assignment)
+    _moead_order(builder, assignment)
     apply_optional_repair(builder, assignment)
     apply_optional_external_archive(builder, assignment, pop_size)
     apply_subproblem_update_criterion(builder, assignment)
@@ -164,6 +193,7 @@ def build_moead_permutation_config(assignment: dict[str, Any]) -> MOEADConfig:
     builder.crossover(str(assignment["crossover"]), prob=float(assignment.get("crossover_prob", 0.9)))
     builder.mutation(str(assignment["mutation"]), prob=assignment.get("mutation_prob", 0.1))
     _moead_aggregation(builder, assignment)
+    _moead_order(builder, assignment)
     apply_optional_external_archive(builder, assignment, pop_size)
     return builder.build()
 
