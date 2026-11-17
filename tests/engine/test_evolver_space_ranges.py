@@ -64,7 +64,7 @@ def test_every_moead_space_has_evolvers_neighbourhood_and_aggregation_ranges(nam
     assert isinstance(theta, Real) and (theta.low, theta.high) == (1.0, 200.0)
     aggregation = params["aggregation_function"]
     assert isinstance(aggregation, Categorical)
-    # Development after 1.3.0: Evolver's augmented and inverse-weight (modified) Tchebycheff and inverted PBI too.
+    # VAMOS 1.4.0: Evolver's augmented and inverse-weight (modified) Tchebycheff and inverted PBI too.
     assert set(aggregation.choices) == {
         "tchebycheff",
         "weighted_sum",

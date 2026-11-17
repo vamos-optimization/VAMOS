@@ -39,7 +39,7 @@ PARAMETER_NAMES: tuple[tuple[str, str, str | None], ...] = (
     ("mutation", "mutation", "mutation"),
     ("selection", "selection", "selection"),
     ("variation", "variation", "variation"),
-    # Development after 1.3.0: the options of Evolver's MOEA/D. Evolver's MOEA/D names its sequence
+    # VAMOS 1.4.0: the options of Evolver's MOEA/D. Evolver's MOEA/D names its sequence
     # generator (the catalogue's sequenceGenerator) subProblemIdGenerator.
     ("subproblem_order", "subproblem_order", "subProblemIdGenerator"),
     ("normalize_objectives", "normalize_objectives", "normalizeObjectives"),

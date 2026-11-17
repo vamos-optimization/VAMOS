@@ -465,7 +465,7 @@ crossovers need three. Each new parameter defaults to its operator's own value,
 and an assignment saved with `crossover: de` or `crossover: sbx` builds what it
 built.
 
-**Development after 1.3.0:** every MOEA/D grammar also offers the options of
+**VAMOS 1.4.0:** every MOEA/D grammar also offers the options of
 Evolver's MOEA/D that the engine runs (see
 [the MOEA/D configuration](../reference/api/algorithms/moead.md)), each off by
 default, so the defaults still build the configuration of VAMOS 1.3.0:
