@@ -40,7 +40,7 @@ panel==1.9.4
 param==2.4.2
 bokeh==3.9.2
 # Not declared: mkdocs-material installs PyMdown, whose Markdown extensions mkdocs.yml configures.
-pymdown-extensions==12.3
+pymdown-extensions==13.1
 # Not a VAMOS dependency: the scheduled performance job installs it for tools/benchmark_compare_pymoo.py.
 pymoo==0.6.2
 # Optional tuning backends, exercised by the Ubuntu Python 3.12 test job.
