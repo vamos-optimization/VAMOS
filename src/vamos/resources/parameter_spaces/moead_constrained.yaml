@@ -51,7 +51,7 @@ parameters:
         conditional_parameters:
           ipbi_theta: {type: real, default: 0.1, range: [0.01, 200.0], log: true, role: operator_rate}
       inverse_weight_tchebycheff: {}
-  initial_solutions: {type: categorical, default: auto, values: [auto, random, lhs, scatter, sobol], role: structural}
+  initial_solutions: {type: categorical, default: auto, values: [auto, random, lhs, scatter, sobol, halton, obl], role: structural}
   variation:
     type: categorical
     default: differential_evolution

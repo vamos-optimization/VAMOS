@@ -39,6 +39,8 @@ parameters:
         conditional_parameters:
           scatter_base_size_factor: {type: categorical, default: 0.2, values: [0.1, 0.2, 0.3, 0.5, 0.75, 1.0], role: structural}
       sobol: {}
+      halton: {}
+      obl: {}
   crossover:
     type: categorical
     default: sbx

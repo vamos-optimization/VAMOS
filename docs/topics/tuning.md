@@ -440,7 +440,10 @@ different trials.
 (`moead`, `moead_constrained`, `smsemoa`, `smsemoa_constrained`) also offer
 the choices of Evolver's spaces that VAMOS runs for them:
 
-- `sobol` among the `initial_solutions`;
+- the initializers of NSGA-II's space among the `initial_solutions`: `sobol`,
+  `halton` and `obl`, the opposition-based initialization (Evolver's
+  `oppositionBased`); Evolver's `cauchy` initialization has no VAMOS
+  counterpart;
 - the `levy_flight` (`levy_beta`, `levy_scale`) and `power_law`
   (`power_index`) mutations;
 - the `laplace` (`laplace_a`, `laplace_b`) and `fuzzy` (`fuzzy_d`) crossovers,
