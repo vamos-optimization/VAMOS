@@ -46,7 +46,6 @@ markers, not prior public releases. See the
 - **Ready-to-use Tuning Backends**: `racing` and `random` work out of the box; install the optional `tuning` extra to enable `optuna`, `bohb_optuna`, `smac3`, and `bohb` via `vamos tune`.
 - **Performance Driven**: Vectorized NumPy kernels with optional Numba JIT acceleration for core kernels.
 - **Interactive Analysis**: Built-in dashboards with `explore_result_front(result)` and publication-ready LaTeX tables.
-- **Visual Problem Builder**: Define custom problems in the experimental VAMOS Studio; local Python preview requires an explicit trusted-code opt-in.
 - **Extensible**: Standardized protocols for adding custom problems, operators, and algorithms.
 
 Canonical customization guide: [Extending VAMOS](https://vamos-optimization.org/topics/extending/).
@@ -277,31 +276,7 @@ vamos create-problem
 # Generates a .py file with TODO markers -- fill in your math and run it
 ```
 
-Or use the experimental **visual builder** in VAMOS Studio -- review your objectives
-in the browser, pick an algorithm, and see the Pareto front update on each run:
-
-```bash
-vamos studio
-# Open the "Problem Builder" tab
-```
-
 See [Adding a problem](https://vamos-optimization.org/dev/add_problem/) for all approaches (function, class, or registry).
-
-## VAMOS Assist (no-code workflow)
-
-VAMOS Assist provides an end-to-end no-code flow for creating validated experiment plans, materializing runnable projects, and optionally running smoke checks. You can start with deterministic templates (no API keys), and optionally use provider-backed auto planning.
-
-```bash
-vamos assist go "template-first example" --template demo --smoke
-```
-
-```bash
-pip install vamos-optimization[openai]
-setx OPENAI_API_KEY "..."
-vamos assist go "..." --mode auto --provider openai --smoke
-```
-
-See [VAMOS Assist](https://vamos-optimization.org/assist/) for the full guide (billing, privacy, artifacts, troubleshooting).
 
 Preferred path: start with `optimize(...)`. Use config objects only when you need fully specified, reproducible runs or plugin algorithms.
 See [Getting started](https://vamos-optimization.org/guide/getting-started/) for a short decision guide.

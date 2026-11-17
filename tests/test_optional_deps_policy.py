@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 
 from tests.architecture._dependencies import (
+    LLM_SDKS,
     OPTIMIZATION_FRAMEWORKS,
     base_distributions,
     distribution_name,
@@ -188,3 +189,8 @@ def test_analysis_extra_holds_only_what_vamos_imports() -> None:
 def test_vamos_imports_no_other_optimization_framework() -> None:
     imported = sorted(distribution for distribution, modules in OPTIMIZATION_FRAMEWORKS.items() if _imports(modules))
     assert imported == [], f"src/vamos imports these optimization frameworks: {imported}"
+
+
+def test_vamos_imports_no_llm_sdk() -> None:
+    imported = sorted(distribution for distribution, modules in LLM_SDKS.items() if _imports(modules))
+    assert imported == [], f"src/vamos imports these LLM clients: {imported}"

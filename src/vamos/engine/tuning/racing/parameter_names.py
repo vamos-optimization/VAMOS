@@ -182,6 +182,17 @@ def from_evolver(configuration: Mapping[str, Any]) -> dict[str, Any]:
     return result
 
 
+def evolver_value_candidates(parameter: str, value: object) -> tuple[object, ...]:
+    """Every canonical value of ``parameter`` (canonical, earlier or Evolver name) that Evolver writes as ``value``.
+
+    Evolver has one name for values that VAMOS keeps apart, such as ``polynomial`` for the real-coded
+    ``polynomial`` and the integer ``pm``; a reader picks the one its space offers.
+    """
+    row = next((row for row in PARAMETER_NAMES if row[2] == parameter), None)
+    bridge = row[0] if row is not None else _bridge_parameter(parameter)
+    return tuple(canonical for _, canonical, evolver in VALUE_NAMES.get(bridge, ()) if evolver is not None and value == evolver)
+
+
 __all__ = [
     "PARAMETER_NAMES",
     "VALUE_NAMES",
@@ -190,6 +201,7 @@ __all__ = [
     "canonical_assignment",
     "canonical_parameter_name",
     "canonical_value",
+    "evolver_value_candidates",
     "from_evolver",
     "to_evolver",
 ]

@@ -209,6 +209,10 @@ def test_g3_rejects_a_parameter_without_a_default() -> None:
         ("tournament_size", {"range": [2.0, 10]}, "integer ends"),
         ("crossover_probability", {"range": ["1e-8", 1.0]}, "not a number"),
         ("crossover_probability", {"range": [0.6]}, "[low, high]"),
+        # The canonical JSON of a space has no infinities, and nothing samples an unbounded range.
+        ("crossover_probability", {"range": [0.0, float("inf")]}, "finite"),
+        ("crossover_probability", {"range": [float("-inf"), 1.0]}, "finite"),
+        ("crossover_probability", {"range": [float("nan"), 1.0]}, "finite"),
     ],
 )
 def test_g4_rejects_a_bad_range(name: str, edit: dict[str, Any], message: str) -> None:
@@ -248,6 +252,64 @@ def test_g5_rejects_a_production_on_a_value_that_is_not_a_string() -> None:
 
     error = rejects(broken(edit), "G5", "offspring_ratio.values.1.0")
     assert "a value with a production is a string" in str(error)
+
+
+def test_g5_rejects_a_number_beside_a_production() -> None:
+    # The document of a categorical with a production is a mapping, whose keys are text: 1 would read back as "1".
+    def edit(document: dict[str, Any]) -> None:
+        params(document)["selection"]["values"] = {1: {}, "tournament": params(document)["selection"]["values"]["tournament"]}
+        params(document)["selection"]["default"] = 1
+
+    error = rejects(broken(edit), "G5", "selection.values.1")
+    assert "string values only" in str(error)
+
+
+@pytest.mark.parametrize(
+    ("values", "default"),
+    [([1, "1"], "1"), (["0.5", 0.5], 0.5), ([1.0, "1.0"], 1.0)],
+    ids=["int-and-text", "text-and-float", "float-and-text"],
+)
+def test_g5_rejects_values_that_the_command_line_writes_alike(values: list[object], default: object) -> None:
+    def edit(document: dict[str, Any]) -> None:
+        params(document)["offspring_ratio"]["values"] = values
+        params(document)["offspring_ratio"]["default"] = default
+
+    error = rejects(broken(edit), "G5", "offspring_ratio")
+    assert "written alike" in str(error)
+
+
+@pytest.mark.parametrize(
+    ("values", "default"),
+    [(["two words", "single"], "two words"), (["", "single"], "single"), ([" padded", "single"], "single"), (["tab\there", "x"], "x")],
+    ids=["space-inside", "empty", "leading-space", "tab"],
+)
+def test_g5_rejects_a_value_that_is_not_one_command_line_token(values: list[object], default: object) -> None:
+    # The command line separates its tokens by whitespace: "--choice two words" would read as three tokens.
+    def edit(document: dict[str, Any]) -> None:
+        params(document)["offspring_ratio"]["values"] = values
+        params(document)["offspring_ratio"]["default"] = default
+
+    error = rejects(broken(edit), "G5", "offspring_ratio")
+    assert "one command-line token" in str(error)
+
+
+@pytest.mark.parametrize("bad", [float("inf"), float("-inf"), float("nan")], ids=["inf", "minus-inf", "nan"])
+def test_g5_rejects_a_value_that_is_not_finite(bad: float) -> None:
+    # The canonical JSON of a space has no infinities or NaN, so its identity could not be computed.
+    def edit(document: dict[str, Any]) -> None:
+        params(document)["offspring_ratio"]["values"] = [1.0, bad]
+        params(document)["offspring_ratio"]["default"] = 1.0
+
+    error = rejects(broken(edit), "G5", "offspring_ratio")
+    assert "finite" in str(error)
+
+
+def test_the_canonical_document_of_a_space_with_numbers_and_productions_reads_back() -> None:
+    # Numbers stay in list-form categoricals, which keep their types; text keys keep theirs.
+    space = parameter_space_from_document(small_space())
+    document = json.loads(json.dumps(parameter_space_document(space)))
+
+    assert parameter_space_from_document(document) == space
 
 
 # -- G6 ------------------------------------------------------------------------------------------
@@ -346,7 +408,6 @@ def test_yaml_and_json_files_read_the_same_space(tmp_path: Any) -> None:
 
 
 def test_a_yaml_key_repeated_in_one_mapping_is_rejected() -> None:
-
     text = "schema: vamos.parameter-space\nschema: vamos.parameter-space\n"
 
     with pytest.raises(ParameterSpaceError, match="G1.*repeated"):

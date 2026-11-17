@@ -59,13 +59,11 @@ The canonical environment, path inventory, diagnostic fingerprint schema, baseli
 ## Layering Policy (current reality)
 - foundation may depend on foundation/resources only.
 - engine may depend on engine/foundation/resources.
-- experiment may depend on experiment/foundation/engine/ux/assist/resources.
+- experiment may depend on experiment/foundation/engine/ux/resources.
 - ux may depend on ux/foundation/engine/resources.
-- assist may depend on assist/foundation/engine/experiment/resources.
 - resources must not import other VAMOS layers.
 - A root module belongs to the layer it re-exports: `vamos`, `vamos.api`, `vamos.exceptions`, `vamos.run_artifacts` and `vamos.study_artifacts` to experiment, `vamos.algorithms` to engine, `vamos.problems` and `vamos.selection` to foundation. `tests/architecture/test_layer_boundaries.py` classifies every root module and fails on one it does not know.
 - ux reaches experiment only to read stored runs and studies, through `vamos.run_artifacts` and `vamos.study_artifacts`. No layer imports any other facade (`tests/architecture/test_no_facade_imports.py`).
-- assist sits above experiment and reuses the CLI's parsers and quickstart templates; `experiment.cli.main` reaches assist only through the lazy import of the `vamos assist` subcommand.
 - Facades: prefer `vamos.api`, `vamos.algorithms`, `vamos.problems`, `vamos.ux.api`.
 
 ## Optional Dependencies Policy

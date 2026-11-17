@@ -35,23 +35,9 @@ KNOWN_CYCLES: dict[frozenset[str], str] = {
         "Algorithm-specific variation lives in engine.operators.policies and uses algorithm internals; "
         "see the known debt in docs/dev/architecture_health.md."
     ),
-    frozenset(
-        {
-            "vamos.assist.apply",
-            "vamos.assist.catalog",
-            "vamos.assist.cli",
-            "vamos.assist.doctor",
-            "vamos.assist.explain",
-            "vamos.assist.go",
-            "vamos.assist.plan",
-            "vamos.assist.providers",
-            "vamos.assist.run",
-            "vamos.experiment.cli",
-            "vamos.experiment.presentation",
-        }
-    ): (
-        "assist sits above experiment and reuses the CLI's parsers; the CLI reaches `vamos assist` only through "
-        "the lazy import of its subcommand."
+    frozenset({"vamos.experiment.cli", "vamos.experiment.presentation"}): (
+        "The CLI's entry point and quickstart run experiments through presentation, which runs them with the CLI's "
+        "orchestration. It was part of the assist cycle until vamos.assist was removed."
     ),
     frozenset({"vamos.ux.panel", "vamos.ux.studio"}): (
         "The Panel pages render Studio's state, and Studio's entry module starts the Panel launcher."

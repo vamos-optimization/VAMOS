@@ -46,6 +46,15 @@ def same_scalar(a: object, b: object) -> bool:
     return type(a) is type(b) and a == b if isinstance(a, bool) or isinstance(b, bool) else a == b
 
 
+def format_value(value: object) -> str:
+    """A value as the command line writes it: ``true``/``false``, ``repr`` for floats, the text otherwise."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, float):
+        return repr(value)
+    return str(value)
+
+
 @dataclass(frozen=True)
 class Parameter:
     """One node of the grammar.

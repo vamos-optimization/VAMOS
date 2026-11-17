@@ -27,6 +27,9 @@ AGG_TCHEBYCHEFF = 0
 AGG_WEIGHTED_SUM = 1
 AGG_PBI = 2
 AGG_MODIFIED_TCHEBYCHEFF = 3
+#: **Development after 1.3.0:** jMetal's augmented Tchebycheff and Sato's inverted PBI.
+AGG_AUGMENTED_TCHEBYCHEFF = 4
+AGG_INVERTED_PBI = 5
 
 #: Replacement status: the compiled ideal-point update declined and nothing changed.
 #: ``np.minimum`` could pick between two bit patterns (a NaN, or ``0.0`` against ``-0.0``);
@@ -255,6 +258,8 @@ def available_moead_neighborhood_kernels() -> tuple[Callable[..., int], Callable
 
 
 __all__ = [
+    "AGG_AUGMENTED_TCHEBYCHEFF",
+    "AGG_INVERTED_PBI",
     "AGG_MODIFIED_TCHEBYCHEFF",
     "AGG_PBI",
     "AGG_TCHEBYCHEFF",

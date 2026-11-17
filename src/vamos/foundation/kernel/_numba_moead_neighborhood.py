@@ -5,6 +5,12 @@ This module imports numba at import time. MOEA/D reaches it through
 (its engine-independent shortcut) and through
 ``KernelBackend.moead_steady_state_kernels``; ``agg_id`` takes the aggregation
 ids of :mod:`vamos.foundation.kernel.moead_kernels`.
+
+**Development after 1.3.0:** the update takes the nadir point, the epsilon and
+the switch of the normalization of the objectives, and computes the augmented
+Tchebycheff (``AGG_AUGMENTED_TCHEBYCHEFF``, the formula of the modified one) and
+inverted PBI (``AGG_INVERTED_PBI``) aggregations. Without normalization and
+inverted PBI, ``nadir`` is not read; callers pass the ideal point in its place.
 """
 
 from __future__ import annotations
@@ -12,8 +18,21 @@ from __future__ import annotations
 import numpy as np
 
 from .backend import DecisionArray, FloatArray, IndexArray
-from .moead_kernels import AGG_PBI, AGG_TCHEBYCHEFF, AGG_WEIGHTED_SUM
+from .moead_kernels import AGG_INVERTED_PBI, AGG_PBI, AGG_TCHEBYCHEFF, AGG_WEIGHTED_SUM
 from .numba_ops import njit
+
+
+@njit(cache=True)
+def objective_gap(value: float, ideal: float, nadir: float, epsilon: float, normalize: int, inverted: bool) -> float:
+    """The displacement of one objective value that an aggregation measures, as jMetal computes it.
+
+    ``f - z*``, or ``z^nad - f`` for the inverted PBI; with normalization, divided by
+    ``z^nad - z* + epsilon``.
+    """
+    gap = nadir - value if inverted else value - ideal
+    if normalize == 1:
+        return gap / (nadir - ideal + epsilon)
+    return gap
 
 
 @njit(cache=True)
@@ -37,6 +56,9 @@ def update_neighborhood_numba(
     agg_theta: float,
     agg_rho: float,
     use_constraints: int,
+    nadir: FloatArray,
+    agg_epsilon: float,
+    normalize: int,
 ) -> int:
     replacements = 0
     n_obj = ideal.shape[0]
@@ -47,8 +69,8 @@ def update_neighborhood_numba(
             current_val = -1.0
             child_val = -1.0
             for j in range(n_obj):
-                diff_c = abs(F[k, j] - ideal[j])
-                diff_child = abs(child_f[j] - ideal[j])
+                diff_c = abs(objective_gap(F[k, j], ideal[j], nadir[j], agg_epsilon, normalize, False))
+                diff_child = abs(objective_gap(child_f[j], ideal[j], nadir[j], agg_epsilon, normalize, False))
                 w_eff = weights_safe[k, j]
                 val_c = w_eff * diff_c
                 val_child = w_eff * diff_child
@@ -61,39 +83,50 @@ def update_neighborhood_numba(
             child_val = 0.0
             for j in range(n_obj):
                 w = weights[k, j]
-                current_val += w * F[k, j]
-                child_val += w * child_f[j]
-        elif agg_id == AGG_PBI:
+                if normalize == 1:
+                    current_val += w * objective_gap(F[k, j], ideal[j], nadir[j], agg_epsilon, 1, False)
+                    child_val += w * objective_gap(child_f[j], ideal[j], nadir[j], agg_epsilon, 1, False)
+                else:
+                    current_val += w * F[k, j]
+                    child_val += w * child_f[j]
+        elif agg_id == AGG_PBI or agg_id == AGG_INVERTED_PBI:
+            inverted = agg_id == AGG_INVERTED_PBI
             d1 = 0.0
             for j in range(n_obj):
-                d1 += (F[k, j] - ideal[j]) * weights_unit[k, j]
+                d1 += objective_gap(F[k, j], ideal[j], nadir[j], agg_epsilon, normalize, inverted) * weights_unit[k, j]
             d1 = abs(d1)
 
             d1_child = 0.0
             for j in range(n_obj):
-                d1_child += (child_f[j] - ideal[j]) * weights_unit[k, j]
+                d1_child += objective_gap(child_f[j], ideal[j], nadir[j], agg_epsilon, normalize, inverted) * weights_unit[k, j]
             d1_child = abs(d1_child)
 
             d2 = 0.0
             d2_child = 0.0
             for j in range(n_obj):
                 w_unit = weights_unit[k, j]
-                diff_c = (F[k, j] - ideal[j]) - d1 * w_unit
-                diff_child = (child_f[j] - ideal[j]) - d1_child * w_unit
+                diff_c = objective_gap(F[k, j], ideal[j], nadir[j], agg_epsilon, normalize, inverted) - d1 * w_unit
+                diff_child = objective_gap(child_f[j], ideal[j], nadir[j], agg_epsilon, normalize, inverted) - d1_child * w_unit
                 d2 += diff_c * diff_c
                 d2_child += diff_child * diff_child
             d2 = np.sqrt(d2)
             d2_child = np.sqrt(d2_child)
-            current_val = d1 + agg_theta * d2
-            child_val = d1_child + agg_theta * d2_child
+            if inverted:
+                # Sato's inverted PBI maximizes d1 - theta d2; jMetal minimizes theta d2 - d1.
+                current_val = agg_theta * d2 - d1
+                child_val = agg_theta * d2_child - d1_child
+            else:
+                current_val = d1 + agg_theta * d2
+                child_val = d1_child + agg_theta * d2_child
         else:
+            # Modified and augmented Tchebycheff: the largest weighted difference plus rho times their sum.
             current_val = -1.0
             child_val = -1.0
             sum_c = 0.0
             sum_child = 0.0
             for j in range(n_obj):
-                diff_c = abs(F[k, j] - ideal[j])
-                diff_child = abs(child_f[j] - ideal[j])
+                diff_c = abs(objective_gap(F[k, j], ideal[j], nadir[j], agg_epsilon, normalize, False))
+                diff_child = abs(objective_gap(child_f[j], ideal[j], nadir[j], agg_epsilon, normalize, False))
                 w_eff = weights_safe[k, j]
                 val_c = w_eff * diff_c
                 val_child = w_eff * diff_child
@@ -155,6 +188,9 @@ def update_neighborhood_batch_numba(
     agg_theta: float,
     agg_rho: float,
     use_constraints: int,
+    nadir: FloatArray,
+    agg_epsilon: float,
+    normalize: int,
 ) -> None:
     for pos in range(children.shape[0]):
         update_neighborhood_numba(
@@ -177,7 +213,10 @@ def update_neighborhood_batch_numba(
             agg_theta,
             agg_rho,
             use_constraints,
+            nadir,
+            agg_epsilon,
+            normalize,
         )
 
 
-__all__ = ["update_neighborhood_batch_numba", "update_neighborhood_numba"]
+__all__ = ["objective_gap", "update_neighborhood_batch_numba", "update_neighborhood_numba"]
