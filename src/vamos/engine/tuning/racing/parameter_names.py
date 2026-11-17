@@ -253,6 +253,12 @@ def from_evolver(configuration: Mapping[str, Any]) -> dict[str, Any]:
     return result
 
 
+def canonical_name_from_evolver(name: str) -> str:
+    """The canonical name of ``name``, an Evolver name or a canonical or earlier VAMOS one, as :func:`from_evolver` reads it."""
+    row = next((row for row in PARAMETER_NAMES if row[2] == name), None)
+    return row[1] if row is not None else canonical_parameter_name(name)
+
+
 def evolver_value_candidates(parameter: str, value: object) -> tuple[object, ...]:
     """Every canonical value of ``parameter`` (canonical, earlier or Evolver name) that Evolver writes as ``value``.
 
@@ -272,6 +278,7 @@ __all__ = [
     "bridge_parameter_names",
     "canonical_assignment",
     "canonical_parameter_name",
+    "canonical_name_from_evolver",
     "canonical_value",
     "evolver_value_candidates",
     "from_evolver",

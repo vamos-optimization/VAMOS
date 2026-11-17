@@ -23,7 +23,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, cast
 
-from ..racing.parameter_names import evolver_value_candidates, from_evolver, to_evolver
+from ..racing.parameter_names import canonical_name_from_evolver, evolver_value_candidates, from_evolver, to_evolver
 from .model import (
     CONFIGURATION_SCHEMA,
     CONFIGURATION_SCHEMA_VERSION,
@@ -144,14 +144,14 @@ def configuration_from_command_line(space: ParameterSpace, text: str, *, evolver
             raise ParameterSpaceError("configuration", name[2:], "the parameter is given twice")
         raw[name[2:]] = value
     # Each parameter's spellings: one, or with ``evolver`` every VAMOS value that Evolver writes alike.
-    spellings: dict[str, tuple[str, ...]] = {}
-    for name, value in raw.items():
-        if evolver:
-            ((canonical, read),) = from_evolver({name: value}).items()
-            others = tuple(str(other) for other in evolver_value_candidates(canonical, value) if str(other) != str(read))
-            spellings[canonical] = (str(read), *others)
-        else:
-            spellings[name] = (value,)
+    spellings: dict[str, tuple[str, ...]] = {name: (value,) for name, value in raw.items()}
+    if evolver:
+        # The whole line at once, so that the settings Evolver implies apply (its IPBI always normalizes).
+        spellings = {name: (str(value),) for name, value in from_evolver(raw).items()}
+        for name, value in raw.items():
+            canonical = canonical_name_from_evolver(name)
+            read = spellings[canonical][0]
+            spellings[canonical] = (read, *(str(other) for other in evolver_value_candidates(canonical, value) if str(other) != read))
     known = set(space.names())
     return configuration(
         space, {name: _parse_spellings(space.parameter(name), texts) if name in known else texts[0] for name, texts in spellings.items()}
