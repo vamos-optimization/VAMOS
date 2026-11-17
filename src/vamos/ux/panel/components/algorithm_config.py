@@ -56,6 +56,9 @@ class AlgorithmConfigurator:
         self._form: AlgorithmForm | None = None
         self._inputs: dict[str, Any] = {}
         self._rows: dict[str, Any] = {}
+        # What the user set, by name: carried into every rebuild of the same algorithm and encoding, even
+        # where it equals the rebuilt form's start (an archive of 100 when the population becomes 100).
+        self._edited: dict[str, object] = {}
         self._encoding = "real"
         self._n_var: int | None = None
         self._n_obj = 2
@@ -138,7 +141,9 @@ class AlgorithmConfigurator:
         same_setup = self._form is not None and self._form.algorithm == algorithm and self._form.encoding == self._encoding
         # Only the user's entries carry over: an untouched control takes the new form's start, which can
         # follow the population (SPEA2's and SMPSO's archive).
-        previous = self._form.edited_values(self.values()) if same_setup and self._form is not None else {}
+        if not same_setup:
+            self._edited = {}
+        previous = dict(self._edited)
         derived = population_is_derived(algorithm, self._n_obj)
         self.pop_size.disabled = derived
         try:
@@ -159,7 +164,7 @@ class AlgorithmConfigurator:
                 widget = self._make_input(parameter)
                 if parameter.name in previous and self._accepts(parameter, previous[parameter.name]):
                     widget.value = previous[parameter.name]
-                widget.param.watch(lambda _event: self._refresh(), "value")
+                widget.param.watch(lambda event, name=parameter.name: self._on_edit(name, event.new), "value")
                 self._inputs[parameter.name] = widget
                 self._rows[parameter.name] = pn.Row(widget, margin=(0, 0, 0, 18 * parameter.depth), sizing_mode="stretch_width")
         self._fields.objects = list(self._rows.values())
@@ -206,6 +211,10 @@ class AlgorithmConfigurator:
         if not isinstance(value, (int, float)) or parameter.low is None or parameter.high is None:
             return False
         return parameter.low <= float(value) <= parameter.high
+
+    def _on_edit(self, name: str, value: object) -> None:
+        self._edited[name] = value
+        self._refresh()
 
     # ---- reactive refresh ----
 

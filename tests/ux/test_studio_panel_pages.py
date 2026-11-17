@@ -171,6 +171,32 @@ def test_a_new_population_gives_the_untouched_controls_their_new_defaults() -> N
     assert configurator.resolve().config.to_dict()["archive_size"] == 100
 
 
+@pytest.mark.parametrize("algorithm", ["spea2", "smpso"])
+def test_an_edit_survives_a_population_whose_default_matches_it(algorithm: str) -> None:
+    # An archive of 100 chosen at population 40 is the default at population 100; it must still be the user's
+    # choice at 80, not follow the population.
+    configurator = AlgorithmConfigurator(algorithm=algorithm, pop_size=40)
+    configurator.mode.value = CUSTOM_MODE
+    configurator.set_values({"archive_size": 100})
+
+    configurator.pop_size.value = 100
+    configurator.pop_size.value = 80
+
+    assert configurator.values()["archive_size"] == 100
+    assert configurator.resolve().config.to_dict()["archive_size"] == 100
+
+
+def test_a_new_algorithm_forgets_the_edits_of_the_previous_one() -> None:
+    configurator = AlgorithmConfigurator(algorithm="spea2", pop_size=40)
+    configurator.mode.value = CUSTOM_MODE
+    configurator.set_values({"archive_size": 100})
+
+    configurator.algorithm.value = "smpso"
+    configurator.pop_size.value = 60
+
+    assert configurator.values()["archive_size"] == 60
+
+
 def test_experiment_runs_with_the_customized_configuration(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, Any] = {}
 
