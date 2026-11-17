@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from vamos.foundation.problem.cec2009 import CEC2009_CF1, CEC2009_UF1, CEC2009_UF2, CEC2009_UF3
 from vamos.foundation.problem.constrained_many import DCDTLZProblem
+from vamos.foundation.problem.ctp import CTPProblem
 from vamos.foundation.problem.dascmop import DASCMOPProblem
 from vamos.foundation.problem.dtlz import DTLZ1Problem, DTLZ2Problem, DTLZ3Problem, DTLZ4Problem, DTLZ7Problem
 from vamos.foundation.problem.lircmop import LIRCMOPProblem
@@ -39,6 +40,7 @@ CEC2009UF2 = CEC2009_UF2
 CEC2009UF3 = CEC2009_UF3
 CEC2009CF1 = CEC2009_CF1
 
+CTP = CTPProblem
 DASCMOP = DASCMOPProblem
 DCDTLZ = DCDTLZProblem
 LIRCMOP = LIRCMOPProblem
@@ -72,6 +74,7 @@ __all__ = [
     "CEC2009UF2",
     "CEC2009UF3",
     "CEC2009CF1",
+    "CTP",
     "DASCMOP",
     "DCDTLZ",
     "DTLZ1",

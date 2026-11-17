@@ -13,8 +13,9 @@ provenance of every packaged file, including those this script leaves alone.
   ``dtlz1.2d`` ... ``dtlz7.2d``), WFG1 and
   WFG2 (M = 2, from the WFG shape functions, so the bias transformations cannot shift them), LSMOP9 (M = 2),
   CEC2009 UF6 and UF9, and the ten C-DTLZ and DC-DTLZ problems at M = 2 and 3 (``c1dtlz1.2d`` ...
-  ``dc3dtlz3.3d``), Srinivas, ConstrEx and Tanaka from their Pareto-set pieces and constraint boundaries, and ZXH-CF1-16 at
-  M = 3 from a grid of angles on their Pareto set. Disconnected fronts are filtered for non-dominance on a fine grid and thinned by
+  ``dc3dtlz3.3d``), Srinivas, ConstrEx and Tanaka from their Pareto-set pieces and constraint boundaries, ZXH-CF1-16 at
+  M = 3 from a grid of angles on their Pareto set, and CTP1-CTP7 (``ctp1`` ... ``ctp7``) from the unconstrained
+  front at g = 1 and the constraint boundaries. Disconnected fronts are filtered for non-dominance on a fine grid and thinned by
   farthest-point selection. The C-DTLZ and DC-DTLZ samples keep the points of DTLZ's front (C3-DTLZ1: of its
   constraint boundary) at which VAMOS's problem, evaluated at a design rebuilt from the point, is feasible.
 - **The RE authors' fronts:** Tanabe and Ishibuchi's ``reference_points_RE*.dat`` from
@@ -42,6 +43,7 @@ import argparse
 import itertools
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -108,11 +110,12 @@ def nondominated_2d(F: np.ndarray) -> np.ndarray:
     return F[keep]
 
 
-def farthest_points(F: np.ndarray, k: int) -> np.ndarray:
-    """Indices of ``k`` well-spread rows: greedy farthest-point selection in normalized objective space."""
+def farthest_points(F: np.ndarray, k: int, first: tuple[int, ...] = ()) -> np.ndarray:
+    """Indices of ``k`` well-spread rows: greedy farthest-point selection in normalized objective space, from the
+    rows ``first`` and the least row of each objective."""
     lo, hi = F.min(axis=0), F.max(axis=0)
     Z = (F - lo) / np.where(hi > lo, hi - lo, 1.0)
-    chosen = list(dict.fromkeys(int(np.argmin(F[:, j])) for j in range(F.shape[1])))
+    chosen = list(dict.fromkeys([*first, *(int(np.argmin(F[:, j])) for j in range(F.shape[1]))]))
     distance = np.min(np.linalg.norm(Z[:, None, :] - Z[None, chosen, :], axis=2), axis=1)
     while len(chosen) < min(k, F.shape[0]):
         nxt = int(np.argmax(distance))
@@ -391,7 +394,134 @@ def _zxh_cf(k: int) -> np.ndarray:
     return front[farthest_points(front, 5050)] if front.shape[0] > 5050 else front
 
 
+def ctp_designs(problem: Any, F: np.ndarray) -> np.ndarray:
+    """CTP designs whose objectives are ``F``: ``x1 = f1``, ``x2`` in [0, 1/4] for the g that ``f2`` needs, the
+    others at 0. At a fixed f1, CTP1's ``f2 = g exp(-f1 / g)`` and CTP2-CTP7's ``f2 = g - f1`` grow with g, and
+    ``g = 1 + x2^2 + 20 sin^2(2 pi x2)`` grows with x2 on [0, 1/4], up to 21.06."""
+    f1, f2 = F[:, 0], F[:, 1]
+    if problem.variant == 1:
+        lo, hi = np.ones_like(f2), np.full_like(f2, 22.0)
+        for _ in range(200):
+            mid = 0.5 * (lo + hi)
+            below = mid * np.exp(-f1 / mid) < f2
+            lo, hi = np.where(below, mid, lo), np.where(below, hi, mid)
+        g = 0.5 * (lo + hi)
+    else:
+        g = f1 + f2
+    lo, hi = np.zeros_like(g), np.full_like(g, 0.25)
+    for _ in range(200):
+        mid = 0.5 * (lo + hi)
+        below = mid * mid + 20.0 * np.sin(2.0 * np.pi * mid) ** 2 < g - 1.0
+        lo, hi = np.where(below, mid, lo), np.where(below, hi, mid)
+    X = np.zeros((F.shape[0], problem.n_var))
+    X[:, 0], X[:, 1] = f1, 0.5 * (lo + hi)
+    return X
+
+
+def _checked_ctp(problem: Any, front: np.ndarray) -> np.ndarray:
+    """``front``, once VAMOS's problem, at the designs rebuilt from it, gives its points and finds them feasible.
+
+    The points on the constraint boundary are feasible up to rounding. Where ``d < 1`` (CTP3-CTP5), the power
+    turns the rounding of ``sin(b pi v)`` at its zeros, about 1e-14, into a ``G`` of up to about 1e-7."""
+    out = {"F": np.empty_like(front)}
+    problem.evaluate(ctp_designs(problem, front), out)
+    if np.max(np.abs(out["F"] - front)) > 1e-12:
+        raise RuntimeError(f"CTP{problem.variant}: the rebuilt designs do not evaluate to the front")
+    tolerance = 1e-6 if problem.variant > 1 and problem.d < 1.0 else 1e-9
+    if np.max(out["G"]) > tolerance:
+        raise RuntimeError(f"CTP{problem.variant}: a front point is infeasible, G = {np.max(out['G'])}")
+    return front
+
+
+def _ctp1() -> np.ndarray:
+    """CTP1: f2 grows with g at a fixed f1, so the least feasible f2 is the larger of the unconstrained front
+    ``exp(-f1)`` (g = 1) and the constraint boundaries ``a_j exp(-b_j f1)``, reached with g > 1. That envelope
+    decreases, so it is the front: 1000 of 200 001 points along f1 in [0, 1]."""
+    from vamos.foundation.problem.registry import make_problem_selection
+
+    problem = make_problem_selection("ctp1").instantiate()
+    a, b = np.asarray(problem.a_j), np.asarray(problem.b_j)
+    f1 = np.linspace(0.0, 1.0, 200_001)
+    f2 = np.maximum(np.exp(-f1), np.max(a * np.exp(-b * f1[:, None]), axis=1))
+    return _checked_ctp(problem, thinned_2d(np.column_stack([f1, f2]), 1000))
+
+
+def _ctp_least_f2(constraint: Callable[[np.ndarray, np.ndarray], np.ndarray], f1: float) -> float:
+    """The least ``f2 >= 1 - f1`` (g >= 1) where the constraint holds at ``f1``: a scan in steps of 1e-5 over the
+    next 25 units, then bisection to the boundary."""
+    f2 = (1.0 - f1) + 1e-5 * np.arange(2_500_001)
+    feasible = constraint(np.full_like(f2, f1), f2) >= 0.0
+    first = int(np.argmax(feasible))
+    if not feasible[first]:
+        raise RuntimeError(f"no feasible f2 at f1 = {f1}")
+    if first == 0:
+        return float(f2[0])
+    lo, hi = float(f2[first - 1]), float(f2[first])
+    for _ in range(100):
+        mid = 0.5 * (lo + hi)
+        if constraint(np.array([f1]), np.array([mid]))[0] >= 0.0:
+            hi = mid
+        else:
+            lo = mid
+    return hi
+
+
+def _ctp(k: int) -> np.ndarray:
+    """CTP``k`` (2-7). With ``v = sin(theta) (f2 - e) + cos(theta) f1`` and ``u = cos(theta) (f2 - e) - sin(theta) f1``,
+    the constraint is ``u >= w(v) = a |sin(b pi v^c)|^d``. A Pareto-optimal point lies on the boundary of the feasible
+    set: on ``u = w(v)``, on the unconstrained front ``f2 = 1 - f1`` (g = 1), or at the least feasible f2 of f1 = 0 or
+    1. The candidates are the boundary at 2 000 001 values of v, plus the zeros of the sine (where ``u = 0``, the
+    paper's eq. 6 for CTP2-CTP5), the feasible points of 200 001 on the unconstrained front with the ends of its
+    feasible pieces, and those two ends; the reachable (``0 <= f1 <= 1``, ``f2 >= 1 - f1``), non-dominated ones are
+    thinned to at most 1000, keeping the zeros."""
+    from vamos.foundation.problem.registry import make_problem_selection
+
+    problem = make_problem_selection(f"ctp{k}").instantiate()
+    theta, a, b, c, d, e = problem.theta, problem.a, problem.b, problem.c, problem.d, problem.e
+    sine, cosine = np.sin(theta), np.cos(theta)
+
+    def constraint(f1: np.ndarray, f2: np.ndarray) -> np.ndarray:
+        along = sine * (f2 - e) + cosine * f1
+        return np.asarray(cosine * (f2 - e) - sine * f1 - a * np.abs(np.sin(b * np.pi * along**c)) ** d)
+
+    # (0, m0) is feasible and dominates every point with f2 >= m0: the front lies where 1 - f1 <= f2 <= m0.
+    ends = np.array([[0.0, _ctp_least_f2(constraint, 0.0)], [1.0, _ctp_least_f2(constraint, 1.0)]])
+    corners = np.array([[0.0, 1.0], [0.0, ends[0, 1]], [1.0, 0.0], [1.0, max(ends[0, 1], 0.0)]])
+    v_corners = sine * (corners[:, 1] - e) + cosine * corners[:, 0]
+    along = np.linspace(v_corners.min(), v_corners.max(), 2_000_001)
+    across = a * np.abs(np.sin(b * np.pi * along**c)) ** d
+    # The zeros of the sine, v^c = n / b, exactly on u = 0 (c is a positive integer and b > 0 here).
+    powers = along**c
+    levels = np.arange(np.floor(b * powers.min()), np.ceil(b * powers.max()) + 1.0) / b
+    roots = np.sign(levels) * np.abs(levels) ** (1.0 / c)
+    zeros = np.concatenate([roots, -roots[levels >= 0.0]]) if c % 2 == 0 else roots
+    zeros = zeros[(zeros >= along[0]) & (zeros <= along[-1])]
+    along, across = np.concatenate([along, zeros]), np.concatenate([across, np.zeros_like(zeros)])
+    boundary = np.column_stack([cosine * along - sine * across, e + sine * along + cosine * across])
+    f1 = np.linspace(0.0, 1.0, 200_001)
+    feasible = constraint(f1, 1.0 - f1) >= 0.0
+    # Where feasibility changes between two points of the unconstrained front, bisection finds the feasible end.
+    flips = np.flatnonzero(feasible[:-1] != feasible[1:])
+    inside, outside = np.where(feasible[flips], f1[flips], f1[flips + 1]), np.where(feasible[flips], f1[flips + 1], f1[flips])
+    for _ in range(100):
+        mid = 0.5 * (inside + outside)
+        holds = constraint(mid, 1.0 - mid) >= 0.0
+        inside, outside = np.where(holds, mid, inside), np.where(holds, outside, mid)
+    f1 = np.concatenate([f1[feasible], inside])
+    F = np.vstack([boundary, np.column_stack([f1, 1.0 - f1]), ends])
+    F = F[(F[:, 0] >= 0.0) & (F[:, 0] <= 1.0) & (F[:, 1] >= 1.0 - F[:, 0])]
+    front = nondominated_2d(F)
+    if front.shape[0] > 1000:
+        # The zeros that are Pareto-optimal stay: they are the points of the paper's line.
+        on_line = set(zip((cosine * zeros).tolist(), (e + sine * zeros).tolist()))
+        first = tuple(index for index, (f1, f2) in enumerate(front.tolist()) if (f1, f2) in on_line)
+        front = front[farthest_points(front, 1000, first)]
+    return _checked_ctp(problem, front)
+
+
 ANALYTIC: dict[str, Callable[[], np.ndarray]] = {
+    "ctp1": _ctp1,
+    **{f"ctp{k}": (lambda k=k: _ctp(k)) for k in range(2, 8)},
     **{f"zxh_cf{k}.3d": (lambda k=k: _zxh_cf(k)) for k in range(1, 17)},
     "srinivas": _srinivas,
     "constrex": _constrex,

@@ -12,6 +12,7 @@ __all__ = [
     "lsmop",
     "constrained_many",
     "classic_constrained",
+    "ctp",
     "lir_das_cmop",
     "zxh_cf",
     "real_world",
