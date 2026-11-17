@@ -133,8 +133,18 @@ _RWA_C_FACTOR = (
     "The authors' C code (evo-mx/MO-RWA) and jMetal 7.8 write coefficients as '4.148 * 10e-3', ten times the "
     "paper's 4.148e-3; VAMOS uses the paper's values."
 )
+_CTP_G = (
+    "jMetal has no CTP problems. pymoo 0.6.2's g is 1 + sum(x_i) by default, or 1 + 10 (n - 1) + sum(x_i^2 - "
+    "10 cos(2 pi x_i)) with x_i in [-5.12, 5.12]; VAMOS uses ZDT4's Rastrigin g, with cos(4 pi x_i) and x_i in [-5, 5]."
+)
+_CTP_GENERATOR = (
+    f"{_CTP_G} pymoo's CTP2-CTP7 also take f2 = g (1 - sqrt(f1 / g)) for the paper's g (1 - f1 / g), and write the "
+    "constraint as NSGA-II's C code does, 1 - exp1 / exp2, for the paper's difference exp1 - exp2."
+)
 # Problems whose counterpart is not the same problem; the fixture records why.
 EXCLUDED = {
+    "ctp1": _CTP_G,
+    **{f"ctp{k}": _CTP_GENERATOR for k in range(2, 8)},
     **{f"lsmop{i}": _LSMOP_LINKAGE for i in (1, 2, 3, 4, 9)},
     "rwa1": _RWA_C_FACTOR,
     "rwa6": _RWA_C_FACTOR,

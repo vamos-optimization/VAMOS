@@ -606,3 +606,170 @@ def test_cf_fronts_are_not_dominated_by_random_feasible_designs(name: str) -> No
 
     assert front.shape[1] == problem.n_obj and feasible.shape[0] >= 100
     assert not _dominated_by(feasible, front).any()
+
+
+# CTP1-CTP7 (Deb, Pratap and Meyarivan, 2001): fronts generated from the unconstrained front at g = 1 and the
+# constraint boundaries.
+CTP = tuple(range(1, 8))
+
+
+def _ctp_designs(problem: Any, front: np.ndarray) -> np.ndarray:
+    """CTP designs whose objectives are ``front``: x1 = f1 and x2 in [0, 1/4] for the g that f2 needs (CTP1:
+    ``g exp(-f1 / g) = f2``; CTP2-CTP7: ``g = f1 + f2``), through ``g = 1 + x2^2 + 20 sin^2(2 pi x2)``; the
+    other variables at 0."""
+    f1, f2 = front[:, 0], front[:, 1]
+    if problem.variant == 1:
+        lo, hi = np.ones_like(f2), np.full_like(f2, 22.0)
+        for _ in range(200):
+            mid = 0.5 * (lo + hi)
+            below = mid * np.exp(-f1 / mid) < f2
+            lo, hi = np.where(below, mid, lo), np.where(below, hi, mid)
+        g = 0.5 * (lo + hi)
+    else:
+        g = f1 + f2
+    lo, hi = np.zeros_like(g), np.full_like(g, 0.25)
+    for _ in range(200):
+        mid = 0.5 * (lo + hi)
+        below = mid * mid + 20.0 * np.sin(2.0 * np.pi * mid) ** 2 < g - 1.0
+        lo, hi = np.where(below, mid, lo), np.where(below, hi, mid)
+    X = np.zeros((front.shape[0], problem.n_var))
+    X[:, 0], X[:, 1] = f1, 0.5 * (lo + hi)
+    return X
+
+
+def _ctp_rotated(problem: Any, F: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """``u = cos(theta) (f2 - e) - sin(theta) f1`` (the paper's eq. 6 is u = 0) and ``v = sin(theta) (f2 - e) +
+    cos(theta) f1``, the argument of the sine of CTP2-CTP7's constraint ``u >= a |sin(b pi v^c)|^d``."""
+    sine, cosine = np.sin(problem.theta), np.cos(problem.theta)
+    return cosine * (F[:, 1] - problem.e) - sine * F[:, 0], sine * (F[:, 1] - problem.e) + cosine * F[:, 0]
+
+
+def _ctp_constraint(problem: Any, F: np.ndarray) -> np.ndarray:
+    u, v = _ctp_rotated(problem, F)
+    return np.asarray(u - problem.a * np.abs(np.sin(problem.b * np.pi * v**problem.c)) ** problem.d)
+
+
+def _nondominated_rows(F: np.ndarray) -> np.ndarray:
+    """The rows of a two-objective set that no other row dominates."""
+    F = F[np.lexsort((F[:, 1], F[:, 0]))]
+    best = np.minimum.accumulate(F[:, 1])
+    return F[np.concatenate([[True], F[1:, 1] < best[:-1]])]
+
+
+@pytest.mark.parametrize("k", CTP)
+def test_ctp_fronts_are_reached_by_feasible_designs(k: int) -> None:
+    problem = make_problem_selection(f"ctp{k}").instantiate()
+    front = _load(f"ctp{k}")
+    assert front.shape[1] == 2
+
+    F, G = _evaluate(problem, _ctp_designs(problem, front))
+
+    assert np.max(np.abs(F - front)) <= 1e-12
+    # Where d < 1 (CTP3-CTP5), |sin(b pi v)|^d turns the rounding of the sine at its zeros, about 1e-14, into a G of
+    # up to about 1e-7; elsewhere the points on a constraint boundary are feasible up to rounding.
+    assert G.max() <= (1e-6 if k in (3, 4, 5) else 1e-12)
+
+
+@pytest.mark.parametrize("k", CTP)
+def test_ctp_fronts_cover_their_feasible_pareto_sets(k: int) -> None:
+    problem = make_problem_selection(f"ctp{k}").instantiate()
+    front = _load(f"ctp{k}")
+    rng = np.random.default_rng(100 + k)
+    # Designs around the Pareto set: x1 uniform and g from 1 to 21 through x2, denser near g = 1; half of them with
+    # the other variables slightly off 0.
+    X = np.zeros((200_000, problem.n_var))
+    X[:, 0] = rng.random(200_000)
+    X[:, 1] = 0.25 * rng.random(200_000) ** 3
+    X[:100_000, 2:] = rng.normal(0.0, 0.005, (100_000, problem.n_var - 2))
+    F, G = _evaluate(problem, X)
+    feasible = _nondominated_rows(F[np.all(G <= 0.0, axis=1)])
+
+    # No feasible design dominates the front, and the feasible ones it does not dominate lie next to it. (The front
+    # of CTP3 and CTP4 is 13 isolated points, which random designs do not reach: it dominates every one of them.)
+    assert feasible.shape[0] >= 10
+    assert not _dominated_by(feasible, front).any()
+    outside = feasible[~_dominated_by(front, feasible)]
+    assert outside.shape[0] == 0 if k in (3, 4) else outside.shape[0] > 0
+    if outside.shape[0]:
+        gap, _ = cKDTree(front).query(outside)
+        assert np.max(gap) <= 0.005
+
+
+def test_ctp1_front_is_the_envelope_of_its_constraint_boundaries() -> None:
+    # f2 = g exp(-f1 / g) grows with g, so the least feasible f2 is exp(-f1) (g = 1) or a boundary a_j exp(-b_j f1).
+    # With J = 2, the boundaries meet the unconstrained front at f1 = 1/3 and each other at f1 = 2/3.
+    problem = make_problem_selection("ctp1").instantiate()
+    front = _load("ctp1")
+    f1, f2 = front[:, 0], front[:, 1]
+    (a1, a2), (b1, b2) = problem.a_j, problem.b_j
+
+    np.testing.assert_allclose(f2, np.maximum.reduce([np.exp(-f1), a1 * np.exp(-b1 * f1), a2 * np.exp(-b2 * f1)]), rtol=1e-15)
+    assert front.shape[0] == 1000 and (f1.min(), f1.max()) == (0.0, 1.0)
+    first, second, third = f1 <= 1.0 / 3.0, (f1 >= 1.0 / 3.0) & (f1 <= 2.0 / 3.0), f1 >= 2.0 / 3.0
+    np.testing.assert_allclose(f2[first], np.exp(-f1[first]), rtol=1e-15)
+    np.testing.assert_allclose(f2[second], a1 * np.exp(-b1 * f1[second]), rtol=1e-15)
+    np.testing.assert_allclose(f2[third], a2 * np.exp(-b2 * f1[third]), rtol=1e-15)
+
+
+def _ctp_zeros(problem: Any) -> np.ndarray:
+    """The points of the paper's line u = 0 (its eq. 6) where the constraint's sine is 0, v^c = n / b, and f1 <= 1."""
+    n = np.arange(0, 100)
+    v = (n / problem.b) ** (1.0 / problem.c)
+    points = np.column_stack([v * np.cos(problem.theta), problem.e + v * np.sin(problem.theta)])
+    return points[points[:, 0] <= 1.0]
+
+
+@pytest.mark.parametrize("k", (2, 3, 4, 5))
+def test_ctp2_to_ctp5_fronts_hold_the_zeros_of_their_constraint_on_the_papers_line(k: int) -> None:
+    # The paper's eq. 6, (f2 - e) cos(theta) = f1 sin(theta), is u = 0: the constraint holds there only where its
+    # sine is 0. Every front point lies on or above the line, and on the constraint boundary.
+    problem = make_problem_selection(f"ctp{k}").instantiate()
+    front = _load(f"ctp{k}")
+    u, _ = _ctp_rotated(problem, front)
+    zeros = _ctp_zeros(problem)
+
+    assert u.min() >= -1e-12
+    # With d = 0.5 (CTP3-CTP5), the rounding of the sine at its zeros, about 1e-14, leaves c at up to about 1e-7 there.
+    assert np.max(np.abs(_ctp_constraint(problem, front))) <= (1e-6 if problem.d < 1.0 else 1e-12)
+    gap, _ = cKDTree(front).query(zeros)
+    assert np.max(gap) <= 1e-12
+    assert zeros.shape[0] == (16 if k == 5 else 13)
+    if k in (3, 4):
+        # d = 0.5 gives the boundary a cusp at each zero, and the arches between them are dominated: the front is the
+        # 13 isolated points.
+        assert front.shape[0] == 13 and np.max(np.abs(u)) <= 1e-12
+    elif k == 2:
+        # d = 6 flattens the boundary at each zero: 13 short segments that stay within 0.005 of the line.
+        assert u.max() <= 0.005 and np.count_nonzero(np.diff(front[:, 0]) > 0.05) == 12
+    else:
+        # c = 2: the boundary leaves the zero at v = 0 with slope 0.1 sqrt(10 pi) < tan(0.2 pi), so the first arch, up
+        # to the f1 of the next zero, is part of the front; beyond it the front is the 15 isolated zeros.
+        beyond = front[front[:, 0] > zeros[1, 0]]
+        np.testing.assert_allclose(beyond, zeros[2:], rtol=0.0, atol=1e-12)
+        assert np.max(u[front[:, 0] < zeros[1, 0]]) == pytest.approx(0.1, abs=1e-6)
+
+
+def test_ctp6_front_lies_in_the_papers_band_on_its_constraint_boundary() -> None:
+    # The paper: the Pareto-optimal region is where 1 <= (f2 - e) sin(theta) + f1 cos(theta) <= 2.
+    problem = make_problem_selection("ctp6").instantiate()
+    front = _load("ctp6")
+    _, v = _ctp_rotated(problem, front)
+
+    assert v.min() >= 1.0 and v.max() <= 2.0
+    assert (front[:, 0].min(), front[:, 0].max()) == (0.0, 1.0)
+    assert np.max(np.abs(_ctp_constraint(problem, front))) <= 1e-12
+    assert np.all(front[:, 1] > 1.0 - front[:, 0])
+
+
+def test_ctp7_front_is_on_the_unconstrained_front_but_for_its_first_point() -> None:
+    # CTP7's feasible windows cut the unconstrained front f2 = 1 - f1 into six pieces. (0, 1) is infeasible, so the
+    # least feasible f2 at f1 = 0, on the constraint boundary, is a Pareto-optimal point too.
+    problem = make_problem_selection("ctp7").instantiate()
+    front = _load("ctp7")
+    first, rest = front[0], front[1:]
+
+    assert first[0] == 0.0 and 1.0 < first[1] < 1.1
+    assert abs(_ctp_constraint(problem, first[None, :])[0]) <= 1e-12
+    np.testing.assert_allclose(rest[:, 1], 1.0 - rest[:, 0], rtol=0.0, atol=1e-15)
+    assert np.all(_ctp_constraint(problem, rest) >= -1e-15)
+    assert np.count_nonzero(np.diff(rest[:, 0]) > 0.05) == 5 and rest[-1, 0] == 1.0

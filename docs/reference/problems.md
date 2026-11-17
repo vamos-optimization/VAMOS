@@ -2,7 +2,8 @@
 
 Choose a problem by its **formulation, encoding and dimensions**, then check the
 [algorithm compatibility matrix](algorithms.md). This catalog describes the
-251 registered problems in VAMOS **1.4.0**. The named selection helpers are
+251 registered problems in VAMOS **1.4.0**; **Development after 1.4.0:**
+CTP1–CTP7 bring them to 258. The named selection helpers are
 [stable public APIs](../project/stability-and-versioning.md). A synthetic or
 engineering benchmark is a test model, not a validated model of your application.
 
@@ -40,7 +41,8 @@ and three application examples (`FeatureSelectionProblem`,
 `HyperparameterTuningProblem`, and `WeldedBeamDesignProblem`). These classes
 are stable for 1.x. **VAMOS 1.2.0:** the classes added since cover
 a whole family and take the variant number and the family's parameters:
-`DASCMOP`, `DCDTLZ`, and `LIRCMOP`. Every registered problem, including the
+`DASCMOP`, `DCDTLZ`, and `LIRCMOP`. **Development after 1.4.0:** `CTP`
+covers CTP1–CTP7 in the same way. Every registered problem, including the
 families and members without a class (ZDT5, DTLZ5 and DTLZ6, UF4–UF10, LZ09,
 MW, C-DTLZ, LSMOP, ZCAT, RE, and RWA), is available by name through
 `optimize("name")` and `make_problem_selection`, the stable way to build any
@@ -151,6 +153,8 @@ algorithm with the required constraint support in the [matrix](algorithms.md).
 | `golinski` | 7 | 2 | 11 | Fixed n and M; Golinski's speed reducer | [jMetal][jmetal-classics] | 2D |
 | `water` | 3 | 5 | 7 | Fixed n and M; water resource planning | [jMetal][jmetal-classics] | 5D |
 | `car_side_impact` | 7 | 3 | 10 | Fixed n and M | [jMetal][jmetal-classics] | 3D |
+| `ctp1` | 5 | 2 | 2 | **Development after 1.4.0:** fixed M; n ≥ 2; `x1` in `[0, 1]`, the others in `[-5, 5]`; the paper's J = 2 | [CTP][ctp] | 2D |
+| `ctp2`–`ctp7` | 5 | 2 | 1 | **Development after 1.4.0:** fixed M; n ≥ 2; `x1` in `[0, 1]`, the others in `[-5, 5]`; the paper's `(θ, a, b, c, d, e)` | [CTP][ctp] | 2D, each |
 | `zxh_cf1`–`zxh_cf4` | 13 | 3 | 1–2 | Configurable M; n = M + 10 unless supplied; type A | [ZXH-CF][zxh-cf] | 3D, each |
 | `zxh_cf5`–`zxh_cf8` | 13 | 3 | 3–4 | Configurable M; type B, k + 1 or k + 2 constraints | [ZXH-CF][zxh-cf] | 3D, each |
 | `zxh_cf9`–`zxh_cf12` | 13 | 3 | 3–4 | Configurable M; type C, k + 1 or k + 2 constraints | [ZXH-CF][zxh-cf] | 3D, each |
@@ -268,6 +272,60 @@ constrained angle, as ZXH-CF9–12 already had: `k + 1` constraints, or `k + 2`
 with a radius. VAMOS 1.2.0 stored two per angle, `2k + 1` or `2k + 2`. The
 feasibility and the overall violation do not change; the number of constraints
 and of violated constraints does.
+
+**Development after 1.4.0:** CTP1–CTP7 (Deb, Pratap and Meyarivan, 2001)
+follow the paper's definition. Both objectives are minimized, `f1 = x1` with
+`x1` in `[0, 1]`, and each constraint `c >= 0` of the paper is stored as
+`G = -c`:
+
+- **CTP1** (the paper's eq. 4): `f2 = g exp(-f1 / g)`, with J constraints
+  `f2 - a_j exp(-b_j f1) >= 0`. The paper's procedure sets `a_j` and `b_j` so
+  that each boundary meets the previous one, or the unconstrained front, at
+  `f1 = j / (J + 1)`. With J = 2 it gives `a = (0.858266, 0.728234)` and
+  `b = (0.541475, 0.295039)`, which the paper prints rounded to three digits.
+- **CTP2–CTP7** (eq. 5): `f2 = g (1 - f1 / g)`, with one constraint
+  `cos(θ) (f2 - e) - sin(θ) f1 >= a |sin(b π (sin(θ) (f2 - e) + cos(θ) f1)^c)|^d`
+  and the paper's parameters:
+
+| Problem | θ | a | b | c | d | e |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| CTP2 | −0.2π | 0.2 | 10 | 1 | 6 | 1 |
+| CTP3 | −0.2π | 0.1 | 10 | 1 | 0.5 | 1 |
+| CTP4 | −0.2π | 0.75 | 10 | 1 | 0.5 | 1 |
+| CTP5 | −0.2π | 0.1 | 10 | 2 | 0.5 | 1 |
+| CTP6 | 0.1π | 40 | 0.5 | 1 | 2 | −2 |
+| CTP7 | −0.05π | 40 | 5 | 1 | 6 | 0 |
+
+- **The distance function g:** the paper's experiments use "Rastrigin's
+  function as the g functional" with five variables, without its formula.
+  VAMOS uses the Rastrigin function of ZDT4 (Deb, 1999),
+  `g = 1 + 10 (n - 1) + Σ_{i=2..n} (x_i² - 10 cos(4π x_i))` with `x_i` in
+  `[-5, 5]`, whose minimum is `g = 1` at `x_i = 0`, and n = 5 by default
+  (n ≥ 2). It evaluates the same function as `1 + Σ (x_i² + 20 sin²(2π x_i))`.
+- **Other instances:** `vamos.problems.CTP(variant, n_var=..., n_constraints=...,
+  theta=..., a=..., b=..., c=..., d=..., e=...)` takes CTP1's J as
+  `n_constraints` and the six parameters of CTP2–CTP7, with `θ` in radians.
+  `c` must be a positive integer, since its base
+  `sin(θ) (f2 - e) + cos(θ) f1` can be negative. The registered keys take only
+  `n_var`, and the packaged fronts hold only for the paper's parameters.
+- **Other implementations:** jMetal has no CTP problems. pymoo 0.6.2 writes
+  the constraint of CTP2–CTP7 as the NSGA-II C code's ratio `1 - exp1 / exp2`,
+  where `exp1 >= exp2` is the paper's constraint. The ratio is infinite where
+  the sine is 0, and undefined where `exp1` is 0 too; elsewhere it has the
+  feasibility of the paper's difference `exp1 - exp2`, which VAMOS uses, but
+  other values. pymoo's g also differs
+  (`1 + Σ x_i` by default, or a Rastrigin function with `cos(2π x_i)` on
+  `[-5.12, 5.12]`), and so does its `f2 = g (1 - sqrt(f1 / g))` for CTP2–CTP7,
+  so the reference values do not compare these problems.
+- **Pareto-optimal sets:** the paper places the Pareto-optimal solutions of
+  CTP2–CTP5 on the line `(f2 - e) cos(θ) = f1 sin(θ)` (its eq. 6). They lie
+  exactly on it only where the sine is 0: the 13 isolated points of CTP3 and
+  CTP4, and 16 points of CTP5. CTP2's front is 13 short segments within 0.005
+  of the line. With `c = 2`, CTP5's constraint boundary leaves the line at `f1 = 0`
+  with a finite slope, so its first arch, up to `f1 = 0.256`, is
+  Pareto-optimal as well. At such an isolated point, where `d = 0.5`, the
+  square root turns the rounding of the sine, about 1e-14, into a `G` of
+  about 1e-7: a design there is feasible only up to that tolerance.
 
 **VAMOS 1.2.0:** only MW4, MW8 and MW14 accept an objective
 override; the other MW keys reject a different `n_obj` with `ValueError`.
@@ -647,6 +705,8 @@ compatibility or a certified optimum.
 - WFG and LSMOP samples have **two columns**, even though their registered
   default is three objectives. Supply a matching reference for default runs; do
   not use those two-column files for three-objective indicators.
+- **Development after 1.4.0:** CTP1–CTP7 have two-objective samples,
+  `ctp1.csv` to `ctp7.csv`.
 - C-DTLZ, DC-DTLZ, ZCAT and ZXH-CF supply dimension-specific samples, named
   `<key>.<M>d.csv`: at M = 2 and 3 for C-DTLZ and DC-DTLZ, at M = 2, 3, 4
   and 6 for ZCAT, and at M = 3 for ZXH-CF. Other objective counts need a
@@ -697,6 +757,7 @@ regenerates the files marked as regenerated.
 | `mw4`, `mw8`, `mw14` (`.2d` and `.3d`), `mw9`–`mw13` | jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), under `LICENSE-jmetal.txt`; jMetal's MW problems are VAMOS's, which the reference values check |
 | `cec2009_cf2`–`cec2009_cf10` | jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), under `LICENSE-jmetal.txt`; a feasible design on the Pareto set reaches every point. CF4 and CF5, CF6 and CF7, and CF9 and CF10 share their fronts |
 | `zxh_cf1.3d`–`zxh_cf16.3d` | Regenerated: on the Pareto set `S = 1` and `h = 0`, so the objectives are the front shape of the angles; designs on a 301 × 301 grid of angles, evaluated by VAMOS's problem, keep the feasible, non-dominated ones, thinned to 5050 points. A feasible design reaches every point within 1e-9 (see the notes on jMetal's fronts) |
+| `ctp1`–`ctp7` | **Development after 1.4.0:** generated from the paper's definition at g = 1 and on the constraint boundaries, as VAMOS evaluates them. CTP1: the envelope `max(exp(-f1), a_j exp(-b_j f1))`, 1000 points. CTP2–CTP7: the feasible, non-dominated points of the boundary, sampled at 2 000 001 values of `sin(θ) (f2 - e) + cos(θ) f1` and at the zeros of its sine, of the unconstrained front `f2 = 1 - f1` and of the least feasible `f2` at `f1 = 0` and 1, thinned to at most 1000 with the zeros kept: CTP2's 13 segments, the 13 isolated points of CTP3 and CTP4 (the same file), CTP5's first arch and 15 points, CTP6's boundary in `1 <= sin(θ) (f2 - e) + cos(θ) f1 <= 2`, and six pieces of CTP7's unconstrained front with `(0, 1.0446)`, the least feasible point at `f1 = 0`. A feasible design reaches every point (within 1e-6 at the isolated points; see the notes on CTP above) |
 | `lircmop1`–`lircmop14`, `dascmop1`–`dascmop9` | jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), under its MIT notice in `LICENSE-jmetal.txt`; DAS-CMOP8 and DAS-CMOP9 leave out two rows each, which another row dominates |
 | `cre21`–`cre25`, `cre31`, `cre32`, `cre51`, `rcm01`–`rcm49` except `rcm17`, `rcm23` and `rcm26` | jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), unchanged, under `LICENSE-jmetal.txt`; approximations (see the notes on jMetal's CRE and RCM fronts). `cre51` and `rcm11` are the same file |
 | `c1dtlz1`–`dc3dtlz3`, `.2d` and `.3d`, `c3dtlz4` included | Regenerated: the feasible, non-dominated part of DTLZ's front (C3-DTLZ1 and C3-DTLZ4: of their constraint boundaries), as VAMOS evaluates it; 1000 points at M = 2 and up to 5050 at M = 3 |
@@ -833,6 +894,7 @@ scalable formulations. For a new objective function, follow
 [dascmop]: https://doi.org/10.1162/evco_a_00259
 [cec2009-cf]: https://github.com/jMetal/jMetal/tree/1e4b83cae6/jmetal-problem/src/main/java/org/uma/jmetal/problem/multiobjective/cec2009
 [zxh-cf]: https://doi.org/10.1109/TEVC.2020.3011829
+[ctp]: https://doi.org/10.1007/3-540-44719-9_20
 [cre-paper]: https://doi.org/10.1016/j.asoc.2020.106078
 [rcm-paper]: https://doi.org/10.1016/j.swevo.2021.100961
 [jmetal-cre]: https://github.com/jMetal/jMetal/tree/1e4b83cae6/jmetal-problem/src/main/java/org/uma/jmetal/problem/multiobjective/cre

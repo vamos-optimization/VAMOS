@@ -4,7 +4,8 @@
 LIR-CMOP, DAS-CMOP, the classic constrained problems, CEC2009 CF1-CF10, ZXH-CF1-16, CRE21-CRE51 and
 RCM01-RCM50, jMetal's ``main`` also implements, three points inside the VAMOS bounds and that
 implementation's objective and constraint values there; ``tools/problem_reference_values.py`` regenerates it. The fixture's ``excluded`` table
-gives, for each family member left out, why its counterpart is not the same problem.
+gives, for each family member left out, why its counterpart is not the same problem; CTP1-CTP7 are all left out,
+since jMetal has none and pymoo's use another g.
 """
 
 from __future__ import annotations
@@ -43,6 +44,7 @@ _REFERENCED_FAMILIES = (
     "golinski",
     "water",
     "car_side_impact",
+    "ctp",
     "zxh_cf",
     "wfg",
     "mw",
