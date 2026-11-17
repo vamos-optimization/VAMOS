@@ -436,6 +436,29 @@ an absolute `mutation_prob` stays absolute, and without `initializer` or
 `repair` MOEA/D keeps its defaults. Seeded MOEA/D and SMS-EMOA tuning runs draw
 different trials.
 
+**Development after 1.3.0:** the real-coded MOEA/D and SMS-EMOA grammars
+(`moead`, `moead_constrained`, `smsemoa`, `smsemoa_constrained`) also offer
+the choices of Evolver's spaces that VAMOS runs for them:
+
+- `sobol` among the `initial_solutions`;
+- the `levy_flight` (`levy_beta`, `levy_scale`) and `power_law`
+  (`power_index`) mutations;
+- the `laplace` (`laplace_a`, `laplace_b`) and `fuzzy` (`fuzzy_d`) crossovers,
+  and in SMS-EMOA `blx_alpha_beta` and `whole_arithmetic`, so that both offer
+  the two-parent crossovers of NSGA-II's space;
+- in MOEA/D, a `variation` node, as Evolver's `MOEADDouble`:
+  `differential_evolution` (the default, with `de_crossover_rate` and
+  `de_scale_factor`) or `crossover_and_mutation`, whose `crossover` is `sbx`,
+  `blx_alpha`, `blx_alpha_beta`, `whole_arithmetic`, `arithmetic`, `laplace` or
+  `fuzzy`, with `crossover_probability`;
+- `sbx_distribution_index` and the two polynomial indices in [5, 400], Evolver's
+  range (the default stays 20).
+
+PCX and UNDC stay out: MOEA/D and SMS-EMOA mate two parents, and those
+crossovers need three. Each new parameter defaults to its operator's own value,
+and an assignment saved with `crossover: de` or `crossover: sbx` builds what it
+built.
+
 ### Parameter names and Evolver's
 
 **VAMOS 1.3.0:** the built-in spaces name their parameters after
@@ -588,9 +611,15 @@ what a bridge builds from it, changes without its snapshot. Compared with the sp
   algorithm's `default()` configuration for the encoding, which a test checks
   for every space by comparing seeded runs (rule G7). `initial_solutions` and
   `repair` offer `auto`, the configuration's automatic choice, as their
-  default, as Evolver's `createInitialSolutions: default`. The nine mixed
-  spaces do not pass G7 yet: their segment operators run differently from the
-  default mixed operators.
+  default, as Evolver's `createInitialSolutions: default`.
+- In the mixed spaces, `crossover` and `mutation` choose between `mixed`, the
+  default mixed operators, with one probability for every segment
+  (`crossover_probability`, and `mutation_probability_factor` over the number
+  of variables), and `per_segment`, an operator and a probability per segment
+  (`perm_crossover`, `real_mutation_prob`, ...). Their default is `mixed`, so
+  the mixed spaces pass G7 too; their segment parameters used to be active in
+  every configuration, whose defaults ran differently from the default mixed
+  operators.
 - The segment settings of the mixed spaces of MOEA/D, NSGA-III, SMS-EMOA and
   SPEA2 (`real_mutation`, `int_crossover_prob`, ...) reach the run. Their mixed
   variation gave the operators the problem's segments without the
@@ -612,7 +641,7 @@ what a bridge builds from it, changes without its snapshot. Compared with the sp
   builds it).
 - The mutation probability is `mutation_probability_factor` in [0.25, 3.0],
   divided by the number of variables, in every space but the permutation spaces
-  of the algorithms other than NSGA-II and the segments of the mixed spaces,
+  of the algorithms other than NSGA-II and the `per_segment` operators of the mixed spaces,
   whose probability applies to a whole solution or segment and defaults to a
   constant. The real-coded spaces of NSGA-III, SPEA2, IBEA, SMPSO, AGE-MOEA,
   RVEA, CCMO, C-TAEA, ToP and CMOEA-MS, and the binary and integer spaces of
@@ -650,6 +679,16 @@ parameters of `improved_epsilon` (`improved_epsilon_tao`,
 `improved_epsilon_feasibility_ratio_threshold`,
 `improved_epsilon_decay_fraction`), with the ranges of Evolver's
 `MOEADDoubleConstrained` space.
+
+**Development after 1.3.0:** the technique parameters have no default in VAMOS,
+jMetal or Evolver, so the grammars default to the settings of the papers that
+introduced the techniques: for `epsilon_constrained`, the quantile 0.2, the
+exponent 5 and the decay fraction 0.8 (Takahama and Sakai: epsilon starts at
+the individual at 0.2N and reaches 0 at 0.8 of the run); for `push_pull`, the
+threshold 0.001, the window 0.02, the decay fraction 0.8, the exponent 2, the
+feasibility threshold 0.95 and the reduction 0.1 (Fan et al.); 0.45 for
+`stochastic_ranking` (Runarsson and Yao); and 0.1, 0.95 and 0.8 for
+`improved_epsilon`.
 
 **VAMOS 1.2.0:** `ccmo` is the real-coded space of
 [CCMO](../algorithms/ccmo.md), which handles constraints itself: `pop_size`

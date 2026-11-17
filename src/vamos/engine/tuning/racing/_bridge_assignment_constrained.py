@@ -15,17 +15,11 @@ from ._bridge_assignment_shared import (
     apply_mutation_prob_factor,
     apply_optional_external_archive,
     apply_optional_repair,
+    crossover_or_de,
     extend_crossover_params,
     extend_mutation_params,
     run_pop_size,
 )
-
-
-def _crossover_or_de(assignment: dict[str, Any]) -> str:
-    """The crossover, or ``de`` for the grammars' ``variation: differential_evolution`` and the earlier ``crossover: de``."""
-    if assignment.get("variation") == "differential_evolution":
-        return "de"
-    return str(assignment.get("crossover", "sbx"))
 
 
 def build_ccmo_config(assignment: dict[str, Any], *, mixed: bool = False) -> CCMOConfig:
@@ -38,7 +32,7 @@ def build_ccmo_config(assignment: dict[str, Any], *, mixed: bool = False) -> CCM
     builder.pop_size(pop_size)
     apply_initializer(builder, assignment, pop_size)
 
-    cross = _crossover_or_de(assignment)
+    cross = crossover_or_de(assignment)
     if cross == "de":
         builder.crossover("de", cr=float(assignment.get("de_cr", 1.0)), f=float(assignment.get("de_f", 0.5)))
     else:
@@ -127,7 +121,7 @@ def build_cmoeams_config(assignment: dict[str, Any], *, mixed: bool = False) -> 
     builder.pop_size(pop_size)
     apply_initializer(builder, assignment, pop_size)
 
-    cross = _crossover_or_de(assignment)
+    cross = crossover_or_de(assignment)
     if cross == "de":
         builder.crossover("de", cr=float(assignment.get("de_cr", 1.0)), f=float(assignment.get("de_f", 0.5)))
         builder.de_variant(str(assignment.get("de_variant", "rand_1_bin")))

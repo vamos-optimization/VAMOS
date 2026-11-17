@@ -26,6 +26,7 @@ from ._bridge_assignment_shared import (
     apply_mutation_prob_factor,
     apply_optional_external_archive,
     apply_optional_repair,
+    crossover_or_de,
     extend_crossover_params,
     extend_mutation_params,
     has_mixed_mutation_assignment,
@@ -126,7 +127,8 @@ def build_moead_config(assignment: dict[str, Any], *, mixed: bool = False) -> MO
     builder.neighbor_size(min(int(assignment["neighbor_size"]), pop_size))
     builder.delta(float(assignment["delta"]))
     builder.replace_limit(int(assignment["replace_limit"]))
-    cross = str(assignment["crossover"])
+    # The grammar's variation (Evolver's MOEADDouble), or the crossover of earlier assignments.
+    cross = crossover_or_de(assignment, default="de")
     if cross == "de":
         builder.crossover("de", cr=float(assignment.get("de_cr", 1.0)), f=float(assignment.get("de_f", 0.5)))
     else:
