@@ -153,6 +153,11 @@ notes](docs/project/release-notes-1.4.0.md).
   default. Default configurations, which set no segment, do not change (#334).
 - The default `epsilon_decay_fraction` of the constrained tuning spaces is 0.8,
   Takahama and Sakai's Tc = 0.8 Tmax; it was 0.2 (#350).
+- `engine="numba"` keeps its compiled SBX, polynomial mutation and steady-state
+  steps with NumPy 2.4. NumPy 2.4 computes `np.power(x, 0.5)` as `sqrt(x)` and
+  `np.power(x, -1)` as `1 / x`, so the check that compiled `pow` matches
+  `np.power` failed, and the Numba engine fell back to the NumPy operators (same
+  results, slower). The compiled power now takes the same shortcuts (#353).
 
 ## [1.3.0] - 2026-11-16
 

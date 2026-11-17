@@ -133,6 +133,11 @@ unsupported behavior rather than future compatibility promises.
 - NumPy is the reference path. Numba accelerates selected kernels rather than
   every operation; MooCore accelerates selected indicators rather than whole
   algorithms.
+- The Numba engine compiles SBX and polynomial mutation only where a one-time
+  check finds that compiled `pow` matches `np.power` bit for bit. A NumPy build
+  whose `np.power` uses vendor SIMD code fails it, and the Numba engine then
+  keeps the NumPy operators: the same results, but slower (see
+  [algorithms](../reference/algorithms.md)).
 - Explicitly selecting an unavailable backend is an error. VAMOS does not
   install dependencies during a run, verification, or replay.
 - **VAMOS 1.2.0:** hypervolume archive pruning (`pruning: hv` or

@@ -107,7 +107,8 @@ Python, the command line or Studio.
   and steady-state steps: NumPy 2.4 computes `np.power(x, 0.5)` as `sqrt(x)` and
   `np.power(x, -1)` as `1 / x`, and the compiled power now takes the same
   shortcuts. VAMOS 1.3.0 fell back to the NumPy operators there, with the same
-  results but slower.
+  results but slower. A NumPy build whose `np.power` uses vendor SIMD code
+  still keeps the NumPy operators (see the [known limitations](known-limitations.md)).
 - The release CI tests NumPy 2.4.6 and SciPy 1.17.1 on every Python, 3.11 to
   3.14. The declared minimums do not change.
 
