@@ -20,7 +20,7 @@ steps. Wide tables scroll horizontally; focus a table to scroll with arrow keys.
 
 Start with the three fundamental lessons. Each has complete downloadable code,
 actual output and a figure, an interpretation, and one guided change. They
-are verified against the published **VAMOS 1.3.0** wheel; use the
+are verified against the published **VAMOS 1.4.0** wheel; use the
 [shared setup](setup.md) for their exact dependency recipe.
 
 | Lesson | Outcome |

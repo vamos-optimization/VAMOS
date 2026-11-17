@@ -30,7 +30,7 @@ You can stop after this lesson with a meaningful first result.
 | Item | This lesson |
 | --- | --- |
 | Prerequisites | Run a Python script; use the [Minimal Python Track](../guide/minimal-python.md) if needed. |
-| Tested package | VAMOS **1.3.0**, Python 3.12; [setup and exact tested dependencies](setup.md). |
+| Tested package | VAMOS **1.4.0**, Python 3.12; [setup and exact tested dependencies](setup.md). |
 | Dependencies | Core package only; no plotting extra is needed to execute the download. |
 | Interface status | **Stable** `optimize`, `OptimizationResult`, and `front`; NumPy backend. |
 | Run | ZDT1, 30 variables, NSGA-II, population 40, 400 evaluations, seed 42. |
@@ -52,7 +52,7 @@ summary without creating any files.
 
 <!-- tutorial:code -->
 ```python
-"""T01: generated from examples/tutorials/fundamentals.py; VAMOS 1.3.0, core dependencies only."""
+"""T01: generated from examples/tutorials/fundamentals.py; VAMOS 1.4.0, core dependencies only."""
 
 
 def run_t01(max_evaluations=400):
@@ -84,7 +84,7 @@ if __name__ == "__main__":
 
 ## Observed result
 
-This is actual output from the installed 1.3.0 wheel in the
+This is actual output from the installed 1.4.0 wheel in the
 [recorded environment](setup.md#tested-environment-and-evidence).
 
 <!-- tutorial:output -->
