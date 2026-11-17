@@ -99,10 +99,12 @@ def smoke_param_space(
         )
     params = dict(param_space.params)
     fixed = {name: int(spec.low) for name, spec in params.items() if isinstance(spec, Int) and spec.low == spec.high}
-    params = {name: spec for name, spec in params.items() if name not in fixed}
-    conditions = [condition for condition in param_space.conditions if condition.param_name in params]
-    fixed["pop_size"] = max(int(max_population), floor)
-    return ParamSpace(params=params, conditions=conditions), fixed
+    if fixed:
+        params = {name: spec for name, spec in params.items() if name not in fixed}
+        conditions = [condition for condition in param_space.conditions if condition.param_name in params]
+        param_space = ParamSpace(params=params, conditions=conditions)
+    # A space that loses no parameter, such as the view of a built-in grammar, stays as it is.
+    return param_space, {**fixed, "pop_size": max(int(max_population), floor)}
 
 
 __all__ = ["apply_smoke_mode", "smallest_population", "smoke_param_space"]

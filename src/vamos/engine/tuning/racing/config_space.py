@@ -8,12 +8,15 @@ another algorithm can still be written directly as an ``AlgorithmConfigSpace``.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from .param_space import PARAM_ROLES, Condition, ParamSpace, ParamType, _dependency_order
 from .parameters import ConditionalBlock
+
+if TYPE_CHECKING:
+    from ..grammar.model import ParameterSpace
 
 
 @dataclass
@@ -26,6 +29,8 @@ class AlgorithmConfigSpace:
     params: list[ParamType]
     conditionals: list[ConditionalBlock] | None = None
     conditions: list[Condition] | None = None
+    # The grammar that this space is a view of (built-in spaces); the views sample by walking its tree.
+    grammar: ParameterSpace | None = None
 
     def _conditional_params(self) -> list[ParamType]:
         params: list[ParamType] = []
@@ -70,6 +75,8 @@ class AlgorithmConfigSpace:
         """
         Sample a concrete assignment dict for all active params.
         """
+        if self.grammar is not None:
+            return dict(self.grammar.sample(rng))
         assignment: dict[str, Any] = {}
         param_space = self.to_param_space()
         for p in self._dependency_ordered(param_space):
@@ -108,4 +115,4 @@ class AlgorithmConfigSpace:
                 if cond.param_name not in params:
                     raise ValueError(f"Condition references unknown parameter '{cond.param_name}'.")
 
-        return ParamSpace(params=params, conditions=conditions)
+        return ParamSpace(params=params, conditions=conditions, grammar=self.grammar)

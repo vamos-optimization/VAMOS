@@ -1,3 +1,9 @@
+"""ConfigSpace and Optuna spaces of a ``ParamSpace``: from its grammar, or from its condition expressions.
+
+The built-in spaces are views of grammars (:mod:`vamos.engine.tuning.grammar`), whose tree gives the
+conditions directly. A hand-written ``ParamSpace`` translates its condition expressions instead.
+"""
+
 from __future__ import annotations
 
 import ast
@@ -5,6 +11,7 @@ from typing import Any
 
 import numpy as np
 
+from .grammar.model import Parameter, ParameterSpace
 from .racing.param_space import Boolean, Categorical, Int, ParamSpace, Real, _condition_parents, _dependency_order, _parent_name
 
 _OPTUNA_SAMPLERS: dict[str, str] = {
@@ -18,7 +25,35 @@ _OPTUNA_SAMPLERS: dict[str, str] = {
 }
 
 
+def _suggest(trial: Any, parameter: Parameter) -> Any:
+    if parameter.type == "categorical":
+        return trial.suggest_categorical(parameter.name, list(parameter.values))
+    if parameter.type == "boolean":
+        return bool(trial.suggest_categorical(parameter.name, [False, True]))
+    assert parameter.range is not None
+    low, high = parameter.range
+    if parameter.type == "int":
+        return int(trial.suggest_int(parameter.name, int(low), int(high), log=parameter.log))
+    return float(trial.suggest_float(parameter.name, float(low), float(high), log=parameter.log))
+
+
+def _sample_grammar_trial(trial: Any, grammar: ParameterSpace) -> dict[str, Any]:
+    """Define-by-run: a depth-first walk of the tree suggests every active parameter."""
+    cfg: dict[str, Any] = {}
+
+    def visit(parameters: tuple[Parameter, ...]) -> None:
+        for parameter in parameters:
+            value = _suggest(trial, parameter)
+            cfg[parameter.name] = value
+            visit(parameter.children(value))
+
+    visit(grammar.parameters)
+    return cfg
+
+
 def sample_from_optuna_trial(trial: Any, param_space: ParamSpace) -> dict[str, Any]:
+    if param_space.grammar is not None:
+        return _sample_grammar_trial(trial, param_space.grammar)
     cfg: dict[str, Any] = {}
     for name in _dependency_order(param_space):
         if not param_space.is_active(name, cfg):
@@ -76,7 +111,54 @@ def _configspace_condition(node: ast.AST, child: Any, cs: Any, *, negate: bool =
     raise ValueError("Expected a comparison of cfg['parent'] with a scalar literal, a boolean parent, or and/or/not.")
 
 
+def _grammar_configspace(grammar: ParameterSpace, seed: int) -> Any:
+    """Hyperparameters with the grammar's defaults; a parameter of a production equals its parent's value,
+    and a global sub-parameter of a node below the root takes any of that node's values."""
+    from ConfigSpace import ConfigurationSpace
+    from ConfigSpace.conditions import EqualsCondition, InCondition
+    from ConfigSpace.hyperparameters import CategoricalHyperparameter, UniformFloatHyperparameter, UniformIntegerHyperparameter
+
+    cs = ConfigurationSpace(seed=int(seed))
+    conditions: list[Any] = []
+
+    def add(parameter: Parameter) -> Any:
+        hp: Any
+        if parameter.type == "categorical":
+            hp = CategoricalHyperparameter(name=parameter.name, choices=list(parameter.values), default_value=parameter.default)
+        elif parameter.type == "boolean":
+            hp = CategoricalHyperparameter(name=parameter.name, choices=[False, True], default_value=bool(parameter.default))
+        else:
+            assert parameter.range is not None
+            low, high = parameter.range
+            kind = UniformIntegerHyperparameter if parameter.type == "int" else UniformFloatHyperparameter
+            hp = kind(name=parameter.name, lower=low, upper=high, log=parameter.log, default_value=parameter.default)
+        cs.add(hp)
+        return hp
+
+    def visit(parameter: Parameter, *, root: bool) -> None:
+        hp = add(parameter)
+        for child in parameter.global_sub_parameters:
+            child_hp = add_tree(child)
+            if not root:
+                conditions.append(InCondition(child_hp, hp, list(parameter.values)))
+        for value, production in zip(parameter.values, parameter.productions):
+            for child in production:
+                conditions.append(EqualsCondition(add_tree(child), hp, value))
+
+    def add_tree(parameter: Parameter) -> Any:
+        visit(parameter, root=False)
+        return cs[parameter.name]
+
+    for parameter in grammar.parameters:
+        visit(parameter, root=True)
+    for condition in conditions:
+        cs.add(condition)
+    return cs
+
+
 def build_configspace(param_space: ParamSpace, seed: int) -> Any:
+    if param_space.grammar is not None:
+        return _grammar_configspace(param_space.grammar, seed)
     from ConfigSpace import ConfigurationSpace
     from ConfigSpace.conditions import AndConjunction
     from ConfigSpace.hyperparameters import (

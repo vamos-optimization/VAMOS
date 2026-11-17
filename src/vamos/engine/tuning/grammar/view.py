@@ -1,14 +1,15 @@
-"""The flat view of a grammar that the current tuners sample: an :class:`AlgorithmConfigSpace`.
+"""The flat views of a grammar that the tuners receive: an :class:`AlgorithmConfigSpace` and its ``ParamSpace``.
 
 Each production becomes a conditional block of the parameter that it belongs to, and the global
 sub-parameters of a parameter share its block, so a parameter of the view is active exactly when it
-is active in the grammar. The view has no condition expressions.
+is active in the grammar. The views keep the grammar (``grammar``): the backends derive their own
+spaces from it, and the views sample by walking its tree.
 """
 
 from __future__ import annotations
 
 from ..racing.config_space import AlgorithmConfigSpace
-from ..racing.param_space import Boolean, Categorical, ConditionalBlock, Int, ParamType, Real
+from ..racing.param_space import Boolean, Categorical, ConditionalBlock, Int, ParamSpace, ParamType, Real
 from .model import Parameter, ParameterSpace
 
 
@@ -30,7 +31,12 @@ def to_algorithm_config_space(space: ParameterSpace) -> AlgorithmConfigSpace:
 
     for parameter in space.parameters:
         place(parameter, params)
-    return AlgorithmConfigSpace(algorithm_name=space.name, params=params, conditionals=blocks or None)
+    return AlgorithmConfigSpace(algorithm_name=space.name, params=params, conditionals=blocks or None, grammar=space)
+
+
+def to_param_space(space: ParameterSpace) -> ParamSpace:
+    """``space`` as the ``ParamSpace`` that a ``TuningTask`` searches, keeping the grammar."""
+    return to_algorithm_config_space(space).to_param_space()
 
 
 def _flat(parameter: Parameter) -> ParamType:
@@ -45,4 +51,4 @@ def _flat(parameter: Parameter) -> ParamType:
     return Real(parameter.name, float(low), float(high), log=parameter.log, role=parameter.role or "operator_rate")
 
 
-__all__ = ["to_algorithm_config_space"]
+__all__ = ["to_algorithm_config_space", "to_param_space"]

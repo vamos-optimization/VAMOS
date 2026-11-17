@@ -1,6 +1,9 @@
 """Translate a VAMOS ``ParamSpace`` to irace's parameter syntax and back.
 
-irace receives one line per parameter, with its conditions after ``|``. Values travel on the
+irace receives one line per parameter, with its conditions after ``|``. The view of a grammar gives one
+condition per edge of its tree: ``parent == "value"`` for a parameter of a production, and
+``node %in% c(...)`` with every value of the node for a global sub-parameter of a node below the root.
+A hand-written space translates its condition expressions instead. Values travel on the
 command line as ``--name=token``, so every categorical choice needs a distinct token made of
 letters, digits, ``_``, ``.``, ``+`` or ``-``. Conditions follow the subset that the ConfigSpace
 translation supports: comparisons of ``cfg['parent']`` with a scalar literal, boolean parents,
@@ -106,8 +109,39 @@ def _domain(name: str, spec: ParamType) -> tuple[str, str]:
     raise TypeError(f"Unsupported param spec type for '{name}': {type(spec)!r}")
 
 
+def _grammar_conditions(space: ParamSpace) -> dict[str, str]:
+    """The irace condition of every parameter of the grammar that ``space`` is a view of, by name."""
+    grammar = space.grammar
+    assert grammar is not None
+    conditions: dict[str, str] = {}
+    for node in grammar.walk():
+        spec = space.params[node.name]
+        below_root = node not in grammar.parameters
+        if node.global_sub_parameters and below_root:
+            assert isinstance(spec, (Categorical, Boolean))
+            tokens = ", ".join(f'"{_token_of(node.name, spec, value)}"' for value in node.values)
+            for child in node.global_sub_parameters:
+                conditions[child.name] = f"{node.name} %in% c({tokens})"
+        for value, production in zip(node.values, node.productions):
+            for child in production:
+                assert isinstance(spec, (Categorical, Boolean))
+                conditions[child.name] = f'{node.name} == "{_token_of(node.name, spec, value)}"'
+    return conditions
+
+
 def parameter_file(space: ParamSpace) -> str:
     """Text of the irace parameter file for ``space``; untranslatable spaces fail before irace starts."""
+    if space.grammar is not None:
+        tree = _grammar_conditions(space)
+        names = [parameter.name for parameter in space.grammar.walk()]
+        for name in names:
+            if not re.fullmatch(_NAME, name):
+                raise ValueError(f"irace parameter names start with a letter and use letters, digits or '_': {name!r}.")
+        lines = [
+            f'{name} "--{name}=" {" ".join(_domain(name, space.params[name]))}' + (f" | {tree[name]}" if name in tree else "")
+            for name in names
+        ]
+        return "\n".join(lines) + "\n"
     _dependency_order(space)
     expressions: dict[str, list[str]] = {name: [] for name in space.params}
     for condition in space.conditions:

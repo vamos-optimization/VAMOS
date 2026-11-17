@@ -19,6 +19,7 @@ from vamos.engine.tuning import (
     TuningTask,
     config_from_assignment,
 )
+from vamos.engine.tuning.grammar.view import to_param_space
 from vamos.engine.tuning.racing.eval_types import EvalFn
 from vamos.engine.tuning.racing.warm_start import WarmStartEvaluator
 from vamos.experiment.types import CheckpointPayload
@@ -33,9 +34,11 @@ MODEL_BACKENDS = ("optuna", "bohb_optuna", "smac3", "bohb", "irace")
 NON_MODEL_BACKENDS = ("racing", "random")
 ALL_BACKENDS = NON_MODEL_BACKENDS + MODEL_BACKENDS
 _ARCHIVE_TUNING_PARAMS = {"external_archive", "use_external_archive", "archive_unbounded", "archive_prune_policy"}
-_OPTUNA_CLI_STUDY_SUFFIX = "__vamos_cli_final_population_hv_v4"
-# SMPSO is scored on its leaders archive instead of its final swarm, a separate scoring contract.
-_OPTUNA_CLI_LEADERS_SUFFIX = "__vamos_cli_leaders_hv_v3"
+# The scoring contracts of persistent Optuna studies: the final population's HV, and SMPSO's leaders archive.
+_OPTUNA_CLI_STUDY_CONTRACT = "__vamos_cli_final_population_hv"
+_OPTUNA_CLI_LEADERS_CONTRACT = "__vamos_cli_leaders_hv"
+# The study name carries this many hexadecimal digits of the SHA-256 of the searched space.
+_SPACE_HASH_DIGITS = 16
 _LEADER_SCORED_ALGORITHMS = ("smpso",)
 
 
@@ -44,7 +47,13 @@ def supports_warm_start(name: str) -> bool:
 
 
 def _without_archive_tuning_controls(param_space: ParamSpace) -> ParamSpace:
-    """Remove archive controls from the maintained CLI tuning search space."""
+    """Remove archive controls from the maintained CLI tuning search space.
+
+    The view of a grammar becomes the view of the grammar without them, so the search keeps the grammar.
+    """
+    if param_space.grammar is not None:
+        grammar = param_space.grammar
+        return to_param_space(grammar.without(_ARCHIVE_TUNING_PARAMS & set(grammar.names())))
     params = {name: spec for name, spec in param_space.params.items() if name not in _ARCHIVE_TUNING_PARAMS}
     conditions = [
         condition
@@ -67,13 +76,21 @@ def _preflight_constraint_support(args: Any) -> None:
 
 
 def _versioned_optuna_study_name(args: Any, task: TuningTask) -> str:
-    """Namespace persistent Optuna studies by the maintained CLI scoring contract."""
+    """Namespace persistent Optuna studies by the CLI scoring contract and the searched space.
+
+    The suffix is the contract and the first digits of the space's SHA-256 (``space.identity``), so a
+    changed space, or another contract, is a new study and never resumes trials drawn from another.
+    """
     raw = str(getattr(args, "optuna_study_name", "") or "").strip()
     if not raw:
         raw = f"{task.name}_{args.backend}_{int(args.seed)}"
         raw = "".join(ch if (ch.isalnum() or ch in "-_.") else "_" for ch in raw)
     leaders = canonical_algorithm_name(str(getattr(args, "algorithm", ""))) in _LEADER_SCORED_ALGORITHMS
-    return f"{raw}{_OPTUNA_CLI_LEADERS_SUFFIX if leaders else _OPTUNA_CLI_STUDY_SUFFIX}"
+    grammar = task.param_space.grammar
+    if grammar is None:
+        raise ValueError("vamos tune names persistent Optuna studies after the grammar of a built-in space.")
+    contract = _OPTUNA_CLI_LEADERS_CONTRACT if leaders else _OPTUNA_CLI_STUDY_CONTRACT
+    return f"{raw}{contract}_{grammar.identity.sha256[:_SPACE_HASH_DIGITS]}"
 
 
 def _scores_leaders(algorithm_name: str, n_constraints: int) -> bool:
