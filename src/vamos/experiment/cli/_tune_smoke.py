@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 from typing import Any
 
 from vamos.engine.algorithm.catalog import ALGORITHM_MINIMUMS
 from vamos.engine.algorithm.variants import canonical_algorithm_name
-from vamos.engine.tuning import Int, ParamSpace
+from vamos.engine.tuning import Categorical, Int, ParamSpace
+from vamos.engine.tuning.grammar.view import to_param_space
 
 from ._tune_irace import smoke_tune_budget
 from ._tune_runtime import MODEL_BACKENDS
@@ -86,7 +88,9 @@ def smoke_param_space(
 
     Returns the space and the fixed settings, which the evaluator sets in every configuration:
     ``pop_size``, and any integer parameter of a single value, which leaves the space because SMAC3,
-    BOHB and irace reject an integer range without width.
+    BOHB and irace reject an integer range without width. When the smallest lattice is more than half
+    the budget, the opposition-based initializer, which evaluates a population and its opposite,
+    cannot run, and the space no longer offers it.
     """
     floor = smallest_population(algorithm, n_obj)
     if floor > budget:
@@ -97,6 +101,9 @@ def smoke_param_space(
             f"which does not fit the smoke budget of {budget} evaluations per run. "
             "Run it without --smoke, with a --budget above that population."
         )
+    population = max(int(max_population), floor)
+    if 2 * population > budget:
+        param_space = _without_opposition_based_initializer(param_space)
     params = dict(param_space.params)
     fixed = {name: int(spec.low) for name, spec in params.items() if isinstance(spec, Int) and spec.low == spec.high}
     if fixed:
@@ -104,7 +111,18 @@ def smoke_param_space(
         conditions = [condition for condition in param_space.conditions if condition.param_name in params]
         param_space = ParamSpace(params=params, conditions=conditions)
     # A space that loses no parameter, such as the view of a built-in grammar, stays as it is.
-    return param_space, {**fixed, "pop_size": max(int(max_population), floor)}
+    return param_space, {**fixed, "pop_size": population}
+
+
+def _without_opposition_based_initializer(param_space: ParamSpace) -> ParamSpace:
+    """``param_space`` without the ``obl`` initial solutions; a built-in grammar's view stays a grammar's view."""
+    spec = param_space.params.get("initial_solutions")
+    if not isinstance(spec, Categorical) or "obl" not in spec.choices:
+        return param_space
+    if param_space.grammar is not None:
+        return to_param_space(param_space.grammar.without_values("initial_solutions", {"obl"}))
+    params = {**param_space.params, "initial_solutions": replace(spec, choices=[choice for choice in spec.choices if choice != "obl"])}
+    return ParamSpace(params=params, conditions=list(param_space.conditions))
 
 
 __all__ = ["apply_smoke_mode", "smallest_population", "smoke_param_space"]

@@ -342,7 +342,10 @@ evaluations fail, but not all of them, now ends with a warning.
 **Development after 1.3.0:** the spaces no longer sample the population, so
 `--smoke` runs every configuration with `--pop-size` capped at 15, or with the
 smallest reference lattice of MOEA/D, NSGA-III or RVEA when that is larger, and
-records it under `fixed_parameters` in its smoke profile.
+records it under `fixed_parameters` in its smoke profile. When that lattice is
+more than half the smoke budget (MOEA/D with 16 objectives runs 16 individuals
+in 30 evaluations), the smoke space no longer offers the opposition-based
+initializer, which evaluates a population and its opposite.
 Without `--name`, the output folder is named after the `--instances` (the first
 three and the number of the others), not after `--problem`.
 

@@ -65,6 +65,26 @@ def test_smoke_space_keeps_every_population_within_half_the_budget(algorithm: st
     assert 1 <= fixed["pop_size"] and 2 * fixed["pop_size"] <= profile["budget"], (fixed, profile)
 
 
+@pytest.mark.parametrize("algorithm", ["moead", "smsemoa"])
+def test_smoke_drops_the_opposition_based_initializer_when_a_lattice_leaves_no_room(algorithm: str) -> None:
+    # MOEA/D with 16 objectives needs 16 individuals, more than half the smoke budget of 30, and the
+    # opposition-based initializer would evaluate 32. The smoke space then offers every initializer but it,
+    # and keeps its grammar, whose identity names the smaller space.
+    profile = _smoke_profile(["--algorithm", algorithm])
+    full = _param_space(algorithm)
+    n_obj = 16 if algorithm == "moead" else 2
+    population = 16 if algorithm == "moead" else profile["pop_size"]
+    space, fixed = smoke_param_space(full, max_population=profile["pop_size"], n_obj=n_obj, algorithm=algorithm, budget=profile["budget"])
+
+    assert fixed["pop_size"] == population
+    choices = space.params["initial_solutions"].choices
+    if 2 * population > profile["budget"]:
+        assert "obl" not in choices and set(choices) == set(full.params["initial_solutions"].choices) - {"obl"}
+        assert space.grammar is not None and space.grammar.identity != full.grammar.identity
+    else:
+        assert "obl" in choices and space is full
+
+
 def test_smoke_population_leaves_room_for_the_opposition_based_initializer(caplog: pytest.LogCaptureFixture) -> None:
     profile = _smoke_profile(["--problem", "zdt1"])
     space, fixed = smoke_param_space(
