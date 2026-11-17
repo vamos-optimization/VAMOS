@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 from collections.abc import Mapping
 from typing import Any, cast
@@ -45,6 +46,8 @@ _NOT_IN_SCHEMA = {
     "forbidden_clauses": "the schema has no forbidden clauses: a space offers only configurations that run",
     "limits": "the schema has one range per parameter, the same for tuning and for editing by hand",
 }
+# A command line separates its tokens by whitespace, so a categorical string value is one token.
+_ONE_TOKEN = r"\S+"
 
 
 def parameter_space_from_document(document: object) -> ParameterSpace:
@@ -145,6 +148,12 @@ def _categorical(name: str, raw: Mapping[str, Any], path: str, seen: dict[str, s
         where = f"{path}.values.{value}"
         if isinstance(value, bool) or not isinstance(value, (str, int, float)):
             raise ParameterSpaceError("G5", where, f"{value!r} is not a string, number or boolean")
+        if isinstance(value, float) and not math.isfinite(value):
+            raise ParameterSpaceError("G5", where, f"{value!r} is not finite: the canonical JSON of a space has no infinities or NaN")
+        if isinstance(value, str) and not re.fullmatch(_ONE_TOKEN, value):
+            raise ParameterSpaceError(
+                "G5", where, f"{value!r} is not one command-line token: a string value is not empty and has no whitespace"
+            )
         if any(same_scalar(value, other) for other in values):
             raise ParameterSpaceError("G5", where, f"{value!r} is listed twice")
         twin = next((other for other in values if format_value(other) == format_value(value)), None)
@@ -206,6 +215,8 @@ def _range(raw: Mapping[str, Any], kind: str, path: str) -> tuple[float, float, 
     if kind == "int" and not all(isinstance(end, int) for end in bounds):
         raise ParameterSpaceError("G4", f"{path}.range", f"an integer range has integer ends, got {bounds!r}")
     low, high = (int(end) for end in bounds) if kind == "int" else (float(end) for end in bounds)
+    if not (math.isfinite(low) and math.isfinite(high)):
+        raise ParameterSpaceError("G4", f"{path}.range", f"the range has finite ends, got {bounds!r}")
     if not low <= high:
         raise ParameterSpaceError("G4", f"{path}.range", f"the range is not ordered: {low} > {high}")
     log = raw.get("log", False)
