@@ -24,7 +24,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ._numba_moead_neighborhood import update_neighborhood_numba
-from ._numba_variation import _sbx_apply, _sbx_mark_active, differential_crossover_apply, numpy_power_squares, polynomial_mutation_apply
+from ._numba_variation import _sbx_apply, _sbx_mark_active, differential_crossover_apply, numpy_power_paths, polynomial_mutation_apply
 from .moead_kernels import IDEAL_DECLINED, MOEADStepWorkspace
 from .numba_ops import njit
 
@@ -39,7 +39,7 @@ N_DRAWS = 5
 CLIP_LOWER, CLIP_UPPER, PM_LOWER, PM_UPPER, SBX_LOWER, SBX_UPPER = 0, 1, 2, 3, 4, 5
 # Entries of ``params``; the derived SBX exponents are computed as the reference SBX does.
 PARAM_DE_F, PARAM_DE_CR, PARAM_PM_PROB, PARAM_PM_ETA, PARAM_SBX_PROB_VAR = 0, 1, 2, 3, 4
-PARAM_SBX_NEG_ETA_PLUS_ONE, PARAM_SBX_INV_ETA_PLUS_ONE, PARAM_THETA, PARAM_RHO, PARAM_SQUARES = 5, 6, 7, 8, 9
+PARAM_SBX_NEG_ETA_PLUS_ONE, PARAM_SBX_INV_ETA_PLUS_ONE, PARAM_THETA, PARAM_RHO, PARAM_POWER_PATHS = 5, 6, 7, 8, 9
 N_PARAMS = 10
 # Entries of ``slots``: outputs of the last child, then the replacement settings.
 SLOT_ACTIVE, SLOT_FIRST, SLOT_SECOND, SLOT_J_RAND, SLOT_PAIR, SLOT_REPLACE_LIMIT, SLOT_AGGREGATION = 0, 1, 2, 3, 4, 5, 6
@@ -100,7 +100,7 @@ def _repair_and_mutate(child: FloatArray, draws: FloatArray, bounds: FloatArray,
         bounds[PM_UPPER],
         draws[PM_MASK : PM_MASK + 1],
         draws[PM_DELTA : PM_DELTA + 1],
-        params[PARAM_SQUARES] != 0.0,
+        int(params[PARAM_POWER_PATHS]),
     )
     clip_row(child[0], bounds[CLIP_LOWER], bounds[CLIP_UPPER])
 
@@ -181,7 +181,7 @@ def sbx_child(
             bounds[SBX_UPPER],
             params[PARAM_SBX_NEG_ETA_PLUS_ONE],
             params[PARAM_SBX_INV_ETA_PLUS_ONE],
-            params[PARAM_SQUARES] != 0.0,
+            int(params[PARAM_POWER_PATHS]),
         )
     child[0, :] = mating[0, 0, :]
     _repair_and_mutate(child, draws, bounds, params)
@@ -379,7 +379,7 @@ class NumbaMOEADSteadyStateKernels:
         params[PARAM_SBX_INV_ETA_PLUS_ONE] = 1.0 / (float(sbx_eta) + 1.0)
         params[PARAM_THETA] = float(theta)
         params[PARAM_RHO] = float(rho)
-        params[PARAM_SQUARES] = 1.0 if numpy_power_squares() else 0.0
+        params[PARAM_POWER_PATHS] = float(numpy_power_paths())
         rows = (*clip_bounds, *mutation_bounds, *crossover_bounds)
         bounds = np.ascontiguousarray(np.vstack([np.asarray(row, dtype=np.float64) for row in rows]))
         return params, bounds

@@ -20,7 +20,7 @@ from numpy.typing import NDArray
 
 from ._numba_selection import binary_tournament_winners_numba
 from ._numba_steady_survival import INT_WORK_ROWS, SPLIT_CROWD, nsga2_steady_insert, nsga2_steady_replace
-from ._numba_variation import _SBX_EPS, _sbx_apply, _sbx_mark_active, numpy_power_squares, polynomial_mutation_apply
+from ._numba_variation import _SBX_EPS, _sbx_apply, _sbx_mark_active, numpy_power_paths, polynomial_mutation_apply
 from .numba_ops import njit
 
 FloatArray: TypeAlias = NDArray[np.float64]
@@ -33,7 +33,7 @@ PARAM_INV_ETA_PLUS_ONE = 2
 PARAM_PROB_VAR = 3
 PARAM_PROB_MUTATION = 4
 PARAM_ETA_MUTATION = 5
-PARAM_SQUARES_EXPONENT_TWO = 6
+PARAM_POWER_PATHS = 6
 N_PARAMS = 7
 
 # Rows of the ``bounds`` matrix of :func:`nsga2_steady_offspring`.
@@ -131,7 +131,7 @@ def nsga2_steady_offspring(
     Returns ``0`` once ``child`` is written.
     """
     n_var: int = X.shape[1]
-    squares_exponent_two = params[PARAM_SQUARES_EXPONENT_TWO] != 0.0
+    power_paths = int(params[PARAM_POWER_PATHS])
     tie = 0
     for i in range(2):
         if winners[i] < 0:
@@ -170,7 +170,7 @@ def nsga2_steady_offspring(
             bounds[BOUND_SBX_UPPER],
             params[PARAM_NEG_ETA_PLUS_ONE],
             params[PARAM_INV_ETA_PLUS_ONE],
-            squares_exponent_two,
+            power_paths,
         )
     # Only the first child survives; clipping and mutation act on each variable independently.
     for j in range(n_var):
@@ -187,7 +187,7 @@ def nsga2_steady_offspring(
         bounds[BOUND_PM_UPPER],
         rnd_mask,
         rnd_delta,
-        squares_exponent_two,
+        power_paths,
     )
     _clip_rows(child, bounds[BOUND_CLIP_LOWER], bounds[BOUND_CLIP_UPPER])
     return 0
@@ -257,7 +257,7 @@ class NumbaSteadyStateKernels:
         params[PARAM_PROB_VAR] = float(prob_var)
         params[PARAM_PROB_MUTATION] = float(prob_mutation)
         params[PARAM_ETA_MUTATION] = float(eta_mutation)
-        params[PARAM_SQUARES_EXPONENT_TWO] = 1.0 if numpy_power_squares() else 0.0
+        params[PARAM_POWER_PATHS] = float(numpy_power_paths())
         rows = (*crossover_bounds, *repair_bounds, *mutation_bounds)
         bounds = np.ascontiguousarray(np.vstack([np.asarray(row, dtype=np.float64) for row in rows]))
         if bounds.shape[0] != N_BOUNDS:
