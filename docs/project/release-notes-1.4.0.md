@@ -59,13 +59,24 @@ which Evolver uses (see the [MOEA/D configuration](../reference/api/algorithms/m
   normalizes the objectives with the ideal point and jMetal's estimate of the
   nadir point.
 
-The real-coded MOEA/D and SMS-EMOA tuning spaces offer what Evolver gives these
-algorithms and VAMOS runs: Sobol initialization, the Lévy flight and power-law
-mutations, the Laplace and fuzzy crossovers (with BLX-αβ and whole arithmetic
-in SMS-EMOA), MOEA/D's choice between differential evolution and crossover and
-mutation, and distribution indices in [5, 400]. The tuning name table now reads
-Evolver's `modifiedTschebyscheff` as `inverse_weight_tchebycheff`: it read it
-as VAMOS's `modified_tchebycheff`, a different function.
+Every MOEA/D tuning space offers these options too: the order of the
+subproblems, the three aggregations with their parameters, and the
+normalization of the objectives, with the DE scheme and base under differential
+evolution in the real-coded spaces. They are off by default, so a space's
+defaults still build the configuration of 1.3.0.
+
+The real-coded MOEA/D and SMS-EMOA tuning spaces, constrained ones included,
+offer what Evolver gives these algorithms and VAMOS runs: Sobol, opposition-based
+(Evolver's `oppositionBased`) and Halton initialization, the Lévy flight and
+power-law mutations, the Laplace and fuzzy crossovers (with BLX-αβ and whole
+arithmetic in SMS-EMOA), MOEA/D's choice between differential evolution and
+crossover and mutation, and distribution indices in [5, 400].
+
+The tuning name table now reads Evolver's `modifiedTschebyscheff` as
+`inverse_weight_tchebycheff`: it read it as VAMOS's `modified_tchebycheff`, a
+different function. It reads Evolver's inverted PBI with normalization and its
+DE with a random base, as Evolver runs them, and `to_evolver` refuses the
+combinations that Evolver cannot express.
 
 ## Which results change
 
@@ -75,11 +86,12 @@ comparing them with results of earlier versions.
 
 | Area | Change | Rerun |
 | --- | --- | --- |
-| Tuning | Every built-in space is a grammar: `pop_size` is no longer tuned, every parameter has a default, the backends draw only active parameters and try the default configuration first, and the real-coded MOEA/D and SMS-EMOA spaces and the mixed spaces offer more choices. | Every seeded tuning run draws different trials. Stored assignments build the configurations they built. |
+| Tuning | Every built-in space is a grammar: `pop_size` is no longer tuned, every parameter has a default, the backends draw only active parameters and try the default configuration first, and the MOEA/D spaces, the real-coded SMS-EMOA spaces and the mixed spaces offer more choices. | Every seeded tuning run draws different trials. Stored assignments build the configurations they built. |
 | Persistent Optuna studies | `vamos tune` names them after the hash of the space it searches (`__vamos_cli_final_population_hv_<hash>`, SMPSO: `__vamos_cli_leaders_hv_<hash>`). | A study of VAMOS 1.3.0 or earlier is not resumed; a changed space starts a new study. |
 | Mixed variation | MOEA/D, NSGA-III, SMS-EMOA and SPEA2 run the segment settings of their configuration (`perm_crossover`, `real_mutation_prob`, `int_mutation_step`, ...); they ran the default mixed operators whatever these said. | Mixed-encoding runs of those algorithms that set a segment. Default configurations do not change. |
 | Constrained tuning spaces | The default `epsilon_decay_fraction` is 0.8, Takahama and Sakai's; it was 0.2. | Tuning runs that rely on that default. |
-| Configurations exchanged with Evolver | Evolver's `modifiedTschebyscheff` reads as `inverse_weight_tchebycheff`, and `to_evolver` refuses `modified_tchebycheff`, which Evolver does not have. | MOEA/D configurations read from Evolver with that aggregation. |
+| Configurations exchanged with Evolver | Evolver's `modifiedTschebyscheff` reads as `inverse_weight_tchebycheff`, its inverted PBI with normalization and its DE with `de_base: random`; `to_evolver` refuses `modified_tchebycheff`, which Evolver does not have, and the combinations that it cannot express. | MOEA/D configurations read from Evolver with these aggregations or with DE. |
+| Studio | MOEA/D's form applies `mtch_rho` to the modified Tchebycheff aggregation; it ignored it. | Studio MOEA/D runs with that aggregation and another `mtch_rho`. |
 
 The default configurations of the algorithms, runs that set none of these, and
 replays of stored runs give the same results as before. MOEA/D's new options

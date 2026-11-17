@@ -12,9 +12,10 @@ the tuning backends and Studio's algorithm forms read; seeded tuning runs draw
 different trials, and persistent Optuna studies of 1.3.0 are not resumed. MOEA/D
 and SMS-EMOA come closer to Evolver: MOEA/D gains Evolver's order of the
 subproblems, DE schemes and base vector, and aggregation functions with the
-normalization of the objectives, and the spaces offer Evolver's operators. As
-announced with 1.3.0, VAMOS Assist, Studio's Problem Builder and the LLM extras
-are removed. PyYAML becomes a dependency, and the Numba engine keeps its
+normalization of the objectives, which its tuning spaces offer too, and the
+spaces offer Evolver's operators and opposition-based and Halton initialization.
+As announced with 1.3.0, VAMOS Assist, Studio's Problem Builder and the LLM
+extras are removed. PyYAML becomes a dependency, and the Numba engine keeps its
 compiled variation with NumPy 2.4. The default configurations of the algorithms
 give the results of 1.3.0. See the [1.4.0 release
 notes](docs/project/release-notes-1.4.0.md).
@@ -124,6 +125,23 @@ notes](docs/project/release-notes-1.4.0.md).
   algorithm's default configuration (#350).
 - Seeded tuning runs of the real-coded MOEA/D and SMS-EMOA spaces and of the
   mixed spaces draw different trials (#350).
+- The MOEA/D tuning spaces offer Evolver's MOEA/D options:
+  - the order of the subproblems (`subproblem_order`, random permutation or
+    cyclic);
+  - the augmented Tchebycheff (`atch_rho`), the inverted PBI (`ipbi_theta`) and
+    the inverse-weight Tchebycheff aggregations;
+  - the normalization of the objectives (`normalize_objectives`, with
+    `normalization_epsilon`);
+  - in the real-coded spaces, the DE scheme (`de_scheme`: rand/1 or rand/2,
+    binomial or exponential) and the base of the mutant (`de_base`).
+  All are off by default, so the defaults build the configuration of VAMOS
+  1.3.0. Seeded MOEA/D tuning runs draw different trials (#355).
+- The real-coded MOEA/D and SMS-EMOA tuning spaces, constrained ones included,
+  also offer opposition-based (`obl`, Evolver's `oppositionBased`) and Halton
+  initialization. Seeded SMS-EMOA tuning runs draw different trials (#355).
+- The Evolver name table reads Evolver's inverted PBI as `inverted_pbi` with
+  normalization, and its DE as `de_base: random`, as Evolver runs them.
+  `to_evolver` refuses the combinations that Evolver cannot express (#355).
 
 ### Removed
 
@@ -158,6 +176,8 @@ notes](docs/project/release-notes-1.4.0.md).
   `np.power(x, -1)` as `1 / x`, so the check that compiled `pow` matches
   `np.power` failed, and the Numba engine fell back to the NumPy operators (same
   results, slower). The compiled power now takes the same shortcuts (#353).
+- Studio's MOEA/D form applies the parameters of the modified Tchebycheff
+  aggregation (`mtch_rho`), which it ignored (#355).
 
 ## [1.3.0] - 2026-11-16
 
