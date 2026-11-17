@@ -55,18 +55,39 @@ def test_build_wheel_reads_every_job_of_its_run_whatever_happened_before() -> No
         ("1\tsuccess\ttyping\n1\tsuccess\ttests-full (macos-latest, 3.12)\n2\tfailure\ttests-full (macos-latest, 3.12)\n", False),
         ("", False),
         (None, False),  # the jobs API failed
+        # The jobs API can still report a job that needs: has seen finish as running; the guard waits for it.
+        # In #350's run, build-wheel read "in_progress tests-full (ubuntu-latest, 3.12)" for a job that had succeeded.
+        (
+            (
+                "1\tsuccess\ttyping\n1\tin_progress\ttests-full (ubuntu-latest, 3.12)\n",
+                "1\tsuccess\ttyping\n1\tsuccess\ttests-full (ubuntu-latest, 3.12)\n",
+            ),
+            True,
+        ),
+        (("1\tqueued\ttests-minimal (3.12)\n", "1\tfailure\ttests-minimal (3.12)\n"), False),
+        # A job that never reports finished fails once the guard stops waiting.
+        (("1\tin_progress\ttests-full (macos-latest, 3.12)\n", "1\tin_progress\ttests-full (macos-latest, 3.12)\n"), False),
     ],
 )
-def test_build_wheel_fails_unless_every_other_job_succeeded(tmp_path: Path, jobs: str | None, passes: bool) -> None:
-    # A stand-in for gh prints what `gh api ... --jq` prints for the run's jobs, or fails like an API error.
+def test_build_wheel_fails_unless_every_other_job_succeeded(tmp_path: Path, jobs: str | tuple[str, str] | None, passes: bool) -> None:
+    # A stand-in for gh prints what `gh api ... --jq` prints for the run's jobs, or fails like an API error. A pair
+    # holds what the first call prints and what every later call prints.
+    first, later = jobs if isinstance(jobs, tuple) else (jobs or "", jobs or "")
     fake = tmp_path / "gh"
-    fake.write_text('#!/bin/sh\n[ -n "$FAKE_GH_FAILS" ] && exit 1\nprintf "%s" "$FAKE_JOBS"\n', encoding="utf-8")
+    fake.write_text(
+        '#!/bin/sh\n[ -n "$FAKE_GH_FAILS" ] && exit 1\n'
+        'if [ -e "$FAKE_GH_CALLED" ]; then printf "%s" "$FAKE_JOBS_LATER"; else : > "$FAKE_GH_CALLED"; printf "%s" "$FAKE_JOBS"; fi\n',
+        encoding="utf-8",
+    )
     fake.chmod(0o755)
     env = {
         **os.environ,
         "PATH": f"{tmp_path}{os.pathsep}{os.environ['PATH']}",
-        "FAKE_JOBS": jobs or "",
+        "FAKE_JOBS": first,
+        "FAKE_JOBS_LATER": later,
+        "FAKE_GH_CALLED": str(tmp_path / "called"),
         "FAKE_GH_FAILS": "1" if jobs is None else "",
+        "GUARD_POLL_SECONDS": "0",
         "GITHUB_REPOSITORY": "owner/repo",
         "GITHUB_RUN_ID": "1",
         "GITHUB_RUN_ATTEMPT": "1",
