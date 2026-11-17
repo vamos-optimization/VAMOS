@@ -348,9 +348,20 @@ def _inject_special_params(algo_name: str, assignment: dict[str, Any]) -> None:
 _REGISTRY_IDS = [f"{algo}_{enc}" for algo, enc, _ in REGISTRY]
 # Spaces with more than 100 000 combinations: building them all takes minutes, so the
 # exhaustive check runs in the slow tier and the fast tier builds a sample of them.
-_LARGE_SPACES = {"nsgaii_real", "nsgaii_mixed_mixed", "nsgaii_constrained_real", "smsemoa_constrained_real"}
+_LARGE_SPACES = {"nsgaii_real", "nsgaii_mixed_mixed", "nsgaii_constrained_real", "smsemoa_constrained_real", "moead_constrained_real"}
 # A prime stride over the base product reaches every value of every base parameter.
 _SAMPLE_BASE_STRIDE = 211
+
+
+def _sample_stride(space: AlgorithmConfigSpace) -> int:
+    """The largest prime up to ``_SAMPLE_BASE_STRIDE`` that samples at least 20 combinations of the base parameters.
+
+    A space whose size lies in its conditional parameters (the mixed spaces' ``per_segment`` operators)
+    has a small base product, which the full stride would sample only once or twice.
+    """
+    base = math.prod(len(p.choices) if isinstance(p, Categorical) else 2 for p in space.params if isinstance(p, (Categorical, Boolean)))
+    limit = max(2, min(_SAMPLE_BASE_STRIDE, base // 20))
+    return next(n for n in range(limit, 1, -1) if all(n % d for d in range(2, math.isqrt(n) + 1)))
 
 
 def _assert_combos_build(algo_name: str, combos) -> list[dict[str, Any]]:
@@ -392,7 +403,7 @@ def test_all_discrete_combos_build_config(algo_name: str, encoding: str, builder
 def test_large_discrete_spaces_build_config_on_a_sample(algo_name: str, encoding: str, builder):
     """A sample of every large space builds, and it uses every value of every base parameter."""
     space = builder()
-    built = _assert_combos_build(algo_name, _enumerate_discrete_combos(space, base_stride=_SAMPLE_BASE_STRIDE))
+    built = _assert_combos_build(algo_name, _enumerate_discrete_combos(space, base_stride=_sample_stride(space)))
 
     for param in space.params:
         if isinstance(param, (Categorical, Boolean)):
