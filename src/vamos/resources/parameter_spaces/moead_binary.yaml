@@ -20,10 +20,21 @@ parameters:
       bounded:
         conditional_parameters:
           archive_prune_policy: {type: categorical, default: crowding, values: [crowding, hv, mc_hv, knn, maxmin, ref_dirs], role: adaptive}
+  subproblem_order: {type: categorical, default: random_permutation, values: [random_permutation, cyclic], role: structural}
   aggregation_function:
     type: categorical
     default: pbi
     role: structural
+    global_sub_parameters:
+      normalize_objectives:
+        type: categorical
+        default: "false"
+        role: structural
+        values:
+          "false": {}
+          "true":
+            conditional_parameters:
+              normalization_epsilon: {type: real, default: 1.0e-6, range: [1.0e-8, 25.0], log: true, role: operator_rate}
     values:
       tchebycheff: {}
       weighted_sum: {}
@@ -33,6 +44,13 @@ parameters:
       modified_tchebycheff:
         conditional_parameters:
           mtch_rho: {type: real, default: 0.001, range: [0.0001, 0.1], role: operator_rate}
+      augmented_tchebycheff:
+        conditional_parameters:
+          atch_rho: {type: real, default: 0.0001, range: [1.0e-6, 0.1], log: true, role: operator_rate}
+      inverted_pbi:
+        conditional_parameters:
+          ipbi_theta: {type: real, default: 0.1, range: [0.01, 200.0], log: true, role: operator_rate}
+      inverse_weight_tchebycheff: {}
   crossover:
     type: categorical
     default: uniform

@@ -271,3 +271,29 @@ def test_the_smsemoa_reference_point_offset_control_changes_the_reference_point(
 
     assert resolved.unapplied == ()
     assert resolved.config.to_dict()["reference_point"]["offset"] == 0.5
+
+
+@pytest.mark.parametrize(
+    ("changes", "field", "expected"),
+    [
+        ({"subproblem_order": "cyclic"}, "subproblem_order", "cyclic"),
+        ({"normalize_objectives": "true"}, "aggregation", ("pbi", {"theta": 5.0, "normalize": True, "epsilon": 1e-6})),
+        ({"aggregation_function": "modified_tchebycheff", "mtch_rho": 0.01}, "aggregation", ("modified_tchebycheff", {"rho": 0.01})),
+        ({"aggregation_function": "augmented_tchebycheff", "atch_rho": 0.01}, "aggregation", ("augmented_tchebycheff", {"rho": 0.01})),
+        ({"aggregation_function": "inverted_pbi", "ipbi_theta": 1.0}, "aggregation", ("inverted_pbi", {"theta": 1.0})),
+        (
+            {"de_scheme": "rand_2_bin", "de_base": "random"},
+            "crossover",
+            ("de", {"cr": 1.0, "f": 0.5, "scheme": "rand_2_bin", "base": "random"}),
+        ),
+    ],
+    ids=["order", "normalization", "modified-rho", "augmented-rho", "inverted-pbi", "de-scheme-and-base"],
+)
+def test_the_moead_form_applies_evolvers_options(changes: dict[str, object], field: str, expected: object) -> None:
+    form = _form("moead")
+    assert {"subproblem_order", "normalize_objectives", "de_scheme", "de_base"} <= {parameter.name for parameter in form.parameters}
+
+    resolved = form.resolve({**form.start_values(), **changes})
+
+    assert resolved.unapplied == ()
+    assert resolved.config.to_dict()[field] == expected

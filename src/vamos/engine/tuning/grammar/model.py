@@ -235,6 +235,35 @@ class ParameterSpace:
             schema_version=self.schema_version,
         )
 
+    def without_values(self, name: str, values: Collection[Scalar]) -> ParameterSpace:
+        """This space with the categorical ``name`` no longer offering ``values``, nor their productions.
+
+        ``vamos tune --smoke`` drops the opposition-based initializer when its population leaves no room
+        for it, for example. The default must stay; the result is another space, with another identity.
+        """
+        node = self.parameter(name)
+        dropped = [value for value in node.values if any(same_scalar(value, other) for other in values)]
+        if any(same_scalar(node.default, value) for value in dropped) or len(dropped) == len(node.values):
+            raise ValueError(f"{name!r} cannot drop {sorted(map(str, values))}: it keeps its default and one value at least.")
+        kept = [index for index, value in enumerate(node.values) if value not in dropped]
+
+        def prune(parameters: tuple[Parameter, ...]) -> tuple[Parameter, ...]:
+            pruned = []
+            for parameter in parameters:
+                if parameter.name == name:
+                    productions = tuple(parameter.productions[index] for index in kept) if parameter.productions else ()
+                    parameter = replace(parameter, values=tuple(parameter.values[index] for index in kept), productions=productions)
+                pruned.append(
+                    replace(
+                        parameter,
+                        productions=tuple(prune(production) for production in parameter.productions),
+                        global_sub_parameters=prune(parameter.global_sub_parameters),
+                    )
+                )
+            return tuple(pruned)
+
+        return replace(self, parameters=prune(self.parameters))
+
     def default_values(self) -> dict[str, Scalar]:
         """The default configuration: every parameter that the defaults activate, at its default."""
         return self._derive(lambda parameter: parameter.default)

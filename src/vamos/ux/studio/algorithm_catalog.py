@@ -115,7 +115,8 @@ def config_fields_for(parameter: str) -> tuple[str, ...]:
         return ("n_partitions", "pop_size")
     if parameter == "initializer" or parameter.startswith("scatter_"):
         return ("initializer",)
-    if parameter in {"aggregation", "pbi_theta"}:
+    if parameter in {"aggregation", "pbi_theta", "mtch_rho", "atch_rho", "ipbi_theta", "normalize_objectives", "normalization_epsilon"}:
+        # The aggregation and its parameters, the normalization of the objectives among them.
         return ("aggregation",)
     if parameter == "reference_point_offset":
         # SMSEMOAConfig keeps the offset inside its reference_point mapping.

@@ -342,7 +342,10 @@ evaluations fail, but not all of them, now ends with a warning.
 **Development after 1.3.0:** the spaces no longer sample the population, so
 `--smoke` runs every configuration with `--pop-size` capped at 15, or with the
 smallest reference lattice of MOEA/D, NSGA-III or RVEA when that is larger, and
-records it under `fixed_parameters` in its smoke profile.
+records it under `fixed_parameters` in its smoke profile. When that lattice is
+more than half the smoke budget (MOEA/D with 16 objectives runs 16 individuals
+in 30 evaluations), the smoke space no longer offers the opposition-based
+initializer, which evaluates a population and its opposite.
 Without `--name`, the output folder is named after the `--instances` (the first
 three and the number of the others), not after `--problem`.
 
@@ -440,7 +443,10 @@ different trials.
 (`moead`, `moead_constrained`, `smsemoa`, `smsemoa_constrained`) also offer
 the choices of Evolver's spaces that VAMOS runs for them:
 
-- `sobol` among the `initial_solutions`;
+- the initializers of NSGA-II's space among the `initial_solutions`: `sobol`,
+  `halton` and `obl`, the opposition-based initialization (Evolver's
+  `oppositionBased`); Evolver's `cauchy` initialization has no VAMOS
+  counterpart;
 - the `levy_flight` (`levy_beta`, `levy_scale`) and `power_law`
   (`power_index`) mutations;
 - the `laplace` (`laplace_a`, `laplace_b`) and `fuzzy` (`fuzzy_d`) crossovers,
@@ -458,6 +464,38 @@ PCX and UNDC stay out: MOEA/D and SMS-EMOA mate two parents, and those
 crossovers need three. Each new parameter defaults to its operator's own value,
 and an assignment saved with `crossover: de` or `crossover: sbx` builds what it
 built.
+
+**Development after 1.3.0:** every MOEA/D grammar also offers the options of
+Evolver's MOEA/D that the engine runs (see
+[the MOEA/D configuration](../reference/api/algorithms/moead.md)), each off by
+default, so the defaults still build the configuration of VAMOS 1.3.0:
+
+- `subproblem_order`: `random_permutation` (the default) or `cyclic`, Evolver's
+  `subProblemIdGenerator`;
+- the aggregations `augmented_tchebycheff` (`atch_rho`, default `1e-4`,
+  log-uniform in [1e-6, 0.1]; Evolver fixes it), `inverted_pbi` (`ipbi_theta`,
+  default 0.1, log-uniform in Evolver's [0.01, 200]) and
+  `inverse_weight_tchebycheff` (Evolver's `modifiedTschebyscheff`);
+- `normalize_objectives`, `"false"` (the default) or `"true"`, a global
+  sub-parameter of `aggregation_function` as Evolver's `normalizeObjectives`,
+  with `normalization_epsilon` under `"true"` (default `1e-6`, log-uniform in
+  Evolver's [1e-8, 25]);
+- in the real-coded spaces, under `variation: differential_evolution`,
+  `de_scheme` (`rand_1_bin`, the default, `rand_1_exp`, `rand_2_bin`,
+  `rand_2_exp`; Evolver's `differentialEvolutionCrossover`) and `de_base`
+  (`current`, the default, or `random`, as Evolver's MOEA/D).
+
+The neighbourhood's range, [5, 50], starts at the largest number of random
+parents that a scheme and base need (5, for rand/2 with a random base), so every
+point of a grammar runs; a run whose population is smaller than 5 caps the
+neighbourhood below it, and MOEA/D then rejects the schemes that need more.
+The name table writes Evolver's `invertedPenaltyBoundaryIntersection` for
+`inverted_pbi`, which Evolver always normalizes: `from_evolver` reads it with
+`normalize_objectives: "true"` (and jMetal's epsilon, `1e-6`, when the line has
+none), and `to_evolver` refuses `inverted_pbi` without normalization. Evolver's
+MOEA/D also draws the base of the DE mutant at random: `from_evolver` reads a DE
+configuration with `de_base: random`, and `to_evolver` refuses `de_base:
+current`, which Evolver cannot express.
 
 ### Parameter names and Evolver's
 
@@ -493,6 +531,11 @@ The paragraphs above use the earlier names.
 | `mutation` | `mutation` | `mutation` |
 | `selection` | `selection` | `selection` |
 | `variation` | `variation` | `variation` |
+| `subproblem_order` | `subproblem_order` | `subProblemIdGenerator` |
+| `normalize_objectives` | `normalize_objectives` | `normalizeObjectives` |
+| `normalization_epsilon` | `normalization_epsilon` | `epsilonParameterForNormalization` |
+| `ipbi_theta` | `ipbi_theta` | `ipbiTheta` |
+| `de_scheme` | `de_scheme` | `differentialEvolutionCrossover` |
 
 Values that change: mutation `pm` becomes `polynomial` (the name the other
 spaces already used) and crossover `undx` becomes `undc` (Evolver's `UNDC`).
