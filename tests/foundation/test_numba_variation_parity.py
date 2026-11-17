@@ -230,8 +230,8 @@ def test_power_probe_matches_this_platform_numpy():
     out = np.empty_like(bases)
     matches = True
     with np.errstate(all="ignore"):
-        for exponent in (21.0, -21.0, 1.0 / 21.0, 2.0, 0.5):
-            _numba_variation._numpy_power_vector(bases, exponent, _numba_variation.numpy_power_squares(), out)
+        for exponent in (21.0, -21.0, 1.0 / 21.0, 2.0, 0.5, -1.0):
+            _numba_variation._numpy_power_vector(bases, exponent, _numba_variation.numpy_power_paths(), out)
             matches &= bool(np.array_equal(out, np.power(bases, exponent), equal_nan=True))
     if _numba_variation.compiled_power_matches_numpy():
         assert matches
