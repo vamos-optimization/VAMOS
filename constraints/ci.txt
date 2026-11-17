@@ -3,7 +3,7 @@
 # Typing reads the pin for Python 3.12 (tools/typecheck.py).
 numpy==2.2.6 ; python_version < "3.14"
 numpy==2.3.5 ; python_version >= "3.14"
-scipy==1.15.3 ; python_version < "3.14"
+scipy==1.17.1 ; python_version < "3.14"
 scipy==1.16.3 ; python_version >= "3.14"
 joblib==1.6.0
 pytest==9.2.0
