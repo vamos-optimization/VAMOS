@@ -30,15 +30,18 @@ from vamos.engine.algorithm.moead.update_criteria import (
 )
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
 from vamos.engine.operators.impl.flags import set_numba_variation
-from vamos.engine.operators.policies.moead import build_variation_operators
+from vamos.engine.operators.policies.moead import build_variation_operators, de_random_parents
 from vamos.foundation.checkpoint import restore_rng
 from vamos.foundation.constraints.utils import compute_violation
 from vamos.foundation.encoding import EncodingLike, normalize_encoding
 from vamos.foundation.eval.population import evaluate_population_with_constraints
 from vamos.foundation.exceptions import ConfigurationError
 
-from .helpers import build_aggregator, compute_neighbors, resolve_aggregation_spec
+from .aggregation import ZERO_WEIGHT_EPS, resolve_aggregation
+from .helpers import build_aggregator, compute_neighbors
+from .nadir import start_nadir
 from .state import MOEADState
+from .subproblems import checkpoint_subproblem_order, new_subproblem_order, normalize_subproblem_order
 
 if TYPE_CHECKING:
     from vamos.engine.algorithm.components.termination import HVTracker
@@ -91,6 +94,10 @@ def initialize_moead_run(
     validate_initial_budget(max_eval, pop_size, "MOEA/D")
 
     constraint_mode = normalize_constraint_mode(cfg.get("constraint_mode", "feasibility"))
+    order_name = cfg.get("subproblem_order")
+    cyclic = order_name is not None and normalize_subproblem_order(order_name) == "cyclic"
+    agg_method, agg_params = cfg.get("aggregation", ("pbi", {"theta": 5.0}))
+    aggregation = resolve_aggregation(agg_method, agg_params)
     subproblem_update = _run_criterion(cfg.get("subproblem_update_criterion"), constraint_mode, max_eval, pop_size, checkpoint)
     encoding = normalize_encoding(getattr(problem, "encoding", "real"))
     xl, xu = resolve_bounds_array(problem, encoding)
@@ -108,6 +115,7 @@ def initialize_moead_run(
         mixed_spec=getattr(problem, "mixed_spec", None),
         variation_kernels=kernel.variation_kernels(),
     )
+    neighbor_size, random_parents = _neighbourhood_size(cfg, pop_size, crossover_fn)
 
     X: NDArray[np.generic]
     F: NDArray[np.generic]
@@ -122,6 +130,7 @@ def initialize_moead_run(
     checkpoint_archive_X: NDArray[np.generic] | None = None
     checkpoint_archive_F: NDArray[np.generic] | None = None
     checkpoint_archive_G: NDArray[np.generic] | None = None
+    checkpoint_nadir: tuple[Any, Any] = (None, None)
 
     if checkpoint is not None:
         # A checkpoint that cannot be restored is an error: silently starting over would
@@ -153,8 +162,9 @@ def initialize_moead_run(
             extra = checkpoint.get("extra", {})
             # An extra that is not a mapping restores nothing: the run draws a new subproblem order.
             extra = extra if isinstance(extra, Mapping) else {}
-            subproblem_order, subproblem_cursor, ideal_override = _subproblem_progress(extra, pop_size, n_obj, rng)
+            subproblem_order, subproblem_cursor, ideal_override = _subproblem_progress(extra, pop_size, n_obj, rng, cyclic)
             live_generation, live_evals = _live_progress(extra, n_eval, pop_size)
+            checkpoint_nadir = (extra.get("nadir_front"), extra.get("nadir_front_cv"))
 
             archive_x_raw = checkpoint.get("archive_X")
             archive_f_raw = checkpoint.get("archive_F")
@@ -188,35 +198,15 @@ def initialize_moead_run(
             initializer=cfg.get("initializer"),
             max_evaluations=max_eval,
         )
-        subproblem_order = rng.permutation(pop_size).astype(int, copy=False)
+        subproblem_order = new_subproblem_order(rng, pop_size, cyclic)
         subproblem_cursor = 0
         live_evals = n_eval
 
     cv = compute_violation(G) if constraint_mode != "none" and G is not None else None
 
-    weight_cfg = cfg.get("weight_vectors", {}) or {}
-    weights = load_or_generate_weight_vectors(
-        pop_size,
-        n_obj,
-        path=weight_cfg.get("path"),
-        divisions=weight_cfg.get("divisions"),
-        mode="jmetalpy",
-    )
-    from .helpers import ZERO_WEIGHT_EPS
-
-    weights_safe = np.where(weights == 0, ZERO_WEIGHT_EPS, weights)
-    weight_norms = np.linalg.norm(weights, axis=1)
-    weight_norms = np.where(weight_norms > 0, weight_norms, 1.0)
-    weights_unit = weights / weight_norms[:, None]
-
-    neighbor_size = cfg.get("neighbor_size", min(20, pop_size))
-    neighbor_size = max(2, min(neighbor_size, pop_size))
+    weights, weights_safe, weights_unit = _weights(cfg, pop_size, n_obj)
     neighbors = compute_neighbors(weights, neighbor_size)
-
-    aggregation = cfg.get("aggregation", ("pbi", {"theta": 5.0}))
-    agg_method, agg_params = aggregation
     aggregator = build_aggregator(agg_method, agg_params)
-    agg_id, agg_theta, agg_rho = resolve_aggregation_spec(agg_method, agg_params)
 
     numba_variation = cfg.get("use_numba_variation")
     if numba_variation is not None:
@@ -262,15 +252,19 @@ def initialize_moead_run(
         neighbors=neighbors,
         ideal=ideal_override if ideal_override is not None else F.min(axis=0),
         aggregator=aggregator,
-        aggregation_id=agg_id,
-        aggregation_theta=agg_theta,
-        aggregation_rho=agg_rho,
+        aggregation_id=aggregation.method_id,
+        aggregation_theta=aggregation.theta,
+        aggregation_rho=aggregation.rho,
+        aggregation_normalize=aggregation.normalize,
+        aggregation_epsilon=aggregation.epsilon,
         neighbor_size=neighbor_size,
         delta=float(cfg.get("delta", 0.9)),
         replace_limit=max(1, int(cfg.get("replace_limit", 2))),
         batch_size=batch_size,
         subproblem_order=subproblem_order,
         subproblem_cursor=subproblem_cursor,
+        subproblem_cyclic=cyclic,
+        de_random_parents=random_parents,
         live_generation=live_generation,
         live_evals=live_evals,
         cv=cv,
@@ -290,6 +284,11 @@ def initialize_moead_run(
     )
 
     state.generation = generation
+    if aggregation.needs_nadir:
+        try:
+            start_nadir(state, *checkpoint_nadir)
+        except ValueError as exc:
+            raise ConfigurationError(f"Cannot resume MOEA/D from the checkpoint: {exc}") from exc
 
     if checkpoint_archive_X is not None and checkpoint_archive_F is not None and ext_cfg:
         if state.archive_manager is not None:
@@ -310,17 +309,40 @@ def initialize_moead_run(
     return state, live_cb, eval_strategy, max_eval, hv_tracker
 
 
+def _neighbourhood_size(cfg: Mapping[str, Any], pop_size: int, crossover_fn: object) -> tuple[int, int]:
+    """The neighbourhood size of the run and the random parents of its DE scheme, which must fit in it."""
+    neighbor_size = max(2, min(cfg.get("neighbor_size", min(20, pop_size)), pop_size))
+    scheme = str(getattr(crossover_fn, "scheme", "rand_1_bin"))
+    random_parents = de_random_parents(scheme)
+    if random_parents > neighbor_size:
+        raise ConfigurationError(
+            f"The DE crossover scheme {scheme} needs neighbor_size >= {random_parents} "
+            f"({random_parents} distinct random parents); got {neighbor_size}."
+        )
+    return neighbor_size, random_parents
+
+
+def _weights(cfg: Mapping[str, Any], pop_size: int, n_obj: int) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
+    """The weight vectors, with a zero weight replaced by ``ZERO_WEIGHT_EPS``, and the unit weight vectors."""
+    weight_cfg = cfg.get("weight_vectors", {}) or {}
+    weights = load_or_generate_weight_vectors(
+        pop_size,
+        n_obj,
+        path=weight_cfg.get("path"),
+        divisions=weight_cfg.get("divisions"),
+        mode="jmetalpy",
+    )
+    weights_safe = np.where(weights == 0, ZERO_WEIGHT_EPS, weights)
+    weight_norms = np.linalg.norm(weights, axis=1)
+    weight_norms = np.where(weight_norms > 0, weight_norms, 1.0)
+    return weights, weights_safe, weights / weight_norms[:, None]
+
+
 def _subproblem_progress(
-    extra: Mapping[str, Any], pop_size: int, n_obj: int, rng: np.random.Generator
+    extra: Mapping[str, Any], pop_size: int, n_obj: int, rng: np.random.Generator, cyclic: bool
 ) -> tuple[NDArray[np.generic], int, NDArray[np.generic] | None]:
     """The subproblem order, its cursor and the ideal point of a checkpoint's ``extra``."""
-    order_raw = extra.get("subproblem_order")
-    if order_raw is not None:
-        subproblem_order = np.asarray(order_raw, dtype=int)
-        if subproblem_order.ndim != 1 or not np.array_equal(np.sort(subproblem_order), np.arange(pop_size)):
-            raise ValueError(f"Checkpoint subproblem_order is not a permutation of {pop_size} subproblems.")
-    else:
-        subproblem_order = rng.permutation(pop_size).astype(int, copy=False)
+    subproblem_order = checkpoint_subproblem_order(extra.get("subproblem_order"), pop_size, cyclic, rng)
     subproblem_cursor = int(extra.get("subproblem_cursor", 0))
     # A cursor equal to pop_size means the order is used up: the next step draws a new one.
     if subproblem_cursor < 0 or subproblem_cursor > pop_size:
