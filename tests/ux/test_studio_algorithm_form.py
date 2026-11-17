@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
-from vamos.engine.tuning.racing.param_space import Real
+from vamos.engine.tuning.grammar import Parameter, ParameterSpace
+from vamos.engine.tuning.racing.bridge_assignments import config_from_assignment
 from vamos.foundation.problem.registry import make_problem_selection
 from vamos.ux.studio.algorithm_form import (
-    VAMOS_DEFAULT_CHOICE,
     AlgorithmForm,
     FormParameter,
-    _form_parameter,
     algorithms_for_encoding,
     build_algorithm_form,
     config_fields_for,
@@ -34,7 +35,7 @@ def _alternative(parameter: FormParameter) -> object | None:
     if parameter.kind == "boolean":
         return not parameter.start
     if parameter.kind == "categorical":
-        choices = [choice for choice in parameter.choices if choice not in (parameter.start, VAMOS_DEFAULT_CHOICE)]
+        choices = [choice for choice in parameter.choices if choice != parameter.start]
         return choices[-1] if choices else None
     assert parameter.low is not None and parameter.high is not None
     value = parameter.high if parameter.start != parameter.high else parameter.low
@@ -100,13 +101,88 @@ def test_conditional_parameters_follow_their_parent() -> None:
     assert "sbx_distribution_index" not in switched
 
 
-def test_defaults_outside_the_tuning_range_are_kept_and_explained() -> None:
-    # No built-in default lies outside its tuning range since IBEA's kappa default became 0.05.
-    kappa = _form_parameter(Real("kappa", 0.01, 0.2), 0, {"kappa": 1.0})
+def _depths(grammar: ParameterSpace) -> dict[str, int]:
+    depths: dict[str, int] = {}
 
-    assert kappa.start == pytest.approx(1.0)
-    assert kappa.high is not None and kappa.high >= 1.0
-    assert "outside the tuning range" in kappa.note
+    def visit(parameters: tuple[Parameter, ...], depth: int) -> None:
+        for parameter in parameters:
+            depths[parameter.name] = depth
+            visit(parameter.global_sub_parameters, depth + 1)
+            for production in parameter.productions:
+                visit(production, depth + 1)
+
+    visit(grammar.parameters, 0)
+    return depths
+
+
+@pytest.mark.parametrize(("algorithm", "encoding"), FORM_CASES)
+def test_a_form_is_its_grammar(algorithm: str, encoding: str) -> None:
+    # The form shows the grammar's tree, starts from its defaults, and edits each parameter within the one
+    # range that tuning uses (no wider range for editing by hand).
+    form = build_algorithm_form(algorithm, encoding=encoding, n_var=12, n_obj=2, pop_size=40)
+    if form is None:
+        pytest.skip(f"{algorithm} has no {encoding} configuration space")
+    grammar = form.grammar
+    order = [parameter.name for parameter in grammar.walk()]
+    depths = _depths(grammar)
+
+    assert [parameter.name for parameter in form.parameters] == [name for name in order if name in form.start_values()]
+    for parameter in form.parameters:
+        node = grammar.parameter(parameter.name)
+        assert parameter.depth == depths[node.name]
+        if parameter.name in POPULATION_DEFAULTS.get(algorithm, ()):
+            # The grammar's default is that of 100 individuals; the form starts at this run's.
+            assert parameter.start == form.baseline.to_dict()[parameter.name] == 40 and "population" in parameter.note
+        else:
+            assert parameter.start == node.default and parameter.note == ""
+        if node.type == "categorical":
+            assert parameter.choices == node.values
+        elif node.range is not None:
+            assert (parameter.low, parameter.high, parameter.log) == (*node.range, node.log)
+
+
+# The parameters whose default configuration follows the population; the grammars give the value of 100 individuals.
+POPULATION_DEFAULTS = {"spea2": ("archive_size",), "smpso": ("archive_size",)}
+
+
+@pytest.mark.parametrize("pop_size", [12, 40, 150])
+@pytest.mark.parametrize(("algorithm", "encoding"), FORM_CASES)
+def test_an_untouched_form_shows_what_it_runs(algorithm: str, encoding: str, pop_size: int) -> None:
+    # Building the starting values gives the default configuration of the run's population, field by
+    # field, for every population: no control shows a value that the run does not use.
+    form = build_algorithm_form(algorithm, encoding=encoding, n_var=12, n_obj=2, pop_size=pop_size)
+    if form is None:
+        pytest.skip(f"{algorithm} has no {encoding} configuration space")
+    reference = build_algorithm_form(algorithm, encoding=encoding, n_var=12, n_obj=2, pop_size=100)
+    assert reference is not None
+
+    assert _start_differences(form) <= _start_differences(reference)
+
+
+def _start_differences(form: AlgorithmForm) -> set[str]:
+    """The configuration fields that the starting values build differently from the baseline."""
+    baseline = form.baseline.to_dict()
+    assignment = {name: form.start_values()[name] for name in form.active_names(form.start_values())}
+    built = config_from_assignment(form.grammar.variant, {**assignment, "pop_size": baseline["pop_size"], "n_obj": form.n_obj}).to_dict()
+    return {
+        key for key in set(baseline) | set(built) if json.dumps(baseline.get(key), default=str) != json.dumps(built.get(key), default=str)
+    }
+
+
+@pytest.mark.parametrize("algorithm", sorted(POPULATION_DEFAULTS))
+def test_the_default_of_100_individuals_is_a_change_for_another_population(algorithm: str) -> None:
+    form = _form(algorithm)  # 40 individuals
+    resolved = form.resolve({**form.start_values(), "archive_size": 100})
+
+    assert resolved.changed == ("archive_size",)
+    assert resolved.config.to_dict()["archive_size"] == 100
+
+
+def test_forms_start_from_the_automatic_initializer_and_repair() -> None:
+    parameters = {parameter.name: parameter for parameter in _form("nsgaii").parameters}
+
+    for name in ("initial_solutions", "repair"):
+        assert parameters[name].start == "auto" and parameters[name].choices[0] == "auto"
 
 
 def test_ibea_kappa_default_lies_in_its_tuning_range() -> None:
