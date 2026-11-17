@@ -274,7 +274,7 @@ def _scheme_child(
     mutant = base + f * (parents[:, 0, :] - parents[:, 1, :])
     if scheme.startswith("rand_2"):
         mutant = mutant + f * (parents[:, 2, :] - parents[:, 3, :])
-    n_pairs, n_vars = current.shape
+    n_pairs, n_vars = int(current.shape[0]), int(current.shape[1])
     if scheme.endswith("_bin"):
         # The draws of rand/1/bin: the uniform grid, then the variable that always comes from the mutant.
         mask = rng.random((n_pairs, n_vars)) < cr

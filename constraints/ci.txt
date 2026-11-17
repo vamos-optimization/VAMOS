@@ -1,8 +1,6 @@
 # Tested direct dependency set for CI and reproducible release smoke runs.
-# NumPy 2.2.6 publishes no Python 3.14 wheels.
 # Typing reads the pin for Python 3.12 (tools/typecheck.py).
-numpy==2.2.6 ; python_version < "3.14"
-numpy==2.3.5 ; python_version >= "3.14"
+numpy==2.4.6
 scipy==1.17.1
 joblib==1.6.0
 pytest==9.2.0

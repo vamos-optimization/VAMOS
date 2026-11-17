@@ -32,7 +32,7 @@ def _h2(t: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
 def _signed_sqrt(value: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     """``sign(value) sqrt(|value|)``, the bound of y2 and y4 in the constraints of CF6 and CF7."""
     root = np.sqrt(np.abs(value))
-    return np.where(value > 0.0, root, -root)
+    return np.asarray(np.where(value > 0.0, root, -root))
 
 
 def _multimodal(y: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:

@@ -96,7 +96,7 @@ def offspring_replaces_parent(
 def feasible_ratio(violation: NDArray[Any]) -> float:
     """``Pf``: the number of rows with violation zero divided by the number of rows."""
     cv = np.asarray(violation, dtype=float)
-    return int(np.count_nonzero(cv == 0.0)) / cv.shape[0]
+    return int(np.count_nonzero(cv == 0.0)) / int(cv.shape[0])
 
 
 def updated_delta(F: NDArray[Any], violation: NDArray[Any], delta: float) -> float:
