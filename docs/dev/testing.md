@@ -10,7 +10,7 @@ The checker examines tracked content only; generated test output belongs in
 ## Documentation toolchain
 
 Install documentation and development extras with `constraints/ci.txt`. The
-reviewed set pairs PyMdown 12.3 with mkdocstrings 1.0.8, which is also the
+reviewed set pairs PyMdown 13.1 with mkdocstrings 1.0.8, which is also the
 minimum that the `docs` and `dev` extras declare. The Zensical compatibility
 workflow uses the same constraints rather than overriding the API renderer.
 

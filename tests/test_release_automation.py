@@ -415,7 +415,8 @@ def test_notebook_execution_dependencies_include_a_pinned_kernel() -> None:
     constraints = (ROOT / "constraints" / "ci.txt").read_text(encoding="utf-8")
 
     assert pyproject.count('"ipykernel>=7.3"') == 2
-    assert "ipykernel==7.3.0" in constraints
+    # Dependabot bumps the pin; any reviewed version at or above the declared minimum is accepted.
+    assert _exact_pins(constraints)["ipykernel"] >= Version("7.3")
 
 
 @pytest.mark.parametrize(
