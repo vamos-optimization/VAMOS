@@ -136,7 +136,9 @@ class AlgorithmConfigurator:
     def _rebuild(self) -> None:
         algorithm = self.selected_algorithm
         same_setup = self._form is not None and self._form.algorithm == algorithm and self._form.encoding == self._encoding
-        previous = self.values() if same_setup else {}
+        # Only the user's entries carry over: an untouched control takes the new form's start, which can
+        # follow the population (SPEA2's and SMPSO's archive).
+        previous = self._form.edited_values(self.values()) if same_setup and self._form is not None else {}
         derived = population_is_derived(algorithm, self._n_obj)
         self.pop_size.disabled = derived
         try:

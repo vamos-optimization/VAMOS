@@ -96,6 +96,11 @@ class AlgorithmForm:
     def start_values(self) -> dict[str, object]:
         return {parameter.name: parameter.start for parameter in self.parameters}
 
+    def edited_values(self, values: Mapping[str, object]) -> dict[str, object]:
+        """The values that differ from their starting values, active or not: what the user entered."""
+        starts = self.start_values()
+        return {name: value for name, value in values.items() if name in starts and not _same_value(value, starts[name])}
+
     def active_names(self, values: Mapping[str, object]) -> tuple[str, ...]:
         """Return the active parameters, in form order, for the current values: the derivation of the grammar."""
         active = {parameter.name for parameter in self.grammar.active_parameters(values)}
@@ -184,6 +189,7 @@ def build_algorithm_form(
         parameters=_tree_parameters(grammar),
         baseline=baseline,
     )
+    form = replace(form, parameters=_population_starts(form))
     return replace(form, parameters=_effective_parameters(form))
 
 
@@ -213,6 +219,30 @@ def _form_parameter(node: Parameter, depth: int) -> FormParameter:
     low, high = node.range
     kind: ParameterKind = "int" if node.type == "int" else "real"
     return FormParameter(node.name, kind, node.default, depth, low=float(low), high=float(high), log=node.log, note=note, title=title)
+
+
+def _population_starts(form: AlgorithmForm) -> tuple[FormParameter, ...]:
+    """Start a population parameter at the run's default where the default configuration follows the population.
+
+    The grammar's defaults are the default configuration of 100 individuals: SPEA2's and SMPSO's
+    ``archive_size`` is 100 there, and the population in any other run. A form for another
+    population starts such a parameter at the baseline's value, so the untouched form shows what it
+    runs and entering the grammar's default is a change. The control keeps the grammar's one range,
+    which the run's value may lie outside of.
+    """
+    baseline = form.baseline.to_dict()
+    parameters: list[FormParameter] = []
+    for parameter in form.parameters:
+        node = form.grammar.parameter(parameter.name)
+        fields = config_fields_for(_bridge_name(parameter.name))
+        value = baseline.get(fields[0]) if len(fields) == 1 else None
+        numeric = isinstance(value, (int, float)) and not isinstance(value, bool)
+        if node.role == "population" and parameter.kind in {"int", "real"} and numeric and not _same_value(value, parameter.start):
+            start = int(cast(int, value)) if parameter.kind == "int" else float(cast(float, value))
+            note = f"VAMOS's default follows the population: {start} here, {parameter.start} for 100 individuals."
+            parameter = replace(parameter, start=start, note=" ".join(text for text in (note, parameter.note) if text))
+        parameters.append(parameter)
+    return tuple(parameters)
 
 
 def _effective_parameters(form: AlgorithmForm) -> tuple[FormParameter, ...]:
