@@ -536,6 +536,7 @@ The paragraphs above use the earlier names.
 | `normalization_epsilon` | `normalization_epsilon` | `epsilonParameterForNormalization` |
 | `ipbi_theta` | `ipbi_theta` | `ipbiTheta` |
 | `de_scheme` | `de_scheme` | `differentialEvolutionCrossover` |
+| `replacement` | `replacement` | `replacement` |
 
 Values that change: mutation `pm` becomes `polynomial` (the name the other
 spaces already used) and crossover `undx` becomes `undc` (Evolver's `UNDC`).
@@ -546,7 +547,9 @@ differently, and the exchange functions translate them: `SBX`, `blxAlpha`,
 `linkedPolynomial`, `nonUniform`, `levyFlight` and `powerLaw`;
 `tschebyscheff`, `weightedSum`, `penaltyBoundaryIntersection` and
 `modifiedTschebyscheff`; `default` (random; **VAMOS 1.4.0:** `auto`), `latinHypercubeSampling`,
-`scatterSearch` and `oppositionBased`; `stochasticUniversalSampling`.
+`scatterSearch` and `oppositionBased`; `stochasticUniversalSampling`;
+**Development after 1.4.0:** AGE-MOEA's `replacement` `agemoeaII`
+(`agemoea_ii`).
 
 **VAMOS 1.4.0:** Evolver's `modifiedTschebyscheff` is jMetal's
 `ModifiedTschebyscheff`, `max |f - z*| / w`, which VAMOS calls
@@ -702,6 +705,13 @@ loses `pop_size` and gains or changes parameters. An assignment saved from the
 spaces of VAMOS 1.3.0, with `pop_size`, `use_external_archive` or an absolute
 `mutation_prob`, or with the names of VAMOS 1.2.1, builds the configuration it
 built.
+
+**Development after 1.4.0:** every AGE-MOEA space (`agemoea`, `agemoea_constrained`,
+`agemoea_binary`, `agemoea_integer`, `agemoea_permutation` and `agemoea_mixed`)
+offers `replacement`, Evolver's choice between AGE-MOEA's survival (`agemoea`,
+the default) and AGE-MOEA-II's (`agemoea_ii`, Evolver's `agemoeaII`); see
+[AGE-MOEA-II](../reference/algorithms.md#age-moea-ii). The default still builds
+the configuration of VAMOS 1.4.0.
 
 ### Constrained spaces
 

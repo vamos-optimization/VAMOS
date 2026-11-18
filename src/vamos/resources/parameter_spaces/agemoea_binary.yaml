@@ -31,3 +31,5 @@ parameters:
     global_sub_parameters:
       mutation_probability_factor: {type: real, default: 1.0, range: [0.25, 3.0], role: operator_rate}
     values: [bitflip, segment_inversion]
+  # The survival, as Evolver's replacement: AGE-MOEA's or AGE-MOEA-II's (Panichella, GECCO 2022).
+  replacement: {type: categorical, default: agemoea, values: [agemoea, agemoea_ii], role: structural}

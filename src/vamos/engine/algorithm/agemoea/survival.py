@@ -7,6 +7,7 @@ from typing import Any
 import numpy as np
 
 from vamos.engine.algorithm.components.constraint_handling import ConstraintHandlingTechnique, adapted_ranks
+from vamos.engine.algorithm.config.types import AGEMOEAVariant
 from vamos.foundation.constraints.utils import compute_violation, is_feasible
 from vamos.foundation.kernel.backend import KernelBackend
 
@@ -19,6 +20,7 @@ def constraint_aware_age_survival(
     n_survive: int,
     kernel: KernelBackend,
     constraint_mode: str,
+    variant: AGEMOEAVariant = "agemoea",
 ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
     """Apply feasibility-first ordering, then AGE geometry among feasible points.
 
@@ -27,19 +29,19 @@ def constraint_aware_age_survival(
     score 0, because the tournament compares them by violation.
     """
     if G is None or constraint_mode == "none":
-        return age_survival(F, n_survive, kernel)
+        return age_survival(F, n_survive, kernel, variant=variant)
 
     feasible = is_feasible(G, n=G.shape[0])
     feasible_idx = np.flatnonzero(feasible)
     target = min(int(n_survive), F.shape[0])
     if feasible_idx.size >= target:
-        local, local_scores = age_survival(F[feasible_idx], target, kernel)
+        local, local_scores = age_survival(F[feasible_idx], target, kernel, variant=variant)
         return np.asarray(feasible_idx[local], dtype=int), local_scores
 
     scores = np.zeros(target, dtype=float)
     if feasible_idx.size > 0:
         # Every feasible point survives; score them all, as pymoo's feasibility filter does.
-        _, scores[: feasible_idx.size] = age_survival(F[feasible_idx], feasible_idx.size, kernel)
+        _, scores[: feasible_idx.size] = age_survival(F[feasible_idx], feasible_idx.size, kernel, variant=variant)
     violation = compute_violation(G, n=G.shape[0])
     infeasible_idx = np.flatnonzero(~feasible)
     needed = target - feasible_idx.size
@@ -56,6 +58,7 @@ def technique_age_survival(
     technique: ConstraintHandlingTechnique,
     rng: np.random.Generator,
     progress: float,
+    variant: AGEMOEAVariant = "agemoea",
 ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
     """AGE-MOEA's environmental selection over the fronts of a constraint-handling technique.
 
@@ -63,7 +66,7 @@ def technique_age_survival(
     Evolver's AGE-MOEA; whole fronts survive and the survival score cuts the last one.
     """
     ranks = adapted_ranks(technique, kernel, F, G, rng, progress)
-    return age_survival(F, n_survive, kernel, ranks=ranks)
+    return age_survival(F, n_survive, kernel, ranks=ranks, variant=variant)
 
 
 def technique_selection_metrics(
@@ -73,6 +76,7 @@ def technique_selection_metrics(
     technique: ConstraintHandlingTechnique,
     rng: np.random.Generator,
     survival_scores: np.ndarray[Any, Any] | None = None,
+    variant: AGEMOEAVariant = "agemoea",
 ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
     """Tournament ranks and tie-break scores with a constraint-handling technique.
 
@@ -82,7 +86,7 @@ def technique_selection_metrics(
     """
     ranks = np.asarray(technique.ranks(kernel, F, G, rng), dtype=int)
     if survival_scores is None:
-        survivors, survivor_scores = age_survival(F, F.shape[0], kernel, ranks=ranks)
+        survivors, survivor_scores = age_survival(F, F.shape[0], kernel, ranks=ranks, variant=variant)
         scores = np.zeros(F.shape[0], dtype=float)
         scores[survivors] = survivor_scores
     else:
@@ -126,9 +130,10 @@ def population_selection_metrics(
     F: np.ndarray[Any, Any],
     G: np.ndarray[Any, Any] | None,
     constraint_mode: str,
+    variant: AGEMOEAVariant = "agemoea",
 ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
     """Score a whole population by running the survival on it, as PlatEMO does at start-up."""
-    survivors, survivor_scores = constraint_aware_age_survival(F, G, F.shape[0], kernel, constraint_mode)
+    survivors, survivor_scores = constraint_aware_age_survival(F, G, F.shape[0], kernel, constraint_mode, variant)
     scores = np.zeros(F.shape[0], dtype=float)
     scores[survivors] = survivor_scores
     return selection_metrics(kernel, F, G, constraint_mode, scores)

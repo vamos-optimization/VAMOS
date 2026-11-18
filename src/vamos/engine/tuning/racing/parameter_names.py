@@ -46,6 +46,8 @@ PARAMETER_NAMES: tuple[tuple[str, str, str | None], ...] = (
     ("normalization_epsilon", "normalization_epsilon", "epsilonParameterForNormalization"),
     ("ipbi_theta", "ipbi_theta", "ipbiTheta"),
     ("de_scheme", "de_scheme", "differentialEvolutionCrossover"),
+    # Development after 1.4.0: AGE-MOEA's survival, Evolver's replacement of its AGE-MOEA: AGE-MOEA's or AGE-MOEA-II's.
+    ("replacement", "replacement", "replacement"),
 )
 
 # The values of categorical parameters, by the parameter's earlier name, in the same three forms.
@@ -106,6 +108,10 @@ VALUE_NAMES: dict[str, tuple[tuple[str, str, str | None], ...]] = {
     "variation": (
         ("crossover_and_mutation", "crossover_and_mutation", "crossoverAndMutationVariation"),
         ("differential_evolution", "differential_evolution", "differentialEvolutionVariation"),
+    ),
+    "replacement": (
+        ("agemoea", "agemoea", "agemoea"),
+        ("agemoea_ii", "agemoea_ii", "agemoeaII"),
     ),
     "selection": (
         ("tournament", "tournament", "tournament"),
