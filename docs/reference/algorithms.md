@@ -209,6 +209,9 @@ point at the ideal point is not projected. pymoo takes the straight Euclidean
 distance when `0.95 < p < 1.05`; VAMOS, like jMetal, always goes through the
 midpoint, and both coincide when `p = 1`.
 
+The tuning spaces of AGE-MOEA choose it with `replacement: agemoea_ii`, the
+name of Evolver's parameter (`agemoeaII` in Evolver).
+
 ### Where the variants depart from their references
 
 These are declared VAMOS choices, not defects; report them when comparing with

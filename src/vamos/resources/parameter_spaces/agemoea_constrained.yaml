@@ -103,3 +103,5 @@ parameters:
         conditional_parameters:
           stochastic_ranking_probability: {type: real, default: 0.45, range: [0.0, 0.5], role: operator_rate}
       self_adaptive_penalty: {}
+  # The survival, as Evolver's replacement: AGE-MOEA's or AGE-MOEA-II's (Panichella, GECCO 2022).
+  replacement: {type: categorical, default: agemoea, values: [agemoea, agemoea_ii], role: structural}

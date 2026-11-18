@@ -112,3 +112,5 @@ parameters:
             global_sub_parameters:
               cat_mutation_prob: {type: real, default: 0.1, range: [0.01, 0.5], role: operator_rate}
             values: [reset]
+  # The survival, as Evolver's replacement: AGE-MOEA's or AGE-MOEA-II's (Panichella, GECCO 2022).
+  replacement: {type: categorical, default: agemoea, values: [agemoea, agemoea_ii], role: structural}

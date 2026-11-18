@@ -356,6 +356,8 @@ def build_agemoea_config(assignment: dict[str, Any], *, mixed: bool = False) -> 
     apply_optional_repair(builder, assignment)
     apply_optional_external_archive(builder, assignment, pop_size)
     apply_constraint_handling(builder, assignment)
+    if "replacement" in assignment:
+        builder.variant(assignment["replacement"])
     return builder.build()
 
 

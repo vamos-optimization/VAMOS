@@ -20,6 +20,8 @@ from vamos.engine.algorithm.agemoea.geometry import (
     age_survival,
 )
 from vamos.engine.algorithm.config.types import AGEMOEA_VARIANTS, resolve_agemoea_variant
+from vamos.engine.tuning import config_from_assignment
+from vamos.engine.tuning.racing.parameter_names import from_evolver, to_evolver
 from vamos.foundation.kernel.numpy_backend import NumPyKernel
 from vamos.problems import DTLZ2, LIRCMOP
 
@@ -188,3 +190,20 @@ def test_agemoea_ii_runs_on_a_constrained_problem(technique: tuple[str, dict[str
     result = optimize(LIRCMOP(1, n_var=10), algorithm="agemoea", algorithm_config=config, max_evaluations=600, seed=2, engine="numpy")
     assert result.data["evaluations"] == 600
     assert result.F.shape[1] == 2 and np.all(np.isfinite(result.F))
+
+
+# ---- Tuning ------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "space", ["agemoea", "agemoea_constrained", "agemoea_binary", "agemoea_integer", "agemoea_permutation", "agemoea_mixed"]
+)
+def test_every_agemoea_space_chooses_the_variant(space: str) -> None:
+    assert config_from_assignment(space, {"replacement": "agemoea_ii"}).variant == "agemoea_ii"  # type: ignore[attr-defined]
+    assert config_from_assignment(space, {}).variant == "agemoea"  # type: ignore[attr-defined]
+
+
+def test_replacement_is_exchanged_with_evolver() -> None:
+    assert to_evolver({"replacement": "agemoea_ii"}) == {"replacement": "agemoeaII"}
+    assert from_evolver({"replacement": "agemoeaII"}) == {"replacement": "agemoea_ii"}
+    assert to_evolver({"replacement": "agemoea"}) == {"replacement": "agemoea"}
