@@ -32,6 +32,7 @@ from vamos.engine.algorithm.components.results import (
     wants_population_result,
     with_constraints,
 )
+from vamos.engine.algorithm.components.state import ArchiveRows, record_archive_rows
 from vamos.engine.algorithm.components.termination import HVTracker
 from vamos.engine.hooks.genealogy import GenealogyTracker
 from vamos.engine.operators.impl.real import VariationWorkspace
@@ -76,8 +77,8 @@ class NSGAIIState:
 
     # Archive
     archive_size: int | None = None
-    archive_X: np.ndarray[Any, Any] | None = None
-    archive_F: np.ndarray[Any, Any] | None = None
+    archive_X: ArchiveRows = ArchiveRows()
+    archive_F: ArchiveRows = ArchiveRows()
     archive_manager: (
         CrowdingDistanceArchive | HypervolumeArchive | MaxMinArchive | ReferenceDirectionsArchive | SPEA2Archive | UnboundedArchive | None
     ) = None
@@ -386,7 +387,7 @@ def update_archives(
     F_use = state.F if F is None else F
     G_use = state.G if G is None else G
     if state.archive_manager is not None:
-        state.archive_X, state.archive_F = state.archive_manager.update(X_use, F_use, G_use)
+        record_archive_rows(state, X_use, F_use, G_use)
         if state.result_archive is state.archive_manager:
             return
 
