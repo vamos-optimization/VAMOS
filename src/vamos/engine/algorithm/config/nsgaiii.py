@@ -146,6 +146,17 @@ class _NSGAIIIConfigBuilder(
         path: str | None = None,
         divisions: int | None = None,
     ) -> _NSGAIIIConfigBuilder:
+        """The reference directions: a file, or the complete Das-Dennis lattice of ``divisions``.
+
+        ``path`` names a file with one direction per line, its components separated by whitespace or
+        by commas, such as jMetal's weight files (``W3D_100.dat``, which VAMOS ships). Without either,
+        NSGA-III runs the complete lattice with the most directions that fit in ``pop_size``. The
+        population needs at least one individual per direction.
+
+        **Development after 1.4.0:** the file may use whitespace as well as commas, and a ``path``
+        that is not a file raises :class:`~vamos.exceptions.ConfigurationError` when the run starts;
+        VAMOS 1.4.0 read commas only, and generated the lattice and saved it at a missing path.
+        """
         self._cfg["reference_directions"] = {"path": path, "divisions": divisions}
         return self
 

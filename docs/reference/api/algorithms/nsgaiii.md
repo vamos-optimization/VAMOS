@@ -19,6 +19,14 @@ emits a `FutureWarning`; both fields are planned for removal in 2.0 (see
 `NSGAIIIConfig.default()` does not warn. `mutation_prob_factor` now sets the
 mutation probability to `factor / n_var`, as in NSGA-II.
 
+**Development after 1.4.0:** the file of `reference_directions(path=...)` is
+read as MOEA/D's weight files: one direction per line, the components separated
+by whitespace or by commas (VAMOS 1.4.0 read commas only, so jMetal's
+`W3D_100.dat` failed), every row non-negative and summing to one within the
+rounding of jMetal's files (`1e-5`). A path that is not an existing file raises
+`ConfigurationError` when the run starts; VAMOS 1.4.0 generated the lattice
+instead and saved it at that path.
+
 ::: vamos.algorithms.NSGAIIIConfig
     options:
       heading_level: 2

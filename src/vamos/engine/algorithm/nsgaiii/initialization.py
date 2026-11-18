@@ -10,7 +10,6 @@ This module handles algorithm setup including:
 
 from __future__ import annotations
 
-import os
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -22,7 +21,7 @@ from vamos.engine.algorithm.components.metrics import setup_hv_tracker
 from vamos.engine.algorithm.components.population import initialize_evaluated_population
 from vamos.engine.algorithm.components.termination import parse_termination, validate_initial_budget
 from vamos.engine.algorithm.components.utils import resolve_bounds_array
-from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors
+from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors, read_weight_vectors
 from vamos.engine.algorithm.config.base import normalize_constraint_mode
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
 from vamos.engine.operators.policies.nsgaiii import build_variation_operators
@@ -124,16 +123,10 @@ def initialize_nsgaiii_run(
     dir_cfg = config.get("reference_directions", {}) or {}
     ref_path = dir_cfg.get("path")
     ref_divisions = dir_cfg.get("divisions")
-    if ref_path and os.path.exists(ref_path):
-        ref_dirs = np.loadtxt(ref_path, delimiter=",")
-        ref_dirs = np.atleast_2d(ref_dirs).astype(float, copy=False)
-        if ref_dirs.ndim != 2 or ref_dirs.shape[1] != n_obj:
-            raise ValueError("Reference directions file has invalid shape.")
-        if np.any(ref_dirs < 0.0):
-            raise ValueError("Reference directions must be non-negative.")
-        row_sums = ref_dirs.sum(axis=1)
-        if np.any(np.abs(row_sums - 1.0) > 1e-6):
-            raise ValueError("Each reference direction must sum to 1.")
+    if ref_path:
+        # Development after 1.4.0: the file is read as MOEA/D reads its weights, with whitespace or commas
+        # between the components, and a path that is not a file raises instead of generating a lattice there.
+        ref_dirs = read_weight_vectors(str(ref_path), n_obj)
         source = f"NSGA-III reference directions in '{ref_path}' ({ref_dirs.shape[0]})"
     elif ref_divisions is not None:
         source = f"NSGA-III reference directions for divisions={ref_divisions}"
@@ -145,14 +138,14 @@ def initialize_nsgaiii_run(
                     f"{source} ({n_directions}) need pop_size >= {n_directions} (pop_size={pop_size}). "
                     "Increase pop_size or choose fewer reference directions."
                 )
-        ref_dirs = load_or_generate_weight_vectors(pop_size, n_obj, path=ref_path, divisions=ref_divisions)
+        ref_dirs = load_or_generate_weight_vectors(pop_size, n_obj, divisions=ref_divisions)
         source = f"{source} ({ref_dirs.shape[0]})"
     else:
         if n_obj >= 2 and pop_size < n_obj:
             raise ValueError(
                 f"NSGA-III needs pop_size >= n_obj={n_obj} for its smallest reference-direction lattice (pop_size={pop_size})."
             )
-        ref_dirs = load_or_generate_weight_vectors(pop_size, n_obj, path=ref_path, divisions=None)
+        ref_dirs = load_or_generate_weight_vectors(pop_size, n_obj, divisions=None)
         source = f"NSGA-III reference directions ({ref_dirs.shape[0]})"
     if ref_dirs.shape[0] > pop_size:
         raise ValueError(
