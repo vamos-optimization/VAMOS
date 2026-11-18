@@ -113,6 +113,8 @@ def test_constraint_handling_follows_the_fields_of_1_0(config_class: Any) -> Non
 
     # Fields added after 1.0 go last, in the order they were added; NSGA-II had live_callback_mode in 1.0.
     added = ["constraint_handling"] if config_class is NSGAIIConfig else ["constraint_handling", "live_callback_mode"]
+    if config_class is AGEMOEAConfig:
+        added.append("variant")  # Development after 1.4.0: AGE-MOEA-II
     assert names[position:] == added
     assert fields[position].default is None
 

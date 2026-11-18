@@ -25,6 +25,7 @@ from vamos.engine.algorithm.components.termination import (
     validate_initial_budget,
 )
 from vamos.engine.algorithm.config.base import normalize_constraint_mode
+from vamos.engine.algorithm.config.types import resolve_agemoea_variant
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
 from vamos.engine.config.variation import (
     ensure_operator_tuple,
@@ -116,6 +117,11 @@ class AGEMOEA:
     zero coefficient also falls back to the front maximum, and the default
     variation is SBX(0.9, 15) with polynomial mutation.
 
+    The configuration's ``variant="agemoea_ii"`` runs AGE-MOEA-II (Panichella,
+    GECCO 2022), whose survival estimates ``p`` by Newton-Raphson and measures
+    diversity with geodesic distances on the estimated manifold; everything
+    else is the same.
+
     Parameters
     ----------
     config : dict
@@ -149,9 +155,9 @@ class AGEMOEA:
 
     def _refresh_selection_metrics(self, st: AGEMOEAState) -> None:
         if st.constraint_handling is not None and st.G is not None:
-            ranks, scores = technique_selection_metrics(self.kernel, st.F, st.G, st.constraint_handling, st.rng)
+            ranks, scores = technique_selection_metrics(self.kernel, st.F, st.G, st.constraint_handling, st.rng, variant=st.variant)
         else:
-            ranks, scores = population_selection_metrics(self.kernel, st.F, st.G, st.constraint_mode)
+            ranks, scores = population_selection_metrics(self.kernel, st.F, st.G, st.constraint_mode, st.variant)
         st.selection_ranks = ranks
         st.selection_crowding = scores
 
@@ -214,6 +220,7 @@ class AGEMOEA:
         pop_size = int(self.cfg.get("pop_size", 100))
         constraint_mode = normalize_constraint_mode(self.cfg.get("constraint_mode", "feasibility"))
         constraint_handling = run_technique(self.cfg.get("constraint_handling"), constraint_mode)
+        variant = resolve_agemoea_variant(self.cfg.get("variant", "agemoea"))
         n_constraints = int(getattr(problem, "n_constraints", 0) or 0)
         max_evals, hv_config = parse_termination(termination, "AGE-MOEA", pop_size)
         validate_initial_budget(max_evals, pop_size, "AGE-MOEA")
@@ -249,9 +256,9 @@ class AGEMOEA:
             G,
         )
         if constraint_handling is not None and G is not None:
-            selection_ranks, selection_crowding = technique_selection_metrics(self.kernel, F, G, constraint_handling, rng)
+            selection_ranks, selection_crowding = technique_selection_metrics(self.kernel, F, G, constraint_handling, rng, variant=variant)
         else:
-            selection_ranks, selection_crowding = population_selection_metrics(self.kernel, F, G, constraint_mode)
+            selection_ranks, selection_crowding = population_selection_metrics(self.kernel, F, G, constraint_mode, variant)
 
         result_mode = str(self.cfg.get("result_mode", "non_dominated")).strip().lower()
         if result_mode not in {"non_dominated", "population"}:
@@ -270,6 +277,7 @@ class AGEMOEA:
             variation=variation,
             constraint_mode=constraint_mode,
             constraint_handling=constraint_handling,
+            variant=variant,
             archive_size=ext_cfg.capacity if ext_cfg is not None else None,
             archive_X=archive_X,
             archive_F=archive_F,
@@ -380,17 +388,19 @@ class AGEMOEA:
             # The technique follows the evaluations before the offspring's.
             progress = run_progress(st.n_eval, st.max_evals)
             survivors, survival_scores = technique_age_survival(
-                F_combined, G_combined, st.pop_size, self.kernel, technique, st.rng, progress
+                F_combined, G_combined, st.pop_size, self.kernel, technique, st.rng, progress, st.variant
             )
         else:
-            survivors, survival_scores = constraint_aware_age_survival(F_combined, G_combined, st.pop_size, self.kernel, st.constraint_mode)
+            survivors, survival_scores = constraint_aware_age_survival(
+                F_combined, G_combined, st.pop_size, self.kernel, st.constraint_mode, st.variant
+            )
         st.X = X_combined[survivors]
         st.F = F_combined[survivors]
         st.G = G_combined[survivors] if G_combined is not None else None
         st.n_eval += X_off.shape[0]
         if technique is not None and st.G is not None:
             st.selection_ranks, st.selection_crowding = technique_selection_metrics(
-                self.kernel, st.F, st.G, technique, st.rng, survival_scores
+                self.kernel, st.F, st.G, technique, st.rng, survival_scores, st.variant
             )
         else:
             st.selection_ranks, st.selection_crowding = selection_metrics(self.kernel, st.F, st.G, st.constraint_mode, survival_scores)

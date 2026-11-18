@@ -19,6 +19,7 @@ from vamos.engine.algorithm.components.results import (
     with_constraints,
 )
 from vamos.engine.algorithm.components.state import AlgorithmState
+from vamos.engine.algorithm.config.types import AGEMOEAVariant
 
 if TYPE_CHECKING:
     from vamos.engine.variation.pipeline import VariationPipeline
@@ -36,6 +37,8 @@ class AGEMOEAState(AlgorithmState):
     variation: VariationPipeline | None = None
     selection_ranks: Any = field(default=None, repr=False, compare=False)
     selection_crowding: Any = field(default=None, repr=False, compare=False)
+    # The survival's variant: AGE-MOEA or AGE-MOEA-II.
+    variant: AGEMOEAVariant = "agemoea"
 
 
 def build_agemoea_result(

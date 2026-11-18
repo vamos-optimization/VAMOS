@@ -1,4 +1,9 @@
-"""Geometry helpers for AGE-MOEA survival selection."""
+"""Geometry helpers for AGE-MOEA survival selection.
+
+Both variants of Panichella's algorithm share the survival below: AGE-MOEA (GECCO 2019) and
+AGE-MOEA-II (GECCO 2022), which estimates the exponent ``p`` of the front by Newton-Raphson and
+measures diversity with geodesic distances on the estimated manifold.
+"""
 
 from __future__ import annotations
 
@@ -6,6 +11,7 @@ from typing import Any
 
 import numpy as np
 
+from vamos.engine.algorithm.config.types import AGEMOEAVariant
 from vamos.foundation.kernel.backend import KernelBackend, SelectionKernels
 
 
@@ -82,10 +88,79 @@ def _compute_geometry(front: np.ndarray[Any, Any], extreme: np.ndarray[Any, Any]
     return float(p)
 
 
+def _newton_exponent(point: np.ndarray[Any, Any], precision: float = 1e-3, iterations: int = 100) -> float:
+    """The exponent ``p`` whose Minkowski norm of ``point`` is 1: the zero of ``log(sum_i |a_i|^p)``.
+
+    Newton-Raphson from ``p = 1``, as in jMetal's ``AGEMOEA2EnvironmentalSelection.findZero`` (the
+    author's port): at most ``iterations`` steps, stopping when a step moves less than ``precision``.
+    The function sums every coordinate and its derivative only the positive ones. A failed search
+    returns a non-finite value, which :func:`_compute_geometry_ii` replaces.
+    """
+    raw = np.asarray(point, dtype=float)
+    a = np.abs(raw)
+    positive = raw[raw > 0.0]
+    log_positive = np.log(positive)
+    x = np.float64(1.0)
+    past = x
+    with np.errstate(all="ignore"):
+        for _ in range(iterations):
+            f = np.log(np.sum(a**x))
+            powers = positive**x
+            denominator = np.sum(powers)
+            derivative = np.sum(powers * log_positive) / denominator if denominator != 0.0 else np.float64(1.0)
+            x = x - f / derivative
+            if abs(x - past) <= precision:
+                break
+            past = x
+    return float(x)
+
+
+def _compute_geometry_ii(front: np.ndarray[Any, Any], extreme: np.ndarray[Any, Any]) -> float:
+    """AGE-MOEA-II's exponent of the normalized front.
+
+    The reference point is the non-extreme point nearest to the origin (the ideal point), not the
+    one nearest to the diagonal as in AGE-MOEA, and ``p`` makes its Minkowski norm 1
+    (:func:`_newton_exponent`). As in jMetal, a non-finite ``p`` or one below 0.1 means a flat front,
+    ``p = 1``; as in AGE-MOEA and pymoo's AGE-MOEA-II, ``p`` is capped at 20.
+    """
+    d = np.sqrt(np.sum(front * front, axis=1))
+    d[extreme] = np.inf
+    index = int(np.argmin(d))
+    p = _newton_exponent(front[index])
+    if not np.isfinite(p) or p < 0.1:
+        return 1.0
+    return float(min(p, 20.0))
+
+
+def _project_on_manifold(points: np.ndarray[Any, Any], p: float) -> np.ndarray[Any, Any]:
+    """``points`` scaled to Minkowski norm 1 of order ``p``; a point of norm 0 stays as it is."""
+    norms = np.sum(np.abs(points) ** p, axis=-1) ** (1.0 / p)
+    scale = np.where(norms > 0.0, 1.0 / np.where(norms > 0.0, norms, 1.0), 1.0)
+    return np.asarray(points * scale[..., None], dtype=float)
+
+
+def _geodesic_distances(front: np.ndarray[Any, Any], p: float) -> np.ndarray[Any, Any]:
+    """AGE-MOEA-II's pairwise distances: the geodesic distances on the ``L_p`` manifold, approximated.
+
+    Both points are projected on the manifold, and so is their midpoint; the distance is the
+    Euclidean length of the path through the projected midpoint, as in jMetal's
+    ``AGEMOEA2EnvironmentalSelection.pairwiseDistances``. pymoo takes the straight Euclidean distance
+    when ``0.95 < p < 1.05``; on the simplex (``p = 1``) both coincide.
+    """
+    projected = _project_on_manifold(front, p)
+    midpoints = _project_on_manifold(0.5 * projected[:, None, :] + 0.5 * projected[None, :, :], p)
+    to_mid = np.sqrt(np.sum((projected[:, None, :] - midpoints) ** 2, axis=2))
+    from_mid = np.sqrt(np.sum((midpoints - projected[None, :, :]) ** 2, axis=2))
+    distances = to_mid + from_mid
+    np.fill_diagonal(distances, 0.0)
+    return np.asarray(distances, dtype=float)
+
+
 def _survival_score(
     front: np.ndarray[Any, Any],
     ideal_point: np.ndarray[Any, Any],
     selection_kernels: SelectionKernels | None = None,
+    variant: AGEMOEAVariant = "agemoea",
 ) -> tuple[np.ndarray[Any, Any], float, np.ndarray[Any, Any]]:
     m, n = front.shape
     crowd_dist = np.zeros(m, dtype=float)
@@ -108,11 +183,12 @@ def _survival_score(
     selected = np.full(m, False)
     selected[extreme] = True
 
-    p = _compute_geometry(front, extreme, n)
+    ii = variant == "agemoea_ii"
+    p = _compute_geometry_ii(front, extreme) if ii else _compute_geometry(front, extreme, n)
     nn = np.linalg.norm(front, ord=p, axis=1)
     nn[nn < 1e-8] = 1.0
 
-    distances = _pairwise_distances(front, p)
+    distances = _geodesic_distances(front, p) if ii else _pairwise_distances(front, p)
     distances[distances < 1e-8] = 1e-8
     distances = distances / nn[:, None]
 
@@ -177,8 +253,9 @@ def age_survival(
     n_survive: int,
     kernel: KernelBackend,
     ranks: np.ndarray[Any, Any] | None = None,
+    variant: AGEMOEAVariant = "agemoea",
 ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
-    """Select AGE-MOEA survivors from a combined parent-offspring front.
+    """Select AGE-MOEA or AGE-MOEA-II survivors from a combined parent-offspring front.
 
     Returns the survivor indices in ascending order and their survival scores,
     as PlatEMO's ``EnvironmentalSelection`` (Panichella's own code) defines
@@ -198,6 +275,11 @@ def age_survival(
 
     The fronts are the non-dominated ones unless ``ranks`` gives them, as a
     constraint-handling technique does in Evolver's AGE-MOEA.
+
+    ``variant="agemoea_ii"`` scores the first front as AGE-MOEA-II does (Panichella, GECCO 2022):
+    the exponent ``p`` by :func:`_compute_geometry_ii` and the diversity by
+    :func:`_geodesic_distances`. The rest, later fronts included, is AGE-MOEA's, with that ``p``, as
+    in jMetal, whose AGE-MOEA-II overrides only those two steps.
     """
     n_survive = min(int(n_survive), F.shape[0])
     if ranks is None:
@@ -222,7 +304,7 @@ def age_survival(
 
     front0 = F[ranks == 0, :]
     ideal_point = np.min(front0, axis=0)
-    crowd_dist[ranks == 0], p, normalization = _survival_score(front0, ideal_point, kernel.selection_kernels())
+    crowd_dist[ranks == 0], p, normalization = _survival_score(front0, ideal_point, kernel.selection_kernels(), variant)
 
     for r in range(1, last_rank + 1):
         front_idx = fronts[r]

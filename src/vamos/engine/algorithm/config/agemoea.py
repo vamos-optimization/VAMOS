@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Self
 
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.foundation.encoding import EncodingLike
@@ -30,7 +30,7 @@ from .base import (
     _validate_operators,
     _warn_without_effect,
 )
-from .types import RepairConfigValue
+from .types import AGEMOEAVariant, RepairConfigValue, resolve_agemoea_variant
 
 
 class _AGEMOEAConfigBuilder(
@@ -49,6 +49,16 @@ class _AGEMOEAConfigBuilder(
     """
     Fluent builder for AGE-MOEA configs.
     """
+
+    def variant(self, value: AGEMOEAVariant) -> Self:
+        """The survival: ``"agemoea"`` (the default) or ``"agemoea_ii"``, AGE-MOEA-II's (Panichella, GECCO 2022).
+
+        AGE-MOEA-II estimates the geometry of the first front by Newton-Raphson from the point
+        nearest to the ideal point and measures diversity with geodesic distances on the estimated
+        manifold; the rest of the algorithm is the same.
+        """
+        self._cfg["variant"] = resolve_agemoea_variant(value)
+        return self
 
     def build(self) -> AGEMOEAConfig:
         _require_fields(
@@ -70,6 +80,7 @@ class _AGEMOEAConfigBuilder(
             result_mode=self._cfg.get("result_mode", "non_dominated"),
             external_archive=self._cfg.get("external_archive"),
             live_callback_mode=self._cfg.get("live_callback_mode", "population"),
+            variant=self._cfg.get("variant", "agemoea"),
         )
 
 
@@ -88,9 +99,11 @@ class AGEMOEAConfig(_SerializableConfig):
     # Fields added after 1.0 go last, so that the constructor keeps the positions of its parameters.
     constraint_handling: tuple[str, dict[str, float]] | None = None
     live_callback_mode: LiveCallbackMode = "population"
+    variant: AGEMOEAVariant = "agemoea"
 
     def __post_init__(self) -> None:
         super().__post_init__()
+        object.__setattr__(self, "variant", resolve_agemoea_variant(self.variant))
         if self.track_genealogy:
             _warn_without_effect("AGE-MOEA", "track_genealogy", "AGE-MOEA records no genealogy", stacklevel=3)
 

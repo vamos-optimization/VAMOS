@@ -182,6 +182,33 @@ on ZDT1, from 0.7426 to 0.7443 on DTLZ2 and from 0.1880 to 0.1892 on DTLZ1,
 within seed variation of jMetal 7.9's AGE-MOEA (0.8545, 0.7446 and 0.1890).
 AGE-MOEA results from VAMOS 1.1.0 and earlier differ with the same seed.
 
+### AGE-MOEA-II
+
+**Development after 1.4.0:** `AGEMOEAConfig.builder().variant("agemoea_ii")` runs
+AGE-MOEA-II (Panichella, GECCO 2022). Its survival differs from AGE-MOEA's in two
+steps of the first-front score, which are those that jMetal's
+`AGEMOEA2EnvironmentalSelection`, written by the author, overrides:
+
+- the exponent `p` of the front is the one whose Minkowski norm of the
+  non-extreme point nearest to the ideal point is 1, found by Newton-Raphson
+  from `p = 1` (precision 0.001, at most 100 steps), instead of a closed form
+  from the point nearest to the diagonal;
+- the diversity uses geodesic distances on the estimated `L_p` manifold: both
+  points and their midpoint are projected on it, and the distance is the
+  length of the path through the projected midpoint.
+
+Everything else, the extreme points, the normalization, the scores of later
+fronts and the mating tournament, is AGE-MOEA's above, with that `p`. The
+exponents and distances agree with jMetal's on every case of
+`tests/engine/data/agemoea2_jmetal_values.json`, and so do the survival scores
+on the fronts where AGE-MOEA's shared steps agree with jMetal's. They do not
+agree where AGE-MOEA's extreme points or its tie-breaking (on exactly linear
+fronts) depart from jMetal, as described above for AGE-MOEA. As in AGE-MOEA,
+`p` is capped at 20, which pymoo's AGE-MOEA-II also does and jMetal does not; a
+point at the ideal point is not projected. pymoo takes the straight Euclidean
+distance when `0.95 < p < 1.05`; VAMOS, like jMetal, always goes through the
+midpoint, and both coincide when `p = 1`.
+
 ### Where the variants depart from their references
 
 These are declared VAMOS choices, not defects; report them when comparing with
