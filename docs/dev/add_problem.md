@@ -34,6 +34,7 @@ The CLI scaffold is discoverable with `vamos create-problem --help`.
 4. Add packaged reference data under `src/vamos/resources/` only when the problem has an authoritative dataset/front, and verify package-data coverage.
 5. Export the class from `vamos.problems` only when direct construction is part of the intentional public API. Named access through `vamos.optimize("key", ...)` does not require a class export.
 6. Document dimensions, objective direction, constraints, encoding, and source. Never silently choose dimensions that the `ProblemSpec` marks fixed.
+7. **Development after 1.5.0:** when an optional package evaluates the problem, as `modact` does the MODAct problems, import it inside the constructor and raise `ImportError` with the install command when it is missing; the registry-wide tests then skip the problem, and `_OPTIONAL_DEPENDENCIES` in `tests/foundation/test_problem_registry.py` names its package. Copy none of the package's code, and test the conversion to VAMOS's conventions with a stub of the package as well as against the package itself.
 
 Use the canonical encoding names `real`, `integer`, `binary`, `permutation`, and `mixed`. For mixed problems, provide the current mixed specification expected by `MixedProblemProtocol` consumers.
 

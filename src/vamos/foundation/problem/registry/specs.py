@@ -14,6 +14,7 @@ from .families import (
     lsmop,
     lz09,
     misc,
+    modact,
     real_world,
     tanabe_ishibuchi_cre,
     tanabe_ishibuchi_re,
@@ -50,6 +51,7 @@ def _build_problem_specs() -> dict[str, ProblemSpec]:
         tanabe_ishibuchi_re.get_specs(),
         tanabe_ishibuchi_cre.get_specs(),
         cec2021_rcm.get_specs(),
+        modact.get_specs(),
         zapotecas_rwa.get_specs(),
     ):
         specs.update(family)

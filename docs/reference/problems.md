@@ -3,7 +3,8 @@
 Choose a problem by its **formulation, encoding and dimensions**, then check the
 [algorithm compatibility matrix](algorithms.md). This catalog describes the
 260 registered problems in VAMOS **1.5.0**; **VAMOS 1.5.0:**
-CTP1–CTP7 and IDTLZ1 and IDTLZ2 are new, so 251 become 260. The named selection helpers are
+CTP1–CTP7 and IDTLZ1 and IDTLZ2 are new, so 251 become 260; **Development after 1.5.0:**
+the 20 MODAct problems bring them to 280. The named selection helpers are
 [stable public APIs](../project/stability-and-versioning.md). A synthetic or
 engineering benchmark is a test model, not a validated model of your application.
 
@@ -18,7 +19,7 @@ engineering benchmark is a test model, not a validated model of your application
 | Explicit constraint handling | `c1dtlz1`, `mw1` | Emit inequality constraints separately from objectives |
 | Binary, integer or mixed operators | `zdt5`, `int_alloc`, `mixed_design` | Small, deterministic examples with explicit encodings |
 | Permutation operators | `tsp6`, then `kroa100` | Closed tours with two specified route objectives |
-| Application-inspired test functions | RE, RWA, CRE and RCM tables below | Fixed engineering formulations with different encodings and objective counts; CRE and RCM keep their constraints in G |
+| Application-inspired test functions | RE, RWA, CRE and RCM tables below; **Development after 1.5.0:** MODAct | Fixed engineering formulations with different encodings and objective counts; CRE, RCM and MODAct keep their constraints in G; MODAct needs the `modact` package |
 | Expensive model evaluations | `fs_real`, `ml_tuning` | Train a classifier for each candidate; require scikit-learn |
 
 Use `optimize("zdt1", ...)` in Python or `--problem zdt1` in the
@@ -178,7 +179,9 @@ algorithm with the required constraint support in the [matrix](algorithms.md).
 | `zxh_cf13`–`zxh_cf16` | 13 | 3 | 3–4 | Configurable M; type D, k + 1 or k + 2 constraints | [ZXH-CF][zxh-cf] | 3D, each |
 
 The constrained real-world suites CRE21–CRE51 and RCM01–RCM50 are listed with the
-[application-inspired benchmarks](#cre-and-rcm-constrained-real-world-suites).
+[application-inspired benchmarks](#cre-and-rcm-constrained-real-world-suites), and
+so, **Development after 1.5.0:**, are the
+[MODAct problems](#modact-actuator-design-evaluated-by-the-modact-package).
 
 DC-DTLZ's default constants are those of the authors' implementation (Li et
 al., 2019, in the [COLA Laboratory's code][dcdtlz-authors]), which pymoo also
@@ -643,6 +646,57 @@ equalities).
   Feasible designs dominate rows of jMetal's fronts of RCM23, RCM26 and RCM50,
   so those are not packaged (see [Reference fronts](#reference-fronts)).
 
+### MODAct: actuator design, evaluated by the modact package
+
+**Development after 1.5.0:** the 20 MODAct problems of Picard and Schiffmann
+([2021][modact-paper]) design an electro-mechanical actuator, a stepper motor
+and three spur-gear stages in a housing. VAMOS does not implement them: each
+evaluation calls the authors' [`modact` package][modact], which is GPL-3.0 and
+is not part of VAMOS. Install it with `python -m pip install modact`, or with
+the `modact` extra of VAMOS, which installs the same package (see
+[Installation](../guide/installation.md#optional-extras)). Without it, the
+problems are still listed, but creating one raises `ImportError` with that
+command.
+
+A key joins the objectives to the constraint level:
+
+| Keys | n / M / G | Objectives, in MODAct's sense | Reference sample |
+| --- | --- | --- | --- |
+| `modact_cs1`–`modact_cs4` | 20 / 2 / 7, 8, 10, 9 | cost (min), safety factor (max) | None packaged |
+| `modact_ct1`–`modact_ct4` | 20 / 2 / 7, 8, 10, 9 | cost (min), torque excess (max) | None packaged |
+| `modact_cts1`–`modact_cts4` | 20 / 3 / 7, 8, 10, 9 | cost, torque excess, safety factor | None packaged |
+| `modact_ctse1`–`modact_ctse4` | 20 / 4 / 7, 8, 10, 9 | those of CTS and efficiency (max) | None packaged |
+| `modact_ctsei1`–`modact_ctsei4` | 20 / 5 / 7, 8, 10, 9 | those of CTSE and transmission ratio (min) | None packaged |
+
+- **Constraint levels** (the paper's Table III): level 1 has six gear
+  constraints and the minimum torque excess, at least -0.001 N·m for CS and
+  -0.599 N·m for the others; level 2 adds the collisions between parts; level 3
+  adds the collisions and two limits on the bounding box; level 4 adds the
+  collisions and the position of the output shaft.
+- **Signs:** `F` and `G` are modact's values, multiplied by 1 or -1 with the
+  package's `weights` and `c_weights`, as pymoo's wrapper does. The objectives
+  that MODAct maximizes (torque excess, safety factor and efficiency) change
+  sign, so every column of `F` is minimized; the constraints `g >= 0` change
+  sign and the constraints `g <= 0` keep it, so `G <= 0` is feasible. A problem
+  instance holds the factors as `objective_signs` and `constraint_signs`.
+- **Variables:** all 20 are real. The motor and each gear's number of teeth are
+  the integer parts of variables whose fractional parts set the coil's fill
+  factor and the gear's profile shift, as the paper defines them, so real-coded
+  operators apply.
+- **Cost:** modact evaluates one design at a time, about 20 ms each in the
+  paper. With modact 1.0.1 on a laptop, a random design took 10 to 30 ms, and
+  NSGA-II runs of 2000 evaluations about 12 ms per evaluation, so a run of
+  25 000 evaluations takes 5 to 15 minutes.
+- **Reproducibility:** a run's `environment.json` records the installed
+  version of `modact`, as of every installed distribution, and the problem
+  instance holds it as `modact_version`. Verification and replay need the
+  package too.
+- **Fronts:** the authors' best-known fronts are in a
+  [Zenodo record][modact-fronts] (CC BY 4.0), in MODAct's signs; VAMOS does
+  not package them. Download them, multiply each column by the problem's
+  `objective_signs` (for example `1, -1, -1` for CTS), and supply the CSV as a
+  reference front (see [Reference fronts](#reference-fronts)).
+
 ### Learning and mixed engineering examples
 
 Install `python -m pip install "vamos-optimization[examples]==1.5.0"` for the two
@@ -936,6 +990,9 @@ scalable formulations. For a new objective function, follow
 [rcm-paper]: https://doi.org/10.1016/j.swevo.2021.100961
 [jmetal-cre]: https://github.com/jMetal/jMetal/tree/1e4b83cae6/jmetal-problem/src/main/java/org/uma/jmetal/problem/multiobjective/cre
 [jmetal-rcm]: https://github.com/jMetal/jMetal/tree/1e4b83cae6/jmetal-problem/src/main/java/org/uma/jmetal/problem/multiobjective/cec2021
+[modact-paper]: https://doi.org/10.1109/TEVC.2020.3020046
+[modact]: https://github.com/epfl-lamd/modact
+[modact-fronts]: https://doi.org/10.5281/zenodo.3824302
 [binary]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/binary.py
 [integer]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/integer.py
 [mixed]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/mixed.py
