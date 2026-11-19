@@ -6,6 +6,31 @@ import warnings
 import numpy as np
 
 from vamos.engine.reference_directions import FloatArray, das_dennis, largest_lattice_divisions, lattice_size
+from vamos.foundation.exceptions import ConfigurationError
+
+# How far a weight file may depart from the simplex through rounding: jMetal's files round each component, so
+# their rows sum to 1 only within about 2e-6, and a few components that should be zero are about -5e-17.
+_ROUNDING_TOLERANCE = 1e-5
+
+
+def read_weight_vectors(path: str, n_obj: int) -> FloatArray:
+    """Read the weight vectors of a file, one per line, with ``n_obj`` components each.
+
+    The components are separated by whitespace or by commas: jMetal's weight files use spaces, except
+    ``W4D_165.dat``, and NSGA-III's reference-direction files have been comma-separated. Every component
+    must be non-negative and every row must sum to 1, both within the rounding of jMetal's files (1e-5);
+    a negative component within that rounding reads as 0. The rows are returned as they are, not
+    renormalized. A path that is not a file raises :class:`~vamos.exceptions.ConfigurationError`.
+
+    **Development after 1.4.0:** commas and whitespace in every file, and the rounding tolerance of 1e-5
+    (1e-6 before, without the negative rounding).
+    """
+    if not os.path.isfile(path):
+        raise ConfigurationError(
+            f"Weight vector file '{path}' does not exist or is not a file.",
+            suggestion="Pass the path of an existing file, one weight vector per line.",
+        )
+    return _validated_weights(_load_weights(path), n_obj)
 
 
 def load_or_generate_weight_vectors(
@@ -17,8 +42,9 @@ def load_or_generate_weight_vectors(
     mode: str = "auto",
 ) -> FloatArray:
     """
-    Load weight vectors from CSV if available, otherwise generate a simplex-lattice
-    design and persist it when a path is provided.
+    Load weight vectors from a file if available, otherwise generate a simplex-lattice
+    design and persist it when a path is provided. Files are read by
+    :func:`read_weight_vectors`, with whitespace or commas between the components.
 
     mode="auto" generates the complete Das-Dennis lattice: with ``divisions``, all of
     its vectors; without, the largest lattice with at most ``pop_size`` vectors. The
@@ -32,8 +58,7 @@ def load_or_generate_weight_vectors(
     if mode == "jmetalpy":
         return _load_or_generate_jmetalpy_weights(pop_size, n_obj, path, divisions)
     if path and os.path.exists(path):
-        weights = _load_weights(path, delimiter=",")
-        _assert_valid_weights(weights, n_obj)
+        weights = read_weight_vectors(path, n_obj)
         if weights.shape[0] != pop_size:
             raise ValueError(
                 f"Weight file '{path}' contains {weights.shape[0]} vectors but pop_size={pop_size} requires exactly that many."
@@ -49,13 +74,12 @@ def load_or_generate_weight_vectors(
     return weights
 
 
-def _load_weights(path: str, delimiter: str | None = ",") -> FloatArray:
-    if delimiter is None:
-        arr = np.loadtxt(path)
-    else:
-        arr = np.loadtxt(path, delimiter=delimiter)
-    arr = np.atleast_2d(arr).astype(float, copy=False)
-    return arr
+def _load_weights(path: str) -> FloatArray:
+    """The rows of a weight file whose components are separated by whitespace or commas."""
+    with open(path, encoding="utf-8") as handle:
+        text = handle.read()
+    arr = np.loadtxt(io.StringIO(text.replace(",", " ")), ndmin=2)
+    return np.asarray(arr, dtype=float)
 
 
 def _load_or_generate_jmetalpy_weights(pop_size: int, n_obj: int, path: str | None, divisions: int | None) -> FloatArray:
@@ -76,8 +100,7 @@ def _load_or_generate_jmetalpy_weights(pop_size: int, n_obj: int, path: str | No
         if packaged is not None:
             return packaged
     if weight_path is not None and os.path.exists(weight_path):
-        weights = _load_weights(weight_path, delimiter=None)
-        _assert_valid_weights(weights, n_obj)
+        weights = read_weight_vectors(weight_path, n_obj)
         if weights.shape[0] != pop_size:
             raise ValueError(f"Expected {pop_size} weight vectors in '{weight_path}', got {weights.shape[0]}.")
         return weights
@@ -212,11 +235,11 @@ def _packaged_weights(n_obj: int, pop_size: int) -> FloatArray | None:
         path = weight_path(f"W{n_obj}D_{pop_size}.dat")
     except ValueError:
         return None
-    weights = _load_weights(str(path), delimiter=None)
+    weights = _load_weights(str(path))
     if weights.shape != (pop_size, n_obj):
         return None
+    weights = _validated_weights(weights, n_obj)
     normalized: FloatArray = weights / weights.sum(axis=1, keepdims=True)
-    _assert_valid_weights(normalized, n_obj)
     return normalized
 
 
@@ -229,17 +252,19 @@ def _resolve_jmetalpy_weight_path(path: str | None, n_obj: int, pop_size: int) -
     return os.path.join(path, filename)
 
 
-def _assert_valid_weights(weights: FloatArray, n_obj: int) -> None:
+def _validated_weights(weights: FloatArray, n_obj: int) -> FloatArray:
+    """``weights`` with the negative rounding of a zero component set to 0, or ``ValueError`` off the simplex."""
     if weights.ndim != 2:
         raise ValueError("Weight matrix must be 2D.")
     if weights.shape[1] != n_obj:
         raise ValueError(f"Expected weight vectors with {n_obj} columns, got {weights.shape[1]}.")
-    if np.any(weights < 0.0):
+    if not np.all(np.isfinite(weights)):
+        raise ValueError("Weight vectors must be finite.")
+    if np.any(weights < -_ROUNDING_TOLERANCE):
         raise ValueError("Weight vectors must be non-negative.")
-    rows_sum = weights.sum(axis=1)
-    # Allow very small numerical drift
-    if np.any(np.abs(rows_sum - 1.0) > 1e-6):
+    if np.any(np.abs(weights.sum(axis=1) - 1.0) > _ROUNDING_TOLERANCE):
         raise ValueError("Each weight vector must sum to 1.")
+    return np.asarray(np.maximum(weights, 0.0), dtype=float)
 
 
 def _generate_weights(pop_size: int, n_obj: int, divisions: int | None, *, strict: bool = False) -> FloatArray:

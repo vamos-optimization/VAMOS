@@ -84,7 +84,9 @@ For each generation, NSGA-III combines parents and offspring, sorts candidates i
 | Result mode | `population` returns all survivors; `non_dominated` filters the selected result source. |
 | Budget | Cover initialization and report the exact number of evaluations, rather than assuming a whole number of generations. |
 
-For explicit reference-direction files, each row must be non-negative, sum to one, have one column per objective and match the configured population count. Consult the [configuration reference](../reference/api/algorithms/nsgaiii.md) for the file option.
+For explicit reference-direction files, each row must be non-negative, sum to one and have one column per objective, and the population needs at least one individual per row. Consult the [configuration reference](../reference/api/algorithms/nsgaiii.md) for the file option.
+
+**Development after 1.4.0:** `reference_directions(path=...)` reads the file as MOEA/D reads its weight files, with whitespace or commas between the components, so jMetal's weight files, such as the `W3D_100.dat` that VAMOS ships, can be passed as they are; VAMOS 1.4.0 read comma-separated files only. A path that is not an existing file raises `ConfigurationError` when the run starts; VAMOS 1.4.0 generated the lattice instead and saved it at that path.
 
 ### Variants and their effect
 

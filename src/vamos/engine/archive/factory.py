@@ -266,7 +266,9 @@ def update_archive(
     F = F_new if F_new is not None else state.F
     G = G_new if G_new is not None else state.G
 
-    state.archive_X, state.archive_F = state.archive_manager.update(X, F, G)
+    from vamos.engine.algorithm.components.state import record_archive_rows
+
+    record_archive_rows(state, X, F, G)
 
 
 __all__ = [

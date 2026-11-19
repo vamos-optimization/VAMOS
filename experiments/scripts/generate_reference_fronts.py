@@ -10,8 +10,9 @@ The script writes three groups of files; ``docs/reference/problems.md`` ("Refere
 provenance of every packaged file, including those this script leaves alone.
 
 - **Analytic samples** of the Pareto front from its closed form: ZDT1-4 and ZDT6, DTLZ1-7 (M = 3, and M = 2 as
-  ``dtlz1.2d`` ... ``dtlz7.2d``), IDTLZ1 and IDTLZ2 at M = 2 and 3 (Development after 1.4.0: ``idtlz1.2d`` ...
-  ``idtlz2.3d``), WFG1 and
+  ``dtlz1.2d`` ... ``dtlz7.2d``; Development after 1.4.0: DTLZ1, DTLZ2 and DTLZ7 at M = 4, 6 and 8 as ``dtlz1.4d``
+  ... ``dtlz7.8d``, DTLZ2's also serving DTLZ3 and DTLZ4), IDTLZ1 and IDTLZ2 at M = 2 and 3 (Development after
+  1.4.0: ``idtlz1.2d`` ... ``idtlz2.3d``), WFG1 and
   WFG2 (M = 2, from the WFG shape functions, so the bias transformations cannot shift them), LSMOP9 (M = 2),
   CEC2009 UF6 and UF9, and the ten C-DTLZ and DC-DTLZ problems at M = 2 and 3 (``c1dtlz1.2d`` ...
   ``dc3dtlz3.3d``), Srinivas, ConstrEx and Tanaka from their Pareto-set pieces and constraint boundaries, ZXH-CF1-16 at
@@ -42,6 +43,7 @@ from __future__ import annotations
 
 import argparse
 import itertools
+import math
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -216,6 +218,43 @@ def _idtlz(name: str, m: int) -> np.ndarray:
         return np.column_stack([1.0 - np.cos(theta), 1.0 - np.sin(theta)])
     w = simplex_lattice(m, 99)
     return (1.0 - w) / 2.0 if name == "idtlz1" else 1.0 - w / np.linalg.norm(w, axis=1, keepdims=True)
+
+
+# Development after 1.4.0: DTLZ1, DTLZ2 (whose sample DTLZ3 and DTLZ4 share) and DTLZ7 with more objectives.
+MANY_OBJECTIVES = (4, 6, 8)
+# Per objective count, the values per position objective of DTLZ7's candidate grid: about 10^5 candidates in all.
+_DTLZ7_GRID = {4: 48, 6: 10, 8: 6}
+
+
+def lattice_divisions(m: int, limit: int = 10_000) -> int:
+    """The divisions H of the largest Das-Dennis lattice with ``m`` objectives and at most ``limit`` points."""
+    h = 1
+    while math.comb(h + m, m - 1) <= limit:
+        h += 1
+    return h
+
+
+def _dtlz_many_objective(name: str, m: int) -> np.ndarray:
+    """DTLZ1, DTLZ2 and DTLZ7 with M = 4, 6 or 8.
+
+    DTLZ1 and DTLZ2: the largest Das-Dennis lattice with at most 10 000 points (H = 37, 13 and 8: 9880, 8568 and
+    6435 points), scaled to ``sum(f) = 0.5`` or projected onto the unit sphere. DTLZ7: on the front, the last
+    objective is ``2 (M - sum_i psi(f_i))`` over the others, with ``psi(t) = t (1 + sin(3 pi t))``. It separates, so a
+    point is Pareto-optimal when each other objective is a value that no smaller one beats in ``psi``: the front is
+    the product of those values, which a grid of 200 001 points of [0, 1] gives. Evenly spaced values of them,
+    combined, are thinned to 5050 points by farthest-point selection.
+    """
+    if name == "dtlz7":
+        fine = np.linspace(0.0, 1.0, 200_001)
+        psi = fine * (1.0 + np.sin(3.0 * np.pi * fine))
+        efficient = fine[psi > np.maximum.accumulate(np.concatenate([[-np.inf], psi[:-1]]))]
+        values = efficient[np.round(np.linspace(0.0, efficient.size - 1, _DTLZ7_GRID[m])).astype(int)]
+        head = np.array(list(itertools.product(values, repeat=m - 1)))
+        last = 2.0 * (m - np.sum(head / 2.0 * (1.0 + np.sin(3.0 * np.pi * head)), axis=1))
+        front = np.column_stack([head, last])
+        return front[farthest_points(front, 5050)]
+    w = simplex_lattice(m, lattice_divisions(m))
+    return 0.5 * w if name == "dtlz1" else w / np.linalg.norm(w, axis=1, keepdims=True)
 
 
 def _wfg(name: str) -> np.ndarray:
@@ -547,6 +586,7 @@ ANALYTIC: dict[str, Callable[[], np.ndarray]] = {
     **{f"dtlz{i}": (lambda i=i: _dtlz(f"dtlz{i}")) for i in range(1, 8)},
     **{f"dtlz{i}.2d": (lambda i=i: _dtlz_two_objective(f"dtlz{i}")) for i in range(1, 8)},
     **{f"idtlz{i}.{m}d": (lambda i=i, m=m: _idtlz(f"idtlz{i}", m)) for i in (1, 2) for m in (2, 3)},
+    **{f"dtlz{i}.{m}d": (lambda i=i, m=m: _dtlz_many_objective(f"dtlz{i}", m)) for i in (1, 2, 7) for m in MANY_OBJECTIVES},
     "wfg1": lambda: _wfg("wfg1"),
     "wfg2": lambda: _wfg("wfg2"),
     "lsmop9": _lsmop9,
@@ -726,7 +766,12 @@ def _polish(
 
 def write_front(name: str, front: np.ndarray, out_dir: Path) -> Path:
     path = out_dir / f"{FILE_NAMES.get(name, name)}.csv"
-    np.savetxt(path, front, delimiter=",")
+    if front.shape[1] > 3:
+        # Development after 1.4.0: with more objectives, the shortest repr of each value, which reads back exactly,
+        # keeps the files at about half the size.
+        path.write_text("".join(",".join(map(repr, row)) + "\n" for row in front.tolist()), encoding="ascii", newline="\n")
+    else:
+        np.savetxt(path, front, delimiter=",")
     return path
 
 

@@ -101,6 +101,10 @@ _RESIDUALS: dict[str, Callable[[np.ndarray], np.ndarray]] = {
     "idtlz1.2d": _sum(0.5),
     "idtlz1.3d": _sum(1.0),
     **{f"idtlz2.{m}d": (lambda F: np.sum((1.0 - F) ** 2, axis=1) - 1.0) for m in (2, 3)},
+    # Development after 1.4.0: with 4, 6 and 8 objectives, DTLZ3 and DTLZ4 share DTLZ2's sample.
+    **{f"dtlz1.{m}d": _sum(0.5) for m in (4, 6, 8)},
+    **{f"dtlz2.{m}d": _sphere for m in (4, 6, 8)},
+    **{f"dtlz7.{m}d": _dtlz7 for m in (4, 6, 8)},
     "wfg1": _wfg1,
     "wfg2": _wfg2,
     "wfg3": lambda F: F[:, 0] / 2.0 + F[:, 1] / 4.0 - 1.0,
@@ -165,7 +169,7 @@ CONSTRAINED_DTLZ_FRONTS = [(name, m) for name in CONSTRAINED_DTLZ for m in (2, 3
 
 
 def _dtlz_designs(name: str, F: np.ndarray, n_var: int) -> np.ndarray:
-    """Designs whose objectives are ``F`` under DTLZ1's (``*dtlz1``) or DTLZ2/3's closed form.
+    """Designs whose objectives are ``F`` under DTLZ1's (``*dtlz1``) or DTLZ2-4's closed form.
 
     The distance variables sit at 0.5, where g = 0, except one that moves C3-DTLZ1 out to g = 2 sum(f) - 1.
     """
@@ -181,7 +185,7 @@ def _dtlz_designs(name: str, F: np.ndarray, n_var: int) -> np.ndarray:
             rest = rest * X[:, j]
     else:
         # DTLZ4 raises its position variables to alpha = 100 before the trigonometric mapping.
-        power = 0.01 if name == "c3dtlz4" else 1.0
+        power = 0.01 if name.endswith("dtlz4") else 1.0
         for j in range(m - 1):
             i = m - 1 - j
             X[:, j] = (2.0 / np.pi * np.arctan2(F[:, i], np.linalg.norm(F[:, :i], axis=1))) ** power
@@ -227,6 +231,27 @@ def test_two_objective_dtlz_fronts_are_reached_by_pareto_optimal_designs(k: int)
     assert front.shape[1] == 2
 
     F, _ = evaluate_population_with_constraints(problem, _two_objective_dtlz_designs(k, front, problem.n_var))
+
+    assert np.max(np.abs(np.asarray(F) - front)) <= 1e-9
+
+
+@pytest.mark.parametrize(("k", "m"), [(k, m) for k in (1, 2, 3, 4, 7) for m in (4, 6, 8)])
+def test_many_objective_dtlz_fronts_are_reached_by_pareto_optimal_designs(k: int, m: int) -> None:
+    # Development after 1.4.0: the resolved sample of DTLZ<k> with M = 4, 6 or 8 (DTLZ3 and DTLZ4: DTLZ2's) is the
+    # image of designs on the Pareto set, as VAMOS's problem evaluates them.
+    problem = make_problem_selection(f"dtlz{k}", n_obj=m).instantiate()
+    path = resolve_reference_front_path(f"dtlz{k}", None, n_obj=m)
+    assert path is not None
+    front = np.loadtxt(path, delimiter=",", ndmin=2)
+    assert front.shape[1] == m
+    if k == 7:
+        # f_i = x_i for i < M, and the distance variables at 0 give g = 1.
+        X = np.zeros((front.shape[0], problem.n_var))
+        X[:, : m - 1] = front[:, :-1]
+    else:
+        X = _dtlz_designs(f"dtlz{k}", front, problem.n_var)
+
+    F, _ = evaluate_population_with_constraints(problem, X)
 
     assert np.max(np.abs(np.asarray(F) - front)) <= 1e-9
 
@@ -440,7 +465,7 @@ def test_srinivas_front_reaches_the_least_feasible_f1() -> None:
 @pytest.mark.parametrize("name", [name for name, spec in sorted(get_problem_specs().items())])
 def test_a_resolved_reference_front_has_the_requested_number_of_objectives(name: str) -> None:
     default = get_problem_specs()[name].default_n_obj
-    for n_obj in (None, 2, 3):
+    for n_obj in (None, 2, 3, 4, 6, 8):
         path = resolve_reference_front_path(name, None, n_obj=n_obj)
         if path is not None:
             assert np.loadtxt(path, delimiter=",", ndmin=2).shape[1] == (default if n_obj is None else n_obj)
@@ -467,6 +492,25 @@ def test_reference_fronts_are_chosen_by_number_of_objectives() -> None:
     assert resolved("wfg4", None) is None
     assert resolved("wfg4", 2) == "wfg4.csv"
     assert resolve_reference_front_path("wfg4", "my_front.csv", n_obj=3) == "my_front.csv"
+
+
+@pytest.mark.parametrize("m", [4, 6, 8])
+def test_many_objective_dtlz_fronts_are_chosen_by_number_of_objectives(m: int) -> None:
+    # Development after 1.4.0: DTLZ1-4 and DTLZ7 with 4, 6 and 8 objectives. DTLZ3 and DTLZ4 share DTLZ2's front, whose
+    # sample is packaged once; DTLZ5 and DTLZ6 have none with more than three objectives.
+    def resolved(name: str, n_obj: int) -> str | None:
+        path = resolve_reference_front_path(name, None, n_obj=n_obj)
+        return None if path is None else Path(path).name
+
+    for k in (1, 2, 7):
+        assert resolved(f"dtlz{k}", m) == f"dtlz{k}.{m}d.csv"
+    assert resolved("dtlz3", m) == resolved("dtlz4", m) == f"dtlz2.{m}d.csv"
+    assert resolved("dtlz5", m) is None and resolved("dtlz6", m) is None
+    assert resolved(f"dtlz3.{m}d", m) == f"dtlz2.{m}d.csv"
+    assert not {f"dtlz3.{m}d", f"dtlz4.{m}d"} & set(_PACKAGED)
+    # Other numbers of objectives still need a supplied front, and the two- and three-objective files keep their names.
+    assert resolved("dtlz2", m + 1) is None
+    assert resolved("dtlz3", 3) == "dtlz3.csv" and resolved("dtlz4", 2) == "dtlz4.2d.csv"
 
 
 @pytest.mark.parametrize(("name", "seed"), [("rwa3", 3), ("rwa9", 9), ("rwa10", 10), ("re91", 91)])

@@ -37,6 +37,7 @@ if TYPE_CHECKING:
     from vamos.foundation.eval.backends import EvaluationBackend
     from vamos.foundation.kernel.backend import KernelBackend
     from vamos.foundation.problem.types import ProblemProtocol
+from vamos.engine.algorithm.components.state import record_archive_rows
 from vamos.engine.hooks.live_viz import LiveVisualization
 from vamos.foundation.observer import RunContext
 
@@ -71,7 +72,7 @@ def _archive_offspring(st: NSGAIIIState, X_off: DecisionArray, F_off: FloatArray
     row dominates it.
     """
     if st.archive_manager is not None:
-        st.archive_X, st.archive_F = st.archive_manager.update(X_off, F_off, G_off)
+        record_archive_rows(st, X_off, F_off, G_off)
 
 
 class NSGAIII:

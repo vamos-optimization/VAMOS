@@ -18,6 +18,7 @@ from vamos.engine.algorithm.components.evaluation import combine_constraints, ex
 from vamos.engine.algorithm.components.hooks import get_live_viz, live_should_stop, send_live_generation
 from vamos.engine.algorithm.components.metrics import setup_hv_tracker
 from vamos.engine.algorithm.components.population import initialize_evaluated_population, resolve_bounds
+from vamos.engine.algorithm.components.state import record_archive_rows
 from vamos.engine.algorithm.components.termination import (
     capped_offspring_size,
     hv_target_reached,
@@ -405,7 +406,7 @@ class AGEMOEA:
         else:
             st.selection_ranks, st.selection_crowding = selection_metrics(self.kernel, st.F, st.G, st.constraint_mode, survival_scores)
         if st.archive_manager is not None:
-            st.archive_X, st.archive_F = st.archive_manager.update(st.X, st.F, st.G)
+            record_archive_rows(st, st.X, st.F, st.G)
 
         st.pending_offspring = None
         st.generation += 1

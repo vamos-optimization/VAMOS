@@ -11,6 +11,7 @@ try:  # pragma: no cover - optional dependency
 except ImportError:  # pragma: no cover - optional dependency
     _moocore = None
 
+from vamos.engine.algorithm.components.archive_buffer import RowBuffer
 from vamos.engine.algorithm.components.archive_insertion import INSERTION_ROWS, drop_rows, insertion
 from vamos.foundation.constraints.utils import compute_violation, is_feasible
 from vamos.foundation.quality_indicators.pareto import pareto_filter
@@ -129,7 +130,7 @@ def _subset_arrays(
     return X[idx], F[idx], G[idx] if G is not None else None
 
 
-class _BaseArchive:
+class _BaseArchive(RowBuffer):
     """
     Base class for bounded external archives.
 
@@ -218,6 +219,10 @@ class _BaseArchive:
         self.unchanged_by_last_input = False
         # The configuration of the external archive this archive holds (``setup_archive``), whose final subset the result reports.
         self.external_config: ExternalArchiveConfig | None = None
+        #: Whether ``add`` keeps the rows it is offered and merges them only when needed (see ``add``).
+        self.buffered = False
+        self._pending: list[tuple[DecisionArray, FloatArray, FloatArray | None]] = []
+        self._pending_rows = 0
 
     def update(
         self,
@@ -225,31 +230,22 @@ class _BaseArchive:
         population_F: NDArray[np.generic],
         population_G: NDArray[np.generic] | None = None,
     ) -> tuple[DecisionArray, FloatArray]:
-        pop_X = np.asarray(population_X, dtype=self._dtype, order="C")
-        pop_F = np.asarray(population_F, dtype=float, order="C")
-        if pop_X.ndim != 2:
-            raise ValueError("population_X must be a 2D array.")
-        if pop_F.ndim != 2:
-            raise ValueError("population_F must be a 2D array.")
-        if pop_X.shape[0] != pop_F.shape[0]:
-            raise ValueError("population_X and population_F must have the same number of rows.")
-        if pop_X.shape[1] != self._n_var:
-            raise ValueError(f"population_X has {pop_X.shape[1]} columns, expected {self._n_var}.")
-        if pop_F.shape[1] != self._n_obj:
-            raise ValueError(f"population_F has {pop_F.shape[1]} columns, expected {self._n_obj}.")
+        """Merge the rows into the archive and return its contents; rows kept by ``add`` are merged first."""
+        self._flush()
+        return self._update_now(population_X, population_F, population_G)
+
+    def _update_now(
+        self,
+        population_X: DecisionArray,
+        population_F: NDArray[np.generic],
+        population_G: NDArray[np.generic] | None = None,
+    ) -> tuple[DecisionArray, FloatArray]:
+        pop_X, pop_F, pop_G = self._checked_rows(population_X, population_F, population_G)
         self.last_capacity_pruned = 0
         if pop_X.shape[0] == 0:
             self.covers_last_input = self._clean
             self.unchanged_by_last_input = True
             return self._snapshot()
-
-        pop_G: FloatArray | None = None
-        if population_G is not None:
-            pop_G = np.asarray(population_G, dtype=float, order="C")
-            if pop_G.ndim != 2:
-                raise ValueError("population_G must be a 2D array when provided.")
-            if pop_G.shape[0] != pop_X.shape[0]:
-                raise ValueError("population_G must have the same number of rows as population_X.")
 
         if self._insertable(pop_X.shape[0], pop_G) and self._insert(pop_X, pop_F, pop_G):
             return self._snapshot()
@@ -361,10 +357,12 @@ class _BaseArchive:
         return True
 
     def contents(self) -> tuple[DecisionArray, FloatArray]:
+        self._flush()
         return self._snapshot()
 
     def constraint_values(self) -> FloatArray | None:
         """Constraint values of the archived rows, aligned with ``contents()``, or ``None`` without constraints."""
+        self._flush()
         if self._G is None:
             return None
         return self._G[: self._size].copy()
