@@ -265,7 +265,9 @@ lattice with exactly `pop_size` vectors (`strict=True`), or raises an error:
 
 ```python
 # Excerpt from src/vamos/engine/algorithm/components/weight_vectors.py
-def _load_or_generate_jmetalpy_weights(pop_size: int, n_obj: int, path: str | None, divisions: int | None) -> FloatArray:
+def _load_or_generate_jmetalpy_weights(
+    pop_size: int, n_obj: int, path: str | None, divisions: int | None, sha256: str | None = None
+) -> FloatArray:
     if n_obj == 2:
         vals = np.linspace(0.0, 1.0, pop_size, dtype=float)
         return np.column_stack([vals, 1.0 - vals])

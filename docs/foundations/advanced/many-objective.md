@@ -135,7 +135,7 @@ config = (
     .pop_size(pop_size)
     .crossover("sbx", prob=1.0, eta=30.0)
     .mutation("pm", prob="1/n", eta=20.0)
-    .selection("tournament")
+    .selection("random")
     .reference_directions(divisions=divisions)
     .result_mode("population")
     .build()
@@ -153,7 +153,7 @@ Output:
 ```text
 reference directions: 91
 returned: (91, 3)
-distance to the origin: median 1.004 max 1.027
+distance to the origin: median 1.003 max 1.029
 ```
 
 The [NSGA-III lesson](../../algorithms/nsgaiii.md) draws this result and

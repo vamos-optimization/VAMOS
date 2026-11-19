@@ -122,6 +122,12 @@ VAMOS details and deviations:
   generations the budget allows, ⌈(max_evaluations − N) / N⌉: 219 for 20,000
   evaluations with N = 91.
 - **Ties.** On equal APD, the solution listed first wins.
+- **Development after 1.4.0: two variants.** `variant("pymoo")`, the default,
+  makes the choices above. `variant("platemo")` follows the authors' code in
+  PlatEMO, which jMetal also follows: M = m with two objectives too, the
+  objectives are translated by the minimum of each generation's candidates
+  instead of the accumulated ideal point, and the vectors adapt to the range of
+  the population (below).
 
 ## Explore the penalty
 
@@ -156,7 +162,9 @@ In VAMOS, `adapt_freq(f_r)` sets the frequency (0.1 by default) and
 `adapt_freq(None)` disables adaptation. Adaptation happens after the survival
 of every generation t that is a multiple of ⌈f_r · t_max⌉, with z_max taken
 from the survivors. With constraints only feasible solutions define z_min and
-z_max, and the vectors do not adapt until a feasible solution exists.
+z_max, and the vectors do not adapt until a feasible solution exists. The
+`variant("platemo")` scales instead by the range of the current population,
+its largest minus its smallest value of each objective.
 
 ## In VAMOS
 
@@ -239,31 +247,37 @@ def _calc_gamma(V: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     return np.asarray(gamma, dtype=float)
 ```
 
-The survival follows the formulas: translation by the accumulated ideal point,
-association by the smallest angle (`niches`), the penalty with M = 1 for two
-objectives, and the APD. `np.lexsort` orders the solutions by vector, then by
-APD, then by position, so the first solution of each vector in that order is
-its survivor; vectors without solutions simply do not appear:
+The survival follows the formulas. `angle_penalized_distances` translates the
+objectives by an origin, associates each solution with the vector at the
+smallest angle (`niches`), and computes the penalty, with M = 1 for two
+objectives in the default variant, and the APD. `apd_survival` passes the
+accumulated ideal point as the origin. `np.lexsort` orders the solutions by
+vector, then by APD, then by position, so the first solution of each vector in
+that order is its survivor; vectors without solutions simply do not appear:
 
 ```python
 # Excerpt from src/vamos/engine/algorithm/rvea/survival.py
     n_obj = F.shape[1]
-    ideal = np.minimum(F.min(axis=0), ideal)
-
-    F_shift = F - ideal
-    dist_to_ideal = np.linalg.norm(F_shift, axis=1)
-    dist_to_ideal[dist_to_ideal < 1e-64] = 1e-64
-    F_prime = F_shift / dist_to_ideal[:, None]
+    F_shift = F - origin
+    dist_to_origin = np.linalg.norm(F_shift, axis=1)
+    dist_to_origin[dist_to_origin < 1e-64] = 1e-64
+    F_prime = F_shift / dist_to_origin[:, None]
 
     cos_theta = np.clip(F_prime @ V.T, -1.0, 1.0)
     acute_angle = np.arccos(cos_theta)
     niches = acute_angle.argmin(axis=1)
 
-    M = float(n_obj) if n_obj > 2 else 1.0
+    M = float(n_obj) if n_obj > 2 or variant == "platemo" else 1.0
     progress = (n_gen / n_max_gen) ** alpha
     theta = acute_angle[np.arange(F.shape[0]), niches]
     penalty = M * progress * (theta / gamma[niches])
-    apd = dist_to_ideal * (1.0 + penalty)
+    return niches, penalty, dist_to_origin * (1.0 + penalty)
+
+
+def apd_survival(
+    ideal = np.minimum(F.min(axis=0), ideal)
+    origin = F.min(axis=0) if variant == "platemo" else ideal
+    niches, _penalty, apd = angle_penalized_distances(F, origin, V, gamma, n_gen, n_max_gen, alpha, variant)
 
     order = np.lexsort((np.arange(F.shape[0]), apd, niches))
     sorted_niches = niches[order]
@@ -277,9 +291,10 @@ its survivor; vectors without solutions simply do not appear:
 ```
 
 The last lines return the largest objective values of the survivors, the
-z_max of the adaptation. The run computes t_max from the budget, checks the
-population against the lattice, sets the adaptation interval, and stretches
-the vectors at each multiple of it:
+z_max of the adaptation. The run computes t_max from the budget, builds one
+reference vector per individual (`_reference_vectors` raises when the lattice
+does not match `pop_size`), sets the adaptation interval, and stretches the
+vectors at each multiple of it:
 
 ```python
 # Excerpt from src/vamos/engine/algorithm/rvea/rvea.py
@@ -289,20 +304,27 @@ the vectors at each multiple of it:
         else:
             max_gen = max(1, int(math.ceil((max_evals - pop_size) / pop_size)))
 
-        ref_dirs = _generate_reference_vectors(n_obj, n_partitions)
-        if ref_dirs.shape[0] != pop_size:
-            raise ValueError(
-                f"RVEA requires pop_size == #ref_dirs for partitions={n_partitions} (pop_size={pop_size}, ref_dirs={ref_dirs.shape[0]})."
-            )
+        ref_dirs = _reference_vectors(self.cfg.get("reference_vectors"), pop_size, n_obj, n_partitions)
         adapt_interval = None
         if adapt_freq is not None:
             adapt_interval = max(1, int(math.ceil(max_gen * float(adapt_freq))))
         # Periodic reference-vector adaptation
-        if st.adapt_interval is not None and st.generation % st.adapt_interval == 0 and st.nadir is not None:
-            scale = np.maximum(st.nadir - st.ideal, 1e-64)
-            st.V = _calc_V(_calc_V(st.ref_dirs) * scale)
-            st.gamma = _calc_gamma(st.V)
+        if st.adapt_interval is not None and st.generation % st.adapt_interval == 0:
+            scale: np.ndarray[Any, Any] | None = None
+            if st.variant == "platemo":
+                scale = np.ptp(st.F, axis=0)
+            elif st.nadir is not None:
+                scale = st.nadir - st.ideal
+            if scale is not None:
+                st.V = _calc_V(_calc_V(st.ref_dirs) * np.maximum(scale, 1e-64))
+                st.gamma = _calc_gamma(st.V)
 ```
+
+**Development after 1.4.0:** the population no longer has to be a complete
+lattice. `reference_vectors(path=...)` reads the vectors from a file, such as
+jMetal's `W3D_100.dat` that VAMOS ships, and
+`reference_vectors(divisions=p₁, inner_divisions=p₂)` builds Deb and Jain's
+two-layer lattice (lesson [A2](nsga-iii.md#reference-directions)).
 
 The [RVEA lesson](../../algorithms/rvea.md#interpret-the-result-and-its-limits)
 records a run on DTLZ2 and the changes of VAMOS 1.2.0; the
@@ -345,8 +367,9 @@ the shape of the front instead.
   relative to the local spacing of the vectors.
 - Every f_r · t_max generations the vectors are stretched to the ranges of the
   population, which lets RVEA handle objectives of different scales.
-- VAMOS follows pymoo where the article differs: M = 1 with two objectives and
-  an ideal point that accumulates across generations.
+- By default VAMOS follows pymoo where the article differs: M = 1 with two
+  objectives and an ideal point that accumulates across generations;
+  `variant("platemo")` follows the authors' code instead.
 
 **Next:** [A4. AGE-MOEA: adapting to the geometry of the front](agemoea.md).
 

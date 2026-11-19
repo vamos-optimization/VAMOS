@@ -69,10 +69,14 @@ With eight or more objectives a single lattice either has too many directions
 or puts them all on the boundary of the simplex. Deb and Jain then combine two
 layers: an outer lattice with p₁ divisions and an inner one with p₂ divisions
 shrunk towards the centre, for example 120 + 36 = 156 directions for m = 8
-with p₁ = 3 and p₂ = 2 [1]. VAMOS generates one layer only. A two-layer set
-can be supplied with `reference_directions(path=...)`: a CSV file whose rows
-are non-negative, sum to one and have one column per objective, which the
-inner points of a two-layer set also satisfy.
+with p₁ = 3 and p₂ = 2 [1]. **Development after 1.4.0:**
+`reference_directions(divisions=p₁, inner_divisions=p₂)` generates that
+two-layer set, the inner lattice shrunk by half towards the centre,
+w/2 + 1/(2m), as pymoo does; VAMOS 1.4.0 generated one layer only. Any other
+set can be read from a file with `reference_directions(path=...)`: rows that
+are non-negative, sum to one and have one column per objective, separated by
+commas or, since the same development, by whitespace, as in jMetal's weight
+files.
 
 ### The population rule
 
@@ -183,22 +187,34 @@ compete. With N = 6 a single place is disputed by two empty directions.
 ## Mating selection and constraints
 
 **Parents.** Deb and Jain choose parents at random, since niching already
-keeps the population diverse [1]; their constrained version runs a tournament
-on constraint violation [2]. VAMOS uses NSGA-II's binary tournament instead,
-as jMetal's NSGA-III does: rank first, then crowding distance, then a coin
-(lesson [I3](../intermediate/crowding-distance.md)). The ranks and distances
-are recomputed on the new population after each survival.
-`selection("tournament", size=k)` changes the tournament size.
+keeps the population diverse [1]; their constrained version runs a binary
+tournament on constraint violation [2]. VAMOS offers two selections, and
+neither uses the crowding distance, which is not part of NSGA-III:
+
+- `selection("random")`, the default, draws the parents at random, as Deb and
+  Jain do. With constraints, each parent is the winner of a binary tournament
+  on violation: a feasible solution beats an infeasible one, the smaller
+  violation wins, and a tie, such as two feasible solutions, is drawn at
+  random [2]. pymoo's NSGA-III does the same.
+- `selection("tournament", size=k)` is jMetal's NSGA-III tournament: k
+  distinct solutions (2 by default) are drawn at random and the one with the
+  lowest non-dominated rank wins, with ties drawn at random.
+
+**Development after 1.4.0:** VAMOS 1.4.0 and earlier chose NSGA-III's parents
+by NSGA-II's tournament on rank and crowding distance
+(lesson [I3](../intermediate/crowding-distance.md)), whatever the configured
+selection, so the same seed gives other results than with VAMOS 1.4.0.
 
 **Constraints.** With constraint values, VAMOS puts feasible solutions first,
 following Jain and Deb [2]. When at most N merged solutions are feasible, all
 of them survive and the least violated infeasible ones fill the remaining
 places, with no niching. Otherwise the infeasible ones are discarded and
 sorting, normalization and niching run on the feasible solutions only. The
-tournament ranks every infeasible solution after the feasible ones and
-compares two infeasible solutions by violation. Since VAMOS 1.2.0,
+rank-based tournament ranks every infeasible solution after the feasible ones
+and compares two infeasible solutions by violation. Since VAMOS 1.2.0,
 `constraint_handling` replaces this rule by another technique, whose fronts
-take the place of the non-dominated ones (lesson
+take the place of the non-dominated ones in the survival and in the
+rank-based tournament, while the random selection then ignores constraints (lesson
 [A5](constrained.md) and the
 [constraint reference](../../reference/constraints.md#choose-a-constraint-handling-technique)).
 
@@ -226,7 +242,7 @@ def config(pop_size):
         .pop_size(pop_size)
         .crossover("sbx", prob=1.0, eta=30.0)
         .mutation("pm", prob="1/n", eta=20.0)
-        .selection("tournament")
+        .selection("random")
         .reference_directions(divisions=12)  # H = C(14, 2) = 91 directions
         .result_mode("population")
         .build()
@@ -263,11 +279,12 @@ Output:
 NSGA-III reference directions for divisions=12 (91) need pop_size >= 91 (pop_size=80). Increase pop_size or choose fewer reference directions.
 objective maxima: [2. 4. 6.]
 directions with a solution, normalized objectives: 91 of 91
-directions with a solution, raw objectives: 64 of 91
+directions with a solution, raw objectives: 65 of 91
 ```
 
-In normalized space every direction holds a solution. On the raw objectives a
-third of the directions look empty, because the front is stretched along f₃:
+In normalized space every direction holds a solution. On the raw objectives
+more than a quarter of the directions look empty, because the front is
+stretched along f₃:
 normalization is what lets one set of directions serve objectives of different
 scales.
 
@@ -277,16 +294,21 @@ built:
 ```python
 # Excerpt from src/vamos/engine/algorithm/nsgaiii/initialization.py
     elif ref_divisions is not None:
-        source = f"NSGA-III reference directions for divisions={ref_divisions}"
+        lattice = f"divisions={ref_divisions}" if ref_inner is None else f"divisions={ref_divisions} and inner_divisions={ref_inner}"
+        source = f"NSGA-III reference directions for {lattice}"
         if n_obj >= 2:
             # Reject from the binomial count: an oversized lattice can need gigabytes.
-            n_directions = lattice_size(n_obj, int(ref_divisions))
+            n_directions = (
+                lattice_size(n_obj, int(ref_divisions)) if ref_inner is None else two_layer_size(n_obj, int(ref_divisions), int(ref_inner))
+            )
             if n_directions > pop_size:
                 raise ValueError(
                     f"{source} ({n_directions}) need pop_size >= {n_directions} (pop_size={pop_size}). "
                     "Increase pop_size or choose fewer reference directions."
                 )
-        ref_dirs = load_or_generate_weight_vectors(pop_size, n_obj, path=ref_path, divisions=ref_divisions)
+        ref_dirs = load_or_generate_weight_vectors(
+            pop_size, n_obj, divisions=int(ref_divisions), inner_divisions=None if ref_inner is None else int(ref_inner)
+        )
     ref_dirs_norm = ref_dirs / np.linalg.norm(ref_dirs, axis=1, keepdims=True)
 ```
 
@@ -428,7 +450,8 @@ minimum population whether or not the problem needs it.
 - The last front fills the least crowded directions first: the closest
   candidate for an empty direction, a random one otherwise, with random
   tie-breaks.
-- VAMOS selects parents by NSGA-II's tournament and treats constraints
+- VAMOS selects parents at random by default, as Deb and Jain, or by a
+  tournament on rank, never by crowding distance, and treats constraints
   feasibility first, unless `constraint_handling` names another technique.
 
 **Next:** [A3. RVEA: angle-penalized distance](rvea.md).

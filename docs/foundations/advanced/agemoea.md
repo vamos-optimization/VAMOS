@@ -217,14 +217,23 @@ def _compute_geometry(front: np.ndarray[Any, Any], extreme: np.ndarray[Any, Any]
     selected = np.full(m, False)
     selected[extreme] = True
 
-    p = _compute_geometry(front, extreme, n)
+    ii = variant == "agemoea_ii"
+    p = _compute_geometry_ii(front, extreme) if ii else _compute_geometry(front, extreme, n)
     nn = np.linalg.norm(front, ord=p, axis=1)
     nn[nn < 1e-8] = 1.0
 
-    distances = _pairwise_distances(front, p)
+    distances = _geodesic_distances(front, p) if ii else _pairwise_distances(front, p)
     distances[distances < 1e-8] = 1e-8
     distances = distances / nn[:, None]
 ```
+
+**Development after 1.4.0:** the `ii` lines choose between AGE-MOEA, the
+default, and AGE-MOEA-II [7], selected with `variant("agemoea_ii")`. AGE-MOEA-II
+estimates p from the non-corner point nearest to the ideal point by
+Newton-Raphson, so that its Lp norm is 1, and replaces the Lp distances of F₁
+by approximate geodesic distances on the estimated front: each pair of points
+is projected onto the Lp surface and measured through their projected
+midpoint. The rest of the survival is AGE-MOEA's.
 
 The greedy loop keeps, for every unselected point, its two smallest distances
 to the selected set (`best1`, `best2`) and their sum (`scores`). Each pass
@@ -279,7 +288,7 @@ decreasing score:
 
     front0 = F[ranks == 0, :]
     ideal_point = np.min(front0, axis=0)
-    crowd_dist[ranks == 0], p, normalization = _survival_score(front0, ideal_point, kernel.selection_kernels())
+    crowd_dist[ranks == 0], p, normalization = _survival_score(front0, ideal_point, kernel.selection_kernels(), variant)
 
     for r in range(1, last_rank + 1):
         front_idx = fronts[r]
@@ -360,3 +369,5 @@ poor.
 [5] Deb, K., and Jain, H. (2014). [An evolutionary many-objective optimization algorithm using reference-point-based nondominated sorting approach, Part I: Solving problems with box constraints](https://doi.org/10.1109/TEVC.2013.2281535). *IEEE Transactions on Evolutionary Computation*, 18(4), 577–601.
 
 [6] Ishibuchi, H., Setoguchi, Y., Masuda, H., and Nojima, Y. (2017). [Performance of decomposition-based many-objective algorithms strongly depends on Pareto front shapes](https://doi.org/10.1109/TEVC.2016.2587749). *IEEE Transactions on Evolutionary Computation*, 21(2), 169–190.
+
+[7] Panichella, A. (2022). [An improved Pareto front modeling algorithm for large-scale many-objective optimization](https://doi.org/10.1145/3512290.3528732). *Proceedings of the Genetic and Evolutionary Computation Conference (GECCO '22)*, 565–573.
