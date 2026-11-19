@@ -217,10 +217,15 @@ name of Evolver's parameter (`agemoeaII` in Evolver).
 These are declared VAMOS choices, not defects; report them when comparing with
 published results or with another framework.
 
-- **NSGA-III parents** are chosen by binary tournament on non-dominated rank
-  and crowding distance (feasibility first under constraints), as in NSGA-II
-  and in jMetal's NSGA-III example. Deb and Jain (2014) choose parents at
-  random. See [NSGA-III](../algorithms/nsgaiii.md#variants-and-their-effect).
+- **NSGA-III parents:** **Development after 1.4.0:** no longer a departure.
+  They are drawn at random by default, as Deb and Jain (2014) and pymoo do
+  (under constraints, by a binary tournament on the violation, as Jain and
+  Deb's constrained NSGA-III), and `selection("tournament")` is jMetal's
+  NSGA-III tournament on rank. VAMOS 1.4.0 and earlier always chose them by a
+  binary tournament on non-dominated rank and crowding distance, as NSGA-II,
+  whatever the configured selection, so NSGA-III results of those versions
+  are not results of the published algorithm. See
+  [NSGA-III](../algorithms/nsgaiii.md#variants-and-their-effect).
 - **NSGA-III nadir estimate:** when an intercept of the extreme-point
   hyperplane lies beyond the worst point found so far, VAMOS uses the worst
   point of the first front for every objective, as pymoo up to 0.4 did; pymoo
@@ -308,6 +313,8 @@ config = (
 ```
 
 `final_selection` is `"none"` (the default: the whole archive, as before), `"farthest"`, `"crowding"`, `"hv_greedy"` or `"kmeans"`, the selections of `top_k(method=...)`; `kmeans` is seeded with the archive's `rng_seed`, which without a value derives from the run seed (see [Reproducibility](../experiment/stopping_and_archive.md#reproducibility)). `final_size` defaults to the population size. `result.X` and `result.F` hold the subset, the archive stays whole in `result.data["archive"]` (`archive_X`/`archive_F` for NSGA-III and IBEA, `external_archive` for SPEA2), and `result.data["archive_subset"]` records the selection, the size and the indices of the selected rows in the archive. A saved run stores the subset as its result and the whole archive under `archive/` (SPEA2: `external_archive/`, since its `archive/` is the environmental archive), and its resolved specification records `final_selection` and `final_size`, so a replay selects the same subset. The subset also applies to a bounded archive larger than `final_size`, not with `result_mode="population"`, and not to hypervolume termination or live callbacks, which see the whole archive during the run.
+
+**Development after 1.4.0:** an unbounded external archive no longer filters itself once per generation. Once it holds feasible, finite rows, it keeps the rows each generation offers and merges them, with moocore's non-dominated filter when moocore is installed, only when something reads the archive (the result, a live callback in `population_archive` mode, hypervolume termination, SMPSO's leaders) or when the kept rows outnumber twice the archive. One merge gives the same rows, in the same order, as one update per generation, so results do not change; a run that reads its archive only at the end filters it once. Over the 200 000 evaluations of an NSGA-II run, the archive took 0.1 s instead of 5.0 s on CRE21 (7 000 rows), 0.16 s instead of 11.5 s on RCM08 and 0.28 s instead of 85 s on RCM25 (112 000 rows). Before the first feasible row, and after rows with non-finite feasible objectives, the archive is updated at once, as before.
 
 NSGA-III and RVEA require a population compatible with the configured reference directions. MOEA/D requires one weight vector per population member. For a simplex lattice with `p` divisions and `m` objectives, use `comb(p + m - 1, m - 1)`; for three objectives and 12 divisions, that is **91**. Explicit incompatible cardinalities fail; they are not warning-only cases. Follow the tutorials before changing objective count or population size.
 
@@ -526,7 +533,7 @@ never compiles problem evaluation.
 | Algorithm | Compiled with `engine="numba"` | Stays in NumPy/Python |
 | --- | --- | --- |
 | NSGA-II | Non-dominated ranking and crowding, survival, tournament selection, SBX, polynomial mutation; the whole one-offspring steady-state step in its supported configuration (below) | Feasibility ordering, archives, steady-state front maintenance outside that configuration |
-| NSGA-III | Ranking and crowding, tournament selection, SBX, polynomial mutation | Normalization, association to reference directions, niching (it shuffles with the run generator inside the loop) |
+| NSGA-III | Ranking and crowding, tournament selection (**Development after 1.4.0:** where configured, and the violation tournament of random parents under constraints), SBX, polynomial mutation | Random parent draws, normalization, association to reference directions, niching (it shuffles with the run generator inside the loop) |
 | MOEA/D | Differential-evolution children, SBX, polynomial mutation, neighbourhood replacement; the whole one-offspring step (see below) | Weight geometry; parent sampling and repair outside the compiled one-offspring step |
 | SMS-EMOA | The steady-state step (VAMOS 1.2.0, see below): child variation and clipping, front insertion, two-objective hypervolume contributions, crowding, feasibility-first removal; tournament selection where configured | Parent sampling draws, hypervolume contributions for three or more objectives (MooCore when installed), archives |
 | SPEA2 | SBX, polynomial mutation, lexicographic archive truncation | Strength/raw fitness and density (vectorized NumPy) |

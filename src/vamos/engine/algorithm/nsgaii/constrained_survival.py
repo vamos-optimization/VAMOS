@@ -5,7 +5,8 @@ parents and offspring of the replacement, and crowding distance orders each fron
 replacement the technique adapts to that union at the run's progress, the evaluations before the
 offspring's over the budget, as jMetal's ``ConstraintHandlingReplacement`` does. VAMOS ranks the
 population again for the tournaments, as it does with cdp; jMetal reuses the ranks of the replacement.
-NSGA-III ranks its tournaments with :func:`technique_selection_metrics` too.
+Development after 1.4.0: NSGA-III's tournament compares the technique's ranks only, without crowding
+distance (``nsgaiii.helpers.nsgaiii_parents``).
 """
 
 from __future__ import annotations

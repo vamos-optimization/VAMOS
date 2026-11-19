@@ -4,6 +4,12 @@ UX/analysis utilities; not required for core optimization runtime.
 
 from __future__ import annotations
 
+from vamos.foundation.quality_indicators.moocore_indicators import (
+    HV_APPROX_METHODS,
+    HVApproxIndicator,
+    HVIndicator,
+    IndicatorResult,
+)
 from vamos.ux.analysis.core_objective_reduction import (
     ObjectiveReducer,
     ObjectiveReductionConfig,
@@ -40,6 +46,11 @@ from vamos.ux.visualization import (
 )
 
 __all__ = [
+    # Development after 1.4.0: quality indicators, the exact and the approximate hypervolume
+    "HVIndicator",
+    "HVApproxIndicator",
+    "HV_APPROX_METHODS",
+    "IndicatorResult",
     # Objective reduction
     "ObjectiveReductionConfig",
     "ObjectiveReducer",

@@ -88,14 +88,27 @@ class _OfferedRows:
     def __init__(self, monkeypatch: pytest.MonkeyPatch) -> None:
         self.calls: list[int] = []
         self.active = True
+        self._in_add = False
         update = _BaseArchive.update
+        add = _BaseArchive.add
 
         def counting_update(archive: _BaseArchive, X: Any, F: Any, G: Any = None) -> Any:
-            if self.active:
+            if self.active and not self._in_add:
                 self.calls.append(int(np.asarray(F).shape[0]))
             return update(archive, X, F, G)
 
+        # A buffered archive is offered rows with ``add``, which updates at once when it cannot keep them.
+        def counting_add(archive: _BaseArchive, X: Any, F: Any, G: Any = None) -> None:
+            if self.active:
+                self.calls.append(int(np.asarray(F).shape[0]))
+            self._in_add = True
+            try:
+                add(archive, X, F, G)
+            finally:
+                self._in_add = False
+
         monkeypatch.setattr(_BaseArchive, "update", counting_update)
+        monkeypatch.setattr(_BaseArchive, "add", counting_add)
 
 
 def _run(cfg: dict[str, Any], problem: Any, engine: str, seed: int, termination: Any, **kwargs: Any) -> dict[str, Any]:

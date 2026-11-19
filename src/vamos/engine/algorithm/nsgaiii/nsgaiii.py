@@ -29,7 +29,7 @@ from vamos.engine.algorithm.components.utils import variation_operator_label
 from vamos.foundation.kernel import default_kernel
 from vamos.foundation.kernel.backend import DecisionArray, FloatArray
 
-from .helpers import nsgaiii_selection_metrics, nsgaiii_survival
+from .helpers import nsgaiii_parents, nsgaiii_survival
 from .initialization import initialize_nsgaiii_run
 from .state import NSGAIIIState, build_nsgaiii_result
 
@@ -37,6 +37,7 @@ if TYPE_CHECKING:
     from vamos.foundation.eval.backends import EvaluationBackend
     from vamos.foundation.kernel.backend import KernelBackend
     from vamos.foundation.problem.types import ProblemProtocol
+from vamos.engine.algorithm.components.state import record_archive_rows
 from vamos.engine.hooks.live_viz import LiveVisualization
 from vamos.foundation.observer import RunContext
 
@@ -71,7 +72,7 @@ def _archive_offspring(st: NSGAIIIState, X_off: DecisionArray, F_off: FloatArray
     row dominates it.
     """
     if st.archive_manager is not None:
-        st.archive_X, st.archive_F = st.archive_manager.update(X_off, F_off, G_off)
+        record_archive_rows(st, X_off, F_off, G_off)
 
 
 class NSGAIII:
@@ -86,11 +87,6 @@ class NSGAIII:
         self._max_eval: int = 0
         self._hv_tracker: HVTracker | None = None
         self._problem: ProblemProtocol | None = None
-
-    def _refresh_selection_metrics(self, st: NSGAIIIState) -> None:
-        st.selection_ranks, st.selection_crowding = nsgaiii_selection_metrics(
-            self.kernel, st.F, st.G, st.constraint_mode, st.constraint_handling, st.rng
-        )
 
     # -------------------------------------------------------------------------
     # Main run method (batch mode)
@@ -165,7 +161,6 @@ class NSGAIII:
                 technique=st.constraint_handling,
                 progress=progress,
             )
-            self._refresh_selection_metrics(st)
 
             if ids_combined is not None:
                 st.ids = ids_combined[survivor_indices]
@@ -189,21 +184,21 @@ class NSGAIII:
     # -------------------------------------------------------------------------
 
     def _generate_offspring(self, st: NSGAIIIState) -> DecisionArray:
-        """Generate offspring using tournament selection and variation."""
+        """Generate offspring using the configured parent selection and variation."""
         n_var = st.X.shape[1]
         request_size = capped_offspring_size(st.n_eval, self._max_eval, st.pop_size, "NSGA-III")
         n_parents = 2 * int(np.ceil(request_size / 2))
 
-        if st.selection_ranks is None or st.selection_crowding is None or st.selection_ranks.shape[0] != st.F.shape[0]:
-            self._refresh_selection_metrics(st)
-        assert st.selection_ranks is not None
-        assert st.selection_crowding is not None
-        parents_idx = self.kernel.tournament_selection(
-            st.selection_ranks,
-            st.selection_crowding,
+        parents_idx = nsgaiii_parents(
+            st.selection_method,
             st.pressure,
+            self.kernel,
+            st.F,
+            st.G,
+            st.constraint_mode,
+            st.constraint_handling,
             st.rng,
-            n_parents=n_parents,
+            n_parents,
         )
 
         X_parents = st.X[parents_idx].reshape(-1, 2, n_var)
@@ -334,7 +329,6 @@ class NSGAIII:
             technique=st.constraint_handling,
             progress=run_progress(st.n_eval, st.max_evals),
         )
-        self._refresh_selection_metrics(st)
 
         if ids_combined is not None:
             st.ids = ids_combined[survivor_indices]

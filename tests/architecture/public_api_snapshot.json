@@ -182,6 +182,10 @@
   ],
   "vamos.ux.api": [
     "FriedmanResult",
+    "HVApproxIndicator",
+    "HVIndicator",
+    "HV_APPROX_METHODS",
+    "IndicatorResult",
     "MCDMResult",
     "ObjectiveReducer",
     "ObjectiveReductionConfig",

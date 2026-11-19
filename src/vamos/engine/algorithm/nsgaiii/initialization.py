@@ -23,12 +23,12 @@ from vamos.engine.algorithm.components.termination import parse_termination, val
 from vamos.engine.algorithm.components.utils import resolve_bounds_array
 from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors, vector_source
 from vamos.engine.algorithm.config.base import normalize_constraint_mode
+from vamos.engine.algorithm.config.nsgaiii import nsgaiii_selection
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
 from vamos.engine.operators.policies.nsgaiii import build_variation_operators
 from vamos.engine.reference_directions import lattice_size, two_layer_size
 from vamos.foundation.encoding import EncodingLike, normalize_encoding
 
-from .helpers import nsgaiii_selection_metrics
 from .state import NSGAIIIState
 
 if TYPE_CHECKING:
@@ -107,15 +107,8 @@ def initialize_nsgaiii_run(
         variation_kernels=kernel.variation_kernels(),
     )
 
-    # Tournament size
-    sel_method, sel_params = config["selection"]
-    if sel_method == "tournament":
-        unexpected = sorted(set(sel_params) - {"size"})
-        if unexpected:
-            raise ValueError(f"Unsupported tournament selection options: {', '.join(unexpected)}")
-        pressure = int(sel_params.get("size", 2))
-    else:
-        pressure = 2
+    # Development after 1.4.0: "random" or "tournament" (and its size); any other selection raises.
+    selection_method, pressure = nsgaiii_selection(config["selection"])
 
     # Reference directions: a file, the complete lattice for the configured divisions, or, without
     # either, the complete Das-Dennis lattice with the most directions that fit in pop_size. The
@@ -186,7 +179,6 @@ def initialize_nsgaiii_run(
     # Setup external archive
     ext_cfg = resolve_external_archive(config, seed=seed)
     archive_X, archive_F, archive_manager = setup_archive(kernel, X, F, n_var, n_obj, X.dtype, ext_cfg, G)
-    selection_ranks, selection_crowding = nsgaiii_selection_metrics(kernel, F, G, constraint_mode, constraint_handling, rng)
 
     # Create state
     state = NSGAIIIState(
@@ -203,14 +195,13 @@ def initialize_nsgaiii_run(
         # NSGA-III specific
         ref_dirs=ref_dirs,
         ref_dirs_norm=ref_dirs_norm,
+        selection_method=selection_method,
         pressure=pressure,
         crossover_fn=crossover_fn,
         mutation_fn=mutation_fn,
         ideal_point=np.full(n_obj, np.inf),
         worst_point=np.full(n_obj, -np.inf),
         extreme_points=None,
-        selection_ranks=np.asarray(selection_ranks, dtype=int),
-        selection_crowding=np.asarray(selection_crowding, dtype=float),
         # Archive
         archive_size=ext_cfg.capacity if ext_cfg else None,
         archive_X=archive_X,

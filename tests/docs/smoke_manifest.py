@@ -226,14 +226,14 @@ import sys
 import tempfile
 from pathlib import Path
 
-if importlib.util.find_spec("matplotlib") is not None:
+if importlib.util.find_spec("matplotlib") is not None and importlib.util.find_spec("moocore") is not None:
     text = Path("docs/topics/analysis.md").read_text(encoding="utf-8")
     blocks = []
     for part in text.split("```python")[1:]:
         block, separator, _rest = part.partition("```")
         assert separator == "```"
         blocks.append(block.strip())
-    assert len(blocks) == 4
+    assert len(blocks) == 5
 
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
