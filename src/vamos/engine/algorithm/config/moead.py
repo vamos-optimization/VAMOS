@@ -84,7 +84,8 @@ class MOEADConfig(_SerializableConfig):
     **Development after 1.4.0:** ``weight_vectors`` takes ``inner_divisions`` with ``divisions``, Deb and
     Jain's two-layer lattice, which gives usual populations with many objectives (156 vectors with eight
     objectives, 3 and 2 divisions), and NSGA-III's ``reference_directions`` and RVEA's ``reference_vectors``
-    take the same keys.
+    take the same keys. :func:`vamos.algorithms.moead_populations` lists the populations that have weights
+    without options.
     """
 
     pop_size: int

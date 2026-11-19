@@ -150,3 +150,27 @@ Use `MOEADConfig.builder()` to obtain the fluent builder; do not import the priv
       show_root_heading: false
       show_root_full_path: false
       show_source: false
+
+## Populations with weight vectors
+
+**Development after 1.4.0:** `moead_populations(n_obj, max_pop_size=1000)`
+lists the populations that MOEA/D runs without weight options, as
+`MOEADConfig.default(pop_size=...)` and `optimize` build them: every size from
+2 with one or two objectives, and with more the sizes of the complete lattices
+and of the packaged jMetal files. With four objectives up to 200 they are 4, 10,
+20, 35, 56, 84, 100, 120 and 165; with six up to 300, 6, 21, 56, 126 and 252;
+with eight up to 400, 8, 36, 120, 156 and 330. Other sizes need a file or a two-layer
+lattice.
+
+```python
+from vamos.algorithms import moead_populations
+
+print(moead_populations(4, max_pop_size=200))  # (4, 10, 20, 35, 56, 84, 100, 120, 165)
+```
+
+::: vamos.algorithms.moead_populations
+    options:
+      heading_level: 3
+      show_root_heading: true
+      show_root_full_path: false
+      show_source: false

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+from math import comb
 from pathlib import Path
 from typing import Any
 
@@ -10,8 +11,8 @@ import numpy as np
 import pytest
 
 import vamos
-from vamos.algorithms import MOEADConfig, NSGAIIIConfig, RVEAConfig
-from vamos.engine.algorithm.components.weight_vectors import read_weight_vectors
+from vamos.algorithms import MOEADConfig, NSGAIIIConfig, RVEAConfig, moead_populations
+from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors, read_weight_vectors
 from vamos.engine.algorithm.moead import MOEAD
 from vamos.engine.algorithm.nsgaiii import NSGAIII
 from vamos.engine.algorithm.rvea import RVEA
@@ -308,3 +309,34 @@ def test_study_planning_checks_an_nsgaiii_two_layer_lattice() -> None:
     assert plan(160).valid
     with pytest.raises(UnresolvedStudyTaskError, match=">= 156"):
         plan(150)
+
+
+def test_moead_populations_lists_the_lattices_and_the_packaged_files() -> None:
+    assert moead_populations(3, max_pop_size=110) == (3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78, 91, 100, 105)
+    assert moead_populations(4, max_pop_size=200) == (4, 10, 20, 35, 56, 84, 100, 120, 165)
+    assert moead_populations(8, max_pop_size=200) == (8, 36, 120, 156)
+    assert moead_populations(2, max_pop_size=5) == (2, 3, 4, 5)
+    assert moead_populations(20, max_pop_size=1000) == (20, 210)
+
+
+@pytest.mark.parametrize("n_obj", range(4, 21))
+def test_the_populations_listed_for_4_to_20_objectives_run(n_obj: int) -> None:
+    sizes = moead_populations(n_obj, max_pop_size=300)
+
+    assert sizes and sizes[0] == n_obj
+    for size in sizes:
+        assert load_or_generate_weight_vectors(size, n_obj, mode="jmetalpy").shape == (size, n_obj)
+        assert MOEADConfig.default(pop_size=size, n_obj=n_obj).pop_size == size
+    smallest = sizes[0]
+    result = vamos.optimize("dtlz2", algorithm="moead", pop_size=smallest, n_obj=n_obj, max_evaluations=2 * smallest, seed=1)
+    assert result.data["evaluations"] == 2 * smallest
+
+
+def test_moead_runs_a_two_layer_lattice_that_no_single_lattice_has() -> None:
+    # Ten objectives: single lattices have 10, 55, 220 and 715 vectors; two layers of 2 and 1 divisions give 65.
+    assert 65 not in moead_populations(10)
+    config = _moead(comb(11, 9) + 10, {"divisions": 2, "inner_divisions": 1})
+
+    result = vamos.optimize("dtlz2", algorithm="moead", algorithm_config=config, n_obj=10, max_evaluations=130, seed=1)
+
+    np.testing.assert_array_equal(result.data["weights"], two_layer_lattice(10, 2, 1))

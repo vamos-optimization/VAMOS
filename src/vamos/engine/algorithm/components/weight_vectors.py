@@ -1,5 +1,6 @@
 import io
 import os
+import re
 import stat
 import warnings
 from collections.abc import Mapping
@@ -309,6 +310,37 @@ def describe_vector_file(path: str, n_obj: int, pop_size: int, *, vectors: int |
     if vectors is not None:
         record["vectors"] = vectors
     return record
+
+
+def weighted_populations(n_obj: int, max_pop_size: int) -> tuple[int, ...]:
+    """The populations, up to ``max_pop_size``, for which MOEA/D has weight vectors without options.
+
+    Every population from 2 with one or two objectives; with more, the sizes of the complete Das-Dennis
+    lattices and of the packaged jMetal files ``W{n_obj}D_{size}.dat``. This is
+    :func:`vamos.algorithms.moead_populations`. Development after 1.4.0: new.
+    """
+    if isinstance(n_obj, bool) or not isinstance(n_obj, Integral) or n_obj < 1:
+        raise ConfigurationError(f"n_obj must be a positive integer; got {n_obj!r}.")
+    if isinstance(max_pop_size, bool) or not isinstance(max_pop_size, Integral) or max_pop_size < 1:
+        raise ConfigurationError(f"max_pop_size must be a positive integer; got {max_pop_size!r}.")
+    if n_obj <= 2:
+        return tuple(range(2, int(max_pop_size) + 1))
+    sizes: set[int] = set()
+    divisions = 1
+    while (size := lattice_size(int(n_obj), divisions)) <= max_pop_size:
+        sizes.add(size)
+        divisions += 1
+    sizes.update(size for size in _packaged_sizes(int(n_obj)) if size <= max_pop_size and _packaged_weights(int(n_obj), size) is not None)
+    return tuple(sorted(sizes))
+
+
+def _packaged_sizes(n_obj: int) -> list[int]:
+    """The populations of the jMetal weight files that VAMOS ships for ``n_obj`` objectives."""
+    from importlib import resources
+
+    pattern = re.compile(rf"W{n_obj}D_(\d+)\.dat")
+    names = (entry.name for entry in resources.files("vamos.resources").joinpath("weights").iterdir())
+    return sorted(int(match.group(1)) for name in names if (match := pattern.fullmatch(name)))
 
 
 def _holds_saved_lattice(path: str, pop_size: int, n_obj: int, divisions: int | None) -> bool:
