@@ -340,6 +340,12 @@ negative `--seed`, a `--n-var` or `--n-obj` below 1, a different `--n-obj` or
 population a problem runs with (after its `problems.<name>` overrides), and `--track-genealogy` with an algorithm that records no genealogy. It
 warns about algorithm-specific flags that the selected algorithm ignores.
 
+**Development after 1.4.0:** NSGA-III selects its parents at random, as
+`NSGAIIIConfig.default()` does, and `--selection-pressure` no longer sizes a
+tournament for it; a `selection` of `tournament` with its `size` in the
+`nsgaiii` block of a config file runs jMetal's NSGA-III tournament (see
+[NSGA-III](../algorithms/nsgaiii.md#variants-and-their-effect)).
+
 **VAMOS 1.2.0:** `--track-genealogy` (or `track_genealogy` in a
 config file) works with NSGA-II, MOEA/D, SMS-EMOA, NSGA-III, SPEA2, IBEA and
 SMPSO; AGE-MOEA and RVEA record no genealogy, so the CLI rejects it with them

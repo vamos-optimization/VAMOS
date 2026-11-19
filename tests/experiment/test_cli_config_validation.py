@@ -325,6 +325,21 @@ def test_selection_pressure_above_a_problems_population_stops_before_any_run(mon
     assert not output_root.exists()
 
 
+def test_selection_pressure_does_not_size_the_parents_of_nsgaiii(monkeypatch, tmp_path):
+    # Development after 1.4.0: NSGA-III draws its parents at random, so the pressure is neither used nor checked.
+    from vamos.experiment.cli.main import main
+
+    defaults = {"algorithm": "nsgaiii", "engine": "numpy", "population_size": 20, "selection_pressure": 50, "max_evaluations": 40}
+    spec = {"defaults": {**defaults, "output_root": str(tmp_path / "results")}}
+    monkeypatch.setattr(sys, "argv", ["prog", "--config", str(_write_spec(tmp_path, spec)), "--problem", "zdt1"])
+
+    main()
+
+    (manifest,) = (tmp_path / "results").rglob("manifest.json")
+    selection = json.loads(manifest.read_text(encoding="utf-8"))["resolved_spec"]["operators"]["selection"]
+    assert selection["component_id"].startswith("vamos.operator:random@")
+
+
 def test_problem_operator_named_with_name_key_completes_an_unnamed_cli_operator(monkeypatch, tmp_path):
     spec = {"problems": {"zdt1": {"nsgaii": {"crossover": {"name": "sbx", "prob": 0.8}}}}}
     config = tmp_path / "spec.json"

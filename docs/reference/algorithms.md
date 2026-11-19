@@ -217,10 +217,15 @@ name of Evolver's parameter (`agemoeaII` in Evolver).
 These are declared VAMOS choices, not defects; report them when comparing with
 published results or with another framework.
 
-- **NSGA-III parents** are chosen by binary tournament on non-dominated rank
-  and crowding distance (feasibility first under constraints), as in NSGA-II
-  and in jMetal's NSGA-III example. Deb and Jain (2014) choose parents at
-  random. See [NSGA-III](../algorithms/nsgaiii.md#variants-and-their-effect).
+- **NSGA-III parents:** **Development after 1.4.0:** no longer a departure.
+  They are drawn at random by default, as Deb and Jain (2014) and pymoo do
+  (under constraints, by a binary tournament on the violation, as Jain and
+  Deb's constrained NSGA-III), and `selection("tournament")` is jMetal's
+  NSGA-III tournament on rank. VAMOS 1.4.0 and earlier always chose them by a
+  binary tournament on non-dominated rank and crowding distance, as NSGA-II,
+  whatever the configured selection, so NSGA-III results of those versions
+  are not results of the published algorithm. See
+  [NSGA-III](../algorithms/nsgaiii.md#variants-and-their-effect).
 - **NSGA-III nadir estimate:** when an intercept of the extreme-point
   hyperplane lies beyond the worst point found so far, VAMOS uses the worst
   point of the first front for every objective, as pymoo up to 0.4 did; pymoo
@@ -504,7 +509,7 @@ never compiles problem evaluation.
 | Algorithm | Compiled with `engine="numba"` | Stays in NumPy/Python |
 | --- | --- | --- |
 | NSGA-II | Non-dominated ranking and crowding, survival, tournament selection, SBX, polynomial mutation; the whole one-offspring steady-state step in its supported configuration (below) | Feasibility ordering, archives, steady-state front maintenance outside that configuration |
-| NSGA-III | Ranking and crowding, tournament selection, SBX, polynomial mutation | Normalization, association to reference directions, niching (it shuffles with the run generator inside the loop) |
+| NSGA-III | Ranking and crowding, tournament selection (**Development after 1.4.0:** where configured, and the violation tournament of random parents under constraints), SBX, polynomial mutation | Random parent draws, normalization, association to reference directions, niching (it shuffles with the run generator inside the loop) |
 | MOEA/D | Differential-evolution children, SBX, polynomial mutation, neighbourhood replacement; the whole one-offspring step (see below) | Weight geometry; parent sampling and repair outside the compiled one-offspring step |
 | SMS-EMOA | The steady-state step (VAMOS 1.2.0, see below): child variation and clipping, front insertion, two-objective hypervolume contributions, crowding, feasibility-first removal; tournament selection where configured | Parent sampling draws, hypervolume contributions for three or more objectives (MooCore when installed), archives |
 | SPEA2 | SBX, polynomial mutation, lexicographic archive truncation | Strength/raw fitness and density (vectorized NumPy) |

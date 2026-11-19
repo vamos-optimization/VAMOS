@@ -10,7 +10,7 @@ from vamos.foundation.quality_indicators.hypervolume import hypervolume
 def test_dtlz2_nsgaii_convergence():
     """
     Verify NSGA-III solves DTLZ2 (3 objectives).
-    Baseline: HV > 0.67 (seed 42 reaches 0.7192; the front's maximum is 0.8074)
+    Baseline: HV > 0.67 (seed 42 reaches 0.7122 with random parents; the front's maximum is 0.8074)
     Budget: 5,000 evals
     """
     # 3-objective problem
