@@ -44,7 +44,7 @@ class RVEAState(AlgorithmState):
     alpha: float = 2.0
     adapt_interval: int | None = None
     n_obj: int = 2
-    # Development after 1.4.0: "pymoo" (default) or "platemo", the reading of the survival (see RVEAConfig).
+    # VAMOS 1.5.0: "pymoo" (default) or "platemo", the reading of the survival (see RVEAConfig).
     variant: str = "pymoo"
 
 

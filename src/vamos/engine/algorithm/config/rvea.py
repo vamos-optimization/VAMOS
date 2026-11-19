@@ -43,7 +43,7 @@ _RVEA_VARIANTS = ("pymoo", "platemo")
 
 
 def normalize_rvea_variant(value: object) -> RVEAVariant:
-    """RVEA's survival variant in lower case, or ``ConfigurationError``. Development after 1.4.0: new."""
+    """RVEA's survival variant in lower case, or ``ConfigurationError``. VAMOS 1.5.0: new."""
     name = value.strip().lower() if isinstance(value, str) else None
     if name not in _RVEA_VARIANTS:
         raise ConfigurationError(f"RVEA variant must be one of {', '.join(map(repr, _RVEA_VARIANTS))}; got {value!r}.")
@@ -92,7 +92,7 @@ class RVEAConfig(_SerializableConfig):
     RVEA keeps one individual per reference vector, so ``pop_size`` must equal their number. By
     default the vectors are the complete Das-Dennis lattice of ``n_partitions``.
 
-    **Development after 1.4.0:** ``reference_vectors`` takes the vectors from elsewhere, with the
+    **VAMOS 1.5.0:** ``reference_vectors`` takes the vectors from elsewhere, with the
     keys of MOEA/D's ``weight_vectors`` and NSGA-III's ``reference_directions``:
 
     - ``path``: a file with one vector per line, its components separated by whitespace or commas,
@@ -108,7 +108,7 @@ class RVEAConfig(_SerializableConfig):
     while it is ``None``, so a configuration without it keeps the resolved specification, and the
     task id, of VAMOS 1.4.0.
 
-    **Development after 1.4.0:** ``variant`` chooses between the two readings of the survival.
+    **VAMOS 1.5.0:** ``variant`` chooses between the two readings of the survival.
     ``"pymoo"``, the default and VAMOS's RVEA so far, follows pymoo: with two objectives the angle
     penalty uses M = 1, the objectives are translated by the ideal point accumulated across
     generations, and the vectors adapt to the nadir point minus that ideal point. ``"platemo"``
@@ -151,10 +151,10 @@ class RVEAConfig(_SerializableConfig):
 
     def to_dict(self) -> dict[str, object]:
         payload = super().to_dict()
-        # Development after 1.4.0: a configuration without reference_vectors is serialized as in VAMOS 1.4.0.
+        # VAMOS 1.5.0: a configuration without reference_vectors is serialized as in VAMOS 1.4.0.
         if payload.get("reference_vectors") is None:
             payload.pop("reference_vectors", None)
-        # Development after 1.4.0: so is a configuration with the default variant.
+        # VAMOS 1.5.0: so is a configuration with the default variant.
         if payload.get("variant") == "pymoo":
             payload.pop("variant", None)
         return payload
@@ -240,7 +240,7 @@ class _RVEAConfigBuilder(
         divisions: int | None = None,
         inner_divisions: int | None = None,
     ) -> _RVEAConfigBuilder:
-        """**Development after 1.4.0:** the reference vectors: a file or directory, or a lattice.
+        """**VAMOS 1.5.0:** the reference vectors: a file or directory, or a lattice.
 
         ``path`` names a file with one vector per line, its components separated by whitespace or
         commas, or a directory with jMetal's ``W{n_obj}D_{pop_size}.dat`` files; the file must exist
@@ -252,7 +252,7 @@ class _RVEAConfigBuilder(
         return self
 
     def variant(self, value: RVEAVariant) -> _RVEAConfigBuilder:
-        """**Development after 1.4.0:** the reading of RVEA's survival, ``"pymoo"`` (default) or ``"platemo"``.
+        """**VAMOS 1.5.0:** the reading of RVEA's survival, ``"pymoo"`` (default) or ``"platemo"``.
 
         ``"platemo"`` follows the authors' PlatEMO code and jMetal: M is the number of objectives in the
         angle penalty also with two objectives, the objectives are translated by the minimum of each

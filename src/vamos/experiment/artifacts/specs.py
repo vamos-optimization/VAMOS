@@ -229,7 +229,7 @@ def _algorithm_component(inputs: RunSpecInputs, config: Mapping[str, object], po
             logging.getLogger(__name__).debug("No MOEA/D weight vectors to record for pop_size=%s", pop_size, exc_info=True)
     vector_field = _VECTOR_FIELDS.get(inputs.algorithm)
     if vector_field is not None and pop_size is not None:
-        # Development after 1.4.0: the file that NSGA-III's or RVEA's vectors come from. The configuration
+        # VAMOS 1.5.0: the file that NSGA-III's or RVEA's vectors come from. The configuration
         # already states a lattice, so only a path is recorded, and a run without one keeps its 1.4.0 spec. The
         # record comes from the stored configuration alone, never from the file.
         vectors = config.get(vector_field)

@@ -84,7 +84,7 @@ def _generate_reference_vectors(n_obj: int, n_partitions: int = 12) -> np.ndarra
 def _reference_vectors(spec: object, pop_size: int, n_obj: int, n_partitions: int) -> np.ndarray[Any, Any]:
     """RVEA's reference vectors, one per individual: the lattice of ``n_partitions``, or those of ``reference_vectors``.
 
-    Development after 1.4.0: ``reference_vectors`` names a file or directory, read as MOEA/D's and NSGA-III's
+    VAMOS 1.5.0: ``reference_vectors`` names a file or directory, read as MOEA/D's and NSGA-III's
     files, or a two-layer lattice. Its ``divisions`` alone give the same lattice as ``n_partitions``.
     """
     source = vector_source(spec, field="reference_vectors") or {}
@@ -462,7 +462,7 @@ class RVEA:
 
         # Periodic reference-vector adaptation
         if st.adapt_interval is not None and st.generation % st.adapt_interval == 0:
-            # Development after 1.4.0: the "platemo" variant scales the vectors by the population's range,
+            # VAMOS 1.5.0: the "platemo" variant scales the vectors by the population's range,
             # as PlatEMO's ReferenceVectorAdaptation and jMetal; "pymoo" by the nadir minus the accumulated ideal.
             scale: np.ndarray[Any, Any] | None = None
             if st.variant == "platemo":

@@ -78,7 +78,7 @@ def build_algorithm(
 
     if algorithm_config is not None:
         algo_ctor = resolve_algorithm(algorithm_key)
-        # Development after 1.4.0: a vector file is bound to the file the run reads and the digest of its vectors.
+        # VAMOS 1.5.0: a vector file is bound to the file the run reads and the digest of its vectors.
         algorithm_config = cast(AlgorithmConfigProtocol, bind_config_vector_files(algorithm_config, problem.n_obj))
         return algo_ctor(dict(algorithm_config.to_dict()), kernel), algorithm_config
 

@@ -216,7 +216,7 @@ def build_nsgaiii_config(assignment: dict[str, Any], *, mixed: bool = False) -> 
     apply_mutation_prob_factor(builder, assignment, mut_params, factor_field=True)
     extend_mutation_params(mut, assignment, mut_params, mixed=mixed)
     builder.mutation(mut, **mut_params)
-    # Development after 1.4.0: the spaces choose random parents (the default) or a tournament. An assignment
+    # VAMOS 1.5.0: the spaces choose random parents (the default) or a tournament. An assignment
     # of an earlier space names only the tournament size, and still builds that tournament.
     selection = str(assignment.get("selection", "tournament" if "selection_pressure" in assignment else "random"))
     if selection == "tournament":

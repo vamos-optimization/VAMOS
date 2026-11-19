@@ -26,7 +26,7 @@ lattice by about `1e-16`, so a tool that reads the file can drift from VAMOS wit
 the same seed. `vamos tune` records the population a trial ran
 when it differs from the sampled one (see [Tuning](../../../topics/tuning.md#populations-that-depend-on-the-number-of-objectives)).
 
-**Development after 1.4.0:** every weight file that VAMOS ships loads, from
+**VAMOS 1.5.0:** every weight file that VAMOS ships loads, from
 `optimize` and from the packaged directory that the command line passes as
 `weight_vectors(path=...)`. Fourteen of the 31 did not:
 
@@ -47,7 +47,7 @@ when it differs from the sampled one (see [Tuning](../../../topics/tuning.md#pop
 With `optimize`, a complete lattice still comes before a packaged file of the
 same size, and the populations of the other sizes are unchanged.
 
-**Development after 1.4.0:** `weight_vectors(divisions=H1, inner_divisions=H2)`
+**VAMOS 1.5.0:** `weight_vectors(divisions=H1, inner_divisions=H2)`
 runs Deb and Jain's two-layer lattice, the boundary lattice of `H1` divisions
 and the lattice of `H2` shrunk by half towards the centre of the simplex, with
 `comb(H1 + m - 1, m - 1) + comb(H2 + m - 1, m - 1)` vectors for `m` objectives:
@@ -156,7 +156,7 @@ Use `MOEADConfig.builder()` to obtain the fluent builder; do not import the priv
 
 ## Populations with weight vectors
 
-**Development after 1.4.0:** `moead_populations(n_obj, max_pop_size=1000)`
+**VAMOS 1.5.0:** `moead_populations(n_obj, max_pop_size=1000)`
 lists the populations that MOEA/D runs without weight options, as
 `MOEADConfig.default(pop_size=...)` and `optimize` build them: every size from
 2 with one or two objectives, and with more the sizes of the complete lattices

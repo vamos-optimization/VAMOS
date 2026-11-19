@@ -192,7 +192,7 @@ def _resolved_algorithm_config(
     override_pop_size = overrides.get("pop_size")
     if isinstance(override_pop_size, int) and not isinstance(override_pop_size, bool):
         config_pop_size = override_pop_size
-    # Development after 1.4.0: RVEA's reference_vectors set its vectors, so its default does not derive a
+    # VAMOS 1.5.0: RVEA's reference_vectors set its vectors, so its default does not derive a
     # lattice from the population, which then need not be a lattice; the planning checks below compare them.
     own_vectors = algorithm.lower() == "rvea" and overrides.get("reference_vectors") is not None
     built = _build_algorithm_config(
@@ -220,7 +220,7 @@ def _resolved_algorithm_config(
     config.update(overrides)
     pop_size = config.get("pop_size")
     if algorithm.lower() == "moead" and n_obj > 2 and isinstance(pop_size, int):
-        # Development after 1.4.0: a weight file that exists is bound to its digest, which the run checks.
+        # VAMOS 1.5.0: a weight file that exists is bound to its digest, which the run checks.
         config["weight_vectors"] = bind_vector_file(config.get("weight_vectors"), n_obj, pop_size)
     return config
 

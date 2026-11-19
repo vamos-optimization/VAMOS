@@ -9,13 +9,13 @@ DOC_PATH = ROOT / "docs" / "topics" / "analysis.md"
 def test_analysis_docs_match_public_contract() -> None:
     text = DOC_PATH.read_text(encoding="utf-8")
 
-    assert "Experimental surface in VAMOS 1.4.0" in text
+    assert "Experimental surface in VAMOS 1.5.0" in text
     assert "(n_problems, n_algorithms)" in text
     assert "raw Wilcoxon p-value" in text
     assert "`p_adjusted`, Holm's step-down adjustment" in text
     assert "MCDMResult" in text
     assert "knee_point_scores(F)" in text
-    # Development after 1.4.0: the exact and the approximate hypervolume.
+    # VAMOS 1.5.0: the exact and the approximate hypervolume.
     assert "`HVApproxIndicator`" in text and "`HV_APPROX_METHODS`" in text
     assert "`details` records `reference_point`, `samples`, `seed` and the `method` used" in text
 

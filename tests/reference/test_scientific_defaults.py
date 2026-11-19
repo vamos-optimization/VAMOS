@@ -9,8 +9,8 @@ Sources, for 30 variables, 2 objectives and 100 individuals:
 
 - NSGA-II: Deb, Pratap, Agarwal and Meyarivan (2002), SBX p_c = 0.9, eta_c = 20, polynomial
   mutation p_m = 1/n, eta_m = 20, binary tournament.
-- NSGA-III: Deb and Jain (2014), eta_c = 30, eta_m = 20, p_m = 1/n, random parents (Development
-  after 1.4.0; the default was a tournament on rank and crowding distance), and a complete
+- NSGA-III: Deb and Jain (2014), eta_c = 30, eta_m = 20, p_m = 1/n, random parents (VAMOS
+  1.5.0; the default was a tournament on rank and crowding distance), and a complete
   Das-Dennis lattice of the population's size. The paper uses p_c = 1; VAMOS uses 0.9 in every default.
 - MOEA/D: MOEA/D-DE of Li and Zhang (2009), CR = 1, F = 0.5, eta_m = 20, p_m = 1/n,
   T = 20, delta = 0.9, n_r = 2. PBI with theta = 5 (Zhang and Li, 2007) is the VAMOS choice of

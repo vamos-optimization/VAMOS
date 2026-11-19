@@ -84,7 +84,7 @@ For two objectives, `MOEADConfig.default(pop_size=100, n_obj=2, ...)` requests 9
 - **Packaged weights:** with three or more objectives and a `pop_size` that no complete lattice matches, `MOEADConfig.default(pop_size=...)` and `optimize` use the weight file VAMOS packages for that size, as jMetal does (for example `W3D_100.dat`, so 100 individuals with three objectives work). In VAMOS 1.1.0 this failed with a lattice-size error.
 - **Defaults:** the default DE crossover with PBI aggregation is a VAMOS choice; `aggregation("tchebycheff")` with the other defaults reproduces jMetal's MOEA/D-DE.
 
-**Development after 1.4.0:** four objectives and 100 individuals run the packaged `W4D_100.dat`, which held its vectors twice and was skipped, so VAMOS 1.4.0 ran 84 individuals for any population from 100 to 119. Every packaged weight file now loads, also from the command line, and weight files may separate their components by whitespace or commas; see the [configuration reference](../reference/api/algorithms/moead.md).
+**VAMOS 1.5.0:** four objectives and 100 individuals run the packaged `W4D_100.dat`, which held its vectors twice and was skipped, so VAMOS 1.4.0 ran 84 individuals for any population from 100 to 119. Every packaged weight file now loads, also from the command line, and weight files may separate their components by whitespace or commas; see the [configuration reference](../reference/api/algorithms/moead.md).
 
 **VAMOS 1.4.0:** MOEA/D gains the choices of Evolver's MOEA/D, with jMetal's definitions. Each is off by default, and a configuration without them runs as in 1.3.0:
 

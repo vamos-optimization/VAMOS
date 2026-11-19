@@ -10,9 +10,9 @@ The script writes three groups of files; ``docs/reference/problems.md`` ("Refere
 provenance of every packaged file, including those this script leaves alone.
 
 - **Analytic samples** of the Pareto front from its closed form: ZDT1-4 and ZDT6, DTLZ1-7 (M = 3, and M = 2 as
-  ``dtlz1.2d`` ... ``dtlz7.2d``; Development after 1.4.0: DTLZ1, DTLZ2 and DTLZ7 at M = 4, 6 and 8 as ``dtlz1.4d``
-  ... ``dtlz7.8d``, DTLZ2's also serving DTLZ3 and DTLZ4), IDTLZ1 and IDTLZ2 at M = 2 and 3 (Development after
-  1.4.0: ``idtlz1.2d`` ... ``idtlz2.3d``), WFG1 and
+  ``dtlz1.2d`` ... ``dtlz7.2d``; VAMOS 1.5.0: DTLZ1, DTLZ2 and DTLZ7 at M = 4, 6 and 8 as ``dtlz1.4d``
+  ... ``dtlz7.8d``, DTLZ2's also serving DTLZ3 and DTLZ4), IDTLZ1 and IDTLZ2 at M = 2 and 3 (VAMOS
+  1.5.0: ``idtlz1.2d`` ... ``idtlz2.3d``), WFG1 and
   WFG2 (M = 2, from the WFG shape functions, so the bias transformations cannot shift them), LSMOP9 (M = 2),
   CEC2009 UF6 and UF9, and the ten C-DTLZ and DC-DTLZ problems at M = 2 and 3 (``c1dtlz1.2d`` ...
   ``dc3dtlz3.3d``), Srinivas, ConstrEx and Tanaka from their Pareto-set pieces and constraint boundaries, ZXH-CF1-16 at
@@ -205,7 +205,7 @@ def _dtlz_two_objective(name: str) -> np.ndarray:
 
 
 def _idtlz(name: str, m: int) -> np.ndarray:
-    """Development after 1.4.0: the inverted DTLZ1 and DTLZ2 of Jain and Deb (2014), as PlatEMO's ``GetOptimum``.
+    """VAMOS 1.5.0: the inverted DTLZ1 and DTLZ2 of Jain and Deb (2014), as PlatEMO's ``GetOptimum``.
 
     IDTLZ1's front is ``(1 - w) / 2`` and IDTLZ2's ``1 - w / |w|``, for ``w`` on the unit simplex: with M = 2, 1000
     points spaced evenly along the front, and with M = 3 the 5050-point simplex lattice of DTLZ1-DTLZ4's samples.
@@ -220,7 +220,7 @@ def _idtlz(name: str, m: int) -> np.ndarray:
     return (1.0 - w) / 2.0 if name == "idtlz1" else 1.0 - w / np.linalg.norm(w, axis=1, keepdims=True)
 
 
-# Development after 1.4.0: DTLZ1, DTLZ2 (whose sample DTLZ3 and DTLZ4 share) and DTLZ7 with more objectives.
+# VAMOS 1.5.0: DTLZ1, DTLZ2 (whose sample DTLZ3 and DTLZ4 share) and DTLZ7 with more objectives.
 MANY_OBJECTIVES = (4, 6, 8)
 # Per objective count, the values per position objective of DTLZ7's candidate grid: about 10^5 candidates in all.
 _DTLZ7_GRID = {4: 48, 6: 10, 8: 6}
@@ -767,7 +767,7 @@ def _polish(
 def write_front(name: str, front: np.ndarray, out_dir: Path) -> Path:
     path = out_dir / f"{FILE_NAMES.get(name, name)}.csv"
     if front.shape[1] > 3:
-        # Development after 1.4.0: with more objectives, the shortest repr of each value, which reads back exactly,
+        # VAMOS 1.5.0: with more objectives, the shortest repr of each value, which reads back exactly,
         # keeps the files at about half the size.
         path.write_text("".join(",".join(map(repr, row)) + "\n" for row in front.tolist()), encoding="ascii", newline="\n")
     else:

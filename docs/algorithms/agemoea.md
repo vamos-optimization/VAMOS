@@ -168,7 +168,7 @@ Evaluations: 400
 | Polynomial mutation | Numeric probability `1/12`, eta 20. |
 | `constraint_mode("feasibility")` | Enables feasibility-based selection if constraints exist; DTLZ2 here is unconstrained. |
 | `constraint_handling(name, ...)` | **VAMOS 1.2.0:** ranks a constrained population with another of jMetal's techniques; its fronts take the place of the non-dominated ones in the survival and the tournament. See [choose a constraint-handling technique](../reference/constraints.md#choose-a-constraint-handling-technique). |
-| `variant("agemoea_ii")` | **Development after 1.4.0:** runs AGE-MOEA-II [2], whose survival estimates the front's geometry by Newton-Raphson and measures diversity with geodesic distances; the default `"agemoea"` is the algorithm of this page. See [AGE-MOEA-II](../reference/algorithms.md#age-moea-ii). |
+| `variant("agemoea_ii")` | **VAMOS 1.5.0:** runs AGE-MOEA-II [2], whose survival estimates the front's geometry by Newton-Raphson and measures diversity with geodesic distances; the default `"agemoea"` is the algorithm of this page. See [AGE-MOEA-II](../reference/algorithms.md#age-moea-ii). |
 
 ## Interpret the result and its limits
 

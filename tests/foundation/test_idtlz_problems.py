@@ -1,6 +1,6 @@
 """IDTLZ1 and IDTLZ2, the inverted DTLZ1 and DTLZ2 of Jain and Deb (2014), as PlatEMO defines them.
 
-Development after 1.4.0: PlatEMO's ``IDTLZ1.m`` and ``IDTLZ2.m`` (BIMK/PlatEMO, ``Problems/Multi-objective
+VAMOS 1.5.0: PlatEMO's ``IDTLZ1.m`` and ``IDTLZ2.m`` (BIMK/PlatEMO, ``Problems/Multi-objective
 optimization/DTLZ``) compute ``f = (1 + g) / 2 - (1 + g) / 2 * s`` and ``f = (1 + g) - (1 + g) * s``, where ``s`` is
 DTLZ1's or DTLZ2's position shape and ``g`` its distance function. The expected values below are written out from
 those formulas, one objective at a time, with :mod:`math`.
