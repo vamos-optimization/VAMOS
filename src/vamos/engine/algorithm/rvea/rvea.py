@@ -95,6 +95,7 @@ def _reference_vectors(spec: object, pop_size: int, n_obj: int, n_partitions: in
             divisions=None if divisions is None else int(divisions),
             inner_divisions=None if inner is None else int(inner),
             mode="exact",
+            sha256=None if source.get("sha256") is None else str(source.get("sha256")),
         )
     partitions = n_partitions if divisions is None else int(divisions)
     ref_dirs = _generate_reference_vectors(n_obj, partitions)

@@ -12,12 +12,12 @@ import pytest
 
 import vamos
 from vamos.algorithms import MOEADConfig, NSGAIIIConfig, RVEAConfig, moead_populations
-from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors, read_weight_vectors
+from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors, read_weight_vectors, vector_digest
 from vamos.engine.algorithm.moead import MOEAD
 from vamos.engine.algorithm.nsgaiii import NSGAIII
 from vamos.engine.algorithm.rvea import RVEA
 from vamos.engine.reference_directions import das_dennis, two_layer_lattice, two_layer_shared, two_layer_size
-from vamos.exceptions import ConfigurationError
+from vamos.exceptions import ConfigurationError, RunArtifactError
 from vamos.foundation.kernel.numpy_backend import NumPyKernel
 from vamos.foundation.problem.dtlz import DTLZ2Problem
 from vamos.resources import weight_path
@@ -123,6 +123,64 @@ def test_every_algorithm_rejects_layers_that_repeat_directions(algorithm: str) -
 
     with pytest.raises(ConfigurationError, match=f"repeats {shared}"):
         _start(algorithm, two_layer_size(3, 3, 3), 3, {"divisions": 3, "inner_divisions": 3})
+
+
+_FIELDS = {"moead": "weight_vectors", "nsgaiii": "reference_directions", "rvea": "reference_vectors"}
+_BUILD = {"moead": _moead, "nsgaiii": _nsgaiii, "rvea": _rvea}
+
+
+@pytest.mark.parametrize("algorithm", ALGORITHMS)
+def test_a_run_records_its_vector_file_by_content_and_verifies_without_it(algorithm: str, tmp_path: Path) -> None:
+    file = tmp_path / "custom.csv"
+    vectors = np.loadtxt(weight_path("W3D_91.dat"))
+    np.savetxt(file, vectors, delimiter=",")
+    config = _BUILD[algorithm](91, {"path": str(tmp_path / "custom.csv")})
+    result = vamos.optimize("dtlz2", algorithm=algorithm, algorithm_config=config, n_obj=3, max_evaluations=182, seed=1, engine="numpy")
+    resolved = result.meta["run_artifact_resolved_spec"]["algorithm"]
+    field = _FIELDS[algorithm]
+
+    assert resolved["config"][field]["sha256"] == vector_digest(read_weight_vectors(str(file), 3))
+    assert resolved["resolution"][field]["file"] == "custom.csv"
+    source = vamos.save_result(result, tmp_path / "source")
+
+    # Rewritten with spaces, the file holds the same vectors: the digest is that of the values, and replay is exact.
+    np.savetxt(file, vectors)
+    assert vamos.reproduce(source.root, output=tmp_path / "same").exact is True
+
+    # Moved away or on another machine: verification rebuilds the record from the stored configuration alone.
+    file.rename(tmp_path / "moved.csv")
+    assert vamos.verify_run(source.root).effective_replayability == "exact"
+
+    # Other vectors of the same shape: replay refuses them before any evaluation instead of running another experiment.
+    np.savetxt(file, das_dennis(3, 12)[::-1])
+    with pytest.raises(RunArtifactError, match="ConfigurationError"):
+        vamos.reproduce(source.root, output=tmp_path / "other")
+
+
+def test_a_directory_is_recorded_as_the_file_the_run_read() -> None:
+    directory = str(weight_path("W3D_100.dat").parent)
+    result = vamos.optimize(
+        "dtlz2", algorithm="rvea", algorithm_config=_rvea(100, {"path": directory}), n_obj=3, max_evaluations=200, seed=1
+    )
+    vectors = result.meta["run_artifact_resolved_spec"]["algorithm"]["config"]["reference_vectors"]
+
+    assert vectors["path"] == str(weight_path("W3D_100.dat"))
+    assert vectors["sha256"] == vector_digest(read_weight_vectors(str(weight_path("W3D_100.dat")), 3))
+
+
+def test_a_recorded_digest_is_checked_and_needs_a_path(tmp_path: Path) -> None:
+    file = tmp_path / "W3D_91.dat"
+    np.savetxt(file, np.loadtxt(weight_path("W3D_91.dat")))
+    wrong = "sha256:" + "0" * 64
+
+    for algorithm in ALGORITHMS:
+        config = dataclasses.replace(_BUILD[algorithm](91, {"divisions": 12}), **{_FIELDS[algorithm]: {"path": str(file), "sha256": wrong}})
+        with pytest.raises(ConfigurationError, match="no longer holds"):
+            vamos.optimize("dtlz2", algorithm=algorithm, algorithm_config=config, n_obj=3, max_evaluations=182, seed=1)
+    with pytest.raises(ConfigurationError, match="needs path"):
+        dataclasses.replace(_rvea(91, {"divisions": 12}), reference_vectors={"divisions": 12, "sha256": wrong})
+    with pytest.raises(ConfigurationError, match="64 lower-case"):
+        dataclasses.replace(_rvea(91, {"divisions": 12}), reference_vectors={"path": str(file), "sha256": "abc"})
 
 
 def test_study_planning_rejects_layers_that_repeat_directions() -> None:
@@ -297,7 +355,8 @@ def test_the_command_line_builder_reads_rvea_reference_vectors() -> None:
     algorithm, resolved = build_algorithm("rvea", "numpy", problem, config, variations=variations)
     result = algorithm.run(problem, termination=("max_evaluations", 200), seed=1)
 
-    assert resolved.reference_vectors == {"path": str(weight_path("W3D_100.dat")), "divisions": None}
+    file = str(weight_path("W3D_100.dat"))
+    assert resolved.reference_vectors == {"path": file, "divisions": None, "sha256": vector_digest(read_weight_vectors(file, 3))}
     assert result["evaluations"] == 200
 
 
@@ -377,3 +436,22 @@ def test_moead_runs_a_two_layer_lattice_that_no_single_lattice_has() -> None:
     result = vamos.optimize("dtlz2", algorithm="moead", algorithm_config=config, n_obj=10, max_evaluations=130, seed=1)
 
     np.testing.assert_array_equal(result.data["weights"], two_layer_lattice(10, 2, 1))
+
+
+def test_a_study_binds_an_existing_moead_weight_file(tmp_path: Path) -> None:
+    file = tmp_path / "W3D_15.dat"
+    np.savetxt(file, das_dennis(3, 4)[::-1])
+    spec = vamos.StudySpec(
+        problems=["dtlz2"],
+        algorithms=["moead"],
+        seeds=[0],
+        pop_size=15,
+        n_obj=3,
+        max_evaluations=30,
+        engine="numpy",
+        algorithm_configs={"moead": {"weight_vectors": {"path": str(tmp_path), "divisions": None}}},
+    )
+
+    weights = vamos.plan_study(spec).plan.tasks[0].resolved_run_spec["algorithm"]["config"]["weight_vectors"]
+
+    assert weights == {"path": str(file), "divisions": None, "sha256": vector_digest(read_weight_vectors(str(file), 3))}

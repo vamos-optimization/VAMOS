@@ -77,7 +77,14 @@ def build_moead_algorithm(
         builder.track_genealogy(True)
     return cast(
         "tuple[MOEAD, AlgorithmConfigProtocol]",
-        finalize_algorithm(algorithm_name="moead", builder=builder, kernel=kernel, block=moead_overrides, handled=_MOEAD_BUILDER_FIELDS),
+        finalize_algorithm(
+            algorithm_name="moead",
+            builder=builder,
+            kernel=kernel,
+            block=moead_overrides,
+            handled=_MOEAD_BUILDER_FIELDS,
+            n_obj=problem.n_obj,
+        ),
     )
 
 
@@ -118,7 +125,7 @@ def build_nsgaiii_algorithm(
         builder.track_genealogy(True)
     return cast(
         "tuple[NSGAIII, AlgorithmConfigProtocol]",
-        finalize_algorithm(algorithm_name="nsgaiii", builder=builder, kernel=kernel, block=nsgaiii_variation),
+        finalize_algorithm(algorithm_name="nsgaiii", builder=builder, kernel=kernel, block=nsgaiii_variation, n_obj=problem.n_obj),
     )
 
 
@@ -168,6 +175,7 @@ def build_rvea_algorithm(
             kernel=kernel,
             block=rvea_overrides,
             handled=("n_partitions", "alpha", "adapt_freq", "reference_vectors"),
+            n_obj=problem.n_obj,
         ),
     )
 

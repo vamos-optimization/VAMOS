@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import dataclasses
 from collections.abc import Mapping
+from typing import cast
 
 from vamos.engine.algorithm.catalog import ENABLED_ALGORITHMS
+from vamos.engine.algorithm.components.weight_vectors import bind_config_vector_files
 from vamos.engine.algorithm.config import GenericAlgorithmConfig
 from vamos.engine.algorithm.config.defaults import config_algorithm
 from vamos.engine.algorithm.config.types import AlgorithmConfigProtocol
@@ -102,4 +104,14 @@ def with_archive_seed(algorithm_config: AlgorithmConfigProtocol, seed: int) -> A
     return dataclasses.replace(algorithm_config, external_archive=resolved)
 
 
-__all__ = ["check_algorithm_config", "check_budget", "check_problem_arguments", "with_archive_seed"]
+def with_run_inputs(algorithm_config: AlgorithmConfigProtocol, seed: int, n_obj: int) -> AlgorithmConfigProtocol:
+    """``algorithm_config`` as the run uses it and records it: its archive seed and its vector files resolved.
+
+    Development after 1.4.0: a weight- or reference-vector file is bound to the file the run reads and the
+    digest of its vectors (:func:`~vamos.engine.algorithm.components.weight_vectors.bind_config_vector_files`),
+    so that replay refuses a file whose vectors have changed.
+    """
+    return cast(AlgorithmConfigProtocol, bind_config_vector_files(with_archive_seed(algorithm_config, seed), n_obj))
+
+
+__all__ = ["check_algorithm_config", "check_budget", "check_problem_arguments", "with_archive_seed", "with_run_inputs"]

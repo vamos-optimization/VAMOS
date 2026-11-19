@@ -159,6 +159,8 @@ hold fewer directions than individuals; the run's `reference_directions` array
 holds them). Runs without a path record nothing new, so their resolved specs,
 and those of NSGA-III and RVEA runs stored by VAMOS 1.4.0, are unchanged.
 
+**Development after 1.4.0:** the resolved configuration binds a vector file by content. When a run starts, the `path` of `weight_vectors`, `reference_directions` or `reference_vectors` becomes the file the run reads (a directory becomes its `W{n_obj}D_{pop_size}.dat`) and `sha256` the digest of its vectors; the run, and so exact replay, refuses a file whose vectors have another digest, before any evaluation. The `file` records above are rebuilt from those persisted values alone, never from the filesystem, so a run verifies where its file is absent. A MOEA/D record with `sha256` is `das_dennis` when the digest is that of the lattice of `pop_size` vectors. Runs stored without `sha256` keep the 1.4.0 description, which looks for the file.
+
 ## 6. Run manifest
 
 The manifest requires:

@@ -128,7 +128,7 @@ def initialize_nsgaiii_run(
         # Development after 1.4.0: the file, or W{n_obj}D_{pop_size}.dat in a directory, is read as MOEA/D
         # reads its weights, with whitespace or commas between the components, and a path that does not
         # exist raises instead of generating a lattice there.
-        ref_dirs = load_or_generate_weight_vectors(pop_size, n_obj, path=str(ref_path))
+        ref_dirs = load_or_generate_weight_vectors(pop_size, n_obj, path=str(ref_path), sha256=_digest(dir_cfg.get("sha256")))
         source = f"NSGA-III reference directions in '{ref_path}' ({ref_dirs.shape[0]})"
     elif ref_divisions is not None:
         lattice = f"divisions={ref_divisions}" if ref_inner is None else f"divisions={ref_divisions} and inner_divisions={ref_inner}"
@@ -227,6 +227,11 @@ def initialize_nsgaiii_run(
     )
 
     return state, live_cb, eval_strategy, max_eval, hv_tracker
+
+
+def _digest(value: object) -> str | None:
+    """The recorded ``sha256`` of the vectors of a file, ``None`` without one."""
+    return value if isinstance(value, str) else None
 
 
 def initialize_population(

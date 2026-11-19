@@ -9,6 +9,7 @@ from itertools import product
 from typing import Any, cast
 
 from vamos.engine.algorithm.catalog import ENABLED_ALGORITHMS, WEIGHT_VECTOR_POPULATIONS, initial_evaluations, minimum_violation
+from vamos.engine.algorithm.components.weight_vectors import bind_vector_file
 from vamos.engine.algorithm.config.base import ReferenceDirectionPopulationError
 from vamos.experiment.artifacts.models import deep_freeze, deep_thaw
 from vamos.experiment.artifacts.resolved_reconstruction import is_reconstructable_evaluation_backend
@@ -217,6 +218,10 @@ def _resolved_algorithm_config(
             action="Remove unknown algorithm configuration fields; no study directory was published.",
         )
     config.update(overrides)
+    pop_size = config.get("pop_size")
+    if algorithm.lower() == "moead" and n_obj > 2 and isinstance(pop_size, int):
+        # Development after 1.4.0: a weight file that exists is bound to its digest, which the run checks.
+        config["weight_vectors"] = bind_vector_file(config.get("weight_vectors"), n_obj, pop_size)
     return config
 
 

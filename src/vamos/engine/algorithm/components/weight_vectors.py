@@ -3,12 +3,23 @@ import os
 import re
 import stat
 import warnings
-from collections.abc import Mapping
-from difflib import get_close_matches
 from numbers import Integral
 
 import numpy as np
 
+from vamos.engine.algorithm.components.vector_files import (
+    VECTOR_SOURCE_FIELDS,
+    _checked_digest,
+    _load_weights,
+    _validated_weights,
+    bind_config_vector_files,
+    bind_vector_file,
+    describe_vector_file,
+    existing_weight_file,
+    read_weight_vectors,
+    vector_digest,
+    vector_source,
+)
 from vamos.engine.reference_directions import (
     FloatArray,
     das_dennis,
@@ -20,83 +31,6 @@ from vamos.engine.reference_directions import (
 )
 from vamos.foundation.exceptions import ConfigurationError
 
-# How far a weight file may depart from the simplex through rounding: jMetal's files round each component, so
-# their rows sum to 1 only within about 2e-6, and a few components that should be zero are about -5e-17.
-_ROUNDING_TOLERANCE = 1e-5
-
-
-def read_weight_vectors(path: str, n_obj: int) -> FloatArray:
-    """Read the weight vectors of a file, one per line, with ``n_obj`` components each.
-
-    The components are separated by whitespace or by commas: jMetal's weight files use spaces, except
-    ``W4D_165.dat``, and NSGA-III's reference-direction files have been comma-separated. Every component
-    must be non-negative and every row must sum to 1, both within the rounding of jMetal's files (1e-5);
-    a negative component within that rounding reads as 0. The rows are returned as they are, not
-    renormalized. A path that is not a file raises :class:`~vamos.exceptions.ConfigurationError`.
-
-    **Development after 1.4.0:** commas and whitespace in every file, and the rounding tolerance of 1e-5
-    (1e-6 before, without the negative rounding).
-    """
-    if not os.path.isfile(path):
-        raise ConfigurationError(
-            f"Weight vector file '{path}' does not exist or is not a file.",
-            suggestion="Pass the path of an existing file, one weight vector per line.",
-        )
-    return _validated_weights(_load_weights(path), n_obj)
-
-
-_VECTOR_SOURCE_KEYS = ("path", "divisions", "inner_divisions")
-
-
-def vector_source(value: object, *, field: str = "reference vectors") -> dict[str, int | str | None] | None:
-    """The options of a weight- or reference-vector source, checked.
-
-    MOEA/D's ``weight_vectors``, NSGA-III's ``reference_directions`` and RVEA's ``reference_vectors``
-    take ``None``, a path, or a mapping with these keys:
-
-    - ``path``: a file with one vector per line, or a directory with jMetal's ``W{n_obj}D_{pop_size}.dat``
-      files;
-    - ``divisions``: the complete Das-Dennis lattice of that many divisions;
-    - ``inner_divisions``: with ``divisions``, Deb and Jain's two-layer lattice (see
-      :func:`~vamos.engine.reference_directions.two_layer_lattice`). It needs ``divisions`` and excludes ``path``.
-
-    A path becomes ``{"path": path, "divisions": None}``. A mapping keeps the keys it has, so a configuration
-    serializes as before, except ``inner_divisions=None``, which is left out. An unknown key, a path that is
-    not a string, a count that is not a positive integer, or ``inner_divisions`` without ``divisions`` or with
-    ``path`` raises :class:`~vamos.exceptions.ConfigurationError`.
-
-    Development after 1.4.0: new; VAMOS 1.4.0 ignored unknown keys.
-    """
-    if value is None:
-        return None
-    if isinstance(value, (str, os.PathLike)):
-        return {"path": os.fspath(value), "divisions": None}
-    if not isinstance(value, Mapping):
-        raise ConfigurationError(f"{field} must be a mapping with path, divisions and inner_divisions, or a path; got {value!r}.")
-    unknown = [key for key in value if key not in _VECTOR_SOURCE_KEYS]
-    if unknown:
-        hints = "".join(
-            f" Did you mean '{match[0]}'?" for key in unknown if (match := get_close_matches(str(key), _VECTOR_SOURCE_KEYS, n=1))
-        )
-        raise ConfigurationError(f"Unknown {field} key(s): {', '.join(map(repr, unknown))}.{hints}")
-    source: dict[str, int | str | None] = dict(value)
-    path = source.get("path")
-    if path is not None:
-        if not isinstance(path, (str, os.PathLike)):
-            raise ConfigurationError(f"{field} path must be a string path or None; got {path!r}.")
-        source["path"] = str(os.fspath(path))
-    for key in ("divisions", "inner_divisions"):
-        count = source.get(key)
-        if count is not None and (isinstance(count, bool) or not isinstance(count, Integral) or int(count) < 1):
-            raise ConfigurationError(f"{field} {key} must be a positive integer or None; got {count!r}.")
-    if source.get("inner_divisions") is None:
-        source.pop("inner_divisions", None)
-    elif source.get("divisions") is None:
-        raise ConfigurationError(f"{field} inner_divisions needs divisions, the boundary layer of the two-layer lattice.")
-    elif source.get("path") is not None:
-        raise ConfigurationError(f"{field} takes a file or a lattice: inner_divisions excludes path.")
-    return source
-
 
 def load_or_generate_weight_vectors(
     pop_size: int,
@@ -106,9 +40,14 @@ def load_or_generate_weight_vectors(
     divisions: int | None = None,
     mode: str = "auto",
     inner_divisions: int | None = None,
+    sha256: str | None = None,
 ) -> FloatArray:
     """
     The weight (reference) vectors of MOEA/D, NSGA-III and RVEA: those of a file, or a simplex-lattice design.
+
+    With ``sha256``, the vectors read from the file must have that digest (:func:`vector_digest`), or
+    :class:`~vamos.exceptions.ConfigurationError` is raised before any evaluation: a run records the digest of
+    the vectors it read, so that replay never runs other vectors from a file that has changed.
 
     ``path`` names a file, read by :func:`read_weight_vectors` with whitespace or commas between the
     components, or a directory with jMetal's ``W{n_obj}D_{pop_size}.dat`` files. ``divisions`` gives the
@@ -137,37 +76,14 @@ def load_or_generate_weight_vectors(
     if inner_divisions is not None:
         return _two_layer_weights(pop_size, n_obj, path, divisions, inner_divisions, exact=mode != "auto")
     if mode == "jmetalpy":
-        return _load_or_generate_jmetalpy_weights(pop_size, n_obj, path, divisions)
+        return _load_or_generate_jmetalpy_weights(pop_size, n_obj, path, divisions, sha256)
     if path:
         file = existing_weight_file(path, n_obj, pop_size)
-        weights = read_weight_vectors(file, n_obj)
+        weights = _checked_digest(read_weight_vectors(file, n_obj), file, sha256)
         if mode == "exact" and weights.shape[0] != pop_size:
             raise ValueError(f"Weight file '{file}' holds {weights.shape[0]} vectors, but pop_size={pop_size} needs one per individual.")
         return weights
     return _generate_weights(pop_size, n_obj, divisions, strict=mode == "exact")
-
-
-def existing_weight_file(path: str, n_obj: int, pop_size: int) -> str:
-    """The weight file that ``path`` names: itself, or ``W{n_obj}D_{pop_size}.dat`` in the directory ``path``.
-
-    A path that does not exist, or a directory without that file, raises
-    :class:`~vamos.exceptions.ConfigurationError`. Development after 1.4.0: new.
-    """
-    if os.path.isfile(path):
-        return path
-    name = f"W{n_obj}D_{pop_size}.dat"
-    if os.path.isdir(path):
-        file = os.path.join(path, name)
-        if os.path.isfile(file):
-            return file
-        raise ConfigurationError(
-            f"Weight vector directory '{path}' has no {name} for {n_obj} objectives and pop_size={pop_size}.",
-            suggestion="Add the file, name the file itself, or choose a population that the directory has a file for.",
-        )
-    raise ConfigurationError(
-        f"Weight vector path '{path}' does not exist.",
-        suggestion="Pass an existing file, one vector per line, or a directory with jMetal's W<objectives>D_<size>.dat files.",
-    )
 
 
 def _two_layer_weights(
@@ -204,15 +120,9 @@ def check_two_layers(n_obj: int, divisions: int, inner_divisions: int) -> None:
         )
 
 
-def _load_weights(path: str) -> FloatArray:
-    """The rows of a weight file whose components are separated by whitespace or commas."""
-    with open(path, encoding="utf-8") as handle:
-        text = handle.read()
-    arr = np.loadtxt(io.StringIO(text.replace(",", " ")), ndmin=2)
-    return np.asarray(arr, dtype=float)
-
-
-def _load_or_generate_jmetalpy_weights(pop_size: int, n_obj: int, path: str | None, divisions: int | None) -> FloatArray:
+def _load_or_generate_jmetalpy_weights(
+    pop_size: int, n_obj: int, path: str | None, divisions: int | None, sha256: str | None = None
+) -> FloatArray:
     if n_obj < 2:
         return np.ones((pop_size, 1), dtype=float)
     if n_obj == 2:
@@ -233,11 +143,17 @@ def _load_or_generate_jmetalpy_weights(pop_size: int, n_obj: int, path: str | No
         if packaged is not None:
             return packaged
     if weight_path is not None and os.path.exists(weight_path):
-        weights = read_weight_vectors(weight_path, n_obj)
+        weights = _checked_digest(read_weight_vectors(weight_path, n_obj), weight_path, sha256)
         if weights.shape[0] != pop_size:
             raise ValueError(f"Expected {pop_size} weight vectors in '{weight_path}', got {weights.shape[0]}.")
         return weights
 
+    if sha256 is not None:
+        # The digest records the vectors of a file that a run read: generating the lattice instead would run others.
+        raise ConfigurationError(
+            f"Weight vector file '{weight_path}' that this configuration records ({sha256}) does not exist.",
+            suggestion="Restore the file that the run read, or remove sha256 from the configuration.",
+        )
     weights = _generate_weights(pop_size, n_obj, divisions=divisions, strict=True)
     if weight_path is not None:
         saved = False
@@ -279,6 +195,7 @@ def describe_weight_vectors(
     path: str | None = None,
     divisions: int | None = None,
     inner_divisions: int | None = None,
+    sha256: str | None = None,
 ) -> dict[str, object]:
     """Where MOEA/D's weight vectors for ``pop_size`` come from, as a run artifact records it.
 
@@ -292,7 +209,10 @@ def describe_weight_vectors(
     exactly that lattice is still ``das_dennis``: the description does not depend on whether an earlier
     run has written it.
 
-    Development after 1.4.0: ``two_layer`` with its ``divisions`` and ``inner_divisions``.
+    Development after 1.4.0: ``two_layer`` with its ``divisions`` and ``inner_divisions``. With ``sha256``,
+    the digest that :func:`bind_vector_file` records with the file a run read, the description comes from
+    the configuration alone, without the file: ``das_dennis`` when the digest is that of the lattice of
+    ``pop_size`` vectors (a lattice that an earlier run saved), else ``file``.
     """
     if inner_divisions is not None:
         if divisions is None:
@@ -304,6 +224,11 @@ def describe_weight_vectors(
         return {"source": "two_layer", "divisions": int(divisions), "inner_divisions": int(inner_divisions), "vectors": pop_size}
     if n_obj <= 2:
         return {"source": "uniform", "vectors": pop_size}
+    if path and sha256 is not None:
+        exact = _exact_divisions(pop_size, n_obj)
+        if exact is not None and (divisions is None or int(divisions) == exact) and vector_digest(das_dennis(n_obj, exact)) == sha256:
+            return {"source": "das_dennis", "divisions": exact, "vectors": pop_size}
+        return {"source": "file", "file": os.path.basename(path), "vectors": pop_size}
     weight_path = _resolve_jmetalpy_weight_path(path, n_obj, pop_size)
     if weight_path is None and divisions is None and _exact_divisions(pop_size, n_obj) is None:
         if _packaged_weights(n_obj, pop_size) is not None:
@@ -315,20 +240,6 @@ def describe_weight_vectors(
     elif lattice_size(n_obj, int(divisions)) != pop_size:
         raise ValueError(f"Das-Dennis simplex lattice for n_obj={n_obj}, divisions={divisions} does not have pop_size={pop_size} vectors.")
     return {"source": "das_dennis", "divisions": int(divisions), "vectors": pop_size}
-
-
-def describe_vector_file(path: str, n_obj: int, pop_size: int, *, vectors: int | None = None) -> dict[str, object]:
-    """The record of NSGA-III's or RVEA's vectors from ``path``: ``{"source": "file", "file": name}``.
-
-    ``name`` is the file's name, or ``W{n_obj}D_{pop_size}.dat`` for a directory, and ``vectors``, when
-    given, the number of vectors. Verification rebuilds the record from a stored configuration, so the
-    path is untrusted: it is never opened. Development after 1.4.0: new.
-    """
-    file = path if os.path.isfile(path) else os.path.join(path, f"W{n_obj}D_{pop_size}.dat")
-    record: dict[str, object] = {"source": "file", "file": os.path.basename(file)}
-    if vectors is not None:
-        record["vectors"] = vectors
-    return record
 
 
 def weighted_populations(n_obj: int, max_pop_size: int) -> tuple[int, ...]:
@@ -441,21 +352,6 @@ def _resolve_jmetalpy_weight_path(path: str | None, n_obj: int, pop_size: int) -
     return os.path.join(path, filename)
 
 
-def _validated_weights(weights: FloatArray, n_obj: int) -> FloatArray:
-    """``weights`` with the negative rounding of a zero component set to 0, or ``ValueError`` off the simplex."""
-    if weights.ndim != 2:
-        raise ValueError("Weight matrix must be 2D.")
-    if weights.shape[1] != n_obj:
-        raise ValueError(f"Expected weight vectors with {n_obj} columns, got {weights.shape[1]}.")
-    if not np.all(np.isfinite(weights)):
-        raise ValueError("Weight vectors must be finite.")
-    if np.any(weights < -_ROUNDING_TOLERANCE):
-        raise ValueError("Weight vectors must be non-negative.")
-    if np.any(np.abs(weights.sum(axis=1) - 1.0) > _ROUNDING_TOLERANCE):
-        raise ValueError("Each weight vector must sum to 1.")
-    return np.asarray(np.maximum(weights, 0.0), dtype=float)
-
-
 def _generate_weights(pop_size: int, n_obj: int, divisions: int | None, *, strict: bool = False) -> FloatArray:
     if n_obj < 2:
         # Degenerate single-objective: return uniform weights.
@@ -484,3 +380,20 @@ def _choose_exact_divisions(pop_size: int, n_obj: int) -> int:
                 "Choose a compatible pop_size or provide an explicit weight vector file."
             )
         divisions += 1
+
+
+__all__ = [
+    "VECTOR_SOURCE_FIELDS",
+    "bind_config_vector_files",
+    "bind_vector_file",
+    "check_two_layers",
+    "describe_vector_file",
+    "describe_weight_vectors",
+    "existing_weight_file",
+    "largest_weighted_population",
+    "load_or_generate_weight_vectors",
+    "read_weight_vectors",
+    "vector_digest",
+    "vector_source",
+    "weighted_populations",
+]

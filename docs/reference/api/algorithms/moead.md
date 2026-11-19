@@ -62,7 +62,10 @@ keys (see [reference and weight vectors](../../algorithms.md#reference-and-weigh
 A `weight_vectors(path=...)` that does not exist now raises `ConfigurationError`
 when the run starts; VAMOS 1.4.0 created it as a directory and saved the
 lattice there. A directory that exists but lacks the file still gets the
-lattice, saved there with a `RuntimeWarning`.
+lattice, saved there with a `RuntimeWarning`. A run binds a weight file by content:
+its resolved configuration records the file it read and the `sha256` of its
+vectors, and replay refuses the file if they change (see
+[reference and weight vectors](../../algorithms.md#reference-and-weight-vectors)).
 
 **VAMOS 1.4.0:** the options of Evolver's MOEA/D. Each is off by
 default, so a configuration that leaves them out runs exactly as in VAMOS 1.3.0.
