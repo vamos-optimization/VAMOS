@@ -189,6 +189,14 @@
     return { contributions: out, boxes };
   }
 
+  /** The contour max(w·f₁, (1 − w)·f₂) = c of the Tchebycheff scalarization with the ideal point at the origin:
+      the upper and right edges of the rectangle where the value is at most c, which meet at (c / w, c / (1 − w)). */
+  function tchebycheffContour(w, c) {
+    const cx = w > 1e-9 ? c / w : 3;
+    const cy = 1 - w > 1e-9 ? c / (1 - w) : 3;
+    return [[0, cy], [cx, cy], [cx, 0]];
+  }
+
   function euclidean(a, b) {
     let s = 0;
     for (let i = 0; i < a.length; i++) s += (a[i] - b[i]) * (a[i] - b[i]);
@@ -1198,6 +1206,7 @@
     nonDominatedIndices,
     hypervolume2d,
     hvContributions2d,
+    tchebycheffContour,
     generationalDistance,
     igd,
     igdPlus,
@@ -1752,9 +1761,9 @@
           plot.line(plot.layers.mid, [[c / w, -1], [c / w, 3]], "vf-line-2");
         }
       } else {
-        const cx = w > 1e-9 ? c / w : 3;
-        const cy = 1 - w > 1e-9 ? c / (1 - w) : 3;
-        plot.line(plot.layers.mid, [[cx, 3], [cx, cy], [3, cy]], "vf-line-2");
+        const contour = tchebycheffContour(w, c);
+        const [cx, cy] = contour[1];
+        plot.line(plot.layers.mid, contour, "vf-line-2");
         plot.line(plot.layers.mid, [[0, 0], [cx * 3, cy * 3]], "vf-line-thin vf-dashed");
       }
       for (const p of state.trail) marker(plot.layers.marks, "circle", plot.x(p[0]), plot.y(p[1]), 4.5, "vf-pt vf-pt-1");

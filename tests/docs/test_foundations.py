@@ -209,6 +209,23 @@ def test_figure_algorithms_agree_with_vamos() -> None:
         np.testing.assert_allclose(js["contributions"], hypervolume_contributions(F, ref), rtol=1e-12, atol=1e-15)
 
 
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_tchebycheff_contour_is_a_level_set() -> None:
+    weights = [0.2, 0.35, 0.5, 0.65, 0.8]
+    program = f"""
+require({json.dumps(str(SCRIPT))});
+const V = globalThis.VamosFoundations;
+process.stdout.write(JSON.stringify({json.dumps(weights)}.map((w) => V.tchebycheffContour(w, 0.3))));
+"""
+    completed = subprocess.run(["node", "-e", program], capture_output=True, text=True, check=True, timeout=60)
+    for w, contour in zip(weights, json.loads(completed.stdout)):
+        vertices = np.asarray(contour, dtype=float)
+        # Every vertex and every segment midpoint lies on max(w·f₁, (1 − w)·f₂) = c.
+        points = np.vstack([vertices, (vertices[:-1] + vertices[1:]) / 2])
+        values = np.maximum(w * points[:, 0], (1 - w) * points[:, 1])
+        np.testing.assert_allclose(values, 0.3, rtol=1e-12, err_msg=f"w = {w}: {contour}")
+
+
 def test_every_page_with_examples_is_a_docs_smoke_case() -> None:
     smoked = {case.source_path for case in DOC_SMOKE_CASES}
     pages = {f"docs/{_relative(page)}" for page in PAGES if _examples(page)}
