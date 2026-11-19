@@ -662,8 +662,8 @@ A key joins the objectives to the constraint level:
 
 | Keys | n / M / G | Objectives, in MODAct's sense | Reference sample |
 | --- | --- | --- | --- |
-| `modact_cs1`–`modact_cs4` | 20 / 2 / 7, 8, 10, 9 | cost (min), safety factor (max) | None packaged |
-| `modact_ct1`–`modact_ct4` | 20 / 2 / 7, 8, 10, 9 | cost (min), torque excess (max) | None packaged |
+| `modact_cs1`–`modact_cs4` | 20 / 2 / 7, 8, 10, 9 | cost (min), safety factor (max) | 2D, each |
+| `modact_ct1`–`modact_ct4` | 20 / 2 / 7, 8, 10, 9 | cost (min), torque excess (max) | 2D, each |
 | `modact_cts1`–`modact_cts4` | 20 / 3 / 7, 8, 10, 9 | cost, torque excess, safety factor | None packaged |
 | `modact_ctse1`–`modact_ctse4` | 20 / 4 / 7, 8, 10, 9 | those of CTS and efficiency (max) | None packaged |
 | `modact_ctsei1`–`modact_ctsei4` | 20 / 5 / 7, 8, 10, 9 | those of CTSE and transmission ratio (min) | None packaged |
@@ -691,11 +691,12 @@ A key joins the objectives to the constraint level:
   version of `modact`, as of every installed distribution, and the problem
   instance holds it as `modact_version`. Verification and replay need the
   package too.
-- **Fronts:** the authors' best-known fronts are in a
-  [Zenodo record][modact-fronts] (CC BY 4.0), in MODAct's signs; VAMOS does
-  not package them. Download them, multiply each column by the problem's
+- **Fronts:** the authors' best-known fronts (see
+  [Reference fronts](#reference-fronts)) are packaged for CS1–CS4 and CT1–CT4.
+  The others are too large to package; download them from the
+  [Zenodo record][modact-fronts], multiply each column by the problem's
   `objective_signs` (for example `1, -1, -1` for CTS), and supply the CSV as a
-  reference front (see [Reference fronts](#reference-fronts)).
+  reference front.
 
 ### Learning and mixed engineering examples
 
@@ -804,6 +805,10 @@ files of 1.1.0 (`c1dtlz1.csv` and so on, two-objective) are replaced by
 `dtlz1.2d.csv` to `dtlz7.2d.csv`, so a two-objective DTLZ run has an automatic
 reference. VAMOS 1.2.0 had none, and VAMOS 1.1.0 returned the three-objective
 file.
+- **Development after 1.5.0:** MODAct CS1–CS4 and CT1–CT4 have the authors'
+  best-known fronts, `modact_cs1.csv` to `modact_ct4.csv`. The problems with
+  three to five objectives need a supplied reference (see the MODAct notes
+  above).
 - RE/RWA samples have the dimensions shown above. Their presence does not imply
   that every sample point is a certified global Pareto optimum.
 - Families marked “None packaged” require a suitable external reference or a
@@ -840,6 +845,7 @@ regenerates the files marked as regenerated.
 | `ctp1`–`ctp7` | **VAMOS 1.5.0:** generated from the paper's definition at g = 1 and on the constraint boundaries, as VAMOS evaluates them. CTP1: the envelope `max(exp(-f1), a_j exp(-b_j f1))`, 1000 points. CTP2–CTP7: the feasible, non-dominated points of the boundary, sampled at 2 000 001 values of `sin(θ) (f2 - e) + cos(θ) f1` and at the zeros of its sine, of the unconstrained front `f2 = 1 - f1` and of the least feasible `f2` at `f1 = 0` and 1, thinned to at most 1000 with the zeros kept: CTP2's 13 segments, the 13 isolated points of CTP3 and CTP4 (the same file), CTP5's first arch and 15 points, CTP6's boundary in `1 <= sin(θ) (f2 - e) + cos(θ) f1 <= 2`, and six pieces of CTP7's unconstrained front with `(0, 1.0446)`, the least feasible point at `f1 = 0`. A feasible design reaches every point (within 1e-6 at the isolated points; see the notes on CTP above) |
 | `lircmop1`–`lircmop14`, `dascmop1`–`dascmop9` | jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), under its MIT notice in `LICENSE-jmetal.txt`; DAS-CMOP8 and DAS-CMOP9 leave out two rows each, which another row dominates |
 | `cre21`–`cre25`, `cre31`, `cre32`, `cre51`, `rcm01`–`rcm49` except `rcm17`, `rcm23` and `rcm26` | jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), unchanged, under `LICENSE-jmetal.txt`; approximations (see the notes on jMetal's CRE and RCM fronts). `cre51` and `rcm11` are the same file |
+| `modact_cs1`–`modact_cs4`, `modact_ct1`–`modact_ct4` | **Development after 1.5.0:** Picard and Schiffmann's best-known fronts (`<problem>_PF.dat` of [Zenodo record 10.5281/zenodo.3824302][modact-fronts], version 1.1.0), under CC BY 4.0 with the attribution in `LICENSE-modact-fronts.txt`. The second column, which MODAct maximizes, has the opposite sign; the values keep their digits, and no row is added or removed. Approximations (see the notes on MODAct's fronts) |
 | `c1dtlz1`–`dc3dtlz3`, `.2d` and `.3d`, `c3dtlz4` included | Regenerated: the feasible, non-dominated part of DTLZ's front (C3-DTLZ1 and C3-DTLZ4: of their constraint boundaries), as VAMOS evaluates it; 1000 points at M = 2 and up to 5050 at M = 3 |
 | `zcat*` | Unchanged samples |
 | `jmetal-zdt1`–`jmetal-zdt4`, `jmetal-zdt6`, `jmetal-dtlz1`, `jmetal-dtlz2` and `jmetal-dtlz5`–`jmetal-dtlz7`, `.2d` and `.3d` | **VAMOS 1.3.0:** jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), unchanged, under `LICENSE-jmetal.txt`; the optional `jmetal` source described below. jMetal's DTLZ3 and DTLZ4 files are its DTLZ2 file, so `jmetal-dtlz2` serves the three |
@@ -933,6 +939,15 @@ Notes on the table:
   CRE23 and RCM05 are the same problem with different fronts; each front
   dominates 35 to 42 rows of the other, by up to 2e-4 of the range. RCM47's
   front is a single point.
+- **MODAct's fronts:** **Development after 1.5.0:** the authors aggregated
+  the feasible non-dominated solutions of the external archives of 30 runs of
+  NSGA-II (NSGA-III for three or more objectives) and 30 of C-TAEA, each of
+  300 000 evaluations. The files hold objective vectors only, without their
+  designs, so no test can rebuild a design that reaches a row. No row of the
+  packaged files is dominated by another; CS2 repeats 17 of its rows. The
+  fronts of CTS1–CTS4 have 18 808 to 36 661 rows (1.4 to 2.8 MB each), those
+  of CTSE1–CTSE4 and CTSEI1–CTSEI4 11 to 193 MB each, so they are not
+  packaged.
 - **Replaced samples:** VAMOS 1.1.0 and earlier packaged inaccurate samples for
   several regenerated files, so IGD, IGD+, epsilon and normalized HV values
   computed with those files are not comparable across versions:

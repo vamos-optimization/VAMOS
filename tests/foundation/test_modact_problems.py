@@ -1,4 +1,4 @@
-"""MODAct (Picard and Schiffmann, 2021): registration, sign conventions, the missing package and the values.
+"""MODAct (Picard and Schiffmann, 2021): registration, sign conventions, the missing package and its reference fronts.
 
 Development after 1.5.0. The ``modact`` package evaluates the problems; CI does not install it, so the tests that
 evaluate the real problems skip without it. The others replace it with a stub, or need no evaluation.
@@ -9,6 +9,7 @@ from __future__ import annotations
 import sys
 import types
 import zlib
+from importlib import resources
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,7 @@ from vamos.foundation.constraints.utils import is_feasible
 from vamos.foundation.eval.population import evaluate_population_with_constraints
 from vamos.foundation.problem.modact import CONSTRAINT_LEVELS, INSTALL_COMMAND, MODACT, MODActProblem
 from vamos.foundation.problem.registry import get_problem_specs, make_problem_selection
+from vamos.foundation.problem.resolver import resolve_reference_front_path
 
 Array = np.ndarray[Any, Any]
 
@@ -33,6 +35,7 @@ WEIGHTS = {
 }
 N_CONSTRAINTS = {1: 7, 2: 8, 3: 10, 4: 9}
 NAMES = [f"{name}{level}" for name in WEIGHTS for level in N_CONSTRAINTS]
+PACKAGED_FRONTS = [f"{name}{level}" for name in ("cs", "ct") for level in N_CONSTRAINTS]
 
 
 def _weights(name: str) -> tuple[int, ...]:
@@ -174,6 +177,71 @@ def test_a_modact_that_defines_another_problem_is_rejected(stub: _StubProblem, m
     _install_stub(monkeypatch, {"cs1": stub})
     with pytest.raises(ValueError, match=message):
         MODActProblem("cs1")
+
+
+# ---------------------------------------------------------------------------------------------------------
+# Reference fronts: the authors' best-known fronts of CS1-CS4 and CT1-CT4
+# ---------------------------------------------------------------------------------------------------------
+
+
+def _front(name: str) -> Array:
+    path = resolve_reference_front_path(f"modact_{name}", None, n_obj=None)
+    assert path is not None
+    return np.loadtxt(path, delimiter=",", ndmin=2)
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_reference_fronts_are_packaged_for_the_two_objective_problems_only(name: str) -> None:
+    path = resolve_reference_front_path(f"modact_{name}", None, n_obj=None)
+    if name in PACKAGED_FRONTS:
+        assert path is not None and Path(path).name == f"modact_{name}.csv"
+    else:
+        assert path is None
+
+
+@pytest.mark.parametrize("name", PACKAGED_FRONTS)
+def test_reference_fronts_have_vamos_signs(name: str) -> None:
+    front = _front(name)
+    assert front.shape[1] == 2 and np.isfinite(front).all()
+    # The cost is positive and minimized in both files. The safety factor (CS), which MODAct maximizes, is positive,
+    # so the packaged column is negative; the torque excess (CT) is about -0.6 to 2, so its column is about -2 to 0.6.
+    assert front[:, 0].min() > 0.0
+    if name.startswith("cs"):
+        assert front[:, 1].max() < 0.0
+    else:
+        assert -2.0 < front[:, 1].min() < -1.0 and 0.5 < front[:, 1].max() < 0.6
+    # Minimized, a front sorted by cost has a decreasing second column.
+    ordered = front[np.lexsort((front[:, 1], front[:, 0]))]
+    assert np.all(np.diff(ordered[:, 1]) <= 0.0)
+
+
+@pytest.mark.parametrize("name", PACKAGED_FRONTS)
+def test_a_feasible_design_does_not_dominate_the_best_known_front(name: str) -> None:
+    # In the same signs, a design found by a short NSGA-II run stays behind the authors' front; with the second
+    # column in MODAct's sign instead, it would dominate rows of it.
+    _modact_problems()
+    problem = make_problem_selection(f"modact_{name}").instantiate()
+    F, G = evaluate_population_with_constraints(problem, np.asarray([FEASIBLE[int(name[-1])]]))
+    assert G is not None and is_feasible(G).all()
+    front = _front(name)
+
+    assert not np.any(np.all(F <= front, axis=1) & np.any(F < front, axis=1))
+    unflipped = front * [1.0, -1.0]
+    assert np.any(np.all(F <= unflipped, axis=1) & np.any(F < unflipped, axis=1))
+
+
+def test_the_fronts_carry_their_cc_by_attribution() -> None:
+    notice = resources.files("vamos.resources.reference_fronts").joinpath("LICENSE-modact-fronts.txt").read_text(encoding="utf-8")
+    for needed in ("Picard", "Schiffmann", "https://doi.org/10.5281/zenodo.3824302", "version 1.1.0", "CC BY 4.0"):
+        assert needed in notice
+    assert "https://creativecommons.org/licenses/by/4.0/" in notice
+    assert "Changes:" in notice
+    for name in PACKAGED_FRONTS:
+        assert f"- modact_{name}.csv: {name}_PF.dat (MD5 " in notice
+    packaged = sorted(
+        entry.name for entry in resources.files("vamos.resources.reference_fronts").iterdir() if entry.name.startswith("modact")
+    )
+    assert packaged == sorted(f"modact_{name}.csv" for name in PACKAGED_FRONTS)
 
 
 # ---------------------------------------------------------------------------------------------------------
