@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import comb
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal, TypeAlias, cast
 
 from vamos.engine.algorithm.components.constraint_handling import PAIRWISE_TECHNIQUES
 from vamos.engine.algorithm.components.weight_vectors import vector_source
@@ -37,6 +37,17 @@ from .base import (
     _warn_without_effect,
 )
 from .types import RepairConfigValue
+
+RVEAVariant: TypeAlias = Literal["pymoo", "platemo"]
+_RVEA_VARIANTS = ("pymoo", "platemo")
+
+
+def normalize_rvea_variant(value: object) -> RVEAVariant:
+    """RVEA's survival variant in lower case, or ``ConfigurationError``. Development after 1.4.0: new."""
+    name = value.strip().lower() if isinstance(value, str) else None
+    if name not in _RVEA_VARIANTS:
+        raise ConfigurationError(f"RVEA variant must be one of {', '.join(map(repr, _RVEA_VARIANTS))}; got {value!r}.")
+    return cast(RVEAVariant, name)
 
 
 def rvea_partitions_for_population(pop_size: int, n_obj: int) -> int:
@@ -96,6 +107,18 @@ class RVEAConfig(_SerializableConfig):
     With ``reference_vectors``, ``n_partitions`` is not used. ``to_dict()`` leaves the field out
     while it is ``None``, so a configuration without it keeps the resolved specification, and the
     task id, of VAMOS 1.4.0.
+
+    **Development after 1.4.0:** ``variant`` chooses between the two readings of the survival.
+    ``"pymoo"``, the default and VAMOS's RVEA so far, follows pymoo: with two objectives the angle
+    penalty uses M = 1, the objectives are translated by the ideal point accumulated across
+    generations, and the vectors adapt to the nadir point minus that ideal point. ``"platemo"``
+    follows the authors' code in PlatEMO (``RVEA/EnvironmentalSelection.m`` and
+    ``ReferenceVectorAdaptation.m``) and jMetal's ``RVEAEnvironmentalSelection``: M is the number of
+    objectives, two included, so the penalty is ``M (t / t_max)^alpha theta / gamma`` for every
+    number of objectives, the objectives are translated by the minimum of the candidates of each
+    generation, and the vectors adapt to the range (maximum minus minimum) of the population. Both
+    keep VAMOS's progress ``t / t_max`` in generations, its feasibility-first constrained survival
+    and its parent selection. ``to_dict()`` leaves out the default.
     """
 
     pop_size: int
@@ -115,12 +138,14 @@ class RVEAConfig(_SerializableConfig):
     constraint_handling: tuple[str, dict[str, float]] | None = None
     live_callback_mode: LiveCallbackMode = "population"
     reference_vectors: dict[str, int | str | None] | None = None
+    variant: RVEAVariant = "pymoo"
     #: The techniques that judge the violation of a single solution, the only ones this algorithm takes.
     constraint_handling_techniques: ClassVar[tuple[str, ...]] = PAIRWISE_TECHNIQUES
 
     def __post_init__(self) -> None:
         super().__post_init__()
         object.__setattr__(self, "reference_vectors", vector_source(self.reference_vectors, field="reference_vectors"))
+        object.__setattr__(self, "variant", normalize_rvea_variant(self.variant))
         if self.track_genealogy:
             _warn_without_effect("RVEA", "track_genealogy", "RVEA records no genealogy", stacklevel=3)
 
@@ -129,6 +154,9 @@ class RVEAConfig(_SerializableConfig):
         # Development after 1.4.0: a configuration without reference_vectors is serialized as in VAMOS 1.4.0.
         if payload.get("reference_vectors") is None:
             payload.pop("reference_vectors", None)
+        # Development after 1.4.0: so is a configuration with the default variant.
+        if payload.get("variant") == "pymoo":
+            payload.pop("variant", None)
         return payload
 
     @classmethod
@@ -223,6 +251,16 @@ class _RVEAConfigBuilder(
         self._cfg["reference_vectors"] = vector_source({"path": path, "divisions": divisions, "inner_divisions": inner_divisions})
         return self
 
+    def variant(self, value: RVEAVariant) -> _RVEAConfigBuilder:
+        """**Development after 1.4.0:** the reading of RVEA's survival, ``"pymoo"`` (default) or ``"platemo"``.
+
+        ``"platemo"`` follows the authors' PlatEMO code and jMetal: M is the number of objectives in the
+        angle penalty also with two objectives, the objectives are translated by the minimum of each
+        generation's candidates, and the vectors adapt to the population's range. See :class:`RVEAConfig`.
+        """
+        self._cfg["variant"] = normalize_rvea_variant(value)
+        return self
+
     def alpha(self, value: float) -> _RVEAConfigBuilder:
         self._cfg["alpha"] = float(value)
         return self
@@ -257,4 +295,5 @@ class _RVEAConfigBuilder(
             external_archive=self._cfg.get("external_archive"),
             live_callback_mode=self._cfg.get("live_callback_mode", "population"),
             reference_vectors=vectors,
+            variant=self._cfg.get("variant", "pymoo"),
         )

@@ -28,6 +28,7 @@ from vamos.engine.algorithm.components.termination import (
 )
 from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors, vector_source
 from vamos.engine.algorithm.config.base import normalize_constraint_mode
+from vamos.engine.algorithm.config.rvea import normalize_rvea_variant
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
 from vamos.engine.config.variation import (
     ensure_operator_tuple,
@@ -338,6 +339,7 @@ class RVEA:
             alpha=alpha,
             adapt_interval=adapt_interval,
             n_obj=n_obj,
+            variant=normalize_rvea_variant(self.cfg.get("variant", "pymoo")),
             result_mode=result_mode,
             live_callback_mode=str(self.cfg.get("live_callback_mode", "population")),
             hv_tracker=setup_hv_tracker(hv_config, self.kernel),
@@ -445,6 +447,7 @@ class RVEA:
             st.max_gen,
             st.alpha,
             st.constraint_mode,
+            st.variant,
         )
         if survivors.size == 0:
             raise RuntimeError("RVEA selected no survivors from a non-empty population.")
@@ -457,10 +460,17 @@ class RVEA:
             st.archive_X, st.archive_F = st.archive_manager.update(st.X, st.F, st.G)
 
         # Periodic reference-vector adaptation
-        if st.adapt_interval is not None and st.generation % st.adapt_interval == 0 and st.nadir is not None:
-            scale = np.maximum(st.nadir - st.ideal, 1e-64)
-            st.V = _calc_V(_calc_V(st.ref_dirs) * scale)
-            st.gamma = _calc_gamma(st.V)
+        if st.adapt_interval is not None and st.generation % st.adapt_interval == 0:
+            # Development after 1.4.0: the "platemo" variant scales the vectors by the population's range,
+            # as PlatEMO's ReferenceVectorAdaptation and jMetal; "pymoo" by the nadir minus the accumulated ideal.
+            scale: np.ndarray[Any, Any] | None = None
+            if st.variant == "platemo":
+                scale = np.ptp(st.F, axis=0)
+            elif st.nadir is not None:
+                scale = st.nadir - st.ideal
+            if scale is not None:
+                st.V = _calc_V(_calc_V(st.ref_dirs) * np.maximum(scale, 1e-64))
+                st.gamma = _calc_gamma(st.V)
 
         st.pending_offspring = None
         st.generation += 1

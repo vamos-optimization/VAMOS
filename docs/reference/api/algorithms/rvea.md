@@ -47,6 +47,15 @@ task id, of VAMOS 1.4.0. The resolved spec of a run with a file records it in
 rejects a path, as it does for NSGA-III, and checks that `pop_size` equals the
 vectors of `divisions` and `inner_divisions`.
 
+**Development after 1.4.0:** `variant` chooses the reading of the survival:
+`"pymoo"` (default, the results of VAMOS 1.4.0) or `"platemo"`, the authors'
+PlatEMO code and jMetal, with M equal to the number of objectives in the angle
+penalty for two objectives too, translation by each generation's minimum and
+adaptation to the population's range (see the class below and
+[where the variants depart](../../algorithms.md#where-the-variants-depart-from-their-references)).
+`to_dict()` leaves out the default, so configurations without it keep their
+resolved specification and task id.
+
 ::: vamos.algorithms.RVEAConfig
     options:
       heading_level: 2

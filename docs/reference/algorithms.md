@@ -233,6 +233,16 @@ published results or with another framework.
   **VAMOS 1.3.0:** `MOEADConfig.default(variant="de")` gives MOEA/D-DE and
   `variant="sbx"` jMetal's MOEA/D with SBX and PBI; VAMOS 2.0 will make
   `"de"` the default. See [MOEA/D](../algorithms/moead.md#what-the-configuration-means).
+- **RVEA's survival** follows pymoo: with two objectives the angle penalty
+  uses M = 1, half of the published `M (t / t_max)^alpha theta / gamma`, the
+  objectives are translated by the ideal point accumulated across
+  generations, and the vectors adapt to the nadir point minus that ideal.
+  **Development after 1.4.0:** `RVEAConfig.builder().variant("platemo")`
+  runs the authors' code in PlatEMO (`RVEA/EnvironmentalSelection.m`), as
+  jMetal does: M is the number of objectives, two included, the objectives
+  are translated by the minimum of each generation's candidates, and the
+  vectors adapt to the population's range. The default stays `"pymoo"`. See
+  [RVEA](../algorithms/rvea.md#interpret-the-result-and-its-limits).
 
 **VAMOS 1.3.0:** three real-coded mutations scale their steps by
 the range of each variable.
