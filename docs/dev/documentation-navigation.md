@@ -10,6 +10,9 @@ from several routes while retaining one source and one primary navigation entry.
 
 - **Tutorial:** follow a worked example or learning path. Beginner setup remains
   under Get Started; algorithm lessons and the examples gallery are in Tutorials.
+  Concept lessons that teach multi-objective optimization itself, rather than a
+  VAMOS workflow, form the Foundations tab, placed after Developer and ordered
+  Basic, Intermediate and Advanced.
 - **How-to:** complete a specific operation. The How-to Guides index also links
   directly to relevant sections of tutorials and reference pages.
 - **Reference:** look up exact interfaces, capabilities, support, or version
@@ -36,6 +39,7 @@ three homepage journeys lead directly to T01, T02, and T06.
 | Cookbook | Keep the recipe index now; split selected tasks into dedicated guides as they are developed. | Retain the recipe anchors as routing points when content is extracted. |
 | Study and analysis material | Keep the lifecycle and analysis pages; connect T06–T08 and their retained study report. | Keep the synthetic API matrix distinct from actual study observations. |
 | Merging pages | No page merge is needed for this navigation change. | Prefer cross-links between complementary tutorial, how-to, and reference roles. |
+| Foundations | Concept lessons B1–B4, I1–I11 and A1–A10 under their own tab, including an in-depth lesson for every built-in algorithm. Interactive figures live in `docs/javascripts/foundations.js` and `docs/stylesheets/foundations.css`. | Link to the algorithm lessons and study tutorials instead of repeating their workflows. `tests/docs/test_foundations.py` runs every example against its documented output and keeps each source excerpt verbatim in VAMOS; keep the figures' algorithms equal to the NumPy kernel they port. |
 
 ## Complete page inventory
 
@@ -95,6 +99,32 @@ and reachable through the named parent pages even when absent from the menu.
 | [dev/testing.md](testing.md) | Development | Developer → Maintainers → Testing and Validation | Regroup |
 | [dev/typing.md](typing.md) | Development | Developer → Maintainers → Typing Policy | Regroup |
 | [examples.md](../examples.md) | Tutorial | Tutorials → Examples Gallery | Regroup |
+| [foundations/index.md](../foundations/index.md) | Tutorial | Foundations → Overview | Add |
+| [foundations/basic/multi-objective-problems.md](../foundations/basic/multi-objective-problems.md) | Tutorial | Foundations → Basic → B1. Multi-objective Problems | Add |
+| [foundations/basic/pareto-dominance.md](../foundations/basic/pareto-dominance.md) | Tutorial | Foundations → Basic → B2. Pareto Dominance | Add |
+| [foundations/basic/quality-aspects.md](../foundations/basic/quality-aspects.md) | Tutorial | Foundations → Basic → B3. Quality Aspects | Add |
+| [foundations/basic/quality-indicators.md](../foundations/basic/quality-indicators.md) | Tutorial | Foundations → Basic → B4. Quality Indicators | Add |
+| [foundations/intermediate/nsga-ii.md](../foundations/intermediate/nsga-ii.md) | Tutorial | Foundations → Intermediate → I1. NSGA-II at a Glance | Add |
+| [foundations/intermediate/non-dominated-sorting.md](../foundations/intermediate/non-dominated-sorting.md) | Tutorial | Foundations → Intermediate → I2. Non-dominated Sorting | Add |
+| [foundations/intermediate/crowding-distance.md](../foundations/intermediate/crowding-distance.md) | Tutorial | Foundations → Intermediate → I3. Crowding and Tournaments | Add |
+| [foundations/intermediate/variation-operators.md](../foundations/intermediate/variation-operators.md) | Tutorial | Foundations → Intermediate → I4. SBX and Polynomial Mutation | Add |
+| [foundations/intermediate/elitist-survival.md](../foundations/intermediate/elitist-survival.md) | Tutorial | Foundations → Intermediate → I5. Elitist Survival | Add |
+| [foundations/intermediate/beyond-nsga-ii.md](../foundations/intermediate/beyond-nsga-ii.md) | Tutorial | Foundations → Intermediate → I6. Beyond NSGA-II | Add |
+| [foundations/advanced/many-objective.md](../foundations/advanced/many-objective.md) | Tutorial | Foundations → Advanced → A1. Many Objectives | Add |
+| [foundations/advanced/constrained.md](../foundations/advanced/constrained.md) | Tutorial | Foundations → Advanced → A5. Constraints | Add |
+| [foundations/advanced/performance-assessment.md](../foundations/advanced/performance-assessment.md) | Tutorial | Foundations → Advanced → A10. Rigorous Comparison | Add |
+| [foundations/intermediate/spea2.md](../foundations/intermediate/spea2.md) | Tutorial | Foundations → Intermediate → I7. SPEA2 | Add |
+| [foundations/intermediate/moead.md](../foundations/intermediate/moead.md) | Tutorial | Foundations → Intermediate → I8. MOEA/D | Add |
+| [foundations/intermediate/smsemoa.md](../foundations/intermediate/smsemoa.md) | Tutorial | Foundations → Intermediate → I9. SMS-EMOA | Add |
+| [foundations/intermediate/ibea.md](../foundations/intermediate/ibea.md) | Tutorial | Foundations → Intermediate → I10. IBEA | Add |
+| [foundations/intermediate/smpso.md](../foundations/intermediate/smpso.md) | Tutorial | Foundations → Intermediate → I11. SMPSO | Add |
+| [foundations/advanced/nsga-iii.md](../foundations/advanced/nsga-iii.md) | Tutorial | Foundations → Advanced → A2. NSGA-III | Add |
+| [foundations/advanced/rvea.md](../foundations/advanced/rvea.md) | Tutorial | Foundations → Advanced → A3. RVEA | Add |
+| [foundations/advanced/agemoea.md](../foundations/advanced/agemoea.md) | Tutorial | Foundations → Advanced → A4. AGE-MOEA | Add |
+| [foundations/advanced/ccmo.md](../foundations/advanced/ccmo.md) | Tutorial | Foundations → Advanced → A6. CCMO | Add |
+| [foundations/advanced/ctaea.md](../foundations/advanced/ctaea.md) | Tutorial | Foundations → Advanced → A7. C-TAEA | Add |
+| [foundations/advanced/top.md](../foundations/advanced/top.md) | Tutorial | Foundations → Advanced → A8. ToP | Add |
+| [foundations/advanced/cmoeams.md](../foundations/advanced/cmoeams.md) | Tutorial | Foundations → Advanced → A9. CMOEA-MS | Add |
 | [experiment/stopping_and_archive.md](../experiment/stopping_and_archive.md) | Reference | Reference → Stopping & Archive | Keep |
 | [guide/cli.md](../guide/cli.md) | How-to | How-to Guides → CLI & Config | Regroup |
 | [guide/cookbook.md](../guide/cookbook.md) | How-to | How-to Guides → Cookbook | Regroup |

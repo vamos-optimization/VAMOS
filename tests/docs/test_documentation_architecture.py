@@ -33,6 +33,7 @@ def test_public_navigation_is_task_first() -> None:
         "How-to Guides",
         "Reference",
         "Developer",
+        "Foundations",
     ]
 
     nav_text = yaml.safe_dump(nav, sort_keys=False)
