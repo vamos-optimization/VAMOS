@@ -10,7 +10,6 @@ This module handles algorithm setup including:
 
 from __future__ import annotations
 
-import os
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -22,14 +21,14 @@ from vamos.engine.algorithm.components.metrics import setup_hv_tracker
 from vamos.engine.algorithm.components.population import initialize_evaluated_population
 from vamos.engine.algorithm.components.termination import parse_termination, validate_initial_budget
 from vamos.engine.algorithm.components.utils import resolve_bounds_array
-from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors
+from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors, vector_source
 from vamos.engine.algorithm.config.base import normalize_constraint_mode
+from vamos.engine.algorithm.config.nsgaiii import nsgaiii_selection
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
 from vamos.engine.operators.policies.nsgaiii import build_variation_operators
-from vamos.engine.reference_directions import lattice_size
+from vamos.engine.reference_directions import lattice_size, two_layer_size
 from vamos.foundation.encoding import EncodingLike, normalize_encoding
 
-from .helpers import nsgaiii_selection_metrics
 from .state import NSGAIIIState
 
 if TYPE_CHECKING:
@@ -108,51 +107,45 @@ def initialize_nsgaiii_run(
         variation_kernels=kernel.variation_kernels(),
     )
 
-    # Tournament size
-    sel_method, sel_params = config["selection"]
-    if sel_method == "tournament":
-        unexpected = sorted(set(sel_params) - {"size"})
-        if unexpected:
-            raise ValueError(f"Unsupported tournament selection options: {', '.join(unexpected)}")
-        pressure = int(sel_params.get("size", 2))
-    else:
-        pressure = 2
+    # Development after 1.4.0: "random" or "tournament" (and its size); any other selection raises.
+    selection_method, pressure = nsgaiii_selection(config["selection"])
 
     # Reference directions: a file, the complete lattice for the configured divisions, or, without
     # either, the complete Das-Dennis lattice with the most directions that fit in pop_size. The
     # population needs at least one individual per direction (N >= H, as Deb and Jain, jMetal and pymoo).
-    dir_cfg = config.get("reference_directions", {}) or {}
+    dir_cfg = vector_source(config.get("reference_directions"), field="reference_directions") or {}
     ref_path = dir_cfg.get("path")
     ref_divisions = dir_cfg.get("divisions")
-    if ref_path and os.path.exists(ref_path):
-        ref_dirs = np.loadtxt(ref_path, delimiter=",")
-        ref_dirs = np.atleast_2d(ref_dirs).astype(float, copy=False)
-        if ref_dirs.ndim != 2 or ref_dirs.shape[1] != n_obj:
-            raise ValueError("Reference directions file has invalid shape.")
-        if np.any(ref_dirs < 0.0):
-            raise ValueError("Reference directions must be non-negative.")
-        row_sums = ref_dirs.sum(axis=1)
-        if np.any(np.abs(row_sums - 1.0) > 1e-6):
-            raise ValueError("Each reference direction must sum to 1.")
+    ref_inner = dir_cfg.get("inner_divisions")
+    if ref_path:
+        # Development after 1.4.0: the file, or W{n_obj}D_{pop_size}.dat in a directory, is read as MOEA/D
+        # reads its weights, with whitespace or commas between the components, and a path that does not
+        # exist raises instead of generating a lattice there.
+        ref_dirs = load_or_generate_weight_vectors(pop_size, n_obj, path=str(ref_path), sha256=_digest(dir_cfg.get("sha256")))
         source = f"NSGA-III reference directions in '{ref_path}' ({ref_dirs.shape[0]})"
     elif ref_divisions is not None:
-        source = f"NSGA-III reference directions for divisions={ref_divisions}"
+        lattice = f"divisions={ref_divisions}" if ref_inner is None else f"divisions={ref_divisions} and inner_divisions={ref_inner}"
+        source = f"NSGA-III reference directions for {lattice}"
         if n_obj >= 2:
             # Reject from the binomial count: an oversized lattice can need gigabytes.
-            n_directions = lattice_size(n_obj, int(ref_divisions))
+            n_directions = (
+                lattice_size(n_obj, int(ref_divisions)) if ref_inner is None else two_layer_size(n_obj, int(ref_divisions), int(ref_inner))
+            )
             if n_directions > pop_size:
                 raise ValueError(
                     f"{source} ({n_directions}) need pop_size >= {n_directions} (pop_size={pop_size}). "
                     "Increase pop_size or choose fewer reference directions."
                 )
-        ref_dirs = load_or_generate_weight_vectors(pop_size, n_obj, path=ref_path, divisions=ref_divisions)
+        ref_dirs = load_or_generate_weight_vectors(
+            pop_size, n_obj, divisions=int(ref_divisions), inner_divisions=None if ref_inner is None else int(ref_inner)
+        )
         source = f"{source} ({ref_dirs.shape[0]})"
     else:
         if n_obj >= 2 and pop_size < n_obj:
             raise ValueError(
                 f"NSGA-III needs pop_size >= n_obj={n_obj} for its smallest reference-direction lattice (pop_size={pop_size})."
             )
-        ref_dirs = load_or_generate_weight_vectors(pop_size, n_obj, path=ref_path, divisions=None)
+        ref_dirs = load_or_generate_weight_vectors(pop_size, n_obj, divisions=None)
         source = f"NSGA-III reference directions ({ref_dirs.shape[0]})"
     if ref_dirs.shape[0] > pop_size:
         raise ValueError(
@@ -186,7 +179,6 @@ def initialize_nsgaiii_run(
     # Setup external archive
     ext_cfg = resolve_external_archive(config, seed=seed)
     archive_X, archive_F, archive_manager = setup_archive(kernel, X, F, n_var, n_obj, X.dtype, ext_cfg, G)
-    selection_ranks, selection_crowding = nsgaiii_selection_metrics(kernel, F, G, constraint_mode, constraint_handling, rng)
 
     # Create state
     state = NSGAIIIState(
@@ -203,14 +195,13 @@ def initialize_nsgaiii_run(
         # NSGA-III specific
         ref_dirs=ref_dirs,
         ref_dirs_norm=ref_dirs_norm,
+        selection_method=selection_method,
         pressure=pressure,
         crossover_fn=crossover_fn,
         mutation_fn=mutation_fn,
         ideal_point=np.full(n_obj, np.inf),
         worst_point=np.full(n_obj, -np.inf),
         extreme_points=None,
-        selection_ranks=np.asarray(selection_ranks, dtype=int),
-        selection_crowding=np.asarray(selection_crowding, dtype=float),
         # Archive
         archive_size=ext_cfg.capacity if ext_cfg else None,
         archive_X=archive_X,
@@ -227,6 +218,11 @@ def initialize_nsgaiii_run(
     )
 
     return state, live_cb, eval_strategy, max_eval, hv_tracker
+
+
+def _digest(value: object) -> str | None:
+    """The recorded ``sha256`` of the vectors of a file, ``None`` without one."""
+    return value if isinstance(value, str) else None
 
 
 def initialize_population(

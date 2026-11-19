@@ -182,15 +182,50 @@ on ZDT1, from 0.7426 to 0.7443 on DTLZ2 and from 0.1880 to 0.1892 on DTLZ1,
 within seed variation of jMetal 7.9's AGE-MOEA (0.8545, 0.7446 and 0.1890).
 AGE-MOEA results from VAMOS 1.1.0 and earlier differ with the same seed.
 
+### AGE-MOEA-II
+
+**Development after 1.4.0:** `AGEMOEAConfig.builder().variant("agemoea_ii")` runs
+AGE-MOEA-II (Panichella, GECCO 2022). Its survival differs from AGE-MOEA's in two
+steps of the first-front score, which are those that jMetal's
+`AGEMOEA2EnvironmentalSelection`, written by the author, overrides:
+
+- the exponent `p` of the front is the one whose Minkowski norm of the
+  non-extreme point nearest to the ideal point is 1, found by Newton-Raphson
+  from `p = 1` (precision 0.001, at most 100 steps), instead of a closed form
+  from the point nearest to the diagonal;
+- the diversity uses geodesic distances on the estimated `L_p` manifold: both
+  points and their midpoint are projected on it, and the distance is the
+  length of the path through the projected midpoint.
+
+Everything else, the extreme points, the normalization, the scores of later
+fronts and the mating tournament, is AGE-MOEA's above, with that `p`. The
+exponents and distances agree with jMetal's on every case of
+`tests/engine/data/agemoea2_jmetal_values.json`, and so do the survival scores
+on the fronts where AGE-MOEA's shared steps agree with jMetal's. They do not
+agree where AGE-MOEA's extreme points or its tie-breaking (on exactly linear
+fronts) depart from jMetal, as described above for AGE-MOEA. As in AGE-MOEA,
+`p` is capped at 20, which pymoo's AGE-MOEA-II also does and jMetal does not; a
+point at the ideal point is not projected. pymoo takes the straight Euclidean
+distance when `0.95 < p < 1.05`; VAMOS, like jMetal, always goes through the
+midpoint, and both coincide when `p = 1`.
+
+The tuning spaces of AGE-MOEA choose it with `replacement: agemoea_ii`, the
+name of Evolver's parameter (`agemoeaII` in Evolver).
+
 ### Where the variants depart from their references
 
 These are declared VAMOS choices, not defects; report them when comparing with
 published results or with another framework.
 
-- **NSGA-III parents** are chosen by binary tournament on non-dominated rank
-  and crowding distance (feasibility first under constraints), as in NSGA-II
-  and in jMetal's NSGA-III example. Deb and Jain (2014) choose parents at
-  random. See [NSGA-III](../algorithms/nsgaiii.md#variants-and-their-effect).
+- **NSGA-III parents:** **Development after 1.4.0:** no longer a departure.
+  They are drawn at random by default, as Deb and Jain (2014) and pymoo do
+  (under constraints, by a binary tournament on the violation, as Jain and
+  Deb's constrained NSGA-III), and `selection("tournament")` is jMetal's
+  NSGA-III tournament on rank. VAMOS 1.4.0 and earlier always chose them by a
+  binary tournament on non-dominated rank and crowding distance, as NSGA-II,
+  whatever the configured selection, so NSGA-III results of those versions
+  are not results of the published algorithm. See
+  [NSGA-III](../algorithms/nsgaiii.md#variants-and-their-effect).
 - **NSGA-III nadir estimate:** when an intercept of the extreme-point
   hyperplane lies beyond the worst point found so far, VAMOS uses the worst
   point of the first front for every objective, as pymoo up to 0.4 did; pymoo
@@ -203,6 +238,16 @@ published results or with another framework.
   **VAMOS 1.3.0:** `MOEADConfig.default(variant="de")` gives MOEA/D-DE and
   `variant="sbx"` jMetal's MOEA/D with SBX and PBI; VAMOS 2.0 will make
   `"de"` the default. See [MOEA/D](../algorithms/moead.md#what-the-configuration-means).
+- **RVEA's survival** follows pymoo: with two objectives the angle penalty
+  uses M = 1, half of the published `M (t / t_max)^alpha theta / gamma`, the
+  objectives are translated by the ideal point accumulated across
+  generations, and the vectors adapt to the nadir point minus that ideal.
+  **Development after 1.4.0:** `RVEAConfig.builder().variant("platemo")`
+  runs the authors' code in PlatEMO (`RVEA/EnvironmentalSelection.m`), as
+  jMetal does: M is the number of objectives, two included, the objectives
+  are translated by the minimum of each generation's candidates, and the
+  vectors adapt to the population's range. The default stays `"pymoo"`. See
+  [RVEA](../algorithms/rvea.md#interpret-the-result-and-its-limits).
 
 **VAMOS 1.3.0:** three real-coded mutations scale their steps by
 the range of each variable.
@@ -269,6 +314,8 @@ config = (
 
 `final_selection` is `"none"` (the default: the whole archive, as before), `"farthest"`, `"crowding"`, `"hv_greedy"` or `"kmeans"`, the selections of `top_k(method=...)`; `kmeans` is seeded with the archive's `rng_seed`, which without a value derives from the run seed (see [Reproducibility](../experiment/stopping_and_archive.md#reproducibility)). `final_size` defaults to the population size. `result.X` and `result.F` hold the subset, the archive stays whole in `result.data["archive"]` (`archive_X`/`archive_F` for NSGA-III and IBEA, `external_archive` for SPEA2), and `result.data["archive_subset"]` records the selection, the size and the indices of the selected rows in the archive. A saved run stores the subset as its result and the whole archive under `archive/` (SPEA2: `external_archive/`, since its `archive/` is the environmental archive), and its resolved specification records `final_selection` and `final_size`, so a replay selects the same subset. The subset also applies to a bounded archive larger than `final_size`, not with `result_mode="population"`, and not to hypervolume termination or live callbacks, which see the whole archive during the run.
 
+**Development after 1.4.0:** an unbounded external archive no longer filters itself once per generation. Once it holds feasible, finite rows, it keeps the rows each generation offers and merges them, with moocore's non-dominated filter when moocore is installed, only when something reads the archive (the result, a live callback in `population_archive` mode, hypervolume termination, SMPSO's leaders) or when the kept rows outnumber twice the archive. One merge gives the same rows, in the same order, as one update per generation, so results do not change; a run that reads its archive only at the end filters it once. Over the 200 000 evaluations of an NSGA-II run, the archive took 0.1 s instead of 5.0 s on CRE21 (7 000 rows), 0.16 s instead of 11.5 s on RCM08 and 0.28 s instead of 85 s on RCM25 (112 000 rows). Before the first feasible row, and after rows with non-finite feasible objectives, the archive is updated at once, as before.
+
 NSGA-III and RVEA require a population compatible with the configured reference directions. MOEA/D requires one weight vector per population member. For a simplex lattice with `p` divisions and `m` objectives, use `comb(p + m - 1, m - 1)`; for three objectives and 12 divisions, that is **91**. Explicit incompatible cardinalities fail; they are not warning-only cases. Follow the tutorials before changing objective count or population size.
 
 **VAMOS 1.2.0:** NSGA-III needs at least one individual per reference direction (N >= H) instead of exactly one, as Deb and Jain, jMetal and pymoo do; 100 individuals with 12 divisions and three objectives run with 91 directions, and fewer than 91 fail. Without `divisions`, NSGA-III uses the complete Das-Dennis lattice with the most directions that fit in `pop_size`; VAMOS 1.1.0 and earlier cut the next larger lattice to `pop_size` directions and lost the extreme direction of the first objective. With two objectives, NSGA-III and RVEA default to `pop_size - 1` divisions, or 99 without `pop_size`, instead of 6. RVEA and MOEA/D still need exactly one individual per vector; RVEA then keeps one survivor per occupied vector, so its population can end smaller than `pop_size` (see [RVEA](../algorithms/rvea.md)).
@@ -276,6 +323,20 @@ NSGA-III and RVEA require a population compatible with the configured reference 
 **VAMOS 1.2.0:** `optimize` and study planning check each built-in algorithm's smallest population and number of objectives before the run and raise `ConfigurationError` (or, when planning, `UnresolvedStudyTaskError` with `INVALID_POPULATION_SIZE` or `UNSUPPORTED_OBJECTIVE_COUNT`) that names the minimum. NSGA-II, IBEA, AGE-MOEA, MOEA/D, NSGA-III and RVEA need `pop_size >= 2` (for NSGA-II and IBEA the selection decides: a tournament needs as many individuals as its size, 2 by default, and random, Boltzmann, ranking and SUS selection one); SMS-EMOA, AGE-MOEA, NSGA-III and RVEA need at least two objectives. The table is `vamos.engine.algorithm.catalog.ALGORITHM_MINIMUMS`. VAMOS 1.1.0 failed later with an error from the parent tournament or from moocore, and AGE-MOEA ran a single-objective problem.
 
 **VAMOS 1.2.0:** with `pop_size`, `NSGAIIIConfig.default()` uses the complete lattice with the most directions that fit in it, for any number of objectives (four divisions, 70 directions, for 100 individuals and five objectives, which used to fail with six divisions and 210 directions); `RVEAConfig.default()` uses the lattice of exactly `pop_size` vectors and otherwise fails at once naming the nearest valid sizes, such as 91 or 105 for three objectives. Without `pop_size`, both still use 12 divisions for three objectives and 6 for four or more.
+
+### Reference and weight vectors
+
+**Development after 1.4.0:** MOEA/D, NSGA-III and RVEA take their vectors from the same kind of option, as jMetal and Evolver configure them from the same weight files, so that the three algorithms can start from the same vectors: MOEA/D's `weight_vectors`, NSGA-III's `reference_directions` and RVEA's new `reference_vectors`, a mapping (or builder method) with these keys:
+
+| Key | Vectors |
+| --- | --- |
+| `path` | A file with one vector per line, its components separated by whitespace or commas, or a directory with jMetal's `W{n_obj}D_{pop_size}.dat` files, such as the jMetal files VAMOS ships in `vamos/resources/weights`. A path that does not exist raises `ConfigurationError` before any evaluation; so does a directory without the file, for NSGA-III and RVEA. |
+| `divisions` | The complete Das-Dennis lattice of that many divisions, `comb(H + m - 1, m - 1)` vectors with `m` objectives. RVEA's `n_partitions` is the same lattice. |
+| `divisions` and `inner_divisions` | Deb and Jain's two-layer lattice: the boundary lattice of `divisions` and the lattice of `inner_divisions` shrunk by half towards the centre of the simplex (`w / 2 + 1 / (2 m)`, as pymoo's multi-layer directions and PlatEMO's `UniformPoint`), boundary rows first. With eight objectives, `divisions=3` and `inner_divisions=2` give 120 + 36 = 156 vectors. A single lattice of few divisions has every vector on the boundary of the simplex when the objectives are many. |
+
+`inner_divisions` needs `divisions` and excludes `path`, and an unknown key raises `ConfigurationError`. A plain string is a `path`. The inside layer must add directions: layers that share one (two objectives with `divisions=4` and `inner_divisions=2`, whose three inside directions are on the boundary lattice) raise `ConfigurationError`, as a repeated vector is a niche that never gets its own individual; Deb and Jain's usual settings never do: when `inner_divisions` is smaller than the number of objectives `m`, every inside direction has a coordinate `1 / (2 m)`, which a boundary layer of fewer than `2 m` divisions does not have. The file or lattice is the population: MOEA/D and RVEA need exactly one individual per vector, NSGA-III at least one. MOEA/D keeps its other rules: with one or two objectives its weights are uniform unless `inner_divisions` is given, a directory without the file gets the lattice of exactly `pop_size` vectors and saves it there with a `RuntimeWarning` (jMetalPy's behaviour), and without options it runs the populations that [`moead_populations`](api/algorithms/moead.md#populations-with-weight-vectors) lists. Files may depart from the simplex by jMetal's rounding (`1e-5`) and are not renormalized.
+
+The resolved spec of a run records where the vectors come from: MOEA/D always, in `algorithm.resolution.weight_vectors`, now also `{"source": "two_layer", "divisions": 3, "inner_divisions": 2, "vectors": 156}`; NSGA-III and RVEA when the configuration names a path, in `algorithm.resolution.reference_directions` (`{"source": "file", "file": "W3D_100.dat"}`) and `algorithm.resolution.reference_vectors` (with `"vectors"`, the population). Their lattices are already stated by the configuration, so a run without a path keeps the resolved spec, and the task id, of VAMOS 1.4.0, and runs and studies stored by 1.4.0 still verify and resume exactly. When a run starts, a `path` is bound to what the run reads: a directory becomes its `W{n_obj}D_{pop_size}.dat`, and `sha256` records the digest of the file's vectors (`sha256:` and the SHA-256 of their shape and float64 values, so a file rewritten with other separators keeps it). The resolved configuration holds both, the records come from it alone, so verification needs neither the file nor the machine it was on, and replay refuses, before any evaluation, a file whose vectors have changed instead of running another experiment. This binds MOEA/D's and NSGA-III's files too, which VAMOS 1.4.0 replayed with whatever the file held; a MOEA/D directory without the file, whose run generates the lattice, is not bound. A `sha256` given in a configuration pins the file in the same way.
 
 ### The command line and `optimize`
 
@@ -472,7 +533,7 @@ never compiles problem evaluation.
 | Algorithm | Compiled with `engine="numba"` | Stays in NumPy/Python |
 | --- | --- | --- |
 | NSGA-II | Non-dominated ranking and crowding, survival, tournament selection, SBX, polynomial mutation; the whole one-offspring steady-state step in its supported configuration (below) | Feasibility ordering, archives, steady-state front maintenance outside that configuration |
-| NSGA-III | Ranking and crowding, tournament selection, SBX, polynomial mutation | Normalization, association to reference directions, niching (it shuffles with the run generator inside the loop) |
+| NSGA-III | Ranking and crowding, tournament selection (**Development after 1.4.0:** where configured, and the violation tournament of random parents under constraints), SBX, polynomial mutation | Random parent draws, normalization, association to reference directions, niching (it shuffles with the run generator inside the loop) |
 | MOEA/D | Differential-evolution children, SBX, polynomial mutation, neighbourhood replacement; the whole one-offspring step (see below) | Weight geometry; parent sampling and repair outside the compiled one-offspring step |
 | SMS-EMOA | The steady-state step (VAMOS 1.2.0, see below): child variation and clipping, front insertion, two-objective hypervolume contributions, crowding, feasibility-first removal; tournament selection where configured | Parent sampling draws, hypervolume contributions for three or more objectives (MooCore when installed), archives |
 | SPEA2 | SBX, polynomial mutation, lexicographic archive truncation | Strength/raw fitness and density (vectorized NumPy) |

@@ -15,6 +15,9 @@ def test_analysis_docs_match_public_contract() -> None:
     assert "`p_adjusted`, Holm's step-down adjustment" in text
     assert "MCDMResult" in text
     assert "knee_point_scores(F)" in text
+    # Development after 1.4.0: the exact and the approximate hypervolume.
+    assert "`HVApproxIndicator`" in text and "`HV_APPROX_METHODS`" in text
+    assert "`details` records `reference_point`, `samples`, `seed` and the `method` used" in text
 
     assert "topsis_scores" not in text
     assert "num_datasets=" not in text

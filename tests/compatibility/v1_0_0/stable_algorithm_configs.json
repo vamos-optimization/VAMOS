@@ -413,7 +413,7 @@
       "repair": "auto",
       "result_mode": "population",
       "selection": [
-        "tournament",
+        "random",
         {}
       ],
       "track_genealogy": false

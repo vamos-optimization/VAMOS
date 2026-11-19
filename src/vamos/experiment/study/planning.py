@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from itertools import product
-from math import comb
-from typing import Any
+from typing import Any, cast
 
 from vamos.engine.algorithm.catalog import ENABLED_ALGORITHMS, WEIGHT_VECTOR_POPULATIONS, initial_evaluations, minimum_violation
+from vamos.engine.algorithm.components.weight_vectors import bind_vector_file
 from vamos.engine.algorithm.config.base import ReferenceDirectionPopulationError
 from vamos.experiment.artifacts.models import deep_freeze, deep_thaw
 from vamos.experiment.artifacts.resolved_reconstruction import is_reconstructable_evaluation_backend
@@ -21,6 +22,7 @@ from vamos.foundation.encoding import normalize_encoding
 from .errors import DuplicateStudyTaskError, InvalidStudySpecError, StudyError, UnresolvedStudyTaskError
 from .identity import compute_plan_id, compute_task_digest, compute_task_id
 from .models import SCHEMA_VERSION, PlanTask, ResolvedStudyPlan, StudySpec
+from .reference_planning import validate_nsgaiii_reference_directions, validate_rvea_reference_directions
 from .serialization import document_self_hash
 
 
@@ -190,15 +192,22 @@ def _resolved_algorithm_config(
     override_pop_size = overrides.get("pop_size")
     if isinstance(override_pop_size, int) and not isinstance(override_pop_size, bool):
         config_pop_size = override_pop_size
+    # Development after 1.4.0: RVEA's reference_vectors set its vectors, so its default does not derive a
+    # lattice from the population, which then need not be a lattice; the planning checks below compare them.
+    own_vectors = algorithm.lower() == "rvea" and overrides.get("reference_vectors") is not None
     built = _build_algorithm_config(
         algorithm,
-        pop_size=config_pop_size,
+        pop_size=None if own_vectors else config_pop_size,
         n_var=n_var,
         n_obj=n_obj,
         encoding=encoding,
     )
     config = dict(built.to_dict())
-    unknown = sorted(set(overrides) - set(config))
+    if own_vectors and config_pop_size is not None:
+        config["pop_size"] = config_pop_size
+    # A field that to_dict() leaves out at its default is still a field.
+    known = set(config) | _config_fields(built)
+    unknown = sorted(set(overrides) - known)
     if unknown:
         raise UnresolvedStudyTaskError(
             operation="resolve study plan",
@@ -209,7 +218,19 @@ def _resolved_algorithm_config(
             action="Remove unknown algorithm configuration fields; no study directory was published.",
         )
     config.update(overrides)
+    pop_size = config.get("pop_size")
+    if algorithm.lower() == "moead" and n_obj > 2 and isinstance(pop_size, int):
+        # Development after 1.4.0: a weight file that exists is bound to its digest, which the run checks.
+        config["weight_vectors"] = bind_vector_file(config.get("weight_vectors"), n_obj, pop_size)
     return config
+
+
+def _config_fields(config: object) -> set[str]:
+    """The fields of a configuration dataclass, or none for another configuration."""
+    try:
+        return {field.name for field in dataclasses.fields(cast(Any, config))}
+    except TypeError:
+        return set()
 
 
 def _algorithm_overrides(spec: StudySpec, requested: str, resolved: str) -> dict[str, Any]:
@@ -269,9 +290,9 @@ def _validate_execution_shape(
             action="Increase max_evaluations or reduce the population; no study directory was published.",
         )
     if algorithm.lower() == "nsgaiii":
-        _validate_nsgaiii_reference_directions(config, population=population, n_obj=n_obj, candidate=candidate)
+        validate_nsgaiii_reference_directions(config, population=population, n_obj=n_obj, index=candidate.index)
     if algorithm.lower() == "rvea":
-        _validate_rvea_reference_directions(config, population=population, n_obj=n_obj, candidate=candidate)
+        validate_rvea_reference_directions(config, population=population, n_obj=n_obj, index=candidate.index)
     return population
 
 
@@ -292,72 +313,6 @@ def _reject_below_minimum(
         if objective
         else f"{violation.message} Increase the population; no study directory was published.",
     )
-
-
-def _validate_nsgaiii_reference_directions(config: Mapping[str, Any], *, population: int, n_obj: int, candidate: _Candidate) -> None:
-    raw = config.get("reference_directions")
-    if not isinstance(raw, Mapping):
-        raise UnresolvedStudyTaskError(
-            operation="resolve study plan",
-            reason="INVALID_REFERENCE_DIRECTIONS",
-            field=f"$.matrix[{candidate.index}].algorithm_config.reference_directions",
-            expected="object with path=null and positive integer divisions",
-            actual=type(raw).__name__,
-            action="Use generated built-in reference directions; planning never reads an external source path.",
-        )
-    path = raw.get("path")
-    divisions = raw.get("divisions")
-    if path is not None:
-        raise UnresolvedStudyTaskError(
-            operation="resolve study plan",
-            reason="UNSAFE_REFERENCE_DIRECTIONS",
-            field=f"$.matrix[{candidate.index}].algorithm_config.reference_directions.path",
-            expected="null (built-in generated reference directions)",
-            actual="external path",
-            action="Remove the reference-direction path; planning never follows external scientific inputs.",
-        )
-    if isinstance(divisions, bool) or not isinstance(divisions, int) or divisions < 1:
-        raise UnresolvedStudyTaskError(
-            operation="resolve study plan",
-            reason="INVALID_REFERENCE_DIRECTIONS",
-            field=f"$.matrix[{candidate.index}].algorithm_config.reference_directions.divisions",
-            expected="positive integer",
-            actual=divisions,
-            action="Choose a positive reference-direction division count.",
-        )
-    expected = comb(divisions + n_obj - 1, n_obj - 1)
-    if population < expected:
-        raise UnresolvedStudyTaskError(
-            operation="resolve study plan",
-            reason="REFERENCE_DIRECTION_POPULATION_MISMATCH",
-            field=f"$.matrix[{candidate.index}].pop_size",
-            expected=f">= {expected} for n_obj={n_obj} and divisions={divisions}",
-            actual=population,
-            action="Use at least the reference-direction count as pop_size or choose fewer divisions.",
-        )
-
-
-def _validate_rvea_reference_directions(config: Mapping[str, Any], *, population: int, n_obj: int, candidate: _Candidate) -> None:
-    partitions = config.get("n_partitions")
-    if isinstance(partitions, bool) or not isinstance(partitions, int) or partitions < 1:
-        raise UnresolvedStudyTaskError(
-            operation="resolve study plan",
-            reason="INVALID_REFERENCE_DIRECTIONS",
-            field=f"$.matrix[{candidate.index}].algorithm_config.n_partitions",
-            expected="positive integer",
-            actual=partitions,
-            action="Choose a positive RVEA reference-vector partition count.",
-        )
-    expected = comb(partitions + n_obj - 1, n_obj - 1)
-    if population != expected:
-        raise UnresolvedStudyTaskError(
-            operation="resolve study plan",
-            reason="REFERENCE_DIRECTION_POPULATION_MISMATCH",
-            field=f"$.matrix[{candidate.index}].pop_size",
-            expected=f"{expected} for n_obj={n_obj} and n_partitions={partitions}",
-            actual=population,
-            action="Use the reference-vector count as pop_size or choose compatible n_partitions.",
-        )
 
 
 def _validate_resolved_components(resolved: Mapping[str, Any], *, candidate: _Candidate) -> None:

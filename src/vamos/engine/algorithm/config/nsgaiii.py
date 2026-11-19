@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Self
 
+from vamos.engine.algorithm.components.weight_vectors import vector_source
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.engine.reference_directions import lattice_size
 from vamos.foundation.encoding import EncodingLike
+from vamos.foundation.exceptions import ConfigurationError
 
 from .base import (
     ConstraintModeStr,
@@ -36,6 +38,43 @@ from .types import RepairConfigValue
 
 _REFERENCE_LATTICE_RULE = "since VAMOS 1.2.0, NSGA-III uses the largest reference-direction lattice that fits in pop_size and runs N >= H"
 
+# Development after 1.4.0: NSGA-III's parent selections. "random" is Deb and Jain's (2014), the
+# default; "tournament" is jMetal's NSGA-III tournament on rank, with ties decided at random.
+NSGAIII_SELECTIONS = ("random", "tournament")
+
+
+def nsgaiii_selection(selection: object) -> tuple[str, int]:
+    """The method of NSGA-III's parent selection and its tournament size (2 for ``"random"``).
+
+    Development after 1.4.0: NSGA-III runs ``"random"`` and ``"tournament"`` (with an optional
+    ``size``), and rejects any other method or option instead of running a tournament.
+
+    Raises
+    ------
+    ConfigurationError
+        For a method other than ``"random"`` and ``"tournament"``, an option of ``"random"``, or an
+        option of ``"tournament"`` other than ``size``.
+    """
+    if not (isinstance(selection, (tuple, list)) and len(selection) == 2 and isinstance(selection[0], str)):
+        raise ConfigurationError(f"NSGA-III selection must be a (method, options) pair; got {selection!r}.")
+    method, options = str(selection[0]).strip().lower(), selection[1]
+    if not isinstance(options, dict):
+        raise ConfigurationError(f"NSGA-III selection options must be a mapping; got {options!r}.")
+    if method not in NSGAIII_SELECTIONS:
+        raise ConfigurationError(
+            f"NSGA-III does not support selection {selection[0]!r}: its parent selection is 'random' "
+            "(Deb and Jain, 2014; the default) or 'tournament' (on rank, as jMetal's NSGA-III)."
+        )
+    allowed = {"size"} if method == "tournament" else set()
+    unexpected = sorted(set(options) - allowed)
+    if unexpected:
+        detail = "only 'size'" if allowed else "no options"
+        raise ConfigurationError(f"NSGA-III's {method} selection takes {detail}; got {', '.join(map(repr, unexpected))}.")
+    size = options.get("size", 2)
+    if isinstance(size, bool) or not isinstance(size, int) or size < 1:
+        raise ConfigurationError(f"NSGA-III's tournament size must be a positive integer; got {size!r}.")
+    return method, size
+
 
 @dataclass(frozen=True)
 class NSGAIIIConfig(_SerializableConfig):
@@ -59,6 +98,8 @@ class NSGAIIIConfig(_SerializableConfig):
 
     def __post_init__(self) -> None:
         super().__post_init__()
+        object.__setattr__(self, "reference_directions", vector_source(self.reference_directions, field="reference_directions"))
+        nsgaiii_selection(self.selection)
         # ``enforce_ref_dirs`` is true in every default, so ``False`` warns wherever it comes from.
         # ``pop_size_auto`` is true in ``default()`` and false otherwise: only the builder method can
         # tell that a user set it.
@@ -75,6 +116,9 @@ class NSGAIIIConfig(_SerializableConfig):
     ) -> NSGAIIIConfig:
         """
         Create a default NSGA-III configuration.
+
+        Development after 1.4.0: parents are selected at random, as Deb and Jain (2014); the
+        default used to be a binary tournament on rank and crowding distance.
 
         Parameters
         ----------
@@ -106,7 +150,7 @@ class NSGAIIIConfig(_SerializableConfig):
             .pop_size(pop_size)
             .crossover(crossover[0], **crossover[1])
             .mutation(mutation[0], **mutation[1])
-            .selection("tournament")
+            .selection("random")
             .reference_directions(divisions=divisions)
         )
         # The stable default keeps ``pop_size_auto=True`` without the warning of the builder method.
@@ -140,13 +184,48 @@ class _NSGAIIIConfigBuilder(
         cfg = NSGAIIIConfig.builder().pop_size(92).crossover("sbx", prob=1.0).build()
     """
 
+    def selection(self, method: str, **kwargs: Any) -> Self:
+        """Parent selection: ``"random"`` or ``"tournament"`` (with an optional ``size``, 2 by default).
+
+        ``"random"`` draws the parents at random, as Deb and Jain (2014). With constraint values and
+        feasibility first (``constraint_mode="feasibility"`` without ``constraint_handling``), each
+        parent wins a binary tournament on the constraint violation that is decided at random between
+        two feasible solutions, as the constrained NSGA-III of Jain and Deb (2014) and pymoo's NSGA-III.
+
+        ``"tournament"`` takes ``size`` solutions at random and keeps the one of the lowest
+        non-dominated rank (feasible solutions first, then by violation, or the fronts of
+        ``constraint_handling``), with ties decided at random: jMetal's NSGA-III tournament. It does not
+        use crowding distance.
+
+        Development after 1.4.0: other methods and options raise ``ConfigurationError``; before,
+        every method ran a binary tournament on rank and crowding distance.
+        """
+        nsgaiii_selection((method, kwargs))
+        return super().selection(method, **kwargs)
+
     def reference_directions(
         self,
         *,
         path: str | None = None,
         divisions: int | None = None,
+        inner_divisions: int | None = None,
     ) -> _NSGAIIIConfigBuilder:
-        self._cfg["reference_directions"] = {"path": path, "divisions": divisions}
+        """The reference directions: a file or directory, or the complete Das-Dennis lattice of ``divisions``.
+
+        ``path`` names a file with one direction per line, its components separated by whitespace or
+        by commas, such as jMetal's weight files (``W3D_100.dat``, which VAMOS ships). Without either,
+        NSGA-III runs the complete lattice with the most directions that fit in ``pop_size``. The
+        population needs at least one individual per direction.
+
+        **Development after 1.4.0:** the file may use whitespace as well as commas, and a ``path``
+        that is not a file raises :class:`~vamos.exceptions.ConfigurationError` when the run starts;
+        VAMOS 1.4.0 read commas only, and generated the lattice and saved it at a missing path.
+        ``path`` may also name a directory with jMetal's ``W{n_obj}D_{pop_size}.dat`` files, as MOEA/D's
+        ``weight_vectors``, and ``inner_divisions`` with ``divisions`` gives Deb and Jain's two-layer
+        lattice: the boundary lattice of ``divisions`` and the lattice of ``inner_divisions`` shrunk by
+        half towards the centre of the simplex (156 directions with eight objectives, 3 and 2 divisions).
+        """
+        self._cfg["reference_directions"] = vector_source({"path": path, "divisions": divisions, "inner_divisions": inner_divisions})
         return self
 
     def enforce_ref_dirs(self, enabled: bool = True) -> _NSGAIIIConfigBuilder:

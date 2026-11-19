@@ -47,3 +47,5 @@ parameters:
         conditional_parameters:
           gaussian_sigma: {type: real, default: 1.0, range: [0.1, 5.0], role: operator_rate}
       boundary: {}
+  # The survival, as Evolver's replacement: AGE-MOEA's or AGE-MOEA-II's (Panichella, GECCO 2022).
+  replacement: {type: categorical, default: agemoea, values: [agemoea, agemoea_ii], role: structural}

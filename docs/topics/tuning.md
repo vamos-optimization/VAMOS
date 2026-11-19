@@ -415,6 +415,18 @@ offset of 0.1, so no assignment reproduced the default configuration; an
 assignment without the new parameters still builds that tournament
 configuration.
 
+**Development after 1.4.0:** the NSGA-III spaces choose the mating selection,
+`random` (the default, Deb and Jain's) or `tournament` (jMetal's NSGA-III
+tournament on rank), with `tournament_size` in [2, 10] only for a tournament,
+as Evolver's `NSGAIIIDouble` space does. Evolver's space also offers Boltzmann,
+ranking and stochastic universal sampling selection, which VAMOS's NSGA-III does
+not run. The spaces of VAMOS 1.4.0 offered only `tournament_size`, and NSGA-III
+then ran a binary tournament on rank and crowding distance whatever its
+selection, so no assignment ran the published algorithm; an assignment with
+`tournament_size` and without `selection` still builds a tournament of that
+size, which now compares ranks only (see
+[NSGA-III](../algorithms/nsgaiii.md#variants-and-their-effect)).
+
 **VAMOS 1.3.0:** the MOEA/D and SMS-EMOA spaces offer what
 Evolver's `MOEADDouble` and `SMSEMOADouble` spaces offer, so that a
 configuration tuned or published with Evolver is a point of them:
@@ -536,6 +548,7 @@ The paragraphs above use the earlier names.
 | `normalization_epsilon` | `normalization_epsilon` | `epsilonParameterForNormalization` |
 | `ipbi_theta` | `ipbi_theta` | `ipbiTheta` |
 | `de_scheme` | `de_scheme` | `differentialEvolutionCrossover` |
+| `replacement` | `replacement` | `replacement` |
 
 Values that change: mutation `pm` becomes `polynomial` (the name the other
 spaces already used) and crossover `undx` becomes `undc` (Evolver's `UNDC`).
@@ -546,7 +559,9 @@ differently, and the exchange functions translate them: `SBX`, `blxAlpha`,
 `linkedPolynomial`, `nonUniform`, `levyFlight` and `powerLaw`;
 `tschebyscheff`, `weightedSum`, `penaltyBoundaryIntersection` and
 `modifiedTschebyscheff`; `default` (random; **VAMOS 1.4.0:** `auto`), `latinHypercubeSampling`,
-`scatterSearch` and `oppositionBased`; `stochasticUniversalSampling`.
+`scatterSearch` and `oppositionBased`; `stochasticUniversalSampling`;
+**Development after 1.4.0:** AGE-MOEA's `replacement` `agemoeaII`
+(`agemoea_ii`).
 
 **VAMOS 1.4.0:** Evolver's `modifiedTschebyscheff` is jMetal's
 `ModifiedTschebyscheff`, `max |f - z*| / w`, which VAMOS calls
@@ -703,6 +718,13 @@ spaces of VAMOS 1.3.0, with `pop_size`, `use_external_archive` or an absolute
 `mutation_prob`, or with the names of VAMOS 1.2.1, builds the configuration it
 built.
 
+**Development after 1.4.0:** every AGE-MOEA space (`agemoea`, `agemoea_constrained`,
+`agemoea_binary`, `agemoea_integer`, `agemoea_permutation` and `agemoea_mixed`)
+offers `replacement`, Evolver's choice between AGE-MOEA's survival (`agemoea`,
+the default) and AGE-MOEA-II's (`agemoea_ii`, Evolver's `agemoeaII`); see
+[AGE-MOEA-II](../reference/algorithms.md#age-moea-ii). The default still builds
+the configuration of VAMOS 1.4.0.
+
 ### Constrained spaces
 
 **VAMOS 1.2.0:** `nsgaii_constrained`, `nsgaiii_constrained`,
@@ -836,6 +858,12 @@ not change, so a saved assignment with its `pop_size` builds the population it
 built. The `effective` record compares with that fixed population: with
 `--pop-size 150` and three objectives, every MOEA/D trial records
 `{"pop_size": 136}`.
+
+**Development after 1.4.0:** with four objectives and a `pop_size` from 100
+to 119, MOEA/D runs the 100 vectors of the packaged `W4D_100.dat`, which VAMOS
+1.4.0 skipped because the file held them twice: it ran 84 individuals, the
+lattice of six divisions. A saved assignment with such a population now builds
+100 individuals; the other populations are unchanged.
 
 `optuna` and `bohb_optuna` suggest parents before the parameters that depend on
 them, whatever their declaration order, and record only active suggestions in

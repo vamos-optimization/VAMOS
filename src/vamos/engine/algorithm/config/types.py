@@ -13,6 +13,20 @@ class AlgorithmConfigProtocol(Protocol):
     def to_dict(self) -> AlgorithmConfigMapping: ...
 
 
+# The survivals of AGE-MOEA (Panichella, GECCO 2019) and AGE-MOEA-II (Panichella, GECCO 2022).
+AGEMOEAVariant: TypeAlias = Literal["agemoea", "agemoea_ii"]
+AGEMOEA_VARIANTS: tuple[AGEMOEAVariant, ...] = ("agemoea", "agemoea_ii")
+
+
+def resolve_agemoea_variant(value: object) -> AGEMOEAVariant:
+    """The AGE-MOEA variant named by ``value``, or ``ValueError`` for another name."""
+    name = str(value).strip().lower()
+    for variant in AGEMOEA_VARIANTS:
+        if name == variant:
+            return variant
+    raise ValueError(f"AGE-MOEA variant must be one of: {', '.join(AGEMOEA_VARIANTS)}; got {value!r}.")
+
+
 # ── Operator name literals (for IDE autocompletion) ──────────────────
 
 CrossoverName: TypeAlias = Literal[

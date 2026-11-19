@@ -39,6 +39,7 @@ if TYPE_CHECKING:
     from vamos.foundation.eval.backends import EvaluationBackend
     from vamos.foundation.kernel.backend import KernelBackend
     from vamos.foundation.problem.types import ProblemProtocol
+from vamos.engine.algorithm.components.state import record_archive_rows
 from vamos.engine.hooks.live_viz import LiveVisualization
 from vamos.foundation.observer import RunContext
 
@@ -55,7 +56,7 @@ def _archive_child(st: SMSEMOAState, X_child: NDArray[Any], F_child: NDArray[np.
     if st.archive_manager is not None:
         # The archive holds constraint values exactly when the population does.
         G_rows = np.asarray(G_child, dtype=float).reshape(X_child.shape[0], -1) if st.G is not None and G_child is not None else None
-        st.archive_X, st.archive_F = st.archive_manager.update(X_child, F_child, G_rows)
+        record_archive_rows(st, X_child, F_child, G_rows)
 
 
 def _check_hv_target(st: SMSEMOAState) -> bool:

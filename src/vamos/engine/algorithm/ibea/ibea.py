@@ -41,6 +41,7 @@ if TYPE_CHECKING:
     from vamos.foundation.eval.backends import EvaluationBackend
     from vamos.foundation.kernel.backend import KernelBackend
     from vamos.foundation.problem.types import ProblemProtocol
+from vamos.engine.algorithm.components.state import record_archive_rows
 from vamos.engine.hooks.live_viz import LiveVisualization
 
 
@@ -152,7 +153,7 @@ class IBEA:
 
             # Update archive
             if st.archive_manager is not None:
-                st.archive_X, st.archive_F = st.archive_manager.update(st.X, st.F, st.G)
+                record_archive_rows(st, st.X, st.F, st.G)
 
             # Live callback
             send_live_generation(live_cb, st.generation, st)
@@ -340,7 +341,7 @@ class IBEA:
 
         # Update archive
         if st.archive_manager is not None:
-            st.archive_X, st.archive_F = st.archive_manager.update(st.X, st.F, st.G)
+            record_archive_rows(st, st.X, st.F, st.G)
 
         # Live callback
         if self._live_cb is not None:

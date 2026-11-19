@@ -6,6 +6,7 @@ import dataclasses
 from collections.abc import Mapping
 from typing import Any, cast
 
+from vamos.engine.algorithm.components.weight_vectors import bind_config_vector_files
 from vamos.engine.algorithm.config import AlgorithmConfigProtocol
 from vamos.engine.algorithm.registry import resolve_algorithm
 from vamos.engine.config.variation import ensure_operator_tuple, resolve_default_variation_config
@@ -117,8 +118,12 @@ def finalize_algorithm(
     kernel: KernelBackend,
     block: Mapping[str, Any] | None = None,
     handled: tuple[str, ...] = (),
+    n_obj: int | None = None,
 ) -> tuple[Any, AlgorithmConfigProtocol]:
     cfg_data = apply_block_fields(cast(AlgorithmConfigProtocol, builder.build()), block, handled=handled)
+    if n_obj is not None:
+        # Development after 1.4.0: a vector file is bound to the file the run reads and the digest of its vectors.
+        cfg_data = cast(AlgorithmConfigProtocol, bind_config_vector_files(cfg_data, n_obj))
     algo_ctor = resolve_algorithm(algorithm_name)
     return algo_ctor(cfg_data.to_dict(), kernel), cfg_data
 

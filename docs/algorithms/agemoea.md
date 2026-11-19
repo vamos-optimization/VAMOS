@@ -168,6 +168,7 @@ Evaluations: 400
 | Polynomial mutation | Numeric probability `1/12`, eta 20. |
 | `constraint_mode("feasibility")` | Enables feasibility-based selection if constraints exist; DTLZ2 here is unconstrained. |
 | `constraint_handling(name, ...)` | **VAMOS 1.2.0:** ranks a constrained population with another of jMetal's techniques; its fronts take the place of the non-dominated ones in the survival and the tournament. See [choose a constraint-handling technique](../reference/constraints.md#choose-a-constraint-handling-technique). |
+| `variant("agemoea_ii")` | **Development after 1.4.0:** runs AGE-MOEA-II [2], whose survival estimates the front's geometry by Newton-Raphson and measures diversity with geodesic distances; the default `"agemoea"` is the algorithm of this page. See [AGE-MOEA-II](../reference/algorithms.md#age-moea-ii). |
 
 ## Interpret the result and its limits
 
@@ -186,3 +187,5 @@ Increase the budget to 800 while holding the problem and population fixed. Exami
 ## References
 
 [1] Panichella, A. (2019). [An Adaptive Evolutionary Algorithm based on Non-Euclidean Geometry for Many-objective Optimization](https://apanichella.github.io/publication/gecco2019/). *GECCO 2019*.
+
+[2] Panichella, A. (2022). [An Improved Pareto Front Modeling Algorithm for Large-scale Many-Objective Optimization](https://doi.org/10.1145/3512290.3528732). *GECCO 2022*, 565-573.

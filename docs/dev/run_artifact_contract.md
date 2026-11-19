@@ -148,6 +148,19 @@ derived from the configuration, so verification rebuilds it like the rest of
 the resolved spec; a MOEA/D run stored before it does not match its
 reconstruction and is not verified as exact.
 
+**Development after 1.4.0:** MOEA/D's `weight_vectors` record also has the
+`source` `two_layer`, with `divisions` and `inner_divisions`. An NSGA-III or
+RVEA run whose configuration names a file or directory of vectors (`path` of
+`reference_directions` or `reference_vectors`) records it in
+`algorithm.resolution.reference_directions` or
+`algorithm.resolution.reference_vectors`: `source` is `file`, `file` its name,
+and for RVEA `vectors` is their number, the population (NSGA-III's file may
+hold fewer directions than individuals; the run's `reference_directions` array
+holds them). Runs without a path record nothing new, so their resolved specs,
+and those of NSGA-III and RVEA runs stored by VAMOS 1.4.0, are unchanged.
+
+**Development after 1.4.0:** the resolved configuration binds a vector file by content. When a run starts, the `path` of `weight_vectors`, `reference_directions` or `reference_vectors` becomes the file the run reads (a directory becomes its `W{n_obj}D_{pop_size}.dat`) and `sha256` the digest of its vectors; the run, and so exact replay, refuses a file whose vectors have another digest, before any evaluation. The `file` records above are rebuilt from those persisted values alone, never from the filesystem, so a run verifies where its file is absent. A MOEA/D record with `sha256` is `das_dennis` when the digest is that of the lattice of `pop_size` vectors. Runs stored without `sha256` keep the 1.4.0 description, which looks for the file.
+
 ## 6. Run manifest
 
 The manifest requires:

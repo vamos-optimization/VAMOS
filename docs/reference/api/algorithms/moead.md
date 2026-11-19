@@ -26,6 +26,47 @@ lattice by about `1e-16`, so a tool that reads the file can drift from VAMOS wit
 the same seed. `vamos tune` records the population a trial ran
 when it differs from the sampled one (see [Tuning](../../../topics/tuning.md#populations-that-depend-on-the-number-of-objectives)).
 
+**Development after 1.4.0:** every weight file that VAMOS ships loads, from
+`optimize` and from the packaged directory that the command line passes as
+`weight_vectors(path=...)`. Fourteen of the 31 did not:
+
+- `W4D_100.dat` held its 100 vectors twice, as the jMetalPy file it comes from
+  (jMetal has no such file), so VAMOS skipped it, and MOEA/D with four
+  objectives and 100 to 119 individuals ran the 84 vectors of the next smaller
+  lattice; it now runs the file's 100 vectors, and the command line, which
+  failed, runs them too.
+- `W4D_165.dat` is comma-separated in jMetal, whose own reader expects
+  whitespace; VAMOS ships it space-separated, and reads either separator in
+  every weight file.
+- jMetal rounds its files: the rows of `W3D_500.dat` to `W3D_1200.dat` and of
+  `W5D_1000.dat` to `W5D_2500.dat` sum to one within `2e-6`, and `W3D_136.dat`
+  has components of `-5e-17`. A file's rows may now depart from the simplex by
+  `1e-5` (`1e-6` before), and a negative component within it reads as zero; the
+  rows are not renormalized, so a file that loaded before gives the same vectors.
+
+With `optimize`, a complete lattice still comes before a packaged file of the
+same size, and the populations of the other sizes are unchanged.
+
+**Development after 1.4.0:** `weight_vectors(divisions=H1, inner_divisions=H2)`
+runs Deb and Jain's two-layer lattice, the boundary lattice of `H1` divisions
+and the lattice of `H2` shrunk by half towards the centre of the simplex, with
+`comb(H1 + m - 1, m - 1) + comb(H2 + m - 1, m - 1)` vectors for `m` objectives:
+156 with eight objectives, `H1 = 3` and `H2 = 2`, the size of jMetal's
+`W8D_156.dat` (which stacks the two lattices without shrinking the inside one,
+so it repeats the eight axes). A single lattice with many objectives has every
+vector on the boundary of the simplex and grows fast (eight objectives: 120
+vectors with 3 divisions, 330 with 4). The resolved spec records
+`{"source": "two_layer", "divisions": 3, "inner_divisions": 2, "vectors": 156}`.
+NSGA-III's `reference_directions` and RVEA's `reference_vectors` take the same
+keys (see [reference and weight vectors](../../algorithms.md#reference-and-weight-vectors)).
+A `weight_vectors(path=...)` that does not exist now raises `ConfigurationError`
+when the run starts; VAMOS 1.4.0 created it as a directory and saved the
+lattice there. A directory that exists but lacks the file still gets the
+lattice, saved there with a `RuntimeWarning`. A run binds a weight file by content:
+its resolved configuration records the file it read and the `sha256` of its
+vectors, and replay refuses the file if they change (see
+[reference and weight vectors](../../algorithms.md#reference-and-weight-vectors)).
+
 **VAMOS 1.4.0:** the options of Evolver's MOEA/D. Each is off by
 default, so a configuration that leaves them out runs exactly as in VAMOS 1.3.0.
 
@@ -110,5 +151,29 @@ Use `MOEADConfig.builder()` to obtain the fluent builder; do not import the priv
     options:
       heading_level: 2
       show_root_heading: false
+      show_root_full_path: false
+      show_source: false
+
+## Populations with weight vectors
+
+**Development after 1.4.0:** `moead_populations(n_obj, max_pop_size=1000)`
+lists the populations that MOEA/D runs without weight options, as
+`MOEADConfig.default(pop_size=...)` and `optimize` build them: every size from
+2 with one or two objectives, and with more the sizes of the complete lattices
+and of the packaged jMetal files. With four objectives up to 200 they are 4, 10,
+20, 35, 56, 84, 100, 120 and 165; with six up to 300, 6, 21, 56, 126 and 252;
+with eight up to 400, 8, 36, 120, 156 and 330. Other sizes need a file or a two-layer
+lattice.
+
+```python
+from vamos.algorithms import moead_populations
+
+print(moead_populations(4, max_pop_size=200))  # (4, 10, 20, 35, 56, 84, 100, 120, 165)
+```
+
+::: vamos.algorithms.moead_populations
+    options:
+      heading_level: 3
+      show_root_heading: true
       show_root_full_path: false
       show_source: false

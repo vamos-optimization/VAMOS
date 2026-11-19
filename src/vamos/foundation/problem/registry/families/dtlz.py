@@ -10,6 +10,8 @@ from ...dtlz import (
     DTLZ5Problem,
     DTLZ6Problem,
     DTLZ7Problem,
+    IDTLZ1Problem,
+    IDTLZ2Problem,
 )
 from ..common import ProblemSpec
 
@@ -107,6 +109,27 @@ def get_specs() -> dict[str, ProblemSpec]:
                 default_n_var_fn=_dtlz_k20_n_var,
                 description="DTLZ7 with disconnected Pareto-optimal regions.",
                 factory=lambda n_var, n_obj: _dtlz_factory(DTLZ7Problem, n_var, n_obj),
+            ),
+            # Development after 1.4.0: the inverted DTLZ1 and DTLZ2 of Jain and Deb (2014), as PlatEMO's.
+            "idtlz1": ProblemSpec(
+                key="idtlz1",
+                label="IDTLZ1",
+                default_n_var=7,
+                default_n_obj=3,
+                allow_n_obj_override=True,
+                default_n_var_fn=_dtlz_k5_n_var,
+                description="Inverted DTLZ1 (Jain and Deb, 2014): DTLZ1's simplex front turned over (defaults to 3 objectives).",
+                factory=lambda n_var, n_obj: _dtlz_factory(IDTLZ1Problem, n_var, n_obj),
+            ),
+            "idtlz2": ProblemSpec(
+                key="idtlz2",
+                label="IDTLZ2",
+                default_n_var=12,
+                default_n_obj=3,
+                allow_n_obj_override=True,
+                default_n_var_fn=_dtlz_k10_n_var,
+                description="Inverted DTLZ2 (Jain and Deb, 2014): DTLZ2's spherical front turned over (defaults to 3 objectives).",
+                factory=lambda n_var, n_obj: _dtlz_factory(IDTLZ2Problem, n_var, n_obj),
             ),
         }
     )

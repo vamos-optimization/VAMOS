@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from importlib import metadata as importlib_metadata
 from typing import Any
 
-from vamos.engine.algorithm.components.weight_vectors import describe_weight_vectors
+from vamos.engine.algorithm.components.weight_vectors import describe_vector_file, describe_weight_vectors
 from vamos.experiment.time_limit import parse_time_limit
 from vamos.foundation.problem.builder import FunctionalProblem
 from vamos.foundation.problem.registry import get_problem_specs, make_problem_selection
@@ -213,18 +213,34 @@ def _algorithm_component(inputs: RunSpecInputs, config: Mapping[str, object], po
         # Which weight vectors MOEA/D runs: a Das-Dennis lattice, a jMetal file or uniform weights.
         weights = config.get("weight_vectors")
         options = weights if isinstance(weights, Mapping) else {}
-        path, divisions = options.get("path"), options.get("divisions")
+        path, divisions, inner = options.get("path"), options.get("divisions"), options.get("inner_divisions")
+        digest = options.get("sha256")
         try:
             descriptor["resolution"]["weight_vectors"] = describe_weight_vectors(
                 pop_size,
                 inputs.n_obj,
                 path=path if isinstance(path, str) else None,
-                divisions=divisions if isinstance(divisions, int) and not isinstance(divisions, bool) else None,
+                divisions=_optional_int(divisions),
+                inner_divisions=_optional_int(inner),
+                sha256=digest if isinstance(digest, str) else None,
             )
         except ValueError:
             # A size without weights fails when the run starts, so a study plans the task and records its failure.
             logging.getLogger(__name__).debug("No MOEA/D weight vectors to record for pop_size=%s", pop_size, exc_info=True)
+    vector_field = _VECTOR_FIELDS.get(inputs.algorithm)
+    if vector_field is not None and pop_size is not None:
+        # Development after 1.4.0: the file that NSGA-III's or RVEA's vectors come from. The configuration
+        # already states a lattice, so only a path is recorded, and a run without one keeps its 1.4.0 spec. The
+        # record comes from the stored configuration alone, never from the file.
+        vectors = config.get(vector_field)
+        path = vectors.get("path") if isinstance(vectors, Mapping) else None
+        if isinstance(path, str) and path:
+            descriptor["resolution"][vector_field] = describe_vector_file(path, vectors=pop_size if inputs.algorithm == "rvea" else None)
     return descriptor
+
+
+# The option that names the reference vectors of NSGA-III and RVEA.
+_VECTOR_FIELDS = {"nsgaiii": "reference_directions", "rvea": "reference_vectors"}
 
 
 def _operators(config: Mapping[str, object], *, encoding: str, n_var: int, algorithm: str) -> dict[str, Any]:

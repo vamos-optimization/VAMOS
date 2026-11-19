@@ -20,13 +20,16 @@ from vamos.engine.algorithm.components.evaluation import combine_constraints, ex
 from vamos.engine.algorithm.components.hooks import get_live_viz, live_should_stop, send_live_generation
 from vamos.engine.algorithm.components.metrics import setup_hv_tracker
 from vamos.engine.algorithm.components.population import initialize_evaluated_population, resolve_bounds
+from vamos.engine.algorithm.components.state import record_archive_rows
 from vamos.engine.algorithm.components.termination import (
     capped_offspring_size,
     hv_target_reached,
     parse_termination,
     validate_initial_budget,
 )
+from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors, vector_source
 from vamos.engine.algorithm.config.base import normalize_constraint_mode
+from vamos.engine.algorithm.config.rvea import normalize_rvea_variant
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
 from vamos.engine.config.variation import (
     ensure_operator_tuple,
@@ -75,6 +78,33 @@ def _generate_reference_vectors(n_obj: int, n_partitions: int = 12) -> np.ndarra
         return vectors
 
     ref_dirs = _das_dennis(n_partitions, n_obj)
+    return ref_dirs
+
+
+def _reference_vectors(spec: object, pop_size: int, n_obj: int, n_partitions: int) -> np.ndarray[Any, Any]:
+    """RVEA's reference vectors, one per individual: the lattice of ``n_partitions``, or those of ``reference_vectors``.
+
+    Development after 1.4.0: ``reference_vectors`` names a file or directory, read as MOEA/D's and NSGA-III's
+    files, or a two-layer lattice. Its ``divisions`` alone give the same lattice as ``n_partitions``.
+    """
+    source = vector_source(spec, field="reference_vectors") or {}
+    path, divisions, inner = source.get("path"), source.get("divisions"), source.get("inner_divisions")
+    if path is not None or inner is not None:
+        return load_or_generate_weight_vectors(
+            pop_size,
+            n_obj,
+            path=None if path is None else str(path),
+            divisions=None if divisions is None else int(divisions),
+            inner_divisions=None if inner is None else int(inner),
+            mode="exact",
+            sha256=None if source.get("sha256") is None else str(source.get("sha256")),
+        )
+    partitions = n_partitions if divisions is None else int(divisions)
+    ref_dirs = _generate_reference_vectors(n_obj, partitions)
+    if ref_dirs.shape[0] != pop_size:
+        raise ValueError(
+            f"RVEA requires pop_size == #ref_dirs for partitions={partitions} (pop_size={pop_size}, ref_dirs={ref_dirs.shape[0]})."
+        )
     return ref_dirs
 
 
@@ -242,11 +272,7 @@ class RVEA:
         else:
             max_gen = max(1, int(math.ceil((max_evals - pop_size) / pop_size)))
 
-        ref_dirs = _generate_reference_vectors(n_obj, n_partitions)
-        if ref_dirs.shape[0] != pop_size:
-            raise ValueError(
-                f"RVEA requires pop_size == #ref_dirs for partitions={n_partitions} (pop_size={pop_size}, ref_dirs={ref_dirs.shape[0]})."
-            )
+        ref_dirs = _reference_vectors(self.cfg.get("reference_vectors"), pop_size, n_obj, n_partitions)
         validate_initial_budget(max_evals, pop_size, "RVEA")
         V = _calc_V(ref_dirs)
         gamma = _calc_gamma(V)
@@ -314,6 +340,7 @@ class RVEA:
             alpha=alpha,
             adapt_interval=adapt_interval,
             n_obj=n_obj,
+            variant=normalize_rvea_variant(self.cfg.get("variant", "pymoo")),
             result_mode=result_mode,
             live_callback_mode=str(self.cfg.get("live_callback_mode", "population")),
             hv_tracker=setup_hv_tracker(hv_config, self.kernel),
@@ -421,6 +448,7 @@ class RVEA:
             st.max_gen,
             st.alpha,
             st.constraint_mode,
+            st.variant,
         )
         if survivors.size == 0:
             raise RuntimeError("RVEA selected no survivors from a non-empty population.")
@@ -430,13 +458,20 @@ class RVEA:
         st.G = G_combined[survivors] if G_combined is not None else None
         st.n_eval += X_off.shape[0]
         if st.archive_manager is not None:
-            st.archive_X, st.archive_F = st.archive_manager.update(st.X, st.F, st.G)
+            record_archive_rows(st, st.X, st.F, st.G)
 
         # Periodic reference-vector adaptation
-        if st.adapt_interval is not None and st.generation % st.adapt_interval == 0 and st.nadir is not None:
-            scale = np.maximum(st.nadir - st.ideal, 1e-64)
-            st.V = _calc_V(_calc_V(st.ref_dirs) * scale)
-            st.gamma = _calc_gamma(st.V)
+        if st.adapt_interval is not None and st.generation % st.adapt_interval == 0:
+            # Development after 1.4.0: the "platemo" variant scales the vectors by the population's range,
+            # as PlatEMO's ReferenceVectorAdaptation and jMetal; "pymoo" by the nadir minus the accumulated ideal.
+            scale: np.ndarray[Any, Any] | None = None
+            if st.variant == "platemo":
+                scale = np.ptp(st.F, axis=0)
+            elif st.nadir is not None:
+                scale = st.nadir - st.ideal
+            if scale is not None:
+                st.V = _calc_V(_calc_V(st.ref_dirs) * np.maximum(scale, 1e-64))
+                st.gamma = _calc_gamma(st.V)
 
         st.pending_offspring = None
         st.generation += 1

@@ -326,6 +326,8 @@ def _weights(cfg: Mapping[str, Any], pop_size: int, n_obj: int) -> tuple[NDArray
         path=weight_cfg.get("path"),
         divisions=weight_cfg.get("divisions"),
         mode="jmetalpy",
+        inner_divisions=weight_cfg.get("inner_divisions"),
+        sha256=weight_cfg.get("sha256"),
     )
     weights_safe = np.where(weights == 0, ZERO_WEIGHT_EPS, weights)
     weight_norms = np.linalg.norm(weights, axis=1)
