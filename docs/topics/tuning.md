@@ -859,6 +859,12 @@ built. The `effective` record compares with that fixed population: with
 `--pop-size 150` and three objectives, every MOEA/D trial records
 `{"pop_size": 136}`.
 
+**Development after 1.4.0:** with four objectives and a `pop_size` from 100
+to 119, MOEA/D runs the 100 vectors of the packaged `W4D_100.dat`, which VAMOS
+1.4.0 skipped because the file held them twice: it ran 84 individuals, the
+lattice of six divisions. A saved assignment with such a population now builds
+100 individuals; the other populations are unchanged.
+
 `optuna` and `bohb_optuna` suggest parents before the parameters that depend on
 them, whatever their declaration order, and record only active suggestions in
 `trial.params`. `smac3` and `bohb` receive the dependencies as ConfigSpace

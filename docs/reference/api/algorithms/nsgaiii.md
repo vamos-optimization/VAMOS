@@ -25,6 +25,14 @@ mutation probability to `factor / n_var`, as in NSGA-II.
 crowding distance whatever its selection. See
 [variants and their effect](../../../algorithms/nsgaiii.md#variants-and-their-effect).
 
+**Development after 1.4.0:** the file of `reference_directions(path=...)` is
+read as MOEA/D's weight files: one direction per line, the components separated
+by whitespace or by commas (VAMOS 1.4.0 read commas only, so jMetal's
+`W3D_100.dat` failed), every row non-negative and summing to one within the
+rounding of jMetal's files (`1e-5`). A path that is not an existing file raises
+`ConfigurationError` when the run starts; VAMOS 1.4.0 generated the lattice
+instead and saved it at that path.
+
 ::: vamos.algorithms.NSGAIIIConfig
     options:
       heading_level: 2

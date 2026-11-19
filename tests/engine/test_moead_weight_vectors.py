@@ -110,12 +110,114 @@ def test_packaged_weights_load_despite_their_rounding(n_obj: int, pop_size: int)
     np.testing.assert_allclose(weights, stored, atol=1e-5)
 
 
-def test_packaged_weights_with_another_size_are_not_used() -> None:
-    from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors
+def _packaged_weight_files() -> list[tuple[str, int, int]]:
+    import re
+    from importlib import resources
 
-    # W4D_100.dat holds 200 vectors: 100 individuals with four objectives keep the lattice error.
-    with pytest.raises(ValueError, match="pop_size=100"):
-        load_or_generate_weight_vectors(100, 4, mode="jmetalpy")
+    names = (entry.name for entry in resources.files("vamos.resources").joinpath("weights").iterdir())
+    matches = (re.fullmatch(r"W(\d+)D_(\d+)\.dat", name) for name in names)
+    return sorted((match.group(0), int(match.group(1)), int(match.group(2))) for match in matches if match is not None)
+
+
+def test_vamos_ships_the_jmetal_weight_files() -> None:
+    files = _packaged_weight_files()
+
+    # jMetal's 29 files, jMetalPy's W4D_100.dat and W3D_120.dat.
+    assert len(files) == 31
+    assert ("W4D_100.dat", 4, 100) in files and ("W4D_165.dat", 4, 165) in files
+
+
+@pytest.mark.parametrize(("name", "n_obj", "pop_size"), _packaged_weight_files())
+def test_every_packaged_weight_file_loads_with_one_vector_per_individual(name: str, n_obj: int, pop_size: int) -> None:
+    from vamos.engine.algorithm.components.weight_vectors import _packaged_weights, read_weight_vectors
+    from vamos.resources import weight_path
+
+    packaged = _packaged_weights(n_obj, pop_size)
+    read = read_weight_vectors(str(weight_path(name)), n_obj)
+
+    assert packaged is not None and packaged.shape == (pop_size, n_obj)
+    assert read.shape == (pop_size, n_obj)
+    np.testing.assert_allclose(read.sum(axis=1), 1.0, atol=1e-5)
+    assert read.min() >= 0.0
+    np.testing.assert_allclose(packaged, read, atol=1e-5)
+
+
+def test_moead_with_four_objectives_and_100_individuals_runs_the_packaged_weights() -> None:
+    from vamos.resources import weight_path
+
+    weights = load_or_generate_weight_vectors(100, 4, mode="jmetalpy")
+
+    stored = np.loadtxt(weight_path("W4D_100.dat"))
+    assert stored.shape == (100, 4) and len(np.unique(stored, axis=0)) == 100
+    np.testing.assert_allclose(weights, stored, atol=1e-12)
+    assert largest_weighted_population(100, 4) == 100
+    assert largest_weighted_population(119, 4) == 100
+    assert largest_weighted_population(99, 4) == 84
+
+
+@pytest.mark.parametrize("pop_size", [91, 100, 136, 1000])
+def test_the_packaged_directory_reads_as_any_jmetal_directory(pop_size: int) -> None:
+    # The command line passes the packaged directory as weight_vectors.path: its files must load from there too,
+    # W3D_136.dat with components of -5e-17 and W3D_1000.dat with rows that sum to 1 within 1e-6.
+    from vamos.resources import weight_path
+
+    directory = str(weight_path("W3D_91.dat").parent)
+
+    weights = load_or_generate_weight_vectors(pop_size, 3, path=directory, mode="jmetalpy")
+
+    assert weights.shape == (pop_size, 3) and weights.min() >= 0.0
+    np.testing.assert_allclose(weights, np.loadtxt(weight_path(f"W3D_{pop_size}.dat")), atol=1e-12)
+
+
+@pytest.mark.parametrize(("pop_size", "n_obj"), [(100, 4), (165, 4)])
+def test_the_four_objective_files_load_from_the_packaged_directory(pop_size: int, n_obj: int) -> None:
+    from vamos.resources import weight_path
+
+    directory = str(weight_path("W3D_91.dat").parent)
+
+    assert load_or_generate_weight_vectors(pop_size, n_obj, path=directory, mode="jmetalpy").shape == (pop_size, n_obj)
+
+
+@pytest.mark.parametrize("separator", [" ", ",", ", ", "\t"])
+def test_a_weight_file_may_separate_its_components_with_whitespace_or_commas(tmp_path, separator: str) -> None:
+    from vamos.engine.algorithm.components.weight_vectors import read_weight_vectors
+    from vamos.engine.reference_directions import das_dennis
+
+    lattice = das_dennis(3, 4)
+    path = tmp_path / "W3D_15.dat"
+    path.write_text("\n".join(separator.join(repr(float(value)) for value in row) for row in lattice) + "\n", encoding="utf-8")
+
+    np.testing.assert_array_equal(read_weight_vectors(str(path), 3), lattice)
+    np.testing.assert_array_equal(load_or_generate_weight_vectors(15, 3, path=str(path), mode="jmetalpy"), lattice)
+
+
+@pytest.mark.parametrize(
+    ("rows", "message"),
+    [
+        ([[0.5, 0.5, 0.1]], "sum to 1"),
+        ([[1.2, -0.2, 0.0]], "non-negative"),
+        ([[0.5, 0.5]], "3 columns"),
+        ([[float("nan"), 0.5, 0.5]], "finite"),
+    ],
+)
+def test_a_weight_file_off_the_simplex_is_rejected(tmp_path, rows: list[list[float]], message: str) -> None:
+    from vamos.engine.algorithm.components.weight_vectors import read_weight_vectors
+
+    path = tmp_path / "weights.dat"
+    np.savetxt(path, np.asarray(rows))
+
+    with pytest.raises(ValueError, match=message):
+        read_weight_vectors(str(path), 3)
+
+
+def test_a_missing_weight_file_is_a_configuration_error(tmp_path) -> None:
+    from vamos.engine.algorithm.components.weight_vectors import read_weight_vectors
+    from vamos.exceptions import ConfigurationError
+
+    with pytest.raises(ConfigurationError, match="does not exist"):
+        read_weight_vectors(str(tmp_path / "missing.dat"), 3)
+    with pytest.raises(ConfigurationError, match="not a file"):
+        read_weight_vectors(str(tmp_path), 3)
 
 
 def test_largest_weighted_population_keeps_sizes_with_weights_and_lowers_the_others() -> None:

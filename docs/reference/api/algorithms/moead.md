@@ -26,6 +26,27 @@ lattice by about `1e-16`, so a tool that reads the file can drift from VAMOS wit
 the same seed. `vamos tune` records the population a trial ran
 when it differs from the sampled one (see [Tuning](../../../topics/tuning.md#populations-that-depend-on-the-number-of-objectives)).
 
+**Development after 1.4.0:** every weight file that VAMOS ships loads, from
+`optimize` and from the packaged directory that the command line passes as
+`weight_vectors(path=...)`. Fourteen of the 31 did not:
+
+- `W4D_100.dat` held its 100 vectors twice, as the jMetalPy file it comes from
+  (jMetal has no such file), so VAMOS skipped it, and MOEA/D with four
+  objectives and 100 to 119 individuals ran the 84 vectors of the next smaller
+  lattice; it now runs the file's 100 vectors, and the command line, which
+  failed, runs them too.
+- `W4D_165.dat` is comma-separated in jMetal, whose own reader expects
+  whitespace; VAMOS ships it space-separated, and reads either separator in
+  every weight file.
+- jMetal rounds its files: the rows of `W3D_500.dat` to `W3D_1200.dat` and of
+  `W5D_1000.dat` to `W5D_2500.dat` sum to one within `2e-6`, and `W3D_136.dat`
+  has components of `-5e-17`. A file's rows may now depart from the simplex by
+  `1e-5` (`1e-6` before), and a negative component within it reads as zero; the
+  rows are not renormalized, so a file that loaded before gives the same vectors.
+
+With `optimize`, a complete lattice still comes before a packaged file of the
+same size, and the populations of the other sizes are unchanged.
+
 **VAMOS 1.4.0:** the options of Evolver's MOEA/D. Each is off by
 default, so a configuration that leaves them out runs exactly as in VAMOS 1.3.0.
 

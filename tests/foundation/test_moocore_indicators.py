@@ -1,3 +1,5 @@
+import itertools
+
 import numpy as np
 import pytest
 
@@ -123,3 +125,70 @@ def test_outside_points_are_filtered_in_every_hv_path() -> None:
     if mi.has_moocore():
         assert mi.HVIndicator(reference_point=ref).compute(points).value == pytest.approx(0.48)
         assert mi.HVContributionsIndicator(reference_point=ref).compute(points).value == pytest.approx([0.48, 0.0])
+
+
+def _dtlz2_front(n_obj: int, divisions: int) -> np.ndarray:
+    """DTLZ2's front: a Das-Dennis simplex lattice projected onto the unit sphere."""
+    rows = [c for c in itertools.product(range(divisions + 1), repeat=n_obj - 1) if sum(c) <= divisions]
+    w = np.array([(*c, divisions - sum(c)) for c in rows], dtype=float)
+    return w / np.linalg.norm(w, axis=1, keepdims=True)
+
+
+@pytest.mark.skipif(not mi.has_moocore(), reason="MooCore not installed")
+@pytest.mark.parametrize(("method", "samples"), [(None, 10_000), ("Rphi-FWE+", 10_000), ("DZ2019-HW", 10_000), ("DZ2019-MC", 100_000)])
+def test_hv_approx_agrees_with_the_exact_hypervolume_on_dtlz2_with_four_objectives(method: str | None, samples: int) -> None:
+    # Development after 1.4.0: 286 points of DTLZ2's front with four objectives.
+    front = _dtlz2_front(4, 10)
+    ref = np.full(4, 1.1)
+    exact = mi.HVIndicator(reference_point=ref).compute(front).value
+
+    approx = mi.HVApproxIndicator(reference_point=ref).compute(front, samples=samples, seed=7, method=method)
+
+    assert approx.value == pytest.approx(exact, rel=0.01)
+    assert approx.details["samples"] == samples
+
+
+@pytest.mark.skipif(not mi.has_moocore(), reason="MooCore not installed")
+def test_hv_approx_passes_its_seed_to_moocore() -> None:
+    front = _dtlz2_front(4, 6)
+    indicator = mi.HVApproxIndicator(reference_point=np.full(4, 1.1))
+
+    first = indicator.compute(front, seed=1, method="DZ2019-MC")
+    again = indicator.compute(front, seed=1, method="DZ2019-MC")
+    other = indicator.compute(front, seed=2, method="DZ2019-MC")
+
+    assert first.value == again.value
+    assert other.value != first.value
+    assert (first.details["seed"], first.details["method"]) == (1, "DZ2019-MC")
+
+
+@pytest.mark.skipif(not mi.has_moocore(), reason="MooCore not installed")
+def test_hv_approx_records_moocores_default_method() -> None:
+    import inspect
+
+    import moocore
+
+    front = _dtlz2_front(3, 4)
+    ref = np.full(3, 1.1)
+
+    result = mi.HVApproxIndicator(reference_point=ref).compute(front)
+
+    default = inspect.signature(moocore.hv_approx).parameters["method"].default
+    assert {key: result.details[key] for key in ("samples", "seed", "method")} == {"samples": 10_000, "seed": None, "method": default}
+    np.testing.assert_array_equal(result.details["reference_point"], ref)
+    assert result.value == moocore.hv_approx(front, ref=ref, nsamples=10_000, method=default)
+
+
+@pytest.mark.skipif(not mi.has_moocore(), reason="MooCore not installed")
+def test_hv_approx_rejects_an_unknown_method() -> None:
+    with pytest.raises(ValueError, match=r"'Rphi-FWE\+', 'DZ2019-HW', 'DZ2019-MC'"):
+        mi.HVApproxIndicator(reference_point=np.full(2, 1.1)).compute(_REFERENCE_FRONT, method="monte-carlo")
+
+
+def test_the_analysis_facade_exports_the_exact_and_the_approximate_hypervolume() -> None:
+    from vamos.ux import api
+
+    assert api.HVApproxIndicator is mi.HVApproxIndicator is type(mi.get_indicator("hv_approx"))
+    assert api.HVIndicator is mi.HVIndicator
+    assert api.IndicatorResult is mi.IndicatorResult
+    assert api.HV_APPROX_METHODS == mi.HV_APPROX_METHODS

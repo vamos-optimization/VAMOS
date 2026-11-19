@@ -80,9 +80,9 @@ the corresponding implementation or family registration in the 1.0.1 release.
 | `zdt1`, `zdt2`, `zdt3` | 30 | 2 | 0 | Variables in `[0, 1]`; fixed M | [ZDT][zdt] | 2D, each |
 | `zdt4` | 10 | 2 | 0 | First variable `[0, 1]`, remainder `[-5, 5]`; fixed M | [ZDT][zdt] | 2D |
 | `zdt6` | 10 | 2 | 0 | Variables in `[0, 1]`; fixed M | [ZDT][zdt] | 2D |
-| `dtlz1` | 7 | 3 | 0 | `n = M + 4` (`k = 5`) when n is omitted | [DTLZ][dtlz] | 2D and 3D |
-| `dtlz2`–`dtlz6` | 12 | 3 | 0 | `n = M + 9` (`k = 10`); DTLZ4 uses `alpha = 100` | [DTLZ][dtlz] | 2D and 3D, each |
-| `dtlz7` | 22 | 3 | 0 | `n = M + 19` (`k = 20`) | [DTLZ][dtlz] | 2D and 3D |
+| `dtlz1` | 7 | 3 | 0 | `n = M + 4` (`k = 5`) when n is omitted | [DTLZ][dtlz] | 2D and 3D; **Development after 1.4.0:** also 4D, 6D and 8D |
+| `dtlz2`–`dtlz6` | 12 | 3 | 0 | `n = M + 9` (`k = 10`); DTLZ4 uses `alpha = 100` | [DTLZ][dtlz] | 2D and 3D, each; **Development after 1.4.0:** DTLZ2–DTLZ4 also 4D, 6D and 8D |
+| `dtlz7` | 22 | 3 | 0 | `n = M + 19` (`k = 20`) | [DTLZ][dtlz] | 2D and 3D; **Development after 1.4.0:** also 4D, 6D and 8D |
 | `wfg1`–`wfg9` | 24 | 3 | 0 | `k = 4`, `l = 20`; bounds `[0, 2i]` for variable i | [WFG][wfg] | **2D only**, each |
 | `lz09_f1`, `lz09_f7`, `lz09_f8` | 10 | 2 | 0 | Fixed M; family-specific linkage | [Li–Zhang LZ09][lz] | None packaged |
 | `lz09_f2`–`lz09_f5`, `lz09_f9` | 30 | 2 | 0 | Fixed M; family-specific linkage | [Li–Zhang LZ09][lz] | None packaged |
@@ -701,7 +701,11 @@ compatibility or a certified optimum.
 
 - ZDT fronts have two columns; ZDT5's sample is tied to its default 80 bits.
 - DTLZ fronts have three columns, and `dtlz<k>.2d.csv` two. Other values of M
-  need a supplied reference.
+  need a supplied reference. **Development after 1.4.0:** DTLZ1–DTLZ4 and
+  DTLZ7 also have samples with 4, 6 and 8 objectives, `dtlz1.<M>d.csv`,
+  `dtlz2.<M>d.csv` and `dtlz7.<M>d.csv`. DTLZ3 and DTLZ4 share DTLZ2's front,
+  so they resolve to `dtlz2.<M>d.csv`. DTLZ5 and DTLZ6 with more than three
+  objectives, and the other values of M, still need a supplied reference.
 - WFG and LSMOP samples have **two columns**, even though their registered
   default is three objectives. Supply a matching reference for default runs; do
   not use those two-column files for three-objective indicators.
@@ -744,6 +748,7 @@ regenerates the files marked as regenerated.
 | `dtlz5`, `dtlz6` | Regenerated: 1000 points of the front curve |
 | `dtlz7` | Regenerated: 5050 points of the disconnected front |
 | `dtlz1.2d`–`dtlz7.2d` | **VAMOS 1.3.0:** regenerated, 1000 points spaced evenly along the front: `f1 + f2 = 0.5` (DTLZ1), the quarter circle (DTLZ2–DTLZ6; at M = 2, DTLZ5 and DTLZ6 do not degenerate) and the non-dominated pieces of `f2 = 4 - f1 (1 + sin(3 pi f1))` (DTLZ7) |
+| `dtlz1`, `dtlz2` and `dtlz7`, `.4d`, `.6d` and `.8d` | **Development after 1.4.0:** regenerated. DTLZ1 and DTLZ2 (which DTLZ3 and DTLZ4 share): the largest Das-Dennis simplex lattice with at most 10 000 points (H = 37, 13 and 8: 9880, 8568 and 6435 points), scaled to `sum(f) = 0.5` or projected onto the unit sphere. DTLZ7: its last objective is `2 (M - sum psi(f_i))` over the others, with `psi(t) = t (1 + sin(3 pi t))`, so the front is the product of the values of `f_i` that no smaller value beats in `psi`; values of a grid of 200 001 points, combined and thinned to 5050 points by farthest-point selection |
 | `wfg1`, `wfg2` | Regenerated from the WFG shape functions, 10 000 points |
 | `wfg3`–`wfg9` | Closed-form front, 10 000 points, unchanged |
 | `lsmop1`–`lsmop8` | Closed-form front, 1000 points, unchanged |
@@ -787,6 +792,16 @@ with jMetal's and Evolver's:
   value is a CSV path. The run records `reference_front_source` (`vamos`,
   `jmetal` or `file`) next to `reference_front_path` in its resolved
   termination.
+
+**Development after 1.4.0:** the lattices of DTLZ1–DTLZ4 with 4, 6 and 8
+objectives are those of PlatEMO's reference fronts (`UniformPoint(10000, M)`,
+which also raises zeros to 1e-6). jMetal's DTLZ2, DTLZ3 and DTLZ4 files with
+those numbers of objectives (`DTLZ2.4D.csv` and so on) hold the same points, in
+the same order, so the default source gives the indicator values of jMetal and
+Evolver for these problems. The `jmetal` source keeps two and three objectives:
+jMetal's DTLZ1 and DTLZ7 files with 4, 6 and 8 objectives are sparser (183 to
+370 points; DTLZ1's are rounded to five decimals and stay away from the front's
+corners), and VAMOS does not package them.
 
 Notes on the table:
 
