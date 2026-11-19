@@ -150,8 +150,8 @@ which three of them dominate.
 
 ## In VAMOS
 
-CMOEA-MS on CTP2 and on MW3, with a population of 100, 20,000 evaluations and
-two values of λ:
+CMOEA-MS on CTP2 with λ = 0.5 and on MW3 with λ = 0.5 and 0.9, with a
+population of 100 and 20,000 evaluations:
 
 ```python
 import numpy as np
@@ -159,29 +159,27 @@ import numpy as np
 from vamos import optimize
 from vamos.algorithms import CMOEAMSConfig
 
-for name in ("ctp2", "mw3"):
-    for threshold in (0.5, 0.9):
-        config = (
-            CMOEAMSConfig.builder()
-            .pop_size(100)
-            .crossover("sbx", prob=1.0, eta=20.0)
-            .mutation("pm", prob="1/n", eta=20.0)
-            .feasible_ratio_threshold(threshold)
-            .result_mode("population")
-            .build()
-        )
-        result = optimize(name, algorithm="cmoeams", algorithm_config=config, max_evaluations=20_000, engine="numpy", seed=1)
-        G = result.data["population"]["G"]
-        feasible = int(np.all(G <= 0.0, axis=1).sum())
-        stage_b = result.data["stage_b_generations"]
-        print(f"{name}, lambda {threshold}: stage B in {stage_b} of {result.data['generation']} generations, final stage {result.data['stage']}, {feasible} of {len(G)} feasible")
+for name, threshold in (("ctp2", 0.5), ("mw3", 0.5), ("mw3", 0.9)):
+    config = (
+        CMOEAMSConfig.builder()
+        .pop_size(100)
+        .crossover("sbx", prob=1.0, eta=20.0)
+        .mutation("pm", prob="1/n", eta=20.0)
+        .feasible_ratio_threshold(threshold)
+        .result_mode("population")
+        .build()
+    )
+    result = optimize(name, algorithm="cmoeams", algorithm_config=config, max_evaluations=20_000, engine="numpy", seed=1)
+    G = result.data["population"]["G"]
+    feasible = int(np.all(G <= 0.0, axis=1).sum())
+    stage_b = result.data["stage_b_generations"]
+    print(f"{name}, lambda {threshold}: stage B in {stage_b} of {result.data['generation']} generations, final stage {result.data['stage']}, {feasible} of {len(G)} feasible")
 ```
 
 Output:
 
 ```text
 ctp2, lambda 0.5: stage B in 181 of 199 generations, final stage B, 100 of 100 feasible
-ctp2, lambda 0.9: stage B in 159 of 199 generations, final stage A, 26 of 100 feasible
 mw3, lambda 0.5: stage B in 177 of 199 generations, final stage B, 100 of 100 feasible
 mw3, lambda 0.9: stage B in 0 of 199 generations, final stage A, 64 of 100 feasible
 ```
@@ -191,11 +189,18 @@ Each generation evaluates 100 offspring, so the first 18 generations end before
 feasible solutions. With λ = 0.5, every later generation on CTP2 is in stage B
 (181 = 199 − 18): its random solutions lie far above the front, where the whole
 objective space is feasible. On MW3 four later generations fall back to stage
-A. With λ = 0.9 the picture changes: on MW3 the feasible share of Q never
-exceeds 0.9 and the run stays in stage A, ending with 64 feasible solutions; on
-CTP2 the share is 0.9 or less in 22 of the generations after the first 10%,
-the last one included, stage A then keeps infeasible solutions, and only 26 of
-the final 100 are feasible.
+A. With λ = 0.9 the picture changes: the feasible share of Q never exceeds 0.9
+and the run stays in stage A, which keeps infeasible solutions: 64 of the final
+100 are feasible.
+
+A λ close to the feasible share that a run settles at makes the stages fragile.
+On CTP2 with λ = 0.9 the share stays near 0.9, so the last-digit differences
+between platforms decide whether a generation is in stage A or B, and the same
+seed gives different runs: on the Windows machine that recorded these outputs
+the share is 0.9 or less in 22 of the generations after the first 10% and the
+run ends in stage A with 26 feasible solutions, while on Linux it stays above
+0.9 and the run ends in stage B with all 100 feasible. The example leaves that
+case out because its output depends on the platform.
 
 The shift-based density, for all the solutions of Q at once:
 
@@ -371,8 +376,10 @@ Strengths of CMOEA-MS:
 
 Limits:
 
-- **λ matters.** The example shows that λ = 0.9 can keep the run in stage A and
-  leave a third or less of the final population feasible.
+- **λ matters.** In the example, λ = 0.9 keeps the run on MW3 in stage A from
+  start to end, and 64 of the final 100 solutions are feasible instead of all
+  of them. A λ near the feasible share that a run settles at makes the stage
+  sequence, and the result, depend on rounding.
 - **Stage A ranks two scalars.** SDE condenses the objectives into one number,
   so a feasible solution with the lowest density can dominate every other
   point, as O1 does in the figure, and the rest is ranked by raw fitness.
