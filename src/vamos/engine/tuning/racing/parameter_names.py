@@ -46,7 +46,7 @@ PARAMETER_NAMES: tuple[tuple[str, str, str | None], ...] = (
     ("normalization_epsilon", "normalization_epsilon", "epsilonParameterForNormalization"),
     ("ipbi_theta", "ipbi_theta", "ipbiTheta"),
     ("de_scheme", "de_scheme", "differentialEvolutionCrossover"),
-    # Development after 1.4.0: AGE-MOEA's survival, Evolver's replacement of its AGE-MOEA: AGE-MOEA's or AGE-MOEA-II's.
+    # VAMOS 1.5.0: AGE-MOEA's survival, Evolver's replacement of its AGE-MOEA: AGE-MOEA's or AGE-MOEA-II's.
     ("replacement", "replacement", "replacement"),
 )
 

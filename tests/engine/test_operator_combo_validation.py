@@ -356,9 +356,9 @@ _LARGE_SPACES = {
     "moead_real",
     "moead_constrained_real",
     "moead_mixed_mixed",
-    # Development after 1.4.0: AGE-MOEA's replacement (AGE-MOEA-II) doubles its constrained space.
+    # VAMOS 1.5.0: AGE-MOEA's replacement (AGE-MOEA-II) doubles its constrained space.
     "agemoea_constrained_real",
-    # Development after 1.4.0: NSGA-III's selection (random or a tournament) doubles its constrained space.
+    # VAMOS 1.5.0: NSGA-III's selection (random or a tournament) doubles its constrained space.
     "nsgaiii_constrained_real",
 }
 # A prime stride over the base product reaches every value of every base parameter.

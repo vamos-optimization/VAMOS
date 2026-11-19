@@ -7,8 +7,8 @@ from pathlib import Path
 from vamos.foundation.version import __version__
 
 ROOT = Path(__file__).resolve().parents[2]
-EXPECTED_VERSION = "1.4.0"
-RELEASE_DATE = "2026-11-17"
+EXPECTED_VERSION = "1.5.0"
+RELEASE_DATE = "2026-11-19"
 
 
 def _read(relative: str) -> str:

@@ -72,7 +72,7 @@ def das_dennis(n_obj: int, divisions: int) -> FloatArray:
 def two_layer_size(n_obj: int, divisions: int, inner_divisions: int) -> int:
     """Return the number of directions of a two-layer lattice: both complete lattices.
 
-    Development after 1.4.0: new.
+    VAMOS 1.5.0: new.
     """
     return lattice_size(n_obj, divisions) + lattice_size(n_obj, inner_divisions)
 
@@ -94,7 +94,7 @@ def two_layer_lattice(n_obj: int, divisions: int, inner_divisions: int) -> Float
     direction is a niche that never gets its own individual. Such settings raise ``ValueError`` (see
     :func:`two_layer_shared`).
 
-    Development after 1.4.0: new.
+    VAMOS 1.5.0: new.
     """
     shared = two_layer_shared(n_obj, divisions, inner_divisions)
     if shared:
@@ -111,7 +111,7 @@ def two_layer_shared(n_obj: int, divisions: int, inner_divisions: int) -> int:
     Every coordinate of either layer is a multiple of ``1 / lcm(divisions, 2 inner_divisions n_obj)``,
     so the layers are compared exactly on that grid. A two-layer lattice needs 0.
 
-    Development after 1.4.0: new.
+    VAMOS 1.5.0: new.
     """
     boundary, inside = _two_layers(n_obj, divisions, inner_divisions)
     grid = lcm(divisions, 2 * inner_divisions * n_obj)

@@ -62,7 +62,7 @@ KNOWN_DIFFERENCES: dict[str, dict[str, tuple[object, object]]] = {
 # the resolved weight vectors record; with two objectives both run uniform weights.
 PROBLEM_DIFFERENCES: dict[tuple[str, str], dict[str, tuple[object, object]]] = {
     ("moead", "dtlz2"): {
-        # Development after 1.4.0: the command line records the packaged file it read and the digest of its vectors.
+        # VAMOS 1.5.0: the command line records the packaged file it read and the digest of its vectors.
         "algorithm.config.weight_vectors.sha256": (VARIES, ABSENT),
         "algorithm.resolution.weight_vectors.source": ("file", "das_dennis"),
         "algorithm.resolution.weight_vectors.file": (VARIES, ABSENT),

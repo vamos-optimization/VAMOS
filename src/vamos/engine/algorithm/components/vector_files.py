@@ -3,7 +3,7 @@
 MOEA/D's ``weight_vectors``, NSGA-III's ``reference_directions`` and RVEA's ``reference_vectors`` share
 these helpers through :mod:`vamos.engine.algorithm.components.weight_vectors`.
 
-Development after 1.4.0: new module.
+VAMOS 1.5.0: new module.
 """
 
 import dataclasses
@@ -35,7 +35,7 @@ def read_weight_vectors(path: str, n_obj: int) -> FloatArray:
     a negative component within that rounding reads as 0. The rows are returned as they are, not
     renormalized. A path that is not a file raises :class:`~vamos.exceptions.ConfigurationError`.
 
-    **Development after 1.4.0:** commas and whitespace in every file, and the rounding tolerance of 1e-5
+    **VAMOS 1.5.0:** commas and whitespace in every file, and the rounding tolerance of 1e-5
     (1e-6 before, without the negative rounding).
     """
     if not os.path.isfile(path):
@@ -70,7 +70,7 @@ def vector_source(value: object, *, field: str = "reference vectors") -> dict[st
     not a string, a count that is not a positive integer, or ``inner_divisions`` without ``divisions`` or with
     ``path`` raises :class:`~vamos.exceptions.ConfigurationError`.
 
-    Development after 1.4.0: new; VAMOS 1.4.0 ignored unknown keys.
+    VAMOS 1.5.0: new; VAMOS 1.4.0 ignored unknown keys.
     """
     if value is None:
         return None
@@ -112,7 +112,7 @@ def vector_digest(vectors: FloatArray) -> str:
     """The digest that binds a run to the vectors it read: ``sha256:`` and the SHA-256 of their shape and values.
 
     The values are the float64 vectors that :func:`read_weight_vectors` returns, so a file rewritten with
-    other separators or number formats keeps its digest. Development after 1.4.0: new.
+    other separators or number formats keeps its digest. VAMOS 1.5.0: new.
     """
     array = np.ascontiguousarray(vectors, dtype="<f8")
     rows, columns = array.shape
@@ -135,7 +135,7 @@ def bind_vector_file(source: object, n_obj: int, pop_size: int) -> object:
     digest, or a path whose file does not exist (MOEA/D then generates the lattice; NSGA-III and RVEA raise
     when the run starts) is returned unchanged. The resolved specification then records which file the run
     read and the digest of its vectors: verification rebuilds the record from them without the file, and
-    replay refuses a file whose vectors have changed. Development after 1.4.0: new.
+    replay refuses a file whose vectors have changed. VAMOS 1.5.0: new.
     """
     if not isinstance(source, Mapping) or not source.get("path") or source.get("sha256") is not None:
         return source
@@ -154,7 +154,7 @@ def bind_config_vector_files(config: Any, n_obj: int) -> Any:
     """A configuration dataclass with each vector file bound by :func:`bind_vector_file`.
 
     MOEA/D's ``weight_vectors`` with one or two objectives are uniform and read no file, so they stay as
-    they are. Development after 1.4.0: new.
+    they are. VAMOS 1.5.0: new.
     """
     if not dataclasses.is_dataclass(config) or isinstance(config, type):
         return config
@@ -176,7 +176,7 @@ def existing_weight_file(path: str, n_obj: int, pop_size: int) -> str:
     """The weight file that ``path`` names: itself, or ``W{n_obj}D_{pop_size}.dat`` in the directory ``path``.
 
     A path that does not exist, or a directory without that file, raises
-    :class:`~vamos.exceptions.ConfigurationError`. Development after 1.4.0: new.
+    :class:`~vamos.exceptions.ConfigurationError`. VAMOS 1.5.0: new.
     """
     if os.path.isfile(path):
         return path
@@ -209,7 +209,7 @@ def describe_vector_file(path: str, *, vectors: int | None = None) -> dict[str, 
     ``name`` is the name of the file in ``path``, which :func:`bind_vector_file` resolves when the run starts,
     and ``vectors``, when given, the number of vectors. The record comes from the configuration alone:
     verification rebuilds it from a stored configuration without the file, which may be absent or on
-    another machine. Development after 1.4.0: new.
+    another machine. VAMOS 1.5.0: new.
     """
     record: dict[str, object] = {"source": "file", "file": os.path.basename(os.path.normpath(path))}
     if vectors is not None:

@@ -114,10 +114,10 @@ def test_constraint_handling_follows_the_fields_of_1_0(config_class: Any) -> Non
     # Fields added after 1.0 go last, in the order they were added; NSGA-II had live_callback_mode in 1.0.
     added = ["constraint_handling"] if config_class is NSGAIIConfig else ["constraint_handling", "live_callback_mode"]
     if config_class is AGEMOEAConfig:
-        added.append("variant")  # Development after 1.4.0: AGE-MOEA-II
+        added.append("variant")  # VAMOS 1.5.0: AGE-MOEA-II
     if config_class is RVEAConfig:
-        added.append("reference_vectors")  # Development after 1.4.0: vectors from a file or a two-layer lattice
-        added.append("variant")  # Development after 1.4.0: the PlatEMO/jMetal reading of the survival
+        added.append("reference_vectors")  # VAMOS 1.5.0: vectors from a file or a two-layer lattice
+        added.append("variant")  # VAMOS 1.5.0: the PlatEMO/jMetal reading of the survival
     assert names[position:] == added
     assert fields[position].default is None
 

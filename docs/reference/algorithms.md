@@ -28,9 +28,9 @@ To query the installed registry, use `available_algorithms()` from `vamos.algori
 
 ## Capability matrix
 
-This table describes the **VAMOS 1.4.0 package**. Changes since 1.0.0 are listed below. “R / B / I / P / M” means real, binary, integer, permutation and mixed encodings. An encoding requires compatible variation operators and, for mixed problems, the problem's variable specification; a real-coded default configuration does not convert a discrete problem.
+This table describes the **VAMOS 1.5.0 package**. Changes since 1.0.0 are listed below. “R / B / I / P / M” means real, binary, integer, permutation and mixed encodings. An encoding requires compatible variation operators and, for mixed problems, the problem's variable specification; a real-coded default configuration does not convert a discrete problem.
 
-| Algorithm | Encodings | Constraint-aware survival in 1.4.0 | Archive | Backends | API status |
+| Algorithm | Encodings | Constraint-aware survival in 1.5.0 | Archive | Backends | API status |
 | --- | --- | --- | --- | --- | --- |
 | NSGA-II | R / B / I / P / M | Feasibility-based | Optional external result archive | NumPy / Numba / MooCore | Stable |
 | NSGA-III | R / B / I / P / M | Feasibility-first with reference-direction niching ([details](#constraint-handling-in-110)) | Optional external result archive | NumPy / Numba / MooCore | Stable |
@@ -184,7 +184,7 @@ AGE-MOEA results from VAMOS 1.1.0 and earlier differ with the same seed.
 
 ### AGE-MOEA-II
 
-**Development after 1.4.0:** `AGEMOEAConfig.builder().variant("agemoea_ii")` runs
+**VAMOS 1.5.0:** `AGEMOEAConfig.builder().variant("agemoea_ii")` runs
 AGE-MOEA-II (Panichella, GECCO 2022). Its survival differs from AGE-MOEA's in two
 steps of the first-front score, which are those that jMetal's
 `AGEMOEA2EnvironmentalSelection`, written by the author, overrides:
@@ -217,7 +217,7 @@ name of Evolver's parameter (`agemoeaII` in Evolver).
 These are declared VAMOS choices, not defects; report them when comparing with
 published results or with another framework.
 
-- **NSGA-III parents:** **Development after 1.4.0:** no longer a departure.
+- **NSGA-III parents:** **VAMOS 1.5.0:** no longer a departure.
   They are drawn at random by default, as Deb and Jain (2014) and pymoo do
   (under constraints, by a binary tournament on the violation, as Jain and
   Deb's constrained NSGA-III), and `selection("tournament")` is jMetal's
@@ -242,7 +242,7 @@ published results or with another framework.
   uses M = 1, half of the published `M (t / t_max)^alpha theta / gamma`, the
   objectives are translated by the ideal point accumulated across
   generations, and the vectors adapt to the nadir point minus that ideal.
-  **Development after 1.4.0:** `RVEAConfig.builder().variant("platemo")`
+  **VAMOS 1.5.0:** `RVEAConfig.builder().variant("platemo")`
   runs the authors' code in PlatEMO (`RVEA/EnvironmentalSelection.m`), as
   jMetal does: M is the number of objectives, two included, the objectives
   are translated by the minimum of each generation's candidates, and the
@@ -314,7 +314,7 @@ config = (
 
 `final_selection` is `"none"` (the default: the whole archive, as before), `"farthest"`, `"crowding"`, `"hv_greedy"` or `"kmeans"`, the selections of `top_k(method=...)`; `kmeans` is seeded with the archive's `rng_seed`, which without a value derives from the run seed (see [Reproducibility](../experiment/stopping_and_archive.md#reproducibility)). `final_size` defaults to the population size. `result.X` and `result.F` hold the subset, the archive stays whole in `result.data["archive"]` (`archive_X`/`archive_F` for NSGA-III and IBEA, `external_archive` for SPEA2), and `result.data["archive_subset"]` records the selection, the size and the indices of the selected rows in the archive. A saved run stores the subset as its result and the whole archive under `archive/` (SPEA2: `external_archive/`, since its `archive/` is the environmental archive), and its resolved specification records `final_selection` and `final_size`, so a replay selects the same subset. The subset also applies to a bounded archive larger than `final_size`, not with `result_mode="population"`, and not to hypervolume termination or live callbacks, which see the whole archive during the run.
 
-**Development after 1.4.0:** an unbounded external archive no longer filters itself once per generation. Once it holds feasible, finite rows, it keeps the rows each generation offers and merges them, with moocore's non-dominated filter when moocore is installed, only when something reads the archive (the result, a live callback in `population_archive` mode, hypervolume termination, SMPSO's leaders) or when the kept rows outnumber twice the archive. One merge gives the same rows, in the same order, as one update per generation, so results do not change; a run that reads its archive only at the end filters it once. Over the 200 000 evaluations of an NSGA-II run, the archive took 0.1 s instead of 5.0 s on CRE21 (7 000 rows), 0.16 s instead of 11.5 s on RCM08 and 0.28 s instead of 85 s on RCM25 (112 000 rows). Before the first feasible row, and after rows with non-finite feasible objectives, the archive is updated at once, as before.
+**VAMOS 1.5.0:** an unbounded external archive no longer filters itself once per generation. Once it holds feasible, finite rows, it keeps the rows each generation offers and merges them, with moocore's non-dominated filter when moocore is installed, only when something reads the archive (the result, a live callback in `population_archive` mode, hypervolume termination, SMPSO's leaders) or when the kept rows outnumber twice the archive. One merge gives the same rows, in the same order, as one update per generation, so results do not change; a run that reads its archive only at the end filters it once. Over the 200 000 evaluations of an NSGA-II run, the archive took 0.1 s instead of 5.0 s on CRE21 (7 000 rows), 0.16 s instead of 11.5 s on RCM08 and 0.28 s instead of 85 s on RCM25 (112 000 rows). Before the first feasible row, and after rows with non-finite feasible objectives, the archive is updated at once, as before.
 
 NSGA-III and RVEA require a population compatible with the configured reference directions. MOEA/D requires one weight vector per population member. For a simplex lattice with `p` divisions and `m` objectives, use `comb(p + m - 1, m - 1)`; for three objectives and 12 divisions, that is **91**. Explicit incompatible cardinalities fail; they are not warning-only cases. Follow the tutorials before changing objective count or population size.
 
@@ -326,7 +326,7 @@ NSGA-III and RVEA require a population compatible with the configured reference 
 
 ### Reference and weight vectors
 
-**Development after 1.4.0:** MOEA/D, NSGA-III and RVEA take their vectors from the same kind of option, as jMetal and Evolver configure them from the same weight files, so that the three algorithms can start from the same vectors: MOEA/D's `weight_vectors`, NSGA-III's `reference_directions` and RVEA's new `reference_vectors`, a mapping (or builder method) with these keys:
+**VAMOS 1.5.0:** MOEA/D, NSGA-III and RVEA take their vectors from the same kind of option, as jMetal and Evolver configure them from the same weight files, so that the three algorithms can start from the same vectors: MOEA/D's `weight_vectors`, NSGA-III's `reference_directions` and RVEA's new `reference_vectors`, a mapping (or builder method) with these keys:
 
 | Key | Vectors |
 | --- | --- |
@@ -443,7 +443,7 @@ These are implementation fixes under the existing stability policy. Record the p
 
 - NumPy (default): vectorized CPU kernels.
 - Numba: JIT acceleration for supported kernels (set `VAMOS_USE_NUMBA_VARIATION=1` for permutation/binary/integer variation).
-- MooCore: accelerated kernels via `moocore`. Install optional backends with `python -m pip install "vamos-optimization[compute]==1.4.0"`; see [installation](../guide/installation.md).
+- MooCore: accelerated kernels via `moocore`. Install optional backends with `python -m pip install "vamos-optimization[compute]==1.5.0"`; see [installation](../guide/installation.md).
 
 ### Backend roles
 
@@ -533,7 +533,7 @@ never compiles problem evaluation.
 | Algorithm | Compiled with `engine="numba"` | Stays in NumPy/Python |
 | --- | --- | --- |
 | NSGA-II | Non-dominated ranking and crowding, survival, tournament selection, SBX, polynomial mutation; the whole one-offspring steady-state step in its supported configuration (below) | Feasibility ordering, archives, steady-state front maintenance outside that configuration |
-| NSGA-III | Ranking and crowding, tournament selection (**Development after 1.4.0:** where configured, and the violation tournament of random parents under constraints), SBX, polynomial mutation | Random parent draws, normalization, association to reference directions, niching (it shuffles with the run generator inside the loop) |
+| NSGA-III | Ranking and crowding, tournament selection (**VAMOS 1.5.0:** where configured, and the violation tournament of random parents under constraints), SBX, polynomial mutation | Random parent draws, normalization, association to reference directions, niching (it shuffles with the run generator inside the loop) |
 | MOEA/D | Differential-evolution children, SBX, polynomial mutation, neighbourhood replacement; the whole one-offspring step (see below) | Weight geometry; parent sampling and repair outside the compiled one-offspring step |
 | SMS-EMOA | The steady-state step (VAMOS 1.2.0, see below): child variation and clipping, front insertion, two-objective hypervolume contributions, crowding, feasibility-first removal; tournament selection where configured | Parent sampling draws, hypervolume contributions for three or more objectives (MooCore when installed), archives |
 | SPEA2 | SBX, polynomial mutation, lexicographic archive truncation | Strength/raw fitness and density (vectorized NumPy) |

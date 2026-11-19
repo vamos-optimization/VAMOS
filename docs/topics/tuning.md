@@ -5,7 +5,7 @@ indices, population-related settings, and other parameters that control a MOEA.
 A tuning campaign evaluates candidate configurations over explicit problem and
 seed blocks and ranks them by a scalar quality score.
 
-!!! warning "Experimental surface in VAMOS 1.4.0"
+!!! warning "Experimental surface in VAMOS 1.5.0"
     The tuning/racing implementation and the `vamos tune` and `vamos ablation`
     commands are **experimental**. They are supported for evaluation but may
     change incompatibly in a minor release. Stable optimization calls used by
@@ -19,7 +19,7 @@ This page is about configuring optimization algorithms. If the variables in
 
 ## Changes included in 1.0.1
 
-The install command below selects **VAMOS 1.4.0**, which keeps the corrected
+The install command below selects **VAMOS 1.5.0**, which keeps the corrected
 scoring, archive-search, and persistence behavior introduced in 1.0.1 and
 described on this page:
 
@@ -37,7 +37,7 @@ search spaces differ. See also the
 
 ## Programmatic API status
 
-VAMOS 1.4.0 does **not** expose a curated public programmatic facade for the
+VAMOS 1.5.0 does **not** expose a curated public programmatic facade for the
 algorithm-configuration tuner. Maintained user workflows should therefore use
 `vamos tune` rather than import deep `vamos.engine.*` implementation modules.
 
@@ -73,7 +73,7 @@ comparison:
 
 ### CLI scoring contract: hypervolume
 
-In VAMOS 1.4.0, the maintained `vamos tune` CLI has **no metric selector**. It scores
+In VAMOS 1.5.0, the maintained `vamos tune` CLI has **no metric selector**. It scores
 candidate runs with **hypervolume (HV) and maximizes that score**.
 
 The score source is fixed: VAMOS takes the **final population**, removes
@@ -168,7 +168,7 @@ Model-based backends (`optuna`, `smac3`, `bohb`, and `bohb_optuna`) require the
 optional tuning dependencies:
 
 ```bash
-python -m pip install "vamos-optimization[tuning]==1.4.0"
+python -m pip install "vamos-optimization[tuning]==1.5.0"
 ```
 
 For an editable development installation, follow
@@ -415,7 +415,7 @@ offset of 0.1, so no assignment reproduced the default configuration; an
 assignment without the new parameters still builds that tournament
 configuration.
 
-**Development after 1.4.0:** the NSGA-III spaces choose the mating selection,
+**VAMOS 1.5.0:** the NSGA-III spaces choose the mating selection,
 `random` (the default, Deb and Jain's) or `tournament` (jMetal's NSGA-III
 tournament on rank), with `tournament_size` in [2, 10] only for a tournament,
 as Evolver's `NSGAIIIDouble` space does. Evolver's space also offers Boltzmann,
@@ -560,7 +560,7 @@ differently, and the exchange functions translate them: `SBX`, `blxAlpha`,
 `tschebyscheff`, `weightedSum`, `penaltyBoundaryIntersection` and
 `modifiedTschebyscheff`; `default` (random; **VAMOS 1.4.0:** `auto`), `latinHypercubeSampling`,
 `scatterSearch` and `oppositionBased`; `stochasticUniversalSampling`;
-**Development after 1.4.0:** AGE-MOEA's `replacement` `agemoeaII`
+**VAMOS 1.5.0:** AGE-MOEA's `replacement` `agemoeaII`
 (`agemoea_ii`).
 
 **VAMOS 1.4.0:** Evolver's `modifiedTschebyscheff` is jMetal's
@@ -718,7 +718,7 @@ spaces of VAMOS 1.3.0, with `pop_size`, `use_external_archive` or an absolute
 `mutation_prob`, or with the names of VAMOS 1.2.1, builds the configuration it
 built.
 
-**Development after 1.4.0:** every AGE-MOEA space (`agemoea`, `agemoea_constrained`,
+**VAMOS 1.5.0:** every AGE-MOEA space (`agemoea`, `agemoea_constrained`,
 `agemoea_binary`, `agemoea_integer`, `agemoea_permutation` and `agemoea_mixed`)
 offers `replacement`, Evolver's choice between AGE-MOEA's survival (`agemoea`,
 the default) and AGE-MOEA-II's (`agemoea_ii`, Evolver's `agemoeaII`); see
@@ -859,7 +859,7 @@ built. The `effective` record compares with that fixed population: with
 `--pop-size 150` and three objectives, every MOEA/D trial records
 `{"pop_size": 136}`.
 
-**Development after 1.4.0:** with four objectives and a `pop_size` from 100
+**VAMOS 1.5.0:** with four objectives and a `pop_size` from 100
 to 119, MOEA/D runs the 100 vectors of the packaged `W4D_100.dat`, which VAMOS
 1.4.0 skipped because the file held them twice: it ran 84 individuals, the
 lattice of six divisions. A saved assignment with such a population now builds
@@ -1100,7 +1100,7 @@ schedule, and split is not a reproducible tuning result.
 
 ## Archive studies are separate from ordinary CLI tuning
 
-The 1.4.0 CLI intentionally excludes external-archive controls from its
+The 1.5.0 CLI intentionally excludes external-archive controls from its
 ordinary algorithm-configuration search so every candidate is compared on the
 same final-population basis. If archive capacity, pruning, or archive-enabled
 result semantics are themselves the research question, define them explicitly

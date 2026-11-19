@@ -107,7 +107,7 @@ def initialize_nsgaiii_run(
         variation_kernels=kernel.variation_kernels(),
     )
 
-    # Development after 1.4.0: "random" or "tournament" (and its size); any other selection raises.
+    # VAMOS 1.5.0: "random" or "tournament" (and its size); any other selection raises.
     selection_method, pressure = nsgaiii_selection(config["selection"])
 
     # Reference directions: a file, the complete lattice for the configured divisions, or, without
@@ -118,7 +118,7 @@ def initialize_nsgaiii_run(
     ref_divisions = dir_cfg.get("divisions")
     ref_inner = dir_cfg.get("inner_divisions")
     if ref_path:
-        # Development after 1.4.0: the file, or W{n_obj}D_{pop_size}.dat in a directory, is read as MOEA/D
+        # VAMOS 1.5.0: the file, or W{n_obj}D_{pop_size}.dat in a directory, is read as MOEA/D
         # reads its weights, with whitespace or commas between the components, and a path that does not
         # exist raises instead of generating a lattice there.
         ref_dirs = load_or_generate_weight_vectors(pop_size, n_obj, path=str(ref_path), sha256=_digest(dir_cfg.get("sha256")))

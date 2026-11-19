@@ -1,4 +1,4 @@
-"""Verified VAMOS 1.4.0 lesson: smpso. See coverage-setup for dependencies."""
+"""Verified VAMOS 1.5.0 lesson: smpso. See coverage-setup for dependencies."""
 
 
 def execute_example(problem, algorithm, config, budget, seed=42, engine="numpy"):

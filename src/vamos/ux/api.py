@@ -46,7 +46,7 @@ from vamos.ux.visualization import (
 )
 
 __all__ = [
-    # Development after 1.4.0: quality indicators, the exact and the approximate hypervolume
+    # VAMOS 1.5.0: quality indicators, the exact and the approximate hypervolume
     "HVIndicator",
     "HVApproxIndicator",
     "HV_APPROX_METHODS",

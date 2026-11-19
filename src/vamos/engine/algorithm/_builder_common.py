@@ -122,7 +122,7 @@ def finalize_algorithm(
 ) -> tuple[Any, AlgorithmConfigProtocol]:
     cfg_data = apply_block_fields(cast(AlgorithmConfigProtocol, builder.build()), block, handled=handled)
     if n_obj is not None:
-        # Development after 1.4.0: a vector file is bound to the file the run reads and the digest of its vectors.
+        # VAMOS 1.5.0: a vector file is bound to the file the run reads and the digest of its vectors.
         cfg_data = cast(AlgorithmConfigProtocol, bind_config_vector_files(cfg_data, n_obj))
     algo_ctor = resolve_algorithm(algorithm_name)
     return algo_ctor(cfg_data.to_dict(), kernel), cfg_data

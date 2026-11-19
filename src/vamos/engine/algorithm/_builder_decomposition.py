@@ -107,7 +107,7 @@ def build_nsgaiii_algorithm(
     builder.pop_size(pop_size)
     apply_operator_config(builder, method_name="crossover", operator_cfg=var_cfg["crossover"], key="crossover")
     apply_operator_config(builder, method_name="mutation", operator_cfg=var_cfg["mutation"], key="mutation")
-    # Development after 1.4.0: random parents, as NSGAIIIConfig.default(); --selection-pressure sized a
+    # VAMOS 1.5.0: random parents, as NSGAIIIConfig.default(); --selection-pressure sized a
     # tournament on rank and crowding distance, which is not NSGA-III's selection.
     apply_operator_config(
         builder,
@@ -150,7 +150,7 @@ def build_rvea_algorithm(
     partitions = rvea_overrides.get("n_partitions")
     vectors = vector_source(rvea_overrides.get("reference_vectors"), field="reference_vectors")
     if vectors:
-        # Development after 1.4.0: the reference vectors of a file, a directory or a two-layer lattice.
+        # VAMOS 1.5.0: the reference vectors of a file, a directory or a two-layer lattice.
         builder.reference_vectors(**cast("dict[str, Any]", vectors))
     if partitions is not None:
         builder.n_partitions(int(partitions))

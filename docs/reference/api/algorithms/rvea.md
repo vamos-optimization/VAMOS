@@ -10,7 +10,7 @@ from vamos.algorithms import RVEAConfig
 
 [Configuration overview](index.md) · [Algorithm contracts](../../algorithms.md) · [Optimization](../optimization.md)
 
-**Development after 1.4.0:** `reference_vectors` gives RVEA the reference
+**VAMOS 1.5.0:** `reference_vectors` gives RVEA the reference
 vectors of a file, a directory or a two-layer lattice, with the keys of MOEA/D's
 `weight_vectors` and NSGA-III's `reference_directions` (see
 [reference vectors](../../algorithms.md#reference-and-weight-vectors)), so that
@@ -47,7 +47,7 @@ task id, of VAMOS 1.4.0. The resolved spec of a run with a file records it in
 rejects a path, as it does for NSGA-III, and checks that `pop_size` equals the
 vectors of `divisions` and `inner_divisions`.
 
-**Development after 1.4.0:** `variant` chooses the reading of the survival:
+**VAMOS 1.5.0:** `variant` chooses the reading of the survival:
 `"pymoo"` (default, the results of VAMOS 1.4.0) or `"platemo"`, the authors'
 PlatEMO code and jMetal, with M equal to the number of objectives in the angle
 penalty for two objectives too, translation by each generation's minimum and

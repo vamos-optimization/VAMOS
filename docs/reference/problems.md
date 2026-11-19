@@ -2,8 +2,8 @@
 
 Choose a problem by its **formulation, encoding and dimensions**, then check the
 [algorithm compatibility matrix](algorithms.md). This catalog describes the
-251 registered problems in VAMOS **1.4.0**; **Development after 1.4.0:**
-CTP1–CTP7 bring them to 258, and IDTLZ1 and IDTLZ2 to 260. The named selection helpers are
+260 registered problems in VAMOS **1.5.0**; **VAMOS 1.5.0:**
+CTP1–CTP7 and IDTLZ1 and IDTLZ2 are new, so 251 become 260. The named selection helpers are
 [stable public APIs](../project/stability-and-versioning.md). A synthetic or
 engineering benchmark is a test model, not a validated model of your application.
 
@@ -41,10 +41,10 @@ and three application examples (`FeatureSelectionProblem`,
 `HyperparameterTuningProblem`, and `WeldedBeamDesignProblem`). These classes
 are stable for 1.x. **VAMOS 1.2.0:** the classes added since cover
 a whole family and take the variant number and the family's parameters:
-`DASCMOP`, `DCDTLZ`, and `LIRCMOP`. **Development after 1.4.0:** `CTP`
+`DASCMOP`, `DCDTLZ`, and `LIRCMOP`. **VAMOS 1.5.0:** `CTP`
 covers CTP1–CTP7 in the same way. Every registered problem, including the
 families and members without a class (ZDT5, DTLZ5 and DTLZ6, UF4–UF10, LZ09,
-MW, C-DTLZ, LSMOP, ZCAT, RE, and RWA; **Development after 1.4.0:** IDTLZ1
+MW, C-DTLZ, LSMOP, ZCAT, RE, and RWA; **VAMOS 1.5.0:** IDTLZ1
 and IDTLZ2), is available by name through `optimize("name")` and
 `make_problem_selection`, the stable way to build any of them.
 
@@ -80,11 +80,11 @@ the corresponding implementation or family registration in the 1.0.1 release.
 | `zdt1`, `zdt2`, `zdt3` | 30 | 2 | 0 | Variables in `[0, 1]`; fixed M | [ZDT][zdt] | 2D, each |
 | `zdt4` | 10 | 2 | 0 | First variable `[0, 1]`, remainder `[-5, 5]`; fixed M | [ZDT][zdt] | 2D |
 | `zdt6` | 10 | 2 | 0 | Variables in `[0, 1]`; fixed M | [ZDT][zdt] | 2D |
-| `dtlz1` | 7 | 3 | 0 | `n = M + 4` (`k = 5`) when n is omitted | [DTLZ][dtlz] | 2D and 3D; **Development after 1.4.0:** also 4D, 6D and 8D |
-| `dtlz2`–`dtlz6` | 12 | 3 | 0 | `n = M + 9` (`k = 10`); DTLZ4 uses `alpha = 100` | [DTLZ][dtlz] | 2D and 3D, each; **Development after 1.4.0:** DTLZ2–DTLZ4 also 4D, 6D and 8D |
-| `dtlz7` | 22 | 3 | 0 | `n = M + 19` (`k = 20`) | [DTLZ][dtlz] | 2D and 3D; **Development after 1.4.0:** also 4D, 6D and 8D |
-| `idtlz1` | 7 | 3 | 0 | **Development after 1.4.0:** `n = M + 4` (`k = 5`) when n is omitted; DTLZ1's front turned over | [IDTLZ][idtlz] | 2D and 3D |
-| `idtlz2` | 12 | 3 | 0 | **Development after 1.4.0:** `n = M + 9` (`k = 10`); DTLZ2's front turned over | [IDTLZ][idtlz] | 2D and 3D |
+| `dtlz1` | 7 | 3 | 0 | `n = M + 4` (`k = 5`) when n is omitted | [DTLZ][dtlz] | 2D and 3D; **VAMOS 1.5.0:** also 4D, 6D and 8D |
+| `dtlz2`–`dtlz6` | 12 | 3 | 0 | `n = M + 9` (`k = 10`); DTLZ4 uses `alpha = 100` | [DTLZ][dtlz] | 2D and 3D, each; **VAMOS 1.5.0:** DTLZ2–DTLZ4 also 4D, 6D and 8D |
+| `dtlz7` | 22 | 3 | 0 | `n = M + 19` (`k = 20`) | [DTLZ][dtlz] | 2D and 3D; **VAMOS 1.5.0:** also 4D, 6D and 8D |
+| `idtlz1` | 7 | 3 | 0 | **VAMOS 1.5.0:** `n = M + 4` (`k = 5`) when n is omitted; DTLZ1's front turned over | [IDTLZ][idtlz] | 2D and 3D |
+| `idtlz2` | 12 | 3 | 0 | **VAMOS 1.5.0:** `n = M + 9` (`k = 10`); DTLZ2's front turned over | [IDTLZ][idtlz] | 2D and 3D |
 | `wfg1`–`wfg9` | 24 | 3 | 0 | `k = 4`, `l = 20`; bounds `[0, 2i]` for variable i | [WFG][wfg] | **2D only**, each |
 | `lz09_f1`, `lz09_f7`, `lz09_f8` | 10 | 2 | 0 | Fixed M; family-specific linkage | [Li–Zhang LZ09][lz] | None packaged |
 | `lz09_f2`–`lz09_f5`, `lz09_f9` | 30 | 2 | 0 | Fixed M; family-specific linkage | [Li–Zhang LZ09][lz] | None packaged |
@@ -94,7 +94,7 @@ the corresponding implementation or family registration in the 1.0.1 release.
 | `lsmop1`–`lsmop9` | 300 | 3 | 0 | `nk = 5` subcomponents per group | [LSMOP][lsmop] | **2D only**, each |
 | `zcat1`–`zcat20` | 30 | 2 | 0 | `level = 1`; complicated Pareto set, bias and imbalance all `False` | [ZCAT][zcat] | 2D, 3D, 4D and 6D, each |
 
-**Development after 1.4.0:** IDTLZ1 and IDTLZ2 are the inverted DTLZ1 and
+**VAMOS 1.5.0:** IDTLZ1 and IDTLZ2 are the inverted DTLZ1 and
 DTLZ2 of Jain and Deb (2014), the usual test of how decomposition-based
 algorithms cope with an inverted front. They follow PlatEMO's `IDTLZ1` and
 `IDTLZ2`: with DTLZ1's or DTLZ2's distance function `g` and position shape `s`
@@ -170,8 +170,8 @@ algorithm with the required constraint support in the [matrix](algorithms.md).
 | `golinski` | 7 | 2 | 11 | Fixed n and M; Golinski's speed reducer | [jMetal][jmetal-classics] | 2D |
 | `water` | 3 | 5 | 7 | Fixed n and M; water resource planning | [jMetal][jmetal-classics] | 5D |
 | `car_side_impact` | 7 | 3 | 10 | Fixed n and M | [jMetal][jmetal-classics] | 3D |
-| `ctp1` | 5 | 2 | 2 | **Development after 1.4.0:** fixed M; n ≥ 2; `x1` in `[0, 1]`, the others in `[-5, 5]`; the paper's J = 2 | [CTP][ctp] | 2D |
-| `ctp2`–`ctp7` | 5 | 2 | 1 | **Development after 1.4.0:** fixed M; n ≥ 2; `x1` in `[0, 1]`, the others in `[-5, 5]`; the paper's `(θ, a, b, c, d, e)` | [CTP][ctp] | 2D, each |
+| `ctp1` | 5 | 2 | 2 | **VAMOS 1.5.0:** fixed M; n ≥ 2; `x1` in `[0, 1]`, the others in `[-5, 5]`; the paper's J = 2 | [CTP][ctp] | 2D |
+| `ctp2`–`ctp7` | 5 | 2 | 1 | **VAMOS 1.5.0:** fixed M; n ≥ 2; `x1` in `[0, 1]`, the others in `[-5, 5]`; the paper's `(θ, a, b, c, d, e)` | [CTP][ctp] | 2D, each |
 | `zxh_cf1`–`zxh_cf4` | 13 | 3 | 1–2 | Configurable M; n = M + 10 unless supplied; type A | [ZXH-CF][zxh-cf] | 3D, each |
 | `zxh_cf5`–`zxh_cf8` | 13 | 3 | 3–4 | Configurable M; type B, k + 1 or k + 2 constraints | [ZXH-CF][zxh-cf] | 3D, each |
 | `zxh_cf9`–`zxh_cf12` | 13 | 3 | 3–4 | Configurable M; type C, k + 1 or k + 2 constraints | [ZXH-CF][zxh-cf] | 3D, each |
@@ -290,7 +290,7 @@ with a radius. VAMOS 1.2.0 stored two per angle, `2k + 1` or `2k + 2`. The
 feasibility and the overall violation do not change; the number of constraints
 and of violated constraints does.
 
-**Development after 1.4.0:** CTP1–CTP7 (Deb, Pratap and Meyarivan, 2001)
+**VAMOS 1.5.0:** CTP1–CTP7 (Deb, Pratap and Meyarivan, 2001)
 follow the paper's definition. Both objectives are minimized, `f1 = x1` with
 `x1` in `[0, 1]`, and each constraint `c >= 0` of the paper is stored as
 `G = -c`:
@@ -645,7 +645,7 @@ equalities).
 
 ### Learning and mixed engineering examples
 
-Install `python -m pip install "vamos-optimization[examples]==1.4.0"` for the two
+Install `python -m pip install "vamos-optimization[examples]==1.5.0"` for the two
 classifier examples. The base package is sufficient for `welded_beam`.
 See [Installation](../guide/installation.md) for environments and extras.
 
@@ -718,7 +718,7 @@ compatibility or a certified optimum.
 
 - ZDT fronts have two columns; ZDT5's sample is tied to its default 80 bits.
 - DTLZ fronts have three columns, and `dtlz<k>.2d.csv` two. Other values of M
-  need a supplied reference. **Development after 1.4.0:** DTLZ1–DTLZ4 and
+  need a supplied reference. **VAMOS 1.5.0:** DTLZ1–DTLZ4 and
   DTLZ7 also have samples with 4, 6 and 8 objectives, `dtlz1.<M>d.csv`,
   `dtlz2.<M>d.csv` and `dtlz7.<M>d.csv`. DTLZ3 and DTLZ4 share DTLZ2's front,
   so they resolve to `dtlz2.<M>d.csv`. DTLZ5 and DTLZ6 with more than three
@@ -726,9 +726,9 @@ compatibility or a certified optimum.
 - WFG and LSMOP samples have **two columns**, even though their registered
   default is three objectives. Supply a matching reference for default runs; do
   not use those two-column files for three-objective indicators.
-- **Development after 1.4.0:** CTP1–CTP7 have two-objective samples,
+- **VAMOS 1.5.0:** CTP1–CTP7 have two-objective samples,
   `ctp1.csv` to `ctp7.csv`.
-- **Development after 1.4.0:** IDTLZ1 and IDTLZ2 have samples with two and
+- **VAMOS 1.5.0:** IDTLZ1 and IDTLZ2 have samples with two and
   three objectives, `idtlz1.2d.csv`, `idtlz1.3d.csv`, `idtlz2.2d.csv` and
   `idtlz2.3d.csv`. Other values of M need a supplied reference.
 - C-DTLZ, DC-DTLZ, ZCAT and ZXH-CF supply dimension-specific samples, named
@@ -768,8 +768,8 @@ regenerates the files marked as regenerated.
 | `dtlz5`, `dtlz6` | Regenerated: 1000 points of the front curve |
 | `dtlz7` | Regenerated: 5050 points of the disconnected front |
 | `dtlz1.2d`–`dtlz7.2d` | **VAMOS 1.3.0:** regenerated, 1000 points spaced evenly along the front: `f1 + f2 = 0.5` (DTLZ1), the quarter circle (DTLZ2–DTLZ6; at M = 2, DTLZ5 and DTLZ6 do not degenerate) and the non-dominated pieces of `f2 = 4 - f1 (1 + sin(3 pi f1))` (DTLZ7) |
-| `idtlz1`, `idtlz2`, `.2d` and `.3d` | **Development after 1.4.0:** generated as PlatEMO's `GetOptimum` defines them, `(1 - w) / 2` (IDTLZ1) and `1 - w / norm(w)` (IDTLZ2): at M = 2, 1000 points spaced evenly along the front (IDTLZ1's segment is DTLZ1's); at M = 3, the 5050-point simplex lattice of the DTLZ1–DTLZ4 samples |
-| `dtlz1`, `dtlz2` and `dtlz7`, `.4d`, `.6d` and `.8d` | **Development after 1.4.0:** regenerated. DTLZ1 and DTLZ2 (which DTLZ3 and DTLZ4 share): the largest Das-Dennis simplex lattice with at most 10 000 points (H = 37, 13 and 8: 9880, 8568 and 6435 points), scaled to `sum(f) = 0.5` or projected onto the unit sphere. DTLZ7: its last objective is `2 (M - sum psi(f_i))` over the others, with `psi(t) = t (1 + sin(3 pi t))`, so the front is the product of the values of `f_i` that no smaller value beats in `psi`; values of a grid of 200 001 points, combined and thinned to 5050 points by farthest-point selection |
+| `idtlz1`, `idtlz2`, `.2d` and `.3d` | **VAMOS 1.5.0:** generated as PlatEMO's `GetOptimum` defines them, `(1 - w) / 2` (IDTLZ1) and `1 - w / norm(w)` (IDTLZ2): at M = 2, 1000 points spaced evenly along the front (IDTLZ1's segment is DTLZ1's); at M = 3, the 5050-point simplex lattice of the DTLZ1–DTLZ4 samples |
+| `dtlz1`, `dtlz2` and `dtlz7`, `.4d`, `.6d` and `.8d` | **VAMOS 1.5.0:** regenerated. DTLZ1 and DTLZ2 (which DTLZ3 and DTLZ4 share): the largest Das-Dennis simplex lattice with at most 10 000 points (H = 37, 13 and 8: 9880, 8568 and 6435 points), scaled to `sum(f) = 0.5` or projected onto the unit sphere. DTLZ7: its last objective is `2 (M - sum psi(f_i))` over the others, with `psi(t) = t (1 + sin(3 pi t))`, so the front is the product of the values of `f_i` that no smaller value beats in `psi`; values of a grid of 200 001 points, combined and thinned to 5050 points by farthest-point selection |
 | `wfg1`, `wfg2` | Regenerated from the WFG shape functions, 10 000 points |
 | `wfg3`–`wfg9` | Closed-form front, 10 000 points, unchanged |
 | `lsmop1`–`lsmop8` | Closed-form front, 1000 points, unchanged |
@@ -783,7 +783,7 @@ regenerates the files marked as regenerated.
 | `mw4`, `mw8`, `mw14` (`.2d` and `.3d`), `mw9`–`mw13` | jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), under `LICENSE-jmetal.txt`; jMetal's MW problems are VAMOS's, which the reference values check |
 | `cec2009_cf2`–`cec2009_cf10` | jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), under `LICENSE-jmetal.txt`; a feasible design on the Pareto set reaches every point. CF4 and CF5, CF6 and CF7, and CF9 and CF10 share their fronts |
 | `zxh_cf1.3d`–`zxh_cf16.3d` | Regenerated: on the Pareto set `S = 1` and `h = 0`, so the objectives are the front shape of the angles; designs on a 301 × 301 grid of angles, evaluated by VAMOS's problem, keep the feasible, non-dominated ones, thinned to 5050 points. A feasible design reaches every point within 1e-9 (see the notes on jMetal's fronts) |
-| `ctp1`–`ctp7` | **Development after 1.4.0:** generated from the paper's definition at g = 1 and on the constraint boundaries, as VAMOS evaluates them. CTP1: the envelope `max(exp(-f1), a_j exp(-b_j f1))`, 1000 points. CTP2–CTP7: the feasible, non-dominated points of the boundary, sampled at 2 000 001 values of `sin(θ) (f2 - e) + cos(θ) f1` and at the zeros of its sine, of the unconstrained front `f2 = 1 - f1` and of the least feasible `f2` at `f1 = 0` and 1, thinned to at most 1000 with the zeros kept: CTP2's 13 segments, the 13 isolated points of CTP3 and CTP4 (the same file), CTP5's first arch and 15 points, CTP6's boundary in `1 <= sin(θ) (f2 - e) + cos(θ) f1 <= 2`, and six pieces of CTP7's unconstrained front with `(0, 1.0446)`, the least feasible point at `f1 = 0`. A feasible design reaches every point (within 1e-6 at the isolated points; see the notes on CTP above) |
+| `ctp1`–`ctp7` | **VAMOS 1.5.0:** generated from the paper's definition at g = 1 and on the constraint boundaries, as VAMOS evaluates them. CTP1: the envelope `max(exp(-f1), a_j exp(-b_j f1))`, 1000 points. CTP2–CTP7: the feasible, non-dominated points of the boundary, sampled at 2 000 001 values of `sin(θ) (f2 - e) + cos(θ) f1` and at the zeros of its sine, of the unconstrained front `f2 = 1 - f1` and of the least feasible `f2` at `f1 = 0` and 1, thinned to at most 1000 with the zeros kept: CTP2's 13 segments, the 13 isolated points of CTP3 and CTP4 (the same file), CTP5's first arch and 15 points, CTP6's boundary in `1 <= sin(θ) (f2 - e) + cos(θ) f1 <= 2`, and six pieces of CTP7's unconstrained front with `(0, 1.0446)`, the least feasible point at `f1 = 0`. A feasible design reaches every point (within 1e-6 at the isolated points; see the notes on CTP above) |
 | `lircmop1`–`lircmop14`, `dascmop1`–`dascmop9` | jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), under its MIT notice in `LICENSE-jmetal.txt`; DAS-CMOP8 and DAS-CMOP9 leave out two rows each, which another row dominates |
 | `cre21`–`cre25`, `cre31`, `cre32`, `cre51`, `rcm01`–`rcm49` except `rcm17`, `rcm23` and `rcm26` | jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), unchanged, under `LICENSE-jmetal.txt`; approximations (see the notes on jMetal's CRE and RCM fronts). `cre51` and `rcm11` are the same file |
 | `c1dtlz1`–`dc3dtlz3`, `.2d` and `.3d`, `c3dtlz4` included | Regenerated: the feasible, non-dominated part of DTLZ's front (C3-DTLZ1 and C3-DTLZ4: of their constraint boundaries), as VAMOS evaluates it; 1000 points at M = 2 and up to 5050 at M = 3 |
@@ -814,7 +814,7 @@ with jMetal's and Evolver's:
   `jmetal` or `file`) next to `reference_front_path` in its resolved
   termination.
 
-**Development after 1.4.0:** the lattices of DTLZ1–DTLZ4 with 4, 6 and 8
+**VAMOS 1.5.0:** the lattices of DTLZ1–DTLZ4 with 4, 6 and 8
 objectives are those of PlatEMO's reference fronts (`UniformPoint(10000, M)`,
 which also raises zeros to 1e-6). jMetal's DTLZ2, DTLZ3 and DTLZ4 files with
 those numbers of objectives (`DTLZ2.4D.csv` and so on) hold the same points, in

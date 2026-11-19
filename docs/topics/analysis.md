@@ -4,7 +4,7 @@ VAMOS includes optional post-processing helpers for statistical comparison,
 visualization, and multi-criteria decision making (MCDM). These tools are useful
 after optimization; they are not required by the core optimization runtime.
 
-!!! warning "Experimental surface in VAMOS 1.4.0"
+!!! warning "Experimental surface in VAMOS 1.5.0"
     `vamos.ux.api`, statistical analysis, visualization, and MCDM helpers are
     **experimental**. They are supported for evaluation, but may change
     incompatibly in a minor release. See
@@ -13,14 +13,14 @@ after optimization; they are not required by the core optimization runtime.
 ## Install the analysis extras
 
 ```bash
-python -m pip install "vamos-optimization[analysis]==1.4.0"
+python -m pip install "vamos-optimization[analysis]==1.5.0"
 ```
 
 For environment setup and other extras, see [Installation](../guide/installation.md).
 
 ## Hypervolume, exact and approximate
 
-**Development after 1.4.0:** `vamos.ux.api` exports two hypervolume
+**VAMOS 1.5.0:** `vamos.ux.api` exports two hypervolume
 indicators, `HVIndicator` (the exact value) and `HVApproxIndicator` (an
 approximation), both computed by MooCore, which the `compute` extra installs.
 Both take an explicit reference point, minimize every objective unless

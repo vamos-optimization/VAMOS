@@ -39,7 +39,7 @@ class VariationOverrides(TypedDict, total=False):
     c2: float
     vmax_fraction: float
     n_partitions: int
-    # Development after 1.4.0: RVEA's reference vectors and NSGA-III's reference directions.
+    # VAMOS 1.5.0: RVEA's reference vectors and NSGA-III's reference directions.
     reference_vectors: Mapping[str, object] | str
     reference_directions: Mapping[str, object] | str
     alpha: float

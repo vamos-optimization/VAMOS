@@ -79,7 +79,7 @@ def test_the_default_source_is_vamos() -> None:
 def test_the_jmetal_source_never_falls_back_to_vamoss_fronts() -> None:
     assert resolve_reference_front_path("zdt5", None, source="jmetal") is None
     assert resolve_reference_front_path("wfg4", None, n_obj=2, source="jmetal") is None
-    # Development after 1.4.0: VAMOS's samples of DTLZ with 4, 6 and 8 objectives are not jMetal's source.
+    # VAMOS 1.5.0: VAMOS's samples of DTLZ with 4, 6 and 8 objectives are not jMetal's source.
     assert resolve_reference_front_path("dtlz2", None, n_obj=4) is not None
     assert resolve_reference_front_path("dtlz2", None, n_obj=4, source="jmetal") is None
     assert resolve_reference_front_path("dtlz3", None, n_obj=6, source="jmetal") is None

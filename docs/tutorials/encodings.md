@@ -33,7 +33,7 @@ python binary.py --output binary-local.svg
 ??? example "Complete runnable script"
 
     ```python
-    """Verified VAMOS 1.4.0 lesson: binary. See coverage-setup for dependencies."""
+    """Verified VAMOS 1.5.0 lesson: binary. See coverage-setup for dependencies."""
 
 
     def execute_example(problem, algorithm, config, budget, seed=42, engine="numpy"):
@@ -192,7 +192,7 @@ Domain checks: passed for binary
 
 ![Actual binary results from the documented protocol.](../assets/coverage/binary.svg)
 
-*Measured with VAMOS 1.4.0; the [observations and provenance](coverage-setup.md#recorded-evidence) retain the inputs and results.*
+*Measured with VAMOS 1.5.0; the [observations and provenance](coverage-setup.md#recorded-evidence) retain the inputs and results.*
 
 Every returned entry must be 0 or 1. The nominal mutation probability is `1/n_var`; a binary representation needs more than rounding the output of a real-valued operator.
 
@@ -213,7 +213,7 @@ python integer.py --output integer-local.svg
 ??? example "Complete runnable script"
 
     ```python
-    """Verified VAMOS 1.4.0 lesson: integer. See coverage-setup for dependencies."""
+    """Verified VAMOS 1.5.0 lesson: integer. See coverage-setup for dependencies."""
 
 
     def execute_example(problem, algorithm, config, budget, seed=42, engine="numpy"):
@@ -372,7 +372,7 @@ Domain checks: passed for integer
 
 ![Actual integer results from the documented protocol.](../assets/coverage/integer.svg)
 
-*Measured with VAMOS 1.4.0; the [observations and provenance](coverage-setup.md#recorded-evidence) retain the inputs and results.*
+*Measured with VAMOS 1.5.0; the [observations and provenance](coverage-setup.md#recorded-evidence) retain the inputs and results.*
 
 All values must be integral and within the declared bounds. Domain validity does not by itself enforce any additional resource constraints you might add to your own allocation problem.
 
@@ -393,7 +393,7 @@ python permutation.py --output permutation-local.svg
 ??? example "Complete runnable script"
 
     ```python
-    """Verified VAMOS 1.4.0 lesson: permutation. See coverage-setup for dependencies."""
+    """Verified VAMOS 1.5.0 lesson: permutation. See coverage-setup for dependencies."""
 
 
     def execute_example(problem, algorithm, config, budget, seed=42, engine="numpy"):
@@ -552,7 +552,7 @@ Domain checks: passed for permutation
 
 ![Actual permutation results from the documented protocol.](../assets/coverage/permutation.svg)
 
-*Measured with VAMOS 1.4.0; the [observations and provenance](coverage-setup.md#recorded-evidence) retain the inputs and results.*
+*Measured with VAMOS 1.5.0; the [observations and provenance](coverage-setup.md#recorded-evidence) retain the inputs and results.*
 
 Every row must sort to `0, 1, 2, 3, 4, 5`. The built-in objective closes the route; appending the starting city to the decision vector would violate the representation. The toy multiobjective route is not a production routing model. In the recorded run, all returned objective vectors coincide at `[6, 1]`; overlapping points appear as one dot. Multiple rows and permutations need not represent distinct trade-offs.
 
@@ -573,7 +573,7 @@ python mixed.py --output mixed-local.svg
 ??? example "Complete runnable script"
 
     ```python
-    """Verified VAMOS 1.4.0 lesson: mixed. See coverage-setup for dependencies."""
+    """Verified VAMOS 1.5.0 lesson: mixed. See coverage-setup for dependencies."""
 
 
     def execute_example(problem, algorithm, config, budget, seed=42, engine="numpy"):
@@ -732,7 +732,7 @@ Domain checks: passed for mixed
 
 ![Actual mixed results from the documented protocol.](../assets/coverage/mixed.svg)
 
-*Measured with VAMOS 1.4.0; the [observations and provenance](coverage-setup.md#recorded-evidence) retain the inputs and results.*
+*Measured with VAMOS 1.5.0; the [observations and provenance](coverage-setup.md#recorded-evidence) retain the inputs and results.*
 
 Integer and category columns must remain discrete, and all columns must remain within bounds. Category indices represent alternatives, not an ordinal numeric preference; define their meaning in the evaluator.
 
