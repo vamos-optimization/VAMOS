@@ -29,7 +29,7 @@ __all__ = [
     "associate",
     "niche_selection",
     "nsgaiii_survival",
-    "nsgaiii_selection_metrics",
+    "nsgaiii_parents",
     "evaluate_population_with_constraints",
 ]
 
@@ -432,27 +432,56 @@ def _reference_direction_survival(
     return np.asarray(survivor_indices, dtype=int), ideal_point, extreme_points, worst_point
 
 
-def nsgaiii_selection_metrics(
+def nsgaiii_parents(
+    method: str,
+    pressure: int,
     kernel: KernelBackend,
     F: np.ndarray[Any, Any],
     G: np.ndarray[Any, Any] | None,
     constraint_mode: str,
     technique: ConstraintHandlingTechnique | None,
     rng: np.random.Generator,
-) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
-    """Ranks and crowding of the mating tournament.
+    n_parents: int,
+) -> np.ndarray[Any, Any]:
+    """Indices of the ``n_parents`` parents that NSGA-III mates, in pairs.
 
-    The fronts are the technique's, when there is one other than cdp, and the feasibility-first
-    ones otherwise. As in NSGA-II, VAMOS ranks the population again for the tournament.
+    Development after 1.4.0: NSGA-III selects its parents as configured, and never by crowding
+    distance, which is not part of NSGA-III. VAMOS 1.4.0 and earlier ran a binary tournament on rank
+    and crowding distance, as NSGA-II, whatever the configured selection.
+
+    ``"random"`` draws them at random, as Deb and Jain (2014). With constraint values and feasibility
+    first (no constraint-handling ``technique``), each parent is the winner of a binary tournament on
+    the constraint violation, decided at random between two feasible or equally violated solutions,
+    as the constrained NSGA-III of Jain and Deb (2014) and pymoo's NSGA-III (``comp_by_cv_then_random``).
+
+    ``"tournament"`` takes ``pressure`` distinct solutions at random and keeps the one of the lowest
+    rank, the ties decided at random, as jMetal's NSGA-III: the default selection of its
+    ``NSGAIIIBuilder`` compares the ranks and then a niche distance that its replacement does not
+    write, so its ties are decided at random too. The ranks are the technique's fronts when there is
+    one, and otherwise the non-dominated fronts with feasible solutions first, the infeasible ones
+    compared by their violation.
     """
-    from vamos.engine.algorithm.nsgaii.constrained_survival import technique_selection_metrics
     from vamos.engine.algorithm.nsgaii.state import compute_selection_metrics
 
-    if technique is not None and G is not None and constraint_mode != "none":
-        ranks, crowding = technique_selection_metrics(technique, kernel, F, G, rng)
+    n = F.shape[0]
+    constrained = G is not None and constraint_mode != "none"
+    if method == "random":
+        if not constrained or technique is not None:
+            return rng.integers(0, n, size=n_parents, dtype=int)
+        # Equal ranks: the tournament compares the second key, minus the violation, and then draws.
+        violation = compute_violation(G)
+        return np.asarray(kernel.tournament_selection(np.zeros(n, dtype=int), -violation, 2, rng, n_parents=n_parents), dtype=int)
+    if method != "tournament":
+        raise ValueError(f"Unsupported NSGA-III selection method '{method}'.")
+    if constrained and technique is not None:
+        assert G is not None
+        ranks = np.asarray(technique.ranks(kernel, F, G, rng), dtype=int)
+        second_key = np.zeros(n, dtype=float)
     else:
-        ranks, crowding = compute_selection_metrics(kernel, F, G, constraint_mode)
-    return np.asarray(ranks, dtype=int), np.asarray(crowding, dtype=float)
+        ranks = np.asarray(compute_selection_metrics(kernel, F, G, constraint_mode)[0], dtype=int)
+        # Feasible rows tie on 0; an infeasible row has minus its violation (its rank follows the feasible ones).
+        second_key = -compute_violation(G) if constrained else np.zeros(n, dtype=float)
+    return np.asarray(kernel.tournament_selection(ranks, second_key, pressure, rng, n_parents=n_parents), dtype=int)
 
 
 def evaluate_population_with_constraints(

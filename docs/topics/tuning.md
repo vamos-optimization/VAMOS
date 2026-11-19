@@ -415,6 +415,18 @@ offset of 0.1, so no assignment reproduced the default configuration; an
 assignment without the new parameters still builds that tournament
 configuration.
 
+**Development after 1.4.0:** the NSGA-III spaces choose the mating selection,
+`random` (the default, Deb and Jain's) or `tournament` (jMetal's NSGA-III
+tournament on rank), with `tournament_size` in [2, 10] only for a tournament,
+as Evolver's `NSGAIIIDouble` space does. Evolver's space also offers Boltzmann,
+ranking and stochastic universal sampling selection, which VAMOS's NSGA-III does
+not run. The spaces of VAMOS 1.4.0 offered only `tournament_size`, and NSGA-III
+then ran a binary tournament on rank and crowding distance whatever its
+selection, so no assignment ran the published algorithm; an assignment with
+`tournament_size` and without `selection` still builds a tournament of that
+size, which now compares ranks only (see
+[NSGA-III](../algorithms/nsgaiii.md#variants-and-their-effect)).
+
 **VAMOS 1.3.0:** the MOEA/D and SMS-EMOA spaces offer what
 Evolver's `MOEADDouble` and `SMSEMOADouble` spaces offer, so that a
 configuration tuned or published with Evolver is a point of them:

@@ -19,6 +19,12 @@ emits a `FutureWarning`; both fields are planned for removal in 2.0 (see
 `NSGAIIIConfig.default()` does not warn. `mutation_prob_factor` now sets the
 mutation probability to `factor / n_var`, as in NSGA-II.
 
+**Development after 1.4.0:** `selection` is `("random", {})`, the default, or
+`("tournament", {"size": k})`, and any other method or option raises
+`ConfigurationError`; NSGA-III used to run a binary tournament on rank and
+crowding distance whatever its selection. See
+[variants and their effect](../../../algorithms/nsgaiii.md#variants-and-their-effect).
+
 ::: vamos.algorithms.NSGAIIIConfig
     options:
       heading_level: 2
