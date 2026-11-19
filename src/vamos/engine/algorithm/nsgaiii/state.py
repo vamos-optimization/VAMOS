@@ -34,8 +34,10 @@ class NSGAIIIState(AlgorithmState):
         Reference directions for diversity maintenance.
     ref_dirs_norm : np.ndarray[Any, Any]
         Normalized reference directions.
+    selection_method : str
+        Parent selection, ``"random"`` or ``"tournament"``.
     pressure : int
-        Tournament selection pressure.
+        Tournament size of ``"tournament"``.
     crossover_fn : Callable
         Crossover operator function.
     mutation_fn : Callable
@@ -44,6 +46,7 @@ class NSGAIIIState(AlgorithmState):
 
     ref_dirs: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
     ref_dirs_norm: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
+    selection_method: str = "random"
     pressure: int = 2
     crossover_fn: Callable[[np.ndarray[Any, Any]], np.ndarray[Any, Any]] | None = None
     mutation_fn: Callable[[np.ndarray[Any, Any]], np.ndarray[Any, Any]] | None = None
@@ -51,8 +54,6 @@ class NSGAIIIState(AlgorithmState):
     ideal_point: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
     worst_point: np.ndarray[Any, Any] = field(default_factory=lambda: np.array([]))
     extreme_points: np.ndarray[Any, Any] | None = None
-    selection_ranks: np.ndarray[Any, Any] | None = field(default=None, repr=False, compare=False)
-    selection_crowding: np.ndarray[Any, Any] | None = field(default=None, repr=False, compare=False)
 
 
 def build_nsgaiii_result(

@@ -94,7 +94,6 @@ def build_nsgaiii_algorithm(
     problem: ProblemProtocol,
     pop_size: int,
     nsgaiii_variation: dict[str, Any] | None,
-    selection_pressure: int,
     track_genealogy: bool = False,
 ) -> tuple[NSGAIII, AlgorithmConfigProtocol]:
     encoding = resolve_problem_encoding(problem)
@@ -108,10 +107,12 @@ def build_nsgaiii_algorithm(
     builder.pop_size(pop_size)
     apply_operator_config(builder, method_name="crossover", operator_cfg=var_cfg["crossover"], key="crossover")
     apply_operator_config(builder, method_name="mutation", operator_cfg=var_cfg["mutation"], key="mutation")
+    # Development after 1.4.0: random parents, as NSGAIIIConfig.default(); --selection-pressure sized a
+    # tournament on rank and crowding distance, which is not NSGA-III's selection.
     apply_operator_config(
         builder,
         method_name="selection",
-        operator_cfg=var_cfg.get("selection", ("tournament", {"size": selection_pressure})),
+        operator_cfg=var_cfg.get("selection", ("random", {})),
         key="selection",
     )
     apply_optional_operator_config(

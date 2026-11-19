@@ -20,6 +20,7 @@ from vamos.engine.algorithm.components.evaluation import combine_constraints, ex
 from vamos.engine.algorithm.components.hooks import get_live_viz, live_should_stop, send_live_generation
 from vamos.engine.algorithm.components.metrics import setup_hv_tracker
 from vamos.engine.algorithm.components.population import initialize_evaluated_population, resolve_bounds
+from vamos.engine.algorithm.components.state import record_archive_rows
 from vamos.engine.algorithm.components.termination import (
     capped_offspring_size,
     hv_target_reached,
@@ -454,7 +455,7 @@ class RVEA:
         st.G = G_combined[survivors] if G_combined is not None else None
         st.n_eval += X_off.shape[0]
         if st.archive_manager is not None:
-            st.archive_X, st.archive_F = st.archive_manager.update(st.X, st.F, st.G)
+            record_archive_rows(st, st.X, st.F, st.G)
 
         # Periodic reference-vector adaptation
         if st.adapt_interval is not None and st.generation % st.adapt_interval == 0 and st.nadir is not None:

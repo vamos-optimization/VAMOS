@@ -260,7 +260,13 @@ class ReferenceDirectionsArchive(_BaseArchive):
 
 
 class UnboundedArchive(_BaseArchive):
-    """Archive that keeps all non-dominated solutions without size limit."""
+    """Archive that keeps all non-dominated solutions without size limit.
+
+    It is ``buffered`` unless ``buffered=False``: ``add`` keeps the rows offered while the contents are
+    clean and merges them, with moocore's non-dominated filter when moocore is installed, when the
+    contents are read or the kept rows outnumber twice the archive. The contents, their order and the
+    rows kept are those of one ``update`` per call.
+    """
 
     def __init__(
         self,
@@ -273,6 +279,7 @@ class UnboundedArchive(_BaseArchive):
         decision_tolerance: float = 1e-32,
         n_con: int | None = None,
         initial_capacity: int = 256,
+        buffered: bool = True,
     ) -> None:
         super().__init__(
             None,
@@ -285,6 +292,7 @@ class UnboundedArchive(_BaseArchive):
             n_con=n_con,
             initial_capacity=initial_capacity,
         )
+        self.buffered = bool(buffered)
 
 
 __all__ = [

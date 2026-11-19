@@ -24,8 +24,10 @@ from vamos.resources import reference_front_path
 
 # The packaged reference fronts that resolve_reference_front_path can search.
 REFERENCE_FRONT_SOURCES = ("vamos", "jmetal")
-# jMetal's DTLZ3 and DTLZ4 fronts are its DTLZ2 file, byte for byte (the three share the unit sphere): it is packaged once.
-_JMETAL_SHARED_FRONTS = {"dtlz3": "dtlz2", "dtlz4": "dtlz2"}
+# DTLZ3 and DTLZ4 share DTLZ2's front, the unit sphere. Without a file of their own they take DTLZ2's: jMetal's DTLZ3
+# and DTLZ4 files are its DTLZ2 file, byte for byte, so it is packaged once. Development after 1.4.0: so are VAMOS's
+# samples with more than three objectives.
+_SHARED_FRONTS = {"dtlz3": "dtlz2", "dtlz4": "dtlz2"}
 
 # Preset names map to problem keys defined in the registry.
 PROBLEM_SET_PRESETS: dict[str, Sequence[str]] = {
@@ -151,6 +153,9 @@ def resolve_reference_front_path(
     ``jmetal-<key>.<n_obj>d.csv``; DTLZ3 and DTLZ4 resolve to ``jmetal-dtlz2.<n_obj>d.csv``, the
     file jMetal ships under their three names. A problem without a front of that source gives
     ``None``: the other source is never used in its place.
+
+    Development after 1.4.0: VAMOS's samples of DTLZ1-4 and DTLZ7 also cover 4, 6 and 8 objectives;
+    with those, DTLZ3 and DTLZ4 resolve to ``dtlz2.<n_obj>d.csv``, the one sample of their shared front.
     """
     if source not in REFERENCE_FRONT_SOURCES:
         raise ValueError(f"Reference front source must be one of {', '.join(map(repr, REFERENCE_FRONT_SOURCES))}; got {source!r}.")
@@ -161,9 +166,11 @@ def resolve_reference_front_path(
     if n_obj is None:
         n_obj = _default_n_obj(key)
     candidates = [key] if n_obj is None or "." in key else [f"{key}.{int(n_obj)}d", key]
+    # A problem that shares another's front falls back to that problem's files.
+    parts = [candidate.partition(".") for candidate in candidates]
+    candidates += [f"{_SHARED_FRONTS[base]}{dot}{rest}" for base, dot, rest in parts if base in _SHARED_FRONTS]
     if source == "jmetal":
-        shared = [candidate.partition(".") for candidate in candidates]
-        candidates = [f"jmetal-{_JMETAL_SHARED_FRONTS.get(base, base)}{dot}{rest}" for base, dot, rest in shared]
+        candidates = [f"jmetal-{candidate}" for candidate in candidates]
 
     for candidate in candidates:
         try:

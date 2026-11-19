@@ -7,7 +7,17 @@ algorithm: nsgaiii
 encoding: mixed
 description: The mixed tuning space of NSGA-III.
 parameters:
-  tournament_size: {type: int, default: 2, range: [2, 10], role: structural}
+  # Development after 1.4.0: the parent selection, as Evolver's: random (Deb and Jain's, the default)
+  # or a tournament on rank (jMetal's). The spaces of VAMOS 1.4.0 only sized a tournament on rank and crowding.
+  selection:
+    type: categorical
+    default: random
+    role: structural
+    values:
+      random: {}
+      tournament:
+        conditional_parameters:
+          tournament_size: {type: int, default: 2, range: [2, 10], role: structural}
   external_archive:
     type: categorical
     default: none
