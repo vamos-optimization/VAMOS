@@ -7,7 +7,7 @@ from tests.architecture._dependencies import LLM_SDKS, OPTIMIZATION_FRAMEWORKS, 
 # The extras for users of VAMOS, in the order ``all`` gathers them, and those for working on VAMOS itself.
 USER_EXTRAS = ("compute", "analysis", "tuning", "studio", "examples")
 TOOLING_EXTRAS = ("dev", "docs")
-# Development after 1.5.0: user extras that ``all`` leaves out, because their package has a copyleft license
+# VAMOS 1.5.1: user extras that ``all`` leaves out, because their package has a copyleft license
 # (modact, which evaluates the MODAct problems, is GPL-3.0); a user installs them by name.
 COPYLEFT_EXTRAS = ("modact",)
 

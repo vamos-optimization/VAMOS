@@ -31,13 +31,14 @@ provenance of every packaged file, including those this script leaves alone.
   jMetal's ``resources/referenceFronts`` at commit ``JMETAL_COMMIT``, copied line by line without the rows that
   another row of the same file dominates. ``--jmetal-dir`` points at a local copy of that directory. Their MIT
   notice is ``LICENSE-jmetal.txt``.
-- **MODAct's best-known fronts** (Development after 1.5.0) for the two-objective MODAct problems, CS1-CS4 and
+- **MODAct's best-known fronts** (VAMOS 1.5.1) for the two-objective MODAct problems, CS1-CS4 and
   CT1-CT4 (``modact_cs1.csv`` ... ``modact_ct4.csv``): Picard and Schiffmann's ``<name>_PF.dat`` of the Zenodo
-  record https://doi.org/10.5281/zenodo.3824302, version 1.1.0, whose MD5 checksums are checked. Each value keeps
-  its digits, and the columns that MODAct maximizes change sign, so that every column is minimized as in VAMOS's
-  problems. ``--modact-dir`` points at a local copy of the files. Their CC BY 4.0 notice is
-  ``LICENSE-modact-fronts.txt``. The fronts of the problems with three to five objectives (1.4 MB to 193 MB
-  each) are not packaged.
+  record https://doi.org/10.5281/zenodo.3824302, version 1.1.0, converted by
+  ``vamos.foundation.problem.modact_fronts.convert_front``, the conversion of ``vamos zoo fetch-fronts``: the MD5
+  checksums are checked, each value keeps its digits, and the columns that MODAct maximizes change sign, so that
+  every column is minimized as in VAMOS's problems. ``--modact-dir`` points at a local copy of the files. The
+  script also writes their CC BY 4.0 notice, ``LICENSE-modact-fronts.txt``. The fronts of the problems with three
+  to five objectives (1.4 MB to 193 MB each) are not packaged; ``vamos zoo fetch-fronts`` downloads them.
 - **Sampled fronts** where no closed form or authors' front applies: RWA3, RWA9, RWA10 and the deterministic
   RE91. Dense sampling of the design box, local refinement around the non-dominated designs and an exact
   non-dominated filter over every evaluated design. A well-spread pool of 1.25 times the packaged size is then
@@ -49,7 +50,6 @@ provenance of every packaged file, including those this script leaves alone.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import itertools
 import math
 from collections.abc import Callable
@@ -94,19 +94,9 @@ JMETAL_FRONTS = {
     **{f"jmetal-dtlz{k}.{m}d": f"DTLZ{k}.{m}D" for k in (1, 2, 5, 6, 7) for m in (2, 3)},
 }
 
-# MODAct's best-known fronts (CC BY 4.0, LICENSE-modact-fronts.txt): the MD5 checksum of each file of the Zenodo
-# record 10.5281/zenodo.3824302, version 1.1.0, as the record lists it.
-MODACT_ZENODO = "10.5281/zenodo.3824302"
-MODACT_FRONTS = {
-    "modact_cs1": "4990ad4b4fdb1e69bcd8c783194c4786",
-    "modact_cs2": "3ee656a1337a8741f3563d0870ad7333",
-    "modact_cs3": "dd70ee28cc5f72c2561dba9c6d235e89",
-    "modact_cs4": "bb5dc7ac5b66453a01a4a435de5d099d",
-    "modact_ct1": "6e4550df32881f98cb15af16635afcab",
-    "modact_ct2": "797cd321c1f3712811914d6fc3faef61",
-    "modact_ct3": "6331fe3b000d5d3f3487b13998b3cacc",
-    "modact_ct4": "791662a99be6222a8d7a4750dae84974",
-}
+# MODAct's best-known fronts that VAMOS packages (CC BY 4.0, LICENSE-modact-fronts.txt), from the Zenodo record
+# 10.5281/zenodo.3824302, version 1.1.0; vamos.foundation.problem.modact_fronts holds the record's MD5 checksums.
+MODACT_FRONTS = tuple(f"modact_{name}{level}" for name in ("cs", "ct") for level in range(1, 5))
 
 # Sampled fronts: packaged size, number of uniform samples and grid points per variable (0 = no grid).
 SAMPLED = {
@@ -831,28 +821,12 @@ def write_jmetal_front(name: str, jmetal_dir: Path, out_dir: Path) -> Path:
     return path
 
 
-def _negated(value: str) -> str:
-    """``value`` with the opposite sign and the same digits."""
-    negated = value[1:] if value.startswith("-") else f"-{value}"
-    assert float(negated) == -float(value), value
-    return negated
-
-
 def write_modact_front(name: str, modact_dir: Path, out_dir: Path) -> Path:
-    """Copy MODAct's ``<problem>_PF.dat`` with commas as separators, and the maximized columns with the opposite sign."""
-    from vamos.foundation.problem.modact import MAXIMIZED, OBJECTIVES
+    """Convert MODAct's ``<problem>_PF.dat`` as ``vamos zoo fetch-fronts`` does, and rewrite the fronts' notice."""
+    from vamos.foundation.problem.modact_fronts import PACKAGED, convert_front, source_file, write_notice
 
-    source = modact_dir / f"{name.removeprefix('modact_')}_PF.dat"
-    digest = hashlib.md5(source.read_bytes()).hexdigest()
-    if digest != MODACT_FRONTS[name]:
-        raise ValueError(f"{source} is not the file of Zenodo record {MODACT_ZENODO}, version 1.1.0 (MD5 {digest}).")
-    maximized = [objective in MAXIMIZED for objective in OBJECTIVES[name.removeprefix("modact_").rstrip("1234")]]
-    rows = [line.split() for line in source.read_text(encoding="ascii").splitlines() if line.strip()]
-    if any(len(row) != len(maximized) for row in rows):
-        raise ValueError(f"{source} does not have {len(maximized)} columns on every row.")
-    path = out_dir / f"{name}.csv"
-    lines = (",".join(_negated(value) if flip else value for value, flip in zip(row, maximized)) for row in rows)
-    path.write_text("".join(f"{line}\n" for line in lines), encoding="ascii", newline="\n")
+    path = convert_front(modact_dir / source_file(name), out_dir, name)
+    write_notice(out_dir, PACKAGED, packaged=True)
     return path
 
 
@@ -862,7 +836,9 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--all", action="store_true", help="write every front this script owns")
     parser.add_argument("--reproblems-dir", type=Path, help="local copy of reproblems' approximated_Pareto_fronts")
     parser.add_argument("--jmetal-dir", type=Path, help=f"local copy of jMetal's resources/referenceFronts at commit {JMETAL_COMMIT}")
-    parser.add_argument("--modact-dir", type=Path, help=f"local copy of the MODAct fronts of Zenodo record {MODACT_ZENODO}, version 1.1.0")
+    parser.add_argument(
+        "--modact-dir", type=Path, help="local copy of the MODAct fronts of Zenodo record 10.5281/zenodo.3824302, version 1.1.0"
+    )
     parser.add_argument("--out", type=Path, default=OUT_DIR)
     args = parser.parse_args(argv)
 

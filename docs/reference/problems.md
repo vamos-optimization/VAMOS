@@ -3,7 +3,7 @@
 Choose a problem by its **formulation, encoding and dimensions**, then check the
 [algorithm compatibility matrix](algorithms.md). This catalog describes the
 260 registered problems in VAMOS **1.5.0**; **VAMOS 1.5.0:**
-CTP1–CTP7 and IDTLZ1 and IDTLZ2 are new, so 251 become 260; **Development after 1.5.0:**
+CTP1–CTP7 and IDTLZ1 and IDTLZ2 are new, so 251 become 260; **VAMOS 1.5.1:**
 the 20 MODAct problems bring them to 280. The named selection helpers are
 [stable public APIs](../project/stability-and-versioning.md). A synthetic or
 engineering benchmark is a test model, not a validated model of your application.
@@ -19,7 +19,7 @@ engineering benchmark is a test model, not a validated model of your application
 | Explicit constraint handling | `c1dtlz1`, `mw1` | Emit inequality constraints separately from objectives |
 | Binary, integer or mixed operators | `zdt5`, `int_alloc`, `mixed_design` | Small, deterministic examples with explicit encodings |
 | Permutation operators | `tsp6`, then `kroa100` | Closed tours with two specified route objectives |
-| Application-inspired test functions | RE, RWA, CRE and RCM tables below; **Development after 1.5.0:** MODAct | Fixed engineering formulations with different encodings and objective counts; CRE, RCM and MODAct keep their constraints in G; MODAct needs the `modact` package |
+| Application-inspired test functions | RE, RWA, CRE and RCM tables below; **VAMOS 1.5.1:** MODAct | Fixed engineering formulations with different encodings and objective counts; CRE, RCM and MODAct keep their constraints in G; MODAct needs the `modact` package |
 | Expensive model evaluations | `fs_real`, `ml_tuning` | Train a classifier for each candidate; require scikit-learn |
 
 Use `optimize("zdt1", ...)` in Python or `--problem zdt1` in the
@@ -179,8 +179,8 @@ algorithm with the required constraint support in the [matrix](algorithms.md).
 | `zxh_cf13`–`zxh_cf16` | 13 | 3 | 3–4 | Configurable M; type D, k + 1 or k + 2 constraints | [ZXH-CF][zxh-cf] | 3D, each |
 
 The constrained real-world suites CRE21–CRE51 and RCM01–RCM50 are listed with the
-[application-inspired benchmarks](#cre-and-rcm-constrained-real-world-suites), and
-so, **Development after 1.5.0:**, are the
+[application-inspired benchmarks](#cre-and-rcm-constrained-real-world-suites).
+**VAMOS 1.5.1:** so are the
 [MODAct problems](#modact-actuator-design-evaluated-by-the-modact-package).
 
 DC-DTLZ's default constants are those of the authors' implementation (Li et
@@ -648,7 +648,7 @@ equalities).
 
 ### MODAct: actuator design, evaluated by the modact package
 
-**Development after 1.5.0:** the 20 MODAct problems of Picard and Schiffmann
+**VAMOS 1.5.1:** the 20 MODAct problems of Picard and Schiffmann
 ([2021][modact-paper]) design an electro-mechanical actuator, a stepper motor
 and three spur-gear stages in a housing. VAMOS does not implement them: each
 evaluation calls the authors' [`modact` package][modact], which is GPL-3.0 and
@@ -693,10 +693,46 @@ A key joins the objectives to the constraint level:
   package too.
 - **Fronts:** the authors' best-known fronts (see
   [Reference fronts](#reference-fronts)) are packaged for CS1–CS4 and CT1–CT4.
-  The others are too large to package; download them from the
-  [Zenodo record][modact-fronts], multiply each column by the problem's
-  `objective_signs` (for example `1, -1, -1` for CTS), and supply the CSV as a
-  reference front.
+  The others, 1.4 to 193 MB each, are too large to package;
+  `vamos zoo fetch-fronts` downloads them (see below).
+
+#### Downloading the other MODAct fronts
+
+**VAMOS 1.5.1:** `vamos zoo fetch-fronts` downloads the best-known fronts of
+CTS1–CTS4, CTSE1–CTSE4 and CTSEI1–CTSEI4 from the [Zenodo record][modact-fronts]
+(version 1.1.0, CC BY 4.0). Without arguments it takes the three-objective
+fronts of CTS1–CTS4 (8.9 MB):
+
+```bash
+vamos zoo fetch-fronts
+vamos zoo fetch-fronts modact_ctse4 modact_ctsei1
+vamos zoo fetch-fronts --all
+```
+
+`--all` downloads the twelve, about 730 MB. For each front, the command:
+
+- checks the file's MD5 checksum against the one the record publishes;
+- converts it as the packaged fronts are converted: the columns that MODAct
+  maximizes change sign, each value keeps its digits, and no row is added or
+  removed;
+- writes `modact_<problem>.csv` and the CC BY 4.0 notice
+  `LICENSE-modact-fronts.txt` in VAMOS's directory of downloaded reference
+  fronts.
+
+That directory is `reference_fronts` under `VAMOS_DATA_DIR` when that variable
+is set, and otherwise:
+
+- `%LOCALAPPDATA%\vamos\reference_fronts` on Windows;
+- `~/Library/Application Support/vamos/reference_fronts` on macOS;
+- `$XDG_DATA_HOME/vamos/reference_fronts` elsewhere, by default
+  `~/.local/share/vamos/reference_fronts`.
+
+VAMOS looks for reference fronts there after the packaged ones, so a
+downloaded file never replaces a packaged front. The downloaded fronts need no
+further step: Studio's catalog lists them, and `--hv-reference-front vamos`
+resolves them. A front already in the directory is kept unless you pass
+`--force`, and `--output DIR` writes elsewhere. A failed download or checksum
+leaves no file behind and exits with code 1.
 
 ### Learning and mixed engineering examples
 
@@ -805,10 +841,10 @@ files of 1.1.0 (`c1dtlz1.csv` and so on, two-objective) are replaced by
 `dtlz1.2d.csv` to `dtlz7.2d.csv`, so a two-objective DTLZ run has an automatic
 reference. VAMOS 1.2.0 had none, and VAMOS 1.1.0 returned the three-objective
 file.
-- **Development after 1.5.0:** MODAct CS1–CS4 and CT1–CT4 have the authors'
-  best-known fronts, `modact_cs1.csv` to `modact_ct4.csv`. The problems with
-  three to five objectives need a supplied reference (see the MODAct notes
-  above).
+- **VAMOS 1.5.1:** MODAct CS1–CS4 and CT1–CT4 have the authors'
+  best-known fronts, `modact_cs1.csv` to `modact_ct4.csv`. `vamos zoo
+  fetch-fronts` downloads those of the problems with three to five objectives
+  (see [Downloading the other MODAct fronts](#downloading-the-other-modact-fronts)).
 - RE/RWA samples have the dimensions shown above. Their presence does not imply
   that every sample point is a certified global Pareto optimum.
 - Families marked “None packaged” require a suitable external reference or a
@@ -845,7 +881,7 @@ regenerates the files marked as regenerated.
 | `ctp1`–`ctp7` | **VAMOS 1.5.0:** generated from the paper's definition at g = 1 and on the constraint boundaries, as VAMOS evaluates them. CTP1: the envelope `max(exp(-f1), a_j exp(-b_j f1))`, 1000 points. CTP2–CTP7: the feasible, non-dominated points of the boundary, sampled at 2 000 001 values of `sin(θ) (f2 - e) + cos(θ) f1` and at the zeros of its sine, of the unconstrained front `f2 = 1 - f1` and of the least feasible `f2` at `f1 = 0` and 1, thinned to at most 1000 with the zeros kept: CTP2's 13 segments, the 13 isolated points of CTP3 and CTP4 (the same file), CTP5's first arch and 15 points, CTP6's boundary in `1 <= sin(θ) (f2 - e) + cos(θ) f1 <= 2`, and six pieces of CTP7's unconstrained front with `(0, 1.0446)`, the least feasible point at `f1 = 0`. A feasible design reaches every point (within 1e-6 at the isolated points; see the notes on CTP above) |
 | `lircmop1`–`lircmop14`, `dascmop1`–`dascmop9` | jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), under its MIT notice in `LICENSE-jmetal.txt`; DAS-CMOP8 and DAS-CMOP9 leave out two rows each, which another row dominates |
 | `cre21`–`cre25`, `cre31`, `cre32`, `cre51`, `rcm01`–`rcm49` except `rcm17`, `rcm23` and `rcm26` | jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), unchanged, under `LICENSE-jmetal.txt`; approximations (see the notes on jMetal's CRE and RCM fronts). `cre51` and `rcm11` are the same file |
-| `modact_cs1`–`modact_cs4`, `modact_ct1`–`modact_ct4` | **Development after 1.5.0:** Picard and Schiffmann's best-known fronts (`<problem>_PF.dat` of [Zenodo record 10.5281/zenodo.3824302][modact-fronts], version 1.1.0), under CC BY 4.0 with the attribution in `LICENSE-modact-fronts.txt`. The second column, which MODAct maximizes, has the opposite sign; the values keep their digits, and no row is added or removed. Approximations (see the notes on MODAct's fronts) |
+| `modact_cs1`–`modact_cs4`, `modact_ct1`–`modact_ct4` | **VAMOS 1.5.1:** Picard and Schiffmann's best-known fronts (`<problem>_PF.dat` of [Zenodo record 10.5281/zenodo.3824302][modact-fronts], version 1.1.0), under CC BY 4.0 with the attribution in `LICENSE-modact-fronts.txt`. The second column, which MODAct maximizes, has the opposite sign; the values keep their digits, and no row is added or removed. Approximations (see the notes on MODAct's fronts) |
 | `c1dtlz1`–`dc3dtlz3`, `.2d` and `.3d`, `c3dtlz4` included | Regenerated: the feasible, non-dominated part of DTLZ's front (C3-DTLZ1 and C3-DTLZ4: of their constraint boundaries), as VAMOS evaluates it; 1000 points at M = 2 and up to 5050 at M = 3 |
 | `zcat*` | Unchanged samples |
 | `jmetal-zdt1`–`jmetal-zdt4`, `jmetal-zdt6`, `jmetal-dtlz1`, `jmetal-dtlz2` and `jmetal-dtlz5`–`jmetal-dtlz7`, `.2d` and `.3d` | **VAMOS 1.3.0:** jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), unchanged, under `LICENSE-jmetal.txt`; the optional `jmetal` source described below. jMetal's DTLZ3 and DTLZ4 files are its DTLZ2 file, so `jmetal-dtlz2` serves the three |
@@ -939,7 +975,7 @@ Notes on the table:
   CRE23 and RCM05 are the same problem with different fronts; each front
   dominates 35 to 42 rows of the other, by up to 2e-4 of the range. RCM47's
   front is a single point.
-- **MODAct's fronts:** **Development after 1.5.0:** the authors aggregated
+- **MODAct's fronts:** **VAMOS 1.5.1:** the authors aggregated
   the feasible non-dominated solutions of the external archives of 30 runs of
   NSGA-II (NSGA-III for three or more objectives) and 30 of C-TAEA, each of
   300 000 evaluations. The files hold objective vectors only, without their
@@ -947,7 +983,8 @@ Notes on the table:
   packaged files is dominated by another; CS2 repeats 17 of its rows. The
   fronts of CTS1–CTS4 have 18 808 to 36 661 rows (1.4 to 2.8 MB each), those
   of CTSE1–CTSE4 and CTSEI1–CTSEI4 11 to 193 MB each, so they are not
-  packaged.
+  packaged; `vamos zoo fetch-fronts` downloads them. The CTSE4 front, for
+  example, has 109 150 rows.
 - **Replaced samples:** VAMOS 1.1.0 and earlier packaged inaccurate samples for
   several regenerated files, so IGD, IGD+, epsilon and normalized HV values
   computed with those files are not comparable across versions:

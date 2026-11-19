@@ -94,7 +94,7 @@ def test_fixed_dimension_problems_accept_their_own_dimensions(name: str) -> None
 _OPTIONAL_DEPENDENCIES = {
     "fs_real": "sklearn",
     "ml_tuning": "sklearn",
-    # Development after 1.5.0: the MODAct problems need the modact extra, which CI does not install.
+    # VAMOS 1.5.1: the MODAct problems need the modact extra, which CI does not install.
     **{key: "modact" for key in available_problem_names() if key.startswith("modact_")},
 }
 

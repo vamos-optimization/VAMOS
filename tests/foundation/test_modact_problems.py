@@ -1,6 +1,6 @@
 """MODAct (Picard and Schiffmann, 2021): registration, sign conventions, the missing package and its reference fronts.
 
-Development after 1.5.0. The ``modact`` package evaluates the problems; CI does not install it, so the tests that
+VAMOS 1.5.1. The ``modact`` package evaluates the problems; CI does not install it, so the tests that
 evaluate the real problems skip without it. The others replace it with a stub, or need no evaluation.
 """
 

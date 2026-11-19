@@ -1,6 +1,6 @@
 Third-party reference fronts: MODAct best-known Pareto fronts
 
-The packaged files below are adapted from:
+The files below are adapted from:
 
   Cyril Picard and Jürg Schiffmann, "Multi-Objective Design of Actuators:
   Pareto fronts", version 1.1.0, Zenodo, 2020.
@@ -19,13 +19,15 @@ files only; VAMOS's code is under its own MIT license. VAMOS does not include
 or redistribute the authors' modact package (GPL-3.0), which evaluates the
 problems.
 
-Changes: the whitespace between columns is replaced by a comma, and the values
-of the second column (the safety factor of CS1-CS4 and the torque excess of
-CT1-CT4, which MODAct maximizes) have the opposite sign, so that every column
-is minimized, as VAMOS's MODAct problems return them. Each value keeps its
-digits, and no row is added or removed. Only the fronts of the two-objective
-problems are packaged; those of CTS1-CTS4, CTSE1-CTSE4 and CTSEI1-CTSEI4 are in
-the Zenodo record.
+Changes: the whitespace between columns is replaced by a comma, and the
+values of the objectives that MODAct maximizes (the torque excess, the safety
+factor and the efficiency) have the opposite sign, so that every column is
+minimized, as VAMOS's MODAct problems return them. Each value keeps its
+digits, and no row is added or removed.
+
+VAMOS packages the fronts of the two-objective problems, CS1-CS4 and CT1-CT4.
+`vamos zoo fetch-fronts` downloads the others from the record and converts
+them in the same way.
 
 - modact_cs1.csv: cs1_PF.dat (MD5 4990ad4b4fdb1e69bcd8c783194c4786)
 - modact_cs2.csv: cs2_PF.dat (MD5 3ee656a1337a8741f3563d0870ad7333)
