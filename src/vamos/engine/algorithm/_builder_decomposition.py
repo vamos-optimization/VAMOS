@@ -11,6 +11,7 @@ from vamos.engine.algorithm._builder_common import (
     resolve_problem_encoding,
     resolve_variation_config,
 )
+from vamos.engine.algorithm.components.weight_vectors import vector_source
 from vamos.engine.algorithm.config import AlgorithmConfigProtocol, MOEADConfig, NSGAIIIConfig, RVEAConfig
 from vamos.engine.algorithm.config.rvea import rvea_partitions_for_population
 from vamos.foundation.kernel.backend import KernelBackend
@@ -139,8 +140,15 @@ def build_rvea_algorithm(
     builder = RVEAConfig.builder()
     builder.pop_size(pop_size)
     partitions = rvea_overrides.get("n_partitions")
-    # RVEA needs one reference vector per individual: derive the lattice from the population unless it is given.
-    builder.n_partitions(int(partitions) if partitions is not None else rvea_partitions_for_population(pop_size, problem.n_obj))
+    vectors = vector_source(rvea_overrides.get("reference_vectors"), field="reference_vectors")
+    if vectors:
+        # Development after 1.4.0: the reference vectors of a file, a directory or a two-layer lattice.
+        builder.reference_vectors(**cast("dict[str, Any]", vectors))
+    if partitions is not None:
+        builder.n_partitions(int(partitions))
+    elif not vectors:
+        # RVEA needs one reference vector per individual: derive the lattice from the population unless it is given.
+        builder.n_partitions(rvea_partitions_for_population(pop_size, problem.n_obj))
     builder.alpha(float(rvea_overrides.get("alpha", 2.0)))
     builder.adapt_freq(rvea_overrides["adapt_freq"] if "adapt_freq" in rvea_overrides else 0.1)
     apply_operator_config(builder, method_name="crossover", operator_cfg=var_cfg["crossover"], key="crossover")
@@ -155,7 +163,11 @@ def build_rvea_algorithm(
     return cast(
         "tuple[RVEA, AlgorithmConfigProtocol]",
         finalize_algorithm(
-            algorithm_name="rvea", builder=builder, kernel=kernel, block=rvea_overrides, handled=("n_partitions", "alpha", "adapt_freq")
+            algorithm_name="rvea",
+            builder=builder,
+            kernel=kernel,
+            block=rvea_overrides,
+            handled=("n_partitions", "alpha", "adapt_freq", "reference_vectors"),
         ),
     )
 

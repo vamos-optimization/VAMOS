@@ -7,6 +7,7 @@ from math import comb
 from typing import Any, ClassVar
 
 from vamos.engine.algorithm.components.constraint_handling import PAIRWISE_TECHNIQUES
+from vamos.engine.algorithm.components.weight_vectors import vector_source
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.engine.reference_directions import lattice_size
 from vamos.foundation.encoding import EncodingLike
@@ -75,6 +76,28 @@ def rvea_partitions_for_population(pop_size: int, n_obj: int) -> int:
 
 @dataclass(frozen=True)
 class RVEAConfig(_SerializableConfig):
+    """Configuration of RVEA.
+
+    RVEA keeps one individual per reference vector, so ``pop_size`` must equal their number. By
+    default the vectors are the complete Das-Dennis lattice of ``n_partitions``.
+
+    **Development after 1.4.0:** ``reference_vectors`` takes the vectors from elsewhere, with the
+    keys of MOEA/D's ``weight_vectors`` and NSGA-III's ``reference_directions``:
+
+    - ``path``: a file with one vector per line, its components separated by whitespace or commas,
+      or a directory with jMetal's ``W{n_obj}D_{pop_size}.dat`` files, such as the jMetal files
+      VAMOS ships (``W3D_100.dat`` runs 100 individuals with three objectives). The file must exist
+      and hold ``pop_size`` vectors;
+    - ``divisions``: the lattice of that many divisions, as ``n_partitions``;
+    - ``divisions`` and ``inner_divisions``: Deb and Jain's two-layer lattice, the boundary layer of
+      ``divisions`` and an inside layer of ``inner_divisions`` (see
+      :func:`~vamos.engine.reference_directions.two_layer_lattice`).
+
+    With ``reference_vectors``, ``n_partitions`` is not used. ``to_dict()`` leaves the field out
+    while it is ``None``, so a configuration without it keeps the resolved specification, and the
+    task id, of VAMOS 1.4.0.
+    """
+
     pop_size: int
     n_partitions: int
     alpha: float
@@ -91,13 +114,22 @@ class RVEAConfig(_SerializableConfig):
     # Fields added after 1.0 go last, so that the constructor keeps the positions of its parameters.
     constraint_handling: tuple[str, dict[str, float]] | None = None
     live_callback_mode: LiveCallbackMode = "population"
+    reference_vectors: dict[str, int | str | None] | None = None
     #: The techniques that judge the violation of a single solution, the only ones this algorithm takes.
     constraint_handling_techniques: ClassVar[tuple[str, ...]] = PAIRWISE_TECHNIQUES
 
     def __post_init__(self) -> None:
         super().__post_init__()
+        object.__setattr__(self, "reference_vectors", vector_source(self.reference_vectors, field="reference_vectors"))
         if self.track_genealogy:
             _warn_without_effect("RVEA", "track_genealogy", "RVEA records no genealogy", stacklevel=3)
+
+    def to_dict(self) -> dict[str, object]:
+        payload = super().to_dict()
+        # Development after 1.4.0: a configuration without reference_vectors is serialized as in VAMOS 1.4.0.
+        if payload.get("reference_vectors") is None:
+            payload.pop("reference_vectors", None)
+        return payload
 
     @classmethod
     def default(
@@ -173,6 +205,24 @@ class _RVEAConfigBuilder(
         self._cfg["n_partitions"] = value
         return self
 
+    def reference_vectors(
+        self,
+        *,
+        path: str | None = None,
+        divisions: int | None = None,
+        inner_divisions: int | None = None,
+    ) -> _RVEAConfigBuilder:
+        """**Development after 1.4.0:** the reference vectors: a file or directory, or a lattice.
+
+        ``path`` names a file with one vector per line, its components separated by whitespace or
+        commas, or a directory with jMetal's ``W{n_obj}D_{pop_size}.dat`` files; the file must exist
+        and hold ``pop_size`` vectors. Without it, ``divisions`` gives the lattice, and with
+        ``inner_divisions`` Deb and Jain's two-layer lattice. ``n_partitions`` is then not needed:
+        without it, the configuration records ``divisions``, or 12 for a file.
+        """
+        self._cfg["reference_vectors"] = vector_source({"path": path, "divisions": divisions, "inner_divisions": inner_divisions})
+        return self
+
     def alpha(self, value: float) -> _RVEAConfigBuilder:
         self._cfg["alpha"] = float(value)
         return self
@@ -182,15 +232,17 @@ class _RVEAConfigBuilder(
         return self
 
     def build(self) -> RVEAConfig:
-        _require_fields(
-            self._cfg,
-            ("pop_size", "n_partitions", "alpha", "crossover", "mutation"),
-            "RVEA",
+        vectors = self._cfg.get("reference_vectors")
+        # With reference vectors, n_partitions is not used: it defaults to their divisions, or to 12 for a file.
+        required = (
+            ("pop_size", "alpha", "crossover", "mutation") if vectors else ("pop_size", "n_partitions", "alpha", "crossover", "mutation")
         )
+        _require_fields(self._cfg, required, "RVEA")
         _validate_operators(self._cfg)
+        default_partitions = vectors.get("divisions") if vectors and vectors.get("divisions") is not None else 12
         return RVEAConfig(
             pop_size=self._cfg["pop_size"],
-            n_partitions=self._cfg.get("n_partitions", 12),
+            n_partitions=self._cfg.get("n_partitions", default_partitions),
             alpha=float(self._cfg.get("alpha", 2.0)),
             adapt_freq=self._cfg.get("adapt_freq", 0.1),
             crossover=self._cfg["crossover"],
@@ -204,4 +256,5 @@ class _RVEAConfigBuilder(
             result_mode=self._cfg.get("result_mode", "non_dominated"),
             external_archive=self._cfg.get("external_archive"),
             live_callback_mode=self._cfg.get("live_callback_mode", "population"),
+            reference_vectors=vectors,
         )

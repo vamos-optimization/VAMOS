@@ -69,4 +69,31 @@ def das_dennis(n_obj: int, divisions: int) -> FloatArray:
     return weights
 
 
-__all__ = ["das_dennis", "largest_lattice_divisions", "lattice_size"]
+def two_layer_size(n_obj: int, divisions: int, inner_divisions: int) -> int:
+    """Return the number of directions of a two-layer lattice: both complete lattices.
+
+    Development after 1.4.0: new.
+    """
+    return lattice_size(n_obj, divisions) + lattice_size(n_obj, inner_divisions)
+
+
+def two_layer_lattice(n_obj: int, divisions: int, inner_divisions: int) -> FloatArray:
+    """Return Deb and Jain's two-layer reference directions, one per row.
+
+    With many objectives a lattice of few divisions has every direction on the boundary of the
+    simplex, and one more division multiplies the directions. Deb and Jain (2014) add an inside
+    layer instead: the boundary layer is the complete lattice of ``divisions`` and the
+    inside layer the complete lattice of ``inner_divisions`` shrunk by half towards the centre of
+    the simplex, ``w / 2 + 1 / (2 n_obj)``, as pymoo's multi-layer directions with scaling 0.5 and
+    PlatEMO's ``UniformPoint`` do. The boundary rows come first, each layer in the order of
+    :func:`das_dennis`. Eight objectives with ``divisions=3`` and ``inner_divisions=2`` give
+    120 + 36 = 156 directions.
+
+    Development after 1.4.0: new.
+    """
+    boundary = das_dennis(n_obj, divisions)
+    inside = das_dennis(n_obj, inner_divisions) * 0.5 + 0.5 / n_obj
+    return np.asarray(np.vstack([boundary, inside]), dtype=float)
+
+
+__all__ = ["das_dennis", "largest_lattice_divisions", "lattice_size", "two_layer_lattice", "two_layer_size"]

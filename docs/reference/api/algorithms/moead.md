@@ -47,6 +47,23 @@ when it differs from the sampled one (see [Tuning](../../../topics/tuning.md#pop
 With `optimize`, a complete lattice still comes before a packaged file of the
 same size, and the populations of the other sizes are unchanged.
 
+**Development after 1.4.0:** `weight_vectors(divisions=H1, inner_divisions=H2)`
+runs Deb and Jain's two-layer lattice, the boundary lattice of `H1` divisions
+and the lattice of `H2` shrunk by half towards the centre of the simplex, with
+`comb(H1 + m - 1, m - 1) + comb(H2 + m - 1, m - 1)` vectors for `m` objectives:
+156 with eight objectives, `H1 = 3` and `H2 = 2`, the size of jMetal's
+`W8D_156.dat` (which stacks the two lattices without shrinking the inside one,
+so it repeats the eight axes). A single lattice with many objectives has every
+vector on the boundary of the simplex and grows fast (eight objectives: 120
+vectors with 3 divisions, 330 with 4). The resolved spec records
+`{"source": "two_layer", "divisions": 3, "inner_divisions": 2, "vectors": 156}`.
+NSGA-III's `reference_directions` and RVEA's `reference_vectors` take the same
+keys (see [reference and weight vectors](../../algorithms.md#reference-and-weight-vectors)).
+A `weight_vectors(path=...)` that does not exist now raises `ConfigurationError`
+when the run starts; VAMOS 1.4.0 created it as a directory and saved the
+lattice there. A directory that exists but lacks the file still gets the
+lattice, saved there with a `RuntimeWarning`.
+
 **VAMOS 1.4.0:** the options of Evolver's MOEA/D. Each is off by
 default, so a configuration that leaves them out runs exactly as in VAMOS 1.3.0.
 

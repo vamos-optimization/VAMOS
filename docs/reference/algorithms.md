@@ -307,6 +307,20 @@ NSGA-III and RVEA require a population compatible with the configured reference 
 
 **VAMOS 1.2.0:** with `pop_size`, `NSGAIIIConfig.default()` uses the complete lattice with the most directions that fit in it, for any number of objectives (four divisions, 70 directions, for 100 individuals and five objectives, which used to fail with six divisions and 210 directions); `RVEAConfig.default()` uses the lattice of exactly `pop_size` vectors and otherwise fails at once naming the nearest valid sizes, such as 91 or 105 for three objectives. Without `pop_size`, both still use 12 divisions for three objectives and 6 for four or more.
 
+### Reference and weight vectors
+
+**Development after 1.4.0:** MOEA/D, NSGA-III and RVEA take their vectors from the same kind of option, as jMetal and Evolver configure them from the same weight files, so that the three algorithms can start from the same vectors: MOEA/D's `weight_vectors`, NSGA-III's `reference_directions` and RVEA's new `reference_vectors`, a mapping (or builder method) with these keys:
+
+| Key | Vectors |
+| --- | --- |
+| `path` | A file with one vector per line, its components separated by whitespace or commas, or a directory with jMetal's `W{n_obj}D_{pop_size}.dat` files, such as the jMetal files VAMOS ships in `vamos/resources/weights`. A path that does not exist raises `ConfigurationError` before any evaluation; so does a directory without the file, for NSGA-III and RVEA. |
+| `divisions` | The complete Das-Dennis lattice of that many divisions, `comb(H + m - 1, m - 1)` vectors with `m` objectives. RVEA's `n_partitions` is the same lattice. |
+| `divisions` and `inner_divisions` | Deb and Jain's two-layer lattice: the boundary lattice of `divisions` and the lattice of `inner_divisions` shrunk by half towards the centre of the simplex (`w / 2 + 1 / (2 m)`, as pymoo's multi-layer directions and PlatEMO's `UniformPoint`), boundary rows first. With eight objectives, `divisions=3` and `inner_divisions=2` give 120 + 36 = 156 vectors. A single lattice of few divisions has every vector on the boundary of the simplex when the objectives are many. |
+
+`inner_divisions` needs `divisions` and excludes `path`, and an unknown key raises `ConfigurationError`. A plain string is a `path`. The file or lattice is the population: MOEA/D and RVEA need exactly one individual per vector, NSGA-III at least one. MOEA/D keeps its other rules: with one or two objectives its weights are uniform unless `inner_divisions` is given, a directory without the file gets the lattice of exactly `pop_size` vectors and saves it there with a `RuntimeWarning` (jMetalPy's behaviour). Files may depart from the simplex by jMetal's rounding (`1e-5`) and are not renormalized.
+
+The resolved spec of a run records where the vectors come from: MOEA/D always, in `algorithm.resolution.weight_vectors`, now also `{"source": "two_layer", "divisions": 3, "inner_divisions": 2, "vectors": 156}`; NSGA-III and RVEA when the configuration names a path, in `algorithm.resolution.reference_directions` (`{"source": "file", "file": "W3D_100.dat"}`) and `algorithm.resolution.reference_vectors` (with `"vectors"`, the population). Their lattices are already stated by the configuration, so a run without a path keeps the resolved spec, and the task id, of VAMOS 1.4.0, and runs and studies stored by 1.4.0 still verify and resume exactly. Verification and replay rebuild the record from the stored configuration, which reads the file's name, not its contents.
+
 ### The command line and `optimize`
 
 A top-level `vamos` run and `vamos.optimize` build a run separately, so with the

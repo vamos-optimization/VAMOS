@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from vamos.engine.algorithm.components.weight_vectors import vector_source
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.engine.reference_directions import lattice_size
 from vamos.foundation.encoding import EncodingLike
@@ -59,6 +60,7 @@ class NSGAIIIConfig(_SerializableConfig):
 
     def __post_init__(self) -> None:
         super().__post_init__()
+        object.__setattr__(self, "reference_directions", vector_source(self.reference_directions, field="reference_directions"))
         # ``enforce_ref_dirs`` is true in every default, so ``False`` warns wherever it comes from.
         # ``pop_size_auto`` is true in ``default()`` and false otherwise: only the builder method can
         # tell that a user set it.
@@ -145,8 +147,9 @@ class _NSGAIIIConfigBuilder(
         *,
         path: str | None = None,
         divisions: int | None = None,
+        inner_divisions: int | None = None,
     ) -> _NSGAIIIConfigBuilder:
-        """The reference directions: a file, or the complete Das-Dennis lattice of ``divisions``.
+        """The reference directions: a file or directory, or the complete Das-Dennis lattice of ``divisions``.
 
         ``path`` names a file with one direction per line, its components separated by whitespace or
         by commas, such as jMetal's weight files (``W3D_100.dat``, which VAMOS ships). Without either,
@@ -156,8 +159,12 @@ class _NSGAIIIConfigBuilder(
         **Development after 1.4.0:** the file may use whitespace as well as commas, and a ``path``
         that is not a file raises :class:`~vamos.exceptions.ConfigurationError` when the run starts;
         VAMOS 1.4.0 read commas only, and generated the lattice and saved it at a missing path.
+        ``path`` may also name a directory with jMetal's ``W{n_obj}D_{pop_size}.dat`` files, as MOEA/D's
+        ``weight_vectors``, and ``inner_divisions`` with ``divisions`` gives Deb and Jain's two-layer
+        lattice: the boundary lattice of ``divisions`` and the lattice of ``inner_divisions`` shrunk by
+        half towards the centre of the simplex (156 directions with eight objectives, 3 and 2 divisions).
         """
-        self._cfg["reference_directions"] = {"path": path, "divisions": divisions}
+        self._cfg["reference_directions"] = vector_source({"path": path, "divisions": divisions, "inner_divisions": inner_divisions})
         return self
 
     def enforce_ref_dirs(self, enabled: bool = True) -> _NSGAIIIConfigBuilder:

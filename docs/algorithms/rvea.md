@@ -178,6 +178,8 @@ Evaluations: 400
 
 **VAMOS 1.2.0:** RVEA and AGE-MOEA resolve `"1/n"` like the other algorithms, so `prob="1/n"` is equivalent to `1/12` here.
 
+**Development after 1.4.0:** the population no longer has to be a lattice. `reference_vectors(path=...)` reads the vectors from a file, or from a directory of jMetal's `W{n_obj}D_{pop_size}.dat` files, as MOEA/D and NSGA-III do: with jMetal's `W3D_100.dat`, which VAMOS ships, RVEA runs 100 individuals with three objectives, from the same vectors as MOEA/D and NSGA-III given the same file. `reference_vectors(divisions=H1, inner_divisions=H2)` runs Deb and Jain's two-layer lattice, which gives usual population sizes with many objectives (156 with eight objectives, `H1 = 3` and `H2 = 2`). See [reference and weight vectors](../reference/algorithms.md#reference-and-weight-vectors).
+
 ## Interpret the result and its limits
 
 Each `X` row aligns with the same `F` row. This lesson explicitly requests `population` mode, then computes the feasible non-dominated subset separately. All objectives are minimized. A non-dominated row is only non-dominated among the available rows; it need not be Pareto optimal. The retained [observations](../assets/coverage/observations.json) contain the actual arrays and configuration.

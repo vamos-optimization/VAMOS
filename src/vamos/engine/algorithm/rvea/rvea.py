@@ -26,6 +26,7 @@ from vamos.engine.algorithm.components.termination import (
     parse_termination,
     validate_initial_budget,
 )
+from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors, vector_source
 from vamos.engine.algorithm.config.base import normalize_constraint_mode
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
 from vamos.engine.config.variation import (
@@ -75,6 +76,32 @@ def _generate_reference_vectors(n_obj: int, n_partitions: int = 12) -> np.ndarra
         return vectors
 
     ref_dirs = _das_dennis(n_partitions, n_obj)
+    return ref_dirs
+
+
+def _reference_vectors(spec: object, pop_size: int, n_obj: int, n_partitions: int) -> np.ndarray[Any, Any]:
+    """RVEA's reference vectors, one per individual: the lattice of ``n_partitions``, or those of ``reference_vectors``.
+
+    Development after 1.4.0: ``reference_vectors`` names a file or directory, read as MOEA/D's and NSGA-III's
+    files, or a two-layer lattice. Its ``divisions`` alone give the same lattice as ``n_partitions``.
+    """
+    source = vector_source(spec, field="reference_vectors") or {}
+    path, divisions, inner = source.get("path"), source.get("divisions"), source.get("inner_divisions")
+    if path is not None or inner is not None:
+        return load_or_generate_weight_vectors(
+            pop_size,
+            n_obj,
+            path=None if path is None else str(path),
+            divisions=None if divisions is None else int(divisions),
+            inner_divisions=None if inner is None else int(inner),
+            mode="exact",
+        )
+    partitions = n_partitions if divisions is None else int(divisions)
+    ref_dirs = _generate_reference_vectors(n_obj, partitions)
+    if ref_dirs.shape[0] != pop_size:
+        raise ValueError(
+            f"RVEA requires pop_size == #ref_dirs for partitions={partitions} (pop_size={pop_size}, ref_dirs={ref_dirs.shape[0]})."
+        )
     return ref_dirs
 
 
@@ -242,11 +269,7 @@ class RVEA:
         else:
             max_gen = max(1, int(math.ceil((max_evals - pop_size) / pop_size)))
 
-        ref_dirs = _generate_reference_vectors(n_obj, n_partitions)
-        if ref_dirs.shape[0] != pop_size:
-            raise ValueError(
-                f"RVEA requires pop_size == #ref_dirs for partitions={n_partitions} (pop_size={pop_size}, ref_dirs={ref_dirs.shape[0]})."
-            )
+        ref_dirs = _reference_vectors(self.cfg.get("reference_vectors"), pop_size, n_obj, n_partitions)
         validate_initial_budget(max_evals, pop_size, "RVEA")
         V = _calc_V(ref_dirs)
         gamma = _calc_gamma(V)

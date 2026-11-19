@@ -148,6 +148,17 @@ derived from the configuration, so verification rebuilds it like the rest of
 the resolved spec; a MOEA/D run stored before it does not match its
 reconstruction and is not verified as exact.
 
+**Development after 1.4.0:** MOEA/D's `weight_vectors` record also has the
+`source` `two_layer`, with `divisions` and `inner_divisions`. An NSGA-III or
+RVEA run whose configuration names a file or directory of vectors (`path` of
+`reference_directions` or `reference_vectors`) records it in
+`algorithm.resolution.reference_directions` or
+`algorithm.resolution.reference_vectors`: `source` is `file`, `file` its name,
+and for RVEA `vectors` is their number, the population (NSGA-III's file may
+hold fewer directions than individuals; the run's `reference_directions` array
+holds them). Runs without a path record nothing new, so their resolved specs,
+and those of NSGA-III and RVEA runs stored by VAMOS 1.4.0, are unchanged.
+
 ## 6. Run manifest
 
 The manifest requires:

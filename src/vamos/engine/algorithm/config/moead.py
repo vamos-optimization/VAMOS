@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from math import comb
 from typing import Any, Literal, TypeAlias, overload
 
+from vamos.engine.algorithm.components.weight_vectors import vector_source
 from vamos.engine.algorithm.moead.subproblems import normalize_subproblem_order
 from vamos.engine.algorithm.moead.update_criteria import normalize_subproblem_update_criterion
 from vamos.engine.archive import ExternalArchiveConfig
@@ -79,6 +80,11 @@ class MOEADConfig(_SerializableConfig):
 
     See :mod:`vamos.engine.algorithm.moead.aggregation` and :mod:`vamos.engine.operators.policies.moead`
     for the definitions.
+
+    **Development after 1.4.0:** ``weight_vectors`` takes ``inner_divisions`` with ``divisions``, Deb and
+    Jain's two-layer lattice, which gives usual populations with many objectives (156 vectors with eight
+    objectives, 3 and 2 divisions), and NSGA-III's ``reference_directions`` and RVEA's ``reference_vectors``
+    take the same keys.
     """
 
     pop_size: int
@@ -105,6 +111,7 @@ class MOEADConfig(_SerializableConfig):
 
     def __post_init__(self) -> None:
         super().__post_init__()
+        object.__setattr__(self, "weight_vectors", vector_source(self.weight_vectors, field="weight_vectors"))
         criterion = normalize_subproblem_update_criterion(self.subproblem_update_criterion)
         if criterion is not None and criterion[0] != "feasibility_rules" and self.constraint_mode == "none":
             raise ValueError(f"subproblem_update_criterion {criterion[0]!r} needs constraint_mode 'feasibility'.")
@@ -266,8 +273,27 @@ class _MOEADConfigBuilder(
         self._cfg["aggregation"] = (method, kwargs)
         return self
 
-    def weight_vectors(self, *, path: str | None = None, divisions: int | None = None) -> _MOEADConfigBuilder:
-        self._cfg["weight_vectors"] = {"path": path, "divisions": divisions}
+    def weight_vectors(
+        self,
+        *,
+        path: str | None = None,
+        divisions: int | None = None,
+        inner_divisions: int | None = None,
+    ) -> _MOEADConfigBuilder:
+        """The weight vectors: a file or directory, a lattice, or by default the lattice or packaged file of ``pop_size``.
+
+        ``path`` names a file with one vector per line, its components separated by whitespace or commas,
+        or a directory with jMetal's ``W{n_obj}D_{pop_size}.dat`` files; a directory without the file gets
+        the lattice of exactly ``pop_size`` vectors, saved there with a ``RuntimeWarning``. ``divisions``
+        gives the complete Das-Dennis lattice. MOEA/D needs exactly one vector per individual.
+
+        **Development after 1.4.0:** ``inner_divisions`` with ``divisions`` gives Deb and Jain's two-layer
+        lattice, the boundary lattice of ``divisions`` and the lattice of ``inner_divisions`` shrunk by half
+        towards the centre of the simplex, for any number of objectives; a ``path`` that does not exist
+        raises :class:`~vamos.exceptions.ConfigurationError` when the run starts, where VAMOS 1.4.0 created
+        the directory.
+        """
+        self._cfg["weight_vectors"] = vector_source({"path": path, "divisions": divisions, "inner_divisions": inner_divisions})
         return self
 
     def use_numba_variation(self, enabled: bool = True) -> _MOEADConfigBuilder:

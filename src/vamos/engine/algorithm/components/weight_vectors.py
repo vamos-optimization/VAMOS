@@ -2,10 +2,20 @@ import io
 import os
 import stat
 import warnings
+from collections.abc import Mapping
+from difflib import get_close_matches
+from numbers import Integral
 
 import numpy as np
 
-from vamos.engine.reference_directions import FloatArray, das_dennis, largest_lattice_divisions, lattice_size
+from vamos.engine.reference_directions import (
+    FloatArray,
+    das_dennis,
+    largest_lattice_divisions,
+    lattice_size,
+    two_layer_lattice,
+    two_layer_size,
+)
 from vamos.foundation.exceptions import ConfigurationError
 
 # How far a weight file may depart from the simplex through rounding: jMetal's files round each component, so
@@ -33,6 +43,59 @@ def read_weight_vectors(path: str, n_obj: int) -> FloatArray:
     return _validated_weights(_load_weights(path), n_obj)
 
 
+_VECTOR_SOURCE_KEYS = ("path", "divisions", "inner_divisions")
+
+
+def vector_source(value: object, *, field: str = "reference vectors") -> dict[str, int | str | None] | None:
+    """The options of a weight- or reference-vector source, checked.
+
+    MOEA/D's ``weight_vectors``, NSGA-III's ``reference_directions`` and RVEA's ``reference_vectors``
+    take ``None``, a path, or a mapping with these keys:
+
+    - ``path``: a file with one vector per line, or a directory with jMetal's ``W{n_obj}D_{pop_size}.dat``
+      files;
+    - ``divisions``: the complete Das-Dennis lattice of that many divisions;
+    - ``inner_divisions``: with ``divisions``, Deb and Jain's two-layer lattice (see
+      :func:`~vamos.engine.reference_directions.two_layer_lattice`). It needs ``divisions`` and excludes ``path``.
+
+    A path becomes ``{"path": path, "divisions": None}``. A mapping keeps the keys it has, so a configuration
+    serializes as before, except ``inner_divisions=None``, which is left out. An unknown key, a path that is
+    not a string, a count that is not a positive integer, or ``inner_divisions`` without ``divisions`` or with
+    ``path`` raises :class:`~vamos.exceptions.ConfigurationError`.
+
+    Development after 1.4.0: new; VAMOS 1.4.0 ignored unknown keys.
+    """
+    if value is None:
+        return None
+    if isinstance(value, (str, os.PathLike)):
+        return {"path": os.fspath(value), "divisions": None}
+    if not isinstance(value, Mapping):
+        raise ConfigurationError(f"{field} must be a mapping with path, divisions and inner_divisions, or a path; got {value!r}.")
+    unknown = [key for key in value if key not in _VECTOR_SOURCE_KEYS]
+    if unknown:
+        hints = "".join(
+            f" Did you mean '{match[0]}'?" for key in unknown if (match := get_close_matches(str(key), _VECTOR_SOURCE_KEYS, n=1))
+        )
+        raise ConfigurationError(f"Unknown {field} key(s): {', '.join(map(repr, unknown))}.{hints}")
+    source: dict[str, int | str | None] = dict(value)
+    path = source.get("path")
+    if path is not None:
+        if not isinstance(path, (str, os.PathLike)):
+            raise ConfigurationError(f"{field} path must be a string path or None; got {path!r}.")
+        source["path"] = str(os.fspath(path))
+    for key in ("divisions", "inner_divisions"):
+        count = source.get(key)
+        if count is not None and (isinstance(count, bool) or not isinstance(count, Integral) or int(count) < 1):
+            raise ConfigurationError(f"{field} {key} must be a positive integer or None; got {count!r}.")
+    if source.get("inner_divisions") is None:
+        source.pop("inner_divisions", None)
+    elif source.get("divisions") is None:
+        raise ConfigurationError(f"{field} inner_divisions needs divisions, the boundary layer of the two-layer lattice.")
+    elif source.get("path") is not None:
+        raise ConfigurationError(f"{field} takes a file or a lattice: inner_divisions excludes path.")
+    return source
+
+
 def load_or_generate_weight_vectors(
     pop_size: int,
     n_obj: int,
@@ -40,38 +103,86 @@ def load_or_generate_weight_vectors(
     path: str | None = None,
     divisions: int | None = None,
     mode: str = "auto",
+    inner_divisions: int | None = None,
 ) -> FloatArray:
     """
-    Load weight vectors from a file if available, otherwise generate a simplex-lattice
-    design and persist it when a path is provided. Files are read by
-    :func:`read_weight_vectors`, with whitespace or commas between the components.
+    The weight (reference) vectors of MOEA/D, NSGA-III and RVEA: those of a file, or a simplex-lattice design.
 
-    mode="auto" generates the complete Das-Dennis lattice: with ``divisions``, all of
-    its vectors; without, the largest lattice with at most ``pop_size`` vectors. The
-    lattice is never truncated, so the result can have fewer rows than ``pop_size``.
+    ``path`` names a file, read by :func:`read_weight_vectors` with whitespace or commas between the
+    components, or a directory with jMetal's ``W{n_obj}D_{pop_size}.dat`` files. ``divisions`` gives the
+    complete Das-Dennis lattice and, with ``inner_divisions``, Deb and Jain's two-layer lattice
+    (:func:`~vamos.engine.reference_directions.two_layer_lattice`). A lattice is never truncated.
 
-    mode="jmetalpy" enforces jMetalPy-style behavior:
+    mode="auto" (NSGA-III): the file, which must exist and may hold any number of vectors (NSGA-III checks
+    that ``pop_size`` covers them); without one, the lattice of ``divisions``, or the largest lattice with at
+    most ``pop_size`` vectors, so the result can have fewer rows than ``pop_size``.
+
+    mode="exact" (RVEA): one vector per individual. The file must exist and hold ``pop_size`` vectors, and
+    a lattice must have exactly ``pop_size`` vectors.
+
+    mode="jmetalpy" (MOEA/D) enforces jMetalPy-style behavior:
     - n_obj == 2: uniform weights of size pop_size
     - n_obj > 2: load W{n_obj}D_{pop_size}.dat when available, otherwise
       generate an exact Das-Dennis lattice and reject incompatible sizes.
+
+    Development after 1.4.0: mode "exact", directories and ``inner_divisions`` in every mode, and a path
+    that does not exist raises :class:`~vamos.exceptions.ConfigurationError` in every mode. Mode "auto"
+    no longer generates a lattice for a missing file and saves it there, and MOEA/D no longer creates a
+    missing directory; it still saves the lattice in an existing directory that lacks the file.
     """
+    if mode not in ("auto", "exact", "jmetalpy"):
+        raise ValueError(f"Unknown weight vector mode {mode!r}; expected 'auto', 'exact' or 'jmetalpy'.")
+    if inner_divisions is not None:
+        return _two_layer_weights(pop_size, n_obj, path, divisions, inner_divisions, exact=mode != "auto")
     if mode == "jmetalpy":
         return _load_or_generate_jmetalpy_weights(pop_size, n_obj, path, divisions)
-    if path and os.path.exists(path):
-        weights = read_weight_vectors(path, n_obj)
-        if weights.shape[0] != pop_size:
-            raise ValueError(
-                f"Weight file '{path}' contains {weights.shape[0]} vectors but pop_size={pop_size} requires exactly that many."
-            )
-        return weights
-
-    weights = _generate_weights(pop_size, n_obj, divisions)
-
     if path:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        np.savetxt(path, weights, delimiter=",")
+        file = existing_weight_file(path, n_obj, pop_size)
+        weights = read_weight_vectors(file, n_obj)
+        if mode == "exact" and weights.shape[0] != pop_size:
+            raise ValueError(f"Weight file '{file}' holds {weights.shape[0]} vectors, but pop_size={pop_size} needs one per individual.")
+        return weights
+    return _generate_weights(pop_size, n_obj, divisions, strict=mode == "exact")
 
-    return weights
+
+def existing_weight_file(path: str, n_obj: int, pop_size: int) -> str:
+    """The weight file that ``path`` names: itself, or ``W{n_obj}D_{pop_size}.dat`` in the directory ``path``.
+
+    A path that does not exist, or a directory without that file, raises
+    :class:`~vamos.exceptions.ConfigurationError`. Development after 1.4.0: new.
+    """
+    if os.path.isfile(path):
+        return path
+    name = f"W{n_obj}D_{pop_size}.dat"
+    if os.path.isdir(path):
+        file = os.path.join(path, name)
+        if os.path.isfile(file):
+            return file
+        raise ConfigurationError(
+            f"Weight vector directory '{path}' has no {name} for {n_obj} objectives and pop_size={pop_size}.",
+            suggestion="Add the file, name the file itself, or choose a population that the directory has a file for.",
+        )
+    raise ConfigurationError(
+        f"Weight vector path '{path}' does not exist.",
+        suggestion="Pass an existing file, one vector per line, or a directory with jMetal's W<objectives>D_<size>.dat files.",
+    )
+
+
+def _two_layer_weights(
+    pop_size: int, n_obj: int, path: str | None, divisions: int | None, inner_divisions: int, *, exact: bool
+) -> FloatArray:
+    """Deb and Jain's two-layer lattice; with ``exact``, it must have ``pop_size`` vectors."""
+    if path:
+        raise ConfigurationError("Weight vectors come from a file or a lattice: inner_divisions excludes path.")
+    if divisions is None:
+        raise ConfigurationError("inner_divisions needs divisions, the boundary layer of the two-layer lattice.")
+    count = two_layer_size(n_obj, int(divisions), int(inner_divisions))
+    if exact and count != pop_size:
+        raise ValueError(
+            f"The two-layer lattice of divisions={divisions} and inner_divisions={inner_divisions} has {count} vectors "
+            f"for n_obj={n_obj}, but pop_size={pop_size} needs one per individual."
+        )
+    return two_layer_lattice(n_obj, int(divisions), int(inner_divisions))
 
 
 def _load_weights(path: str) -> FloatArray:
@@ -93,6 +204,9 @@ def _load_or_generate_jmetalpy_weights(pop_size: int, n_obj: int, path: str | No
         vals = np.linspace(0.0, 1.0, pop_size, dtype=float)
         return np.column_stack([vals, 1.0 - vals])
 
+    if path and not os.path.exists(path):
+        # Development after 1.4.0: a path that does not exist is an error; MOEA/D used to create it as a directory.
+        existing_weight_file(path, n_obj, pop_size)
     weight_path = _resolve_jmetalpy_weight_path(path, n_obj, pop_size)
     if weight_path is None and divisions is None and _exact_divisions(pop_size, n_obj) is None:
         # No complete lattice has pop_size vectors: use the jMetal weights VAMOS ships for it, if any.
@@ -145,6 +259,7 @@ def describe_weight_vectors(
     *,
     path: str | None = None,
     divisions: int | None = None,
+    inner_divisions: int | None = None,
 ) -> dict[str, object]:
     """Where MOEA/D's weight vectors for ``pop_size`` come from, as a run artifact records it.
 
@@ -157,7 +272,16 @@ def describe_weight_vectors(
     A run whose ``path`` lacks the file generates the lattice and saves it there, so a file that holds
     exactly that lattice is still ``das_dennis``: the description does not depend on whether an earlier
     run has written it.
+
+    Development after 1.4.0: ``two_layer`` with its ``divisions`` and ``inner_divisions``.
     """
+    if inner_divisions is not None:
+        if divisions is None:
+            raise ValueError("inner_divisions needs divisions, the boundary layer of the two-layer lattice.")
+        count = two_layer_size(n_obj, int(divisions), int(inner_divisions))
+        if count != pop_size:
+            raise ValueError(f"The two-layer lattice for n_obj={n_obj} has {count} vectors, not pop_size={pop_size}.")
+        return {"source": "two_layer", "divisions": int(divisions), "inner_divisions": int(inner_divisions), "vectors": pop_size}
     if n_obj <= 2:
         return {"source": "uniform", "vectors": pop_size}
     weight_path = _resolve_jmetalpy_weight_path(path, n_obj, pop_size)
@@ -171,6 +295,20 @@ def describe_weight_vectors(
     elif lattice_size(n_obj, int(divisions)) != pop_size:
         raise ValueError(f"Das-Dennis simplex lattice for n_obj={n_obj}, divisions={divisions} does not have pop_size={pop_size} vectors.")
     return {"source": "das_dennis", "divisions": int(divisions), "vectors": pop_size}
+
+
+def describe_vector_file(path: str, n_obj: int, pop_size: int, *, vectors: int | None = None) -> dict[str, object]:
+    """The record of NSGA-III's or RVEA's vectors from ``path``: ``{"source": "file", "file": name}``.
+
+    ``name`` is the file's name, or ``W{n_obj}D_{pop_size}.dat`` for a directory, and ``vectors``, when
+    given, the number of vectors. Verification rebuilds the record from a stored configuration, so the
+    path is untrusted: it is never opened. Development after 1.4.0: new.
+    """
+    file = path if os.path.isfile(path) else os.path.join(path, f"W{n_obj}D_{pop_size}.dat")
+    record: dict[str, object] = {"source": "file", "file": os.path.basename(file)}
+    if vectors is not None:
+        record["vectors"] = vectors
+    return record
 
 
 def _holds_saved_lattice(path: str, pop_size: int, n_obj: int, divisions: int | None) -> bool:
