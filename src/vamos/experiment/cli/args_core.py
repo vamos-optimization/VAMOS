@@ -128,7 +128,10 @@ def add_core_arguments(
         "--selection-pressure",
         type=int,
         default=spec_default(experiment_defaults, "selection_pressure", 2),
-        help=("Tournament size for selection operators (default: %(default)s). Applies to NSGA-II/III and SMS-EMOA."),
+        help=(
+            "Tournament size for selection operators (default: %(default)s). Applies to the default tournaments of NSGA-II and IBEA; "
+            "NSGA-III and SMS-EMOA select parents at random unless their config block sets a tournament and its size."
+        ),
     )
     add_spec_argument(
         parser,

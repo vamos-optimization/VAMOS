@@ -26,8 +26,9 @@ from vamos.foundation.exceptions import ConfigurationError
 from vamos.foundation.problem.registry import ProblemSelection, make_problem_selection
 from vamos.foundation.problem.resolver import resolve_problem_selections
 
-# Algorithms whose tournament reads the selection pressure ("both" runs them too).
-_TOURNAMENT_ALGORITHMS = ("nsgaii", "nsgaiii", "spea2", "ibea", "both")
+# Algorithms whose tournament reads the selection pressure ("both" runs them too). Development after
+# 1.4.0: NSGA-III is not one of them; it selects its parents at random unless its block sets a tournament.
+_TOURNAMENT_ALGORITHMS = ("nsgaii", "spea2", "ibea", "both")
 # Algorithms with CLI variation options, and their flag spelling when it differs from the name.
 _VARIATION_ALGORITHMS = ("nsgaii", "moead", "smsemoa", "nsgaiii", "agemoea", "rvea")
 _VARIATION_FLAGS = {"nsgaiii": "nsga3"}

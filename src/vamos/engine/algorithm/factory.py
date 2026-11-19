@@ -109,7 +109,6 @@ def build_algorithm(
             pop_size=pop_size,
             nsgaiii_variation=variations.get("nsgaiii"),
             track_genealogy=track_genealogy,
-            selection_pressure=selection_pressure,
         ),
         "spea2": lambda: build_spea2_algorithm(
             kernel=kernel,

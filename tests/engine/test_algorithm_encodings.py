@@ -73,7 +73,6 @@ def test_nsgaiii_permutation_encoding_defaults(mock_kernel):
         problem=problem,
         pop_size=100,
         nsgaiii_variation=None,
-        selection_pressure=2,
     )
 
     cfg_dict = config.to_dict()
@@ -97,14 +96,12 @@ def test_nsgaiii_real_encoding_uses_the_reference_sbx(mock_kernel):
         problem=MockRealProblem(),
         pop_size=92,
         nsgaiii_variation=None,
-        selection_pressure=2,
     )
     _, tuned = build_nsgaiii_algorithm(
         kernel=mock_kernel,
         problem=MockRealProblem(),
         pop_size=92,
         nsgaiii_variation={"crossover": {"method": "sbx", "eta": 15.0}},
-        selection_pressure=2,
     )
 
     assert config.to_dict()["crossover"] == ("sbx", {"prob": 0.9, "eta": 30.0})

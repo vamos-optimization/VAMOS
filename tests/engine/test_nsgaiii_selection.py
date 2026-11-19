@@ -14,11 +14,13 @@ from vamos import optimize
 from vamos.algorithms import NSGAIIIConfig
 from vamos.engine.algorithm.components.constraint_handling import ConstraintHandlingTechnique, run_technique
 from vamos.engine.algorithm.config.nsgaiii import nsgaiii_selection
+from vamos.engine.algorithm.factory import build_algorithm
 from vamos.engine.algorithm.nsgaiii import NSGAIII
 from vamos.engine.algorithm.nsgaiii.helpers import nsgaiii_parents
 from vamos.engine.tuning import config_from_assignment
 from vamos.engine.tuning.grammar import builtin_parameter_space, builtin_parameter_space_names
 from vamos.engine.tuning.racing.parameter_names import from_evolver, to_evolver
+from vamos.foundation.core.experiment_config import ExperimentConfig
 from vamos.foundation.exceptions import ConfigurationError
 from vamos.foundation.kernel.backend import KernelBackend
 from vamos.foundation.kernel.numba_backend import NumbaKernel
@@ -187,6 +189,17 @@ def test_defaults_resolve_to_random_parents() -> None:
     assert NSGAIIIConfig.default().selection == ("random", {})
     assert NSGAIIIConfig.default(pop_size=100, n_obj=5).selection == ("random", {})
     assert resolved.explain_defaults()["resolved_spec"]["operators"]["selection"]["component_id"].startswith("vamos.operator:random@")
+
+
+def test_the_command_line_builder_selects_random_parents_unless_its_block_sets_a_tournament() -> None:
+    problem = DTLZ2Problem(n_var=12, n_obj=3)
+    tournament = {"nsgaiii": {"selection": {"method": "tournament", "size": 3}}}
+
+    _, default = build_algorithm("nsgaiii", "numpy", problem, ExperimentConfig(population_size=10), selection_pressure=4)
+    _, configured = build_algorithm("nsgaiii", "numpy", problem, ExperimentConfig(population_size=10), variations=tournament)
+
+    assert default.to_dict()["selection"] == ("random", {})
+    assert configured.to_dict()["selection"] == ("tournament", {"size": 3})
 
 
 @pytest.mark.parametrize("method", ["boltzmann", "ranking", "sus", "roulette"])
