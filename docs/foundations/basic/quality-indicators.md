@@ -88,7 +88,13 @@ And real costs:
 
 The area that only one point dominates is its **exclusive contribution**:
 the hypervolume lost if that point is removed. SMS-EMOA builds its selection on
-it (lesson [I6](../intermediate/beyond-nsga-ii.md)).
+it (lesson [I6](../intermediate/beyond-nsga-ii.md)). The contributions are
+measured among the non-dominated points, as VAMOS and MooCore's
+`hv_contributions` measure them by default: a dominated point adds no
+hypervolume, so it contributes 0 and is left out when the contributions of the
+others are measured, and two equal points contribute 0 each, because each one
+covers the area of the other. Drag a point behind another one in the figure to
+see it.
 
 ## Distance-based indicators
 

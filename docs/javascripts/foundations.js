@@ -4,11 +4,13 @@
    lesson text explains the idea without JavaScript, and each container keeps a
    short fallback paragraph until its figure is drawn. The algorithms below
    follow the NumPy reference implementation of VAMOS
-   (src/vamos/foundation/kernel/numpy_backend.py and operator_primitives.py).
+   (src/vamos/foundation/kernel/numpy_backend.py and operator_primitives.py,
+   and src/vamos/foundation/quality_indicators/hypervolume.py).
    tests/docs/test_foundations.py checks that every figure a lesson uses is
-   implemented here; it does not run this script. The sorting, crowding,
-   indicator and Das-Dennis functions were checked by hand against VAMOS and
-   MooCore when the path was added. */
+   implemented here and, when Node.js is installed, runs the non-dominated
+   sorting, crowding distance, hypervolume and hypervolume contributions
+   against VAMOS. The distance indicators and the Das-Dennis lattices were
+   checked by hand against MooCore and VAMOS when the path was added. */
 (function (root) {
   "use strict";
 
@@ -153,28 +155,36 @@
     return area;
   }
 
-  /** Exclusive hypervolume contributions; dominated, duplicated or outside points give 0. */
+  /** Exclusive hypervolume contributions, as VAMOS's hypervolume_contributions and MooCore's
+      hv_contributions (ignore_dominated) compute them: points outside the reference box are
+      left out, a dominated point gives 0 and is left out of the others' contributions, and
+      equal points give 0 each while still covering their neighbours. */
   function hvContributions2d(points, ref) {
     const out = new Array(points.length).fill(0);
     const boxes = new Array(points.length).fill(null);
-    const candidates = [];
+    const groups = new Map();
     points.forEach((p, i) => {
       if (!(p[0] < ref[0] && p[1] < ref[1])) return;
-      for (let j = 0; j < points.length; j++) {
-        if (j === i) continue;
-        const q = points[j];
-        if (dominates(q, p)) return;
-        if (q[0] === p[0] && q[1] === p[1]) return;
-      }
-      candidates.push(i);
+      const key = p[0] + "," + p[1];
+      if (!groups.has(key)) groups.set(key, { p, members: [] });
+      groups.get(key).members.push(i);
     });
-    candidates.sort((a, b) => points[a][0] - points[b][0]);
-    candidates.forEach((index, k) => {
-      const p = points[index];
-      const right = k + 1 < candidates.length ? points[candidates[k + 1]][0] : ref[0];
-      const top = k > 0 ? points[candidates[k - 1]][1] : ref[1];
-      out[index] = (right - p[0]) * (top - p[1]);
-      boxes[index] = [p[0], p[1], right, top];
+    const unique = [...groups.values()].sort((a, b) => a.p[0] - b.p[0] || a.p[1] - b.p[1]);
+    const front = [];
+    let lowest = Infinity;
+    for (const group of unique) {
+      if (group.p[1] < lowest) {
+        front.push(group);
+        lowest = group.p[1];
+      }
+    }
+    front.forEach((group, k) => {
+      if (group.members.length > 1) return;
+      const p = group.p;
+      const right = k + 1 < front.length ? front[k + 1].p[0] : ref[0];
+      const top = k > 0 ? front[k - 1].p[1] : ref[1];
+      out[group.members[0]] = (right - p[0]) * (top - p[1]);
+      boxes[group.members[0]] = [p[0], p[1], right, top];
     });
     return { contributions: out, boxes };
   }

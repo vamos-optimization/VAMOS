@@ -4,11 +4,19 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
 import re
+import shutil
+import subprocess
 from pathlib import Path
+from typing import Any
 
+import numpy as np
 import pytest
 import yaml
+
+from vamos.foundation.kernel.numpy_backend import _compute_crowding, _fast_non_dominated_sort
+from vamos.foundation.quality_indicators.hypervolume import hypervolume, hypervolume_contributions
 
 ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs"
@@ -154,3 +162,46 @@ def test_examples_run_and_print_the_documented_output(page: Path) -> None:
             assert NUMBER.sub("#", printed) == NUMBER.sub("#", documented), printed
         else:
             assert printed == documented, printed
+
+
+def _run_figure_algorithms(cases: list[np.ndarray], ref: list[float]) -> list[dict[str, Any]]:
+    """Evaluate the figures' JavaScript algorithms on each set with Node.js."""
+    program = f"""
+require({json.dumps(str(SCRIPT))});
+const V = globalThis.VamosFoundations;
+const ref = {json.dumps(ref)};
+const results = {json.dumps([case.tolist() for case in cases])}.map((F) => {{
+  const sorted = V.nonDominatedSort(F);
+  return {{
+    rank: sorted.rank,
+    crowding: sorted.fronts.map((front) => V.crowdingDistance(F, front).map((d) => (Number.isFinite(d) ? d : null))),
+    fronts: sorted.fronts,
+    hv: V.hypervolume2d(F, ref),
+    contributions: V.hvContributions2d(F, ref).contributions,
+  }};
+}});
+process.stdout.write(JSON.stringify(results));
+"""
+    completed = subprocess.run(["node", "-e", program], capture_output=True, text=True, check=True, timeout=60)
+    return json.loads(completed.stdout)
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_figure_algorithms_agree_with_vamos() -> None:
+    rng = np.random.default_rng(20261119)
+    ref = [1.1, 1.1]
+    cases = [rng.random((int(rng.integers(4, 15)), 2)) for _ in range(20)]
+    for case in cases[::4]:
+        case[1] = case[0]  # duplicated points
+    cases.append(np.array([[0.1, 0.1], [0.5, 0.5]]))  # a dominated point
+    cases.append(np.array([[0.2, 0.6], [0.2, 0.6], [0.6, 0.2]]))  # a duplicate next to another point
+    cases.append(np.array([[0.2, 0.6], [0.6, 0.2], [1.2, 0.1], [0.3, 1.3]]))  # points outside the reference box
+    for F, js in zip(cases, _run_figure_algorithms(cases, ref)):
+        fronts, ranks = _fast_non_dominated_sort(F)
+        assert js["rank"] == ranks.tolist()
+        crowding = _compute_crowding(F, fronts)
+        for front, values in zip(js["fronts"], js["crowding"]):
+            expected = crowding[np.asarray(front)]
+            np.testing.assert_allclose([np.inf if v is None else v for v in values], expected, rtol=1e-12)
+        assert js["hv"] == pytest.approx(hypervolume(F, ref), rel=1e-12)
+        np.testing.assert_allclose(js["contributions"], hypervolume_contributions(F, ref), rtol=1e-12, atol=1e-15)
