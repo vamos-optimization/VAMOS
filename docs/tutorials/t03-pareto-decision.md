@@ -30,7 +30,7 @@ choice without changing the optimization problem.
 | Item | This lesson |
 | --- | --- |
 | Prerequisites | [T02](t02-constrained-problem.md); feasibility, non-dominance, and aligned rows. |
-| Tested package | VAMOS **1.4.0**, Python 3.12; [setup and exact tested dependencies](setup.md). |
+| Tested package | VAMOS **1.5.0**, Python 3.12; [setup and exact tested dependencies](setup.md). |
 | Dependencies | Core VAMOS and NumPy only; no experimental decision helper is required. |
 | Interface status | **Stable** optimization and result facades; the preference calculation is ordinary NumPy code. |
 | Run | The same T02 model, NSGA-II, population 40, 400 evaluations, seed 42, NumPy. |
@@ -66,7 +66,7 @@ python t03-pareto-decision.py
 
 <!-- tutorial:code -->
 ```python
-"""T03: generated from examples/tutorials/fundamentals.py; VAMOS 1.4.0, core dependencies only."""
+"""T03: generated from examples/tutorials/fundamentals.py; VAMOS 1.5.0, core dependencies only."""
 
 
 def process_objectives(x):

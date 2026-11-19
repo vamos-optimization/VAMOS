@@ -10,7 +10,7 @@ downloads:
 
 Hypervolume contribution provides the environmental selection criterion: candidates compete through the objective-space volume they add relative to a reference point [1]. This steady-state example makes that point explicit.
 
-**Goal:** run the stable public API in VAMOS 1.4.0, interpret its returned population, and identify which settings control this mechanism.
+**Goal:** run the stable public API in VAMOS 1.5.0, interpret its returned population, and identify which settings control this mechanism.
 
 [Capability matrix](../reference/algorithms.md) · [Exact configuration reference](../reference/api/algorithms/smsemoa.md) · [Setup and recorded evidence](../tutorials/coverage-setup.md)
 
@@ -31,7 +31,7 @@ The second command reruns the same protocol and requires Matplotlib. Use a new f
 ??? example "Complete runnable script"
 
     ```python
-    """Verified VAMOS 1.4.0 lesson: smsemoa. See coverage-setup for dependencies."""
+    """Verified VAMOS 1.5.0 lesson: smsemoa. See coverage-setup for dependencies."""
 
 
     def execute_example(problem, algorithm, config, budget, seed=42, engine="numpy"):
@@ -158,7 +158,7 @@ Evaluations: 400
 
 ![Actual smsemoa results from the documented protocol.](../assets/coverage/smsemoa.svg)
 
-*Measured with VAMOS 1.4.0; the [observations and provenance](../tutorials/coverage-setup.md#recorded-evidence) retain the inputs and results.*
+*Measured with VAMOS 1.5.0; the [observations and provenance](../tutorials/coverage-setup.md#recorded-evidence) retain the inputs and results.*
 
 ## Understand the configuration
 

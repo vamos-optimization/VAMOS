@@ -28,7 +28,7 @@ python performance.py --output performance-example
 ??? example "Complete runnable script"
 
     ```python
-    """Verified VAMOS 1.4.0 lesson: performance. See coverage-setup for dependencies."""
+    """Verified VAMOS 1.5.0 lesson: performance. See coverage-setup for dependencies."""
 
 
     def new_output(output):
@@ -132,9 +132,9 @@ python performance.py --output performance-example
 
 <!-- tutorial:output -->
 ```text
-numpy: first 0.013194s; subsequent median 0.010331s; range [0.008364, 0.017851]s
-numba: first 3.461703s; subsequent median 0.005291s; range [0.003488, 0.008434]s
-moocore: first 0.007246s; subsequent median 0.005780s; range [0.005625, 0.012602]s
+numpy: first 0.013609s; subsequent median 0.009504s; range [0.008750, 0.011098]s
+numba: first 3.466676s; subsequent median 0.004718s; range [0.003742, 0.008593]s
+moocore: first 0.011709s; subsequent median 0.007742s; range [0.006966, 0.009122]s
 Actual evaluations: 4800; fresh optimizer state for every call.
 Times describe this machine and tiny workload; no universal backend ranking follows.
 ```
@@ -142,7 +142,7 @@ Times describe this machine and tiny workload; no universal backend ranking foll
 
 ![Actual performance results from the documented protocol.](../assets/coverage/performance.svg)
 
-*Measured with VAMOS 1.4.0; the [observations and provenance](coverage-setup.md#recorded-evidence) retain the inputs and results.*
+*Measured with VAMOS 1.5.0; the [observations and provenance](coverage-setup.md#recorded-evidence) retain the inputs and results.*
 
 ## Interpret the measurements and limits
 
