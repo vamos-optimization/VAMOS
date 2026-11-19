@@ -105,8 +105,8 @@ A CTP2-style problem, written with `make_problem`. Both functions are
 vectorized: they receive a whole population, one row per solution. The
 constraint function returns G = −c, because the paper writes the constraint as
 c(x) ≥ 0 and VAMOS treats G ≤ 0 as feasible. Here g = 1 + Σ x_i² is a simpler
-distance function than the paper's; VAMOS releases after 1.4.0 also ship the
-original CTP1 to CTP7 as built-in problems.
+distance function than the paper's; since VAMOS 1.5.0, the original CTP1 to
+CTP7 are also built-in problems.
 
 ```python
 import numpy as np

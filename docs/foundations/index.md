@@ -45,7 +45,7 @@ Each lesson ends with a short program that uses the public VAMOS interface.
 Install VAMOS first, following the [installation guide](../guide/installation.md):
 
 ```bash
-python -m pip install "vamos-optimization==1.4.0"
+python -m pip install "vamos-optimization==1.5.0"
 ```
 
 The quality-indicator examples also use [MooCore](https://multi-objective.github.io/moocore/python/),
@@ -56,7 +56,7 @@ uses as well:
 python -m pip install moocore
 ```
 
-The outputs printed in the lessons come from VAMOS 1.4.0 with the NumPy
+The outputs printed in the lessons come from VAMOS 1.5.0 with the NumPy
 engine. Values computed by an optimization run can differ in their last digits
 in another environment; a seed makes a run repeatable in the same
 environment, not bitwise identical everywhere.

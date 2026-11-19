@@ -122,7 +122,7 @@ VAMOS details and deviations:
   generations the budget allows, ⌈(max_evaluations − N) / N⌉: 219 for 20,000
   evaluations with N = 91.
 - **Ties.** On equal APD, the solution listed first wins.
-- **Development after 1.4.0: two variants.** `variant("pymoo")`, the default,
+- **VAMOS 1.5.0: two variants.** `variant("pymoo")`, the default,
   makes the choices above. `variant("platemo")` follows the authors' code in
   PlatEMO, which jMetal also follows: M = m with two objectives too, the
   objectives are translated by the minimum of each generation's candidates
@@ -320,7 +320,7 @@ vectors at each multiple of it:
                 st.gamma = _calc_gamma(st.V)
 ```
 
-**Development after 1.4.0:** the population no longer has to be a complete
+**VAMOS 1.5.0:** the population no longer has to be a complete
 lattice. `reference_vectors(path=...)` reads the vectors from a file, such as
 jMetal's `W3D_100.dat` that VAMOS ships, and
 `reference_vectors(divisions=p₁, inner_divisions=p₂)` builds Deb and Jain's

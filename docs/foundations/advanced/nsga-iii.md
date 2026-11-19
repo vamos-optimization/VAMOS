@@ -69,7 +69,7 @@ With eight or more objectives a single lattice either has too many directions
 or puts them all on the boundary of the simplex. Deb and Jain then combine two
 layers: an outer lattice with p₁ divisions and an inner one with p₂ divisions
 shrunk towards the centre, for example 120 + 36 = 156 directions for m = 8
-with p₁ = 3 and p₂ = 2 [1]. **Development after 1.4.0:**
+with p₁ = 3 and p₂ = 2 [1]. **VAMOS 1.5.0:**
 `reference_directions(divisions=p₁, inner_divisions=p₂)` generates that
 two-layer set, the inner lattice shrunk by half towards the centre,
 w/2 + 1/(2m), as pymoo does; VAMOS 1.4.0 generated one layer only. Any other
@@ -200,7 +200,7 @@ neither uses the crowding distance, which is not part of NSGA-III:
   distinct solutions (2 by default) are drawn at random and the one with the
   lowest non-dominated rank wins, with ties drawn at random.
 
-**Development after 1.4.0:** VAMOS 1.4.0 and earlier chose NSGA-III's parents
+**VAMOS 1.5.0:** VAMOS 1.4.0 and earlier chose NSGA-III's parents
 by NSGA-II's tournament on rank and crowding distance
 (lesson [I3](../intermediate/crowding-distance.md)), whatever the configured
 selection, so the same seed gives other results than with VAMOS 1.4.0.

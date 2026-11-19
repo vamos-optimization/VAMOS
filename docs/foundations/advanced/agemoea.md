@@ -227,7 +227,7 @@ def _compute_geometry(front: np.ndarray[Any, Any], extreme: np.ndarray[Any, Any]
     distances = distances / nn[:, None]
 ```
 
-**Development after 1.4.0:** the `ii` lines choose between AGE-MOEA, the
+**VAMOS 1.5.0:** the `ii` lines choose between AGE-MOEA, the
 default, and AGE-MOEA-II [7], selected with `variant("agemoea_ii")`. AGE-MOEA-II
 estimates p from the non-corner point nearest to the ideal point by
 Newton-Raphson, so that its Lp norm is 1, and replaces the Lp distances of F₁
