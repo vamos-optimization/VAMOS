@@ -27,6 +27,7 @@ Definitions to keep in mind when comparing with other tools:
 - **IGD:** `igd` is the mean distance from each reference point to the front (p = 1, Coello and Cortés, as in pymoo). jMetal's default IGD is `sqrt(sum d^2) / n`, which gives smaller values.
 - **Multiplicative epsilon:** `epsilon_mult` needs strictly positive values in the front and in the reference front. Shift both explicitly when objectives can be 0, as on ZDT and DTLZ fronts.
 - **Exact fallback cost:** without MooCore, the exact hypervolume for four or more objectives grows exponentially with the number of objectives. SMS-EMOA and IBEA with the hypervolume indicator need the `[compute]` extra in practice from M = 4.
+- **Approximate hypervolume:** **Development after 1.4.0:** `HVIndicator` and `HVApproxIndicator` (`hv_approx`) are exported by the experimental `vamos.ux.api` and documented in [Analysis and Visualization](../topics/analysis.md). `hv_approx` passes `samples`, `seed` and `method` (one of `HV_APPROX_METHODS`; `None` is MooCore's default) to `moocore.hv_approx` and records them in `details`; an unknown method raises `ValueError`.
 
 Do not persist a second metric file beside a canonical run. Bounded scalar metrics that belong to a run go in the manifest outcome; study tables are derived exports.
 
