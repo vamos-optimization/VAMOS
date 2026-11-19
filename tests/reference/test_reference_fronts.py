@@ -97,6 +97,10 @@ _RESIDUALS: dict[str, Callable[[np.ndarray], np.ndarray]] = {
     "dtlz1.2d": _sum(0.5),
     **{f"dtlz{k}.2d": _sphere for k in range(2, 7)},
     "dtlz7.2d": _dtlz7,
+    # Development after 1.4.0: the inverted DTLZ1 and DTLZ2, f = (1 - w) / 2 and f = 1 - w / norm(w).
+    "idtlz1.2d": _sum(0.5),
+    "idtlz1.3d": _sum(1.0),
+    **{f"idtlz2.{m}d": (lambda F: np.sum((1.0 - F) ** 2, axis=1) - 1.0) for m in (2, 3)},
     "wfg1": _wfg1,
     "wfg2": _wfg2,
     "wfg3": lambda F: F[:, 0] / 2.0 + F[:, 1] / 4.0 - 1.0,
@@ -455,6 +459,10 @@ def test_reference_fronts_are_chosen_by_number_of_objectives() -> None:
     for k in range(1, 8):
         assert resolved(f"dtlz{k}", 2) == f"dtlz{k}.2d.csv"
         assert resolved(f"dtlz{k}", 3) == f"dtlz{k}.csv"
+    for k in (1, 2):
+        assert resolved(f"idtlz{k}", None) == f"idtlz{k}.3d.csv"
+        assert resolved(f"idtlz{k}", 2) == f"idtlz{k}.2d.csv"
+        assert resolved(f"idtlz{k}", 4) is None
     # WFG's packaged front has two objectives, and the problem three by default.
     assert resolved("wfg4", None) is None
     assert resolved("wfg4", 2) == "wfg4.csv"

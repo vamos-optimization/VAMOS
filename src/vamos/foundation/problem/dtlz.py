@@ -302,3 +302,79 @@ class DTLZ7Problem(DTLZBase):
             out["F"][:] = F
         else:
             out["F"] = F
+
+
+def _position_shape(head: np.ndarray[Any, Any], tail: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
+    """DTLZ's position shape, as PlatEMO writes it: ``fliplr(cumprod([1, head])) .* [1, fliplr(tail)]``.
+
+    ``f_1 = h_1 ... h_{M-1}``, ``f_i = h_1 ... h_{M-i} t_{M-i+1}`` and ``f_M = t_1``: DTLZ1 takes ``h = x`` and
+    ``t = 1 - x``, DTLZ2 ``h = cos(x pi / 2)`` and ``t = sin(x pi / 2)``, for the M - 1 position variables.
+    """
+    ones = np.ones((head.shape[0], 1))
+    return np.asarray(np.cumprod(np.hstack([ones, head]), axis=1)[:, ::-1] * np.hstack([ones, tail[:, ::-1]]))
+
+
+def _warn_non_standard_k(name: str, n_var: int, n_obj: int, standard: int) -> None:
+    k = n_var - n_obj + 1
+    if k != standard:
+        warnings.warn(
+            f"Non-standard {name} configuration: k={k} (standard k={standard}). "
+            f"Consider using n_var={n_obj + standard - 1} for standard benchmark.",
+            UserWarning,
+            stacklevel=3,
+        )
+
+
+class IDTLZ1Problem(DTLZBase):
+    """Inverted DTLZ1 (Jain and Deb, 2014), as PlatEMO's ``IDTLZ1``.
+
+    Development after 1.4.0: ``f = (1 + g) / 2 - (1 + g) / 2 * s``, where ``g`` is DTLZ1's distance function
+    and ``s`` its position shape (DTLZ1 is ``f = (1 + g) / 2 * s``). With ``g = 0`` the front is DTLZ1's
+    simplex turned over, ``f = (1 - w) / 2`` for ``w`` on the unit simplex. ``n_var`` defaults to
+    ``n_obj + 4`` (k = 5).
+    """
+
+    def __init__(self, n_var: int | None = None, n_obj: int = 3) -> None:
+        if n_var is None:
+            n_var = n_obj + 4
+        super().__init__(n_var, n_obj)
+        _warn_non_standard_k("IDTLZ1", n_var, n_obj, 5)
+
+    def _evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
+        m = self.n_obj
+        distance = X[:, m - 1 :] - 0.5
+        g = 100.0 * (self.n_var - m + 1 + np.sum(distance**2 - np.cos(20.0 * np.pi * distance), axis=1))
+        position = X[:, : m - 1]
+        scale = (1.0 + g)[:, None]
+        F = scale / 2.0 - 0.5 * scale * _position_shape(position, 1.0 - position)
+        if "F" in out and out["F"] is not None:
+            out["F"][:] = F
+        else:
+            out["F"] = F
+
+
+class IDTLZ2Problem(DTLZBase):
+    """Inverted DTLZ2 (Jain and Deb, 2014), as PlatEMO's ``IDTLZ2``.
+
+    Development after 1.4.0: ``f = (1 + g) - (1 + g) * s``, where ``g = sum (x_i - 0.5)^2`` over the distance
+    variables and ``s`` is DTLZ2's position shape (DTLZ2 is ``f = (1 + g) * s``). With ``g = 0`` the front is
+    the unit sphere's positive orthant turned over, ``f = 1 - u`` for ``u`` on it. ``n_var`` defaults to
+    ``n_obj + 9`` (k = 10).
+    """
+
+    def __init__(self, n_var: int | None = None, n_obj: int = 3) -> None:
+        if n_var is None:
+            n_var = n_obj + 9
+        super().__init__(n_var, n_obj)
+        _warn_non_standard_k("IDTLZ2", n_var, n_obj, 10)
+
+    def _evaluate(self, X: np.ndarray[Any, Any], out: dict[str, np.ndarray[Any, Any]]) -> None:
+        m = self.n_obj
+        g = np.sum((X[:, m - 1 :] - 0.5) ** 2, axis=1)
+        angle = X[:, : m - 1] * np.pi / 2.0
+        scale = (1.0 + g)[:, None]
+        F = scale - scale * _position_shape(np.cos(angle), np.sin(angle))
+        if "F" in out and out["F"] is not None:
+            out["F"][:] = F
+        else:
+            out["F"] = F

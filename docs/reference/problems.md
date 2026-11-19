@@ -3,7 +3,7 @@
 Choose a problem by its **formulation, encoding and dimensions**, then check the
 [algorithm compatibility matrix](algorithms.md). This catalog describes the
 251 registered problems in VAMOS **1.4.0**; **Development after 1.4.0:**
-CTP1–CTP7 bring them to 258. The named selection helpers are
+CTP1–CTP7 bring them to 258, and IDTLZ1 and IDTLZ2 to 260. The named selection helpers are
 [stable public APIs](../project/stability-and-versioning.md). A synthetic or
 engineering benchmark is a test model, not a validated model of your application.
 
@@ -44,9 +44,9 @@ a whole family and take the variant number and the family's parameters:
 `DASCMOP`, `DCDTLZ`, and `LIRCMOP`. **Development after 1.4.0:** `CTP`
 covers CTP1–CTP7 in the same way. Every registered problem, including the
 families and members without a class (ZDT5, DTLZ5 and DTLZ6, UF4–UF10, LZ09,
-MW, C-DTLZ, LSMOP, ZCAT, RE, and RWA), is available by name through
-`optimize("name")` and `make_problem_selection`, the stable way to build any
-of them.
+MW, C-DTLZ, LSMOP, ZCAT, RE, and RWA; **Development after 1.4.0:** IDTLZ1
+and IDTLZ2), is available by name through `optimize("name")` and
+`make_problem_selection`, the stable way to build any of them.
 
 **VAMOS 1.3.0:** some registered problems also take options
 besides `n_var` and `n_obj`: `capacity_ratio` for `bin_knapsack`, and
@@ -83,6 +83,8 @@ the corresponding implementation or family registration in the 1.0.1 release.
 | `dtlz1` | 7 | 3 | 0 | `n = M + 4` (`k = 5`) when n is omitted | [DTLZ][dtlz] | 2D and 3D |
 | `dtlz2`–`dtlz6` | 12 | 3 | 0 | `n = M + 9` (`k = 10`); DTLZ4 uses `alpha = 100` | [DTLZ][dtlz] | 2D and 3D, each |
 | `dtlz7` | 22 | 3 | 0 | `n = M + 19` (`k = 20`) | [DTLZ][dtlz] | 2D and 3D |
+| `idtlz1` | 7 | 3 | 0 | **Development after 1.4.0:** `n = M + 4` (`k = 5`) when n is omitted; DTLZ1's front turned over | [IDTLZ][idtlz] | 2D and 3D |
+| `idtlz2` | 12 | 3 | 0 | **Development after 1.4.0:** `n = M + 9` (`k = 10`); DTLZ2's front turned over | [IDTLZ][idtlz] | 2D and 3D |
 | `wfg1`–`wfg9` | 24 | 3 | 0 | `k = 4`, `l = 20`; bounds `[0, 2i]` for variable i | [WFG][wfg] | **2D only**, each |
 | `lz09_f1`, `lz09_f7`, `lz09_f8` | 10 | 2 | 0 | Fixed M; family-specific linkage | [Li–Zhang LZ09][lz] | None packaged |
 | `lz09_f2`–`lz09_f5`, `lz09_f9` | 30 | 2 | 0 | Fixed M; family-specific linkage | [Li–Zhang LZ09][lz] | None packaged |
@@ -91,6 +93,21 @@ the corresponding implementation or family registration in the 1.0.1 release.
 | `cec2009_uf8`–`cec2009_uf10` | 30 | 3 | 0 | Fixed M; UF9: `epsilon=0.1` | [CEC2009][cec] | 3D, each |
 | `lsmop1`–`lsmop9` | 300 | 3 | 0 | `nk = 5` subcomponents per group | [LSMOP][lsmop] | **2D only**, each |
 | `zcat1`–`zcat20` | 30 | 2 | 0 | `level = 1`; complicated Pareto set, bias and imbalance all `False` | [ZCAT][zcat] | 2D, 3D, 4D and 6D, each |
+
+**Development after 1.4.0:** IDTLZ1 and IDTLZ2 are the inverted DTLZ1 and
+DTLZ2 of Jain and Deb (2014), the usual test of how decomposition-based
+algorithms cope with an inverted front. They follow PlatEMO's `IDTLZ1` and
+`IDTLZ2`: with DTLZ1's or DTLZ2's distance function `g` and position shape `s`
+(DTLZ1 is `f = (1 + g) s / 2` and DTLZ2 `f = (1 + g) s`), IDTLZ1 is
+`f = (1 + g) / 2 - (1 + g) s / 2` and IDTLZ2 `f = (1 + g) - (1 + g) s`. Every
+objective is minimized. With `g = 0`, at the distance variables 0.5, the front
+of IDTLZ1 is `(1 - w) / 2` and that of IDTLZ2 `1 - w / norm(w)`, for `w` on the
+unit simplex: DTLZ1's simplex and DTLZ2's sphere turned over, so that many of
+the evenly spread weight vectors of a decomposition point past it. With two objectives,
+IDTLZ1's front is DTLZ1's segment `f1 + f2 = 0.5`. pymoo 0.6.2's
+`InvertedDTLZ1` computes IDTLZ1 in the same way; pymoo has no inverted DTLZ2.
+The classes are not exported by `vamos.problems`: build them by name. They
+take `n_obj` as DTLZ does.
 
 DTLZ, WFG, LSMOP and ZCAT allow changing `n_obj` in named selection. For DTLZ,
 omitting `n_var` recalculates the standard dimension from M; setting a different
@@ -707,6 +724,9 @@ compatibility or a certified optimum.
   not use those two-column files for three-objective indicators.
 - **Development after 1.4.0:** CTP1–CTP7 have two-objective samples,
   `ctp1.csv` to `ctp7.csv`.
+- **Development after 1.4.0:** IDTLZ1 and IDTLZ2 have samples with two and
+  three objectives, `idtlz1.2d.csv`, `idtlz1.3d.csv`, `idtlz2.2d.csv` and
+  `idtlz2.3d.csv`. Other values of M need a supplied reference.
 - C-DTLZ, DC-DTLZ, ZCAT and ZXH-CF supply dimension-specific samples, named
   `<key>.<M>d.csv`: at M = 2 and 3 for C-DTLZ and DC-DTLZ, at M = 2, 3, 4
   and 6 for ZCAT, and at M = 3 for ZXH-CF. Other objective counts need a
@@ -744,6 +764,7 @@ regenerates the files marked as regenerated.
 | `dtlz5`, `dtlz6` | Regenerated: 1000 points of the front curve |
 | `dtlz7` | Regenerated: 5050 points of the disconnected front |
 | `dtlz1.2d`–`dtlz7.2d` | **VAMOS 1.3.0:** regenerated, 1000 points spaced evenly along the front: `f1 + f2 = 0.5` (DTLZ1), the quarter circle (DTLZ2–DTLZ6; at M = 2, DTLZ5 and DTLZ6 do not degenerate) and the non-dominated pieces of `f2 = 4 - f1 (1 + sin(3 pi f1))` (DTLZ7) |
+| `idtlz1`, `idtlz2`, `.2d` and `.3d` | **Development after 1.4.0:** generated as PlatEMO's `GetOptimum` defines them, `(1 - w) / 2` (IDTLZ1) and `1 - w / norm(w)` (IDTLZ2): at M = 2, 1000 points spaced evenly along the front (IDTLZ1's segment is DTLZ1's); at M = 3, the 5050-point simplex lattice of the DTLZ1–DTLZ4 samples |
 | `wfg1`, `wfg2` | Regenerated from the WFG shape functions, 10 000 points |
 | `wfg3`–`wfg9` | Closed-form front, 10 000 points, unchanged |
 | `lsmop1`–`lsmop8` | Closed-form front, 1000 points, unchanged |
@@ -895,6 +916,7 @@ scalable formulations. For a new objective function, follow
 [cec2009-cf]: https://github.com/jMetal/jMetal/tree/1e4b83cae6/jmetal-problem/src/main/java/org/uma/jmetal/problem/multiobjective/cec2009
 [zxh-cf]: https://doi.org/10.1109/TEVC.2020.3011829
 [ctp]: https://doi.org/10.1007/3-540-44719-9_20
+[idtlz]: https://doi.org/10.1109/TEVC.2013.2281534
 [cre-paper]: https://doi.org/10.1016/j.asoc.2020.106078
 [rcm-paper]: https://doi.org/10.1016/j.swevo.2021.100961
 [jmetal-cre]: https://github.com/jMetal/jMetal/tree/1e4b83cae6/jmetal-problem/src/main/java/org/uma/jmetal/problem/multiobjective/cre
