@@ -34,7 +34,7 @@ of convergence.
 | Interface status | **Stable** study/result loading and `verify_run`; MooCore is an optional third-party indicator API |
 | Work | Load and measure; **no optimization executes** |
 
-## Fix the measurement rule
+## Fix the measurement rule: hypervolume and IGD+
 
 All objectives are minimized and use their original units. Each run contributes
 its returned population's non-dominated subset. These two benchmarks are
