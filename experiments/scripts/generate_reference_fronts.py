@@ -11,7 +11,8 @@ provenance of every packaged file, including those this script leaves alone.
 
 - **Analytic samples** of the Pareto front from its closed form: ZDT1-4 and ZDT6, DTLZ1-7 (M = 3, and M = 2 as
   ``dtlz1.2d`` ... ``dtlz7.2d``; Development after 1.4.0: DTLZ1, DTLZ2 and DTLZ7 at M = 4, 6 and 8 as ``dtlz1.4d``
-  ... ``dtlz7.8d``, DTLZ2's also serving DTLZ3 and DTLZ4), WFG1 and
+  ... ``dtlz7.8d``, DTLZ2's also serving DTLZ3 and DTLZ4), IDTLZ1 and IDTLZ2 at M = 2 and 3 (Development after
+  1.4.0: ``idtlz1.2d`` ... ``idtlz2.3d``), WFG1 and
   WFG2 (M = 2, from the WFG shape functions, so the bias transformations cannot shift them), LSMOP9 (M = 2),
   CEC2009 UF6 and UF9, and the ten C-DTLZ and DC-DTLZ problems at M = 2 and 3 (``c1dtlz1.2d`` ...
   ``dc3dtlz3.3d``), Srinivas, ConstrEx and Tanaka from their Pareto-set pieces and constraint boundaries, ZXH-CF1-16 at
@@ -201,6 +202,22 @@ def _dtlz_two_objective(name: str) -> np.ndarray:
         return thinned_2d(np.column_stack([f1, 4.0 - f1 * (1.0 + np.sin(3.0 * np.pi * f1))]), 1000)
     theta = np.linspace(0.0, np.pi / 2.0, 1000)
     return np.column_stack([np.cos(theta), np.sin(theta)])
+
+
+def _idtlz(name: str, m: int) -> np.ndarray:
+    """Development after 1.4.0: the inverted DTLZ1 and DTLZ2 of Jain and Deb (2014), as PlatEMO's ``GetOptimum``.
+
+    IDTLZ1's front is ``(1 - w) / 2`` and IDTLZ2's ``1 - w / |w|``, for ``w`` on the unit simplex: with M = 2, 1000
+    points spaced evenly along the front, and with M = 3 the 5050-point simplex lattice of DTLZ1-DTLZ4's samples.
+    """
+    if m == 2:
+        if name == "idtlz1":
+            f1 = np.linspace(0.0, 0.5, 1000)
+            return np.column_stack([f1, 0.5 - f1])
+        theta = np.linspace(0.0, np.pi / 2.0, 1000)
+        return np.column_stack([1.0 - np.cos(theta), 1.0 - np.sin(theta)])
+    w = simplex_lattice(m, 99)
+    return (1.0 - w) / 2.0 if name == "idtlz1" else 1.0 - w / np.linalg.norm(w, axis=1, keepdims=True)
 
 
 # Development after 1.4.0: DTLZ1, DTLZ2 (whose sample DTLZ3 and DTLZ4 share) and DTLZ7 with more objectives.
@@ -568,6 +585,7 @@ ANALYTIC: dict[str, Callable[[], np.ndarray]] = {
     **{name: (lambda name=name: _zdt(name)) for name in ("zdt1", "zdt2", "zdt3", "zdt4", "zdt6")},
     **{f"dtlz{i}": (lambda i=i: _dtlz(f"dtlz{i}")) for i in range(1, 8)},
     **{f"dtlz{i}.2d": (lambda i=i: _dtlz_two_objective(f"dtlz{i}")) for i in range(1, 8)},
+    **{f"idtlz{i}.{m}d": (lambda i=i, m=m: _idtlz(f"idtlz{i}", m)) for i in (1, 2) for m in (2, 3)},
     **{f"dtlz{i}.{m}d": (lambda i=i, m=m: _dtlz_many_objective(f"dtlz{i}", m)) for i in (1, 2, 7) for m in MANY_OBJECTIVES},
     "wfg1": lambda: _wfg("wfg1"),
     "wfg2": lambda: _wfg("wfg2"),
