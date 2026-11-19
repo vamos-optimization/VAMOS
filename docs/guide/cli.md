@@ -429,6 +429,21 @@ validated as in the Python configurations: an out-of-domain value in any
 problem stops the command before any run, and fields that conflict with each
 other stop it, with exit code 2, when the configuration is built.
 
+**Development after 1.4.0:** RVEA's block takes `reference_vectors`, and
+MOEA/D's `weight_vectors` and NSGA-III's `reference_directions` take
+`inner_divisions` (see
+[reference and weight vectors](../reference/algorithms.md#reference-and-weight-vectors)).
+With a weight file, RVEA runs a population that is not a lattice:
+
+```yaml
+version: "1"
+defaults:
+  algorithm: rvea
+  population_size: 100
+  rvea:
+    reference_vectors: weights/W3D_100.dat  # a file, or a directory of jMetal's W<m>D_<n>.dat files
+```
+
 Fields that the config sets elsewhere are rejected:
 - `pop_size` and `pop_size_auto`: use `population_size`;
 - `offspring_size`: use `offspring_population_size`;

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from typing import cast
 
 from vamos.engine.algorithm.builders import (
     build_agemoea_algorithm,
@@ -17,6 +18,7 @@ from vamos.engine.algorithm.builders import (
     build_spea2_algorithm,
     build_top_algorithm,
 )
+from vamos.engine.algorithm.components.weight_vectors import bind_config_vector_files
 from vamos.engine.algorithm.config import GenericAlgorithmConfig
 from vamos.engine.algorithm.config.types import AlgorithmConfigProtocol
 from vamos.engine.algorithm.registry import resolve_algorithm
@@ -76,6 +78,8 @@ def build_algorithm(
 
     if algorithm_config is not None:
         algo_ctor = resolve_algorithm(algorithm_key)
+        # Development after 1.4.0: a vector file is bound to the file the run reads and the digest of its vectors.
+        algorithm_config = cast(AlgorithmConfigProtocol, bind_config_vector_files(algorithm_config, problem.n_obj))
         return algo_ctor(dict(algorithm_config.to_dict()), kernel), algorithm_config
 
     builders: dict[str, Callable[[], tuple[object, AlgorithmConfigProtocol]]] = {

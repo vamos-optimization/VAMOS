@@ -33,6 +33,18 @@ rounding of jMetal's files (`1e-5`). A path that is not an existing file raises
 `ConfigurationError` when the run starts; VAMOS 1.4.0 generated the lattice
 instead and saved it at that path.
 
+**Development after 1.4.0:** `reference_directions` takes the keys of MOEA/D's
+`weight_vectors` and RVEA's `reference_vectors` (see
+[reference and weight vectors](../../algorithms.md#reference-and-weight-vectors)):
+`path` may also name a directory, from which NSGA-III reads jMetal's
+`W{n_obj}D_{pop_size}.dat` (a directory without it raises), and
+`reference_directions(divisions=3, inner_divisions=2)` runs Deb and Jain's
+two-layer lattice, 156 directions with eight objectives. The resolved spec of a
+run with a path records the file in `algorithm.resolution.reference_directions`,
+`{"source": "file", "file": "W3D_100.dat"}`; a run without one keeps the
+resolved spec of VAMOS 1.4.0. Study planning still rejects a path, and checks
+that `pop_size` covers a two-layer lattice.
+
 ::: vamos.algorithms.NSGAIIIConfig
     options:
       heading_level: 2

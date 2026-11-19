@@ -21,12 +21,12 @@ from vamos.engine.algorithm.components.metrics import setup_hv_tracker
 from vamos.engine.algorithm.components.population import initialize_evaluated_population
 from vamos.engine.algorithm.components.termination import parse_termination, validate_initial_budget
 from vamos.engine.algorithm.components.utils import resolve_bounds_array
-from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors, read_weight_vectors
+from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors, vector_source
 from vamos.engine.algorithm.config.base import normalize_constraint_mode
 from vamos.engine.algorithm.config.nsgaiii import nsgaiii_selection
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
 from vamos.engine.operators.policies.nsgaiii import build_variation_operators
-from vamos.engine.reference_directions import lattice_size
+from vamos.engine.reference_directions import lattice_size, two_layer_size
 from vamos.foundation.encoding import EncodingLike, normalize_encoding
 
 from .state import NSGAIIIState
@@ -113,25 +113,32 @@ def initialize_nsgaiii_run(
     # Reference directions: a file, the complete lattice for the configured divisions, or, without
     # either, the complete Das-Dennis lattice with the most directions that fit in pop_size. The
     # population needs at least one individual per direction (N >= H, as Deb and Jain, jMetal and pymoo).
-    dir_cfg = config.get("reference_directions", {}) or {}
+    dir_cfg = vector_source(config.get("reference_directions"), field="reference_directions") or {}
     ref_path = dir_cfg.get("path")
     ref_divisions = dir_cfg.get("divisions")
+    ref_inner = dir_cfg.get("inner_divisions")
     if ref_path:
-        # Development after 1.4.0: the file is read as MOEA/D reads its weights, with whitespace or commas
-        # between the components, and a path that is not a file raises instead of generating a lattice there.
-        ref_dirs = read_weight_vectors(str(ref_path), n_obj)
+        # Development after 1.4.0: the file, or W{n_obj}D_{pop_size}.dat in a directory, is read as MOEA/D
+        # reads its weights, with whitespace or commas between the components, and a path that does not
+        # exist raises instead of generating a lattice there.
+        ref_dirs = load_or_generate_weight_vectors(pop_size, n_obj, path=str(ref_path), sha256=_digest(dir_cfg.get("sha256")))
         source = f"NSGA-III reference directions in '{ref_path}' ({ref_dirs.shape[0]})"
     elif ref_divisions is not None:
-        source = f"NSGA-III reference directions for divisions={ref_divisions}"
+        lattice = f"divisions={ref_divisions}" if ref_inner is None else f"divisions={ref_divisions} and inner_divisions={ref_inner}"
+        source = f"NSGA-III reference directions for {lattice}"
         if n_obj >= 2:
             # Reject from the binomial count: an oversized lattice can need gigabytes.
-            n_directions = lattice_size(n_obj, int(ref_divisions))
+            n_directions = (
+                lattice_size(n_obj, int(ref_divisions)) if ref_inner is None else two_layer_size(n_obj, int(ref_divisions), int(ref_inner))
+            )
             if n_directions > pop_size:
                 raise ValueError(
                     f"{source} ({n_directions}) need pop_size >= {n_directions} (pop_size={pop_size}). "
                     "Increase pop_size or choose fewer reference directions."
                 )
-        ref_dirs = load_or_generate_weight_vectors(pop_size, n_obj, divisions=ref_divisions)
+        ref_dirs = load_or_generate_weight_vectors(
+            pop_size, n_obj, divisions=int(ref_divisions), inner_divisions=None if ref_inner is None else int(ref_inner)
+        )
         source = f"{source} ({ref_dirs.shape[0]})"
     else:
         if n_obj >= 2 and pop_size < n_obj:
@@ -211,6 +218,11 @@ def initialize_nsgaiii_run(
     )
 
     return state, live_cb, eval_strategy, max_eval, hv_tracker
+
+
+def _digest(value: object) -> str | None:
+    """The recorded ``sha256`` of the vectors of a file, ``None`` without one."""
+    return value if isinstance(value, str) else None
 
 
 def initialize_population(

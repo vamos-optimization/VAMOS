@@ -8,7 +8,8 @@ The nine configuration classes of VAMOS 1.1.0, the probability types and the
 ``available_*`` functions are stable. ``CCMOConfig``, ``CTAEAConfig``, ``ToPConfig`` and
 ``CMOEAMSConfig`` are new in VAMOS 1.2.0 and not yet covered by the 1.0 compatibility baseline. ``GenericAlgorithmConfig``,
 ``discover_algorithm_plugins`` and ``resolve_algorithm`` serve custom and
-plugin algorithms and are experimental.
+plugin algorithms and are experimental. ``moead_populations`` is new after VAMOS
+1.4.0 (development) and not yet covered by the 1.0 compatibility baseline.
 """
 
 from __future__ import annotations
@@ -90,6 +91,32 @@ def available_mutation_methods(encoding: str = "real") -> tuple[str, ...]:
     return operator_names("mutation", encoding)
 
 
+def moead_populations(n_obj: int, *, max_pop_size: int = 1000) -> tuple[int, ...]:
+    """Return the populations, up to ``max_pop_size``, for which MOEA/D has weight vectors by default.
+
+    MOEA/D gives each individual one weight vector. With one or two objectives every population
+    from 2 has them (uniform weights). With three or more, a population has them when a complete
+    Das-Dennis lattice has exactly that many vectors (``comb(H + n_obj - 1, n_obj - 1)`` for ``H``
+    divisions) or when VAMOS ships jMetal's file ``W{n_obj}D_{size}.dat`` (100 with three or four
+    objectives, 156 with eight). ``MOEADConfig.default(pop_size=...)`` and ``optimize`` accept exactly
+    these sizes, and ``vamos tune`` runs the largest one up to the sampled population.
+
+    Other populations need explicit weights: ``weight_vectors(path=...)`` with a file, or
+    ``weight_vectors(divisions=H1, inner_divisions=H2)`` with Deb and Jain's two-layer lattice of
+    ``comb(H1 + n_obj - 1, n_obj - 1) + comb(H2 + n_obj - 1, n_obj - 1)`` vectors.
+
+    **Development after 1.4.0:** new.
+
+    Examples
+    --------
+    >>> moead_populations(4, max_pop_size=200)
+    (4, 10, 20, 35, 56, 84, 100, 120, 165)
+    """
+    from vamos.engine.algorithm.components.weight_vectors import weighted_populations
+
+    return weighted_populations(n_obj, max_pop_size)
+
+
 def resolve_algorithm(name: str) -> AlgorithmBuilder:
     """Return the registered builder for a named algorithm.
 
@@ -122,5 +149,6 @@ __all__ = [
     "discover_algorithm_plugins",
     "available_crossover_methods",
     "available_mutation_methods",
+    "moead_populations",
     "resolve_algorithm",
 ]
