@@ -6,7 +6,7 @@ and subset selectors share one lattice without creating import cycles.
 
 from __future__ import annotations
 
-from math import comb
+from math import comb, lcm
 
 import numpy as np
 import numpy.typing as npt
@@ -89,11 +89,41 @@ def two_layer_lattice(n_obj: int, divisions: int, inner_divisions: int) -> Float
     :func:`das_dennis`. Eight objectives with ``divisions=3`` and ``inner_divisions=2`` give
     120 + 36 = 156 directions.
 
+    The inside layer must add directions that the boundary layer does not have: two objectives with
+    ``divisions=4`` and ``inner_divisions=2`` would repeat all three inside directions, and a repeated
+    direction is a niche that never gets its own individual. Such settings raise ``ValueError`` (see
+    :func:`two_layer_shared`).
+
     Development after 1.4.0: new.
     """
+    shared = two_layer_shared(n_obj, divisions, inner_divisions)
+    if shared:
+        raise ValueError(
+            f"The inside layer of inner_divisions={inner_divisions} repeats {shared} of the directions of the boundary layer "
+            f"of divisions={divisions} for n_obj={n_obj}; choose layers that share no direction."
+        )
+    return np.asarray(np.vstack(_two_layers(n_obj, divisions, inner_divisions)), dtype=float)
+
+
+def two_layer_shared(n_obj: int, divisions: int, inner_divisions: int) -> int:
+    """Return how many directions of the inside layer the boundary layer already has.
+
+    Every coordinate of either layer is a multiple of ``1 / lcm(divisions, 2 inner_divisions n_obj)``,
+    so the layers are compared exactly on that grid. A two-layer lattice needs 0.
+
+    Development after 1.4.0: new.
+    """
+    boundary, inside = _two_layers(n_obj, divisions, inner_divisions)
+    grid = lcm(divisions, 2 * inner_divisions * n_obj)
+    boundary_points = {tuple(row) for row in np.rint(boundary * grid).astype(np.int64).tolist()}
+    return sum(tuple(row) in boundary_points for row in np.rint(inside * grid).astype(np.int64).tolist())
+
+
+def _two_layers(n_obj: int, divisions: int, inner_divisions: int) -> tuple[FloatArray, FloatArray]:
+    """The boundary layer and the inside layer, shrunk by half towards the centre of the simplex."""
     boundary = das_dennis(n_obj, divisions)
-    inside = das_dennis(n_obj, inner_divisions) * 0.5 + 0.5 / n_obj
-    return np.asarray(np.vstack([boundary, inside]), dtype=float)
+    inside = np.asarray(das_dennis(n_obj, inner_divisions) * 0.5 + 0.5 / n_obj, dtype=float)
+    return boundary, inside
 
 
-__all__ = ["das_dennis", "largest_lattice_divisions", "lattice_size", "two_layer_lattice", "two_layer_size"]
+__all__ = ["das_dennis", "largest_lattice_divisions", "lattice_size", "two_layer_lattice", "two_layer_shared", "two_layer_size"]

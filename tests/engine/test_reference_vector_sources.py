@@ -16,7 +16,7 @@ from vamos.engine.algorithm.components.weight_vectors import load_or_generate_we
 from vamos.engine.algorithm.moead import MOEAD
 from vamos.engine.algorithm.nsgaiii import NSGAIII
 from vamos.engine.algorithm.rvea import RVEA
-from vamos.engine.reference_directions import das_dennis, two_layer_lattice, two_layer_size
+from vamos.engine.reference_directions import das_dennis, two_layer_lattice, two_layer_shared, two_layer_size
 from vamos.exceptions import ConfigurationError
 from vamos.foundation.kernel.numpy_backend import NumPyKernel
 from vamos.foundation.problem.dtlz import DTLZ2Problem
@@ -105,6 +105,43 @@ def test_the_three_algorithms_start_from_the_same_two_layer_lattice() -> None:
 
     for algorithm in ALGORITHMS:
         np.testing.assert_array_equal(_start(algorithm, 156, 8, {"divisions": 3, "inner_divisions": 2}), expected, err_msg=algorithm)
+
+
+def test_layers_that_repeat_directions_are_rejected() -> None:
+    # Two objectives, 4 and 2 divisions: the three inside directions (1/4, 3/4), (1/2, 1/2) and (3/4, 1/4) are
+    # all on the boundary lattice, so the eight rows would hold five directions.
+    assert two_layer_shared(2, 4, 2) == 3
+    assert two_layer_shared(8, 3, 2) == 0 and two_layer_shared(10, 2, 1) == 0
+    with pytest.raises(ValueError, match="repeats 3"):
+        two_layer_lattice(2, 4, 2)
+
+
+@pytest.mark.parametrize("algorithm", ALGORITHMS)
+def test_every_algorithm_rejects_layers_that_repeat_directions(algorithm: str) -> None:
+    shared = two_layer_shared(3, 3, 3)
+    assert shared > 0
+
+    with pytest.raises(ConfigurationError, match=f"repeats {shared}"):
+        _start(algorithm, two_layer_size(3, 3, 3), 3, {"divisions": 3, "inner_divisions": 3})
+
+
+def test_study_planning_rejects_layers_that_repeat_directions() -> None:
+    from vamos.experiment.study.errors import UnresolvedStudyTaskError
+
+    size = two_layer_size(3, 3, 3)
+    spec = vamos.StudySpec(
+        problems=["dtlz2"],
+        algorithms=["rvea"],
+        seeds=[0],
+        pop_size=size,
+        n_obj=3,
+        max_evaluations=2 * size,
+        engine="numpy",
+        algorithm_configs={"rvea": {"reference_vectors": {"divisions": 3, "inner_divisions": 3}}},
+    )
+
+    with pytest.raises(UnresolvedStudyTaskError, match="INVALID_REFERENCE_DIRECTIONS"):
+        vamos.plan_study(spec)
 
 
 def test_a_two_layer_lattice_of_eight_objectives_has_the_size_of_jmetals_file() -> None:

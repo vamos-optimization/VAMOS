@@ -15,6 +15,7 @@ from vamos.engine.reference_directions import (
     largest_lattice_divisions,
     lattice_size,
     two_layer_lattice,
+    two_layer_shared,
     two_layer_size,
 )
 from vamos.foundation.exceptions import ConfigurationError
@@ -183,7 +184,24 @@ def _two_layer_weights(
             f"The two-layer lattice of divisions={divisions} and inner_divisions={inner_divisions} has {count} vectors "
             f"for n_obj={n_obj}, but pop_size={pop_size} needs one per individual."
         )
+    check_two_layers(n_obj, int(divisions), int(inner_divisions))
     return two_layer_lattice(n_obj, int(divisions), int(inner_divisions))
+
+
+def check_two_layers(n_obj: int, divisions: int, inner_divisions: int) -> None:
+    """Raise :class:`~vamos.exceptions.ConfigurationError` when the inside layer repeats boundary directions.
+
+    A repeated vector is a niche that never gets an individual of its own, and RVEA's angle to its nearest
+    other vector would be zero. Development after 1.4.0: new.
+    """
+    shared = two_layer_shared(n_obj, divisions, inner_divisions)
+    if shared:
+        raise ConfigurationError(
+            f"The two-layer lattice of divisions={divisions} and inner_divisions={inner_divisions} repeats {shared} "
+            f"direction(s) for n_obj={n_obj}: the inside layer must add directions that the boundary layer does not have.",
+            suggestion="Choose other divisions or inner_divisions: with inner_divisions < n_obj and divisions < 2 n_obj "
+            "the layers share none (8 objectives: divisions=3, inner_divisions=2).",
+        )
 
 
 def _load_weights(path: str) -> FloatArray:
@@ -282,6 +300,7 @@ def describe_weight_vectors(
         count = two_layer_size(n_obj, int(divisions), int(inner_divisions))
         if count != pop_size:
             raise ValueError(f"The two-layer lattice for n_obj={n_obj} has {count} vectors, not pop_size={pop_size}.")
+        check_two_layers(n_obj, int(divisions), int(inner_divisions))
         return {"source": "two_layer", "divisions": int(divisions), "inner_divisions": int(inner_divisions), "vectors": pop_size}
     if n_obj <= 2:
         return {"source": "uniform", "vectors": pop_size}

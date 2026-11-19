@@ -10,6 +10,8 @@ from collections.abc import Mapping
 from math import comb
 from typing import Any
 
+from vamos.engine.reference_directions import two_layer_shared
+
 from .errors import UnresolvedStudyTaskError
 
 
@@ -44,7 +46,7 @@ def validate_nsgaiii_reference_directions(config: Mapping[str, Any], *, populati
             actual=divisions,
             action="Choose a positive reference-direction division count.",
         )
-    inner = _inner_divisions(raw, "reference_directions", index)
+    inner = _inner_divisions(raw, "reference_directions", index, divisions=divisions, n_obj=n_obj)
     expected = comb(divisions + n_obj - 1, n_obj - 1) + (0 if inner is None else comb(inner + n_obj - 1, n_obj - 1))
     lattice = f"divisions={divisions}" if inner is None else f"divisions={divisions} and inner_divisions={inner}"
     if population < expected:
@@ -58,8 +60,11 @@ def validate_nsgaiii_reference_directions(config: Mapping[str, Any], *, populati
         )
 
 
-def _inner_divisions(raw: Mapping[str, Any], field: str, index: int) -> int | None:
-    """Development after 1.4.0: the inside layer of a two-layer lattice, ``None`` without one."""
+def _inner_divisions(raw: Mapping[str, Any], field: str, index: int, *, divisions: int, n_obj: int) -> int | None:
+    """Development after 1.4.0: the inside layer of a two-layer lattice, ``None`` without one.
+
+    An inside layer that repeats directions of the boundary layer is rejected, as the run would reject it.
+    """
     inner = raw.get("inner_divisions")
     if inner is not None and (isinstance(inner, bool) or not isinstance(inner, int) or inner < 1):
         raise UnresolvedStudyTaskError(
@@ -69,6 +74,16 @@ def _inner_divisions(raw: Mapping[str, Any], field: str, index: int) -> int | No
             expected="positive integer or null",
             actual=inner,
             action="Choose a positive division count for the inside layer, or leave it out.",
+        )
+    shared = 0 if inner is None or n_obj < 2 else two_layer_shared(n_obj, divisions, inner)
+    if shared:
+        raise UnresolvedStudyTaskError(
+            operation="resolve study plan",
+            reason="INVALID_REFERENCE_DIRECTIONS",
+            field=f"$.matrix[{index}].algorithm_config.{field}.inner_divisions",
+            expected=f"an inside layer that shares no direction with the boundary layer of divisions={divisions}",
+            actual=f"inner_divisions={inner} repeats {shared} direction(s) for n_obj={n_obj}",
+            action="Choose other divisions or inner_divisions.",
         )
     return inner
 
@@ -106,7 +121,7 @@ def validate_rvea_reference_directions(config: Mapping[str, Any], *, population:
             actual=partitions,
             action="Choose a positive RVEA reference-vector partition count.",
         )
-    inner = _inner_divisions(vectors, "reference_vectors", index)
+    inner = _inner_divisions(vectors, "reference_vectors", index, divisions=partitions, n_obj=n_obj)
     expected = comb(partitions + n_obj - 1, n_obj - 1) + (0 if inner is None else comb(inner + n_obj - 1, n_obj - 1))
     lattice = f"n_partitions={partitions}" if inner is None else f"divisions={partitions} and inner_divisions={inner}"
     if population != expected:
