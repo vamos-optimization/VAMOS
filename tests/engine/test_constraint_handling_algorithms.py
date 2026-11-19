@@ -117,6 +117,7 @@ def test_constraint_handling_follows_the_fields_of_1_0(config_class: Any) -> Non
         added.append("variant")  # Development after 1.4.0: AGE-MOEA-II
     if config_class is RVEAConfig:
         added.append("reference_vectors")  # Development after 1.4.0: vectors from a file or a two-layer lattice
+        added.append("variant")  # Development after 1.4.0: the PlatEMO/jMetal reading of the survival
     assert names[position:] == added
     assert fields[position].default is None
 

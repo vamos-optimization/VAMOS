@@ -9,6 +9,39 @@ import numpy as np
 from vamos.foundation.constraints.utils import compute_violation, is_feasible
 
 
+def angle_penalized_distances(
+    F: np.ndarray[Any, Any],
+    origin: np.ndarray[Any, Any],
+    V: np.ndarray[Any, Any],
+    gamma: np.ndarray[Any, Any],
+    n_gen: int,
+    n_max_gen: int,
+    alpha: float,
+    variant: str = "pymoo",
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any]]:
+    """The niche, the angle penalty and the APD of each row of ``F``, translated by ``origin``.
+
+    The penalty is ``M (t / t_max)^alpha theta / gamma``, where ``theta`` is the angle to the nearest
+    reference vector and ``gamma`` that vector's smallest angle to another. ``M`` is the number of
+    objectives, except with two objectives in the ``"pymoo"`` variant, where it is 1, as in pymoo.
+    """
+    n_obj = F.shape[1]
+    F_shift = F - origin
+    dist_to_origin = np.linalg.norm(F_shift, axis=1)
+    dist_to_origin[dist_to_origin < 1e-64] = 1e-64
+    F_prime = F_shift / dist_to_origin[:, None]
+
+    cos_theta = np.clip(F_prime @ V.T, -1.0, 1.0)
+    acute_angle = np.arccos(cos_theta)
+    niches = acute_angle.argmin(axis=1)
+
+    M = float(n_obj) if n_obj > 2 or variant == "platemo" else 1.0
+    progress = (n_gen / n_max_gen) ** alpha
+    theta = acute_angle[np.arange(F.shape[0]), niches]
+    penalty = M * progress * (theta / gamma[niches])
+    return niches, penalty, dist_to_origin * (1.0 + penalty)
+
+
 def apd_survival(
     F: np.ndarray[Any, Any],
     V: np.ndarray[Any, Any],
@@ -18,34 +51,25 @@ def apd_survival(
     n_gen: int,
     n_max_gen: int,
     alpha: float,
+    variant: str = "pymoo",
 ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any] | None]:
     """Select survivors using RVEA's angle-penalized distance criterion.
 
     One survivor per non-empty reference vector, the one with the smallest APD, as in Cheng
     et al. (2016), PlatEMO and pymoo; vectors without a solution leave the population smaller
-    than ``n_survive``. As in pymoo, two objectives use M = 1 in the penalty and the ideal point
-    accumulates across generations.
+    than ``n_survive``. The ``"pymoo"`` variant, the default, follows pymoo: two objectives use
+    M = 1 in the penalty, and the objectives are translated by the ideal point accumulated across
+    generations. The ``"platemo"`` variant follows the authors' code in PlatEMO
+    (``RVEA/EnvironmentalSelection.m``) and jMetal: M is the number of objectives, two included,
+    and the objectives are translated by the minimum of the candidates. Both return the
+    accumulated ideal point.
     """
     if F.size == 0:
         return np.empty(0, dtype=int), ideal, None
 
-    n_obj = F.shape[1]
     ideal = np.minimum(F.min(axis=0), ideal)
-
-    F_shift = F - ideal
-    dist_to_ideal = np.linalg.norm(F_shift, axis=1)
-    dist_to_ideal[dist_to_ideal < 1e-64] = 1e-64
-    F_prime = F_shift / dist_to_ideal[:, None]
-
-    cos_theta = np.clip(F_prime @ V.T, -1.0, 1.0)
-    acute_angle = np.arccos(cos_theta)
-    niches = acute_angle.argmin(axis=1)
-
-    M = float(n_obj) if n_obj > 2 else 1.0
-    progress = (n_gen / n_max_gen) ** alpha
-    theta = acute_angle[np.arange(F.shape[0]), niches]
-    penalty = M * progress * (theta / gamma[niches])
-    apd = dist_to_ideal * (1.0 + penalty)
+    origin = F.min(axis=0) if variant == "platemo" else ideal
+    niches, _penalty, apd = angle_penalized_distances(F, origin, V, gamma, n_gen, n_max_gen, alpha, variant)
 
     order = np.lexsort((np.arange(F.shape[0]), apd, niches))
     sorted_niches = niches[order]
@@ -69,10 +93,11 @@ def constraint_aware_apd_survival(
     n_max_gen: int,
     alpha: float,
     constraint_mode: str,
+    variant: str = "pymoo",
 ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any] | None]:
     """Apply feasibility-first ordering and APD diversity among feasible points."""
     if G is None or constraint_mode == "none":
-        return apd_survival(F, V, gamma, ideal, n_survive, n_gen, n_max_gen, alpha)
+        return apd_survival(F, V, gamma, ideal, n_survive, n_gen, n_max_gen, alpha, variant)
 
     feasible = is_feasible(G, n=G.shape[0])
     feasible_idx = np.flatnonzero(feasible)
@@ -87,6 +112,7 @@ def constraint_aware_apd_survival(
             n_gen,
             n_max_gen,
             alpha,
+            variant,
         )
         return np.asarray(feasible_idx[local], dtype=int), updated_ideal, nadir
 
@@ -107,4 +133,4 @@ def constraint_aware_apd_survival(
     return survivors, updated_ideal, nadir
 
 
-__all__ = ["apd_survival", "constraint_aware_apd_survival"]
+__all__ = ["angle_penalized_distances", "apd_survival", "constraint_aware_apd_survival"]
