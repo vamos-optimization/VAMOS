@@ -4,8 +4,11 @@
    lesson text explains the idea without JavaScript, and each container keeps a
    short fallback paragraph until its figure is drawn. The algorithms below
    follow the NumPy reference implementation of VAMOS
-   (src/vamos/foundation/kernel/numpy_backend.py and operator_primitives.py);
-   tests/docs/test_foundations.py checks them against VAMOS and MooCore. */
+   (src/vamos/foundation/kernel/numpy_backend.py and operator_primitives.py).
+   tests/docs/test_foundations.py checks that every figure a lesson uses is
+   implemented here; it does not run this script. The sorting, crowding,
+   indicator and Das-Dennis functions were checked by hand against VAMOS and
+   MooCore when the path was added. */
 (function (root) {
   "use strict";
 
