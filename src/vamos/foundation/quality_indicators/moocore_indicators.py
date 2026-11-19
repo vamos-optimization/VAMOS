@@ -17,6 +17,7 @@ Definitions follow MooCore:
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol
@@ -217,8 +218,27 @@ class AvgHausdorffIndicator(_ReferenceFrontIndicator):
         return result
 
 
+# MooCore's methods of hv_approx: "Rphi-FWE+" (since MooCore 0.3.0) and "DZ2019-HW" are deterministic, and
+# "DZ2019-MC" samples at random from its seed.
+HV_APPROX_METHODS = ("Rphi-FWE+", "DZ2019-HW", "DZ2019-MC")
+
+
 @dataclass
 class HVApproxIndicator(QualityIndicator):
+    """Approximate hypervolume: MooCore's ``hv_approx``.
+
+    The cost of the exact hypervolume (``hv``) grows exponentially with the number of objectives: from
+    about six objectives, a front of a few hundred to a few thousand points can take from seconds to
+    minutes. ``hv_approx`` estimates it as an integral over ``samples`` directions (10 000 by default;
+    Deng and Zhang, 2019), with the same reference point and the same handling of dominated points and of
+    points outside the reference box.
+
+    Development after 1.4.0: ``compute`` also takes ``seed`` (an integer, a NumPy ``Generator`` or
+    ``None``), which only ``method="DZ2019-MC"`` uses, and ``method`` (one of ``HV_APPROX_METHODS``;
+    ``None``, the default, is MooCore's default: ``"Rphi-FWE+"`` since MooCore 0.3.0, ``"DZ2019-HW"``
+    before). The result's details record ``samples``, ``seed`` and the ``method`` used.
+    """
+
     reference_point: ArrayLike | None = None
     name: str = "hv_approx"
 
@@ -233,8 +253,14 @@ class HVApproxIndicator(QualityIndicator):
         F = _front(front)
         ref = _reference_point(self.reference_point, F.shape[1], name=self.name)
         samples = int(kwargs.get("samples", 10000))
-        val = float(moocore.hv_approx(F, ref=ref, maximise=_normalize_maximise(maximise), nsamples=samples))
-        return IndicatorResult(value=val, details={"reference_point": ref, "samples": samples})
+        seed = kwargs.get("seed")
+        method = kwargs.get("method")
+        if method is None:
+            method = str(inspect.signature(moocore.hv_approx).parameters["method"].default)
+        elif method not in HV_APPROX_METHODS:
+            raise ValueError(f"hv_approx method must be one of {', '.join(map(repr, HV_APPROX_METHODS))}; got {method!r}.")
+        val = float(moocore.hv_approx(F, ref=ref, maximise=_normalize_maximise(maximise), nsamples=samples, seed=seed, method=method))
+        return IndicatorResult(value=val, details={"reference_point": ref, "samples": samples, "seed": seed, "method": method})
 
 
 @dataclass
@@ -331,5 +357,6 @@ __all__ = [
     "EpsilonMultiplicativeIndicator",
     "AvgHausdorffIndicator",
     "HVApproxIndicator",
+    "HV_APPROX_METHODS",
     "WHVRectIndicator",
 ]

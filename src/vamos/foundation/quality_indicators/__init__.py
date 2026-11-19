@@ -5,6 +5,7 @@ from .hv_zdt import (
 )
 from .hypervolume import compute_hypervolume
 from .moocore_indicators import (
+    HV_APPROX_METHODS,
     AvgHausdorffIndicator,
     EpsilonAdditiveIndicator,
     EpsilonMultiplicativeIndicator,
@@ -37,5 +38,6 @@ __all__ = [
     "EpsilonMultiplicativeIndicator",
     "AvgHausdorffIndicator",
     "HVApproxIndicator",
+    "HV_APPROX_METHODS",
     "WHVRectIndicator",
 ]

@@ -18,6 +18,56 @@ python -m pip install "vamos-optimization[analysis]==1.4.0"
 
 For environment setup and other extras, see [Installation](../guide/installation.md).
 
+## Hypervolume, exact and approximate
+
+**Development after 1.4.0:** `vamos.ux.api` exports two hypervolume
+indicators, `HVIndicator` (the exact value) and `HVApproxIndicator` (an
+approximation), both computed by MooCore, which the `compute` extra installs.
+Both take an explicit reference point, minimize every objective unless
+`compute(..., maximise=True)` says otherwise, ignore dominated points and points
+outside the reference box, and return an `IndicatorResult` with `value` and
+`details`. Larger values are better.
+
+The cost of the exact hypervolume grows exponentially with the number of
+objectives. From about six objectives it can take seconds to minutes: on one
+laptop, fronts near DTLZ2's sphere of 2000 points with six objectives, 400 with
+seven and 200 with eight took 17, 16 and 32 seconds, and the approximation of
+each, with 10 000 samples, a few hundredths of a second. Use `HVApproxIndicator`
+there; `compute(front, samples=..., seed=..., method=...)` sets it up:
+
+- `samples` is the number of directions of the estimate, 10 000 by default.
+  More samples are slower and usually more accurate.
+- `method` is one of `HV_APPROX_METHODS`. `"Rphi-FWE+"` (MooCore's default
+  since MooCore 0.3.0) and `"DZ2019-HW"` are deterministic; `"DZ2019-MC"`
+  samples its directions at random. `None`, the default, uses MooCore's
+  default.
+- `seed`, an integer or a NumPy `Generator`, seeds `"DZ2019-MC"`; the
+  deterministic methods ignore it. With `seed=None` that method gives another
+  value on each call.
+- `details` records `reference_point`, `samples`, `seed` and the `method` used.
+
+On 286 points of DTLZ2's front with four objectives and the reference point
+1.1, the deterministic methods with 10 000 samples are within 0.04 % of the
+exact value, and `"DZ2019-MC"` with 100 000 samples within 0.3 %. Report the
+method and the samples with each approximate value, and do not compare an
+approximate value with an exact one.
+
+```python
+import numpy as np
+
+from vamos.ux.api import HVApproxIndicator, HVIndicator
+
+# 200 points of DTLZ2's front with six objectives.
+directions = np.abs(np.random.default_rng(0).normal(size=(200, 6)))
+front = directions / np.linalg.norm(directions, axis=1, keepdims=True)
+reference_point = np.full(6, 1.1)
+
+exact = HVIndicator(reference_point=reference_point).compute(front)
+approx = HVApproxIndicator(reference_point=reference_point).compute(front, samples=100_000, method="DZ2019-MC", seed=1)
+print(f"exact {exact.value:.4f}, approximate {approx.value:.4f}")
+print(approx.details["method"], approx.details["seed"], approx.details["samples"])
+```
+
 ## Statistical comparison
 
 For real saved observations, follow [T07](../tutorials/t07-quality-and-budget.md)
