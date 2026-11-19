@@ -233,7 +233,7 @@ class HVApproxIndicator(QualityIndicator):
     Deng and Zhang, 2019), with the same reference point and the same handling of dominated points and of
     points outside the reference box.
 
-    Development after 1.4.0: ``compute`` also takes ``seed`` (an integer, a NumPy ``Generator`` or
+    VAMOS 1.5.0: ``compute`` also takes ``seed`` (an integer, a NumPy ``Generator`` or
     ``None``), which only ``method="DZ2019-MC"`` uses, and ``method`` (one of ``HV_APPROX_METHODS``;
     ``None``, the default, is MooCore's default: ``"Rphi-FWE+"`` since MooCore 0.3.0, ``"DZ2019-HW"``
     before). The result's details record ``samples``, ``seed`` and the ``method`` used.

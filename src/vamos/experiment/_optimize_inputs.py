@@ -107,7 +107,7 @@ def with_archive_seed(algorithm_config: AlgorithmConfigProtocol, seed: int) -> A
 def with_run_inputs(algorithm_config: AlgorithmConfigProtocol, seed: int, n_obj: int) -> AlgorithmConfigProtocol:
     """``algorithm_config`` as the run uses it and records it: its archive seed and its vector files resolved.
 
-    Development after 1.4.0: a weight- or reference-vector file is bound to the file the run reads and the
+    VAMOS 1.5.0: a weight- or reference-vector file is bound to the file the run reads and the
     digest of its vectors (:func:`~vamos.engine.algorithm.components.weight_vectors.bind_config_vector_files`),
     so that replay refuses a file whose vectors have changed.
     """

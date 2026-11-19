@@ -1,6 +1,6 @@
 # Set up the fundamental tutorials
 
-T01–T03 run with the published **VAMOS 1.4.0** package. They use the Stable
+T01–T03 run with the published **VAMOS 1.5.0** package. They use the Stable
 public facades, the NumPy backend, and the core dependencies. No repository
 checkout, notebook server, plotting package, API key, or optional backend is
 needed to execute the downloadable examples.
@@ -8,7 +8,7 @@ needed to execute the downloadable examples.
 ## Prepare an environment
 
 Follow [Installation](../guide/installation.md) to create and activate an
-isolated Python environment. VAMOS 1.4.0 requires Python 3.11 or newer; these
+isolated Python environment. VAMOS 1.5.0 requires Python 3.11 or newer; these
 recorded tutorial outputs were generated with Python 3.12.
 
 For the exact tested numerical dependencies, download
@@ -19,7 +19,7 @@ and install from the directory containing it:
 python -m pip install -r tutorial-requirements.txt
 ```
 
-That file pins VAMOS 1.4.0, NumPy 2.1.3, SciPy 1.15.3, joblib 1.4.2, and PyYAML 6.0.3.
+That file pins VAMOS 1.5.0, NumPy 2.1.3, SciPy 1.15.3, joblib 1.4.2, and PyYAML 6.0.3.
 It is a reproducible tutorial recipe, not a change to VAMOS's supported
 dependency ranges. If you use a different environment, compare the scientific
 invariants (shapes, budget, feasibility, and row alignment) rather than

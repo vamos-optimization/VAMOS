@@ -8,8 +8,8 @@ The nine configuration classes of VAMOS 1.1.0, the probability types and the
 ``available_*`` functions are stable. ``CCMOConfig``, ``CTAEAConfig``, ``ToPConfig`` and
 ``CMOEAMSConfig`` are new in VAMOS 1.2.0 and not yet covered by the 1.0 compatibility baseline. ``GenericAlgorithmConfig``,
 ``discover_algorithm_plugins`` and ``resolve_algorithm`` serve custom and
-plugin algorithms and are experimental. ``moead_populations`` is new after VAMOS
-1.4.0 (development) and not yet covered by the 1.0 compatibility baseline.
+plugin algorithms and are experimental. ``moead_populations`` is new in VAMOS
+1.5.0 and not yet covered by the 1.0 compatibility baseline.
 """
 
 from __future__ import annotations
@@ -105,7 +105,7 @@ def moead_populations(n_obj: int, *, max_pop_size: int = 1000) -> tuple[int, ...
     ``weight_vectors(divisions=H1, inner_divisions=H2)`` with Deb and Jain's two-layer lattice of
     ``comb(H1 + n_obj - 1, n_obj - 1) + comb(H2 + n_obj - 1, n_obj - 1)`` vectors.
 
-    **Development after 1.4.0:** new.
+    **VAMOS 1.5.0:** new.
 
     Examples
     --------

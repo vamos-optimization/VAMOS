@@ -171,6 +171,7 @@ nav:
       - Known Limitations: project/known-limitations.md
       - Documentation Versions: project/documentation-versioning.md
       - Release Notes:
+        - VAMOS 1.5.0: project/release-notes-1.5.0.md
         - VAMOS 1.4.0: project/release-notes-1.4.0.md
         - VAMOS 1.3.0: project/release-notes-1.3.0.md
         - VAMOS 1.2.1: project/release-notes-1.2.1.md

@@ -110,7 +110,7 @@ def get_specs() -> dict[str, ProblemSpec]:
                 description="DTLZ7 with disconnected Pareto-optimal regions.",
                 factory=lambda n_var, n_obj: _dtlz_factory(DTLZ7Problem, n_var, n_obj),
             ),
-            # Development after 1.4.0: the inverted DTLZ1 and DTLZ2 of Jain and Deb (2014), as PlatEMO's.
+            # VAMOS 1.5.0: the inverted DTLZ1 and DTLZ2 of Jain and Deb (2014), as PlatEMO's.
             "idtlz1": ProblemSpec(
                 key="idtlz1",
                 label="IDTLZ1",

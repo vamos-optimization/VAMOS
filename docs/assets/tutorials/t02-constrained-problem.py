@@ -1,4 +1,4 @@
-"""T02: generated from examples/tutorials/fundamentals.py; VAMOS 1.4.0, core dependencies only."""
+"""T02: generated from examples/tutorials/fundamentals.py; VAMOS 1.5.0, core dependencies only."""
 
 
 def process_objectives(x):

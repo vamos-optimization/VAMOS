@@ -445,7 +445,7 @@ def nsgaiii_parents(
 ) -> np.ndarray[Any, Any]:
     """Indices of the ``n_parents`` parents that NSGA-III mates, in pairs.
 
-    Development after 1.4.0: NSGA-III selects its parents as configured, and never by crowding
+    VAMOS 1.5.0: NSGA-III selects its parents as configured, and never by crowding
     distance, which is not part of NSGA-III. VAMOS 1.4.0 and earlier ran a binary tournament on rank
     and crowding distance, as NSGA-II, whatever the configured selection.
 

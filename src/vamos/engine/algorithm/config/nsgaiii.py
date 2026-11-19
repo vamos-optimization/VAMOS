@@ -38,7 +38,7 @@ from .types import RepairConfigValue
 
 _REFERENCE_LATTICE_RULE = "since VAMOS 1.2.0, NSGA-III uses the largest reference-direction lattice that fits in pop_size and runs N >= H"
 
-# Development after 1.4.0: NSGA-III's parent selections. "random" is Deb and Jain's (2014), the
+# VAMOS 1.5.0: NSGA-III's parent selections. "random" is Deb and Jain's (2014), the
 # default; "tournament" is jMetal's NSGA-III tournament on rank, with ties decided at random.
 NSGAIII_SELECTIONS = ("random", "tournament")
 
@@ -46,7 +46,7 @@ NSGAIII_SELECTIONS = ("random", "tournament")
 def nsgaiii_selection(selection: object) -> tuple[str, int]:
     """The method of NSGA-III's parent selection and its tournament size (2 for ``"random"``).
 
-    Development after 1.4.0: NSGA-III runs ``"random"`` and ``"tournament"`` (with an optional
+    VAMOS 1.5.0: NSGA-III runs ``"random"`` and ``"tournament"`` (with an optional
     ``size``), and rejects any other method or option instead of running a tournament.
 
     Raises
@@ -117,7 +117,7 @@ class NSGAIIIConfig(_SerializableConfig):
         """
         Create a default NSGA-III configuration.
 
-        Development after 1.4.0: parents are selected at random, as Deb and Jain (2014); the
+        VAMOS 1.5.0: parents are selected at random, as Deb and Jain (2014); the
         default used to be a binary tournament on rank and crowding distance.
 
         Parameters
@@ -197,7 +197,7 @@ class _NSGAIIIConfigBuilder(
         ``constraint_handling``), with ties decided at random: jMetal's NSGA-III tournament. It does not
         use crowding distance.
 
-        Development after 1.4.0: other methods and options raise ``ConfigurationError``; before,
+        VAMOS 1.5.0: other methods and options raise ``ConfigurationError``; before,
         every method ran a binary tournament on rank and crowding distance.
         """
         nsgaiii_selection((method, kwargs))
@@ -217,7 +217,7 @@ class _NSGAIIIConfigBuilder(
         NSGA-III runs the complete lattice with the most directions that fit in ``pop_size``. The
         population needs at least one individual per direction.
 
-        **Development after 1.4.0:** the file may use whitespace as well as commas, and a ``path``
+        **VAMOS 1.5.0:** the file may use whitespace as well as commas, and a ``path``
         that is not a file raises :class:`~vamos.exceptions.ConfigurationError` when the run starts;
         VAMOS 1.4.0 read commas only, and generated the lattice and saved it at a missing path.
         ``path`` may also name a directory with jMetal's ``W{n_obj}D_{pop_size}.dat`` files, as MOEA/D's

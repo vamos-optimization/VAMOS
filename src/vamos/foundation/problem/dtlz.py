@@ -328,7 +328,7 @@ def _warn_non_standard_k(name: str, n_var: int, n_obj: int, standard: int) -> No
 class IDTLZ1Problem(DTLZBase):
     """Inverted DTLZ1 (Jain and Deb, 2014), as PlatEMO's ``IDTLZ1``.
 
-    Development after 1.4.0: ``f = (1 + g) / 2 - (1 + g) / 2 * s``, where ``g`` is DTLZ1's distance function
+    VAMOS 1.5.0: ``f = (1 + g) / 2 - (1 + g) / 2 * s``, where ``g`` is DTLZ1's distance function
     and ``s`` its position shape (DTLZ1 is ``f = (1 + g) / 2 * s``). With ``g = 0`` the front is DTLZ1's
     simplex turned over, ``f = (1 - w) / 2`` for ``w`` on the unit simplex. ``n_var`` defaults to
     ``n_obj + 4`` (k = 5).
@@ -356,7 +356,7 @@ class IDTLZ1Problem(DTLZBase):
 class IDTLZ2Problem(DTLZBase):
     """Inverted DTLZ2 (Jain and Deb, 2014), as PlatEMO's ``IDTLZ2``.
 
-    Development after 1.4.0: ``f = (1 + g) - (1 + g) * s``, where ``g = sum (x_i - 0.5)^2`` over the distance
+    VAMOS 1.5.0: ``f = (1 + g) - (1 + g) * s``, where ``g = sum (x_i - 0.5)^2`` over the distance
     variables and ``s`` is DTLZ2's position shape (DTLZ2 is ``f = (1 + g) * s``). With ``g = 0`` the front is
     the unit sphere's positive orthant turned over, ``f = 1 - u`` for ``u`` on it. ``n_var`` defaults to
     ``n_obj + 9`` (k = 10).

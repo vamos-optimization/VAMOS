@@ -49,7 +49,6 @@ def _python_blocks(document: str) -> list[str]:
 def test_primary_documents_have_no_obsolete_release_or_internal_examples() -> None:
     combined = "\n".join(_read(path) for path in PRIMARY_DOCUMENTS)
 
-    assert "1.5.0" not in combined
     assert f"VAMOS {vamos.__version__}" in combined
     assert "algorithm_kwargs" not in combined
     discarded_study_symbols = ("Study" + "Runner", "Study" + "Task", "run" + "_study")

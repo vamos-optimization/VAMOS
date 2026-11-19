@@ -25,7 +25,7 @@ from vamos.resources import reference_front_path
 # The packaged reference fronts that resolve_reference_front_path can search.
 REFERENCE_FRONT_SOURCES = ("vamos", "jmetal")
 # DTLZ3 and DTLZ4 share DTLZ2's front, the unit sphere. Without a file of their own they take DTLZ2's: jMetal's DTLZ3
-# and DTLZ4 files are its DTLZ2 file, byte for byte, so it is packaged once. Development after 1.4.0: so are VAMOS's
+# and DTLZ4 files are its DTLZ2 file, byte for byte, so it is packaged once. VAMOS 1.5.0: so are VAMOS's
 # samples with more than three objectives.
 _SHARED_FRONTS = {"dtlz3": "dtlz2", "dtlz4": "dtlz2"}
 
@@ -154,7 +154,7 @@ def resolve_reference_front_path(
     file jMetal ships under their three names. A problem without a front of that source gives
     ``None``: the other source is never used in its place.
 
-    Development after 1.4.0: VAMOS's samples of DTLZ1-4 and DTLZ7 also cover 4, 6 and 8 objectives;
+    VAMOS 1.5.0: VAMOS's samples of DTLZ1-4 and DTLZ7 also cover 4, 6 and 8 objectives;
     with those, DTLZ3 and DTLZ4 resolve to ``dtlz2.<n_obj>d.csv``, the one sample of their shared front.
     """
     if source not in REFERENCE_FRONT_SOURCES:

@@ -66,7 +66,7 @@ def load_or_generate_weight_vectors(
     - n_obj > 2: load W{n_obj}D_{pop_size}.dat when available, otherwise
       generate an exact Das-Dennis lattice and reject incompatible sizes.
 
-    Development after 1.4.0: mode "exact", directories and ``inner_divisions`` in every mode, and a path
+    VAMOS 1.5.0: mode "exact", directories and ``inner_divisions`` in every mode, and a path
     that does not exist raises :class:`~vamos.exceptions.ConfigurationError` in every mode. Mode "auto"
     no longer generates a lattice for a missing file and saves it there, and MOEA/D no longer creates a
     missing directory; it still saves the lattice in an existing directory that lacks the file.
@@ -108,7 +108,7 @@ def check_two_layers(n_obj: int, divisions: int, inner_divisions: int) -> None:
     """Raise :class:`~vamos.exceptions.ConfigurationError` when the inside layer repeats boundary directions.
 
     A repeated vector is a niche that never gets an individual of its own, and RVEA's angle to its nearest
-    other vector would be zero. Development after 1.4.0: new.
+    other vector would be zero. VAMOS 1.5.0: new.
     """
     shared = two_layer_shared(n_obj, divisions, inner_divisions)
     if shared:
@@ -134,7 +134,7 @@ def _load_or_generate_jmetalpy_weights(
         return np.column_stack([vals, 1.0 - vals])
 
     if path and not os.path.exists(path):
-        # Development after 1.4.0: a path that does not exist is an error; MOEA/D used to create it as a directory.
+        # VAMOS 1.5.0: a path that does not exist is an error; MOEA/D used to create it as a directory.
         existing_weight_file(path, n_obj, pop_size)
     weight_path = _resolve_jmetalpy_weight_path(path, n_obj, pop_size)
     if weight_path is None and divisions is None and _exact_divisions(pop_size, n_obj) is None:
@@ -209,7 +209,7 @@ def describe_weight_vectors(
     exactly that lattice is still ``das_dennis``: the description does not depend on whether an earlier
     run has written it.
 
-    Development after 1.4.0: ``two_layer`` with its ``divisions`` and ``inner_divisions``. With ``sha256``,
+    VAMOS 1.5.0: ``two_layer`` with its ``divisions`` and ``inner_divisions``. With ``sha256``,
     the digest that :func:`bind_vector_file` records with the file a run read, the description comes from
     the configuration alone, without the file: ``das_dennis`` when the digest is that of the lattice of
     ``pop_size`` vectors (a lattice that an earlier run saved), else ``file``.
@@ -247,7 +247,7 @@ def weighted_populations(n_obj: int, max_pop_size: int) -> tuple[int, ...]:
 
     Every population from 2 with one or two objectives; with more, the sizes of the complete Das-Dennis
     lattices and of the packaged jMetal files ``W{n_obj}D_{size}.dat``. This is
-    :func:`vamos.algorithms.moead_populations`. Development after 1.4.0: new.
+    :func:`vamos.algorithms.moead_populations`. VAMOS 1.5.0: new.
     """
     if isinstance(n_obj, bool) or not isinstance(n_obj, Integral) or n_obj < 1:
         raise ConfigurationError(f"n_obj must be a positive integer; got {n_obj!r}.")

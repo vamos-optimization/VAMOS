@@ -137,7 +137,7 @@ def _dtlz2_front(n_obj: int, divisions: int) -> np.ndarray:
 @pytest.mark.skipif(not mi.has_moocore(), reason="MooCore not installed")
 @pytest.mark.parametrize(("method", "samples"), [(None, 10_000), ("Rphi-FWE+", 10_000), ("DZ2019-HW", 10_000), ("DZ2019-MC", 100_000)])
 def test_hv_approx_agrees_with_the_exact_hypervolume_on_dtlz2_with_four_objectives(method: str | None, samples: int) -> None:
-    # Development after 1.4.0: 286 points of DTLZ2's front with four objectives.
+    # VAMOS 1.5.0: 286 points of DTLZ2's front with four objectives.
     front = _dtlz2_front(4, 10)
     ref = np.full(4, 1.1)
     exact = mi.HVIndicator(reference_point=ref).compute(front).value

@@ -97,11 +97,11 @@ _RESIDUALS: dict[str, Callable[[np.ndarray], np.ndarray]] = {
     "dtlz1.2d": _sum(0.5),
     **{f"dtlz{k}.2d": _sphere for k in range(2, 7)},
     "dtlz7.2d": _dtlz7,
-    # Development after 1.4.0: the inverted DTLZ1 and DTLZ2, f = (1 - w) / 2 and f = 1 - w / norm(w).
+    # VAMOS 1.5.0: the inverted DTLZ1 and DTLZ2, f = (1 - w) / 2 and f = 1 - w / norm(w).
     "idtlz1.2d": _sum(0.5),
     "idtlz1.3d": _sum(1.0),
     **{f"idtlz2.{m}d": (lambda F: np.sum((1.0 - F) ** 2, axis=1) - 1.0) for m in (2, 3)},
-    # Development after 1.4.0: with 4, 6 and 8 objectives, DTLZ3 and DTLZ4 share DTLZ2's sample.
+    # VAMOS 1.5.0: with 4, 6 and 8 objectives, DTLZ3 and DTLZ4 share DTLZ2's sample.
     **{f"dtlz1.{m}d": _sum(0.5) for m in (4, 6, 8)},
     **{f"dtlz2.{m}d": _sphere for m in (4, 6, 8)},
     **{f"dtlz7.{m}d": _dtlz7 for m in (4, 6, 8)},
@@ -237,7 +237,7 @@ def test_two_objective_dtlz_fronts_are_reached_by_pareto_optimal_designs(k: int)
 
 @pytest.mark.parametrize(("k", "m"), [(k, m) for k in (1, 2, 3, 4, 7) for m in (4, 6, 8)])
 def test_many_objective_dtlz_fronts_are_reached_by_pareto_optimal_designs(k: int, m: int) -> None:
-    # Development after 1.4.0: the resolved sample of DTLZ<k> with M = 4, 6 or 8 (DTLZ3 and DTLZ4: DTLZ2's) is the
+    # VAMOS 1.5.0: the resolved sample of DTLZ<k> with M = 4, 6 or 8 (DTLZ3 and DTLZ4: DTLZ2's) is the
     # image of designs on the Pareto set, as VAMOS's problem evaluates them.
     problem = make_problem_selection(f"dtlz{k}", n_obj=m).instantiate()
     path = resolve_reference_front_path(f"dtlz{k}", None, n_obj=m)
@@ -496,7 +496,7 @@ def test_reference_fronts_are_chosen_by_number_of_objectives() -> None:
 
 @pytest.mark.parametrize("m", [4, 6, 8])
 def test_many_objective_dtlz_fronts_are_chosen_by_number_of_objectives(m: int) -> None:
-    # Development after 1.4.0: DTLZ1-4 and DTLZ7 with 4, 6 and 8 objectives. DTLZ3 and DTLZ4 share DTLZ2's front, whose
+    # VAMOS 1.5.0: DTLZ1-4 and DTLZ7 with 4, 6 and 8 objectives. DTLZ3 and DTLZ4 share DTLZ2's front, whose
     # sample is packaged once; DTLZ5 and DTLZ6 have none with more than three objectives.
     def resolved(name: str, n_obj: int) -> str | None:
         path = resolve_reference_front_path(name, None, n_obj=n_obj)

@@ -7,7 +7,7 @@ algorithm: nsgaiii
 encoding: real
 description: The real-coded tuning space of NSGA-III, with the constraint-handling technique.
 parameters:
-  # Development after 1.4.0: the parent selection, as Evolver's: random (Deb and Jain's, the default)
+  # VAMOS 1.5.0: the parent selection, as Evolver's: random (Deb and Jain's, the default)
   # or a tournament on rank (jMetal's). The spaces of VAMOS 1.4.0 only sized a tournament on rank and crowding.
   selection:
     type: categorical

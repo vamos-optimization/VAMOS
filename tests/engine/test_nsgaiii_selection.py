@@ -1,6 +1,6 @@
 """NSGA-III's parent selection: random parents (Deb and Jain, 2014) or jMetal's tournament on rank.
 
-Development after 1.4.0: VAMOS 1.4.0 and earlier ran a binary tournament on rank and crowding
+VAMOS 1.5.0: VAMOS 1.4.0 and earlier ran a binary tournament on rank and crowding
 distance, as NSGA-II, whatever the configured selection. These tests use a front where crowding
 distance would pick the two extremes (their distance is infinite) whenever they enter a tournament.
 """

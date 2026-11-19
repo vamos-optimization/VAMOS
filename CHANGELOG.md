@@ -4,6 +4,134 @@ All notable public changes to VAMOS are documented here.
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-11-19
+
+VAMOS 1.5.0 is a minor release. It adds AGE-MOEA-II as a variant of AGE-MOEA,
+the authors' reading of RVEA's survival as a variant, one source of reference
+vectors for MOEA/D, NSGA-III and RVEA (files, directories and two-layer
+lattices), the CTP1–CTP7, IDTLZ1 and IDTLZ2 problems, DTLZ reference fronts with
+4, 6 and 8 objectives, and the approximate hypervolume in the experimental
+`vamos.ux.api`. It corrects NSGA-III's parent selection, which changes the
+results of every NSGA-III run, and the packaged MOEA/D weight files, which
+changes MOEA/D's results with four objectives and 100 to 119 individuals. The
+unbounded external archive merges its rows when it is read, with the same
+results. Seeded tuning runs of the NSGA-III and AGE-MOEA spaces draw different
+trials. See the [1.5.0 release notes](docs/project/release-notes-1.5.0.md).
+
+### Added
+
+- Problems: CTP1–CTP7 (Deb, Pratap and Meyarivan, 2001), registered as
+  `ctp1`–`ctp7`, with the paper's definition and parameters.
+  - CTP1's J = 2 constraint coefficients come from the paper's procedure, and
+    CTP2–CTP7 from its constraint generator.
+  - g is ZDT4's Rastrigin function, with five variables by default.
+  - `vamos.problems.CTP(variant, n_var=..., n_constraints=..., theta=..., a=...,
+    b=..., c=..., d=..., e=...)` builds other instances.
+  - Two-objective reference fronts `ctp1.csv`–`ctp7.csv` are generated from the
+    definition.
+  - The constraint of CTP2–CTP7 is the paper's difference, not the NSGA-II
+    code's ratio that pymoo uses (#357).
+- AGE-MOEA-II (Panichella, GECCO 2022) as a variant of AGE-MOEA:
+  - `AGEMOEAConfig.builder().variant("agemoea_ii")`, and `replacement:
+    agemoea_ii` in every AGE-MOEA tuning space (Evolver's `replacement:
+    agemoeaII`);
+  - its survival estimates the front's exponent by Newton-Raphson from the
+    point nearest to the ideal point, and measures diversity with geodesic
+    distances on the estimated manifold;
+  - its exponents, distances and survival scores are checked against jMetal's
+    `AGEMOEA2EnvironmentalSelection`;
+  - the default, `"agemoea"`, is unchanged; seeded tuning runs of the AGE-MOEA
+    spaces draw different trials (#359).
+- Reference fronts: DTLZ1–DTLZ4 and DTLZ7 with 4, 6 and 8 objectives
+  (`dtlz1.<m>d.csv`, `dtlz2.<m>d.csv` and `dtlz7.<m>d.csv`), which
+  `resolve_reference_front_path` finds by `n_obj`; DTLZ3 and DTLZ4 resolve to
+  DTLZ2's file. DTLZ1–DTLZ4 use the Das-Dennis lattice of PlatEMO's reference
+  fronts, the points of jMetal's DTLZ2–DTLZ4 files with those numbers of
+  objectives (#362).
+- Indicators: the experimental `vamos.ux.api` exports `HVIndicator`,
+  `HVApproxIndicator`, `HV_APPROX_METHODS` and `IndicatorResult`, documented in
+  Analysis and Visualization with a note on the exact hypervolume's cost from
+  about six objectives. `HVApproxIndicator.compute` passes `seed` and `method`
+  to `moocore.hv_approx` (an unknown method raises `ValueError`; `None` keeps
+  MooCore's default) and records `samples`, `seed` and the method used in
+  `details` (#363).
+- MOEA/D, NSGA-III and RVEA take their vectors from one kind of option, as
+  jMetal and Evolver configure them: MOEA/D's `weight_vectors`, NSGA-III's
+  `reference_directions` and RVEA's new `reference_vectors` accept a file
+  (whitespace- or comma-separated) or a directory with jMetal's `W<m>D_<n>.dat`
+  names, the lattice of `divisions`, or, with the new `inner_divisions`, Deb and
+  Jain's two-layer lattice (156 vectors with eight objectives, 3 and 2
+  divisions). The vectors are the population, so RVEA can run 100 individuals
+  with three objectives from `W3D_100.dat`, and the three algorithms can start
+  from the same vectors. A path that does not exist raises
+  `ConfigurationError`. The resolved spec records a file for NSGA-III and RVEA
+  and the two-layer lattice for MOEA/D.
+  `vamos.algorithms.moead_populations(n_obj)` lists the populations MOEA/D runs
+  without weight options (#365).
+- Problems: IDTLZ1 and IDTLZ2, the inverted DTLZ1 and DTLZ2 of Jain and Deb
+  (2014) as PlatEMO defines them, registered as `idtlz1` and `idtlz2` with a
+  configurable number of objectives (`n_var = n_obj + 4` and `n_obj + 9` by
+  default), with reference fronts for two and three objectives
+  (`idtlz1.2d.csv` to `idtlz2.3d.csv`) (#366).
+- RVEA's `variant`: `"platemo"` runs the authors' reading of the survival, that
+  of PlatEMO's `RVEA/EnvironmentalSelection.m` and of jMetal (M equal to the
+  number of objectives in the angle penalty also with two objectives,
+  translation by each generation's minimum, vector adaptation to the
+  population's range); the default `"pymoo"` keeps VAMOS's results (#367).
+
+### Changed
+
+- An unbounded external archive keeps the rows each generation offers and
+  merges them (with moocore's non-dominated filter when moocore is installed)
+  only when the archive is read or the kept rows outnumber twice the archive,
+  instead of refiltering itself every generation.
+  - The rows, their order and every result are the same.
+  - A run that reads its archive only at the end filters it once: over 200 000
+    evaluations, 0.28 s instead of 85 s on a 112 000-row archive.
+  - `UnboundedArchive(buffered=False)` keeps the eager updates (#360).
+- Two-layer lattices whose layers repeat a direction raise
+  `ConfigurationError`. A MOEA/D `weight_vectors` path that does not exist
+  raises `ConfigurationError` instead of being created as a directory for the
+  generated lattice, and an unknown key in `weight_vectors` or
+  `reference_directions` raises instead of being ignored (#365).
+
+### Fixed
+
+- MOEA/D with four objectives and 100 to 119 individuals runs the 100 weight
+  vectors of the packaged `W4D_100.dat`, which held them twice (as the jMetalPy
+  file it comes from) and was skipped, so VAMOS ran 84 individuals. The
+  packaged `W4D_165.dat` is space-separated, and weight files may separate
+  their components with whitespace or commas and depart from the simplex by
+  jMetal's rounding (`1e-5`), so all 31 packaged files load, also from the
+  command line, where 14 of them failed. NSGA-III reads
+  `reference_directions(path=...)` with the same reader, so jMetal's
+  whitespace-separated files such as `W3D_100.dat` work, and a path that does
+  not exist raises `ConfigurationError` instead of generating a lattice and
+  saving it there. Results change for MOEA/D with four objectives and 100 to
+  119 individuals; NSGA-III runs whose path was missing now fail (#361).
+- NSGA-III selects its parents as configured, and never by crowding distance,
+  which is not part of NSGA-III. It ran a binary tournament on rank and
+  crowding distance, as NSGA-II, whatever its selection, so it was not the
+  published algorithm. `selection("random")`, now the default of
+  `NSGAIIIConfig.default()`, the command line and the tuning spaces, draws
+  parents at random, as Deb and Jain (2014); with constraints and feasibility
+  first, each parent wins a binary tournament on the constraint violation,
+  decided at random between feasible solutions, as Jain and Deb's constrained
+  NSGA-III and pymoo. `selection("tournament", size=k)` is jMetal's NSGA-III
+  tournament on rank, with ties drawn at random. Other selection methods and
+  options raise `ConfigurationError`. The NSGA-III tuning spaces choose
+  `selection`, `random` or `tournament` with `tournament_size`, as Evolver's,
+  and assignments of earlier spaces still build their tournament; seeded tuning
+  runs of these spaces draw different trials. `--selection-pressure` no longer
+  applies to NSGA-III. NSGA-III's results change, by default and with a
+  tournament, so experiments run with NSGA-III should be rerun (#364).
+- A run whose MOEA/D `weight_vectors`, NSGA-III `reference_directions` or RVEA
+  `reference_vectors` names a file records the file it read and the `sha256` of
+  its vectors in its resolved configuration. Replay refuses the file if its
+  vectors have changed, where VAMOS 1.4.0 replayed whatever the file then held.
+  The run's record of the file is rebuilt from the stored configuration, so the
+  run verifies without the file (#365).
+
 ## [1.4.0] - 2026-11-17
 
 VAMOS 1.4.0 is a minor release. The built-in tuning spaces become YAML grammars
@@ -1112,7 +1240,8 @@ development markers; they are not prior public releases.
 - Studio, tuning, visualization, provider integrations, plugin interfaces, and
   non-stable CLI commands remain experimental.
 
-[Unreleased]: https://github.com/vamos-optimization/VAMOS/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/vamos-optimization/VAMOS/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.5.0
 [1.4.0]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.4.0
 [1.3.0]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.3.0
 [1.2.1]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.2.1

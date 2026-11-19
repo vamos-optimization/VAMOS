@@ -81,7 +81,7 @@ class MOEADConfig(_SerializableConfig):
     See :mod:`vamos.engine.algorithm.moead.aggregation` and :mod:`vamos.engine.operators.policies.moead`
     for the definitions.
 
-    **Development after 1.4.0:** ``weight_vectors`` takes ``inner_divisions`` with ``divisions``, Deb and
+    **VAMOS 1.5.0:** ``weight_vectors`` takes ``inner_divisions`` with ``divisions``, Deb and
     Jain's two-layer lattice, which gives usual populations with many objectives (156 vectors with eight
     objectives, 3 and 2 divisions), and NSGA-III's ``reference_directions`` and RVEA's ``reference_vectors``
     take the same keys. :func:`vamos.algorithms.moead_populations` lists the populations that have weights
@@ -288,7 +288,7 @@ class _MOEADConfigBuilder(
         the lattice of exactly ``pop_size`` vectors, saved there with a ``RuntimeWarning``. ``divisions``
         gives the complete Das-Dennis lattice. MOEA/D needs exactly one vector per individual.
 
-        **Development after 1.4.0:** ``inner_divisions`` with ``divisions`` gives Deb and Jain's two-layer
+        **VAMOS 1.5.0:** ``inner_divisions`` with ``divisions`` gives Deb and Jain's two-layer
         lattice, the boundary lattice of ``divisions`` and the lattice of ``inner_divisions`` shrunk by half
         towards the centre of the simplex, for any number of objectives; a ``path`` that does not exist
         raises :class:`~vamos.exceptions.ConfigurationError` when the run starts, where VAMOS 1.4.0 created

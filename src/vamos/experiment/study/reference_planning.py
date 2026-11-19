@@ -61,7 +61,7 @@ def validate_nsgaiii_reference_directions(config: Mapping[str, Any], *, populati
 
 
 def _inner_divisions(raw: Mapping[str, Any], field: str, index: int, *, divisions: int, n_obj: int) -> int | None:
-    """Development after 1.4.0: the inside layer of a two-layer lattice, ``None`` without one.
+    """VAMOS 1.5.0: the inside layer of a two-layer lattice, ``None`` without one.
 
     An inside layer that repeats directions of the boundary layer is rejected, as the run would reject it.
     """
@@ -109,7 +109,7 @@ def validate_rvea_reference_directions(config: Mapping[str, Any], *, population:
             actual="external path",
             action="Remove the reference-vector path; planning never follows external scientific inputs.",
         )
-    # Development after 1.4.0: reference_vectors.divisions takes the place of n_partitions.
+    # VAMOS 1.5.0: reference_vectors.divisions takes the place of n_partitions.
     use_divisions = vectors.get("divisions") is not None
     partitions = vectors.get("divisions") if use_divisions else config.get("n_partitions")
     if isinstance(partitions, bool) or not isinstance(partitions, int) or partitions < 1:
