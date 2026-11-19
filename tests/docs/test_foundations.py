@@ -18,6 +18,8 @@ import yaml
 from vamos.foundation.kernel.numpy_backend import _compute_crowding, _fast_non_dominated_sort
 from vamos.foundation.quality_indicators.hypervolume import hypervolume, hypervolume_contributions
 
+from .smoke_manifest import DOC_SMOKE_CASES
+
 ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs"
 FOUNDATIONS = DOCS / "foundations"
@@ -205,3 +207,9 @@ def test_figure_algorithms_agree_with_vamos() -> None:
             np.testing.assert_allclose([np.inf if v is None else v for v in values], expected, rtol=1e-12)
         assert js["hv"] == pytest.approx(hypervolume(F, ref), rel=1e-12)
         np.testing.assert_allclose(js["contributions"], hypervolume_contributions(F, ref), rtol=1e-12, atol=1e-15)
+
+
+def test_every_page_with_examples_is_a_docs_smoke_case() -> None:
+    smoked = {case.source_path for case in DOC_SMOKE_CASES}
+    pages = {f"docs/{_relative(page)}" for page in PAGES if _examples(page)}
+    assert pages <= smoked, f"Foundations pages with examples missing from tests/docs/smoke_manifest.py: {sorted(pages - smoked)}"
