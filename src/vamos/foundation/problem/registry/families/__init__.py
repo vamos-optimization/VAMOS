@@ -19,6 +19,7 @@ __all__ = [
     "tanabe_ishibuchi_re",
     "tanabe_ishibuchi_cre",
     "cec2021_rcm",
+    "modact",
     "zapotecas_rwa",
     "misc",
 ]

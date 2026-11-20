@@ -3,7 +3,7 @@
 Run it from the repository root with this checkout's ``src`` importable and the ``compute`` extra installed
 (the exact non-dominated filter uses Numba):
 
-    python experiments/scripts/generate_reference_fronts.py --all --reproblems-dir PATH --jmetal-dir PATH
+    python experiments/scripts/generate_reference_fronts.py --all --reproblems-dir PATH --jmetal-dir PATH --modact-dir PATH
     python experiments/scripts/generate_reference_fronts.py zdt3 dtlz7 wfg1
 
 The script writes three groups of files; ``docs/reference/problems.md`` ("Reference fronts") lists the
@@ -31,6 +31,14 @@ provenance of every packaged file, including those this script leaves alone.
   jMetal's ``resources/referenceFronts`` at commit ``JMETAL_COMMIT``, copied line by line without the rows that
   another row of the same file dominates. ``--jmetal-dir`` points at a local copy of that directory. Their MIT
   notice is ``LICENSE-jmetal.txt``.
+- **MODAct's best-known fronts** (VAMOS 1.5.1) for the two-objective MODAct problems, CS1-CS4 and
+  CT1-CT4 (``modact_cs1.csv`` ... ``modact_ct4.csv``): Picard and Schiffmann's ``<name>_PF.dat`` of the Zenodo
+  record https://doi.org/10.5281/zenodo.3824302, version 1.1.0, converted by
+  ``vamos.foundation.problem.modact_fronts.convert_front``, the conversion of ``vamos zoo fetch-fronts``: the MD5
+  checksums are checked, each value keeps its digits, and the columns that MODAct maximizes change sign, so that
+  every column is minimized as in VAMOS's problems. ``--modact-dir`` points at a local copy of the files. The
+  script also writes their CC BY 4.0 notice, ``LICENSE-modact-fronts.txt``. The fronts of the problems with three
+  to five objectives (1.4 MB to 193 MB each) are not packaged; ``vamos zoo fetch-fronts`` downloads them.
 - **Sampled fronts** where no closed form or authors' front applies: RWA3, RWA9, RWA10 and the deterministic
   RE91. Dense sampling of the design box, local refinement around the non-dominated designs and an exact
   non-dominated filter over every evaluated design. A well-spread pool of 1.25 times the packaged size is then
@@ -85,6 +93,10 @@ JMETAL_FRONTS = {
     **{f"jmetal-zdt{k}": f"ZDT{k}" for k in (1, 2, 3, 4, 6)},
     **{f"jmetal-dtlz{k}.{m}d": f"DTLZ{k}.{m}D" for k in (1, 2, 5, 6, 7) for m in (2, 3)},
 }
+
+# MODAct's best-known fronts that VAMOS packages (CC BY 4.0, LICENSE-modact-fronts.txt), from the Zenodo record
+# 10.5281/zenodo.3824302, version 1.1.0; vamos.foundation.problem.modact_fronts holds the record's MD5 checksums.
+MODACT_FRONTS = tuple(f"modact_{name}{level}" for name in ("cs", "ct") for level in range(1, 5))
 
 # Sampled fronts: packaged size, number of uniform samples and grid points per variable (0 = no grid).
 SAMPLED = {
@@ -809,24 +821,38 @@ def write_jmetal_front(name: str, jmetal_dir: Path, out_dir: Path) -> Path:
     return path
 
 
+def write_modact_front(name: str, modact_dir: Path, out_dir: Path) -> Path:
+    """Convert MODAct's ``<problem>_PF.dat`` as ``vamos zoo fetch-fronts`` does, and rewrite the fronts' notice."""
+    from vamos.foundation.problem.modact_fronts import PACKAGED, convert_front, source_file, write_notice
+
+    path = convert_front(modact_dir / source_file(name), out_dir, name)
+    write_notice(out_dir, PACKAGED, packaged=True)
+    return path
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("names", nargs="*", help="fronts to write, e.g. zdt3 re31 rwa10 (default: none)")
     parser.add_argument("--all", action="store_true", help="write every front this script owns")
     parser.add_argument("--reproblems-dir", type=Path, help="local copy of reproblems' approximated_Pareto_fronts")
     parser.add_argument("--jmetal-dir", type=Path, help=f"local copy of jMetal's resources/referenceFronts at commit {JMETAL_COMMIT}")
+    parser.add_argument(
+        "--modact-dir", type=Path, help="local copy of the MODAct fronts of Zenodo record 10.5281/zenodo.3824302, version 1.1.0"
+    )
     parser.add_argument("--out", type=Path, default=OUT_DIR)
     args = parser.parse_args(argv)
 
     authors = [f"re{number}" for number in AUTHORS_RE]
-    names = [*ANALYTIC, *authors, *JMETAL_FRONTS, *SAMPLED] if args.all else args.names
-    unknown = sorted(set(names) - {*ANALYTIC, *authors, *JMETAL_FRONTS, *SAMPLED})
+    names = [*ANALYTIC, *authors, *JMETAL_FRONTS, *MODACT_FRONTS, *SAMPLED] if args.all else args.names
+    unknown = sorted(set(names) - {*ANALYTIC, *authors, *JMETAL_FRONTS, *MODACT_FRONTS, *SAMPLED})
     if unknown:
         parser.error(f"unknown fronts: {unknown}")
     if any(name in authors for name in names) and args.reproblems_dir is None:
         parser.error("the RE authors' fronts need --reproblems-dir")
     if any(name in JMETAL_FRONTS for name in names) and args.jmetal_dir is None:
         parser.error("jMetal's fronts need --jmetal-dir")
+    if any(name in MODACT_FRONTS for name in names) and args.modact_dir is None:
+        parser.error("MODAct's fronts need --modact-dir")
     args.out.mkdir(parents=True, exist_ok=True)
     for name in names:
         if name in ANALYTIC:
@@ -835,6 +861,8 @@ def main(argv: list[str] | None = None) -> None:
             path = write_authors_front(int(name[2:]), args.reproblems_dir, args.out)
         elif name in JMETAL_FRONTS:
             path = write_jmetal_front(name, args.jmetal_dir, args.out)
+        elif name in MODACT_FRONTS:
+            path = write_modact_front(name, args.modact_dir, args.out)
         else:
             path = write_front(name, _sampled(name), args.out)
         print(f"wrote {path.name}", flush=True)

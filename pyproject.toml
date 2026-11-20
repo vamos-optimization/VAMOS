@@ -93,6 +93,10 @@ examples = [
   "ipykernel>=7.3",
   "ipywidgets>=8.1",
 ]
+# The authors' package that evaluates the MODAct problems. It is GPL-3.0, so `all` leaves it out.
+modact = [
+  "modact>=1.0.1",
+]
 # Documentation
 docs = [
   "mkdocs>=1.6",
