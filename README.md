@@ -30,7 +30,10 @@ packaged MOEA/D weight files, and adds AGE-MOEA-II, the authors' reading of
 RVEA, one source of reference vectors for MOEA/D, NSGA-III and RVEA, the CTP and
 IDTLZ problems and DTLZ reference fronts with up to eight objectives. VAMOS
 1.5.1 adds the MODAct problems, evaluated by the separately installed `modact`
-package, and the Foundations learning path. See the
+package, and the Foundations learning path. VAMOS 1.5.2 adds reformulations of
+23 RCM problems, whose variables decode into designs that meet the originals'
+equality and ordering constraints. See the
+[1.5.2 release notes](https://vamos-optimization.org/project/release-notes-1.5.2/), the
 [1.5.1 release notes](https://vamos-optimization.org/project/release-notes-1.5.1/), the
 [1.5.0 release notes](https://vamos-optimization.org/project/release-notes-1.5.0/), the
 [1.4.0 release notes](https://vamos-optimization.org/project/release-notes-1.4.0/), the
@@ -112,7 +115,7 @@ pip install "smac>=2.0"
 | `numba` | Stable optional | Accelerates core numeric kernels such as variation, tournament selection, and MOEA/D neighborhood updates. |
 | `moocore` | Stable optional | Adds accelerated quality-indicator support, especially hypervolume-style metrics. |
 
-In VAMOS 1.5.1, use `engine="auto"` (CLI: `--engine auto`)
+In VAMOS 1.5.2, use `engine="auto"` (CLI: `--engine auto`)
 to prefer loadable Numba for all nine built-in algorithms, with a NumPy fallback.
 Numba remains optional. Omitting `engine` still selects NumPy, preserving the 1.x
 default; explicit `engine="numba"` fails if unavailable. First use can spend more

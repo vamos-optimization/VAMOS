@@ -1,6 +1,6 @@
 # Recorded study report
 
-Source SHA-256: `2da1c7293d8abf8d04345987d75cde86d141592818015c239d5107b2bcd4513f`
+Source SHA-256: `dbfed9875afbe1d1697b94b00d3e080fe66a6575b2eb1c3e9a86f27f4a4b3b8e`
 
 All observations come from verified persisted runs. This report does not rerun optimization.
 

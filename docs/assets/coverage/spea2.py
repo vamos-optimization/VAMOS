@@ -1,4 +1,4 @@
-"""Verified VAMOS 1.5.1 lesson: spea2. See coverage-setup for dependencies."""
+"""Verified VAMOS 1.5.2 lesson: spea2. See coverage-setup for dependencies."""
 
 
 def execute_example(problem, algorithm, config, budget, seed=42, engine="numpy"):

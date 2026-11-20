@@ -1,4 +1,4 @@
-"""Verified VAMOS 1.5.1 lesson: tuning. See coverage-setup for dependencies."""
+"""Verified VAMOS 1.5.2 lesson: tuning. See coverage-setup for dependencies."""
 
 
 def new_output(output):

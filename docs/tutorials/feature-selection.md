@@ -33,7 +33,7 @@ python feature_selection.py --output feature_selection-local.svg
 ??? example "Complete runnable script"
 
     ```python
-    """Verified VAMOS 1.5.1 lesson: feature_selection. See coverage-setup for dependencies."""
+    """Verified VAMOS 1.5.2 lesson: feature_selection. See coverage-setup for dependencies."""
 
 
     def execute_example(problem, algorithm, config, budget, seed=42, engine="numpy"):
@@ -169,7 +169,7 @@ Error is a repeatedly inspected validation objective, not an unbiased test estim
 
 ![Actual feature selection results from the documented protocol.](../assets/coverage/feature_selection.svg)
 
-*Measured with VAMOS 1.5.1; the [observations and provenance](coverage-setup.md#recorded-evidence) retain the inputs and results.*
+*Measured with VAMOS 1.5.2; the [observations and provenance](coverage-setup.md#recorded-evidence) retain the inputs and results.*
 
 ## Interpret the result and limits
 

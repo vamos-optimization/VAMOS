@@ -2,7 +2,7 @@
 
 Choose a problem by its **formulation, encoding and dimensions**, then check the
 [algorithm compatibility matrix](algorithms.md). This catalog describes the
-280 registered problems in VAMOS **1.5.1**; **VAMOS 1.5.0:**
+303 registered problems in VAMOS **1.5.2**; **VAMOS 1.5.0:**
 CTP1–CTP7 and IDTLZ1 and IDTLZ2 are new, so 251 become 260; **VAMOS 1.5.1:**
 the 20 MODAct problems bring them to 280; **VAMOS 1.5.2:** the 23
 [reformulated RCM problems](#reformulated-rcm-problems) bring them to 303. The named selection helpers are
@@ -859,7 +859,7 @@ leaves no file behind and exits with code 1.
 
 ### Learning and mixed engineering examples
 
-Install `python -m pip install "vamos-optimization[examples]==1.5.1"` for the two
+Install `python -m pip install "vamos-optimization[examples]==1.5.2"` for the two
 classifier examples. The base package is sufficient for `welded_beam`.
 See [Installation](../guide/installation.md) for environments and extras.
 

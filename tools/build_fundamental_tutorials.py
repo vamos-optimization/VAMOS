@@ -23,7 +23,7 @@ LESSONS = {
 }
 # The published VAMOS release that every lesson is recorded with. The three lesson generators and
 # their requirement files take it from here; each release regenerates the lessons with its wheel.
-LESSON_RELEASE = "1.5.1"
+LESSON_RELEASE = "1.5.2"
 CORE = {"vamos-optimization": LESSON_RELEASE, "numpy": "2.1.3", "scipy": "1.15.3", "joblib": "1.4.2", "pyyaml": "6.0.3"}
 
 

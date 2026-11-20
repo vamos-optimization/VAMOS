@@ -5,7 +5,7 @@ Version helpers for VAMOS.
 from __future__ import annotations
 
 # Bumped by hand in the release pull request; see docs/release_smoke.md.
-__version__ = "1.5.1"
+__version__ = "1.5.2"
 
 
 def get_version() -> str:
