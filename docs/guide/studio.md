@@ -14,7 +14,7 @@ ZDT1, NSGA-II and MOEA/D, seeds 42 and 43, population 100, NumPy backend,
 10,000 evaluations per run. The two seeds are pooled for each algorithm.
 This is a walkthrough dataset, not evidence that one algorithm is better.*
 
-This guide targets **VAMOS 1.5.0**. Since VAMOS 1.1.0 the launcher serves the
+This guide targets **VAMOS 1.5.1**. Since VAMOS 1.1.0 the launcher serves the
 application and honors its study directory. Users of 1.0.2 should upgrade to
 obtain these fixes and the durable batch and comparison pages described here.
 
@@ -84,7 +84,7 @@ ranking table shown on the page, filters included. Use the
 Studio's optional dependencies are installed from PyPI:
 
 ```bash
-python -m pip install "vamos-optimization[studio]==1.5.0"
+python -m pip install "vamos-optimization[studio]==1.5.1"
 ```
 
 The packaged command and its intended study-root argument are:
