@@ -406,6 +406,21 @@ assert summary["n_feasible"] == int(namespace["feasible"].sum())
 """,
     ),
     DocSmokeCase(
+        name="rcm_reformulation_example",
+        source_path="docs/reference/problems.md",
+        code="""
+from pathlib import Path
+
+text = Path("docs/reference/problems.md").read_text(encoding="utf-8")
+blocks = [part.partition("```")[0] for part in text.split("```python")[1:] if "rcm36_reformulated" in part.partition("```")[0]]
+assert len(blocks) == 1
+namespace = {}
+exec(compile(blocks[0], "docs/reference/problems.md", "exec"), namespace)
+assert namespace["decoded"].any()
+assert namespace["values"]["F"].shape == (int(namespace["decoded"].sum()), 2)
+""",
+    ),
+    DocSmokeCase(
         name="cookbook_public_lifecycle",
         source_path="docs/guide/cookbook.md",
         code="""
