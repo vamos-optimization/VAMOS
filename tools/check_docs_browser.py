@@ -27,6 +27,8 @@ ROUTES = (
     "reference/algorithms/",
     "reference/api/optimization/",
     "guide/installation/",
+    "foundations/basic/quality-indicators/",
+    "foundations/intermediate/nsga-ii/",
 )
 
 

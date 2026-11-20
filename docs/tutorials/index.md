@@ -9,6 +9,8 @@ search:
 Learn a workflow from its first run to an interpretable result. Start with the
 route that matches your question; each link below leads to an existing worked
 example. For a single operation, use the [How-to Guides](../guide/index.md).
+For the concepts behind the lessons, such as Pareto dominance, quality
+indicators and how NSGA-II works, follow the [Foundations](../foundations/index.md) path.
 
 ## Choose a learning path
 

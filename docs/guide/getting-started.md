@@ -10,6 +10,8 @@ Choose the shortest route that matches what you want to accomplish. Installation
 4. Use the [API reference](../reference/api_reference.md) when you need exact signatures rather than tutorial guidance.
 
 If Python itself is still new to you, begin with the [Minimal Python Track](minimal-python.md).
+If multi-objective optimization is new to you, the [Foundations](../foundations/index.md) path
+explains Pareto dominance, quality indicators and NSGA-II with interactive figures.
 
 ## Solve your own problem
 

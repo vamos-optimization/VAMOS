@@ -45,10 +45,12 @@ theme:
 extra_css:
   - stylesheets/vamos.css
   - stylesheets/home-hero.css
+  - stylesheets/foundations.css
 
 extra_javascript:
   - javascripts/api-reference.js
   - javascripts/site-navigation.js
+  - javascripts/foundations.js
 
 markdown_extensions:
   - admonition
@@ -218,3 +220,33 @@ nav:
       - Architecture Health: dev/architecture_health.md
       - Repository Hygiene: dev/repository_hygiene.md
       - Release Verification: release_smoke.md
+  - Foundations:
+    - Overview: foundations/index.md
+    - Basic:
+      - B1. Multi-objective Problems: foundations/basic/multi-objective-problems.md
+      - B2. Pareto Dominance: foundations/basic/pareto-dominance.md
+      - B3. Quality Aspects: foundations/basic/quality-aspects.md
+      - B4. Quality Indicators: foundations/basic/quality-indicators.md
+    - Intermediate:
+      - I1. NSGA-II at a Glance: foundations/intermediate/nsga-ii.md
+      - I2. Non-dominated Sorting: foundations/intermediate/non-dominated-sorting.md
+      - I3. Crowding and Tournaments: foundations/intermediate/crowding-distance.md
+      - I4. SBX and Polynomial Mutation: foundations/intermediate/variation-operators.md
+      - I5. Elitist Survival: foundations/intermediate/elitist-survival.md
+      - I6. Beyond NSGA-II: foundations/intermediate/beyond-nsga-ii.md
+      - I7. SPEA2: foundations/intermediate/spea2.md
+      - I8. MOEA/D: foundations/intermediate/moead.md
+      - I9. SMS-EMOA: foundations/intermediate/smsemoa.md
+      - I10. IBEA: foundations/intermediate/ibea.md
+      - I11. SMPSO: foundations/intermediate/smpso.md
+    - Advanced:
+      - A1. Many Objectives: foundations/advanced/many-objective.md
+      - A2. NSGA-III: foundations/advanced/nsga-iii.md
+      - A3. RVEA: foundations/advanced/rvea.md
+      - A4. AGE-MOEA: foundations/advanced/agemoea.md
+      - A5. Constraints: foundations/advanced/constrained.md
+      - A6. CCMO: foundations/advanced/ccmo.md
+      - A7. C-TAEA: foundations/advanced/ctaea.md
+      - A8. ToP: foundations/advanced/top.md
+      - A9. CMOEA-MS: foundations/advanced/cmoeams.md
+      - A10. Rigorous Comparison: foundations/advanced/performance-assessment.md

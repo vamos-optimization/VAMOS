@@ -14,6 +14,7 @@ def test_vamos_visual_identity_is_wired_into_canonical_docs() -> None:
     assert config["extra_css"] == [
         "stylesheets/vamos.css",
         "stylesheets/home-hero.css",
+        "stylesheets/foundations.css",
     ]
     assert config["theme"]["font"] == {"text": "DM Sans", "code": "JetBrains Mono"}
     assert config["theme"]["logo"] == "assets/vamos-mark.svg"

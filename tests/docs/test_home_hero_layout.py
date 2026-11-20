@@ -32,6 +32,7 @@ def test_homepage_hero_styles_are_loaded_after_the_base_identity_styles() -> Non
     assert config["extra_css"] == [
         "stylesheets/vamos.css",
         "stylesheets/home-hero.css",
+        "stylesheets/foundations.css",
     ]
 
 

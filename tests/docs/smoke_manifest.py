@@ -425,4 +425,54 @@ with tempfile.TemporaryDirectory() as tmp:
     subprocess.run([sys.executable, "-c", (chr(10) * 2).join(blocks)], cwd=tmp, check=True)
 """,
     ),
+    # The Foundations learning path runs every example of a lesson from the page itself;
+    # tests/docs/test_foundations.py also compares their printed output with the documented one.
+    *[
+        DocSmokeCase(
+            name=f"foundations_{page.replace('/', '_').replace('-', '_')}",
+            source_path=f"docs/foundations/{page}.md",
+            code=f"""
+import re
+from pathlib import Path
+
+import pytest
+
+text = Path("docs/foundations/{page}.md").read_text(encoding="utf-8")
+blocks = re.findall(r"^```python\\n(.*?)^```", text, flags=re.MULTILINE | re.DOTALL)
+examples = [block for block in blocks if not block.startswith("# Excerpt from ")]
+assert examples, "docs/foundations/{page}.md has no runnable example"
+if any("moocore" in example for example in examples):
+    pytest.importorskip("moocore")
+for example in examples:
+    exec(compile(example, "docs/foundations/{page}.md", "exec"), {{"__name__": "__foundations_example__"}})
+""",
+        )
+        for page in (
+            "basic/multi-objective-problems",
+            "basic/pareto-dominance",
+            "basic/quality-aspects",
+            "basic/quality-indicators",
+            "intermediate/nsga-ii",
+            "intermediate/non-dominated-sorting",
+            "intermediate/crowding-distance",
+            "intermediate/variation-operators",
+            "intermediate/elitist-survival",
+            "intermediate/beyond-nsga-ii",
+            "intermediate/spea2",
+            "intermediate/moead",
+            "intermediate/smsemoa",
+            "intermediate/ibea",
+            "intermediate/smpso",
+            "advanced/many-objective",
+            "advanced/nsga-iii",
+            "advanced/rvea",
+            "advanced/agemoea",
+            "advanced/constrained",
+            "advanced/ccmo",
+            "advanced/ctaea",
+            "advanced/top",
+            "advanced/cmoeams",
+            "advanced/performance-assessment",
+        )
+    ],
 ]
