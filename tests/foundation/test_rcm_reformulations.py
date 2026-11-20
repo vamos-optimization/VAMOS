@@ -208,12 +208,12 @@ def test_decoders_reproduce_the_scripts(case: dict[str, Any], key: str) -> None:
     expected = np.asarray([row if row is not None else [np.nan] * X.shape[1] for row in case["X"]], dtype=float)
     script_decoded = np.asarray(case["decoded"])
     if case["decoder"].startswith("process_and_sopwm."):
-        # Closed form: the same designs; the scripts' sorted angles can leave the first one about 1e-21 below 0
-        # (a design outside the bounds, which the scripts reject), and VAMOS clips it to 0.
+        # Closed form: the scripts' arithmetic, so the same designs where both run on one platform; exp and cos
+        # can differ by an ulp between platforms' math libraries. The scripts' sorted angles can leave the first
+        # one about 1e-21 below 0 (a design outside the bounds, which the scripts reject), and VAMOS clips it to 0.
         assert np.isfinite(X).all()
-        np.testing.assert_array_equal(X, np.clip(expected, problem.original.xl, problem.original.xu))
-        np.testing.assert_array_equal(X[script_decoded], expected[script_decoded])
-        assert np.abs(X - expected).max() < 1e-20
+        np.testing.assert_allclose(X, np.clip(expected, problem.original.xl, problem.original.xu), rtol=1e-13, atol=1e-13)
+        assert script_decoded.sum() >= 19
     else:
         # Newton power flows: the same rows decode, to the same designs up to the rounding of the solve.
         np.testing.assert_array_equal(np.isfinite(X).all(axis=1), script_decoded)
