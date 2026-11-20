@@ -4,6 +4,52 @@ All notable public changes to VAMOS are documented here.
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-11-20
+
+VAMOS 1.5.1 is a patch release. It adds the 20 MODAct problems, evaluated by
+the separately installed `modact` package, with the authors' packaged fronts
+of CS1–CS4 and CT1–CT4 and `vamos zoo fetch-fronts` for the others, and the
+Foundations learning path in the documentation. No existing problem,
+algorithm, default or result changes. See the
+[1.5.1 release notes](docs/project/release-notes-1.5.1.md).
+
+### Added
+
+- Problems: the 20 MODAct problems of Picard and Schiffmann (2021),
+  `modact_cs1` to `modact_ctsei4` (20 variables, 2 to 5 objectives, 7 to 10
+  constraints), evaluated by the authors' `modact` package, which VAMOS
+  imports when a problem is created and does not include (#370).
+  - `modact` is GPL-3.0; the new `modact` extra installs it and `all` leaves
+    it out.
+  - Objectives that MODAct maximizes change sign, and `G = c_weights * g`.
+  - The authors' best-known fronts of CS1–CS4 and CT1–CT4 are packaged under
+    CC BY 4.0 (`modact_cs1.csv` to `modact_ct4.csv`,
+    `LICENSE-modact-fronts.txt`).
+- `vamos zoo fetch-fronts` downloads the MODAct fronts that VAMOS does not
+  package (CTS1–CTS4 by default; CTSE1–CTSE4 and CTSEI1–CTSEI4 on request)
+  from Zenodo, checks their MD5 checksums, converts them as the packaged
+  fronts, and writes them with their CC BY 4.0 notice in a per-user directory
+  (`vamos.resources.user_reference_fronts_dir()`; `VAMOS_DATA_DIR` moves it),
+  which the reference-front lookup now searches after the packaged fronts
+  (#370).
+- Exact replay of a run (`verify_run`, `reproduce`) compares the recorded
+  versions of the distributions outside VAMOS that evaluate its problem, which
+  the problem's `ProblemSpec` lists in `evaluator_packages`: `modact`,
+  `trimesh` and `python-fcl` for the MODAct problems. No other registered
+  problem lists any, so their replay is unchanged (#370).
+- Documentation: the Foundations learning path, a new tab with Basic,
+  Intermediate and Advanced lessons on multi-objective optimization: problems,
+  Pareto dominance, quality aspects and indicators; NSGA-II step by step;
+  SPEA2, MOEA/D, SMS-EMOA, IBEA, SMPSO, NSGA-III, RVEA, AGE-MOEA, CCMO, C-TAEA,
+  ToP and CMOEA-MS; many objectives, constraints and rigorous comparison. Each
+  lesson has interactive figures, runnable VAMOS examples with their output,
+  verbatim source excerpts and references (#369).
+
+### Changed
+
+- Documentation: the measurement section of tutorial T07 is headed "Fix the
+  measurement rule: hypervolume and IGD+", which changes its anchor (#369).
+
 ## [1.5.0] - 2026-11-19
 
 VAMOS 1.5.0 is a minor release. It adds AGE-MOEA-II as a variant of AGE-MOEA,
@@ -1240,7 +1286,8 @@ development markers; they are not prior public releases.
 - Studio, tuning, visualization, provider integrations, plugin interfaces, and
   non-stable CLI commands remain experimental.
 
-[Unreleased]: https://github.com/vamos-optimization/VAMOS/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/vamos-optimization/VAMOS/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.5.1
 [1.5.0]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.5.0
 [1.4.0]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.4.0
 [1.3.0]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.3.0

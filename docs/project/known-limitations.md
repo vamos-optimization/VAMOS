@@ -1,4 +1,4 @@
-# Known limitations in VAMOS 1.5.0
+# Known limitations in VAMOS 1.5.1
 
 These limitations are part of the current release scope. They describe
 unsupported behavior rather than future compatibility promises.
@@ -200,7 +200,7 @@ unsupported behavior rather than future compatibility promises.
 - Windows offers no directory fsync, so study and run writers skip it there: a
   power loss just after a write can lose the newest entry of a directory, but
   never leaves a partial document or run under its final name.
-- Study execution is sequential in 1.5.0. Distributed workers, multiprocess
+- Study execution is sequential in 1.5.1. Distributed workers, multiprocess
   ownership, and cross-process cancellation are unsupported.
 - **VAMOS 1.2.0:** study tasks run with serial evaluation only;
   planning and creation reject `eval_strategy="multiprocessing"` or `"dask"`
