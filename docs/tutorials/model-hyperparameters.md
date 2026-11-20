@@ -33,7 +33,7 @@ python model_tuning.py --output model_tuning-local.svg
 ??? example "Complete runnable script"
 
     ```python
-    """Verified VAMOS 1.5.0 lesson: model_tuning. See coverage-setup for dependencies."""
+    """Verified VAMOS 1.5.1 lesson: model_tuning. See coverage-setup for dependencies."""
 
 
     def execute_example(problem, algorithm, config, budget, seed=42, engine="numpy"):
@@ -167,7 +167,7 @@ Objectives: validation error; support-vector count + 0.1 * degree.
 
 ![Actual model tuning results from the documented protocol.](../assets/coverage/model_tuning.svg)
 
-*Measured with VAMOS 1.5.0; the [observations and provenance](coverage-setup.md#recorded-evidence) retain the inputs and results.*
+*Measured with VAMOS 1.5.1; the [observations and provenance](coverage-setup.md#recorded-evidence) retain the inputs and results.*
 
 ## Interpret the result and limits
 
