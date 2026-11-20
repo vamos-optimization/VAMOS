@@ -6,7 +6,7 @@ search:
 
 # Troubleshooting
 
-These checks target the published VAMOS 1.5.0 package. See
+These checks target the published VAMOS 1.5.1 package. See
 [Installation](installation.md) for supported environments and extras, and
 [Stability and versioning](../project/stability-and-versioning.md) for the
 **Stable**, **Experimental**, and **Internal** labels.
@@ -20,7 +20,7 @@ python -c "import sys, vamos; print(sys.executable); print(vamos.__version__); p
 python -m pip show vamos-optimization
 ```
 
-The version should be `1.5.0` when following this release's examples. If the
+The version should be `1.5.1` when following this release's examples. If the
 package is missing, activate the intended virtual environment and follow
 [Installation](installation.md). Use `python -m pip` so installation targets the
 selected interpreter. Restart a notebook kernel after changing packages.
@@ -36,12 +36,12 @@ without a source checkout:
 
 | Capability | Installation command | Status |
 | --- | --- | --- |
-| Numba/MooCore kernels and Dask dependency | `python -m pip install "vamos-optimization[compute]==1.5.0"` | Kernel selection is Stable; distributed evaluation is Experimental |
-| Plots and pandas | `python -m pip install "vamos-optimization[analysis]==1.5.0"` | Analysis helpers are Experimental |
-| Notebooks | `python -m pip install "vamos-optimization[analysis,examples]==1.5.0"` | Experimental |
-| Local Studio | `python -m pip install "vamos-optimization[studio]==1.5.0"` | Experimental |
-| Selected domain examples | `python -m pip install "vamos-optimization[examples]==1.5.0"` | Check the individual example |
-| Optional tuning backends | `python -m pip install "vamos-optimization[tuning]==1.5.0"` | Experimental |
+| Numba/MooCore kernels and Dask dependency | `python -m pip install "vamos-optimization[compute]==1.5.1"` | Kernel selection is Stable; distributed evaluation is Experimental |
+| Plots and pandas | `python -m pip install "vamos-optimization[analysis]==1.5.1"` | Analysis helpers are Experimental |
+| Notebooks | `python -m pip install "vamos-optimization[analysis,examples]==1.5.1"` | Experimental |
+| Local Studio | `python -m pip install "vamos-optimization[studio]==1.5.1"` | Experimental |
+| Selected domain examples | `python -m pip install "vamos-optimization[examples]==1.5.1"` | Check the individual example |
+| Optional tuning backends | `python -m pip install "vamos-optimization[tuning]==1.5.1"` | Experimental |
 
 **VAMOS 1.2.0:** the `research` extra and its third-party baselines
 are removed, and notebooks need the `examples` extra besides `analysis`; see

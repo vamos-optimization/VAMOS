@@ -151,6 +151,7 @@ and reachable through the named parent pages even when absent from the menu.
 | [project/release-notes-1.2.1.md](../project/release-notes-1.2.1.md) | Reference | Reference → Support & Versions → Release Notes → VAMOS 1.2.1 | Regroup |
 | [project/release-notes-1.3.0.md](../project/release-notes-1.3.0.md) | Reference | Reference → Support & Versions → Release Notes → VAMOS 1.3.0 | Regroup |
 | [project/release-notes-1.4.0.md](../project/release-notes-1.4.0.md) | Reference | Reference → Support & Versions → Release Notes → VAMOS 1.4.0 | Regroup |
+| [project/release-notes-1.5.1.md](../project/release-notes-1.5.1.md) | Reference | Reference → Support & Versions → Release Notes → VAMOS 1.5.1 | Regroup |
 | [project/release-notes-1.5.0.md](../project/release-notes-1.5.0.md) | Reference | Reference → Support & Versions → Release Notes → VAMOS 1.5.0 | Regroup |
 | [project/repository-governance.md](../project/repository-governance.md) | Development | Homepage; Maintainers overview | Keep; contextual links |
 | [project/stability-and-versioning.md](../project/stability-and-versioning.md) | Reference | Reference → Support & Versions → Stability and Versioning | Regroup |
