@@ -149,6 +149,19 @@ def test_decoded_designs_are_feasible_on_the_original_and_keep_its_values(case: 
     np.testing.assert_array_equal(np.all(G <= 0.0, axis=1), decoded)
 
 
+@pytest.mark.parametrize("case", _CASES, ids=_id)
+def test_evaluate_decoded_gives_evaluates_values_and_decodes_designs(case: tuple[int, str | None]) -> None:
+    problem = _problem(*case)
+    U = _genotypes(problem, 200, seed=case[0] + 1)
+    expected: dict[str, Array] = {}
+    problem.evaluate(U, expected)
+    out: dict[str, Array] = {}
+    designs = problem.evaluate_decoded(U, out)
+    np.testing.assert_array_equal(out["F"], expected["F"])
+    np.testing.assert_array_equal(out["G"], expected["G"])
+    np.testing.assert_array_equal(designs, problem.decode(U))  # NaN rows compare equal
+
+
 # One problem per decoder: the sorted and level decoders work row by row up to four rows, and the power flows
 # do not depend on the other rows of the batch.
 _ROW_CASES = [(30, "sorted"), (35, "sorted"), (30, "level"), (35, "level"), (36, None), (40, None), (47, None)]

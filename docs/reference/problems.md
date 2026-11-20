@@ -689,8 +689,10 @@ rows of `U`.
   `1e3 + min(log10(1 + max |h|), 100)`). The closed-form decoders never fail.
 - **Mapping back:** a result's `X` holds genotypes; `decode` turns them into
   the original problem's vectors, which the original evaluates with the same
-  `F`. The reformulation resolves the original's reference front (`rcm22.csv`
-  for `rcm22_reformulated`).
+  `F`. `evaluate_decoded(U, out)` writes `out["F"]` and `out["G"]` as
+  `evaluate` does and returns those vectors from the same decoding, for a
+  caller that records the designs it evaluates. The reformulation resolves the
+  original's reference front (`rcm22.csv` for `rcm22_reformulated`).
 - **Decoders:** a gene in `[-0.1, 1.1]` is clipped to `[0, 1]`, so the bounds of
   the variable it sets, where many optimal designs lie, have a positive
   probability.

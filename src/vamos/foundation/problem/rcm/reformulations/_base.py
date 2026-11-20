@@ -93,7 +93,15 @@ class RCMReformulation(Problem):
         return X
 
     def evaluate(self, X: Array, out: dict[str, Array]) -> None:
-        decoded, failed, measure = self._decoded(X)
+        self.evaluate_decoded(X, out)
+
+    def evaluate_decoded(self, U: Array, out: dict[str, Array]) -> Array:
+        """Write ``out["F"]`` and ``out["G"]`` as :meth:`evaluate` does and return :meth:`decode`'s matrix.
+
+        One decoding serves both, so a caller that keeps the decoded designs of the rows it evaluates does not
+        decode them twice. The returned matrix holds a row of NaN where the decoding failed.
+        """
+        decoded, failed, measure = self._decoded(U)
         lower, upper = self.original.xl, self.original.xu
         point = np.where(failed[:, None], np.clip(np.nan_to_num(decoded, nan=0.0), lower, upper), decoded)
         values: dict[str, Array] = {}
@@ -108,6 +116,9 @@ class RCMReformulation(Problem):
             inequalities = np.where(failed[:, None] & ~np.isfinite(inequalities), FALLBACK_VALUE, inequalities)
         out["F"] = F
         out["G"] = np.column_stack([inequalities, np.where(failed, measure, largest)])
+        designs = np.array(decoded, dtype=float)
+        designs[failed] = np.nan
+        return designs
 
 
 __all__ = ["FALLBACK_VALUE", "NOT_CONVERGED", "RCMReformulation", "ordered_product_sum"]
