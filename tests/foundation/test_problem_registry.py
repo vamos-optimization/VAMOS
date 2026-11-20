@@ -91,7 +91,12 @@ def test_fixed_dimension_problems_accept_their_own_dimensions(name: str) -> None
 
 
 # Problems whose constructor needs an optional dependency that the dev and docs extras do not install.
-_OPTIONAL_DEPENDENCIES = {"fs_real": "sklearn", "ml_tuning": "sklearn"}
+_OPTIONAL_DEPENDENCIES = {
+    "fs_real": "sklearn",
+    "ml_tuning": "sklearn",
+    # VAMOS 1.5.1: the MODAct problems need the modact extra, which CI does not install.
+    **{key: "modact" for key in available_problem_names() if key.startswith("modact_")},
+}
 
 
 @pytest.mark.parametrize("name", available_problem_names())

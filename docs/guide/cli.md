@@ -497,7 +497,7 @@ Install any required [optional extras](installation.md#optional-extras) first.
 - Tuning: `vamos tune --instances zdt1,zdt2,zdt3 --algorithm nsgaii --backend optuna --backend-fallback random --split-strategy suite_stratified --budget 5000 --tune-budget 200 --n-jobs -1`
 - Ablation plans: `vamos ablation --config configs/ablation.yaml`
 - Profiling: `vamos profile --problem zdt1 --engines numpy,numba --budget 2000 --output report/profile.csv`
-- Problem zoo: `vamos zoo list`, `vamos zoo info zdt1`, `vamos zoo run zdt1 --algorithm nsgaii --budget 3000`
+- Problem zoo: `vamos zoo list`, `vamos zoo info zdt1`, `vamos zoo run zdt1 --algorithm nsgaii --budget 3000`; **VAMOS 1.5.1:** `vamos zoo fetch-fronts` downloads the MODAct reference fronts that VAMOS does not package (see [Downloading the other MODAct fronts](../reference/problems.md#downloading-the-other-modact-fronts))
 - Studio (interactive, needs `studio` extra): read the [Studio walkthrough and launcher limitation](studio.md) before starting.
 
 **VAMOS 1.2.0:** `vamos --version` prints the installed version.

@@ -29,6 +29,9 @@ class ProblemSpec:
     encoding: str = "real"
     # The factory always builds ``default_n_var`` variables, so another ``n_var`` is rejected.
     fixed_n_var: bool = False
+    # Distributions outside VAMOS that compute the problem's objectives or constraints. Exact replay compares their
+    # recorded versions, as it compares NumPy's and SciPy's for every run.
+    evaluator_packages: tuple[str, ...] = ()
 
     def resolve_dimensions(self, *, n_var: int | None, n_obj: int | None) -> tuple[int, int]:
         """

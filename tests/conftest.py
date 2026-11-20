@@ -48,6 +48,10 @@ def pytest_configure() -> None:
     # Numba caches compiled kernels next to the source unless told otherwise; keep them out of src/.
     # Runs before any test imports Numba, and xdist workers and subprocesses inherit it.
     os.environ.setdefault("NUMBA_CACHE_DIR", str(Path(tempfile.gettempdir()) / "vamos-tests-numba-cache"))
+    # VAMOS 1.5.1: VAMOS also reads the reference fronts that `vamos zoo fetch-fronts` downloaded into
+    # the user's data directory. Point it at a directory no test writes to, so that the fronts a developer
+    # downloaded do not change what the tests resolve; a test that fetches fronts sets its own.
+    os.environ["VAMOS_DATA_DIR"] = str(Path(tempfile.gettempdir()) / "vamos-tests-data-dir")
 
 
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:

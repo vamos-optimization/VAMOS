@@ -7,6 +7,9 @@ from tests.architecture._dependencies import LLM_SDKS, OPTIMIZATION_FRAMEWORKS, 
 # The extras for users of VAMOS, in the order ``all`` gathers them, and those for working on VAMOS itself.
 USER_EXTRAS = ("compute", "analysis", "tuning", "studio", "examples")
 TOOLING_EXTRAS = ("dev", "docs")
+# VAMOS 1.5.1: user extras that ``all`` leaves out, because their package has a copyleft license
+# (modact, which evaluates the MODAct problems, is GPL-3.0); a user installs them by name.
+COPYLEFT_EXTRAS = ("modact",)
 
 
 def _distributions(requirements: list[str]) -> set[str]:
@@ -14,7 +17,7 @@ def _distributions(requirements: list[str]) -> set[str]:
 
 
 def test_every_extra_is_a_user_or_a_tooling_extra() -> None:
-    known = {*USER_EXTRAS, *TOOLING_EXTRAS, "all"}
+    known = {*USER_EXTRAS, *TOOLING_EXTRAS, *COPYLEFT_EXTRAS, "all"}
     unclassified = sorted(set(optional_requirements()) - known)
     missing = sorted(known - set(optional_requirements()))
     assert (unclassified, missing) == ([], []), f"extras that are neither user nor tooling extras: {unclassified}; missing: {missing}"
@@ -28,6 +31,14 @@ def test_all_extra_is_the_union_of_the_user_extras() -> None:
         f"all has {sorted(set(extras['all']) - set(expected))} beyond the user extras "
         f"and lacks {sorted(set(expected) - set(extras['all']))}"
     )
+
+
+def test_all_extra_installs_no_copyleft_extra() -> None:
+    extras = optional_requirements()
+    copyleft = set().union(*(_distributions(extras[group]) for group in COPYLEFT_EXTRAS))
+
+    assert copyleft == {"modact"}
+    assert sorted(_distributions(extras["all"]) & copyleft) == []
 
 
 def test_all_extra_installs_no_development_tooling() -> None:

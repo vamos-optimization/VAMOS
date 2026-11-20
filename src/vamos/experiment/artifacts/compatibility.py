@@ -7,6 +7,8 @@ from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from typing import Any
 
+from vamos.foundation.problem.registry import get_problem_specs
+
 from .models import RunManifest, deep_freeze
 from .provenance import capture_runtime_evidence
 from .reports import CompatibilityFinding, CompatibilityLevel, CompatibilityReport
@@ -155,6 +157,28 @@ def _material_pairs(
             (),
             "persisted backend capabilities supported by this contract",
         ),
+        *_evaluator_package_pairs(manifest.resolved_spec, stored_packages, current_packages),
+    )
+
+
+def _evaluator_package_pairs(
+    resolved: Mapping[str, Any],
+    stored_packages: Mapping[str, Any],
+    current_packages: Mapping[str, Any],
+) -> tuple[tuple[str, Any, Any, str], ...]:
+    """The recorded versions of the packages outside VAMOS that evaluate the run's registered problem."""
+    key = _component_name(_mapping(resolved.get("problem")).get("component_id"))
+    spec = get_problem_specs().get(key) if key is not None else None
+    if spec is None:
+        return ()
+    return tuple(
+        (
+            f"$.environment.packages.{package}",
+            stored_packages.get(package),
+            current_packages.get(package),
+            f"{package} version, which evaluates {key}",
+        )
+        for package in spec.evaluator_packages
     )
 
 

@@ -78,6 +78,7 @@ Install only the capability groups you use:
 | `tuning` | Optional model-based tuning backends | Experimental |
 | `studio` | Panel-based local Studio | Experimental; see [Studio](studio.md) for release limitations |
 | `examples` | Dependencies used by selected examples | Depends on the example's interfaces |
+| `modact` | **VAMOS 1.5.1:** the authors' `modact` package (GPL-3.0), which evaluates the [MODAct problems](../reference/problems.md#modact-actuator-design-evaluated-by-the-modact-package) | Registered problems; `all` leaves it out |
 | `docs` | Documentation toolchain | Developer tooling |
 | `dev` | Tests, linting, typing, building, and docs checks | Developer tooling |
 | `all` | All optional and development groups | Mixed; does not change interface guarantees |
@@ -95,6 +96,13 @@ now needs `analysis` and `examples`. `all` installs the user extras (`compute`,
 **VAMOS 1.4.0:** the `openai`, `anthropic` and `gemini` extras
 are removed, with `vamos assist` and Studio's Problem Builder, the only parts
 of VAMOS that used them. No extra, `all` included, installs an LLM client.
+
+**VAMOS 1.5.1:** the `modact` extra installs the `modact`
+package of Picard and Schiffmann, which evaluates the 20 MODAct problems. It is
+licensed under the GPL-3.0, unlike VAMOS (MIT), so `all` does not install it:
+install the extra, or `python -m pip install modact`, to run those problems.
+VAMOS contains none of its code and imports it only when a MODAct problem is
+created.
 
 For example:
 
