@@ -18,7 +18,7 @@ import numpy as np
 
 from vamos.foundation.problem.rcm._common import Array
 from vamos.foundation.problem.rcm.power_system import _network
-from vamos.foundation.problem.rcm.reformulations._base import NOT_CONVERGED, RCMReformulation
+from vamos.foundation.problem.rcm.reformulations._base import NOT_CONVERGED, RCMReformulation, ordered_product_sum
 
 H_TOLERANCE = 1e-10  # the largest |h| of a decoded design (the problems allow 1e-4)
 NEWTON_TOLERANCE = 1e-12
@@ -27,28 +27,23 @@ MAX_ITERATIONS = 40
 _GENERATORS = [3, 11]
 
 
-def _slack() -> Array:
-    """The voltages of the three phases of the slack bus: ``1, exp(j 4 pi / 3), exp(j 2 pi / 3)``."""
-    return np.array([1.0, np.exp(1j * 4 * np.pi / 3), np.exp(1j * 2 * np.pi / 3)])
-
-
 @functools.cache
-def _admittance() -> tuple[Array, Array, Array]:
-    """The read-only admittance ``Y = G + jB`` of the network, and the active and reactive loads."""
+def _network_data() -> tuple[Array, Array, Array, Array, Array]:
+    """Read-only: the slack voltages ``1, exp(j 4 pi / 3), exp(j 2 pi / 3)``, the rows of ``Y = G + jB`` of
+    buses 4-15, the conjugate of their block of buses 4-15, and the active and reactive loads."""
     g, b, p, q = _network("DG")
     Y = g + 1j * b
-    Y.setflags(write=False)
-    return Y, p, q
+    arrays = (np.array([1.0, np.exp(1j * 4 * np.pi / 3), np.exp(1j * 2 * np.pi / 3)]), Y[3:15], np.conj(Y[3:15, 3:15]), p, q)
+    for array in arrays:
+        array.setflags(write=False)
+    return arrays
 
 
 def _currents(V: Array) -> Array:
-    """The currents into buses 4-15, ``I = Y V`` with the slack voltages, summed bus by bus."""
-    Y, _, _ = _admittance()
-    full = np.concatenate([np.broadcast_to(_slack(), (V.shape[0], 3)), V], axis=1)
-    current = np.zeros(V.shape, dtype=complex)
-    for k in range(full.shape[1]):
-        current = current + full[:, k : k + 1] * Y[None, 3:15, k]
-    return current
+    """The currents into buses 4-15, ``I = Y V`` with the slack voltages, adding the buses' terms in order."""
+    slack, rows, _, _, _ = _network_data()
+    full = np.concatenate([np.broadcast_to(slack, (V.shape[0], 3)), V], axis=1)
+    return ordered_product_sum(full[:, None, :], rows[None, :, :])
 
 
 def _mismatch(V: Array, P: Array, Q: Array) -> tuple[Array, Array]:
@@ -60,11 +55,11 @@ def _mismatch(V: Array, P: Array, Q: Array) -> tuple[Array, Array]:
 
 def _newton_step(V: Array, P: Array, Q: Array) -> tuple[Array, Array]:
     """The mismatch h (rows x 24) and the Newton step (rows x 12, complex) at the load-bus voltages V."""
-    Y, _, _ = _admittance()
+    _, _, conj_block, _, _ = _network_data()
     h, current = _mismatch(V, P, Q)
     # dS_i/dRe(V_k) = d_ik conj(I_i) + V_i conj(Y_ik); dS_i/dIm(V_k) = j (d_ik conj(I_i) - V_i conj(Y_ik))
     diagonal = np.arange(12)
-    A = V[:, :, None] * np.conj(Y[3:15, 3:15])[None, :, :]
+    A = V[:, :, None] * conj_block[None, :, :]
     d_real = A.copy()
     d_real[:, diagonal, diagonal] += np.conj(current)
     d_imag = -1j * A
@@ -86,12 +81,12 @@ def decode_dg(U: Array) -> tuple[Array, Array]:
     """The generator sizes (rows x 4) -> designs x1..x28 and the failure measure (positive where it failed)."""
     U = np.clip(U, 0.0, 1.0)
     n = U.shape[0]
-    _, p_load, q_load = _admittance()
+    slack, _, _, p_load, q_load = _network_data()
     P = np.tile(p_load[3:15], (n, 1))
     Q = np.tile(q_load[3:15], (n, 1))
     P[:, _GENERATORS] += U[:, 0:2]  # delP = Psp - Pdg - P = 0
     Q[:, _GENERATORS] += U[:, 2:4]
-    flat = np.tile(np.concatenate([_slack()] * 4), (n, 1))
+    flat = np.tile(np.concatenate([slack] * 4), (n, 1))
     V = flat.copy()
     active = np.arange(n)
     previous = np.full(n, np.inf)
@@ -110,8 +105,11 @@ def decode_dg(U: Array) -> tuple[Array, Array]:
         active = going
     finite = np.isfinite(V).all(axis=1)
     V[~finite] = flat[~finite]
-    with np.errstate(invalid="ignore", over="ignore"):
-        residual = np.abs(_mismatch(V, P, Q)[0]).max(axis=1)
+    # A row that stopped keeps the voltages of its last mismatch; the rows still moving get theirs now.
+    residual = previous
+    if active.size:
+        with np.errstate(invalid="ignore", over="ignore"):
+            residual[active] = np.abs(_mismatch(V[active], P[active], Q[active])[0]).max(axis=1)
     X = np.concatenate([V.real, V.imag, U], axis=1)
     converged = finite & (residual <= H_TOLERANCE)
     return X, np.where(converged, np.abs(X[:, :24]).max(axis=1) - 1.0, NOT_CONVERGED)

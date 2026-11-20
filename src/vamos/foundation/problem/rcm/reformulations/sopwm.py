@@ -39,6 +39,10 @@ ANGLE_SNAP = 4.5
 LEVEL_SNAP = 0.1
 VARIANTS = ("cumulative", "sorted", "level")
 _BISECTIONS = 60
+# Up to this many rows, the sorted and level decoders work row by row on Python floats, where a pass over the
+# angles costs far less than one NumPy call per angle. Both ways make the same operations in the same order,
+# so they give the same angles, bit for bit.
+_ROW_BY_ROW = 4
 
 
 def _signs(key: str) -> tuple[float, Array]:
@@ -46,10 +50,36 @@ def _signs(key: str) -> tuple[float, Array]:
     return modulation_index, np.array([1.0 if symbol == "+" else -1.0 for symbol in pattern])
 
 
+def _spread(x: list[float]) -> list[float]:
+    """The passes of :func:`sorted_angles` on one row of sorted angles in [0, 90], as Python floats, in place.
+
+    After the backward pass every angle is at most the last one, 90, and the angles increase, so the final
+    clip to [0, 90] can only raise leading angles below 0.
+    """
+    d = len(x)
+    for i in range(1, d):
+        raised = x[i - 1] + GAP
+        if raised > x[i]:
+            x[i] = raised
+    if x[-1] > 90.0:
+        x[-1] = 90.0
+    for i in range(d - 2, -1, -1):
+        lowered = x[i + 1] - GAP
+        if lowered < x[i]:
+            x[i] = lowered
+    for i in range(d):
+        if x[i] >= 0.0:
+            break
+        x[i] = 0.0
+    return x
+
+
 def sorted_angles(U: Array) -> Array:
     """The angles of the ``"sorted"`` variant: clipped to [0, 90], sorted, then at least GAP apart."""
     x = np.sort(np.clip(U, 0.0, 90.0), axis=1)
     d = x.shape[1]
+    if x.shape[0] <= _ROW_BY_ROW:
+        return np.array([_spread(row) for row in x.tolist()], dtype=float).reshape(x.shape)
     for i in range(1, d):
         x[:, i] = np.maximum(x[:, i], x[:, i - 1] + GAP)
     x[:, -1] = np.minimum(x[:, -1], 90.0)
@@ -90,9 +120,48 @@ def _toward_0(x: Array, a: Array | float) -> Array:
     return np.asarray(a * x)
 
 
+def _moved_row(x: list[float], a: float, toward_90: bool) -> list[float]:
+    """``sorted_angles(_toward_90(x, a))`` or ``sorted_angles(_toward_0(x, a))`` of one row, as Python floats.
+
+    ``x`` increases within [0, 90] and ``a`` lies in [0, 1]; both moves are monotonic with exact end points,
+    so the moved angles do not decrease and stay within [0, 90], and the clip and sort of :func:`sorted_angles` leave
+    them unchanged.
+    """
+    return _spread([90.0 - a * (90.0 - value) for value in x] if toward_90 else [a * value for value in x])
+
+
+def _fundamental_row(signs: Array, x: list[float]) -> float:
+    return float(fundamental(signs, np.array([x]))[0])
+
+
+def _level_row(signs: Array, modulation_index: float, genotype: Array) -> list[float]:
+    """:func:`level_angles` of one genotype, with :func:`_bisect`'s halvings made one row at a time."""
+    x = _spread(np.sort(np.clip(genotype[:-1], 0.0, 90.0)).tolist())
+    target = modulation_index * float(np.clip(genotype[-1], 0.0, 1.0))
+    level = _fundamental_row(signs, x)
+    if level > target:
+        toward_90 = True
+    elif level < target and float(np.sum(signs)) > target:
+        toward_90 = False
+    else:
+        return x
+    side0 = _fundamental_row(signs, _moved_row(x, 0.0, toward_90)) > target
+    side1 = _fundamental_row(signs, _moved_row(x, 1.0, toward_90)) > target
+    low, high = 0.0, 1.0
+    for _ in range(_BISECTIONS):
+        mid = 0.5 * (low + high)
+        if (_fundamental_row(signs, _moved_row(x, mid, toward_90)) > target) == side0:
+            low = mid
+        else:
+            high = mid
+    return _moved_row(x, 0.0 if side0 == side1 else high, toward_90)
+
+
 def level_angles(key: str, U: Array) -> Array:
     """The angles of the ``"level"`` variant of RCM30-RCM35 (``key``): sorted, then moved to the fundamental ``m u``."""
     modulation_index, signs = _signs(key)
+    if U.shape[0] <= _ROW_BY_ROW:
+        return np.array([_level_row(signs, modulation_index, row) for row in U], dtype=float).reshape(U.shape[0], U.shape[1] - 1)
     x = sorted_angles(U[:, :-1])
     target = modulation_index * np.clip(U[:, -1], 0.0, 1.0)
     level = fundamental(signs, x)

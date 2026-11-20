@@ -12,6 +12,23 @@ from vamos.foundation.problem.rcm._common import Array
 NOT_CONVERGED = 1e3
 # The objectives and inequalities of a failed row that are not finite at its fallback point.
 FALLBACK_VALUE = 1e6
+# Up to this many products, ordered_product_sum forms them all at once; beyond, it adds them term by term.
+_PRODUCTS_AT_ONCE = 4096
+
+
+def ordered_product_sum(a: Array, b: Array) -> Array:
+    """``sum_k a[..., k] * b[..., k]`` over the last axis, added from the first term to the last as a loop does.
+
+    ``a`` and ``b`` broadcast to the shape of the products. Both ways give the same sums, bit for bit: a
+    running sum (``np.cumsum``) of every product, cheaper for a few rows, and one product at a time.
+    """
+    shape = np.broadcast_shapes(a.shape, b.shape)
+    if int(np.prod(shape)) <= _PRODUCTS_AT_ONCE:
+        return np.asarray(np.cumsum(a * b, axis=-1)[..., -1])
+    total = np.zeros(shape[:-1], dtype=np.result_type(a, b))
+    for k in range(shape[-1]):
+        total = total + a[..., k] * b[..., k]
+    return total
 
 
 class RCMReformulation(Problem):
@@ -93,4 +110,4 @@ class RCMReformulation(Problem):
         out["G"] = np.column_stack([inequalities, np.where(failed, measure, largest)])
 
 
-__all__ = ["FALLBACK_VALUE", "NOT_CONVERGED", "RCMReformulation"]
+__all__ = ["FALLBACK_VALUE", "NOT_CONVERGED", "RCMReformulation", "ordered_product_sum"]

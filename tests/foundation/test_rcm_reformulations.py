@@ -149,6 +149,24 @@ def test_decoded_designs_are_feasible_on_the_original_and_keep_its_values(case: 
     np.testing.assert_array_equal(np.all(G <= 0.0, axis=1), decoded)
 
 
+# One problem per decoder: the sorted and level decoders work row by row up to four rows, and the power flows
+# do not depend on the other rows of the batch.
+_ROW_CASES = [(30, "sorted"), (35, "sorted"), (30, "level"), (35, "level"), (36, None), (40, None), (47, None)]
+
+
+@pytest.mark.parametrize("case", _ROW_CASES, ids=_id)
+def test_a_row_decodes_alone_as_in_a_batch(case: tuple[int, str | None]) -> None:
+    problem = _problem(*case)
+    U = _genotypes(problem, 40, seed=case[0] + 2)
+    if case[1] is not None:
+        U[:8, :-1] = np.round(U[:8, :-1] / 10.0) * 10.0  # angles that tie, and crowd at 0 or 90
+    batch = problem.decode(U)
+    alone = np.vstack([problem.decode(U[i : i + 1]) for i in range(U.shape[0])])
+    pairs = np.vstack([problem.decode(U[i : i + 2]) for i in range(0, U.shape[0], 2)])
+    np.testing.assert_array_equal(alone, batch)
+    np.testing.assert_array_equal(pairs, batch)
+
+
 @pytest.mark.parametrize("k", [36, 40, 47])
 def test_power_flows_converge_on_most_genotypes(k: int) -> None:
     problem = make_reformulation(k)

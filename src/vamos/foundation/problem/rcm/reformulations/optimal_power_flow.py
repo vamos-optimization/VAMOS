@@ -20,7 +20,7 @@ import numpy as np
 
 from vamos.foundation.problem.rcm._common import Array
 from vamos.foundation.problem.rcm.power_system import _OPF_GENERATORS, _network
-from vamos.foundation.problem.rcm.reformulations._base import NOT_CONVERGED, RCMReformulation
+from vamos.foundation.problem.rcm.reformulations._base import NOT_CONVERGED, RCMReformulation, ordered_product_sum
 
 H_TOLERANCE = 1e-10  # the largest |h| of a decoded design (the problems allow 1e-4)
 NEWTON_TOLERANCE = 1e-13
@@ -29,27 +29,34 @@ LOST = 50.0  # a row whose voltages exceed this magnitude has diverged
 
 
 @functools.cache
-def _admittance() -> tuple[Array, Array, Array]:
-    """The read-only admittance ``Y = G + jB`` of the network, and the active and reactive demands."""
+def _admittance() -> tuple[Array, Array, Array, Array]:
+    """Read-only: the admittance ``Y = G + jB`` of the network, the conjugate of its block of buses 2-14, and
+    the active and reactive demands."""
     g, b, p, q = _network("OPF")
     Y = g + 1j * b
-    Y.setflags(write=False)
-    return Y, p, q
+    arrays = (Y, np.conj(Y)[1:, 1:], p, q)
+    for array in arrays:
+        array.setflags(write=False)
+    return arrays
 
 
-def _mismatch(Z: Array, U: Array) -> tuple[Array, Array, Array]:
-    """The 26 power mismatches h, the bus voltages and the currents ``I = Y V``, summed bus by bus."""
-    Y, p_load, q_load = _admittance()
-    V = np.ones((Z.shape[0], 14), dtype=complex)
-    V[:, 1:] = Z[:, 0:13] + 1j * Z[:, 13:26]
-    current = np.zeros(V.shape, dtype=complex)
-    for k in range(14):
-        current = current + V[:, k : k + 1] * Y[None, :, k]
-    power = V * np.conj(current)
-    p_generated = np.zeros(V.shape)
-    q_generated = np.zeros(V.shape)
+def _injections(U: Array) -> tuple[Array, Array]:
+    """The active and reactive power generated at each bus (rows x 14) by the controls (rows x 8)."""
+    p_generated = np.zeros((U.shape[0], 14))
+    q_generated = np.zeros((U.shape[0], 14))
     p_generated[:, list(_OPF_GENERATORS)] = U[:, :4]
     q_generated[:, list(_OPF_GENERATORS)] = U[:, 4:]
+    return p_generated, q_generated
+
+
+def _mismatch(Z: Array, p_generated: Array, q_generated: Array) -> tuple[Array, Array, Array]:
+    """The 26 power mismatches h, the bus voltages and the currents ``I = Y V``, summed bus by bus."""
+    Y, _, p_load, q_load = _admittance()
+    V = np.ones((Z.shape[0], 14), dtype=complex)
+    V[:, 1:] = Z[:, 0:13] + 1j * Z[:, 13:26]
+    # I = Y V, adding the buses' terms from the first to the last
+    current = ordered_product_sum(V[:, None, :], Y[None, :, :])
+    power = V * np.conj(current)
     delta_p = power.real - p_generated + p_load
     delta_q = power.imag - q_generated + q_load
     return np.concatenate([delta_p[:, 1:], delta_q[:, 1:]], axis=1), V, current
@@ -57,9 +64,9 @@ def _mismatch(Z: Array, U: Array) -> tuple[Array, Array, Array]:
 
 def _jacobian(V: Array, current: Array) -> Array:
     """``d h / d z`` with ``z = (Re V2..V14, Im V2..V14)``: ``dS/dVr = diag(conj I) + diag(V) conj(Y)``."""
-    Y, _, _ = _admittance()
+    _, conj_block, _, _ = _admittance()
     diagonal = np.arange(13)
-    A = V[:, 1:, None] * np.conj(Y)[None, 1:, 1:]
+    A = V[:, 1:, None] * conj_block[None, :, :]
     conj_i = np.conj(current[:, 1:])
     d_real = A.copy()
     d_real[:, diagonal, diagonal] += conj_i
@@ -88,26 +95,33 @@ def flat_start() -> Array:
 def power_flow(U: Array) -> tuple[Array, Array]:
     """The flat-start Newton power flow of the controls (rows x 8): the voltages (rows x 26) and max |h|."""
     n = U.shape[0]
+    p_generated, q_generated = _injections(U)
     Z = np.tile(flat_start(), (n, 1))
     residual = np.full(n, np.inf)
     active = np.arange(n)
     for _ in range(MAX_ITERATIONS + 1):
         if active.size == 0:
             break
-        h, V, current = _mismatch(Z[active], U[active])
+        # Every row still moving: a slice, which spares the copies of indexing by rows.
+        rows: slice | Array = slice(None) if active.size == n else active
+        h, V, current = _mismatch(Z[rows], p_generated[rows], q_generated[rows])
         r = np.abs(h).max(axis=1)
-        residual[active] = r
+        residual[rows] = r
         going = r > NEWTON_TOLERANCE
-        active, h, V, current = active[going], h[going], V[going], current[going]
-        if active.size == 0:
-            break
-        Z[active] -= _solve(_jacobian(V, current), h)
+        if not going.all():
+            active, h, V, current = active[going], h[going], V[going], current[going]
+            if active.size == 0:
+                break
+            rows = active
+        Z[rows] -= _solve(_jacobian(V, current), h)
+        moved = Z[rows]
         with np.errstate(invalid="ignore"):
-            lost = ~np.isfinite(Z[active]).all(axis=1) | (np.abs(Z[active]).max(axis=1) > LOST)
-        residual[active[lost]] = np.inf
-        active = active[~lost]
+            lost = ~np.isfinite(moved).all(axis=1) | (np.abs(moved).max(axis=1) > LOST)
+        if lost.any():
+            residual[active[lost]] = np.inf
+            active = active[~lost]
     if active.size:  # not below NEWTON_TOLERANCE after MAX_ITERATIONS: the last residual
-        residual[active] = np.abs(_mismatch(Z[active], U[active])[0]).max(axis=1)
+        residual[active] = np.abs(_mismatch(Z[active], p_generated[active], q_generated[active])[0]).max(axis=1)
     residual[~np.isfinite(Z).all(axis=1)] = np.inf
     return Z, residual
 

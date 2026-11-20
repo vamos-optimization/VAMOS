@@ -18,12 +18,14 @@ range). The decoding is the same for the three problems; only the objectives dif
 
 from __future__ import annotations
 
+import functools
+
 import numpy as np
 
 from vamos.foundation.problem.rcm import RCM
 from vamos.foundation.problem.rcm._common import Array
 from vamos.foundation.problem.rcm.power_system import _MICROGRID_LINES, _MICROGRID_P, _MICROGRID_Q
-from vamos.foundation.problem.rcm.reformulations._base import NOT_CONVERGED, RCMReformulation
+from vamos.foundation.problem.rcm.reformulations._base import NOT_CONVERGED, RCMReformulation, ordered_product_sum
 
 H_TOLERANCE = 1e-10  # the largest |h| of a decoded design (the problems allow 1e-4)
 NEWTON_TOLERANCE = 1e-14  # a row stops when ||h||_2 falls below this
@@ -32,17 +34,40 @@ LINE_SEARCH_STEPS = 12
 QC_MAX = 500.0
 
 
+@functools.cache
+def _lines() -> tuple[Array, Array, Array, Array, Array]:
+    """The lines' ends, resistances and reactances, and the lines that end at each bus, in their order.
+
+    The last array has one row per position in a bus's list of lines and one column per bus; a bus with
+    fewer lines points at the index past the last line, a column of zeros, so adding it changes nothing.
+    """
+    starts, ends, resistances, reactances = (np.array(column) for column in zip(*_MICROGRID_LINES))
+    touching = [[line for line, (start, end, _, _) in enumerate(_MICROGRID_LINES) if bus in (start, end)] for bus in range(6)]
+    width = max(len(lines) for lines in touching)
+    order = np.array([[lines[p] if p < len(lines) else len(_MICROGRID_LINES) for lines in touching] for p in range(width)])
+    arrays = (starts, ends, resistances, reactances, order)
+    for array in arrays:
+        array.setflags(write=False)
+    return arrays
+
+
 def _admittance(w: Array) -> Array:
-    """The bus admittance matrices (rows x 6 x 6) at the frequencies ``w``: the line reactances scale with ``w``."""
+    """The bus admittance matrices (rows x 6 x 6) at the frequencies ``w``: the line reactances scale with ``w``.
+
+    Each diagonal entry adds the admittances of its lines in the lines' order, starting from 0.
+    """
+    starts, ends, resistances, reactances, order = _lines()
+    y = 1.0 / (resistances + 1j * (reactances * w[:, None]))
     Y = np.zeros((w.shape[0], 6, 6), dtype=complex)
-    for start, end, resistance, reactance in _MICROGRID_LINES:
-        y = 1.0 / (resistance + 1j * (reactance * w))
-        Y[:, start, end] = Y[:, start, end] - y
-        Y[:, end, start] = Y[:, start, end]
-    for bus in range(6):
-        for start, end, resistance, reactance in _MICROGRID_LINES:
-            if bus in (start, end):
-                Y[:, bus, bus] = Y[:, bus, bus] + 1.0 / (resistance + 1j * (reactance * w))
+    off_diagonal = 0.0 - y
+    Y[:, starts, ends] = off_diagonal
+    Y[:, ends, starts] = off_diagonal
+    padded = np.concatenate([y, np.zeros((w.shape[0], 1), dtype=complex)], axis=1)
+    diagonal = np.zeros((w.shape[0], 6), dtype=complex)
+    for lines in order:
+        diagonal = diagonal + padded[:, lines]
+    buses = np.arange(6)
+    Y[:, buses, buses] = diagonal
     return Y
 
 
@@ -67,10 +92,8 @@ def residual(X: Array) -> Array:
     Qc = np.zeros((X.shape[0], 6))
     Pc[:, 3:6] = X[:, 12:15]
     Qc[:, 3:6] = X[:, 15:18]
-    Y = _admittance(w)
-    current = np.zeros(V.shape, dtype=complex)
-    for k in range(6):
-        current = current + Y[:, :, k] * V[:, k : k + 1]
+    # I = Y V, adding the buses' terms from the first to the last
+    current = ordered_product_sum(_admittance(w), V[:, None, :])
     # The droop exponents of the reference data make the voltage factors of the loads 1.
     p_specified = Pc * (1 - w)[:, None] - np.asarray(_MICROGRID_P)
     q_specified = Qc * (1 - np.sqrt(V.real**2 + V.imag**2)) - np.asarray(_MICROGRID_Q)
@@ -84,16 +107,22 @@ def _residual(Z: Array, w: Array, a: Array, qc: Array) -> Array:
 
 
 def _jacobian(Z: Array, w: Array, a: Array, qc: Array) -> Array:
-    """The central-difference Jacobian ``dh/dZ`` (rows x 12 x 12)."""
-    J = np.empty((Z.shape[0], 12, 12))
-    for j in range(12):
-        step = 1e-7 * np.maximum(1.0, np.abs(Z[:, j]))
-        plus = Z.copy()
-        plus[:, j] += step
-        minus = Z.copy()
-        minus[:, j] -= step
-        J[:, :, j] = (_residual(plus, w, a, qc) - _residual(minus, w, a, qc)) / (2 * step[:, None])
-    return J
+    """The central-difference Jacobian ``dh/dZ`` (rows x 12 x 12), from one evaluation of the 24 shifted rows.
+
+    Unknown ``j`` of a row moves by ``1e-7 max(1, |Z_j|)`` up and down. A row's mismatch does not depend on
+    the other rows, so the 24 shifts of every row are evaluated together.
+    """
+    n = Z.shape[0]
+    step = 1e-7 * np.maximum(1.0, np.abs(Z))
+    columns = np.arange(12)
+    plus = np.repeat(Z[None, :, :], 12, axis=0)
+    plus[columns, :, columns] += step.T
+    minus = np.repeat(Z[None, :, :], 12, axis=0)
+    minus[columns, :, columns] -= step.T
+    shifted = np.concatenate([plus, minus]).reshape(24 * n, 12)
+    h = _residual(shifted, np.tile(w, 24), np.tile(a, (24, 1)), np.tile(qc, (24, 1))).reshape(2, 12, n, 12)
+    # h[side, j, row, equation] -> J[row, equation, j]
+    return np.asarray(((h[0] - h[1]) / (2 * step.T[:, :, None])).transpose(1, 2, 0))
 
 
 def _solve(J: Array, rhs: Array) -> Array:
@@ -113,10 +142,49 @@ def _solve(J: Array, rhs: Array) -> Array:
     return d
 
 
-def _newton(Z: Array, w: Array, a: Array, qc: Array, active: Array) -> Array:
-    """The damped Newton solve of the rows ``active`` of Z, in place."""
-    norm = np.linalg.norm(_residual(Z, w, a, qc), axis=1)
+def _norms(h: Array) -> Array:
+    """The 2-norm of each row of mismatches, infinite where it is not finite."""
+    norm = np.linalg.norm(h, axis=-1)
     norm[~np.isfinite(norm)] = np.inf
+    return np.asarray(norm)
+
+
+def _line_search(
+    Z: Array, d: Array, norm: Array, controls: tuple[Array, Array, Array], pending: Array
+) -> tuple[Array, Array, Array, Array]:
+    """For each pending row, the first step ``t d``, ``t = 1, 1/2, ..., 1/2^11``, that lowers the norm of its mismatch.
+
+    Returns the new unknowns, their norms and mismatches, and the rows that moved. The full step is tried
+    first; the other eleven of the rows it does not improve are evaluated together.
+    """
+    w, a, qc = controls
+    updated, best = Z.copy(), norm.copy()
+    mismatch = np.full(Z.shape, np.nan)
+    moved = np.zeros(Z.shape[0], dtype=bool)
+    for steps in (np.ones(1), 0.5 ** np.arange(1, LINE_SEARCH_STEPS)):
+        rows = np.flatnonzero(pending & ~moved)
+        if rows.size == 0:
+            break
+        k = steps.size
+        trials = Z[rows][None, :, :] + steps[:, None, None] * d[rows][None, :, :]
+        h = _residual(trials.reshape(-1, 12), np.tile(w[rows], k), np.tile(a[rows], (k, 1)), np.tile(qc[rows], (k, 1)))
+        h = h.reshape(k, rows.size, 12)
+        trial_norms = _norms(h)
+        better = trial_norms < norm[rows][None, :]
+        found = better.any(axis=0)
+        first = better.argmax(axis=0)[found]
+        chosen = rows[found]
+        updated[chosen] = trials[first, found]
+        mismatch[chosen] = h[first, found]
+        best[chosen] = trial_norms[first, found]
+        moved[chosen] = True
+    return updated, best, mismatch, moved
+
+
+def _newton(Z: Array, w: Array, a: Array, qc: Array, active: Array) -> tuple[Array, Array]:
+    """The damped Newton solve of the rows ``active`` of Z, in place; returns Z and its mismatches."""
+    h = _residual(Z, w, a, qc)
+    norm = _norms(h)
     active = np.asarray(active & np.isfinite(norm), dtype=bool)
     for _ in range(MAX_ITERATIONS):
         active &= norm >= NEWTON_TOLERANCE
@@ -124,31 +192,15 @@ def _newton(Z: Array, w: Array, a: Array, qc: Array, active: Array) -> Array:
         if rows.size == 0:
             break
         Zr, wr, ar, qr = Z[rows], w[rows], a[rows], qc[rows]
-        d = _solve(_jacobian(Zr, wr, ar, qr), -_residual(Zr, wr, ar, qr))
+        d = _solve(_jacobian(Zr, wr, ar, qr), -h[rows])
         dead = ~np.isfinite(d).all(axis=1)
         d[dead] = 0.0
-        best = norm[rows].copy()
-        updated = Zr.copy()
-        moved = np.zeros(rows.size, dtype=bool)
-        pending = np.asarray(~dead, dtype=bool)
-        t = 1.0
-        for _ in range(LINE_SEARCH_STEPS):
-            if not pending.any():
-                break
-            p = np.flatnonzero(pending)
-            trial = Zr[p] + t * d[p]
-            trial_norm = np.linalg.norm(_residual(trial, wr[p], ar[p], qr[p]), axis=1)
-            trial_norm[~np.isfinite(trial_norm)] = np.inf
-            better = trial_norm < best[p]
-            updated[p[better]] = trial[better]
-            best[p[better]] = trial_norm[better]
-            moved[p[better]] = True
-            pending[p[better]] = False
-            t *= 0.5
+        updated, best, mismatch, moved = _line_search(Zr, d, norm[rows], (wr, ar, qr), np.asarray(~dead, dtype=bool))
         Z[rows] = updated
         norm[rows] = best
+        h[rows[moved]] = mismatch[moved]
         active[rows[~moved]] = False
-    return Z
+    return Z, h
 
 
 def decode_microgrid(T: Array) -> tuple[Array, Array]:
@@ -162,11 +214,11 @@ def decode_microgrid(T: Array) -> tuple[Array, Array]:
         Z[:, 11] = np.sum(np.asarray(_MICROGRID_P)) * 1.03 / ((1.0 - w) * a.sum(axis=1))
     unsolvable = ~np.isfinite(Z[:, 11]) | (a.sum(axis=1) <= 0) | (w >= 1.0)
     Z[unsolvable, 11] = 1.0
-    Z = _newton(Z, w, a, qc, ~unsolvable)
+    Z, h = _newton(Z, w, a, qc, ~unsolvable)
     X = _assemble(Z, w, a, qc)
     lower, upper = np.asarray(RCM["rcm47"][1], dtype=float), np.asarray(RCM["rcm47"][2], dtype=float)
     with np.errstate(all="ignore"):
-        largest = np.abs(residual(X)).max(axis=1)
+        largest = np.abs(h).max(axis=1)
         excess = ((np.maximum(lower - X, 0.0) + np.maximum(X - upper, 0.0)) / (upper - lower)).sum(axis=1)
     largest[~np.isfinite(largest)] = np.inf
     converged = largest <= H_TOLERANCE
