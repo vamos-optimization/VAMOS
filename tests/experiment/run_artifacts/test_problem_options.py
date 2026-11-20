@@ -17,7 +17,8 @@ from vamos.experiment.artifacts.jsonio import canonical_json_bytes, manifest_sel
 from vamos.foundation.exceptions import ConfigurationError
 from vamos.foundation.problem.registry import get_problem_specs, make_problem_selection
 
-_CASES = [("bin_knapsack", {"capacity_ratio": 0.6}), ("zcat1", {"level": 2})]
+# VAMOS 1.5.2: the sorted variant of RCM30's reformulation has 25 variables, one fewer than the default variant.
+_CASES = [("bin_knapsack", {"capacity_ratio": 0.6}), ("zcat1", {"level": 2}), ("rcm30_reformulated", {"variant": "sorted"})]
 
 
 def _optimize(name: str, **kwargs: Any) -> vamos.OptimizationResult:

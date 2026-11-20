@@ -76,7 +76,9 @@ def test_problem_matches_its_reference_implementation(key: str) -> None:
 
 
 def test_every_member_of_a_referenced_family_is_compared_or_excluded() -> None:
-    names = {name for name in available_problem_names() if name.startswith(_REFERENCED_FAMILIES)}
+    # The RCM reformulations have no other implementation; test_rcm_reformulations.py checks them against the
+    # original problems and the authors' decoder scripts.
+    names = {name for name in available_problem_names() if name.startswith(_REFERENCED_FAMILIES) and not name.endswith("_reformulated")}
     assert names - set(_PROBLEMS) - set(_EXCLUDED) == set()
     assert set(_EXCLUDED).isdisjoint(_PROBLEMS)
     assert all(reason.strip() for reason in _EXCLUDED.values())

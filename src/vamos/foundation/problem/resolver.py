@@ -14,6 +14,7 @@ def _logger() -> logging.Logger:
 from importlib.resources import as_file
 from pathlib import Path
 
+from vamos.foundation.problem.rcm.reformulations import REFORMULATED
 from vamos.foundation.problem.registry import (
     ProblemSelection,
     available_problem_names,
@@ -27,7 +28,8 @@ REFERENCE_FRONT_SOURCES = ("vamos", "jmetal")
 # DTLZ3 and DTLZ4 share DTLZ2's front, the unit sphere. Without a file of their own they take DTLZ2's: jMetal's DTLZ3
 # and DTLZ4 files are its DTLZ2 file, byte for byte, so it is packaged once. VAMOS 1.5.0: so are VAMOS's
 # samples with more than three objectives.
-_SHARED_FRONTS = {"dtlz3": "dtlz2", "dtlz4": "dtlz2"}
+# VAMOS 1.5.2: a reformulated RCM problem has the original's objectives, so it takes the original's front.
+_SHARED_FRONTS = {"dtlz3": "dtlz2", "dtlz4": "dtlz2", **{f"rcm{k:02d}_reformulated": f"rcm{k:02d}" for k in REFORMULATED}}
 
 # Preset names map to problem keys defined in the registry.
 PROBLEM_SET_PRESETS: dict[str, Sequence[str]] = {
@@ -156,6 +158,7 @@ def resolve_reference_front_path(
 
     VAMOS 1.5.0: VAMOS's samples of DTLZ1-4 and DTLZ7 also cover 4, 6 and 8 objectives;
     with those, DTLZ3 and DTLZ4 resolve to ``dtlz2.<n_obj>d.csv``, the one sample of their shared front.
+    VAMOS 1.5.2: a reformulated RCM problem (``rcm22_reformulated``, ...) resolves to its original's front.
     """
     if source not in REFERENCE_FRONT_SOURCES:
         raise ValueError(f"Reference front source must be one of {', '.join(map(repr, REFERENCE_FRONT_SOURCES))}; got {source!r}.")

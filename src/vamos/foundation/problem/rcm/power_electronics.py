@@ -47,6 +47,9 @@ _HARMONIC_ORDERS = (
     97,
 )
 
+# The constraints keep consecutive angles at least this far apart (degrees).
+ORDER_THRESHOLD = 1e-6
+
 # Modulation index and sign pattern of each problem; the number of angles is the length of the pattern.
 _PATTERNS: dict[str, tuple[float, str]] = {
     "rcm30": (0.32, "+-+-+-+-+-+-+-+-+-+-+-+-+"),
@@ -75,7 +78,7 @@ def _sopwm(key: str, x: Array) -> tuple[list[Array], list[Array]]:
         weights = weights + 1.0 / float(k) ** 4
     f1 = np.sqrt(distortion) / np.sqrt(weights)
     f2 = (fundamental - modulation_index) ** 2
-    return [f1, f2], [-(x[i] - x[i + 1] + 1e-6) for i in range(x.shape[0] - 1)]
+    return [f1, f2], [-(x[i] - x[i + 1] + ORDER_THRESHOLD) for i in range(x.shape[0] - 1)]
 
 
 def _rcm30(x: Array) -> tuple[list[Array], list[Array]]:
@@ -111,4 +114,4 @@ PROBLEMS: dict[str, Entry] = {
     "rcm35": (_rcm35, (0.0,) * 30, (90.0,) * 30, 2, 29),
 }
 
-__all__ = ["PROBLEMS"]
+__all__ = ["ORDER_THRESHOLD", "PROBLEMS"]

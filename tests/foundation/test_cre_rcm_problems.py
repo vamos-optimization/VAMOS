@@ -82,7 +82,8 @@ def _uniform(key: str, n: int, seed: int = 0) -> Array:
 
 
 def test_every_cre_and_rcm_problem_is_registered() -> None:
-    registered = {key for key in get_problem_specs() if key.startswith(("cre", "rcm"))}
+    # The reformulations (rcm22_reformulated, ...) are checked in test_rcm_reformulations.py.
+    registered = {key for key in get_problem_specs() if key.startswith(("cre", "rcm")) and not key.endswith("_reformulated")}
     assert registered == set(DIMENSIONS)
 
 
