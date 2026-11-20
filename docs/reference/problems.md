@@ -689,8 +689,11 @@ A key joins the objectives to the constraint level:
   25 000 evaluations takes 5 to 15 minutes.
 - **Reproducibility:** a run's `environment.json` records the installed
   version of `modact`, as of every installed distribution, and the problem
-  instance holds it as `modact_version`. Verification and replay need the
-  package too.
+  instance holds it as `modact_version`. `verify_run` and `reproduce` compare
+  the recorded versions of `modact`, `trimesh` (the actuator's meshes) and
+  `python-fcl` (its collision checks), as they compare NumPy's and SciPy's for
+  every run: with another version, or without the package, a run is not
+  exactly replayable and `reproduce` does not run it.
 - **Fronts:** the authors' best-known fronts (see
   [Reference fronts](#reference-fronts)) are packaged for CS1–CS4 and CT1–CT4.
   The others, 1.4 to 193 MB each, are too large to package;

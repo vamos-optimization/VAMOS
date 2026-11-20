@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ...modact import MAXIMIZED, MODACT, N_VAR, OBJECTIVES, MODActProblem
+from ...modact import EVALUATOR_PACKAGES, MAXIMIZED, MODACT, N_VAR, OBJECTIVES, MODActProblem
 from ..common import ProblemSpec
 
 SPECS: dict[str, ProblemSpec] = {}
@@ -27,6 +27,7 @@ def _spec(name: str) -> ProblemSpec:
         ),
         factory=lambda _n_var, _n_obj: MODActProblem(name),
         fixed_n_var=True,
+        evaluator_packages=EVALUATOR_PACKAGES,
     )
 
 

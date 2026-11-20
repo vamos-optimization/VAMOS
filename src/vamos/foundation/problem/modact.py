@@ -75,6 +75,9 @@ MODACT: dict[str, tuple[int, int]] = {
     "ctsei4": (5, 9),
 }
 INSTALL_COMMAND = 'python -m pip install "vamos-optimization[modact]"'
+# The distributions that compute F and G: modact, trimesh, which builds the actuator's meshes, and python-fcl, behind
+# trimesh's collision manager. Exact replay of a MODAct run requires the versions it recorded.
+EVALUATOR_PACKAGES: tuple[str, ...] = ("modact", "trimesh", "python-fcl")
 
 
 def load_modact() -> ModuleType:

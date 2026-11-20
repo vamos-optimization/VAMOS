@@ -6,6 +6,7 @@ evaluate the real problems skip without it. The others replace it with a stub, o
 
 from __future__ import annotations
 
+import json
 import sys
 import types
 import zlib
@@ -16,6 +17,9 @@ from typing import Any
 import numpy as np
 import pytest
 
+import vamos
+from vamos.experiment.artifacts.errors import EnvironmentIncompatibilityError
+from vamos.experiment.artifacts.jsonio import manifest_self_hash, sha256_file, stored_json_bytes
 from vamos.foundation.constraints.utils import is_feasible
 from vamos.foundation.eval.population import evaluate_population_with_constraints
 from vamos.foundation.problem.modact import CONSTRAINT_LEVELS, INSTALL_COMMAND, MODACT, MODActProblem
@@ -177,6 +181,53 @@ def test_a_modact_that_defines_another_problem_is_rejected(stub: _StubProblem, m
     _install_stub(monkeypatch, {"cs1": stub})
     with pytest.raises(ValueError, match=message):
         MODActProblem("cs1")
+
+
+def _rewrite_stored_packages(run: Path, versions: dict[str, str]) -> None:
+    """Give a stored run's environment.json other package versions, keeping the run's integrity records valid."""
+    environment_path = run / "environment.json"
+    environment = json.loads(environment_path.read_text(encoding="utf-8"))
+    environment["packages"].update(versions)
+    environment_path.write_bytes(stored_json_bytes(environment))
+    manifest = json.loads((run / "manifest.json").read_text(encoding="utf-8"))
+    descriptor = next(item for item in manifest["artifacts"] if item["role"] == "environment")
+    descriptor["bytes"] = environment_path.stat().st_size
+    descriptor["sha256"] = sha256_file(environment_path)
+    manifest["integrity"]["manifest_sha256"] = manifest_self_hash(manifest)
+    (run / "manifest.json").write_bytes(stored_json_bytes(manifest))
+
+
+def test_replay_requires_the_evaluator_packages_of_the_run(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    # modact evaluates the problem, with trimesh's meshes and python-fcl's collision checks: a run is replayable
+    # exactly only with the versions it recorded. The stub runs the optimization without modact.
+    _install_stub(monkeypatch, {"ct1": _StubProblem(20, (-1, 1), (-1,) * 7)})
+    result = vamos.optimize("modact_ct1", algorithm="nsgaii", pop_size=8, max_evaluations=16, engine="numpy", seed=3)
+    stored = vamos.save_result(result, tmp_path / "run")
+    _rewrite_stored_packages(stored.root, {"modact": "0.0", "trimesh": "0.0", "python-fcl": "0.0"})
+
+    report = vamos.verify_run(stored.root)
+
+    blocking = {item.field for item in report.environment.findings if item.blocks_exact}
+    assert {"$.environment.packages.modact", "$.environment.packages.trimesh", "$.environment.packages.python-fcl"} <= blocking
+    assert report.effective_replayability != "exact"
+    with pytest.raises(EnvironmentIncompatibilityError) as caught:
+        vamos.reproduce(stored.root, output=tmp_path / "replay")
+    assert caught.value.optimization_executed is False
+    assert not (tmp_path / "replay").exists()
+
+
+def test_other_problems_do_not_compare_the_modact_packages(tmp_path: Path) -> None:
+    result = vamos.optimize("zdt1", algorithm="nsgaii", pop_size=8, max_evaluations=16, engine="numpy", seed=3, n_var=6)
+    stored = vamos.save_result(result, tmp_path / "run")
+    _rewrite_stored_packages(stored.root, {"modact": "0.0", "trimesh": "0.0", "python-fcl": "0.0"})
+
+    report = vamos.verify_run(stored.root)
+
+    assert not [
+        item
+        for item in report.environment.findings
+        if item.field.startswith("$.environment.packages.") and "numpy" not in item.field and "scipy" not in item.field
+    ]
 
 
 # ---------------------------------------------------------------------------------------------------------
