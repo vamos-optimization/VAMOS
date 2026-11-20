@@ -4,7 +4,8 @@ Choose a problem by its **formulation, encoding and dimensions**, then check the
 [algorithm compatibility matrix](algorithms.md). This catalog describes the
 280 registered problems in VAMOS **1.5.1**; **VAMOS 1.5.0:**
 CTP1–CTP7 and IDTLZ1 and IDTLZ2 are new, so 251 become 260; **VAMOS 1.5.1:**
-the 20 MODAct problems bring them to 280. The named selection helpers are
+the 20 MODAct problems bring them to 280; **VAMOS 1.5.2:** the 23
+[reformulated RCM problems](#reformulated-rcm-problems) bring them to 303. The named selection helpers are
 [stable public APIs](../project/stability-and-versioning.md). A synthetic or
 engineering benchmark is a test model, not a validated model of your application.
 
@@ -646,6 +647,125 @@ equalities).
   Feasible designs dominate rows of jMetal's fronts of RCM23, RCM26 and RCM50,
   so those are not packaged (see [Reference fronts](#reference-fronts)).
 
+#### Reformulated RCM problems
+
+**VAMOS 1.5.2:** 23 RCM problems also have a reformulation, registered as
+`rcm22_reformulated`, `rcm24_reformulated`, `rcm28_reformulated` and
+`rcm30_reformulated`–`rcm49_reformulated`. Standard evolutionary algorithms
+find no feasible design of many of these problems: their equalities
+(`|h| <= 1e-4`) leave thin feasible sets, and the ordering constraints of
+RCM30–RCM35 leave constraint-dominance on a plateau. A reformulation searches
+other variables, its genotype, and decodes each genotype into a complete
+decision vector of the original problem that meets those constraints by
+construction. The instance holds the original problem as `original` (the
+`rcm22`, ... instance), and `decode(U)` returns the decision vectors of the
+rows of `U`.
+
+| Key | Genotype | Decoded by | G |
+| --- | --- | --- | --- |
+| `rcm22_reformulated` | 5 genes in `[-0.1, 1.1]` | Closed form: pool quality, split and size, feed C of both products | 3 |
+| `rcm24_reformulated` | 1 gene in `[-0.1, 1.1]` | Closed form: `x7 = 100 + t` | 1 |
+| `rcm28_reformulated` | 2 genes, in `[0, 1]` and `[-0.1, 1.1]` | Closed form: the reactor used and its volume | 5 |
+| `rcm30_reformulated`–`rcm32_reformulated` | 26 (25 for `variant="sorted"`) | Increasing angles, in three variants | 25 |
+| `rcm33_reformulated`–`rcm35_reformulated` | 31 (30 for `variant="sorted"`) | Increasing angles, in three variants | 30 |
+| `rcm36_reformulated`–`rcm39_reformulated` | 4 generator sizes in `[0, 1]` | Newton power flow from a flat start | 1 |
+| `rcm40_reformulated`–`rcm46_reformulated` | 8 generator powers in `[0, 1]` | Newton power flow from a flat start | 1 |
+| `rcm47_reformulated`–`rcm49_reformulated` | 7 controls in `[0, 1]` | Damped Newton solve from a flat start | 1 |
+
+- **Values:** `F` and the inequality constraints of `G` are the original
+  problem's at the decoded vector: the original evaluates it, so they are equal
+  bit for bit. The last column of `G` is a decoding-failure constraint. Where
+  the decoding succeeds, it is the largest of the original's equality
+  constraints `|h| - 1e-4` (0 for RCM30–RCM35, which have none), which the
+  decoders meet by construction, so a row is feasible on the reformulation
+  exactly when its decoded vector is feasible on the original problem.
+- **Failed decoding:** a Newton solve fails when it does not reach
+  `max |h| <= 1e-10`, or when a decoded variable leaves its bounds. `decode`
+  then returns a row of NaN, the last constraint is a positive failure measure,
+  and `F` and the inequalities are the original's at the decoded vector clipped
+  to the bounds (at the solver's starting point when the solve diverged; a
+  value that is not finite there becomes `1e6`). The measure is `1e3` when the
+  solve does not converge, otherwise how far the vector leaves its bounds: the
+  largest `|x_i| - 1` of the voltages (RCM36–RCM39), the sum of the excesses
+  `|x_i| - 1` (RCM40–RCM46), or the sum of the excesses divided by the ranges
+  (RCM47–RCM49, whose measure without convergence is
+  `1e3 + min(log10(1 + max |h|), 100)`). The closed-form decoders never fail.
+- **Mapping back:** a result's `X` holds genotypes; `decode` turns them into
+  the original problem's vectors, which the original evaluates with the same
+  `F`. `evaluate_decoded(U, out)` writes `out["F"]` and `out["G"]` as
+  `evaluate` does and returns those vectors from the same decoding, for a
+  caller that records the designs it evaluates. The reformulation resolves the
+  original's reference front (`rcm22.csv` for `rcm22_reformulated`).
+- **Decoders:** a gene in `[-0.1, 1.1]` is clipped to `[0, 1]`, so the bounds of
+  the variable it sets, where many optimal designs lie, have a positive
+  probability.
+  - RCM22 (Haverly's pooling): the pool quality `x9 = 1 + 2 u1` fixes the mix
+    of feeds A and B; `u2` is the share of the pool sent to product 1 (all of
+    it when the quality exceeds 1.5); the pool size is a share `u3` of the
+    largest that keeps the flows within their bounds; `u4` and `u5` set the feed
+    C of products 1 and 2 between their sulfur limits and their bounds.
+  - RCM24 (heat exchanger network): the equalities fix every variable but the
+    offset `t` of `x7 = 100 + t`, `t` in `[0, 0.99e-4 / 2]`; any feasible design
+    is weakly dominated by the same one with `x1 = x2 = 0`, so
+    `x1 = x2 = x4 = x6 = 0`.
+  - RCM28 (two reactors): one reactor is used, the first when `u1 < 0.5`; its
+    volume runs with `u2` from the one that needs a flow of 20 to 10, and its
+    flow gives `z = 10` exactly.
+  - RCM36–RCM39: `x25..x28` are the genotype; the voltages `x1..x24` solve the
+    power flow by Newton's method with the analytical Jacobian, at most 40
+    iterations.
+  - RCM40–RCM46: `x27..x34` are the genotype; the voltages `x1..x26` solve the
+    power flow by Newton's method, at most 30 iterations. The flat start leads
+    to the high-voltage solution, whose voltages exceed 1 for most controls,
+    so the failure measure has to lead the search into a small region.
+  - RCM47–RCM49: the frequency `w = t1`, the direction `(t2, t3, t4)` of the
+    active droop gains and the reactive gains `500 t^3` of `t5..t7`; the 11
+    voltage components and the scale of the active gains solve the 12
+    equalities by a damped Newton method with a finite-difference Jacobian,
+    at most 40 iterations.
+- **Variants of RCM30–RCM35:** the option `variant`, given with
+  `optimize(name, problem_kwargs={"variant": "sorted"})` or
+  `make_problem_selection(name).with_options({...})`. Every variant gives angles
+  in `[0, 90]` that increase by at least `1.01e-6` degrees, 1 % more than the
+  ordering threshold of the original problem, so its constraints always hold:
+  - `"cumulative"` (the default): the cumulative-variable reformulation of
+    [Wang, Zhu, Nan and Ishibuchi (2025)][rcm-reformulation], Section 2.2.
+    The genotype is `D` shares `t_i` in `[0, 1]` and a total `t_{D+1}` in
+    `[0, 90 - (D - 1) 1.01e-6]`. With `alpha = t_{D+1} / sum t_i`,
+    `t^_i = alpha t_i`, plus the gap for `i >= 2`, and the angles are the
+    cumulative sums `y_i = t^_1 + ... + t^_i` (their Eqs. 18–21, in degrees,
+    with VAMOS's gap for PlatEMO's `1e-5`). When every share is 0, the total
+    is shared equally.
+  - `"sorted"`: `D` angles in `[-4.5, 94.5]`, clipped to `[0, 90]`, sorted and
+    spread to the gap.
+  - `"level"`: the sorted angles and one more gene `u` in `[-0.1, 1.1]`; the
+    angles move toward 90 or toward 0, by bisection, until the fundamental
+    `sum s_l cos(x_l)` is `m u`, which sets `f2 = m^2 (1 - u)^2`.
+- **Shares that decode:** of uniformly random genotypes, all for the
+  closed-form decoders and the three SOPWM variants, 98 % for RCM36–RCM39,
+  0.26 % for RCM40–RCM46 (the solve converges for all) and 40 % for
+  RCM47–RCM49 (it converges for 84 %).
+- **Sources:** the decoders other than the cumulative one are ports of the
+  decoder scripts of the CRE and RCM reference-front computations (Evolver's
+  `scripts/realworld_repair`, commit `4a2612bb2`), whose designs the tests
+  compare; their search methods (repairs that write the decoded vector back,
+  warm starts, initial populations and local polishing) are not part of the
+  problems. The problems are those of [Kumar et al. (2021)][rcm-paper] as
+  VAMOS defines them above.
+
+```python
+import numpy as np
+from vamos import make_problem_selection, optimize
+
+result = optimize("rcm36_reformulated", algorithm="nsgaii", pop_size=20, max_evaluations=200, seed=1)
+problem = make_problem_selection("rcm36_reformulated").instantiate()
+designs = problem.decode(result.X)  # rcm36's 28 variables; NaN where the decoding failed
+decoded = ~np.isnan(designs).any(axis=1)
+values = {}
+problem.original.evaluate(designs[decoded], values)
+print(np.array_equal(values["F"], result.F[decoded]))  # True
+```
+
 ### MODAct: actuator design, evaluated by the modact package
 
 **VAMOS 1.5.1:** the 20 MODAct problems of Picard and Schiffmann
@@ -1043,6 +1163,7 @@ scalable formulations. For a new objective function, follow
 [idtlz]: https://doi.org/10.1109/TEVC.2013.2281534
 [cre-paper]: https://doi.org/10.1016/j.asoc.2020.106078
 [rcm-paper]: https://doi.org/10.1016/j.swevo.2021.100961
+[rcm-reformulation]: https://doi.org/10.1145/3712255.3726689
 [jmetal-cre]: https://github.com/jMetal/jMetal/tree/1e4b83cae6/jmetal-problem/src/main/java/org/uma/jmetal/problem/multiobjective/cre
 [jmetal-rcm]: https://github.com/jMetal/jMetal/tree/1e4b83cae6/jmetal-problem/src/main/java/org/uma/jmetal/problem/multiobjective/cec2021
 [modact-paper]: https://doi.org/10.1109/TEVC.2020.3020046

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from ...rcm import RCM, RCMProblem
+from ...rcm.reformulations import REFORMULATED, SOPWMReformulation, make_reformulation
 from ..common import ProblemSpec
 
 SPECS: dict[str, ProblemSpec] = {}
@@ -82,10 +85,65 @@ def _spec(k: int) -> ProblemSpec:
     )
 
 
+# What each reformulation searches; the decoded design meets the original's equalities or ordering constraints.
+_PROCESS_GENOTYPES = {
+    22: "the pool quality, split and size and the feed C of both products",
+    24: "the offset of x7 above 100, with x1, x2, x4 and x6 at 0",
+    28: "the reactor used and its volume",
+}
+
+
+def _genotype(k: int) -> str:
+    if k in _PROCESS_GENOTYPES:
+        return _PROCESS_GENOTYPES[k]
+    if k <= 35:
+        return "cumulative shares of the angles (Wang et al., 2025); variant 'sorted' or 'level'"
+    if k <= 39:
+        return "the four generator sizes, the voltages solved by a Newton power flow"
+    if k <= 46:
+        return "the eight generator powers, the voltages solved by a Newton power flow"
+    return "seven controls, the voltages and droop scale solved by a damped Newton method"
+
+
+def _sopwm_factory(k: int) -> Callable[..., object]:
+    default_n_var = SOPWMReformulation(k).n_var
+
+    def factory(n_var: int, _n_obj: int | None, *, variant: str = "cumulative") -> SOPWMReformulation:
+        problem = SOPWMReformulation(k, variant=variant)
+        # The variant sets the number of variables: the key's default, or the variant's own number, is accepted.
+        if n_var not in (default_n_var, problem.n_var):
+            raise ValueError(f"RCM{k:02d}'s reformulation with variant {variant!r} has {problem.n_var} variables; got n_var={n_var}.")
+        return problem
+
+    return factory
+
+
+def _reformulated_spec(k: int) -> ProblemSpec:
+    problem = make_reformulation(k)
+    name = _NAMES[k].partition(" (")[0]
+    sopwm = 30 <= k <= 35
+    return ProblemSpec(
+        key=problem.key,
+        label=f"RCM{k:02d} reformulated ({name})",
+        default_n_var=problem.n_var,
+        default_n_obj=problem.n_obj,
+        allow_n_obj_override=False,
+        description=(
+            f"CEC 2021 RCM{k:02d} (Kumar et al., 2021) searched through {_genotype(k)}; "
+            f"the objectives and inequality constraints are rcm{k:02d}'s at the decoded design, followed by a "
+            "decoding-failure constraint."
+        ),
+        factory=_sopwm_factory(k) if sopwm else lambda _n_var, _n_obj: make_reformulation(k),
+        # A SOPWM variant has its own number of variables, which the factory checks.
+        fixed_n_var=not sopwm,
+    )
+
+
 def get_specs() -> dict[str, ProblemSpec]:
     if SPECS:
         return SPECS
     SPECS.update({f"rcm{k:02d}": _spec(k) for k in _NAMES})
+    SPECS.update({f"rcm{k:02d}_reformulated": _reformulated_spec(k) for k in REFORMULATED})
     return SPECS
 
 

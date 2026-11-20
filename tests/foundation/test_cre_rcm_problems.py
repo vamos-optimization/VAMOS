@@ -82,7 +82,8 @@ def _uniform(key: str, n: int, seed: int = 0) -> Array:
 
 
 def test_every_cre_and_rcm_problem_is_registered() -> None:
-    registered = {key for key in get_problem_specs() if key.startswith(("cre", "rcm"))}
+    # The reformulations (rcm22_reformulated, ...) are checked in test_rcm_reformulations.py.
+    registered = {key for key in get_problem_specs() if key.startswith(("cre", "rcm")) and not key.endswith("_reformulated")}
     assert registered == set(DIMENSIONS)
 
 
@@ -188,6 +189,48 @@ def test_sopwm_constraints_keep_the_angles_increasing() -> None:
     assert G is not None
     assert np.all(G[0] < 0.0)
     assert G[1, 3] > 0.0 and np.sum(G[1] > 0.0) == 1
+
+
+_HARMONICS = (5, 7, 11, 13, 17, 19, 23, 25, 29, 31, 35, 37, 41, 43, 47, 49, 53, 55, 59, 61, 65, 67, 71, 73, 77, 79, 83, 85, 91, 95, 97)
+
+
+def _sopwm_one_term_at_a_time(key: str, x: Array) -> tuple[Array, Array]:
+    """F and G of an SOPWM problem at the rows of ``x``, with jMetal's loops: one angle, one harmonic at a time."""
+    from vamos.foundation.problem.rcm.power_electronics import _PATTERNS
+
+    modulation_index, pattern = _PATTERNS[key]
+    signs = [1.0 if symbol == "+" else -1.0 for symbol in pattern]
+    angles = x.T * np.pi / 180.0
+    fundamental = np.zeros(x.shape[0])
+    for sign, angle in zip(signs, angles):
+        fundamental = fundamental + sign * np.cos(angle)
+    distortion = np.zeros(x.shape[0])
+    weights = 0.0
+    for k in _HARMONICS:
+        harmonic = np.zeros(x.shape[0])
+        for sign, angle in zip(signs, angles):
+            harmonic = harmonic + sign * np.cos(k * angle)
+        distortion = distortion + harmonic * harmonic / float(k) ** 4
+        weights = weights + 1.0 / float(k) ** 4
+    F = np.column_stack([np.sqrt(distortion) / np.sqrt(weights), (fundamental - modulation_index) ** 2])
+    G = np.column_stack([x[:, i] - x[:, i + 1] + 1e-6 for i in range(x.shape[1] - 1)])
+    return F, G
+
+
+@pytest.mark.parametrize("key", [f"rcm{k}" for k in range(30, 36)])
+def test_sopwm_evaluation_adds_its_terms_in_jmetals_order(key: str) -> None:
+    # VAMOS 1.5.2: the evaluation is vectorized; its running sums add the terms as jMetal's loops do, so the
+    # values are the same, bit for bit, whatever the batch.
+    X = _uniform(key, 3000, seed=8)
+    X[:300] = np.sort(np.round(X[:300] / 5.0) * 5.0, axis=1)
+    F_loops, G_loops = _sopwm_one_term_at_a_time(key, X)
+    F, G = _evaluate(key, X)
+    np.testing.assert_array_equal(F, F_loops)
+    np.testing.assert_array_equal(G, G_loops)
+    for size in (1, 7, 1100):
+        parts = [_evaluate(key, X[start : start + size]) for start in range(0, 2200 if size > 1 else 40, size)]
+        rows = sum(part[0].shape[0] for part in parts)
+        np.testing.assert_array_equal(np.vstack([part[0] for part in parts]), F_loops[:rows])
 
 
 # CRE problems that share their formulas with an RE problem (which adds the violation as an objective) and with
