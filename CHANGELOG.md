@@ -4,6 +4,38 @@ All notable public changes to VAMOS are documented here.
 
 ## [Unreleased]
 
+## [1.5.2] - 2026-11-20
+
+VAMOS 1.5.2 is a patch release. It adds reformulations of 23 RCM problems,
+whose variables decode into designs that meet the originals' equality and
+ordering constraints, and evaluates RCM30–RCM35 faster, with the same values
+bit for bit. No existing problem, algorithm, default or result changes. See
+the [1.5.2 release notes](docs/project/release-notes-1.5.2.md).
+
+### Added
+
+- Problems: reformulations of 23 CEC 2021 RCM problems, registered as
+  `rcm22_reformulated`, `rcm24_reformulated`, `rcm28_reformulated` and
+  `rcm30_reformulated`–`rcm49_reformulated` (#373).
+  - Their variables decode into complete designs of the original problem
+    (`problem.original`, `problem.decode(X)`) that meet its equalities or
+    ordering constraints by construction. `F` and the inequality constraints
+    are the original's at the decoded design, and a last constraint flags a
+    failed decoding.
+  - The decoders are closed form (RCM22, RCM24, RCM28), increasing angles
+    (RCM30–RCM35, with the option `variant`: Wang et al.'s `"cumulative"` by
+    default, `"sorted"` or `"level"`), or Newton power flows from a flat start
+    (RCM36–RCM49).
+  - `evaluate_decoded(U, out)` evaluates as `evaluate` does and returns the
+    decoded designs of the same decoding.
+
+### Changed
+
+- Problems: RCM30–RCM35 evaluate about 30 times faster per call with one row,
+  and faster with many. The values are the same, bit for bit: the evaluation
+  is vectorized over harmonics and angles, with running sums in jMetal's order
+  (#373).
+
 ## [1.5.1] - 2026-11-20
 
 VAMOS 1.5.1 is a patch release. It adds the 20 MODAct problems, evaluated by
@@ -1286,7 +1318,8 @@ development markers; they are not prior public releases.
 - Studio, tuning, visualization, provider integrations, plugin interfaces, and
   non-stable CLI commands remain experimental.
 
-[Unreleased]: https://github.com/vamos-optimization/VAMOS/compare/v1.5.1...HEAD
+[Unreleased]: https://github.com/vamos-optimization/VAMOS/compare/v1.5.2...HEAD
+[1.5.2]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.5.2
 [1.5.1]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.5.1
 [1.5.0]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.5.0
 [1.4.0]: https://github.com/vamos-optimization/VAMOS/releases/tag/v1.4.0
