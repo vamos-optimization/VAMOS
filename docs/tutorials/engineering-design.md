@@ -35,7 +35,7 @@ python engineering.py --output engineering-local.svg
 ??? example "Complete runnable script"
 
     ```python
-    """Verified VAMOS 1.5.1 lesson: engineering. See coverage-setup for dependencies."""
+    """Verified VAMOS 1.5.2 lesson: engineering. See coverage-setup for dependencies."""
 
 
     def execute_example(problem, algorithm, config, budget, seed=42, engine="numpy"):
@@ -179,7 +179,7 @@ Constraint residuals G <= 0: [-9539.915624, -10207.062281, -0.217298, -2.913761]
 
 ![Actual engineering results from the documented protocol.](../assets/coverage/engineering.svg)
 
-*Measured with VAMOS 1.5.1; the [observations and provenance](coverage-setup.md#recorded-evidence) retain the inputs and results.*
+*Measured with VAMOS 1.5.2; the [observations and provenance](coverage-setup.md#recorded-evidence) retain the inputs and results.*
 
 ## Interpret the result and limits
 
