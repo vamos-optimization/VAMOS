@@ -180,6 +180,18 @@ def test_fetch_rejects_packaged_and_unknown_fronts_and_keeps_nothing_on_failure(
     assert sorted(entry.name for entry in out.iterdir()) == []
 
 
+def test_a_front_kept_after_a_later_failure_has_its_notice(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    fake = _fake_record(monkeypatch, ("cts1",))  # cts2 is not served, so its download fails
+    out = tmp_path / "fronts"
+
+    with pytest.raises(OSError, match="404"):
+        fetch_fronts(["modact_cts1", "modact_cts2"], out, open_url=fake)
+
+    # VAMOS finds the converted CTS1 front at once, so its CC BY 4.0 notice must be there too.
+    assert sorted(entry.name for entry in out.iterdir()) == [NOTICE_FILE, "modact_cts1.csv"]
+    assert (out / NOTICE_FILE).read_text(encoding="utf-8") == notice(["cts1"], packaged=False)
+
+
 def test_the_default_opener_is_the_one_fetch_uses(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     fake = _fake_record(monkeypatch, ("cts4",))
     monkeypatch.setattr(modact_fronts, "_open_zenodo", fake)

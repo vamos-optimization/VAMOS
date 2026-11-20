@@ -254,6 +254,11 @@ def fetch_fronts(
     directory.mkdir(parents=True, exist_ok=True)
     opener = _open_zenodo if open_url is None else open_url
     report = progress if progress is not None else (lambda message: None)
+
+    def record_notice() -> None:
+        present = [name for name in FETCHABLE if (directory / front_file(name)).is_file()]
+        write_notice(directory, present, packaged=False)
+
     written: list[Path] = []
     for name in dict.fromkeys(names):
         target = directory / front_file(name)
@@ -271,9 +276,12 @@ def fetch_fronts(
             written.append(convert_front(download, directory, name))
         finally:
             download.unlink(missing_ok=True)
+        # VAMOS finds a converted front at once: its attribution is written before the next download, so a front
+        # kept after a later failure is never without it.
+        record_notice()
         report(f"Wrote {written[-1]}")
-    present = [name for name in FETCHABLE if (directory / front_file(name)).is_file()]
-    write_notice(directory, present, packaged=False)
+    if written:
+        record_notice()
     return written
 
 
