@@ -1256,6 +1256,52 @@
     return steps;
   }
 
+  /** Which members of one population each family keeps, with N places:
+      dominance-based, NSGA-II's fronts and crowding distance;
+      decomposition-based, for each of N evenly spread weight vectors the member with the best Tchebycheff value,
+      as MOEA/D's subproblems would if every member competed for every subproblem;
+      indicator-based, SMS-EMOA's removal of the least hypervolume contributor of the last front, repeated
+      (reference point nadir + 1.0 · (nadir − ideal) of the remaining members, VAMOS' default);
+      swarm-based, every particle stays, and the leaders are the non-dominated ones. */
+  function familySurvivors(F, N) {
+    const n = F.length;
+    const dominance = nsga2Truncate(F, N).sort((a, b) => a - b);
+    const W = moeadWeights(N);
+    const z = F[0].map((_, j) => Math.min(...F.map((f) => f[j])));
+    const g = W.map((w) => F.map((f) => moeadAggregate("tchebycheff", f, w, z)));
+    const best = g.map((row) => row.reduce((k, v, i) => (v < row[k] ? i : k), 0));
+    const decomposition = [...new Set(best)].sort((a, b) => a - b);
+    const alive = F.map((_, i) => i);
+    const removed = [];
+    let ref = null;
+    while (alive.length > N) {
+      const Q = alive.map((i) => F[i]);
+      const top = [0, 1].map((j) => Math.max(...Q.map((q) => q[j])));
+      const low = [0, 1].map((j) => Math.min(...Q.map((q) => q[j])));
+      ref = top.map((t, j) => t + (t - low[j] > 0 ? t - low[j] : 1));
+      const fronts = nonDominatedSort(Q).fronts;
+      const last = fronts[fronts.length - 1];
+      let out = last[0];
+      if (last.length > 1) {
+        const c = hvContributions2d(
+          last.map((i) => Q[i]),
+          ref
+        ).contributions;
+        out = last[c.reduce((k, v, i) => (v < c[k] ? i : k), 0)];
+      }
+      removed.push(alive[out]);
+      alive.splice(out, 1);
+    }
+    const leaders = nonDominatedIndices(F);
+    return {
+      dominance,
+      decomposition: { kept: decomposition, best, W, z, g },
+      indicator: { kept: alive.slice(), removed, ref },
+      swarm: { kept: F.map((_, i) => i), leaders },
+      n,
+    };
+  }
+
   const algorithms = {
     ccmoSelect,
     ctaeaSelect,
@@ -1305,6 +1351,7 @@
     PROBLEMS,
     gaEvaluate,
     gaLoop,
+    familySurvivors,
   };
   root.VamosFoundations = algorithms;
 
@@ -4385,6 +4432,170 @@
       return `The budget is spent and the run stops. VAMOS returns the non-dominated members of the final population by default: ${idList(nd)}.`;
     }
     build();
+  };
+
+  /* One population, the survivors of each family of algorithms. */
+  widgets["family-survivors"] = function (node) {
+    const defaults = [
+      [0.05, 0.95],
+      [0.12, 0.62],
+      [0.18, 0.56],
+      [0.35, 0.4],
+      [0.42, 0.37],
+      [0.62, 0.2],
+      [0.95, 0.04],
+      [0.3, 0.72],
+      [0.55, 0.45],
+      [0.75, 0.3],
+    ];
+    const names = defaults.map((_, i) => "P" + (i + 1));
+    const FAMILIES = [
+      ["dominance", "Dominance-based"],
+      ["decomposition", "Decomposition-based"],
+      ["indicator", "Indicator-based"],
+      ["swarm", "Swarm-based"],
+    ];
+    const fig = pointSetFigure(node, {
+      points: defaults,
+      names,
+      layout: "",
+      x: [0, 1.05],
+      y: [0, 1.05],
+      label: "Ten draggable solutions and the ones that the selected family of algorithms keeps",
+    });
+    const state = fig.state;
+    state.family = node.dataset.family || "dominance";
+    state.N = 5;
+    const pressed = {};
+    for (const [key, label] of FAMILIES) {
+      pressed[key] = button(fig.ctl, label, () => {
+        state.family = key;
+        fig.render();
+      });
+    }
+    slider(fig.ctl, { label: "Places", min: 2, max: 9, step: 1, value: state.N, format: (v) => String(v), onInput: (v) => ((state.N = v), fig.render()) });
+    button(fig.ctl, "Reset points", () => {
+      defaults.forEach((p, i) => (state.P[i] = p.slice()));
+      fig.render();
+    });
+    const legendBox = h("div", {}, node);
+    const plot = fig.plot;
+    fig.render = function () {
+      const P = state.P;
+      const N = state.N;
+      const res = familySurvivors(P, N);
+      const r = rankAndCrowding(P);
+      for (const [key] of FAMILIES) {
+        pressed[key].setAttribute("aria-pressed", String(key === state.family));
+        pressed[key].classList.toggle("vf-button--primary", key === state.family);
+      }
+      clear(plot.layers.back);
+      clear(plot.layers.mid);
+      clear(plot.layers.marks);
+      fig.labels();
+      const kept = new Set(state.family === "dominance" ? res.dominance : state.family === "decomposition" ? res.decomposition.kept : state.family === "indicator" ? res.indicator.kept : res.swarm.kept);
+      const ring = state.family === "swarm" ? new Set(res.swarm.leaders) : kept;
+      let items;
+      if (state.family === "decomposition") {
+        const z = res.decomposition.z;
+        res.decomposition.W.forEach((w, k) => {
+          const d = [w[1], w[0]];
+          const len = 2 / Math.max(1e-9, Math.hypot(d[0], d[1]));
+          plot.line(plot.layers.mid, [z, [z[0] + d[0] * len, z[1] + d[1] * len]], "vf-line-thin vf-dashed");
+          // Label each direction just outside the edge where it leaves the plot.
+          const tx = (plot.xd[1] - z[0]) / Math.max(d[0], 1e-9);
+          const ty = (plot.yd[1] - z[1]) / Math.max(d[1], 1e-9);
+          const ex = plot.x(z[0] + d[0] * Math.min(tx, ty));
+          const ey = plot.y(z[1] + d[1] * Math.min(tx, ty));
+          if (ty <= tx) txt(plot.layers.top, ex, ey - 3, "w" + (k + 1), { class: "vf-mark-label", "text-anchor": "middle" });
+          else txt(plot.layers.top, ex + 3, ey + 4, "w" + (k + 1), { class: "vf-mark-label" });
+        });
+        marker(plot.layers.marks, "diamond", plot.x(z[0]), plot.y(z[1]), 5, "vf-pt vf-pt-3");
+        txt(plot.layers.top, plot.x(z[0]) + 8, plot.y(z[1]) + 14, "z*", { class: "vf-mark-label" });
+        items = [
+          { label: "Kept (best for a weight vector)", shape: "circle", cls: "vf-ring" },
+          { label: "Direction of each weight vector", shape: "line", cls: "vf-line-thin vf-dashed" },
+          { label: "Ideal point z*", shape: "diamond", cls: "vf-pt vf-pt-3" },
+        ];
+      } else if (state.family === "indicator") {
+        const keptPts = res.indicator.kept.map((i) => P[i]);
+        const ref = res.indicator.ref || [1.05, 1.05];
+        const nd = nonDominatedIndices(keptPts)
+          .map((i) => keptPts[i])
+          .sort((a, b) => a[0] - b[0]);
+        if (nd.length) {
+          const poly = [[nd[0][0], ref[1]]];
+          nd.forEach((p, k) => {
+            poly.push(p);
+            poly.push([k + 1 < nd.length ? nd[k + 1][0] : ref[0], p[1]]);
+          });
+          poly.push(ref);
+          plot.line(plot.layers.back, poly, "vf-region-1");
+        }
+        res.indicator.removed.forEach((i, k) => txt(plot.layers.top, plot.x(P[i][0]) - 6, plot.y(P[i][1]) + 20, "×" + (k + 1), { class: "vf-mark-label" }));
+        items = [
+          { label: "Kept", shape: "circle", cls: "vf-ring" },
+          { label: "Removed (order shown)", shape: "circle", cls: "vf-pt vf-pt-muted vf-faded" },
+          { label: "Hypervolume of the kept set", shape: "region", cls: "vf-region-1" },
+        ];
+      } else if (state.family === "swarm") {
+        items = [
+          { label: "Particle (every one moves on)", shape: "circle", cls: "vf-pt vf-r1" },
+          { label: "Leader (non-dominated, in the archive)", shape: "circle", cls: "vf-ring" },
+        ];
+      } else {
+        const split = r.fronts.find((front) => front.some((i) => kept.has(i)) && front.some((i) => !kept.has(i)));
+        if (split) split.forEach((i) => txt(plot.layers.top, plot.x(P[i][0]) - 6, plot.y(P[i][1]) + 20, fmt(r.crowding[i], 2), { class: "vf-mark-label" }));
+        items = [
+          { label: "Front 1, 2, … (darker is better)", shape: "circle", cls: "vf-pt vf-r1" },
+          { label: "Kept", shape: "circle", cls: "vf-ring" },
+          { label: "Crowding distance in the front that is cut", shape: "circle", cls: "vf-pt-hollow" },
+        ];
+      }
+      clear(legendBox);
+      legend(legendBox, items);
+      P.forEach((p, i) => {
+        const hd = fig.handles[i];
+        hd.place();
+        hd.node.classList.toggle("vf-selected", i === state.active);
+        hd.setClass("vf-pt " + rankClass(r.rank[i]) + (kept.has(i) ? "" : " vf-faded"));
+        if (ring.has(i)) marker(plot.layers.marks, "circle", plot.x(p[0]), plot.y(p[1]), 10.5, "vf-ring");
+      });
+      clear(fig.readout);
+      const list = (rows) => idList(rows.map((i) => names[i]));
+      const removed = (set) => P.map((_, i) => i).filter((i) => !set.has(i));
+      let text;
+      if (state.family === "dominance") {
+        const split = r.fronts.find((front) => front.some((i) => kept.has(i)) && front.some((i) => !kept.has(i)));
+        text = `NSGA-II's rule: whole fronts while they fit, then the largest crowding distances. Front 1 is ${list(r.fronts[0])}.`;
+        if (split) text += ` Front ${r.rank[split[0]] + 1} does not fit, so crowding keeps ${list(split.filter((i) => kept.has(i)))} and removes ${list(split.filter((i) => !kept.has(i)))}.`;
+        text += ` Kept: ${list([...kept])}.`;
+      } else if (state.family === "decomposition") {
+        const d = res.decomposition;
+        const wins = d.W.map((w, k) => `w${k + 1} = (${fmt(w[0], 2)}, ${fmt(w[1], 2)}) → ${names[d.best[k]]}`).join("; ");
+        text = `MOEA/D's rule: ${N} weight vectors, and each keeps the member with the smallest Tchebycheff value max_i w_i·|f_i − z*_i|, with z* = ${pair(d.z)}: ${wins}.`;
+        text += d.kept.length < N ? ` Only ${d.kept.length} distinct members are kept: a member that wins several subproblems is stored once for each.` : ` Kept: ${list(d.kept)}.`;
+      } else if (state.family === "indicator") {
+        const d = res.indicator;
+        text = d.removed.length
+          ? `SMS-EMOA's rule, once per removal: sort into fronts and remove the member of the last front whose loss costs the least hypervolume, with r = nadir + (nadir − ideal) of the members left. Removed in order: ${d.removed.map((i) => names[i]).join(", ")}; the last r is ${pair(d.ref)}. Kept: ${list(d.kept)}.`
+          : `Every member fits in the ${N} places: nothing is removed.`;
+      } else {
+        text = `SMPSO's swarm keeps every particle: each one moves to a new position at every iteration, whatever its quality. Elitism lives in the leaders archive of non-dominated positions, here ${list(res.swarm.leaders)}, with room for as many leaders as there are particles, the VAMOS default. The places setting does not apply.`;
+      }
+      h("p", { class: "vf-step-text" }, fig.readout, text);
+      if (state.family !== "swarm" && removed(kept).length) h("p", {}, fig.readout, `Not kept: ${list(removed(kept))}.`);
+      const mark = (set, i) => (set.has(i) ? "✓" : "–");
+      const sets = [new Set(res.dominance), new Set(res.decomposition.kept), new Set(res.indicator.kept)];
+      const leaders = new Set(res.swarm.leaders);
+      table(
+        fig.readout,
+        ["Point", "f₁", "f₂", "Front", "Dominance", "Decomp.", "Indicator", "Swarm"],
+        P.map((p, i) => [names[i], fmt(p[0], 2), fmt(p[1], 2), String(r.rank[i] + 1), mark(sets[0], i), mark(sets[1], i), mark(sets[2], i), leaders.has(i) ? "leader" : "particle"]),
+        [false, true, true, true, false, false, false, false]
+      );
+    };
+    fig.render();
   };
 
   /* ------------------------------------------------------------------ */
