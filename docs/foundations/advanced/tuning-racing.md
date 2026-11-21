@@ -1,0 +1,421 @@
+---
+description: 'Racing for algorithm configuration: F-race with the Friedman test and Conover post-hoc comparisons, eliminating configurations block by block, iterated racing in irace with sampling models, elitism and restarts, and how the racing and irace backends of VAMOS implement them, with an interactive race and VAMOS code.'
+search:
+  boost: 0.5
+---
+
+# Racing and irace
+
+Lesson [Automatic algorithm configuration](tuning.md) set up the problem: many
+candidate configurations, many instances and seeds, and a run for every
+pair. Evaluating every configuration on every block wastes most of the runs
+on configurations that are clearly bad after a few blocks. **Racing**
+evaluates the candidates block by block and drops a candidate as soon as the
+evidence says it is worse than the best, so the runs go to the candidates that
+are still in doubt [1].
+
+In this lesson you will learn:
+
+- F-race: the Friedman test on the ranks of each block, and the post-hoc
+  comparison that eliminates configurations;
+- why ranks make blocks on different scales weigh the same;
+- iterated racing: sampling models, elitism and restarts, as irace implements
+  them;
+- how the `racing` and `irace` backends of `vamos tune` implement all of this.
+
+## Racing
+
+Racing comes from model selection in machine learning, where it chose among
+models by testing them on more and more data points [1]. For configurations,
+a race goes like this:
+
+1. Start with a set of candidate configurations, all **alive**.
+2. Take the next block, an instance and a seed, and run every alive
+   configuration on it.
+3. Once enough blocks have been played, test whether the alive configurations
+   differ; if they do, eliminate those that are significantly worse than the
+   best.
+4. Stop when one configuration is left, the blocks run out, or the tuning
+   budget is spent; return the best survivor.
+
+Every alive configuration plays the same blocks, so their results form a
+matrix with one row per configuration and one column per block, and the
+comparison is paired: two configurations are compared on the same instances
+with the same seeds.
+
+## F-race: Friedman and Conover
+
+**F-race** [1] uses the Friedman test [2], a non-parametric test for paired
+data with more than two treatments. Each block **ranks** the alive
+configurations, 1 for the best, with average ranks for ties. If all the
+configurations were equivalent, every configuration would have the same
+expected rank in every block, (N + 1)/2. The test measures how far the **rank
+sums** R_j, the sum over the B blocks of configuration j's ranks, are from
+their expected value:
+
+<div class="vf-formula">R_j = Σ_b r_bj                                   (rank sum of configuration j over B blocks)
+T = 12 Σ_j ( R_j − B(N + 1)/2 )²  /  ( B N (N + 1) − Σ_ties (t³ − t) / (N − 1) )
+p = P( χ²_{N−1} ≥ T )                           (T follows a χ² law with N − 1 degrees of freedom)</div>
+
+N is the number of alive configurations, and the sum over ties corrects for
+blocks in which t configurations share a rank. When p is below the
+significance level α, the configurations differ, and a **post-hoc** comparison
+decides which ones to eliminate. VAMOS, like irace, uses Conover's comparison
+of rank sums [3]: a configuration survives if its rank sum is within the
+critical difference of the best rank sum.
+
+<div class="vf-formula">D = t_{1−α/2, (B−1)(N−1)} · √( 2 ( B Σ_b Σ_j r_bj² − Σ_j R_j² ) / ( (B − 1)(N − 1) ) )
+keep j   ⇔   R_j − R_best ≤ D                     (the best rank sum is always kept)</div>
+
+With two configurations left, the Friedman test is replaced by a paired
+Wilcoxon signed-rank test [4] on their score differences.
+
+### Why ranks
+
+The scores of different instances can lie on very different scales: a
+hypervolume of 90 on one problem, of 1.2 on another. A test on raw scores, or
+a mean, is dominated by the problems with the largest values and the largest
+noise. Ranks give every block the same weight, whatever its scale, which is
+what the user usually means by "better on most instances". VAMOS's tuning
+guide records the effect: on scores where half of the blocks were 100 times
+larger, the paired t-tests of VAMOS 1.2.0 eliminated no configuration out of
+eight on ten blocks, against about three for F-race.
+
+### When to test
+
+A test on two or three blocks has little power and can eliminate a good
+configuration by bad luck. F-race therefore waits for a minimum number of
+blocks before its first test: irace's `firstTest`, 5 by default [5], and the
+same in VAMOS.
+
+## Try it: a race block by block
+
+The figure races eight configurations, C1 to C8, on four instances and three
+seeds, twelve blocks in all. The scores are synthetic hypervolumes: each
+configuration has a true quality, each instance its own scale (instance 2
+scores four times instance 1, and instance 3 half of it), and every run adds
+noise. Each circle is the rank of a configuration on a block among the
+configurations alive at that time; a dashed line after a block is a test, and
+a cross marks an elimination. Step through the race with **Next block**, the
+slider, or the arrow keys after focusing the plot, and change α, `first_test`
+and the noise.
+
+<div class="vf-widget" data-vf-widget="frace-race"><p class="vf-fallback">Interactive figure: a race of eight configurations on twelve blocks (four instances, three seeds). After the fifth block a Friedman test eliminates three configurations; after the eleventh and twelfth blocks two more tests eliminate four more, and the race returns the remaining configuration, C8, after 73 runs instead of 96. It needs JavaScript.</p></div>
+
+In the default race, nothing happens during the first four blocks. After
+block 5, the Friedman statistic is T = 23.87 with p = 0.0012 < 0.05; the best
+rank sum is 12 (C4) and Conover's critical difference is 10.01, so C5, C6 and
+C7, with rank sums 36, 34 and 32, are eliminated. C2 survives with 22, just
+inside 12 + 10.01. The next five tests find no significant difference among
+the five survivors (p from 0.22 down to 0.062). After block 11, p = 0.022:
+C2 and C3 are eliminated, and after block 12 the test on C1, C4 and C8
+eliminates C1 and C4. The race returns C8, the configuration with the best
+true quality, after 73 runs instead of 96.
+
+Compare the columns of the table at the end: C4 has a higher mean score than
+C1 (1.543 against 1.535) although its true quality is lower, because its
+noise on the large-scale instance 2 happened to be favourable. The rank sums
+are not fooled by that. Raise the noise, and the first elimination comes
+later and the race spends more runs; lower α to 0.01, and the race keeps more
+configurations.
+
+## The test in VAMOS
+
+`select_configs_by_frace` implements one F-race test on a score matrix, with
+one row per configuration and one column per block:
+
+```python
+# Excerpt from src/vamos/engine/tuning/racing/stats.py
+    oriented = -scores if maximize else scores
+    if n_configs == 2:
+        p_value, signed_rank = _wilcoxon_signed_rank(oriented[0] - oriented[1])
+        # A positive statistic means the first configuration scored higher, that is worse.
+        if p_value < alpha and signed_rank != 0.0:
+            keep[0 if signed_rank > 0.0 else 1] = False
+        return keep
+
+    ranks = np.vstack([rankdata(oriented[:, block]) for block in range(n_blocks)])  # blocks x configurations
+    rank_sums = ranks.sum(axis=0)
+    ties = sum(float(np.sum(counts**3 - counts)) for counts in (np.unique(row, return_counts=True)[1] for row in ranks))
+    expected = n_blocks * (n_configs + 1) / 2.0
+    denominator = n_blocks * n_configs * (n_configs + 1) - ties / (n_configs - 1)
+    if denominator <= 0.0:
+        return keep
+    statistic = 12.0 * float(np.sum((rank_sums - expected) ** 2)) / denominator
+    if not float(chi2.sf(statistic, n_configs - 1)) < alpha:
+        return keep
+
+    df = (n_blocks - 1) * (n_configs - 1)
+    spread = 2.0 * (n_blocks * float(np.sum(ranks**2)) - float(np.sum(rank_sums**2))) / df
+    critical = float(t.ppf(1.0 - alpha / 2.0, df)) * math.sqrt(max(spread, 0.0))
+    best = int(np.argmin(rank_sums))
+    keep = rank_sums - rank_sums[best] <= critical
+    keep[best] = True
+    return np.asarray(keep, dtype=bool)
+```
+
+Scores are negated when they are maximized, so a lower rank is always better.
+The racing tuner calls the test after every block, once every alive
+configuration has played enough blocks:
+
+```python
+# Excerpt from src/vamos/engine/tuning/racing/elimination.py
+    # In statistical mode, the first test waits for first_test blocks, as irace's firstTest.
+    if min_len < max(scenario.first_test, scenario.min_blocks_before_elimination) or min_len <= 1:
+        return False
+
+    # Keep waiting until all alive configs are aligned on the same number of blocks.
+    if min_len != max_len:
+        return False
+
+    scores, aligned_indices = build_score_matrix(configs)
+    # F-race: Friedman on the ranks of each block and Conover's post-hoc, or Wilcoxon with two alive.
+    keep_mask = select_configs_by_frace(scores, maximize=task.maximize, alpha=scenario.alpha)
+    # Fewer survivors than the minimum: keep those of the test and add the best of the others by aggregate score.
+    keep_mask = fill_survivors(keep_mask, agg_scores, maximize=task.maximize, k=max(1, scenario.min_survivors))
+```
+
+`Scenario.first_test` is 5 and `Scenario.min_blocks_before_elimination` 3, so
+the first test comes after the fifth block. The figure's algorithms port this
+code, and a test checks that their races eliminate the same configurations
+after the same blocks as `RacingTuner`.
+
+## A race of NSGA-II configurations
+
+A race of six NSGA-II configurations that differ in SBX's distribution index
+(5 or 40) and in the factor of the mutation probability (0.25, 1 or 3), on
+ZDT1, ZDT2 and ZDT3 with four seeds each, twelve blocks. Each run has a
+population of 20 and 1,000 evaluations, and is scored by the hypervolume with
+the reference point (10, 10), as `vamos tune` would score it:
+
+```python
+import numpy as np
+
+from vamos import optimize
+from vamos.engine.tuning import Instance, RacingTuner, Scenario, TuningTask
+from vamos.engine.tuning.grammar import builtin_parameter_space, to_algorithm_config_space
+from vamos.engine.tuning.racing.bridge import config_from_assignment
+
+space = builtin_parameter_space("nsgaii")
+candidates = [
+    dict(space.default_values(), sbx_distribution_index=eta, mutation_probability_factor=factor)
+    for eta in (5.0, 40.0)
+    for factor in (0.25, 1.0, 3.0)
+]
+
+
+def hypervolume_2d(F, ref):
+    volume, level = 0.0, ref[1]
+    for f1, f2 in F[np.lexsort((F[:, 1], F[:, 0]))]:
+        if f1 < ref[0] and f2 < level:
+            volume += (ref[0] - f1) * (level - f2)
+            level = f2
+    return volume
+
+
+def evaluate(assignment, ctx):
+    config = config_from_assignment("nsgaii", dict(assignment, pop_size=20))
+    result = optimize(ctx.instance.name, algorithm="nsgaii", algorithm_config=config, max_evaluations=ctx.budget, seed=ctx.seed)
+    return hypervolume_2d(result.F, (10.0, 10.0))
+
+
+task = TuningTask(
+    name="nsgaii_zdt",
+    param_space=to_algorithm_config_space(space).to_param_space(),
+    instances=[Instance("zdt1", n_var=30), Instance("zdt2", n_var=30), Instance("zdt3", n_var=30)],
+    seeds=[1, 2, 3, 4],
+    budget_per_run=1000,
+)
+scenario = Scenario(max_experiments=len(candidates) * 12, verbose=False)
+tuner = RacingTuner(task, scenario, seed=1, max_initial_configs=len(candidates), initial_configs=candidates)
+best, history = tuner.run(evaluate, verbose=False)
+for trial in history:
+    c = trial.config
+    status = "alive" if trial.details["alive"] else "eliminated"
+    print(f"eta {c['sbx_distribution_index']:4.1f}, factor {c['mutation_probability_factor']:4.2f}: {trial.details['num_evals']:2d} blocks, {status}, mean HV {trial.score:.3f}")
+print(f"{sum(t.details['num_evals'] for t in history)} runs instead of {len(candidates) * 12}")
+print(f"returned: eta {best['sbx_distribution_index']}, factor {best['mutation_probability_factor']}")
+```
+
+Output:
+
+```text
+eta  5.0, factor 0.25:  6 blocks, eliminated, mean HV 86.907
+eta  5.0, factor 1.00:  8 blocks, eliminated, mean HV 87.041
+eta  5.0, factor 3.00: 12 blocks, alive, mean HV 90.264
+eta 40.0, factor 0.25:  6 blocks, eliminated, mean HV 85.668
+eta 40.0, factor 1.00:  6 blocks, eliminated, mean HV 88.440
+eta 40.0, factor 3.00: 12 blocks, alive, mean HV 90.558
+50 runs instead of 72
+returned: eta 40.0, factor 3.0
+```
+
+The first test, after block 5, finds no significant difference; the second
+eliminates three configurations, and the test after block 8 a fourth. The two
+survivors share the largest mutation factor, 3, which mutates three variables
+per child on average: with only 50 generations, more mutation pays on these
+problems. The race does not separate the two distribution indices within
+twelve blocks, and returns the survivor with the best mean over the blocks
+they both played. The mean hypervolumes of the eliminated configurations
+cover fewer blocks, so they are not comparable with the others. The
+conclusion holds for this budget and these problems only (lesson
+[Automatic algorithm configuration](tuning.md#training-validation-and-test-instances)).
+
+The tuner races the six configurations it is given. Without
+`initial_configs`, it races the space's default configuration and
+`max_initial_configs − 1` configurations drawn from the space.
+
+## Iterated racing
+
+A single race can only choose among the candidates it starts with. With 33
+parameters, 20 random candidates cover the space poorly. **Iterated racing**
+[6, 5] repeats races and moves the candidates towards the good regions:
+
+1. sample candidates from a **sampling model** of the space;
+2. race them, with the survivors of the previous race;
+3. keep the best survivors as **elites** and update the model around them;
+4. repeat until the tuning budget is spent.
+
+irace, the R package that implements iterated racing [5], samples each new
+candidate from one of the elites. A numerical parameter is drawn from a
+truncated normal distribution centred on the elite's value, whose standard
+deviation shrinks over the iterations; a categorical parameter is drawn from
+a discrete distribution that moves its probability towards the elite's value.
+The search starts broad and concentrates around the elites as the budget is
+spent.
+
+Two refinements matter in practice [5]:
+
+- **Elitism.** The elites enter the next race with their previous results. A
+  new candidate must first be evaluated on the blocks the elites have already
+  played, so an elite is never eliminated on less evidence than it was
+  selected with.
+- **Restarts.** When the sampling models have converged so far that new
+  candidates are almost copies of their elites, irace reinitializes the models
+  partially (a soft restart), so the search does not stall.
+
+By default, irace derives the number of iterations from the number of
+parameters and the number of candidates of each iteration from the budget
+that remains, so the user sets only the total number of experiments.
+
+## Racing in `vamos tune`
+
+`vamos tune` has two racing backends.
+
+### The `racing` backend
+
+`--backend racing` runs one F-race, in VAMOS, with the core installation:
+
+- the candidates are the space's default configuration and
+  `--initial-configs − 1` configurations drawn by walking its tree (20 in all
+  by default);
+- the blocks are the training instances and seeds, in a shuffled order that
+  plays every instance with one seed before the next seed;
+- `--tune-budget` (200 by default) is the maximum number of experiments, and
+  each run gets `--budget` evaluations;
+- the tests use `--alpha` (0.05) and start after
+  max(5, `--min-blocks-before-elimination`) blocks;
+- the race returns the survivor with the best aggregated score over the
+  blocks that all survivors played.
+
+```bash
+vamos tune \
+  --instances zdt1,zdt2,zdt3,dtlz1,dtlz2,wfg1 \
+  --algorithm nsgaii \
+  --backend racing \
+  --budget 5000 \
+  --tune-budget 1000 \
+  --initial-configs 20 \
+  --alpha 0.05
+```
+
+Two variants change the elimination. `--no-use-statistical-tests` replaces the
+tests by a rank-based rule: after `--min-blocks-before-elimination` blocks,
+each block eliminates the worst `--elimination-fraction` (25%) of the alive
+configurations by aggregated score. `--multi-fidelity` turns the race into
+successive halving over increasing run budgets (`--fidelity-levels`,
+1,000, 3,000 and 10,000 evaluations by default): every candidate runs at the
+first level, and only the best fraction by mean score (`--fidelity-promotion-ratio`,
+0.3) moves to the next. It runs no statistical test, and its levels, not
+`--budget`, set the run budgets. Lesson
+[Model-based tuning](tuning-model-based.md) explains successive halving.
+
+The `racing` backend is not iterated racing: it does not sample new
+candidates around the elites. The Python `Scenario` has an experimental
+option for that, `use_elitist_restarts=True`: after an elimination, the race
+is refilled up to its initial size with neighbours of the elites (half of the
+new candidates by default) and samples from a model fitted to the survivors,
+and each new candidate first catches up on the blocks the race has already
+played, as in elitist irace. `vamos tune` does not enable it.
+
+### The `irace` backend
+
+`--backend irace` runs the R package irace itself, through `Rscript`. It
+needs R and the CRAN package irace 4.4.4 or newer (`install.packages("irace")`
+in R), and no Python extra:
+
+```bash
+vamos tune \
+  --instances zdt1,zdt2,zdt3,dtlz1,dtlz2,wfg1 \
+  --algorithm nsgaii \
+  --backend irace \
+  --budget 5000 \
+  --tune-budget 2000 \
+  --irace-option nbIterations=3
+```
+
+VAMOS writes an irace scenario and translates the space: the grammar becomes
+irace's parameter file, with a condition `parent == "value"` for every
+parameter of a production and `node %in% c(...)` for a global
+sub-parameter below the root, and the default configuration is the first of
+irace's initial configurations. irace calls back into the running `vamos
+tune` process for every experiment, and the scores are negated, because irace
+minimizes. The options map as follows:
+
+- `--tune-budget` is irace's `maxExperiments`, as for `racing`, and
+  `--n-jobs` its `parallel`;
+- by default (`--irace-instance-seeds task`) each training instance/seed pair
+  is an irace instance of a deterministic race, so every experiment uses the
+  seeds of the task; with `irace`, irace draws the seeds itself;
+- `--irace-option KEY=VALUE` adds a scenario option, such as `nbIterations=3`,
+  and may be repeated;
+- the scenario, `irace.log` and `irace.Rdata` stay in `<output>/irace`, or in
+  `--irace-work-dir`.
+
+The result is irace's first final elite. irace needs many experiments even
+for a short search: the real-coded NSGA-II space needs at least 728 with
+irace's default number of iterations, so plan `--tune-budget` accordingly.
+irace rounds real values to four decimal places by default. The backend has
+one run budget, so it rejects `--fidelity-levels`, and it has no wall-clock
+limit, so it rejects `--timeout-seconds`.
+
+## Key points
+
+- Racing evaluates candidates block by block and eliminates those that are
+  significantly worse, so the runs go to the candidates still in doubt.
+- F-race ranks the alive configurations in every block, tests the rank sums
+  with the Friedman test, and keeps the configurations within Conover's
+  critical difference of the best; with two left, a Wilcoxon test decides.
+- Ranks give every block the same weight whatever the scale of its scores.
+- Iterated racing (irace) samples new candidates around the elites from
+  models that concentrate over time, keeps the elites between races, and
+  restarts the models when they converge.
+- `vamos tune --backend racing` runs one F-race in VAMOS, first test after
+  five blocks; `--backend irace` runs irace through R, with `--tune-budget`
+  as `maxExperiments`.
+
+**Next:** [Model-based tuning: SMAC3, BOHB and Optuna](tuning-model-based.md).
+
+## References
+
+[1] Birattari, M., Stützle, T., Paquete, L., and Varrentrapp, K. (2002). A racing algorithm for configuring metaheuristics. In *Proceedings of the Genetic and Evolutionary Computation Conference (GECCO 2002)*, 11–18. Morgan Kaufmann.
+
+[2] Friedman, M. (1937). [The use of ranks to avoid the assumption of normality implicit in the analysis of variance](https://doi.org/10.1080/01621459.1937.10503522). *Journal of the American Statistical Association*, 32(200), 675–701.
+
+[3] Conover, W. J. (1999). *Practical Nonparametric Statistics* (3rd ed.). Wiley.
+
+[4] Wilcoxon, F. (1945). [Individual comparisons by ranking methods](https://doi.org/10.2307/3001968). *Biometrics Bulletin*, 1(6), 80–83.
+
+[5] López-Ibáñez, M., Dubois-Lacoste, J., Pérez Cáceres, L., Birattari, M., and Stützle, T. (2016). [The irace package: Iterated racing for automatic algorithm configuration](https://doi.org/10.1016/j.orp.2016.09.002). *Operations Research Perspectives*, 3, 43–58.
+
+[6] Balaprakash, P., Birattari, M., and Stützle, T. (2007). [Improvement strategies for the F-Race algorithm: Sampling design and iterative refinement](https://doi.org/10.1007/978-3-540-75514-2_9). In *Hybrid Metaheuristics (HM 2007)*, Lecture Notes in Computer Science 4771, 108–122. Springer.

@@ -259,4 +259,9 @@ nav:
         - C-TAEA: foundations/advanced/ctaea.md
         - ToP: foundations/advanced/top.md
         - CMOEA-MS: foundations/advanced/cmoeams.md
+      - Tuning:
+        - Automatic Algorithm Configuration: foundations/advanced/tuning.md
+        - Racing and irace: foundations/advanced/tuning-racing.md
+        - Model-based Tuning: foundations/advanced/tuning-model-based.md
+        - Evolver and Meta-optimization: foundations/advanced/tuning-evolver.md
       - Rigorous Comparison: foundations/advanced/performance-assessment.md

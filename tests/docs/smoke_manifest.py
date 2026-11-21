@@ -489,6 +489,10 @@ for example in examples:
             "advanced/ctaea",
             "advanced/top",
             "advanced/cmoeams",
+            "advanced/tuning",
+            "advanced/tuning-racing",
+            "advanced/tuning-model-based",
+            "advanced/tuning-evolver",
             "advanced/performance-assessment",
         )
     ],

@@ -234,3 +234,115 @@ def test_every_page_with_examples_is_a_docs_smoke_case() -> None:
     smoked = {case.source_path for case in DOC_SMOKE_CASES}
     pages = {f"docs/{_relative(page)}" for page in PAGES if _examples(page)}
     assert pages <= smoked, f"Foundations pages with examples missing from tests/docs/smoke_manifest.py: {sorted(pages - smoked)}"
+
+
+def _run_figure_program(body: str, data: object) -> Any:
+    """Evaluate ``body`` with the figures' algorithms as ``V`` and ``data`` read from standard input."""
+    program = f"""
+require({json.dumps(str(SCRIPT))});
+const V = globalThis.VamosFoundations;
+const data = JSON.parse(require("fs").readFileSync(0, "utf8"));
+process.stdout.write(JSON.stringify({body}));
+"""
+    completed = subprocess.run(["node", "-e", program], input=json.dumps(data), capture_output=True, text=True, check=True, timeout=60)
+    return json.loads(completed.stdout)
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_figure_frace_agrees_with_the_racing_tuner() -> None:
+    import logging
+
+    from vamos.engine.tuning import Categorical, Instance, ParamSpace, RacingTuner, Scenario, TuningTask
+    from vamos.engine.tuning.racing.stats import select_configs_by_frace
+
+    rng = np.random.default_rng(20261121)
+    tests = []
+    for _ in range(120):
+        scores = rng.normal(0, 1, (int(rng.integers(2, 9)), 1)) + rng.normal(0, 1, (1, int(rng.integers(2, 13))))
+        scores = scores + rng.normal(0, 1, scores.shape)
+        if rng.random() < 0.3:
+            scores = np.round(scores)  # ties within blocks and between differences
+        tests.append((scores, bool(rng.random() < 0.5), float(rng.choice([0.01, 0.05, 0.1]))))
+    keeps = _run_figure_program("data.map(([S, mx, a]) => V.fraceTest(S, mx, a).keep)", [[s.tolist(), mx, a] for s, mx, a in tests])
+    for (scores, maximize, alpha), keep in zip(tests, keeps):
+        assert keep == select_configs_by_frace(scores, maximize, alpha).tolist()
+
+    races = []
+    for _ in range(20):
+        n, n_instances, n_seeds = int(rng.integers(3, 9)), int(rng.integers(2, 5)), int(rng.integers(2, 4))
+        scores = rng.normal(0, 1, (n, 1)) + rng.normal(0, 1.2, (n, n_instances * n_seeds))
+        races.append((scores, n_instances, n_seeds, float(rng.choice([0.05, 0.1])), int(rng.integers(2, 7))))
+    results = _run_figure_program(
+        "data.map(([S, a, ft]) => V.fraceRace(S, { alpha: a, firstTest: ft }))", [[s.tolist(), a, ft] for s, _, _, a, ft in races]
+    )
+    logging.disable(logging.WARNING)
+    try:
+        for (scores, n_instances, n_seeds, alpha, first_test), js in zip(races, results):
+            n = scores.shape[0]
+            task = TuningTask(
+                name="figure",
+                param_space=ParamSpace(params={"c": Categorical("c", list(range(n)))}),
+                instances=[Instance(f"i{k}", n_var=1) for k in range(n_instances)],
+                seeds=list(range(n_seeds)),
+                budget_per_run=1,
+            )
+            # Unshuffled, the race plays every instance with the first seed, then with the next one.
+            scenario = Scenario(
+                max_experiments=10**6,
+                alpha=alpha,
+                first_test=first_test,
+                instance_order_random=False,
+                seed_order_random=False,
+                verbose=False,
+            )
+            tuner = RacingTuner(task, scenario, seed=0, max_initial_configs=n, initial_configs=[{"c": c} for c in range(n)])
+
+            def score(cfg: dict[str, Any], ctx: Any, scores: np.ndarray = scores, n_instances: int = n_instances) -> float:
+                return float(scores[cfg["c"], ctx.seed * n_instances + int(ctx.instance.name[1:])])
+
+            best, history = tuner.run(score, verbose=False)
+            assert js["played"] == [trial.details["num_evals"] for trial in history]
+            assert js["alive"] == [trial.details["alive"] for trial in history]
+            assert js["best"] == best["c"]
+    finally:
+        logging.disable(logging.NOTSET)
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_figure_budgets_agree_with_the_model_based_backends() -> None:
+    from vamos.engine.tuning import Instance, ModelBasedTuner, ParamSpace, Real, TuningTask
+    from vamos.engine.tuning._model_backend_utils import hyperband_brackets
+
+    cases = [(rungs, eta, configs) for rungs in range(1, 6) for eta in (2, 3, 4) for configs in (1, 5, 17, 60)]
+    assert _run_figure_program("data.map(([m, e, c]) => V.hyperbandBrackets(m, e, c))", cases) == [
+        hyperband_brackets(*case) for case in cases
+    ]
+
+    data, expected = [], []
+    for levels in ([1000, 3000, 9000], [500, 5000], [1000, 2000, 4000, 8000]):
+        for n_instances, n_seeds in ((1, 1), (6, 5), (7, 4)):
+            for fraction in (1.0, 0.75, 0.5, 0.2):
+                for min_seeds in (None, 1, 2):
+                    task = TuningTask(
+                        name="figure",
+                        param_space=ParamSpace(params={"x": Real("x", 0.0, 1.0)}),
+                        instances=[Instance(f"zdt{k}", n_var=1) for k in range(n_instances)],
+                        seeds=list(range(n_seeds)),
+                        budget_per_run=levels[-1],
+                    )
+                    tuner = ModelBasedTuner(
+                        task=task,
+                        max_trials=1,
+                        budget_levels=levels,
+                        fidelity_min_instance_frac=fraction,
+                        fidelity_min_seed_count=min_seeds,
+                    )
+                    for budget in sorted({*levels, *(levels[-1] // 3**k for k in range(4)), int(levels[0] * 1.7)}):
+                        meta = tuner._resolve_fidelity_slice(budget)[2]
+                        expected.append([meta["instances_used"], meta["seeds_used"]])
+                        options = {"instances": n_instances, "seeds": n_seeds, "minInstanceFrac": fraction, "minSeedCount": min_seeds or 0}
+                        data.append([budget, levels, options])
+    assert (
+        _run_figure_program("data.map(([b, lv, o]) => { const r = V.fidelitySlice(b, lv, o); return [r.instances, r.seeds]; })", data)
+        == expected
+    )

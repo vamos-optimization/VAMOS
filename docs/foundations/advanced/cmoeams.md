@@ -407,7 +407,7 @@ feasibility rate reported separately (lesson
   averaged violations, SDE on normalized objectives, cosine distances, and an
   exact budget.
 
-**Next:** [Comparing algorithms rigorously](performance-assessment.md).
+**Next:** [Automatic algorithm configuration](tuning.md).
 
 ## References
 

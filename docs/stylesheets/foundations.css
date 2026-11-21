@@ -435,3 +435,15 @@
     transition: none !important;
   }
 }
+
+/* Tuning figures: a plot that steps through a race with the arrow keys */
+
+.md-typeset .vf-plot.vf-keyboard:focus {
+  outline: none;
+}
+
+.md-typeset .vf-plot.vf-keyboard:focus-visible {
+  outline: 3px solid var(--vamos-teal);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
