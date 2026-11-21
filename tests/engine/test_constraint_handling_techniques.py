@@ -14,6 +14,7 @@ from vamos.algorithms import NSGAIIConfig
 from vamos.engine.algorithm.components.constrained_ranking import stochastic_ranking_order
 from vamos.engine.algorithm.components.constraint_handling import (
     CONSTRAINT_HANDLING_TECHNIQUES,
+    JMETAL_TECHNIQUES,
     EpsilonConstrained,
     PushPullSearch,
     make_constraint_handling,
@@ -41,6 +42,9 @@ PARAMETERS: dict[str, dict[str, float]] = {
     },
     "stochastic_ranking": {"probability": 0.45},
     "self_adaptive_penalty": {},
+    "static_penalty": {"coefficient": 1e6},
+    "dynamic_penalty": {"constant": 0.5, "alpha": 2.0, "beta": 2.0},
+    "violation_objective": {},
 }
 
 
@@ -82,8 +86,9 @@ def _case_id(case: dict[str, Any]) -> str:
     return f"{case['technique']}-{CASES.index(case)}"
 
 
-def test_the_fixture_covers_every_technique() -> None:
-    assert {case["technique"] for case in CASES} == set(CONSTRAINT_HANDLING_TECHNIQUES)
+def test_the_fixture_covers_every_technique_of_jmetal() -> None:
+    # The techniques that jMetal does not have are checked by hand in test_constraint_handling_penalties.
+    assert {case["technique"] for case in CASES} == set(JMETAL_TECHNIQUES)
 
 
 @pytest.mark.parametrize("engine", ENGINES)
@@ -210,7 +215,7 @@ def test_epsilon_changes_the_search() -> None:
     assert not np.array_equal(_run("cdp").X, _run("epsilon_constrained").X)
 
 
-@pytest.mark.parametrize(("technique", "generation"), [("epsilon_constrained", 20), ("push_pull", 30)])
+@pytest.mark.parametrize(("technique", "generation"), [("epsilon_constrained", 20), ("push_pull", 30), ("dynamic_penalty", 20)])
 def test_a_resumed_run_keeps_the_technique_state(technique: str, generation: int, tmp_path: Path) -> None:
     # Restarting the technique would change epsilon, or push and pull search's window of ideal and nadir points.
     from vamos.engine.algorithm.nsgaii import NSGAII
@@ -249,7 +254,7 @@ class _StopAtGeneration:
         return self.reached
 
 
-@pytest.mark.parametrize(("technique", "generation"), [("epsilon_constrained", 20), ("push_pull", 30)])
+@pytest.mark.parametrize(("technique", "generation"), [("epsilon_constrained", 20), ("push_pull", 30), ("dynamic_penalty", 20)])
 def test_a_run_resumed_from_the_returned_checkpoint_keeps_the_technique_state(technique: str, generation: int) -> None:
     # The checkpoint in the result is the in-memory way to resume, without a checkpoint directory.
     from vamos.engine.algorithm.nsgaii import NSGAII

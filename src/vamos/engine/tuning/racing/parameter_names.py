@@ -124,13 +124,21 @@ VALUE_NAMES: dict[str, tuple[tuple[str, str, str | None], ...]] = {
 
 
 # Values that Evolver does not have and that :func:`to_evolver` refuses, with the reason, by the
-# parameter's earlier name: Evolver has a value of that name for another function.
+# parameter's earlier name: Evolver has a value of that name for another function, or no such
+# function at all, so that Evolver could not run the configuration.
+_NOT_IN_JMETAL = "Evolver's constraintHandling offers only the six techniques of jMetal's util.constrainthandling"
 NO_EVOLVER_EQUIVALENT: dict[str, dict[str, str]] = {
     "aggregation": {
         "modified_tchebycheff": (
             "VAMOS's modified_tchebycheff is the augmented Tchebycheff formula with rho = 1e-3, which Evolver does not offer; "
             "Evolver's modifiedTschebyscheff is VAMOS's inverse_weight_tchebycheff"
         ),
+    },
+    # Development after 1.5.2: the constraint-handling techniques that jMetal does not have.
+    "constraint_handling": {
+        "static_penalty": _NOT_IN_JMETAL,
+        "dynamic_penalty": _NOT_IN_JMETAL,
+        "violation_objective": _NOT_IN_JMETAL,
     },
 }
 
@@ -198,7 +206,8 @@ def to_evolver(assignment: Mapping[str, Any]) -> dict[str, Any]:
     """``assignment`` (canonical or earlier names) with Evolver's camelCase parameters and values.
 
     Parameters and values that Evolver does not have keep their canonical names, except those of
-    :data:`NO_EVOLVER_EQUIVALENT`, which raise ``ValueError``. Two choices of VAMOS's MOEA/D have no
+    :data:`NO_EVOLVER_EQUIVALENT`, which raise ``ValueError``: among them the constraint-handling
+    techniques that jMetal does not have. Two choices of VAMOS's MOEA/D have no
     Evolver form either, and raise: ``inverted_pbi`` without ``normalize_objectives``, since Evolver
     always normalizes its IPBI, and the DE ``de_base: current``, since Evolver's MOEA/D draws the base
     of the mutant at random; ``de_base: random`` is Evolver's own and is not written.

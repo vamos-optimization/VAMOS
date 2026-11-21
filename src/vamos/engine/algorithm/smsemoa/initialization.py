@@ -95,7 +95,9 @@ def initialize_smsemoa_run(
     n_var = problem.n_var
     n_obj = problem.n_obj
     constraint_mode = normalize_constraint_mode(config.get("constraint_mode", "feasibility"))
-    constraint_handling = run_technique(config.get("constraint_handling"), constraint_mode)
+    constraint_handling = run_technique(
+        config.get("constraint_handling"), constraint_mode, population_size=int(pop_size), max_evaluations=max_eval
+    )
 
     # Build variation operators
     crossover_fn, mutation_fn = build_variation_operators(

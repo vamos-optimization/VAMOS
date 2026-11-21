@@ -111,6 +111,63 @@ constrained solutions. They are the techniques of jMetal's package
 | `stochastic_ranking` | `probability` | Runarsson and Yao's stochastic ranking: a bubble sort that compares by objectives with that probability, or always between feasible solutions. |
 | `self_adaptive_penalty` | none | Woldesenbet, Yen and Tessema's self-adaptive penalty: Pareto dominance over objectives modified by the violation and the fraction of feasible solutions. |
 
+**Development after 1.5.2:** NSGA-II, NSGA-III, SMS-EMOA and AGE-MOEA also
+take three techniques that neither jMetal nor Evolver has:
+
+| Technique | Parameters | Ranking |
+| --- | --- | --- |
+| `static_penalty` | `coefficient` | A static penalty: Pareto dominance over every objective plus `coefficient` times the overall violation, the sum of the positive constraint values. |
+| `dynamic_penalty` | `constant`, `alpha`, `beta` | Joines and Houck's non-stationary penalty: Pareto dominance over every objective plus `(constant * k) ** alpha` times the sum of the violations raised to `beta`, where `k` is the generation. |
+| `violation_objective` | none | The overall violation as one more objective (Coello, 2000): Pareto dominance over the objectives and the violation. |
+
+```python
+from vamos.algorithms import NSGAIIConfig
+
+config = (
+    NSGAIIConfig.builder()
+    .pop_size(100)
+    .crossover("sbx", prob=0.9, eta=20.0)
+    .mutation("pm", prob="1/n", eta=20.0)
+    .constraint_handling("dynamic_penalty", constant=0.5, alpha=2.0, beta=2.0)
+    .build()
+)
+```
+
+Their parameters must be positive. `dynamic_penalty` follows section 3.1 of
+J. A. Joines and C. R. Houck, "On the use of non-stationary penalty functions
+to solve nonlinear constrained optimization problems with GA's" (Proceedings
+of the First IEEE Conference on Evolutionary Computation, 1994, pp. 579–584).
+The paper minimizes `f + P(alpha, beta)`, with `P(alpha, beta) = (C * k) **
+alpha * SVC(beta)`, where `k` is the generation number and `SVC(beta)` is the
+sum of every violation raised to `beta`, of the inequalities and the
+equalities, each outside a tolerance band. VAMOS adds the same penalty to every
+objective, and measures each violation as it stores the constraint, `max(0,
+g_j)` with `g_j <= 0` feasible, with no tolerance band: a problem that turns an
+equality into inequalities sets its own tolerance.
+
+The generation `k` counts the run's evaluations in populations, the
+evaluations before the offspring's over the population size, and is at least
+1, as the paper's generation count: a generational algorithm ranks its initial
+population and its first replacement at `k = 1` and its `k`-th replacement at
+`k`, and a steady-state one, such as SMS-EMOA or NSGA-II with fewer offspring
+than its population, adds `1 / pop_size` per offspring rather than 1.
+
+The paper tested `C = 0.5` with `(alpha, beta)` set to (1, 1), (1, 2) and
+(2, 2). P(1, 2) reached no feasible solution in two of its four test cases,
+where the constraints were barely violated; P(2, 2), which squares the
+generation number, puts the most pressure towards feasibility; and P(1, 1) did
+best on average but took longer to converge. The defaults are P(2, 2) with
+`C = 0.5`. VAMOS leaves out the paper's other family, `exp(P(alpha, beta))`
+with `C = 0.05`, which overflowed in the paper when the initial violations were
+large.
+
+The penalized objectives, like those of
+`self_adaptive_penalty`, and the violation of `violation_objective` only rank
+the population: crowding distance, niching, hypervolume contributions and
+survival scores use the objectives themselves. The two penalties multiply
+violations, so the coefficient that balances them against the objectives
+depends on the problem's scales.
+
 ```python
 from vamos.algorithms import NSGAIIConfig
 
@@ -127,10 +184,11 @@ config = (
 The other configurations take the same field and builder method, such as
 `NSGAIIIConfig.builder().constraint_handling(...)`. Every parameter of a
 technique is required, as in jMetal. The techniques that change during a run,
-`epsilon_constrained` and `push_pull`, follow its progress: the evaluations
-before the offspring's over the evaluation budget. Each ranks fixed populations
+`epsilon_constrained`, `push_pull` and `dynamic_penalty`, follow its progress: the evaluations
+before the offspring's over the evaluation budget. Each of jMetal's ranks fixed populations
 as jMetal does, which `tests/engine/test_constraint_handling_techniques.py`
-checks against jMetal's own implementation.
+checks against jMetal's own implementation; the others are checked against
+rankings computed by hand.
 
 Before each replacement, the technique adapts to the union of parents and
 offspring and ranks it, as Evolver's algorithms do, and its fronts take the
@@ -144,7 +202,8 @@ place of the non-dominated ones:
 | AGE-MOEA | Whole fronts survive; the survival score cuts the last. | Rank, then survival score. |
 
 RVEA and SMPSO take only the four techniques that judge the violation of a
-single solution, as Evolver's `EffectiveViolation` does: `cdp` (the total
+single solution, as Evolver's `EffectiveViolation` does, and MOEA/D none of them
+(see below): `cdp` (the total
 violation), `violated_constraints` (their number), `epsilon_constrained` (the
 violation, or 0 within epsilon) and `push_pull` (0 while it pushes, then as
 `epsilon_constrained`). RVEA's feasibility-first survival judges feasibility
@@ -160,7 +219,8 @@ The tournament compares the technique's ranks of the population, which VAMOS
 ranks again, as it does with `cdp`; jMetal reuses the ranks of the replacement.
 Stochastic ranking draws its uniforms from the run's generator, so a run stays
 a function of its seed, and the engines give the same run. NSGA-II's checkpoints
-keep the state of the technique. `cdp` keeps each algorithm's own survival, so
+keep the state of the technique, such as epsilon or the generation of
+`dynamic_penalty`. `cdp` keeps each algorithm's own survival, so
 its results are those of VAMOS 1.1.0. A technique other than `cdp` needs
 `constraint_mode="feasibility"`.
 

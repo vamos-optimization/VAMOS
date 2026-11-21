@@ -126,3 +126,16 @@ parameters:
         conditional_parameters:
           stochastic_ranking_probability: {type: real, default: 0.45, range: [0.0, 0.5], role: operator_rate}
       self_adaptive_penalty: {}
+      # Development after 1.5.2: three techniques that jMetal and Evolver do not have. The coefficients
+      # multiply violations, so their ranges are wide and logarithmic.
+      static_penalty:
+        conditional_parameters:
+          # pymoo's default penalty, 1e6, which makes a violation outweigh any difference of objectives.
+          static_penalty_coefficient: {type: real, default: 1.0e+6, range: [1.0e-2, 1.0e+8], log: true, role: operator_rate}
+      dynamic_penalty:
+        conditional_parameters:
+          # Joines and Houck's (C * k)^alpha * SVC(beta) (IEEE ICEC 1994, section 3.1): their P(2, 2), with C = 0.5.
+          dynamic_penalty_constant: {type: real, default: 0.5, range: [0.01, 10.0], log: true, role: operator_rate}
+          dynamic_penalty_alpha: {type: real, default: 2.0, range: [1.0, 3.0], role: operator_rate}
+          dynamic_penalty_beta: {type: real, default: 2.0, range: [1.0, 3.0], role: operator_rate}
+      violation_objective: {}

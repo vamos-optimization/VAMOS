@@ -79,7 +79,9 @@ def initialize_run(
     replacement_size = 1
 
     constraint_mode = normalize_constraint_mode(algo.cfg.get("constraint_mode", "feasibility"))
-    constraint_handling = run_technique(algo.cfg.get("constraint_handling"), constraint_mode, checkpoint)
+    constraint_handling = run_technique(
+        algo.cfg.get("constraint_handling"), constraint_mode, checkpoint, population_size=pop_size, max_evaluations=max_eval
+    )
     initializer_cfg = algo.cfg.get("initializer")
     X: np.ndarray[Any, Any]
     F: np.ndarray[Any, Any]

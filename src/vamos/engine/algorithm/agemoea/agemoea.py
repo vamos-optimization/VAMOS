@@ -220,11 +220,13 @@ class AGEMOEA:
 
         pop_size = int(self.cfg.get("pop_size", 100))
         constraint_mode = normalize_constraint_mode(self.cfg.get("constraint_mode", "feasibility"))
-        constraint_handling = run_technique(self.cfg.get("constraint_handling"), constraint_mode)
         variant = resolve_agemoea_variant(self.cfg.get("variant", "agemoea"))
         n_constraints = int(getattr(problem, "n_constraints", 0) or 0)
         max_evals, hv_config = parse_termination(termination, "AGE-MOEA", pop_size)
         validate_initial_budget(max_evals, pop_size, "AGE-MOEA")
+        constraint_handling = run_technique(
+            self.cfg.get("constraint_handling"), constraint_mode, population_size=pop_size, max_evaluations=max_evals
+        )
 
         encoding = normalize_encoding(getattr(problem, "encoding", "real"))
         xl, xu = resolve_bounds(problem, encoding)

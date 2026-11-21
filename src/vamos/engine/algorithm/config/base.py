@@ -246,13 +246,15 @@ class _ConstraintHandlingBuilder:
     _cfg: dict[str, Any]
 
     def constraint_handling(self, name: str, **params: float) -> Self:
-        """Rank constrained populations with a technique of jMetal's ``util.constrainthandling``.
+        """Rank constrained populations with a constraint-handling technique.
 
-        ``name`` is ``cdp`` (the default), ``violated_constraints``, ``epsilon_constrained``
-        (``initial_quantile``, ``exponent``, ``decay_fraction``), ``push_pull`` (``change_threshold``,
-        ``window_fraction``, ``decay_fraction``, ``exponent``, ``feasibility_threshold``,
-        ``reduction_rate``), ``stochastic_ranking`` (``probability``) or ``self_adaptive_penalty``.
-        Every parameter of the technique is required. See
+        ``name`` is one of jMetal's ``util.constrainthandling``: ``cdp`` (the default),
+        ``violated_constraints``, ``epsilon_constrained`` (``initial_quantile``, ``exponent``,
+        ``decay_fraction``), ``push_pull`` (``change_threshold``, ``window_fraction``, ``decay_fraction``,
+        ``exponent``, ``feasibility_threshold``, ``reduction_rate``), ``stochastic_ranking``
+        (``probability``) or ``self_adaptive_penalty``; or one that jMetal does not have:
+        ``static_penalty`` (``coefficient``), ``dynamic_penalty`` (``constant``, ``alpha``, ``beta``) or
+        ``violation_objective``. Every parameter of the technique is required. See
         :mod:`vamos.engine.algorithm.components.constraint_handling`.
         """
         self._cfg["constraint_handling"] = normalize_constraint_handling((name, params))

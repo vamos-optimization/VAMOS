@@ -2,7 +2,10 @@
 
 The ``<algorithm>_constrained`` grammars offer the technique and its parameters with the names and
 ranges of Evolver's spaces (parameter ``constraintHandling`` of ``NSGAIIDoubleConstrained.yaml``),
-in snake case; the parameters are scale-free: quantiles, fractions of the run and probabilities.
+in snake case; the parameters are scale-free: quantiles, fractions of the run and probabilities. The
+grammars of NSGA-II, NSGA-III, SMS-EMOA and AGE-MOEA also offer the three techniques that Evolver does
+not have, ``static_penalty``, ``dynamic_penalty`` and ``violation_objective``; the coefficients of the
+two penalties multiply violations, so they depend on the problem's scale.
 """
 
 from __future__ import annotations
@@ -24,6 +27,12 @@ CONSTRAINT_HANDLING_SPACE_PARAMETERS: dict[str, dict[str, str]] = {
         "push_pull_exponent": "exponent",
         "push_pull_feasibility_threshold": "feasibility_threshold",
         "push_pull_reduction_rate": "reduction_rate",
+    },
+    "static_penalty": {"static_penalty_coefficient": "coefficient"},
+    "dynamic_penalty": {
+        "dynamic_penalty_constant": "constant",
+        "dynamic_penalty_alpha": "alpha",
+        "dynamic_penalty_beta": "beta",
     },
 }
 
