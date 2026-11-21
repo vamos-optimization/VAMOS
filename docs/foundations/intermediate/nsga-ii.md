@@ -1,10 +1,10 @@
 ---
-description: 'I1. NSGA-II at a glance: why it was proposed, its generational loop, a live NSGA-II running in the page, and the same configuration in VAMOS.'
+description: 'NSGA-II at a glance: why it was proposed, its generational loop, a live NSGA-II running in the page, and the same configuration in VAMOS.'
 search:
   boost: 0.5
 ---
 
-# I1. NSGA-II at a glance
+# NSGA-II at a glance
 
 NSGA-II, the *Non-dominated Sorting Genetic Algorithm II* of Deb, Pratap,
 Agarwal and Meyarivan [1], is the most widely used evolutionary
@@ -31,9 +31,9 @@ explicitly [1]:
 
 | Weakness of NSGA | Answer in NSGA-II | Lesson |
 | --- | --- | --- |
-| Sorting cost O(M N³) for N solutions and M objectives | **Fast non-dominated sorting**, O(M N²) | [I2](non-dominated-sorting.md) |
-| A sharing parameter σ_share that had to be tuned | **Crowding distance**, which has no parameter | [I3](crowding-distance.md) |
-| No elitism: good solutions could be lost | **Elitist survival**: parents and offspring compete together | [I5](elitist-survival.md) |
+| Sorting cost O(M N³) for N solutions and M objectives | **Fast non-dominated sorting**, O(M N²) | [Non-dominated sorting](non-dominated-sorting.md) |
+| A sharing parameter σ_share that had to be tuned | **Crowding distance**, which has no parameter | [Crowding and tournaments](crowding-distance.md) |
+| No elitism: good solutions could be lost | **Elitist survival**: parents and offspring compete together | [Elitist survival](elitist-survival.md) |
 
 ## One generation
 
@@ -139,12 +139,12 @@ lists every field.
 
 | Step | Lesson | VAMOS source |
 | --- | --- | --- |
-| Generation loop (ask, evaluate, tell) | [I5](elitist-survival.md) | `src/vamos/engine/algorithm/nsgaii/ask_tell.py` |
-| Fast non-dominated sorting | [I2](non-dominated-sorting.md) | `_fast_non_dominated_sort` in `src/vamos/foundation/kernel/numpy_backend.py` |
-| Crowding distance | [I3](crowding-distance.md) | `_compute_crowding` in the same file |
-| Binary tournament | [I3](crowding-distance.md) | `NumPyKernel.tournament_selection` in the same file |
-| SBX and polynomial mutation | [I4](variation-operators.md) | `src/vamos/foundation/kernel/operator_primitives.py` |
-| Elitist survival | [I5](elitist-survival.md) | `_select_nsga2` and `NumPyKernel.nsga2_survival` in `numpy_backend.py` |
+| Generation loop (ask, evaluate, tell) | [Elitist survival](elitist-survival.md) | `src/vamos/engine/algorithm/nsgaii/ask_tell.py` |
+| Fast non-dominated sorting | [Non-dominated sorting](non-dominated-sorting.md) | `_fast_non_dominated_sort` in `src/vamos/foundation/kernel/numpy_backend.py` |
+| Crowding distance | [Crowding and tournaments](crowding-distance.md) | `_compute_crowding` in the same file |
+| Binary tournament | [Crowding and tournaments](crowding-distance.md) | `NumPyKernel.tournament_selection` in the same file |
+| SBX and polynomial mutation | [Real-coded operators](../operators/real-coded.md) | `src/vamos/foundation/kernel/operator_primitives.py` |
+| Elitist survival | [Elitist survival](elitist-survival.md) | `_select_nsga2` and `NumPyKernel.nsga2_survival` in `numpy_backend.py` |
 
 The NumPy kernel is the reference implementation. The Numba and MooCore
 engines implement the same kernel interface and are tested against it; see
@@ -155,7 +155,7 @@ engines implement the same kernel interface and are tested against it; see
 Sorting 2N solutions with M objectives costs O(M N²) comparisons, which
 dominates everything else; crowding costs O(M N log N) [1]. Jensen [4] showed
 that sorting can be done in O(N log^(M−1) N). For two objectives VAMOS uses an
-O(N log N) sort (lesson [I2](non-dominated-sorting.md#in-vamos)). In practice,
+O(N log N) sort (lesson [Non-dominated sorting](non-dominated-sorting.md#in-vamos)). In practice,
 for expensive problems the evaluations cost far more than the algorithm.
 
 ## Key points
@@ -168,7 +168,7 @@ for expensive problems the evaluations cost far more than the algorithm.
   priority.
 - The budget counts every evaluation, including the initial population.
 
-**Next:** [I2. Fast non-dominated sorting](non-dominated-sorting.md).
+**Next:** [Fast non-dominated sorting](non-dominated-sorting.md).
 
 ## References
 

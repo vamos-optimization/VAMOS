@@ -1,10 +1,10 @@
 ---
-description: 'A1. Many-objective optimization: why Pareto dominance and crowding lose power with four or more objectives, the remedies, and NSGA-III reference directions in detail, with interactive figures and VAMOS code.'
+description: 'Many-objective optimization: why Pareto dominance and crowding lose power with four or more objectives, the remedies, and NSGA-III reference directions in detail, with interactive figures and VAMOS code.'
 search:
   boost: 0.5
 ---
 
-# A1. Many-objective optimization
+# Many-objective optimization
 
 The algorithms of the Intermediate level were designed, and are mostly tested,
 with two or three objectives. Real problems often have more: a car design is
@@ -48,7 +48,7 @@ analysed this loss of selection pressure, and Ishibuchi, Tsukamoto and Nojima
   non-dominated can be far apart in decision space, and their children land
   far from either.
 - **Indicators get expensive or unreliable.** Exact hypervolume grows
-  exponentially with m (lesson [B4](../basic/quality-indicators.md#hypervolume)),
+  exponentially with m (lesson [Quality indicators](../basic/quality-indicators.md#hypervolume)),
   and reference sets for IGD+ need many points to represent the front.
 - **People cannot see the front.** Beyond three objectives, scatter plots give
   way to parallel coordinates, heat maps or projections, each of which hides
@@ -74,7 +74,7 @@ Li et al. [3] survey the many-objective algorithms. The main ideas are:
 NSGA-III [6] keeps NSGA-II's structure (merge, non-dominated sort, fill whole
 fronts) and changes only the way the last front is truncated. Crowding distance
 is replaced by **niching around reference directions**, in four steps.
-Lesson [A2](nsga-iii.md) follows each of them into the VAMOS code.
+Lesson [NSGA-III](nsga-iii.md) follows each of them into the VAMOS code.
 
 **1. Reference points.** Before the run, place H points on the unit simplex
 (w₁ + … + w_m = 1, w_i ≥ 0) with Das and Dennis' systematic method [10]:
@@ -172,7 +172,7 @@ objectives.
 - For H = C(p + m − 1, m − 1) directions the population must hold at least H
   solutions.
 
-**Next:** [A2. NSGA-III](nsga-iii.md).
+**Next:** [NSGA-III](nsga-iii.md).
 
 ## References
 

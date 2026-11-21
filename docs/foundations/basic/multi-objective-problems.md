@@ -1,10 +1,10 @@
 ---
-description: 'B1. What a multi-objective optimization problem is: decision and objective spaces, conflicting objectives, why weighted sums are not enough, and why population-based algorithms are used.'
+description: 'What a multi-objective optimization problem is: decision and objective spaces, conflicting objectives, why weighted sums are not enough, and why population-based algorithms are used.'
 search:
   boost: 0.5
 ---
 
-# B1. What is a multi-objective problem?
+# What is a multi-objective problem?
 
 Most real decisions have more than one goal. A bridge should be light **and**
 stiff; a machine-learning model should be accurate **and** small; a production
@@ -36,11 +36,11 @@ subject to   g_j(x) ≤ 0,   j = 1, …, J
   objective: an objective to maximize is passed as its negative, −f(x).
 - **g_j(x) ≤ 0** are inequality *constraints*. A candidate that satisfies all
   of them is *feasible*. VAMOS uses exactly this convention, `G <= 0`; lesson
-  [A5](../advanced/constrained.md) is devoted to constraints.
+  [Constraints](../advanced/constrained.md) is devoted to constraints.
 
 Problems with two or three objectives are usually called *multi-objective*.
 With four or more, they are called *many-objective*, because, as lesson
-[A1](../advanced/many-objective.md) shows, several mechanisms that work well
+[Many objectives](../advanced/many-objective.md) shows, several mechanisms that work well
 with two objectives stop working.
 
 ## Two spaces
@@ -67,7 +67,7 @@ Three things to notice:
    compromise: you cannot lower f₁ without raising f₂. Those designs are the
    *Pareto set* (blue segment on the left); their objective vectors form the
    *Pareto front* (blue curve on the right). Lesson
-   [B2](pareto-dominance.md) defines both precisely.
+   [Pareto dominance](pareto-dominance.md) defines both precisely.
 3. **The front, not the set, is what a decision maker looks at.** It answers
    "how much f₂ must I accept to gain this much f₁?". The Pareto set answers
    "which design gives me that trade-off?".
@@ -110,7 +110,7 @@ Other scalarizations avoid the first limit. The *ε-constraint* method
 optimizes one objective and turns the others into constraints [4]; the
 *Tchebycheff* scalarization uses a weighted maximum instead of a weighted sum
 and reaches every Pareto-optimal point. Lesson
-[I6](../intermediate/beyond-nsga-ii.md) shows how MOEA/D builds a complete
+[Families of algorithms](algorithm-families.md) shows how MOEA/D builds a complete
 algorithm on that idea.
 
 ## When do preferences enter?
@@ -197,7 +197,7 @@ functions.
 - Evolutionary algorithms keep a population and therefore approximate the
   whole front in one run, leaving the final choice to the decision maker.
 
-**Next:** [B2. Pareto dominance and the Pareto front](pareto-dominance.md).
+**Next:** [Pareto dominance and the Pareto front](pareto-dominance.md).
 
 ## References
 
