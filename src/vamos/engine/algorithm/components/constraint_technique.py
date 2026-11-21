@@ -48,6 +48,9 @@ class ConstraintHandlingTechnique:
     needs_progress = False
     #: Whether two rows with the same positive effective violation compare by Pareto dominance.
     dominance_on_ties = False
+    #: Whether :meth:`ranks` puts each row in a front of its own, a total order. NSGA-II then keeps whole
+    #: fronts only, so it does not compute the crowding distance that would order a front.
+    total_order = False
 
     def bind_run(self, population_size: int, max_evaluations: int) -> None:
         """Learn the run's population size and evaluation budget, before its first :meth:`update`.
@@ -63,6 +66,14 @@ class ConstraintHandlingTechnique:
     def ranks(self, kernel: KernelBackend, F: NDArray[Any], G: NDArray[Any], rng: np.random.Generator) -> RankArray:
         """The front of each row (0 first)."""
         raise NotImplementedError
+
+    def survived(self, F: NDArray[Any], G: NDArray[Any]) -> None:
+        """Learn the population that a replacement kept, once after each replacement.
+
+        NSGA-II calls it, the only algorithm that takes the techniques that need it; the others ignore it.
+        A technique that keeps what it learns returns it from :meth:`state`, which checkpoints save.
+        """
+        return None
 
     def effective_violation(self, G: NDArray[Any]) -> NDArray[np.float64]:
         """The violation of each row as the technique judges it: 0 for a row that it treats as feasible.
