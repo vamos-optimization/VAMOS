@@ -1,10 +1,10 @@
 ---
-description: 'I5. Elitist (μ + λ) survival in NSGA-II: merging parents and offspring, filling whole fronts and truncating the last one by crowding distance, step by step and in VAMOS, plus constraints and the steady-state variant.'
+description: 'Elitist (μ + λ) survival in NSGA-II: merging parents and offspring, filling whole fronts and truncating the last one by crowding distance, step by step and in VAMOS, plus constraints and the steady-state variant.'
 search:
   boost: 0.5
 ---
 
-# I5. Elitist survival and the complete generation
+# Elitist survival and the complete generation
 
 The last step of a generation decides which N of the 2N candidates survive.
 NSGA-II makes parents and offspring compete on equal terms, which guarantees
@@ -31,12 +31,12 @@ form one pool, and the best N of the pool survive.
 ## The procedure
 
 <div class="vf-formula">Rₜ ← Pₜ ∪ Qₜ                               (2N candidates)
-F₁, F₂, … ← fast non-dominated sort of Rₜ       (lesson I2)
+F₁, F₂, … ← fast non-dominated sort of Rₜ       (non-dominated sorting)
 Pₜ₊₁ ← ∅,   k ← 1
 while |Pₜ₊₁| + |F_k| ≤ N:
     Pₜ₊₁ ← Pₜ₊₁ ∪ F_k                          (the whole front fits)
     k ← k + 1
-compute the crowding distances of F_k           (lesson I3)
+compute the crowding distances of F_k           (crowding distance)
 add the N − |Pₜ₊₁| members of F_k with the largest distances</div>
 
 Every member of an earlier front survives before any member of a later
@@ -135,8 +135,8 @@ organizes each generation as *ask* and *tell*:
 
 1. **Ask.** Compute ranks and crowding distances of the current population
    (they are cached from the previous survival when possible), pick parents
-   with the binary tournament (lesson [I3](crowding-distance.md)), and apply
-   crossover and mutation (lesson [I4](variation-operators.md)). The result is
+   with the binary tournament (lesson [Crowding and tournaments](crowding-distance.md)), and apply
+   crossover and mutation (lesson [Real-coded operators](../operators/real-coded.md)). The result is
    the offspring decision matrix.
 2. **Evaluate** the offspring, counting every evaluation against the budget.
 3. **Tell.** Merge parents and offspring and run the survival above; update any
@@ -156,7 +156,7 @@ With constraints g_j(x) ≤ 0, VAMOS' default NSGA-II replaces dominance by
 **constrained domination** [3]: a feasible solution beats any infeasible one, two
 infeasible solutions are compared by their total violation, and two feasible
 solutions by Pareto dominance. Sorting, crowding and truncation then proceed as
-above. Lesson [A5](../advanced/constrained.md) shows its effect and the
+above. Lesson [Constraints](../advanced/constrained.md) shows its effect and the
 alternatives that VAMOS provides.
 
 ## Steady-state NSGA-II
@@ -180,7 +180,7 @@ budget accounting and when the two variants differ.
 - Constraints change the comparison (constrained domination), not the structure
   of survival.
 
-**Next:** [I6. Beyond NSGA-II](beyond-nsga-ii.md).
+**Next:** [SPEA2](spea2.md).
 
 ## References
 

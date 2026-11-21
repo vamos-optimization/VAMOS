@@ -1,12 +1,12 @@
 ---
-description: 'A4. AGE-MOEA: normalizing the first front, estimating its curvature p from a central point, proximity and diversity in the Lp norm, the greedy survival score and the truncation of the last front, as VAMOS implements them, with an interactive figure and VAMOS code.'
+description: 'AGE-MOEA: normalizing the first front, estimating its curvature p from a central point, proximity and diversity in the Lp norm, the greedy survival score and the truncation of the last front, as VAMOS implements them, with an interactive figure and VAMOS code.'
 search:
   boost: 0.5
 ---
 
-# A4. AGE-MOEA: adapting to the geometry of the front
+# AGE-MOEA: adapting to the geometry of the front
 
-NSGA-III and RVEA (lessons [A2](nsga-iii.md) and [A3](rvea.md)) spread their
+NSGA-III and RVEA (lessons [NSGA-III](nsga-iii.md) and [RVEA](rvea.md)) spread their
 solutions along directions fixed before the run. That works when the front
 covers the simplex the directions were made for, and less well when it does
 not [6]. AGE-MOEA, the adaptive geometry estimation MOEA of Panichella [1],
@@ -16,7 +16,7 @@ geometry that shape implies.
 
 The rest is NSGA-II [2]: merge parents and offspring, sort them into fronts,
 keep whole fronts while they fit (lesson
-[I5](../intermediate/elitist-survival.md)). Only the measure that cuts the
+[Elitist survival](../intermediate/elitist-survival.md)). Only the measure that cuts the
 last front changes. The crowding distance is replaced by a **survival score**
 that combines the proximity of a solution to the ideal point with its
 distance to the solutions already kept, both measured in the estimated
@@ -132,7 +132,7 @@ With constraints VAMOS puts feasible solutions first: when more are feasible
 than survive, the survival runs on the feasible ones; otherwise every feasible
 solution survives and the least violated infeasible ones fill the population.
 The tournament compares infeasible solutions by violation, and
-`constraint_handling` can replace the rule (lesson [A5](constrained.md)).
+`constraint_handling` can replace the rule (lesson [Constraints](constrained.md)).
 
 ## Explore the geometry
 
@@ -354,7 +354,7 @@ poor.
 - VAMOS scores later fronts by inverse proximity, as the author's code does,
   and measures them in the first front's translated, normalized coordinates.
 
-**Next:** [A5. Constrained multi-objective optimization](constrained.md).
+**Next:** [Constrained multi-objective optimization](constrained.md).
 
 ## References
 

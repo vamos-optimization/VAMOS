@@ -1,14 +1,14 @@
 ---
-description: 'I9. SMS-EMOA in depth: the steady-state (μ + 1) loop, non-dominated sorting of the N + 1 solutions, removal of the least hypervolume contributor of the last front, the reference point, special cases and cost, with interactive figures and the VAMOS implementation.'
+description: 'SMS-EMOA in depth: the steady-state (μ + 1) loop, non-dominated sorting of the N + 1 solutions, removal of the least hypervolume contributor of the last front, the reference point, special cases and cost, with interactive figures and the VAMOS implementation.'
 search:
   boost: 0.5
 ---
 
-# I9. SMS-EMOA: selection by hypervolume contribution
+# SMS-EMOA: selection by hypervolume contribution
 
-Lesson [B4](../basic/quality-indicators.md#hypervolume) showed that the
+Lesson [Quality indicators](../basic/quality-indicators.md#hypervolume) showed that the
 hypervolume rewards convergence, spread and uniformity at once, and lesson
-[I6](beyond-nsga-ii.md#indicator-based-algorithms) asked why an algorithm
+[Families of algorithms](../basic/algorithm-families.md#indicator-based-algorithms) asked why an algorithm
 should not select for it directly. SMS-EMOA, the *S-metric selection*
 evolutionary multi-objective algorithm of Emmerich, Beume and Naujoks [1, 2],
 does exactly that, in the simplest possible way: create one offspring, and
@@ -18,7 +18,7 @@ SMS-EMOA keeps NSGA-II's non-dominated sorting for convergence and replaces the
 crowding distance with the **exclusive hypervolume contribution** for
 diversity. Because it removes a single solution per step, its contributions
 always describe the current set; NSGA-II, which cuts a whole front with
-distances computed once (lesson [I3](crowding-distance.md)), has no such
+distances computed once (lesson [Crowding and tournaments](crowding-distance.md)), has no such
 guarantee.
 
 In this lesson you will learn:
@@ -52,13 +52,13 @@ repeat until the evaluation budget is spent:
     choose two parents in P
     q ← mutation( first child of crossover(parents) ),   evaluate q
     Q ← P ∪ {q}                                     (N + 1 solutions)
-    F₁, …, F_v ← non-dominated sort of Q             (lesson I2)
+    F₁, …, F_v ← non-dominated sort of Q             (non-dominated sorting)
     r ← the member s of F_v with the smallest ΔS(s, F_v)
     P ← Q \ {r}</div>
 
 Each evaluation changes the population, so a good child can become a parent
 at once, as in steady-state NSGA-II (lesson
-[I5](elitist-survival.md#steady-state-nsga-ii)). The child competes on equal
+[Elitist survival](elitist-survival.md#steady-state-nsga-ii)). The child competes on equal
 terms: if it is the worst of the N + 1, it is the one removed, and the
 population does not change.
 
@@ -69,7 +69,7 @@ uses NSGA-II's tournament on rank and crowding distance instead.
 ## Sorting the N + 1 solutions
 
 The N + 1 solutions are sorted into fronts exactly as in NSGA-II (lesson
-[I2](non-dominated-sorting.md)). Only the **last front** F_v can lose a member;
+[Non-dominated sorting](non-dominated-sorting.md)). Only the **last front** F_v can lose a member;
 every earlier front is safe. Early in a run, F_v often holds dominated
 solutions or the child alone. Later, all N + 1 solutions are often mutually
 non-dominated, v = 1, and the hypervolume alone decides.
@@ -86,7 +86,7 @@ dominate. VAMOS does not use it; it always measures hypervolume contributions.
 ## The exclusive hypervolume contribution
 
 With S(A) the hypervolume of a set A with respect to a reference point r
-(lesson [B4](../basic/quality-indicators.md#hypervolume)), the exclusive
+(lesson [Quality indicators](../basic/quality-indicators.md#hypervolume)), the exclusive
 contribution of s to the last front is the hypervolume lost if s leaves:
 
 <div class="vf-formula">ΔS(s, F_v) = S(F_v) − S(F_v \ {s})</div>
@@ -117,7 +117,7 @@ vector=[…]:             a fixed r given by the user</div>
 
 Ideal and nadir are the best and worst value of each objective over **all
 N + 1 solutions**, not only the last front (lesson
-[B2](../basic/pareto-dominance.md#ideal-and-nadir-points)). The default places r
+[Pareto dominance](../basic/pareto-dominance.md#ideal-and-nadir-points)). The default places r
 one objective range beyond the worst values, so rescaling an objective rescales
 r with it and the selection does not depend on the units. jMetal's rule lies
 close to the worst values. A fixed vector suits an objective space whose
@@ -365,18 +365,18 @@ and polynomial mutation, among others), VAMOS compiles the whole step, including
 the two-objective contributions, and reproduces the NumPy path. For many objectives,
 HypE [10] estimates the contributions by Monte Carlo sampling, and
 reference-direction algorithms avoid them altogether (lesson
-[A1](../advanced/many-objective.md)).
+[Many objectives](../advanced/many-objective.md)).
 
 ## SMS-EMOA compared
 
 - **With NSGA-II.** Same sorting; the hypervolume contribution replaces the
   crowding distance, and one child per step replaces N. The contributions
   account for the shape of the front and are recomputed after every removal.
-- **With SPEA2** (lesson [I7](spea2.md)). Both remove one solution at a time;
+- **With SPEA2** (lesson [SPEA2](spea2.md)). Both remove one solution at a time;
   SPEA2 measures distances to neighbours, SMS-EMOA measures the volume a point
   adds, so its distribution depends on the shape of the front and on the
   reference point [5].
-- **With IBEA** (lesson [I10](ibea.md)). IBEA also selects by an indicator but
+- **With IBEA** (lesson [IBEA](ibea.md)). IBEA also selects by an indicator but
   needs only pairwise indicator values, which stay cheap with many objectives.
 - **When to use it.** Two or three objectives, when the hypervolume is the
   measure that matters, and especially when evaluations are expensive enough
@@ -396,7 +396,7 @@ reference-direction algorithms avoid them altogether (lesson
   violation first.
 - The cost of exact contributions limits SMS-EMOA to few objectives.
 
-**Next:** [I10. IBEA: indicator-based fitness](ibea.md).
+**Next:** [IBEA: indicator-based fitness](ibea.md).
 
 ## References
 

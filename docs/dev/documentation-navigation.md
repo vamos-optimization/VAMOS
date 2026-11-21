@@ -100,31 +100,31 @@ and reachable through the named parent pages even when absent from the menu.
 | [dev/typing.md](typing.md) | Development | Developer → Maintainers → Typing Policy | Regroup |
 | [examples.md](../examples.md) | Tutorial | Tutorials → Examples Gallery | Regroup |
 | [foundations/index.md](../foundations/index.md) | Tutorial | Foundations → Overview | Add |
-| [foundations/basic/multi-objective-problems.md](../foundations/basic/multi-objective-problems.md) | Tutorial | Foundations → Basic → B1. Multi-objective Problems | Add |
-| [foundations/basic/pareto-dominance.md](../foundations/basic/pareto-dominance.md) | Tutorial | Foundations → Basic → B2. Pareto Dominance | Add |
-| [foundations/basic/quality-aspects.md](../foundations/basic/quality-aspects.md) | Tutorial | Foundations → Basic → B3. Quality Aspects | Add |
-| [foundations/basic/quality-indicators.md](../foundations/basic/quality-indicators.md) | Tutorial | Foundations → Basic → B4. Quality Indicators | Add |
-| [foundations/intermediate/nsga-ii.md](../foundations/intermediate/nsga-ii.md) | Tutorial | Foundations → Intermediate → I1. NSGA-II at a Glance | Add |
-| [foundations/intermediate/non-dominated-sorting.md](../foundations/intermediate/non-dominated-sorting.md) | Tutorial | Foundations → Intermediate → I2. Non-dominated Sorting | Add |
-| [foundations/intermediate/crowding-distance.md](../foundations/intermediate/crowding-distance.md) | Tutorial | Foundations → Intermediate → I3. Crowding and Tournaments | Add |
-| [foundations/intermediate/variation-operators.md](../foundations/intermediate/variation-operators.md) | Tutorial | Foundations → Intermediate → I4. SBX and Polynomial Mutation | Add |
-| [foundations/intermediate/elitist-survival.md](../foundations/intermediate/elitist-survival.md) | Tutorial | Foundations → Intermediate → I5. Elitist Survival | Add |
-| [foundations/intermediate/beyond-nsga-ii.md](../foundations/intermediate/beyond-nsga-ii.md) | Tutorial | Foundations → Intermediate → I6. Beyond NSGA-II | Add |
-| [foundations/advanced/many-objective.md](../foundations/advanced/many-objective.md) | Tutorial | Foundations → Advanced → A1. Many Objectives | Add |
-| [foundations/advanced/constrained.md](../foundations/advanced/constrained.md) | Tutorial | Foundations → Advanced → A5. Constraints | Add |
-| [foundations/advanced/performance-assessment.md](../foundations/advanced/performance-assessment.md) | Tutorial | Foundations → Advanced → A10. Rigorous Comparison | Add |
-| [foundations/intermediate/spea2.md](../foundations/intermediate/spea2.md) | Tutorial | Foundations → Intermediate → I7. SPEA2 | Add |
-| [foundations/intermediate/moead.md](../foundations/intermediate/moead.md) | Tutorial | Foundations → Intermediate → I8. MOEA/D | Add |
-| [foundations/intermediate/smsemoa.md](../foundations/intermediate/smsemoa.md) | Tutorial | Foundations → Intermediate → I9. SMS-EMOA | Add |
-| [foundations/intermediate/ibea.md](../foundations/intermediate/ibea.md) | Tutorial | Foundations → Intermediate → I10. IBEA | Add |
-| [foundations/intermediate/smpso.md](../foundations/intermediate/smpso.md) | Tutorial | Foundations → Intermediate → I11. SMPSO | Add |
-| [foundations/advanced/nsga-iii.md](../foundations/advanced/nsga-iii.md) | Tutorial | Foundations → Advanced → A2. NSGA-III | Add |
-| [foundations/advanced/rvea.md](../foundations/advanced/rvea.md) | Tutorial | Foundations → Advanced → A3. RVEA | Add |
-| [foundations/advanced/agemoea.md](../foundations/advanced/agemoea.md) | Tutorial | Foundations → Advanced → A4. AGE-MOEA | Add |
-| [foundations/advanced/ccmo.md](../foundations/advanced/ccmo.md) | Tutorial | Foundations → Advanced → A6. CCMO | Add |
-| [foundations/advanced/ctaea.md](../foundations/advanced/ctaea.md) | Tutorial | Foundations → Advanced → A7. C-TAEA | Add |
-| [foundations/advanced/top.md](../foundations/advanced/top.md) | Tutorial | Foundations → Advanced → A8. ToP | Add |
-| [foundations/advanced/cmoeams.md](../foundations/advanced/cmoeams.md) | Tutorial | Foundations → Advanced → A9. CMOEA-MS | Add |
+| [foundations/basic/multi-objective-problems.md](../foundations/basic/multi-objective-problems.md) | Tutorial | Foundations → Basic → Multi-objective Problems | Add |
+| [foundations/basic/pareto-dominance.md](../foundations/basic/pareto-dominance.md) | Tutorial | Foundations → Basic → Pareto Dominance | Add |
+| [foundations/basic/quality-aspects.md](../foundations/basic/quality-aspects.md) | Tutorial | Foundations → Basic → Quality Aspects | Add |
+| [foundations/basic/quality-indicators.md](../foundations/basic/quality-indicators.md) | Tutorial | Foundations → Basic → Quality Indicators | Add |
+| [foundations/basic/algorithm-families.md](../foundations/basic/algorithm-families.md) | Tutorial | Foundations → Basic → Families of Algorithms | Add |
+| [foundations/intermediate/nsga-ii.md](../foundations/intermediate/nsga-ii.md) | Tutorial | Foundations → Intermediate → Dominance-based → NSGA-II → NSGA-II at a Glance | Add |
+| [foundations/intermediate/non-dominated-sorting.md](../foundations/intermediate/non-dominated-sorting.md) | Tutorial | Foundations → Intermediate → Dominance-based → NSGA-II → Non-dominated Sorting | Add |
+| [foundations/intermediate/crowding-distance.md](../foundations/intermediate/crowding-distance.md) | Tutorial | Foundations → Intermediate → Dominance-based → NSGA-II → Crowding and Tournaments | Add |
+| [foundations/intermediate/elitist-survival.md](../foundations/intermediate/elitist-survival.md) | Tutorial | Foundations → Intermediate → Dominance-based → NSGA-II → Elitist Survival | Add |
+| [foundations/intermediate/spea2.md](../foundations/intermediate/spea2.md) | Tutorial | Foundations → Intermediate → Dominance-based → SPEA2 | Add |
+| [foundations/intermediate/moead.md](../foundations/intermediate/moead.md) | Tutorial | Foundations → Intermediate → Decomposition-based → MOEA/D | Add |
+| [foundations/intermediate/smsemoa.md](../foundations/intermediate/smsemoa.md) | Tutorial | Foundations → Intermediate → Indicator-based → SMS-EMOA | Add |
+| [foundations/intermediate/ibea.md](../foundations/intermediate/ibea.md) | Tutorial | Foundations → Intermediate → Indicator-based → IBEA | Add |
+| [foundations/intermediate/smpso.md](../foundations/intermediate/smpso.md) | Tutorial | Foundations → Intermediate → Swarm-based → SMPSO | Add |
+| [foundations/operators/real-coded.md](../foundations/operators/real-coded.md) | Tutorial | Foundations → Operators → Real-coded Operators | Add |
+| [foundations/advanced/many-objective.md](../foundations/advanced/many-objective.md) | Tutorial | Foundations → Advanced → Many Objectives → Many-objective Optimization | Add |
+| [foundations/advanced/nsga-iii.md](../foundations/advanced/nsga-iii.md) | Tutorial | Foundations → Advanced → Many Objectives → NSGA-III | Add |
+| [foundations/advanced/rvea.md](../foundations/advanced/rvea.md) | Tutorial | Foundations → Advanced → Many Objectives → RVEA | Add |
+| [foundations/advanced/agemoea.md](../foundations/advanced/agemoea.md) | Tutorial | Foundations → Advanced → Many Objectives → AGE-MOEA | Add |
+| [foundations/advanced/constrained.md](../foundations/advanced/constrained.md) | Tutorial | Foundations → Advanced → Constraints → Constrained Optimization | Add |
+| [foundations/advanced/ccmo.md](../foundations/advanced/ccmo.md) | Tutorial | Foundations → Advanced → Constraints → CCMO | Add |
+| [foundations/advanced/ctaea.md](../foundations/advanced/ctaea.md) | Tutorial | Foundations → Advanced → Constraints → C-TAEA | Add |
+| [foundations/advanced/top.md](../foundations/advanced/top.md) | Tutorial | Foundations → Advanced → Constraints → ToP | Add |
+| [foundations/advanced/cmoeams.md](../foundations/advanced/cmoeams.md) | Tutorial | Foundations → Advanced → Constraints → CMOEA-MS | Add |
+| [foundations/advanced/performance-assessment.md](../foundations/advanced/performance-assessment.md) | Tutorial | Foundations → Advanced → Rigorous Comparison | Add |
 | [experiment/stopping_and_archive.md](../experiment/stopping_and_archive.md) | Reference | Reference → Stopping & Archive | Keep |
 | [guide/cli.md](../guide/cli.md) | How-to | How-to Guides → CLI & Config | Regroup |
 | [guide/cookbook.md](../guide/cookbook.md) | How-to | How-to Guides → Cookbook | Regroup |

@@ -85,14 +85,18 @@ def _excerpts() -> list[tuple[str, str, str]]:
     return found
 
 
-def test_foundations_follows_developer_with_three_levels() -> None:
+def test_foundations_follows_developer_with_levels_and_topics() -> None:
     nav = _config()["nav"]
     titles = [next(iter(item)) for item in nav if isinstance(item, dict)]
     assert titles[-2:] == ["Developer", "Foundations"]
 
     foundations = _foundations_nav()
     assert foundations[0] == {"Overview": "foundations/index.md"}
-    assert [next(iter(item)) for item in foundations[1:]] == ["Basic", "Intermediate", "Advanced"]
+    sections = {next(iter(item)): next(iter(item.values())) for item in foundations[1:]}
+    assert list(sections) == ["Basic", "Intermediate", "Operators", "Advanced"]
+    # The Intermediate level is grouped by the family of each algorithm.
+    families = [next(iter(item)) for item in sections["Intermediate"]]
+    assert families == ["Dominance-based", "Decomposition-based", "Indicator-based", "Swarm-based"]
 
     listed = _nav_pages(foundations)
     assert sorted(listed) == sorted(_relative(page) for page in PAGES)

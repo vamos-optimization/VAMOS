@@ -1,12 +1,12 @@
 ---
-description: 'A2. NSGA-III step by step as VAMOS implements it: Das and Dennis reference directions and the population rule, adaptive normalization with extreme points and intercepts, association by perpendicular distance, niche counts and the niche-preservation loop, mating selection and constraints, with an interactive figure and VAMOS code.'
+description: 'NSGA-III step by step as VAMOS implements it: Das and Dennis reference directions and the population rule, adaptive normalization with extreme points and intercepts, association by perpendicular distance, niche counts and the niche-preservation loop, mating selection and constraints, with an interactive figure and VAMOS code.'
 search:
   boost: 0.5
 ---
 
-# A2. NSGA-III: reference-point niching
+# NSGA-III: reference-point niching
 
-Lesson [A1](many-objective.md#nsga-iii-in-detail) introduced NSGA-III [1] as
+Lesson [Many objectives](many-objective.md#nsga-iii-in-detail) introduced NSGA-III [1] as
 NSGA-II with a different rule for the last front: reference directions instead
 of crowding distance. This lesson follows that rule into the VAMOS code, one
 mechanism at a time, and shows where VAMOS makes a choice that the paper
@@ -16,8 +16,8 @@ NSGA-III was proposed by Deb and Jain in 2014 for problems with four or more
 objectives; a companion paper extended it to constraints and to reference
 points that move during the run [2]. Merging parents and offspring,
 non-dominated sorting and filling whole fronts are inherited unchanged from
-NSGA-II (lessons [I2](../intermediate/non-dominated-sorting.md) to
-[I5](../intermediate/elitist-survival.md)). What changes is how the last
+NSGA-II (lessons [Non-dominated sorting](../intermediate/non-dominated-sorting.md) to
+[Elitist survival](../intermediate/elitist-survival.md)). What changes is how the last
 front is cut, and how parents are chosen.
 
 In this lesson you will learn:
@@ -34,7 +34,7 @@ In this lesson you will learn:
 
 NSGA-II measures density *between solutions*: the crowding distance sums the
 gaps to the neighbours in each objective (lesson
-[I3](../intermediate/crowding-distance.md)). With many objectives nearly every
+[Crowding and tournaments](../intermediate/crowding-distance.md)). With many objectives nearly every
 solution is extreme in some objective, and the gaps stop describing how
 crowded a region is. Deb and Jain measure density *against a fixed set of
 directions* supplied before the run [1]. The directions come from
@@ -202,7 +202,7 @@ neither uses the crowding distance, which is not part of NSGA-III:
 
 **VAMOS 1.5.0:** VAMOS 1.4.0 and earlier chose NSGA-III's parents
 by NSGA-II's tournament on rank and crowding distance
-(lesson [I3](../intermediate/crowding-distance.md)), whatever the configured
+(lesson [Crowding and tournaments](../intermediate/crowding-distance.md)), whatever the configured
 selection, so the same seed gives other results than with VAMOS 1.4.0.
 
 **Constraints.** With constraint values, VAMOS puts feasible solutions first,
@@ -215,7 +215,7 @@ and compares two infeasible solutions by violation. Since VAMOS 1.2.0,
 `constraint_handling` replaces this rule by another technique, whose fronts
 take the place of the non-dominated ones in the survival and in the
 rank-based tournament, while the random selection then ignores constraints (lesson
-[A5](constrained.md) and the
+[Constraints](constrained.md) and the
 [constraint reference](../../reference/constraints.md#choose-a-constraint-handling-technique)).
 
 ## In VAMOS
@@ -410,7 +410,7 @@ def niche_selection(
 ```
 
 The [NSGA-III lesson](../../algorithms/nsgaiii.md) runs the DTLZ2 example of
-lesson A1, draws its result and records the configuration choices; the
+the [Many objectives](many-objective.md) lesson, draws its result and records the configuration choices; the
 [configuration reference](../../reference/api/algorithms/nsgaiii.md) lists
 every builder method.
 
@@ -419,14 +419,14 @@ every builder method.
 - **NSGA-II.** The two share everything except the cut of the last front and
   the parent selection. With two or three objectives they often perform
   similarly; NSGA-III then mainly adds the requirement N ≥ H.
-- **MOEA/D** (lesson [I6](../intermediate/beyond-nsga-ii.md#decomposition-based-algorithms)).
+- **MOEA/D** (lesson [Families of algorithms](../basic/algorithm-families.md#decomposition-based-algorithms)).
   Both spread weight vectors with the Das and Dennis design. MOEA/D compares
   solutions by a scalarizing function within neighbourhoods of vectors;
   NSGA-III compares them by dominance and uses the directions only to count.
   It needs no scalarizing function and no neighbourhood size.
-- **RVEA** (lesson [A3](rvea.md)) drops dominance and chooses each direction's
+- **RVEA** (lesson [RVEA](rvea.md)) drops dominance and chooses each direction's
   survivor by an angle-penalized distance; **AGE-MOEA** (lesson
-  [A4](agemoea.md)) drops the directions and adapts its distances to the shape
+  [AGE-MOEA](agemoea.md)) drops the directions and adapts its distances to the shape
   of the front.
 
 NSGA-III works best when the front covers the simplex, as on DTLZ2 or WFG4.
@@ -454,7 +454,7 @@ minimum population whether or not the problem needs it.
   tournament on rank, never by crowding distance, and treats constraints
   feasibility first, unless `constraint_handling` names another technique.
 
-**Next:** [A3. RVEA: angle-penalized distance](rvea.md).
+**Next:** [RVEA: angle-penalized distance](rvea.md).
 
 ## References
 

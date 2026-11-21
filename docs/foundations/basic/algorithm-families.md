@@ -1,15 +1,17 @@
 ---
-description: 'I6. The three families of evolutionary multi-objective algorithms after NSGA-II: Pareto-based (SPEA2), decomposition-based (MOEA/D, Tchebycheff) and indicator-based (IBEA, SMS-EMOA), with interactive figures and the VAMOS algorithms of each family.'
+description: 'The three families of evolutionary multi-objective algorithms: Pareto-based (NSGA-II, SPEA2), decomposition-based (MOEA/D, Tchebycheff) and indicator-based (IBEA, SMS-EMOA), with interactive figures and the VAMOS algorithms of each family.'
 search:
   boost: 0.5
 ---
 
-# I6. Beyond NSGA-II
+# Families of multi-objective algorithms
 
-NSGA-II answers the question "which solutions survive?" with dominance ranks
-and crowding distances. Other algorithms answer it differently, and the
-answers fall into three families. Knowing them is enough to understand almost
-every algorithm in VAMOS.
+An evolutionary algorithm keeps a population of candidate solutions and, at
+every step, decides which of them survive. With several objectives there is no
+single best solution to keep, so each algorithm needs another rule, and the
+rules fall into three families. Knowing them is enough to understand almost
+every algorithm in VAMOS; the Intermediate level then follows the members of
+each family step by step.
 
 In this lesson you will learn:
 
@@ -35,7 +37,7 @@ density estimate. NSGA-II is one; **SPEA2** [1] is the other classic:
 Pareto-based selection works well with two or three objectives and makes no
 assumption about the shape of the front. Its weakness appears with more
 objectives, when nearly every solution is non-dominated (lesson
-[A1](../advanced/many-objective.md)).
+[Many objectives](../advanced/many-objective.md)).
 
 ## Decomposition-based algorithms
 
@@ -47,7 +49,7 @@ solution if it is better **for that neighbour's subproblem**. Neighbours share
 information because their optima are close on the front.
 
 The subproblems are scalarizations. The weighted sum fails on non-convex
-fronts (lesson [B1](../basic/multi-objective-problems.md#turning-many-objectives-into-one-scalarization)).
+fronts (lesson [Multi-objective problems](multi-objective-problems.md#turning-many-objectives-into-one-scalarization)).
 The **Tchebycheff** scalarization [3, 4] uses the ideal point z* instead:
 
 <div class="vf-formula">g^te(x | w, z*) = max_i  w_i · | f_i(x) − z*_i |</div>
@@ -64,13 +66,13 @@ depends on the shape of the front, and Ishibuchi et al. [5] showed that the
 performance of decomposition-based algorithms depends strongly on how well the
 shape of the front matches the distribution of the weights. NSGA-III and RVEA
 use the same idea of a fixed set of directions with Pareto-based or
-angle-based selection; lesson [A1](../advanced/many-objective.md) explains
+angle-based selection; lesson [Many objectives](../advanced/many-objective.md) explains
 NSGA-III.
 
 ## Indicator-based algorithms
 
 If the goal is a set with a high hypervolume (lesson
-[B4](../basic/quality-indicators.md)), why not select for it directly?
+[Quality indicators](quality-indicators.md)), why not select for it directly?
 Indicator-based algorithms do exactly that.
 
 - **IBEA** [6] defines the fitness of a solution from a binary indicator,
@@ -94,11 +96,11 @@ objectives [8].
 
 | Family | Selection principle | VAMOS algorithms | In-depth lessons |
 | --- | --- | --- | --- |
-| Pareto-based | Dominance rank, then density | [NSGA-II](../../algorithms/nsgaii.md), [SPEA2](../../algorithms/spea2.md) | [I1 NSGA-II](nsga-ii.md), [I7 SPEA2](spea2.md) |
-| Decomposition and reference directions | Scalarized subproblems or directions in objective space | [MOEA/D](../../algorithms/moead.md), [NSGA-III](../../algorithms/nsgaiii.md), [RVEA](../../algorithms/rvea.md) | [I8 MOEA/D](moead.md), [A2 NSGA-III](../advanced/nsga-iii.md), [A3 RVEA](../advanced/rvea.md) |
-| Indicator-based | Contribution to a quality indicator | [SMS-EMOA](../../algorithms/smsemoa.md), [IBEA](../../algorithms/ibea.md) | [I9 SMS-EMOA](smsemoa.md), [I10 IBEA](ibea.md) |
-| Other survival rules | Geometry of the front, particle swarms | [AGE-MOEA](../../algorithms/agemoea.md), [SMPSO](../../algorithms/smpso.md) | [A4 AGE-MOEA](../advanced/agemoea.md), [I11 SMPSO](smpso.md) |
-| Constrained problems | Several populations, archives or stages | [CCMO](../../algorithms/ccmo.md), [C-TAEA](../../algorithms/ctaea.md), [ToP](../../algorithms/top.md), [CMOEA-MS](../../algorithms/cmoeams.md) (lesson [A5](../advanced/constrained.md)) | [A6 CCMO](../advanced/ccmo.md), [A7 C-TAEA](../advanced/ctaea.md), [A8 ToP](../advanced/top.md), [A9 CMOEA-MS](../advanced/cmoeams.md) |
+| Pareto-based | Dominance rank, then density | [NSGA-II](../../algorithms/nsgaii.md), [SPEA2](../../algorithms/spea2.md) | [NSGA-II](../intermediate/nsga-ii.md), [SPEA2](../intermediate/spea2.md) |
+| Decomposition and reference directions | Scalarized subproblems or directions in objective space | [MOEA/D](../../algorithms/moead.md), [NSGA-III](../../algorithms/nsgaiii.md), [RVEA](../../algorithms/rvea.md) | [MOEA/D](../intermediate/moead.md), [NSGA-III](../advanced/nsga-iii.md), [RVEA](../advanced/rvea.md) |
+| Indicator-based | Contribution to a quality indicator | [SMS-EMOA](../../algorithms/smsemoa.md), [IBEA](../../algorithms/ibea.md) | [SMS-EMOA](../intermediate/smsemoa.md), [IBEA](../intermediate/ibea.md) |
+| Other survival rules | Geometry of the front, particle swarms | [AGE-MOEA](../../algorithms/agemoea.md), [SMPSO](../../algorithms/smpso.md) | [AGE-MOEA](../advanced/agemoea.md), [SMPSO](../intermediate/smpso.md) |
+| Constrained problems | Several populations, archives or stages | [CCMO](../../algorithms/ccmo.md), [C-TAEA](../../algorithms/ctaea.md), [ToP](../../algorithms/top.md), [CMOEA-MS](../../algorithms/cmoeams.md) (lesson [Constraints](../advanced/constrained.md)) | [CCMO](../advanced/ccmo.md), [C-TAEA](../advanced/ctaea.md), [ToP](../advanced/top.md), [CMOEA-MS](../advanced/cmoeams.md) |
 
 Because every algorithm receives the same problem and budget through
 `optimize`, switching family is a one-word change:
@@ -121,7 +123,7 @@ smsemoa  10000 evaluations, 100 returned solutions
 
 This loop deliberately prints no quality values. One run per algorithm on one
 problem with default settings says little about which algorithm is better:
-lesson [A10](../advanced/performance-assessment.md) explains what a comparison
+lesson [Rigorous comparison](../advanced/performance-assessment.md) explains what a comparison
 needs. Each algorithm's lesson describes its configuration; the
 [capability matrix](../../reference/algorithms.md) lists the encodings,
 constraint handling and engines each one supports.
@@ -136,7 +138,7 @@ constraint handling and engines each one supports.
 - In VAMOS all of them share one interface: changing `algorithm=` changes the
   family.
 
-**Next:** [I7. SPEA2](spea2.md).
+**Next level:** [NSGA-II at a glance](../intermediate/nsga-ii.md).
 
 ## References
 

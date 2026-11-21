@@ -1,10 +1,10 @@
 ---
-description: 'A5. Constrained multi-objective optimization: feasibility and constraint violation, constrained domination, epsilon-constrained and stochastic ranking, why feasibility-first selection can fail, and the constrained algorithms in VAMOS.'
+description: 'Constrained multi-objective optimization: feasibility and constraint violation, constrained domination, epsilon-constrained and stochastic ranking, why feasibility-first selection can fail, and the constrained algorithms in VAMOS.'
 search:
   boost: 0.5
 ---
 
-# A5. Constrained multi-objective optimization
+# Constrained multi-objective optimization
 
 Real problems come with limits: a stress below the yield strength, a budget,
 a delivery time. Constraints split the decision space into feasible and
@@ -23,7 +23,7 @@ In this lesson you will learn:
 ## Feasibility and violation
 
 With inequality constraints written as g_j(x) ≤ 0, the convention of VAMOS
-(lesson [B1](../basic/multi-objective-problems.md#the-formal-problem)), a
+(lesson [Multi-objective problems](../basic/multi-objective-problems.md#the-formal-problem)), a
 solution is **feasible** when every g_j(x) ≤ 0. Its **constraint violation**
 aggregates how much it breaks them:
 
@@ -49,7 +49,7 @@ both are infeasible and CV(a) &lt; CV(b),            or
 both are feasible and a ≺ b  (Pareto dominance)</div>
 
 Fast non-dominated sorting runs unchanged with this relation in place of
-dominance (lesson [I2](../intermediate/non-dominated-sorting.md)). The rule has
+dominance (lesson [Non-dominated sorting](../intermediate/non-dominated-sorting.md)). The rule has
 no parameter: feasibility comes first, then the objectives.
 
 The figure uses CTP2 of Deb, Pratap and Meyarivan [3], a problem whose
@@ -88,10 +88,10 @@ that enforces them and converges to the constrained front.
 
 | Algorithm | Idea | Lessons |
 | --- | --- | --- |
-| CCMO [6] | Two populations evolve in parallel, one solving the constrained problem and one a helper problem without constraints, sharing their offspring. | [A6](ccmo.md) · [CCMO](../../algorithms/ccmo.md) |
-| C-TAEA [7] | Two archives, one that pushes towards feasibility and convergence and one that keeps diversity, including infeasible solutions. | [A7](ctaea.md) · [C-TAEA](../../algorithms/ctaea.md) |
-| ToP [8] | Two phases: first find promising regions by treating the problem as a single-objective constrained problem, then optimize all objectives there. | [A8](top.md) · [ToP](../../algorithms/top.md) |
-| CMOEA-MS [9] | Two stages: one gives the objectives the same priority as the constraint violation, the other puts the constraints first; the share of feasible solutions decides which stage runs. | [A9](cmoeams.md) · [CMOEA-MS](../../algorithms/cmoeams.md) |
+| CCMO [6] | Two populations evolve in parallel, one solving the constrained problem and one a helper problem without constraints, sharing their offspring. | [CCMO](ccmo.md) · [CCMO](../../algorithms/ccmo.md) |
+| C-TAEA [7] | Two archives, one that pushes towards feasibility and convergence and one that keeps diversity, including infeasible solutions. | [C-TAEA](ctaea.md) · [C-TAEA](../../algorithms/ctaea.md) |
+| ToP [8] | Two phases: first find promising regions by treating the problem as a single-objective constrained problem, then optimize all objectives there. | [ToP](top.md) · [ToP](../../algorithms/top.md) |
+| CMOEA-MS [9] | Two stages: one gives the objectives the same priority as the constraint violation, the other puts the constraints first; the share of feasible solutions decides which stage runs. | [CMOEA-MS](cmoeams.md) · [CMOEA-MS](../../algorithms/cmoeams.md) |
 
 The [constraint reference](../../reference/constraints.md#choose-a-constraint-handling-technique)
 lists the constraint-handling techniques that VAMOS' algorithms accept, such as
@@ -184,7 +184,7 @@ rule, pass a technique to the builder, for example
 - Evaluate constrained results on feasible solutions and report the feasibility
   rate separately.
 
-**Next:** [A6. CCMO](ccmo.md).
+**Next:** [CCMO](ccmo.md).
 
 ## References
 

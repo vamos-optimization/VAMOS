@@ -1,12 +1,12 @@
 ---
-description: 'A3. RVEA, the reference vector guided evolutionary algorithm: unit reference vectors, translation by the ideal point, association by angle, the angle-penalized distance and its schedule, and the adaptation of the vectors to the scales of the objectives, as VAMOS implements them, with an interactive figure and VAMOS code.'
+description: 'RVEA, the reference vector guided evolutionary algorithm: unit reference vectors, translation by the ideal point, association by angle, the angle-penalized distance and its schedule, and the adaptation of the vectors to the scales of the objectives, as VAMOS implements them, with an interactive figure and VAMOS code.'
 search:
   boost: 0.5
 ---
 
-# A3. RVEA: angle-penalized distance
+# RVEA: angle-penalized distance
 
-NSGA-III (lesson [A2](nsga-iii.md)) still sorts the population into fronts and
+NSGA-III (lesson [NSGA-III](nsga-iii.md)) still sorts the population into fronts and
 uses its directions only to cut the last one. RVEA, the reference vector
 guided evolutionary algorithm of Cheng, Jin, Olhofer and Sendhoff [1], drops
 dominance altogether. Each reference vector keeps one solution, chosen by a
@@ -35,7 +35,7 @@ Decomposition-based algorithms divide the objective space among a set of
 vectors and look for one good solution per vector. MOEA/D [3] gives each
 vector a scalarizing function and lets neighbouring vectors exchange
 solutions (lesson
-[I6](../intermediate/beyond-nsga-ii.md#decomposition-based-algorithms));
+[Families of algorithms](../basic/algorithm-families.md#decomposition-based-algorithms));
 NSGA-III [2] keeps dominance and uses the vectors to count. Cheng et al.
 observed that an angle between a solution and a vector is a natural measure of
 diversity that does not depend on how far the solution is from the front, and
@@ -324,14 +324,14 @@ vectors at each multiple of it:
 lattice. `reference_vectors(path=...)` reads the vectors from a file, such as
 jMetal's `W3D_100.dat` that VAMOS ships, and
 `reference_vectors(divisions=p₁, inner_divisions=p₂)` builds Deb and Jain's
-two-layer lattice (lesson [A2](nsga-iii.md#reference-directions)).
+two-layer lattice (lesson [NSGA-III](nsga-iii.md#reference-directions)).
 
 The [RVEA lesson](../../algorithms/rvea.md#interpret-the-result-and-its-limits)
 records a run on DTLZ2 and the changes of VAMOS 1.2.0; the
 [configuration reference](../../reference/api/algorithms/rvea.md) lists every
 builder method. With constraints, RVEA keeps feasible solutions first and
 applies the APD among them; `constraint_handling` accepts the techniques that
-judge one solution at a time (lesson [A5](constrained.md)).
+judge one solution at a time (lesson [Constraints](constrained.md)).
 
 ## RVEA, NSGA-III and MOEA/D
 
@@ -353,7 +353,7 @@ Empty vectors shrink the population, and the returned set can be smaller than
 another one (`result_mode("non_dominated")`, the default, filters the
 returned set). Like every method with fixed vectors, it suffers on fronts
 whose shape does not match the simplex: degenerate, disconnected or inverted
-fronts [5]. Lesson [A4](agemoea.md) takes the opposite approach and adapts to
+fronts [5]. Lesson [AGE-MOEA](agemoea.md) takes the opposite approach and adapts to
 the shape of the front instead.
 
 ## Key points
@@ -371,7 +371,7 @@ the shape of the front instead.
   objectives and an ideal point that accumulates across generations;
   `variant("platemo")` follows the authors' code instead.
 
-**Next:** [A4. AGE-MOEA: adapting to the geometry of the front](agemoea.md).
+**Next:** [AGE-MOEA: adapting to the geometry of the front](agemoea.md).
 
 ## References
 

@@ -1,10 +1,10 @@
 ---
-description: 'I8. MOEA/D in depth: weight vectors, neighbourhoods, mating with probability δ, differential evolution, the ideal point, replacement limited to n_r solutions and the aggregation functions of VAMOS, with an interactive figure and the VAMOS code.'
+description: 'MOEA/D in depth: weight vectors, neighbourhoods, mating with probability δ, differential evolution, the ideal point, replacement limited to n_r solutions and the aggregation functions of VAMOS, with an interactive figure and the VAMOS code.'
 search:
   boost: 0.5
 ---
 
-# I8. MOEA/D: decomposition and neighbourhoods
+# MOEA/D: decomposition and neighbourhoods
 
 NSGA-II compares whole solutions by dominance and crowding. MOEA/D, proposed
 by Zhang and Li in 2007 [1], never sorts its population. It *decomposes* the
@@ -12,7 +12,7 @@ problem into N single-objective subproblems, one per weight vector, and solves
 them all at once. Each subproblem keeps exactly one solution, and a new
 solution competes only with the solutions of nearby subproblems, each judged
 by the scalarizing function of **its own** subproblem. Lesson
-[I6](beyond-nsga-ii.md#decomposition-based-algorithms) introduced the idea;
+[Families of algorithms](../basic/algorithm-families.md#decomposition-based-algorithms) introduced the idea;
 this lesson takes it apart.
 
 Two things set MOEA/D apart from NSGA-II. Diversity does not come from a
@@ -36,7 +36,7 @@ In this lesson you will learn:
 ## From one weighted problem to many
 
 A scalarization turns a multi-objective problem into a single-objective one
-(lesson [B1](../basic/multi-objective-problems.md#turning-many-objectives-into-one-scalarization)).
+(lesson [Multi-objective problems](../basic/multi-objective-problems.md#turning-many-objectives-into-one-scalarization)).
 Solving it once gives one Pareto-optimal point; sweeping the weights and
 solving again gives others, one run per point. Zhang and Li [1] observed that
 the optimal solutions of two subproblems with **close weight vectors are
@@ -64,7 +64,7 @@ VAMOS generates them as jMetal does:
 <div class="vf-formula">wᵏ = ( k / (N − 1),  1 − k / (N − 1) ),     k = 0, 1, …, N − 1</div>
 
 - **Three or more objectives.** The Das and Dennis simplex lattice [4]
-  explained in lesson [A1](../advanced/many-objective.md#nsga-iii-in-detail):
+  explained in lesson [Many objectives](../advanced/many-objective.md#nsga-iii-in-detail):
   every vector whose components are multiples of 1/p, for p divisions, which
   gives H = C(p + m − 1, m − 1) vectors. The population must have exactly H
   members, for example 91 for three objectives and p = 12. When no complete
@@ -113,7 +113,7 @@ VAMOS creates and places one offspring per step:
 
 For step 3, VAMOS applies DE rand/1/bin [3] with the current solution xⁱ as the
 base vector, as MOEA/D-DE does, then polynomial mutation (lesson
-[I4](variation-operators.md#polynomial-mutation)):
+[Real-coded operators](../operators/real-coded.md#polynomial-mutation)):
 
 <div class="vf-formula">v = xⁱ + F · ( x^r₁ − x^r₂ )
 y_j = v_j    if rand_j &lt; CR or j = j_rand,     otherwise y_j = xⁱ_j
@@ -136,7 +136,7 @@ answer to its own subproblem can still be a good answer to the next one.
 
 The Tchebycheff and PBI functions measure distances from the **ideal point**
 z\*, the best value of each objective (lesson
-[B2](../basic/pareto-dominance.md#ideal-and-nadir-points)). The true ideal
+[Pareto dominance](../basic/pareto-dominance.md#ideal-and-nadir-points)). The true ideal
 point is unknown, so MOEA/D estimates it with the best values found so far:
 
 <div class="vf-formula">z*_k ← min( z*_k ,  f_k(y) )     for every objective k</div>
@@ -164,7 +164,7 @@ They have different geometries:
   Pareto-optimal point for some weight, whatever the shape of the front.
 - **Weighted sum** has straight contour lines perpendicular to w. It cannot
   reach the non-convex parts of a front (lesson
-  [I6](beyond-nsga-ii.md#decomposition-based-algorithms)).
+  [Families of algorithms](../basic/algorithm-families.md#decomposition-based-algorithms)).
 - **PBI** (penalty-based boundary intersection), proposed with MOEA/D [1],
   measures the progress d₁ along w and penalizes the distance d₂ from the ray
   through z\* along w, with weight θ (VAMOS: 5). A large θ keeps each subproblem
@@ -195,7 +195,7 @@ details.
 
 ## Constraints
 
-With constraints (g_j(x) ≤ 0, lesson [A5](../advanced/constrained.md)), VAMOS's
+With constraints (g_j(x) ≤ 0, lesson [Constraints](../advanced/constrained.md)), VAMOS's
 replacement follows the feasibility rules by default: a feasible offspring
 replaces an infeasible solution; between two infeasible solutions the smaller
 constraint violation wins; only two feasible solutions are compared by the
@@ -448,7 +448,7 @@ such as DE, plugs in directly, and Li and Zhang [2] showed that MOEA/D-DE
 handles problems whose Pareto sets have complicated shapes. Selection does not
 depend on dominance, so it keeps its pressure when most solutions are mutually
 non-dominated, which matters with many objectives (lesson
-[A1](../advanced/many-objective.md)).
+[Many objectives](../advanced/many-objective.md)).
 
 **Limits.** The weight vectors fix the distribution of the final solutions,
 and evenly spaced weights give evenly spaced solutions only when the front has
@@ -459,8 +459,8 @@ objectives the population size is tied to the lattice.
 
 **When to use it.** MOEA/D-DE is a strong choice for two or three objectives
 with continuous variables, especially when the Pareto set is complicated; its
-descendants NSGA-III and RVEA (lessons [A2](../advanced/nsga-iii.md) and
-[A3](../advanced/rvea.md)) keep the idea of fixed
+descendants NSGA-III and RVEA (lessons [NSGA-III](../advanced/nsga-iii.md) and
+[RVEA](../advanced/rvea.md)) keep the idea of fixed
 directions for many objectives.
 
 ## Key points
@@ -476,7 +476,7 @@ directions for many objectives.
 - VAMOS's default uses DE and polynomial mutation, T = 20, δ = 0.9, n_r = 2
   and PBI; `variant="de"` gives MOEA/D-DE with Tchebycheff.
 
-**Next:** [I9. SMS-EMOA: selection by hypervolume contribution](smsemoa.md).
+**Next:** [SMS-EMOA: selection by hypervolume contribution](smsemoa.md).
 
 ## References
 
