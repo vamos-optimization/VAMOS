@@ -111,14 +111,38 @@ constrained solutions. They are the techniques of jMetal's package
 | `stochastic_ranking` | `probability` | Runarsson and Yao's stochastic ranking: a bubble sort that compares by objectives with that probability, or always between feasible solutions. |
 | `self_adaptive_penalty` | none | Woldesenbet, Yen and Tessema's self-adaptive penalty: Pareto dominance over objectives modified by the violation and the fraction of feasible solutions. |
 
+```python
+from vamos.algorithms import NSGAIIConfig
+
+config = (
+    NSGAIIConfig.builder()
+    .pop_size(100)
+    .crossover("sbx", prob=0.9, eta=20.0)
+    .mutation("pm", prob="1/n", eta=20.0)
+    .constraint_handling("epsilon_constrained", initial_quantile=0.2, exponent=5.0, decay_fraction=0.8)
+    .build()
+)
+```
+
+The other configurations take the same field and builder method, such as
+`NSGAIIIConfig.builder().constraint_handling(...)`. Every parameter of a
+technique is required, as in jMetal. The techniques that change during a run,
+`epsilon_constrained`, `push_pull` and `dynamic_penalty`, follow its progress: the evaluations
+before the offspring's over the evaluation budget. Each of jMetal's ranks fixed populations
+as jMetal does, which `tests/engine/test_constraint_handling_techniques.py`
+checks against jMetal's own implementation; the others are checked against
+rankings computed by hand and the worked examples of their papers.
+
 **Development after 1.5.2:** NSGA-II, NSGA-III, SMS-EMOA and AGE-MOEA also
-take three techniques that neither jMetal nor Evolver has:
+take five techniques that neither jMetal nor Evolver has:
 
 | Technique | Parameters | Ranking |
 | --- | --- | --- |
 | `static_penalty` | `coefficient` | A static penalty: Pareto dominance over every objective plus `coefficient` times the overall violation, the sum of the positive constraint values. |
 | `dynamic_penalty` | `constant`, `alpha`, `beta` | Joines and Houck's non-stationary penalty: Pareto dominance over every objective plus `(constant * k) ** alpha` times the sum of the violations raised to `beta`, where `k` is the generation. |
 | `violation_objective` | none | The overall violation as one more objective (Coello, 2000): Pareto dominance over the objectives and the violation. |
+| `two_rankings` | none | Ma, Wang and Song's ToR: the best by `alpha * R^c + (1 - alpha) * R^p`, positions by the constrained-domination principle and by Pareto dominance, one solution per front. |
+| `shift_penalty` | `constant` | Ma and Wang's ShiP: Pareto dominance over objectives that move each infeasible solution towards its local feasible nadir and add its violation. |
 
 ```python
 from vamos.algorithms import NSGAIIConfig
@@ -161,34 +185,52 @@ best on average but took longer to converge. The defaults are P(2, 2) with
 with `C = 0.05`, which overflowed in the paper when the initial violations were
 large.
 
-The penalized objectives, like those of
-`self_adaptive_penalty`, and the violation of `violation_objective` only rank
-the population: crowding distance, niching, hypervolume contributions and
-survival scores use the objectives themselves. The two penalties multiply
-violations, so the coefficient that balances them against the objectives
-depends on the problem's scales.
+`two_rankings` follows section III-A of Z. Ma, Y. Wang and W. Song, "A New
+Fitness Function With Two Rankings for Evolutionary Constrained Multiobjective
+Optimization" (IEEE Transactions on Systems, Man, and Cybernetics: Systems
+51(8):5005–5016, 2021). `R^c` is each solution's position, from 1, when the
+population is sorted by the levels of the constrained-domination principle and
+each level by crowding distance in descending order (Algorithm 1); `R^p` is
+the same with Pareto dominance, ignoring the constraints (Algorithm 2). The
+fitness is `alpha * R^c + (1 - alpha) * R^p` (eq. 6), with `alpha = 0.5 + 0.5
+* P_fea` (eq. 7), where `P_fea` is the feasible proportion of the population
+being ranked. The paper leaves three choices open:
 
-```python
-from vamos.algorithms import NSGAIIConfig
+- solutions with the same crowding distance in a level, such as its boundary
+  solutions, keep the order of the population, as in the paper's Tables I–III;
+- solutions with the same fitness are ordered by `R^c`;
+- the crowding distance is NSGA-II's, each difference over the objective's
+  range in the level. The paper's tables sum the differences without that
+  division; with their sum, VAMOS reproduces the tables' positions.
 
-config = (
-    NSGAIIConfig.builder()
-    .pop_size(100)
-    .crossover("sbx", prob=0.9, eta=20.0)
-    .mutation("pm", prob="1/n", eta=20.0)
-    .constraint_handling("epsilon_constrained", initial_quantile=0.2, exponent=5.0, decay_fraction=0.8)
-    .build()
-)
-```
+The technique puts each solution in a front of its own, ordered by fitness, so
+the replacement keeps the best by fitness: crowding distance, niching,
+hypervolume contributions and survival scores never decide. The tournament
+compares the positions in the current population.
 
-The other configurations take the same field and builder method, such as
-`NSGAIIIConfig.builder().constraint_handling(...)`. Every parameter of a
-technique is required, as in jMetal. The techniques that change during a run,
-`epsilon_constrained`, `push_pull` and `dynamic_penalty`, follow its progress: the evaluations
-before the offspring's over the evaluation budget. Each of jMetal's ranks fixed populations
-as jMetal does, which `tests/engine/test_constraint_handling_techniques.py`
-checks against jMetal's own implementation; the others are checked against
-rankings computed by hand.
+`shift_penalty` follows section III-B of Z. Ma and Y. Wang, "Shift-Based
+Penalty for Evolutionary Constrained Multiobjective Optimization and Its
+Application" (IEEE Transactions on Cybernetics 53(1):18–30, 2023). With
+`P_fea` the feasible proportion of the population being ranked, each objective
+`f_i` of an infeasible solution moves towards its local feasible nadir `z*_i`,
+the smallest `f_i` of the feasible solutions above its own, or the largest
+`f_i` of the population when there is none: `S_i = f_i + c * P_fea * (z*_i -
+f_i)` (eq. 11). Its overall violation is added, `P_i = CV` (eq. 12), so its
+objective is `S_i + P_i` (eq. 13). Feasible solutions keep their objectives,
+and so does every solution while none is feasible. `constant` is the paper's
+`c`, 2 in its experiments; its sensitivity study tried 0.5 to 9 and found 2
+and 3 best. The paper says that its NSGA-II's mating selection uses the
+constraint violation, without defining it. VAMOS's tournament compares ShiP's
+ranks of the current population, as for every technique, so while no solution
+is feasible it compares by Pareto dominance alone. ShiP+, the paper's
+archive-assisted algorithm, is not part of VAMOS.
+
+The penalized or shifted objectives, like those of `self_adaptive_penalty`, and
+the violation of `violation_objective` only rank the population: crowding
+distance, niching, hypervolume contributions and survival scores use the
+objectives themselves. The static and dynamic penalties multiply violations,
+so the coefficient that balances them against the objectives depends on the
+problem's scales.
 
 Before each replacement, the technique adapts to the union of parents and
 offspring and ranks it, as Evolver's algorithms do, and its fronts take the

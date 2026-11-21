@@ -116,5 +116,11 @@ parameters:
           dynamic_penalty_alpha: {type: real, default: 2.0, range: [1.0, 3.0], role: operator_rate}
           dynamic_penalty_beta: {type: real, default: 2.0, range: [1.0, 3.0], role: operator_rate}
       violation_objective: {}
+      # Development after 1.5.2: Ma, Wang and Song's ToR, which has no parameters, and Ma and Wang's ShiP,
+      # whose c is 2 in the paper; its sensitivity study found 2 and 3 best.
+      two_rankings: {}
+      shift_penalty:
+        conditional_parameters:
+          shift_penalty_constant: {type: real, default: 2.0, range: [1.0, 5.0], role: operator_rate}
   # The survival, as Evolver's replacement: AGE-MOEA's or AGE-MOEA-II's (Panichella, GECCO 2022).
   replacement: {type: categorical, default: agemoea, values: [agemoea, agemoea_ii], role: structural}

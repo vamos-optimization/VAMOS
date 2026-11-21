@@ -28,7 +28,8 @@ from vamos.engine.tuning.racing.bridge_assignments import config_from_assignment
 from vamos.engine.tuning.racing.parameter_names import to_evolver
 from vamos.foundation.kernel.registry import resolve_kernel
 
-NEW_TECHNIQUES = ("static_penalty", "dynamic_penalty", "violation_objective")
+# Every technique that jMetal does not have; test_constraint_handling_rankings checks ToR and ShiP.
+NEW_TECHNIQUES = ("static_penalty", "dynamic_penalty", "violation_objective", "two_rankings", "shift_penalty")
 ENGINES = ["numpy", "numba"]
 DYNAMIC = {"constant": 0.5, "alpha": 2.0, "beta": 2.0}
 

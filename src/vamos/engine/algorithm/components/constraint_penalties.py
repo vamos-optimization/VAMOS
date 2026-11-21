@@ -1,7 +1,8 @@
 """The constraint-handling techniques that jMetal and Evolver do not have (see :mod:`.constraint_handling`).
 
 Each ranks by Pareto dominance over modified objectives, as jMetal's self-adaptive penalty does: a static
-penalty, Joines and Houck's non-stationary penalty, and the overall violation as one more objective.
+penalty, Joines and Houck's non-stationary penalty, the overall violation as one more objective, and Ma and
+Wang's shift-based penalty.
 """
 
 from __future__ import annotations
@@ -107,9 +108,53 @@ class ViolationObjective(ConstraintHandlingTechnique):
         return pareto_ranks(kernel, np.column_stack([F, violation(G)]))
 
 
+class ShiftPenalty(ConstraintHandlingTechnique):
+    """Ma and Wang's shift-based penalty, ShiP: Pareto dominance over the shifted and penalized objectives.
+
+    Z. Ma and Y. Wang, "Shift-Based Penalty for Evolutionary Constrained Multiobjective Optimization and Its
+    Application", IEEE Transactions on Cybernetics 53(1):18-30, 2023, section III-B (:func:`shift_penalty_objectives`).
+    ``constant`` is the paper's ``c``, 2 in its experiments.
+    """
+
+    name = "shift_penalty"
+
+    def __init__(self, constant: float) -> None:
+        self.constant = float(constant)
+
+    def ranks(self, kernel: KernelBackend, F: NDArray[Any], G: NDArray[Any], rng: np.random.Generator) -> RankArray:
+        return pareto_ranks(kernel, shift_penalty_objectives(F, G, self.constant))
+
+
+def shift_penalty_objectives(F: NDArray[Any], G: NDArray[Any], constant: float) -> NDArray[np.float64]:
+    """ShiP's objectives (eqs. 11-13): an infeasible row moves towards its local feasible nadir, plus its violation.
+
+    ``P_fea`` is the proportion of feasible rows. For an infeasible row ``u`` and each objective ``i``, ``z*_i``
+    is the smallest ``f_i`` of the feasible rows whose ``f_i`` is greater than ``f_i(u)``, or the largest
+    ``f_i`` of all the rows if there is none (the virtual feasible extreme value). The row's objective becomes
+    ``f_i + constant * P_fea * (z*_i - f_i) + CV``, with ``CV`` the overall violation. Feasible rows, and every
+    row while none is feasible, keep their objectives.
+    """
+    F = np.asarray(F, dtype=np.float64)
+    measure = violation(G)
+    feasible = measure <= 0.0
+    shifted = F.copy()
+    if F.shape[0] == 0 or not np.any(feasible) or np.all(feasible):
+        return shifted
+    share = float(np.count_nonzero(feasible)) / F.shape[0]
+    infeasible = np.flatnonzero(~feasible)
+    largest = F.max(axis=0)
+    for i in range(F.shape[1]):
+        values = np.sort(F[feasible, i])
+        own = F[infeasible, i]
+        above = np.searchsorted(values, own, side="right")
+        nadir = np.where(above < values.size, values[np.minimum(above, values.size - 1)], largest[i])
+        shifted[infeasible, i] = own + constant * share * (nadir - own) + measure[infeasible]
+    return shifted
+
+
 def penalized_objectives(F: NDArray[Any], penalty: NDArray[np.float64]) -> NDArray[np.float64]:
     """Every objective of each row plus that row's penalty."""
     return np.asarray(np.asarray(F, dtype=np.float64) + np.asarray(penalty, dtype=np.float64)[:, None], dtype=np.float64)
 
 
-__all__ = ["DynamicPenalty", "StaticPenalty", "ViolationObjective", "penalized_objectives"]
+__all__ = ["DynamicPenalty", "ShiftPenalty", "StaticPenalty", "ViolationObjective", "penalized_objectives", "shift_penalty_objectives"]

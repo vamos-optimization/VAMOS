@@ -15,20 +15,25 @@ with the parameter ``constraintHandling`` (:data:`JMETAL_TECHNIQUES`):
 - ``stochastic_ranking``: Runarsson and Yao's stochastic ranking.
 - ``self_adaptive_penalty``: Woldesenbet, Yen and Tessema's self-adaptive penalty.
 
-Three more, which neither jMetal nor Evolver has:
+Five more, which neither jMetal nor Evolver has:
 
 - ``static_penalty``: every objective plus ``coefficient`` times the overall violation.
 - ``dynamic_penalty``: Joines and Houck's non-stationary penalty, every objective plus
   ``(constant * k) ** alpha`` times the sum of the violations raised to ``beta``, where ``k`` is the
   generation (:class:`DynamicPenalty`).
 - ``violation_objective``: the overall violation as one more objective (Coello, 2000).
+- ``two_rankings``: Ma, Wang and Song's ToR, a fitness of the positions by the constrained-domination
+  principle and by Pareto dominance (:mod:`.constraint_two_rankings`), one solution per front.
+- ``shift_penalty``: Ma and Wang's ShiP, which shifts infeasible objectives towards their local feasible
+  nadir and adds the violation (:class:`ShiftPenalty`).
 
-Those three, like ``self_adaptive_penalty``, rank by Pareto dominance over modified objectives; the
-algorithms keep the objectives themselves for what orders a front (crowding distance, niching,
-hypervolume contributions, survival scores).
+The penalties and ``violation_objective``, like ``self_adaptive_penalty``, rank by Pareto dominance over
+modified objectives; the algorithms keep the objectives themselves for what orders a front (crowding
+distance, niching, hypervolume contributions, survival scores).
 
-The base class and :data:`PAIRWISE_TECHNIQUES` are in :mod:`.constraint_technique`, and the three that
-jMetal does not have in :mod:`.constraint_penalties`; this module builds and validates every technique.
+The base class and :data:`PAIRWISE_TECHNIQUES` are in :mod:`.constraint_technique`, and the techniques
+that jMetal does not have in :mod:`.constraint_penalties` and :mod:`.constraint_two_rankings`; this module
+builds and validates every technique.
 
 A technique ranks a population into fronts (:meth:`ConstraintHandlingTechnique.ranks`). Those that
 change during a run follow its progress, the evaluations over the budget, which
@@ -56,8 +61,9 @@ from .constrained_ranking import (
     violated_constraints,
     violation,
 )
-from .constraint_penalties import DynamicPenalty, StaticPenalty, ViolationObjective, penalized_objectives
+from .constraint_penalties import DynamicPenalty, ShiftPenalty, StaticPenalty, ViolationObjective, penalized_objectives
 from .constraint_technique import PAIRWISE_TECHNIQUES, ConstraintHandlingTechnique, check_progress
+from .constraint_two_rankings import TwoRankings
 
 if TYPE_CHECKING:
     from vamos.foundation.kernel.backend import KernelBackend
@@ -80,6 +86,8 @@ CONSTRAINT_HANDLING_PARAMETERS: dict[str, tuple[str, ...]] = {
     "static_penalty": ("coefficient",),
     "dynamic_penalty": ("constant", "alpha", "beta"),
     "violation_objective": (),
+    "two_rankings": (),
+    "shift_penalty": ("constant",),
 }
 
 #: The techniques of jMetal's package ``util.constrainthandling``, in the order of Evolver's spaces.
@@ -92,8 +100,15 @@ JMETAL_TECHNIQUES: tuple[str, ...] = (
     "self_adaptive_penalty",
 )
 
-#: Every technique: jMetal's, then the three that neither jMetal nor Evolver has.
-CONSTRAINT_HANDLING_TECHNIQUES: tuple[str, ...] = (*JMETAL_TECHNIQUES, "static_penalty", "dynamic_penalty", "violation_objective")
+#: Every technique: jMetal's, then those that neither jMetal nor Evolver has.
+CONSTRAINT_HANDLING_TECHNIQUES: tuple[str, ...] = (
+    *JMETAL_TECHNIQUES,
+    "static_penalty",
+    "dynamic_penalty",
+    "violation_objective",
+    "two_rankings",
+    "shift_penalty",
+)
 
 # The admissible values of each parameter, as jMetal's constructors check them, (low, high, low closed); the
 # parameters of the techniques that jMetal does not have are positive.
@@ -379,6 +394,10 @@ def make_constraint_handling(value: object) -> ConstraintHandlingTechnique:
         return DynamicPenalty(**params)
     if name == "violation_objective":
         return ViolationObjective()
+    if name == "two_rankings":
+        return TwoRankings()
+    if name == "shift_penalty":
+        return ShiftPenalty(**params)
     return SelfAdaptivePenalty()
 
 
@@ -492,8 +511,10 @@ __all__ = [
     "EpsilonConstrained",
     "PushPullSearch",
     "SelfAdaptivePenalty",
+    "ShiftPenalty",
     "StaticPenalty",
     "StochasticRanking",
+    "TwoRankings",
     "ViolationObjective",
     "adapted_ranks",
     "check_progress",

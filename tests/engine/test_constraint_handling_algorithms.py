@@ -54,6 +54,8 @@ PARAMETERS: dict[str, dict[str, float]] = {
     "static_penalty": {"coefficient": 1e6},
     "dynamic_penalty": {"constant": 0.5, "alpha": 2.0, "beta": 2.0},
     "violation_objective": {},
+    "two_rankings": {},
+    "shift_penalty": {"constant": 2.0},
 }
 ALGORITHMS = ["nsgaiii", "smsemoa", "agemoea"]
 # RVEA and SMPSO take the techniques that judge single solutions.
@@ -160,7 +162,16 @@ def test_a_technique_needs_the_feasibility_mode(algorithm: str) -> None:
 
 @pytest.mark.parametrize("algorithm", PAIRWISE_ALGORITHMS)
 @pytest.mark.parametrize(
-    "technique", ["stochastic_ranking", "self_adaptive_penalty", "static_penalty", "dynamic_penalty", "violation_objective"]
+    "technique",
+    [
+        "stochastic_ranking",
+        "self_adaptive_penalty",
+        "static_penalty",
+        "dynamic_penalty",
+        "violation_objective",
+        "two_rankings",
+        "shift_penalty",
+    ],
 )
 def test_rvea_and_smpso_take_only_the_techniques_that_judge_single_solutions(algorithm: str, technique: str) -> None:
     with pytest.raises(ValueError, match="does not judge the violation of a single solution"):

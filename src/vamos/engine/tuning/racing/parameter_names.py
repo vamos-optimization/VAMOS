@@ -139,6 +139,8 @@ NO_EVOLVER_EQUIVALENT: dict[str, dict[str, str]] = {
         "static_penalty": _NOT_IN_JMETAL,
         "dynamic_penalty": _NOT_IN_JMETAL,
         "violation_objective": _NOT_IN_JMETAL,
+        "two_rankings": _NOT_IN_JMETAL,
+        "shift_penalty": _NOT_IN_JMETAL,
     },
 }
 
