@@ -16,7 +16,7 @@ import pytest
 from vamos import optimize
 from vamos.algorithms import NSGAIIConfig
 from vamos.engine.algorithm.components.constrained_ranking import pareto_ranks
-from vamos.engine.algorithm.components.constraint_handling import ConstraintHandlingTechnique
+from vamos.engine.algorithm.components.constraint_handling import ConstraintHandlingTechnique, make_constraint_handling
 from vamos.engine.algorithm.components.constraint_two_rankings import TwoRankings
 from vamos.engine.algorithm.nsgaii import NSGAII, constrained_survival
 from vamos.engine.algorithm.nsgaii.run import _checkpoint_extra
@@ -41,20 +41,27 @@ def _config(technique: tuple[str, dict[str, float]], **schedule: Any) -> NSGAIIC
     return dataclasses.replace(config, constraint_handling=technique, **schedule)
 
 
-def _run(schedule: str, engine: str = "numpy") -> Any:
+# The techniques with a total order, and their parameters.
+TOTAL_ORDERS = {"two_rankings": {}, "infeasibility_driven": {"proportion": 0.2}, "adaptive_tradeoff": {}}
+
+
+def _run(schedule: str, engine: str = "numpy", technique: str = "two_rankings") -> Any:
     return optimize(
         LIRCMOP(2, n_var=10),
         algorithm="nsgaii",
-        algorithm_config=_config(("two_rankings", {}), **SCHEDULES[schedule]),
+        algorithm_config=_config((technique, TOTAL_ORDERS[technique]), **SCHEDULES[schedule]),
         max_evaluations=EVALUATIONS[schedule],
         seed=7,
         engine=engine,
     )
 
 
+@pytest.mark.parametrize("technique", list(TOTAL_ORDERS))
 @pytest.mark.parametrize("engine", ["numpy", "numba"])
 @pytest.mark.parametrize("schedule", list(SCHEDULES))
-def test_skipping_crowding_for_a_total_order_is_bit_identical(schedule: str, engine: str, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_skipping_crowding_for_a_total_order_is_bit_identical(
+    schedule: str, engine: str, technique: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
     if engine == "numba":
         pytest.importorskip("numba")
     calls: list[int] = []
@@ -65,11 +72,11 @@ def test_skipping_crowding_for_a_total_order_is_bit_identical(schedule: str, eng
         return crowding(F, fronts)
 
     monkeypatch.setattr(constrained_survival, "compute_crowding", counted)
-    skipped = _run(schedule, engine)
+    skipped = _run(schedule, engine, technique)
     assert calls == []
 
-    monkeypatch.setattr(TwoRankings, "total_order", False)
-    computed = _run(schedule, engine)
+    monkeypatch.setattr(type(make_constraint_handling((technique, TOTAL_ORDERS[technique]))), "total_order", False)
+    computed = _run(schedule, engine, technique)
     assert calls
 
     assert np.array_equal(skipped.X, computed.X)
@@ -125,3 +132,5 @@ def test_the_default_hook_and_flag_change_nothing() -> None:
     assert technique.total_order is False
     assert technique.survived(np.zeros((2, 2)), np.zeros((2, 1))) is None
     assert TwoRankings.total_order is True
+    for technique, params in TOTAL_ORDERS.items():
+        assert make_constraint_handling((technique, params)).total_order is True

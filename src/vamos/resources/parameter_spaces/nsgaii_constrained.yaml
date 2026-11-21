@@ -158,3 +158,9 @@ parameters:
       shift_penalty:
         conditional_parameters:
           shift_penalty_constant: {type: real, default: 2.0, range: [1.0, 5.0], role: operator_rate}
+      # Development after 1.5.2: Ray et al.'s IDEA and Wang et al.'s ATM, defined for NSGA-II. IDEA keeps a proportion
+      # of infeasible solutions, 0.2 in the paper, which calls it "a small percentage"; ATM has no parameters.
+      infeasibility_driven:
+        conditional_parameters:
+          infeasibility_driven_proportion: {type: real, default: 0.2, range: [0.05, 0.5], role: operator_rate}
+      adaptive_tradeoff: {}

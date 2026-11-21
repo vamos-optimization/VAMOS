@@ -5,7 +5,7 @@ parameter ``constraintHandling`` (:data:`JMETAL_TECHNIQUES`, :mod:`.constraint_j
 of every VAMOS algorithm with constraint support, ``violated_constraints``, ``epsilon_constrained``,
 ``push_pull``, ``stochastic_ranking`` and ``self_adaptive_penalty``.
 
-Five more, which neither jMetal nor Evolver has:
+Seven more, which neither jMetal nor Evolver has:
 
 - ``static_penalty``: every objective plus ``coefficient`` times the overall violation.
 - ``dynamic_penalty``: Joines and Houck's non-stationary penalty, every objective plus
@@ -16,13 +16,17 @@ Five more, which neither jMetal nor Evolver has:
   principle and by Pareto dominance (:mod:`.constraint_two_rankings`), one solution per front; NSGA-II only.
 - ``shift_penalty``: Ma and Wang's ShiP, which shifts infeasible objectives towards their local feasible
   nadir and adds the violation (:class:`ShiftPenalty`).
+- ``infeasibility_driven``: Ray, Singh, Isaacs and Smith's IDEA, which ranks a proportion of the best
+  infeasible solutions above the feasible ones; NSGA-II only (:mod:`.constraint_orders`).
+- ``adaptive_tradeoff``: Wang, Cai, Zhou and Zeng's ATM, in Li et al.'s version for several objectives,
+  whose ranking depends on the feasible proportion of the population; NSGA-II only (:mod:`.constraint_orders`).
 
 The penalties and ``violation_objective``, like ``self_adaptive_penalty``, rank by Pareto dominance over
 modified objectives; crowding distance, niching, hypervolume contributions and survival scores use the
 objectives.
 
-:mod:`.constraint_technique` holds the base class, :mod:`.constraint_jmetal`, :mod:`.constraint_penalties`
-and :mod:`.constraint_two_rankings` the techniques, and :mod:`.constraint_registry` their parameters, lists,
+:mod:`.constraint_technique` holds the base class, :mod:`.constraint_jmetal`, :mod:`.constraint_penalties`,
+:mod:`.constraint_two_rankings` and :mod:`.constraint_orders` the techniques, and :mod:`.constraint_registry` their parameters, lists,
 validation and construction. This module gives an algorithm its run's technique and the functions it calls
 to rank with it, and exports every name of the others.
 
@@ -41,6 +45,7 @@ from numpy.typing import NDArray
 
 from .constrained_ranking import RankArray
 from .constraint_jmetal import ConstrainedDominance, EpsilonConstrained, PushPullSearch, SelfAdaptivePenalty, StochasticRanking
+from .constraint_orders import AdaptiveTradeoff, InfeasibilityDriven
 from .constraint_penalties import DynamicPenalty, ShiftPenalty, StaticPenalty, ViolationObjective, penalized_objectives
 from .constraint_registry import (
     CONSTRAINT_HANDLING_PARAMETERS,
@@ -161,6 +166,7 @@ def preferred(
 
 
 __all__ = [
+    "AdaptiveTradeoff",
     "CONSTRAINT_HANDLING_PARAMETERS",
     "CONSTRAINT_HANDLING_TECHNIQUES",
     "FRONT_TECHNIQUES",
@@ -171,6 +177,7 @@ __all__ = [
     "ConstraintHandlingTechnique",
     "DynamicPenalty",
     "EpsilonConstrained",
+    "InfeasibilityDriven",
     "PushPullSearch",
     "SelfAdaptivePenalty",
     "ShiftPenalty",

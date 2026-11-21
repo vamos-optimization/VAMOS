@@ -20,7 +20,7 @@ PAIRWISE_TECHNIQUES: tuple[str, ...] = ("cdp", "violated_constraints", "epsilon_
 
 #: The techniques that their papers define for NSGA-II only. Each orders the population totally, one solution per
 #: front, which would take the place of the niching, hypervolume contributions or survival scores of the others.
-NSGAII_ONLY_TECHNIQUES: tuple[str, ...] = ("two_rankings",)
+NSGAII_ONLY_TECHNIQUES: tuple[str, ...] = ("two_rankings", "infeasibility_driven", "adaptive_tradeoff")
 
 
 def rejection_reason(name: str, techniques: tuple[str, ...]) -> str:

@@ -8,6 +8,7 @@ import math
 from collections.abc import Mapping
 
 from .constraint_jmetal import ConstrainedDominance, EpsilonConstrained, PushPullSearch, SelfAdaptivePenalty, StochasticRanking
+from .constraint_orders import AdaptiveTradeoff, InfeasibilityDriven
 from .constraint_penalties import DynamicPenalty, ShiftPenalty, StaticPenalty, ViolationObjective
 from .constraint_technique import ConstraintHandlingTechnique
 from .constraint_two_rankings import TwoRankings
@@ -32,6 +33,8 @@ CONSTRAINT_HANDLING_PARAMETERS: dict[str, tuple[str, ...]] = {
     "violation_objective": (),
     "two_rankings": (),
     "shift_penalty": ("constant",),
+    "infeasibility_driven": ("proportion",),
+    "adaptive_tradeoff": (),
 }
 
 #: The techniques of jMetal's package ``util.constrainthandling``, in the order of Evolver's spaces.
@@ -52,13 +55,15 @@ CONSTRAINT_HANDLING_TECHNIQUES: tuple[str, ...] = (
     "violation_objective",
     "two_rankings",
     "shift_penalty",
+    "infeasibility_driven",
+    "adaptive_tradeoff",
 )
 
 #: The techniques that NSGA-III, SMS-EMOA and AGE-MOEA take: all but those defined for NSGA-II only.
 FRONT_TECHNIQUES: tuple[str, ...] = (*JMETAL_TECHNIQUES, "static_penalty", "dynamic_penalty", "violation_objective", "shift_penalty")
 
 # The admissible values of each parameter, as jMetal's constructors check them, (low, high, low closed); the
-# parameters of the techniques that jMetal does not have are positive.
+# parameters of the techniques that jMetal does not have are positive, and IDEA's proportion at most 1.
 _RANGES: dict[str, tuple[float, float, bool]] = {
     "initial_quantile": (0.0, 1.0, True),
     "probability": (0.0, 1.0, True),
@@ -72,6 +77,7 @@ _RANGES: dict[str, tuple[float, float, bool]] = {
     "constant": (0.0, math.inf, False),
     "alpha": (0.0, math.inf, False),
     "beta": (0.0, math.inf, False),
+    "proportion": (0.0, 1.0, False),
 }
 
 
@@ -131,6 +137,10 @@ def make_constraint_handling(value: object) -> ConstraintHandlingTechnique:
         return TwoRankings()
     if name == "shift_penalty":
         return ShiftPenalty(**params)
+    if name == "infeasibility_driven":
+        return InfeasibilityDriven(**params)
+    if name == "adaptive_tradeoff":
+        return AdaptiveTradeoff()
     return SelfAdaptivePenalty()
 
 

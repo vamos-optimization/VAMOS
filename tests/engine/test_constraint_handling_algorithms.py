@@ -16,6 +16,7 @@ from vamos.engine.algorithm.agemoea.survival import technique_age_survival
 from vamos.engine.algorithm.components.constraint_handling import (
     CONSTRAINT_HANDLING_TECHNIQUES,
     FRONT_TECHNIQUES,
+    NSGAII_ONLY_TECHNIQUES,
     PAIRWISE_TECHNIQUES,
     ConstraintHandlingTechnique,
     make_constraint_handling,
@@ -58,6 +59,8 @@ PARAMETERS: dict[str, dict[str, float]] = {
     "violation_objective": {},
     "two_rankings": {},
     "shift_penalty": {"constant": 2.0},
+    "infeasibility_driven": {"proportion": 0.2},
+    "adaptive_tradeoff": {},
 }
 ALGORITHMS = ["nsgaiii", "smsemoa", "agemoea"]
 # RVEA and SMPSO take the techniques that judge single solutions.
@@ -173,6 +176,8 @@ def test_a_technique_needs_the_feasibility_mode(algorithm: str) -> None:
         "violation_objective",
         "two_rankings",
         "shift_penalty",
+        "infeasibility_driven",
+        "adaptive_tradeoff",
     ],
 )
 def test_rvea_and_smpso_take_only_the_techniques_that_judge_single_solutions(algorithm: str, technique: str) -> None:
@@ -182,29 +187,36 @@ def test_rvea_and_smpso_take_only_the_techniques_that_judge_single_solutions(alg
         assert _config(algorithm, name).constraint_handling == (name, PARAMETERS[name])
 
 
+@pytest.mark.parametrize("technique", NSGAII_ONLY_TECHNIQUES)
 @pytest.mark.parametrize("algorithm", ALGORITHMS)
-def test_nsgaiii_smsemoa_and_agemoea_reject_the_techniques_of_nsgaii_only(algorithm: str) -> None:
-    # ToR orders the population totally, which would replace their niching, hypervolume contributions or scores.
-    with pytest.raises(ValueError, match="'two_rankings' is defined for NSGA-II only"):
-        _config(algorithm, "two_rankings")
-    assert FRONT_TECHNIQUES == tuple(name for name in CONSTRAINT_HANDLING_TECHNIQUES if name != "two_rankings")
+def test_nsgaiii_smsemoa_and_agemoea_reject_the_techniques_of_nsgaii_only(algorithm: str, technique: str) -> None:
+    # ToR, IDEA and ATM order the population totally, which would replace their niching, hypervolume contributions
+    # or survival scores, and their papers define them for NSGA-II.
+    with pytest.raises(ValueError, match=f"'{technique}' is defined for NSGA-II only"):
+        _config(algorithm, technique)
+    assert NSGAII_ONLY_TECHNIQUES == ("two_rankings", "infeasibility_driven", "adaptive_tradeoff")
+    assert FRONT_TECHNIQUES == tuple(name for name in CONSTRAINT_HANDLING_TECHNIQUES if name not in NSGAII_ONLY_TECHNIQUES)
     for name in FRONT_TECHNIQUES:
         assert _config(algorithm, name).constraint_handling == (name, PARAMETERS[name])
 
 
+@pytest.mark.parametrize("technique", NSGAII_ONLY_TECHNIQUES)
 @pytest.mark.parametrize(("algorithm", "algorithm_class"), [("nsgaiii", NSGAIII), ("smsemoa", SMSEMOA), ("agemoea", AGEMOEA)])
-def test_a_configuration_mapping_with_an_nsgaii_technique_fails_at_the_start_of_the_run(algorithm: str, algorithm_class: Any) -> None:
+def test_a_configuration_mapping_with_an_nsgaii_technique_fails_at_the_start_of_the_run(
+    algorithm: str, algorithm_class: Any, technique: str
+) -> None:
     config = _config(algorithm, None).to_dict()
-    config["constraint_handling"] = ["two_rankings", {}]
+    config["constraint_handling"] = [technique, PARAMETERS[technique]]
 
-    with pytest.raises(ValueError, match="'two_rankings' is defined for NSGA-II only"):
+    with pytest.raises(ValueError, match=f"'{technique}' is defined for NSGA-II only"):
         algorithm_class(config, resolve_kernel("numpy")).run(LIRCMOP(2, n_var=10), ("max_evaluations", EVALUATIONS[algorithm]), seed=1)
 
 
-def test_nsgaii_takes_two_rankings() -> None:
+@pytest.mark.parametrize("technique", NSGAII_ONLY_TECHNIQUES)
+def test_nsgaii_takes_the_techniques_of_nsgaii_only(technique: str) -> None:
     assert NSGAIIConfig.default().constraint_handling is None
-    config = dataclasses.replace(NSGAIIConfig.default(), constraint_handling=("two_rankings", {}))
-    assert config.constraint_handling == ("two_rankings", {})
+    config = dataclasses.replace(NSGAIIConfig.default(), constraint_handling=(technique, PARAMETERS[technique]))
+    assert config.constraint_handling == (technique, PARAMETERS[technique])
 
 
 # ---- Effective violation and pairwise preference -----------------------------
