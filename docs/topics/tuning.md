@@ -745,6 +745,18 @@ parameters of `improved_epsilon` (`improved_epsilon_tao`,
 `improved_epsilon_decay_fraction`), with the ranges of Evolver's
 `MOEADDoubleConstrained` space.
 
+**Development after 1.5.2:** `nsgaii_constrained`, `nsgaiii_constrained`,
+`smsemoa_constrained` and `agemoea_constrained` also offer the three techniques
+that Evolver does not have: `static_penalty`, with
+`static_penalty_coefficient` (logarithmic in [1e-2, 1e8], default 1e6,
+pymoo's default penalty); `dynamic_penalty`, with `dynamic_penalty_constant`
+(logarithmic in [0.01, 10], default 0.5), `dynamic_penalty_alpha` and
+`dynamic_penalty_beta` (in [1, 3], default 2), Joines and Houck's P(2, 2)
+with `C = 0.5`, the most pressing of the settings they tested; and
+`violation_objective`. `cdp` stays the default. Seeded tuning runs of those
+spaces draw different trials, and `to_evolver` refuses the three techniques,
+which Evolver cannot run.
+
 **VAMOS 1.4.0:** the technique parameters have no default in VAMOS,
 jMetal or Evolver, so the grammars default to the settings of the papers that
 introduced the techniques: for `epsilon_constrained`, the quantile 0.2, the

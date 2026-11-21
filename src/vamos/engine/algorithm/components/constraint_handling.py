@@ -1,7 +1,7 @@
 """Constraint-handling techniques: how an algorithm ranks solutions that violate constraints.
 
 The six techniques of jMetal's package ``util.constrainthandling``, which Evolver's spaces choose
-with the parameter ``constraintHandling``:
+with the parameter ``constraintHandling`` (:data:`JMETAL_TECHNIQUES`):
 
 - ``cdp``: Deb's constrained-domination principle over the overall violation. It is the default of
   every VAMOS algorithm with constraint support.
@@ -14,6 +14,21 @@ with the parameter ``constraintHandling``:
   few solutions are feasible.
 - ``stochastic_ranking``: Runarsson and Yao's stochastic ranking.
 - ``self_adaptive_penalty``: Woldesenbet, Yen and Tessema's self-adaptive penalty.
+
+Three more, which neither jMetal nor Evolver has:
+
+- ``static_penalty``: every objective plus ``coefficient`` times the overall violation.
+- ``dynamic_penalty``: Joines and Houck's non-stationary penalty, every objective plus
+  ``(constant * k) ** alpha`` times the sum of the violations raised to ``beta``, where ``k`` is the
+  generation (:class:`DynamicPenalty`).
+- ``violation_objective``: the overall violation as one more objective (Coello, 2000).
+
+Those three, like ``self_adaptive_penalty``, rank by Pareto dominance over modified objectives; the
+algorithms keep the objectives themselves for what orders a front (crowding distance, niching,
+hypervolume contributions, survival scores).
+
+The base class and :data:`PAIRWISE_TECHNIQUES` are in :mod:`.constraint_technique`, and the three that
+jMetal does not have in :mod:`.constraint_penalties`; this module builds and validates every technique.
 
 A technique ranks a population into fronts (:meth:`ConstraintHandlingTechnique.ranks`). Those that
 change during a run follow its progress, the evaluations over the budget, which
@@ -41,6 +56,8 @@ from .constrained_ranking import (
     violated_constraints,
     violation,
 )
+from .constraint_penalties import DynamicPenalty, StaticPenalty, ViolationObjective, penalized_objectives
+from .constraint_technique import PAIRWISE_TECHNIQUES, ConstraintHandlingTechnique, check_progress
 
 if TYPE_CHECKING:
     from vamos.foundation.kernel.backend import KernelBackend
@@ -60,10 +77,13 @@ CONSTRAINT_HANDLING_PARAMETERS: dict[str, tuple[str, ...]] = {
     ),
     "stochastic_ranking": ("probability",),
     "self_adaptive_penalty": (),
+    "static_penalty": ("coefficient",),
+    "dynamic_penalty": ("constant", "alpha", "beta"),
+    "violation_objective": (),
 }
 
-#: The names of the techniques, in the order of Evolver's spaces.
-CONSTRAINT_HANDLING_TECHNIQUES: tuple[str, ...] = (
+#: The techniques of jMetal's package ``util.constrainthandling``, in the order of Evolver's spaces.
+JMETAL_TECHNIQUES: tuple[str, ...] = (
     "cdp",
     "violated_constraints",
     "epsilon_constrained",
@@ -72,11 +92,11 @@ CONSTRAINT_HANDLING_TECHNIQUES: tuple[str, ...] = (
     "self_adaptive_penalty",
 )
 
-#: The techniques that judge the violation of a single solution and compare pairs of solutions, which
-#: RVEA's survival and SMPSO's personal bests use, as Evolver's ``EffectiveViolation``.
-PAIRWISE_TECHNIQUES: tuple[str, ...] = ("cdp", "violated_constraints", "epsilon_constrained", "push_pull")
+#: Every technique: jMetal's, then the three that neither jMetal nor Evolver has.
+CONSTRAINT_HANDLING_TECHNIQUES: tuple[str, ...] = (*JMETAL_TECHNIQUES, "static_penalty", "dynamic_penalty", "violation_objective")
 
-# The admissible values of each parameter, as jMetal's constructors check them: (low, high, low closed).
+# The admissible values of each parameter, as jMetal's constructors check them, (low, high, low closed); the
+# parameters of the techniques that jMetal does not have are positive.
 _RANGES: dict[str, tuple[float, float, bool]] = {
     "initial_quantile": (0.0, 1.0, True),
     "probability": (0.0, 1.0, True),
@@ -86,6 +106,10 @@ _RANGES: dict[str, tuple[float, float, bool]] = {
     "window_fraction": (0.0, 1.0, False),
     "exponent": (0.0, math.inf, False),
     "change_threshold": (0.0, math.inf, True),
+    "coefficient": (0.0, math.inf, False),
+    "constant": (0.0, math.inf, False),
+    "alpha": (0.0, math.inf, False),
+    "beta": (0.0, math.inf, False),
 }
 
 # Relative tolerance on the progress at the start of push and pull search's window, as in jMetal.
@@ -97,7 +121,8 @@ _DELTA = 1e-6
 def normalize_constraint_handling(value: object) -> tuple[str, dict[str, float]]:
     """Validate a technique given as a name or as ``(name, parameters)``; ``None`` is ``cdp``.
 
-    Every parameter of the technique is required, as in jMetal, and must lie in jMetal's range.
+    Every parameter of the technique is required, as in jMetal, and must lie in jMetal's range; those of
+    the techniques that jMetal does not have must be positive.
     """
     if value is None:
         return ("cdp", {})
@@ -124,50 +149,6 @@ def normalize_constraint_handling(value: object) -> tuple[str, dict[str, float]]
             raise ValueError(f"constraint_handling {name!r}: {key} must lie in {interval}; got {number}.")
         params[key] = number
     return (name, params)
-
-
-def _check_progress(progress: float, name: str) -> float:
-    value = float(progress)
-    if math.isnan(value):
-        raise ValueError(f"{name} changes during the run and needs its progress: give the run an evaluation budget.")
-    if not 0.0 <= value <= 1.0:
-        raise ValueError(f"The progress must lie in [0, 1]; got {value}.")
-    return value
-
-
-class ConstraintHandlingTechnique:
-    """A technique that ranks solutions into fronts, taking their constraint values into account."""
-
-    name = ""
-    #: Whether :meth:`update` reads the run's progress.
-    needs_progress = False
-    #: Whether two rows with the same positive effective violation compare by Pareto dominance.
-    dominance_on_ties = False
-
-    def update(self, kernel: KernelBackend, F: NDArray[Any], G: NDArray[Any], progress: float) -> None:
-        """Adapt to the population about to be ranked, at ``progress`` (evaluations over the budget)."""
-        return None
-
-    def ranks(self, kernel: KernelBackend, F: NDArray[Any], G: NDArray[Any], rng: np.random.Generator) -> RankArray:
-        """The front of each row (0 first)."""
-        raise NotImplementedError
-
-    def effective_violation(self, G: NDArray[Any]) -> NDArray[np.float64]:
-        """The violation of each row as the technique judges it: 0 for a row that it treats as feasible.
-
-        Only the techniques of :data:`PAIRWISE_TECHNIQUES` judge single rows.
-        """
-        raise ValueError(
-            f"constraint_handling {self.name!r} does not judge the violation of a single solution; use {', '.join(PAIRWISE_TECHNIQUES)}."
-        )
-
-    def state(self) -> dict[str, Any]:
-        """What :meth:`update` has learnt, for a checkpoint."""
-        return {}
-
-    def restore(self, state: Mapping[str, Any]) -> None:
-        """Resume from :meth:`state`."""
-        return None
 
 
 class ConstrainedDominance(ConstraintHandlingTechnique):
@@ -212,7 +193,7 @@ class EpsilonConstrained(ConstraintHandlingTechnique):
         self.epsilon = 0.0
 
     def update(self, kernel: KernelBackend, F: NDArray[Any], G: NDArray[Any], progress: float) -> None:
-        progress = _check_progress(progress, "epsilon_constrained")
+        progress = check_progress(progress, "epsilon_constrained")
         if not self.started:
             violations = np.sort(violation(G))
             if violations.size == 0:
@@ -273,7 +254,7 @@ class PushPullSearch(ConstraintHandlingTechnique):
         self.epsilon = 0.0
 
     def update(self, kernel: KernelBackend, F: NDArray[Any], G: NDArray[Any], progress: float) -> None:
-        progress = _check_progress(progress, "push_pull")
+        progress = check_progress(progress, "push_pull")
         if progress >= self.decay_fraction:
             self.pushing = False
             self.epsilon = 0.0
@@ -392,6 +373,12 @@ def make_constraint_handling(value: object) -> ConstraintHandlingTechnique:
         return PushPullSearch(**params)
     if name == "stochastic_ranking":
         return StochasticRanking(**params)
+    if name == "static_penalty":
+        return StaticPenalty(**params)
+    if name == "dynamic_penalty":
+        return DynamicPenalty(**params)
+    if name == "violation_objective":
+        return ViolationObjective()
     return SelfAdaptivePenalty()
 
 
@@ -422,17 +409,23 @@ def run_technique(
     constraint_mode: str,
     checkpoint: Mapping[str, Any] | None = None,
     techniques: tuple[str, ...] = CONSTRAINT_HANDLING_TECHNIQUES,
+    *,
+    population_size: int | None = None,
+    max_evaluations: int | None = None,
 ) -> ConstraintHandlingTechnique | None:
     """A run's own technique, None for cdp, with the state that the checkpoint it resumes from saved.
 
     cdp keeps each algorithm's own feasibility-first survival and selection, so its results do not
     change. Any other technique needs the feasibility constraint mode, and must be one of the
-    ``techniques`` that the algorithm takes.
+    ``techniques`` that the algorithm takes. Given ``population_size`` and ``max_evaluations``, the
+    technique learns them (:meth:`ConstraintHandlingTechnique.bind_run`).
     """
     technique_value = config_constraint_handling(value, constraint_mode, techniques)
     if technique_value is None or technique_value[0] == "cdp":
         return None
     technique = make_constraint_handling(technique_value)
+    if population_size is not None and max_evaluations is not None:
+        technique.bind_run(int(population_size), int(max_evaluations))
     extra = checkpoint.get("extra") if checkpoint is not None else None
     state = extra.get("constraint_handling") if isinstance(extra, Mapping) else None
     if isinstance(state, Mapping):
@@ -491,17 +484,23 @@ def preferred(
 __all__ = [
     "CONSTRAINT_HANDLING_PARAMETERS",
     "CONSTRAINT_HANDLING_TECHNIQUES",
+    "JMETAL_TECHNIQUES",
     "PAIRWISE_TECHNIQUES",
     "ConstrainedDominance",
     "ConstraintHandlingTechnique",
+    "DynamicPenalty",
     "EpsilonConstrained",
     "PushPullSearch",
     "SelfAdaptivePenalty",
+    "StaticPenalty",
     "StochasticRanking",
+    "ViolationObjective",
     "adapted_ranks",
+    "check_progress",
     "config_constraint_handling",
     "make_constraint_handling",
     "normalize_constraint_handling",
+    "penalized_objectives",
     "preferred",
     "run_progress",
     "run_technique",

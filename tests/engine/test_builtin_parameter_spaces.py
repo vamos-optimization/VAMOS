@@ -177,6 +177,13 @@ PUBLISHED_TECHNIQUE_SETTINGS = {
     "improved_epsilon_tao": 0.1,
     "improved_epsilon_feasibility_ratio_threshold": 0.95,
     "improved_epsilon_decay_fraction": 0.8,
+    # Development after 1.5.2. Joines and Houck's non-stationary penalty, (C * k)^alpha * SVC(beta, X): their
+    # P(2, 2), with C = 0.5 (IEEE ICEC 1994, pp. 579-584, sections 3.1 and 4).
+    "dynamic_penalty_constant": 0.5,
+    "dynamic_penalty_alpha": 2.0,
+    "dynamic_penalty_beta": 2.0,
+    # A static penalty has no published setting; the grammars take pymoo's default penalty.
+    "static_penalty_coefficient": 1e6,
 }
 
 
