@@ -14,13 +14,15 @@ Choices the paper leaves open:
 - Solutions with the same crowding distance in a level, such as the two or more boundary solutions, whose
   distance is infinite, keep the order of the population, as the paper's Tables I-III do.
 - Solutions with the same fitness are ordered by ``R^c``, which is unique, so the order is total.
-- The crowding distance is VAMOS's, NSGA-II's: the difference of the neighbours in each objective over the
+- The crowding distance is NSGA-II's: the difference of the neighbours in each objective over the
   objective's range in the level. The paper's Tables I-III sum the differences without dividing them by the
-  range; :func:`two_rankings_fitness` takes another crowding distance to reproduce them.
+  range, which changes some positions but not the solutions they select; :func:`two_rankings_fitness` takes
+  another crowding distance to reproduce them.
 
 The ranks that the technique returns are the positions in that total order, 0 to ``n - 1``, one solution
-per front. So the algorithms' survival, which keeps whole fronts, keeps the best by fitness, and crowding
-distance, niching, hypervolume contributions and survival scores never decide between solutions.
+per front. The paper defines ToR for NSGA-II, whose survival, which keeps whole fronts, then keeps the best
+by fitness; crowding distance never decides. NSGA-III, SMS-EMOA and AGE-MOEA reject the technique, since its
+order would replace their niching, hypervolume contributions and survival scores.
 """
 
 from __future__ import annotations

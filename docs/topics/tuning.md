@@ -746,19 +746,19 @@ parameters of `improved_epsilon` (`improved_epsilon_tao`,
 `MOEADDoubleConstrained` space.
 
 **Development after 1.5.2:** `nsgaii_constrained`, `nsgaiii_constrained`,
-`smsemoa_constrained` and `agemoea_constrained` also offer the five techniques
+`smsemoa_constrained` and `agemoea_constrained` also offer four techniques
 that Evolver does not have: `static_penalty`, with
 `static_penalty_coefficient` (logarithmic in [1e-2, 1e8], default 1e6,
 pymoo's default penalty); `dynamic_penalty`, with `dynamic_penalty_constant`
 (logarithmic in [0.01, 10], default 0.5), `dynamic_penalty_alpha` and
 `dynamic_penalty_beta` (in [1, 3], default 2), Joines and Houck's P(2, 2)
 with `C = 0.5`, the most pressing of the settings they tested;
-`violation_objective`; `two_rankings`, which has no parameters; and
-`shift_penalty`, with `shift_penalty_constant` (in [1, 5], default 2: Ma and
-Wang's `c`, whose sensitivity study found 2 and 3 best and 0.5 and 1 worse).
-`cdp` stays the default. Seeded tuning runs of those spaces draw different
-trials, and `to_evolver` refuses the five techniques, which Evolver cannot
-run.
+`violation_objective`; and `shift_penalty`, with `shift_penalty_constant` (in
+[1, 5], default 2: Ma and Wang's `c`, whose sensitivity study found 2 and 3
+best and 0.5 and 1 worse). `nsgaii_constrained` also offers `two_rankings`,
+which has no parameters and whose paper defines it for NSGA-II only. `cdp`
+stays the default. Seeded tuning runs of those spaces draw different trials,
+and `to_evolver` refuses the five techniques, which Evolver cannot run.
 
 **VAMOS 1.4.0:** the technique parameters have no default in VAMOS,
 jMetal or Evolver, so the grammars default to the settings of the papers that

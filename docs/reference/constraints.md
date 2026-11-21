@@ -134,14 +134,15 @@ checks against jMetal's own implementation; the others are checked against
 rankings computed by hand and the worked examples of their papers.
 
 **Development after 1.5.2:** NSGA-II, NSGA-III, SMS-EMOA and AGE-MOEA also
-take five techniques that neither jMetal nor Evolver has:
+take four techniques that neither jMetal nor Evolver has, and NSGA-II a fifth,
+`two_rankings`:
 
 | Technique | Parameters | Ranking |
 | --- | --- | --- |
 | `static_penalty` | `coefficient` | A static penalty: Pareto dominance over every objective plus `coefficient` times the overall violation, the sum of the positive constraint values. |
 | `dynamic_penalty` | `constant`, `alpha`, `beta` | Joines and Houck's non-stationary penalty: Pareto dominance over every objective plus `(constant * k) ** alpha` times the sum of the violations raised to `beta`, where `k` is the generation. |
 | `violation_objective` | none | The overall violation as one more objective (Coello, 2000): Pareto dominance over the objectives and the violation. |
-| `two_rankings` | none | Ma, Wang and Song's ToR: the best by `alpha * R^c + (1 - alpha) * R^p`, positions by the constrained-domination principle and by Pareto dominance, one solution per front. |
+| `two_rankings` | none | NSGA-II only. Ma, Wang and Song's ToR: the best by `alpha * R^c + (1 - alpha) * R^p`, positions by the constrained-domination principle and by Pareto dominance, one solution per front. |
 | `shift_penalty` | `constant` | Ma and Wang's ShiP: Pareto dominance over objectives that move each infeasible solution towards its local feasible nadir and add its violation. |
 
 ```python
@@ -201,12 +202,15 @@ being ranked. The paper leaves three choices open:
 - solutions with the same fitness are ordered by `R^c`;
 - the crowding distance is NSGA-II's, each difference over the objective's
   range in the level. The paper's tables sum the differences without that
-  division; with their sum, VAMOS reproduces the tables' positions.
+  division; with their sum, VAMOS reproduces the tables' positions, and with
+  NSGA-II's some positions change but the solutions each table selects do not.
 
 The technique puts each solution in a front of its own, ordered by fitness, so
-the replacement keeps the best by fitness: crowding distance, niching,
-hypervolume contributions and survival scores never decide. The tournament
-compares the positions in the current population.
+NSGA-II's replacement keeps the best by fitness and crowding distance never
+decides; the tournament compares the positions in the current population. The
+paper defines ToR for NSGA-II only, and NSGA-III, SMS-EMOA and AGE-MOEA reject
+it: its order would replace their niching, hypervolume contributions and
+survival scores.
 
 `shift_penalty` follows section III-B of Z. Ma and Y. Wang, "Shift-Based
 Penalty for Evolutionary Constrained Multiobjective Optimization and Its

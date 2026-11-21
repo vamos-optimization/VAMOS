@@ -254,7 +254,7 @@ class _ConstraintHandlingBuilder:
         ``exponent``, ``feasibility_threshold``, ``reduction_rate``), ``stochastic_ranking``
         (``probability``) or ``self_adaptive_penalty``; or one that jMetal does not have:
         ``static_penalty`` (``coefficient``), ``dynamic_penalty`` (``constant``, ``alpha``, ``beta``),
-        ``violation_objective``, ``two_rankings`` or ``shift_penalty`` (``constant``). Every parameter of
+        ``violation_objective``, ``two_rankings`` (NSGA-II only) or ``shift_penalty`` (``constant``). Every parameter of
         the technique is required. See
         :mod:`vamos.engine.algorithm.components.constraint_handling`.
         """

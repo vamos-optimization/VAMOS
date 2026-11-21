@@ -244,7 +244,9 @@ def test_make_constraint_handling_builds_each_technique() -> None:
 def test_the_constrained_spaces_offer_the_new_techniques(space_name: str) -> None:
     space = builtin_parameter_space(space_name)
     technique = space.parameter("constraint_handling")
-    assert technique.values == (*JMETAL_TECHNIQUES, *NEW_TECHNIQUES)
+    # ToR is defined for NSGA-II only (test_constraint_handling_rankings).
+    offered = NEW_TECHNIQUES if space_name == "nsgaii_constrained" else tuple(name for name in NEW_TECHNIQUES if name != "two_rankings")
+    assert technique.values == (*JMETAL_TECHNIQUES, *offered)
     assert technique.default == "cdp"
     assert [child.name for child in technique.production("static_penalty")] == ["static_penalty_coefficient"]
     assert [child.name for child in technique.production("dynamic_penalty")] == [

@@ -267,10 +267,10 @@ def test_invalid_ship_parameters_are_rejected(value: object, message: str) -> No
 
 
 @pytest.mark.parametrize("space_name", ["nsgaii_constrained", "nsgaiii_constrained", "smsemoa_constrained", "agemoea_constrained"])
-def test_the_constrained_spaces_offer_tor_and_ship(space_name: str) -> None:
+def test_the_constrained_spaces_offer_ship_and_nsgaii_tor(space_name: str) -> None:
     space = builtin_parameter_space(space_name)
     technique = space.parameter("constraint_handling")
-    assert technique.production("two_rankings") == ()
+    assert ("two_rankings" in technique.values) == (space_name == "nsgaii_constrained")
     assert [child.name for child in technique.production("shift_penalty")] == ["shift_penalty_constant"]
     constant = space.parameter("shift_penalty_constant")
     assert (constant.range, constant.default) == ((1.0, 5.0), 2.0)
@@ -280,4 +280,9 @@ def test_the_constrained_spaces_offer_tor_and_ship(space_name: str) -> None:
     tor = {**defaults, "constraint_handling": "two_rankings"}
 
     assert config_from_assignment(space_name, ship).constraint_handling == ("shift_penalty", {"constant": 3.0})
-    assert config_from_assignment(space_name, tor).constraint_handling == ("two_rankings", {})
+    if space_name == "nsgaii_constrained":
+        assert technique.production("two_rankings") == ()
+        assert config_from_assignment(space_name, tor).constraint_handling == ("two_rankings", {})
+    else:
+        with pytest.raises(ValueError, match="defined for NSGA-II only"):
+            config_from_assignment(space_name, tor)

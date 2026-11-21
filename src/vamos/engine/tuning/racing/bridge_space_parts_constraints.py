@@ -3,9 +3,9 @@
 The ``<algorithm>_constrained`` grammars offer the technique and its parameters with the names and
 ranges of Evolver's spaces (parameter ``constraintHandling`` of ``NSGAIIDoubleConstrained.yaml``),
 in snake case; the parameters are scale-free: quantiles, fractions of the run and probabilities. The
-grammars of NSGA-II, NSGA-III, SMS-EMOA and AGE-MOEA also offer the techniques that Evolver does not
-have, ``static_penalty``, ``dynamic_penalty``, ``violation_objective``, ``two_rankings`` and
-``shift_penalty``; the coefficients of the first two multiply violations, so they depend on the
+grammars of NSGA-II, NSGA-III, SMS-EMOA and AGE-MOEA also offer techniques that Evolver does not
+have, ``static_penalty``, ``dynamic_penalty``, ``violation_objective`` and ``shift_penalty``, and NSGA-II's
+``two_rankings`` too; the coefficients of the first two multiply violations, so they depend on the
 problem's scale.
 """
 

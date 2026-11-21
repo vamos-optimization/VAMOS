@@ -18,6 +18,17 @@ if TYPE_CHECKING:
 #: RVEA's survival and SMPSO's personal bests use, as Evolver's ``EffectiveViolation``.
 PAIRWISE_TECHNIQUES: tuple[str, ...] = ("cdp", "violated_constraints", "epsilon_constrained", "push_pull")
 
+#: The techniques that their papers define for NSGA-II only. Each orders the population totally, one solution per
+#: front, which would take the place of the niching, hypervolume contributions or survival scores of the others.
+NSGAII_ONLY_TECHNIQUES: tuple[str, ...] = ("two_rankings",)
+
+
+def rejection_reason(name: str, techniques: tuple[str, ...]) -> str:
+    """Why an algorithm that takes ``techniques`` rejects the technique ``name``."""
+    if name in NSGAII_ONLY_TECHNIQUES and set(PAIRWISE_TECHNIQUES) < set(techniques):
+        return "is defined for NSGA-II only: its total order would replace this algorithm's own diversity mechanism"
+    return "does not judge the violation of a single solution"
+
 
 def check_progress(progress: float, name: str) -> float:
     """The run's progress for the technique ``name``, which must be a budget's fraction in [0, 1]."""
@@ -71,4 +82,4 @@ class ConstraintHandlingTechnique:
         return None
 
 
-__all__ = ["PAIRWISE_TECHNIQUES", "ConstraintHandlingTechnique", "check_progress"]
+__all__ = ["NSGAII_ONLY_TECHNIQUES", "PAIRWISE_TECHNIQUES", "ConstraintHandlingTechnique", "check_progress", "rejection_reason"]

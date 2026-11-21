@@ -13,7 +13,7 @@ from typing import Any
 
 import numpy as np
 
-from vamos.engine.algorithm.components.constraint_handling import run_progress, run_technique
+from vamos.engine.algorithm.components.constraint_handling import FRONT_TECHNIQUES, run_progress, run_technique
 from vamos.engine.algorithm.components.evaluation import combine_constraints, extract_evaluation_arrays
 from vamos.engine.algorithm.components.hooks import get_live_viz, live_should_stop, send_live_generation
 from vamos.engine.algorithm.components.metrics import setup_hv_tracker
@@ -225,7 +225,11 @@ class AGEMOEA:
         max_evals, hv_config = parse_termination(termination, "AGE-MOEA", pop_size)
         validate_initial_budget(max_evals, pop_size, "AGE-MOEA")
         constraint_handling = run_technique(
-            self.cfg.get("constraint_handling"), constraint_mode, population_size=pop_size, max_evaluations=max_evals
+            self.cfg.get("constraint_handling"),
+            constraint_mode,
+            techniques=FRONT_TECHNIQUES,
+            population_size=pop_size,
+            max_evaluations=max_evals,
         )
 
         encoding = normalize_encoding(getattr(problem, "encoding", "real"))
