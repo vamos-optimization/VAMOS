@@ -28,8 +28,17 @@ from vamos.engine.tuning.racing.bridge_assignments import config_from_assignment
 from vamos.engine.tuning.racing.parameter_names import to_evolver
 from vamos.foundation.kernel.registry import resolve_kernel
 
-# Every technique that jMetal does not have; test_constraint_handling_rankings checks ToR and ShiP.
-NEW_TECHNIQUES = ("static_penalty", "dynamic_penalty", "violation_objective", "two_rankings", "shift_penalty")
+# Every technique that jMetal does not have; test_constraint_handling_rankings checks ToR and ShiP, and
+# test_constraint_handling_orders IDEA and ATM.
+NEW_TECHNIQUES = (
+    "static_penalty",
+    "dynamic_penalty",
+    "violation_objective",
+    "two_rankings",
+    "shift_penalty",
+    "infeasibility_driven",
+    "adaptive_tradeoff",
+)
 ENGINES = ["numpy", "numba"]
 DYNAMIC = {"constant": 0.5, "alpha": 2.0, "beta": 2.0}
 
@@ -244,8 +253,9 @@ def test_make_constraint_handling_builds_each_technique() -> None:
 def test_the_constrained_spaces_offer_the_new_techniques(space_name: str) -> None:
     space = builtin_parameter_space(space_name)
     technique = space.parameter("constraint_handling")
-    # ToR is defined for NSGA-II only (test_constraint_handling_rankings).
-    offered = NEW_TECHNIQUES if space_name == "nsgaii_constrained" else tuple(name for name in NEW_TECHNIQUES if name != "two_rankings")
+    # ToR, IDEA and ATM are defined for NSGA-II only (test_constraint_handling_rankings and _orders).
+    nsgaii_only = ("two_rankings", "infeasibility_driven", "adaptive_tradeoff")
+    offered = NEW_TECHNIQUES if space_name == "nsgaii_constrained" else tuple(name for name in NEW_TECHNIQUES if name not in nsgaii_only)
     assert technique.values == (*JMETAL_TECHNIQUES, *offered)
     assert technique.default == "cdp"
     assert [child.name for child in technique.production("static_penalty")] == ["static_penalty_coefficient"]

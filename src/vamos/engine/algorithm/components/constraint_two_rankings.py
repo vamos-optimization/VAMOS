@@ -47,6 +47,7 @@ class TwoRankings(ConstraintHandlingTechnique):
     """Ma, Wang and Song's ToR: the best by ``alpha R^c + (1 - alpha) R^p``, one solution per front."""
 
     name = "two_rankings"
+    total_order = True
 
     def ranks(self, kernel: KernelBackend, F: NDArray[Any], G: NDArray[Any], rng: np.random.Generator) -> RankArray:
         return two_rankings_ranks(kernel, F, G)

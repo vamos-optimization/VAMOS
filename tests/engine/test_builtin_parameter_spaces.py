@@ -186,6 +186,8 @@ PUBLISHED_TECHNIQUE_SETTINGS = {
     "static_penalty_coefficient": 1e6,
     # Ma and Wang's ShiP: c = 2 (IEEE TCYB 53(1):18-30, 2023, section III-B).
     "shift_penalty_constant": 2.0,
+    # Ray, Singh, Isaacs and Smith's IDEA: alpha = 0.2 (SCI 198, 2009, section 4).
+    "infeasibility_driven_proportion": 0.2,
 }
 
 

@@ -134,8 +134,8 @@ checks against jMetal's own implementation; the others are checked against
 rankings computed by hand and the worked examples of their papers.
 
 **Development after 1.5.2:** NSGA-II, NSGA-III, SMS-EMOA and AGE-MOEA also
-take four techniques that neither jMetal nor Evolver has, and NSGA-II a fifth,
-`two_rankings`:
+take four techniques that neither jMetal nor Evolver has, and NSGA-II three
+more, `two_rankings`, `infeasibility_driven` and `adaptive_tradeoff`:
 
 | Technique | Parameters | Ranking |
 | --- | --- | --- |
@@ -144,6 +144,8 @@ take four techniques that neither jMetal nor Evolver has, and NSGA-II a fifth,
 | `violation_objective` | none | The overall violation as one more objective (Coello, 2000): Pareto dominance over the objectives and the violation. |
 | `two_rankings` | none | NSGA-II only. Ma, Wang and Song's ToR: the best by `alpha * R^c + (1 - alpha) * R^p`, positions by the constrained-domination principle and by Pareto dominance, one solution per front. |
 | `shift_penalty` | `constant` | Ma and Wang's ShiP: Pareto dominance over objectives that move each infeasible solution towards its local feasible nadir and add its violation. |
+| `infeasibility_driven` | `proportion` | NSGA-II only. Ray, Singh, Isaacs and Smith's IDEA: the best infeasible solutions, `proportion` of the population, rank above the feasible ones, one solution per front. |
+| `adaptive_tradeoff` | none | NSGA-II only. Wang, Cai, Zhou and Zeng's ATM, in Li, Wang, Yang and Cai's version for several objectives: the ranking depends on the feasible proportion of the population, one solution per front. |
 
 ```python
 from vamos.algorithms import NSGAIIConfig
@@ -228,6 +230,62 @@ constraint violation, without defining it. VAMOS's tournament compares ShiP's
 ranks of the current population, as for every technique, so while no solution
 is feasible it compares by Pareto dominance alone. ShiP+, the paper's
 archive-assisted algorithm, is not part of VAMOS.
+
+`infeasibility_driven` and `adaptive_tradeoff` are defined for NSGA-II, and,
+like `two_rankings`, order the population totally, so that NSGA-II's
+replacement keeps the selection their papers define and its tournament
+compares the positions in the current population. Their fronts and crowding
+distances are NSGA-II's, and rows with the same front and crowding distance
+keep the order of the population. NSGA-III, SMS-EMOA and AGE-MOEA reject them.
+
+`infeasibility_driven` follows T. Ray, H. K. Singh, A. Isaacs and W. Smith,
+"Infeasibility Driven Evolutionary Algorithm for Constrained Optimization", in
+E. Mezura-Montes (ed.), *Constraint-Handling in Evolutionary Optimization*
+(Studies in Computational Intelligence 198, Springer, 2009, pp. 145–165):
+
+- The violation measure (section 3, Table 1) is one more objective. For each
+  constraint, the solutions that violate it rank from 1 by their violation in
+  ascending order, and those that satisfy it get 0; the measure is the sum of
+  the ranks. Equal violations share a rank, and the paper does not say how the
+  next rank follows: VAMOS continues with the next integer (dense ranks).
+- The population splits into the feasible and the infeasible solutions, and
+  each set is sorted by fronts and crowding distance over the objectives and
+  the measure. The best `N_inf = proportion * N` infeasible solutions come
+  first, then the feasible ones, then the other infeasible ones, so the first
+  `N` are Algorithm 1's selection, with section 2's rule when either set falls
+  short. `N` is the population size, and `N_inf` is rounded half up, which the
+  paper leaves open.
+- `proportion` lies in (0, 1]; the paper uses 0.2, 20% of the population, and
+  calls it "a small percentage". The tuning space offers 0.05 to 0.5: half the
+  population would no longer be a small percentage.
+
+`adaptive_tradeoff` follows section III of Y. Wang, Z. Cai, Y. Zhou and
+W. Zeng, "An Adaptive Tradeoff Model for Constrained Evolutionary
+Optimization" (IEEE Transactions on Evolutionary Computation 12(1):80–92,
+2008), in the version for several objectives of section III-C of J.-P. Li,
+Y. Wang, S. Yang and Z. Cai, "A Comparative Study of Constraint-Handling
+Techniques in Evolutionary Constrained Multiobjective Optimization" (IEEE CEC
+2016, pp. 4175–4182). Its violation is Li et al.'s `C` (eq. 3), the mean over
+the constraints of each violation over the largest in the population, and its
+phase depends on the feasible proportion of the population being ranked:
+
+- No feasible solution (phase one): the hierarchical non-dominated selection of
+  Wang et al.'s Fig. 3 over the objectives and `C`. The non-dominated solutions
+  of those that remain are sorted by `C` in ascending order, and the first half
+  of them come next, until none remains. Half of an odd number is rounded up,
+  which the paper leaves open, since rounding down would never take the last
+  solution.
+- Some feasible solutions (phase two, Li et al.'s eqs. 10–15): each objective
+  of an infeasible solution becomes `max(phi * f_b + (1 - phi) * f_w, f)`,
+  with `f_b` and `f_w` the best and worst of the feasible solutions; each
+  objective is normalized over all the solutions and `C` over the infeasible
+  ones, 0 for the feasible ones, and their sums rank by fronts and crowding
+  distance. A range of 0 normalizes to 0.
+- All feasible (phase three): fronts and crowding distance of the objectives.
+
+`phi` is the feasible proportion of the population that the last replacement
+kept: 0 until the first replacement, as in Wang et al.'s Fig. 4, and kept in
+NSGA-II's checkpoints. ATM has no parameters.
 
 The penalized or shifted objectives, like those of `self_adaptive_penalty`, and
 the violation of `violation_objective` only rank the population: crowding

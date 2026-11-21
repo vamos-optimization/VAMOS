@@ -1,21 +1,11 @@
 """Constraint-handling techniques: how an algorithm ranks solutions that violate constraints.
 
-The six techniques of jMetal's package ``util.constrainthandling``, which Evolver's spaces choose
-with the parameter ``constraintHandling`` (:data:`JMETAL_TECHNIQUES`):
+The six techniques of jMetal's package ``util.constrainthandling``, which Evolver's spaces choose with the
+parameter ``constraintHandling`` (:data:`JMETAL_TECHNIQUES`, :mod:`.constraint_jmetal`): ``cdp``, the default
+of every VAMOS algorithm with constraint support, ``violated_constraints``, ``epsilon_constrained``,
+``push_pull``, ``stochastic_ranking`` and ``self_adaptive_penalty``.
 
-- ``cdp``: Deb's constrained-domination principle over the overall violation. It is the default of
-  every VAMOS algorithm with constraint support.
-- ``violated_constraints``: the same rule over the number of violated constraints.
-- ``epsilon_constrained``: Takahama and Sakai's epsilon-constrained method. Solutions whose violation
-  is at most epsilon count as feasible; epsilon starts at a quantile of the violations of the first
-  ranked population and decays to 0 with the run's progress.
-- ``push_pull``: Fan et al.'s push and pull search. It ignores the constraints until the ideal and
-  nadir points settle, and then acts as epsilon-constrained, with an epsilon that also shrinks while
-  few solutions are feasible.
-- ``stochastic_ranking``: Runarsson and Yao's stochastic ranking.
-- ``self_adaptive_penalty``: Woldesenbet, Yen and Tessema's self-adaptive penalty.
-
-Five more, which neither jMetal nor Evolver has:
+Seven more, which neither jMetal nor Evolver has:
 
 - ``static_penalty``: every objective plus ``coefficient`` times the overall violation.
 - ``dynamic_penalty``: Joines and Houck's non-stationary penalty, every objective plus
@@ -26,12 +16,19 @@ Five more, which neither jMetal nor Evolver has:
   principle and by Pareto dominance (:mod:`.constraint_two_rankings`), one solution per front; NSGA-II only.
 - ``shift_penalty``: Ma and Wang's ShiP, which shifts infeasible objectives towards their local feasible
   nadir and adds the violation (:class:`ShiftPenalty`).
+- ``infeasibility_driven``: Ray, Singh, Isaacs and Smith's IDEA, which ranks a proportion of the best
+  infeasible solutions above the feasible ones; NSGA-II only (:mod:`.constraint_orders`).
+- ``adaptive_tradeoff``: Wang, Cai, Zhou and Zeng's ATM, in Li et al.'s version for several objectives,
+  whose ranking depends on the feasible proportion of the population; NSGA-II only (:mod:`.constraint_orders`).
 
 The penalties and ``violation_objective``, like ``self_adaptive_penalty``, rank by Pareto dominance over
 modified objectives; crowding distance, niching, hypervolume contributions and survival scores use the
-objectives. :mod:`.constraint_technique` holds the base class, :mod:`.constraint_penalties` and
-:mod:`.constraint_two_rankings` the techniques that jMetal does not have; this module builds and validates
-every technique.
+objectives.
+
+:mod:`.constraint_technique` holds the base class, :mod:`.constraint_jmetal`, :mod:`.constraint_penalties`,
+:mod:`.constraint_two_rankings` and :mod:`.constraint_orders` the techniques, and :mod:`.constraint_registry` their parameters, lists,
+validation and construction. This module gives an algorithm its run's technique and the functions it calls
+to rank with it, and exports every name of the others.
 
 A technique ranks a population into fronts (:meth:`ConstraintHandlingTechnique.ranks`). Those that change
 during a run follow its progress, the evaluations over the budget, which ``update`` receives with the
@@ -40,24 +37,24 @@ population about to be ranked, as in jMetal. Constraints follow VAMOS's conventi
 
 from __future__ import annotations
 
-import math
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from numpy.typing import NDArray
 
-from .constrained_ranking import (
-    RankArray,
-    pareto_ranks,
-    ranks_by_violation,
-    self_adaptive_penalty_objectives,
-    stochastic_ranking_order,
-    stochastic_ranking_ranks,
-    violated_constraints,
-    violation,
-)
+from .constrained_ranking import RankArray
+from .constraint_jmetal import ConstrainedDominance, EpsilonConstrained, PushPullSearch, SelfAdaptivePenalty, StochasticRanking
+from .constraint_orders import AdaptiveTradeoff, InfeasibilityDriven
 from .constraint_penalties import DynamicPenalty, ShiftPenalty, StaticPenalty, ViolationObjective, penalized_objectives
+from .constraint_registry import (
+    CONSTRAINT_HANDLING_PARAMETERS,
+    CONSTRAINT_HANDLING_TECHNIQUES,
+    FRONT_TECHNIQUES,
+    JMETAL_TECHNIQUES,
+    make_constraint_handling,
+    normalize_constraint_handling,
+)
 from .constraint_technique import (
     NSGAII_ONLY_TECHNIQUES,
     PAIRWISE_TECHNIQUES,
@@ -69,341 +66,6 @@ from .constraint_two_rankings import TwoRankings
 
 if TYPE_CHECKING:
     from vamos.foundation.kernel.backend import KernelBackend
-
-#: The parameters of each technique, in the order of jMetal's constructors.
-CONSTRAINT_HANDLING_PARAMETERS: dict[str, tuple[str, ...]] = {
-    "cdp": (),
-    "violated_constraints": (),
-    "epsilon_constrained": ("initial_quantile", "exponent", "decay_fraction"),
-    "push_pull": (
-        "change_threshold",
-        "window_fraction",
-        "decay_fraction",
-        "exponent",
-        "feasibility_threshold",
-        "reduction_rate",
-    ),
-    "stochastic_ranking": ("probability",),
-    "self_adaptive_penalty": (),
-    "static_penalty": ("coefficient",),
-    "dynamic_penalty": ("constant", "alpha", "beta"),
-    "violation_objective": (),
-    "two_rankings": (),
-    "shift_penalty": ("constant",),
-}
-
-#: The techniques of jMetal's package ``util.constrainthandling``, in the order of Evolver's spaces.
-JMETAL_TECHNIQUES: tuple[str, ...] = (
-    "cdp",
-    "violated_constraints",
-    "epsilon_constrained",
-    "push_pull",
-    "stochastic_ranking",
-    "self_adaptive_penalty",
-)
-
-#: Every technique: jMetal's, then those that neither jMetal nor Evolver has.
-CONSTRAINT_HANDLING_TECHNIQUES: tuple[str, ...] = (
-    *JMETAL_TECHNIQUES,
-    "static_penalty",
-    "dynamic_penalty",
-    "violation_objective",
-    "two_rankings",
-    "shift_penalty",
-)
-
-#: The techniques that NSGA-III, SMS-EMOA and AGE-MOEA take: all but those defined for NSGA-II only.
-FRONT_TECHNIQUES: tuple[str, ...] = (*JMETAL_TECHNIQUES, "static_penalty", "dynamic_penalty", "violation_objective", "shift_penalty")
-
-# The admissible values of each parameter, as jMetal's constructors check them, (low, high, low closed); the
-# parameters of the techniques that jMetal does not have are positive.
-_RANGES: dict[str, tuple[float, float, bool]] = {
-    "initial_quantile": (0.0, 1.0, True),
-    "probability": (0.0, 1.0, True),
-    "feasibility_threshold": (0.0, 1.0, True),
-    "reduction_rate": (0.0, 1.0, True),
-    "decay_fraction": (0.0, 1.0, False),
-    "window_fraction": (0.0, 1.0, False),
-    "exponent": (0.0, math.inf, False),
-    "change_threshold": (0.0, math.inf, True),
-    "coefficient": (0.0, math.inf, False),
-    "constant": (0.0, math.inf, False),
-    "alpha": (0.0, math.inf, False),
-    "beta": (0.0, math.inf, False),
-}
-
-# Relative tolerance on the progress at the start of push and pull search's window, as in jMetal.
-_PROGRESS_TOLERANCE = 1e-12
-# Smallest denominator of a relative change of the ideal or nadir point, as in jMetal.
-_DELTA = 1e-6
-
-
-def normalize_constraint_handling(value: object) -> tuple[str, dict[str, float]]:
-    """Validate a technique given as a name or as ``(name, parameters)``; ``None`` is ``cdp``.
-
-    Every parameter of the technique is required, as in jMetal, and must lie in jMetal's range; those of
-    the techniques that jMetal does not have must be positive.
-    """
-    if value is None:
-        return ("cdp", {})
-    if isinstance(value, str):
-        name, raw = value, {}
-    elif isinstance(value, (tuple, list)) and len(value) == 2 and isinstance(value[0], str) and isinstance(value[1], Mapping):
-        name, raw = value[0], dict(value[1])
-    else:
-        raise ValueError(f"constraint_handling must be a technique name or (name, parameters); got {value!r}.")
-    if name not in CONSTRAINT_HANDLING_PARAMETERS:
-        raise ValueError(f"Unknown constraint-handling technique {name!r}; the techniques are {', '.join(CONSTRAINT_HANDLING_TECHNIQUES)}.")
-    expected = CONSTRAINT_HANDLING_PARAMETERS[name]
-    unknown = sorted(set(raw) - set(expected))
-    missing = [key for key in expected if key not in raw]
-    if unknown or missing:
-        needs = ", ".join(expected) if expected else "no parameters"
-        raise ValueError(f"constraint_handling {name!r} takes {needs}; unknown: {unknown}, missing: {missing}.")
-    params: dict[str, float] = {}
-    for key in expected:
-        number = float(raw[key])
-        low, high, low_closed = _RANGES[key]
-        if not (number >= low if low_closed else number > low) or number > high or math.isnan(number):
-            interval = f"{'[' if low_closed else '('}{low}, {high}]"
-            raise ValueError(f"constraint_handling {name!r}: {key} must lie in {interval}; got {number}.")
-        params[key] = number
-    return (name, params)
-
-
-class ConstrainedDominance(ConstraintHandlingTechnique):
-    """Deb's rule over the overall violation (``cdp``) or the number of violated constraints."""
-
-    dominance_on_ties = True
-
-    def __init__(self, *, count_violated_constraints: bool = False) -> None:
-        self.count_violated_constraints = count_violated_constraints
-        self.name = "violated_constraints" if count_violated_constraints else "cdp"
-
-    def effective_violation(self, G: NDArray[Any]) -> NDArray[np.float64]:
-        return violated_constraints(G) if self.count_violated_constraints else violation(G)
-
-    def ranks(self, kernel: KernelBackend, F: NDArray[Any], G: NDArray[Any], rng: np.random.Generator) -> RankArray:
-        measure = violated_constraints(G) if self.count_violated_constraints else violation(G)
-        return ranks_by_violation(kernel, F, measure, objectives_on_ties=True)
-
-
-def _within_epsilon(measure: NDArray[np.float64], epsilon: float) -> NDArray[np.float64]:
-    """A violation, or 0 where it is at most epsilon."""
-    return np.where(measure <= epsilon, 0.0, measure)
-
-
-def _ranks_within_epsilon(kernel: KernelBackend, F: NDArray[Any], G: NDArray[Any], epsilon: float) -> RankArray:
-    measure = violation(G)
-    return ranks_by_violation(kernel, F, np.where(measure <= epsilon, 0.0, measure), objectives_on_ties=False)
-
-
-class EpsilonConstrained(ConstraintHandlingTechnique):
-    """Takahama and Sakai's epsilon-constrained method, as jMetal's ``EpsilonConstrained``."""
-
-    name = "epsilon_constrained"
-    needs_progress = True
-
-    def __init__(self, initial_quantile: float, exponent: float, decay_fraction: float) -> None:
-        self.initial_quantile = float(initial_quantile)
-        self.exponent = float(exponent)
-        self.decay_fraction = float(decay_fraction)
-        self.started = False
-        self.initial_epsilon = 0.0
-        self.epsilon = 0.0
-
-    def update(self, kernel: KernelBackend, F: NDArray[Any], G: NDArray[Any], progress: float) -> None:
-        progress = check_progress(progress, "epsilon_constrained")
-        if not self.started:
-            violations = np.sort(violation(G))
-            if violations.size == 0:
-                raise ValueError("epsilon_constrained cannot start from an empty population.")
-            self.initial_epsilon = float(violations[int(math.floor(self.initial_quantile * (violations.size - 1)))])
-            self.started = True
-        self.epsilon = (
-            self.initial_epsilon * (1.0 - progress / self.decay_fraction) ** self.exponent if progress < self.decay_fraction else 0.0
-        )
-
-    def ranks(self, kernel: KernelBackend, F: NDArray[Any], G: NDArray[Any], rng: np.random.Generator) -> RankArray:
-        return _ranks_within_epsilon(kernel, F, G, self.epsilon)
-
-    def effective_violation(self, G: NDArray[Any]) -> NDArray[np.float64]:
-        return _within_epsilon(violation(G), self.epsilon)
-
-    def state(self) -> dict[str, Any]:
-        return {"started": self.started, "initial_epsilon": self.initial_epsilon, "epsilon": self.epsilon}
-
-    def restore(self, state: Mapping[str, Any]) -> None:
-        self.started = bool(state.get("started", False))
-        self.initial_epsilon = float(state.get("initial_epsilon", 0.0))
-        self.epsilon = float(state.get("epsilon", 0.0))
-
-
-class PushPullSearch(ConstraintHandlingTechnique):
-    """Fan et al.'s push and pull search, as jMetal's ``PushPullSearch``.
-
-    The push phase ranks by Pareto dominance alone. It ends when, over the last ``window_fraction`` of the
-    run, no objective of the ideal point or of the nadir point of the non-dominated solutions changes by
-    more than ``change_threshold`` relative to its value, or when the progress reaches ``decay_fraction``.
-    The pull phase is epsilon-constrained. Epsilon starts at the largest violation of the population; while
-    the fraction of feasible solutions is below ``feasibility_threshold``, it shrinks by ``reduction_rate``
-    at each update, and otherwise it decays from its start to 0 at ``decay_fraction``, with ``exponent``.
-    """
-
-    name = "push_pull"
-    needs_progress = True
-
-    def __init__(
-        self,
-        change_threshold: float,
-        window_fraction: float,
-        decay_fraction: float,
-        exponent: float,
-        feasibility_threshold: float,
-        reduction_rate: float,
-    ) -> None:
-        self.change_threshold = float(change_threshold)
-        self.window_fraction = float(window_fraction)
-        self.decay_fraction = float(decay_fraction)
-        self.exponent = float(exponent)
-        self.feasibility_threshold = float(feasibility_threshold)
-        self.reduction_rate = float(reduction_rate)
-        self.pushing = True
-        self.history: list[tuple[float, NDArray[np.float64], NDArray[np.float64]]] = []
-        self.initial_epsilon = 0.0
-        self.epsilon = 0.0
-
-    def update(self, kernel: KernelBackend, F: NDArray[Any], G: NDArray[Any], progress: float) -> None:
-        progress = check_progress(progress, "push_pull")
-        if progress >= self.decay_fraction:
-            self.pushing = False
-            self.epsilon = 0.0
-            return
-        if self.pushing:
-            F = np.asarray(F, dtype=np.float64)
-            nondominated = pareto_ranks(kernel, F) == 0
-            self.history.append((progress, F.min(axis=0), F[nondominated].max(axis=0)))
-            if not self._settled():
-                return
-            self.pushing = False
-            self.history.clear()
-            measure = violation(G)
-            self.initial_epsilon = float(measure.max()) if measure.size else 0.0
-            self.epsilon = self.initial_epsilon
-        feasible_ratio = float(np.count_nonzero(np.all(np.asarray(G) <= 0.0, axis=1))) / max(1, G.shape[0])
-        if feasible_ratio < self.feasibility_threshold:
-            self.epsilon = (1.0 - self.reduction_rate) * self.epsilon
-        else:
-            self.epsilon = self.initial_epsilon * (1.0 - progress / self.decay_fraction) ** self.exponent
-
-    def _settled(self) -> bool:
-        current = self.history[-1]
-        start = current[0] - self.window_fraction + _PROGRESS_TOLERANCE
-        if self.history[0][0] > start:
-            return False
-        while len(self.history) > 2 and self.history[1][0] <= start:
-            self.history.pop(0)
-        reference = self.history[0]
-        change = max(_largest_relative_change(reference[1], current[1]), _largest_relative_change(reference[2], current[2]))
-        return change <= self.change_threshold
-
-    def ranks(self, kernel: KernelBackend, F: NDArray[Any], G: NDArray[Any], rng: np.random.Generator) -> RankArray:
-        if self.pushing:
-            return pareto_ranks(kernel, F)
-        return _ranks_within_epsilon(kernel, F, G, self.epsilon)
-
-    def effective_violation(self, G: NDArray[Any]) -> NDArray[np.float64]:
-        return _push_pull_effective_violation(self, G)
-
-    def state(self) -> dict[str, Any]:
-        return {
-            "pushing": self.pushing,
-            "history": [(progress, ideal.copy(), nadir.copy()) for progress, ideal, nadir in self.history],
-            "initial_epsilon": self.initial_epsilon,
-            "epsilon": self.epsilon,
-        }
-
-    def restore(self, state: Mapping[str, Any]) -> None:
-        self.pushing = bool(state.get("pushing", True))
-        self.history = [
-            (float(progress), np.asarray(ideal, dtype=np.float64), np.asarray(nadir, dtype=np.float64))
-            for progress, ideal, nadir in state.get("history", [])
-        ]
-        self.initial_epsilon = float(state.get("initial_epsilon", 0.0))
-        self.epsilon = float(state.get("epsilon", 0.0))
-
-
-def _push_pull_effective_violation(technique: PushPullSearch, G: NDArray[Any]) -> NDArray[np.float64]:
-    if technique.pushing:
-        return np.zeros(np.asarray(G).shape[0], dtype=np.float64)
-    return _within_epsilon(violation(G), technique.epsilon)
-
-
-def _largest_relative_change(previous: NDArray[np.float64], current: NDArray[np.float64]) -> float:
-    return float(np.max(np.abs(current - previous) / np.maximum(np.abs(previous), _DELTA)))
-
-
-class StochasticRanking(ConstraintHandlingTechnique):
-    """Runarsson and Yao's stochastic ranking, as jMetal's ``StochasticRanking``.
-
-    Each ranking draws ``n * (n - 1)`` uniforms from the run's generator and uses them in order, one per
-    comparison between rows that are not both feasible.
-    """
-
-    name = "stochastic_ranking"
-
-    def __init__(self, probability: float) -> None:
-        self.probability = float(probability)
-
-    def ranks(self, kernel: KernelBackend, F: NDArray[Any], G: NDArray[Any], rng: np.random.Generator) -> RankArray:
-        n = F.shape[0]
-        pareto_rank = pareto_ranks(kernel, F)
-        feasible = np.all(np.asarray(G) <= 0.0, axis=1)
-        measure = violation(G)
-        uniforms = rng.random(n * max(0, n - 1))
-        compiled = kernel.selection_kernels()
-        if compiled is None:
-            order = stochastic_ranking_order(pareto_rank, feasible, measure, uniforms, self.probability)
-        else:
-            order = compiled.stochastic_ranking_order(pareto_rank, feasible, measure, uniforms, self.probability)
-        return stochastic_ranking_ranks(order, pareto_rank, feasible)
-
-
-class SelfAdaptivePenalty(ConstraintHandlingTechnique):
-    """Woldesenbet, Yen and Tessema's self-adaptive penalty, as jMetal's ``SelfAdaptivePenalty``."""
-
-    name = "self_adaptive_penalty"
-
-    def ranks(self, kernel: KernelBackend, F: NDArray[Any], G: NDArray[Any], rng: np.random.Generator) -> RankArray:
-        if F.shape[0] == 0:
-            return np.empty(0, dtype=np.int64)
-        return pareto_ranks(kernel, self_adaptive_penalty_objectives(F, G))
-
-
-def make_constraint_handling(value: object) -> ConstraintHandlingTechnique:
-    """A new technique, with no state, from a name or ``(name, parameters)``; ``None`` is ``cdp``."""
-    name, params = normalize_constraint_handling(value)
-    if name == "cdp":
-        return ConstrainedDominance()
-    if name == "violated_constraints":
-        return ConstrainedDominance(count_violated_constraints=True)
-    if name == "epsilon_constrained":
-        return EpsilonConstrained(**params)
-    if name == "push_pull":
-        return PushPullSearch(**params)
-    if name == "stochastic_ranking":
-        return StochasticRanking(**params)
-    if name == "static_penalty":
-        return StaticPenalty(**params)
-    if name == "dynamic_penalty":
-        return DynamicPenalty(**params)
-    if name == "violation_objective":
-        return ViolationObjective()
-    if name == "two_rankings":
-        return TwoRankings()
-    if name == "shift_penalty":
-        return ShiftPenalty(**params)
-    return SelfAdaptivePenalty()
 
 
 def config_constraint_handling(
@@ -504,6 +166,7 @@ def preferred(
 
 
 __all__ = [
+    "AdaptiveTradeoff",
     "CONSTRAINT_HANDLING_PARAMETERS",
     "CONSTRAINT_HANDLING_TECHNIQUES",
     "FRONT_TECHNIQUES",
@@ -514,6 +177,7 @@ __all__ = [
     "ConstraintHandlingTechnique",
     "DynamicPenalty",
     "EpsilonConstrained",
+    "InfeasibilityDriven",
     "PushPullSearch",
     "SelfAdaptivePenalty",
     "ShiftPenalty",

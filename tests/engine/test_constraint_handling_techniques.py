@@ -47,6 +47,8 @@ PARAMETERS: dict[str, dict[str, float]] = {
     "violation_objective": {},
     "two_rankings": {},
     "shift_penalty": {"constant": 2.0},
+    "infeasibility_driven": {"proportion": 0.2},
+    "adaptive_tradeoff": {},
 }
 
 
@@ -217,7 +219,9 @@ def test_epsilon_changes_the_search() -> None:
     assert not np.array_equal(_run("cdp").X, _run("epsilon_constrained").X)
 
 
-@pytest.mark.parametrize(("technique", "generation"), [("epsilon_constrained", 20), ("push_pull", 30), ("dynamic_penalty", 20)])
+@pytest.mark.parametrize(
+    ("technique", "generation"), [("epsilon_constrained", 20), ("push_pull", 30), ("dynamic_penalty", 20), ("adaptive_tradeoff", 20)]
+)
 def test_a_resumed_run_keeps_the_technique_state(technique: str, generation: int, tmp_path: Path) -> None:
     # Restarting the technique would change epsilon, or push and pull search's window of ideal and nadir points.
     from vamos.engine.algorithm.nsgaii import NSGAII
@@ -256,7 +260,9 @@ class _StopAtGeneration:
         return self.reached
 
 
-@pytest.mark.parametrize(("technique", "generation"), [("epsilon_constrained", 20), ("push_pull", 30), ("dynamic_penalty", 20)])
+@pytest.mark.parametrize(
+    ("technique", "generation"), [("epsilon_constrained", 20), ("push_pull", 30), ("dynamic_penalty", 20), ("adaptive_tradeoff", 20)]
+)
 def test_a_run_resumed_from_the_returned_checkpoint_keeps_the_technique_state(technique: str, generation: int) -> None:
     # The checkpoint in the result is the in-memory way to resume, without a checkpoint directory.
     from vamos.engine.algorithm.nsgaii import NSGAII
