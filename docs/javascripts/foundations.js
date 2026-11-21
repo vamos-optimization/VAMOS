@@ -1177,6 +1177,85 @@
     return { cvn, dSde, sde, A, B, share };
   }
 
+  /* ---- Genetic algorithms and families of algorithms: the evolutionary loop and four survival rules ---- */
+
+  /** The two-variable problem of the loop figure: ZDT1's front f₂ = 1 − √f₁, with g = 1 + x₂. */
+  function gaEvaluate(x) {
+    const g = 1 + x[1];
+    return [x[0], g * (1 - Math.sqrt(x[0] / g))];
+  }
+
+  /** A small genetic algorithm recorded phase by phase: select, vary, evaluate, survive.
+      mode "plus" is generational (μ + λ) with λ = μ, "comma" generational (μ, λ), "steady" steady-state (μ + 1).
+      Parents come from binary tournaments on (front, crowding distance); VAMOS' default real-coded operators,
+      SBX (probability 0.9, η = 20) and polynomial mutation (probability 1/n = 1/2, η = 20), create the
+      children, and "plus" and "steady" keep the survivors of NSGA-II's elitist rule. */
+  function gaLoop(mode, seed, popSize, budget) {
+    const rand = mulberry32(seed);
+    const N = popSize;
+    let nextId = 1;
+    const born = (x, f) => ({ id: nextId++, x, f });
+    let pop = [];
+    for (let i = 0; i < N; i++) {
+      const x = [rand(), rand()];
+      pop.push(born(x, gaEvaluate(x)));
+    }
+    let evaluations = N;
+    const steps = [{ phase: "init", cycle: 0, pop, evaluations }];
+    const lambda = mode === "steady" ? 1 : N;
+    let cycle = 0;
+    while (evaluations < budget) {
+      cycle += 1;
+      const count = Math.min(lambda, budget - evaluations);
+      const r = rankAndCrowding(pop.map((p) => p.f));
+      const tournaments = [];
+      const tournament = () => {
+        const a = Math.floor(rand() * N);
+        let b = Math.floor(rand() * (N - 1));
+        if (b >= a) b += 1;
+        let w = a;
+        let reason = "coin";
+        if (r.rank[a] !== r.rank[b]) {
+          w = r.rank[a] < r.rank[b] ? a : b;
+          reason = "front";
+        } else if (r.crowding[a] !== r.crowding[b]) {
+          w = r.crowding[a] > r.crowding[b] ? a : b;
+          reason = "crowding";
+        } else if (rand() >= 0.5) w = b;
+        tournaments.push({ a: pop[a].id, b: pop[b].id, winner: pop[w].id, reason });
+        return pop[w];
+      };
+      const pairs = [];
+      for (let k = 0; k < Math.ceil(count / 2); k++) pairs.push([tournament(), tournament()]);
+      steps.push({ phase: "select", cycle, pop, rank: r.rank, crowding: r.crowding, tournaments, pairs, evaluations });
+      const children = [];
+      for (const [p1, p2] of pairs) {
+        const xs = rand() <= 0.9 ? sbxPair(p1.x, p2.x, 0, 1, 20, 0.5, rand) : [p1.x.slice(), p2.x.slice()];
+        for (const x of xs) {
+          polynomialMutation(x, 0, 1, 0.5, 20, rand);
+          if (children.length < count) children.push({ id: nextId++, x, f: null, parents: [p1.id, p2.id] });
+        }
+      }
+      steps.push({ phase: "vary", cycle, pop, rank: r.rank, pairs, children, evaluations });
+      const evaluated = children.map((c) => Object.assign({}, c, { f: gaEvaluate(c.x) }));
+      evaluations += evaluated.length;
+      steps.push({ phase: "evaluate", cycle, pop, rank: r.rank, pairs, children: evaluated, evaluations });
+      const merged = pop.concat(evaluated);
+      const mr = rankAndCrowding(merged.map((p) => p.f));
+      let keep;
+      if (mode === "comma") {
+        keep = evaluated.map((_, k) => N + k);
+        if (keep.length < N) keep = keep.concat(nsga2Truncate(pop.map((p) => p.f), N - keep.length));
+      } else keep = nsga2Truncate(merged.map((p) => p.f), N);
+      const kept = keep.slice().sort((a, b) => a - b).map((i) => merged[i]);
+      const removed = merged.filter((_, i) => !keep.includes(i));
+      steps.push({ phase: "survive", cycle, pop, children: evaluated, merged, mergedRank: mr.rank, mergedCrowding: mr.crowding, kept, removed, evaluations });
+      pop = kept;
+    }
+    steps.push({ phase: "done", cycle, pop, rank: rankAndCrowding(pop.map((p) => p.f)).rank, evaluations });
+    return steps;
+  }
+
   const algorithms = {
     ccmoSelect,
     ctaeaSelect,
@@ -1224,6 +1303,8 @@
     attainmentSurface,
     mannWhitney,
     PROBLEMS,
+    gaEvaluate,
+    gaLoop,
   };
   root.VamosFoundations = algorithms;
 
@@ -4102,6 +4183,208 @@
       );
     }
     render();
+  };
+
+  /* ---- Basic: genetic algorithms and families of algorithms ---- */
+
+  function idList(list) {
+    const names = list.map(String);
+    if (names.length <= 1) return names.join("");
+    return names.slice(0, -1).join(", ") + " and " + names[names.length - 1];
+  }
+
+  /* The evolutionary loop, one phase at a time, generational or steady-state. */
+  widgets["ga-loop"] = function (node) {
+    const N = 6;
+    const BUDGET = 30;
+    const MODES = {
+      plus: { label: "Generational, elitist (μ + λ)", short: "(μ + λ)" },
+      comma: { label: "Generational, non-elitist (μ, λ)", short: "(μ, λ)" },
+      steady: { label: "Steady-state (μ + 1)", short: "(μ + 1)" },
+    };
+    const PHASES = { select: "select", vary: "vary", evaluate: "evaluate", survive: "survive" };
+    const state = { mode: node.dataset.mode || "plus", seed: 44, step: 0 };
+    let steps = [];
+    const ctl = controls(node);
+    select(ctl, {
+      label: "Replacement",
+      options: Object.keys(MODES).map((k) => [k, MODES[k].label]),
+      value: state.mode,
+      onChange: (v) => {
+        state.mode = v;
+        build();
+      },
+    });
+    const back = button(ctl, "Back", () => go(state.step - 1));
+    const next = button(ctl, "Next step", () => go(state.step + 1), true);
+    const cycleButton = button(ctl, "Next cycle", () => {
+      let i = state.step + 1;
+      while (i < steps.length - 1 && steps[i].phase !== "survive") i += 1;
+      go(i);
+    });
+    button(ctl, "Restart", () => go(0));
+    button(ctl, "New population", () => {
+      state.seed = Math.floor(Math.random() * 1e6);
+      build();
+    });
+    const body = h("div", { class: "vf-body vf-body--two" }, node);
+    const xPlot = createPlot(body, {
+      title: "Decision space",
+      x: [0, 1],
+      y: [0, 1],
+      xLabel: "x₁",
+      yLabel: "x₂",
+      label: "Decision vectors of the population and of the children",
+    });
+    const fPlot = createPlot(body, {
+      title: "Objective space",
+      x: [0, 1],
+      y: [0, 2.1],
+      xLabel: "f₁ (minimize)",
+      yLabel: "f₂ (minimize)",
+      label: "Objective vectors of the population and of the evaluated children",
+    });
+    for (const plot of [xPlot, fPlot]) {
+      plot.svg.setAttribute("tabindex", "0");
+      plot.svg.setAttribute("aria-keyshortcuts", "ArrowLeft ArrowRight");
+    }
+    const readout = h("div", { class: "vf-readout" }, node);
+    legend(node, [
+      { label: "Population member (front 1, 2 … darker is better)", shape: "circle", cls: "vf-pt vf-r1" },
+      { label: "Child", shape: "triangle", cls: "vf-pt vf-pt-2" },
+      { label: "Chosen parent / survivor", shape: "circle", cls: "vf-ring" },
+      { label: "Pareto set and front", shape: "line", cls: "vf-front" },
+    ]);
+    node.addEventListener("keydown", (e) => {
+      if (e.target && /^(SELECT|INPUT)$/.test(e.target.tagName)) return;
+      if (e.key === "ArrowRight") go(state.step + 1);
+      else if (e.key === "ArrowLeft") go(state.step - 1);
+      else return;
+      e.preventDefault();
+    });
+    function build() {
+      steps = gaLoop(state.mode, state.seed, N, BUDGET);
+      go(0);
+    }
+    function go(i) {
+      state.step = Math.max(0, Math.min(steps.length - 1, i));
+      render();
+    }
+    function point(plot, layer, v, shape, cls, label, labelLayer) {
+      const px = plot.x(v[0]);
+      const py = plot.y(Math.min(v[1], plot.yd[1]));
+      marker(layer, shape, px, py, 6, cls);
+      if (label !== undefined) txt(labelLayer, px + 9, py - 7, label, { class: "vf-mark-label" });
+      return [px, py];
+    }
+    function render() {
+      const st = steps[state.step];
+      const mode = MODES[state.mode];
+      back.disabled = state.step === 0;
+      next.disabled = state.step === steps.length - 1;
+      cycleButton.disabled = state.step === steps.length - 1;
+      for (const plot of [xPlot, fPlot]) {
+        clear(plot.layers.mid);
+        clear(plot.layers.marks);
+        clear(plot.layers.top);
+      }
+      xPlot.line(xPlot.layers.mid, [[0, 0.004], [1, 0.004]], "vf-front");
+      plot2Front();
+      const rank = st.rank || rankAndCrowding(st.pop.map((p) => p.f)).rank;
+      const chosen = new Map();
+      if (st.pairs) st.pairs.forEach((pair) => pair.forEach((p) => chosen.set(p.id, (chosen.get(p.id) || 0) + 1)));
+      const rows = [];
+      if (st.phase === "survive") {
+        const keptIds = new Set(st.kept.map((p) => p.id));
+        st.merged.forEach((p, i) => {
+          const isChild = i >= st.pop.length;
+          const kept = keptIds.has(p.id);
+          const cls = "vf-pt " + rankClass(st.mergedRank[i]) + (kept ? "" : " vf-faded");
+          const label = String(p.id) + (kept ? "" : " ✕");
+          for (const [plot, v] of [
+            [xPlot, p.x],
+            [fPlot, p.f],
+          ]) {
+            const [px, py] = point(plot, plot.layers.marks, v, isChild ? "triangle" : "circle", cls, label, plot.layers.top);
+            if (kept) marker(plot.layers.marks, "circle", px, py, 10.5, "vf-ring");
+          }
+          rows.push([String(p.id), isChild ? "child" : "parent", fmt(p.x[0], 2), fmt(p.x[1], 2), fmt(p.f[0], 2), fmt(p.f[1], 2), String(st.mergedRank[i] + 1), kept ? "kept" : "removed"]);
+        });
+      } else {
+        st.pop.forEach((p, i) => {
+          const k = chosen.get(p.id) || 0;
+          const cls = "vf-pt " + rankClass(rank[i]);
+          const label = String(p.id) + (st.phase === "select" && k > 1 ? " ×" + k : "");
+          for (const [plot, v] of [
+            [xPlot, p.x],
+            [fPlot, p.f],
+          ]) {
+            const [px, py] = point(plot, plot.layers.marks, v, "circle", cls, label, plot.layers.top);
+            if (st.phase === "select" && k) marker(plot.layers.marks, "circle", px, py, 10.5, "vf-ring");
+          }
+          rows.push([String(p.id), "member", fmt(p.x[0], 2), fmt(p.x[1], 2), fmt(p.f[0], 2), fmt(p.f[1], 2), String(rank[i] + 1), st.phase === "select" ? (k ? `parent ×${k}` : "–") : st.phase === "done" ? (rank[i] === 0 ? "returned" : "–") : "–"]);
+        });
+        if (st.children) {
+          st.children.forEach((c) => {
+            const parents = c.parents.map((id) => st.pop.find((p) => p.id === id));
+            parents.forEach((p) => xPlot.line(xPlot.layers.mid, [p.x, c.x], "vf-line-thin vf-dashed"));
+            point(xPlot, xPlot.layers.marks, c.x, "triangle", "vf-pt vf-pt-2", String(c.id), xPlot.layers.top);
+            if (c.f) point(fPlot, fPlot.layers.marks, c.f, "triangle", "vf-pt vf-pt-2", String(c.id), fPlot.layers.top);
+            rows.push([String(c.id), `child of ${c.parents[0]} and ${c.parents[1]}`, fmt(c.x[0], 2), fmt(c.x[1], 2), c.f ? fmt(c.f[0], 2) : "?", c.f ? fmt(c.f[1], 2) : "?", "–", c.f ? "evaluated" : "not evaluated"]);
+          });
+        }
+      }
+      clear(readout);
+      const cycles = steps.filter((s) => s.phase === "survive").length;
+      const perCycle = state.mode === "steady" ? 1 : N;
+      const phaseNo = { select: 1, vary: 2, evaluate: 3, survive: 4 }[st.phase];
+      const where = st.phase === "init" ? "Start" : st.phase === "done" ? "End" : `Cycle ${st.cycle} of ${cycles}, phase ${phaseNo} of 4: ${PHASES[st.phase]}`;
+      h("p", { class: "vf-step-text" }, readout, `${where}. ${describe(st, mode)}`);
+      h(
+        "p",
+        {},
+        readout,
+        `${mode.label}: ${perCycle} offspring per cycle, ${cycles} survival steps for a budget of ${BUDGET} evaluations. Evaluations used: ${st.evaluations} of ${BUDGET}. Step ${state.step + 1} of ${steps.length}; the arrow keys step through the figure when it has focus.`
+      );
+      table(readout, ["Id", "Role", "x₁", "x₂", "f₁", "f₂", "Front", "Status"], rows, [false, false, true, true, true, true, true, false]);
+    }
+    function plot2Front() {
+      fPlot.line(fPlot.layers.mid, frontPoints((t) => 1 - Math.sqrt(t), 0, 1, 60), "vf-front");
+    }
+    function describe(st, mode) {
+      if (st.phase === "init") return `${N} random solutions (decision vectors drawn uniformly in [0, 1]²), evaluated: f₁ = x₁ and f₂ = g·(1 − √(x₁/g)) with g = 1 + x₂. Their front, 1 is best, colours each point.`;
+      if (st.phase === "select") {
+        const why = { front: "better front", crowding: "same front, more isolated", coin: "full tie, coin" };
+        const games = st.tournaments.map((t) => `${t.a} vs ${t.b} → ${t.winner} (${why[t.reason]})`).join("; ");
+        return `${st.tournaments.length} binary tournaments pick ${st.pairs.length === 1 ? "one pair" : st.pairs.length + " pairs"} of parents: ${games}. A member can win several times; ringed members are parents.`;
+      }
+      if (st.phase === "vary") {
+        const ids = st.children.map((c) => c.id);
+        if (state.mode === "steady") return `SBX crossover recombines parents ${st.pairs[0][0].id} and ${st.pairs[0][1].id} into two children; the first, ${ids[0]}, is kept and mutated by polynomial mutation. It exists in the decision space only: its objectives are unknown.`;
+        return `SBX crossover recombines each pair and polynomial mutation perturbs each child: children ${ids[0]} to ${ids[ids.length - 1]} (triangles, dashed lines to their parents). They exist in the decision space only: their objectives are unknown.`;
+      }
+      if (st.phase === "evaluate") return `The problem computes f₁ and f₂ of ${st.children.length === 1 ? "the child" : "the " + st.children.length + " children"}: ${st.evaluations} of ${BUDGET} evaluations are now used.`;
+      if (st.phase === "survive") {
+        const removedParents = st.removed.filter((p) => st.pop.some((q) => q.id === p.id));
+        const removedChildren = st.removed.filter((p) => !removedParents.includes(p));
+        if (state.mode === "comma") {
+          const lost = removedParents.filter((p) => st.mergedRank[st.merged.indexOf(p)] === 0).map((p) => p.id);
+          return `${mode.short}: the ${st.children.length} children replace the ${st.pop.length} parents, whatever their quality.` + (lost.length ? ` Lost: ${idList(lost)}, which no child dominates.` : " This time no parent of front 1 is lost.");
+        }
+        if (state.mode === "steady") {
+          const out = st.removed[0];
+          if (removedChildren.length) return `${mode.short}: the ${st.pop.length} members and child ${out.id} compete for ${N} places by front, then crowding distance. The child is the worst of the ${st.merged.length}: it is discarded and the population does not change.`;
+          return `${mode.short}: the ${st.pop.length} members and child ${st.children[0].id} compete for ${N} places by front, then crowding distance. The worst of the ${st.merged.length}, ${out.id}, is removed and the child takes its place at once.`;
+        }
+        const parts = [];
+        if (removedParents.length) parts.push(`parent${removedParents.length > 1 ? "s" : ""} ${idList(removedParents.map((p) => p.id))}`);
+        if (removedChildren.length) parts.push(`child${removedChildren.length > 1 ? "ren" : ""} ${idList(removedChildren.map((p) => p.id))}`);
+        return `${mode.short}: the ${st.pop.length} parents and ${st.children.length} children compete for ${N} places, by front and then by crowding distance (NSGA-II's rule). Removed: ${parts.join(" and ")}.`;
+      }
+      const nd = st.pop.filter((_, i) => st.rank[i] === 0).map((p) => p.id);
+      return `The budget is spent and the run stops. VAMOS returns the non-dominated members of the final population by default: ${idList(nd)}.`;
+    }
+    build();
   };
 
   /* ------------------------------------------------------------------ */

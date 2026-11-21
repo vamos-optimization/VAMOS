@@ -229,6 +229,7 @@ nav:
       - Pareto Dominance: foundations/basic/pareto-dominance.md
       - Quality Aspects: foundations/basic/quality-aspects.md
       - Quality Indicators: foundations/basic/quality-indicators.md
+      - Genetic Algorithms: foundations/basic/genetic-algorithms.md
       - Families of Algorithms: foundations/basic/algorithm-families.md
     - Intermediate:
       - Dominance-based:
