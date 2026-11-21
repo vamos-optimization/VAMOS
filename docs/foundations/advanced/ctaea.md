@@ -1,12 +1,12 @@
 ---
-description: 'A7. C-TAEA in depth: weight vectors and subregions, the convergence archive and its three update cases, the diversity archive that ignores the constraints, restricted mating selection, and where VAMOS follows PlatEMO and jMetal instead of the paper, with an interactive figure and VAMOS code.'
+description: 'C-TAEA in depth: weight vectors and subregions, the convergence archive and its three update cases, the diversity archive that ignores the constraints, restricted mating selection, and where VAMOS follows PlatEMO and jMetal instead of the paper, with an interactive figure and VAMOS code.'
 search:
   boost: 0.5
 ---
 
-# A7. C-TAEA: a convergence archive and a diversity archive
+# C-TAEA: a convergence archive and a diversity archive
 
-CCMO (lesson [A6](ccmo.md)) helps a constrained population with a second
+CCMO (lesson [CCMO](ccmo.md)) helps a constrained population with a second
 population that ignores the constraints. The **two-archive evolutionary
 algorithm for constrained multi-objective optimization**, C-TAEA, of Li, Chen,
 Fu and Yao [1] keeps the same two roles in a different structure: two archives
@@ -18,7 +18,7 @@ it is the result of the run. The **diversity archive (DA)** ignores the
 constraints and keeps solutions where the CA has few, so that the search can
 cross infeasible regions towards the parts of the front that the CA has not
 reached. Both archives are organized by **weight vectors**, as in
-decomposition-based algorithms (lesson [I8](../intermediate/moead.md)): each
+decomposition-based algorithms (lesson [MOEA/D](../intermediate/moead.md)): each
 vector defines a subregion of the objective space, and "where the CA has few"
 means "in the subregions with few CA members".
 
@@ -38,7 +38,7 @@ In this lesson you will learn:
 
 ## Why two archives
 
-Feasibility-first selection (lesson [A5](constrained.md#beyond-feasibility-first))
+Feasibility-first selection (lesson [Constraints](constrained.md#beyond-feasibility-first))
 throws away infeasible solutions as soon as enough feasible ones exist, and with
 them the paths across infeasible barriers. Li et al. [1] separate the two jobs.
 The CA does what a feasibility-first algorithm does: it keeps feasible
@@ -55,7 +55,7 @@ currently more useful, measured by its share of non-dominated solutions.
 ## Weight vectors and subregions
 
 C-TAEA spreads N weight vectors over the unit simplex with Das and Dennis'
-lattice [2] (lesson [A1](many-objective.md)), as MOEA/D [3]
+lattice [2] (lesson [Many objectives](many-objective.md)), as MOEA/D [3]
 does. A solution belongs to the subregion of the vector closest to it in angle,
 and inside a subregion solutions are compared by a Tchebycheff function with
 the subregion's own vector:
@@ -136,7 +136,7 @@ offspring per weight vector and generation.
 
 ## Try it: the two updates on the same candidates
 
-The figure shows the 16 CTP2 candidates of lesson [A6](ccmo.md#try-it-one-set-of-candidates-two-rules),
+The figure shows the 16 CTP2 candidates of lesson [CCMO](ccmo.md#try-it-one-set-of-candidates-two-rules),
 with N = 8 weight vectors drawn as rays from the origin. In a run, the CA update
 receives the CA and the offspring, and the DA update the DA and the offspring;
 here both receive the same 16 candidates, so that only the rules differ. Start
@@ -345,7 +345,7 @@ records the agreement with jMetal and with the published results.
 
 ## C-TAEA and CCMO
 
-| | CCMO (lesson A6) | C-TAEA |
+| | CCMO | C-TAEA |
 | --- | --- | --- |
 | Structure | Two populations, each breeding its own offspring | Two archives, one stream of offspring |
 | Constraint-free part | Population 2, over the whole front | DA, only where the CA is thin |
@@ -390,7 +390,7 @@ Limits:
 - VAMOS follows PlatEMO's implementation through jMetal's port, with an exact
   budget.
 
-**Next:** [A8. ToP: two phases](top.md).
+**Next:** [ToP: two phases](top.md).
 
 ## References
 

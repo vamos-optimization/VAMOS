@@ -1,12 +1,12 @@
 ---
-description: 'A9. CMOEA-MS in depth: a normalized constraint violation, stage A that ranks density and violation as two objectives, stage B that puts the violation first, the switch on the feasible share and lambda, SPEA2 fitness with cosine distances, and where VAMOS follows PlatEMO and jMetal, with an interactive figure and VAMOS code.'
+description: 'CMOEA-MS in depth: a normalized constraint violation, stage A that ranks density and violation as two objectives, stage B that puts the violation first, the switch on the feasible share and lambda, SPEA2 fitness with cosine distances, and where VAMOS follows PlatEMO and jMetal, with an interactive figure and VAMOS code.'
 search:
   boost: 0.5
 ---
 
-# A9. CMOEA-MS: two stages
+# CMOEA-MS: two stages
 
-ToP (lesson [A8](top.md)) explores first and converges afterwards, and once its
+ToP (lesson [ToP](top.md)) explores first and converges afterwards, and once its
 second phase starts it never goes back. The **constrained multi-objective
 evolutionary algorithm with multiple stages**, CMOEA-MS, of Tian, Zhang, Su,
 Zhang, Tan and Jin [1] also has two ways of ranking solutions, but it chooses
@@ -24,7 +24,7 @@ spent.
 
 CMOEA-MS keeps a single population, like NSGA-II, and both stages use the
 fitness and the environmental selection of SPEA2 [3] (lesson
-[I7](../intermediate/spea2.md)). What changes between the stages is the
+[SPEA2](../intermediate/spea2.md)). What changes between the stages is the
 dominance relation behind the fitness.
 
 In this lesson you will learn:
@@ -38,7 +38,7 @@ In this lesson you will learn:
 
 ## Balancing objectives and constraints
 
-A feasibility-first rule (lesson [A5](constrained.md#constrained-domination))
+A feasibility-first rule (lesson [Constraints](constrained.md#constrained-domination))
 gives constraint satisfaction absolute priority, and can be trapped behind
 infeasible barriers. Ignoring the constraints gives the objectives absolute
 priority, and converges where the solutions cannot be used. CMOEA-MS [1]
@@ -94,7 +94,7 @@ Stage B ranks the objectives themselves, with the violation first:
 <div class="vf-formula">a ≺_B b   ⇔   CV(a) &lt; CV(b),   or   CV(a) = CV(b)  and  a ≺ b  (Pareto dominance on the objectives)</div>
 
 This is the relation of CCMO's population 1 (lesson
-[A6](ccmo.md#fitness-with-the-violation-first)): every feasible solution
+[CCMO](ccmo.md#fitness-with-the-violation-first)): every feasible solution
 dominates every infeasible one, and infeasible solutions are ordered by their
 violation.
 
@@ -130,7 +130,7 @@ algorithm in stage A for good, as the example below shows.
 ## Try it: the two stages on the same candidates
 
 The figure shows the 16 CTP2 candidates of lesson
-[A6](ccmo.md#try-it-one-set-of-candidates-two-rules): P1 to P8 are the
+[CCMO](ccmo.md#try-it-one-set-of-candidates-two-rules): P1 to P8 are the
 population and O1 to O8 the offspring, so the 16 together are Q. Start with
 stage A, whose ranking happens in the plane [SDE, CV] (hover a point to see both
 values), then switch to stage B. The line under the plot applies the stage rule
@@ -357,7 +357,7 @@ published results.
 
 ## The four constrained algorithms
 
-| | CCMO (A6) | C-TAEA (A7) | ToP (A8) | CMOEA-MS (A9) |
+| | CCMO | C-TAEA | ToP | CMOEA-MS |
 | --- | --- | --- | --- | --- |
 | Exploring part | Population without constraints | Diversity archive | Phase 1, single objective | Stage A, density and violation |
 | Converging part | Population with violation first | Convergence archive | Phase 2, NSGA-II | Stage B, violation first |
@@ -388,10 +388,10 @@ Limits:
   records LIR-CMOP10 runs, in VAMOS and in jMetal, that miss a part of the
   front.
 
-Lesson [A10](performance-assessment.md) explains how to compare such
+Lesson [Rigorous comparison](performance-assessment.md) explains how to compare such
 algorithms fairly: on several problems, with several runs, and with the
 feasibility rate reported separately (lesson
-[A5](constrained.md#measuring-constrained-results)).
+[Constraints](constrained.md#measuring-constrained-results)).
 
 ## Key points
 
@@ -407,7 +407,7 @@ feasibility rate reported separately (lesson
   averaged violations, SDE on normalized objectives, cosine distances, and an
   exact budget.
 
-**Next:** [A10. Comparing algorithms rigorously](performance-assessment.md).
+**Next:** [Comparing algorithms rigorously](performance-assessment.md).
 
 ## References
 

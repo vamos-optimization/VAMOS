@@ -1,10 +1,10 @@
 ---
-description: 'I2. Fast non-dominated sorting step by step: domination counters and dominated sets, its O(MN²) cost, an interactive stepper, and the vectorized implementation in VAMOS.'
+description: 'Fast non-dominated sorting step by step: domination counters and dominated sets, its O(MN²) cost, an interactive stepper, and the vectorized implementation in VAMOS.'
 search:
   boost: 0.5
 ---
 
-# I2. Fast non-dominated sorting
+# Fast non-dominated sorting
 
 The first criterion of NSGA-II is the **rank** of each solution: the index of
 the non-dominated front it belongs to. Computing ranks is the most expensive
@@ -187,12 +187,12 @@ covered by the [1.x stability policy](../../project/stability-and-versioning.md)
 
 - **Duplicates.** Two identical objective vectors do not dominate each other,
   so they share a front. Crowding distance then has to separate them
-  (lesson [I3](crowding-distance.md)).
+  (lesson [Crowding and tournaments](crowding-distance.md)).
 - **Constraints.** With constraints, VAMOS' default NSGA-II sorts with
   *constrained domination* instead of plain dominance: a feasible solution
-  beats an infeasible one. Lesson [A5](../advanced/constrained.md) explains it.
+  beats an infeasible one. Lesson [Constraints](../advanced/constrained.md) explains it.
 - **Many objectives.** As M grows, almost every solution lands in F₁, and the
-  rank stops discriminating. Lesson [A1](../advanced/many-objective.md) shows
+  rank stops discriminating. Lesson [Many objectives](../advanced/many-objective.md) shows
   why and what replaces it.
 
 ## Key points
@@ -203,7 +203,7 @@ covered by the [1.x stability policy](../../project/stability-and-versioning.md)
 - VAMOS vectorizes it with a dominance matrix and uses an O(N log N) method for
   two objectives.
 
-**Next:** [I3. Crowding distance and tournament selection](crowding-distance.md).
+**Next:** [Crowding distance and tournament selection](crowding-distance.md).
 
 ## References
 
