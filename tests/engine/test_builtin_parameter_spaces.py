@@ -184,6 +184,8 @@ PUBLISHED_TECHNIQUE_SETTINGS = {
     "dynamic_penalty_beta": 2.0,
     # A static penalty has no published setting; the grammars take pymoo's default penalty.
     "static_penalty_coefficient": 1e6,
+    # Ma and Wang's ShiP: c = 2 (IEEE TCYB 53(1):18-30, 2023, section III-B).
+    "shift_penalty_constant": 2.0,
 }
 
 

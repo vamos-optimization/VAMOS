@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from vamos.engine.algorithm.components.constraint_handling import run_technique
+from vamos.engine.algorithm.components.constraint_handling import FRONT_TECHNIQUES, run_technique
 from vamos.engine.algorithm.components.hooks import get_live_viz, setup_genealogy
 from vamos.engine.algorithm.components.lifecycle import evaluate_batch, get_eval_strategy
 from vamos.engine.algorithm.components.metrics import setup_hv_tracker
@@ -93,7 +93,11 @@ def initialize_nsgaiii_run(
     n_obj = problem.n_obj
     constraint_mode = normalize_constraint_mode(config.get("constraint_mode", "feasibility"))
     constraint_handling = run_technique(
-        config.get("constraint_handling"), constraint_mode, population_size=int(pop_size), max_evaluations=max_eval
+        config.get("constraint_handling"),
+        constraint_mode,
+        techniques=FRONT_TECHNIQUES,
+        population_size=int(pop_size),
+        max_evaluations=max_eval,
     )
     result_mode = config.get("result_mode", "population")
 

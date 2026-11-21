@@ -116,3 +116,8 @@ parameters:
           dynamic_penalty_alpha: {type: real, default: 2.0, range: [1.0, 3.0], role: operator_rate}
           dynamic_penalty_beta: {type: real, default: 2.0, range: [1.0, 3.0], role: operator_rate}
       violation_objective: {}
+      # Development after 1.5.2: Ma and Wang's ShiP, whose c is 2 in the paper; its sensitivity study found
+      # 2 and 3 best. ToR (two_rankings) is defined for NSGA-II only, and only its space offers it.
+      shift_penalty:
+        conditional_parameters:
+          shift_penalty_constant: {type: real, default: 2.0, range: [1.0, 5.0], role: operator_rate}

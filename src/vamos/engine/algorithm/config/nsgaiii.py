@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Self
+from typing import Any, ClassVar, Self
 
+from vamos.engine.algorithm.components.constraint_handling import FRONT_TECHNIQUES
 from vamos.engine.algorithm.components.weight_vectors import vector_source
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.engine.reference_directions import lattice_size
@@ -78,6 +79,8 @@ def nsgaiii_selection(selection: object) -> tuple[str, int]:
 
 @dataclass(frozen=True)
 class NSGAIIIConfig(_SerializableConfig):
+    #: The techniques that rank a population into fronts; ``two_rankings`` is defined for NSGA-II only.
+    constraint_handling_techniques: ClassVar[tuple[str, ...]] = FRONT_TECHNIQUES
     pop_size: int
     crossover: tuple[str, dict[str, Any]]
     mutation: tuple[str, dict[str, Any]]

@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Any, Literal, TypeAlias
+from typing import Any, ClassVar, Literal, TypeAlias
 
+from vamos.engine.algorithm.components.constraint_handling import FRONT_TECHNIQUES
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.foundation.encoding import EncodingLike
 
@@ -41,6 +42,8 @@ _REFERENCE_POINT_RULES = ("relative", "jmetal")
 
 @dataclass(frozen=True)
 class SMSEMOAConfig(_SerializableConfig):
+    #: The techniques that rank a population into fronts; ``two_rankings`` is defined for NSGA-II only.
+    constraint_handling_techniques: ClassVar[tuple[str, ...]] = FRONT_TECHNIQUES
     pop_size: int
     crossover: tuple[str, dict[str, Any]]
     mutation: tuple[str, dict[str, Any]]

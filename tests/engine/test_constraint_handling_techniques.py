@@ -45,6 +45,8 @@ PARAMETERS: dict[str, dict[str, float]] = {
     "static_penalty": {"coefficient": 1e6},
     "dynamic_penalty": {"constant": 0.5, "alpha": 2.0, "beta": 2.0},
     "violation_objective": {},
+    "two_rankings": {},
+    "shift_penalty": {"constant": 2.0},
 }
 
 
