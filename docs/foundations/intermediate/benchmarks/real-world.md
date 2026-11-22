@@ -130,19 +130,19 @@ for key in ["cre21", "rcm01", "rcm15", "rcm22", "rcm36", "rcm22_reformulated", "
     out = {}
     problem.evaluate(X, out)
     feasible = np.all(out["G"] <= 0.0, axis=1)
-    print(f"{key:19s} n={problem.n_var:<3d} G columns: {out['G'].shape[1]:<3d} feasible random designs: {100 * feasible.mean():5.1f}%")
+    print(f"{key:19s} n={problem.n_var:<3d} G columns: {out['G'].shape[1]:<3d} feasible random designs: {100 * feasible.mean():3.0f}%")
 ```
 
 Output:
 
 ```text
-cre21               n=3   G columns: 3   feasible random designs:   0.0%
-rcm01               n=4   G columns: 2   feasible random designs:  58.9%
-rcm15               n=3   G columns: 8   feasible random designs:   1.1%
-rcm22               n=9   G columns: 6   feasible random designs:   0.0%
-rcm36               n=28  G columns: 24  feasible random designs:   0.0%
-rcm22_reformulated  n=5   G columns: 3   feasible random designs: 100.0%
-rcm36_reformulated  n=4   G columns: 1   feasible random designs:  98.2%
+cre21               n=3   G columns: 3   feasible random designs:   0%
+rcm01               n=4   G columns: 2   feasible random designs:  59%
+rcm15               n=3   G columns: 8   feasible random designs:   1%
+rcm22               n=9   G columns: 6   feasible random designs:   0%
+rcm36               n=28  G columns: 24  feasible random designs:   0%
+rcm22_reformulated  n=5   G columns: 3   feasible random designs: 100%
+rcm36_reformulated  n=4   G columns: 1   feasible random designs:  98%
 ```
 
 RCM22 (Haverly's pooling problem) has four equalities, and RCM36 (sizing
