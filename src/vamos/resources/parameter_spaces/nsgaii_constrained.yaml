@@ -181,3 +181,12 @@ parameters:
         conditional_parameters:
           infeasibility_driven_proportion: {type: real, default: 0.2, range: [0.05, 0.5], role: operator_rate}
       adaptive_tradeoff: {}
+      # Development after 1.5.2: Garcia et al.'s MCR, without parameters, and Vodopija et al.'s ensemble of NDS, CDP,
+      # MCR and a dynamic penalty, whose four weights are normalized to sum 1 (1/4 each in the paper).
+      multiple_constraint_ranking: {}
+      ensemble:
+        conditional_parameters:
+          ensemble_nds_weight: {type: real, default: 0.25, range: [0.0, 1.0], role: operator_rate}
+          ensemble_cdp_weight: {type: real, default: 0.25, range: [0.0, 1.0], role: operator_rate}
+          ensemble_mcr_weight: {type: real, default: 0.25, range: [0.0, 1.0], role: operator_rate}
+          ensemble_dpf_weight: {type: real, default: 0.25, range: [0.0, 1.0], role: operator_rate}

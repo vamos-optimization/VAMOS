@@ -7,6 +7,7 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping
 
+from .constraint_ensemble import Ensemble, MultipleConstraintRanking
 from .constraint_jmetal import ConstrainedDominance, EpsilonConstrained, PushPullSearch, SelfAdaptivePenalty, StochasticRanking
 from .constraint_orders import AdaptiveTradeoff, InfeasibilityDriven
 from .constraint_penalties import DynamicPenalty, ShiftPenalty, StaticPenalty, ViolationObjective
@@ -35,12 +36,15 @@ CONSTRAINT_HANDLING_PARAMETERS: dict[str, tuple[str, ...]] = {
     "shift_penalty": ("constant",),
     "infeasibility_driven": ("proportion",),
     "adaptive_tradeoff": (),
+    "multiple_constraint_ranking": (),
+    "ensemble": (),
 }
 
 #: The optional parameters of each technique, with their defaults: Dam and Truong's options of
 #: ``violation_objective``, whose defaults rank as it did without them.
 OPTIONAL_PARAMETERS: dict[str, dict[str, TechniqueParameter]] = {
     "violation_objective": {"violation_norm": "l1", "ratio_objective": False, "cdf_alpha": 0.0, "feasible_first": False},
+    "ensemble": {"nds_weight": 0.25, "cdp_weight": 0.25, "mcr_weight": 0.25, "dpf_weight": 0.25},
 }
 
 #: The norms of ``violation_objective``'s violation: the sum, the sum of squares and the largest violation.
@@ -66,6 +70,8 @@ CONSTRAINT_HANDLING_TECHNIQUES: tuple[str, ...] = (
     "shift_penalty",
     "infeasibility_driven",
     "adaptive_tradeoff",
+    "multiple_constraint_ranking",
+    "ensemble",
 )
 
 #: The techniques that NSGA-III, SMS-EMOA and AGE-MOEA take: all but those defined for NSGA-II only.
@@ -88,6 +94,10 @@ _RANGES: dict[str, tuple[float, float, bool]] = {
     "beta": (0.0, math.inf, False),
     "proportion": (0.0, 1.0, False),
     "cdf_alpha": (0.0, math.inf, True),
+    "nds_weight": (0.0, math.inf, True),
+    "cdp_weight": (0.0, math.inf, True),
+    "mcr_weight": (0.0, math.inf, True),
+    "dpf_weight": (0.0, math.inf, True),
 }
 
 
@@ -118,6 +128,12 @@ def normalize_constraint_handling(value: object) -> tuple[str, dict[str, Techniq
     for key, default in optional.items():
         if key in raw:
             params[key] = _option(name, key, raw[key], default)
+    if name == "ensemble":
+        weights = [float({**optional, **params}[key]) for key in optional]
+        if not all(math.isfinite(weight) for weight in weights) or not any(weight > 0.0 for weight in weights):
+            raise ValueError(
+                f"constraint_handling {name!r}: the weights are normalized to sum 1, so they are finite and one must be above 0."
+            )
     if "cdf_alpha" in params and params.get("ratio_objective") is not True:
         raise ValueError(f"constraint_handling {name!r}: cdf_alpha weighs the ratio objective, so it needs ratio_objective True.")
     return (name, params)
@@ -164,6 +180,11 @@ def make_constraint_handling(value: object) -> ConstraintHandlingTechnique:
         return StaticPenalty(**params)
     if name == "dynamic_penalty":
         return DynamicPenalty(**params)
+    if name == "multiple_constraint_ranking":
+        return MultipleConstraintRanking()
+    if name == "ensemble":
+        weights = {**OPTIONAL_PARAMETERS[name], **given}
+        return Ensemble([float(weights[f"{member}_weight"]) for member in ("nds", "cdp", "mcr", "dpf")])
     if name == "violation_objective":
         options = {**OPTIONAL_PARAMETERS[name], **given}
         return ViolationObjective(

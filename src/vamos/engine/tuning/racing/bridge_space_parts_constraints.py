@@ -5,7 +5,8 @@ ranges of Evolver's spaces (parameter ``constraintHandling`` of ``NSGAIIDoubleCo
 in snake case; the parameters are scale-free: quantiles, fractions of the run and probabilities. The
 grammars of NSGA-II, NSGA-III, SMS-EMOA and AGE-MOEA also offer techniques that Evolver does not
 have, ``static_penalty``, ``dynamic_penalty``, ``violation_objective`` and ``shift_penalty``, and NSGA-II's
-``two_rankings``, ``infeasibility_driven`` and ``adaptive_tradeoff`` too; the coefficients of the first two multiply violations, so they depend on the
+``two_rankings``, ``infeasibility_driven``, ``adaptive_tradeoff``, ``multiple_constraint_ranking`` and
+``ensemble`` too; the coefficients of the first two multiply violations, so they depend on the
 problem's scale.
 """
 
@@ -37,6 +38,12 @@ CONSTRAINT_HANDLING_SPACE_PARAMETERS: dict[str, dict[str, str]] = {
     },
     "shift_penalty": {"shift_penalty_constant": "constant"},
     "infeasibility_driven": {"infeasibility_driven_proportion": "proportion"},
+    "ensemble": {
+        "ensemble_nds_weight": "nds_weight",
+        "ensemble_cdp_weight": "cdp_weight",
+        "ensemble_mcr_weight": "mcr_weight",
+        "ensemble_dpf_weight": "dpf_weight",
+    },
 }
 
 # The space parameters of violation_objective's options (Dam and Truong), conditional children of violation_objective:

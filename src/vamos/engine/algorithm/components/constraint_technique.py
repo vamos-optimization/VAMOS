@@ -20,7 +20,13 @@ PAIRWISE_TECHNIQUES: tuple[str, ...] = ("cdp", "violated_constraints", "epsilon_
 
 #: The techniques that their papers define for NSGA-II only. Each orders the population totally, one solution per
 #: front, which would take the place of the niching, hypervolume contributions or survival scores of the others.
-NSGAII_ONLY_TECHNIQUES: tuple[str, ...] = ("two_rankings", "infeasibility_driven", "adaptive_tradeoff")
+NSGAII_ONLY_TECHNIQUES: tuple[str, ...] = (
+    "two_rankings",
+    "infeasibility_driven",
+    "adaptive_tradeoff",
+    "multiple_constraint_ranking",
+    "ensemble",
+)
 
 #: A parameter of a technique: a number, or a name or a switch for the options of ``violation_objective``.
 TechniqueParameter: TypeAlias = float | str | bool

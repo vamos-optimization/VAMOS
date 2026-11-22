@@ -188,6 +188,11 @@ PUBLISHED_TECHNIQUE_SETTINGS = {
     "shift_penalty_constant": 2.0,
     # Ray, Singh, Isaacs and Smith's IDEA: alpha = 0.2 (SCI 198, 2009, section 4).
     "infeasibility_driven_proportion": 0.2,
+    # Vodopija, Oyama and Filipic's ensemble: uniform weights, 1/4 each (GECCO '19 Companion, section 3.1).
+    "ensemble_nds_weight": 0.25,
+    "ensemble_cdp_weight": 0.25,
+    "ensemble_mcr_weight": 0.25,
+    "ensemble_dpf_weight": 0.25,
 }
 
 

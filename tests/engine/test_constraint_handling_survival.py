@@ -42,7 +42,13 @@ def _config(technique: tuple[str, dict[str, float]], **schedule: Any) -> NSGAIIC
 
 
 # The techniques with a total order, and their parameters.
-TOTAL_ORDERS = {"two_rankings": {}, "infeasibility_driven": {"proportion": 0.2}, "adaptive_tradeoff": {}}
+TOTAL_ORDERS = {
+    "two_rankings": {},
+    "infeasibility_driven": {"proportion": 0.2},
+    "adaptive_tradeoff": {},
+    "multiple_constraint_ranking": {},
+    "ensemble": {},
+}
 
 
 def _run(schedule: str, engine: str = "numpy", technique: str = "two_rankings") -> Any:
