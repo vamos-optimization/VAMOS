@@ -217,10 +217,15 @@ vamos tune \
 ```
 
 With `--optuna-storage`, the study is saved and the same command resumes it,
-running only the trials that `--tune-budget` still allows. VAMOS appends the
-scoring contract and the first 16 hexadecimal digits of the space's SHA-256
-to the study name, so a study searched over another space, or scored
-otherwise, is never mixed with this one.
+running only the trials that `--tune-budget` still allows. VAMOS appends to
+the study name what the score measures (the hypervolume of the final
+population, or of the leaders archive for SMPSO) and the first 16 hexadecimal
+digits of the space's SHA-256, so a study searched over another space is a
+new study. Nothing else enters the name: resuming with other `--instances`,
+`--budget`, `--n-seeds`, `--ref-point`, `--aggregate-mode` or fidelity
+settings loads the trials scored the old way and compares them with new ones.
+Keep the evaluation protocol unchanged when you resume, and give a new
+`--optuna-study-name` when you change it.
 
 ### One fidelity unless given levels
 

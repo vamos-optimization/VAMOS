@@ -10,7 +10,7 @@ Every lesson so far ran its algorithm with published settings: SBX with
 η = 20, polynomial mutation with probability 1/n, a population of 100. Those
 settings are reasonable compromises, not optima, and the operator lessons
 showed how much a single parameter changes the offspring (lesson
-[Real-coded operators](../operators/real-coded.md)). **Automatic algorithm
+[Real-coded operators](../intermediate/operators/real-coded.md)). **Automatic algorithm
 configuration**, or tuning, treats the choice of settings as an optimization
 problem of its own: find the configuration that performs best on a class of
 problems, within a fixed computational budget [1, 2].
