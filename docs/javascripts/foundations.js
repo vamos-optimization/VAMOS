@@ -7,10 +7,14 @@
    (src/vamos/foundation/kernel/numpy_backend.py and operator_primitives.py,
    and src/vamos/foundation/quality_indicators/hypervolume.py).
    tests/docs/test_foundations.py checks that every figure a lesson uses is
-   implemented here and, when Node.js is installed, runs the non-dominated
-   sorting, crowding distance, hypervolume and hypervolume contributions
-   against VAMOS. The distance indicators and the Das-Dennis lattices were
-   checked by hand against MooCore and VAMOS when the path was added. */
+   implemented here and, when Node.js is installed, runs the figures'
+   algorithms against VAMOS: non-dominated sorting, crowding distance,
+   hypervolume and its contributions, the evolutionary loop and the families'
+   survivors, the variation operators, the benchmark fronts and CTP
+   violations, two-layer reference directions, the constraint-handling
+   rankings, F-race and the tuning budgets. The distance indicators and the
+   Das-Dennis lattices were checked by hand against MooCore and VAMOS when the
+   path was added. */
 (function (root) {
   "use strict";
 
