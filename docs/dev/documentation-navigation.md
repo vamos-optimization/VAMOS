@@ -115,6 +115,12 @@ and reachable through the named parent pages even when absent from the menu.
 | [foundations/intermediate/ibea.md](../foundations/intermediate/ibea.md) | Tutorial | Foundations → Intermediate → Indicator-based → IBEA | Add |
 | [foundations/intermediate/smpso.md](../foundations/intermediate/smpso.md) | Tutorial | Foundations → Intermediate → Swarm-based → SMPSO | Add |
 | [foundations/operators/real-coded.md](../foundations/operators/real-coded.md) | Tutorial | Foundations → Operators → Real-coded Operators | Add |
+| [foundations/benchmarks/overview.md](../foundations/benchmarks/overview.md) | Tutorial | Foundations → Benchmarks → What a Benchmark Tests | Add |
+| [foundations/benchmarks/continuous.md](../foundations/benchmarks/continuous.md) | Tutorial | Foundations → Benchmarks → ZDT, DTLZ and WFG | Add |
+| [foundations/benchmarks/scalable.md](../foundations/benchmarks/scalable.md) | Tutorial | Foundations → Benchmarks → Many Objectives and Variables | Add |
+| [foundations/benchmarks/constrained.md](../foundations/benchmarks/constrained.md) | Tutorial | Foundations → Benchmarks → Constrained Benchmarks | Add |
+| [foundations/benchmarks/real-world.md](../foundations/benchmarks/real-world.md) | Tutorial | Foundations → Benchmarks → Real-world Problems | Add |
+| [foundations/benchmarks/combinatorial.md](../foundations/benchmarks/combinatorial.md) | Tutorial | Foundations → Benchmarks → Binary, Integer, Permutation and Mixed | Add |
 | [foundations/advanced/many-objective.md](../foundations/advanced/many-objective.md) | Tutorial | Foundations → Advanced → Many Objectives → Many-objective Optimization | Add |
 | [foundations/advanced/nsga-iii.md](../foundations/advanced/nsga-iii.md) | Tutorial | Foundations → Advanced → Many Objectives → NSGA-III | Add |
 | [foundations/advanced/rvea.md](../foundations/advanced/rvea.md) | Tutorial | Foundations → Advanced → Many Objectives → RVEA | Add |

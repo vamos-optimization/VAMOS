@@ -247,6 +247,13 @@ nav:
         - SMPSO: foundations/intermediate/smpso.md
     - Operators:
       - Real-coded Operators: foundations/operators/real-coded.md
+    - Benchmarks:
+      - What a Benchmark Tests: foundations/benchmarks/overview.md
+      - ZDT, DTLZ and WFG: foundations/benchmarks/continuous.md
+      - Many Objectives and Variables: foundations/benchmarks/scalable.md
+      - Constrained Benchmarks: foundations/benchmarks/constrained.md
+      - Real-world Problems: foundations/benchmarks/real-world.md
+      - Binary, Integer, Permutation and Mixed: foundations/benchmarks/combinatorial.md
     - Advanced:
       - Many Objectives:
         - Many-objective Optimization: foundations/advanced/many-objective.md

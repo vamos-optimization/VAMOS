@@ -1177,6 +1177,296 @@
     return { cvn, dSde, sde, A, B, share };
   }
 
+  /* ---- Benchmarks: two-objective fronts, position bias and CTP feasibility ---- */
+
+  /* The two-objective Pareto fronts of the Benchmarks lessons, written in closed form from the
+     definitions in src/vamos/foundation/problem/ (zdt*.py, dtlz.py and wfg.py): point(t) maps a
+     position parameter t in [lo, hi] to the objective vector at the optimal distance variables.
+     tests/docs/test_foundations.py compares every front with VAMOS' packaged reference front. */
+  const HALF_PI = Math.PI / 2;
+  const WFG_CONCAVE = "Concave: the quarter ellipse (f₁/2)² + (f₂/4)² = 1";
+  const BENCHMARK_FRONTS = {
+    zdt1: {
+      label: "ZDT1",
+      point: (t) => [t, 1 - Math.sqrt(t)],
+      shape: "Convex",
+      tests: "Convergence and spread on a simple convex front; the usual first test",
+      separable: "Yes",
+      objectives: "2",
+      n: "30",
+      files: "2 objectives",
+    },
+    zdt2: {
+      label: "ZDT2",
+      point: (t) => [t, 1 - t * t],
+      shape: "Concave",
+      tests: "A concave front, whose inner points no weighted sum of the objectives can reach",
+      separable: "Yes",
+      objectives: "2",
+      n: "30",
+      files: "2 objectives",
+    },
+    zdt3: {
+      label: "ZDT3",
+      point: (t) => [t, 1 - Math.sqrt(t) - t * Math.sin(10 * Math.PI * t)],
+      shape: "Disconnected: five pieces",
+      tests: "Keeping solutions on every piece of a disconnected front",
+      separable: "Yes",
+      objectives: "2",
+      n: "30",
+      files: "2 objectives",
+    },
+    zdt4: {
+      label: "ZDT4",
+      point: (t) => [t, 1 - Math.sqrt(t)],
+      shape: "Convex (ZDT1's front)",
+      tests: "Multimodality: a Rastrigin-type g with 21⁹ local fronts for n = 10",
+      separable: "Yes",
+      objectives: "2",
+      n: "10",
+      files: "2 objectives",
+    },
+    zdt6: {
+      label: "ZDT6",
+      point: (t) => [t, 1 - t * t],
+      lo: 0.2807753191,
+      shape: "Concave, from f₁ ≈ 0.281",
+      tests: "Bias: uniform x₁ crowds near f₁ = 1, and the density of solutions falls towards the front",
+      separable: "Yes",
+      objectives: "2",
+      n: "10",
+      files: "2 objectives",
+    },
+    dtlz1: {
+      label: "DTLZ1",
+      point: (t) => [0.5 * t, 0.5 * (1 - t)],
+      shape: "Linear: f₁ + … + f_M = 0.5",
+      tests: "Multimodality: 11 local minima per distance variable, 11ᵏ − 1 local fronts",
+      separable: "Yes",
+      objectives: "Any M ≥ 2",
+      n: "M + 4",
+      files: "2, 3, 4, 6 and 8 objectives",
+    },
+    dtlz2: {
+      label: "DTLZ2",
+      point: (t) => [Math.cos(t * HALF_PI), Math.sin(t * HALF_PI)],
+      shape: "Concave: the unit sphere, f₁² + … + f_M² = 1",
+      tests: "Scaling the number of objectives on a smooth unimodal problem",
+      separable: "Yes",
+      objectives: "Any M ≥ 2",
+      n: "M + 9",
+      files: "2, 3, 4, 6 and 8 objectives",
+    },
+    dtlz3: {
+      label: "DTLZ3",
+      point: (t) => [Math.cos(t * HALF_PI), Math.sin(t * HALF_PI)],
+      shape: "Concave (DTLZ2's front)",
+      tests: "Multimodality on the sphere: DTLZ1's distance function with DTLZ2's shape",
+      separable: "Yes",
+      objectives: "Any M ≥ 2",
+      n: "M + 9",
+      files: "2 and 3 objectives; DTLZ2's for 4, 6 and 8",
+    },
+    dtlz4: {
+      label: "DTLZ4",
+      point: (t) => [Math.cos(t * HALF_PI), Math.sin(t * HALF_PI)],
+      shape: "Concave (DTLZ2's front)",
+      tests: "Bias: the position variables are raised to α = 100, which crowds solutions at one end",
+      separable: "Yes",
+      objectives: "Any M ≥ 2",
+      n: "M + 9",
+      files: "2 and 3 objectives; DTLZ2's for 4, 6 and 8",
+    },
+    dtlz7: {
+      label: "DTLZ7",
+      point: (t) => [t, 4 - t * (1 + Math.sin(3 * Math.PI * t))],
+      shape: "Disconnected: 2^(M−1) pieces, two with M = 2",
+      tests: "A disconnected front in any number of objectives",
+      separable: "Yes",
+      objectives: "Any M ≥ 2",
+      n: "M + 19",
+      files: "2, 3, 4, 6 and 8 objectives",
+    },
+    idtlz2: {
+      label: "IDTLZ2",
+      point: (t) => [1 - Math.cos(t * HALF_PI), 1 - Math.sin(t * HALF_PI)],
+      shape: "Convex: DTLZ2's sphere turned over",
+      tests: "An inverted front, which many evenly spread weight vectors miss",
+      separable: "Yes",
+      objectives: "Any M ≥ 2",
+      n: "M + 9",
+      files: "2 and 3 objectives",
+    },
+    wfg1: {
+      label: "WFG1",
+      point: (t) => [2 * (1 - Math.cos(t * HALF_PI)), 4 * (1 - t - Math.cos(10 * Math.PI * t + HALF_PI) / (10 * Math.PI))],
+      shape: "Convex and mixed",
+      tests: "Bias: flat regions and a polynomial bias with exponent 0.02",
+      separable: "Yes",
+      objectives: "Any M ≥ 2",
+      n: "24",
+      files: "2 objectives",
+    },
+    wfg2: {
+      label: "WFG2",
+      point: (t) => [2 * (1 - Math.cos(t * HALF_PI)), 4 * (1 - t * Math.cos(5 * Math.PI * t) ** 2)],
+      shape: "Convex and disconnected",
+      tests: "Non-separable distance variables and a disconnected front",
+      separable: "No",
+      objectives: "Any M ≥ 2",
+      n: "24",
+      files: "2 objectives",
+    },
+    wfg3: {
+      label: "WFG3",
+      point: (t) => [2 * t, 4 * (1 - t)],
+      shape: "Linear; designed to be degenerate for M ≥ 3",
+      tests: "Non-separable variables and a front of lower dimension than M − 1",
+      separable: "No",
+      objectives: "Any M ≥ 2",
+      n: "24",
+      files: "2 objectives",
+    },
+    wfg4: { label: "WFG4", tests: "Multimodality: many local optima in every variable", separable: "Yes" },
+    wfg5: { label: "WFG5", tests: "Deception: a broad local optimum that leads away from the global one", separable: "Yes" },
+    wfg6: { label: "WFG6", tests: "Non-separable variables", separable: "No" },
+    wfg7: { label: "WFG7", tests: "Parameter-dependent bias: the position variables depend on the distance variables", separable: "Yes" },
+    wfg8: { label: "WFG8", tests: "Parameter-dependent bias: the distance variables depend on the position variables", separable: "No" },
+    wfg9: { label: "WFG9", tests: "Parameter-dependent bias, multimodality and deception together", separable: "No" },
+  };
+  for (const key of ["wfg4", "wfg5", "wfg6", "wfg7", "wfg8", "wfg9"]) {
+    Object.assign(BENCHMARK_FRONTS[key], {
+      point: (t) => [2 * Math.sin(t * HALF_PI), 4 * Math.cos(t * HALF_PI)],
+      shape: WFG_CONCAVE,
+      objectives: "Any M ≥ 2",
+      n: "24",
+      files: "2 objectives",
+    });
+  }
+
+  /** The non-dominated points of a two-objective set, sorted by f₁. */
+  function nonDominated2d(points) {
+    const sorted = points.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const out = [];
+    for (const p of sorted) if (!out.length || p[1] < out[out.length - 1][1]) out.push(p);
+    return out;
+  }
+
+  /** n evenly spaced values of a front's position parameter, mapped and filtered for non-dominance. */
+  function benchmarkFront(key, n) {
+    const front = BENCHMARK_FRONTS[key];
+    const lo = front.lo || 0;
+    const pts = [];
+    for (let i = 0; i < n; i++) pts.push(front.point(lo + ((1 - lo) * i) / (n - 1)));
+    return nonDominated2d(pts);
+  }
+
+  /** The pieces of a sorted two-objective front: a gap in f₁ wider than `gap` times its range starts a new one. */
+  function frontPieces(pts, gap) {
+    const span = pts[pts.length - 1][0] - pts[0][0] || 1;
+    const pieces = [[pts[0]]];
+    for (let i = 1; i < pts.length; i++) {
+      if (pts[i][0] - pts[i - 1][0] > gap * span) pieces.push([]);
+      pieces[pieces.length - 1].push(pts[i]);
+    }
+    return pieces;
+  }
+
+  /* Position bias: where a Pareto-optimal solution lands on the front, from its position variables u in
+     [0, 1] (the distance variables at their optimum), for M = 2. position(u, alpha) returns the front
+     parameter t of BENCHMARK_FRONTS[front].point(t): DTLZ4 raises its position variable to α, 100 by
+     default (dtlz.py; α = 1 is DTLZ2); ZDT6 maps x₁ through f₁ = 1 − exp(−4x₁) sin⁶(6πx₁) (zdt6.py); WFG1
+     applies its polynomial bias y^0.02 to its four position variables and reduces them by a weighted sum
+     with weights 2, 4, 6 and 8 (wfg.py). */
+  const BIAS_PROBLEMS = {
+    dtlz4: { label: "DTLZ4 (DTLZ2 when α = 1)", positions: 1, front: "dtlz4", position: (u, alpha) => Math.pow(u[0], alpha) },
+    zdt6: { label: "ZDT6", positions: 1, front: "zdt6", position: (u) => 1 - Math.exp(-4 * u[0]) * Math.pow(Math.sin(6 * Math.PI * u[0]), 6) },
+    wfg1: {
+      label: "WFG1",
+      positions: 4,
+      front: "wfg1",
+      position(u) {
+        let num = 0;
+        let den = 0;
+        u.forEach((v, i) => {
+          num += 2 * (i + 1) * Math.pow(v, 0.02);
+          den += 2 * (i + 1);
+        });
+        return num / den;
+      },
+    },
+  };
+
+  function biasPoint(key, u, alpha) {
+    const problem = BIAS_PROBLEMS[key];
+    return BENCHMARK_FRONTS[problem.front].point(problem.position(u, alpha));
+  }
+
+  /* CTP1-CTP7 of Deb, Pratap and Meyarivan (2001) in objective space, with the parameters of
+     src/vamos/foundation/problem/ctp.py. Every design has g ≥ 1, so the attainable region lies on or above
+     the unconstrained front: f₂ ≥ exp(−f₁) for CTP1 and f₂ ≥ 1 − f₁ for CTP2-CTP7. */
+  const CTP_PROBLEMS = {
+    ctp1: { a: [0.858266, 0.728234], b: [0.541475, 0.295039], ymax: 1.2 },
+    ctp2: { theta: -0.2 * Math.PI, a: 0.2, b: 10, c: 1, d: 6, e: 1, ymax: 1.6 },
+    ctp3: { theta: -0.2 * Math.PI, a: 0.1, b: 10, c: 1, d: 0.5, e: 1, ymax: 1.6 },
+    ctp4: { theta: -0.2 * Math.PI, a: 0.75, b: 10, c: 1, d: 0.5, e: 1, ymax: 2.4 },
+    ctp5: { theta: -0.2 * Math.PI, a: 0.1, b: 10, c: 2, d: 0.5, e: 1, ymax: 1.6 },
+    ctp6: { theta: 0.1 * Math.PI, a: 40, b: 0.5, c: 1, d: 2, e: -2, ymax: 20 },
+    ctp7: { theta: -0.05 * Math.PI, a: 40, b: 5, c: 1, d: 6, e: 0, ymax: 2 },
+  };
+
+  function ctpBase(key, f1) {
+    return key === "ctp1" ? Math.exp(-f1) : 1 - f1;
+  }
+
+  /** The total violation of CTP1-CTP7 at an objective vector, as VAMOS' G with its positive parts summed. */
+  function ctpTotalViolation(key, f) {
+    const p = CTP_PROBLEMS[key];
+    if (key === "ctp1") return p.a.reduce((sum, a, j) => sum + Math.max(0, a * Math.exp(-p.b[j] * f[0]) - f[1]), 0);
+    return ctpViolation(f, p);
+  }
+
+  /** The constrained front of a CTP problem: for n values of f₁, the least feasible f₂ on or above the
+      unconstrained front (scanned, then refined by bisection), filtered for non-dominance. */
+  function ctpFront(key, n) {
+    const top = CTP_PROBLEMS[key].ymax;
+    const lowest = [];
+    for (let i = 0; i < n; i++) {
+      const f1 = i / (n - 1);
+      const base = ctpBase(key, f1);
+      const step = (top - base) / 2000;
+      if (ctpTotalViolation(key, [f1, base]) <= 0) {
+        lowest.push([f1, base]);
+        continue;
+      }
+      for (let k = 1; k <= 2000; k++) {
+        const f2 = base + k * step;
+        if (ctpTotalViolation(key, [f1, f2]) > 0) continue;
+        let lo = f2 - step;
+        let hi = f2;
+        for (let it = 0; it < 40; it++) {
+          const mid = 0.5 * (lo + hi);
+          if (ctpTotalViolation(key, [f1, mid]) > 0) lo = mid;
+          else hi = mid;
+        }
+        lowest.push([f1, hi]);
+        break;
+      }
+    }
+    if (key !== "ctp1") {
+      // Add the isolated optima that a scan can miss: on the line cos(θ) (f₂ − e) = sin(θ) f₁, where the
+      // left side of the constraint is 0, sin(θ) (f₂ − e) + cos(θ) f₁ = f₁ / cos(θ), and the sine vanishes
+      // where (f₁ / cos(θ))^c = j / b.
+      const p = CTP_PROBLEMS[key];
+      for (let j = 0; j <= 200; j++) {
+        const f1 = Math.cos(p.theta) * Math.pow(j / p.b, 1 / p.c);
+        const f2 = p.e + f1 * Math.tan(p.theta);
+        if (f1 <= 1 && f2 >= ctpBase(key, f1) && ctpTotalViolation(key, [f1, f2]) <= 1e-6) lowest.push([f1, f2]);
+      }
+    }
+    return nonDominated2d(lowest);
+  }
+
   const algorithms = {
     ccmoSelect,
     ctaeaSelect,
@@ -1224,6 +1514,13 @@
     attainmentSurface,
     mannWhitney,
     PROBLEMS,
+    BENCHMARK_FRONTS,
+    BIAS_PROBLEMS,
+    CTP_PROBLEMS,
+    benchmarkFront,
+    biasPoint,
+    ctpTotalViolation,
+    ctpFront,
   };
   root.VamosFoundations = algorithms;
 
@@ -4100,6 +4397,262 @@
         W.map((_, j) => ["w" + (j + 1), String(rho[j]), cands.filter((c) => c.dir === j).map((c) => c.id).join(", ") || "none"]),
         [false, true, false]
       );
+    }
+    render();
+  };
+
+  /* ---- Benchmarks ---- */
+
+  function paddedDomain(lo, hi) {
+    const pad = 0.06 * (hi - lo || 1);
+    return [lo - pad, hi + pad];
+  }
+
+  /* Benchmarks: a gallery of two-objective fronts and the properties of their problems. */
+  widgets["benchmark-gallery"] = function (node) {
+    const keys = Object.keys(BENCHMARK_FRONTS);
+    const state = { key: node.dataset.problem || "zdt1" };
+    const ctl = controls(node);
+    select(ctl, {
+      label: "Problem",
+      options: keys.map((k) => [k, BENCHMARK_FRONTS[k].label]),
+      value: state.key,
+      onChange: (v) => {
+        state.key = v;
+        render();
+      },
+    });
+    const body = h("div", { class: "vf-body vf-body--side" }, node);
+    const plot = createPlot(body, { x: [0, 1], y: [0, 1], xLabel: "f₁", yLabel: "f₂", label: "The Pareto front of the selected problem with two objectives" });
+    const readout = h("div", { class: "vf-readout" }, body);
+    legend(node, [
+      { label: "Pareto front (two objectives)", shape: "line", cls: "vf-line-1" },
+      { label: "Points at evenly spaced values of the position variable", shape: "circle", cls: "vf-pt vf-pt-1" },
+    ]);
+    const details = h("div", {}, node);
+    function render() {
+      const front = BENCHMARK_FRONTS[state.key];
+      const pts = benchmarkFront(state.key, 2001);
+      const pieces = frontPieces(pts, 0.01);
+      const lo = [0, 1].map((j) => Math.min(...pts.map((p) => p[j])));
+      const hi = [0, 1].map((j) => Math.max(...pts.map((p) => p[j])));
+      plot.setDomain(paddedDomain(Math.min(0, lo[0]), hi[0]), paddedDomain(Math.min(0, lo[1]), hi[1]));
+      clear(plot.layers.mid);
+      clear(plot.layers.marks);
+      for (const piece of pieces) if (piece.length > 1) plot.line(plot.layers.mid, piece, "vf-line-1");
+      const t0 = front.lo || 0;
+      for (let i = 0; i <= 20; i++) {
+        const p = front.point(t0 + ((1 - t0) * i) / 20);
+        if (isFrontPoint(pts, p)) {
+          marker(plot.layers.marks, "circle", plot.x(p[0]), plot.y(p[1]), 3.2, "vf-pt vf-pt-1");
+        }
+      }
+      clear(readout);
+      h(
+        "p",
+        {},
+        readout,
+        `${front.label} with two objectives: the front has ${pieces.length} piece${pieces.length === 1 ? "" : "s"}, ` +
+          `f₁ from ${fmt(lo[0])} to ${fmt(hi[0])} and f₂ from ${fmt(lo[1])} to ${fmt(hi[1])}.`
+      );
+      clear(details);
+      table(
+        details,
+        ["Property", front.label],
+        [
+          ["Front shape", front.shape],
+          ["What it tests", front.tests],
+          ["Separable", front.separable],
+          ["Objectives", front.objectives],
+          ["Default n", front.n],
+          ["Packaged reference fronts", front.files],
+        ]
+      );
+    }
+    function isFrontPoint(pts, p) {
+      // A point of the curve is on the front unless a sampled front point dominates it.
+      return !pts.some((q) => q[0] <= p[0] + 1e-12 && q[1] <= p[1] + 1e-12 && (q[0] < p[0] - 1e-9 || q[1] < p[1] - 1e-9));
+    }
+    render();
+  };
+
+  /* Benchmarks: where uniformly drawn position variables land on a biased front. */
+  widgets["position-bias"] = function (node) {
+    const count = 200;
+    const tenths = 10;
+    const state = { key: node.dataset.problem || "dtlz4", alpha: 100, seed: 3 };
+    const ctl = controls(node);
+    select(ctl, {
+      label: "Problem",
+      options: Object.keys(BIAS_PROBLEMS).map((k) => [k, BIAS_PROBLEMS[k].label]),
+      value: state.key,
+      onChange: (v) => {
+        state.key = v;
+        alphaLabel.style.display = v === "dtlz4" ? "" : "none";
+        render();
+      },
+    });
+    const alphaControl = slider(ctl, { label: "DTLZ4's α", min: 1, max: 100, step: 1, value: state.alpha, format: (v) => String(v), onInput: (v) => ((state.alpha = v), render()) });
+    const alphaLabel = alphaControl.input.parentNode;
+    alphaLabel.style.display = state.key === "dtlz4" ? "" : "none";
+    button(ctl, "New sample", () => {
+      state.seed += 1;
+      render();
+    });
+    const body = h("div", { class: "vf-body vf-body--two" }, node);
+    const plot = createPlot(body, { x: [0, 1], y: [0, 1], xLabel: "f₁", yLabel: "f₂", label: "Pareto-optimal solutions with uniformly drawn position variables" });
+    const bars = createPlot(body, {
+      x: [0, tenths],
+      y: [0, 1],
+      xLabel: "Tenth of the front's length, from its f₁-minimal end",
+      yLabel: "Share of the points",
+      xTicks: [0, 2, 4, 6, 8, 10],
+      yFormat: (v) => Math.round(v * 100) + "%",
+      label: "Share of the points in each tenth of the front",
+    });
+    const readout = h("div", { class: "vf-readout" }, node);
+    legend(node, [
+      { label: "Pareto front", shape: "line", cls: "vf-front" },
+      { label: `${count} solutions with uniform position variables`, shape: "circle", cls: "vf-pt vf-pt-1" },
+      { label: "Share per tenth of the front", shape: "region", cls: "vf-bar-1" },
+      { label: "Uniform share, 10%", shape: "line", cls: "vf-line-2" },
+    ]);
+    function render() {
+      const problem = BIAS_PROBLEMS[state.key];
+      const front = BENCHMARK_FRONTS[problem.front];
+      const t0 = front.lo || 0;
+      // The front's arc length as a function of its parameter t, on a fine grid.
+      const grid = 4000;
+      const curve = [];
+      const length = [0];
+      for (let i = 0; i <= grid; i++) curve.push(front.point(t0 + ((1 - t0) * i) / grid));
+      for (let i = 1; i <= grid; i++) length.push(length[i - 1] + Math.hypot(curve[i][0] - curve[i - 1][0], curve[i][1] - curve[i - 1][1]));
+      const total = length[grid];
+      const flip = curve[0][0] > curve[grid][0]; // measure the length from the end where f₁ is smallest
+      const arcAt = (t) => {
+        const x = Math.min(grid, Math.max(0, ((t - t0) / (1 - t0)) * grid));
+        const i = Math.min(grid - 1, Math.floor(x));
+        const share = (length[i] + (x - i) * (length[i + 1] - length[i])) / total;
+        return flip ? 1 - share : share;
+      };
+      const rand = mulberry32(state.seed);
+      const counts = new Array(tenths).fill(0);
+      const points = [];
+      for (let k = 0; k < count; k++) {
+        const u = Array.from({ length: problem.positions }, () => rand());
+        const t = problem.position(u, state.alpha);
+        points.push(front.point(t));
+        counts[Math.min(tenths - 1, Math.floor(arcAt(t) * tenths))] += 1;
+      }
+      const lo = [0, 1].map((j) => Math.min(...curve.map((p) => p[j])));
+      const hi = [0, 1].map((j) => Math.max(...curve.map((p) => p[j])));
+      plot.setDomain(paddedDomain(Math.min(0, lo[0]), hi[0]), paddedDomain(Math.min(0, lo[1]), hi[1]));
+      clear(plot.layers.mid);
+      clear(plot.layers.marks);
+      plot.line(plot.layers.mid, curve, "vf-front");
+      for (const p of points) marker(plot.layers.marks, "circle", plot.x(p[0]), plot.y(p[1]), 3, "vf-pt vf-pt-1");
+      const shares = counts.map((c) => c / count);
+      const top = Math.max(0.2, Math.ceil(Math.max(...shares) * 10) / 10);
+      bars.setDomain([0, tenths], [0, top]);
+      clear(bars.layers.mid);
+      clear(bars.layers.top);
+      shares.forEach((v, i) => {
+        if (v <= 0) return;
+        s("rect", { x: bars.x(i) + 1, y: bars.y(v), width: Math.max(0.5, bars.x(i + 1) - bars.x(i) - 2), height: bars.y(0) - bars.y(v), class: "vf-bar-1" }, bars.layers.mid);
+      });
+      bars.line(bars.layers.top, [[0, 0.1], [tenths, 0.1]], "vf-line-2");
+      const most = Math.max(...counts);
+      const least = Math.min(...counts);
+      const name = state.key === "dtlz4" ? `DTLZ4 with α = ${state.alpha}` : problem.label;
+      clear(readout);
+      h(
+        "p",
+        {},
+        readout,
+        `${name}: of ${count} Pareto-optimal solutions with uniformly drawn position variables, the fullest tenth of the front holds ` +
+          `${most} (${fmt((100 * most) / count, 1)}%) and the emptiest ${least} (${fmt((100 * least) / count, 1)}%). ` +
+          "Without bias, each tenth would hold about 10%."
+      );
+    }
+    render();
+  };
+
+  /* Benchmarks: the feasible regions and constrained fronts of CTP1-CTP7. */
+  widgets["ctp-landscape"] = function (node) {
+    const notes = {
+      ctp1: "Two constraints cut off the lower part of the unconstrained front f₂ = exp(−f₁): the constrained front runs along their boundaries, away from the unconstrained one.",
+      ctp2: "Narrow feasible tunnels reach the unconstrained front. The constrained front is 13 short segments, one at the end of each tunnel.",
+      ctp3: "The tunnels narrow to single points: the constrained front is 13 isolated points on the unconstrained front.",
+      ctp4: "The same 13 points as CTP3 at the end of longer tunnels (a = 0.75), which are harder to follow.",
+      ctp5: "Tunnels spaced unevenly (c = 2): the front is a first arch, up to f₁ ≈ 0.256, and isolated points.",
+      ctp6: "Infeasible bands cross the objective space between the region that random designs reach and the front: a population has to pass through them.",
+      ctp7: "Only disconnected pieces of the unconstrained front are feasible, separated by infeasible regions that reach down to it.",
+    };
+    const state = { key: node.dataset.problem || "ctp2" };
+    const ctl = controls(node);
+    select(ctl, {
+      label: "Problem",
+      options: Object.keys(CTP_PROBLEMS).map((k) => [k, k.toUpperCase()]),
+      value: state.key,
+      onChange: (v) => {
+        state.key = v;
+        render();
+      },
+    });
+    const body = h("div", { class: "vf-body vf-body--side" }, node);
+    const plot = createPlot(body, { x: [0, 1], y: [0, 1.6], xLabel: "f₁", yLabel: "f₂", label: "Objective space of the selected CTP problem with its infeasible regions" });
+    const readout = h("div", { class: "vf-readout" }, body);
+    legend(node, [
+      { label: "Infeasible region", shape: "region", cls: "vf-region-2" },
+      { label: "Unconstrained front", shape: "line", cls: "vf-front" },
+      { label: "Constrained Pareto front", shape: "circle", cls: "vf-pt vf-pt-1" },
+    ]);
+    function render() {
+      const key = state.key;
+      const top = CTP_PROBLEMS[key].ymax;
+      plot.setDomain([0, 1], [0, top]);
+      clear(plot.layers.back);
+      clear(plot.layers.marks);
+      const cols = 160;
+      const rows = 320;
+      let cells = 0;
+      let feasibleCells = 0;
+      for (let c = 0; c < cols; c++) {
+        const f1 = (c + 0.5) / cols;
+        const base = ctpBase(key, f1);
+        let start = null;
+        for (let r = 0; r <= rows; r++) {
+          const f2 = (r * top) / rows;
+          const above = f2 >= base && r < rows;
+          const bad = above && ctpTotalViolation(key, [f1, f2]) > 0;
+          if (above) {
+            cells += 1;
+            if (!bad) feasibleCells += 1;
+          }
+          if (bad && start === null) start = f2;
+          if (!bad && start !== null) {
+            plot.rect(plot.layers.back, c / cols, start, (c + 1) / cols + 0.0005, f2, "vf-region-2");
+            start = null;
+          }
+        }
+      }
+      plot.line(plot.layers.back, frontPoints((t) => ctpBase(key, t), 0, 1, 101), "vf-front");
+      const front = ctpFront(key, 1001);
+      const pieces = frontPieces(front, 0.004);
+      for (const piece of pieces) {
+        if (piece.length > 1) plot.line(plot.layers.marks, piece, "vf-line-1");
+        else marker(plot.layers.marks, "circle", plot.x(piece[0][0]), plot.y(piece[0][1]), 3.5, "vf-pt vf-pt-1");
+      }
+      clear(readout);
+      h(
+        "p",
+        {},
+        readout,
+        `${key.toUpperCase()}: ${fmt((100 * feasibleCells) / cells, 1)}% of the plotted region above the unconstrained front is feasible. ` +
+          `The constrained front has ${pieces.length} piece${pieces.length === 1 ? "" : "s"} or isolated point${pieces.length === 1 ? "" : "s"}, ` +
+          `f₁ from ${fmt(front[0][0])} to ${fmt(front[front.length - 1][0])}.`
+      );
+      h("p", {}, readout, notes[key]);
     }
     render();
   };

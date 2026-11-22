@@ -226,7 +226,7 @@ at work.
 - The bounded forms of both operators keep every value inside its bounds.
 - VAMOS' defaults are SBX (0.9, η_c = 20) and polynomial mutation (1/n, η_m = 20).
 
-**Next section:** [Many-objective optimization](../advanced/many-objective.md).
+**Next section:** [What a benchmark tests](../benchmarks/overview.md).
 
 ## References
 
