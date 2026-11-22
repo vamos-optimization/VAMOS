@@ -4892,7 +4892,7 @@
       segment_inversion: "Segment inversion",
     };
     const ctl = controls(node);
-    select(ctl, { label: "Operator", value: state.op, options: Object.keys(names).map((k) => [k, names[k]]), onChange: (v) => ((state.op = v), (state.step = 0), draw(), render()) });
+    select(ctl, { label: "Operator", value: state.op, options: Object.keys(names).map((k) => [k, names[k]]), onChange: (v) => ((state.op = v), (state.step = 0), draw(), probabilityControl(), render()) });
     const prev = button(ctl, "Previous step", () => ((state.step = Math.max(0, state.step - 1)), render()));
     const next = button(ctl, "Next step", () => ((state.step = Math.min(2, state.step + 1)), render()), true);
     button(ctl, "New draw", () => ((state.seed += 1), draw(), render()));
@@ -4921,6 +4921,10 @@
         const [a, b] = OP.drawSegment(n, rand);
         info = { a, b };
       }
+    }
+
+    // Built when the operator changes, not on each draw, so that moving the slider keeps it and its focus.
+    function probabilityControl() {
       clear(probCtl);
       if (state.op === "bitflip") slider(probCtl, { label: "Flip probability per bit", min: 0, max: 0.5, step: 1 / 24, value: state.prob, format: (v) => v.toFixed(3) + (Math.abs(v - 1 / 12) < 1e-9 ? " = 1/n" : ""), onInput: (v) => ((state.prob = v), draw(), render()) });
     }
@@ -5054,6 +5058,7 @@
       return head + `C1 = ${bits(kids[0])} (distance ${hamming(kids[0], p1)} to P1, ${hamming(kids[0], p2)} to P2) and C2 = ${bits(kids[1])} (distance ${hamming(kids[1], p1)} to P1, ${hamming(kids[1], p2)} to P2). Every bit comes from a parent, so a position where both parents agree keeps its value.`;
     }
     draw();
+    probabilityControl();
     render();
   };
 
