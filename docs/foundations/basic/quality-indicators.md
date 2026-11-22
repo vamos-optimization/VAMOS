@@ -1,13 +1,13 @@
 ---
-description: 'B4. Quality indicators for approximation sets: hypervolume, GD, IGD, IGD+, additive epsilon, spacing and spread; Pareto compliance, reference points and reference sets, with interactive figures and MooCore code on a VAMOS result.'
+description: 'Quality indicators for approximation sets: hypervolume, GD, IGD, IGD+, additive epsilon, spacing and spread; Pareto compliance, reference points and reference sets, with interactive figures and MooCore code on a VAMOS result.'
 search:
   boost: 0.5
 ---
 
-# B4. Quality indicators
+# Quality indicators
 
 A quality indicator turns an approximation set into a number, so that runs
-and algorithms can be compared. Lesson [B3](quality-aspects.md) showed that
+and algorithms can be compared. Lesson [Quality aspects](quality-aspects.md) showed that
 any single number weights the quality aspects in its own way. This lesson
 defines the indicators in common use, shows what each one sees, and explains
 the property that matters most when choosing one: Pareto compliance.
@@ -88,7 +88,7 @@ And real costs:
 
 The area that only one point dominates is its **exclusive contribution**:
 the hypervolume lost if that point is removed. SMS-EMOA builds its selection on
-it (lesson [I6](../intermediate/beyond-nsga-ii.md)). The contributions are
+it (lesson [Families of algorithms](algorithm-families.md)). The contributions are
 measured among the non-dominated points, as VAMOS and MooCore's
 `hv_contributions` measure them by default: a dominated point adds no
 hypervolume, so it contributes 0 and is left out when the contributions of the
@@ -176,7 +176,7 @@ convergence, so both must be paired with another indicator.
 
 ## All the indicators side by side
 
-The playground of B3 with every indicator of this lesson. Watch which values
+The playground of [Quality aspects](quality-aspects.md) with every indicator of this lesson. Watch which values
 move when you change a single aspect.
 
 <div class="vf-widget" data-vf-widget="quality"><p class="vf-fallback">Interactive figure: an approximation set whose convergence, extent, clustering and size are controlled by sliders, with the values of eight indicators. It needs JavaScript.</p></div>
@@ -194,7 +194,7 @@ move when you change a single aspect.
    (for example IGD with p = 1).
 5. **Measure only feasible, non-dominated points** for a constrained problem,
    and report the share of feasible runs separately (lesson
-   [A5](../advanced/constrained.md)).
+   [Constraints](../advanced/constrained.md)).
 
 ## In VAMOS
 
@@ -252,7 +252,7 @@ same indicators for every run: see the
 - Spacing and spread describe the distribution only; pair them with a
   convergence-aware indicator.
 
-**Next level:** [I1. NSGA-II at a glance](../intermediate/nsga-ii.md).
+**Next:** [Families of multi-objective algorithms](algorithm-families.md).
 
 ## References
 

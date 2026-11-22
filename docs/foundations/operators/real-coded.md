@@ -1,10 +1,10 @@
 ---
-description: 'I4. How NSGA-II creates offspring for real variables: simulated binary crossover (SBX) and polynomial mutation, their distribution indices and bounded forms, interactive offspring distributions and the VAMOS implementation.'
+description: 'How NSGA-II creates offspring for real variables: simulated binary crossover (SBX) and polynomial mutation, their distribution indices and bounded forms, interactive offspring distributions and the VAMOS implementation.'
 search:
   boost: 0.5
 ---
 
-# I4. Variation: SBX and polynomial mutation
+# Real-coded operators: SBX and polynomial mutation
 
 Selection decides **who** reproduces; variation decides **what** the children
 look like. For real-valued decision variables, NSGA-II uses simulated binary
@@ -226,7 +226,7 @@ at work.
 - The bounded forms of both operators keep every value inside its bounds.
 - VAMOS' defaults are SBX (0.9, η_c = 20) and polynomial mutation (1/n, η_m = 20).
 
-**Next:** [I5. Elitist survival and the complete generation](elitist-survival.md).
+**Next section:** [Many-objective optimization](../advanced/many-objective.md).
 
 ## References
 

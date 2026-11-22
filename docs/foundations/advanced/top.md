@@ -1,12 +1,12 @@
 ---
-description: 'A8. ToP in depth: a first phase that solves a constrained single-objective problem with differential evolution and the feasibility rule, the switch on the feasible share and on delta, a second phase with NSGA-II and constrained domination, and where VAMOS follows PlatEMO and jMetal, with an interactive figure and VAMOS code.'
+description: 'ToP in depth: a first phase that solves a constrained single-objective problem with differential evolution and the feasibility rule, the switch on the feasible share and on delta, a second phase with NSGA-II and constrained domination, and where VAMOS follows PlatEMO and jMetal, with an interactive figure and VAMOS code.'
 search:
   boost: 0.5
 ---
 
-# A8. ToP: two phases
+# ToP: two phases
 
-CCMO and C-TAEA (lessons [A6](ccmo.md) and [A7](ctaea.md)) run their
+CCMO and C-TAEA (lessons [CCMO](ccmo.md) and [C-TAEA](ctaea.md)) run their
 constrained and their exploring parts side by side for the whole run. The
 **two-phase framework**, ToP, of Liu and Wang [1] runs them one after the
 other. Phase 1 looks for the feasible regions that hold the front by solving a
@@ -110,7 +110,7 @@ close *relative to the spread of all feasible solutions*.
 
 ## Phase 2: NSGA-II with constrained domination
 
-Phase 2 is NSGA-II (lesson [I5](../intermediate/elitist-survival.md#survival-with-constraints))
+Phase 2 is NSGA-II (lesson [Elitist survival](../intermediate/elitist-survival.md#survival-with-constraints))
 with ToP's constrained dominance:
 
 <div class="vf-formula">a ≺ b   ⇔   both feasible and a dominates b in the objectives,   or   CV(a) &lt; CV(b)
@@ -126,7 +126,7 @@ random; it is then clamped and mutated, as in phase 1.
 ## Try it: the two phases on the same candidates
 
 The figure shows the 16 CTP2 candidates of lesson
-[A6](ccmo.md#try-it-one-set-of-candidates-two-rules). In phase 1, O1 to O8 are
+[CCMO](ccmo.md#try-it-one-set-of-candidates-two-rules). In phase 1, O1 to O8 are
 the trial vectors of P1 to P8, and each pair is joined by a segment. In phase 2,
 all 16 are the union of population and offspring. Follow the eight pairs of
 phase 1, read Pf and δ under the plot, then switch to phase 2.
@@ -361,7 +361,7 @@ records the agreement with jMetal and with the published results.
 
 ## ToP among the constrained algorithms
 
-| | CCMO, C-TAEA (lessons A6, A7) | ToP |
+| | CCMO, C-TAEA | ToP |
 | --- | --- | --- |
 | Exploring part | Runs alongside the constrained part all the time | Phase 1, before the constrained part |
 | What it explores with | The problem without constraints | A constrained single-objective problem |
@@ -401,7 +401,7 @@ Limits:
 - VAMOS follows PlatEMO's implementation through jMetal's port, with DE in both
   phases and an exact budget.
 
-**Next:** [A9. CMOEA-MS: two stages](cmoeams.md).
+**Next:** [CMOEA-MS: two stages](cmoeams.md).
 
 ## References
 

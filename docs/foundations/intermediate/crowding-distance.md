@@ -1,10 +1,10 @@
 ---
-description: 'I3. The crowding distance of NSGA-II, its boundary rule and normalization, the crowded-comparison operator and binary tournament selection, with interactive figures and the VAMOS implementation.'
+description: 'The crowding distance of NSGA-II, its boundary rule and normalization, the crowded-comparison operator and binary tournament selection, with interactive figures and the VAMOS implementation.'
 search:
   boost: 0.5
 ---
 
-# I3. Crowding distance and tournament selection
+# Crowding distance and tournament selection
 
 Ranks push the population towards the front, but all the members of one front
 are equally good by dominance. NSGA-II needs a second criterion to prefer some
@@ -72,7 +72,7 @@ Rank and crowding combine into one ordering, the crowded-comparison operator
 A lower rank always wins. Within the same front, the less crowded solution
 wins. NSGA-II uses this operator in two places: to choose parents (below) and
 to truncate the last front during survival (lesson
-[I5](elitist-survival.md)).
+[Elitist survival](elitist-survival.md)).
 
 ## Binary tournament selection
 
@@ -197,7 +197,7 @@ kept: A, D, E, H, I
 - **More than two or three objectives.** The sum of per-objective gaps no
   longer reflects how crowded a region is, and nearly every solution is a
   boundary in some objective. NSGA-III replaces crowding with reference
-  directions (lesson [A1](../advanced/many-objective.md)).
+  directions (lesson [Many objectives](../advanced/many-objective.md)).
 - **Not a distance to the front.** A large crowding distance says nothing
   about convergence; rank takes care of that.
 
@@ -210,7 +210,7 @@ kept: A, D, E, H, I
 - Parents are chosen by binary tournaments with ≺ₙ; the last front is truncated
   by keeping the largest distances, computed once.
 
-**Next:** [I4. Variation: SBX and polynomial mutation](variation-operators.md).
+**Next:** [Elitist survival and the complete generation](elitist-survival.md).
 
 ## References
 

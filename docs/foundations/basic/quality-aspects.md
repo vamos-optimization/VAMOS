@@ -1,14 +1,14 @@
 ---
-description: 'B3. The quality aspects of an approximation set (convergence, spread, uniformity and cardinality), how sets are compared by dominance, and why no single number can say everything.'
+description: 'The quality aspects of an approximation set (convergence, spread, uniformity and cardinality), how sets are compared by dominance, and why no single number can say everything.'
 search:
   boost: 0.5
 ---
 
-# B3. What makes a good approximation?
+# What makes a good approximation?
 
 An algorithm returns an approximation set, not the Pareto front. Two runs, or
 two algorithms, return different sets. Before measuring them with numbers
-(lesson [B4](quality-indicators.md)), we need to agree on **what** a good set
+(lesson [Quality indicators](quality-indicators.md)), we need to agree on **what** a good set
 looks like.
 
 In this lesson you will learn:
@@ -38,16 +38,16 @@ and diversity pull in different directions: an algorithm that pushes hard
 towards the front tends to lose diversity, and one that preserves diversity
 spends evaluations away from the front. NSGA-II balances them with two
 criteria, ranks and crowding distances (lessons
-[I2](../intermediate/non-dominated-sorting.md) and
-[I3](../intermediate/crowding-distance.md)).
+[Non-dominated sorting](../intermediate/non-dominated-sorting.md) and
+[Crowding and tournaments](../intermediate/crowding-distance.md)).
 
 ## See the aspects one at a time
 
 The figure builds an approximation set of the ZDT1 front with four sliders,
 one for each aspect: the distance added to every point, the share of the
 front's range covered, how strongly the points cluster towards one end, and
-how many points there are. The table shows how a few indicators react; B4
-defines them.
+how many points there are. The table shows how a few indicators react; the
+[Quality indicators](quality-indicators.md) lesson defines them.
 
 <div class="vf-widget" data-vf-widget="quality" data-indicators="hv,gd,igd,spacing,n"><p class="vf-fallback">Interactive figure: an approximation set whose convergence, extent, clustering and size are controlled by sliders, with indicator values. It needs JavaScript.</p></div>
 
@@ -95,7 +95,7 @@ practical consequences:
   an indicator that rewards spread.
 - **Use more than one indicator**, and check that their conclusions agree.
 - **Look at the sets.** For two objectives, a plot of the sets, or of their
-  attainment surfaces (lesson [A10](../advanced/performance-assessment.md)),
+  attainment surfaces (lesson [Rigorous comparison](../advanced/performance-assessment.md)),
   often shows what the numbers hide.
 
 ## Scale matters
@@ -104,7 +104,7 @@ Every aspect depends on the units of the objectives. If f₁ is in metres and f�
 in millimetres, distances are dominated by f₂ and "uniform" means uniform in
 millimetres. Normalize the objectives with fixed bounds, for example the ideal
 and nadir points of a reference front (lesson
-[B2](pareto-dominance.md#ideal-and-nadir-points)), **before** computing
+[Pareto dominance](pareto-dominance.md#ideal-and-nadir-points)), **before** computing
 distances, and use the same bounds for every algorithm you compare.
 
 ## In VAMOS
@@ -153,7 +153,7 @@ problem given a reference point or reference set.
   use several, chosen for the question, and look at the sets.
 - Normalize objectives with fixed bounds before measuring distances.
 
-**Next:** [B4. Quality indicators](quality-indicators.md).
+**Next:** [Quality indicators](quality-indicators.md).
 
 ## References
 

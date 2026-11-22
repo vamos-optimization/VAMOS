@@ -1,12 +1,12 @@
 ---
-description: 'A6. CCMO in depth: a constrained population and a helper population that ignores the constraints, cooperation through shared offspring, SPEA2 fitness with the violation first, environmental selection, budget, and where VAMOS follows the authors'' code, with an interactive figure and VAMOS code.'
+description: 'CCMO in depth: a constrained population and a helper population that ignores the constraints, cooperation through shared offspring, SPEA2 fitness with the violation first, environmental selection, budget, and where VAMOS follows the authors'' code, with an interactive figure and VAMOS code.'
 search:
   boost: 0.5
 ---
 
-# A6. CCMO: two cooperating populations
+# CCMO: two cooperating populations
 
-Lesson [A5](constrained.md#beyond-feasibility-first) ended with a warning:
+Lesson [Constraints](constrained.md#beyond-feasibility-first) ended with a warning:
 selection that puts feasibility first can be trapped. Once a few feasible
 solutions are found they take over the population, and the parts of the
 constrained front that lie behind an infeasible barrier are never reached.
@@ -22,11 +22,11 @@ together with the offspring of **both**. Population 2 moves freely across
 infeasible regions towards the unconstrained front, and its offspring give
 population 1 candidates in places it could not reach on its own.
 
-NSGA-II with constrained domination (lesson [A5](constrained.md#constrained-domination))
+NSGA-II with constrained domination (lesson [Constraints](constrained.md#constrained-domination))
 has one population and one rule. CCMO has two populations, two rules and one
 pool of offspring. In VAMOS, as in the authors' code, each population is
 evolved with the fitness and the environmental selection of SPEA2 [6] (lesson
-[I7](../intermediate/spea2.md)), with the constraint violation put first in
+[SPEA2](../intermediate/spea2.md)), with the constraint violation put first in
 population 1.
 
 In this lesson you will learn:
@@ -45,14 +45,14 @@ Deb's feasibility rules [2], used by NSGA-II [3], compare two solutions by
 feasibility first and by their objectives second. The rules have no parameter
 and work well when the feasible region is large and connected. On problems
 such as CTP2 [4], whose feasible region near the front is a row of narrow
-"tunnels" (lesson [A5](constrained.md#constrained-domination)), they fail in a
+"tunnels" (lesson [Constraints](constrained.md#constrained-domination)), they fail in a
 characteristic way: a population that has entered one tunnel cannot cross the
 infeasible band beside it, because every step across is an infeasible
 solution, and feasibility first discards it.
 
 Two remedies were common before CCMO: relax the constraints (penalties,
 ε-constrained methods, stochastic ranking; lesson
-[A5](constrained.md#beyond-feasibility-first)) or keep infeasible solutions in
+[Constraints](constrained.md#beyond-feasibility-first)) or keep infeasible solutions in
 an archive. Tian et al. [1] proposed a framework instead. A *helper problem*,
 easier than the original one, is solved by a second population, and the two
 populations cooperate weakly: they share their offspring and nothing else. In
@@ -83,9 +83,9 @@ of the run is population 1; population 2 is a means, not an answer.
 ## Fitness with the violation first
 
 Each population ranks its 2N candidates with SPEA2's fitness (lesson
-[I7](../intermediate/spea2.md#strength-and-raw-fitness)), computed with a
+[SPEA2](../intermediate/spea2.md#strength-and-raw-fitness)), computed with a
 dominance relation in which the constraint violation CV of lesson
-[A5](constrained.md#feasibility-and-violation) comes first:
+[Constraints](constrained.md#feasibility-and-violation) comes first:
 
 <div class="vf-formula">a ≺_c b   ⇔   CV(a) &lt; CV(b),   or   CV(a) = CV(b)  and  a ≺ b  (Pareto dominance)
 S(i) = |{ j : i ≺_c j }|                      (strength: how many candidates i dominates)
@@ -114,7 +114,7 @@ if more than N:   repeatedly remove the candidate whose sorted distances
                   to the remaining ones are lexicographically smallest</div>
 
 The removal is SPEA2's truncation operator (lesson
-[I7](../intermediate/spea2.md#the-truncation-operator)): the candidate with the
+[SPEA2](../intermediate/spea2.md#the-truncation-operator)): the candidate with the
 closest neighbour goes first, a tie is broken by the second closest, and so on.
 The survivors are stored in increasing order of fitness, and that fitness,
 computed on the 2N candidates, is reused for mating.
@@ -138,7 +138,7 @@ The two initial populations cost 2N evaluations, so the budget must be at least
 ## Try it: one set of candidates, two rules
 
 The figure shows the CTP2 objective space of lesson
-[A5](constrained.md#constrained-domination) with 16 candidates: eight members
+[Constraints](constrained.md#constrained-domination) with 16 candidates: eight members
 of a population (P1 to P8) and eight offspring (O1 to O8). Circles are
 feasible, squares infeasible. Both selection rules of CCMO are applied to the
 same 16 candidates and keep N = 8. Start with population 1, then switch to
@@ -367,7 +367,7 @@ and CMOEA-MS switches between two ranking rules.
 - The result is population 1; the budget is exact, and the offspring of
   population 2 are cut first.
 
-**Next:** [A7. C-TAEA: a convergence archive and a diversity archive](ctaea.md).
+**Next:** [C-TAEA: a convergence archive and a diversity archive](ctaea.md).
 
 ## References
 

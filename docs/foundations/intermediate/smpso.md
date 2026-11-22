@@ -1,10 +1,10 @@
 ---
-description: 'I11. SMPSO in depth: particle swarm basics, the velocity update with inertia, C1, C2, r1 and r2, the constriction coefficient and the speed constraint, the leaders archive with crowding distance, personal bests and polynomial-mutation turbulence, with an interactive figure and the VAMOS code.'
+description: 'SMPSO in depth: particle swarm basics, the velocity update with inertia, C1, C2, r1 and r2, the constriction coefficient and the speed constraint, the leaders archive with crowding distance, personal bests and polynomial-mutation turbulence, with an interactive figure and the VAMOS code.'
 search:
   boost: 0.5
 ---
 
-# I11. SMPSO: multi-objective particle swarm optimization
+# SMPSO: multi-objective particle swarm optimization
 
 Every algorithm so far breeds children from parents with crossover and
 mutation. Particle swarm optimization (PSO), introduced by Kennedy and
@@ -121,7 +121,7 @@ in an archive of bounded size, by default the swarm size. VAMOS inserts the
 particles one at a time, as jMetal does: a particle that a leader dominates, or
 equals, is rejected; leaders that the particle dominates leave; and when the
 archive overflows, the leader with the smallest crowding distance (lesson
-[I3](crowding-distance.md)) is removed. Crowding distance [5] keeps the leaders
+[Crowding and tournaments](crowding-distance.md)) is removed. Crowding distance [5] keeps the leaders
 spread along the front, with the boundary leaders always kept.
 
 **Choosing a leader.** For each particle, two distinct leaders are drawn at
@@ -142,7 +142,7 @@ infeasible position, and between two infeasible ones the smaller violation
 wins.
 
 **Turbulence.** PSO has no mutation of its own. SMPSO adds polynomial mutation
-(lesson [I4](variation-operators.md#polynomial-mutation), [6]) to part of the
+(lesson [Real-coded operators](../operators/real-coded.md#polynomial-mutation), [6]) to part of the
 swarm, a *turbulence* that helps particles leave local optima. VAMOS mutates
 every sixth particle (indices 0, 6, 12, …) after it moves, with p_m = 1/n and
 η_m = 20 by default.
@@ -269,7 +269,7 @@ distances of the archive, computed once per iteration:
 
 The second draw skips the first index, so the two contestants always differ,
 the same trick as the parent tournament of NSGA-II (lesson
-[I3](crowding-distance.md#in-vamos)). The personal bests are updated after
+[Crowding and tournaments](crowding-distance.md#in-vamos)). The personal bests are updated after
 evaluation:
 
 ```python
@@ -363,7 +363,7 @@ the example shows.
 
 **Limits.** SMPSO needs a velocity, so VAMOS rejects binary, integer and
 permutation problems. The archive is bounded with crowding distance, which
-degrades with many objectives (lesson [A1](../advanced/many-objective.md)).
+degrades with many objectives (lesson [Many objectives](../advanced/many-objective.md)).
 The swarm is not elitist: the final swarm can be far worse than the archive,
 which is why the archive is the default result.
 
@@ -387,7 +387,7 @@ affordable.
 - VAMOS's defaults: w = 0.1, C₁ and C₂ in [1.5, 2.5], vmax_fraction 0.5,
   archive and swarm of 100.
 
-**Next level:** [A1. Many-objective optimization](../advanced/many-objective.md).
+**Next section:** [Real-coded operators](../operators/real-coded.md).
 
 ## References
 

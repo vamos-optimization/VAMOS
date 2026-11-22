@@ -1,10 +1,10 @@
 ---
-description: 'I7. SPEA2 in depth: strength and raw fitness, k-th nearest-neighbour density, environmental selection into a fixed-size archive, the truncation operator and mating selection, with an interactive figure and the VAMOS implementation.'
+description: 'SPEA2 in depth: strength and raw fitness, k-th nearest-neighbour density, environmental selection into a fixed-size archive, the truncation operator and mating selection, with an interactive figure and the VAMOS implementation.'
 search:
   boost: 0.5
 ---
 
-# I7. SPEA2: strength, density and archive truncation
+# SPEA2: strength, density and archive truncation
 
 NSGA-II sorts the population into fronts and breaks ties within a front by
 crowding distance. SPEA2, the second version of the Strength Pareto
@@ -16,10 +16,10 @@ in and adds a small density term, and the best solutions are kept in an
 
 When the archive overflows with non-dominated solutions, SPEA2 does not cut
 it in one shot as NSGA-II does with crowding distances (lesson
-[I3](crowding-distance.md)). It removes one solution at a time, always the one
+[Crowding and tournaments](crowding-distance.md)). It removes one solution at a time, always the one
 whose neighbours are closest, and measures the distances again after every
 removal. It is the second classic of the Pareto-based family of lesson
-[I6](beyond-nsga-ii.md#pareto-based-algorithms).
+[Families of algorithms](../basic/algorithm-families.md#pareto-based-algorithms).
 
 In this lesson you will learn:
 
@@ -54,7 +54,7 @@ SPEA2 assigns fitness to the union of the archive Aₜ and the current populatio
 Pₜ, M = N_A + N solutions in total. The **strength** of a solution is the number
 of solutions it dominates, and its **raw fitness** sums the strengths of the
 solutions that dominate it (≺ is Pareto dominance, lesson
-[B2](../basic/pareto-dominance.md)):
+[Pareto dominance](../basic/pareto-dominance.md)):
 
 <div class="vf-formula">S(i) = | { j ∈ Aₜ ∪ Pₜ :  i ≺ j } |
 R(i) = Σ_{j ∈ Aₜ ∪ Pₜ,  j ≺ i}  S(j)</div>
@@ -230,7 +230,7 @@ def _kth_neighbour_distance(dist: np.ndarray[Any, Any], k: int) -> np.ndarray[An
 `dom.sum(axis=1)` counts the solutions each one dominates, S; `dom.T @ strength`
 adds, for each solution, the strengths of the rows that dominate it, R. With
 constraints (the default `constraint_mode="feasibility"`), `dom` holds
-constrained domination instead (lesson [A5](../advanced/constrained.md)), so
+constrained domination instead (lesson [Constraints](../advanced/constrained.md)), so
 feasible solutions dominate infeasible ones.
 
 Environmental selection follows the two cases of the procedure:
@@ -321,7 +321,7 @@ the larger distance wins:
 Since D = 1 / (σᵏ + 2) is below 1 and decreases with σᵏ, comparing R and then
 σᵏ is the same as comparing F. A remaining tie is decided by a coin. The
 contestants are drawn as in NSGA-II's tournament (lesson
-[I3](crowding-distance.md#binary-tournament-selection)). Each generation forms
+[Crowding and tournaments](crowding-distance.md#binary-tournament-selection)). Each generation forms
 N pairs of winners, and each pair produces one offspring: VAMOS keeps the first
 child of the crossover and mutates it.
 
@@ -383,7 +383,7 @@ builder method.
   all of them and selection is decided by density alone, which rewards spread,
   not convergence. Ishibuchi, Tsukamoto and Nojima [5] showed this loss of
   selection pressure for NSGA-II and SPEA2 (lesson
-  [A1](../advanced/many-objective.md)).
+  [Many objectives](../advanced/many-objective.md)).
 - **When to use it.** Two or three objectives, when an evenly spread set of a
   given size matters, and the population is small enough for M² distances.
 
@@ -399,7 +399,7 @@ builder method.
   distances are lexicographically smallest, which tends to keep the extremes.
 - Parents come from the archive through binary tournaments on fitness.
 
-**Next:** [I8. MOEA/D](moead.md).
+**Next:** [MOEA/D](moead.md).
 
 ## References
 

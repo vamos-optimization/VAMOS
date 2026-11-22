@@ -1,12 +1,12 @@
 ---
-description: 'B2. Pareto dominance, weak dominance and incomparability; the Pareto set and front; non-dominated sets, ideal and nadir points, front shapes and knees, with an interactive dominance explorer.'
+description: 'Pareto dominance, weak dominance and incomparability; the Pareto set and front; non-dominated sets, ideal and nadir points, front shapes and knees, with an interactive dominance explorer.'
 search:
   boost: 0.5
 ---
 
-# B2. Pareto dominance and the Pareto front
+# Pareto dominance and the Pareto front
 
-Lesson [B1](multi-objective-problems.md) showed that two candidates can be
+Lesson [Multi-objective problems](multi-objective-problems.md) showed that two candidates can be
 incomparable. This lesson makes "better" precise for vectors, defines the
 Pareto set and front, and introduces the reference points used to normalize
 objectives.
@@ -102,7 +102,7 @@ The geometry of the front affects which methods work:
 - **Convex** fronts bulge towards the ideal point (ZDT1). Every point can be
   found with a weighted sum.
 - **Non-convex** (concave) fronts bulge away from it (ZDT2). Weighted sums only
-  find their extremes, as you saw in [B1](multi-objective-problems.md#turning-many-objectives-into-one-scalarization).
+  find their extremes, as you saw in [Multi-objective problems](multi-objective-problems.md#turning-many-objectives-into-one-scalarization).
 - **Disconnected** fronts have gaps (ZDT3). Algorithms must keep several
   separate groups of solutions.
 - **Degenerate** fronts have a lower dimension than m − 1, for example a curve
@@ -186,7 +186,7 @@ draws it and explains which set `result.F` holds.
 - The ideal and nadir points bound the front and are used to normalize the
   objectives.
 
-**Next:** [B3. What makes a good approximation?](quality-aspects.md)
+**Next:** [What makes a good approximation?](quality-aspects.md)
 
 ## References
 

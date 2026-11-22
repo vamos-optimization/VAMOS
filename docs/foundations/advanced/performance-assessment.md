@@ -1,10 +1,10 @@
 ---
-description: 'A10. Comparing stochastic multi-objective algorithms rigorously: experimental design, empirical attainment functions, statistical tests and effect sizes, anytime performance and common pitfalls, with VAMOS and MooCore code.'
+description: 'Comparing stochastic multi-objective algorithms rigorously: experimental design, empirical attainment functions, statistical tests and effect sizes, anytime performance and common pitfalls, with VAMOS and MooCore code.'
 search:
   boost: 0.5
 ---
 
-# A10. Comparing algorithms rigorously
+# Comparing algorithms rigorously
 
 "Algorithm A is better than algorithm B" is the most common claim in the
 field, and the easiest to get wrong. Evolutionary algorithms are randomized,
@@ -49,7 +49,7 @@ Decide the following **before** the first run [2, 3]:
 5. **The number of runs** and their seeds. A few dozen independent runs per
    algorithm and problem is common; decide the number in advance.
 6. **The reference data**: reference points, reference sets and normalization
-   bounds (lesson [B4](../basic/quality-indicators.md#choosing-and-using-indicators)).
+   bounds (lesson [Quality indicators](../basic/quality-indicators.md#choosing-and-using-indicators)).
 7. **The indicators and the statistical procedure**, including the correction
    for multiple comparisons.
 
@@ -113,7 +113,7 @@ Friedman test and pairwise Wilcoxon tests for the across-problem case; see
 
 A single budget gives a snapshot. Plotting the indicator against the number of
 evaluations, as the live figure of lesson
-[I1](../intermediate/nsga-ii.md#watch-it-converge) does, shows which algorithm
+[NSGA-II at a glance](../intermediate/nsga-ii.md#watch-it-converge) does, shows which algorithm
 is better early and which is better late. When the budget of a real application
 is uncertain, that is often the relevant comparison. [T07. Measure quality and
 progress with budget](../../tutorials/t07-quality-and-budget.md) measures saved
@@ -128,7 +128,7 @@ runs at several budgets.
 - Choosing the reference point, the reference set or the normalization after
   seeing the results.
 - Using an indicator that is not Pareto compliant as the only evidence
-  (lesson [B4](../basic/quality-indicators.md#pareto-compliance)).
+  (lesson [Quality indicators](../basic/quality-indicators.md#pareto-compliance)).
 - Generalizing beyond the problems tested. No algorithm is best on all
   problems [13]; a comparison supports a claim only about problems like those
   in it.

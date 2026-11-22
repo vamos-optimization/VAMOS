@@ -1,12 +1,12 @@
 ---
-description: 'I10. IBEA in depth: binary quality indicators (additive epsilon and hypervolume difference), the exponential fitness with its scaling c and parameter kappa, objective normalization, iterative removal with fitness updates and binary tournament mating, with an interactive figure and the VAMOS implementation.'
+description: 'IBEA in depth: binary quality indicators (additive epsilon and hypervolume difference), the exponential fitness with its scaling c and parameter kappa, objective normalization, iterative removal with fitness updates and binary tournament mating, with an interactive figure and the VAMOS implementation.'
 search:
   boost: 0.5
 ---
 
-# I10. IBEA: indicator-based fitness
+# IBEA: indicator-based fitness
 
-SMS-EMOA (lesson [I9](smsemoa.md)) selects with one unary indicator, the
+SMS-EMOA (lesson [SMS-EMOA](smsemoa.md)) selects with one unary indicator, the
 hypervolume, and pays for exact contributions at every step. The
 Indicator-Based Evolutionary Algorithm of Zitzler and Künzli, IBEA [1], takes a
 more general route. It asks the user for a **binary indicator**, a number that
@@ -32,7 +32,7 @@ In this lesson you will learn:
 
 ## Binary indicators
 
-The indicators of lesson [B4](../basic/quality-indicators.md) are *unary*: they
+The indicators of lesson [Quality indicators](../basic/quality-indicators.md) are *unary*: they
 give one number to one set. A **binary** indicator I(A, B) compares two sets
 [2]. IBEA applies it to single solutions, I(x₁, x₂), and Zitzler and Künzli
 require it to be **dominance preserving** [1]:
@@ -46,7 +46,7 @@ harder for any third solution to cover. VAMOS offers two such indicators.
 
 **Additive ε.** The smallest amount ε by which x₁ must be improved in every
 objective to weakly dominate x₂ (lesson
-[B4](../basic/quality-indicators.md#distance-based-indicators)):
+[Quality indicators](../basic/quality-indicators.md#distance-based-indicators)):
 
 <div class="vf-formula">I_ε+(x₁, x₂) = max_i ( f_i(x₁) − f_i(x₂) )</div>
 
@@ -54,7 +54,7 @@ It is ≤ 0 exactly when x₁ weakly dominates x₂, and small and positive when
 almost covers x₂.
 
 **Hypervolume difference.** With H(A) the hypervolume of A
-(lesson [B4](../basic/quality-indicators.md#hypervolume)) [3]:
+(lesson [Quality indicators](../basic/quality-indicators.md#hypervolume)) [3]:
 
 <div class="vf-formula">I_HD(x₁, x₂) = H(x₂) − H(x₁)            if x₁ dominates x₂
 I_HD(x₁, x₂) = H({x₁, x₂}) − H(x₁)      otherwise</div>
@@ -122,7 +122,7 @@ The update removes x\*'s term from the sums of the others, so the fitness of the
 remaining solutions is exactly the one they would have in Q without x\*; nothing
 is recomputed. The normalization and c stay those of the merged set. Removing
 one solution at a time matters for the same reason as in SPEA2 (lesson
-[I7](spea2.md)): when two solutions cover each other, the first removal lifts
+[SPEA2](spea2.md)): when two solutions cover each other, the first removal lifts
 the fitness of the second, which then survives.
 
 ## Mating selection
@@ -269,7 +269,7 @@ def _fitness_exponents(indicator: np.ndarray[Any, Any], kappa: float) -> np.ndar
   the log domain; with `engine="numba"`, a compiled loop gives the same removals.
 
 Mating ranks the survivors by fitness and reuses NSGA-II's tournament kernel
-(lesson [I3](crowding-distance.md#binary-tournament-selection)) with all
+(lesson [Crowding and tournaments](crowding-distance.md#binary-tournament-selection)) with all
 crowding distances set to zero:
 
 ```python
@@ -337,7 +337,7 @@ lists every builder method.
   every solution is non-dominated. Wagner, Beume and Naujoks [5] found that
   indicator-based algorithms, IBEA among them, kept converging on many-objective
   problems where NSGA-II and SPEA2 lost selection pressure (lesson
-  [A1](../advanced/many-objective.md)).
+  [Many objectives](../advanced/many-objective.md)).
 - **With SMS-EMOA.** Both remove one solution at a time by an indicator.
   SMS-EMOA measures exact hypervolume contributions, whose cost grows
   exponentially with m; IBEA with ε needs only pairwise differences.
@@ -361,7 +361,7 @@ lists every builder method.
   removed solution's term back to every survivor.
 - Parents come from binary tournaments on the updated fitness.
 
-**Next:** [I11. SMPSO](smpso.md).
+**Next:** [SMPSO](smpso.md).
 
 ## References
 
