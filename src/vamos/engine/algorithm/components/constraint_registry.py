@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from .constraint_jmetal import ConstrainedDominance, EpsilonConstrained, PushPullSearch, SelfAdaptivePenalty, StochasticRanking
 from .constraint_orders import AdaptiveTradeoff, InfeasibilityDriven
 from .constraint_penalties import DynamicPenalty, ShiftPenalty, StaticPenalty, ViolationObjective
-from .constraint_technique import ConstraintHandlingTechnique
+from .constraint_technique import ConstraintHandlingTechnique, TechniqueParameter
 from .constraint_two_rankings import TwoRankings
 
 #: The parameters of each technique, in the order of jMetal's constructors.
@@ -36,6 +36,15 @@ CONSTRAINT_HANDLING_PARAMETERS: dict[str, tuple[str, ...]] = {
     "infeasibility_driven": ("proportion",),
     "adaptive_tradeoff": (),
 }
+
+#: The optional parameters of each technique, with their defaults: Dam and Truong's options of
+#: ``violation_objective``, whose defaults rank as it did without them.
+OPTIONAL_PARAMETERS: dict[str, dict[str, TechniqueParameter]] = {
+    "violation_objective": {"violation_norm": "l1", "ratio_objective": False, "cdf_alpha": 0.0, "feasible_first": False},
+}
+
+#: The norms of ``violation_objective``'s violation: the sum, the sum of squares and the largest violation.
+VIOLATION_NORMS: tuple[str, ...] = ("l1", "l2_squared", "linf")
 
 #: The techniques of jMetal's package ``util.constrainthandling``, in the order of Evolver's spaces.
 JMETAL_TECHNIQUES: tuple[str, ...] = (
@@ -78,14 +87,16 @@ _RANGES: dict[str, tuple[float, float, bool]] = {
     "alpha": (0.0, math.inf, False),
     "beta": (0.0, math.inf, False),
     "proportion": (0.0, 1.0, False),
+    "cdf_alpha": (0.0, math.inf, True),
 }
 
 
-def normalize_constraint_handling(value: object) -> tuple[str, dict[str, float]]:
+def normalize_constraint_handling(value: object) -> tuple[str, dict[str, TechniqueParameter]]:
     """Validate a technique given as a name or as ``(name, parameters)``; ``None`` is ``cdp``.
 
     Every parameter of the technique is required, as in jMetal, and must lie in jMetal's range; those of
-    the techniques that jMetal does not have must be positive.
+    the techniques that jMetal does not have must be positive. The optional parameters of
+    :data:`OPTIONAL_PARAMETERS` keep only the values given, and take their defaults when the technique is built.
     """
     if value is None:
         return ("cdp", {})
@@ -97,26 +108,48 @@ def normalize_constraint_handling(value: object) -> tuple[str, dict[str, float]]
         raise ValueError(f"constraint_handling must be a technique name or (name, parameters); got {value!r}.")
     if name not in CONSTRAINT_HANDLING_PARAMETERS:
         raise ValueError(f"Unknown constraint-handling technique {name!r}; the techniques are {', '.join(CONSTRAINT_HANDLING_TECHNIQUES)}.")
-    expected = CONSTRAINT_HANDLING_PARAMETERS[name]
-    unknown = sorted(set(raw) - set(expected))
+    expected, optional = CONSTRAINT_HANDLING_PARAMETERS[name], OPTIONAL_PARAMETERS.get(name, {})
+    unknown = sorted(set(raw) - set(expected) - set(optional))
     missing = [key for key in expected if key not in raw]
     if unknown or missing:
-        needs = ", ".join(expected) if expected else "no parameters"
+        needs = ", ".join((*expected, *(f"[{key}]" for key in optional))) or "no parameters"
         raise ValueError(f"constraint_handling {name!r} takes {needs}; unknown: {unknown}, missing: {missing}.")
-    params: dict[str, float] = {}
-    for key in expected:
-        number = float(raw[key])
-        low, high, low_closed = _RANGES[key]
-        if not (number >= low if low_closed else number > low) or number > high or math.isnan(number):
-            interval = f"{'[' if low_closed else '('}{low}, {high}]"
-            raise ValueError(f"constraint_handling {name!r}: {key} must lie in {interval}; got {number}.")
-        params[key] = number
+    params: dict[str, TechniqueParameter] = {key: _number(name, key, raw[key]) for key in expected}
+    for key, default in optional.items():
+        if key in raw:
+            params[key] = _option(name, key, raw[key], default)
+    if "cdf_alpha" in params and params.get("ratio_objective") is not True:
+        raise ValueError(f"constraint_handling {name!r}: cdf_alpha weighs the ratio objective, so it needs ratio_objective True.")
     return (name, params)
+
+
+def _number(name: str, key: str, value: object) -> float:
+    if isinstance(value, (bool, str)) or not isinstance(value, (int, float)):
+        raise ValueError(f"constraint_handling {name!r}: {key} must be a number; got {value!r}.")
+    number = float(value)
+    low, high, low_closed = _RANGES[key]
+    if not (number >= low if low_closed else number > low) or number > high or math.isnan(number):
+        interval = f"{'[' if low_closed else '('}{low}, {high}]"
+        raise ValueError(f"constraint_handling {name!r}: {key} must lie in {interval}; got {number}.")
+    return number
+
+
+def _option(name: str, key: str, value: object, default: TechniqueParameter) -> TechniqueParameter:
+    if isinstance(default, bool):
+        if not isinstance(value, bool):
+            raise ValueError(f"constraint_handling {name!r}: {key} must be True or False; got {value!r}.")
+        return value
+    if isinstance(default, str):
+        if value not in VIOLATION_NORMS:
+            raise ValueError(f"constraint_handling {name!r}: {key} must be one of {', '.join(VIOLATION_NORMS)}; got {value!r}.")
+        return str(value)
+    return _number(name, key, value)
 
 
 def make_constraint_handling(value: object) -> ConstraintHandlingTechnique:
     """A new technique, with no state, from a name or ``(name, parameters)``; ``None`` is ``cdp``."""
-    name, params = normalize_constraint_handling(value)
+    name, given = normalize_constraint_handling(value)
+    params = {key: float(number) for key, number in given.items() if key in CONSTRAINT_HANDLING_PARAMETERS[name]}
     if name == "cdp":
         return ConstrainedDominance()
     if name == "violated_constraints":
@@ -132,7 +165,13 @@ def make_constraint_handling(value: object) -> ConstraintHandlingTechnique:
     if name == "dynamic_penalty":
         return DynamicPenalty(**params)
     if name == "violation_objective":
-        return ViolationObjective()
+        options = {**OPTIONAL_PARAMETERS[name], **given}
+        return ViolationObjective(
+            str(options["violation_norm"]),
+            ratio_objective=options["ratio_objective"] is True,
+            cdf_alpha=float(options["cdf_alpha"]),
+            feasible_first=options["feasible_first"] is True,
+        )
     if name == "two_rankings":
         return TwoRankings()
     if name == "shift_penalty":
@@ -149,6 +188,8 @@ __all__ = [
     "CONSTRAINT_HANDLING_TECHNIQUES",
     "FRONT_TECHNIQUES",
     "JMETAL_TECHNIQUES",
+    "OPTIONAL_PARAMETERS",
+    "VIOLATION_NORMS",
     "make_constraint_handling",
     "normalize_constraint_handling",
 ]

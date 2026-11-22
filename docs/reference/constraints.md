@@ -141,7 +141,7 @@ more, `two_rankings`, `infeasibility_driven` and `adaptive_tradeoff`:
 | --- | --- | --- |
 | `static_penalty` | `coefficient` | A static penalty: Pareto dominance over every objective plus `coefficient` times the overall violation, the sum of the positive constraint values. |
 | `dynamic_penalty` | `constant`, `alpha`, `beta` | Joines and Houck's non-stationary penalty: Pareto dominance over every objective plus `(constant * k) ** alpha` times the sum of the violations raised to `beta`, where `k` is the generation. |
-| `violation_objective` | none | The overall violation as one more objective (Coello, 2000): Pareto dominance over the objectives and the violation. |
+| `violation_objective` | optional `violation_norm`, `ratio_objective`, `cdf_alpha`, `feasible_first` | The overall violation as one more objective (Coello, 2000): Pareto dominance over the objectives and the violation; Dam and Truong's options change the violation's norm, add the ratio of violated constraints, or rank feasible solutions first (NSGA-II only). |
 | `two_rankings` | none | NSGA-II only. Ma, Wang and Song's ToR: the best by `alpha * R^c + (1 - alpha) * R^p`, positions by the constrained-domination principle and by Pareto dominance, one solution per front. |
 | `shift_penalty` | `constant` | Ma and Wang's ShiP: Pareto dominance over objectives that move each infeasible solution towards its local feasible nadir and add its violation. |
 | `infeasibility_driven` | `proportion` | NSGA-II only. Ray, Singh, Isaacs and Smith's IDEA: the best infeasible solutions, `proportion` of the population, rank above the feasible ones, one solution per front. |
@@ -230,6 +230,36 @@ constraint violation, without defining it. VAMOS's tournament compares ShiP's
 ranks of the current population, as for every technique, so while no solution
 is feasible it compares by Pareto dominance alone. ShiP+, the paper's
 archive-assisted algorithm, is not part of VAMOS.
+
+`violation_objective` takes the options of T. M. Dam and L. V. Truong, "A
+Generalized Framework for Multi-objective-based Constraint Handling Technique"
+(International Journal of Control, Automation, and Systems 22(10):3240–3252,
+2024, section 3). Each is optional, and without them the technique ranks as it
+does without options:
+
+- `violation_norm`: the violation is `V = ||v||_p^p` of the positive constraint
+  values `v` (Def. 7): their sum (`l1`, the default), the sum of their squares
+  (`l2_squared`) or the largest (`linf`).
+- `ratio_objective`: the constraint violation ratio `R` (Def. 6), the weighted
+  share of the violated constraints, is one more objective, before `V`. VAMOS
+  has no weights of its own for the constraints, so they are equal, or, with
+  `cdf_alpha` above 0, those of the CDF (section 3.2): `1 + cdf_alpha * f_j /
+  sum_i f_i`, where `f_j` is how many solutions of the population violate
+  constraint `j`. The paper uses `cdf_alpha = 0.5`; `cdf_alpha` needs
+  `ratio_objective`. The paper's shortened framework with `R` and without `V`
+  is not offered.
+- `feasible_first`: Algorithm A's survival, a total order, so NSGA-II only. The
+  feasible solutions come first, by fronts and crowding distance of the
+  objectives, then the infeasible ones by `R` (with `ratio_objective`) and then
+  `V`, in ascending order, as `numpy.lexsort` with `R` as the primary key;
+  equal values keep the order of the population. With it, the added
+  objectives order the infeasible solutions only, so it is the
+  constrained-domination principle with another order of the infeasible ones,
+  which the paper's results on BNH show.
+
+The tuning spaces offer `violation_objective_norm`, `violation_objective_ratio`
+(`none`, `equal` or `cdf`, whose `violation_objective_cdf_alpha` ranges over
+[0.1, 2], default 0.5) and, in NSGA-II's only, `violation_objective_feasible_first`.
 
 `infeasibility_driven` and `adaptive_tradeoff` are defined for NSGA-II, and,
 like `two_rankings`, order the population totally, so that NSGA-II's

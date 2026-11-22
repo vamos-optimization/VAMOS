@@ -264,7 +264,10 @@ def test_the_constrained_spaces_offer_the_new_techniques(space_name: str) -> Non
         "dynamic_penalty_alpha",
         "dynamic_penalty_beta",
     ]
-    assert technique.production("violation_objective") == ()
+    # Dam and Truong's options (test_constraint_handling_violation_variants); feasible_first is NSGA-II's only.
+    options = ["violation_objective_norm", "violation_objective_ratio"]
+    options += ["violation_objective_feasible_first"] if space_name == "nsgaii_constrained" else []
+    assert [child.name for child in technique.production("violation_objective")] == options
 
     defaults = dict(space.default_values())
     static = {**defaults, "constraint_handling": "static_penalty", "static_penalty_coefficient": 250.0}
