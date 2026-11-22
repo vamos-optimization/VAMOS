@@ -267,7 +267,7 @@ def test_constraint_handling_figure_ranks_match_vamos() -> None:
         stochastic_ranking_ranks,
         violation,
     )
-    from vamos.engine.algorithm.components.constraint_handling import make_constraint_handling
+    from vamos.engine.algorithm.components.constraint_handling import CONSTRAINT_HANDLING_TECHNIQUES, make_constraint_handling
     from vamos.foundation.kernel.registry import resolve_kernel
 
     kernel = resolve_kernel("numpy")
@@ -281,7 +281,7 @@ def test_constraint_handling_figure_ranks_match_vamos() -> None:
         "reduction_rate": 0.1,
     }
     STATE = ("pushing", "epsilon", "generation", "population_size", "phi")  # what a run teaches a technique
-    techniques: list[tuple[str, dict[str, float], dict[str, float]]] = [
+    techniques: list[tuple[str, dict[str, Any], dict[str, Any]]] = [
         ("cdp", {}, {}),
         ("violated_constraints", {}, {}),
         ("epsilon_constrained", {"initial_quantile": 0.2, "exponent": 5.0, "decay_fraction": 0.8}, {"epsilon": 0.25}),
@@ -291,11 +291,20 @@ def test_constraint_handling_figure_ranks_match_vamos() -> None:
         ("static_penalty", {"coefficient": 2.0}, {}),
         ("dynamic_penalty", {"constant": 0.5, "alpha": 2.0, "beta": 2.0}, {"generation": 3.0}),
         ("violation_objective", {}, {}),
+        ("violation_objective", {"violation_norm": "l2_squared"}, {}),
+        ("violation_objective", {"violation_norm": "linf", "ratio_objective": True}, {}),
+        ("violation_objective", {"ratio_objective": True, "cdf_alpha": 0.5}, {}),
+        ("violation_objective", {"feasible_first": True}, {}),
+        ("violation_objective", {"violation_norm": "linf", "ratio_objective": True, "cdf_alpha": 0.5, "feasible_first": True}, {}),
         ("two_rankings", {}, {}),
         ("shift_penalty", {"constant": 2.0}, {}),
         ("infeasibility_driven", {"proportion": 0.3}, {"population_size": 5}),
         ("adaptive_tradeoff", {}, {"phi": 0.4}),
+        ("multiple_constraint_ranking", {}, {}),
+        ("ensemble", {}, {"generation": 3.0}),
+        ("ensemble", {"nds_weight": 0.0, "cdp_weight": 0.5, "mcr_weight": 1.0, "dpf_weight": 0.25}, {"generation": 7.0}),
     ]
+    assert {name for name, _, _ in techniques} | {"stochastic_ranking"} == set(CONSTRAINT_HANDLING_TECHNIQUES)
     populations = []
     for size in (6, 10, 14):
         for _ in range(4):
@@ -327,9 +336,10 @@ process.stdout.write(JSON.stringify({json.dumps(cases)}.map((c) => {{
         F, G = np.asarray(case["F"]), np.asarray(case["G"])
         params = {key: value for key, value in case["options"].items() if key not in STATE}
         technique: Any = make_constraint_handling((case["name"], params))
+        learner = technique.penalty if case["name"] == "ensemble" else technique  # the ensemble's dynamic penalty counts generations
         for key in STATE:
             if key in case["options"]:
-                setattr(technique, key, case["options"][key])
+                setattr(learner, key, case["options"][key])
         expected = technique.ranks(kernel, F, G, np.random.default_rng(0))
         assert result["ranks"] == expected.tolist(), (case["name"], case["options"], F.tolist(), G.tolist())
         pareto = pareto_ranks(kernel, F)

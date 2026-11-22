@@ -1,5 +1,5 @@
 ---
-description: 'Constraint-handling techniques in VAMOS: feasibility rules, epsilon-constrained, push and pull search, stochastic ranking, static, dynamic, self-adaptive and shift-based penalties, the violation as an objective, ToR, IDEA and ATM, with their parameters, papers and the algorithms that accept each, an interactive figure and VAMOS code.'
+description: 'Constraint-handling techniques in VAMOS: feasibility rules, epsilon-constrained, push and pull search, stochastic ranking, static, dynamic, self-adaptive and shift-based penalties, the violation as an objective and its generalization by Dam and Truong, ToR, IDEA, ATM, MCR and the ensemble of techniques, with their parameters, papers and the algorithms that accept each, an interactive figure and VAMOS code.'
 search:
   boost: 0.5
 ---
@@ -8,7 +8,7 @@ search:
 
 Lesson [Constraints](constrained.md) explained constrained domination, the rule
 that ranks feasible solutions first, and named a few alternatives. VAMOS offers
-thirteen techniques that take the place of that rule when an algorithm ranks a
+fifteen techniques that take the place of that rule when an algorithm ranks a
 constrained population. They differ in one question: how much may a solution
 that breaks the constraints gain from good objectives? This lesson answers it
 for each technique, with its parameters, the paper that introduced it and the
@@ -20,9 +20,9 @@ In this lesson you will learn:
 - the feasibility rules, and the techniques that relax them: ε-constrained,
   push and pull search and stochastic ranking;
 - the penalties, from static to self-adaptive and shift-based, and the
-  violation as one more objective;
-- the three techniques that order the population totally, ToR, IDEA and ATM,
-  and why VAMOS offers them for NSGA-II only;
+  violation as one more objective, with Dam and Truong's options;
+- the five techniques that order the population totally, ToR, IDEA, ATM, MCR
+  and the ensemble, and why VAMOS offers them for NSGA-II only;
 - which algorithms accept which technique.
 
 ## How a technique plugs in
@@ -39,25 +39,27 @@ SMS-EMOA, the survival score in AGE-MOEA. The parent tournament compares the
 technique's ranks of the current population.
 
 A builder sets the technique with `.constraint_handling(name, **parameters)`.
-Every parameter is required, and a technique other than `cdp` needs the
-default `constraint_mode="feasibility"`. `cdp`, the default, keeps each
-algorithm's own feasibility-first survival. Three techniques change during the
-run: `epsilon_constrained`, `push_pull` and `dynamic_penalty` follow its
-**progress**, the evaluations before the offspring's over the evaluation
-budget.
+Every parameter is required, except the options of `violation_objective` and
+the weights of `ensemble`, which have defaults, and a technique other than
+`cdp` needs the default `constraint_mode="feasibility"`. `cdp`, the default,
+keeps each algorithm's own feasibility-first survival. Four techniques change
+during the run: `epsilon_constrained`, `push_pull`, `dynamic_penalty` and
+`ensemble`, which includes a dynamic penalty, follow its **progress**, the
+evaluations before the offspring's over the evaluation budget.
 
 | Algorithm | Techniques it accepts |
 | --- | --- |
-| NSGA-II | all thirteen |
-| NSGA-III, SMS-EMOA, AGE-MOEA | all but `two_rankings`, `infeasibility_driven` and `adaptive_tradeoff` |
+| NSGA-II | all fifteen |
+| NSGA-III, SMS-EMOA, AGE-MOEA | all but `two_rankings`, `infeasibility_driven`, `adaptive_tradeoff`, `multiple_constraint_ranking`, `ensemble`, and `violation_objective` with `feasible_first` |
 | RVEA, SMPSO | `cdp`, `violated_constraints`, `epsilon_constrained`, `push_pull` |
 | MOEA/D | none: its `subproblem_update_criterion` is `feasibility_rules`, `improved_epsilon` or `violation_threshold` |
 | SPEA2, IBEA | none: they keep their own feasibility-first selection |
 | CCMO, C-TAEA, ToP, CMOEA-MS | none: they are algorithms designed for constraints |
 
 RVEA and SMPSO compare single solutions rather than rank fronts, so they take
-only the techniques that judge the violation of one solution; the last three
-belong to NSGA-II, as the source states:
+only the techniques that judge the violation of one solution. The last five,
+and `violation_objective` with `feasible_first`, belong to NSGA-II, as the
+source states:
 
 ```python
 # Excerpt from src/vamos/engine/algorithm/components/constraint_technique.py
@@ -67,11 +69,24 @@ PAIRWISE_TECHNIQUES: tuple[str, ...] = ("cdp", "violated_constraints", "epsilon_
 
 #: The techniques that their papers define for NSGA-II only. Each orders the population totally, one solution per
 #: front, which would take the place of the niching, hypervolume contributions or survival scores of the others.
-NSGAII_ONLY_TECHNIQUES: tuple[str, ...] = ("two_rankings", "infeasibility_driven", "adaptive_tradeoff")
+NSGAII_ONLY_TECHNIQUES: tuple[str, ...] = (
+    "two_rankings",
+    "infeasibility_driven",
+    "adaptive_tradeoff",
+    "multiple_constraint_ranking",
+    "ensemble",
+)
+
+def nsgaii_only(name: str, params: Mapping[str, TechniqueParameter]) -> bool:
+    """Whether the technique, with these parameters, is defined for NSGA-II only.
+
+    ``violation_objective`` is, with ``feasible_first``: Dam and Truong's survival orders the population totally.
+    """
+    return name in NSGAII_ONLY_TECHNIQUES or (name == "violation_objective" and params.get("feasible_first") is True)
 ```
 
 The first six techniques are those of jMetal's package
-`util.constrainthandling`, which Evolver tunes; the other seven are not in
+`util.constrainthandling`, which Evolver tunes; the other nine are not in
 jMetal.
 
 ## Feasibility rules
@@ -205,21 +220,40 @@ solution while none is feasible, keep their objectives.
 
 ## The violation as an objective
 
-**`violation_objective`** (no parameters) ranks (f₁, …, f_m, CV) by Pareto
-dominance. Coello Coello [8] studied how to treat constraints as objectives;
+**`violation_objective`** ranks (f₁, …, f_m, CV) by Pareto dominance. Coello
+Coello [8] studied how to treat constraints as objectives; without options,
 VAMOS uses the simplest form, one extra objective. An infeasible solution with
 better objectives than every feasible one is then non-dominated, so the
 population keeps a whole trade-off between objectives and violation, and fewer
 of its members are feasible at the end.
 
+Dam and Truong [15] generalized that form, and `violation_objective` takes
+their options, each optional:
+
+- `violation_norm` measures the violation V as the sum of the positive
+  constraint values (`l1`, the default, which is CV), the sum of their squares
+  (`l2_squared`) or the largest (`linf`).
+- `ratio_objective=True` adds one more objective before V, the constraint
+  violation ratio R: the weighted share of the constraints that a solution
+  violates. The weights are equal or, with `cdf_alpha` above 0,
+  1 + cdf_alpha · f_j / Σ_i f_i, where f_j counts the solutions that violate
+  constraint j, so a constraint that many solutions violate weighs more. The
+  paper uses `cdf_alpha=0.5`.
+- `feasible_first=True` replaces Pareto dominance with the paper's survival:
+  the feasible solutions first, by fronts and crowding distance of the
+  objectives, then the infeasible ones in ascending order of R and then V. It
+  amounts to constrained domination with another order of the infeasible
+  solutions, and it is a total order, so it is for NSGA-II only, like the
+  techniques of the next section.
+
 ## Total orders, NSGA-II only
 
-Three techniques define a selection rather than a dominance relation. VAMOS
+Five techniques define a selection rather than a dominance relation. VAMOS
 returns each as a **total order**, one solution per front, so NSGA-II's
 replacement, which keeps whole fronts, keeps exactly the solutions the paper
 selects, and crowding distance never decides. In NSGA-III, SMS-EMOA or AGE-MOEA
 that order would replace their own diversity mechanism, so they reject the
-three.
+five.
 
 **`two_rankings`** (no parameters) is Ma, Wang and Song's ToR [9]. It sorts the
 population twice by fronts and then by crowding distance: once with
@@ -258,6 +292,42 @@ the feasible share chooses one of three phases:
   φ is the feasible share of the last population that survived.
 - **All feasible:** fronts and crowding distance of the objectives.
 
+The last two follow Fukumoto and Oyama's framework [17], which brings
+techniques designed for one objective to NSGA-II through a scalar **NSGA-II
+fitness**: the Pareto rank minus the crowding distance, scaled so as to keep
+the order of the ranks. The papers do not say how; VAMOS scales the
+finite distances of the population into [0, 1/4] and gives the extremes of each
+front 1/2, so the extremes stay preferred, as in NSGA-II.
+
+**`multiple_constraint_ranking`** (no parameters) is Garcia, de Lima, Lemonge
+and Jacob's MCR [16]. It ranks the population separately by the number of
+violated constraints, R_Nv, by the violation of each constraint j, R_φ^j, and,
+when some solution is feasible, by the NSGA-II fitness of the objectives, R_f,
+and adds the ranks:
+
+<div class="vf-formula">fitness = R_Nv + Σ_j R_φ^j  (+ R_f when some solution is feasible)
+rank of a value = 1 + the number of solutions with a smaller value</div>
+
+Equal values share a rank, and the smallest fitness comes first. Only ranks
+count, not magnitudes, so a constraint with large values does not outweigh the
+others.
+
+**`ensemble`** (optional `nds_weight`, `cdp_weight`, `mcr_weight`,
+`dpf_weight`) is Vodopija, Oyama and Filipič's ensemble [18]. Four members
+give each solution a quality, lower being better: NDS, the NSGA-II fitness
+with Pareto dominance alone; CDP, the same with constrained domination; MCR's
+fitness; and DPF, the NDS fitness plus Joines and Houck's dynamic penalty with
+C = 0.5 and α = β = 2, settings that the paper does not give. Each quality is
+scaled min-max into [0, 1] over the population, and the solutions are ordered
+by
+
+<div class="vf-formula">c_e = w_NDS · c_NDS + w_CDP · c_CDP + w_MCR · c_MCR + w_DPF · c_DPF</div>
+
+The weights default to 1/4 each, as in the paper, and are normalized to sum 1,
+so at least one must be above 0; a member of weight 0 takes no part. DPF's
+penalty grows with the generation, so the ensemble lets infeasible solutions
+compete early and pushes them back later.
+
 ## Compare the techniques
 
 The figure ranks ten solutions with two objectives and two constraints. A to E
@@ -278,8 +348,17 @@ point that the technique actually ranks.
    in all three, does not.
 6. `infeasibility_driven` with proportion 0.2: two infeasible solutions, F and
    H, rank above every feasible one.
+7. `multiple_constraint_ranking`: H comes ahead of F. Its objectives rank
+   better, and only ranks count, not that its violation, 0.35, is seven times
+   F's.
+8. `ensemble` at generation 1: H and F rank second and third, ahead of the
+   feasible B, C and D. At generation 30 the dynamic penalty pushes both behind
+   B, C and D.
+9. `violation_objective` with `feasible_first`: the feasible solutions first,
+   then F, G, J, H and I by CV, one per front. With `ratio_objective` as well,
+   J and H, which violate one constraint, overtake G, which violates two.
 
-<div class="vf-widget" data-vf-widget="constraint-techniques"><p class="vf-fallback">Interactive figure: ten solutions with two objectives and two constraints, ranked into fronts by each of the thirteen constraint-handling techniques of VAMOS, with the parameters of each technique, the objectives that penalties rank and the algorithms that accept the technique. It needs JavaScript.</p></div>
+<div class="vf-widget" data-vf-widget="constraint-techniques"><p class="vf-fallback">Interactive figure: ten solutions with two objectives and two constraints, ranked into fronts by each of the fifteen constraint-handling techniques of VAMOS, with the parameters and options of each technique, the objectives that penalties rank and the algorithms that accept the technique. It needs JavaScript.</p></div>
 
 ## In VAMOS
 
@@ -346,6 +425,8 @@ techniques = [
     ("two_rankings", {}),
     ("infeasibility_driven", {"proportion": 0.2}),
     ("adaptive_tradeoff", {}),
+    ("multiple_constraint_ranking", {}),
+    ("ensemble", {}),
 ]
 for name, parameters in techniques:
     config = (
@@ -374,6 +455,8 @@ violation_objective                 7 feasible of 100, feasible front of 7
 two_rankings                        100 feasible of 100, feasible front of 64
 infeasibility_driven proportion=0.2 80 feasible of 100, feasible front of 80
 adaptive_tradeoff                   100 feasible of 100, feasible front of 100
+multiple_constraint_ranking         100 feasible of 100, feasible front of 56
+ensemble                            100 feasible of 100, feasible front of 100
 ```
 
 - With coefficient 1, a violation costs little next to the objectives, and
@@ -382,6 +465,8 @@ adaptive_tradeoff                   100 feasible of 100, feasible front of 100
 - The violation as an objective keeps a trade-off between objectives and
   violation, and only a few of its solutions are feasible.
 - IDEA keeps 20 infeasible solutions, a fifth of the population, by design.
+- ToR, ATM, MCR and the ensemble end with a feasible population, as `cdp`
+  does, but keep feasible fronts of different sizes.
 
 One seed shows what a technique does, not which one is better. Compare
 techniques over many seeds and problems, as lesson
@@ -400,12 +485,15 @@ details open.
   objectives compete, by a shrinking threshold, a first phase without
   constraints or a coin.
 - `static_penalty`, `dynamic_penalty`, `self_adaptive_penalty` and
-  `shift_penalty` rank modified objectives; `violation_objective` adds CV as an
-  objective.
-- `two_rankings`, `infeasibility_driven` and `adaptive_tradeoff` return a total
-  order and are NSGA-II only; RVEA and SMPSO take the four techniques that
-  judge single solutions, and MOEA/D has its own update criteria.
-- Every parameter is required, and techniques that change during a run follow
+  `shift_penalty` rank modified objectives; `violation_objective` adds the
+  violation as an objective, measured as Dam and Truong's options choose.
+- `two_rankings`, `infeasibility_driven`, `adaptive_tradeoff`,
+  `multiple_constraint_ranking` and `ensemble`, and `violation_objective` with
+  `feasible_first`, return a total order and are NSGA-II only; RVEA and SMPSO
+  take the four techniques that judge single solutions, and MOEA/D has its own
+  update criteria.
+- Every parameter is required, except the options of `violation_objective` and
+  the weights of `ensemble`, and techniques that change during a run follow
   the evaluations over the budget.
 
 **Next:** [CCMO](ccmo.md).
@@ -439,3 +527,11 @@ details open.
 [13] Li, J.-P., Wang, Y., Yang, S., and Cai, Z. (2016). A comparative study of constraint-handling techniques in evolutionary constrained multiobjective optimization. *Proceedings of the 2016 IEEE Congress on Evolutionary Computation*, 4175–4182.
 
 [14] Deb, K., Pratap, A., and Meyarivan, T. (2001). [Constrained test problems for multi-objective evolutionary optimization](https://doi.org/10.1007/3-540-44719-9_20). *Evolutionary Multi-Criterion Optimization – EMO 2001*, Lecture Notes in Computer Science 1993, 284–298.
+
+[15] Dam, T. M., and Truong, L. V. (2024). A generalized framework for multi-objective-based constraint handling technique. *International Journal of Control, Automation, and Systems*, 22(10), 3240–3252.
+
+[16] Garcia, R. P., de Lima, B. S. L. P., Lemonge, A. C. de C., and Jacob, B. P. (2017). A rank-based constraint handling technique for engineering design optimization problems solved by genetic algorithms. *Computers and Structures*, 187, 77–87.
+
+[17] Fukumoto, H., and Oyama, A. (2018). A generic framework for incorporating constraint handling techniques into multi-objective evolutionary algorithms. *Applications of Evolutionary Computation – EvoApplications 2018*, Lecture Notes in Computer Science 10784, 634–649.
+
+[18] Vodopija, A., Oyama, A., and Filipič, B. (2019). Ensemble-based constraint handling in multiobjective optimization. *Proceedings of the Genetic and Evolutionary Computation Conference Companion – GECCO '19*, 2072–2075.
