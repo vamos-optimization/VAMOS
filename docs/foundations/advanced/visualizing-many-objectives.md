@@ -189,8 +189,11 @@ draws, and an objective without spread gets a range of 1.
 ```
 
 The scale depends on the set. Two sets drawn in two calls get two different
-scales, so stack them into one matrix, or normalize both with the same bounds,
-such as the ideal and nadir points of a reference front, before comparing them.
+scales, even when they were normalized with the same bounds beforehand, because
+the helper rescales every matrix to its own minima and maxima again. To compare
+sets on one scale, stack them into one matrix and draw it in one call, or draw
+the lines yourself on common bounds, such as the ideal and nadir points of a
+reference front.
 
 ### Brushing
 
