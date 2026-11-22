@@ -96,7 +96,9 @@ f_M = (1 + g) sin(x₁π/2)</div>
         F_res = (1.0 + g[:, None]) * F
 ```
 
-The distance variables are optimal at 0.5, where g = 0. The seven problems
+In DTLZ1–DTLZ5 the distance variables are optimal at 0.5, where g = 0. DTLZ6
+(g = Σ x_i^0.1) and DTLZ7 (g = 1 + 9 times their mean) are smallest with them at
+0. The seven problems
 combine a few position shapes with a few distance functions:
 
 | Problem | Default k | Front | What it adds |
@@ -330,7 +332,8 @@ objectives and variables and are the subject of the next lesson.
 
 - ZDT builds two-objective problems from f₁, g and h; each of ZDT1–ZDT6 adds one
   difficulty, and all of them are separable with the Pareto set on a bound.
-- DTLZ has M − 1 position and k distance variables, optimal at 0.5; DTLZ1 and
+- DTLZ has M − 1 position and k distance variables, optimal at 0.5 (at 0 in
+  DTLZ6 and DTLZ7); DTLZ1 and
   DTLZ3 have local fronts, DTLZ4 and DTLZ6 are biased, DTLZ5 and DTLZ6 are
   degenerate and DTLZ7 is disconnected.
 - Bias crowds uniform decision variables into part of the front; on DTLZ4 a

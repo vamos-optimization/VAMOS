@@ -38,8 +38,11 @@ groups:
 ZDT [2] writes it as f₁ = x₁ and f₂ = g(x₂, …, x_n) h(f₁, g): h fixes the shape
 of the front and g its difficulty. DTLZ [3] extends it to any number of
 objectives, and WFG [4] builds problems from a toolkit of transformations.
-Because the parts are separate, the Pareto set is known exactly: every
-solution with g at its minimum, whatever the position variables. Lesson
+Because the parts are separate, the Pareto set is known exactly. On a
+connected front it is every solution with g at its minimum, whatever the
+position variables. On a disconnected front, such as ZDT3's or DTLZ7's, part of
+that minimum-g surface is dominated by the rest, so the Pareto set keeps only
+its non-dominated part. Lesson
 [ZDT, DTLZ and WFG](continuous.md) shows the definitions.
 
 ## Front shapes
@@ -109,7 +112,8 @@ complicated Pareto sets, and in LSMOP the optimal value of every distance
 variable depends on x₁ [6].
 
 Where the Pareto set lies matters too. ZDT1's distance variables are optimal at
-0, the lower bound, and DTLZ's at 0.5, the centre of the domain. An operator
+0, the lower bound, and those of DTLZ1–DTLZ5 at 0.5, the centre of the domain
+(DTLZ6's and DTLZ7's at 0). An operator
 that puts extra probability on a bound, as clipping to the bounds does, finds
 the first more easily, and one that is biased towards the centre the second.
 Huband et al. [4] recommend avoiding both. Most WFG problems move the optimum
