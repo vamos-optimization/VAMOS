@@ -469,6 +469,7 @@ for example in examples:
             "basic/pareto-dominance",
             "basic/quality-aspects",
             "basic/quality-indicators",
+            "basic/genetic-algorithms",
             "basic/algorithm-families",
             "intermediate/nsga-ii",
             "intermediate/non-dominated-sorting",
