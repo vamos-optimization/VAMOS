@@ -143,7 +143,7 @@ lists every field.
 | Fast non-dominated sorting | [Non-dominated sorting](non-dominated-sorting.md) | `_fast_non_dominated_sort` in `src/vamos/foundation/kernel/numpy_backend.py` |
 | Crowding distance | [Crowding and tournaments](crowding-distance.md) | `_compute_crowding` in the same file |
 | Binary tournament | [Crowding and tournaments](crowding-distance.md) | `NumPyKernel.tournament_selection` in the same file |
-| SBX and polynomial mutation | [Real-coded operators](../operators/real-coded.md) | `src/vamos/foundation/kernel/operator_primitives.py` |
+| SBX and polynomial mutation | [Real-coded operators](operators/real-coded.md) | `src/vamos/foundation/kernel/operator_primitives.py` |
 | Elitist survival | [Elitist survival](elitist-survival.md) | `_select_nsga2` and `NumPyKernel.nsga2_survival` in `numpy_backend.py` |
 
 The NumPy kernel is the reference implementation. The Numba and MooCore

@@ -93,10 +93,10 @@ def test_foundations_follows_developer_with_levels_and_topics() -> None:
     foundations = _foundations_nav()
     assert foundations[0] == {"Overview": "foundations/index.md"}
     sections = {next(iter(item)): next(iter(item.values())) for item in foundations[1:]}
-    assert list(sections) == ["Basic", "Intermediate", "Operators", "Advanced"]
-    # The Intermediate level is grouped by the family of each algorithm.
-    families = [next(iter(item)) for item in sections["Intermediate"]]
-    assert families == ["Dominance-based", "Decomposition-based", "Indicator-based", "Swarm-based"]
+    assert list(sections) == ["Basic", "Intermediate", "Advanced"]
+    # The Intermediate level is grouped by the family of each algorithm, then by the topics that they share.
+    groups = [next(iter(item)) for item in sections["Intermediate"]]
+    assert groups == ["Dominance-based", "Decomposition-based", "Indicator-based", "Swarm-based", "Operators"]
 
     listed = _nav_pages(foundations)
     assert sorted(listed) == sorted(_relative(page) for page in PAGES)
@@ -234,6 +234,181 @@ def test_every_page_with_examples_is_a_docs_smoke_case() -> None:
     smoked = {case.source_path for case in DOC_SMOKE_CASES}
     pages = {f"docs/{_relative(page)}" for page in PAGES if _examples(page)}
     assert pages <= smoked, f"Foundations pages with examples missing from tests/docs/smoke_manifest.py: {sorted(pages - smoked)}"
+
+
+def _run_operator_ports(cases: dict[str, str], n: int) -> dict[str, list[list[float]]]:
+    """Children of the figures' operator ports: ``n`` calls of each JavaScript expression."""
+    program = f"""
+require({json.dumps(str(SCRIPT))});
+const V = globalThis.VamosFoundations;
+const O = V.operators;
+const P1 = [0.35, 0.3], P2 = [0.6, 0.55], P3 = [0.3, 0.7], X = [0.3, 0.6];
+const out = {{}};
+for (const [name, expr] of Object.entries({json.dumps(cases)})) {{
+  const r = V.mulberry32(17);
+  const run = new Function("O", "P1", "P2", "P3", "X", "r", "V", "return " + expr);
+  const rows = [];
+  for (let i = 0; i < {n}; i++) for (const c of run(O, P1, P2, P3, X, r, V)) rows.push(c);
+  out[name] = rows;
+}}
+process.stdout.write(JSON.stringify(out));
+"""
+    completed = subprocess.run(["node", "-e", program], capture_output=True, text=True, check=True, timeout=120)
+    return json.loads(completed.stdout)
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_real_operator_ports_sample_the_vamos_distributions() -> None:
+    from vamos.engine.operators.impl import real
+
+    n = 20_000
+    b = {"lower": np.zeros(2), "upper": np.ones(2)}
+    pair = np.tile(np.array([[[0.35, 0.3], [0.6, 0.55]]]), (n, 1, 1))
+    group = np.tile(np.array([[[0.35, 0.3], [0.6, 0.55], [0.3, 0.7]]]), (n, 1, 1))
+    x = np.tile(np.array([[0.3, 0.6]]), (n, 1))
+    cases: dict[str, tuple[str, Any]] = {
+        "blx_alpha": ("O.blxAlphaBeta(P1, P2, 0.5, 0.5, r)", lambda g: real.BLXAlphaCrossover(alpha=0.5, prob_crossover=1.0, **b)(pair, g)),
+        "blx_alpha_beta": (
+            "O.blxAlphaBeta(P1, P2, 0.2, 0.8, r)",
+            lambda g: real.BLXAlphaBetaCrossover(alpha=0.2, beta=0.8, prob_crossover=1.0, **b)(pair, g),
+        ),
+        "arithmetic": ("O.arithmetic(P1, P2, r)", lambda g: real.ArithmeticCrossover(prob_crossover=1.0)(pair, g)),
+        "laplace": ("O.laplace(P1, P2, 0.1, 0.5, r)", lambda g: real.LaplaceCrossover(a=0.1, b=0.5, prob_crossover=1.0, **b)(pair, g)),
+        "fuzzy": ("O.fuzzy(P1, P2, 0.5, 0, 1, r)", lambda g: real.FuzzyCrossover(d=0.5, prob_crossover=1.0, **b)(pair, g)),
+        "de": ("O.deMating(P1, P2, P3, 0.5, 0.6, r)", lambda g: real.DEMatingCrossover(F=0.5, CR=0.6, **b)(group, g)),
+        "pcx": ("O.pcx([P1, P2, P3], 0.1, 0.2, r)", lambda g: real.PCXCrossover(sigma_eta=0.1, sigma_zeta=0.2, **b)(group, g)),
+        "undx": ("O.undx([P1, P2, P3], 0.5, 0.35, r)", lambda g: real.UNDXCrossover(prob_crossover=1.0, zeta=0.5, eta=0.35, **b)(group, g)),
+        "simplex": ("O.spx([P1, P2, P3], null, r)", lambda g: real.SPXCrossover(**b)(group, g)),
+        "pm": (
+            "[V.polynomialMutation(X.slice(), 0, 1, 1, 20, r)]",
+            lambda g: real.PolynomialMutation(prob_mutation=1.0, eta=20.0, **b)(x, g),
+        ),
+        "gaussian": (
+            "[O.gaussianMutation(X, 0, 1, 0.5, 0.1, r)]",
+            lambda g: real.GaussianMutation(prob_mutation=0.5, sigma=0.1, **b)(x, g),
+        ),
+        "uniform": ("[O.uniformMutation(X, 0, 1, 1, 0.2, r)]", lambda g: real.UniformMutation(prob_mutation=1.0, perturb=0.2, **b)(x, g)),
+        "uniform_reset": ("[O.uniformReset(X, 0, 1, 1, r)]", lambda g: real.UniformResetMutation(prob_mutation=1.0, **b)(x, g)),
+        "non_uniform": ("[O.nonUniform(X, 0, 1, 1, r)]", lambda g: real.NonUniformMutation(prob_mutation=1.0, **b)(x, g)),
+        "cauchy": ("[O.cauchyMutation(X, 0, 1, 1, 0.1, r)]", lambda g: real.CauchyMutation(prob_mutation=1.0, gamma=0.1, **b)(x, g)),
+        "levy_flight": (
+            "[O.levyFlight(X, 0, 1, 1, 1.5, 0.05, r)]",
+            lambda g: real.LevyFlightMutation(prob_mutation=1.0, beta=1.5, scale=0.05, **b)(x, g),
+        ),
+        "power_law": ("[O.powerLaw(X, 0, 1, 1, 3, r)]", lambda g: real.PowerLawMutation(prob_mutation=1.0, index=3.0, **b)(x, g)),
+        "linked_polynomial": (
+            "[O.linkedPolynomial(X, 0, 1, 1, 5, r)]",
+            lambda g: real.LinkedPolynomialMutation(prob_mutation=1.0, eta=5.0, **b)(x, g),
+        ),
+    }
+    ports = _run_operator_ports({name: expr for name, (expr, _) in cases.items()}, n)
+    levels = [0.1, 0.25, 0.5, 0.75, 0.9]
+    for name, (_, operator) in cases.items():
+        expected = np.asarray(operator(np.random.default_rng(20261121)), dtype=float).reshape(-1, 2)
+        sampled = np.asarray(ports[name], dtype=float)
+        assert sampled.shape == expected.shape, name
+        q_js = np.quantile(sampled, levels, axis=0)
+        q_py = np.quantile(expected, levels, axis=0)
+        # Six standard errors of a sample quantile, sqrt(p (1 - p) / n) / density, with the density
+        # estimated from the quantiles 0.02 below and above.
+        spread = np.quantile(expected, np.add(levels, 0.02), axis=0) - np.quantile(expected, np.subtract(levels, 0.02), axis=0)
+        error = np.sqrt(np.multiply(levels, np.subtract(1, levels)) / len(expected))[:, None] * spread / 0.04
+        tolerance = 6 * error + 1e-3
+        assert np.all(np.abs(q_js - q_py) <= tolerance), f"{name}: {q_js.tolist()} != {q_py.tolist()}"
+    # Linked polynomial mutation: one draw per individual, so both variables move in the same direction.
+    steps = np.sign(np.asarray(ports["linked_polynomial"]) - [0.3, 0.6])
+    assert np.all(steps[:, 0] == steps[:, 1])
+    whole = real.WholeArithmeticCrossover(alpha=0.25, prob_crossover=1.0)(pair[:1], np.random.default_rng(0))
+    np.testing.assert_allclose(_run_operator_ports({"whole": "O.wholeArithmetic(P1, P2, 0.25)"}, 1)["whole"], whole[0], rtol=1e-12)
+
+
+class _Draws:
+    """A generator that returns prepared draws, to replay VAMOS operators with known cut points and masks."""
+
+    def __init__(self, *draws: object) -> None:
+        self._draws = list(draws)
+
+    def _next(self, *_: object, **__: object) -> Any:
+        return self._draws.pop(0)
+
+    random = integers = choice = _next
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_discrete_operator_ports_agree_with_vamos() -> None:
+    from vamos.engine.operators.impl import _permutation_crossovers as perm_cx
+    from vamos.engine.operators.impl import _permutation_mutations as perm_mut
+    from vamos.engine.operators.impl import binary
+
+    rng = np.random.default_rng(5)
+    exprs: list[str] = []
+    expected: list[object] = []
+
+    def check(expr: str, value: object) -> None:
+        exprs.append(expr)
+        expected.append(np.asarray(value).tolist())
+
+    n = 12
+    for _ in range(10):
+        p1, p2 = rng.integers(0, 2, n), rng.integers(0, 2, n)
+        parents = np.stack([p1, p2]).astype(np.int8)
+        a, b = sorted(rng.choice(n, 2, replace=False).tolist())
+        keep = rng.random(n) < 0.5
+        mask = rng.random(n) < 0.3
+        diff = np.flatnonzero(p1 != p2)
+        args = f"{json.dumps(p1.tolist())}, {json.dumps(p2.tolist())}"
+        check(f"O.onePoint({args}, {b})", binary.one_point_crossover(parents, 1.0, _Draws(np.zeros(1), np.array([b]))))
+        check(f"O.twoPoint({args}, {a}, {b})", binary.two_point_crossover(parents, 1.0, _Draws(np.zeros(1), np.array([[a, b]]))))
+        uniform = binary.uniform_crossover(parents, 1.0, _Draws(np.zeros(1), np.where(keep, 0.25, 0.75)[None]))
+        check(f"O.uniformBits({args}, {json.dumps(keep.tolist())})", uniform)
+        if diff.size:
+            chosen = np.sort(rng.choice(diff, max(1, diff.size // 2), replace=False))
+            check(f"O.hux({args}, {json.dumps(chosen.tolist())})", binary.hux_crossover(parents, 1.0, _Draws(np.zeros(1), chosen)))
+        flipped = p1[None].astype(np.int8)
+        binary.bit_flip_mutation(flipped, 0.3, _Draws(np.where(mask, 0.1, 0.9)[None]))
+        check(f"[O.bitFlip({json.dumps(p1.tolist())}, {json.dumps(mask.tolist())})]", flipped)
+        segment = p1[None].astype(np.int8)
+        binary.segment_inversion_mutation(segment, 1.0, _Draws(np.zeros(1), a, b - 1))
+        check(f"[O.segmentInversion({json.dumps(p1.tolist())}, {a}, {b})]", segment)
+
+    m = 8
+    for _ in range(10):
+        p1, p2 = rng.permutation(m), rng.permutation(m)
+        a, b = sorted(rng.choice(m, 2, replace=False).tolist())
+        start = int(rng.integers(m))
+        k = int(rng.integers(1, m + 1))
+        positions = rng.choice(m, k, replace=False)
+        keep = np.isin(np.arange(m), positions)
+        s1, s2, sk = (json.dumps(v.tolist()) for v in (p1, p2, keep))
+        pmx, ox, inverted, inserted = p1.copy(), p1.copy(), p1.copy(), p1.copy()
+        perm_cx._pmx_into(p1, p2, pmx, a, b)
+        perm_cx._order_crossover_into(p1, p2, ox, a, b)
+        perm_mut._inversion_row_mutation(inverted, _Draws(a, b - 1))
+        perm_mut._insert_row_mutation(inserted, _Draws(b, a))
+        check(f"[O.pmxChild({s1}, {s2}, {a}, {b})]", [pmx])
+        check(f"[O.oxChild({s1}, {s2}, {a}, {b})]", [ox])
+        check(f"O.cycle({s1}, {s2}, {start}).children", list(perm_cx._cycle_children(p1, p2, _Draws(start))))
+        positional = list(perm_cx._position_based_children(p1, p2, _Draws(k, positions)))
+        check(f"[O.positionBased({s1}, {s2}, {sk}), O.positionBased({s2}, {s1}, {sk})]", positional)
+        check(f"[O.invert({s1}, {a}, {b})]", [inverted])
+        check(f"[O.insert({s1}, {b}, {a})]", [inserted])
+
+    ports = _run_operator_ports({str(i): expr for i, expr in enumerate(exprs)}, 1)
+    for i, (expr, value) in enumerate(zip(exprs, expected)):
+        assert ports[str(i)] == value, f"{expr}: {ports[str(i)]} != {value}"
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_integer_sbx_port_rounds_like_vamos() -> None:
+    from vamos.engine.operators.impl.integer import integer_sbx_crossover
+
+    n = 20_000
+    parents = np.tile(np.array([[3], [4]]), (n, 1))
+    children = integer_sbx_crossover(parents, 1.0, 2.0, np.array([0]), np.array([10]), np.random.default_rng(3))
+    ports = np.asarray(_run_operator_ports({"int": "O.integerSbx([3], [4], 0, 10, 2, 0.5, r, false)"}, n)["int"])
+    for value in range(11):
+        assert abs(np.mean(ports == value) - np.mean(children == value)) <= 0.01, value
+    assert abs(ports.mean() - 3.5) <= 0.01
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
