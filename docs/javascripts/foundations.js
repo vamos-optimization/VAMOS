@@ -7,10 +7,14 @@
    (src/vamos/foundation/kernel/numpy_backend.py and operator_primitives.py,
    and src/vamos/foundation/quality_indicators/hypervolume.py).
    tests/docs/test_foundations.py checks that every figure a lesson uses is
-   implemented here and, when Node.js is installed, runs the non-dominated
-   sorting, crowding distance, hypervolume and hypervolume contributions
-   against VAMOS. The distance indicators and the Das-Dennis lattices were
-   checked by hand against MooCore and VAMOS when the path was added. */
+   implemented here and, when Node.js is installed, runs the figures'
+   algorithms against VAMOS: non-dominated sorting, crowding distance,
+   hypervolume and its contributions, the evolutionary loop and the families'
+   survivors, the variation operators, the benchmark fronts and CTP
+   violations, two-layer reference directions, the constraint-handling
+   rankings, F-race and the tuning budgets. The distance indicators and the
+   Das-Dennis lattices were checked by hand against MooCore and VAMOS when the
+   path was added. */
 (function (root) {
   "use strict";
 
@@ -1177,6 +1181,282 @@
     return { cvn, dSde, sde, A, B, share };
   }
 
+  /* ---- Tuning: F-race, Hyperband brackets and fidelity slices (vamos/engine/tuning) ---- */
+
+  /** ln Γ(x) for x > 0 (Lanczos approximation, g = 7). */
+  function lnGamma(x) {
+    const c = [0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313, -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
+    if (x < 0.5) return Math.log(Math.PI / Math.sin(Math.PI * x)) - lnGamma(1 - x);
+    const y = x - 1;
+    let a = c[0];
+    for (let i = 1; i < 9; i++) a += c[i] / (y + i);
+    const t = y + 7.5;
+    return 0.5 * Math.log(2 * Math.PI) + (y + 0.5) * Math.log(t) - t + Math.log(a);
+  }
+
+  /** The regularized upper incomplete gamma function Q(a, x) (series or continued fraction). */
+  function gammaQ(a, x) {
+    if (x <= 0) return 1;
+    const front = Math.exp(-x + a * Math.log(x) - lnGamma(a));
+    if (x < a + 1) {
+      let term = 1 / a;
+      let sum = term;
+      for (let n = 1; n < 1000 && Math.abs(term) > Math.abs(sum) * 1e-16; n++) {
+        term *= x / (a + n);
+        sum += term;
+      }
+      return Math.max(0, 1 - sum * front);
+    }
+    const tiny = 1e-300;
+    let b = x + 1 - a;
+    let c = 1 / tiny;
+    let d = 1 / b;
+    let f = d;
+    for (let i = 1; i < 1000; i++) {
+      const an = -i * (i - a);
+      b += 2;
+      d = an * d + b;
+      if (Math.abs(d) < tiny) d = tiny;
+      c = b + an / c;
+      if (Math.abs(c) < tiny) c = tiny;
+      d = 1 / d;
+      f *= d * c;
+      if (Math.abs(d * c - 1) < 1e-16) break;
+    }
+    return front * f;
+  }
+
+  /** Survival function of the χ² distribution with k degrees of freedom. */
+  function chi2Sf(x, k) {
+    return gammaQ(k / 2, x / 2);
+  }
+
+  /** Survival function of the standard normal distribution. */
+  function normalSf(z) {
+    const erfc = (y) => (y >= 0 ? gammaQ(0.5, y * y) : 2 - gammaQ(0.5, y * y));
+    return 0.5 * erfc(z / Math.SQRT2);
+  }
+
+  /** The regularized incomplete beta function I_x(a, b) (continued fraction). */
+  function betaInc(a, b, x) {
+    if (x <= 0) return 0;
+    if (x >= 1) return 1;
+    const fraction = (p, q, y) => {
+      const tiny = 1e-300;
+      let c = 1;
+      let d = 1 - ((p + q) * y) / (p + 1);
+      if (Math.abs(d) < tiny) d = tiny;
+      d = 1 / d;
+      let f = d;
+      for (let m = 1; m < 1000; m++) {
+        const m2 = 2 * m;
+        let num = (m * (q - m) * y) / ((p + m2 - 1) * (p + m2));
+        d = 1 + num * d;
+        if (Math.abs(d) < tiny) d = tiny;
+        c = 1 + num / c;
+        if (Math.abs(c) < tiny) c = tiny;
+        d = 1 / d;
+        f *= d * c;
+        num = (-(p + m) * (p + q + m) * y) / ((p + m2) * (p + m2 + 1));
+        d = 1 + num * d;
+        if (Math.abs(d) < tiny) d = tiny;
+        c = 1 + num / c;
+        if (Math.abs(c) < tiny) c = tiny;
+        d = 1 / d;
+        f *= d * c;
+        if (Math.abs(d * c - 1) < 1e-16) break;
+      }
+      return f;
+    };
+    const front = Math.exp(lnGamma(a + b) - lnGamma(a) - lnGamma(b) + a * Math.log(x) + b * Math.log(1 - x));
+    if (x < (a + 1) / (a + b + 2)) return (front * fraction(a, b, x)) / a;
+    return 1 - (front * fraction(b, a, 1 - x)) / b;
+  }
+
+  /** Quantile of Student's t distribution with df degrees of freedom, for p > 0.5 (bisection). */
+  function tQuantile(p, df) {
+    const cdf = (t) => 1 - 0.5 * betaInc(df / 2, 0.5, df / (df + t * t));
+    let lo = 0;
+    let hi = 1;
+    while (cdf(hi) < p) hi *= 2;
+    for (let i = 0; i < 200 && hi - lo > 1e-13 * hi; i++) {
+      const mid = 0.5 * (lo + hi);
+      if (cdf(mid) < p) lo = mid;
+      else hi = mid;
+    }
+    return 0.5 * (lo + hi);
+  }
+
+  /** Ranks 1..n of the values, with average ranks for ties (scipy's rankdata). */
+  function averageRanks(values) {
+    const order = values.map((v, i) => i).sort((i, j) => values[i] - values[j]);
+    const ranks = new Array(values.length);
+    for (let i = 0; i < order.length; ) {
+      let j = i;
+      while (j + 1 < order.length && values[order[j + 1]] === values[order[i]]) j += 1;
+      for (let k = i; k <= j; k++) ranks[order[k]] = (i + j) / 2 + 1;
+      i = j + 1;
+    }
+    return ranks;
+  }
+
+  /** Sizes of the groups of equal values. */
+  function tieCounts(values) {
+    const counts = new Map();
+    values.forEach((v) => counts.set(v, (counts.get(v) || 0) + 1));
+    return Array.from(counts.values());
+  }
+
+  /** Paired Wilcoxon signed-rank test, as racing/stats.py's _wilcoxon_signed_rank. */
+  function wilcoxonSignedRank(differences) {
+    const d = differences.filter((v) => v !== 0);
+    const n = d.length;
+    if (n === 0) return { p: 1, signedRank: 0 };
+    const ranks = averageRanks(d.map(Math.abs));
+    let signedRank = 0;
+    d.forEach((v, i) => (signedRank += v > 0 ? ranks[i] : -ranks[i]));
+    const ties = tieCounts(ranks).reduce((acc, c) => acc + c * c * c - c, 0);
+    const variance = (n * (n + 1) * (2 * n + 1)) / 24 - ties / 48;
+    if (variance <= 0) return { p: 1, signedRank };
+    const centred = 0.5 * signedRank;
+    const z = centred ? (centred - 0.5 * Math.sign(centred)) / Math.sqrt(variance) : 0;
+    return { p: Math.min(1, 2 * normalSf(Math.abs(z))), signedRank, z };
+  }
+
+  /** One F-race test, as racing/stats.py's select_configs_by_frace: scores[configuration][block]. */
+  function fraceTest(scores, maximize, alpha) {
+    const nConfigs = scores.length;
+    const nBlocks = nConfigs ? scores[0].length : 0;
+    const out = { keep: new Array(nConfigs).fill(true), test: "none", p: 1, statistic: null, rankSums: null, critical: null, best: null };
+    if (nConfigs <= 1 || nBlocks <= 1) return out;
+    const oriented = scores.map((row) => row.map((v) => (maximize ? -v : v)));
+    if (nConfigs === 2) {
+      const w = wilcoxonSignedRank(oriented[0].map((v, b) => v - oriented[1][b]));
+      Object.assign(out, { test: "wilcoxon", p: w.p, statistic: w.signedRank });
+      if (w.p < alpha && w.signedRank !== 0) out.keep[w.signedRank > 0 ? 0 : 1] = false;
+      return out;
+    }
+    const ranks = [];
+    for (let b = 0; b < nBlocks; b++) ranks.push(averageRanks(oriented.map((row) => row[b])));
+    const rankSums = oriented.map((_, c) => ranks.reduce((acc, row) => acc + row[c], 0));
+    const ties = ranks.reduce((acc, row) => acc + tieCounts(row).reduce((t, c) => t + c * c * c - c, 0), 0);
+    const expected = (nBlocks * (nConfigs + 1)) / 2;
+    const denominator = nBlocks * nConfigs * (nConfigs + 1) - ties / (nConfigs - 1);
+    Object.assign(out, { test: "friedman", rankSums });
+    if (denominator <= 0) return out;
+    const statistic = (12 * rankSums.reduce((acc, r) => acc + (r - expected) * (r - expected), 0)) / denominator;
+    out.statistic = statistic;
+    out.p = chi2Sf(statistic, nConfigs - 1);
+    if (!(out.p < alpha)) return out;
+    const df = (nBlocks - 1) * (nConfigs - 1);
+    const squares = ranks.reduce((acc, row) => acc + row.reduce((t, r) => t + r * r, 0), 0);
+    const spread = (2 * (nBlocks * squares - rankSums.reduce((acc, r) => acc + r * r, 0))) / df;
+    const critical = tQuantile(1 - alpha / 2, df) * Math.sqrt(Math.max(spread, 0));
+    let best = 0;
+    rankSums.forEach((r, c) => {
+      if (r < rankSums[best]) best = c;
+    });
+    out.keep = rankSums.map((r, c) => c === best || r - rankSums[best] <= critical);
+    Object.assign(out, { critical, best });
+    return out;
+  }
+
+  /** A statistical race over fixed scores, as RacingTuner with use_statistical_tests and no restarts.
+
+      scores[c][b] is the score of configuration c on the b-th block played. After each block the
+      alive configurations are tested once they have max(firstTest, minBlocks) blocks; the race ends
+      when minSurvivors or fewer are alive, the experiments run out, or the blocks do. */
+  function fraceRace(scores, o) {
+    const opt = Object.assign({ maximize: true, alpha: 0.05, firstTest: 5, minBlocks: 3, minSurvivors: 1, maxExperiments: Infinity }, o || {});
+    const n = scores.length;
+    const nBlocks = n ? scores[0].length : 0;
+    const alive = new Array(n).fill(true);
+    const played = new Array(n).fill(0);
+    const eliminatedAt = new Array(n).fill(null);
+    const steps = [];
+    let experiments = 0;
+    for (let b = 0; b < nBlocks; b++) {
+      const before = alive.map((a, c) => (a ? c : -1)).filter((c) => c >= 0);
+      if (!before.length || experiments >= opt.maxExperiments) break;
+      before.forEach((c) => (played[c] += 1));
+      experiments += before.length;
+      const step = { block: b, alive: before.slice(), test: null, eliminated: [] };
+      const blocks = b + 1;
+      if (before.length > 1 && blocks >= Math.max(opt.firstTest, opt.minBlocks) && blocks > 1) {
+        const result = fraceTest(
+          before.map((c) => scores[c].slice(0, blocks)),
+          opt.maximize,
+          opt.alpha
+        );
+        step.test = result;
+        result.keep.forEach((k, row) => {
+          if (!k) {
+            alive[before[row]] = false;
+            eliminatedAt[before[row]] = b;
+            step.eliminated.push(before[row]);
+          }
+        });
+      }
+      steps.push(step);
+      if (experiments >= opt.maxExperiments || alive.filter(Boolean).length <= opt.minSurvivors) break;
+    }
+    const survivors = alive.map((a, c) => (a ? c : -1)).filter((c) => c >= 0);
+    const mean = (c) => scores[c].slice(0, played[c]).reduce((acc, v) => acc + v, 0) / Math.max(played[c], 1);
+    let best = null;
+    survivors.forEach((c) => {
+      if (best === null || (opt.maximize ? mean(c) > mean(best) : mean(c) < mean(best))) best = c;
+    });
+    return { steps, alive, played, eliminatedAt, experiments, survivors, best, mean: scores.map((_, c) => mean(c)) };
+  }
+
+  /** Configurations per rung of each BOHB iteration, as _model_backend_utils.hyperband_brackets. */
+  function hyperbandBrackets(maxShIter, eta, maxConfigs) {
+    const brackets = [];
+    let remaining = Math.max(1, maxConfigs);
+    while (remaining > 0) {
+      const sMax = maxShIter - 1 - (brackets.length % maxShIter);
+      const n0 = Math.min(remaining, Math.floor(maxShIter / (sMax + 1)) * Math.pow(eta, sMax));
+      const rungs = [];
+      for (let i = 0; i <= sMax; i++) rungs.push(Math.max(Math.floor(n0 * Math.pow(eta, -i)), 1));
+      brackets.push(rungs);
+      remaining -= n0;
+    }
+    return brackets;
+  }
+
+  /** Python's round(): halves go to the even neighbour. */
+  /**
+   * The budgets of Hyperband between lo and hi with factor eta: geometric, as hpbandster and SMAC3 space them,
+   * rounded half to even and clipped to [lo, hi], as run_smac3 and run_bohb_native round each budget before a run.
+   */
+  function hyperbandBudgets(lo, hi, eta) {
+    const rungs = Math.floor(Math.log(hi / lo) / Math.log(eta) + 1e-9) + 1;
+    return Array.from({ length: rungs }, (_, i) => Math.min(hi, Math.max(lo, roundHalfEven(hi / Math.pow(eta, rungs - 1 - i)))));
+  }
+
+  function roundHalfEven(x) {
+    const f = Math.floor(x);
+    const d = x - f;
+    if (d > 0.5) return f + 1;
+    if (d < 0.5) return f;
+    return f % 2 === 0 ? f : f + 1;
+  }
+
+  /** How many instances and seeds a model-based backend runs at a budget (_model_backend_fidelity.resolve_fidelity_slice). */
+  function fidelitySlice(budget, levels, o) {
+    const full = levels[levels.length - 1];
+    const b = Math.min(full, Math.max(1, budget));
+    const frac = full <= levels[0] ? 1 : Math.min(1, Math.max(0, (b - levels[0]) / (full - levels[0])));
+    const nInst = o.instances;
+    const nSeeds = Math.max(1, o.seeds);
+    const instFrac = o.minInstanceFrac + frac * (1 - o.minInstanceFrac);
+    const instances = Math.max(1, Math.min(nInst, Math.trunc(roundHalfEven(nInst * instFrac))));
+    const maxCount = Math.min(nSeeds, Math.max(1, o.maxSeedCount || nSeeds));
+    const minCount = Math.min(maxCount, Math.max(1, o.minSeedCount || maxCount));
+    const seeds = Math.max(1, Math.min(nSeeds, Math.trunc(roundHalfEven(minCount + frac * (maxCount - minCount)))));
+    return { budget: b, fraction: frac, instances, seeds };
+  }
+
   /* ---- Advanced extras: two-layer reference directions and constraint-handling techniques ---- */
 
   /** The integer points of a Das and Dennis lattice: m non-negative integers that sum to p, in VAMOS's order. */
@@ -2090,6 +2370,11 @@
   }
 
   const algorithms = {
+    fraceTest,
+    fraceRace,
+    hyperbandBrackets,
+    hyperbandBudgets,
+    fidelitySlice,
     operators: OPERATORS,
     ccmoSelect,
     ctaeaSelect,
@@ -5028,6 +5313,272 @@
         W.map((_, j) => ["w" + (j + 1), String(rho[j]), cands.filter((c) => c.dir === j).map((c) => c.id).join(", ") || "none"]),
         [false, true, false]
       );
+    }
+    render();
+  };
+
+  /* ---- Tuning: an F-race block by block, and the budgets of the model-based backends ---- */
+
+  /* Racing: eight configurations, four instances and three seeds, raced by fraceRace (RacingTuner's F-race). */
+  widgets["frace-race"] = function (node) {
+    const N = 8;
+    const INSTANCES = 4;
+    const B = INSTANCES * 3;
+    const SCALES = [1, 4, 0.5, 2];
+    const names = Array.from({ length: N }, (_, c) => "C" + (c + 1));
+    const blockName = (b) => `instance ${(b % INSTANCES) + 1}, seed ${Math.floor(b / INSTANCES) + 1}`;
+    const state = { seed: 4, noise: 0.03, alpha: 0.05, firstTest: 5, k: 0 };
+    let scores = [];
+    function generate() {
+      const rand = mulberry32(state.seed);
+      const quality = names.map((_, c) => c);
+      for (let c = N - 1; c > 0; c--) {
+        const r = Math.floor(rand() * (c + 1));
+        [quality[c], quality[r]] = [quality[r], quality[c]];
+      }
+      const base = SCALES.map(() => 0.7 + 0.1 * rand());
+      scores = names.map((_, c) =>
+        Array.from({ length: B }, (_, b) => {
+          const i = b % INSTANCES;
+          return SCALES[i] * (base[i] + 0.012 * quality[c] + state.noise * gaussian(rand));
+        })
+      );
+    }
+    const ctl = controls(node);
+    const blocks = slider(ctl, { label: "Blocks played", min: 0, max: B, step: 1, value: 0, format: (v) => String(v), onInput: (v) => ((state.k = v), render()) });
+    button(ctl, "Next block", () => go(state.k + 1), true);
+    button(ctl, "Restart", () => go(0));
+    const ctl2 = controls(node);
+    select(ctl2, {
+      label: "α",
+      options: [
+        [0.01, "0.01"],
+        [0.05, "0.05 (VAMOS default)"],
+        [0.1, "0.10"],
+      ],
+      value: 0.05,
+      onChange: (v) => ((state.alpha = +v), render()),
+    });
+    slider(ctl2, { label: "first_test", min: 1, max: 10, step: 1, value: state.firstTest, format: (v) => String(v), onInput: (v) => ((state.firstTest = v), render()) });
+    slider(ctl2, { label: "Noise σ", min: 0.005, max: 0.08, step: 0.005, value: state.noise, format: (v) => v.toFixed(3), onInput: (v) => ((state.noise = v), generate(), render()) });
+    button(ctl2, "New scores", () => ((state.seed += 1), generate(), render()));
+    const body = h("div", { class: "vf-body" }, node);
+    const ticksX = Array.from({ length: B }, (_, b) => b + 1);
+    const plot = createPlot(body, {
+      width: 400,
+      height: 290,
+      margin: { l: 40 },
+      x: [0.4, B + 0.6],
+      y: [0.4, N + 0.6],
+      xTicks: ticksX,
+      yTicks: names.map((_, c) => c + 1),
+      yFormat: (v) => names[N - v],
+      xLabel: "Block (instance and seed), in the order played",
+      yLabel: "Configuration",
+      label: "A race of eight configurations: their rank on every block played, the tests and the eliminations. Focus it and use the arrow keys to play or rewind blocks.",
+    });
+    plot.svg.setAttribute("tabindex", "0");
+    plot.svg.classList.add("vf-keyboard");
+    plot.svg.addEventListener("keydown", (e) => {
+      const moves = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 };
+      if (e.key in moves) go(state.k + moves[e.key]);
+      else if (e.key === "Home") go(0);
+      else if (e.key === "End") go(B);
+      else return;
+      e.preventDefault();
+    });
+    const tip = tooltip(plot);
+    const readout = h("div", { class: "vf-readout" }, body);
+    legend(node, [
+      { label: "Rank 1 in its block", shape: "circle", cls: "vf-pt vf-r0" },
+      { label: "Rank 2", shape: "circle", cls: "vf-pt vf-r1" },
+      { label: "Rank 3", shape: "circle", cls: "vf-pt vf-r2" },
+      { label: "Rank 4", shape: "circle", cls: "vf-pt vf-r3" },
+      { label: "Rank 5 or worse", shape: "circle", cls: "vf-pt vf-r4" },
+      { label: "Test that eliminates", shape: "line", cls: "vf-line-2 vf-dashed" },
+      { label: "Test without elimination", shape: "line", cls: "vf-line-thin vf-dashed" },
+      { label: "Eliminated", shape: "cross", cls: "vf-line-2" },
+    ]);
+    function go(k) {
+      state.k = Math.max(0, Math.min(B, k));
+      blocks.set(state.k);
+      render();
+    }
+    const yOf = (c) => N - c;
+    const list = (cs) => cs.map((c) => names[c]).join(", ").replace(/, ([^,]*)$/, " and $1");
+    function render() {
+      const race = fraceRace(scores, { alpha: state.alpha, firstTest: state.firstTest });
+      const shown = race.steps.slice(0, state.k);
+      const ended = state.k >= race.steps.length && (race.survivors.length <= 1 || state.k >= B);
+      for (const layer of ["back", "mid", "marks", "top"]) clear(plot.layers[layer]);
+      if (shown.length && !ended) plot.rect(plot.layers.back, shown.length - 0.5, 0.4, shown.length + 0.5, N + 0.6, "vf-region-1");
+      shown.forEach((st) => {
+        if (st.test) plot.line(plot.layers.mid, [[st.block + 1.5, 0.4], [st.block + 1.5, N + 0.6]], st.eliminated.length ? "vf-line-2 vf-dashed" : "vf-line-thin vf-dashed");
+      });
+      names.forEach((name, c) => {
+        const mine = shown.filter((st) => st.alive.includes(c));
+        if (mine.length > 1) plot.line(plot.layers.mid, [[1, yOf(c)], [mine.length, yOf(c)]], "vf-line-thin");
+        mine.forEach((st) => {
+          const ranks = averageRanks(st.alive.map((a) => -scores[a][st.block]));
+          const rank = ranks[st.alive.indexOf(c)];
+          const px = plot.x(st.block + 1);
+          const py = plot.y(yOf(c));
+          const mark = marker(plot.layers.marks, "circle", px, py, 6.5, "vf-pt " + rankClass(Math.ceil(rank) - 1));
+          attachTip(mark, tip, `${name}, block ${st.block + 1} (${blockName(st.block)}): score ${fmt(scores[c][st.block], 3)}, rank ${rank} of ${st.alive.length}`, px, py);
+        });
+        const out = shown.find((st) => st.eliminated.includes(c));
+        if (out) marker(plot.layers.top, "cross", plot.x(out.block + 1.5), plot.y(yOf(c)), 4.5, "vf-line-2");
+      });
+      clear(readout);
+      const k = shown.length;
+      const experiments = shown.reduce((acc, st) => acc + st.alive.length, 0);
+      const waits = Math.max(state.firstTest, 3);
+      if (!k) {
+        h("p", {}, readout, `No block played yet: ${N} configurations are alive. Each block is one instance and one seed, and every alive configuration runs on it. The first test waits for max(first_test, 3) = ${waits} blocks.`);
+      } else {
+        const last = shown[k - 1];
+        const nowAlive = race.steps[k] ? race.steps[k].alive.length : race.alive.filter(Boolean).length;
+        h("p", {}, readout, `Block ${k} of ${B} (${blockName(last.block)}): ${last.alive.length} configurations ran on it. ${experiments} runs so far, against ${N * k} without racing.`);
+        let line;
+        const t = last.test;
+        if (!t) line = `No test after this block: the first test waits for max(first_test, 3) = ${waits} blocks.`;
+        else if (t.test === "wilcoxon") {
+          line = `Two configurations are alive, so a paired Wilcoxon signed-rank test decides: p = ${fmt(t.p, 4)} ${t.p < state.alpha ? "<" : "≥"} α = ${state.alpha}` + (last.eliminated.length ? `; ${list(last.eliminated)} is eliminated.` : ": no elimination.");
+        } else if (t.statistic === null) line = "Every block ranks the configurations alike: the Friedman statistic is undefined and nobody is eliminated.";
+        else {
+          line = `Friedman test on the ranks of ${last.alive.length} configurations over ${last.block + 1} blocks: T = ${fmt(t.statistic, 2)}, p = ${fmt(t.p, 4)} ${t.p < state.alpha ? "<" : "≥"} α = ${state.alpha}.`;
+          if (t.critical !== null) {
+            line += ` Conover's critical difference on the rank sums is ${fmt(t.critical, 2)}; the best rank sum is ${fmt(t.rankSums[t.best], 1)} (${names[last.alive[t.best]]}), so ${last.eliminated.length ? list(last.eliminated) + (last.eliminated.length > 1 ? " are" : " is") + " eliminated" : "nobody is eliminated"}.`;
+          } else line += " No configuration is eliminated.";
+        }
+        h("p", {}, readout, line);
+        if (ended && race.survivors.length <= 1) h("p", {}, readout, `Only ${names[race.best]} is left after block ${k}, so the race stops and returns it: ${race.experiments} runs instead of ${N * B}.`);
+        else if (ended) h("p", {}, readout, `The blocks are exhausted after ${race.experiments} runs instead of ${N * B}. Of the ${race.survivors.length} survivors, ${names[race.best]} has the best mean score over the blocks they all played, and the race returns it.`);
+        else h("p", {}, readout, `${nowAlive} configurations go on to the next block.`);
+      }
+      const lastTest = (c) => {
+        for (let i = k - 1; i >= 0; i--) {
+          const st = shown[i];
+          if (st.test && st.test.rankSums && st.alive.includes(c)) return st.test.rankSums[st.alive.indexOf(c)];
+        }
+        return null;
+      };
+      table(
+        readout,
+        ["Configuration", "Blocks", "Rank sum at its last test", "Mean score", "Status"],
+        names.map((name, c) => {
+          const played = shown.filter((st) => st.alive.includes(c)).length;
+          const mean = played ? scores[c].slice(0, played).reduce((a, v) => a + v, 0) / played : NaN;
+          const out = shown.find((st) => st.eliminated.includes(c));
+          const done = ended;
+          const status = out ? `eliminated after block ${out.block + 1}` : done && race.best === c ? "returned" : "alive";
+          const rs = lastTest(c);
+          return [name, String(played), rs === null ? "–" : fmt(rs, 1), fmt(mean, 3), status];
+        }),
+        [false, true, true, true, false]
+      );
+    }
+    generate();
+    render();
+  };
+
+  /* Model-based backends: the budgets they evaluate and the instance/seed pairs each budget runs. */
+  widgets["fidelity-budgets"] = function (node) {
+    const INSTANCES = 6;
+    const SEEDS = 5;
+    const PRESETS = {
+      a: [1000, 3000, 9000],
+      b: [500, 5000],
+      c: [1000, 2000, 4000, 8000],
+    };
+    const state = { levels: "a", mode: "hyperband", eta: 3, minFrac: 0.5, minSeeds: 1, configs: 27 };
+    const ctl = controls(node);
+    select(ctl, {
+      label: "Backend",
+      options: [
+        ["levels", "optuna, bohb_optuna: the levels"],
+        ["hyperband", "smac3, bohb: Hyperband between the ends"],
+      ],
+      value: state.mode,
+      onChange: (v) => ((state.mode = v), render()),
+    });
+    select(ctl, {
+      label: "--fidelity-levels",
+      options: Object.entries(PRESETS).map(([key, lv]) => [key, lv.join(",")]),
+      value: state.levels,
+      onChange: (v) => ((state.levels = v), render()),
+    });
+    slider(ctl, { label: "η", min: 2, max: 4, step: 1, value: state.eta, format: (v) => String(v), onInput: (v) => ((state.eta = v), render()) });
+    const ctl2 = controls(node);
+    const fracSlider = slider(ctl2, { label: "--fidelity-min-instance-frac", min: 0.2, max: 1, step: 0.05, value: state.minFrac, format: (v) => v.toFixed(2), onInput: (v) => ((state.minFrac = v), render()) });
+    const seedSlider = slider(ctl2, { label: "--fidelity-min-seed-count", min: 0, max: SEEDS, step: 1, value: state.minSeeds, format: (v) => (v ? String(v) : "0 (all)"), onInput: (v) => ((state.minSeeds = v), render()) });
+    const configSlider = slider(ctl2, { label: "BOHB configurations", min: 1, max: 60, step: 1, value: state.configs, format: (v) => String(v), onInput: (v) => ((state.configs = v), render()) });
+    button(ctl2, "VAMOS defaults", () => {
+      state.minFrac = 1;
+      state.minSeeds = 0;
+      fracSlider.set(1);
+      seedSlider.set(0);
+      render();
+    });
+    const body = h("div", { class: "vf-body" }, node);
+    const plot = createPlot(body, {
+      width: 380,
+      height: 250,
+      x: [0, 1],
+      y: [0, INSTANCES * SEEDS],
+      yTicks: [0, 5, 10, 15, 20, 25, 30],
+      xTicks: [],
+      xLabel: "Budget per run (evaluations)",
+      yLabel: "Instance/seed pairs",
+      label: "Instance/seed pairs that a model-based backend runs at each budget",
+    });
+    const readout = h("div", { class: "vf-readout" }, body);
+    function budgets(levels) {
+      if (state.mode === "levels") return levels.slice();
+      return hyperbandBudgets(levels[0], levels[levels.length - 1], state.eta);
+    }
+    function render() {
+      const levels = PRESETS[state.levels];
+      const opts = { instances: INSTANCES, seeds: SEEDS, minInstanceFrac: state.minFrac, minSeedCount: state.minSeeds };
+      const rows = budgets(levels).map((b) => fidelitySlice(b, levels, opts));
+      for (const layer of ["back", "mid", "marks", "top"]) clear(plot.layers[layer]);
+      plot.setDomain([0, rows.length], [0, INSTANCES * SEEDS]);
+      rows.forEach((r, i) => {
+        const pairs = r.instances * r.seeds;
+        plot.rect(plot.layers.marks, i + 0.2, 0, i + 0.8, pairs, "vf-bar-1");
+        txt(plot.layers.top, plot.x(i + 0.5), plot.y(pairs) - 5, `${r.instances}×${r.seeds}`, { "text-anchor": "middle", class: "vf-mark-label" });
+        txt(plot.layers.top, plot.x(i + 0.5), plot.y(0) + 15, r.budget.toLocaleString("en-US"), { "text-anchor": "middle" });
+      });
+      clear(readout);
+      const full = rows[rows.length - 1];
+      const low = rows[0];
+      const unused = levels.filter((v) => !rows.some((r) => r.budget === v));
+      h(
+        "p",
+        {},
+        readout,
+        state.mode === "levels"
+          ? `A trial runs at ${rows.map((r) => r.budget.toLocaleString("en-US")).join(", then ")} evaluations, each from scratch, until the pruner stops it; the median pruner (optuna) or the Hyperband pruner with reduction factor ${state.eta} (bohb_optuna) can stop it after any level but the last.`
+          : `Hyperband between ${levels[0].toLocaleString("en-US")} and ${full.budget.toLocaleString("en-US")} evaluations: the largest level divided by powers of η = ${state.eta} gives the budgets ${rows.map((r) => r.budget.toLocaleString("en-US")).join(", ")}. ${unused.length ? `The levels ${unused.map((v) => v.toLocaleString("en-US")).join(" and ")} are not evaluated.` : "Here they coincide with the levels."} (SMAC3 uses η = 3.)`
+      );
+      h("p", {}, readout, `At the full budget a configuration runs on ${full.instances} instances × ${full.seeds} seeds = ${full.instances * full.seeds} pairs; at ${low.budget.toLocaleString("en-US")} evaluations, on ${low.instances} × ${low.seeds} = ${low.instances * low.seeds}. With VAMOS's defaults (instance fraction 1.0, every seed) every budget runs all ${INSTANCES * SEEDS} pairs.`);
+      table(
+        readout,
+        ["Budget", "Fraction", "Instances", "Seeds", "Evaluations per configuration"],
+        rows.map((r) => [r.budget.toLocaleString("en-US"), fmt(r.fraction, 3), String(r.instances), String(r.seeds), (r.budget * r.instances * r.seeds).toLocaleString("en-US")]),
+        [true, true, true, true, true]
+      );
+      if (state.mode === "hyperband") {
+        const brackets = hyperbandBrackets(rows.length, state.eta, state.configs);
+        h("p", {}, readout, `BOHB samples ${state.configs} configurations (--tune-budget) in ${brackets.length} brackets; each bracket starts its configurations at its own budget and keeps the best 1/η of them at each larger budget:`);
+        table(
+          readout,
+          ["Bracket", ...rows.map((r) => r.budget.toLocaleString("en-US"))],
+          brackets.map((rungs, i) => [String(i + 1), ...rows.map((_, j) => (j >= rows.length - rungs.length ? String(rungs[j - (rows.length - rungs.length)]) : "–"))]),
+          [false, ...rows.map(() => true)]
+        );
+      }
+      configSlider.input.disabled = state.mode !== "hyperband";
     }
     render();
   };

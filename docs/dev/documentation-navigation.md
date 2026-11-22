@@ -140,6 +140,10 @@ and reachable through the named parent pages even when absent from the menu.
 | [foundations/advanced/ctaea.md](../foundations/advanced/ctaea.md) | Tutorial | Foundations → Advanced → Constraints → C-TAEA | Add |
 | [foundations/advanced/top.md](../foundations/advanced/top.md) | Tutorial | Foundations → Advanced → Constraints → ToP | Add |
 | [foundations/advanced/cmoeams.md](../foundations/advanced/cmoeams.md) | Tutorial | Foundations → Advanced → Constraints → CMOEA-MS | Add |
+| [foundations/advanced/tuning.md](../foundations/advanced/tuning.md) | Tutorial | Foundations → Advanced → Tuning → Automatic Algorithm Configuration | Add |
+| [foundations/advanced/tuning-racing.md](../foundations/advanced/tuning-racing.md) | Tutorial | Foundations → Advanced → Tuning → Racing and irace | Add |
+| [foundations/advanced/tuning-model-based.md](../foundations/advanced/tuning-model-based.md) | Tutorial | Foundations → Advanced → Tuning → Model-based Tuning | Add |
+| [foundations/advanced/tuning-evolver.md](../foundations/advanced/tuning-evolver.md) | Tutorial | Foundations → Advanced → Tuning → Evolver and Meta-optimization | Add |
 | [foundations/advanced/performance-assessment.md](../foundations/advanced/performance-assessment.md) | Tutorial | Foundations → Advanced → Rigorous Comparison | Add |
 | [experiment/stopping_and_archive.md](../experiment/stopping_and_archive.md) | Reference | Reference → Stopping & Archive | Keep |
 | [guide/cli.md](../guide/cli.md) | How-to | How-to Guides → CLI & Config | Regroup |
