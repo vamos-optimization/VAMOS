@@ -4596,7 +4596,7 @@
       const lo = levels[0];
       const hi = levels[levels.length - 1];
       const rungs = Math.floor(Math.log(hi / lo) / Math.log(state.eta) + 1e-9) + 1;
-      return Array.from({ length: rungs }, (_, i) => Math.min(hi, Math.max(lo, roundHalfEven(hi / Math.pow(state.eta, rungs - 1 - i)))));
+      return Array.from({ length: rungs }, (_, i) => Math.min(hi, Math.max(lo, Math.trunc(hi / Math.pow(state.eta, rungs - 1 - i) + 1e-9))));
     }
     function render() {
       const levels = PRESETS[state.levels];
