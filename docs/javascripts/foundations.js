@@ -4672,7 +4672,8 @@
             ["pull", "Pull: ε-constrained"],
           ],
           value: state.pushing ? "push" : "pull",
-          onChange: (v) => ((state.pushing = v === "push"), params(), render()),
+          // params() rebuilds this select, so the new one takes the focus back.
+          onChange: (v) => ((state.pushing = v === "push"), params(), render(), extra.querySelector("select").focus()),
         });
       }
       if (nm === "epsilon_constrained" || (nm === "push_pull" && !state.pushing)) {
