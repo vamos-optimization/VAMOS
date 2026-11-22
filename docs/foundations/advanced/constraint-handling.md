@@ -361,18 +361,18 @@ for name, parameters in techniques:
     result = optimize(CTP(2), algorithm="nsgaii", algorithm_config=config, max_evaluations=10_000, seed=1)
     feasible = np.all(result.data["G"] <= 0.0, axis=1)
     label = name + "".join(f" {key}={value:g}" for key, value in parameters.items())
-    print(f"{label:<35} {feasible.sum():>3} feasible of {len(feasible)}, feasible front of {len(result.front())}")
+    print(f"{label:<35} {feasible.sum()} feasible of {len(feasible)}, feasible front of {len(result.front())}")
 ```
 
 Output:
 
 ```text
 cdp                                 100 feasible of 100, feasible front of 69
-static_penalty coefficient=1         32 feasible of 100, feasible front of 32
-static_penalty coefficient=100       94 feasible of 100, feasible front of 79
-violation_objective                   7 feasible of 100, feasible front of 7
+static_penalty coefficient=1        32 feasible of 100, feasible front of 32
+static_penalty coefficient=100      94 feasible of 100, feasible front of 79
+violation_objective                 7 feasible of 100, feasible front of 7
 two_rankings                        100 feasible of 100, feasible front of 64
-infeasibility_driven proportion=0.2  80 feasible of 100, feasible front of 80
+infeasibility_driven proportion=0.2 80 feasible of 100, feasible front of 80
 adaptive_tradeoff                   100 feasible of 100, feasible front of 100
 ```
 
