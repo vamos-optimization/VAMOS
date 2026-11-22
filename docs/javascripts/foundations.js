@@ -4614,8 +4614,11 @@
           const y1 = pc.y(aOfU(brush[1], i));
           s("rect", { x: x - 6, y: y1, width: 12, height: Math.max(1.5, y0 - y1), class: "vf-pc-brush" }, g);
         }
-        txt(g, x, pc.y(1) - 5, tickFormat(+(lo[i] + span[i]).toFixed(2)), { "text-anchor": "middle" });
-        txt(g, x, pc.y(0) + 13, tickFormat(+lo[i].toFixed(2)), { "text-anchor": "middle" });
+        // Each axis is labelled with the values at its ends: its own range, or the shared one.
+        const bottom = state.shared ? gLo : lo[i];
+        const top = state.shared ? gLo + gSpan : lo[i] + span[i];
+        txt(g, x, pc.y(1) - 5, tickFormat(+top.toFixed(2)), { "text-anchor": "middle" });
+        txt(g, x, pc.y(0) + 13, tickFormat(+bottom.toFixed(2)), { "text-anchor": "middle" });
         s("rect", { x: x - 16, y: pc.y(0) + 19, width: 32, height: 18, rx: 4, class: "vf-pc-ring" }, g);
         txt(g, x, pc.y(0) + 32, names[i], { "text-anchor": "middle", class: "vf-axis-label" });
         const grip = s("rect", { x: x - 18, y: pc.y(0) + 17, width: 36, height: 22, class: "vf-hit vf-pc-grip" }, g);
