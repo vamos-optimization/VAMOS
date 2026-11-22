@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, ClassVar, Self
 
-from vamos.engine.algorithm.components.constraint_handling import FRONT_TECHNIQUES
+from vamos.engine.algorithm.components.constraint_handling import FRONT_TECHNIQUES, TechniqueParameter
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.foundation.encoding import EncodingLike
 
@@ -100,7 +100,7 @@ class AGEMOEAConfig(_SerializableConfig):
     result_mode: ResultMode | None = None
     external_archive: ExternalArchiveConfig | None = None
     # Fields added after 1.0 go last, so that the constructor keeps the positions of its parameters.
-    constraint_handling: tuple[str, dict[str, float]] | None = None
+    constraint_handling: tuple[str, dict[str, TechniqueParameter]] | None = None
     live_callback_mode: LiveCallbackMode = "population"
     variant: AGEMOEAVariant = "agemoea"
 

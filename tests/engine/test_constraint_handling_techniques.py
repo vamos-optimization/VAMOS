@@ -49,6 +49,8 @@ PARAMETERS: dict[str, dict[str, float]] = {
     "shift_penalty": {"constant": 2.0},
     "infeasibility_driven": {"proportion": 0.2},
     "adaptive_tradeoff": {},
+    "multiple_constraint_ranking": {},
+    "ensemble": {},
 }
 
 
@@ -220,7 +222,8 @@ def test_epsilon_changes_the_search() -> None:
 
 
 @pytest.mark.parametrize(
-    ("technique", "generation"), [("epsilon_constrained", 20), ("push_pull", 30), ("dynamic_penalty", 20), ("adaptive_tradeoff", 20)]
+    ("technique", "generation"),
+    [("epsilon_constrained", 20), ("push_pull", 30), ("dynamic_penalty", 20), ("adaptive_tradeoff", 20), ("ensemble", 20)],
 )
 def test_a_resumed_run_keeps_the_technique_state(technique: str, generation: int, tmp_path: Path) -> None:
     # Restarting the technique would change epsilon, or push and pull search's window of ideal and nadir points.
@@ -261,7 +264,8 @@ class _StopAtGeneration:
 
 
 @pytest.mark.parametrize(
-    ("technique", "generation"), [("epsilon_constrained", 20), ("push_pull", 30), ("dynamic_penalty", 20), ("adaptive_tradeoff", 20)]
+    ("technique", "generation"),
+    [("epsilon_constrained", 20), ("push_pull", 30), ("dynamic_penalty", 20), ("adaptive_tradeoff", 20), ("ensemble", 20)],
 )
 def test_a_run_resumed_from_the_returned_checkpoint_keeps_the_technique_state(technique: str, generation: int) -> None:
     # The checkpoint in the result is the in-memory way to resume, without a checkpoint directory.

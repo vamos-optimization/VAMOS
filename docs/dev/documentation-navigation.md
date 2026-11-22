@@ -104,6 +104,7 @@ and reachable through the named parent pages even when absent from the menu.
 | [foundations/basic/pareto-dominance.md](../foundations/basic/pareto-dominance.md) | Tutorial | Foundations → Basic → Pareto Dominance | Add |
 | [foundations/basic/quality-aspects.md](../foundations/basic/quality-aspects.md) | Tutorial | Foundations → Basic → Quality Aspects | Add |
 | [foundations/basic/quality-indicators.md](../foundations/basic/quality-indicators.md) | Tutorial | Foundations → Basic → Quality Indicators | Add |
+| [foundations/basic/genetic-algorithms.md](../foundations/basic/genetic-algorithms.md) | Tutorial | Foundations → Basic → Genetic Algorithms | Add |
 | [foundations/basic/algorithm-families.md](../foundations/basic/algorithm-families.md) | Tutorial | Foundations → Basic → Families of Algorithms | Add |
 | [foundations/intermediate/nsga-ii.md](../foundations/intermediate/nsga-ii.md) | Tutorial | Foundations → Intermediate → Dominance-based → NSGA-II → NSGA-II at a Glance | Add |
 | [foundations/intermediate/non-dominated-sorting.md](../foundations/intermediate/non-dominated-sorting.md) | Tutorial | Foundations → Intermediate → Dominance-based → NSGA-II → Non-dominated Sorting | Add |

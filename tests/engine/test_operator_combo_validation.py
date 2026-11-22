@@ -243,6 +243,18 @@ def _enumerate_discrete_combos(space: AlgorithmConfigSpace, *, base_stride: int 
     cond_blocks: list[tuple[str, Any, list]] = []
     for block in space.conditionals or []:
         cond_blocks.append((block.parent_name, block.parent_value, block.params))
+    # Blocks whose parent is itself conditional, such as violation_objective_cdf_alpha under
+    # violation_objective_ratio = cdf: their parameters take defaults once the enumerated values activate them.
+    nested_blocks = [block for block in cond_blocks if block[0] in conditional_names]
+
+    def with_nested_defaults(assignment: dict[str, Any]) -> dict[str, Any]:
+        for parent_name, parent_value, block_params in nested_blocks:
+            if assignment.get(parent_name) != parent_value:
+                continue
+            for p in block_params:
+                if p.name not in assignment and param_space.is_active(p.name, assignment):
+                    assignment[p.name] = _default_for_param(p)
+        return assignment
 
     for index, base_combo in enumerate(itertools.product(*base_enum_values)):
         if index % base_stride:
@@ -272,12 +284,12 @@ def _enumerate_discrete_combos(space: AlgorithmConfigSpace, *, base_stride: int 
                     base_assignment[p.name] = _default_for_param(p)
 
         if not active_cond_enum_names:
-            yield dict(base_assignment)
+            yield with_nested_defaults(dict(base_assignment))
         else:
             for cond_combo in itertools.product(*active_cond_enum_values):
                 full = dict(base_assignment)
                 full.update(dict(zip(active_cond_enum_names, cond_combo)))
-                yield full
+                yield with_nested_defaults(full)
 
 
 def _build_full_assignment(
