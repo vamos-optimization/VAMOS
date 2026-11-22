@@ -21,7 +21,7 @@ have their own section.
 
 | Section | Lessons | After it you can |
 | --- | --- | --- |
-| **Basic** | [What is a multi-objective problem?](basic/multi-objective-problems.md) · [Pareto dominance and the Pareto front](basic/pareto-dominance.md) · [What makes a good approximation?](basic/quality-aspects.md) · [Quality indicators](basic/quality-indicators.md) · [Families of multi-objective algorithms](basic/algorithm-families.md) | Formulate a problem with several objectives, reason with Pareto dominance, judge an approximation set, compute the standard quality indicators and tell the families of algorithms apart. |
+| **Basic** | [What is a multi-objective problem?](basic/multi-objective-problems.md) · [Pareto dominance and the Pareto front](basic/pareto-dominance.md) · [What makes a good approximation?](basic/quality-aspects.md) · [Quality indicators](basic/quality-indicators.md) · [Genetic algorithms: the evolutionary loop](basic/genetic-algorithms.md) · [Families of multi-objective algorithms](basic/algorithm-families.md) | Formulate a problem with several objectives, reason with Pareto dominance, judge an approximation set, compute the standard quality indicators, explain the loop that every evolutionary algorithm runs and tell the families of algorithms apart. |
 | **Intermediate** | *Dominance-based:* NSGA-II ([at a glance](intermediate/nsga-ii.md) · [non-dominated sorting](intermediate/non-dominated-sorting.md) · [crowding distance and tournaments](intermediate/crowding-distance.md) · [elitist survival](intermediate/elitist-survival.md)) · [SPEA2](intermediate/spea2.md). *Decomposition-based:* [MOEA/D](intermediate/moead.md). *Indicator-based:* [SMS-EMOA](intermediate/smsemoa.md) · [IBEA](intermediate/ibea.md). *Swarm-based:* [SMPSO](intermediate/smpso.md). | Explain every step of NSGA-II and the code that implements it in VAMOS, and explain in the same depth one or two algorithms of each family. |
 | **Operators** | [Variation operators: an overview](operators/overview.md) · [Real-coded operators: SBX and polynomial mutation](operators/real-coded.md) · [More real-coded operators](operators/real-coded-more.md) · [Binary operators](operators/binary.md) · [Integer operators](operators/integer.md) · [Permutation operators](operators/permutation.md) · [Mixed operators](operators/mixed.md) | Explain how crossover and mutation create offspring for real, binary, integer, permutation and mixed variables, and what their parameters control. |
 | **Advanced** | *Many objectives:* [many-objective optimization](advanced/many-objective.md) · [NSGA-III](advanced/nsga-iii.md) · [RVEA](advanced/rvea.md) · [AGE-MOEA](advanced/agemoea.md). *Constraints:* [constrained optimization](advanced/constrained.md) · [CCMO](advanced/ccmo.md) · [C-TAEA](advanced/ctaea.md) · [ToP](advanced/top.md) · [CMOEA-MS](advanced/cmoeams.md). [Comparing algorithms rigorously](advanced/performance-assessment.md). | Recognize why four or more objectives and constraints change the problem, explain the many-objective and constrained algorithms of VAMOS, and design a comparison whose conclusions survive scrutiny. |
@@ -64,7 +64,12 @@ python -m pip install moocore
 ```
 
 The outputs printed in the lessons come from VAMOS 1.5.2 with the NumPy
-engine. Values computed by an optimization run can differ in their last digits
+engine, which VAMOS uses when `engine` is omitted. The optional Numba engine
+(`engine="auto"` or `"numba"`, from the `compute` extra) follows the same
+trajectory faster on long runs, but its first call compiles its kernels, which
+takes longer than any example here; lesson
+[Genetic algorithms](basic/genetic-algorithms.md#engines-numpy-numba-and-moocore)
+explains the choice. Values computed by an optimization run can differ in their last digits
 in another environment; a seed makes a run repeatable in the same
 environment, not bitwise identical everywhere.
 

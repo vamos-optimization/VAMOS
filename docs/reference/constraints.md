@@ -135,17 +135,20 @@ rankings computed by hand and the worked examples of their papers.
 
 **Development after 1.5.2:** NSGA-II, NSGA-III, SMS-EMOA and AGE-MOEA also
 take four techniques that neither jMetal nor Evolver has, and NSGA-II three
-more, `two_rankings`, `infeasibility_driven` and `adaptive_tradeoff`:
+more, `two_rankings`, `infeasibility_driven`, `adaptive_tradeoff`,
+`multiple_constraint_ranking` and `ensemble`:
 
 | Technique | Parameters | Ranking |
 | --- | --- | --- |
 | `static_penalty` | `coefficient` | A static penalty: Pareto dominance over every objective plus `coefficient` times the overall violation, the sum of the positive constraint values. |
 | `dynamic_penalty` | `constant`, `alpha`, `beta` | Joines and Houck's non-stationary penalty: Pareto dominance over every objective plus `(constant * k) ** alpha` times the sum of the violations raised to `beta`, where `k` is the generation. |
-| `violation_objective` | none | The overall violation as one more objective (Coello, 2000): Pareto dominance over the objectives and the violation. |
+| `violation_objective` | optional `violation_norm`, `ratio_objective`, `cdf_alpha`, `feasible_first` | The overall violation as one more objective (Coello, 2000): Pareto dominance over the objectives and the violation; Dam and Truong's options change the violation's norm, add the ratio of violated constraints, or rank feasible solutions first (NSGA-II only). |
 | `two_rankings` | none | NSGA-II only. Ma, Wang and Song's ToR: the best by `alpha * R^c + (1 - alpha) * R^p`, positions by the constrained-domination principle and by Pareto dominance, one solution per front. |
 | `shift_penalty` | `constant` | Ma and Wang's ShiP: Pareto dominance over objectives that move each infeasible solution towards its local feasible nadir and add its violation. |
 | `infeasibility_driven` | `proportion` | NSGA-II only. Ray, Singh, Isaacs and Smith's IDEA: the best infeasible solutions, `proportion` of the population, rank above the feasible ones, one solution per front. |
 | `adaptive_tradeoff` | none | NSGA-II only. Wang, Cai, Zhou and Zeng's ATM, in Li, Wang, Yang and Cai's version for several objectives: the ranking depends on the feasible proportion of the population, one solution per front. |
+| `multiple_constraint_ranking` | none | NSGA-II only. Garcia, de Lima, Lemonge and Jacob's MCR: the sum of the ranks of the objectives, of the number of violated constraints and of each constraint's violation, one solution per front. |
+| `ensemble` | optional `nds_weight`, `cdp_weight`, `mcr_weight`, `dpf_weight` | NSGA-II only. Vodopija, Oyama and Filipic's ensemble: the weighted sum of the normalized qualities of NDS, CDP, MCR and a dynamic penalty, one solution per front. |
 
 ```python
 from vamos.algorithms import NSGAIIConfig
@@ -231,6 +234,36 @@ ranks of the current population, as for every technique, so while no solution
 is feasible it compares by Pareto dominance alone. ShiP+, the paper's
 archive-assisted algorithm, is not part of VAMOS.
 
+`violation_objective` takes the options of T. M. Dam and L. V. Truong, "A
+Generalized Framework for Multi-objective-based Constraint Handling Technique"
+(International Journal of Control, Automation, and Systems 22(10):3240–3252,
+2024, section 3). Each is optional, and without them the technique ranks as it
+does without options:
+
+- `violation_norm`: the violation is `V = ||v||_p^p` of the positive constraint
+  values `v` (Def. 7): their sum (`l1`, the default), the sum of their squares
+  (`l2_squared`) or the largest (`linf`).
+- `ratio_objective`: the constraint violation ratio `R` (Def. 6), the weighted
+  share of the violated constraints, is one more objective, before `V`. VAMOS
+  has no weights of its own for the constraints, so they are equal, or, with
+  `cdf_alpha` above 0, those of the CDF (section 3.2): `1 + cdf_alpha * f_j /
+  sum_i f_i`, where `f_j` is how many solutions of the population violate
+  constraint `j`. The paper uses `cdf_alpha = 0.5`; `cdf_alpha` needs
+  `ratio_objective`. The paper's shortened framework with `R` and without `V`
+  is not offered.
+- `feasible_first`: Algorithm A's survival, a total order, so NSGA-II only. The
+  feasible solutions come first, by fronts and crowding distance of the
+  objectives, then the infeasible ones by `R` (with `ratio_objective`) and then
+  `V`, in ascending order, as `numpy.lexsort` with `R` as the primary key;
+  equal values keep the order of the population. With it, the added
+  objectives order the infeasible solutions only, so it is the
+  constrained-domination principle with another order of the infeasible ones,
+  which the paper's results on BNH show.
+
+The tuning spaces offer `violation_objective_norm`, `violation_objective_ratio`
+(`none`, `equal` or `cdf`, whose `violation_objective_cdf_alpha` ranges over
+[0.1, 2], default 0.5) and, in NSGA-II's only, `violation_objective_feasible_first`.
+
 `infeasibility_driven` and `adaptive_tradeoff` are defined for NSGA-II, and,
 like `two_rankings`, order the population totally, so that NSGA-II's
 replacement keeps the selection their papers define and its tournament
@@ -286,6 +319,45 @@ phase depends on the feasible proportion of the population being ranked:
 `phi` is the feasible proportion of the population that the last replacement
 kept: 0 until the first replacement, as in Wang et al.'s Fig. 4, and kept in
 NSGA-II's checkpoints. ATM has no parameters.
+
+`multiple_constraint_ranking` and `ensemble` follow H. Fukumoto and A. Oyama's
+framework, "A Generic Framework for Incorporating Constraint Handling
+Techniques into Multi-Objective Evolutionary Algorithms" (EvoApplications
+2018, LNCS 10784, pp. 634–649, Algorithm 1): the objectives map to a fitness,
+the fitness to a rank, and a technique acts on either. For NSGA-II the fitness
+is A. Vodopija, A. Oyama and B. Filipič's (GECCO '19 Companion, pp.
+2072–2075, Algorithm 1): the Pareto rank minus the crowding distance,
+normalized so as to keep the Pareto order. Neither paper says how. VAMOS
+scales the finite crowding distances of the population min-max into
+[0, 1/4], all to 0 when they are equal, and puts the infinite ones of the
+extremes at 1/2, so that the extremes stay preferred, as in NSGA-II. Both
+techniques order the population totally, like `two_rankings`, are defined for
+NSGA-II, and break ties by the order of the population.
+
+`multiple_constraint_ranking` follows R. P. Garcia, B. S. L. P. de Lima,
+A. C. de C. Lemonge and B. P. Jacob, "A rank-based constraint handling
+technique for engineering design optimization problems solved by genetic
+algorithms" (Computers and Structures 187:77–87, 2017). Its fitness (eq. 10) is
+`R_Nv + sum_j R_phi^j`, plus `R_f` when some solution is feasible: `R_Nv` ranks
+the number of violated constraints, `R_phi^j` the violation of constraint `j`,
+and `R_f` the objectives. Each rank is 1 plus the number of solutions that are
+better, so equal values share a rank (Tables 1–2). With several objectives,
+`R_f` ranks the NSGA-II fitness of the objectives alone, the framework's
+rank-type use of MCR, and solutions with the same objectives share the best
+fitness among them, so that they share a rank.
+
+`ensemble` follows Vodopija et al.: `c_e = sum_i w_i c_i` over NDS (the NSGA-II
+fitness with Pareto dominance), CDP (the same with the constrained-domination
+principle), MCR and DPF (the NDS fitness plus Joines and Houck's dynamic
+penalty, with `dynamic_penalty`'s settings, `C = 0.5` and `alpha = beta = 2`,
+which the paper does not give), and the population is ordered by `c_e`. The
+paper normalizes each member's quality into [0, 1] without saying how; VAMOS
+scales each min-max over the population. A penalty that overflows to infinity
+scales to 1, and the finite ones to 0, the limit of min-max. The weights,
+`nds_weight`, `cdp_weight`, `mcr_weight` and `dpf_weight`, are finite and at
+least 0, 1/4 each by default, as in the paper, and are normalized to sum 1, so
+at least one must be above 0; a member of weight 0 takes no part. NSGA-II's
+checkpoints keep DPF's generation.
 
 The penalized or shifted objectives, like those of `self_adaptive_penalty`, and
 the violation of `violation_objective` only rank the population: crowding

@@ -96,16 +96,73 @@ class DynamicPenalty(ConstraintHandlingTechnique):
 
 
 class ViolationObjective(ConstraintHandlingTechnique):
-    """The overall violation as one more objective: Pareto dominance over the objectives and the violation.
+    """The overall violation as one more objective (Coello, 2000), with Dam and Truong's options.
 
-    A feasible population, whose violations are all 0, ranks by Pareto dominance over its objectives.
+    T. M. Dam and L. V. Truong, "A Generalized Framework for Multi-objective-based Constraint Handling Technique",
+    International Journal of Control, Automation, and Systems 22(10):3240-3252, 2024, section 3:
+
+    - ``violation_norm``: the violation ``V = ||v||_p^p`` of the positive constraint values ``v`` (Def. 7): their
+      sum (``l1``, the default), the sum of their squares (``l2_squared``) or the largest (``linf``).
+    - ``ratio_objective``: the constraint violation ratio ``R`` (Def. 6), the weighted share of the violated
+      constraints, is one more objective before ``V``. The weights are equal, or with ``cdf_alpha`` above 0 those
+      of the CDF (section 3.2), ``1 + cdf_alpha * f_j / sum_i f_i``, where ``f_j`` is how many rows violate
+      constraint ``j``.
+    - ``feasible_first``: Algorithm A's survival, a total order and NSGA-II only. The feasible rows come first, by
+      fronts and crowding distance of the objectives, then the infeasible ones by ``R`` (with ``ratio_objective``)
+      and then ``V``, in ascending order; equal values keep the order of the population.
+
+    Otherwise the ranks are Pareto dominance over the objectives, ``R`` and ``V``. A feasible population, whose
+    ``R`` and ``V`` are 0, ranks by Pareto dominance over its objectives.
     """
 
     name = "violation_objective"
 
+    def __init__(
+        self, violation_norm: str = "l1", *, ratio_objective: bool = False, cdf_alpha: float = 0.0, feasible_first: bool = False
+    ) -> None:
+        self.violation_norm = violation_norm
+        self.ratio_objective = ratio_objective
+        self.cdf_alpha = float(cdf_alpha)
+        self.feasible_first = feasible_first
+        self.total_order = feasible_first
+
     def ranks(self, kernel: KernelBackend, F: NDArray[Any], G: NDArray[Any], rng: np.random.Generator) -> RankArray:
         F = np.asarray(F, dtype=np.float64)
-        return pareto_ranks(kernel, np.column_stack([F, violation(G)]))
+        extra = violation_objectives(G, self.violation_norm, self.ratio_objective, self.cdf_alpha)
+        if not self.feasible_first:
+            return pareto_ranks(kernel, np.column_stack([F, extra]))
+        rows = np.arange(F.shape[0])
+        # From G, not from V: a violation whose square underflows has l2_squared V of 0, and it is infeasible all the same.
+        feasible = np.all(np.asarray(G, dtype=np.float64) <= 0.0, axis=1)
+        ranks, crowding = kernel.nsga2_ranking(np.ascontiguousarray(F[feasible])) if np.any(feasible) else (np.empty(0), np.empty(0))
+        first = rows[feasible][np.lexsort((rows[feasible], -np.asarray(crowding, dtype=np.float64), np.asarray(ranks)))]
+        infeasible = rows[~feasible]
+        then = infeasible[np.lexsort((infeasible, *extra[~feasible][:, ::-1].T))]
+        order = np.concatenate([first, then])
+        positions = np.empty(order.size, dtype=np.int64)
+        positions[order] = np.arange(order.size, dtype=np.int64)
+        return positions
+
+
+def violation_objectives(
+    G: NDArray[Any], violation_norm: str = "l1", ratio_objective: bool = False, cdf_alpha: float = 0.0
+) -> NDArray[np.float64]:
+    """The objectives that ``violation_objective`` adds: ``[R, V]`` with ``ratio_objective``, otherwise ``[V]``."""
+    excess = np.maximum(np.asarray(G, dtype=np.float64), 0.0)
+    if violation_norm == "l1":
+        measure = violation(G)
+    elif violation_norm == "l2_squared":
+        measure = np.asarray(np.sum(excess * excess, axis=1), dtype=np.float64)
+    else:
+        measure = np.asarray(excess.max(axis=1), dtype=np.float64) if excess.shape[1] else np.zeros(excess.shape[0])
+    if not ratio_objective:
+        return measure[:, None]
+    violated = excess > 0.0
+    counts = violated.sum(axis=0).astype(np.float64)
+    total = counts.sum()
+    weights = 1.0 + cdf_alpha * counts / total if total > 0.0 else np.ones(excess.shape[1])
+    ratio = (violated * weights).sum(axis=1) / weights.sum() if excess.shape[1] else np.zeros(excess.shape[0])
+    return np.column_stack([ratio, measure])
 
 
 class ShiftPenalty(ConstraintHandlingTechnique):
@@ -157,4 +214,12 @@ def penalized_objectives(F: NDArray[Any], penalty: NDArray[np.float64]) -> NDArr
     return np.asarray(np.asarray(F, dtype=np.float64) + np.asarray(penalty, dtype=np.float64)[:, None], dtype=np.float64)
 
 
-__all__ = ["DynamicPenalty", "ShiftPenalty", "StaticPenalty", "ViolationObjective", "penalized_objectives", "shift_penalty_objectives"]
+__all__ = [
+    "DynamicPenalty",
+    "ShiftPenalty",
+    "StaticPenalty",
+    "ViolationObjective",
+    "penalized_objectives",
+    "shift_penalty_objectives",
+    "violation_objectives",
+]

@@ -12,6 +12,7 @@ from typing import Any, Literal, Self, TypeAlias, cast, overload
 
 from vamos.engine.algorithm.components.constraint_handling import (
     CONSTRAINT_HANDLING_TECHNIQUES,
+    TechniqueParameter,
     config_constraint_handling,
     normalize_constraint_handling,
 )
@@ -245,20 +246,13 @@ class _ConstraintModeBuilder:
 class _ConstraintHandlingBuilder:
     _cfg: dict[str, Any]
 
-    def constraint_handling(self, name: str, **params: float) -> Self:
+    def constraint_handling(self, name: str, **params: TechniqueParameter) -> Self:
         """Rank constrained populations with a constraint-handling technique.
 
-        ``name`` is one of jMetal's ``util.constrainthandling``: ``cdp`` (the default),
-        ``violated_constraints``, ``epsilon_constrained`` (``initial_quantile``, ``exponent``,
-        ``decay_fraction``), ``push_pull`` (``change_threshold``, ``window_fraction``, ``decay_fraction``,
-        ``exponent``, ``feasibility_threshold``, ``reduction_rate``), ``stochastic_ranking``
-        (``probability``) or ``self_adaptive_penalty``; or one that jMetal does not have:
-        ``static_penalty`` (``coefficient``), ``dynamic_penalty`` (``constant``, ``alpha``, ``beta``),
-        ``violation_objective``, ``two_rankings``, ``shift_penalty`` (``constant``), ``infeasibility_driven``
-        (``proportion``) or ``adaptive_tradeoff``; ``two_rankings``, ``infeasibility_driven`` and
-        ``adaptive_tradeoff`` are NSGA-II's only. Every parameter of
-        the technique is required. See
-        :mod:`vamos.engine.algorithm.components.constraint_handling`.
+        ``name`` is ``cdp`` (the default) or another technique of
+        :mod:`vamos.engine.algorithm.components.constraint_handling`, which describes them and their parameters: jMetal's
+        ``util.constrainthandling`` and those that jMetal does not have, some of them NSGA-II's only. Every parameter
+        of the technique is required, except the options of ``violation_objective``.
         """
         self._cfg["constraint_handling"] = normalize_constraint_handling((name, params))
         return self

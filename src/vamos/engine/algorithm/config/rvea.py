@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from math import comb
 from typing import Any, ClassVar, Literal, TypeAlias, cast
 
-from vamos.engine.algorithm.components.constraint_handling import PAIRWISE_TECHNIQUES
+from vamos.engine.algorithm.components.constraint_handling import PAIRWISE_TECHNIQUES, TechniqueParameter
 from vamos.engine.algorithm.components.weight_vectors import vector_source
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.engine.reference_directions import lattice_size
@@ -135,7 +135,7 @@ class RVEAConfig(_SerializableConfig):
     result_mode: ResultMode | None = None
     external_archive: ExternalArchiveConfig | None = None
     # Fields added after 1.0 go last, so that the constructor keeps the positions of its parameters.
-    constraint_handling: tuple[str, dict[str, float]] | None = None
+    constraint_handling: tuple[str, dict[str, TechniqueParameter]] | None = None
     live_callback_mode: LiveCallbackMode = "population"
     reference_vectors: dict[str, int | str | None] | None = None
     variant: RVEAVariant = "pymoo"

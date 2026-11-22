@@ -143,6 +143,8 @@ NO_EVOLVER_EQUIVALENT: dict[str, dict[str, str]] = {
         "shift_penalty": _NOT_IN_JMETAL,
         "infeasibility_driven": _NOT_IN_JMETAL,
         "adaptive_tradeoff": _NOT_IN_JMETAL,
+        "multiple_constraint_ranking": _NOT_IN_JMETAL,
+        "ensemble": _NOT_IN_JMETAL,
     },
 }
 
