@@ -39,7 +39,7 @@ three homepage journeys lead directly to T01, T02, and T06.
 | Cookbook | Keep the recipe index now; split selected tasks into dedicated guides as they are developed. | Retain the recipe anchors as routing points when content is extracted. |
 | Study and analysis material | Keep the lifecycle and analysis pages; connect T06–T08 and their retained study report. | Keep the synthetic API matrix distinct from actual study observations. |
 | Merging pages | No page merge is needed for this navigation change. | Prefer cross-links between complementary tutorial, how-to, and reference roles. |
-| Foundations | Concept lessons B1–B4, I1–I11 and A1–A10 under their own tab, including an in-depth lesson for every built-in algorithm. Interactive figures live in `docs/javascripts/foundations.js` and `docs/stylesheets/foundations.css`. | Link to the algorithm lessons and study tutorials instead of repeating their workflows. `tests/docs/test_foundations.py` runs every example against its documented output and keeps each source excerpt verbatim in VAMOS; keep the figures' algorithms equal to the NumPy kernel they port. |
+| Foundations | Concept lessons under their own tab, in three levels: Basic, Intermediate and Advanced. The Intermediate level groups its lessons by algorithm family and ends with the Operators group. The path includes an in-depth lesson for every built-in algorithm. Interactive figures live in `docs/javascripts/foundations.js` and `docs/stylesheets/foundations.css`. | Link to the algorithm lessons and study tutorials instead of repeating their workflows. `tests/docs/test_foundations.py` runs every example against its documented output and keeps each source excerpt verbatim in VAMOS; keep the figures' algorithms equal to the NumPy kernel they port. |
 
 ## Complete page inventory
 
@@ -104,6 +104,7 @@ and reachable through the named parent pages even when absent from the menu.
 | [foundations/basic/pareto-dominance.md](../foundations/basic/pareto-dominance.md) | Tutorial | Foundations → Basic → Pareto Dominance | Add |
 | [foundations/basic/quality-aspects.md](../foundations/basic/quality-aspects.md) | Tutorial | Foundations → Basic → Quality Aspects | Add |
 | [foundations/basic/quality-indicators.md](../foundations/basic/quality-indicators.md) | Tutorial | Foundations → Basic → Quality Indicators | Add |
+| [foundations/basic/genetic-algorithms.md](../foundations/basic/genetic-algorithms.md) | Tutorial | Foundations → Basic → Genetic Algorithms | Add |
 | [foundations/basic/algorithm-families.md](../foundations/basic/algorithm-families.md) | Tutorial | Foundations → Basic → Families of Algorithms | Add |
 | [foundations/intermediate/nsga-ii.md](../foundations/intermediate/nsga-ii.md) | Tutorial | Foundations → Intermediate → Dominance-based → NSGA-II → NSGA-II at a Glance | Add |
 | [foundations/intermediate/non-dominated-sorting.md](../foundations/intermediate/non-dominated-sorting.md) | Tutorial | Foundations → Intermediate → Dominance-based → NSGA-II → Non-dominated Sorting | Add |
@@ -114,7 +115,13 @@ and reachable through the named parent pages even when absent from the menu.
 | [foundations/intermediate/smsemoa.md](../foundations/intermediate/smsemoa.md) | Tutorial | Foundations → Intermediate → Indicator-based → SMS-EMOA | Add |
 | [foundations/intermediate/ibea.md](../foundations/intermediate/ibea.md) | Tutorial | Foundations → Intermediate → Indicator-based → IBEA | Add |
 | [foundations/intermediate/smpso.md](../foundations/intermediate/smpso.md) | Tutorial | Foundations → Intermediate → Swarm-based → SMPSO | Add |
-| [foundations/operators/real-coded.md](../foundations/operators/real-coded.md) | Tutorial | Foundations → Operators → Real-coded Operators | Add |
+| [foundations/intermediate/operators/overview.md](../foundations/intermediate/operators/overview.md) | Tutorial | Foundations → Intermediate → Operators → Variation Operators | Add |
+| [foundations/intermediate/operators/real-coded.md](../foundations/intermediate/operators/real-coded.md) | Tutorial | Foundations → Intermediate → Operators → Real-coded Operators | Add |
+| [foundations/intermediate/operators/real-coded-more.md](../foundations/intermediate/operators/real-coded-more.md) | Tutorial | Foundations → Intermediate → Operators → More Real-coded Operators | Add |
+| [foundations/intermediate/operators/binary.md](../foundations/intermediate/operators/binary.md) | Tutorial | Foundations → Intermediate → Operators → Binary Operators | Add |
+| [foundations/intermediate/operators/integer.md](../foundations/intermediate/operators/integer.md) | Tutorial | Foundations → Intermediate → Operators → Integer Operators | Add |
+| [foundations/intermediate/operators/permutation.md](../foundations/intermediate/operators/permutation.md) | Tutorial | Foundations → Intermediate → Operators → Permutation Operators | Add |
+| [foundations/intermediate/operators/mixed.md](../foundations/intermediate/operators/mixed.md) | Tutorial | Foundations → Intermediate → Operators → Mixed Operators | Add |
 | [foundations/benchmarks/overview.md](../foundations/benchmarks/overview.md) | Tutorial | Foundations → Benchmarks → What a Benchmark Tests | Add |
 | [foundations/benchmarks/continuous.md](../foundations/benchmarks/continuous.md) | Tutorial | Foundations → Benchmarks → ZDT, DTLZ and WFG | Add |
 | [foundations/benchmarks/scalable.md](../foundations/benchmarks/scalable.md) | Tutorial | Foundations → Benchmarks → Many Objectives and Variables | Add |

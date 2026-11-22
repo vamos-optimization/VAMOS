@@ -229,6 +229,7 @@ nav:
       - Pareto Dominance: foundations/basic/pareto-dominance.md
       - Quality Aspects: foundations/basic/quality-aspects.md
       - Quality Indicators: foundations/basic/quality-indicators.md
+      - Genetic Algorithms: foundations/basic/genetic-algorithms.md
       - Families of Algorithms: foundations/basic/algorithm-families.md
     - Intermediate:
       - Dominance-based:
@@ -245,8 +246,14 @@ nav:
         - IBEA: foundations/intermediate/ibea.md
       - Swarm-based:
         - SMPSO: foundations/intermediate/smpso.md
-    - Operators:
-      - Real-coded Operators: foundations/operators/real-coded.md
+      - Operators:
+        - Variation Operators: foundations/intermediate/operators/overview.md
+        - Real-coded Operators: foundations/intermediate/operators/real-coded.md
+        - More Real-coded Operators: foundations/intermediate/operators/real-coded-more.md
+        - Binary Operators: foundations/intermediate/operators/binary.md
+        - Integer Operators: foundations/intermediate/operators/integer.md
+        - Permutation Operators: foundations/intermediate/operators/permutation.md
+        - Mixed Operators: foundations/intermediate/operators/mixed.md
     - Benchmarks:
       - What a Benchmark Tests: foundations/benchmarks/overview.md
       - ZDT, DTLZ and WFG: foundations/benchmarks/continuous.md

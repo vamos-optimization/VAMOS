@@ -113,7 +113,7 @@ VAMOS creates and places one offspring per step:
 
 For step 3, VAMOS applies DE rand/1/bin [3] with the current solution xⁱ as the
 base vector, as MOEA/D-DE does, then polynomial mutation (lesson
-[Real-coded operators](../operators/real-coded.md#polynomial-mutation)):
+[Real-coded operators](operators/real-coded.md#polynomial-mutation)):
 
 <div class="vf-formula">v = xⁱ + F · ( x^r₁ − x^r₂ )
 y_j = v_j    if rand_j &lt; CR or j = j_rand,     otherwise y_j = xⁱ_j

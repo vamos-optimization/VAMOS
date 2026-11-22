@@ -753,15 +753,22 @@ pymoo's default penalty); `dynamic_penalty`, with `dynamic_penalty_constant`
 (logarithmic in [0.01, 10], default 0.5), `dynamic_penalty_alpha` and
 `dynamic_penalty_beta` (in [1, 3], default 2), Joines and Houck's P(2, 2)
 with `C = 0.5`, the most pressing of the settings they tested;
-`violation_objective`; and `shift_penalty`, with `shift_penalty_constant` (in
+`violation_objective`, with Dam and Truong's options `violation_objective_norm`
+(`l1`, `l2_squared` or `linf`) and `violation_objective_ratio` (`none`, `equal`
+or `cdf`, with `violation_objective_cdf_alpha` in [0.1, 2], default 0.5), and in
+`nsgaii_constrained` also `violation_objective_feasible_first`; and
+`shift_penalty`, with `shift_penalty_constant` (in
 [1, 5], default 2: Ma and Wang's `c`, whose sensitivity study found 2 and 3
-best and 0.5 and 1 worse). `nsgaii_constrained` also offers three techniques
-that their papers define for NSGA-II: `two_rankings` and `adaptive_tradeoff`,
-which have no parameters, and `infeasibility_driven`, with
-`infeasibility_driven_proportion` (in [0.05, 0.5], default 0.2, Ray et al.'s
-"small percentage" of infeasible solutions). `cdp` stays the default. Seeded
-tuning runs of those spaces draw different trials, and `to_evolver` refuses
-the seven techniques, which Evolver cannot run.
+best and 0.5 and 1 worse). `nsgaii_constrained` also offers five techniques
+that their papers define for NSGA-II: `two_rankings`, `adaptive_tradeoff` and
+`multiple_constraint_ranking`, which have no parameters;
+`infeasibility_driven`, with `infeasibility_driven_proportion` (in
+[0.05, 0.5], default 0.2, Ray et al.'s "small percentage" of infeasible
+solutions); and `ensemble`, with `ensemble_nds_weight`, `ensemble_cdp_weight`,
+`ensemble_mcr_weight` and `ensemble_dpf_weight` (each in [0, 1], default 1/4,
+normalized to sum 1). `cdp` stays the default. Seeded tuning runs of those
+spaces draw different trials, and `to_evolver` refuses the nine techniques,
+which Evolver cannot run.
 
 **VAMOS 1.4.0:** the technique parameters have no default in VAMOS,
 jMetal or Evolver, so the grammars default to the settings of the papers that

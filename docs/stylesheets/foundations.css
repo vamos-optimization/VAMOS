@@ -430,6 +430,13 @@
   opacity: 0.7;
 }
 
+/* Operators: the cells of the binary and permutation step-throughs */
+
+.vf-cell-a { fill: color-mix(in srgb, var(--vf-s1) 20%, var(--vf-panel)); stroke: var(--vf-s1); stroke-width: 1; }
+.vf-cell-b { fill: color-mix(in srgb, var(--vf-s2) 20%, var(--vf-panel)); stroke: var(--vf-s2); stroke-width: 1; }
+.vf-cell-mark { fill: color-mix(in srgb, var(--vf-s3) 28%, var(--vf-panel)); stroke: var(--vf-ink); stroke-width: 2; }
+.vf-cell-empty { fill: var(--vf-panel); stroke: var(--vf-muted); stroke-width: 1; stroke-dasharray: 3 2; }
+
 @media (prefers-reduced-motion: reduce) {
   .md-typeset .vf-widget * {
     transition: none !important;
