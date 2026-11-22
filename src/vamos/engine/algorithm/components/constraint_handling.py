@@ -11,7 +11,9 @@ Seven more, which neither jMetal nor Evolver has:
 - ``dynamic_penalty``: Joines and Houck's non-stationary penalty, every objective plus
   ``(constant * k) ** alpha`` times the sum of the violations raised to ``beta``, where ``k`` is the
   generation (:class:`DynamicPenalty`).
-- ``violation_objective``: the overall violation as one more objective (Coello, 2000).
+- ``violation_objective``: the overall violation as one more objective (Coello, 2000), with Dam and Truong's
+  options: another norm, the ratio of violated constraints as one more objective, and a feasible-first
+  survival, NSGA-II only (:class:`ViolationObjective`).
 - ``two_rankings``: Ma, Wang and Song's ToR, a fitness of the positions by the constrained-domination
   principle and by Pareto dominance (:mod:`.constraint_two_rankings`), one solution per front; NSGA-II only.
 - ``shift_penalty``: Ma and Wang's ShiP, which shifts infeasible objectives towards their local feasible
@@ -59,7 +61,9 @@ from .constraint_technique import (
     NSGAII_ONLY_TECHNIQUES,
     PAIRWISE_TECHNIQUES,
     ConstraintHandlingTechnique,
+    TechniqueParameter,
     check_progress,
+    nsgaii_only,
     rejection_reason,
 )
 from .constraint_two_rankings import TwoRankings
@@ -70,7 +74,7 @@ if TYPE_CHECKING:
 
 def config_constraint_handling(
     value: object, constraint_mode: str, techniques: tuple[str, ...] = CONSTRAINT_HANDLING_TECHNIQUES
-) -> tuple[str, dict[str, float]] | None:
+) -> tuple[str, dict[str, TechniqueParameter]] | None:
     """The ``constraint_handling`` field of a configuration, validated; None stays None, which is cdp.
 
     A JSON round trip returns the pair as a list, which this turns back into a tuple. A technique other
@@ -80,9 +84,11 @@ def config_constraint_handling(
     if value is None:
         return None
     technique = normalize_constraint_handling(value)
-    if technique[0] not in techniques:
-        reason = rejection_reason(technique[0], techniques)
-        raise ValueError(f"constraint_handling {technique[0]!r} {reason}; this algorithm takes {', '.join(techniques)}.")
+    name, params = technique
+    if name not in techniques or (nsgaii_only(name, params) and not set(NSGAII_ONLY_TECHNIQUES) <= set(techniques)):
+        reason = rejection_reason(name, techniques, params)
+        label = f"{name!r} with feasible_first" if name in techniques else repr(name)
+        raise ValueError(f"constraint_handling {label} {reason}; this algorithm takes {', '.join(techniques)}.")
     if technique[0] != "cdp" and constraint_mode == "none":
         raise ValueError(f"constraint_handling {technique[0]!r} needs constraint_mode 'feasibility'.")
     return technique
@@ -183,6 +189,7 @@ __all__ = [
     "ShiftPenalty",
     "StaticPenalty",
     "StochasticRanking",
+    "TechniqueParameter",
     "TwoRankings",
     "ViolationObjective",
     "adapted_ranks",
@@ -190,6 +197,7 @@ __all__ = [
     "config_constraint_handling",
     "make_constraint_handling",
     "normalize_constraint_handling",
+    "nsgaii_only",
     "penalized_objectives",
     "preferred",
     "run_progress",

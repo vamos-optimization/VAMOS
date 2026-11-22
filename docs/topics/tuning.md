@@ -753,7 +753,11 @@ pymoo's default penalty); `dynamic_penalty`, with `dynamic_penalty_constant`
 (logarithmic in [0.01, 10], default 0.5), `dynamic_penalty_alpha` and
 `dynamic_penalty_beta` (in [1, 3], default 2), Joines and Houck's P(2, 2)
 with `C = 0.5`, the most pressing of the settings they tested;
-`violation_objective`; and `shift_penalty`, with `shift_penalty_constant` (in
+`violation_objective`, with Dam and Truong's options `violation_objective_norm`
+(`l1`, `l2_squared` or `linf`) and `violation_objective_ratio` (`none`, `equal`
+or `cdf`, with `violation_objective_cdf_alpha` in [0.1, 2], default 0.5), and in
+`nsgaii_constrained` also `violation_objective_feasible_first`; and
+`shift_penalty`, with `shift_penalty_constant` (in
 [1, 5], default 2: Ma and Wang's `c`, whose sensitivity study found 2 and 3
 best and 0.5 and 1 worse). `nsgaii_constrained` also offers three techniques
 that their papers define for NSGA-II: `two_rankings` and `adaptive_tradeoff`,

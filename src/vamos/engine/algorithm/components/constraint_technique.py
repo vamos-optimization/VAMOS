@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 import numpy as np
 from numpy.typing import NDArray
@@ -22,10 +22,21 @@ PAIRWISE_TECHNIQUES: tuple[str, ...] = ("cdp", "violated_constraints", "epsilon_
 #: front, which would take the place of the niching, hypervolume contributions or survival scores of the others.
 NSGAII_ONLY_TECHNIQUES: tuple[str, ...] = ("two_rankings", "infeasibility_driven", "adaptive_tradeoff")
 
+#: A parameter of a technique: a number, or a name or a switch for the options of ``violation_objective``.
+TechniqueParameter: TypeAlias = float | str | bool
 
-def rejection_reason(name: str, techniques: tuple[str, ...]) -> str:
-    """Why an algorithm that takes ``techniques`` rejects the technique ``name``."""
-    if name in NSGAII_ONLY_TECHNIQUES and set(PAIRWISE_TECHNIQUES) < set(techniques):
+
+def nsgaii_only(name: str, params: Mapping[str, TechniqueParameter]) -> bool:
+    """Whether the technique, with these parameters, is defined for NSGA-II only.
+
+    ``violation_objective`` is, with ``feasible_first``: Dam and Truong's survival orders the population totally.
+    """
+    return name in NSGAII_ONLY_TECHNIQUES or (name == "violation_objective" and params.get("feasible_first") is True)
+
+
+def rejection_reason(name: str, techniques: tuple[str, ...], params: Mapping[str, TechniqueParameter] | None = None) -> str:
+    """Why an algorithm that takes ``techniques`` rejects the technique ``name`` with ``params``."""
+    if nsgaii_only(name, params or {}) and set(PAIRWISE_TECHNIQUES) < set(techniques):
         return "is defined for NSGA-II only: its total order would replace this algorithm's own diversity mechanism"
     return "does not judge the violation of a single solution"
 
@@ -93,4 +104,12 @@ class ConstraintHandlingTechnique:
         return None
 
 
-__all__ = ["NSGAII_ONLY_TECHNIQUES", "PAIRWISE_TECHNIQUES", "ConstraintHandlingTechnique", "check_progress", "rejection_reason"]
+__all__ = [
+    "NSGAII_ONLY_TECHNIQUES",
+    "PAIRWISE_TECHNIQUES",
+    "ConstraintHandlingTechnique",
+    "TechniqueParameter",
+    "check_progress",
+    "nsgaii_only",
+    "rejection_reason",
+]

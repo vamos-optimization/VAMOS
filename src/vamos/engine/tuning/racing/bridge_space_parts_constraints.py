@@ -39,8 +39,18 @@ CONSTRAINT_HANDLING_SPACE_PARAMETERS: dict[str, dict[str, str]] = {
     "infeasibility_driven": {"infeasibility_driven_proportion": "proportion"},
 }
 
+# The space parameters of violation_objective's options (Dam and Truong), conditional children of violation_objective:
+# the norm, the ratio objective (none, with equal weights, or with the CDF's, whose alpha is a child of cdf), and
+# NSGA-II's feasible-first survival.
+VIOLATION_OBJECTIVE_SPACE_PARAMETERS: tuple[str, ...] = (
+    "violation_objective_norm",
+    "violation_objective_ratio",
+    "violation_objective_cdf_alpha",
+    "violation_objective_feasible_first",
+)
 
-def constraint_handling_from_assignment(assignment: dict[str, Any]) -> tuple[str, dict[str, float]] | None:
+
+def constraint_handling_from_assignment(assignment: dict[str, Any]) -> tuple[str, dict[str, float | str | bool]] | None:
     """The technique of an assignment as ``(name, parameters)``; None if the assignment has none."""
     name = assignment.get("constraint_handling")
     if name is None:
@@ -50,7 +60,18 @@ def constraint_handling_from_assignment(assignment: dict[str, Any]) -> tuple[str
     missing = [key for key in mapping if key not in assignment]
     if missing:
         raise ValueError(f"constraint_handling {technique!r} needs {', '.join(missing)} in the assignment.")
-    return technique, {parameter: float(assignment[key]) for key, parameter in mapping.items()}
+    params: dict[str, float | str | bool] = {parameter: float(assignment[key]) for key, parameter in mapping.items()}
+    if technique == "violation_objective":
+        if "violation_objective_norm" in assignment:
+            params["violation_norm"] = str(assignment["violation_objective_norm"])
+        ratio = assignment.get("violation_objective_ratio", "none")
+        if ratio in ("equal", "cdf"):
+            params["ratio_objective"] = True
+        if ratio == "cdf":
+            params["cdf_alpha"] = float(assignment["violation_objective_cdf_alpha"])
+        if "violation_objective_feasible_first" in assignment:
+            params["feasible_first"] = bool(assignment["violation_objective_feasible_first"])
+    return technique, params
 
 
 def apply_constraint_handling(builder: Any, assignment: dict[str, Any]) -> None:
@@ -86,6 +107,7 @@ def apply_subproblem_update_criterion(builder: Any, assignment: dict[str, Any]) 
 __all__ = [
     "CONSTRAINT_HANDLING_SPACE_PARAMETERS",
     "SUBPROBLEM_UPDATE_SPACE_PARAMETERS",
+    "VIOLATION_OBJECTIVE_SPACE_PARAMETERS",
     "apply_constraint_handling",
     "apply_subproblem_update_criterion",
     "constraint_handling_from_assignment",

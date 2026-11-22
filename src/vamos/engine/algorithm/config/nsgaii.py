@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from vamos.engine.algorithm.components.constraint_handling import TechniqueParameter
 from vamos.engine.archive import ExternalArchiveConfig
 from vamos.foundation.encoding import normalize_encoding
 
@@ -181,7 +182,7 @@ class NSGAIIConfig(_SerializableConfig):
     generation_callback: Any | None = None
     generation_callback_copy: bool = True
     # Fields added after 1.0 go last, so that the constructor keeps the positions of its parameters.
-    constraint_handling: tuple[str, dict[str, float]] | None = None
+    constraint_handling: tuple[str, dict[str, TechniqueParameter]] | None = None
 
     def __post_init__(self) -> None:
         super().__post_init__()
