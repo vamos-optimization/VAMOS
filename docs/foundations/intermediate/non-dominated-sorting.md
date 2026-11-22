@@ -1,5 +1,5 @@
 ---
-description: 'Fast non-dominated sorting step by step: domination counters and dominated sets, its O(MN²) cost, an interactive stepper, and the vectorized implementation in VAMOS.'
+description: 'Fast non-dominated sorting step by step: domination counters and dominated sets, its O(MN²) cost, an interactive stepper, and the ranks of any set of points in VAMOS.'
 search:
   boost: 0.5
 ---
@@ -15,7 +15,7 @@ In this lesson you will learn:
 
 - what non-domination fronts are;
 - the fast non-dominated sorting algorithm, its bookkeeping and its cost;
-- how VAMOS implements it with NumPy, and the faster method it uses for two
+- how to obtain ranks in VAMOS, and the faster method it uses for two
   objectives.
 
 ## Fronts and ranks
@@ -77,79 +77,20 @@ generation, this step dominates the cost of the algorithm [1].
 
 ## In VAMOS
 
-VAMOS does not keep Python lists for S_p. Its NumPy kernel builds the complete
-dominance matrix with broadcasting (`dom_matrix[p, q]` is true when p
-dominates q) and derives every counter from it at once. Each loop iteration
-then extracts a whole front:
-
-```python
-# Excerpt from src/vamos/foundation/kernel/numpy_backend.py
-def _fast_non_dominated_sort_dense(F: RealArray) -> tuple[list[list[int]], IndexArray]:
-    """Dense vectorized fast non-dominated sort for moderate population sizes."""
-    N = F.shape[0]
-    less_equal = F[:, None, :] <= F[None, :, :]
-    strictly_less = F[:, None, :] < F[None, :, :]
-    dom_matrix = np.logical_and(
-        np.all(less_equal, axis=2),
-        np.any(strictly_less, axis=2),
-    )
-
-    dominated_count = dom_matrix.sum(axis=0).astype(np.int64)
-    rank = np.empty(N, dtype=int)
-    fronts: list[list[int]] = []
-
-    current = np.flatnonzero(dominated_count == 0)
-    level = 0
-    while current.size > 0:
-        fronts.append(current.tolist())
-        rank[current] = level
-        dom_contrib = dom_matrix[current].sum(axis=0)
-        dominated_count -= dom_contrib
-        dominated_count[current] = -1
-        dom_matrix[current] = False
-        level += 1
-        current = np.flatnonzero(dominated_count == 0)
-
-    return fronts, rank
-```
-
-Read it against the pseudo-code:
-
-- the row `dom_matrix[p]` is S_p, and the column sum `dominated_count[q]` is n_q;
-- `dom_matrix[current].sum(axis=0)` counts, for every q, how many members of the
-  current front dominate it: one subtraction updates all the counters;
-- setting the counters of the extracted front to −1 removes it, so it is never
-  selected again.
-
-The matrix has N² entries per objective. For very large populations the
-kernel switches to `_fast_non_dominated_sort_blocked`, which processes the
-comparisons in blocks of rows to bound memory.
+The NumPy engine of VAMOS sorts three or more objectives with this method. For
+very large populations it compares the pairs in blocks, so that the memory
+stays bounded.
 
 **Two objectives.** With M = 2, VAMOS uses a different algorithm in O(N log N):
 it visits the points by increasing f₁ and finds the rank of each one with a
 binary search over the last point of each front, in the spirit of the
 efficient methods of Kung, Luccio and Preparata [4] and Jensen [5]. It returns
-the same ranks as the dense sort:
-
-```python
-# Excerpt from src/vamos/foundation/kernel/numpy_backend.py
-    order = np.lexsort((F[:, 1], F[:, 0]))
-    f1 = F[order, 0].tolist()
-    f2 = F[order, 1].tolist()
-    last_rows: list[tuple[float, float]] = []
-    sorted_ranks: list[int] = []
-    for key in zip(f2, f1):
-        rank = bisect_left(last_rows, key)
-        if rank == len(last_rows):
-            last_rows.append(key)
-        else:
-            last_rows[rank] = key
-        sorted_ranks.append(rank)
-```
+the same ranks as the general method, and is much faster for large
+populations.
 
 You can obtain the ranks of any set of objective vectors through the
 experimental public helper `vamos.select_survivors`, which applies the NSGA-II
-ranking and crowding of the NumPy kernel. These are the twelve points of the
+ranking and crowding with the NumPy engine. These are the twelve points of the
 figure above:
 
 ```python
@@ -200,8 +141,8 @@ covered by the [1.x stability policy](../../project/stability-and-versioning.md)
 - Fronts layer a population by dominance; the rank of a solution is its front.
 - Fast non-dominated sorting compares every pair once and stores a counter n_p
   and a set S_p per solution: O(M N²) time and O(N²) memory.
-- VAMOS vectorizes it with a dominance matrix and uses an O(N log N) method for
-  two objectives.
+- VAMOS sorts two objectives with an O(N log N) method, and
+  `vamos.select_survivors` returns the ranks of any set of objective vectors.
 
 **Next:** [Crowding distance and tournament selection](crowding-distance.md).
 

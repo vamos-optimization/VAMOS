@@ -1,7 +1,8 @@
-"""The Foundations learning path: navigation, metadata, figures, examples and source excerpts."""
+"""The Foundations learning path: navigation, metadata, figures and examples of how to use VAMOS."""
 
 from __future__ import annotations
 
+import ast
 import contextlib
 import io
 import json
@@ -27,7 +28,8 @@ SCRIPT = DOCS / "javascripts" / "foundations.js"
 PAGES = sorted(FOUNDATIONS.rglob("*.md"))
 LESSONS = [page for page in PAGES if page.name != "index.md"]
 FENCE = re.compile(r"^```(?P<lang>[\w-]*)\n(?P<body>.*?)^```[ \t]*$", re.MULTILINE | re.DOTALL)
-EXCERPT = re.compile(r"\A# Excerpt from (?P<path>\S+)\n")
+EXCERPT = "# Excerpt from "
+INTERNAL_PACKAGES = ("vamos.engine", "vamos.foundation", "vamos.experiment")
 NUMBER = re.compile(r"-?\d+(?:\.\d+)?(?:e[-+]?\d+)?")
 
 
@@ -65,8 +67,8 @@ def _examples(page: Path) -> list[tuple[str, str]]:
     blocks = _blocks(text)
     examples = []
     for index, (lang, body, _, end) in enumerate(blocks):
-        if lang != "python" or EXCERPT.match(body):
-            continue
+        if lang != "python" or body.startswith(EXCERPT):
+            continue  # reported by test_code_shows_how_to_use_vamos_not_how_it_is_implemented
         assert index + 1 < len(blocks), f"{_relative(page)}: an example has no documented output"
         next_lang, next_body, next_start, _ = blocks[index + 1]
         between = text[end:next_start].strip()
@@ -75,13 +77,14 @@ def _examples(page: Path) -> list[tuple[str, str]]:
     return examples
 
 
-def _excerpts() -> list[tuple[str, str, str]]:
+def _vamos_imports(code: str) -> list[tuple[str, list[str]]]:
+    """Each VAMOS module that ``code`` imports, with the names it takes from it."""
     found = []
-    for page in PAGES:
-        for lang, body, _, _ in _blocks(page.read_text(encoding="utf-8")):
-            match = EXCERPT.match(body)
-            if lang == "python" and match:
-                found.append((_relative(page), match["path"], body[match.end() :]))
+    for node in ast.walk(ast.parse(code)):
+        if isinstance(node, ast.ImportFrom) and node.module and node.module.split(".")[0] == "vamos":
+            found.append((node.module, [alias.name for alias in node.names]))
+        elif isinstance(node, ast.Import):
+            found.extend((alias.name, []) for alias in node.names if alias.name.split(".")[0] == "vamos")
     return found
 
 
@@ -141,16 +144,16 @@ def test_every_figure_is_implemented_and_has_a_fallback() -> None:
     assert implemented <= used, f"figures implemented but never used: {sorted(implemented - used)}"
 
 
-@pytest.mark.parametrize("excerpt", _excerpts(), ids=lambda item: f"{item[0]}:{item[1]}")
-def test_source_excerpts_are_verbatim_vamos_code(excerpt: tuple[str, str, str]) -> None:
-    page, source, body = excerpt
-    lines = (ROOT / source).read_text(encoding="utf-8").splitlines()
-    position = 0
-    for line in (line for line in body.splitlines() if line.strip()):
-        try:
-            position = lines.index(line, position) + 1
-        except ValueError:
-            pytest.fail(f"{page}: line not found in order in {source}: {line!r}")
+@pytest.mark.parametrize("page", PAGES, ids=_relative)
+def test_code_shows_how_to_use_vamos_not_how_it_is_implemented(page: Path) -> None:
+    for lang, body, _, _ in _blocks(page.read_text(encoding="utf-8")):
+        if lang != "python":
+            continue
+        assert not body.startswith(EXCERPT), f"{_relative(page)}: show how to use VAMOS, not excerpts of its source"
+        for module, names in _vamos_imports(body):
+            internal = module.startswith(tuple(f"{package}." for package in INTERNAL_PACKAGES)) or module in INTERNAL_PACKAGES
+            private = [part for part in [*module.split("."), *names] if part.startswith("_")]
+            assert not internal and not private, f"{_relative(page)}: import the public interface, not {module} {names}"
 
 
 @pytest.mark.parametrize("page", [page for page in PAGES if _examples(page)], ids=_relative)

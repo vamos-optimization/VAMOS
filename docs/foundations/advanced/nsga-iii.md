@@ -1,5 +1,5 @@
 ---
-description: 'NSGA-III step by step as VAMOS implements it: Das and Dennis reference directions and the population rule, adaptive normalization with extreme points and intercepts, association by perpendicular distance, niche counts and the niche-preservation loop, mating selection and constraints, with an interactive figure and VAMOS code.'
+description: 'NSGA-III step by step in VAMOS: Das and Dennis reference directions and the population rule, adaptive normalization with extreme points and intercepts, association by perpendicular distance, niche counts and the niche-preservation loop, mating selection and constraints, with an interactive figure and VAMOS code.'
 search:
   boost: 0.5
 ---
@@ -8,9 +8,8 @@ search:
 
 Lesson [Many objectives](many-objective.md#nsga-iii-in-detail) introduced NSGA-III [1] as
 NSGA-II with a different rule for the last front: reference directions instead
-of crowding distance. This lesson follows that rule into the VAMOS code, one
-mechanism at a time, and shows where VAMOS makes a choice that the paper
-leaves open.
+of crowding distance. This lesson follows that rule one mechanism at a time,
+and shows where VAMOS makes a choice that the paper leaves open.
 
 NSGA-III was proposed by Deb and Jain in 2014 for problems with four or more
 objectives; a companion paper extended it to constraints and to reference
@@ -22,8 +21,8 @@ front is cut, and how parents are chosen.
 
 In this lesson you will learn:
 
-- how VAMOS builds the reference directions, and why it refuses a population
-  smaller than their number;
+- how the reference directions are built and chosen in VAMOS, and why VAMOS
+  refuses a population smaller than their number;
 - how adaptive normalization finds the ideal point, the extreme points and the
   intercepts, and what happens when the hyperplane is degenerate;
 - how solutions are associated with directions, and how niche counts and the
@@ -140,10 +139,9 @@ closest to it:
 π(x) = argmin_w  d⊥(x, w)                       (the direction of x)</div>
 
 For one solution ‖fⁿ(x)‖ is fixed, so the closest ray is also the one at the
-smallest angle θ. VAMOS uses that: it takes the direction with the largest
-cosine and computes the distance as ‖fⁿ‖·√(1 − cos²θ). The distance d⊥ is a
-second, local measure of quality: a solution close to its ray represents its
-direction well.
+smallest angle θ, the largest cosine, and d⊥ = ‖fⁿ‖·√(1 − cos²θ). The
+distance d⊥ is a second, local measure of quality: a solution close to its ray
+represents its direction well.
 
 ## Niche counts and niche preservation
 
@@ -289,127 +287,6 @@ more than a quarter of the directions look empty, because the front is
 stretched along f₃:
 normalization is what lets one set of directions serve objectives of different
 scales.
-
-The population rule is checked from the binomial count, before any lattice is
-built:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/nsgaiii/initialization.py
-    elif ref_divisions is not None:
-        lattice = f"divisions={ref_divisions}" if ref_inner is None else f"divisions={ref_divisions} and inner_divisions={ref_inner}"
-        source = f"NSGA-III reference directions for {lattice}"
-        if n_obj >= 2:
-            # Reject from the binomial count: an oversized lattice can need gigabytes.
-            n_directions = (
-                lattice_size(n_obj, int(ref_divisions)) if ref_inner is None else two_layer_size(n_obj, int(ref_divisions), int(ref_inner))
-            )
-            if n_directions > pop_size:
-                raise ValueError(
-                    f"{source} ({n_directions}) need pop_size >= {n_directions} (pop_size={pop_size}). "
-                    "Increase pop_size or choose fewer reference directions."
-                )
-        ref_dirs = load_or_generate_weight_vectors(
-            pop_size, n_obj, divisions=int(ref_divisions), inner_divisions=None if ref_inner is None else int(ref_inner)
-        )
-    ref_dirs_norm = ref_dirs / np.linalg.norm(ref_dirs, axis=1, keepdims=True)
-```
-
-The last line turns each lattice point into a unit vector, which the
-association below needs.
-
-The extreme points and the nadir estimate come from two helpers. In
-`get_extreme_points`, `base` stacks the previous extreme points on top of the
-first front; `asf` is the identity matrix with 10⁶ off the diagonal, so
-row j of `vals` is the ASF of every candidate for axis j, and `argmin` picks
-the extreme point of each axis. In `get_nadir_point`, `np.linalg.solve` finds
-the hyperplane through the translated extreme points; any of the four
-rejection tests raises `LinAlgError`, and the `except` branch falls back to
-the worst point of the first front; the `mask` lines repair objectives that
-still have no range:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/nsgaiii/helpers.py
-    base = F
-    if extreme_points is not None and extreme_points.size:
-        base = np.vstack([extreme_points, F])
-
-    shifted = base - ideal_point
-    shifted[shifted < 1e-3] = 0.0
-
-    asf = np.eye(n_obj)
-    asf[asf == 0] = 1e6
-    vals = np.max(shifted * asf[:, None, :], axis=2)
-    idx = np.argmin(vals, axis=1)
-    return np.asarray(base[idx], dtype=float)
-
-
-def get_nadir_point(
-    try:
-        M = extreme_points - ideal_point
-        b = np.ones(extreme_points.shape[1])
-        plane = np.linalg.solve(M, b)
-        intercepts = 1.0 / plane
-        nadir = ideal_point + intercepts
-        if not np.allclose(M @ plane, b) or np.any(intercepts <= 1e-6) or np.any(nadir > worst_point):
-            raise np.linalg.LinAlgError
-    except Exception:
-        nadir = worst_of_front
-
-    mask = nadir - ideal_point <= 1e-6
-    nadir = nadir.copy()
-    nadir[mask] = worst_of_population[mask]
-    return np.asarray(nadir)
-```
-
-Association and niching follow the formulas line by line. `associate` takes
-the largest cosine and converts it to a perpendicular distance. In
-`niche_selection`, `unique_refs` is J, `candidate_refs` is J_min after the
-shuffle, cut to the places left; inside the loop, `candidates` is shuffled
-before the choice, so `argmin` breaks ties in distance at random and
-`candidates[0]` is a random member:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/nsgaiii/helpers.py
-    norms = np.linalg.norm(normalized_F, axis=1, keepdims=True)
-    norms = np.where(norms > 0, norms, 1e-12)
-    normalized_vectors = normalized_F / norms
-    cosine = normalized_vectors @ ref_dirs_norm.T
-    cosine = np.clip(cosine, -1.0, 1.0)
-    associations = np.argmax(cosine, axis=1)
-    cos_selected = cosine[np.arange(cosine.shape[0]), associations]
-    distances = norms.flatten() * np.sqrt(1.0 - np.square(cos_selected))
-    return associations, distances
-
-
-def niche_selection(
-    mask = np.ones(front.size, dtype=bool)
-    while len(selected) < n_remaining:
-        remaining = n_remaining - len(selected)
-        active_pos = np.where(mask)[0]
-        if active_pos.size == 0:
-            break
-
-        assoc_front = associations[front[active_pos]]
-        unique_refs = np.unique(assoc_front)
-        ref_counts = niche_counts[unique_refs]
-        min_count = np.min(ref_counts)
-        candidate_refs = unique_refs[ref_counts == min_count]
-        rng.shuffle(candidate_refs)
-        candidate_refs = candidate_refs[:remaining]
-
-        for ref_choice in candidate_refs:
-            # Never empty: every candidate reference is associated with an active row.
-            candidates = active_pos[assoc_front == ref_choice]
-            rng.shuffle(candidates)
-            if niche_counts[ref_choice] == 0:
-                cand_dist = distances[front[candidates]]
-                pick = candidates[int(np.argmin(cand_dist))]
-            else:
-                pick = candidates[0]
-            mask[pick] = False
-            selected.append(int(front[pick]))
-            niche_counts[ref_choice] += 1
-```
 
 The [NSGA-III lesson](../../algorithms/nsgaiii.md) runs the DTLZ2 example of
 the [Many objectives](many-objective.md) lesson, draws its result and records the configuration choices; the

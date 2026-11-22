@@ -1,5 +1,5 @@
 ---
-description: 'The classic continuous test suites ZDT, DTLZ and WFG: what each problem adds, position and distance variables, local fronts, bias, the WFG toolkit of transformations, an interactive figure of position bias and VAMOS code.'
+description: 'The classic continuous test suites ZDT, DTLZ and WFG: what each problem adds, position and distance variables, local fronts, bias, the WFG toolkit of transformations, an interactive figure of position bias and VAMOS examples.'
 search:
   boost: 0.5
 ---
@@ -10,8 +10,8 @@ Three suites of continuous problems appear in most papers on evolutionary
 multi-objective optimization. ZDT [1] has six two-objective problems, each
 adding one difficulty to a simple base. DTLZ [2] scales the number of
 objectives. WFG [3] builds its nine problems from a toolkit of transformations,
-so that each difficulty can be switched on separately. This lesson reads their
-definitions in VAMOS and shows what each one adds; the
+so that each difficulty can be switched on separately. This lesson gives their
+definitions and shows what each one adds; the
 [continuous suites table](../../../reference/problems.md#continuous-test-suites)
 of the catalog gives their keys, default dimensions and reference fronts.
 
@@ -29,14 +29,7 @@ In this lesson you will learn:
 Each ZDT problem has the form of lesson
 [What a benchmark tests](overview.md#how-test-problems-are-built):
 f₁ = x₁, f₂ = g(x₂, …, x_n) h(f₁, g). For ZDT1, g = 1 + 9 · mean(x₂, …, x_n) and
-h = 1 − √(f₁/g), in VAMOS:
-
-```python
-# Excerpt from src/vamos/foundation/problem/zdt1.py
-        f1 = X[:, 0]
-        g = 1.0 + 9.0 * np.mean(X[:, 1:], axis=1)
-        f2 = g * (1.0 - np.sqrt(f1 / g))
-```
+h = 1 − √(f₁/g).
 
 g reaches its minimum, 1, when x₂ = … = x_n = 0, so the Pareto set is x₁ in
 [0, 1] with every other variable at 0, and the front is f₂ = 1 − √f₁. The other
@@ -52,19 +45,41 @@ problems change one part:
 | ZDT6 | 10 in [0, 1] | f₁ = 1 − exp(−4x₁) sin⁶(6πx₁), g = 1 + 9 · mean(x₂, …, x_n)^0.25 | Bias along the front and towards it, and a concave front |
 
 ZDT4's g adds a cosine to every distance variable:
-
-```python
-# Excerpt from src/vamos/foundation/problem/zdt4.py
-            x_tail = X[:, 1:]
-            g = 1.0 + 10.0 * (self.n_var - 1) + np.sum(x_tail**2 - 10.0 * np.cos(4.0 * np.pi * x_tail), axis=1)
-```
-
+g = 1 + 10(n − 1) + Σ (x_i² − 10 cos(4πx_i)), summed over x₂, …, x_n.
 In [−5, 5], cos(4πx) has 21 maxima, so each of the nine distance variables has
 21 local minima of g, and their combinations form local fronts parallel to the
-global one. ZDT6's f₁ is multimodal in x₁, and most values of x₁ give an f₁
+global one. With x₁ = 0, f₁ = 0 and f₂ = g, so evaluating such solutions shows
+g directly:
+
+```python
+import numpy as np
+
+from vamos import make_problem_selection
+
+for key in ["zdt1", "zdt4"]:
+    problem = make_problem_selection(key).instantiate()
+    X = np.zeros((4, problem.n_var))  # x1 = 0, so f1 = 0 and f2 = g
+    X[1:, 1:] = [[0.5], [0.55], [1.0]]  # every distance variable at 0.5, 0.55 and 1
+    out = {}
+    problem.evaluate(X, out)
+    print(f"{key}: g at 0, 0.5, 0.55 and 1: {np.round(out['F'][:, 1], 2)}")
+```
+
+Output:
+
+```text
+zdt1: g at 0, 0.5, 0.55 and 1: [ 1.    5.5   5.95 10.  ]
+zdt4: g at 0, 0.5, 0.55 and 1: [ 1.    3.25 20.91 10.  ]
+```
+
+Both reach g = 1, the Pareto front, with every distance variable at 0. ZDT1's
+g grows steadily away from it; ZDT4's has local minima near 0.5 and 1, and a
+small move from 0.5 to 0.55 raises it from 3.25 to 20.91.
+
+ZDT6's f₁ is multimodal in x₁, and most values of x₁ give an f₁
 close to 1; the power 0.25 in g makes values of g close to 1, near the front,
 rare among random solutions [1]. Every ZDT problem is separable, and its
-distance variables are optimal at a bound of their domain.
+distance variables are optimal at a bound of their domain, except ZDT4's, at 0.
 
 ## DTLZ: any number of objectives
 
@@ -79,22 +94,6 @@ f₁ = (1 + g) cos(x₁π/2) ⋯ cos(x_{M−2}π/2) cos(x_{M−1}π/2)
 f₂ = (1 + g) cos(x₁π/2) ⋯ cos(x_{M−2}π/2) sin(x_{M−1}π/2)
 ⋮
 f_M = (1 + g) sin(x₁π/2)</div>
-
-```python
-# Excerpt from src/vamos/foundation/problem/dtlz.py
-        g = np.sum((X[:, self.n_obj - 1 :] - 0.5) ** 2, axis=1)
-        F = np.ones((X.shape[0], self.n_obj))
-        for i in range(self.n_obj):
-            f = np.ones(X.shape[0])
-            for j in range(self.n_obj - i - 1):
-                f *= np.cos(X[:, j] * np.pi / 2.0)
-            if i > 0:
-                idx = self.n_obj - i - 1
-                f *= np.sin(X[:, idx] * np.pi / 2.0)
-            F[:, i] = f
-
-        F_res = (1.0 + g[:, None]) * F
-```
 
 In DTLZ1–DTLZ5 the distance variables are optimal at 0.5, where g = 0. DTLZ6
 (g = Σ x_i^0.1) and DTLZ7 (g = 1 + 9 times their mean) are smallest with them at
@@ -113,18 +112,7 @@ combine a few position shapes with a few distance functions:
 
 DTLZ1 and DTLZ3 share this distance function:
 
-```python
-# Excerpt from src/vamos/foundation/problem/dtlz.py
-        g = 100.0 * (
-            self.n_var
-            - self.n_obj
-            + 1
-            + np.sum(
-                (X[:, self.n_obj - 1 :] - 0.5) ** 2 - np.cos(20 * np.pi * (X[:, self.n_obj - 1 :] - 0.5)),
-                axis=1,
-            )
-        )
-```
+<div class="vf-formula">g = 100 [k + Σ_{distance variables} ((x_i − 0.5)² − cos(20π(x_i − 0.5)))]</div>
 
 cos(20π(x − 0.5)) equals 1 at x = 0, 0.1, …, 1, which gives each distance
 variable 11 local minima. Setting every distance variable to 0.6 puts a
@@ -229,47 +217,13 @@ cover them. A WFG problem has k **position-related** and l
 
 The objectives are f_m = x_M + S_m h_m(x₁, …, x_{M−1}), where x_M is the
 reduced distance parameter, 0 on the Pareto set, h_m the shape, and S_m = 2m
-gives each objective a different range. Some of VAMOS' transformations and
-the objective formula:
+gives each objective a different range.
 
-```python
-# Excerpt from src/vamos/foundation/problem/wfg.py
-def _transformation_shift_linear(value: np.ndarray[Any, Any], shift: float = 0.35) -> np.ndarray[Any, Any]:
-    return _correct_to_01(np.fabs(value - shift) / np.fabs(np.floor(shift - value) + shift))
-
-def _transformation_bias_poly(y: np.ndarray[Any, Any], alpha: float) -> np.ndarray[Any, Any]:
-    return _correct_to_01(y**alpha)
-
-def _shape_mixed(x: np.ndarray[Any, Any], a: float = 5.0, alpha: float = 1.0) -> np.ndarray[Any, Any]:
-    aux = 2.0 * a * np.pi
-    ret = np.power(1.0 - x - (np.cos(aux * x + 0.5 * np.pi) / aux), alpha)
-    return _correct_to_01(ret)
-
-    def _calculate(self, x: np.ndarray[Any, Any], h: list[np.ndarray[Any, Any]]) -> np.ndarray[Any, Any]:
-        return np.asarray(x[:, -1][:, None] + self.S * np.column_stack(h), dtype=float)
-```
-
-WFG1 chains four transformations, then a convex shape for the first M − 1
-objectives and a mixed one for the last:
-
-```python
-# Excerpt from src/vamos/foundation/problem/wfg.py
-    def _evaluate(self, x: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
-        y = x / self.xu
-        y = self._t1(y, self.n_var, self.k)
-        y = self._t2(y, self.n_var, self.k)
-        y = self._t3(y, self.n_var)
-        y = self._t4(y, self.n_obj, self.n_var, self.k)
-        y = self._post(y)
-
-        h = [_shape_convex(y[:, :-1], m + 1) for m in range(self.n_obj - 1)]
-        h.append(_shape_mixed(y[:, 0], alpha=1.0, a=5.0))
-        return self._calculate(y, h)
-```
-
-Its steps are a linear shift and a flat-region bias of the distance variables,
-the polynomial bias y^0.02 of all variables, and a weighted-sum reduction. The
-nine problems combine the parts as Huband et al. [3] classify them:
+WFG1 chains four transformations: a linear shift and a flat-region bias of the
+distance variables, the polynomial bias y^0.02 of all variables, and a
+weighted-sum reduction. Its shape is convex for the first M − 1 objectives and
+mixed for the last. The nine problems combine the parts as Huband et al. [3]
+classify them:
 
 | Problem | Separable | Modality | Bias | Front |
 | --- | --- | --- | --- | --- |
@@ -331,7 +285,8 @@ objectives and variables and are the subject of the next lesson.
 ## Key points
 
 - ZDT builds two-objective problems from f₁, g and h; each of ZDT1–ZDT6 adds one
-  difficulty, and all of them are separable with the Pareto set on a bound.
+  difficulty, and all of them are separable with the Pareto set on a bound,
+  except ZDT4's.
 - DTLZ has M − 1 position and k distance variables, optimal at 0.5 (at 0 in
   DTLZ6 and DTLZ7); DTLZ1 and
   DTLZ3 have local fronts, DTLZ4 and DTLZ6 are biased, DTLZ5 and DTLZ6 are

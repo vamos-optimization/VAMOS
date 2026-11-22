@@ -1,5 +1,5 @@
 ---
-description: 'AGE-MOEA: normalizing the first front, estimating its curvature p from a central point, proximity and diversity in the Lp norm, the greedy survival score and the truncation of the last front, as VAMOS implements them, with an interactive figure and VAMOS code.'
+description: 'AGE-MOEA: normalizing the first front, estimating its curvature p from a central point, proximity and diversity in the Lp norm, the greedy survival score and the truncation of the last front, with an interactive figure and VAMOS code.'
 search:
   boost: 0.5
 ---
@@ -188,127 +188,49 @@ to the diagonal is the one with the smallest |f̃₁ − f̃₂|. ZDT2's front,
 f₂ = 1 − f₁², is not exactly an Lp curve, and its estimate depends on which
 point happens to be nearest the diagonal.
 
-Inside VAMOS, the estimate and the distances follow the formulas. In
-`_compute_geometry`, `d` is the squared distance of each point to the
-diagonal, the corners are excluded with `np.inf`, and `p` is the formula of
-p̂ with its guards. In `_survival_score`, `nn` holds the proximities and
-`distances` the Lp distances, each row divided by the proximity of its point:
+**VAMOS 1.5.0:** `variant("agemoea_ii")` selects AGE-MOEA-II [7] instead of
+AGE-MOEA, the default. AGE-MOEA-II estimates p from the non-corner point
+nearest to the ideal point by Newton-Raphson, so that its Lp norm is 1, and
+replaces the Lp distances of F₁ by approximate geodesic distances on the
+estimated front: each pair of points is projected onto the Lp surface and
+measured through their projected midpoint. The rest of the survival is
+AGE-MOEA's. The builder sets the variant; here both variants run on
+three-objective DTLZ2, whose front is the part of the unit sphere in the
+positive orthant:
 
 ```python
-# Excerpt from src/vamos/engine/algorithm/agemoea/geometry.py
-def _compute_geometry(front: np.ndarray[Any, Any], extreme: np.ndarray[Any, Any], n_obj: int) -> float:
-    d = _point_to_line_distance(front, np.zeros(n_obj), np.ones(n_obj))
-    d[extreme] = np.inf
-    index = int(np.argmin(d))
-    mean_val = np.mean(front[index, :])
-    if mean_val <= 0.0:
-        return 1.0
-    p = np.log(n_obj) / np.log(1.0 / mean_val)
-    if np.isnan(p) or p <= 0.1:
-        p = 1.0
-    elif p > 20.0:
-        p = 20.0
-    return float(p)
-    front = np.round(front - ideal_point, 12)
-    extreme = _find_corner_solutions(front)
-    front, normalization = _normalize_front(front, extreme)
+import numpy as np
 
-    crowd_dist[extreme] = np.inf
-    selected = np.full(m, False)
-    selected[extreme] = True
+from vamos import optimize
+from vamos.algorithms import AGEMOEAConfig
+from vamos.problems import DTLZ2
 
-    ii = variant == "agemoea_ii"
-    p = _compute_geometry_ii(front, extreme) if ii else _compute_geometry(front, extreme, n)
-    nn = np.linalg.norm(front, ord=p, axis=1)
-    nn[nn < 1e-8] = 1.0
-
-    distances = _geodesic_distances(front, p) if ii else _pairwise_distances(front, p)
-    distances[distances < 1e-8] = 1e-8
-    distances = distances / nn[:, None]
+problem = DTLZ2(n_var=12, n_obj=3)
+for variant in ("agemoea", "agemoea_ii"):
+    config = (
+        AGEMOEAConfig.builder()
+        .pop_size(100)
+        .crossover("sbx", prob=0.9, eta=15.0)
+        .mutation("pm", prob="1/n", eta=20.0)
+        .variant(variant)
+        .build()
+    )
+    result = optimize(problem, algorithm="agemoea", algorithm_config=config, max_evaluations=10_000, engine="numpy", seed=1)
+    radius = np.linalg.norm(result.F, axis=1)  # 1 on DTLZ2's front
+    print(f"{variant}: {len(result.F)} solutions, median distance to the origin {np.median(radius):.3f}")
 ```
 
-**VAMOS 1.5.0:** the `ii` lines choose between AGE-MOEA, the
-default, and AGE-MOEA-II [7], selected with `variant("agemoea_ii")`. AGE-MOEA-II
-estimates p from the non-corner point nearest to the ideal point by
-Newton-Raphson, so that its Lp norm is 1, and replaces the Lp distances of F₁
-by approximate geodesic distances on the estimated front: each pair of points
-is projected onto the Lp surface and measured through their projected
-midpoint. The rest of the survival is AGE-MOEA's.
+Output:
 
-The greedy loop keeps, for every unselected point, its two smallest distances
-to the selected set (`best1`, `best2`) and their sum (`scores`). Each pass
-selects the largest sum, records it as the survival score in `crowd_dist`, and
-updates the two nearest distances with the newly selected point. The
-`selected_count == 2` branch only matters when S started from a single
-corner: it sorts the first two distances once both exist:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/agemoea/geometry.py
-    while remaining.size > 0:
-        index = int(np.argmax(scores))
-        best = int(remaining[index])
-        d = float(scores[index])
-        selected[best] = True
-        crowd_dist[best] = d
-
-        remaining = np.delete(remaining, index)
-        best1 = np.delete(best1, index)
-        best2 = np.delete(best2, index)
-        scores = np.delete(scores, index)
-        selected_count += 1
-        if remaining.size == 0:
-            break
-
-        new_dist = distances[remaining, best]
-        if selected_count == 2:
-            lo = np.minimum(best1, new_dist)
-            hi = np.maximum(best1, new_dist)
-            best1 = lo
-            best2 = hi
-            scores = best1 + best2
-            continue
-
-        better_first = new_dist < best1
-        best2 = np.where(better_first, best1, best2)
-        best1 = np.where(better_first, new_dist, best1)
-        better_second = (~better_first) & (new_dist < best2)
-        best2 = np.where(better_second, new_dist, best2)
-        scores = best1 + best2
+```text
+agemoea: 100 solutions, median distance to the origin 1.003
+agemoea_ii: 100 solutions, median distance to the origin 1.002
 ```
 
-`age_survival` then assembles the generation: whole fronts below `last_rank`
-survive, F₁ is scored by the greedy procedure, the later fronts up to the last
-one by the inverse Lp distance to the ideal point, and the last front is cut by
-decreasing score:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/agemoea/geometry.py
-    selected = ranks < last_rank
-    crowd_dist = np.zeros(F.shape[0], dtype=float)
-
-    front0 = F[ranks == 0, :]
-    ideal_point = np.min(front0, axis=0)
-    crowd_dist[ranks == 0], p, normalization = _survival_score(front0, ideal_point, kernel.selection_kernels(), variant)
-
-    for r in range(1, last_rank + 1):
-        front_idx = fronts[r]
-        if front_idx.size == 0:
-            continue
-        # Same ideal-centred, normalized coordinates as the first-front score.
-        front = (F[front_idx] - ideal_point) / normalization
-        dist = _minkowski_distances(front, np.zeros((1, F.shape[1])), p).squeeze()
-        dist = np.where(dist < 1e-12, 1e-12, dist)
-        crowd_dist[front_idx] = 1.0 / dist
-
-    last = fronts[last_rank]
-    if last.size > 0:
-        order = np.argsort(crowd_dist[last])[::-1]
-        remaining = n_survive - int(np.sum(selected))
-        selected[last[order[:remaining]]] = True
-
-    survivors = np.flatnonzero(selected)
-    return survivors, crowd_dist[survivors]
-```
+Both variants bring the whole population close to the front. Which one spreads
+it better depends on the problem and the seed; lesson
+[Comparing algorithms rigorously](performance-assessment.md) explains how to
+compare them.
 
 `AGEMOEAConfig.default` uses a population of 100, SBX crossover (probability
 0.9, distribution index 15) and polynomial mutation (probability 1/n, index

@@ -34,28 +34,6 @@ child, and, for real variables only, repairs values that left their bounds:
 
 <div class="vf-figure"><svg class="vf-diagram" viewBox="0 0 640 150" role="img" aria-label="The variation step: selected parents go through crossover, applied to each mating group with the crossover probability, then mutation, applied to each variable with the mutation probability, then repair of out-of-bounds real values, and the offspring are evaluated."><rect class="vf-box" x="10" y="30" width="110" height="70" rx="10"/><text x="65" y="60" text-anchor="middle">Parents</text><text class="vf-diagram-small" x="65" y="80" text-anchor="middle">from selection</text><rect class="vf-box" x="140" y="30" width="110" height="70" rx="10"/><text x="195" y="60" text-anchor="middle">Crossover</text><text class="vf-diagram-small" x="195" y="80" text-anchor="middle">per group, p_c</text><rect class="vf-box" x="270" y="30" width="110" height="70" rx="10"/><text x="325" y="60" text-anchor="middle">Mutation</text><text class="vf-diagram-small" x="325" y="80" text-anchor="middle">per variable, p_m</text><rect class="vf-box" x="400" y="30" width="110" height="70" rx="10"/><text x="455" y="60" text-anchor="middle">Repair</text><text class="vf-diagram-small" x="455" y="80" text-anchor="middle">real variables</text><rect class="vf-box" x="530" y="30" width="100" height="70" rx="10"/><text x="580" y="60" text-anchor="middle">Offspring</text><text class="vf-diagram-small" x="580" y="80" text-anchor="middle">evaluated</text><path class="vf-arrow" d="M120 65H134M250 65H264M380 65H394M510 65H524"/><path class="vf-arrowhead" d="M140 65l-7-4v8zM270 65l-7-4v8zM400 65l-7-4v8zM530 65l-7-4v8z"/></svg></div>
 
-NSGA-II, IBEA, AGE-MOEA, RVEA and the constrained algorithms run this step
-through the `VariationPipeline` of `src/vamos/engine/variation/`; the others
-assemble the same operators in the same order. The pipeline's two methods are
-short, and the repair runs after the crossover and again after the mutation:
-
-```python
-# Excerpt from src/vamos/engine/variation/pipeline.py
-    def recombine(self, parents: NDArray[np.generic], rng: np.random.Generator) -> NDArray[np.generic]:
-        offspring = self.crossover_op(parents, rng)
-        if self.encoding == "real":
-            assert self.repair_op is not None
-            offspring = self.repair_op(offspring, self.xl, self.xu, rng)
-        return offspring
-
-    def mutate(self, offspring: NDArray[np.generic], rng: np.random.Generator) -> NDArray[np.generic]:
-        """Mutation of every row, then the repair of real encoding."""
-        offspring = self.mutation_op(offspring, rng)
-        if self.repair_op is not None:
-            offspring = self.repair_op(offspring, self.xl, self.xu, rng)
-        return offspring
-```
-
 ## Crossover and mutation
 
 **Crossover**, or recombination, builds children from two or more parents.
@@ -112,20 +90,8 @@ inversion, `prob` is the probability that a **child** is mutated, not each
 variable. A configuration that leaves `prob` out gets the algorithm's
 fallback, and the fallbacks are not all equal: NSGA-II's default permutation
 setup, `crossover("ox")` and `mutation("swap")`, crosses every pair and mutates
-a child with probability 2/n:
-
-```python
-# Excerpt from src/vamos/engine/variation/helpers.py
-    elif "prob" in params:
-        params["prob"] = resolve_prob_expression(params["prob"], n_var, 1.0)
-    else:
-        if normalized == "permutation":
-            params["prob"] = min(1.0, 2.0 / max(1, n_var))
-        else:
-            params["prob"] = 1.0 / max(1, n_var)
-```
-
-State `prob` explicitly when a comparison depends on it.
+a child with probability 2/n. State `prob` explicitly when a comparison
+depends on it.
 
 ## Distribution and step-size parameters
 
@@ -175,21 +141,7 @@ For a value x below the lower bound l, the repairs give l (`clip`),
 l + (l − x) (`reflect`, for a value within one range of the bound),
 u − (l − x) (`wrap`), l + (u − l)/4 (`midpoint`) or a uniform value in [l, u]
 (`resample`). Reflection mirrors the excess about the bound, repeatedly when it
-exceeds the range:
-
-```python
-# Excerpt from src/vamos/engine/operators/impl/real/repair.py
-            width = high - low
-            if width <= 0.0:
-                result[:, j] = low
-                continue
-            val = result[:, j] - low
-            period = 2.0 * width
-            val = np.mod(val, period)
-            over = val > width
-            val[over] = period - val[over]
-            result[:, j] = val + low
-```
+exceeds the range.
 
 The choice matters when the optimum lies on a bound. On ZDT1 the optimal
 solutions have x₂ = … = x₃₀ = 0, and BLX-0.5 often produces negative values
@@ -237,19 +189,19 @@ produce valid values; a repair for a binary, integer, permutation or mixed
 problem raises `ValueError: Repair operators are only supported for real
 encoding.`
 
-The operator classes themselves live in `vamos.engine.operators`, an internal
-module outside the [public interfaces](../../../project/stability-and-versioning.md).
-The lessons of this section therefore show what each operator does with
-interactive figures, whose JavaScript ports are tested against VAMOS, and with
-excerpts of its source; their runnable examples select operators by name
-through the public builders, as the last section of this lesson shows.
+You never need the operator classes themselves, which are internal and
+outside the [public interfaces](../../../project/stability-and-versioning.md):
+the builders select every operator by name, as the last section of this lesson
+shows. The lessons of this section show what each operator does with
+interactive figures, and select operators the same way in their runnable
+examples.
 
 ## The encoding decides the operators
 
 A crossover that averages two real numbers makes no sense for a tour, and
 swapping two cities makes no sense for a bit string. Each **encoding** has its
 own idea of a valid value, and each operator is written for one encoding
-[6]. These are the operators VAMOS implements, by the names the builders
+[6]. These are the operators VAMOS offers, by the names the builders
 accept (`available_crossover_methods(encoding)` and
 `available_mutation_methods(encoding)` in `vamos.algorithms` list them, with
 their aliases):
@@ -271,25 +223,13 @@ and `sbx` on an integer problem is the integer SBX, which rounds its children.
 `optimize(problem, algorithm="nsgaii")` without a configuration calls
 `NSGAIIConfig.default(...)` with the problem's number of variables and its
 encoding, and the other algorithms' `default()` do the same. A real-coded
-problem gets the algorithm's own real-coded operators; the other encodings get
-the operators of one shared table:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/config/base.py
-    enc = normalize_encoding(encoding, default="real")
-    if enc == "permutation":
-        return ("ox", {}), ("swap", {"prob": 0.1})
-    if enc == "binary":
-        return ("uniform", {"prob": 0.9}), ("bitflip", {"prob": mut_prob})
-    if enc == "integer":
-        return ("sbx", {"prob": 0.9, "eta": 20.0}), ("polynomial", {"prob": mut_prob, "eta": 20.0})
-    if enc == "mixed":
-        return ("mixed", {"prob": 0.9}), ("mixed", {"prob": mut_prob})
-```
-
-`mut_prob` is 1/n when the number of variables is known and 0.1 otherwise.
-NSGA-II writes these choices in its own `default()`, and leaves the permutation
-probabilities to the fallbacks of the previous section:
+problem gets the algorithm's own real-coded operators. The other encodings get
+the same operators in every algorithm, those that the example below prints for
+NSGA-II: a crossover with probability 0.9 and a mutation with probability 1/n,
+or 0.1 when the number of variables is unknown. Permutations are the
+exception. OX gets no `prob`, so it crosses every pair, and swap mutation gets
+0.1 per child; NSGA-II leaves that probability out too, so its swap mutation
+takes the 2/n fallback of the previous section:
 
 ```python
 from vamos.algorithms import NSGAIIConfig
@@ -370,8 +310,8 @@ operator choices with several seeds and a statistical test.
 - Real-valued children are repaired after crossover and mutation; the default
   clips them to the bounds.
 - The encoding decides which operators are valid. `XConfig.default(encoding=...)`
-  takes the operators of a shared table for binary, integer, permutation and
-  mixed problems, and the builders select any other supported operator by
+  takes the same operators in every algorithm for binary, integer, permutation
+  and mixed problems, and the builders select any other supported operator by
   name.
 
 ## References

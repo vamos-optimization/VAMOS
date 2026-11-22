@@ -1,5 +1,5 @@
 ---
-description: 'How NSGA-II creates offspring for real variables: simulated binary crossover (SBX) and polynomial mutation, their distribution indices and bounded forms, interactive offspring distributions and the VAMOS implementation.'
+description: 'How NSGA-II creates offspring for real variables: simulated binary crossover (SBX) and polynomial mutation, their distribution indices and bounded forms, interactive offspring distributions and how to configure them in VAMOS.'
 search:
   boost: 0.5
 ---
@@ -16,7 +16,7 @@ In this lesson you will learn:
 - how SBX generates two children from two parents, and what η_c controls;
 - how polynomial mutation perturbs a variable, and what η_m controls;
 - how both operators respect the variable bounds;
-- how VAMOS implements and configures them, and which alternatives it offers.
+- how to configure them in VAMOS, and which alternatives it offers.
 
 ## Exploration and exploitation
 
@@ -126,87 +126,8 @@ crossovers: arithmetic, blx_alpha, blx_alpha_beta, de, fuzzy, laplace, pcx, sbx,
 mutations: cauchy, gaussian, levy_flight, linked_polynomial, non_uniform, pm, polynomial, power_law, uniform, uniform_reset
 ```
 
-The arithmetic of both operators lives in
-`src/vamos/foundation/kernel/operator_primitives.py`. SBX works on a tensor of
-parent pairs, so every pair and every variable of a generation is processed by
-the same array expressions. This excerpt computes the first child, c₁, with
-the bounded spread factor:
-
-```python
-# Excerpt from src/vamos/foundation/kernel/operator_primitives.py
-    pair_mask = rng.random(n_pairs) <= prob_crossover
-    idx = np.flatnonzero(pair_mask)
-    if idx.size == 0:
-        return offspring
-
-    parent1 = offspring[idx, 0, :]
-    parent2 = offspring[idx, 1, :]
-    base1 = parent1.copy()
-    base2 = parent2.copy()
-    eps = 1.0e-14
-
-    y1 = np.minimum(parent1, parent2)
-    y2 = np.maximum(parent1, parent2)
-    diff = y2 - y1
-    valid = diff > eps
-    if prob_var >= 1.0:
-        active = valid
-    else:
-        active = valid & (rng.random(parent1.shape) <= prob_var)
-    if not np.any(active):
-        return offspring
-
-    xl = lower_arr.reshape(1, -1)
-    xu = upper_arr.reshape(1, -1)
-    rand = rng.random(parent1.shape)
-    betaq = np.empty_like(parent1)
-
-    beta_valid = 1.0 + (2.0 * (y1 - xl) / diff.clip(min=eps))
-    beta_valid = np.maximum(beta_valid, eps)
-    alpha = 2.0 - np.power(beta_valid, -(eta + 1.0))
-    alpha = np.maximum(alpha, eps)
-    term = rand <= (1.0 / alpha)
-    inv_eta = 1.0 / (eta + 1.0)
-    betaq[term] = np.power(rand[term] * alpha[term], inv_eta)
-    betaq[~term] = np.power(1.0 / (2.0 - rand[~term] * alpha[~term]), inv_eta)
-    c1 = 0.5 * ((y1 + y2) - betaq * diff)
-```
-
-`pair_mask` applies the crossover probability per pair, `active` the
-per-variable probability (`prob_var`, 0.5), and a variable whose parents are
-equal is left unchanged (`valid`). The second child uses the upper bound in the
-same way, and a final mask swaps the children's values with probability 0.5.
-
-Polynomial mutation follows the two branches of the formula:
-
-```python
-# Excerpt from src/vamos/foundation/kernel/operator_primitives.py
-    delta1 = (y - yl) / span
-    delta2 = (yu - y) / span
-    deltaq = np.empty_like(y)
-    mut_pow = 1.0 / (eta + 1.0)
-
-    lower_branch = rnd <= 0.5
-    if np.any(lower_branch):
-        rnd_low = rnd[lower_branch]
-        xy_low = 1.0 - delta1[lower_branch]
-        val_low = 2.0 * rnd_low + (1.0 - 2.0 * rnd_low) * np.power(xy_low, eta + 1.0)
-        deltaq[lower_branch] = np.power(val_low, mut_pow) - 1.0
-
-    upper_branch = ~lower_branch
-    if np.any(upper_branch):
-        rnd_high = rnd[upper_branch]
-        xy_high = 1.0 - delta2[upper_branch]
-        val_high = 2.0 * (1.0 - rnd_high) + 2.0 * (rnd_high - 0.5) * np.power(xy_high, eta + 1.0)
-        deltaq[upper_branch] = 1.0 - np.power(val_high, mut_pow)
-
-    mutated = y + deltaq * span
-    np.clip(mutated, yl, yu, out=mutated)
-```
-
-With `engine="numba"`, compiled kernels perform the same arithmetic and must
-draw the random numbers in the same order and shape; the
-[backend guide](../../../dev/add_backend.md) states that contract.
+With `engine="numba"`, both operators run as compiled code and give the same
+children as with `engine="numpy"` for the same seed.
 
 ## Other encodings
 

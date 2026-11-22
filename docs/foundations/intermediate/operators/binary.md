@@ -1,5 +1,5 @@
 ---
-description: 'Variation operators for bit strings: one-point, two-point, uniform and HUX crossover, bit-flip and segment inversion mutation, positional bias, an interactive step-through and the VAMOS implementation.'
+description: 'Variation operators for bit strings: one-point, two-point, uniform and HUX crossover, bit-flip and segment inversion mutation, positional bias, an interactive step-through and how to select them in VAMOS.'
 search:
   boost: 0.5
 ---
@@ -19,7 +19,7 @@ In this lesson you will learn:
   bits that the children exchange;
 - what positional bias is, and which operators have it;
 - how bit-flip and segment inversion mutation change a string;
-- how VAMOS implements them, and how to select them.
+- how to select them in VAMOS.
 
 ## Crossovers
 
@@ -89,45 +89,10 @@ arbitrary, it is an accident of the encoding.
   per **child**: `prob` is the share of children that receive such a segment.
   (The name refers to inverting the bits, not to reversing their order.)
 
-The core of the four operators in VAMOS, starting with one-point crossover and
-HUX:
-
-```python
-# Excerpt from src/vamos/engine/operators/impl/binary.py
-    cuts = rng.integers(1, D, size=idx.size)
-    for row, cut in zip(idx, cuts):
-        p1, p2 = pairs[row, 0], pairs[row, 1]
-        child1 = np.concatenate([p1[:cut], p2[cut:]])
-        child2 = np.concatenate([p2[:cut], p1[cut:]])
-        diff_mask = p1 != p2
-        if not np.any(diff_mask):
-            continue
-        diff_idx = np.flatnonzero(diff_mask)
-        swap_count = max(1, diff_idx.size // 2)
-        chosen = rng.choice(diff_idx, size=swap_count, replace=False)
-```
-
-and the two mutations:
-
-```python
-# Excerpt from src/vamos/engine/operators/impl/binary.py
-    mask = rng.random(X.shape) <= prob
-    active = np.flatnonzero(rng.random(rows) <= prob)
-    for row in active:
-        a = int(rng.integers(0, cols))
-        b = int(rng.integers(0, cols - 1))
-        if b >= a:
-            b += 1
-        if a > b:
-            a, b = b, a
-        X[row, a : b + 1] = 1 - X[row, a : b + 1]
-```
-
 ## In VAMOS
 
-The operators live in `src/vamos/engine/operators/impl/binary.py`, and the
-figure above follows their draws; a test checks its children against them. In
-the figure's default parents, P1 = 110100111010 and P2 = 011011010001 differ in
+The figure above draws cut points, masks and segments as VAMOS's operators do.
+In its default parents, P1 = 110100111010 and P2 = 011011010001 differ in
 nine positions, so HUX always exchanges four of them, and bits 1, 7 and 9,
 equal in both parents, keep their value in every child. Bit-flip with 1/n
 makes small, scattered changes and leaves about a third of the children

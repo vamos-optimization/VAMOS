@@ -1,5 +1,5 @@
 ---
-description: 'The crowding distance of NSGA-II, its boundary rule and normalization, the crowded-comparison operator and binary tournament selection, with interactive figures and the VAMOS implementation.'
+description: 'The crowding distance of NSGA-II, its boundary rule and normalization, the crowded-comparison operator and binary tournament selection, with interactive figures and VAMOS code.'
 search:
   boost: 0.5
 ---
@@ -17,7 +17,8 @@ In this lesson you will learn:
 - how the crowding distance is defined and computed;
 - why boundary solutions receive an infinite distance;
 - the crowded-comparison operator and the binary tournament that uses it;
-- the VAMOS implementation, including its rule for objectives without spread.
+- how VAMOS treats small fronts and objectives without spread, and how to
+  obtain crowding distances in VAMOS.
 
 ## From sharing to crowding
 
@@ -85,75 +86,20 @@ selected about twice per generation on average.
 
 ## In VAMOS
 
-The crowding distance of the NumPy kernel follows the definition line by
-line:
-
-```python
-# Excerpt from src/vamos/foundation/kernel/numpy_backend.py
-    for front in fronts:
-        if len(front) == 0:
-            continue
-        front_arr = np.asarray(front, dtype=int)
-        if front_arr.size <= 2:
-            crowding[front_arr] = np.inf
-            continue
-
-        fvals = F[front_arr]  # shape (k, n_obj)
-        n_obj = fvals.shape[1]
-        d = np.zeros(front_arr.size, dtype=float)
-
-        for m in range(n_obj):
-            order = np.argsort(fvals[:, m], kind="mergesort")
-            sorted_vals = fvals[order, m]
-
-            span = sorted_vals[-1] - sorted_vals[0]
-            if span <= 0.0:
-                continue
-            d[order[0]] = np.inf
-            d[order[-1]] = np.inf
-
-            contrib = np.zeros_like(sorted_vals)
-            contrib[1:-1] = (sorted_vals[2:] - sorted_vals[:-2]) / span
-            d[order[1:-1]] += contrib[1:-1]
-
-        crowding[front_arr] = d
-```
-
-Two details go beyond the paper and follow jMetal and pymoo:
+VAMOS computes the crowding distance as defined above, with two details that
+go beyond the paper and follow jMetal and pymoo:
 
 - a front of one or two solutions gives every member ∞;
-- an objective whose values are all equal in a front (`span <= 0`) is skipped,
-  instead of marking two arbitrary members as boundaries. The
+- an objective whose values are all equal in a front is skipped, instead of
+  marking two arbitrary members as boundaries. The
   [NSGA-II lesson](../../algorithms/nsgaii.md#how-selection-works) records when
   VAMOS adopted this rule.
 
-The tournament of two (`pressure == 2`) draws the second contestant so that it
-always differs from the first, then compares rank, then crowding, then flips
-a coin:
-
-```python
-# Excerpt from src/vamos/foundation/kernel/numpy_backend.py
-            first = rng.integers(0, N, size=n_parents, dtype=int)
-            second = rng.integers(0, N - 1, size=n_parents, dtype=int)
-            second = second + (second >= first)
-
-            rank_first = ranks[first]
-            rank_second = ranks[second]
-            crowd_first = np.nan_to_num(crowding[first], nan=-np.inf)
-            crowd_second = np.nan_to_num(crowding[second], nan=-np.inf)
-
-            pick_first = rank_first < rank_second
-            pick_second = rank_second < rank_first
-            unresolved = ~(pick_first | pick_second)
-
-            crowd_first_better = crowd_first > crowd_second
-            crowd_second_better = crowd_second > crowd_first
-            pick_first = pick_first | (unresolved & crowd_first_better)
-            pick_second = pick_second | (unresolved & crowd_second_better)
-```
-
-All the tournaments of a generation are resolved at once with array
-operations; there is no Python loop over parents.
+NSGA-II's default parent selection is the binary tournament described above:
+the two contestants are always different solutions, and a tie in both rank and
+crowding distance is decided by a coin. `.selection("tournament", size=2)` in
+`NSGAIIConfig.builder()` chooses it explicitly, and a larger `size` raises the
+selection pressure.
 
 The public helper `vamos.select_survivors` returns the crowding distances of
 any set of objective vectors. These are the nine points of the figure, with

@@ -21,9 +21,9 @@ In this lesson you will learn:
 - the random forests of SMAC and the tree-structured Parzen estimator (TPE)
   of Optuna;
 - successive halving, Hyperband and BOHB, and pruning;
-- how the `optuna`, `bohb_optuna`, `smac3` and `bohb` backends of `vamos tune`
-  use them, and how VAMOS turns a budget level into runs on instances and
-  seeds.
+- how to use them with the `optuna`, `bohb_optuna`, `smac3` and `bohb`
+  backends of `vamos tune`, and how a budget level becomes runs on instances
+  and seeds.
 
 ## Sequential model-based optimization
 
@@ -247,31 +247,6 @@ costs one run per instance/seed pair, and nothing is pruned. With
   configuration evaluated at the full budget, and fail with an error when the
   search ends before any configuration reaches it.
 
-The pruner is chosen from the number of levels:
-
-```python
-# Excerpt from src/vamos/engine/tuning/_model_backend_runners.py
-    levels = resolve_budget_levels(tuner)
-    sampler = _build_optuna_sampler(tuner.optuna_sampler, seed=int(tuner.seed))
-    # A trial reports the score of each level but the last at steps 1, 2, ...; the pruner may
-    # stop it after any of them. With a single level there is nothing to prune.
-    pruner: Any
-    if len(levels) == 1:
-        pruner = optuna.pruners.NopPruner()
-    elif bohb_mode:
-        pruner = optuna.pruners.HyperbandPruner(
-            min_resource=1,
-            max_resource=len(levels),
-            reduction_factor=max(2, int(tuner.bohb_reduction_factor)),
-        )
-    else:
-        pruner = optuna.pruners.MedianPruner(
-            n_startup_trials=max(5, min(40, int(tuner.max_trials // 4) if tuner.max_trials > 0 else 5)),
-            n_warmup_steps=0,
-            interval_steps=1,
-        )
-```
-
 The median pruner prunes nothing during the first max(5, min(40, ⌊trials/4⌋))
 trials, where trials is `--tune-budget`.
 
@@ -284,18 +259,6 @@ linearly with the budget, from the smallest level to the largest:
 <div class="vf-formula">f = (b − b_min) / (b_max − b_min)                  (0 at the smallest level, 1 at the full budget)
 instances(b) = round( n · ( φ + f (1 − φ) ) )         φ = --fidelity-min-instance-frac  (1.0: always every instance)
 seeds(b)     = round( s_min + f (s_max − s_min) )     --fidelity-min-seed-count, --fidelity-max-seed-count (0: every seed)</div>
-
-```python
-# Excerpt from src/vamos/engine/tuning/_model_backend_fidelity.py
-    frac = budget_fraction(tuner, b)
-    min_inst_frac = float(tuner.fidelity_min_instance_frac)
-    inst_frac = min_inst_frac + frac * (1.0 - min_inst_frac)
-    target_instances = int(max(1, min(len(all_instances), int(round(float(len(all_instances)) * inst_frac)))))
-    min_seed_count, max_seed_count = resolve_seed_bounds(tuner)
-    target_seed_count = int(round(float(min_seed_count) + frac * float(max_seed_count - min_seed_count)))
-    target_seed_count = max(1, min(len(all_seeds), target_seed_count))
-    selected_seeds = list(all_seeds[:target_seed_count]) if target_seed_count < len(all_seeds) else list(all_seeds)
-```
 
 The seeds are the first ones of the training list; the instances are a
 random subset, drawn once per budget with `--fidelity-selection-seed` (by

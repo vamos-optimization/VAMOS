@@ -172,21 +172,9 @@ Each axis needs a scale. Drawing every axis on its own range, from the
 smallest to the largest value in the set, uses the full height for each
 objective; drawing all axes on one scale keeps their units comparable but
 squeezes objectives with small ranges. VAMOS's `plot_parallel_coordinates`
-takes the first choice: it divides each column by its range in the rows it
-draws, and an objective without spread gets a range of 1.
-
-```python
-# Excerpt from src/vamos/ux/visualization/__init__.py
-    n_obj = F.shape[1]
-    data = F.copy()
-    min_vals = data.min(axis=0)
-    max_vals = data.max(axis=0)
-    span = np.where(max_vals - min_vals == 0, 1.0, max_vals - min_vals)
-    data = (data - min_vals) / span
-    ax = _get_ax(ax)
-    for row in data:
-        ax.plot(range(n_obj), row, alpha=0.5)
-```
+takes the first choice: it rescales each column from its minimum to its
+maximum in the rows it draws, so every axis runs from 0 to 1, and an objective
+without spread gets a range of 1.
 
 The scale depends on the set. Two sets drawn in two calls get two different
 scales, even when they were normalized with the same bounds beforehand, because

@@ -144,27 +144,13 @@ that a **configuration** can be exchanged [2].
 ### Names
 
 The built-in spaces name their parameters after Evolver's, in snake_case:
-Evolver's `sbxDistributionIndex` is VAMOS's `sbx_distribution_index`. A table
-in `vamos.engine.tuning.racing.parameter_names` holds the correspondence,
-with the earlier VAMOS name of each parameter, which VAMOS still accepts in
-stored assignments:
-
-```python
-# Excerpt from src/vamos/engine/tuning/racing/parameter_names.py
-PARAMETER_NAMES: tuple[tuple[str, str, str | None], ...] = (
-    ("pop_size", "pop_size", "populationSize"),
-    ("crossover_prob", "crossover_probability", "crossoverProbability"),
-    ("crossover_eta", "sbx_distribution_index", "sbxDistributionIndex"),
-    ("mutation_eta", "polynomial_mutation_distribution_index", "polynomialMutationDistributionIndex"),
-    ("mutation_prob_factor", "mutation_probability_factor", "mutationProbabilityFactor"),
-    ("neighbor_size", "neighborhood_size", "neighborhoodSize"),
-    ("delta", "neighborhood_selection_probability", "neighborhoodSelectionProbability"),
-    ("aggregation", "aggregation_function", "aggregationFunction"),
-    ("de_cr", "de_crossover_rate", "CR"),
-    ("de_f", "de_scale_factor", "F"),
-    ("initializer", "initial_solutions", "createInitialSolutions"),
-    ("selection_pressure", "tournament_size", "selectionTournamentSize"),
-```
+Evolver's `sbxDistributionIndex` is VAMOS's `sbx_distribution_index`, and
+`neighborhoodSize` is `neighborhood_size`. A few names differ more: Evolver's
+`createInitialSolutions` is `initial_solutions`, `selectionTournamentSize` is
+`tournament_size`, and the `CR` and `F` of differential evolution are
+`de_crossover_rate` and `de_scale_factor`. VAMOS still accepts the earlier
+VAMOS name of each parameter, such as `crossover_eta` for
+`sbx_distribution_index`, in configurations saved by earlier releases.
 
 Values are translated as well: Evolver's `SBX`, `blxAlpha`, `UNDC`,
 `linkedPolynomial`, `levyFlight`, `tschebyscheff`,
@@ -210,8 +196,8 @@ The exchange translates names and values; it does not reconcile structure:
   NSGA-III does not run, and Evolver's Cauchy initialization has no VAMOS
   counterpart. VAMOS's `modified_tchebycheff` (the augmented formula with
   ρ = 10⁻³) and the constraint-handling techniques that jMetal does not have
-  have no Evolver form, and `to_evolver` refuses them rather than write a
-  configuration that Evolver would read differently.
+  have no Evolver form, and the translation to Evolver's terms refuses them
+  rather than write a configuration that Evolver would read differently.
 - **Some parameters are structured differently**, such as the external
   archive, which VAMOS writes as one choice, `external_archive`, where Evolver
   has `algorithmResult` and `archiveType`, or Evolver's per-operator repair
@@ -226,27 +212,10 @@ translates every name and value and then checks that the result is a valid
 derivation of the grammar: every active parameter has a value inside its
 domain, and nothing else is set.
 
-The function translates the whole line at once, then hands the result to the
-same validation as any other configuration:
-
-```python
-# Excerpt from src/vamos/engine/tuning/grammar/configuration.py
-def configuration_from_command_line(space: ParameterSpace, text: str, *, evolver: bool = False) -> ParameterConfiguration:
-    """The configuration that ``--name value`` pairs give; with ``evolver``, pairs with Evolver's names and values."""
-    tokens = text.split()
-    if evolver:
-        # The whole line at once, so that the settings Evolver implies apply (its IPBI always normalizes).
-        spellings = {name: (str(value),) for name, value in from_evolver(raw).items()}
-    known = set(space.names())
-    return configuration(
-        space, {name: _parse_spellings(space.parameter(name), texts) if name in known else texts[0] for name, texts in spellings.items()}
-    )
-```
-
-`from_evolver` applies the name table above and adds the settings that
-Evolver implies without writing them: its inverted PBI always normalizes the
-objectives, and its MOEA/D draws the base of the DE mutant at random. Take a
-line that sets NSGA-II with Evolver's names:
+The translation reads the whole line at once, so it also adds the settings
+that Evolver implies without writing them: its inverted PBI always normalizes
+the objectives, and its MOEA/D draws the base of the DE mutant at random. Take
+a line that sets NSGA-II with Evolver's names:
 
 ```text
 --crossover SBX --crossoverProbability 0.95 --sbxDistributionIndex 12.5 --mutation polynomial --mutationProbabilityFactor 1.4 --polynomialMutationDistributionIndex 31.0 --selection tournament --selectionTournamentSize 4 --createInitialSolutions latinHypercubeSampling
@@ -272,28 +241,43 @@ line does not set, and the reader refuses the line until they are given,
 with an error that names the first of them, `offspring_ratio`. Adding them at
 their defaults (`--offspring_ratio 1.0 --external_archive none --repair auto`),
 which are the algorithm's defaults, gives a valid point of the space,
-identified by the space's name and hash. `config_from_assignment`, which
-`vamos tune` uses for every trial, then builds the `NSGAIIConfig` that runs
-it, with the population added as a run setting: a tournament of size 4, SBX
-with probability 0.95 and index 12.5, polynomial mutation with index 31 and
-probability factor 1.4, and Latin hypercube initialization. From there it is
-an ordinary VAMOS configuration, which a study can compare with the default
-configuration and a run manifest records.
+identified by the space's name and hash. It runs as an ordinary
+`NSGAIIConfig`, with the population added as a run setting: a tournament of
+size 4, SBX with probability 0.95 and index 12.5, polynomial mutation with
+index 31 and probability factor 1.4, and Latin hypercube initialization. The
+public builder writes it directly, with the factor as the probability
+`"1.4/n"`, and `optimize` runs it:
+
+```python
+from vamos import optimize
+from vamos.algorithms import NSGAIIConfig
+
+config = (
+    NSGAIIConfig.builder()
+    .pop_size(100)  # a run setting, not part of the configuration
+    .selection("tournament", size=4)
+    .initializer("lhs")
+    .crossover("sbx", prob=0.95, eta=12.5)
+    .mutation("polynomial", prob="1.4/n", eta=31.0)
+    .build()
+)
+result = optimize("zdt1", algorithm="nsgaii", algorithm_config=config, max_evaluations=10_000, seed=1)
+print(f"{len(result.F)} solutions, f1 from {result.F[:, 0].min():.3f} to {result.F[:, 0].max():.3f}")
+```
+
+Output:
+
+```text
+100 solutions, f1 from 0.000 to 1.000
+```
+
+From there it is an ordinary VAMOS configuration, which a study can compare
+with the default configuration and a run manifest records.
 
 The way back is `to_command_line(evolver=True)`, which writes the active
 parameters in the depth-first order of the grammar, with Evolver's names and
-values where Evolver has them:
-
-```python
-# Excerpt from src/vamos/engine/tuning/grammar/configuration.py
-    def to_command_line(self, *, evolver: bool = False) -> str:
-        """``--name value`` pairs in depth-first order; with ``evolver``, Evolver's names and values where Evolver has them."""
-        values: Mapping[str, Any] = to_evolver(self.to_values()) if evolver else self.to_values()
-        return " ".join(f"--{name} {format_value(value)}" for name, value in values.items())
-```
-
-The three parameters that Evolver structures differently keep VAMOS's names
-in that line.
+values where Evolver has them. The three parameters that Evolver structures
+differently keep VAMOS's names in that line.
 
 The reader is strict. A value outside VAMOS's range, a parameter that is
 inactive for the values given, or a parameter that the space does not have,

@@ -1,5 +1,5 @@
 ---
-description: 'Real-world benchmark problems in VAMOS (RE, RWA, CRE, RCM and its reformulations, and MODAct): what makes them different from artificial test problems, where their reference fronts come from, and VAMOS code.'
+description: 'Real-world benchmark problems in VAMOS (RE, RWA, CRE, RCM and its reformulations, and MODAct): what makes them different from artificial test problems, where their reference fronts come from, and VAMOS examples.'
 search:
   boost: 0.5
 ---
@@ -64,18 +64,9 @@ for every candidate and need scikit-learn.
   suite.
 
 RE21, the design of a four-bar truss, shows the scales. Its two objectives
-are a structural volume and a joint displacement:
-
-```python
-# Excerpt from src/vamos/foundation/problem/real_world/tanabe_ishibuchi_re2.py
-        x1, x2, x3, x4 = X[:, 0], X[:, 1], X[:, 2], X[:, 3]
-        L = self._L
-        Fconst = self._F
-        E = self._E
-
-        f1 = L * ((2.0 * x1) + np.sqrt(2.0) * x2 + np.sqrt(np.maximum(x3, 0.0)) + x4)
-        f2 = ((Fconst * L) / E) * ((2.0 / x1) + (2.0 * np.sqrt(2.0) / x2) - (2.0 * np.sqrt(2.0) / x3) + (2.0 / x4))
-```
+are a structural volume, f₁ = L (2x₁ + √2 x₂ + √x₃ + x₄), and a joint
+displacement, f₂ = (FL/E)(2/x₁ + 2√2/x₂ − 2√2/x₃ + 2/x₄), with L = 200,
+F = 10 and E = 2 × 10⁵: f₁ is scaled by 200 and f₂ by 0.01.
 
 The ranges of the packaged reference fronts of a few problems:
 

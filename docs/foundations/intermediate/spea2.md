@@ -1,5 +1,5 @@
 ---
-description: 'SPEA2 in depth: strength and raw fitness, k-th nearest-neighbour density, environmental selection into a fixed-size archive, the truncation operator and mating selection, with an interactive figure and the VAMOS implementation.'
+description: 'SPEA2 in depth: strength and raw fitness, k-th nearest-neighbour density, environmental selection into a fixed-size archive, the truncation operator and mating selection, with an interactive figure and VAMOS code.'
 search:
   boost: 0.5
 ---
@@ -28,7 +28,7 @@ In this lesson you will learn:
   that VAMOS uses;
 - how the archive is filled, and how the truncation operator chooses which
   solutions to remove;
-- how parents are chosen, and how VAMOS implements each step.
+- how parents are chosen, and how to configure SPEA2 in VAMOS.
 
 ## From SPEA to SPEA2
 
@@ -201,129 +201,23 @@ nearest neighbour is the dominated P10: the density uses all M solutions,
 dominated ones included, while the truncation only measures distances among
 the non-dominated.
 
-VAMOS computes strength and raw fitness from a boolean dominance matrix
-(`dom[i, j]` is true when i dominates j), and the k-th neighbour distance with
-a partial sort:
+VAMOS' SPEA2 follows these definitions, with a few details worth knowing:
 
-```python
-# Excerpt from src/vamos/engine/algorithm/spea2/helpers.py
-def strength_raw_fitness(dom: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
-    """Compute SPEA2 raw fitness (strength ranking) from dominance matrix."""
-    n = dom.shape[0]
-    if n == 0:
-        return np.empty(0, dtype=float)
-    strength = dom.sum(axis=1, dtype=np.int64)
-    raw = (dom.T @ strength).astype(float, copy=False)
-    return np.asarray(raw, dtype=float)
-
-def _kth_neighbour_distance(dist: np.ndarray[Any, Any], k: int) -> np.ndarray[Any, Any]:
-    n = dist.shape[0]
-    if n == 0:
-        return np.empty(0, dtype=float)
-    if n == 1:
-        return np.full(1, np.inf, dtype=float)
-    k = min(max(int(k), 1), n - 1)
-    # Each row's zero self-distance sorts first, so position k is the k-th neighbour.
-    return np.asarray(np.partition(dist, kth=k, axis=1)[:, k], dtype=float)
-```
-
-`dom.sum(axis=1)` counts the solutions each one dominates, S; `dom.T @ strength`
-adds, for each solution, the strengths of the rows that dominate it, R. With
-constraints (the default `constraint_mode="feasibility"`), `dom` holds
-constrained domination instead (lesson [Constraints](../advanced/constrained.md)), so
-feasible solutions dominate infeasible ones.
-
-Environmental selection follows the two cases of the procedure:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/spea2/helpers.py
-    n = F.shape[0]
-    dist = np.linalg.norm(F[:, None, :] - F[None, :, :], axis=2)
-    kth_distance = _kth_neighbour_distance(dist, int(k_neighbors) if k_neighbors is not None else 1)
-    dom, _, _ = dominance_matrix(F, G, constraint_mode)
-    raw_fitness = strength_raw_fitness(dom)
-
-    nondominated = np.flatnonzero(raw_fitness == 0.0)
-    if n <= archive_size:
-        selected: NDArray[np.int_] = np.arange(n, dtype=int)
-    elif nondominated.size > archive_size:
-        keep = truncate_lexicographic(dist[np.ix_(nondominated, nondominated)], archive_size, selection_kernels)
-        selected = nondominated[keep]
-    else:
-        dominated = np.flatnonzero(raw_fitness > 0.0)
-        fitness = raw_fitness[dominated] + 1.0 / (kth_distance[dominated] + 2.0)
-        fill = dominated[np.argsort(fitness, kind="stable")[: archive_size - nondominated.size]]
-        selected = np.concatenate([nondominated, fill])
-
-    return selected, raw_fitness[selected], kth_distance[selected]
-```
-
-- `n <= archive_size` happens only at the start, when the initial population
-  fits in the archive.
-- The fill sorts the dominated solutions by F = R + 1 / (σᵏ + 2) with a stable
-  sort, so equal fitness keeps the input order.
-- The function also returns R and σᵏ of each survivor, measured in the union;
-  the mating tournament reuses them.
-
-The truncation operator removes one row per iteration:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/spea2/helpers.py
-    active: NDArray[np.int_] = np.arange(n, dtype=int)
-    while active.size > keep:
-        sub = dist[np.ix_(active, active)]
-        np.fill_diagonal(sub, np.inf)
-        nearest = sub.min(axis=1)
-        candidates = np.flatnonzero(nearest == nearest.min())
-        if candidates.size > 1:
-            # The self-distance sorts last in every row, so it never decides the order.
-            rows = np.sort(sub[candidates], axis=1)
-            candidates = candidates[np.lexsort(rows.T[::-1])]
-        active = np.delete(active, int(candidates[0]))
-
-    return active
-```
-
-The candidates are the members with the smallest nearest distance. When there
-are several, their rows of sorted distances are ordered lexicographically with
-`np.lexsort`, which sorts by the last key given, hence the reversed `rows.T`.
-`np.lexsort` is stable, so identical rows remove the first member. With
-`engine="numba"`, a compiled loop gives the same result for finite distances.
-
-Mating uses a binary tournament between two distinct archive members. It
-compares raw fitness first and, on a tie, the k-th neighbour distance, where
-the larger distance wins:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/spea2/spea2.py
-    fa = raw_fitness[first]
-    fb = raw_fitness[second]
-    da = density[first]
-    db = density[second]
-
-    winners = np.empty(n_parents, dtype=int)
-    better_first = fa < fb
-    better_second = fb < fa
-    winners[better_first] = first[better_first]
-    winners[better_second] = second[better_second]
-
-    tied = ~(better_first | better_second)
-    if tied.any():
-        tied_first = first[tied]
-        tied_second = second[tied]
-        tied_density_first = da[tied]
-        tied_density_second = db[tied]
-
-        density_first = tied_density_first > tied_density_second
-        density_second = tied_density_second > tied_density_first
-```
-
-Since D = 1 / (σᵏ + 2) is below 1 and decreases with σᵏ, comparing R and then
-σᵏ is the same as comparing F. A remaining tie is decided by a coin. The
-contestants are drawn as in NSGA-II's tournament (lesson
-[Crowding and tournaments](crowding-distance.md#binary-tournament-selection)). Each generation forms
-N pairs of winners, and each pair produces one offspring: VAMOS keeps the first
-child of the crossover and mutates it.
+- With constraints (the default `constraint_mode="feasibility"`), strength and
+  raw fitness use constrained domination instead of Pareto dominance (lesson
+  [Constraints](../advanced/constrained.md)), so feasible solutions dominate
+  infeasible ones.
+- When several archive members tie on all their neighbour distances, the
+  truncation removes the first of them. `engine="numba"` gives the same result
+  for finite distances.
+- Mating uses a binary tournament between two distinct archive members. It
+  compares raw fitness first and, on a tie, the k-th neighbour distance measured
+  in the union, where the larger distance wins. Since D = 1 / (σᵏ + 2) is below
+  1 and decreases with σᵏ, this is the same as comparing F. A remaining tie is
+  decided by a coin, as in NSGA-II's tournament (lesson
+  [Crowding and tournaments](crowding-distance.md#binary-tournament-selection)).
+- Each generation forms N pairs of winners, and each pair produces one
+  offspring: VAMOS keeps the first child of the crossover and mutates it.
 
 A complete run on ZDT1, with an archive smaller than the population and the
 default k written out:

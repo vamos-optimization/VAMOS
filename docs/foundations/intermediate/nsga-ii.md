@@ -11,8 +11,8 @@ Agarwal and Meyarivan [1], is the most widely used evolutionary
 multi-objective algorithm. It is the default reference point in almost every
 comparison, and its two selection criteria, Pareto rank and crowding
 distance, reappear in many later algorithms. The Intermediate level takes it
-apart: this lesson gives the whole picture, and lessons I2 to I5 explain each
-step in detail together with the VAMOS code that implements it.
+apart: this lesson gives the whole picture, and the lessons after it explain
+each step in detail and how to configure it in VAMOS.
 
 In this lesson you will learn:
 
@@ -135,20 +135,20 @@ covers the remaining options, such as the steady-state variant and external
 archives, and the [configuration reference](../../reference/api/algorithms/nsgaii.md)
 lists every field.
 
-## Where each step lives in VAMOS
+## Each step in VAMOS
 
-| Step | Lesson | VAMOS source |
+| Step | Lesson | In VAMOS |
 | --- | --- | --- |
-| Generation loop (ask, evaluate, tell) | [Elitist survival](elitist-survival.md) | `src/vamos/engine/algorithm/nsgaii/ask_tell.py` |
-| Fast non-dominated sorting | [Non-dominated sorting](non-dominated-sorting.md) | `_fast_non_dominated_sort` in `src/vamos/foundation/kernel/numpy_backend.py` |
-| Crowding distance | [Crowding and tournaments](crowding-distance.md) | `_compute_crowding` in the same file |
-| Binary tournament | [Crowding and tournaments](crowding-distance.md) | `NumPyKernel.tournament_selection` in the same file |
-| SBX and polynomial mutation | [Real-coded operators](operators/real-coded.md) | `src/vamos/foundation/kernel/operator_primitives.py` |
-| Elitist survival | [Elitist survival](elitist-survival.md) | `_select_nsga2` and `NumPyKernel.nsga2_survival` in `numpy_backend.py` |
+| Generation loop (ask, evaluate, tell) | [Elitist survival](elitist-survival.md) | `optimize` repeats it until `max_evaluations` or `termination` is reached |
+| Fast non-dominated sorting | [Non-dominated sorting](non-dominated-sorting.md) | Automatic; the `engine` argument of `optimize` chooses NumPy, Numba or MooCore |
+| Crowding distance | [Crowding and tournaments](crowding-distance.md) | Automatic |
+| Binary tournament | [Crowding and tournaments](crowding-distance.md) | `.selection("tournament", size=2)` |
+| SBX and polynomial mutation | [Real-coded operators](operators/real-coded.md) | `.crossover("sbx", prob=0.9, eta=20.0)` and `.mutation("pm", prob="1/n", eta=20.0)` |
+| Elitist survival | [Elitist survival](elitist-survival.md) | Automatic; `.result_mode(...)` chooses whether the result holds the non-dominated solutions or the whole population |
 
-The NumPy kernel is the reference implementation. The Numba and MooCore
-engines implement the same kernel interface and are tested against it; see
-[algorithms and backends](../../reference/algorithms.md).
+The methods are those of `NSGAIIConfig.builder()`, as in the example above. NumPy is the default
+engine; Numba and MooCore run the same steps and are tested against it (see
+[algorithms and backends](../../reference/algorithms.md)).
 
 ## Cost of one generation
 

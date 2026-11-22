@@ -1,5 +1,5 @@
 ---
-description: 'SMPSO in depth: particle swarm basics, the velocity update with inertia, C1, C2, r1 and r2, the constriction coefficient and the speed constraint, the leaders archive with crowding distance, personal bests and polynomial-mutation turbulence, with an interactive figure and the VAMOS code.'
+description: 'SMPSO in depth: particle swarm basics, the velocity update with inertia, C1, C2, r1 and r2, the constriction coefficient and the speed constraint, the leaders archive with crowding distance, personal bests and polynomial-mutation turbulence, with an interactive figure and VAMOS examples.'
 search:
   boost: 0.5
 ---
@@ -27,7 +27,7 @@ In this lesson you will learn:
 - the velocity update with the inertia w and the coefficients C₁, C₂, r₁ and r₂;
 - the constriction coefficient χ and the speed constraint that define SMPSO;
 - how the leaders archive, leader selection, personal bests and turbulence
-  work, and how VAMOS implements and configures them.
+  work, and how to configure them in VAMOS.
 
 ## From bird flocks to multi-objective swarms
 
@@ -182,128 +182,12 @@ result: non_dominated
 ```
 
 `result_mode` `non_dominated` returns the leaders archive; `population`
-returns the final swarm. The velocity update in `SMPSO.ask()` follows the
-formulas above, for the whole swarm at once:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/smpso/smpso.py
-        # PSO velocity update (SMPSO with constriction)
-        pop_size, n_var = st.X.shape
-        # Drawn per particle and used as drawn, as in jMetal (jMetalPy rounds them to one decimal).
-        r1 = st.rng.uniform(st.r1_min, st.r1_max, size=(pop_size, 1))
-        r2 = st.rng.uniform(st.r2_min, st.r2_max, size=(pop_size, 1))
-        c1 = st.rng.uniform(st.c1_min, st.c1_max, size=(pop_size, 1))
-        c2 = st.rng.uniform(st.c2_min, st.c2_max, size=(pop_size, 1))
-        rho = c1 + c2
-        disc = np.maximum(rho * rho - 4.0 * rho, 0.0)
-        constriction = np.where(
-            rho <= 4.0,
-            1.0,
-            2.0 / (2.0 - rho - np.sqrt(disc)),
-        )
-        velocity = constriction * (st.max_weight * st.velocity + c1 * r1 * (st.pbest_X - st.X) + c2 * r2 * (leaders - st.X))
-        velocity = np.clip(velocity, st.delta_min, st.delta_max)
-
-        # Position update
-        X_new = st.X + velocity
-        low_mask = X_new < st.xl
-        if np.any(low_mask):
-            X_new = np.where(low_mask, st.xl, X_new)
-            velocity[low_mask] *= st.change_velocity1
-        high_mask = X_new > st.xu
-        if np.any(high_mask):
-            X_new = np.where(high_mask, st.xu, X_new)
-            velocity[high_mask] *= st.change_velocity2
-
-        # Apply mutation (turbulence)
-        if st.mutation_op is not None:
-            if st.mutation_every <= 1:
-                X_new = st.mutation_op(X_new, st.rng)
-            else:
-                mask = (np.arange(pop_size) % st.mutation_every) == 0
-                if np.any(mask):
-                    X_new[mask] = st.mutation_op(X_new[mask], st.rng)
-```
-
-Line by line: the four random factors have shape `(pop_size, 1)`, one value
-per particle that broadcasts over its variables. `rho` is φ, and `disc` guards
-the square root when φ ≤ 4, where `np.where` returns 1. `st.max_weight` is the
-inertia w, and `leaders` holds one leader per particle. `st.delta_min` and
-`st.delta_max` are ∓δ, computed once from the bounds and `vmax_fraction`.
-`change_velocity1` and `change_velocity2` are −1, the reversal at the bounds.
-The last block is the turbulence: `mutation_every` is 6.
-
-The leader of each particle comes from a binary tournament on the crowding
-distances of the archive, computed once per iteration:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/smpso/smpso.py
-    size = arch_X.shape[0]
-    if size == 0:
-        raise ValueError("Archive is empty.")
-    if size <= 2:
-        leaders = np.repeat(arch_X[:1], n_select, axis=0)
-        leader_idx = np.zeros(n_select, dtype=int)
-        return leaders, leader_idx
-
-    first = rng.integers(0, size, size=n_select, dtype=int)
-    second = rng.integers(0, size - 1, size=n_select, dtype=int)
-    second += second >= first
-    crowding_first = np.nan_to_num(crowding[first], nan=-np.inf)
-    crowding_second = np.nan_to_num(crowding[second], nan=-np.inf)
-
-    leader_idx = np.empty(n_select, dtype=int)
-    better_first = crowding_first > crowding_second
-    better_second = crowding_second > crowding_first
-    leader_idx[better_first] = first[better_first]
-    leader_idx[better_second] = second[better_second]
-
-    tied = ~(better_first | better_second)
-    if tied.any():
-        flip = rng.integers(0, 2, size=int(tied.sum()), dtype=int)
-        leader_idx[tied] = np.where(flip == 0, first[tied], second[tied])
-
-    leaders = arch_X[leader_idx]
-    return leaders, leader_idx
-```
-
-The second draw skips the first index, so the two contestants always differ,
-the same trick as the parent tournament of NSGA-II (lesson
-[Crowding and tournaments](crowding-distance.md#in-vamos)). The personal bests are updated after
-evaluation:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/smpso/helpers.py
-    if technique is not None and constraint_mode != "none" and G is not None and pbest_G is not None:
-        from vamos.engine.algorithm.components.constraint_handling import preferred
-
-        update_idx = ~preferred(technique, pbest_F, pbest_G, F, G)
-    elif constraint_mode and constraint_mode != "none" and G is not None and pbest_G is not None:
-        feas_new = is_feasible(G)
-        feas_old = is_feasible(pbest_G)
-        cv_new = compute_violation(G)
-        cv_old = compute_violation(pbest_G)
-
-        both_infeasible = ~feas_new & ~feas_old
-        same_violation = (feas_new & feas_old) | (both_infeasible & (cv_new == cv_old))
-        old_better = (feas_old & ~feas_new) | (both_infeasible & (cv_old < cv_new)) | (same_violation & dominates(pbest_F, F))
-        update_idx = ~old_better
-    else:
-        # Without constraints, update if current is not dominated by personal best
-        update_idx = ~dominates(pbest_F, F)
-
-    pbest_X[update_idx] = X[update_idx]
-    pbest_F[update_idx] = F[update_idx]
-    if pbest_G is not None and G is not None:
-        pbest_G[update_idx] = G[update_idx]
-```
-
-The first branch applies a constraint-handling technique chosen with
-`constraint_handling(...)` (see the [constraint
+returns the final swarm. In a builder, `.inertia(...)` sets w, `.c1(...)` and
+`.c2(...)` the lower ends of the ranges of C₁ and C₂, `.vmax_fraction(...)`
+the speed constraint and `.mutation(...)` the turbulence. With constraints,
+`.constraint_handling(...)` replaces the default rule for the personal bests by
+another technique (see the [constraint
 reference](../../reference/constraints.md#choose-a-constraint-handling-technique)).
-The second is the default with constraints: the personal best survives only
-when it is better, that is feasible against infeasible, less violated, or
-dominating at equal violation. Without constraints only dominance counts.
 
 The speed constraint is what makes SMPSO work on multimodal problems. ZDT4 [7]
 has many local Pareto fronts; its distance function g equals 1 only on the

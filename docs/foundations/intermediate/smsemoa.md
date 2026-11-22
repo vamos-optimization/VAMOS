@@ -1,5 +1,5 @@
 ---
-description: 'SMS-EMOA in depth: the steady-state (μ + 1) loop, non-dominated sorting of the N + 1 solutions, removal of the least hypervolume contributor of the last front, the reference point, special cases and cost, with interactive figures and the VAMOS implementation.'
+description: 'SMS-EMOA in depth: the steady-state (μ + 1) loop, non-dominated sorting of the N + 1 solutions, removal of the least hypervolume contributor of the last front, the reference point, special cases and cost, with interactive figures and VAMOS code.'
 search:
   boost: 0.5
 ---
@@ -74,10 +74,9 @@ every earlier front is safe. Early in a run, F_v often holds dominated
 solutions or the child alone. Later, all N + 1 solutions are often mutually
 non-dominated, v = 1, and the hypervolume alone decides.
 
-VAMOS does not sort from scratch at every step. It keeps the fronts of the
-population and inserts the child: the child joins the first front whose members
-do not dominate it, and the members it dominates move down one front, possibly
-pushing others further. The result is the same set of fronts as a full sort.
+VAMOS does not sort from scratch at every step: it inserts the child into the
+fronts of the population, which gives the same fronts as a full sort at a lower
+cost.
 
 Beume et al. [1] also describe a cheaper rule for a population with more than
 one front: remove the member of the last front that the most solutions
@@ -135,10 +134,9 @@ Ishibuchi et al. [6] how to choose it.
   not change.
 - **Ties.** The first of the equal smallest contributions is removed, in the
   order of the population with the child last. Duplicated points contribute 0.
-- **More than two objectives.** The contributions are exact: MooCore's
-  `hv_contributions` when MooCore is installed, otherwise an exact sweep for two
-  objectives and, for three or more, one exact hypervolume of the front for each
-  point left out. VAMOS uses no approximation.
+- **More than two objectives.** The contributions are exact for any number of
+  objectives; VAMOS uses no approximation. When MooCore is installed, VAMOS
+  computes them with it.
 - **Constraints.** With the default `constraint_mode="feasibility"`, while any of
   the N + 1 solutions is infeasible, the one with the largest total violation is
   removed (the last one on ties), and no hypervolume is computed. A
@@ -203,112 +201,10 @@ SMS-EMOA removes P4
 ```
 
 The large margin of the default reference point gives the extremes the two
-largest contributions. In the algorithm, one step generates a single child,
-evaluates it, counts the evaluation and runs the survival:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/smsemoa/smsemoa.py
-    def _reference_step(
-        self, st: SMSEMOAState, problem: ProblemProtocol, eval_strategy: EvaluationBackend
-    ) -> tuple[NDArray[Any], NDArray[np.float64], NDArray[np.float64] | None]:
-        """Generate, evaluate and insert one child (the reference for ``CompiledSteadyStep``).
-
-        Returns the evaluated child as ``(X, F, G)`` rows.
-        """
-        X_child = self._generate_offspring(st)
-        F_child, G_child = self._evaluate_offspring(problem, X_child, eval_strategy, st.constraint_mode)
-        # A constraint-handling technique follows the evaluations before the child's.
-        progress = run_progress(st.n_eval, st.max_evals)
-        st.n_eval += X_child.shape[0]
-        survival_selection(st, X_child, F_child, G_child, self.kernel, progress)
-        return X_child, F_child, G_child
-```
-
-`_generate_offspring` draws the two parents (with replacement under random
-selection), applies the crossover, and mutates and keeps only its first child.
-Without constraints, the survival works on a buffer `F_work` that holds the N
-parents and the child in its last row:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/smsemoa/helpers.py
-    F_work = _ensure_objective_buffer(st, pop_n, st.F.shape[1])
-    F_work[:pop_n] = st.F
-    F_work[pop_n] = F_child[0]
-
-    if st.ref_adaptive:
-        st.ref_point = update_reference_point(st.ref_point, F_work, st.ref_offset, st.ref_rule)
-
-    fronts = [list(front) for front in st.fronts]
-    ranks = np.empty(pop_n + 1, dtype=int)
-    ranks[:pop_n] = st.ranks
-    ranks[pop_n] = -1
-    incremental_insert_fronts(fronts, ranks, F_work, pop_n)
-
-    worst_front = np.asarray(fronts[-1], dtype=int)
-    if worst_front.size == 1:
-        remove_idx = int(worst_front[0])
-    else:
-        remove_idx = int(worst_front[least_contributor(kernel, F_work[worst_front], st.ref_point)])
-
-    if remove_idx == pop_n:
-        return
-
-    _write_child_survivor(st, X_child, F_child, G_child, pop_n, remove_idx)
-```
-
-- The adaptive reference point is updated from all N + 1 rows before anything is
-  removed.
-- `incremental_insert_fronts` inserts row `pop_n`, the child, into the cached
-  fronts.
-- A last front of one member is removed directly; otherwise
-  `least_contributor` picks the member to remove.
-- `remove_idx == pop_n` means the child itself lost: the population is left
-  unchanged. Otherwise the child takes the place of the removed member, and the
-  cached fronts, ranks and crowding distances are updated for the next parent
-  selection.
-
-`least_contributor` measures the contributions inside the reference box only:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/smsemoa/helpers.py
-def least_contributor(kernel: KernelBackend, points: FloatArray, ref_point: FloatArray) -> int:
-    """Row of ``points`` with the smallest hypervolume contribution (the first on ties).
-
-    Points outside the reference box (a fixed user reference) contribute 0; the
-    others are measured among themselves with the kernel's contribution hook.
-    """
-    inside = np.all(points <= ref_point, axis=1)
-    if bool(inside.all()):
-        contributions = kernel.hypervolume_contributions(points, ref_point)
-    else:
-        contributions = np.zeros(points.shape[0], dtype=float)
-        if bool(inside.any()):
-            contributions[inside] = kernel.hypervolume_contributions(points[inside], ref_point)
-    return int(np.argmin(contributions))
-```
-
-With the adaptive rules, every point lies inside the box; only a fixed vector
-can leave some outside. `np.argmin` returns the first smallest value, the tie
-rule above. The default reference point is computed by:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/components/hv_reference.py
-def relative_reference_point(F: ArrayLike, offset: float) -> NDArray[np.float64]:
-    """``nadir + offset * (nadir - ideal)`` of the rows of ``F``, objective by objective.
-
-    The point is the reference ``1 + offset`` of the objectives normalized to
-    ``[0, 1]`` by the ideal and the nadir of ``F``, expressed in the original units.
-    Rescaling an objective rescales the reference with it, so the order of the
-    hypervolume contributions, and any selection that follows it, does not depend
-    on the objective units. An objective with no spread uses a range of 1: all
-    points then share that factor of their contributions.
-    """
-    values = np.asarray(F, dtype=float)
-    top = np.max(values, axis=0)
-    span = top - np.min(values, axis=0)
-    span = np.where(span > 0.0, span, 1.0)
-    return np.asarray(top + offset * span, dtype=np.float64)
-```
+largest contributions. In a run, each step draws the two parents (with
+replacement under random selection) and keeps only the first child of the
+crossover, mutated. In the default reference-point rule, an objective without
+spread counts as having a range of 1.
 
 A complete run on ZDT1 with the default reference point written out:
 
