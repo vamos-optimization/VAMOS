@@ -252,7 +252,7 @@ same indicators for every run: see the
 - Spacing and spread describe the distribution only; pair them with a
   convergence-aware indicator.
 
-**Next:** [Families of multi-objective algorithms](algorithm-families.md).
+**Next:** [Genetic algorithms: the evolutionary loop](genetic-algorithms.md).
 
 ## References
 

@@ -234,3 +234,51 @@ def test_every_page_with_examples_is_a_docs_smoke_case() -> None:
     smoked = {case.source_path for case in DOC_SMOKE_CASES}
     pages = {f"docs/{_relative(page)}" for page in PAGES if _examples(page)}
     assert pages <= smoked, f"Foundations pages with examples missing from tests/docs/smoke_manifest.py: {sorted(pages - smoked)}"
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_evolutionary_loop_and_family_figures_agree_with_vamos() -> None:
+    from vamos import select_survivors
+    from vamos.engine.algorithm.components.hv_reference import relative_reference_point
+    from vamos.engine.algorithm.moead.aggregation import tchebycheff
+
+    rng = np.random.default_rng(20261122)
+    cases = [rng.random((int(rng.integers(6, 13)), 2)) for _ in range(12)]
+    program = f"""
+require({json.dumps(str(SCRIPT))});
+const V = globalThis.VamosFoundations;
+const loops = ["plus", "comma", "steady"].map((mode) => V.gaLoop(mode, 44, 6, 30));
+const families = {json.dumps([case.tolist() for case in cases])}.map((F) => V.familySurvivors(F, 5));
+process.stdout.write(JSON.stringify({{ loops, families }}));
+"""
+    completed = subprocess.run(["node", "-e", program], capture_output=True, text=True, check=True, timeout=60)
+    data = json.loads(completed.stdout)
+
+    # The loop figure: N offspring per cycle (one when steady-state), the exact budget, and NSGA-II's survivors.
+    for mode, steps in zip(("plus", "comma", "steady"), data["loops"]):
+        survive = [step for step in steps if step["phase"] == "survive"]
+        assert len(survive) == (24 if mode == "steady" else 4)
+        assert steps[-1]["evaluations"] == 30
+        for step in survive:
+            assert len(step["children"]) == (1 if mode == "steady" else 6)
+            ids = [member["id"] for member in step["merged"]]
+            kept = {member["id"] for member in step["kept"]}
+            if mode == "comma":
+                assert kept == {child["id"] for child in step["children"]}
+            else:
+                F = np.array([member["f"] for member in step["merged"]])
+                assert kept == {ids[i] for i in select_survivors(F, survivor_count=6).selected_indices}
+
+    # The family figure: NSGA-II's survivors, MOEA/D's Tchebycheff choices, SMS-EMOA's removals and the leaders.
+    for F, js in zip(cases, data["families"]):
+        assert js["dominance"] == sorted(int(i) for i in select_survivors(F, survivor_count=5).selected_indices)
+        ideal = F.min(axis=0)
+        assert js["decomposition"]["best"] == [int(np.argmin(tchebycheff(F, np.array(w), ideal))) for w in js["decomposition"]["W"]]
+        alive = list(range(len(F)))
+        while len(alive) > 5:
+            Q = F[alive]
+            last = list(_fast_non_dominated_sort(Q)[0][-1])
+            contributions = hypervolume_contributions(Q[last], relative_reference_point(Q, 1.0))
+            alive.pop(last[int(np.argmin(contributions))] if len(last) > 1 else last[0])
+        assert sorted(js["indicator"]["kept"]) == alive
+        assert js["swarm"]["leaders"] == [int(i) for i in np.flatnonzero(_fast_non_dominated_sort(F)[1] == 0)]
