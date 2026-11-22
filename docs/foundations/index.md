@@ -16,21 +16,21 @@ only needed to run the code.
 
 ## How the path is organized
 
-Three levels build on each other, and the topics that every algorithm shares
-have their own section.
+Three levels build on each other. The Intermediate level groups its
+algorithms by family and ends with the topics that every algorithm shares.
 
 | Section | Lessons | After it you can |
 | --- | --- | --- |
 | **Basic** | [What is a multi-objective problem?](basic/multi-objective-problems.md) · [Pareto dominance and the Pareto front](basic/pareto-dominance.md) · [What makes a good approximation?](basic/quality-aspects.md) · [Quality indicators](basic/quality-indicators.md) · [Genetic algorithms: the evolutionary loop](basic/genetic-algorithms.md) · [Families of multi-objective algorithms](basic/algorithm-families.md) | Formulate a problem with several objectives, reason with Pareto dominance, judge an approximation set, compute the standard quality indicators, explain the loop that every evolutionary algorithm runs and tell the families of algorithms apart. |
-| **Intermediate** | *Dominance-based:* NSGA-II ([at a glance](intermediate/nsga-ii.md) · [non-dominated sorting](intermediate/non-dominated-sorting.md) · [crowding distance and tournaments](intermediate/crowding-distance.md) · [elitist survival](intermediate/elitist-survival.md)) · [SPEA2](intermediate/spea2.md). *Decomposition-based:* [MOEA/D](intermediate/moead.md). *Indicator-based:* [SMS-EMOA](intermediate/smsemoa.md) · [IBEA](intermediate/ibea.md). *Swarm-based:* [SMPSO](intermediate/smpso.md). | Explain every step of NSGA-II and the code that implements it in VAMOS, and explain in the same depth one or two algorithms of each family. |
-| **Operators** | [Real-coded operators: SBX and polynomial mutation](operators/real-coded.md) | Explain how crossover and mutation create offspring, and what their parameters control. |
+| **Intermediate** | *Dominance-based:* NSGA-II ([at a glance](intermediate/nsga-ii.md) · [non-dominated sorting](intermediate/non-dominated-sorting.md) · [crowding distance and tournaments](intermediate/crowding-distance.md) · [elitist survival](intermediate/elitist-survival.md)) · [SPEA2](intermediate/spea2.md). *Decomposition-based:* [MOEA/D](intermediate/moead.md). *Indicator-based:* [SMS-EMOA](intermediate/smsemoa.md) · [IBEA](intermediate/ibea.md). *Swarm-based:* [SMPSO](intermediate/smpso.md). *Operators:* [Variation operators: an overview](intermediate/operators/overview.md) · [Real-coded operators: SBX and polynomial mutation](intermediate/operators/real-coded.md) · [More real-coded operators](intermediate/operators/real-coded-more.md) · [Binary operators](intermediate/operators/binary.md) · [Integer operators](intermediate/operators/integer.md) · [Permutation operators](intermediate/operators/permutation.md) · [Mixed operators](intermediate/operators/mixed.md). *Benchmarks:* [What a benchmark tests](intermediate/benchmarks/overview.md) · [ZDT, DTLZ and WFG](intermediate/benchmarks/continuous.md) · [Many objectives and many variables](intermediate/benchmarks/scalable.md) · [Constrained benchmarks](intermediate/benchmarks/constrained.md) · [Real-world problems](intermediate/benchmarks/real-world.md) · [Binary, integer, permutation and mixed problems](intermediate/benchmarks/combinatorial.md). | Explain every step of NSGA-II and the code that implements it in VAMOS, and one or two algorithms of each family in the same depth; explain how crossover and mutation create offspring for each kind of variable; tell what a benchmark problem tests, read its reference front and choose problems for a study. |
 | **Advanced** | *Many objectives:* [many-objective optimization](advanced/many-objective.md) · [reference directions and weight vectors](advanced/reference-directions.md) · [NSGA-III](advanced/nsga-iii.md) · [RVEA](advanced/rvea.md) · [AGE-MOEA](advanced/agemoea.md) · [visualizing many objectives](advanced/visualizing-many-objectives.md). *Constraints:* [constrained optimization](advanced/constrained.md) · [constraint-handling techniques](advanced/constraint-handling.md) · [CCMO](advanced/ccmo.md) · [C-TAEA](advanced/ctaea.md) · [ToP](advanced/top.md) · [CMOEA-MS](advanced/cmoeams.md). [Comparing algorithms rigorously](advanced/performance-assessment.md). | Recognize why four or more objectives and constraints change the problem, explain the many-objective and constrained algorithms of VAMOS, and design a comparison whose conclusions survive scrutiny. |
 
 Read the levels in order the first time; each lesson builds on the previous one
 and ends with a link to the next. Within the Intermediate level, the NSGA-II
 lessons come first, because the other algorithms are explained by how they
-differ from it. The Operators section can be read whenever a lesson mentions
-crossover or mutation.
+differ from it. Its Operators group can be read whenever a lesson mentions
+crossover or mutation, and its Benchmarks group once the Basic level is
+done.
 
 ## How the interactive figures work
 

@@ -206,16 +206,14 @@ Polynomial mutation follows the two branches of the formula:
 
 With `engine="numba"`, compiled kernels perform the same arithmetic and must
 draw the random numbers in the same order and shape; the
-[backend guide](../../dev/add_backend.md) states that contract.
+[backend guide](../../../dev/add_backend.md) states that contract.
 
 ## Other encodings
 
-SBX and polynomial mutation are for real variables. Binary, integer,
-permutation and mixed problems need operators that produce valid values of
-their type, such as bit-flip mutation, order crossover or swap mutation.
-`NSGAIIConfig.default(..., encoding=...)` chooses suitable ones, and
-[Decision representations](../../tutorials/encodings.md) shows each encoding
-at work.
+SBX and polynomial mutation are for real variables. The other real-coded
+operators of VAMOS are the subject of [More real-coded operators](real-coded-more.md),
+and [Binary](binary.md), [integer](integer.md), [permutation](permutation.md)
+and [mixed](mixed.md) problems have their own lessons.
 
 ## Key points
 
@@ -226,7 +224,7 @@ at work.
 - The bounded forms of both operators keep every value inside its bounds.
 - VAMOS' defaults are SBX (0.9, η_c = 20) and polynomial mutation (1/n, η_m = 20).
 
-**Next section:** [Many-objective optimization](../advanced/many-objective.md).
+**Next:** [More real-coded operators](real-coded-more.md).
 
 ## References
 
