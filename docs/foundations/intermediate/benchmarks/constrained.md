@@ -6,7 +6,7 @@ search:
 
 # Constrained benchmarks
 
-Lesson [Constrained optimization](../advanced/constrained.md) explains how
+Lesson [Constrained optimization](../../advanced/constrained.md) explains how
 algorithms compare solutions that break constraints, and the lessons after it
 describe CCMO, C-TAEA, ToP and CMOEA-MS. This lesson is about the problems
 used to test them. A constrained benchmark is hard not because it has
@@ -25,7 +25,7 @@ In this lesson you will learn:
 
 ## The constrained suites
 
-The catalog's [constrained suites table](../../reference/problems.md#explicitly-constrained-suites)
+The catalog's [constrained suites table](../../../reference/problems.md#explicitly-constrained-suites)
 lists their keys, dimensions and numbers of constraints. In every one, a
 problem writes its constraints to `G`, and `G <= 0` is feasible:
 
@@ -86,7 +86,7 @@ fourth:
 The figure computes the constrained fronts from the constraints, and the
 documentation tests check them against the reference fronts that VAMOS
 packages for CTP1–CTP7. The catalog's
-[CTP notes](../../reference/problems.md#explicitly-constrained-suites) give the
+[CTP notes](../../../reference/problems.md#explicitly-constrained-suites) give the
 parameters (θ, a, b, c, d, e) of each problem; `vamos.problems.CTP` builds the
 family with other values.
 
@@ -198,7 +198,7 @@ c1dtlz3: norm of the returned objective vectors, smallest 9.015, median 9.024
 The front of C1-DTLZ3 is DTLZ3's, at norm 1, but the run never gets below
 norm 9, the outer edge of the shell. Algorithms that also use infeasible solutions,
 such as the two-population CCMO or the ε-constrained methods of lesson
-[Constrained optimization](../advanced/constrained.md#beyond-feasibility-first),
+[Constrained optimization](../../advanced/constrained.md#beyond-feasibility-first),
 are designed to cross such barriers.
 
 ## Tunable difficulty
@@ -229,7 +229,7 @@ reference front no longer applies to it.
   constrained benchmarks; CEC2009 CF1 has none.
 - Report how many runs found a feasible solution, and how soon. The rest of
   the evaluation follows lesson
-  [Constrained optimization](../advanced/constrained.md#measuring-constrained-results).
+  [Constrained optimization](../../advanced/constrained.md#measuring-constrained-results).
 - Choose problems of all four kinds. A constraint-handling technique that
   excels at finding narrow feasible regions can fail at crossing barriers, and
   the reverse.

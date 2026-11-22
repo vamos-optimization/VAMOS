@@ -11,7 +11,7 @@ as good as the problems chosen. Benchmark problems, also called test problems,
 are built so that their Pareto front is known and each of their difficulties
 is controlled: the shape of the front, the number of local optima, how
 uniformly the decision space maps onto the front, how the variables interact.
-VAMOS registers 303 of them. The [problems catalog](../../reference/problems.md)
+VAMOS registers 303 of them. The [problems catalog](../../../reference/problems.md)
 lists every key with its dimensions, source and reference front; this section
 of Foundations explains what the problems test and how to choose among them.
 
@@ -176,7 +176,7 @@ problem rejects it.
 ## Reference fronts and indicators
 
 Most quality indicators compare a result with a **reference front** (lesson
-[Quality indicators](../basic/quality-indicators.md)): GD, IGD and IGD+ measure
+[Quality indicators](../../basic/quality-indicators.md)): GD, IGD and IGD+ measure
 distances to it, and the hypervolume needs a reference point, often derived
 from its nadir point after normalizing with its ideal and nadir points. A
 reference front is a finite sample of the true front, so
@@ -189,7 +189,7 @@ reference front is a finite sample of the true front, so
   several long runs found, not the true front.
 
 VAMOS packages its reference fronts as CSV files, one row per point. The
-catalog's [reference-front notes](../../reference/problems.md#reference-fronts)
+catalog's [reference-front notes](../../../reference/problems.md#reference-fronts)
 say where each file comes from and for which numbers of objectives it exists.
 Read them with `importlib.resources`, here to check the shape and the defining
 equation of a few fronts:
@@ -294,7 +294,7 @@ rules:
    packages none.
 5. **Report every problem you ran**, not a favourable subset, and the
    statistics of several independent runs (lesson
-   [Comparing algorithms rigorously](../advanced/performance-assessment.md)).
+   [Comparing algorithms rigorously](../../advanced/performance-assessment.md)).
 
 How not to do it: compare algorithms on ZDT1–ZDT3 alone. The three problems
 have two objectives, separable variables, the same unimodal distance function

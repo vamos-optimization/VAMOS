@@ -26,7 +26,7 @@ In this lesson you will learn:
 
 ## The suites
 
-The catalog's [application-inspired benchmarks](../../reference/problems.md#application-inspired-benchmarks)
+The catalog's [application-inspired benchmarks](../../../reference/problems.md#application-inspired-benchmarks)
 list every problem with its formulation, dimensions and notes:
 
 | Suite | Problems | Objectives | Constraints | Source |
@@ -155,7 +155,7 @@ remaining constraints are the original's at the decoded design, and a last
 constraint reports a decoding that failed. For RCM30–RCM35, whose constraints
 order switching angles, the default reformulation is the cumulative-variable
 one of Wang et al. [4]. The catalog's
-[reformulation notes](../../reference/problems.md#reformulated-rcm-problems)
+[reformulation notes](../../../reference/problems.md#reformulated-rcm-problems)
 describe each decoder.
 
 With the same budget, NSGA-II finds no feasible design of RCM22 and only
@@ -236,7 +236,7 @@ with other versions. With modact 1.0.1, a run of 25,000 evaluations takes 5 to
 
 ## Where the reference fronts come from
 
-The catalog's [reference-front table](../../reference/problems.md#reference-fronts)
+The catalog's [reference-front table](../../../reference/problems.md#reference-fronts)
 gives the origin of every file. For the real-world suites:
 
 - **RE**: Tanabe and Ishibuchi's approximated fronts [1]. A dense random sample

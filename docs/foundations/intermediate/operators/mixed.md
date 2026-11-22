@@ -267,4 +267,4 @@ lists.
 
 [3] Eiben, A. E., and Smith, J. E. (2015). *Introduction to Evolutionary Computing* (2nd ed.). Springer.
 
-**Next section:** [Many-objective optimization](../../advanced/many-objective.md).
+**Next section:** [What a benchmark tests](../benchmarks/overview.md).

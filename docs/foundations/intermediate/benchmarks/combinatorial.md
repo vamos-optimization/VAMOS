@@ -28,13 +28,13 @@ In this lesson you will learn:
 A problem declares its encoding: `binary`, `integer`, `permutation` or `mixed`
 (real-valued problems use `real`). `optimize(problem, algorithm=...)` passes it
 to the algorithm's default configuration, which picks the operators of a shared
-table ([algorithm reference](../../reference/algorithms.md)): uniform crossover
+table ([algorithm reference](../../../reference/algorithms.md)): uniform crossover
 and bit-flip mutation for binary variables, order crossover (OX) and swap
 mutation for permutations, SBX with probability 0.9 and polynomial mutation for
 integers, and dedicated mixed operators for mixed
-variables. The [decision representations tutorial](../../tutorials/encodings.md)
+variables. The [decision representations tutorial](../../../tutorials/encodings.md)
 runs one problem of each encoding. The catalog's
-[discrete examples table](../../reference/problems.md#binary-integer-mixed-and-permutation-examples)
+[discrete examples table](../../../reference/problems.md#binary-integer-mixed-and-permutation-examples)
 gives the keys and dimensions used below.
 
 ## ZDT5: deception in bits
@@ -95,7 +95,7 @@ only for the default 80 bits.
 
 The six synthetic problems of VAMOS draw their data from a fixed seed, so every
 run sees the same instance. Each is a trade-off between two simple terms; the
-catalog's [objective table](../../reference/problems.md#what-the-objectives-actually-mean)
+catalog's [objective table](../../../reference/problems.md#what-the-objectives-actually-mean)
 states them:
 
 | Key | Encoding | Objectives (both minimized) |
@@ -286,7 +286,7 @@ they do not compare directly with these values.
 - `tsp6`'s objectives do not conflict; on `kroa100` a greedy tour beats a short
   generic NSGA-II run in length, a reminder to compare with simple baselines.
 
-**Next section:** [Many-objective optimization](../advanced/many-objective.md).
+**Next section:** [Many-objective optimization](../../advanced/many-objective.md).
 
 ## References
 

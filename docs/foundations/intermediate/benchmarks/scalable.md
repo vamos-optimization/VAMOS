@@ -6,7 +6,7 @@ search:
 
 # Many objectives and many variables
 
-Lesson [Many-objective optimization](../advanced/many-objective.md) explains
+Lesson [Many-objective optimization](../../advanced/many-objective.md) explains
 why four or more objectives change how algorithms work. To study that, you
 need problems whose number of objectives M can be raised while everything else
 stays comparable, and, for large-scale optimization, problems with hundreds of
@@ -39,7 +39,7 @@ the constrained C-DTLZ, DC-DTLZ, MW4, MW8, MW14 and ZXH-CF (lesson
   decrease as M grows [2]. With 13 objectives, n must be raised to at least 25.
 - **LSMOP** keeps n = 300 and **ZCAT** n = 30, whatever M.
 
-The catalog's notes on [dimension rules](../../reference/problems.md#continuous-test-suites)
+The catalog's notes on [dimension rules](../../../reference/problems.md#continuous-test-suites)
 give the constraints, for example the even l of WFG2 and WFG3. The default
 numbers of variables, and whether VAMOS packages a reference front for that
 number of objectives:
@@ -83,7 +83,7 @@ fronts for two only. Where no file exists, build a reference front for your M
 and document how. For DTLZ2–DTLZ4 the front is the unit sphere and for WFG4–WFG9
 the ellipsoid Σ (f_m/2m)² = 1, so evenly spread points on them are easy to
 generate; for the other problems, the catalog's
-[reference-front notes](../../reference/problems.md#reference-fronts)
+[reference-front notes](../../../reference/problems.md#reference-fronts)
 describe how VAMOS generated its files.
 
 ## Degenerate fronts
@@ -144,7 +144,7 @@ f = (1 + g)/2 − (1 + g) s/2 and IDTLZ2 f = (1 + g) − (1 + g) s, where s is t
 position shape of DTLZ1 or DTLZ2 and g its distance function. The front of
 DTLZ1 is a simplex that points away from the origin, like the simplex of
 reference directions that NSGA-III, MOEA/D and RVEA use (lesson
-[NSGA-III](../advanced/nsga-iii.md)). IDTLZ1's front points the other way.
+[NSGA-III](../../advanced/nsga-iii.md)). IDTLZ1's front points the other way.
 Count how many of the 91 directions of a Das–Dennis lattice [8] with three
 objectives and 12 divisions meet each front, using VAMOS' packaged samples:
 
@@ -193,13 +193,13 @@ When objectives have different ranges, an unnormalized distance or angle
 favours the largest. WFG scales objective m by 2m, and ZCAT [7] by m²: the
 four-objective front of ZCAT1 reaches about 1, 4, 9 and 16. Algorithms and
 indicators need normalized objectives to treat them equally (lesson
-[Quality indicators](../basic/quality-indicators.md)).
+[Quality indicators](../../basic/quality-indicators.md)).
 
 ZCAT's twenty problems have twenty front shapes, among them degenerate ones
 (ZCAT14–ZCAT16, whose Pareto set is one-dimensional) and partly degenerate
 ones (ZCAT19 and ZCAT20), and distance functions chosen by options.
 VAMOS accepts them by name, with the defaults of the
-[catalog](../../reference/problems.md#continuous-test-suites):
+[catalog](../../../reference/problems.md#continuous-test-suites):
 
 - `level`, 1 to 6, selects the distance function, from a sphere-like one at
   level 1 to multimodal ones at the higher levels;

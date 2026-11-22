@@ -12,7 +12,7 @@ adding one difficulty to a simple base. DTLZ [2] scales the number of
 objectives. WFG [3] builds its nine problems from a toolkit of transformations,
 so that each difficulty can be switched on separately. This lesson reads their
 definitions in VAMOS and shows what each one adds; the
-[continuous suites table](../../reference/problems.md#continuous-test-suites)
+[continuous suites table](../../../reference/problems.md#continuous-test-suites)
 of the catalog gives their keys, default dimensions and reference fronts.
 
 In this lesson you will learn:

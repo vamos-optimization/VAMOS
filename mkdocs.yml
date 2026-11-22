@@ -254,13 +254,13 @@ nav:
         - Integer Operators: foundations/intermediate/operators/integer.md
         - Permutation Operators: foundations/intermediate/operators/permutation.md
         - Mixed Operators: foundations/intermediate/operators/mixed.md
-    - Benchmarks:
-      - What a Benchmark Tests: foundations/benchmarks/overview.md
-      - ZDT, DTLZ and WFG: foundations/benchmarks/continuous.md
-      - Many Objectives and Variables: foundations/benchmarks/scalable.md
-      - Constrained Benchmarks: foundations/benchmarks/constrained.md
-      - Real-world Problems: foundations/benchmarks/real-world.md
-      - Binary, Integer, Permutation and Mixed: foundations/benchmarks/combinatorial.md
+      - Benchmarks:
+        - What a Benchmark Tests: foundations/intermediate/benchmarks/overview.md
+        - ZDT, DTLZ and WFG: foundations/intermediate/benchmarks/continuous.md
+        - Many Objectives and Variables: foundations/intermediate/benchmarks/scalable.md
+        - Constrained Benchmarks: foundations/intermediate/benchmarks/constrained.md
+        - Real-world Problems: foundations/intermediate/benchmarks/real-world.md
+        - Binary, Integer, Permutation and Mixed: foundations/intermediate/benchmarks/combinatorial.md
     - Advanced:
       - Many Objectives:
         - Many-objective Optimization: foundations/advanced/many-objective.md
