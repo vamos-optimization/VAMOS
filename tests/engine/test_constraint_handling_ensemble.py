@@ -191,6 +191,18 @@ def test_the_ensemble_takes_the_given_weights_and_defaults_the_others() -> None:
     assert isinstance(make_constraint_handling("multiple_constraint_ranking"), MultipleConstraintRanking)
 
 
+def test_an_overflowing_penalty_neither_reaches_a_member_of_weight_0_nor_gives_nan() -> None:
+    # 1e155 squared overflows, so the DPF fitness of the first row is infinite.
+    kernel = resolve_kernel("numpy")
+    F, G = np.array([[0.0], [1.0], [2.0]]), np.array([[1e155], [0.0], [0.0]])
+    rng = np.random.default_rng(0)
+
+    assert Ensemble([1.0, 0.0, 0.0, 0.0]).ranks(kernel, F, G, rng).tolist() == [0, 1, 2]
+    qualities = Ensemble().qualities(kernel, F, G)
+    assert not np.any(np.isnan(qualities)) and qualities[:, 3].tolist() == [1.0, 0.0, 0.0]
+    assert Ensemble([0.0, 0.0, 0.0, 1.0]).ranks(kernel, F, G, rng).tolist() == [2, 0, 1]
+
+
 def test_large_finite_weights_normalize_without_overflow() -> None:
     # 1e308 + 1e308 overflows to infinity: the weights are scaled by the largest before they are summed.
     technique = make_constraint_handling(("ensemble", {"nds_weight": 1e308, "cdp_weight": 1e308, "mcr_weight": 0.0, "dpf_weight": 0.0}))

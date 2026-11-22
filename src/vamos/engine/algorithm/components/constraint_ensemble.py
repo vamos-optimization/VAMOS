@@ -97,7 +97,13 @@ def objective_ranks(kernel: KernelBackend, F: NDArray[Any]) -> NDArray[np.int64]
 
 
 def _min_max(values: NDArray[np.float64]) -> NDArray[np.float64]:
-    span = float(np.ptp(values)) if values.size else 0.0
+    """Min-max into [0, 1], 0 if every value is equal; with infinite values, a penalty that overflowed, those are 1
+    and the finite ones 0, the limit of min-max as the largest value grows."""
+    values = np.asarray(values, dtype=np.float64)
+    infinite = np.isposinf(values)
+    if np.any(infinite) and not np.all(infinite):
+        return infinite.astype(np.float64)
+    span = float(np.ptp(values)) if values.size and not np.any(infinite) else 0.0
     return (values - values.min()) / span if span > 0.0 else np.zeros_like(values)
 
 
@@ -124,7 +130,7 @@ class Ensemble(ConstraintHandlingTechnique):
     paper leaves open: NDS and CDP are the NSGA-II fitness with Pareto dominance and with the constrained-domination
     principle, MCR is :func:`multiple_constraint_ranking_fitness`, and DPF is the NDS fitness plus Joines and
     Houck's dynamic penalty with ``dynamic_penalty``'s settings, C = 0.5 and alpha = beta = 2, which the paper does
-    not give. The weights, 1/4 each by default, are normalized to sum 1.
+    not give. The weights, 1/4 each by default, are normalized to sum 1, and a member of weight 0 takes no part.
     """
 
     name = "ensemble"
@@ -162,7 +168,10 @@ class Ensemble(ConstraintHandlingTechnique):
         return np.column_stack([_min_max(nds), _min_max(cdp), _min_max(mcr), _min_max(dpf)])
 
     def ranks(self, kernel: KernelBackend, F: NDArray[Any], G: NDArray[Any], rng: np.random.Generator) -> RankArray:
-        return _order_ranks(self.qualities(kernel, F, G) @ np.asarray(self.weights))
+        # A member of weight 0 takes no part, so that nothing in its column can reach the score.
+        weights = np.asarray(self.weights, dtype=np.float64)
+        active = weights > 0.0
+        return _order_ranks(self.qualities(kernel, F, G)[:, active] @ weights[active])
 
     def state(self) -> dict[str, Any]:
         return self.penalty.state()

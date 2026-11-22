@@ -352,10 +352,12 @@ principle), MCR and DPF (the NDS fitness plus Joines and Houck's dynamic
 penalty, with `dynamic_penalty`'s settings, `C = 0.5` and `alpha = beta = 2`,
 which the paper does not give), and the population is ordered by `c_e`. The
 paper normalizes each member's quality into [0, 1] without saying how; VAMOS
-scales each min-max over the population. The weights, `nds_weight`,
-`cdp_weight`, `mcr_weight` and `dpf_weight`, are at least 0, 1/4 each by
-default, as in the paper, and are normalized to sum 1, so at least one must be
-above 0. NSGA-II's checkpoints keep DPF's generation.
+scales each min-max over the population. A penalty that overflows to infinity
+scales to 1, and the finite ones to 0, the limit of min-max. The weights,
+`nds_weight`, `cdp_weight`, `mcr_weight` and `dpf_weight`, are finite and at
+least 0, 1/4 each by default, as in the paper, and are normalized to sum 1, so
+at least one must be above 0; a member of weight 0 takes no part. NSGA-II's
+checkpoints keep DPF's generation.
 
 The penalized or shifted objectives, like those of `self_adaptive_penalty`, and
 the violation of `violation_objective` only rank the population: crowding
