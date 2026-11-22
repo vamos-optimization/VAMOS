@@ -129,10 +129,13 @@ and reachable through the named parent pages even when absent from the menu.
 | [foundations/intermediate/benchmarks/real-world.md](../foundations/intermediate/benchmarks/real-world.md) | Tutorial | Foundations → Intermediate → Benchmarks → Real-world Problems | Add |
 | [foundations/intermediate/benchmarks/combinatorial.md](../foundations/intermediate/benchmarks/combinatorial.md) | Tutorial | Foundations → Intermediate → Benchmarks → Binary, Integer, Permutation and Mixed | Add |
 | [foundations/advanced/many-objective.md](../foundations/advanced/many-objective.md) | Tutorial | Foundations → Advanced → Many Objectives → Many-objective Optimization | Add |
+| [foundations/advanced/reference-directions.md](../foundations/advanced/reference-directions.md) | Tutorial | Foundations → Advanced → Many Objectives → Reference Directions | Add |
 | [foundations/advanced/nsga-iii.md](../foundations/advanced/nsga-iii.md) | Tutorial | Foundations → Advanced → Many Objectives → NSGA-III | Add |
 | [foundations/advanced/rvea.md](../foundations/advanced/rvea.md) | Tutorial | Foundations → Advanced → Many Objectives → RVEA | Add |
 | [foundations/advanced/agemoea.md](../foundations/advanced/agemoea.md) | Tutorial | Foundations → Advanced → Many Objectives → AGE-MOEA | Add |
+| [foundations/advanced/visualizing-many-objectives.md](../foundations/advanced/visualizing-many-objectives.md) | Tutorial | Foundations → Advanced → Many Objectives → Visualizing Many Objectives | Add |
 | [foundations/advanced/constrained.md](../foundations/advanced/constrained.md) | Tutorial | Foundations → Advanced → Constraints → Constrained Optimization | Add |
+| [foundations/advanced/constraint-handling.md](../foundations/advanced/constraint-handling.md) | Tutorial | Foundations → Advanced → Constraints → Constraint Handling | Add |
 | [foundations/advanced/ccmo.md](../foundations/advanced/ccmo.md) | Tutorial | Foundations → Advanced → Constraints → CCMO | Add |
 | [foundations/advanced/ctaea.md](../foundations/advanced/ctaea.md) | Tutorial | Foundations → Advanced → Constraints → C-TAEA | Add |
 | [foundations/advanced/top.md](../foundations/advanced/top.md) | Tutorial | Foundations → Advanced → Constraints → ToP | Add |

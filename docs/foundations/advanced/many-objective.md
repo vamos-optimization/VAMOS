@@ -91,7 +91,9 @@ below:
 H grows fast: with m = 10 and p = 3, H = 220 directions, but they all lie on
 the boundary of the simplex. For eight or more objectives Deb and Jain combine
 two layers with few divisions, an outer one and an inner one scaled towards
-the centre [6].
+the centre [6]. Lesson [Reference directions and weight vectors](reference-directions.md)
+explains both designs, the weight files that hold other sets, and how MOEA/D,
+NSGA-III and RVEA use the same vectors.
 
 **2. Adaptive normalization.** The population's objectives are translated so
 that the ideal point is the origin, and scaled by the intercepts of the
@@ -172,7 +174,7 @@ objectives.
 - For H = C(p + m − 1, m − 1) directions the population must hold at least H
   solutions.
 
-**Next:** [NSGA-III](nsga-iii.md).
+**Next:** [Reference directions and weight vectors](reference-directions.md).
 
 ## References
 

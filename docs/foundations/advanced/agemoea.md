@@ -354,7 +354,7 @@ poor.
 - VAMOS scores later fronts by inverse proximity, as the author's code does,
   and measures them in the first front's translated, normalized coordinates.
 
-**Next:** [Constrained multi-objective optimization](constrained.md).
+**Next:** [Visualizing many objectives](visualizing-many-objectives.md).
 
 ## References
 

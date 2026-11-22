@@ -236,6 +236,103 @@ def test_every_page_with_examples_is_a_docs_smoke_case() -> None:
     assert pages <= smoked, f"Foundations pages with examples missing from tests/docs/smoke_manifest.py: {sorted(pages - smoked)}"
 
 
+def _run_node(program: str) -> Any:
+    """Run a program after the figures' script, through stdin: its data can be too long for a command line."""
+    source = f"require({json.dumps(str(SCRIPT))});\n{program}"
+    completed = subprocess.run(["node", "-"], input=source, capture_output=True, text=True, check=True, timeout=60)
+    return json.loads(completed.stdout)
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_two_layer_lattice_figure_matches_vamos() -> None:
+    from vamos.engine.reference_directions import _two_layers, two_layer_shared
+
+    cases = [(2, 4, 2), (3, 4, 2), (3, 6, 1), (3, 6, 2), (3, 12, 3), (5, 3, 2), (8, 3, 2), (10, 3, 2)]
+    js = _run_node(f"""
+const V = globalThis.VamosFoundations;
+process.stdout.write(JSON.stringify({json.dumps(cases)}.map(([m, p1, p2]) => ({{ layers: V.twoLayerLattice(m, p1, p2), shared: V.twoLayerShared(m, p1, p2) }}))));
+""")
+    for (m, p1, p2), result in zip(cases, js):
+        boundary, inside = _two_layers(m, p1, p2)
+        np.testing.assert_allclose(result["layers"]["boundary"], boundary, rtol=0, atol=1e-12)
+        np.testing.assert_allclose(result["layers"]["inside"], inside, rtol=0, atol=1e-12)
+        assert result["shared"] == two_layer_shared(m, p1, p2), (m, p1, p2)
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_constraint_handling_figure_ranks_match_vamos() -> None:
+    from vamos.engine.algorithm.components.constrained_ranking import (
+        pareto_ranks,
+        stochastic_ranking_order,
+        stochastic_ranking_ranks,
+        violation,
+    )
+    from vamos.engine.algorithm.components.constraint_handling import make_constraint_handling
+    from vamos.foundation.kernel.registry import resolve_kernel
+
+    kernel = resolve_kernel("numpy")
+    rng = np.random.default_rng(20261121)
+    push_pull = {
+        "change_threshold": 0.001,
+        "window_fraction": 0.02,
+        "decay_fraction": 0.8,
+        "exponent": 2.0,
+        "feasibility_threshold": 0.95,
+        "reduction_rate": 0.1,
+    }
+    STATE = ("pushing", "epsilon")  # what a run teaches a technique
+    # The techniques of VAMOS 1.5.2, the published release; stochastic ranking is checked below with its uniforms.
+    techniques: list[tuple[str, dict[str, float], dict[str, Any]]] = [
+        ("cdp", {}, {}),
+        ("violated_constraints", {}, {}),
+        ("epsilon_constrained", {"initial_quantile": 0.2, "exponent": 5.0, "decay_fraction": 0.8}, {"epsilon": 0.25}),
+        ("push_pull", push_pull, {"pushing": True}),
+        ("push_pull", push_pull, {"pushing": False, "epsilon": 0.15}),
+        ("self_adaptive_penalty", {}, {}),
+    ]
+    populations = []
+    for size in (6, 10, 14):
+        for _ in range(4):
+            F = np.round(rng.random((size, 2)), 2)
+            G = rng.choice([-0.5, -0.1, 0.0, 0.05, 0.1, 0.2, 0.3], size=(size, 2))
+            F[1], G[1] = F[0], G[0]  # a duplicated solution
+            populations.append((F, G))
+    populations.append((np.array([[0.1, 0.9], [0.5, 0.5], [0.9, 0.1]]), np.full((3, 2), -1.0)))  # all feasible
+    populations.append((np.array([[0.1, 0.9], [0.5, 0.5], [0.9, 0.1]]), np.array([[0.2, 0.0], [0.1, 0.3], [0.2, 0.0]])))  # none feasible
+    cases = [
+        {
+            "name": name,
+            "F": F.tolist(),
+            "G": G.tolist(),
+            "options": {**params, **state},
+            "uniforms": rng.random(len(F) * (len(F) - 1)).tolist(),
+        }
+        for F, G in populations
+        for name, params, state in techniques
+    ]
+    js = _run_node(f"""
+const V = globalThis.VamosFoundations;
+process.stdout.write(JSON.stringify({json.dumps(cases)}.map((c) => {{
+  const sr = V.constraintRanks("stochastic_ranking", c.F, c.G, {{ probability: 0.45, uniforms: c.uniforms }});
+  return {{ ranks: V.constraintRanks(c.name, c.F, c.G, c.options).ranks, stochastic: sr.ranks, order: sr.order }};
+}})));
+""")
+    for case, result in zip(cases, js):
+        F, G = np.asarray(case["F"]), np.asarray(case["G"])
+        params = {key: value for key, value in case["options"].items() if key not in STATE}
+        technique: Any = make_constraint_handling((case["name"], params))
+        for key in STATE:
+            if key in case["options"]:
+                setattr(technique, key, case["options"][key])
+        expected = technique.ranks(kernel, F, G, np.random.default_rng(0))
+        assert result["ranks"] == expected.tolist(), (case["name"], case["options"], F.tolist(), G.tolist())
+        pareto = pareto_ranks(kernel, F)
+        feasible = np.all(G <= 0.0, axis=1)
+        order = stochastic_ranking_order(pareto, feasible, violation(G), np.asarray(case["uniforms"]), 0.45)
+        assert result["order"] == order.tolist()
+        assert result["stochastic"] == stochastic_ranking_ranks(order, pareto, feasible).tolist()
+
+
 @pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
 def test_benchmark_figures_agree_with_vamos() -> None:
     """The Benchmarks figures: their fronts match VAMOS' packaged fronts, and their maps VAMOS' problems."""

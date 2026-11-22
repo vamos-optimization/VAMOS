@@ -1177,6 +1177,169 @@
     return { cvn, dSde, sde, A, B, share };
   }
 
+  /* ---- Advanced extras: two-layer reference directions and constraint-handling techniques ---- */
+
+  /** The integer points of a Das and Dennis lattice: m non-negative integers that sum to p, in VAMOS's order. */
+  function latticeIntegers(m, p) {
+    const out = [];
+    const rec = (prefix, left, depth) => {
+      if (depth === m - 1) {
+        out.push(prefix.concat([left]));
+        return;
+      }
+      for (let i = 0; i <= left; i++) rec(prefix.concat([i]), left - i, depth + 1);
+    };
+    rec([], p, 0);
+    return out;
+  }
+
+  /** Deb and Jain's two layers, as VAMOS's two_layer_lattice: the lattice of p1, then that of p2 shrunk by half towards the centre. */
+  function twoLayerLattice(m, p1, p2) {
+    return {
+      boundary: dasDennis(m, p1),
+      inside: dasDennis(m, p2).map((w) => w.map((v) => v / 2 + 1 / (2 * m))),
+    };
+  }
+
+  /** How many inside directions repeat a boundary direction, compared exactly on a common grid (VAMOS's two_layer_shared). */
+  function twoLayerShared(m, p1, p2) {
+    const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+    const q = 2 * p2 * m;
+    const grid = (p1 / gcd(p1, q)) * q;
+    const boundary = new Set(latticeIntegers(m, p1).map((k) => k.map((v) => (v * grid) / p1).join(",")));
+    // An inside coordinate is (k / p2) / 2 + 1 / (2 m) = (k m + p2) / q.
+    return latticeIntegers(m, p2).filter((k) => boundary.has(k.map((v) => ((v * m + p2) * grid) / q).join(","))).length;
+  }
+
+  /** The overall violation of each row: the sum of its positive constraint values (G <= 0 is feasible). */
+  function overallViolation(G) {
+    return G.map((g) => g.reduce((acc, v) => acc + Math.max(0, v), 0));
+  }
+
+  function violatedCount(G) {
+    return G.map((g) => g.filter((v) => v > 0).length);
+  }
+
+  function paretoRanks(F) {
+    return F.length ? nonDominatedSort(F).rank : [];
+  }
+
+  /** Deb's feasibility rule over a measure, as VAMOS's ranks_by_violation: feasible fronts first, then one group per value. */
+  function ranksByViolation(F, measure, objectivesOnTies) {
+    const n = F.length;
+    const ranks = new Array(n).fill(0);
+    const rows = Array.from({ length: n }, (_, i) => i);
+    const feasible = rows.filter((i) => measure[i] <= 0);
+    let offset = 0;
+    if (feasible.length) {
+      const r = paretoRanks(feasible.map((i) => F[i]));
+      feasible.forEach((row, a) => (ranks[row] = r[a]));
+      offset = Math.max(...r) + 1;
+    }
+    const infeasible = rows.filter((i) => !(measure[i] <= 0)).sort((a, b) => measure[a] - measure[b] || a - b);
+    for (let start = 0; start < infeasible.length; ) {
+      let end = start + 1;
+      while (end < infeasible.length && measure[infeasible[end]] === measure[infeasible[start]]) end += 1;
+      const members = infeasible.slice(start, end);
+      if (objectivesOnTies && members.length > 1) {
+        const r = paretoRanks(members.map((i) => F[i]));
+        members.forEach((row, a) => (ranks[row] = offset + r[a]));
+        offset += Math.max(...r) + 1;
+      } else {
+        members.forEach((row) => (ranks[row] = offset));
+        offset += 1;
+      }
+      start = end;
+    }
+    return ranks;
+  }
+
+  /** Runarsson and Yao's stochastic bubble sort, as VAMOS's stochastic_ranking_order, with the uniforms drawn in order. */
+  function stochasticRankingOrder(paretoRank, feasible, measure, uniforms, probability) {
+    const n = paretoRank.length;
+    const order = Array.from({ length: n }, (_, i) => i);
+    let drawn = 0;
+    for (let sweep = 0; sweep < n; sweep++) {
+      let swapped = false;
+      for (let j = 0; j < n - 1; j++) {
+        const first = order[j];
+        const second = order[j + 1];
+        let byRank = true;
+        if (!(feasible[first] && feasible[second])) {
+          byRank = uniforms[drawn] < probability;
+          drawn += 1;
+        }
+        if (byRank ? paretoRank[second] < paretoRank[first] : measure[second] < measure[first]) {
+          order[j] = second;
+          order[j + 1] = first;
+          swapped = true;
+        }
+      }
+      if (!swapped) break;
+    }
+    return order;
+  }
+
+  /** The fronts of a stochastic ranking: runs of consecutive feasible rows with the same Pareto rank. */
+  function stochasticRankingRanks(order, paretoRank, feasible) {
+    const ranks = new Array(order.length).fill(0);
+    let level = 0;
+    order.forEach((row, a) => {
+      const prev = order[a - 1];
+      if (a > 0 && !(feasible[prev] && feasible[row] && paretoRank[prev] === paretoRank[row])) level += 1;
+      ranks[row] = level;
+    });
+    return ranks;
+  }
+
+  /** Woldesenbet, Yen and Tessema's modified objectives, as VAMOS's self_adaptive_penalty_objectives. */
+  function selfAdaptivePenaltyObjectives(F, G) {
+    const n = F.length;
+    const m = F[0].length;
+    const c = G[0].length;
+    const excess = G.map((g) => g.map((v) => Math.max(0, v)));
+    const largest = Array.from({ length: c }, (_, j) => Math.max(...excess.map((e) => e[j])));
+    const penalty = excess.map((e) => (c > 0 ? e.reduce((acc, v, j) => acc + (largest[j] > 0 ? v / largest[j] : 0), 0) / c : 0));
+    const feasible = excess.map((e) => e.every((v) => v <= 0));
+    const ratio = feasible.filter(Boolean).length / n;
+    const low = Array.from({ length: m }, (_, i) => Math.min(...F.map((f) => f[i])));
+    const high = Array.from({ length: m }, (_, i) => Math.max(...F.map((f) => f[i])));
+    return F.map((f, r) =>
+      f.map((v, i) => {
+        const span = high[i] - low[i];
+        const normalized = span > 0 ? (v - low[i]) / span : 0;
+        const distance = ratio === 0 ? penalty[r] : Math.sqrt(normalized * normalized + penalty[r] * penalty[r]);
+        const violationPenalty = ratio === 0 ? 0 : penalty[r];
+        const objectivePenalty = feasible[r] ? 0 : normalized;
+        return distance + (1 - ratio) * violationPenalty + ratio * objectivePenalty;
+      })
+    );
+  }
+
+  /** The fronts of a population under a constraint-handling technique of VAMOS, and the objectives it ranks, if modified. */
+  function constraintRanks(name, F, G, options) {
+    const o = options || {};
+    const cv = overallViolation(G);
+    if (name === "cdp") return { ranks: ranksByViolation(F, cv, true) };
+    if (name === "violated_constraints") return { ranks: ranksByViolation(F, violatedCount(G), true) };
+    if (name === "push_pull" && o.pushing) return { ranks: paretoRanks(F) };
+    if (name === "epsilon_constrained" || name === "push_pull") {
+      const epsilon = o.epsilon || 0;
+      return { ranks: ranksByViolation(F, cv.map((v) => (v <= epsilon ? 0 : v)), false) };
+    }
+    if (name === "stochastic_ranking") {
+      const pareto = paretoRanks(F);
+      const feasible = cv.map((v) => v <= 0);
+      const order = stochasticRankingOrder(pareto, feasible, cv, o.uniforms, o.probability);
+      return { ranks: stochasticRankingRanks(order, pareto, feasible), order };
+    }
+    if (name === "self_adaptive_penalty") {
+      const objectives = selfAdaptivePenaltyObjectives(F, G);
+      return { ranks: paretoRanks(objectives), objectives };
+    }
+    throw new Error("Unknown constraint-handling technique " + name);
+  }
+
   /* ---- Benchmarks: two-objective fronts, position bias and CTP feasibility ---- */
 
   /* The two-objective Pareto fronts of the Benchmarks lessons, written in closed form from the
@@ -1974,6 +2137,11 @@
     attainmentSurface,
     mannWhitney,
     PROBLEMS,
+    twoLayerLattice,
+    twoLayerShared,
+    overallViolation,
+    constraintRanks,
+    stochasticRankingOrder,
     BENCHMARK_FRONTS,
     BIAS_PROBLEMS,
     CTP_PROBLEMS,
@@ -4861,6 +5029,489 @@
         [false, true, false]
       );
     }
+    render();
+  };
+
+  /* ---- Advanced extras: reference-direction layers, parallel coordinates, constraint-handling techniques ---- */
+
+  /* Reference directions: one Das and Dennis lattice or Deb and Jain's two layers on the simplex of three objectives. */
+  widgets["lattice-layers"] = function (node) {
+    const state = { p1: 4, p2: 2 };
+    const ctl = controls(node);
+    slider(ctl, { label: "Boundary divisions p₁", min: 1, max: 16, step: 1, value: state.p1, onInput: (v) => ((state.p1 = v), render()) });
+    slider(ctl, { label: "Inside divisions p₂ (0: none)", min: 0, max: 8, step: 1, value: state.p2, onInput: (v) => ((state.p2 = v), render()) });
+    const body = h("div", { class: "vf-body vf-body--side" }, node);
+    const plot = createPlot(body, {
+      x: [-0.08, 1.08],
+      y: [-0.1, 0.95],
+      axes: false,
+      margin: { l: 10, r: 10, t: 10, b: 10 },
+      width: 340,
+      height: 300,
+      label: "Reference directions of one or two layers on the unit simplex of three objectives",
+    });
+    const tip = tooltip(plot);
+    const readout = h("div", { class: "vf-readout" }, body);
+    legend(node, [
+      { label: "Boundary layer (p₁)", shape: "circle", cls: "vf-pt vf-pt-1" },
+      { label: "Inside layer (p₂), shrunk by half", shape: "triangle", cls: "vf-pt vf-pt-2" },
+      { label: "Inside direction that repeats a boundary one", shape: "circle", cls: "vf-ring" },
+    ]);
+    const V = [
+      [0, 0],
+      [1, 0],
+      [0.5, 0.866],
+    ];
+    const xy = (w) => [w[0] * V[0][0] + w[1] * V[1][0] + w[2] * V[2][0], w[0] * V[0][1] + w[1] * V[1][1] + w[2] * V[2][1]];
+    const count = (m, p) => (p > 0 ? binomial(p + m - 1, m - 1) : 0);
+    const interior = (m, p) => (p >= m ? binomial(p - 1, m - 1) : 0);
+    const num = (v) => v.toLocaleString("en-US");
+    function render() {
+      const { p1, p2 } = state;
+      clear(plot.layers.mid);
+      clear(plot.layers.marks);
+      clear(plot.layers.top);
+      plot.line(plot.layers.mid, [V[0], V[1], V[2], V[0]], "vf-line-ink");
+      ["w₁ = 1", "w₂ = 1", "w₃ = 1"].forEach((label, i) => txt(plot.layers.top, plot.x(V[i][0]) + (i === 1 ? -36 : i === 0 ? 0 : 8), plot.y(V[i][1]) + (i === 2 ? 4 : 16), label, { class: "vf-mark-label" }));
+      const layers = p2 > 0 ? twoLayerLattice(3, p1, p2) : { boundary: dasDennis(3, p1), inside: [] };
+      if (p2 > 0) {
+        const corners = [0, 1, 2].map((i) => xy([0, 1, 2].map((j) => (i === j ? 0.5 : 0) + 1 / 6)));
+        plot.line(plot.layers.mid, corners.concat([corners[0]]), "vf-line-thin vf-dashed");
+      }
+      const key = (w) => w.map((v) => v.toFixed(9)).join(",");
+      const boundaryKeys = new Set(layers.boundary.map(key));
+      const r = p1 > 12 ? 2.6 : 3.6;
+      const mark = (w, shape, cls, layerName) => {
+        const [x, y] = xy(w);
+        const px = plot.x(x);
+        const py = plot.y(y);
+        marker(plot.layers.marks, shape, px, py, r, cls);
+        const hit = s("circle", { cx: px, cy: py, r: 8, class: "vf-hit" }, plot.layers.marks);
+        attachTip(hit, tip, `${layerName}: w = (${w.map((v) => fmt(v, 3)).join(", ")})`, px, py);
+      };
+      layers.boundary.forEach((w) => mark(w, "circle", "vf-pt vf-pt-1", "Boundary layer"));
+      let shared = 0;
+      layers.inside.forEach((w) => {
+        mark(w, "triangle", "vf-pt vf-pt-2", "Inside layer");
+        if (boundaryKeys.has(key(w))) {
+          shared += 1;
+          const [x, y] = xy(w);
+          s("circle", { cx: plot.x(x), cy: plot.y(y), r: r + 4, class: "vf-ring" }, plot.layers.top);
+        }
+      });
+      const n1 = count(3, p1);
+      const n2 = count(3, p2);
+      clear(readout);
+      h("p", {}, readout, `Boundary layer: C(p₁ + 2, 2) = C(${p1 + 2}, 2) = ${n1} directions, ${interior(3, p1)} of them with every coordinate above zero; the others lie on the edges of the triangle.`);
+      h("p", {}, readout, p2 > 0 ? `Inside layer: C(${p2 + 2}, 2) = ${n2} directions, each w/2 + 1/6, so every coordinate is at least 1/6.` : "No inside layer: a single Das and Dennis lattice.");
+      h("p", {}, readout, `H = ${n1 + n2} directions. NSGA-III needs pop_size ≥ ${n1 + n2}; MOEA/D and RVEA need exactly ${n1 + n2}.`);
+      if (shared) h("p", { class: "vf-step-text" }, readout, `${shared} inside direction${shared === 1 ? " repeats a boundary direction" : "s repeat boundary directions"}: VAMOS rejects these layers with a ConfigurationError.`);
+      const rows = [3, 5, 8, 10, 15].map((m) => [String(m), num(count(m, p1)), p2 > 0 ? num(count(m, p1) + count(m, p2)) : "–", num(interior(m, p1))]);
+      table(readout, ["m", `H, p₁ = ${p1}`, p2 > 0 ? `H, p₁ = ${p1} and p₂ = ${p2}` : "H, two layers", "Interior directions, p₁ only"], rows, [false, true, true, true]);
+    }
+    render();
+  };
+
+  /** A DTLZ2-like front: m objectives on the unit sphere from uniform position variables. */
+  function dtlz2Front(n, m, seed) {
+    const rand = mulberry32(seed);
+    return Array.from({ length: n }, () => {
+      const x = Array.from({ length: m - 1 }, rand);
+      return Array.from({ length: m }, (_, i) => {
+        let v = i > 0 ? Math.sin((x[m - 1 - i] * Math.PI) / 2) : 1;
+        for (let j = 0; j < m - 1 - i; j++) v *= Math.cos((x[j] * Math.PI) / 2);
+        return v;
+      });
+    });
+  }
+
+  /* Visualizing many objectives: parallel coordinates with axis reordering and brushing, linked to a scatter-plot matrix. */
+  widgets["parallel-coordinates"] = function (node) {
+    const n = 60;
+    const m = 5;
+    const base = dtlz2Front(n, m, 7);
+    const names = Array.from({ length: m }, (_, i) => "f" + (i + 1));
+    const state = { order: names.map((_, i) => i), brushes: {}, scaled: false, shared: false, refocus: -1, drag: null };
+    const ctl = controls(node);
+    select(ctl, {
+      label: "Objectives",
+      options: [
+        ["equal", "DTLZ2: every fᵢ in [0, 1]"],
+        ["scaled", "Scaled: fᵢ × 2i, as in WFG"],
+      ],
+      value: "equal",
+      onChange: (v) => ((state.scaled = v === "scaled"), draw()),
+    });
+    select(ctl, {
+      label: "Axes",
+      options: [
+        ["own", "Each axis on its own range"],
+        ["shared", "One scale for every axis"],
+      ],
+      value: "own",
+      onChange: (v) => ((state.shared = v === "shared"), draw()),
+    });
+    button(ctl, "Clear brushes", () => ((state.brushes = {}), draw()));
+    button(ctl, "Reset order", () => ((state.order = names.map((_, i) => i)), draw()));
+    const body = h("div", { class: "vf-body vf-body--two" }, node);
+    const pc = createPlot(body, {
+      x: [-0.4, m - 0.6],
+      y: [-0.2, 1.12],
+      axes: false,
+      margin: { l: 8, r: 8, t: 8, b: 8 },
+      width: 420,
+      height: 300,
+      title: "Parallel coordinates",
+      label: "Parallel coordinates of sixty solutions of a five-objective front. Focus an axis: Left and Right move it, Up and Down move its brush, Shift with Up and Down resizes it, Escape clears it.",
+    });
+    const sm = createPlot(body, { x: [0, m], y: [0, m], axes: false, margin: { l: 6, r: 6, t: 6, b: 6 }, width: 300, height: 300, title: "Scatter-plot matrix", label: "Scatter-plot matrix of the same solutions, every pair of objectives, each on its own range" });
+    const readout = h("div", { class: "vf-readout" }, node);
+    legend(node, [
+      { label: "Selected by every brush", shape: "line", cls: "vf-pc-line" },
+      { label: "Filtered out", shape: "line", cls: "vf-pc-line vf-pc-off" },
+      { label: "Brush", shape: "region", cls: "vf-pc-brush" },
+      { label: "Pair of neighbouring axes", shape: "region", cls: "vf-pc-adjacent" },
+    ]);
+    let F = [];
+    let lo = [];
+    let span = [];
+    let gLo = 0;
+    let gSpan = 1;
+    const lines = [];
+    const dots = [];
+    // u: a value as a fraction of its objective's own range; a: its height on the axis.
+    const uOf = (row, i) => (span[i] > 0 ? (F[row][i] - lo[i]) / span[i] : 0.5);
+    const aOfU = (u, i) => (state.shared ? (lo[i] + u * span[i] - gLo) / gSpan : u);
+    const uOfA = (a, i) => (state.shared ? (gLo + a * gSpan - lo[i]) / span[i] : a);
+    const clamp01 = (v) => Math.min(1, Math.max(0, v));
+    const selected = (row) => Object.keys(state.brushes).every((i) => {
+      const u = uOf(row, +i);
+      return u >= state.brushes[i][0] - 1e-12 && u <= state.brushes[i][1] + 1e-12;
+    });
+    function crossings(i, j) {
+      let c = 0;
+      for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) if ((F[a][i] - F[b][i]) * (F[a][j] - F[b][j]) < 0) c += 1;
+      return c;
+    }
+    function draw() {
+      F = base.map((f) => f.map((v, i) => (state.scaled ? v * 2 * (i + 1) : v)));
+      lo = names.map((_, i) => Math.min(...F.map((f) => f[i])));
+      span = names.map((_, i) => Math.max(...F.map((f) => f[i])) - lo[i]);
+      gLo = Math.min(...lo);
+      gSpan = Math.max(...names.map((_, i) => lo[i] + span[i])) - gLo;
+      drawParallel();
+      drawMatrix();
+      update();
+    }
+    function drawParallel() {
+      [pc.layers.back, pc.layers.mid, pc.layers.marks, pc.layers.top].forEach(clear);
+      lines.length = 0;
+      for (let row = 0; row < n; row++) {
+        const pts = state.order.map((i, k) => [k, aOfU(uOf(row, i), i)]);
+        lines.push(pc.line(pc.layers.mid, pts, "vf-pc-line"));
+      }
+      state.order.forEach((i, k) => {
+        const x = pc.x(k);
+        const g = s("g", { class: "vf-pc-axis", tabindex: "0", role: "group" }, pc.layers.top);
+        g.setAttribute("aria-label", `Axis ${names[i]}, position ${k + 1} of ${m}. Left and Right arrows move it; Up and Down move its brush; Shift with Up and Down resizes the brush; Escape clears it.`);
+        s("line", { x1: x, x2: x, y1: pc.y(0), y2: pc.y(1), class: "vf-axis-line" }, g);
+        const brush = state.brushes[i];
+        if (brush) {
+          const y0 = pc.y(aOfU(brush[0], i));
+          const y1 = pc.y(aOfU(brush[1], i));
+          s("rect", { x: x - 6, y: y1, width: 12, height: Math.max(1.5, y0 - y1), class: "vf-pc-brush" }, g);
+        }
+        // Each axis is labelled with the values at its ends: its own range, or the shared one.
+        const bottom = state.shared ? gLo : lo[i];
+        const top = state.shared ? gLo + gSpan : lo[i] + span[i];
+        txt(g, x, pc.y(1) - 5, tickFormat(+top.toFixed(2)), { "text-anchor": "middle" });
+        txt(g, x, pc.y(0) + 13, tickFormat(+bottom.toFixed(2)), { "text-anchor": "middle" });
+        s("rect", { x: x - 16, y: pc.y(0) + 19, width: 32, height: 18, rx: 4, class: "vf-pc-ring" }, g);
+        txt(g, x, pc.y(0) + 32, names[i], { "text-anchor": "middle", class: "vf-axis-label" });
+        const grip = s("rect", { x: x - 18, y: pc.y(0) + 17, width: 36, height: 22, class: "vf-hit vf-pc-grip" }, g);
+        const bodyHit = s("rect", { x: x - 12, y: pc.y(1), width: 24, height: pc.y(0) - pc.y(1), class: "vf-hit vf-pc-body" }, g);
+        grip.addEventListener("pointerdown", (e) => start(e, { type: "move", obj: i }, g));
+        bodyHit.addEventListener("pointerdown", (e) => {
+          const p = pc.pointer(e);
+          if (!p) return;
+          const u = clamp01(uOfA(p.y, i));
+          start(e, { type: "brush", obj: i, from: u }, g);
+          state.brushes[i] = [u, u];
+        });
+        g.addEventListener("keydown", (e) => keys(e, i));
+        if (state.refocus === i) {
+          state.refocus = -1;
+          g.focus({ preventScroll: true });
+        }
+      });
+    }
+    function start(e, drag, g) {
+      if (e.button !== undefined && e.button !== 0) return;
+      e.preventDefault();
+      state.drag = drag;
+      if (pc.svg.setPointerCapture) pc.svg.setPointerCapture(e.pointerId);
+      if (g.focus) g.focus({ preventScroll: true });
+    }
+    pc.svg.addEventListener("pointermove", (e) => {
+      const drag = state.drag;
+      if (!drag) return;
+      const p = pc.pointer(e);
+      if (!p) return;
+      if (drag.type === "move") {
+        const target = Math.min(m - 1, Math.max(0, Math.round(p.x)));
+        const from = state.order.indexOf(drag.obj);
+        if (target !== from) {
+          state.order.splice(from, 1);
+          state.order.splice(target, 0, drag.obj);
+          state.refocus = drag.obj;
+          drawParallel();
+          update();
+        }
+      } else {
+        const u = clamp01(uOfA(p.y, drag.obj));
+        state.brushes[drag.obj] = [Math.min(drag.from, u), Math.max(drag.from, u)];
+        state.refocus = drag.obj;
+        drawParallel();
+        update();
+      }
+    });
+    const stop = () => {
+      const drag = state.drag;
+      state.drag = null;
+      if (drag && drag.type === "brush") {
+        const b = state.brushes[drag.obj];
+        if (b && b[1] - b[0] < 0.01) {
+          delete state.brushes[drag.obj]; // a click without a drag clears the brush
+          state.refocus = drag.obj;
+          drawParallel();
+          update();
+        }
+      }
+    };
+    pc.svg.addEventListener("pointerup", stop);
+    pc.svg.addEventListener("pointercancel", stop);
+    function keys(e, i) {
+      const k = state.order.indexOf(i);
+      let b = state.brushes[i];
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        const target = k + (e.key === "ArrowLeft" ? -1 : 1);
+        if (target < 0 || target >= m) return;
+        state.order.splice(k, 1);
+        state.order.splice(target, 0, i);
+      } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+        const step = e.key === "ArrowUp" ? 0.05 : -0.05;
+        if (!b) b = [0, 0.25];
+        else if (e.shiftKey) b = [b[0], Math.min(1, Math.max(b[0] + 0.05, b[1] + step))];
+        else {
+          const shift = Math.min(1 - b[1], Math.max(-b[0], step));
+          b = [b[0] + shift, b[1] + shift];
+        }
+        state.brushes[i] = [+b[0].toFixed(4), +b[1].toFixed(4)];
+      } else if (e.key === "Escape" || e.key === "Delete" || e.key === "Backspace") {
+        if (!b) return;
+        delete state.brushes[i];
+      } else return;
+      e.preventDefault();
+      state.refocus = i;
+      drawParallel();
+      update();
+    }
+    function drawMatrix() {
+      [sm.layers.back, sm.layers.mid, sm.layers.marks, sm.layers.top].forEach(clear);
+      dots.length = 0;
+      for (let row = 0; row < n; row++) dots.push([]);
+      const pad = 0.08;
+      for (let r = 0; r < m; r++) {
+        for (let c = 0; c < m; c++) {
+          const x0 = c;
+          const y0 = m - 1 - r;
+          sm.rect(sm.layers.back, x0 + 0.02, y0 + 0.02, x0 + 0.98, y0 + 0.98, "vf-pc-cell");
+          if (r === c) {
+            txt(sm.layers.top, sm.x(x0 + 0.5), sm.y(y0 + 0.5) + 4, names[r], { "text-anchor": "middle", class: "vf-axis-label" });
+            continue;
+          }
+          for (let row = 0; row < n; row++) {
+            const px = sm.x(x0 + pad + (1 - 2 * pad) * uOf(row, c));
+            const py = sm.y(y0 + pad + (1 - 2 * pad) * uOf(row, r));
+            dots[row].push(s("circle", { cx: px, cy: py, r: 1.7, class: "vf-pc-dot" }, sm.layers.marks));
+          }
+        }
+      }
+    }
+    function update() {
+      const keep = Array.from({ length: n }, (_, row) => selected(row));
+      lines.forEach((line, row) => line.setAttribute("class", keep[row] ? "vf-pc-line" : "vf-pc-line vf-pc-off"));
+      dots.forEach((list, row) => list.forEach((dot) => dot.setAttribute("class", keep[row] ? "vf-pc-dot" : "vf-pc-dot vf-pc-off")));
+      clear(sm.layers.top);
+      const pairs = [];
+      for (let k = 0; k < m - 1; k++) pairs.push([state.order[k], state.order[k + 1]]);
+      for (const [a, b] of pairs) {
+        for (const [r, c] of [
+          [a, b],
+          [b, a],
+        ]) {
+          sm.rect(sm.layers.top, c + 0.02, m - 1 - r + 0.02, c + 0.98, m - 1 - r + 0.98, "vf-pc-adjacent");
+        }
+      }
+      names.forEach((name, r) => txt(sm.layers.top, sm.x(r + 0.5), sm.y(m - 1 - r + 0.5) + 4, name, { "text-anchor": "middle", class: "vf-axis-label" }));
+      clear(readout);
+      const counts = pairs.map(([a, b]) => crossings(a, b));
+      const total = counts.reduce((x, y) => x + y, 0);
+      h("p", {}, readout, `Axis order: ${state.order.map((i) => names[i]).join(", ")}. Line crossings between neighbouring axes, out of ${(n * (n - 1)) / 2} pairs of solutions: ${pairs.map(([a, b], k) => `${names[a]}–${names[b]} ${counts[k]}`).join(", ")}; ${total} in all.`);
+      h("p", {}, readout, `Only ${m - 1} of the ${(m * (m - 1)) / 2} pairs of objectives are neighbours in parallel coordinates; the scatter-plot matrix outlines them and shows the other ${((m - 1) * (m - 2)) / 2} as well.`);
+      const brushed = Object.keys(state.brushes).map(Number);
+      const passing = keep.filter(Boolean).length;
+      if (!brushed.length) h("p", {}, readout, `No brush: all ${n} solutions are selected. Drag along an axis, or focus it and press ↑ or ↓, to select an interval.`);
+      else {
+        const parts = brushed
+          .sort((a, b) => a - b)
+          .map((i) => `${names[i]} in [${fmt(lo[i] + state.brushes[i][0] * span[i], 2)}, ${fmt(lo[i] + state.brushes[i][1] * span[i], 2)}]`);
+        h("p", {}, readout, `Brushes: ${parts.join(" and ")}. ${passing} of ${n} solutions pass every brush and stay highlighted in both views.`);
+      }
+    }
+    draw();
+  };
+
+  /* Constraint-handling techniques: ten solutions with two objectives and two constraints, ranked by each technique. */
+  const CH_SOLUTIONS = [
+    ["A", [0.1, 0.95], [-0.2, -0.1]],
+    ["B", [0.3, 0.7], [-0.1, -0.3]],
+    ["C", [0.55, 0.5], [-0.3, -0.2]],
+    ["D", [0.85, 0.3], [-0.2, -0.4]],
+    ["E", [0.95, 0.75], [-0.1, -0.1]],
+    ["F", [0.2, 0.4], [0.05, -0.2]],
+    ["G", [0.45, 0.2], [0.12, 0.08]],
+    ["H", [0.7, 0.1], [-0.1, 0.35]],
+    ["I", [0.15, 0.15], [0.6, 0.5]],
+    ["J", [0.6, 0.85], [0.3, -0.1]],
+  ];
+
+  widgets["constraint-techniques"] = function (node) {
+    const labels = CH_SOLUTIONS.map((c) => c[0]);
+    const F = CH_SOLUTIONS.map((c) => c[1]);
+    const G = CH_SOLUTIONS.map((c) => c[2]);
+    const cv = overallViolation(G);
+    const count = violatedCount(G);
+    const n = F.length;
+    const ALL = "NSGA-II, NSGA-III, SMS-EMOA, AGE-MOEA, RVEA and SMPSO";
+    const FRONT = "NSGA-II, NSGA-III, SMS-EMOA and AGE-MOEA";
+    const techniques = [
+      ["cdp", "cdp: constrained domination (default)", ALL],
+      ["violated_constraints", "violated_constraints", ALL],
+      ["epsilon_constrained", "epsilon_constrained", ALL],
+      ["push_pull", "push_pull", ALL],
+      ["stochastic_ranking", "stochastic_ranking", FRONT],
+      ["self_adaptive_penalty", "self_adaptive_penalty", FRONT],
+    ];
+    const state = { name: "cdp", epsilon: 0.25, pushing: true, probability: 0.45, seed: 1 };
+    const ctl = controls(node);
+    select(ctl, { label: "Technique", options: techniques.map((t) => [t[0], t[1]]), value: state.name, onChange: (v) => ((state.name = v), params(), render()) });
+    const extra = h("div", { class: "vf-controls" }, node);
+    const body = h("div", { class: "vf-body" }, node);
+    const plot = createPlot(body, { x: [0, 1.5], y: [0, 1.5], xLabel: "f₁", yLabel: "f₂", label: "Ten solutions in objective space, coloured by the front that the chosen technique gives them" });
+    const tip = tooltip(plot);
+    const readout = h("div", { class: "vf-readout" }, body);
+    legend(node, [
+      { label: "Feasible", shape: "circle", cls: "vf-pt vf-pt-ink" },
+      { label: "Infeasible", shape: "square", cls: "vf-pt vf-pt-ink" },
+      { label: "Front 1", shape: "circle", cls: "vf-pt vf-r0" },
+      { label: "Front 2", shape: "circle", cls: "vf-pt vf-r1" },
+      { label: "Front 3", shape: "circle", cls: "vf-pt vf-r2" },
+      { label: "Front 4", shape: "circle", cls: "vf-pt vf-r3" },
+      { label: "Front 5 or later", shape: "circle", cls: "vf-pt vf-r4" },
+      { label: "Objectives the technique ranks", shape: "circle", cls: "vf-pt-hollow" },
+    ]);
+    function params() {
+      clear(extra);
+      const nm = state.name;
+      if (nm === "push_pull") {
+        select(extra, {
+          label: "Phase",
+          options: [
+            ["push", "Push: constraints ignored"],
+            ["pull", "Pull: ε-constrained"],
+          ],
+          value: state.pushing ? "push" : "pull",
+          // params() rebuilds this select, so the new one takes the focus back.
+          onChange: (v) => ((state.pushing = v === "push"), params(), render(), extra.querySelector("select").focus()),
+        });
+      }
+      if (nm === "epsilon_constrained" || (nm === "push_pull" && !state.pushing)) {
+        slider(extra, { label: "Current ε", min: 0, max: 1.2, step: 0.01, value: state.epsilon, format: (v) => v.toFixed(2), onInput: (v) => ((state.epsilon = v), render()) });
+      }
+      if (nm === "stochastic_ranking") {
+        slider(extra, { label: "probability p_f", min: 0, max: 1, step: 0.05, value: state.probability, format: (v) => v.toFixed(2), onInput: (v) => ((state.probability = v), render()) });
+        button(extra, "Draw again", () => ((state.seed += 1), render()));
+      }
+    }
+    function options() {
+      const rand = mulberry32(1000 + state.seed);
+      return {
+        epsilon: state.epsilon,
+        pushing: state.pushing,
+        probability: state.probability,
+        uniforms: Array.from({ length: n * (n - 1) }, rand),
+      };
+    }
+    const list = (rows) => rows.map((i) => labels[i]).join(", ") || "none";
+    function describe(res, o) {
+      const nm = state.name;
+      const feasibleCount = cv.filter((v) => v <= 0).length;
+      if (nm === "cdp") return "Feasible solutions first, ranked by Pareto dominance; then the infeasible ones by overall violation CV, one front per value.";
+      if (nm === "violated_constraints") return `The same rule over the number of violated constraints: ${list([5, 7, 9])} violate one and compare by Pareto dominance, then ${list([6, 8])} violate two.`;
+      if (nm === "push_pull" && o.pushing) return "Push phase: Pareto dominance on the objectives alone, as if there were no constraints.";
+      if (nm === "epsilon_constrained" || nm === "push_pull") {
+        const within = cv.map((v, i) => (v > 0 && v <= o.epsilon ? i : -1)).filter((i) => i >= 0);
+        return `CV ≤ ε = ${fmt(o.epsilon, 2)} counts as feasible: ${list(within)} join the feasible solutions. The others follow by CV, and equal CV shares a front.`;
+      }
+      if (nm === "stochastic_ranking") return `A bubble sort compares neighbours by Pareto rank when both are feasible or with probability ${fmt(o.probability, 2)}, by CV otherwise. Sorted order: ${list(res.order)}. Each infeasible solution is a front of its own.`;
+      return `${feasibleCount} of ${n} solutions are feasible (r_f = ${fmt(feasibleCount / n, 2)}). Pareto dominance ranks d(x) + (1 − r_f) X(x) + r_f Y(x) per objective, from normalized objectives and violations.`;
+    }
+    function render() {
+      const o = options();
+      const res = constraintRanks(state.name, F, G, o);
+      clear(plot.layers.mid);
+      clear(plot.layers.marks);
+      clear(plot.layers.top);
+      const moved = res.objectives || null;
+      F.forEach((f, i) => {
+        const px = plot.x(f[0]);
+        const py = plot.y(f[1]);
+        if (moved && (moved[i][0] !== f[0] || moved[i][1] !== f[1])) {
+          plot.line(plot.layers.mid, [f, moved[i]], "vf-line-thin vf-dashed");
+          marker(plot.layers.mid, cv[i] > 0 ? "square" : "circle", plot.x(moved[i][0]), plot.y(moved[i][1]), 4, "vf-pt-hollow");
+        }
+        marker(plot.layers.marks, cv[i] > 0 ? "square" : "circle", px, py, 6, "vf-pt " + rankClass(res.ranks[i]));
+        const hit = s("circle", { cx: px, cy: py, r: 11, class: "vf-hit" }, plot.layers.marks);
+        const where = moved ? ` · ranked at ${pair(moved[i], 3)}` : "";
+        attachTip(hit, tip, `${labels[i]} · f = ${pair(f)} · CV ${fmt(cv[i], 2)}${where} · front ${res.ranks[i] + 1}`, px, py);
+        txt(plot.layers.top, px + 8, py - 7, `${labels[i]} ${res.ranks[i] + 1}`, { class: "vf-mark-label" });
+      });
+      clear(readout);
+      h("p", {}, readout, describe(res, o));
+      h("p", {}, readout, `Taken by: ${techniques.find((t) => t[0] === state.name)[2]}.`);
+      const head = ["Solution", "f₁, f₂", "CV", "Violated"];
+      const numeric = [false, false, true, true];
+      if (moved) {
+        head.push("Ranked as");
+        numeric.push(false);
+      }
+      head.push("Front");
+      numeric.push(true);
+      const rows = F.map((_, i) => i).sort((a, b) => res.ranks[a] - res.ranks[b] || a - b);
+      table(
+        readout,
+        head,
+        rows.map((i) => {
+          const row = [labels[i], pair(F[i]), fmt(cv[i], 2), String(count[i])];
+          if (moved) row.push(pair(moved[i]));
+          row.push(String(res.ranks[i] + 1));
+          return row;
+        }),
+        numeric
+      );
+    }
+    params();
     render();
   };
 
