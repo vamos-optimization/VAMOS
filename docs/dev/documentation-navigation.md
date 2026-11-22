@@ -39,7 +39,7 @@ three homepage journeys lead directly to T01, T02, and T06.
 | Cookbook | Keep the recipe index now; split selected tasks into dedicated guides as they are developed. | Retain the recipe anchors as routing points when content is extracted. |
 | Study and analysis material | Keep the lifecycle and analysis pages; connect T06–T08 and their retained study report. | Keep the synthetic API matrix distinct from actual study observations. |
 | Merging pages | No page merge is needed for this navigation change. | Prefer cross-links between complementary tutorial, how-to, and reference roles. |
-| Foundations | Concept lessons under their own tab, in three levels: Basic, Intermediate and Advanced. The Intermediate level groups its lessons by algorithm family and ends with the Operators group. The path includes an in-depth lesson for every built-in algorithm. Interactive figures live in `docs/javascripts/foundations.js` and `docs/stylesheets/foundations.css`. | Link to the algorithm lessons and study tutorials instead of repeating their workflows. `tests/docs/test_foundations.py` runs every example against its documented output and keeps each source excerpt verbatim in VAMOS; keep the figures' algorithms equal to the NumPy kernel they port. |
+| Foundations | Concept lessons under their own tab, in three levels: Basic, Intermediate and Advanced. The Intermediate level groups its lessons by algorithm family and ends with the Operators and Benchmarks groups. The path includes an in-depth lesson for every built-in algorithm. Interactive figures live in `docs/javascripts/foundations.js` and `docs/stylesheets/foundations.css`. | Link to the algorithm lessons and study tutorials instead of repeating their workflows. `tests/docs/test_foundations.py` runs every example against its documented output and keeps each source excerpt verbatim in VAMOS; keep the figures' algorithms equal to the NumPy kernel they port. |
 
 ## Complete page inventory
 
@@ -122,6 +122,12 @@ and reachable through the named parent pages even when absent from the menu.
 | [foundations/intermediate/operators/integer.md](../foundations/intermediate/operators/integer.md) | Tutorial | Foundations → Intermediate → Operators → Integer Operators | Add |
 | [foundations/intermediate/operators/permutation.md](../foundations/intermediate/operators/permutation.md) | Tutorial | Foundations → Intermediate → Operators → Permutation Operators | Add |
 | [foundations/intermediate/operators/mixed.md](../foundations/intermediate/operators/mixed.md) | Tutorial | Foundations → Intermediate → Operators → Mixed Operators | Add |
+| [foundations/intermediate/benchmarks/overview.md](../foundations/intermediate/benchmarks/overview.md) | Tutorial | Foundations → Intermediate → Benchmarks → What a Benchmark Tests | Add |
+| [foundations/intermediate/benchmarks/continuous.md](../foundations/intermediate/benchmarks/continuous.md) | Tutorial | Foundations → Intermediate → Benchmarks → ZDT, DTLZ and WFG | Add |
+| [foundations/intermediate/benchmarks/scalable.md](../foundations/intermediate/benchmarks/scalable.md) | Tutorial | Foundations → Intermediate → Benchmarks → Many Objectives and Variables | Add |
+| [foundations/intermediate/benchmarks/constrained.md](../foundations/intermediate/benchmarks/constrained.md) | Tutorial | Foundations → Intermediate → Benchmarks → Constrained Benchmarks | Add |
+| [foundations/intermediate/benchmarks/real-world.md](../foundations/intermediate/benchmarks/real-world.md) | Tutorial | Foundations → Intermediate → Benchmarks → Real-world Problems | Add |
+| [foundations/intermediate/benchmarks/combinatorial.md](../foundations/intermediate/benchmarks/combinatorial.md) | Tutorial | Foundations → Intermediate → Benchmarks → Binary, Integer, Permutation and Mixed | Add |
 | [foundations/advanced/many-objective.md](../foundations/advanced/many-objective.md) | Tutorial | Foundations → Advanced → Many Objectives → Many-objective Optimization | Add |
 | [foundations/advanced/nsga-iii.md](../foundations/advanced/nsga-iii.md) | Tutorial | Foundations → Advanced → Many Objectives → NSGA-III | Add |
 | [foundations/advanced/rvea.md](../foundations/advanced/rvea.md) | Tutorial | Foundations → Advanced → Many Objectives → RVEA | Add |

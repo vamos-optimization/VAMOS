@@ -96,7 +96,7 @@ def test_foundations_follows_developer_with_levels_and_topics() -> None:
     assert list(sections) == ["Basic", "Intermediate", "Advanced"]
     # The Intermediate level is grouped by the family of each algorithm, then by the topics that they share.
     groups = [next(iter(item)) for item in sections["Intermediate"]]
-    assert groups == ["Dominance-based", "Decomposition-based", "Indicator-based", "Swarm-based", "Operators"]
+    assert groups == ["Dominance-based", "Decomposition-based", "Indicator-based", "Swarm-based", "Operators", "Benchmarks"]
 
     listed = _nav_pages(foundations)
     assert sorted(listed) == sorted(_relative(page) for page in PAGES)
@@ -234,6 +234,88 @@ def test_every_page_with_examples_is_a_docs_smoke_case() -> None:
     smoked = {case.source_path for case in DOC_SMOKE_CASES}
     pages = {f"docs/{_relative(page)}" for page in PAGES if _examples(page)}
     assert pages <= smoked, f"Foundations pages with examples missing from tests/docs/smoke_manifest.py: {sorted(pages - smoked)}"
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_benchmark_figures_agree_with_vamos() -> None:
+    """The Benchmarks figures: their fronts match VAMOS' packaged fronts, and their maps VAMOS' problems."""
+    from scipy.spatial import cKDTree
+
+    from vamos import make_problem_selection
+    from vamos.foundation.problem.resolver import resolve_reference_front_path
+    from vamos.problems import DTLZ4
+    from vamos.resources import reference_front_path
+
+    rng = np.random.default_rng(20261122)
+    positions = rng.random((40, 4))
+    positions[0], positions[1] = 0.0, 1.0
+    ctp_designs = {}
+    for key in ("ctp1", "ctp2", "ctp3", "ctp4", "ctp5", "ctp6", "ctp7"):
+        problem = make_problem_selection(key).instantiate()
+        X = rng.uniform(problem.xl, problem.xu, size=(200, problem.n_var))
+        X[:100, 1:] = rng.normal(0.0, 0.05, size=(100, problem.n_var - 1))  # g close to 1, near the fronts
+        out: dict[str, np.ndarray] = {}
+        problem.evaluate(X, out)
+        ctp_designs[key] = (out["F"], np.maximum(out["G"], 0.0).sum(axis=1))
+    program = f"""
+require({json.dumps(str(SCRIPT))});
+const V = globalThis.VamosFoundations;
+const D = JSON.parse(require("fs").readFileSync(0, "utf8"));
+const fronts = {{}};
+for (const key of Object.keys(V.BENCHMARK_FRONTS)) fronts[key] = V.benchmarkFront(key, 4001);
+const ctpFronts = {{}};
+const violations = {{}};
+for (const key of Object.keys(D.ctp)) {{
+  ctpFronts[key] = V.ctpFront(key, 1001);
+  violations[key] = D.ctp[key].map((f) => V.ctpTotalViolation(key, f));
+}}
+const bias = {{
+  dtlz4: Object.fromEntries([1, 5, 100].map((a) => [a, D.u.map((u) => V.biasPoint("dtlz4", [u[0]], a))])),
+  zdt6: D.u.map((u) => V.biasPoint("zdt6", [u[0]])),
+  wfg1: D.u.map((u) => V.biasPoint("wfg1", u)),
+}};
+process.stdout.write(JSON.stringify({{ fronts, ctpFronts, violations, bias }}));
+"""
+    payload = json.dumps({"u": positions.tolist(), "ctp": {key: F.tolist() for key, (F, _) in ctp_designs.items()}})
+    completed = subprocess.run(["node", "-e", program], input=payload, capture_output=True, text=True, check=True, timeout=120)
+    js = json.loads(completed.stdout)
+
+    def assert_close_sets(figure: np.ndarray, reference: np.ndarray, label: str) -> None:
+        # Every point of each set lies within 1% of the reference front's range of a point of the other.
+        scale = reference.max(axis=0) - reference.min(axis=0)
+        a, b = figure / scale, reference / scale
+        assert cKDTree(b).query(a)[0].max() < 0.01, f"{label}: a figure point is off the reference front"
+        assert cKDTree(a).query(b)[0].max() < 0.01, f"{label}: the figure misses part of the reference front"
+
+    for key, points in js["fronts"].items():
+        path = resolve_reference_front_path(key, None, n_obj=2)
+        assert path is not None, key
+        assert_close_sets(np.asarray(points), np.loadtxt(path, delimiter=","), key)
+    for key, points in js["ctpFronts"].items():
+        assert_close_sets(np.asarray(points), np.loadtxt(reference_front_path(key), delimiter=","), key)
+        np.testing.assert_allclose(js["violations"][key], ctp_designs[key][1], rtol=1e-9, atol=1e-9, err_msg=key)
+
+    for alpha, points in js["bias"]["dtlz4"].items():
+        X = np.full((len(positions), 11), 0.5)
+        X[:, 0] = positions[:, 0]
+        out = {}
+        DTLZ4(n_var=11, n_obj=2, alpha=float(alpha)).evaluate(X, out)
+        np.testing.assert_allclose(points, out["F"], atol=1e-12, err_msg=f"DTLZ4, alpha = {alpha}")
+    zdt6 = make_problem_selection("zdt6").instantiate()
+    X = np.zeros((len(positions), zdt6.n_var))
+    X[:, 0] = positions[:, 0]
+    out = {}
+    zdt6.evaluate(X, out)
+    np.testing.assert_allclose(js["bias"]["zdt6"], out["F"], atol=1e-12)
+    # One distance variable, so that its optimum 0.35 * x_u is exactly 0.35 after normalization.
+    wfg1 = make_problem_selection("wfg1", n_var=5, n_obj=2).instantiate()
+    xu = np.asarray(wfg1.xu, dtype=float)
+    X = np.tile(0.35 * xu, (len(positions), 1))
+    assert X[0, 4] / xu[4] == 0.35
+    X[:, :4] = positions * xu[:4]
+    out = {}
+    wfg1.evaluate(X, out)
+    np.testing.assert_allclose(js["bias"]["wfg1"], out["F"], atol=1e-12)
 
 
 def _run_operator_ports(cases: dict[str, str], n: int) -> dict[str, list[list[float]]]:
