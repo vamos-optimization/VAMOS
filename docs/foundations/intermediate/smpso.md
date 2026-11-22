@@ -387,7 +387,7 @@ affordable.
 - VAMOS's defaults: w = 0.1, C₁ and C₂ in [1.5, 2.5], vmax_fraction 0.5,
   archive and swarm of 100.
 
-**Next section:** [Real-coded operators](../operators/real-coded.md).
+**Next section:** [Variation operators: an overview](../operators/overview.md).
 
 ## References
 

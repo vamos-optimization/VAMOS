@@ -114,7 +114,13 @@ and reachable through the named parent pages even when absent from the menu.
 | [foundations/intermediate/smsemoa.md](../foundations/intermediate/smsemoa.md) | Tutorial | Foundations → Intermediate → Indicator-based → SMS-EMOA | Add |
 | [foundations/intermediate/ibea.md](../foundations/intermediate/ibea.md) | Tutorial | Foundations → Intermediate → Indicator-based → IBEA | Add |
 | [foundations/intermediate/smpso.md](../foundations/intermediate/smpso.md) | Tutorial | Foundations → Intermediate → Swarm-based → SMPSO | Add |
+| [foundations/operators/overview.md](../foundations/operators/overview.md) | Tutorial | Foundations → Operators → Variation Operators | Add |
 | [foundations/operators/real-coded.md](../foundations/operators/real-coded.md) | Tutorial | Foundations → Operators → Real-coded Operators | Add |
+| [foundations/operators/real-coded-more.md](../foundations/operators/real-coded-more.md) | Tutorial | Foundations → Operators → More Real-coded Operators | Add |
+| [foundations/operators/binary.md](../foundations/operators/binary.md) | Tutorial | Foundations → Operators → Binary Operators | Add |
+| [foundations/operators/integer.md](../foundations/operators/integer.md) | Tutorial | Foundations → Operators → Integer Operators | Add |
+| [foundations/operators/permutation.md](../foundations/operators/permutation.md) | Tutorial | Foundations → Operators → Permutation Operators | Add |
+| [foundations/operators/mixed.md](../foundations/operators/mixed.md) | Tutorial | Foundations → Operators → Mixed Operators | Add |
 | [foundations/advanced/many-objective.md](../foundations/advanced/many-objective.md) | Tutorial | Foundations → Advanced → Many Objectives → Many-objective Optimization | Add |
 | [foundations/advanced/nsga-iii.md](../foundations/advanced/nsga-iii.md) | Tutorial | Foundations → Advanced → Many Objectives → NSGA-III | Add |
 | [foundations/advanced/rvea.md](../foundations/advanced/rvea.md) | Tutorial | Foundations → Advanced → Many Objectives → RVEA | Add |
