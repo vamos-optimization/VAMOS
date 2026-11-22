@@ -30,11 +30,11 @@ In this lesson you will learn:
 
 !!! warning "Experimental in VAMOS 1.5.2"
     The tuning implementation and the `vamos tune` command are experimental:
-    they can change incompatibly in a minor release. VAMOS 1.5.2 has no public
-    programmatic facade for tuning, so the examples of these lessons import
-    the implementation behind `vamos tune` (`vamos.engine.tuning`), which is
-    not a compatibility commitment. The [tuning guide](../../topics/tuning.md)
-    is the reference for the command and its options.
+    they can change incompatibly in a minor release, and VAMOS has no public
+    programmatic interface for tuning. These lessons show the mechanics
+    through interactive figures, excerpts of the implementation and the
+    `vamos tune` command. The [tuning guide](../../topics/tuning.md) is the
+    reference for the command and its options.
 
 ## Why parameters matter
 
@@ -134,73 +134,77 @@ encoding (`nsgaii.yaml`, `moead_permutation.yaml`, `nsgaii_constrained.yaml`,
 parameter of any space: it is a setting of the run, `--pop-size`, 100 by
 default.
 
-### Try it: a real VAMOS space
+### Sampling a configuration
 
-The NSGA-II space, its top-level parameters, one conditional parameter, and a
-random configuration drawn by walking the tree:
+The real-coded NSGA-II space, `nsgaii.yaml`, has 33 parameters: 9
+categorical, 1 integer and 23 real. Seven hang from the root:
+`offspring_ratio`, `selection`, `external_archive`, `initial_solutions`,
+`crossover`, `mutation` and `repair`. A random configuration is drawn by
+walking the tree:
 
 ```python
-from collections import Counter
+# Excerpt from src/vamos/engine/tuning/grammar/model.py
+    def sample(self, rng: np.random.Generator) -> dict[str, Scalar]:
+        """A random configuration: a production at every categorical node, every active terminal drawn.
 
-import numpy as np
+        Only the active parameters draw values, in depth-first order.
+        """
+        return self._derive(lambda parameter: parameter.sample(rng))
 
-from vamos.engine.tuning.grammar import builtin_parameter_space
+    def _derive(self, choose: Callable[[Parameter], Scalar]) -> dict[str, Scalar]:
+        values: dict[str, Scalar] = {}
 
-space = builtin_parameter_space("nsgaii")
-types = Counter(parameter.type for parameter in space.walk())
-print(f"{space.name}: {len(space.names())} parameters ({', '.join(f'{n} {t}' for t, n in types.items())})")
-for parameter in space.parameters:
-    print(f"  {parameter.name}: {len(parameter.values)} values, default {parameter.default}")
+        def visit(parameters: tuple[Parameter, ...]) -> None:
+            for parameter in parameters:
+                value = choose(parameter)
+                values[parameter.name] = value
+                visit(parameter.children(value))
 
-crossover = space.parameter("crossover")
-print("under every crossover:", [p.name for p in crossover.global_sub_parameters])
-for p in crossover.production("sbx"):
-    print(f"only under sbx: {p.name} in {list(p.range)}, default {p.default}")
-
-rng = np.random.default_rng(2026)
-sample = space.sample(rng)
-print(f"a random configuration, {len(sample)} active parameters:")
-for name, value in sample.items():
-    print(f"  {name} = {round(value, 3) if isinstance(value, float) else value}")
+        visit(self.parameters)
+        return values
 ```
 
-Output:
+`children(value)` returns the global sub-parameters of a node and the
+production of the chosen value, so a value is drawn only for the parameters
+that the choices above it activate. The default configuration is the same
+walk with every parameter at its default, and it activates 12 parameters.
+
+A smoke run of `vamos tune` shows such configurations. `--smoke` is a cheap
+check of the command: it clamps each run to 30 evaluations and a population of
+15, the search to four trials and two seeds, and skips the validation and
+test stages. The random backend draws its trials with the walk above, and
+`best_config_active.json` holds the active parameters of the best one:
+
+```bash
+vamos tune --instances zdt1,zdt2,zdt3 --algorithm nsgaii --backend random --smoke \
+  --output-dir results/tuning --name smoke_random
+cat results/tuning/smoke_random/best_config_active.json
+```
 
 ```text
-nsgaii: 33 parameters (9 categorical, 1 int, 23 real)
-  offspring_ratio: 5 values, default 1.0
-  selection: 5 values, default tournament
-  external_archive: 3 values, default none
-  initial_solutions: 7 values, default auto
-  crossover: 10 values, default sbx
-  mutation: 9 values, default polynomial
-  repair: 6 values, default auto
-under every crossover: ['crossover_probability']
-only under sbx: sbx_distribution_index in [5.0, 40.0], default 20.0
-a random configuration, 13 active parameters:
-  offspring_ratio = 1.0
-  selection = tournament
-  tournament_size = 2
-  external_archive = unbounded
-  initial_solutions = lhs
-  crossover = whole_arithmetic
-  crossover_probability = 0.748
-  wa_alpha = 0.355
-  mutation = levy_flight
-  mutation_probability_factor = 2.739
-  levy_beta = 0.766
-  levy_scale = 0.066
-  repair = wrap
+{
+  "offspring_ratio": 0.25,
+  "selection": "sus",
+  "initial_solutions": "random",
+  "crossover": "whole_arithmetic",
+  "crossover_probability": 0.8198374750692238,
+  "wa_alpha": 0.027559113243068367,
+  "mutation": "levy_flight",
+  "mutation_probability_factor": 1.729894111353015,
+  "levy_beta": 0.9945975747486382,
+  "levy_scale": 0.07905444163941203,
+  "repair": "wrap"
+}
 ```
 
-The space has 33 parameters, but a configuration activates about a dozen:
-this one draws the whole arithmetic crossover, so `wa_alpha` is active and
-`sbx_distribution_index` is not, and the Lévy-flight mutation brings its two
-parameters. The default configuration activates 12. Sampling walks the tree:
-it draws a value at each categorical node and then only the parameters that
-the value activates. `vamos tune` searches this space without
-`external_archive`, so that every candidate is scored on the same final
-population.
+This configuration activates 11 of the 33 parameters. It draws the whole
+arithmetic crossover, so `wa_alpha` is active and `sbx_distribution_index` is
+not; the Lévy-flight mutation brings its two parameters; stochastic universal
+sampling (`sus`) has no tournament, so `tournament_size` is absent. So is
+`external_archive`: `vamos tune` searches the space without it, so that every
+candidate is scored on the same final population. A smoke run checks the
+command, the evaluator and the output files; with 30 evaluations per run its
+scores support no conclusion.
 
 The mutation probability is a **relative** parameter:
 `mutation_probability_factor` in [0.25, 3.0] is divided by the number of

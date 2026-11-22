@@ -100,24 +100,22 @@ Hyperband pruner assigns trials to brackets of successive halving.
 
 ### Try it: successive halving with VAMOS
 
-Successive halving written out on the six NSGA-II configurations of the
-race in lesson [Racing and irace](tuning-racing.md#a-race-of-nsga-ii-configurations),
-plus three with the distribution index 20, at 300, 900 and 2,700 evaluations
-with η = 3, on ZDT1, ZDT2 and ZDT3 with one seed:
+Successive halving written out with the public VAMOS API, on nine NSGA-II
+configurations: SBX with the distribution index 5, 20 or 40, and polynomial
+mutation with the probability factor 0.25, 1 or 3, divided by the 30
+variables of the ZDT problems. The budgets are 300, 900 and 2,700 evaluations
+with η = 3, on ZDT1, ZDT2 and ZDT3 with one seed, and each run is scored by
+the hypervolume with the reference point (10, 10), as `vamos tune` would score
+it:
 
 ```python
 import numpy as np
 
 from vamos import optimize
-from vamos.engine.tuning.grammar import builtin_parameter_space
-from vamos.engine.tuning.racing.bridge import config_from_assignment
+from vamos.algorithms import NSGAIIConfig
 
-space = builtin_parameter_space("nsgaii")
-candidates = [
-    dict(space.default_values(), sbx_distribution_index=eta, mutation_probability_factor=factor)
-    for eta in (5.0, 20.0, 40.0)
-    for factor in (0.25, 1.0, 3.0)
-]
+# Nine configurations: SBX distribution index x mutation probability factor (divided by ZDT's 30 variables).
+candidates = [(eta, factor) for eta in (5.0, 20.0, 40.0) for factor in (0.25, 1.0, 3.0)]
 
 
 def hypervolume_2d(F, ref):
@@ -129,8 +127,9 @@ def hypervolume_2d(F, ref):
     return volume
 
 
-def score(assignment, budget):
-    config = config_from_assignment("nsgaii", dict(assignment, pop_size=20))
+def score(candidate, budget):
+    eta, factor = candidate
+    config = NSGAIIConfig.builder().pop_size(20).crossover("sbx", prob=0.9, eta=eta).mutation("pm", prob=factor / 30, eta=20.0).build()
     runs = [optimize(name, algorithm="nsgaii", algorithm_config=config, max_evaluations=budget, seed=1) for name in ("zdt1", "zdt2", "zdt3")]
     return np.mean([hypervolume_2d(run.F, (10.0, 10.0)) for run in runs])
 
@@ -141,7 +140,7 @@ for budget in (300, 900, 2700):
     evaluations += 3 * budget * len(alive)
     order = np.argsort(scores)[::-1]
     alive = [alive[i] for i in order[: max(1, len(alive) // 3)]]
-    kept = ", ".join(f"eta {c['sbx_distribution_index']:.0f}/factor {c['mutation_probability_factor']:.2f} ({scores[i]:.2f})" for c, i in zip(alive, order))
+    kept = ", ".join(f"eta {eta:.0f}/factor {factor:.2f} ({scores[i]:.2f})" for (eta, factor), i in zip(alive, order))
     print(f"{budget:4d} evaluations, candidates {len(scores)}: kept {kept}")
 print(f"{evaluations} evaluations, against {3 * 2700 * len(candidates)} for every configuration at 2700")
 ```
@@ -155,8 +154,8 @@ Output:
 24300 evaluations, against 72900 for every configuration at 2700
 ```
 
-Successive halving finds the configuration with the largest mutation factor,
-the one the race of the previous lesson kept, with a third of the
+Successive halving finds a configuration with the largest mutation factor,
+which pays with only a few generations on these problems, with a third of the
 evaluations. It also shows the risk: at 300 evaluations the best
 configuration has the *smallest* mutation factor, 0.25, and the eventual
 winner is only third, one place from being discarded. With η = 9, keeping one
@@ -169,6 +168,27 @@ exist for this case.
 dependencies, `python -m pip install "vamos-optimization[tuning]==1.5.2"`
 (Optuna, SMAC3, ConfigSpace and HpBandSter); `--backend-fallback random` or
 `racing` runs a built-in backend instead when they are missing.
+`--list-backends` prints what the current environment can run. In an
+environment without the tuning extra but with R's `Rscript` on the path, it
+prints:
+
+```bash
+vamos tune --list-backends
+```
+
+```text
+Backend availability:
+  racing       : True
+  random       : True
+  optuna      : False
+  bohb_optuna : False
+  smac3       : False
+  bohb        : False
+  irace       : True
+```
+
+The `irace` line checks only for `Rscript`; the irace package itself is
+checked when the backend runs.
 
 | Backend | Proposes configurations with | Multi-fidelity, with `--fidelity-levels` | `--tune-budget` counts |
 | --- | --- | --- | --- |

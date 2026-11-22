@@ -226,58 +226,74 @@ translates every name and value and then checks that the result is a valid
 derivation of the grammar: every active parameter has a value inside its
 domain, and nothing else is set.
 
-The line below is an NSGA-II configuration written with Evolver's names. The
-real-coded NSGA-II space also has three parameters that the line does not
-set, `offspring_ratio`, `external_archive` and `repair`; they are given here
-at their defaults, which are the algorithm's defaults:
+The function translates the whole line at once, then hands the result to the
+same validation as any other configuration:
 
 ```python
-from vamos.engine.tuning.grammar import builtin_parameter_space, configuration_from_command_line
-from vamos.engine.tuning.racing.bridge import config_from_assignment
-
-space = builtin_parameter_space("nsgaii")
-evolver_line = (
-    "--crossover SBX --crossoverProbability 0.95 --sbxDistributionIndex 12.5 "
-    "--mutation polynomial --mutationProbabilityFactor 1.4 --polynomialMutationDistributionIndex 31.0 "
-    "--selection tournament --selectionTournamentSize 4 --createInitialSolutions latinHypercubeSampling"
-)
-vamos_only = "--offspring_ratio 1.0 --external_archive none --repair auto"
-point = configuration_from_command_line(space, evolver_line + " " + vamos_only, evolver=True)
-print(f"a point of {point.space.name} (sha256 {point.space.sha256[:16]}...):")
-for name, value in point.to_values().items():
-    print(f"  {name} = {value}")
-config = config_from_assignment("nsgaii", dict(point.to_values(), pop_size=100))
-print(type(config).__name__, config.selection, config.crossover, config.mutation, config.mutation_prob_factor, config.initializer)
-print(point.to_command_line(evolver=True))
+# Excerpt from src/vamos/engine/tuning/grammar/configuration.py
+def configuration_from_command_line(space: ParameterSpace, text: str, *, evolver: bool = False) -> ParameterConfiguration:
+    """The configuration that ``--name value`` pairs give; with ``evolver``, pairs with Evolver's names and values."""
+    tokens = text.split()
+    if evolver:
+        # The whole line at once, so that the settings Evolver implies apply (its IPBI always normalizes).
+        spellings = {name: (str(value),) for name, value in from_evolver(raw).items()}
+    known = set(space.names())
+    return configuration(
+        space, {name: _parse_spellings(space.parameter(name), texts) if name in known else texts[0] for name, texts in spellings.items()}
+    )
 ```
 
-Output:
+`from_evolver` applies the name table above and adds the settings that
+Evolver implies without writing them: its inverted PBI always normalizes the
+objectives, and its MOEA/D draws the base of the DE mutant at random. Take a
+line that sets NSGA-II with Evolver's names:
 
 ```text
-a point of nsgaii (sha256 27be5cb61db1f2b0...):
-  offspring_ratio = 1.0
-  selection = tournament
-  tournament_size = 4
-  external_archive = none
-  initial_solutions = lhs
-  crossover = sbx
-  crossover_probability = 0.95
-  sbx_distribution_index = 12.5
-  mutation = polynomial
-  mutation_probability_factor = 1.4
-  polynomial_mutation_distribution_index = 31.0
-  repair = auto
-NSGAIIConfig ('tournament', {'size': 4}) ('sbx', {'prob': 0.95, 'eta': 12.5}) ('polynomial', {'eta': 31.0}) 1.4 {'type': 'lhs'}
---offspring_ratio 1.0 --selection tournament --selectionTournamentSize 4 --external_archive none --createInitialSolutions latinHypercubeSampling --crossover SBX --crossoverProbability 0.95 --sbxDistributionIndex 12.5 --mutation polynomial --mutationProbabilityFactor 1.4 --polynomialMutationDistributionIndex 31.0 --repair auto
+--crossover SBX --crossoverProbability 0.95 --sbxDistributionIndex 12.5 --mutation polynomial --mutationProbabilityFactor 1.4 --polynomialMutationDistributionIndex 31.0 --selection tournament --selectionTournamentSize 4 --createInitialSolutions latinHypercubeSampling
 ```
 
-The line becomes a point of the space, listed in the depth-first order of
-the grammar and identified by the space's name and hash. `config_from_assignment`
-builds the `NSGAIIConfig` that runs it, with the population added as a run
-setting: from here it is an ordinary VAMOS configuration, which `optimize`
-runs, a study compares with the default configuration, and a run manifest
-records. `to_command_line(evolver=True)` writes it back with Evolver's names;
-the three parameters that Evolver structures differently keep VAMOS's names.
+It reads into the real-coded NSGA-II space as follows:
+
+| Evolver | VAMOS |
+| --- | --- |
+| `--crossover SBX` | `crossover = sbx` |
+| `--crossoverProbability 0.95` | `crossover_probability = 0.95` |
+| `--sbxDistributionIndex 12.5` | `sbx_distribution_index = 12.5` |
+| `--mutation polynomial` | `mutation = polynomial` |
+| `--mutationProbabilityFactor 1.4` | `mutation_probability_factor = 1.4` |
+| `--polynomialMutationDistributionIndex 31.0` | `polynomial_mutation_distribution_index = 31.0` |
+| `--selection tournament` | `selection = tournament` |
+| `--selectionTournamentSize 4` | `tournament_size = 4` |
+| `--createInitialSolutions latinHypercubeSampling` | `initial_solutions = lhs` |
+| not in the line | `offspring_ratio`, `external_archive` and `repair` |
+
+The last row matters: the VAMOS space has three active parameters that the
+line does not set, and the reader refuses the line until they are given,
+with an error that names the first of them, `offspring_ratio`. Adding them at
+their defaults (`--offspring_ratio 1.0 --external_archive none --repair auto`),
+which are the algorithm's defaults, gives a valid point of the space,
+identified by the space's name and hash. `config_from_assignment`, which
+`vamos tune` uses for every trial, then builds the `NSGAIIConfig` that runs
+it, with the population added as a run setting: a tournament of size 4, SBX
+with probability 0.95 and index 12.5, polynomial mutation with index 31 and
+probability factor 1.4, and Latin hypercube initialization. From there it is
+an ordinary VAMOS configuration, which a study can compare with the default
+configuration and a run manifest records.
+
+The way back is `to_command_line(evolver=True)`, which writes the active
+parameters in the depth-first order of the grammar, with Evolver's names and
+values where Evolver has them:
+
+```python
+# Excerpt from src/vamos/engine/tuning/grammar/configuration.py
+    def to_command_line(self, *, evolver: bool = False) -> str:
+        """``--name value`` pairs in depth-first order; with ``evolver``, Evolver's names and values where Evolver has them."""
+        values: Mapping[str, Any] = to_evolver(self.to_values()) if evolver else self.to_values()
+        return " ".join(f"--{name} {format_value(value)}" for name, value in values.items())
+```
+
+The three parameters that Evolver structures differently keep VAMOS's names
+in that line.
 
 The reader is strict. A value outside VAMOS's range, a parameter that is
 inactive for the values given, or a parameter that the space does not have,
@@ -291,7 +307,7 @@ explicit.
 | | VAMOS 1.5.2 |
 | --- | --- |
 | Spaces aligned with Evolver's names, values and ranges | yes, the built-in grammars |
-| Read and write Evolver's configuration lines | yes, `configuration_from_command_line` and `to_command_line(evolver=True)` |
+| Read and write Evolver's configuration lines | yes, in the experimental grammar module (`configuration_from_command_line`, `to_command_line(evolver=True)`) |
 | Read Evolver's space files | no, by design: VAMOS keeps its own spaces |
 | Tune with one scalar score (racing, irace, Optuna, SMAC3, BOHB) | yes, `vamos tune` (experimental) |
 | Meta-optimize with several indicators and return a front of configurations | no; the flat and tree encodings are planned |

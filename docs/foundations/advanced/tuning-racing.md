@@ -180,91 +180,6 @@ the first test comes after the fifth block. The figure's algorithms port this
 code, and a test checks that their races eliminate the same configurations
 after the same blocks as `RacingTuner`.
 
-## A race of NSGA-II configurations
-
-A race of six NSGA-II configurations that differ in SBX's distribution index
-(5 or 40) and in the factor of the mutation probability (0.25, 1 or 3), on
-ZDT1, ZDT2 and ZDT3 with four seeds each, twelve blocks. Each run has a
-population of 20 and 1,000 evaluations, and is scored by the hypervolume with
-the reference point (10, 10), as `vamos tune` would score it:
-
-```python
-import numpy as np
-
-from vamos import optimize
-from vamos.engine.tuning import Instance, RacingTuner, Scenario, TuningTask
-from vamos.engine.tuning.grammar import builtin_parameter_space, to_algorithm_config_space
-from vamos.engine.tuning.racing.bridge import config_from_assignment
-
-space = builtin_parameter_space("nsgaii")
-candidates = [
-    dict(space.default_values(), sbx_distribution_index=eta, mutation_probability_factor=factor)
-    for eta in (5.0, 40.0)
-    for factor in (0.25, 1.0, 3.0)
-]
-
-
-def hypervolume_2d(F, ref):
-    volume, level = 0.0, ref[1]
-    for f1, f2 in F[np.lexsort((F[:, 1], F[:, 0]))]:
-        if f1 < ref[0] and f2 < level:
-            volume += (ref[0] - f1) * (level - f2)
-            level = f2
-    return volume
-
-
-def evaluate(assignment, ctx):
-    config = config_from_assignment("nsgaii", dict(assignment, pop_size=20))
-    result = optimize(ctx.instance.name, algorithm="nsgaii", algorithm_config=config, max_evaluations=ctx.budget, seed=ctx.seed)
-    return hypervolume_2d(result.F, (10.0, 10.0))
-
-
-task = TuningTask(
-    name="nsgaii_zdt",
-    param_space=to_algorithm_config_space(space).to_param_space(),
-    instances=[Instance("zdt1", n_var=30), Instance("zdt2", n_var=30), Instance("zdt3", n_var=30)],
-    seeds=[1, 2, 3, 4],
-    budget_per_run=1000,
-)
-scenario = Scenario(max_experiments=len(candidates) * 12, verbose=False)
-tuner = RacingTuner(task, scenario, seed=1, max_initial_configs=len(candidates), initial_configs=candidates)
-best, history = tuner.run(evaluate, verbose=False)
-for trial in history:
-    c = trial.config
-    status = "alive" if trial.details["alive"] else "eliminated"
-    print(f"eta {c['sbx_distribution_index']:4.1f}, factor {c['mutation_probability_factor']:4.2f}: {trial.details['num_evals']:2d} blocks, {status}, mean HV {trial.score:.3f}")
-print(f"{sum(t.details['num_evals'] for t in history)} runs instead of {len(candidates) * 12}")
-print(f"returned: eta {best['sbx_distribution_index']}, factor {best['mutation_probability_factor']}")
-```
-
-Output:
-
-```text
-eta  5.0, factor 0.25:  6 blocks, eliminated, mean HV 86.907
-eta  5.0, factor 1.00:  8 blocks, eliminated, mean HV 87.041
-eta  5.0, factor 3.00: 12 blocks, alive, mean HV 90.264
-eta 40.0, factor 0.25:  6 blocks, eliminated, mean HV 85.668
-eta 40.0, factor 1.00:  6 blocks, eliminated, mean HV 88.440
-eta 40.0, factor 3.00: 12 blocks, alive, mean HV 90.558
-50 runs instead of 72
-returned: eta 40.0, factor 3.0
-```
-
-The first test, after block 5, finds no significant difference; the second
-eliminates three configurations, and the test after block 8 a fourth. The two
-survivors share the largest mutation factor, 3, which mutates three variables
-per child on average: with only 50 generations, more mutation pays on these
-problems. The race does not separate the two distribution indices within
-twelve blocks, and returns the survivor with the best mean over the blocks
-they both played. The mean hypervolumes of the eliminated configurations
-cover fewer blocks, so they are not comparable with the others. The
-conclusion holds for this budget and these problems only (lesson
-[Automatic algorithm configuration](tuning.md#training-validation-and-test-instances)).
-
-The tuner races the six configurations it is given. Without
-`initial_configs`, it races the space's default configuration and
-`max_initial_configs − 1` configurations drawn from the space.
-
 ## Iterated racing
 
 A single race can only choose among the candidates it starts with. With 33
@@ -328,6 +243,61 @@ vamos tune \
   --initial-configs 20 \
   --alpha 0.05
 ```
+
+A smaller race runs in a few seconds. It tunes NSGA-II on ZDT1 alone, with
+ten training seeds, eight candidates, runs of 1,000 evaluations with a
+population of 20, at most 80 experiments, one worker, and no validation or
+statistical finisher:
+
+```bash
+vamos tune --problem zdt1 --algorithm nsgaii --backend racing \
+  --budget 1000 --pop-size 20 --n-seeds 10 --initial-configs 8 --tune-budget 80 --n-jobs 1 \
+  --no-run-validation --no-run-statistical-finisher \
+  --output-dir results/tuning --name race_zdt1
+```
+
+Its output, without the lines that print the output folder and the five
+files it saves:
+
+```text
+Only one instance provided; train/validation/test share instance but use disjoint seeds.
+Backend: requested=racing effective=racing
+Jobs: requested=1 resolved=1
+Tune budget: 80
+Split sizes (instances): train=1 validation=1 test=1
+Split sizes (seeds): train=10 validation=10 test=10
+[racing] Stage 0: instance 0, seed idx 8, alive=8
+[racing] Stage 1: instance 0, seed idx 4, alive=8
+[racing] Stage 2: instance 0, seed idx 7, alive=8
+[racing] Stage 3: instance 0, seed idx 0, alive=8
+[racing] Stage 4: instance 0, seed idx 1, alive=8
+[racing] Reached minimum survivors, stopping early.
+[racing] Best score=94.930628 after stage 5.
+--- Tuning complete ---
+Best configuration:
+  offspring_ratio: 0.25
+  selection: boltzmann
+  initial_solutions: obl
+  crossover: blx_alpha_beta
+  crossover_probability: 0.7049253361767398
+  blxab_alpha: 0.7503646726300526
+  blxab_beta: 0.2804087579860399
+  mutation: uniform_reset
+  mutation_probability_factor: 2.9470272994534064
+  repair: reflect
+```
+
+With one problem, the training, validation and test stages share ZDT1 and
+use disjoint seeds. The race plays the training seeds in a shuffled order.
+The eight candidates, the space's default configuration and seven random
+draws, all run on the first five blocks; the first test, after block 5, finds
+one candidate significantly better than every other and eliminates the other
+seven, and the race stops with one survivor after 40 of its 80 experiments.
+`tuning_history.json` records each candidate with its score and blocks: the
+default configuration, SBX with polynomial mutation, had the second-best mean
+hypervolume, 90.79 against 94.93, and was eliminated with the rest. The
+result holds for ZDT1 at 1,000 evaluations, and nothing more (lesson
+[Automatic algorithm configuration](tuning.md#training-validation-and-test-instances)).
 
 Two variants change the elimination. `--no-use-statistical-tests` replaces the
 tests by a rank-based rule: after `--min-blocks-before-elimination` blocks,
