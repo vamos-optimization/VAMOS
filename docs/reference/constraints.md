@@ -135,7 +135,8 @@ rankings computed by hand and the worked examples of their papers.
 
 **Development after 1.5.2:** NSGA-II, NSGA-III, SMS-EMOA and AGE-MOEA also
 take four techniques that neither jMetal nor Evolver has, and NSGA-II three
-more, `two_rankings`, `infeasibility_driven` and `adaptive_tradeoff`:
+more, `two_rankings`, `infeasibility_driven`, `adaptive_tradeoff`,
+`multiple_constraint_ranking` and `ensemble`:
 
 | Technique | Parameters | Ranking |
 | --- | --- | --- |
@@ -146,6 +147,8 @@ more, `two_rankings`, `infeasibility_driven` and `adaptive_tradeoff`:
 | `shift_penalty` | `constant` | Ma and Wang's ShiP: Pareto dominance over objectives that move each infeasible solution towards its local feasible nadir and add its violation. |
 | `infeasibility_driven` | `proportion` | NSGA-II only. Ray, Singh, Isaacs and Smith's IDEA: the best infeasible solutions, `proportion` of the population, rank above the feasible ones, one solution per front. |
 | `adaptive_tradeoff` | none | NSGA-II only. Wang, Cai, Zhou and Zeng's ATM, in Li, Wang, Yang and Cai's version for several objectives: the ranking depends on the feasible proportion of the population, one solution per front. |
+| `multiple_constraint_ranking` | none | NSGA-II only. Garcia, de Lima, Lemonge and Jacob's MCR: the sum of the ranks of the objectives, of the number of violated constraints and of each constraint's violation, one solution per front. |
+| `ensemble` | optional `nds_weight`, `cdp_weight`, `mcr_weight`, `dpf_weight` | NSGA-II only. Vodopija, Oyama and Filipic's ensemble: the weighted sum of the normalized qualities of NDS, CDP, MCR and a dynamic penalty, one solution per front. |
 
 ```python
 from vamos.algorithms import NSGAIIConfig
@@ -316,6 +319,43 @@ phase depends on the feasible proportion of the population being ranked:
 `phi` is the feasible proportion of the population that the last replacement
 kept: 0 until the first replacement, as in Wang et al.'s Fig. 4, and kept in
 NSGA-II's checkpoints. ATM has no parameters.
+
+`multiple_constraint_ranking` and `ensemble` follow H. Fukumoto and A. Oyama's
+framework, "A Generic Framework for Incorporating Constraint Handling
+Techniques into Multi-Objective Evolutionary Algorithms" (EvoApplications
+2018, LNCS 10784, pp. 634–649, Algorithm 1): the objectives map to a fitness,
+the fitness to a rank, and a technique acts on either. For NSGA-II the fitness
+is A. Vodopija, A. Oyama and B. Filipič's (GECCO '19 Companion, pp.
+2072–2075, Algorithm 1): the Pareto rank minus the crowding distance,
+normalized so as to keep the Pareto order. Neither paper says how. VAMOS
+scales the finite crowding distances of the population min-max into
+[0, 1/4], all to 0 when they are equal, and puts the infinite ones of the
+extremes at 1/2, so that the extremes stay preferred, as in NSGA-II. Both
+techniques order the population totally, like `two_rankings`, are defined for
+NSGA-II, and break ties by the order of the population.
+
+`multiple_constraint_ranking` follows R. P. Garcia, B. S. L. P. de Lima,
+A. C. de C. Lemonge and B. P. Jacob, "A rank-based constraint handling
+technique for engineering design optimization problems solved by genetic
+algorithms" (Computers and Structures 187:77–87, 2017). Its fitness (eq. 10) is
+`R_Nv + sum_j R_phi^j`, plus `R_f` when some solution is feasible: `R_Nv` ranks
+the number of violated constraints, `R_phi^j` the violation of constraint `j`,
+and `R_f` the objectives. Each rank is 1 plus the number of solutions that are
+better, so equal values share a rank (Tables 1–2). With several objectives,
+`R_f` ranks the NSGA-II fitness of the objectives alone, the framework's
+rank-type use of MCR, and solutions with the same objectives share the best
+fitness among them, so that they share a rank.
+
+`ensemble` follows Vodopija et al.: `c_e = sum_i w_i c_i` over NDS (the NSGA-II
+fitness with Pareto dominance), CDP (the same with the constrained-domination
+principle), MCR and DPF (the NDS fitness plus Joines and Houck's dynamic
+penalty, with `dynamic_penalty`'s settings, `C = 0.5` and `alpha = beta = 2`,
+which the paper does not give), and the population is ordered by `c_e`. The
+paper normalizes each member's quality into [0, 1] without saying how; VAMOS
+scales each min-max over the population. The weights, `nds_weight`,
+`cdp_weight`, `mcr_weight` and `dpf_weight`, are at least 0, 1/4 each by
+default, as in the paper, and are normalized to sum 1, so at least one must be
+above 0. NSGA-II's checkpoints keep DPF's generation.
 
 The penalized or shifted objectives, like those of `self_adaptive_penalty`, and
 the violation of `violation_objective` only rank the population: crowding

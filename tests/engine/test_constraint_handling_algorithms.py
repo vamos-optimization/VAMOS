@@ -61,6 +61,8 @@ PARAMETERS: dict[str, dict[str, float]] = {
     "shift_penalty": {"constant": 2.0},
     "infeasibility_driven": {"proportion": 0.2},
     "adaptive_tradeoff": {},
+    "multiple_constraint_ranking": {},
+    "ensemble": {},
 }
 ALGORITHMS = ["nsgaiii", "smsemoa", "agemoea"]
 # RVEA and SMPSO take the techniques that judge single solutions.
@@ -178,6 +180,8 @@ def test_a_technique_needs_the_feasibility_mode(algorithm: str) -> None:
         "shift_penalty",
         "infeasibility_driven",
         "adaptive_tradeoff",
+        "multiple_constraint_ranking",
+        "ensemble",
     ],
 )
 def test_rvea_and_smpso_take_only_the_techniques_that_judge_single_solutions(algorithm: str, technique: str) -> None:
@@ -194,7 +198,13 @@ def test_nsgaiii_smsemoa_and_agemoea_reject_the_techniques_of_nsgaii_only(algori
     # or survival scores, and their papers define them for NSGA-II.
     with pytest.raises(ValueError, match=f"'{technique}' is defined for NSGA-II only"):
         _config(algorithm, technique)
-    assert NSGAII_ONLY_TECHNIQUES == ("two_rankings", "infeasibility_driven", "adaptive_tradeoff")
+    assert NSGAII_ONLY_TECHNIQUES == (
+        "two_rankings",
+        "infeasibility_driven",
+        "adaptive_tradeoff",
+        "multiple_constraint_ranking",
+        "ensemble",
+    )
     assert FRONT_TECHNIQUES == tuple(name for name in CONSTRAINT_HANDLING_TECHNIQUES if name not in NSGAII_ONLY_TECHNIQUES)
     for name in FRONT_TECHNIQUES:
         assert _config(algorithm, name).constraint_handling == (name, PARAMETERS[name])
