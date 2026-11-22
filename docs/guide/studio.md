@@ -71,7 +71,7 @@ non-dominated or lies on the true Pareto front. See
 [Understanding results](understanding-results.md) for those distinctions.
 
 The overlay shows the fronts of one problem at a time: two or three objectives
-as a scatter plot, more as parallel coordinates. **Filters** narrow the overlay
+as a scatter plot, more as a scatter-plot matrix of every pair. **Filters** narrow the overlay
 and the ranking to the solutions that satisfy every constraint, or whose
 objectives lie inside the ranges you set with one slider per objective; the
 page reports how many solutions remain. Runs that stored no constraint values

@@ -39,7 +39,7 @@ The public information architecture is task-first:
 3. **How-to Guides** — locate a specific operation, cookbook recipe, or optional workflow.
 4. **Reference** — inspect exact API, algorithm, problem, constraint, and stopping contracts, and the support and version commitments.
 5. **Developer** — roadmap, extension contracts, tests, architecture, and maintenance material.
-6. **Foundations** — learn the concepts of multi-objective optimization at three levels (Basic, Intermediate by family of algorithms, Advanced) and in a section on variation operators, with interactive figures, runnable VAMOS examples and the original references.
+6. **Foundations** — learn the concepts of multi-objective optimization at three levels (Basic; Intermediate, by family of algorithms, then variation operators and benchmarks; Advanced), with interactive figures, runnable VAMOS examples and the original references.
 
 Roadmap is the first entry under Developer. The stability policy, known limitations, documentation versions, and release notes are listed under Reference → Support & Versions, without a separate Project tab; every release adds its notes there. Hosting and repository governance keep their contextual links without a navigation entry. Project pages keep their existing URLs.
 

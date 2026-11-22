@@ -246,16 +246,32 @@ nav:
         - IBEA: foundations/intermediate/ibea.md
       - Swarm-based:
         - SMPSO: foundations/intermediate/smpso.md
-    - Operators:
-      - Real-coded Operators: foundations/operators/real-coded.md
+      - Operators:
+        - Variation Operators: foundations/intermediate/operators/overview.md
+        - Real-coded Operators: foundations/intermediate/operators/real-coded.md
+        - More Real-coded Operators: foundations/intermediate/operators/real-coded-more.md
+        - Binary Operators: foundations/intermediate/operators/binary.md
+        - Integer Operators: foundations/intermediate/operators/integer.md
+        - Permutation Operators: foundations/intermediate/operators/permutation.md
+        - Mixed Operators: foundations/intermediate/operators/mixed.md
+      - Benchmarks:
+        - What a Benchmark Tests: foundations/intermediate/benchmarks/overview.md
+        - ZDT, DTLZ and WFG: foundations/intermediate/benchmarks/continuous.md
+        - Many Objectives and Variables: foundations/intermediate/benchmarks/scalable.md
+        - Constrained Benchmarks: foundations/intermediate/benchmarks/constrained.md
+        - Real-world Problems: foundations/intermediate/benchmarks/real-world.md
+        - Binary, Integer, Permutation and Mixed: foundations/intermediate/benchmarks/combinatorial.md
     - Advanced:
       - Many Objectives:
         - Many-objective Optimization: foundations/advanced/many-objective.md
+        - Reference Directions: foundations/advanced/reference-directions.md
         - NSGA-III: foundations/advanced/nsga-iii.md
         - RVEA: foundations/advanced/rvea.md
         - AGE-MOEA: foundations/advanced/agemoea.md
+        - Visualizing Many Objectives: foundations/advanced/visualizing-many-objectives.md
       - Constraints:
         - Constrained Optimization: foundations/advanced/constrained.md
+        - Constraint Handling: foundations/advanced/constraint-handling.md
         - CCMO: foundations/advanced/ccmo.md
         - C-TAEA: foundations/advanced/ctaea.md
         - ToP: foundations/advanced/top.md

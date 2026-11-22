@@ -93,10 +93,10 @@ def test_foundations_follows_developer_with_levels_and_topics() -> None:
     foundations = _foundations_nav()
     assert foundations[0] == {"Overview": "foundations/index.md"}
     sections = {next(iter(item)): next(iter(item.values())) for item in foundations[1:]}
-    assert list(sections) == ["Basic", "Intermediate", "Operators", "Advanced"]
-    # The Intermediate level is grouped by the family of each algorithm.
-    families = [next(iter(item)) for item in sections["Intermediate"]]
-    assert families == ["Dominance-based", "Decomposition-based", "Indicator-based", "Swarm-based"]
+    assert list(sections) == ["Basic", "Intermediate", "Advanced"]
+    # The Intermediate level is grouped by the family of each algorithm, then by the topics that they share.
+    groups = [next(iter(item)) for item in sections["Intermediate"]]
+    assert groups == ["Dominance-based", "Decomposition-based", "Indicator-based", "Swarm-based", "Operators", "Benchmarks"]
 
     listed = _nav_pages(foundations)
     assert sorted(listed) == sorted(_relative(page) for page in PAGES)
@@ -346,6 +346,360 @@ def test_figure_budgets_agree_with_the_model_based_backends() -> None:
         _run_figure_program("data.map(([b, lv, o]) => { const r = V.fidelitySlice(b, lv, o); return [r.instances, r.seeds]; })", data)
         == expected
     )
+
+
+def _run_node(program: str) -> Any:
+    """Run a program after the figures' script, through stdin: its data can be too long for a command line."""
+    source = f"require({json.dumps(str(SCRIPT))});\n{program}"
+    completed = subprocess.run(["node", "-"], input=source, capture_output=True, text=True, check=True, timeout=60)
+    return json.loads(completed.stdout)
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_two_layer_lattice_figure_matches_vamos() -> None:
+    from vamos.engine.reference_directions import _two_layers, two_layer_shared
+
+    cases = [(2, 4, 2), (3, 4, 2), (3, 6, 1), (3, 6, 2), (3, 12, 3), (5, 3, 2), (8, 3, 2), (10, 3, 2)]
+    js = _run_node(f"""
+const V = globalThis.VamosFoundations;
+process.stdout.write(JSON.stringify({json.dumps(cases)}.map(([m, p1, p2]) => ({{ layers: V.twoLayerLattice(m, p1, p2), shared: V.twoLayerShared(m, p1, p2) }}))));
+""")
+    for (m, p1, p2), result in zip(cases, js):
+        boundary, inside = _two_layers(m, p1, p2)
+        np.testing.assert_allclose(result["layers"]["boundary"], boundary, rtol=0, atol=1e-12)
+        np.testing.assert_allclose(result["layers"]["inside"], inside, rtol=0, atol=1e-12)
+        assert result["shared"] == two_layer_shared(m, p1, p2), (m, p1, p2)
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_constraint_handling_figure_ranks_match_vamos() -> None:
+    from vamos.engine.algorithm.components.constrained_ranking import (
+        pareto_ranks,
+        stochastic_ranking_order,
+        stochastic_ranking_ranks,
+        violation,
+    )
+    from vamos.engine.algorithm.components.constraint_handling import make_constraint_handling
+    from vamos.foundation.kernel.registry import resolve_kernel
+
+    kernel = resolve_kernel("numpy")
+    rng = np.random.default_rng(20261121)
+    push_pull = {
+        "change_threshold": 0.001,
+        "window_fraction": 0.02,
+        "decay_fraction": 0.8,
+        "exponent": 2.0,
+        "feasibility_threshold": 0.95,
+        "reduction_rate": 0.1,
+    }
+    STATE = ("pushing", "epsilon")  # what a run teaches a technique
+    # The techniques of VAMOS 1.5.2, the published release; stochastic ranking is checked below with its uniforms.
+    techniques: list[tuple[str, dict[str, float], dict[str, Any]]] = [
+        ("cdp", {}, {}),
+        ("violated_constraints", {}, {}),
+        ("epsilon_constrained", {"initial_quantile": 0.2, "exponent": 5.0, "decay_fraction": 0.8}, {"epsilon": 0.25}),
+        ("push_pull", push_pull, {"pushing": True}),
+        ("push_pull", push_pull, {"pushing": False, "epsilon": 0.15}),
+        ("self_adaptive_penalty", {}, {}),
+    ]
+    populations = []
+    for size in (6, 10, 14):
+        for _ in range(4):
+            F = np.round(rng.random((size, 2)), 2)
+            G = rng.choice([-0.5, -0.1, 0.0, 0.05, 0.1, 0.2, 0.3], size=(size, 2))
+            F[1], G[1] = F[0], G[0]  # a duplicated solution
+            populations.append((F, G))
+    populations.append((np.array([[0.1, 0.9], [0.5, 0.5], [0.9, 0.1]]), np.full((3, 2), -1.0)))  # all feasible
+    populations.append((np.array([[0.1, 0.9], [0.5, 0.5], [0.9, 0.1]]), np.array([[0.2, 0.0], [0.1, 0.3], [0.2, 0.0]])))  # none feasible
+    cases = [
+        {
+            "name": name,
+            "F": F.tolist(),
+            "G": G.tolist(),
+            "options": {**params, **state},
+            "uniforms": rng.random(len(F) * (len(F) - 1)).tolist(),
+        }
+        for F, G in populations
+        for name, params, state in techniques
+    ]
+    js = _run_node(f"""
+const V = globalThis.VamosFoundations;
+process.stdout.write(JSON.stringify({json.dumps(cases)}.map((c) => {{
+  const sr = V.constraintRanks("stochastic_ranking", c.F, c.G, {{ probability: 0.45, uniforms: c.uniforms }});
+  return {{ ranks: V.constraintRanks(c.name, c.F, c.G, c.options).ranks, stochastic: sr.ranks, order: sr.order }};
+}})));
+""")
+    for case, result in zip(cases, js):
+        F, G = np.asarray(case["F"]), np.asarray(case["G"])
+        params = {key: value for key, value in case["options"].items() if key not in STATE}
+        technique: Any = make_constraint_handling((case["name"], params))
+        for key in STATE:
+            if key in case["options"]:
+                setattr(technique, key, case["options"][key])
+        expected = technique.ranks(kernel, F, G, np.random.default_rng(0))
+        assert result["ranks"] == expected.tolist(), (case["name"], case["options"], F.tolist(), G.tolist())
+        pareto = pareto_ranks(kernel, F)
+        feasible = np.all(G <= 0.0, axis=1)
+        order = stochastic_ranking_order(pareto, feasible, violation(G), np.asarray(case["uniforms"]), 0.45)
+        assert result["order"] == order.tolist()
+        assert result["stochastic"] == stochastic_ranking_ranks(order, pareto, feasible).tolist()
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_benchmark_figures_agree_with_vamos() -> None:
+    """The Benchmarks figures: their fronts match VAMOS' packaged fronts, and their maps VAMOS' problems."""
+    from scipy.spatial import cKDTree
+
+    from vamos import make_problem_selection
+    from vamos.foundation.problem.resolver import resolve_reference_front_path
+    from vamos.problems import DTLZ4
+    from vamos.resources import reference_front_path
+
+    rng = np.random.default_rng(20261122)
+    positions = rng.random((40, 4))
+    positions[0], positions[1] = 0.0, 1.0
+    ctp_designs = {}
+    for key in ("ctp1", "ctp2", "ctp3", "ctp4", "ctp5", "ctp6", "ctp7"):
+        problem = make_problem_selection(key).instantiate()
+        X = rng.uniform(problem.xl, problem.xu, size=(200, problem.n_var))
+        X[:100, 1:] = rng.normal(0.0, 0.05, size=(100, problem.n_var - 1))  # g close to 1, near the fronts
+        out: dict[str, np.ndarray] = {}
+        problem.evaluate(X, out)
+        ctp_designs[key] = (out["F"], np.maximum(out["G"], 0.0).sum(axis=1))
+    program = f"""
+require({json.dumps(str(SCRIPT))});
+const V = globalThis.VamosFoundations;
+const D = JSON.parse(require("fs").readFileSync(0, "utf8"));
+const fronts = {{}};
+for (const key of Object.keys(V.BENCHMARK_FRONTS)) fronts[key] = V.benchmarkFront(key, 4001);
+const ctpFronts = {{}};
+const violations = {{}};
+for (const key of Object.keys(D.ctp)) {{
+  ctpFronts[key] = V.ctpFront(key, 1001);
+  violations[key] = D.ctp[key].map((f) => V.ctpTotalViolation(key, f));
+}}
+const bias = {{
+  dtlz4: Object.fromEntries([1, 5, 100].map((a) => [a, D.u.map((u) => V.biasPoint("dtlz4", [u[0]], a))])),
+  zdt6: D.u.map((u) => V.biasPoint("zdt6", [u[0]])),
+  wfg1: D.u.map((u) => V.biasPoint("wfg1", u)),
+}};
+process.stdout.write(JSON.stringify({{ fronts, ctpFronts, violations, bias }}));
+"""
+    payload = json.dumps({"u": positions.tolist(), "ctp": {key: F.tolist() for key, (F, _) in ctp_designs.items()}})
+    completed = subprocess.run(["node", "-e", program], input=payload, capture_output=True, text=True, check=True, timeout=120)
+    js = json.loads(completed.stdout)
+
+    def assert_close_sets(figure: np.ndarray, reference: np.ndarray, label: str) -> None:
+        # Every point of each set lies within 1% of the reference front's range of a point of the other.
+        scale = reference.max(axis=0) - reference.min(axis=0)
+        a, b = figure / scale, reference / scale
+        assert cKDTree(b).query(a)[0].max() < 0.01, f"{label}: a figure point is off the reference front"
+        assert cKDTree(a).query(b)[0].max() < 0.01, f"{label}: the figure misses part of the reference front"
+
+    for key, points in js["fronts"].items():
+        path = resolve_reference_front_path(key, None, n_obj=2)
+        assert path is not None, key
+        assert_close_sets(np.asarray(points), np.loadtxt(path, delimiter=","), key)
+    for key, points in js["ctpFronts"].items():
+        assert_close_sets(np.asarray(points), np.loadtxt(reference_front_path(key), delimiter=","), key)
+        np.testing.assert_allclose(js["violations"][key], ctp_designs[key][1], rtol=1e-9, atol=1e-9, err_msg=key)
+
+    for alpha, points in js["bias"]["dtlz4"].items():
+        X = np.full((len(positions), 11), 0.5)
+        X[:, 0] = positions[:, 0]
+        out = {}
+        DTLZ4(n_var=11, n_obj=2, alpha=float(alpha)).evaluate(X, out)
+        np.testing.assert_allclose(points, out["F"], atol=1e-12, err_msg=f"DTLZ4, alpha = {alpha}")
+    zdt6 = make_problem_selection("zdt6").instantiate()
+    X = np.zeros((len(positions), zdt6.n_var))
+    X[:, 0] = positions[:, 0]
+    out = {}
+    zdt6.evaluate(X, out)
+    np.testing.assert_allclose(js["bias"]["zdt6"], out["F"], atol=1e-12)
+    # One distance variable, so that its optimum 0.35 * x_u is exactly 0.35 after normalization.
+    wfg1 = make_problem_selection("wfg1", n_var=5, n_obj=2).instantiate()
+    xu = np.asarray(wfg1.xu, dtype=float)
+    X = np.tile(0.35 * xu, (len(positions), 1))
+    assert X[0, 4] / xu[4] == 0.35
+    X[:, :4] = positions * xu[:4]
+    out = {}
+    wfg1.evaluate(X, out)
+    np.testing.assert_allclose(js["bias"]["wfg1"], out["F"], atol=1e-12)
+
+
+def _run_operator_ports(cases: dict[str, str], n: int) -> dict[str, list[list[float]]]:
+    """Children of the figures' operator ports: ``n`` calls of each JavaScript expression."""
+    program = f"""
+require({json.dumps(str(SCRIPT))});
+const V = globalThis.VamosFoundations;
+const O = V.operators;
+const P1 = [0.35, 0.3], P2 = [0.6, 0.55], P3 = [0.3, 0.7], X = [0.3, 0.6];
+const out = {{}};
+for (const [name, expr] of Object.entries({json.dumps(cases)})) {{
+  const r = V.mulberry32(17);
+  const run = new Function("O", "P1", "P2", "P3", "X", "r", "V", "return " + expr);
+  const rows = [];
+  for (let i = 0; i < {n}; i++) for (const c of run(O, P1, P2, P3, X, r, V)) rows.push(c);
+  out[name] = rows;
+}}
+process.stdout.write(JSON.stringify(out));
+"""
+    completed = subprocess.run(["node", "-e", program], capture_output=True, text=True, check=True, timeout=120)
+    return json.loads(completed.stdout)
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_real_operator_ports_sample_the_vamos_distributions() -> None:
+    from vamos.engine.operators.impl import real
+
+    n = 20_000
+    b = {"lower": np.zeros(2), "upper": np.ones(2)}
+    pair = np.tile(np.array([[[0.35, 0.3], [0.6, 0.55]]]), (n, 1, 1))
+    group = np.tile(np.array([[[0.35, 0.3], [0.6, 0.55], [0.3, 0.7]]]), (n, 1, 1))
+    x = np.tile(np.array([[0.3, 0.6]]), (n, 1))
+    cases: dict[str, tuple[str, Any]] = {
+        "blx_alpha": ("O.blxAlphaBeta(P1, P2, 0.5, 0.5, r)", lambda g: real.BLXAlphaCrossover(alpha=0.5, prob_crossover=1.0, **b)(pair, g)),
+        "blx_alpha_beta": (
+            "O.blxAlphaBeta(P1, P2, 0.2, 0.8, r)",
+            lambda g: real.BLXAlphaBetaCrossover(alpha=0.2, beta=0.8, prob_crossover=1.0, **b)(pair, g),
+        ),
+        "arithmetic": ("O.arithmetic(P1, P2, r)", lambda g: real.ArithmeticCrossover(prob_crossover=1.0)(pair, g)),
+        "laplace": ("O.laplace(P1, P2, 0.1, 0.5, r)", lambda g: real.LaplaceCrossover(a=0.1, b=0.5, prob_crossover=1.0, **b)(pair, g)),
+        "fuzzy": ("O.fuzzy(P1, P2, 0.5, 0, 1, r)", lambda g: real.FuzzyCrossover(d=0.5, prob_crossover=1.0, **b)(pair, g)),
+        "de": ("O.deMating(P1, P2, P3, 0.5, 0.6, r)", lambda g: real.DEMatingCrossover(F=0.5, CR=0.6, **b)(group, g)),
+        "pcx": ("O.pcx([P1, P2, P3], 0.1, 0.2, r)", lambda g: real.PCXCrossover(sigma_eta=0.1, sigma_zeta=0.2, **b)(group, g)),
+        "undx": ("O.undx([P1, P2, P3], 0.5, 0.35, r)", lambda g: real.UNDXCrossover(prob_crossover=1.0, zeta=0.5, eta=0.35, **b)(group, g)),
+        "simplex": ("O.spx([P1, P2, P3], null, r)", lambda g: real.SPXCrossover(**b)(group, g)),
+        "pm": (
+            "[V.polynomialMutation(X.slice(), 0, 1, 1, 20, r)]",
+            lambda g: real.PolynomialMutation(prob_mutation=1.0, eta=20.0, **b)(x, g),
+        ),
+        "gaussian": (
+            "[O.gaussianMutation(X, 0, 1, 0.5, 0.1, r)]",
+            lambda g: real.GaussianMutation(prob_mutation=0.5, sigma=0.1, **b)(x, g),
+        ),
+        "uniform": ("[O.uniformMutation(X, 0, 1, 1, 0.2, r)]", lambda g: real.UniformMutation(prob_mutation=1.0, perturb=0.2, **b)(x, g)),
+        "uniform_reset": ("[O.uniformReset(X, 0, 1, 1, r)]", lambda g: real.UniformResetMutation(prob_mutation=1.0, **b)(x, g)),
+        "non_uniform": ("[O.nonUniform(X, 0, 1, 1, r)]", lambda g: real.NonUniformMutation(prob_mutation=1.0, **b)(x, g)),
+        "cauchy": ("[O.cauchyMutation(X, 0, 1, 1, 0.1, r)]", lambda g: real.CauchyMutation(prob_mutation=1.0, gamma=0.1, **b)(x, g)),
+        "levy_flight": (
+            "[O.levyFlight(X, 0, 1, 1, 1.5, 0.05, r)]",
+            lambda g: real.LevyFlightMutation(prob_mutation=1.0, beta=1.5, scale=0.05, **b)(x, g),
+        ),
+        "power_law": ("[O.powerLaw(X, 0, 1, 1, 3, r)]", lambda g: real.PowerLawMutation(prob_mutation=1.0, index=3.0, **b)(x, g)),
+        "linked_polynomial": (
+            "[O.linkedPolynomial(X, 0, 1, 1, 5, r)]",
+            lambda g: real.LinkedPolynomialMutation(prob_mutation=1.0, eta=5.0, **b)(x, g),
+        ),
+    }
+    ports = _run_operator_ports({name: expr for name, (expr, _) in cases.items()}, n)
+    levels = [0.1, 0.25, 0.5, 0.75, 0.9]
+    for name, (_, operator) in cases.items():
+        expected = np.asarray(operator(np.random.default_rng(20261121)), dtype=float).reshape(-1, 2)
+        sampled = np.asarray(ports[name], dtype=float)
+        assert sampled.shape == expected.shape, name
+        q_js = np.quantile(sampled, levels, axis=0)
+        q_py = np.quantile(expected, levels, axis=0)
+        # Six standard errors of a sample quantile, sqrt(p (1 - p) / n) / density, with the density
+        # estimated from the quantiles 0.02 below and above.
+        spread = np.quantile(expected, np.add(levels, 0.02), axis=0) - np.quantile(expected, np.subtract(levels, 0.02), axis=0)
+        error = np.sqrt(np.multiply(levels, np.subtract(1, levels)) / len(expected))[:, None] * spread / 0.04
+        tolerance = 6 * error + 1e-3
+        assert np.all(np.abs(q_js - q_py) <= tolerance), f"{name}: {q_js.tolist()} != {q_py.tolist()}"
+    # Linked polynomial mutation: one draw per individual, so both variables move in the same direction.
+    steps = np.sign(np.asarray(ports["linked_polynomial"]) - [0.3, 0.6])
+    assert np.all(steps[:, 0] == steps[:, 1])
+    whole = real.WholeArithmeticCrossover(alpha=0.25, prob_crossover=1.0)(pair[:1], np.random.default_rng(0))
+    np.testing.assert_allclose(_run_operator_ports({"whole": "O.wholeArithmetic(P1, P2, 0.25)"}, 1)["whole"], whole[0], rtol=1e-12)
+
+
+class _Draws:
+    """A generator that returns prepared draws, to replay VAMOS operators with known cut points and masks."""
+
+    def __init__(self, *draws: object) -> None:
+        self._draws = list(draws)
+
+    def _next(self, *_: object, **__: object) -> Any:
+        return self._draws.pop(0)
+
+    random = integers = choice = _next
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_discrete_operator_ports_agree_with_vamos() -> None:
+    from vamos.engine.operators.impl import _permutation_crossovers as perm_cx
+    from vamos.engine.operators.impl import _permutation_mutations as perm_mut
+    from vamos.engine.operators.impl import binary
+
+    rng = np.random.default_rng(5)
+    exprs: list[str] = []
+    expected: list[object] = []
+
+    def check(expr: str, value: object) -> None:
+        exprs.append(expr)
+        expected.append(np.asarray(value).tolist())
+
+    n = 12
+    for _ in range(10):
+        p1, p2 = rng.integers(0, 2, n), rng.integers(0, 2, n)
+        parents = np.stack([p1, p2]).astype(np.int8)
+        a, b = sorted(rng.choice(n, 2, replace=False).tolist())
+        keep = rng.random(n) < 0.5
+        mask = rng.random(n) < 0.3
+        diff = np.flatnonzero(p1 != p2)
+        args = f"{json.dumps(p1.tolist())}, {json.dumps(p2.tolist())}"
+        check(f"O.onePoint({args}, {b})", binary.one_point_crossover(parents, 1.0, _Draws(np.zeros(1), np.array([b]))))
+        check(f"O.twoPoint({args}, {a}, {b})", binary.two_point_crossover(parents, 1.0, _Draws(np.zeros(1), np.array([[a, b]]))))
+        uniform = binary.uniform_crossover(parents, 1.0, _Draws(np.zeros(1), np.where(keep, 0.25, 0.75)[None]))
+        check(f"O.uniformBits({args}, {json.dumps(keep.tolist())})", uniform)
+        if diff.size:
+            chosen = np.sort(rng.choice(diff, max(1, diff.size // 2), replace=False))
+            check(f"O.hux({args}, {json.dumps(chosen.tolist())})", binary.hux_crossover(parents, 1.0, _Draws(np.zeros(1), chosen)))
+        flipped = p1[None].astype(np.int8)
+        binary.bit_flip_mutation(flipped, 0.3, _Draws(np.where(mask, 0.1, 0.9)[None]))
+        check(f"[O.bitFlip({json.dumps(p1.tolist())}, {json.dumps(mask.tolist())})]", flipped)
+        segment = p1[None].astype(np.int8)
+        binary.segment_inversion_mutation(segment, 1.0, _Draws(np.zeros(1), a, b - 1))
+        check(f"[O.segmentInversion({json.dumps(p1.tolist())}, {a}, {b})]", segment)
+
+    m = 8
+    for _ in range(10):
+        p1, p2 = rng.permutation(m), rng.permutation(m)
+        a, b = sorted(rng.choice(m, 2, replace=False).tolist())
+        start = int(rng.integers(m))
+        k = int(rng.integers(1, m + 1))
+        positions = rng.choice(m, k, replace=False)
+        keep = np.isin(np.arange(m), positions)
+        s1, s2, sk = (json.dumps(v.tolist()) for v in (p1, p2, keep))
+        pmx, ox, inverted, inserted = p1.copy(), p1.copy(), p1.copy(), p1.copy()
+        perm_cx._pmx_into(p1, p2, pmx, a, b)
+        perm_cx._order_crossover_into(p1, p2, ox, a, b)
+        perm_mut._inversion_row_mutation(inverted, _Draws(a, b - 1))
+        perm_mut._insert_row_mutation(inserted, _Draws(b, a))
+        check(f"[O.pmxChild({s1}, {s2}, {a}, {b})]", [pmx])
+        check(f"[O.oxChild({s1}, {s2}, {a}, {b})]", [ox])
+        check(f"O.cycle({s1}, {s2}, {start}).children", list(perm_cx._cycle_children(p1, p2, _Draws(start))))
+        positional = list(perm_cx._position_based_children(p1, p2, _Draws(k, positions)))
+        check(f"[O.positionBased({s1}, {s2}, {sk}), O.positionBased({s2}, {s1}, {sk})]", positional)
+        check(f"[O.invert({s1}, {a}, {b})]", [inverted])
+        check(f"[O.insert({s1}, {b}, {a})]", [inserted])
+
+    ports = _run_operator_ports({str(i): expr for i, expr in enumerate(exprs)}, 1)
+    for i, (expr, value) in enumerate(zip(exprs, expected)):
+        assert ports[str(i)] == value, f"{expr}: {ports[str(i)]} != {value}"
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_integer_sbx_port_rounds_like_vamos() -> None:
+    from vamos.engine.operators.impl.integer import integer_sbx_crossover
+
+    n = 20_000
+    parents = np.tile(np.array([[3], [4]]), (n, 1))
+    children = integer_sbx_crossover(parents, 1.0, 2.0, np.array([0]), np.array([10]), np.random.default_rng(3))
+    ports = np.asarray(_run_operator_ports({"int": "O.integerSbx([3], [4], 0, 10, 2, 0.5, r, false)"}, n)["int"])
+    for value in range(11):
+        assert abs(np.mean(ports == value) - np.mean(children == value)) <= 0.01, value
+    assert abs(ports.mean() - 3.5) <= 0.01
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")

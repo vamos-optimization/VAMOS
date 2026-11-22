@@ -430,6 +430,13 @@
   opacity: 0.7;
 }
 
+/* Operators: the cells of the binary and permutation step-throughs */
+
+.vf-cell-a { fill: color-mix(in srgb, var(--vf-s1) 20%, var(--vf-panel)); stroke: var(--vf-s1); stroke-width: 1; }
+.vf-cell-b { fill: color-mix(in srgb, var(--vf-s2) 20%, var(--vf-panel)); stroke: var(--vf-s2); stroke-width: 1; }
+.vf-cell-mark { fill: color-mix(in srgb, var(--vf-s3) 28%, var(--vf-panel)); stroke: var(--vf-ink); stroke-width: 2; }
+.vf-cell-empty { fill: var(--vf-panel); stroke: var(--vf-muted); stroke-width: 1; stroke-dasharray: 3 2; }
+
 @media (prefers-reduced-motion: reduce) {
   .md-typeset .vf-widget * {
     transition: none !important;
@@ -447,3 +454,18 @@
   outline-offset: 2px;
   border-radius: 6px;
 }
+
+/* Advanced extras: parallel coordinates, their brushes and the linked scatter-plot matrix */
+
+.vf-pc-line { fill: none; stroke: var(--vf-s1); stroke-width: 1.1; opacity: 0.55; }
+.vf-pc-line.vf-pc-off { stroke: var(--vf-muted); opacity: 0.18; }
+.vf-pc-dot { fill: var(--vf-s1); opacity: 0.85; }
+.vf-pc-dot.vf-pc-off { fill: var(--vf-muted); opacity: 0.35; }
+.vf-pc-brush { fill: var(--vf-s2); fill-opacity: 0.22; stroke: var(--vf-s2); stroke-width: 1.5; }
+.vf-pc-cell { fill: none; stroke: var(--vf-grid); }
+.vf-pc-adjacent { fill: none; stroke: var(--vf-s2); stroke-width: 1.5; }
+.vf-pc-grip { cursor: grab; touch-action: none; }
+.vf-pc-body { cursor: ns-resize; touch-action: none; }
+.vf-pc-ring { fill: none; stroke: none; }
+.vf-pc-axis:focus { outline: none; }
+.vf-pc-axis:focus-visible .vf-pc-ring { stroke: var(--vf-s2); stroke-width: 2.5; }

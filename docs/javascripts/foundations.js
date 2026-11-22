@@ -1444,6 +1444,793 @@
     return { budget: b, fraction: frac, instances, seeds };
   }
 
+  /* ---- Advanced extras: two-layer reference directions and constraint-handling techniques ---- */
+
+  /** The integer points of a Das and Dennis lattice: m non-negative integers that sum to p, in VAMOS's order. */
+  function latticeIntegers(m, p) {
+    const out = [];
+    const rec = (prefix, left, depth) => {
+      if (depth === m - 1) {
+        out.push(prefix.concat([left]));
+        return;
+      }
+      for (let i = 0; i <= left; i++) rec(prefix.concat([i]), left - i, depth + 1);
+    };
+    rec([], p, 0);
+    return out;
+  }
+
+  /** Deb and Jain's two layers, as VAMOS's two_layer_lattice: the lattice of p1, then that of p2 shrunk by half towards the centre. */
+  function twoLayerLattice(m, p1, p2) {
+    return {
+      boundary: dasDennis(m, p1),
+      inside: dasDennis(m, p2).map((w) => w.map((v) => v / 2 + 1 / (2 * m))),
+    };
+  }
+
+  /** How many inside directions repeat a boundary direction, compared exactly on a common grid (VAMOS's two_layer_shared). */
+  function twoLayerShared(m, p1, p2) {
+    const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+    const q = 2 * p2 * m;
+    const grid = (p1 / gcd(p1, q)) * q;
+    const boundary = new Set(latticeIntegers(m, p1).map((k) => k.map((v) => (v * grid) / p1).join(",")));
+    // An inside coordinate is (k / p2) / 2 + 1 / (2 m) = (k m + p2) / q.
+    return latticeIntegers(m, p2).filter((k) => boundary.has(k.map((v) => ((v * m + p2) * grid) / q).join(","))).length;
+  }
+
+  /** The overall violation of each row: the sum of its positive constraint values (G <= 0 is feasible). */
+  function overallViolation(G) {
+    return G.map((g) => g.reduce((acc, v) => acc + Math.max(0, v), 0));
+  }
+
+  function violatedCount(G) {
+    return G.map((g) => g.filter((v) => v > 0).length);
+  }
+
+  function paretoRanks(F) {
+    return F.length ? nonDominatedSort(F).rank : [];
+  }
+
+  /** Deb's feasibility rule over a measure, as VAMOS's ranks_by_violation: feasible fronts first, then one group per value. */
+  function ranksByViolation(F, measure, objectivesOnTies) {
+    const n = F.length;
+    const ranks = new Array(n).fill(0);
+    const rows = Array.from({ length: n }, (_, i) => i);
+    const feasible = rows.filter((i) => measure[i] <= 0);
+    let offset = 0;
+    if (feasible.length) {
+      const r = paretoRanks(feasible.map((i) => F[i]));
+      feasible.forEach((row, a) => (ranks[row] = r[a]));
+      offset = Math.max(...r) + 1;
+    }
+    const infeasible = rows.filter((i) => !(measure[i] <= 0)).sort((a, b) => measure[a] - measure[b] || a - b);
+    for (let start = 0; start < infeasible.length; ) {
+      let end = start + 1;
+      while (end < infeasible.length && measure[infeasible[end]] === measure[infeasible[start]]) end += 1;
+      const members = infeasible.slice(start, end);
+      if (objectivesOnTies && members.length > 1) {
+        const r = paretoRanks(members.map((i) => F[i]));
+        members.forEach((row, a) => (ranks[row] = offset + r[a]));
+        offset += Math.max(...r) + 1;
+      } else {
+        members.forEach((row) => (ranks[row] = offset));
+        offset += 1;
+      }
+      start = end;
+    }
+    return ranks;
+  }
+
+  /** Runarsson and Yao's stochastic bubble sort, as VAMOS's stochastic_ranking_order, with the uniforms drawn in order. */
+  function stochasticRankingOrder(paretoRank, feasible, measure, uniforms, probability) {
+    const n = paretoRank.length;
+    const order = Array.from({ length: n }, (_, i) => i);
+    let drawn = 0;
+    for (let sweep = 0; sweep < n; sweep++) {
+      let swapped = false;
+      for (let j = 0; j < n - 1; j++) {
+        const first = order[j];
+        const second = order[j + 1];
+        let byRank = true;
+        if (!(feasible[first] && feasible[second])) {
+          byRank = uniforms[drawn] < probability;
+          drawn += 1;
+        }
+        if (byRank ? paretoRank[second] < paretoRank[first] : measure[second] < measure[first]) {
+          order[j] = second;
+          order[j + 1] = first;
+          swapped = true;
+        }
+      }
+      if (!swapped) break;
+    }
+    return order;
+  }
+
+  /** The fronts of a stochastic ranking: runs of consecutive feasible rows with the same Pareto rank. */
+  function stochasticRankingRanks(order, paretoRank, feasible) {
+    const ranks = new Array(order.length).fill(0);
+    let level = 0;
+    order.forEach((row, a) => {
+      const prev = order[a - 1];
+      if (a > 0 && !(feasible[prev] && feasible[row] && paretoRank[prev] === paretoRank[row])) level += 1;
+      ranks[row] = level;
+    });
+    return ranks;
+  }
+
+  /** Woldesenbet, Yen and Tessema's modified objectives, as VAMOS's self_adaptive_penalty_objectives. */
+  function selfAdaptivePenaltyObjectives(F, G) {
+    const n = F.length;
+    const m = F[0].length;
+    const c = G[0].length;
+    const excess = G.map((g) => g.map((v) => Math.max(0, v)));
+    const largest = Array.from({ length: c }, (_, j) => Math.max(...excess.map((e) => e[j])));
+    const penalty = excess.map((e) => (c > 0 ? e.reduce((acc, v, j) => acc + (largest[j] > 0 ? v / largest[j] : 0), 0) / c : 0));
+    const feasible = excess.map((e) => e.every((v) => v <= 0));
+    const ratio = feasible.filter(Boolean).length / n;
+    const low = Array.from({ length: m }, (_, i) => Math.min(...F.map((f) => f[i])));
+    const high = Array.from({ length: m }, (_, i) => Math.max(...F.map((f) => f[i])));
+    return F.map((f, r) =>
+      f.map((v, i) => {
+        const span = high[i] - low[i];
+        const normalized = span > 0 ? (v - low[i]) / span : 0;
+        const distance = ratio === 0 ? penalty[r] : Math.sqrt(normalized * normalized + penalty[r] * penalty[r]);
+        const violationPenalty = ratio === 0 ? 0 : penalty[r];
+        const objectivePenalty = feasible[r] ? 0 : normalized;
+        return distance + (1 - ratio) * violationPenalty + ratio * objectivePenalty;
+      })
+    );
+  }
+
+  /** The fronts of a population under a constraint-handling technique of VAMOS, and the objectives it ranks, if modified. */
+  function constraintRanks(name, F, G, options) {
+    const o = options || {};
+    const cv = overallViolation(G);
+    if (name === "cdp") return { ranks: ranksByViolation(F, cv, true) };
+    if (name === "violated_constraints") return { ranks: ranksByViolation(F, violatedCount(G), true) };
+    if (name === "push_pull" && o.pushing) return { ranks: paretoRanks(F) };
+    if (name === "epsilon_constrained" || name === "push_pull") {
+      const epsilon = o.epsilon || 0;
+      return { ranks: ranksByViolation(F, cv.map((v) => (v <= epsilon ? 0 : v)), false) };
+    }
+    if (name === "stochastic_ranking") {
+      const pareto = paretoRanks(F);
+      const feasible = cv.map((v) => v <= 0);
+      const order = stochasticRankingOrder(pareto, feasible, cv, o.uniforms, o.probability);
+      return { ranks: stochasticRankingRanks(order, pareto, feasible), order };
+    }
+    if (name === "self_adaptive_penalty") {
+      const objectives = selfAdaptivePenaltyObjectives(F, G);
+      return { ranks: paretoRanks(objectives), objectives };
+    }
+    throw new Error("Unknown constraint-handling technique " + name);
+  }
+
+  /* ---- Benchmarks: two-objective fronts, position bias and CTP feasibility ---- */
+
+  /* The two-objective Pareto fronts of the Benchmarks lessons, written in closed form from the
+     definitions in src/vamos/foundation/problem/ (zdt*.py, dtlz.py and wfg.py): point(t) maps a
+     position parameter t in [lo, hi] to the objective vector at the optimal distance variables.
+     tests/docs/test_foundations.py compares every front with VAMOS' packaged reference front. */
+  const HALF_PI = Math.PI / 2;
+  const WFG_CONCAVE = "Concave: the quarter ellipse (f₁/2)² + (f₂/4)² = 1";
+  const BENCHMARK_FRONTS = {
+    zdt1: {
+      label: "ZDT1",
+      point: (t) => [t, 1 - Math.sqrt(t)],
+      shape: "Convex",
+      tests: "Convergence and spread on a simple convex front; the usual first test",
+      separable: "Yes",
+      objectives: "2",
+      n: "30",
+      files: "2 objectives",
+    },
+    zdt2: {
+      label: "ZDT2",
+      point: (t) => [t, 1 - t * t],
+      shape: "Concave",
+      tests: "A concave front, whose inner points no weighted sum of the objectives can reach",
+      separable: "Yes",
+      objectives: "2",
+      n: "30",
+      files: "2 objectives",
+    },
+    zdt3: {
+      label: "ZDT3",
+      point: (t) => [t, 1 - Math.sqrt(t) - t * Math.sin(10 * Math.PI * t)],
+      shape: "Disconnected: five pieces",
+      tests: "Keeping solutions on every piece of a disconnected front",
+      separable: "Yes",
+      objectives: "2",
+      n: "30",
+      files: "2 objectives",
+    },
+    zdt4: {
+      label: "ZDT4",
+      point: (t) => [t, 1 - Math.sqrt(t)],
+      shape: "Convex (ZDT1's front)",
+      tests: "Multimodality: a Rastrigin-type g with 21⁹ local fronts for n = 10",
+      separable: "Yes",
+      objectives: "2",
+      n: "10",
+      files: "2 objectives",
+    },
+    zdt6: {
+      label: "ZDT6",
+      point: (t) => [t, 1 - t * t],
+      lo: 0.2807753191,
+      shape: "Concave, from f₁ ≈ 0.281",
+      tests: "Bias: uniform x₁ crowds near f₁ = 1, and the density of solutions falls towards the front",
+      separable: "Yes",
+      objectives: "2",
+      n: "10",
+      files: "2 objectives",
+    },
+    dtlz1: {
+      label: "DTLZ1",
+      point: (t) => [0.5 * t, 0.5 * (1 - t)],
+      shape: "Linear: f₁ + … + f_M = 0.5",
+      tests: "Multimodality: 11 local minima per distance variable, 11ᵏ − 1 local fronts",
+      separable: "Yes",
+      objectives: "Any M ≥ 2",
+      n: "M + 4",
+      files: "2, 3, 4, 6 and 8 objectives",
+    },
+    dtlz2: {
+      label: "DTLZ2",
+      point: (t) => [Math.cos(t * HALF_PI), Math.sin(t * HALF_PI)],
+      shape: "Concave: the unit sphere, f₁² + … + f_M² = 1",
+      tests: "Scaling the number of objectives on a smooth unimodal problem",
+      separable: "Yes",
+      objectives: "Any M ≥ 2",
+      n: "M + 9",
+      files: "2, 3, 4, 6 and 8 objectives",
+    },
+    dtlz3: {
+      label: "DTLZ3",
+      point: (t) => [Math.cos(t * HALF_PI), Math.sin(t * HALF_PI)],
+      shape: "Concave (DTLZ2's front)",
+      tests: "Multimodality on the sphere: DTLZ1's distance function with DTLZ2's shape",
+      separable: "Yes",
+      objectives: "Any M ≥ 2",
+      n: "M + 9",
+      files: "2 and 3 objectives; DTLZ2's for 4, 6 and 8",
+    },
+    dtlz4: {
+      label: "DTLZ4",
+      point: (t) => [Math.cos(t * HALF_PI), Math.sin(t * HALF_PI)],
+      shape: "Concave (DTLZ2's front)",
+      tests: "Bias: the position variables are raised to α = 100, which crowds solutions at one end",
+      separable: "Yes",
+      objectives: "Any M ≥ 2",
+      n: "M + 9",
+      files: "2 and 3 objectives; DTLZ2's for 4, 6 and 8",
+    },
+    dtlz7: {
+      label: "DTLZ7",
+      point: (t) => [t, 4 - t * (1 + Math.sin(3 * Math.PI * t))],
+      shape: "Disconnected: 2^(M−1) pieces, two with M = 2",
+      tests: "A disconnected front in any number of objectives",
+      separable: "Yes",
+      objectives: "Any M ≥ 2",
+      n: "M + 19",
+      files: "2, 3, 4, 6 and 8 objectives",
+    },
+    idtlz2: {
+      label: "IDTLZ2",
+      point: (t) => [1 - Math.cos(t * HALF_PI), 1 - Math.sin(t * HALF_PI)],
+      shape: "Convex: DTLZ2's sphere turned over",
+      tests: "An inverted front, which many evenly spread weight vectors miss",
+      separable: "Yes",
+      objectives: "Any M ≥ 2",
+      n: "M + 9",
+      files: "2 and 3 objectives",
+    },
+    wfg1: {
+      label: "WFG1",
+      point: (t) => [2 * (1 - Math.cos(t * HALF_PI)), 4 * (1 - t - Math.cos(10 * Math.PI * t + HALF_PI) / (10 * Math.PI))],
+      shape: "Convex and mixed",
+      tests: "Bias: flat regions and a polynomial bias with exponent 0.02",
+      separable: "Yes",
+      objectives: "Any M ≥ 2",
+      n: "24",
+      files: "2 objectives",
+    },
+    wfg2: {
+      label: "WFG2",
+      point: (t) => [2 * (1 - Math.cos(t * HALF_PI)), 4 * (1 - t * Math.cos(5 * Math.PI * t) ** 2)],
+      shape: "Convex and disconnected",
+      tests: "Non-separable distance variables and a disconnected front",
+      separable: "No",
+      objectives: "Any M ≥ 2",
+      n: "24",
+      files: "2 objectives",
+    },
+    wfg3: {
+      label: "WFG3",
+      point: (t) => [2 * t, 4 * (1 - t)],
+      shape: "Linear; designed to be degenerate for M ≥ 3",
+      tests: "Non-separable variables and a front of lower dimension than M − 1",
+      separable: "No",
+      objectives: "Any M ≥ 2",
+      n: "24",
+      files: "2 objectives",
+    },
+    wfg4: { label: "WFG4", tests: "Multimodality: many local optima in every variable", separable: "Yes" },
+    wfg5: { label: "WFG5", tests: "Deception: a broad local optimum that leads away from the global one", separable: "Yes" },
+    wfg6: { label: "WFG6", tests: "Non-separable variables", separable: "No" },
+    wfg7: { label: "WFG7", tests: "Parameter-dependent bias: the position variables depend on the distance variables", separable: "Yes" },
+    wfg8: { label: "WFG8", tests: "Parameter-dependent bias: the distance variables depend on the position variables", separable: "No" },
+    wfg9: { label: "WFG9", tests: "Parameter-dependent bias, multimodality and deception together", separable: "No" },
+  };
+  for (const key of ["wfg4", "wfg5", "wfg6", "wfg7", "wfg8", "wfg9"]) {
+    Object.assign(BENCHMARK_FRONTS[key], {
+      point: (t) => [2 * Math.sin(t * HALF_PI), 4 * Math.cos(t * HALF_PI)],
+      shape: WFG_CONCAVE,
+      objectives: "Any M ≥ 2",
+      n: "24",
+      files: "2 objectives",
+    });
+  }
+
+  /** The non-dominated points of a two-objective set, sorted by f₁. */
+  function nonDominated2d(points) {
+    const sorted = points.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const out = [];
+    for (const p of sorted) if (!out.length || p[1] < out[out.length - 1][1]) out.push(p);
+    return out;
+  }
+
+  /** n evenly spaced values of a front's position parameter, mapped and filtered for non-dominance. */
+  function benchmarkFront(key, n) {
+    const front = BENCHMARK_FRONTS[key];
+    const lo = front.lo || 0;
+    const pts = [];
+    for (let i = 0; i < n; i++) pts.push(front.point(lo + ((1 - lo) * i) / (n - 1)));
+    return nonDominated2d(pts);
+  }
+
+  /** The pieces of a sorted two-objective front: a gap in f₁ wider than `gap` times its range starts a new one. */
+  function frontPieces(pts, gap) {
+    const span = pts[pts.length - 1][0] - pts[0][0] || 1;
+    const pieces = [[pts[0]]];
+    for (let i = 1; i < pts.length; i++) {
+      if (pts[i][0] - pts[i - 1][0] > gap * span) pieces.push([]);
+      pieces[pieces.length - 1].push(pts[i]);
+    }
+    return pieces;
+  }
+
+  /* Position bias: where a Pareto-optimal solution lands on the front, from its position variables u in
+     [0, 1] (the distance variables at their optimum), for M = 2. position(u, alpha) returns the front
+     parameter t of BENCHMARK_FRONTS[front].point(t): DTLZ4 raises its position variable to α, 100 by
+     default (dtlz.py; α = 1 is DTLZ2); ZDT6 maps x₁ through f₁ = 1 − exp(−4x₁) sin⁶(6πx₁) (zdt6.py); WFG1
+     applies its polynomial bias y^0.02 to its four position variables and reduces them by a weighted sum
+     with weights 2, 4, 6 and 8 (wfg.py). */
+  const BIAS_PROBLEMS = {
+    dtlz4: { label: "DTLZ4 (DTLZ2 when α = 1)", positions: 1, front: "dtlz4", position: (u, alpha) => Math.pow(u[0], alpha) },
+    zdt6: { label: "ZDT6", positions: 1, front: "zdt6", position: (u) => 1 - Math.exp(-4 * u[0]) * Math.pow(Math.sin(6 * Math.PI * u[0]), 6) },
+    wfg1: {
+      label: "WFG1",
+      positions: 4,
+      front: "wfg1",
+      position(u) {
+        let num = 0;
+        let den = 0;
+        u.forEach((v, i) => {
+          num += 2 * (i + 1) * Math.pow(v, 0.02);
+          den += 2 * (i + 1);
+        });
+        return num / den;
+      },
+    },
+  };
+
+  function biasPoint(key, u, alpha) {
+    const problem = BIAS_PROBLEMS[key];
+    return BENCHMARK_FRONTS[problem.front].point(problem.position(u, alpha));
+  }
+
+  /* CTP1-CTP7 of Deb, Pratap and Meyarivan (2001) in objective space, with the parameters of
+     src/vamos/foundation/problem/ctp.py. Every design has g ≥ 1, so the attainable region lies on or above
+     the unconstrained front: f₂ ≥ exp(−f₁) for CTP1 and f₂ ≥ 1 − f₁ for CTP2-CTP7. */
+  const CTP_PROBLEMS = {
+    ctp1: { a: [0.858266, 0.728234], b: [0.541475, 0.295039], ymax: 1.2 },
+    ctp2: { theta: -0.2 * Math.PI, a: 0.2, b: 10, c: 1, d: 6, e: 1, ymax: 1.6 },
+    ctp3: { theta: -0.2 * Math.PI, a: 0.1, b: 10, c: 1, d: 0.5, e: 1, ymax: 1.6 },
+    ctp4: { theta: -0.2 * Math.PI, a: 0.75, b: 10, c: 1, d: 0.5, e: 1, ymax: 2.4 },
+    ctp5: { theta: -0.2 * Math.PI, a: 0.1, b: 10, c: 2, d: 0.5, e: 1, ymax: 1.6 },
+    ctp6: { theta: 0.1 * Math.PI, a: 40, b: 0.5, c: 1, d: 2, e: -2, ymax: 20 },
+    ctp7: { theta: -0.05 * Math.PI, a: 40, b: 5, c: 1, d: 6, e: 0, ymax: 2 },
+  };
+
+  function ctpBase(key, f1) {
+    return key === "ctp1" ? Math.exp(-f1) : 1 - f1;
+  }
+
+  /** The total violation of CTP1-CTP7 at an objective vector, as VAMOS' G with its positive parts summed. */
+  function ctpTotalViolation(key, f) {
+    const p = CTP_PROBLEMS[key];
+    if (key === "ctp1") return p.a.reduce((sum, a, j) => sum + Math.max(0, a * Math.exp(-p.b[j] * f[0]) - f[1]), 0);
+    return ctpViolation(f, p);
+  }
+
+  /** The constrained front of a CTP problem: for n values of f₁, the least feasible f₂ on or above the
+      unconstrained front (scanned, then refined by bisection), filtered for non-dominance. */
+  function ctpFront(key, n) {
+    const top = CTP_PROBLEMS[key].ymax;
+    const lowest = [];
+    for (let i = 0; i < n; i++) {
+      const f1 = i / (n - 1);
+      const base = ctpBase(key, f1);
+      const step = (top - base) / 2000;
+      if (ctpTotalViolation(key, [f1, base]) <= 0) {
+        lowest.push([f1, base]);
+        continue;
+      }
+      for (let k = 1; k <= 2000; k++) {
+        const f2 = base + k * step;
+        if (ctpTotalViolation(key, [f1, f2]) > 0) continue;
+        let lo = f2 - step;
+        let hi = f2;
+        for (let it = 0; it < 40; it++) {
+          const mid = 0.5 * (lo + hi);
+          if (ctpTotalViolation(key, [f1, mid]) > 0) lo = mid;
+          else hi = mid;
+        }
+        lowest.push([f1, hi]);
+        break;
+      }
+    }
+    if (key !== "ctp1") {
+      // Add the isolated optima that a scan can miss: on the line cos(θ) (f₂ − e) = sin(θ) f₁, where the
+      // left side of the constraint is 0, sin(θ) (f₂ − e) + cos(θ) f₁ = f₁ / cos(θ), and the sine vanishes
+      // where (f₁ / cos(θ))^c = j / b.
+      const p = CTP_PROBLEMS[key];
+      for (let j = 0; j <= 200; j++) {
+        const f1 = Math.cos(p.theta) * Math.pow(j / p.b, 1 / p.c);
+        const f2 = p.e + f1 * Math.tan(p.theta);
+        if (f1 <= 1 && f2 >= ctpBase(key, f1) && ctpTotalViolation(key, [f1, f2]) <= 1e-6) lowest.push([f1, f2]);
+      }
+    }
+    return nonDominated2d(lowest);
+  }
+
+  /* ---- Operators: ports of the VAMOS variation operators (engine/operators/impl) ---- */
+
+  /** Gamma function (Lanczos approximation), for the Lévy flight scale of Mantegna's algorithm. */
+  function gammaFn(z) {
+    if (z < 0.5) return Math.PI / (Math.sin(Math.PI * z) * gammaFn(1 - z));
+    const c = [0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313, -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
+    const x = z - 1;
+    let a = c[0];
+    const t = x + 7.5;
+    for (let i = 1; i < 9; i++) a += c[i] / (x + i);
+    return Math.sqrt(2 * Math.PI) * Math.pow(t, x + 0.5) * Math.exp(-t) * a;
+  }
+
+  /** ``v`` with its component along ``d`` removed (multi_parent._remove_component). */
+  function removeComponent(v, d) {
+    const dd = Math.max(d.reduce((s, x) => s + x * x, 0), 1e-32);
+    const k = v.reduce((s, x, i) => s + x * d[i], 0) / dd;
+    return v.map((x, i) => x - k * d[i]);
+  }
+
+  const norm = (v) => Math.hypot(...v);
+
+  /** NumPy's rint: round half to even. */
+  function rint(x) {
+    const f = Math.floor(x);
+    const d = x - f;
+    if (d > 0.5) return f + 1;
+    if (d < 0.5) return f;
+    return f % 2 === 0 ? f : f + 1;
+  }
+
+  const OPERATORS = {
+    /* Real-coded crossovers: two parents in, two children out (impl/real/crossover_blend.py, crossover_stochastic.py). */
+    blxAlphaBeta(p1, p2, alpha, beta, rand) {
+      const c1 = [];
+      const c2 = [];
+      for (let j = 0; j < p1.length; j++) {
+        const lo = Math.min(p1[j], p2[j]);
+        const span = Math.max(p1[j], p2[j]) - lo;
+        const a = lo - alpha * span;
+        const width = lo + span + beta * span - a;
+        c1.push(a + rand() * width);
+        c2.push(a + rand() * width);
+      }
+      return [c1, c2];
+    },
+    arithmetic(p1, p2, rand) {
+      const lam = rand();
+      return [p1.map((v, j) => lam * v + (1 - lam) * p2[j]), p1.map((v, j) => (1 - lam) * v + lam * p2[j])];
+    },
+    wholeArithmetic(p1, p2, alpha) {
+      return [p1.map((v, j) => alpha * v + (1 - alpha) * p2[j]), p1.map((v, j) => (1 - alpha) * v + alpha * p2[j])];
+    },
+    laplace(p1, p2, a, b, rand) {
+      const beta = () => {
+        const u = rand();
+        return a + b * Math.sign(u - 0.5) * Math.log(Math.max(1 - 2 * Math.abs(u - 0.5), 1e-30));
+      };
+      return [p1.map((v, j) => v + beta() * Math.abs(p1[j] - p2[j])), p2.map((v, j) => v + beta() * Math.abs(p1[j] - p2[j]))];
+    },
+    fuzzy(p1, p2, d, lower, upper, rand) {
+      const c1 = [];
+      const c2 = [];
+      for (let j = 0; j < p1.length; j++) {
+        const lo = Math.min(p1[j], p2[j]);
+        const hi = Math.max(p1[j], p2[j]);
+        const span = hi - lo;
+        const tlo = Math.min(upper, Math.max(lower, lo - d * span));
+        const thi = Math.min(upper, Math.max(lower, hi + d * span));
+        const mode = Math.min(thi, Math.max(tlo, 0.5 * (p1[j] + p2[j])));
+        for (const c of [c1, c2]) {
+          const u = rand();
+          if (thi - tlo < 1e-30) {
+            c.push(mode);
+            continue;
+          }
+          const w = thi - tlo;
+          const fc = (mode - tlo) / w;
+          c.push(u < fc ? tlo + Math.sqrt(u * w * fc * w) : thi - Math.sqrt((1 - u) * w * (1 - fc) * w));
+        }
+      }
+      return [c1, c2];
+    },
+    /* Three-parent crossovers (impl/real/crossover_differential.py, crossover_multi_parent.py). */
+    deMating(x, a, b, F, CR, rand) {
+      const n = x.length;
+      const jr = Math.min(n - 1, Math.floor(rand() * n));
+      return [x.map((v, j) => (rand() < CR || j === jr ? v + F * (a[j] - b[j]) : v))];
+    },
+    pcx(group, sigmaEta, sigmaZeta, rand) {
+      const n = group[0].length;
+      const g = group[0].map((_, i) => group.reduce((s, p) => s + p[i], 0) / group.length);
+      return group.map((xj, j) => {
+        const d = g.map((v, i) => v - xj[i]);
+        const others = group.filter((_, q) => q !== j).map((p) => removeComponent(p.map((v, i) => v - xj[i]), d));
+        const D = others.reduce((s, v) => s + norm(v), 0) / others.length;
+        const noise = removeComponent(
+          Array.from({ length: n }, () => gaussian(rand) * sigmaEta * D),
+          d
+        );
+        const w = gaussian(rand) * sigmaZeta;
+        return xj.map((v, i) => v + w * d[i] + noise[i]);
+      });
+    },
+    undx(group, zeta, eta, rand) {
+      const [p1, p2, p3] = group;
+      const n = p1.length;
+      const d = p2.map((v, i) => v - p1[i]);
+      if (norm(d) < 1e-10) return [p1.slice(), p2.slice()];
+      const m = p1.map((v, i) => 0.5 * (v + p2[i]));
+      const D = norm(removeComponent(p3.map((v, i) => v - m[i]), d));
+      const xi = gaussian(rand) * zeta;
+      const orth = removeComponent(
+        Array.from({ length: n }, () => gaussian(rand) * (eta / Math.sqrt(n)) * D),
+        d
+      );
+      const step = d.map((v, i) => xi * v + orth[i]);
+      return [m.map((v, i) => v + step[i]), m.map((v, i) => v - step[i])];
+    },
+    spx(group, epsilon, rand) {
+      const k = group.length;
+      const eps = epsilon === undefined || epsilon === null ? Math.sqrt(k + 1) : epsilon;
+      const o = group[0].map((_, i) => group.reduce((s, p) => s + p[i], 0) / k);
+      return group.map(() => {
+        const e = group.map(() => -Math.log(Math.max(rand(), 1e-300)));
+        const total = e.reduce((s, v) => s + v, 0);
+        return o.map((ov, i) => ov + eps * (group.reduce((s, p, q) => s + (e[q] / total) * p[i], 0) - ov));
+      });
+    },
+    /* Real-coded mutations: each variable is mutated with probability prob (impl/real/mutation.py). */
+    gaussianMutation(x, lower, upper, prob, sigma, rand) {
+      return x.map((v) => (rand() <= prob ? v + gaussian(rand) * sigma * (upper - lower) : v));
+    },
+    uniformMutation(x, lower, upper, prob, perturb, rand) {
+      return x.map((v) => (rand() <= prob ? v + (rand() * 2 - 1) * perturb * (upper - lower) : v));
+    },
+    uniformReset(x, lower, upper, prob, rand) {
+      return x.map((v) => (rand() <= prob ? lower + rand() * (upper - lower) : v));
+    },
+    nonUniform(x, lower, upper, prob, rand) {
+      // The step y (1 - r^((1 - t/T)^b)) with the run's progress t/T = 0, as in VAMOS: y (1 - r).
+      return x.map((v) => {
+        if (!(rand() <= prob)) return v;
+        const delta = 1 - rand();
+        return v + delta * (rand() <= 0.5 ? upper - v : lower - v);
+      });
+    },
+    cauchyMutation(x, lower, upper, prob, gamma, rand) {
+      return x.map((v) => (rand() <= prob ? v + Math.tan(Math.PI * (rand() - 0.5)) * gamma * (upper - lower) : v));
+    },
+    levyFlight(x, lower, upper, prob, beta, scale, rand) {
+      const num = gammaFn(1 + beta) * Math.sin((Math.PI * beta) / 2);
+      const den = gammaFn((1 + beta) / 2) * beta * Math.pow(2, (beta - 1) / 2);
+      const sigmaU = Math.pow(num / den, 1 / beta);
+      return x.map((v) => {
+        if (!(rand() <= prob)) return v;
+        const step = (gaussian(rand) * sigmaU) / (Math.pow(Math.abs(gaussian(rand)), 1 / beta) + 1e-30);
+        return v + scale * step * (upper - lower);
+      });
+    },
+    powerLaw(x, lower, upper, prob, index, rand) {
+      return x.map((v) => {
+        if (!(rand() <= prob)) return v;
+        const s = Math.pow(rand(), index);
+        const t = (v - lower) / (upper - lower);
+        const y = t < rand() ? v - s * (v - lower) : v + s * (upper - v);
+        return Math.min(upper, Math.max(lower, y));
+      });
+    },
+    linkedPolynomial(x, lower, upper, prob, eta, rand) {
+      // One draw u per individual, shared by all of its mutated variables.
+      const mask = x.map(() => rand() <= prob);
+      const u = rand();
+      return x.map((v, j) => (mask[j] ? polynomialMutation([v], lower, upper, 1, eta, () => u)[0] : v));
+    },
+
+    /* Binary operators (impl/binary.py); the draws follow VAMOS's ranges. */
+    onePoint(p1, p2, cut) {
+      return [p1.slice(0, cut).concat(p2.slice(cut)), p2.slice(0, cut).concat(p1.slice(cut))];
+    },
+    twoPoint(p1, p2, lo, hi) {
+      return [p1.map((v, j) => (j >= lo && j < hi ? p2[j] : v)), p2.map((v, j) => (j >= lo && j < hi ? p1[j] : v))];
+    },
+    uniformBits(p1, p2, keep) {
+      return [p1.map((v, j) => (keep[j] ? v : p2[j])), p2.map((v, j) => (keep[j] ? v : p1[j]))];
+    },
+    hux(p1, p2, chosen) {
+      const set = new Set(chosen);
+      return [p1.map((v, j) => (set.has(j) ? p2[j] : v)), p2.map((v, j) => (set.has(j) ? p1[j] : v))];
+    },
+    bitFlip(x, mask) {
+      return x.map((v, j) => (mask[j] ? 1 - v : v));
+    },
+    segmentInversion(x, a, b) {
+      return x.map((v, j) => (j >= a && j <= b ? 1 - v : v));
+    },
+    drawOnePoint(n, rand) {
+      return 1 + Math.floor(rand() * (n - 1));
+    },
+    drawTwoPoint(n, rand) {
+      const a = Math.floor(rand() * n);
+      const b = Math.floor(rand() * n);
+      const lo = Math.min(a, b);
+      return [lo, Math.min(n, Math.max(Math.max(a, b), lo + 1))];
+    },
+    drawHux(p1, p2, rand) {
+      const diff = p1.map((v, j) => (v !== p2[j] ? j : -1)).filter((j) => j >= 0);
+      if (!diff.length) return [];
+      const count = Math.max(1, Math.floor(diff.length / 2));
+      const pool = diff.slice();
+      for (let i = pool.length - 1; i > 0; i--) {
+        const k = Math.floor(rand() * (i + 1));
+        [pool[i], pool[k]] = [pool[k], pool[i]];
+      }
+      return pool.slice(0, count).sort((x, y) => x - y);
+    },
+    /** Two distinct positions a < b (permutation two_cut_points and segment inversion). */
+    drawSegment(n, rand) {
+      const a = Math.floor(rand() * n);
+      let b = Math.floor(rand() * (n - 1));
+      if (b >= a) b += 1;
+      return [Math.min(a, b), Math.max(a, b)];
+    },
+
+    /* Integer SBX: the bounded SBX of the real-coded lesson, clamped and rounded (impl/integer.py). */
+    integerSbx(p1, p2, lower, upper, eta, probVar, rand, truncate) {
+      const round = truncate ? Math.trunc : rint;
+      return sbxPair(p1, p2, lower, upper, eta, probVar, rand).map((c) => c.map((v) => round(Math.min(upper, Math.max(lower, v)))));
+    },
+
+    /* Permutation operators (impl/_permutation_crossovers.py, _permutation_mutations.py). */
+    pmxChild(a, b, cut1, cut2) {
+      const map = new Map();
+      for (let i = cut1; i <= cut2; i++) map.set(b[i], a[i]);
+      return a.map((gene, i) => {
+        if (i >= cut1 && i <= cut2) return b[i];
+        let g = gene;
+        let steps = 0;
+        while (map.has(g) && steps <= map.size) {
+          g = map.get(g);
+          steps += 1;
+        }
+        return g;
+      });
+    },
+    oxChild(donor, filler, lo, hi) {
+      const n = donor.length;
+      const out = new Array(n).fill(-1);
+      const used = new Set();
+      for (let i = lo; i < hi; i++) {
+        out[i] = donor[i];
+        used.add(donor[i]);
+      }
+      const rest = filler.filter((g) => !used.has(g));
+      const positions = [];
+      for (let i = hi; i < n; i++) positions.push(i);
+      for (let i = 0; i < lo; i++) positions.push(i);
+      positions.forEach((pos, k) => (out[pos] = rest[k]));
+      return out;
+    },
+    cycle(p1, p2, start) {
+      const pos = [];
+      p1.forEach((g, i) => (pos[g] = i));
+      const cyc = [];
+      let idx = start;
+      do {
+        cyc.push(idx);
+        idx = pos[p2[idx]];
+      } while (idx !== start);
+      const inCycle = new Set(cyc);
+      return { cycle: cyc, children: [p2.map((g, i) => (inCycle.has(i) ? p1[i] : g)), p1.map((g, i) => (inCycle.has(i) ? p2[i] : g))] };
+    },
+    positionBased(own, other, keep) {
+      const child = own.map((g, i) => (keep[i] ? g : -1));
+      const used = new Set(child.filter((g) => g >= 0));
+      const free = child.map((g, i) => (g < 0 ? i : -1)).filter((i) => i >= 0);
+      let k = 0;
+      for (const g of other) {
+        if (k >= free.length) break;
+        if (!used.has(g)) {
+          child[free[k++]] = g;
+          used.add(g);
+        }
+      }
+      return child;
+    },
+    invert(row, lo, hi) {
+      return row.slice(0, lo).concat(row.slice(lo, hi + 1).reverse(), row.slice(hi + 1));
+    },
+    swap(row, i, j) {
+      const out = row.slice();
+      [out[i], out[j]] = [out[j], out[i]];
+      return out;
+    },
+    /** Move the gene at position i to position j (insert mutation). */
+    insert(row, i, j) {
+      const out = row.slice();
+      const [gene] = out.splice(i, 1);
+      out.splice(j, 0, gene);
+      return out;
+    },
+    tourLength(cities, perm) {
+      let total = 0;
+      for (let k = 0; k < perm.length; k++) {
+        const a = cities[perm[k]];
+        const b = cities[perm[(k + 1) % perm.length]];
+        total += Math.hypot(a[0] - b[0], a[1] - b[1]);
+      }
+      return total;
+    },
+    tourCrossings(cities, perm) {
+      const n = perm.length;
+      const seg = (k) => [cities[perm[k]], cities[perm[(k + 1) % n]]];
+      const orient = (p, q, r) => Math.sign((q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]));
+      let count = 0;
+      for (let i = 0; i < n; i++) {
+        for (let j = i + 2; j < n; j++) {
+          if (i === 0 && j === n - 1) continue;
+          const [a, b] = seg(i);
+          const [c, d] = seg(j);
+          if (orient(a, b, c) * orient(a, b, d) < 0 && orient(c, d, a) * orient(c, d, b) < 0) count += 1;
+        }
+      }
+      return count;
+    },
+    tourEdges(perm) {
+      const n = perm.length;
+      return perm.map((g, k) => {
+        const h2 = perm[(k + 1) % n];
+        return g < h2 ? g + "-" + h2 : h2 + "-" + g;
+      });
+    },
+  };
+
   /* ---- Genetic algorithms and families of algorithms: the evolutionary loop and four survival rules ---- */
 
   /** The two-variable problem of the loop figure: ZDT1's front f₂ = 1 − √f₁, with g = 1 + x₂. */
@@ -1574,6 +2361,7 @@
     fraceRace,
     hyperbandBrackets,
     fidelitySlice,
+    operators: OPERATORS,
     ccmoSelect,
     ctaeaSelect,
     topSelect,
@@ -1620,6 +2408,18 @@
     attainmentSurface,
     mannWhitney,
     PROBLEMS,
+    twoLayerLattice,
+    twoLayerShared,
+    overallViolation,
+    constraintRanks,
+    stochasticRankingOrder,
+    BENCHMARK_FRONTS,
+    BIAS_PROBLEMS,
+    CTP_PROBLEMS,
+    benchmarkFront,
+    biasPoint,
+    ctpTotalViolation,
+    ctpFront,
     gaEvaluate,
     gaLoop,
     familySurvivors,
@@ -4768,6 +5568,1546 @@
         );
       }
       configSlider.input.disabled = state.mode !== "hyperband";
+    }
+    render();
+  };
+
+  /* ---- Advanced extras: reference-direction layers, parallel coordinates, constraint-handling techniques ---- */
+
+  /* Reference directions: one Das and Dennis lattice or Deb and Jain's two layers on the simplex of three objectives. */
+  widgets["lattice-layers"] = function (node) {
+    const state = { p1: 4, p2: 2 };
+    const ctl = controls(node);
+    slider(ctl, { label: "Boundary divisions p₁", min: 1, max: 16, step: 1, value: state.p1, onInput: (v) => ((state.p1 = v), render()) });
+    slider(ctl, { label: "Inside divisions p₂ (0: none)", min: 0, max: 8, step: 1, value: state.p2, onInput: (v) => ((state.p2 = v), render()) });
+    const body = h("div", { class: "vf-body vf-body--side" }, node);
+    const plot = createPlot(body, {
+      x: [-0.08, 1.08],
+      y: [-0.1, 0.95],
+      axes: false,
+      margin: { l: 10, r: 10, t: 10, b: 10 },
+      width: 340,
+      height: 300,
+      label: "Reference directions of one or two layers on the unit simplex of three objectives",
+    });
+    const tip = tooltip(plot);
+    const readout = h("div", { class: "vf-readout" }, body);
+    legend(node, [
+      { label: "Boundary layer (p₁)", shape: "circle", cls: "vf-pt vf-pt-1" },
+      { label: "Inside layer (p₂), shrunk by half", shape: "triangle", cls: "vf-pt vf-pt-2" },
+      { label: "Inside direction that repeats a boundary one", shape: "circle", cls: "vf-ring" },
+    ]);
+    const V = [
+      [0, 0],
+      [1, 0],
+      [0.5, 0.866],
+    ];
+    const xy = (w) => [w[0] * V[0][0] + w[1] * V[1][0] + w[2] * V[2][0], w[0] * V[0][1] + w[1] * V[1][1] + w[2] * V[2][1]];
+    const count = (m, p) => (p > 0 ? binomial(p + m - 1, m - 1) : 0);
+    const interior = (m, p) => (p >= m ? binomial(p - 1, m - 1) : 0);
+    const num = (v) => v.toLocaleString("en-US");
+    function render() {
+      const { p1, p2 } = state;
+      clear(plot.layers.mid);
+      clear(plot.layers.marks);
+      clear(plot.layers.top);
+      plot.line(plot.layers.mid, [V[0], V[1], V[2], V[0]], "vf-line-ink");
+      ["w₁ = 1", "w₂ = 1", "w₃ = 1"].forEach((label, i) => txt(plot.layers.top, plot.x(V[i][0]) + (i === 1 ? -36 : i === 0 ? 0 : 8), plot.y(V[i][1]) + (i === 2 ? 4 : 16), label, { class: "vf-mark-label" }));
+      const layers = p2 > 0 ? twoLayerLattice(3, p1, p2) : { boundary: dasDennis(3, p1), inside: [] };
+      if (p2 > 0) {
+        const corners = [0, 1, 2].map((i) => xy([0, 1, 2].map((j) => (i === j ? 0.5 : 0) + 1 / 6)));
+        plot.line(plot.layers.mid, corners.concat([corners[0]]), "vf-line-thin vf-dashed");
+      }
+      const key = (w) => w.map((v) => v.toFixed(9)).join(",");
+      const boundaryKeys = new Set(layers.boundary.map(key));
+      const r = p1 > 12 ? 2.6 : 3.6;
+      const mark = (w, shape, cls, layerName) => {
+        const [x, y] = xy(w);
+        const px = plot.x(x);
+        const py = plot.y(y);
+        marker(plot.layers.marks, shape, px, py, r, cls);
+        const hit = s("circle", { cx: px, cy: py, r: 8, class: "vf-hit" }, plot.layers.marks);
+        attachTip(hit, tip, `${layerName}: w = (${w.map((v) => fmt(v, 3)).join(", ")})`, px, py);
+      };
+      layers.boundary.forEach((w) => mark(w, "circle", "vf-pt vf-pt-1", "Boundary layer"));
+      let shared = 0;
+      layers.inside.forEach((w) => {
+        mark(w, "triangle", "vf-pt vf-pt-2", "Inside layer");
+        if (boundaryKeys.has(key(w))) {
+          shared += 1;
+          const [x, y] = xy(w);
+          s("circle", { cx: plot.x(x), cy: plot.y(y), r: r + 4, class: "vf-ring" }, plot.layers.top);
+        }
+      });
+      const n1 = count(3, p1);
+      const n2 = count(3, p2);
+      clear(readout);
+      h("p", {}, readout, `Boundary layer: C(p₁ + 2, 2) = C(${p1 + 2}, 2) = ${n1} directions, ${interior(3, p1)} of them with every coordinate above zero; the others lie on the edges of the triangle.`);
+      h("p", {}, readout, p2 > 0 ? `Inside layer: C(${p2 + 2}, 2) = ${n2} directions, each w/2 + 1/6, so every coordinate is at least 1/6.` : "No inside layer: a single Das and Dennis lattice.");
+      h("p", {}, readout, `H = ${n1 + n2} directions. NSGA-III needs pop_size ≥ ${n1 + n2}; MOEA/D and RVEA need exactly ${n1 + n2}.`);
+      if (shared) h("p", { class: "vf-step-text" }, readout, `${shared} inside direction${shared === 1 ? " repeats a boundary direction" : "s repeat boundary directions"}: VAMOS rejects these layers with a ConfigurationError.`);
+      const rows = [3, 5, 8, 10, 15].map((m) => [String(m), num(count(m, p1)), p2 > 0 ? num(count(m, p1) + count(m, p2)) : "–", num(interior(m, p1))]);
+      table(readout, ["m", `H, p₁ = ${p1}`, p2 > 0 ? `H, p₁ = ${p1} and p₂ = ${p2}` : "H, two layers", "Interior directions, p₁ only"], rows, [false, true, true, true]);
+    }
+    render();
+  };
+
+  /** A DTLZ2-like front: m objectives on the unit sphere from uniform position variables. */
+  function dtlz2Front(n, m, seed) {
+    const rand = mulberry32(seed);
+    return Array.from({ length: n }, () => {
+      const x = Array.from({ length: m - 1 }, rand);
+      return Array.from({ length: m }, (_, i) => {
+        let v = i > 0 ? Math.sin((x[m - 1 - i] * Math.PI) / 2) : 1;
+        for (let j = 0; j < m - 1 - i; j++) v *= Math.cos((x[j] * Math.PI) / 2);
+        return v;
+      });
+    });
+  }
+
+  /* Visualizing many objectives: parallel coordinates with axis reordering and brushing, linked to a scatter-plot matrix. */
+  widgets["parallel-coordinates"] = function (node) {
+    const n = 60;
+    const m = 5;
+    const base = dtlz2Front(n, m, 7);
+    const names = Array.from({ length: m }, (_, i) => "f" + (i + 1));
+    const state = { order: names.map((_, i) => i), brushes: {}, scaled: false, shared: false, refocus: -1, drag: null };
+    const ctl = controls(node);
+    select(ctl, {
+      label: "Objectives",
+      options: [
+        ["equal", "DTLZ2: every fᵢ in [0, 1]"],
+        ["scaled", "Scaled: fᵢ × 2i, as in WFG"],
+      ],
+      value: "equal",
+      onChange: (v) => ((state.scaled = v === "scaled"), draw()),
+    });
+    select(ctl, {
+      label: "Axes",
+      options: [
+        ["own", "Each axis on its own range"],
+        ["shared", "One scale for every axis"],
+      ],
+      value: "own",
+      onChange: (v) => ((state.shared = v === "shared"), draw()),
+    });
+    button(ctl, "Clear brushes", () => ((state.brushes = {}), draw()));
+    button(ctl, "Reset order", () => ((state.order = names.map((_, i) => i)), draw()));
+    const body = h("div", { class: "vf-body vf-body--two" }, node);
+    const pc = createPlot(body, {
+      x: [-0.4, m - 0.6],
+      y: [-0.2, 1.12],
+      axes: false,
+      margin: { l: 8, r: 8, t: 8, b: 8 },
+      width: 420,
+      height: 300,
+      title: "Parallel coordinates",
+      label: "Parallel coordinates of sixty solutions of a five-objective front. Focus an axis: Left and Right move it, Up and Down move its brush, Shift with Up and Down resizes it, Escape clears it.",
+    });
+    const sm = createPlot(body, { x: [0, m], y: [0, m], axes: false, margin: { l: 6, r: 6, t: 6, b: 6 }, width: 300, height: 300, title: "Scatter-plot matrix", label: "Scatter-plot matrix of the same solutions, every pair of objectives, each on its own range" });
+    const readout = h("div", { class: "vf-readout" }, node);
+    legend(node, [
+      { label: "Selected by every brush", shape: "line", cls: "vf-pc-line" },
+      { label: "Filtered out", shape: "line", cls: "vf-pc-line vf-pc-off" },
+      { label: "Brush", shape: "region", cls: "vf-pc-brush" },
+      { label: "Pair of neighbouring axes", shape: "region", cls: "vf-pc-adjacent" },
+    ]);
+    let F = [];
+    let lo = [];
+    let span = [];
+    let gLo = 0;
+    let gSpan = 1;
+    const lines = [];
+    const dots = [];
+    // u: a value as a fraction of its objective's own range; a: its height on the axis.
+    const uOf = (row, i) => (span[i] > 0 ? (F[row][i] - lo[i]) / span[i] : 0.5);
+    const aOfU = (u, i) => (state.shared ? (lo[i] + u * span[i] - gLo) / gSpan : u);
+    const uOfA = (a, i) => (state.shared ? (gLo + a * gSpan - lo[i]) / span[i] : a);
+    const clamp01 = (v) => Math.min(1, Math.max(0, v));
+    const selected = (row) => Object.keys(state.brushes).every((i) => {
+      const u = uOf(row, +i);
+      return u >= state.brushes[i][0] - 1e-12 && u <= state.brushes[i][1] + 1e-12;
+    });
+    function crossings(i, j) {
+      let c = 0;
+      for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) if ((F[a][i] - F[b][i]) * (F[a][j] - F[b][j]) < 0) c += 1;
+      return c;
+    }
+    function draw() {
+      F = base.map((f) => f.map((v, i) => (state.scaled ? v * 2 * (i + 1) : v)));
+      lo = names.map((_, i) => Math.min(...F.map((f) => f[i])));
+      span = names.map((_, i) => Math.max(...F.map((f) => f[i])) - lo[i]);
+      gLo = Math.min(...lo);
+      gSpan = Math.max(...names.map((_, i) => lo[i] + span[i])) - gLo;
+      drawParallel();
+      drawMatrix();
+      update();
+    }
+    function drawParallel() {
+      [pc.layers.back, pc.layers.mid, pc.layers.marks, pc.layers.top].forEach(clear);
+      lines.length = 0;
+      for (let row = 0; row < n; row++) {
+        const pts = state.order.map((i, k) => [k, aOfU(uOf(row, i), i)]);
+        lines.push(pc.line(pc.layers.mid, pts, "vf-pc-line"));
+      }
+      state.order.forEach((i, k) => {
+        const x = pc.x(k);
+        const g = s("g", { class: "vf-pc-axis", tabindex: "0", role: "group" }, pc.layers.top);
+        g.setAttribute("aria-label", `Axis ${names[i]}, position ${k + 1} of ${m}. Left and Right arrows move it; Up and Down move its brush; Shift with Up and Down resizes the brush; Escape clears it.`);
+        s("line", { x1: x, x2: x, y1: pc.y(0), y2: pc.y(1), class: "vf-axis-line" }, g);
+        const brush = state.brushes[i];
+        if (brush) {
+          const y0 = pc.y(aOfU(brush[0], i));
+          const y1 = pc.y(aOfU(brush[1], i));
+          s("rect", { x: x - 6, y: y1, width: 12, height: Math.max(1.5, y0 - y1), class: "vf-pc-brush" }, g);
+        }
+        // Each axis is labelled with the values at its ends: its own range, or the shared one.
+        const bottom = state.shared ? gLo : lo[i];
+        const top = state.shared ? gLo + gSpan : lo[i] + span[i];
+        txt(g, x, pc.y(1) - 5, tickFormat(+top.toFixed(2)), { "text-anchor": "middle" });
+        txt(g, x, pc.y(0) + 13, tickFormat(+bottom.toFixed(2)), { "text-anchor": "middle" });
+        s("rect", { x: x - 16, y: pc.y(0) + 19, width: 32, height: 18, rx: 4, class: "vf-pc-ring" }, g);
+        txt(g, x, pc.y(0) + 32, names[i], { "text-anchor": "middle", class: "vf-axis-label" });
+        const grip = s("rect", { x: x - 18, y: pc.y(0) + 17, width: 36, height: 22, class: "vf-hit vf-pc-grip" }, g);
+        const bodyHit = s("rect", { x: x - 12, y: pc.y(1), width: 24, height: pc.y(0) - pc.y(1), class: "vf-hit vf-pc-body" }, g);
+        grip.addEventListener("pointerdown", (e) => start(e, { type: "move", obj: i }, g));
+        bodyHit.addEventListener("pointerdown", (e) => {
+          const p = pc.pointer(e);
+          if (!p) return;
+          const u = clamp01(uOfA(p.y, i));
+          start(e, { type: "brush", obj: i, from: u }, g);
+          state.brushes[i] = [u, u];
+        });
+        g.addEventListener("keydown", (e) => keys(e, i));
+        if (state.refocus === i) {
+          state.refocus = -1;
+          g.focus({ preventScroll: true });
+        }
+      });
+    }
+    function start(e, drag, g) {
+      if (e.button !== undefined && e.button !== 0) return;
+      e.preventDefault();
+      state.drag = drag;
+      if (pc.svg.setPointerCapture) pc.svg.setPointerCapture(e.pointerId);
+      if (g.focus) g.focus({ preventScroll: true });
+    }
+    pc.svg.addEventListener("pointermove", (e) => {
+      const drag = state.drag;
+      if (!drag) return;
+      const p = pc.pointer(e);
+      if (!p) return;
+      if (drag.type === "move") {
+        const target = Math.min(m - 1, Math.max(0, Math.round(p.x)));
+        const from = state.order.indexOf(drag.obj);
+        if (target !== from) {
+          state.order.splice(from, 1);
+          state.order.splice(target, 0, drag.obj);
+          state.refocus = drag.obj;
+          drawParallel();
+          update();
+        }
+      } else {
+        const u = clamp01(uOfA(p.y, drag.obj));
+        state.brushes[drag.obj] = [Math.min(drag.from, u), Math.max(drag.from, u)];
+        state.refocus = drag.obj;
+        drawParallel();
+        update();
+      }
+    });
+    const stop = () => {
+      const drag = state.drag;
+      state.drag = null;
+      if (drag && drag.type === "brush") {
+        const b = state.brushes[drag.obj];
+        if (b && b[1] - b[0] < 0.01) {
+          delete state.brushes[drag.obj]; // a click without a drag clears the brush
+          state.refocus = drag.obj;
+          drawParallel();
+          update();
+        }
+      }
+    };
+    pc.svg.addEventListener("pointerup", stop);
+    pc.svg.addEventListener("pointercancel", stop);
+    function keys(e, i) {
+      const k = state.order.indexOf(i);
+      let b = state.brushes[i];
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        const target = k + (e.key === "ArrowLeft" ? -1 : 1);
+        if (target < 0 || target >= m) return;
+        state.order.splice(k, 1);
+        state.order.splice(target, 0, i);
+      } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+        const step = e.key === "ArrowUp" ? 0.05 : -0.05;
+        if (!b) b = [0, 0.25];
+        else if (e.shiftKey) b = [b[0], Math.min(1, Math.max(b[0] + 0.05, b[1] + step))];
+        else {
+          const shift = Math.min(1 - b[1], Math.max(-b[0], step));
+          b = [b[0] + shift, b[1] + shift];
+        }
+        state.brushes[i] = [+b[0].toFixed(4), +b[1].toFixed(4)];
+      } else if (e.key === "Escape" || e.key === "Delete" || e.key === "Backspace") {
+        if (!b) return;
+        delete state.brushes[i];
+      } else return;
+      e.preventDefault();
+      state.refocus = i;
+      drawParallel();
+      update();
+    }
+    function drawMatrix() {
+      [sm.layers.back, sm.layers.mid, sm.layers.marks, sm.layers.top].forEach(clear);
+      dots.length = 0;
+      for (let row = 0; row < n; row++) dots.push([]);
+      const pad = 0.08;
+      for (let r = 0; r < m; r++) {
+        for (let c = 0; c < m; c++) {
+          const x0 = c;
+          const y0 = m - 1 - r;
+          sm.rect(sm.layers.back, x0 + 0.02, y0 + 0.02, x0 + 0.98, y0 + 0.98, "vf-pc-cell");
+          if (r === c) {
+            txt(sm.layers.top, sm.x(x0 + 0.5), sm.y(y0 + 0.5) + 4, names[r], { "text-anchor": "middle", class: "vf-axis-label" });
+            continue;
+          }
+          for (let row = 0; row < n; row++) {
+            const px = sm.x(x0 + pad + (1 - 2 * pad) * uOf(row, c));
+            const py = sm.y(y0 + pad + (1 - 2 * pad) * uOf(row, r));
+            dots[row].push(s("circle", { cx: px, cy: py, r: 1.7, class: "vf-pc-dot" }, sm.layers.marks));
+          }
+        }
+      }
+    }
+    function update() {
+      const keep = Array.from({ length: n }, (_, row) => selected(row));
+      lines.forEach((line, row) => line.setAttribute("class", keep[row] ? "vf-pc-line" : "vf-pc-line vf-pc-off"));
+      dots.forEach((list, row) => list.forEach((dot) => dot.setAttribute("class", keep[row] ? "vf-pc-dot" : "vf-pc-dot vf-pc-off")));
+      clear(sm.layers.top);
+      const pairs = [];
+      for (let k = 0; k < m - 1; k++) pairs.push([state.order[k], state.order[k + 1]]);
+      for (const [a, b] of pairs) {
+        for (const [r, c] of [
+          [a, b],
+          [b, a],
+        ]) {
+          sm.rect(sm.layers.top, c + 0.02, m - 1 - r + 0.02, c + 0.98, m - 1 - r + 0.98, "vf-pc-adjacent");
+        }
+      }
+      names.forEach((name, r) => txt(sm.layers.top, sm.x(r + 0.5), sm.y(m - 1 - r + 0.5) + 4, name, { "text-anchor": "middle", class: "vf-axis-label" }));
+      clear(readout);
+      const counts = pairs.map(([a, b]) => crossings(a, b));
+      const total = counts.reduce((x, y) => x + y, 0);
+      h("p", {}, readout, `Axis order: ${state.order.map((i) => names[i]).join(", ")}. Line crossings between neighbouring axes, out of ${(n * (n - 1)) / 2} pairs of solutions: ${pairs.map(([a, b], k) => `${names[a]}–${names[b]} ${counts[k]}`).join(", ")}; ${total} in all.`);
+      h("p", {}, readout, `Only ${m - 1} of the ${(m * (m - 1)) / 2} pairs of objectives are neighbours in parallel coordinates; the scatter-plot matrix outlines them and shows the other ${((m - 1) * (m - 2)) / 2} as well.`);
+      const brushed = Object.keys(state.brushes).map(Number);
+      const passing = keep.filter(Boolean).length;
+      if (!brushed.length) h("p", {}, readout, `No brush: all ${n} solutions are selected. Drag along an axis, or focus it and press ↑ or ↓, to select an interval.`);
+      else {
+        const parts = brushed
+          .sort((a, b) => a - b)
+          .map((i) => `${names[i]} in [${fmt(lo[i] + state.brushes[i][0] * span[i], 2)}, ${fmt(lo[i] + state.brushes[i][1] * span[i], 2)}]`);
+        h("p", {}, readout, `Brushes: ${parts.join(" and ")}. ${passing} of ${n} solutions pass every brush and stay highlighted in both views.`);
+      }
+    }
+    draw();
+  };
+
+  /* Constraint-handling techniques: ten solutions with two objectives and two constraints, ranked by each technique. */
+  const CH_SOLUTIONS = [
+    ["A", [0.1, 0.95], [-0.2, -0.1]],
+    ["B", [0.3, 0.7], [-0.1, -0.3]],
+    ["C", [0.55, 0.5], [-0.3, -0.2]],
+    ["D", [0.85, 0.3], [-0.2, -0.4]],
+    ["E", [0.95, 0.75], [-0.1, -0.1]],
+    ["F", [0.2, 0.4], [0.05, -0.2]],
+    ["G", [0.45, 0.2], [0.12, 0.08]],
+    ["H", [0.7, 0.1], [-0.1, 0.35]],
+    ["I", [0.15, 0.15], [0.6, 0.5]],
+    ["J", [0.6, 0.85], [0.3, -0.1]],
+  ];
+
+  widgets["constraint-techniques"] = function (node) {
+    const labels = CH_SOLUTIONS.map((c) => c[0]);
+    const F = CH_SOLUTIONS.map((c) => c[1]);
+    const G = CH_SOLUTIONS.map((c) => c[2]);
+    const cv = overallViolation(G);
+    const count = violatedCount(G);
+    const n = F.length;
+    const ALL = "NSGA-II, NSGA-III, SMS-EMOA, AGE-MOEA, RVEA and SMPSO";
+    const FRONT = "NSGA-II, NSGA-III, SMS-EMOA and AGE-MOEA";
+    const techniques = [
+      ["cdp", "cdp: constrained domination (default)", ALL],
+      ["violated_constraints", "violated_constraints", ALL],
+      ["epsilon_constrained", "epsilon_constrained", ALL],
+      ["push_pull", "push_pull", ALL],
+      ["stochastic_ranking", "stochastic_ranking", FRONT],
+      ["self_adaptive_penalty", "self_adaptive_penalty", FRONT],
+    ];
+    const state = { name: "cdp", epsilon: 0.25, pushing: true, probability: 0.45, seed: 1 };
+    const ctl = controls(node);
+    select(ctl, { label: "Technique", options: techniques.map((t) => [t[0], t[1]]), value: state.name, onChange: (v) => ((state.name = v), params(), render()) });
+    const extra = h("div", { class: "vf-controls" }, node);
+    const body = h("div", { class: "vf-body" }, node);
+    const plot = createPlot(body, { x: [0, 1.5], y: [0, 1.5], xLabel: "f₁", yLabel: "f₂", label: "Ten solutions in objective space, coloured by the front that the chosen technique gives them" });
+    const tip = tooltip(plot);
+    const readout = h("div", { class: "vf-readout" }, body);
+    legend(node, [
+      { label: "Feasible", shape: "circle", cls: "vf-pt vf-pt-ink" },
+      { label: "Infeasible", shape: "square", cls: "vf-pt vf-pt-ink" },
+      { label: "Front 1", shape: "circle", cls: "vf-pt vf-r0" },
+      { label: "Front 2", shape: "circle", cls: "vf-pt vf-r1" },
+      { label: "Front 3", shape: "circle", cls: "vf-pt vf-r2" },
+      { label: "Front 4", shape: "circle", cls: "vf-pt vf-r3" },
+      { label: "Front 5 or later", shape: "circle", cls: "vf-pt vf-r4" },
+      { label: "Objectives the technique ranks", shape: "circle", cls: "vf-pt-hollow" },
+    ]);
+    function params() {
+      clear(extra);
+      const nm = state.name;
+      if (nm === "push_pull") {
+        select(extra, {
+          label: "Phase",
+          options: [
+            ["push", "Push: constraints ignored"],
+            ["pull", "Pull: ε-constrained"],
+          ],
+          value: state.pushing ? "push" : "pull",
+          // params() rebuilds this select, so the new one takes the focus back.
+          onChange: (v) => ((state.pushing = v === "push"), params(), render(), extra.querySelector("select").focus()),
+        });
+      }
+      if (nm === "epsilon_constrained" || (nm === "push_pull" && !state.pushing)) {
+        slider(extra, { label: "Current ε", min: 0, max: 1.2, step: 0.01, value: state.epsilon, format: (v) => v.toFixed(2), onInput: (v) => ((state.epsilon = v), render()) });
+      }
+      if (nm === "stochastic_ranking") {
+        slider(extra, { label: "probability p_f", min: 0, max: 1, step: 0.05, value: state.probability, format: (v) => v.toFixed(2), onInput: (v) => ((state.probability = v), render()) });
+        button(extra, "Draw again", () => ((state.seed += 1), render()));
+      }
+    }
+    function options() {
+      const rand = mulberry32(1000 + state.seed);
+      return {
+        epsilon: state.epsilon,
+        pushing: state.pushing,
+        probability: state.probability,
+        uniforms: Array.from({ length: n * (n - 1) }, rand),
+      };
+    }
+    const list = (rows) => rows.map((i) => labels[i]).join(", ") || "none";
+    function describe(res, o) {
+      const nm = state.name;
+      const feasibleCount = cv.filter((v) => v <= 0).length;
+      if (nm === "cdp") return "Feasible solutions first, ranked by Pareto dominance; then the infeasible ones by overall violation CV, one front per value.";
+      if (nm === "violated_constraints") return `The same rule over the number of violated constraints: ${list([5, 7, 9])} violate one and compare by Pareto dominance, then ${list([6, 8])} violate two.`;
+      if (nm === "push_pull" && o.pushing) return "Push phase: Pareto dominance on the objectives alone, as if there were no constraints.";
+      if (nm === "epsilon_constrained" || nm === "push_pull") {
+        const within = cv.map((v, i) => (v > 0 && v <= o.epsilon ? i : -1)).filter((i) => i >= 0);
+        return `CV ≤ ε = ${fmt(o.epsilon, 2)} counts as feasible: ${list(within)} join the feasible solutions. The others follow by CV, and equal CV shares a front.`;
+      }
+      if (nm === "stochastic_ranking") return `A bubble sort compares neighbours by Pareto rank when both are feasible or with probability ${fmt(o.probability, 2)}, by CV otherwise. Sorted order: ${list(res.order)}. Each infeasible solution is a front of its own.`;
+      return `${feasibleCount} of ${n} solutions are feasible (r_f = ${fmt(feasibleCount / n, 2)}). Pareto dominance ranks d(x) + (1 − r_f) X(x) + r_f Y(x) per objective, from normalized objectives and violations.`;
+    }
+    function render() {
+      const o = options();
+      const res = constraintRanks(state.name, F, G, o);
+      clear(plot.layers.mid);
+      clear(plot.layers.marks);
+      clear(plot.layers.top);
+      const moved = res.objectives || null;
+      F.forEach((f, i) => {
+        const px = plot.x(f[0]);
+        const py = plot.y(f[1]);
+        if (moved && (moved[i][0] !== f[0] || moved[i][1] !== f[1])) {
+          plot.line(plot.layers.mid, [f, moved[i]], "vf-line-thin vf-dashed");
+          marker(plot.layers.mid, cv[i] > 0 ? "square" : "circle", plot.x(moved[i][0]), plot.y(moved[i][1]), 4, "vf-pt-hollow");
+        }
+        marker(plot.layers.marks, cv[i] > 0 ? "square" : "circle", px, py, 6, "vf-pt " + rankClass(res.ranks[i]));
+        const hit = s("circle", { cx: px, cy: py, r: 11, class: "vf-hit" }, plot.layers.marks);
+        const where = moved ? ` · ranked at ${pair(moved[i], 3)}` : "";
+        attachTip(hit, tip, `${labels[i]} · f = ${pair(f)} · CV ${fmt(cv[i], 2)}${where} · front ${res.ranks[i] + 1}`, px, py);
+        txt(plot.layers.top, px + 8, py - 7, `${labels[i]} ${res.ranks[i] + 1}`, { class: "vf-mark-label" });
+      });
+      clear(readout);
+      h("p", {}, readout, describe(res, o));
+      h("p", {}, readout, `Taken by: ${techniques.find((t) => t[0] === state.name)[2]}.`);
+      const head = ["Solution", "f₁, f₂", "CV", "Violated"];
+      const numeric = [false, false, true, true];
+      if (moved) {
+        head.push("Ranked as");
+        numeric.push(false);
+      }
+      head.push("Front");
+      numeric.push(true);
+      const rows = F.map((_, i) => i).sort((a, b) => res.ranks[a] - res.ranks[b] || a - b);
+      table(
+        readout,
+        head,
+        rows.map((i) => {
+          const row = [labels[i], pair(F[i]), fmt(cv[i], 2), String(count[i])];
+          if (moved) row.push(pair(moved[i]));
+          row.push(String(res.ranks[i] + 1));
+          return row;
+        }),
+        numeric
+      );
+    }
+    params();
+    render();
+  };
+
+  /* ---- Benchmarks ---- */
+
+  function paddedDomain(lo, hi) {
+    const pad = 0.06 * (hi - lo || 1);
+    return [lo - pad, hi + pad];
+  }
+
+  /* Benchmarks: a gallery of two-objective fronts and the properties of their problems. */
+  widgets["benchmark-gallery"] = function (node) {
+    const keys = Object.keys(BENCHMARK_FRONTS);
+    const state = { key: node.dataset.problem || "zdt1" };
+    const ctl = controls(node);
+    select(ctl, {
+      label: "Problem",
+      options: keys.map((k) => [k, BENCHMARK_FRONTS[k].label]),
+      value: state.key,
+      onChange: (v) => {
+        state.key = v;
+        render();
+      },
+    });
+    const body = h("div", { class: "vf-body vf-body--side" }, node);
+    const plot = createPlot(body, { x: [0, 1], y: [0, 1], xLabel: "f₁", yLabel: "f₂", label: "The Pareto front of the selected problem with two objectives" });
+    const readout = h("div", { class: "vf-readout" }, body);
+    legend(node, [
+      { label: "Pareto front (two objectives)", shape: "line", cls: "vf-line-1" },
+      { label: "Points at evenly spaced values of the position variable", shape: "circle", cls: "vf-pt vf-pt-1" },
+    ]);
+    const details = h("div", {}, node);
+    function render() {
+      const front = BENCHMARK_FRONTS[state.key];
+      const pts = benchmarkFront(state.key, 2001);
+      const pieces = frontPieces(pts, 0.01);
+      const lo = [0, 1].map((j) => Math.min(...pts.map((p) => p[j])));
+      const hi = [0, 1].map((j) => Math.max(...pts.map((p) => p[j])));
+      plot.setDomain(paddedDomain(Math.min(0, lo[0]), hi[0]), paddedDomain(Math.min(0, lo[1]), hi[1]));
+      clear(plot.layers.mid);
+      clear(plot.layers.marks);
+      for (const piece of pieces) if (piece.length > 1) plot.line(plot.layers.mid, piece, "vf-line-1");
+      const t0 = front.lo || 0;
+      for (let i = 0; i <= 20; i++) {
+        const p = front.point(t0 + ((1 - t0) * i) / 20);
+        if (isFrontPoint(pts, p)) {
+          marker(plot.layers.marks, "circle", plot.x(p[0]), plot.y(p[1]), 3.2, "vf-pt vf-pt-1");
+        }
+      }
+      clear(readout);
+      h(
+        "p",
+        {},
+        readout,
+        `${front.label} with two objectives: the front has ${pieces.length} piece${pieces.length === 1 ? "" : "s"}, ` +
+          `f₁ from ${fmt(lo[0])} to ${fmt(hi[0])} and f₂ from ${fmt(lo[1])} to ${fmt(hi[1])}.`
+      );
+      clear(details);
+      table(
+        details,
+        ["Property", front.label],
+        [
+          ["Front shape", front.shape],
+          ["What it tests", front.tests],
+          ["Separable", front.separable],
+          ["Objectives", front.objectives],
+          ["Default n", front.n],
+          ["Packaged reference fronts", front.files],
+        ]
+      );
+    }
+    function isFrontPoint(pts, p) {
+      // A point of the curve is on the front unless a sampled front point dominates it.
+      return !pts.some((q) => q[0] <= p[0] + 1e-12 && q[1] <= p[1] + 1e-12 && (q[0] < p[0] - 1e-9 || q[1] < p[1] - 1e-9));
+    }
+    render();
+  };
+
+  /* Benchmarks: where uniformly drawn position variables land on a biased front. */
+  widgets["position-bias"] = function (node) {
+    const count = 200;
+    const tenths = 10;
+    const state = { key: node.dataset.problem || "dtlz4", alpha: 100, seed: 3 };
+    const ctl = controls(node);
+    select(ctl, {
+      label: "Problem",
+      options: Object.keys(BIAS_PROBLEMS).map((k) => [k, BIAS_PROBLEMS[k].label]),
+      value: state.key,
+      onChange: (v) => {
+        state.key = v;
+        alphaLabel.style.display = v === "dtlz4" ? "" : "none";
+        render();
+      },
+    });
+    const alphaControl = slider(ctl, { label: "DTLZ4's α", min: 1, max: 100, step: 1, value: state.alpha, format: (v) => String(v), onInput: (v) => ((state.alpha = v), render()) });
+    const alphaLabel = alphaControl.input.parentNode;
+    alphaLabel.style.display = state.key === "dtlz4" ? "" : "none";
+    button(ctl, "New sample", () => {
+      state.seed += 1;
+      render();
+    });
+    const body = h("div", { class: "vf-body vf-body--two" }, node);
+    const plot = createPlot(body, { x: [0, 1], y: [0, 1], xLabel: "f₁", yLabel: "f₂", label: "Pareto-optimal solutions with uniformly drawn position variables" });
+    const bars = createPlot(body, {
+      x: [0, tenths],
+      y: [0, 1],
+      xLabel: "Tenth of the front's length, from its f₁-minimal end",
+      yLabel: "Share of the points",
+      xTicks: [0, 2, 4, 6, 8, 10],
+      yFormat: (v) => Math.round(v * 100) + "%",
+      label: "Share of the points in each tenth of the front",
+    });
+    const readout = h("div", { class: "vf-readout" }, node);
+    legend(node, [
+      { label: "Pareto front", shape: "line", cls: "vf-front" },
+      { label: `${count} solutions with uniform position variables`, shape: "circle", cls: "vf-pt vf-pt-1" },
+      { label: "Share per tenth of the front", shape: "region", cls: "vf-bar-1" },
+      { label: "Uniform share, 10%", shape: "line", cls: "vf-line-2" },
+    ]);
+    function render() {
+      const problem = BIAS_PROBLEMS[state.key];
+      const front = BENCHMARK_FRONTS[problem.front];
+      const t0 = front.lo || 0;
+      // The front's arc length as a function of its parameter t, on a fine grid.
+      const grid = 4000;
+      const curve = [];
+      const length = [0];
+      for (let i = 0; i <= grid; i++) curve.push(front.point(t0 + ((1 - t0) * i) / grid));
+      for (let i = 1; i <= grid; i++) length.push(length[i - 1] + Math.hypot(curve[i][0] - curve[i - 1][0], curve[i][1] - curve[i - 1][1]));
+      const total = length[grid];
+      const flip = curve[0][0] > curve[grid][0]; // measure the length from the end where f₁ is smallest
+      const arcAt = (t) => {
+        const x = Math.min(grid, Math.max(0, ((t - t0) / (1 - t0)) * grid));
+        const i = Math.min(grid - 1, Math.floor(x));
+        const share = (length[i] + (x - i) * (length[i + 1] - length[i])) / total;
+        return flip ? 1 - share : share;
+      };
+      const rand = mulberry32(state.seed);
+      const counts = new Array(tenths).fill(0);
+      const points = [];
+      for (let k = 0; k < count; k++) {
+        const u = Array.from({ length: problem.positions }, () => rand());
+        const t = problem.position(u, state.alpha);
+        points.push(front.point(t));
+        counts[Math.min(tenths - 1, Math.floor(arcAt(t) * tenths))] += 1;
+      }
+      const lo = [0, 1].map((j) => Math.min(...curve.map((p) => p[j])));
+      const hi = [0, 1].map((j) => Math.max(...curve.map((p) => p[j])));
+      plot.setDomain(paddedDomain(Math.min(0, lo[0]), hi[0]), paddedDomain(Math.min(0, lo[1]), hi[1]));
+      clear(plot.layers.mid);
+      clear(plot.layers.marks);
+      plot.line(plot.layers.mid, curve, "vf-front");
+      for (const p of points) marker(plot.layers.marks, "circle", plot.x(p[0]), plot.y(p[1]), 3, "vf-pt vf-pt-1");
+      const shares = counts.map((c) => c / count);
+      const top = Math.max(0.2, Math.ceil(Math.max(...shares) * 10) / 10);
+      bars.setDomain([0, tenths], [0, top]);
+      clear(bars.layers.mid);
+      clear(bars.layers.top);
+      shares.forEach((v, i) => {
+        if (v <= 0) return;
+        s("rect", { x: bars.x(i) + 1, y: bars.y(v), width: Math.max(0.5, bars.x(i + 1) - bars.x(i) - 2), height: bars.y(0) - bars.y(v), class: "vf-bar-1" }, bars.layers.mid);
+      });
+      bars.line(bars.layers.top, [[0, 0.1], [tenths, 0.1]], "vf-line-2");
+      const most = Math.max(...counts);
+      const least = Math.min(...counts);
+      const name = state.key === "dtlz4" ? `DTLZ4 with α = ${state.alpha}` : problem.label;
+      clear(readout);
+      h(
+        "p",
+        {},
+        readout,
+        `${name}: of ${count} Pareto-optimal solutions with uniformly drawn position variables, the fullest tenth of the front holds ` +
+          `${most} (${fmt((100 * most) / count, 1)}%) and the emptiest ${least} (${fmt((100 * least) / count, 1)}%). ` +
+          "Without bias, each tenth would hold about 10%."
+      );
+    }
+    render();
+  };
+
+  /* Benchmarks: the feasible regions and constrained fronts of CTP1-CTP7. */
+  widgets["ctp-landscape"] = function (node) {
+    const notes = {
+      ctp1: "Two constraints cut off the lower part of the unconstrained front f₂ = exp(−f₁): the constrained front runs along their boundaries, away from the unconstrained one.",
+      ctp2: "Narrow feasible tunnels reach the unconstrained front. The constrained front is 13 short segments, one at the end of each tunnel.",
+      ctp3: "The tunnels narrow to single points: the constrained front is 13 isolated points on the unconstrained front.",
+      ctp4: "The same 13 points as CTP3 at the end of longer tunnels (a = 0.75), which are harder to follow.",
+      ctp5: "Tunnels spaced unevenly (c = 2): the front is a first arch, up to f₁ ≈ 0.256, and isolated points.",
+      ctp6: "Infeasible bands cross the objective space between the region that random designs reach and the front: a population has to pass through them.",
+      ctp7: "Only disconnected pieces of the unconstrained front are feasible, separated by infeasible regions that reach down to it.",
+    };
+    const state = { key: node.dataset.problem || "ctp2" };
+    const ctl = controls(node);
+    select(ctl, {
+      label: "Problem",
+      options: Object.keys(CTP_PROBLEMS).map((k) => [k, k.toUpperCase()]),
+      value: state.key,
+      onChange: (v) => {
+        state.key = v;
+        render();
+      },
+    });
+    const body = h("div", { class: "vf-body vf-body--side" }, node);
+    const plot = createPlot(body, { x: [0, 1], y: [0, 1.6], xLabel: "f₁", yLabel: "f₂", label: "Objective space of the selected CTP problem with its infeasible regions" });
+    const readout = h("div", { class: "vf-readout" }, body);
+    legend(node, [
+      { label: "Infeasible region", shape: "region", cls: "vf-region-2" },
+      { label: "Unconstrained front", shape: "line", cls: "vf-front" },
+      { label: "Constrained Pareto front", shape: "circle", cls: "vf-pt vf-pt-1" },
+    ]);
+    function render() {
+      const key = state.key;
+      const top = CTP_PROBLEMS[key].ymax;
+      plot.setDomain([0, 1], [0, top]);
+      clear(plot.layers.back);
+      clear(plot.layers.marks);
+      const cols = 160;
+      const rows = 320;
+      let cells = 0;
+      let feasibleCells = 0;
+      for (let c = 0; c < cols; c++) {
+        const f1 = (c + 0.5) / cols;
+        const base = ctpBase(key, f1);
+        let start = null;
+        for (let r = 0; r <= rows; r++) {
+          const f2 = (r * top) / rows;
+          const above = f2 >= base && r < rows;
+          const bad = above && ctpTotalViolation(key, [f1, f2]) > 0;
+          if (above) {
+            cells += 1;
+            if (!bad) feasibleCells += 1;
+          }
+          if (bad && start === null) start = f2;
+          if (!bad && start !== null) {
+            plot.rect(plot.layers.back, c / cols, start, (c + 1) / cols + 0.0005, f2, "vf-region-2");
+            start = null;
+          }
+        }
+      }
+      plot.line(plot.layers.back, frontPoints((t) => ctpBase(key, t), 0, 1, 101), "vf-front");
+      const front = ctpFront(key, 1001);
+      const pieces = frontPieces(front, 0.004);
+      for (const piece of pieces) {
+        if (piece.length > 1) plot.line(plot.layers.marks, piece, "vf-line-1");
+        else marker(plot.layers.marks, "circle", plot.x(piece[0][0]), plot.y(piece[0][1]), 3.5, "vf-pt vf-pt-1");
+      }
+      clear(readout);
+      h(
+        "p",
+        {},
+        readout,
+        `${key.toUpperCase()}: ${fmt((100 * feasibleCells) / cells, 1)}% of the plotted region above the unconstrained front is feasible. ` +
+          `The constrained front has ${pieces.length} piece${pieces.length === 1 ? "" : "s"} or isolated point${pieces.length === 1 ? "" : "s"}, ` +
+          `f₁ from ${fmt(front[0][0])} to ${fmt(front[front.length - 1][0])}.`
+      );
+      h("p", {}, readout, notes[key]);
+    }
+    render();
+  };
+
+  /* ---- Operators: offspring clouds, binary and permutation step-throughs, integer SBX, tour moves ---- */
+
+  const OP = OPERATORS;
+
+  /* The real-coded operators of the offspring-cloud figure: parameters with VAMOS's defaults. */
+  const CLOUD_OPERATORS = {
+    sbx: {
+      label: "SBX",
+      parents: 2,
+      params: [{ key: "eta", label: "η_c", min: 0, max: 50, step: 1, value: 20 }],
+      run: (P, v, r) => sbxPair(P[0], P[1], 0, 1, v.eta, 0.5, r),
+      text: "SBX recombines each variable with probability 0.5; its children stay inside the bounds and spread in proportion to the parents' distance.",
+    },
+    blx_alpha: {
+      label: "BLX-α",
+      parents: 2,
+      params: [{ key: "alpha", label: "α", min: 0, max: 1, step: 0.05, value: 0.5 }],
+      run: (P, v, r) => OP.blxAlphaBeta(P[0], P[1], v.alpha, v.alpha, r),
+      text: "BLX-α draws each variable uniformly from the parents' interval, widened by α times its length on both sides: a rectangle around the parents.",
+    },
+    blx_alpha_beta: {
+      label: "BLX-αβ",
+      parents: 2,
+      params: [
+        { key: "alpha", label: "α (below)", min: 0, max: 1, step: 0.05, value: 0.5 },
+        { key: "beta", label: "β (above)", min: 0, max: 1, step: 0.05, value: 0.5 },
+      ],
+      run: (P, v, r) => OP.blxAlphaBeta(P[0], P[1], v.alpha, v.beta, r),
+      text: "VAMOS's BLX-αβ widens the interval by α below the smaller parent value and by β above the larger one; α ≠ β shifts the rectangle towards one bound.",
+    },
+    arithmetic: {
+      label: "Arithmetic",
+      parents: 2,
+      params: [],
+      run: (P, v, r) => OP.arithmetic(P[0], P[1], r),
+      text: "Arithmetic crossover draws one weight λ per pair: both children lie on the segment between the parents, symmetric about its midpoint.",
+    },
+    whole_arithmetic: {
+      label: "Whole arithmetic",
+      parents: 2,
+      params: [{ key: "alpha", label: "α", min: 0, max: 1, step: 0.05, value: 0.5 }],
+      run: (P, v) => OP.wholeArithmetic(P[0], P[1], v.alpha),
+      text: "Whole arithmetic crossover uses the fixed weight α: every pair gives the same two children, and α = 0.5 gives the midpoint twice.",
+    },
+    laplace: {
+      label: "Laplace",
+      parents: 2,
+      params: [
+        { key: "a", label: "location a", min: -0.5, max: 0.5, step: 0.05, value: 0 },
+        { key: "b", label: "scale b", min: 0.05, max: 1, step: 0.05, value: 0.5 },
+      ],
+      run: (P, v, r) => OP.laplace(P[0], P[1], v.a, v.b, r),
+      text: "Laplace crossover moves each parent by β |p₁ − p₂|, with β from a Laplace distribution: a cross of heavy-tailed clouds centred on the parents.",
+    },
+    fuzzy: {
+      label: "Fuzzy",
+      parents: 2,
+      params: [{ key: "d", label: "d", min: 0, max: 1, step: 0.05, value: 0.5 }],
+      run: (P, v, r) => OP.fuzzy(P[0], P[1], v.d, 0, 1, r),
+      text: "VAMOS's fuzzy crossover draws each variable from a triangular distribution over the widened interval, with its mode at the parents' midpoint.",
+    },
+    de: {
+      label: "Differential evolution",
+      parents: 3,
+      names: ["x", "a", "b"],
+      params: [
+        { key: "F", label: "F", min: 0, max: 1, step: 0.05, value: 0.5 },
+        { key: "CR", label: "CR", min: 0, max: 1, step: 0.05, value: 0.9 },
+      ],
+      run: (P, v, r) => OP.deMating(P[0], P[1], P[2], v.F, v.CR, r),
+      text: "DE adds the scaled difference F (a − b) to x and takes each variable from that mutant with probability CR (at least one): with fixed parents only three children are possible.",
+    },
+    pcx: {
+      label: "PCX",
+      parents: 3,
+      params: [
+        { key: "se", label: "σ_η", min: 0, max: 0.5, step: 0.01, value: 0.1 },
+        { key: "sz", label: "σ_ζ", min: 0, max: 0.5, step: 0.01, value: 0.1 },
+      ],
+      run: (P, v, r) => OP.pcx(P, v.se, v.sz, r),
+      text: "PCX centres one child on each parent: it moves along the direction to the centroid (σ_ζ) and orthogonally to it (σ_η times the other parents' distance).",
+    },
+    undx: {
+      label: "UNDX",
+      parents: 3,
+      params: [
+        { key: "zeta", label: "ζ", min: 0, max: 1, step: 0.05, value: 0.5 },
+        { key: "eta", label: "η", min: 0, max: 1, step: 0.05, value: 0.35 },
+      ],
+      run: (P, v, r) => OP.undx(P, v.zeta, v.eta, r),
+      text: "UNDX draws an ellipse around the midpoint of P1 and P2: ζ scales it along P1–P2, and η times P3's distance to that line scales it across.",
+    },
+    simplex: {
+      label: "SPX",
+      parents: 3,
+      params: [{ key: "eps", label: "ε", min: 0.5, max: 3, step: 0.05, value: 2 }],
+      run: (P, v, r) => OP.spx(P, v.eps, r),
+      text: "SPX expands the triangle of the three parents about their centroid by ε and draws children uniformly inside it; ε = √(m + 1) = 2 is the default.",
+    },
+    pm: {
+      label: "Polynomial",
+      parents: 1,
+      params: [{ key: "eta", label: "η_m", min: 0, max: 100, step: 1, value: 20 }],
+      run: (P, v, r) => [polynomialMutation(P[0].slice(), 0, 1, v.prob, v.eta, r)],
+      text: "Polynomial mutation perturbs each mutated variable with a spread set by η_m, squeezed near the bounds so that the value stays inside them.",
+    },
+    gaussian: {
+      label: "Gaussian",
+      parents: 1,
+      params: [{ key: "sigma", label: "σ (share of range)", min: 0.01, max: 0.5, step: 0.01, value: 0.1 }],
+      run: (P, v, r) => [OP.gaussianMutation(P[0], 0, 1, v.prob, v.sigma, r)],
+      text: "Gaussian mutation adds N(0, (σ·range)²) noise to each mutated variable; σ is a share of the variable's range.",
+    },
+    uniform: {
+      label: "Uniform",
+      parents: 1,
+      params: [{ key: "perturb", label: "perturb", min: 0, max: 1, step: 0.05, value: 0.1 }],
+      run: (P, v, r) => [OP.uniformMutation(P[0], 0, 1, v.prob, v.perturb, r)],
+      text: "Uniform mutation moves each mutated variable by U(−perturb, perturb) times its range: a box around the parent.",
+    },
+    uniform_reset: {
+      label: "Uniform reset",
+      parents: 1,
+      params: [],
+      run: (P, v, r) => [OP.uniformReset(P[0], 0, 1, v.prob, r)],
+      text: "Uniform reset replaces each mutated variable with a uniform value between its bounds, forgetting the parent's value.",
+    },
+    non_uniform: {
+      label: "Non-uniform",
+      parents: 1,
+      params: [],
+      run: (P, v, r) => [OP.nonUniform(P[0], 0, 1, v.prob, r)],
+      text: "Non-uniform mutation moves each mutated variable towards a random bound by a uniform share of the distance, because VAMOS uses the progress t/T = 0.",
+    },
+    cauchy: {
+      label: "Cauchy",
+      parents: 1,
+      params: [{ key: "gamma", label: "γ (share of range)", min: 0.01, max: 0.5, step: 0.01, value: 0.1 }],
+      run: (P, v, r) => [OP.cauchyMutation(P[0], 0, 1, v.prob, v.gamma, r)],
+      text: "Cauchy mutation adds noise of scale γ·range with heavy tails: most steps are small, a few are very long.",
+    },
+    levy_flight: {
+      label: "Lévy flight",
+      parents: 1,
+      params: [
+        { key: "beta", label: "β", min: 0.3, max: 2, step: 0.05, value: 1.5 },
+        { key: "scale", label: "scale", min: 0.005, max: 0.1, step: 0.005, value: 0.01 },
+      ],
+      run: (P, v, r) => [OP.levyFlight(P[0], 0, 1, v.prob, v.beta, v.scale, r)],
+      text: "Lévy flight mutation draws Mantegna's heavy-tailed steps, scaled by scale·range; a smaller β gives heavier tails.",
+    },
+    power_law: {
+      label: "Power law",
+      parents: 1,
+      params: [{ key: "index", label: "index", min: 0.1, max: 10, step: 0.1, value: 1 }],
+      run: (P, v, r) => [OP.powerLaw(P[0], 0, 1, v.prob, v.index, r)],
+      text: "Power mutation moves a mutated variable by a share s = u^index of its distance to one bound, so it never leaves the bounds; a larger index gives smaller steps.",
+    },
+    linked_polynomial: {
+      label: "Linked polynomial",
+      parents: 1,
+      params: [{ key: "eta", label: "η_m", min: 0, max: 100, step: 1, value: 20 }],
+      run: (P, v, r) => [OP.linkedPolynomial(P[0], 0, 1, v.prob, v.eta, r)],
+      text: "Linked polynomial mutation uses one random number per individual for all its mutated variables, so they move together along a curve.",
+    },
+  };
+
+  const CLOUD_CROSSOVERS = ["sbx", "blx_alpha", "blx_alpha_beta", "arithmetic", "whole_arithmetic", "laplace", "fuzzy", "de", "pcx", "undx", "simplex"];
+  const CLOUD_MUTATIONS = ["pm", "gaussian", "uniform", "uniform_reset", "non_uniform", "cauchy", "levy_flight", "power_law", "linked_polynomial"];
+
+  widgets["operator-cloud"] = function (node) {
+    const mutation = node.dataset.group === "mutation";
+    const keys = mutation ? CLOUD_MUTATIONS : CLOUD_CROSSOVERS;
+    const state = {
+      op: node.dataset.operator && keys.includes(node.dataset.operator) ? node.dataset.operator : keys[1],
+      parents: [
+        [0.35, 0.3],
+        [0.6, 0.55],
+        [0.3, 0.7],
+      ],
+      x: [[0.3, 0.6]],
+      values: {},
+      prob: 0.5,
+      seed: 7,
+    };
+    const ctl = controls(node);
+    select(ctl, {
+      label: mutation ? "Mutation" : "Crossover",
+      value: state.op,
+      options: keys.map((k) => [k, CLOUD_OPERATORS[k].label]),
+      onChange: (v) => ((state.op = v), buildParams(), render()),
+    });
+    button(ctl, "New sample", () => ((state.seed += 1), render()));
+    const params = controls(node);
+    const body = h("div", { class: "vf-body vf-body--side" }, node);
+    const plot = createPlot(body, {
+      x: [-0.3, 1.3],
+      y: [-0.3, 1.3],
+      xLabel: "Variable x₁ (bounds [0, 1])",
+      yLabel: "Variable x₂ (bounds [0, 1])",
+      label: mutation ? "Mutated copies of one parent in two variables" : "Children of fixed parents in two variables",
+      height: 340,
+      width: 340,
+      margin: { l: 44, b: 40 },
+    });
+    plot.rect(plot.layers.back, 0, 0, 1, 1, "vf-region-1");
+    const readout = h("div", { class: "vf-readout" }, body);
+    legend(node, [
+      { label: "Bounds [0, 1]²", shape: "region", cls: "vf-region-1" },
+      { label: "Child inside the bounds", shape: "circle", cls: "vf-cloud" },
+      { label: "Child outside (the repair moves it back)", shape: "circle", cls: "vf-pt-2" },
+      { label: mutation ? "Parent (drag it)" : "Parents (drag them)", shape: "circle", cls: "vf-pt-1" },
+    ]);
+
+    const shapes = ["circle", "square", "triangle"];
+    const handles = [0, 1, 2].map((k) =>
+      handle(plot, {
+        shape: shapes[k],
+        cls: "vf-pt vf-pt-1",
+        boundsX: [0, 1],
+        boundsY: [0, 1],
+        get: () => (mutation ? state.x[0] : state.parents[k]),
+        set: (x, y) => {
+          if (mutation) state.x[0] = [x, y];
+          else state.parents[k] = [x, y];
+          render();
+        },
+        label: () => parentName(k),
+      })
+    );
+    function parentName(k) {
+      const spec = CLOUD_OPERATORS[state.op];
+      if (mutation) return "Parent";
+      return spec.names ? spec.names[k] : "P" + (k + 1);
+    }
+
+    function buildParams() {
+      clear(params);
+      const spec = CLOUD_OPERATORS[state.op];
+      state.values = {};
+      for (const p of spec.params) {
+        state.values[p.key] = p.value;
+        slider(params, { label: p.label, min: p.min, max: p.max, step: p.step, value: p.value, format: (v) => String(+v.toFixed(3)), onInput: (v) => ((state.values[p.key] = v), render()) });
+      }
+      if (mutation) slider(params, { label: "Probability per variable", min: 0.05, max: 1, step: 0.05, value: state.prob, format: (v) => v.toFixed(2), onInput: (v) => ((state.prob = v), render()) });
+    }
+
+    function render() {
+      const spec = CLOUD_OPERATORS[state.op];
+      const parents = mutation ? state.x : state.parents.slice(0, spec.parents);
+      const rand = mulberry32(state.seed);
+      const values = Object.assign({ prob: state.prob }, state.values);
+      const children = [];
+      const target = 600;
+      while (children.length < target) for (const c of spec.run(parents, values, rand)) children.push(c);
+      clear(plot.layers.mid);
+      let outside = 0;
+      let dist = 0;
+      let moved = 0;
+      for (const c of children) {
+        const out = c[0] < 0 || c[0] > 1 || c[1] < 0 || c[1] > 1;
+        if (out) outside += 1;
+        const d = Math.min(...parents.map((p) => Math.hypot(c[0] - p[0], c[1] - p[1])));
+        dist += d;
+        if (d > 1e-12) moved += 1;
+        s("circle", { cx: plot.x(c[0]).toFixed(1), cy: plot.y(c[1]).toFixed(1), r: 2, class: out ? "vf-pt-2" : "vf-cloud" }, plot.layers.mid);
+      }
+      handles.forEach((hd, k) => {
+        const used = mutation ? k === 0 : k < spec.parents;
+        hd.node.style.display = used ? "" : "none";
+        if (used) hd.node.setAttribute("tabindex", "0");
+        else hd.node.setAttribute("tabindex", "-1");
+        hd.place();
+      });
+      clear(plot.layers.top);
+      parents.forEach((p, k) => txt(plot.layers.top, plot.x(p[0]) + 9, plot.y(p[1]) - 8, parentName(k), { class: "vf-mark-label" }));
+      clear(readout);
+      h("p", {}, readout, spec.text);
+      h(
+        "p",
+        {},
+        readout,
+        `${children.length} ${mutation ? "mutated copies" : "children"}: ${outside} (${fmt((100 * outside) / children.length, 1)}%) lie outside the bounds; ${moved} differ from ${mutation ? "the parent" : "every parent"}; mean distance to the nearest parent: ${fmt(dist / children.length, 3)}.`
+      );
+      const where = parents.map((p, k) => `${parentName(k)} = ${pair(p)}`).join(", ");
+      h("p", {}, readout, `${where}. Drag a parent or focus it with Tab and move it with the arrow keys.`);
+    }
+    buildParams();
+    render();
+  };
+
+  /* A row of cells for the binary and permutation step-throughs. */
+  function cellRow(svg, y, label, values, o) {
+    const g = s("g", {}, svg);
+    txt(g, 4, y + 17, label, { class: "vf-mark-label" });
+    values.forEach((v, j) => {
+      const x = o.x0 + j * o.w;
+      const cls = o.cls ? o.cls(j) : "vf-pt-hollow";
+      const rect = s("rect", { x, y, width: o.w - 3, height: 24, rx: 4, class: cls }, g);
+      if (o.focus) o.focus(rect, j);
+      txt(g, x + (o.w - 3) / 2, y + 17, v === null || v === undefined || v < 0 ? "·" : String(v), { "text-anchor": "middle", class: o.textCls ? o.textCls(j) : "" });
+    });
+    return g;
+  }
+
+  widgets["binary-steps"] = function (node) {
+    const n = 12;
+    const state = {
+      op: node.dataset.operator || "one_point",
+      p1: [1, 1, 0, 1, 0, 0, 1, 1, 1, 0, 1, 0],
+      p2: [0, 1, 1, 0, 1, 1, 0, 1, 0, 0, 0, 1],
+      step: 0,
+      seed: 3,
+      prob: 1 / 12,
+      cursor: [0, 0],
+    };
+    const names = {
+      one_point: "One-point crossover",
+      two_point: "Two-point crossover",
+      uniform: "Uniform crossover",
+      hux: "HUX",
+      bitflip: "Bit-flip mutation",
+      segment_inversion: "Segment inversion",
+    };
+    const ctl = controls(node);
+    select(ctl, { label: "Operator", value: state.op, options: Object.keys(names).map((k) => [k, names[k]]), onChange: (v) => ((state.op = v), (state.step = 0), draw(), probabilityControl(), render()) });
+    const prev = button(ctl, "Previous step", () => ((state.step = Math.max(0, state.step - 1)), render()));
+    const next = button(ctl, "Next step", () => ((state.step = Math.min(2, state.step + 1)), render()), true);
+    button(ctl, "New draw", () => ((state.seed += 1), draw(), render()));
+    const probCtl = controls(node);
+    const W = 40 + n * 28 + 8;
+    const svg = s("svg", { viewBox: `0 0 ${W} 200`, class: "vf-plot", role: "group", "aria-label": "Two parent bit strings and the children an operator builds from them" }, h("div", { class: "vf-plot-wrap" }, node));
+    const text = h("p", { class: "vf-step-text", "aria-live": "polite" }, h("div", { class: "vf-readout" }, node));
+    legend(node, [
+      { label: "Bit from P1", shape: "region", cls: "vf-cell-a" },
+      { label: "Bit from P2", shape: "region", cls: "vf-cell-b" },
+      { label: "Cut, mask or flipped bit", shape: "region", cls: "vf-cell-mark" },
+    ]);
+    let info = {};
+    const mutationOp = () => state.op === "bitflip" || state.op === "segment_inversion";
+
+    function draw() {
+      const rand = mulberry32(state.seed * 7919 + 1);
+      if (state.op === "one_point") info = { cut: OP.drawOnePoint(n, rand) };
+      else if (state.op === "two_point") {
+        const [lo, hi] = OP.drawTwoPoint(n, rand);
+        info = { lo, hi };
+      } else if (state.op === "uniform") info = { keep: state.p1.map(() => rand() < 0.5) };
+      else if (state.op === "hux") info = { chosen: OP.drawHux(state.p1, state.p2, rand) };
+      else if (state.op === "bitflip") info = { mask: state.p1.map(() => rand() <= state.prob) };
+      else {
+        const [a, b] = OP.drawSegment(n, rand);
+        info = { a, b };
+      }
+    }
+
+    // Built when the operator changes, not on each draw, so that moving the slider keeps it and its focus.
+    function probabilityControl() {
+      clear(probCtl);
+      if (state.op === "bitflip") slider(probCtl, { label: "Flip probability per bit", min: 0, max: 0.5, step: 1 / 24, value: state.prob, format: (v) => v.toFixed(3) + (Math.abs(v - 1 / 12) < 1e-9 ? " = 1/n" : ""), onInput: (v) => ((state.prob = v), draw(), render()) });
+    }
+
+    function children() {
+      const { p1, p2 } = state;
+      if (state.op === "one_point") return OP.onePoint(p1, p2, info.cut);
+      if (state.op === "two_point") return OP.twoPoint(p1, p2, info.lo, info.hi);
+      if (state.op === "uniform") return OP.uniformBits(p1, p2, info.keep);
+      if (state.op === "hux") return OP.hux(p1, p2, info.chosen);
+      if (state.op === "bitflip") return [OP.bitFlip(p1, info.mask)];
+      return [OP.segmentInversion(p1, info.a, info.b)];
+    }
+
+    // Source of each child bit: 0 = P1, 1 = P2 (for crossovers), flipped for mutations.
+    function fromSecond(child, j) {
+      if (state.op === "one_point") return child === 0 ? j >= info.cut : j < info.cut;
+      if (state.op === "two_point") return (j >= info.lo && j < info.hi) === (child === 0);
+      if (state.op === "uniform") return info.keep[j] === (child === 1);
+      if (state.op === "hux") return info.chosen.includes(j) === (child === 0);
+      return false;
+    }
+    function marked(j) {
+      if (state.op === "uniform") return !info.keep[j];
+      if (state.op === "hux") return info.chosen.includes(j);
+      if (state.op === "two_point") return j >= info.lo && j < info.hi;
+      if (state.op === "one_point") return j >= info.cut;
+      if (state.op === "bitflip") return info.mask[j];
+      return j >= info.a && j <= info.b;
+    }
+    const hamming = (a, b) => a.reduce((s2, v, j) => s2 + (v !== b[j] ? 1 : 0), 0);
+    const bits = (a) => a.join("");
+
+    let focusTarget = null;
+    function render() {
+      clear(svg);
+      const x0 = 40;
+      const w = 28;
+      for (let j = 0; j < n; j++) txt(svg, x0 + j * w + 12.5, 12, String(j), { "text-anchor": "middle" });
+      const rows = mutationOp() ? [["x", state.p1, 0]] : [["P1", state.p1, 0], ["P2", state.p2, 1]];
+      rows.forEach(([label, row, r], ri) => {
+        cellRow(svg, 20 + ri * 30, label, row, {
+          x0,
+          w,
+          cls: () => (r === 0 ? "vf-cell-a" : "vf-cell-b"),
+          focus: (rect, j) => {
+            rect.setAttribute("tabindex", state.cursor[0] === ri && state.cursor[1] === j ? "0" : "-1");
+            rect.setAttribute("class", rect.getAttribute("class") + " vf-focusable");
+            rect.setAttribute("role", "button");
+            rect.setAttribute("aria-label", `${label} bit ${j} is ${row[j]}. Press Enter to flip it; arrow keys move between bits.`);
+            const flip = () => {
+              row[j] = 1 - row[j];
+              state.cursor = [ri, j];
+              focusTarget = [ri, j];
+              draw();
+              render();
+            };
+            rect.addEventListener("click", flip);
+            rect.addEventListener("keydown", (e) => {
+              const moves = { ArrowLeft: [0, -1], ArrowRight: [0, 1], ArrowUp: [-1, 0], ArrowDown: [1, 0] };
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                flip();
+              } else if (moves[e.key]) {
+                e.preventDefault();
+                const rr = Math.min(rows.length - 1, Math.max(0, ri + moves[e.key][0]));
+                const jj = Math.min(n - 1, Math.max(0, j + moves[e.key][1]));
+                state.cursor = [rr, jj];
+                focusTarget = [rr, jj];
+                render();
+              }
+            });
+            if (focusTarget && focusTarget[0] === ri && focusTarget[1] === j) {
+              focusTarget = null;
+              setTimeout(() => rect.focus({ preventScroll: true }), 0);
+            }
+          },
+        });
+      });
+      const yMask = 20 + rows.length * 30 + 8;
+      if (state.step >= 1) {
+        cellRow(svg, yMask, mutationOp() ? "flip" : state.op === "uniform" ? "swap" : "cut", new Array(n).fill(null), {
+          x0,
+          w,
+          cls: (j) => (marked(j) ? "vf-cell-mark" : "vf-cell-empty"),
+          textCls: () => "",
+        });
+        if (state.op === "one_point") s("line", { x1: x0 + info.cut * w - 1.5, x2: x0 + info.cut * w - 1.5, y1: 16, y2: 196, class: "vf-line-2" }, svg);
+        if (state.op === "two_point") for (const c of [info.lo, info.hi]) s("line", { x1: x0 + c * w - 1.5, x2: x0 + c * w - 1.5, y1: 16, y2: 196, class: "vf-line-2" }, svg);
+      }
+      const kids = children();
+      if (state.step >= 2) {
+        kids.forEach((kid, k) => {
+          cellRow(svg, yMask + 38 + k * 30, mutationOp() ? "x′" : "C" + (k + 1), kid, {
+            x0,
+            w,
+            cls: (j) => (mutationOp() ? (marked(j) ? "vf-cell-mark" : "vf-cell-a") : fromSecond(k, j) ? "vf-cell-b" : "vf-cell-a"),
+          });
+        });
+      }
+      prev.disabled = state.step === 0;
+      next.disabled = state.step === 2;
+      text.textContent = describe(kids);
+    }
+
+    function describe(kids) {
+      const { p1, p2 } = state;
+      const head = `Step ${state.step + 1} of 3. `;
+      if (state.step === 0) {
+        if (mutationOp()) return head + `The child x = ${bits(p1)} enters mutation. Click a bit, or focus it and press Enter, to change it.`;
+        return head + `Parents P1 = ${bits(p1)} and P2 = ${bits(p2)} differ in ${hamming(p1, p2)} of ${n} positions. Click a bit, or focus it and press Enter, to change it.`;
+      }
+      if (state.step === 1) {
+        if (state.op === "one_point") return head + `The cut point ${info.cut} is drawn uniformly from 1 to ${n - 1}: the children will exchange positions ${info.cut} to ${n - 1}.`;
+        if (state.op === "two_point") return head + `Two positions drawn from 0 to ${n - 1} give the segment [${info.lo}, ${info.hi}): the children will exchange positions ${info.lo} to ${info.hi - 1}.`;
+        if (state.op === "uniform") {
+          const swapped = info.keep.filter((k) => !k).length;
+          return head + `Each position is exchanged with probability 0.5: this draw exchanges ${swapped} of ${n} positions, marked in the swap row.`;
+        }
+        if (state.op === "hux") {
+          const diff = hamming(p1, p2);
+          return head + `HUX exchanges exactly half of the ${diff} differing positions (at least one): ${info.chosen.length} chosen at random, ${info.chosen.join(", ") || "none"}.`;
+        }
+        if (state.op === "bitflip") {
+          const flips = info.mask.filter(Boolean).length;
+          return head + `Each bit flips with probability ${state.prob.toFixed(3)}, ${fmt(n * state.prob, 2)} bits on average: this draw flips ${flips} (${info.mask.map((m, j) => (m ? j : -1)).filter((j) => j >= 0).join(", ") || "none"}).`;
+        }
+        return head + `Two distinct positions give the segment from ${info.a} to ${info.b}; every bit inside it will be complemented.`;
+      }
+      if (mutationOp()) return head + `x′ = ${bits(kids[0])}, at Hamming distance ${hamming(p1, kids[0])} from x.`;
+      return head + `C1 = ${bits(kids[0])} (distance ${hamming(kids[0], p1)} to P1, ${hamming(kids[0], p2)} to P2) and C2 = ${bits(kids[1])} (distance ${hamming(kids[1], p1)} to P1, ${hamming(kids[1], p2)} to P2). Every bit comes from a parent, so a position where both parents agree keeps its value.`;
+    }
+    draw();
+    probabilityControl();
+    render();
+  };
+
+  widgets["integer-sbx"] = function (node) {
+    const state = { p1: 3, p2: 4, eta: 20, truncate: false };
+    const lower = 0;
+    const upper = 10;
+    const ctl = controls(node);
+    slider(ctl, { label: "Parent 1", min: 0, max: 10, step: 1, value: state.p1, onInput: (v) => ((state.p1 = v), render()) });
+    slider(ctl, { label: "Parent 2", min: 0, max: 10, step: 1, value: state.p2, onInput: (v) => ((state.p2 = v), render()) });
+    slider(ctl, { label: "η_c", min: 0, max: 50, step: 1, value: state.eta, onInput: (v) => ((state.eta = v), render()) });
+    select(ctl, {
+      label: "Rounding",
+      value: "round",
+      options: [
+        ["round", "Nearest integer (VAMOS)"],
+        ["trunc", "Truncation int() (jMetal)"],
+      ],
+      onChange: (v) => ((state.truncate = v === "trunc"), render()),
+    });
+    const body = h("div", { class: "vf-body vf-body--side" }, node);
+    const plot = createPlot(body, { x: [-0.5, 10.5], y: [0, 1], xLabel: "Child value (bounds [0, 10])", yLabel: "Share of children", xTicks: [0, 2, 4, 6, 8, 10], yFormat: (v) => Math.round(v * 100) + "%", label: "Distribution of integer SBX children" });
+    const readout = h("div", { class: "vf-readout" }, body);
+    legend(node, [
+      { label: "Children (20,000 crossovers)", shape: "region", cls: "vf-bar-1" },
+      { label: "Parents", shape: "line", cls: "vf-line-2" },
+    ]);
+    function render() {
+      const rand = mulberry32(5);
+      const counts = new Array(11).fill(0);
+      let sum = 0;
+      const total = 40000;
+      for (let i = 0; i < total / 2; i++) {
+        for (const c of OP.integerSbx([state.p1], [state.p2], lower, upper, state.eta, 1, rand, state.truncate)) {
+          counts[c[0]] += 1;
+          sum += c[0];
+        }
+      }
+      const shares = counts.map((c) => c / total);
+      const top = Math.max(0.1, Math.ceil(Math.max(...shares) * 10) / 10);
+      plot.setDomain([-0.5, 10.5], [0, top]);
+      clear(plot.layers.mid);
+      clear(plot.layers.top);
+      shares.forEach((v, k) => {
+        if (v <= 0) return;
+        plot.rect(plot.layers.mid, k - 0.38, 0, k + 0.38, v, "vf-bar-1");
+      });
+      [state.p1, state.p2].forEach((p, k) => {
+        s("line", { x1: plot.x(p), x2: plot.x(p), y1: plot.y(0), y2: plot.y(top), class: "vf-line-2 vf-dashed" }, plot.layers.top);
+        txt(plot.layers.top, plot.x(p) + 4, plot.m.t + 12 + 14 * k, "p" + (k + 1), { class: "vf-mark-label" });
+      });
+      const mean = sum / total;
+      const same = (counts[state.p1] + (state.p2 !== state.p1 ? counts[state.p2] : 0)) / total;
+      clear(readout);
+      h("p", {}, readout, `Mean child ${fmt(mean, 3)} for a parents' mean of ${fmt((state.p1 + state.p2) / 2, 1)}; ${fmt(100 * same, 1)}% of the children equal a parent.`);
+      h(
+        "p",
+        {},
+        readout,
+        state.truncate
+          ? "Truncation sends every fraction down, towards zero, so the children's mean falls below the parents' mean."
+          : "Rounding to the nearest integer keeps SBX's symmetry: the children's mean stays at the parents' mean."
+      );
+    }
+    render();
+  };
+
+  widgets["permutation-steps"] = function (node) {
+    const n = 8;
+    const P1 = [0, 1, 2, 3, 4, 5, 6, 7];
+    const P2 = [2, 6, 4, 0, 5, 7, 1, 3];
+    const state = { op: node.dataset.operator || "pmx", a: 2, b: 5, start: 0, step: 0, seed: 1, keep: [false, true, false, true, true, false, false, true] };
+    const names = { pmx: "PMX", ox: "Order crossover (OX)", cx: "Cycle crossover (CX)", position: "Position-based" };
+    const ctl = controls(node);
+    select(ctl, { label: "Operator", value: state.op, options: Object.keys(names).map((k) => [k, names[k]]), onChange: (v) => ((state.op = v), (state.step = 0), buildParams(), render()) });
+    const prev = button(ctl, "Previous step", () => ((state.step = Math.max(0, state.step - 1)), render()));
+    const next = button(ctl, "Next step", () => ((state.step = Math.min(2, state.step + 1)), render()), true);
+    const params = controls(node);
+    const W = 40 + n * 34 + 8;
+    const svg = s("svg", { viewBox: `0 0 ${W} 160`, class: "vf-plot", role: "group", "aria-label": "Two parent permutations and the children a permutation crossover builds" }, h("div", { class: "vf-plot-wrap" }, node));
+    const text = h("p", { class: "vf-step-text", "aria-live": "polite" }, h("div", { class: "vf-readout" }, node));
+    legend(node, [
+      { label: "From P1", shape: "region", cls: "vf-cell-a" },
+      { label: "From P2", shape: "region", cls: "vf-cell-b" },
+      { label: "Segment, cycle or kept position", shape: "region", cls: "vf-cell-mark" },
+    ]);
+
+    function buildParams() {
+      clear(params);
+      if (state.op === "pmx" || state.op === "ox") {
+        const maxEnd = state.op === "pmx" ? n - 1 : n - 2;
+        state.b = Math.min(state.b, maxEnd);
+        state.a = Math.min(state.a, state.b - (state.op === "pmx" ? 1 : 0));
+        let endCtl = null;
+        const startCtl = slider(params, {
+          label: "Segment start",
+          min: 0,
+          max: maxEnd - (state.op === "pmx" ? 1 : 0),
+          step: 1,
+          value: state.a,
+          onInput: (v) => {
+            state.a = v;
+            const minLen = state.op === "pmx" ? 1 : 0;
+            if (state.b < v + minLen) {
+              state.b = v + minLen;
+              endCtl.set(state.b);
+            }
+            render();
+          },
+        });
+        endCtl = slider(params, {
+          label: "Segment end (included)",
+          min: state.op === "pmx" ? 1 : 0,
+          max: maxEnd,
+          step: 1,
+          value: state.b,
+          onInput: (v) => {
+            state.b = v;
+            const minLen = state.op === "pmx" ? 1 : 0;
+            if (state.a > v - minLen) {
+              state.a = v - minLen;
+              startCtl.set(state.a);
+            }
+            render();
+          },
+        });
+      } else if (state.op === "cx") {
+        slider(params, { label: "Start position", min: 0, max: n - 1, step: 1, value: state.start, onInput: (v) => ((state.start = v), render()) });
+      } else {
+        button(params, "New positions", () => {
+          state.seed += 1;
+          const rand = mulberry32(state.seed * 104729);
+          const k = 1 + Math.floor(rand() * n);
+          const order = P1.map((_, i) => i);
+          for (let i = n - 1; i > 0; i--) {
+            const j = Math.floor(rand() * (i + 1));
+            [order[i], order[j]] = [order[j], order[i]];
+          }
+          state.keep = P1.map((_, i) => order.slice(0, k).includes(i));
+          render();
+        });
+      }
+    }
+
+    function compute() {
+      if (state.op === "pmx") {
+        const c1 = OP.pmxChild(P1, P2, state.a, state.b);
+        const c2 = OP.pmxChild(P2, P1, state.a, state.b);
+        const inSeg = (i) => i >= state.a && i <= state.b;
+        return { kids: [c1, c2], mark: inSeg, src: (k, i) => (inSeg(i) ? 1 - k : k) };
+      }
+      if (state.op === "ox") {
+        const lo = state.a;
+        const hi = state.b + 1;
+        const inSeg = (i) => i >= lo && i < hi;
+        return { kids: [OP.oxChild(P1, P2, lo, hi), OP.oxChild(P2, P1, lo, hi)], mark: inSeg, src: (k, i) => (inSeg(i) ? k : 1 - k) };
+      }
+      if (state.op === "cx") {
+        const res = OP.cycle(P1, P2, state.start);
+        const inCyc = (i) => res.cycle.includes(i);
+        return { kids: res.children, mark: inCyc, src: (k, i) => (inCyc(i) ? k : 1 - k), cycle: res.cycle };
+      }
+      const keep = (i) => state.keep[i];
+      return { kids: [OP.positionBased(P1, P2, state.keep), OP.positionBased(P2, P1, state.keep)], mark: keep, src: (k, i) => (keep(i) ? k : 1 - k) };
+    }
+
+    function render() {
+      clear(svg);
+      const x0 = 40;
+      const w = 34;
+      for (let j = 0; j < n; j++) txt(svg, x0 + j * w + 15.5, 12, String(j), { "text-anchor": "middle" });
+      const res = compute();
+      const markCls = (base) => (j) => (state.step >= 1 && res.mark(j) ? "vf-cell-mark" : base);
+      cellRow(svg, 20, "P1", P1, { x0, w, cls: markCls("vf-cell-a") });
+      cellRow(svg, 50, "P2", P2, { x0, w, cls: markCls("vf-cell-b") });
+      if (state.step >= 1) {
+        res.kids.forEach((kid, k) => {
+          const partial = kid.map((g, i) => (state.step >= 2 || res.mark(i) ? g : null));
+          cellRow(svg, 92 + k * 30, "C" + (k + 1), partial, { x0, w, cls: (i) => (partial[i] === null ? "vf-cell-empty" : res.src(k, i) === 0 ? "vf-cell-a" : "vf-cell-b") });
+        });
+      }
+      prev.disabled = state.step === 0;
+      next.disabled = state.step === 2;
+      text.textContent = describe(res);
+    }
+
+    const list = (a) => "[" + a.join(" ") + "]";
+    function describe(res) {
+      const head = `Step ${state.step + 1} of 3. `;
+      const [c1, c2] = res.kids;
+      if (state.op === "pmx") {
+        if (state.step === 0) return head + `Positions ${state.a} to ${state.b} form the matching section of P1 = ${list(P1)} and P2 = ${list(P2)}.`;
+        const pairs = [];
+        for (let i = state.a; i <= state.b; i++) pairs.push(`${P2[i]}↔${P1[i]}`);
+        if (state.step === 1) return head + `C1 receives P2's section and C2 receives P1's. The section defines the mapping ${pairs.join(", ")}.`;
+        return head + `Every other position of C1 copies P1; a gene already in the section is replaced through the mapping, repeatedly, until it is new. C1 = ${list(c1)}, C2 = ${list(c2)}.`;
+      }
+      if (state.op === "ox") {
+        const lo = state.a;
+        const hi = state.b + 1;
+        if (state.step === 0) return head + `The segment covers positions ${lo} to ${hi - 1} of P1 = ${list(P1)} and P2 = ${list(P2)}.`;
+        if (state.step === 1) return head + `C1 copies P1's segment and C2 copies P2's, in place.`;
+        const used = new Set(P1.slice(lo, hi));
+        return head + `C1 is completed with P2's remaining genes in P2's order, ${list(P2.filter((g) => !used.has(g)))}, written from position ${hi % n} onwards and wrapping around. C1 = ${list(c1)}, C2 = ${list(c2)}.`;
+      }
+      if (state.op === "cx") {
+        if (state.step === 0) return head + `Start at position ${state.start}. A cycle follows P2's gene at the current position to its position in P1.`;
+        const path = res.cycle.map((i) => `${i} (P1 ${P1[i]}, P2 ${P2[i]})`).join(" → ");
+        if (state.step === 1) return head + `The cycle visits positions ${path} and closes. Its ${res.cycle.length} positions hold the same set of genes in both parents.`;
+        return head + `C1 takes P1's genes on the cycle and P2's elsewhere; C2 the reverse. C1 = ${list(c1)}, C2 = ${list(c2)}. Every gene keeps a position it had in one parent.`;
+      }
+      const kept = state.keep.map((k, i) => (k ? i : -1)).filter((i) => i >= 0);
+      if (state.step === 0) return head + `A random number of positions, here ${kept.length} (${kept.join(", ")}), is drawn; press New positions for another draw.`;
+      if (state.step === 1) return head + `C1 keeps P1's genes at those positions and C2 keeps P2's.`;
+      return head + `The free positions of C1 are filled, left to right, with P2's other genes in P2's order. C1 = ${list(c1)}, C2 = ${list(c2)}.`;
+    }
+    buildParams();
+    render();
+  };
+
+  widgets["tour-moves"] = function (node) {
+    const cities = [
+      [0.1, 0.2],
+      [0.3, 0.85],
+      [0.55, 0.15],
+      [0.75, 0.8],
+      [0.92, 0.35],
+      [0.6, 0.5],
+      [0.35, 0.45],
+      [0.12, 0.62],
+    ];
+    const start = [0, 2, 1, 3, 4, 5, 6, 7];
+    const n = cities.length;
+    const state = { tour: start.slice(), move: "inversion", i: 1, j: 2 };
+    const ctl = controls(node);
+    const moveSelect = select(ctl, {
+      label: "Mutation",
+      value: state.move,
+      options: [
+        ["inversion", "Inversion / 2-opt"],
+        ["swap", "Swap"],
+        ["insert", "Insert"],
+      ],
+      onChange: (v) => ((state.move = v), render()),
+    });
+    const si = slider(ctl, { label: "Position i", min: 0, max: n - 1, step: 1, value: state.i, onInput: (v) => ((state.i = v), render()) });
+    const sj = slider(ctl, { label: "Position j", min: 0, max: n - 1, step: 1, value: state.j, onInput: (v) => ((state.j = v), render()) });
+    const ctl2 = controls(node);
+    button(ctl2, "Apply the move", () => ((state.tour = proposed()), render()), true);
+    button(ctl2, "Best inversion", () => {
+      let best = null;
+      for (let a = 0; a < n; a++)
+        for (let b = a + 1; b < n; b++) {
+          const len = OP.tourLength(cities, OP.invert(state.tour, a, b));
+          if (!best || len < best[0] - 1e-12) best = [len, a, b];
+        }
+      state.move = "inversion";
+      moveSelect.value = "inversion";
+      state.i = best[1];
+      state.j = best[2];
+      si.set(state.i);
+      sj.set(state.j);
+      render();
+    });
+    button(ctl2, "Reset tour", () => ((state.tour = start.slice()), render()));
+    const body = h("div", { class: "vf-body vf-body--side" }, node);
+    const plot = createPlot(body, { x: [0, 1], y: [0, 1], xLabel: "x", yLabel: "y", label: "A tour of eight cities before and after a mutation", width: 320, height: 300, margin: { l: 36, b: 36 } });
+    const readout = h("div", { class: "vf-readout" }, body);
+    legend(node, [
+      { label: "Current tour", shape: "line", cls: "vf-line-thin vf-dashed" },
+      { label: "Tour after the move", shape: "line", cls: "vf-line-1" },
+      { label: "New edges", shape: "line", cls: "vf-line-2" },
+    ]);
+    function proposed() {
+      const lo = Math.min(state.i, state.j);
+      const hi = Math.max(state.i, state.j);
+      if (state.move === "inversion") return OP.invert(state.tour, lo, hi);
+      if (state.move === "swap") return OP.swap(state.tour, state.i, state.j);
+      return OP.insert(state.tour, state.i, state.j);
+    }
+    function render() {
+      const next = proposed();
+      const pts = (perm) => perm.concat([perm[0]]).map((c) => cities[c]);
+      clear(plot.layers.mid);
+      clear(plot.layers.points);
+      clear(plot.layers.top);
+      plot.line(plot.layers.mid, pts(state.tour), "vf-line-thin vf-dashed");
+      plot.line(plot.layers.mid, pts(next), "vf-line-1");
+      const before = new Set(OP.tourEdges(state.tour));
+      const added = OP.tourEdges(next).filter((e) => !before.has(e));
+      for (const e of added) {
+        const [a, b] = e.split("-").map(Number);
+        plot.line(plot.layers.mid, [cities[a], cities[b]], "vf-line-2");
+      }
+      cities.forEach((c, k) => {
+        marker(plot.layers.points, "circle", plot.x(c[0]), plot.y(c[1]), 5, "vf-pt vf-pt-ink");
+        txt(plot.layers.top, plot.x(c[0]) + 7, plot.y(c[1]) - 6, String(k), { class: "vf-mark-label" });
+      });
+      const l0 = OP.tourLength(cities, state.tour);
+      const l1 = OP.tourLength(cities, next);
+      clear(readout);
+      const verb = { inversion: `reverses positions ${Math.min(state.i, state.j)} to ${Math.max(state.i, state.j)}`, swap: `exchanges the cities at positions ${state.i} and ${state.j}`, insert: `moves the city at position ${state.i} to position ${state.j}` }[state.move];
+      h("p", {}, readout, `Current tour [${state.tour.join(" ")}]: length ${fmt(l0, 3)}, ${OP.tourCrossings(cities, state.tour)} crossing(s).`);
+      h("p", {}, readout, `The move ${verb}: [${next.join(" ")}], length ${fmt(l1, 3)} (${l1 - l0 <= 0 ? "" : "+"}${fmt(l1 - l0, 3)}), ${OP.tourCrossings(cities, next)} crossing(s); ${added.length} of ${n} edges change.`);
+      h("p", {}, readout, "On a symmetric tour an inversion replaces exactly two edges, which is a 2-opt move; a swap replaces up to four and an insertion up to three.");
     }
     render();
   };

@@ -142,7 +142,7 @@ infeasible position, and between two infeasible ones the smaller violation
 wins.
 
 **Turbulence.** PSO has no mutation of its own. SMPSO adds polynomial mutation
-(lesson [Real-coded operators](../operators/real-coded.md#polynomial-mutation), [6]) to part of the
+(lesson [Real-coded operators](operators/real-coded.md#polynomial-mutation), [6]) to part of the
 swarm, a *turbulence* that helps particles leave local optima. VAMOS mutates
 every sixth particle (indices 0, 6, 12, …) after it moves, with p_m = 1/n and
 η_m = 20 by default.
@@ -387,7 +387,7 @@ affordable.
 - VAMOS's defaults: w = 0.1, C₁ and C₂ in [1.5, 2.5], vmax_fraction 0.5,
   archive and swarm of 100.
 
-**Next section:** [Real-coded operators](../operators/real-coded.md).
+**Next section:** [Variation operators: an overview](operators/overview.md).
 
 ## References
 

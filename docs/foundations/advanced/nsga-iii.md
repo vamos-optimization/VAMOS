@@ -76,7 +76,9 @@ w/2 + 1/(2m), as pymoo does; VAMOS 1.4.0 generated one layer only. Any other
 set can be read from a file with `reference_directions(path=...)`: rows that
 are non-negative, sum to one and have one column per objective, separated by
 commas or, since the same development, by whitespace, as in jMetal's weight
-files.
+files. Lesson [Reference directions and weight vectors](reference-directions.md)
+compares these designs, measures the uniformity of weight files, and shows
+the options that NSGA-III shares with MOEA/D and RVEA.
 
 ### The population rule
 
