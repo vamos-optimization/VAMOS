@@ -132,12 +132,17 @@ class Ensemble(ConstraintHandlingTechnique):
     needs_progress = True
 
     def __init__(self, weights: Sequence[float] = (0.25, 0.25, 0.25, 0.25)) -> None:
-        if len(weights) != len(ENSEMBLE_MEMBERS) or any(weight < 0.0 for weight in weights):
-            raise ValueError(f"ensemble needs a weight of at least 0 for each of {', '.join(ENSEMBLE_MEMBERS)}; got {list(weights)}.")
-        total = float(sum(weights))
-        if total <= 0.0:
+        values = np.asarray(weights, dtype=np.float64)
+        if values.shape != (len(ENSEMBLE_MEMBERS),) or not np.all(np.isfinite(values)) or np.any(values < 0.0):
+            raise ValueError(
+                f"ensemble needs a finite weight of at least 0 for each of {', '.join(ENSEMBLE_MEMBERS)}; got {list(weights)}."
+            )
+        largest = float(values.max())
+        if largest <= 0.0:
             raise ValueError("ensemble needs a weight above 0.")
-        self.weights = tuple(float(weight) / total for weight in weights)
+        # Over the largest first, so that the sum of large finite weights cannot overflow.
+        scaled = values / largest
+        self.weights = tuple(float(weight) for weight in scaled / scaled.sum())
         self.penalty = DynamicPenalty(constant=0.5, alpha=2.0, beta=2.0)
 
     def bind_run(self, population_size: int, max_evaluations: int) -> None:

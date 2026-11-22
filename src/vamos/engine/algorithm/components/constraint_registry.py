@@ -128,8 +128,12 @@ def normalize_constraint_handling(value: object) -> tuple[str, dict[str, Techniq
     for key, default in optional.items():
         if key in raw:
             params[key] = _option(name, key, raw[key], default)
-    if name == "ensemble" and not any(float({**optional, **params}[key]) > 0.0 for key in optional):
-        raise ValueError(f"constraint_handling {name!r}: the weights are normalized to sum 1, so one must be above 0.")
+    if name == "ensemble":
+        weights = [float({**optional, **params}[key]) for key in optional]
+        if not all(math.isfinite(weight) for weight in weights) or not any(weight > 0.0 for weight in weights):
+            raise ValueError(
+                f"constraint_handling {name!r}: the weights are normalized to sum 1, so they are finite and one must be above 0."
+            )
     if "cdf_alpha" in params and params.get("ratio_objective") is not True:
         raise ValueError(f"constraint_handling {name!r}: cdf_alpha weighs the ratio objective, so it needs ratio_objective True.")
     return (name, params)

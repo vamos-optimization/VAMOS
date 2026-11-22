@@ -11,6 +11,7 @@ algorithms reject them and that skipping the crowding distance is bit-identical.
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 import numpy as np
@@ -172,6 +173,7 @@ def test_the_dynamic_penalty_grows_with_the_generation_and_is_the_state() -> Non
     [
         (("ensemble", {"nds_weight": 0.0, "cdp_weight": 0.0, "mcr_weight": 0.0, "dpf_weight": 0.0}), "one must be above 0"),
         (("ensemble", {"mcr_weight": -1.0}), "mcr_weight must lie in"),
+        (("ensemble", {"nds_weight": math.inf}), "they are finite"),
         (("ensemble", {"weights": [1, 1, 1, 1]}), "unknown: \\['weights'\\]"),
         (("multiple_constraint_ranking", {"nds_weight": 1.0}), "unknown: \\['nds_weight'\\]"),
     ],
@@ -187,6 +189,15 @@ def test_the_ensemble_takes_the_given_weights_and_defaults_the_others() -> None:
     assert isinstance(technique, Ensemble) and technique.total_order
     assert technique.weights == pytest.approx((0.25, 0.25, 0.5, 0.0))
     assert isinstance(make_constraint_handling("multiple_constraint_ranking"), MultipleConstraintRanking)
+
+
+def test_large_finite_weights_normalize_without_overflow() -> None:
+    # 1e308 + 1e308 overflows to infinity: the weights are scaled by the largest before they are summed.
+    technique = make_constraint_handling(("ensemble", {"nds_weight": 1e308, "cdp_weight": 1e308, "mcr_weight": 0.0, "dpf_weight": 0.0}))
+
+    assert isinstance(technique, Ensemble) and technique.weights == pytest.approx((0.5, 0.5, 0.0, 0.0))
+    with pytest.raises(ValueError, match="finite weight"):
+        Ensemble([math.nan, 1.0, 1.0, 1.0])
 
 
 def test_only_the_nsgaii_space_offers_mcr_and_the_ensemble() -> None:
