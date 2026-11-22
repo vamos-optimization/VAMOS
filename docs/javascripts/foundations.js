@@ -9,8 +9,8 @@
    tests/docs/test_foundations.py checks that every figure a lesson uses is
    implemented here and, when Node.js is installed, runs the figures'
    algorithms against VAMOS: non-dominated sorting, crowding distance,
-   hypervolume and its contributions, the evolutionary loop and the families'
-   survivors, the variation operators, the benchmark fronts and CTP
+   hypervolume and its contributions, the evolutionary loop, one NSGA-II
+   generation and the families' survivors, the variation operators, the benchmark fronts and CTP
    violations, two-layer reference directions, the constraint-handling
    rankings, F-race and the tuning budgets. The distance indicators and the
    Das-Dennis lattices were checked by hand against MooCore and VAMOS when the
@@ -2323,6 +2323,47 @@
     return steps;
   }
 
+  /** One NSGA-II generation of the loop figure's problem, recorded for the NSGA-II lesson: the population with
+      its fronts and crowding distances, the binary tournaments, the children, the fronts of the merged
+      population, the whole fronts that fit, the front that does not fit (null when the whole fronts fill the
+      places exactly) with its crowding distances, and the survivors. It is gaLoop's first elitist cycle. */
+  function nsga2Generation(seed, popSize) {
+    const steps = gaLoop("plus", seed, popSize, 2 * popSize);
+    const phase = (name) => steps.find((st) => st.phase === name);
+    const chosen = phase("select");
+    const merged = phase("survive").merged;
+    const F = merged.map((p) => p.f);
+    const sorted = rankAndCrowding(F);
+    const whole = [];
+    let used = 0;
+    let split = null;
+    for (const front of sorted.fronts) {
+      if (used === popSize) break;
+      if (used + front.length > popSize) {
+        split = front;
+        break;
+      }
+      whole.push(front);
+      used += front.length;
+    }
+    return {
+      popSize,
+      pop: chosen.pop,
+      rank: chosen.rank,
+      crowding: chosen.crowding,
+      tournaments: chosen.tournaments,
+      children: phase("evaluate").children,
+      merged,
+      mergedRank: sorted.rank,
+      mergedCrowding: sorted.crowding,
+      fronts: sorted.fronts,
+      whole,
+      split,
+      places: popSize - used,
+      keep: nsga2Truncate(F, popSize),
+    };
+  }
+
   /** Which members of one population each family keeps, with N places:
       dominance-based, NSGA-II's fronts and crowding distance;
       decomposition-based, for each of N evenly spread weight vectors the member with the best Tchebycheff value,
@@ -2436,6 +2477,7 @@
     ctpFront,
     gaEvaluate,
     gaLoop,
+    nsga2Generation,
     familySurvivors,
   };
   root.VamosFoundations = algorithms;
@@ -3431,6 +3473,192 @@
       h("p", {}, readout, "Drag the points of A, or focus one and use the arrow keys.");
     }
     render();
+  };
+
+  /* NSGA-II at a glance: one generation in eight steps, from the population to the next one. */
+  widgets["nsga2-steps"] = function (node) {
+    const N = 6;
+    const TITLES = ["the population Pₜ", "mating selection", "variation", "evaluation and merge", "non-dominated sorting", "whole fronts", "crowding distance", "the next population Pₜ₊₁"];
+    const state = { seed: Number(node.dataset.seed || 4679), step: 0 };
+    let g = null;
+    const ctl = controls(node);
+    const back = button(ctl, "Previous step", () => go(state.step - 1));
+    const next = button(ctl, "Next step", () => go(state.step + 1), true);
+    button(ctl, "Restart", () => go(0));
+    button(ctl, "New population", () => {
+      // Draw populations until one needs the crowding distance to decide who survives.
+      for (let tries = 0; tries < 200; tries++) {
+        const seed = Math.floor(Math.random() * 1e6);
+        const candidate = nsga2Generation(seed, N);
+        if (candidate.split && candidate.places > 0 && candidate.split.length > candidate.places) {
+          state.seed = seed;
+          break;
+        }
+      }
+      build();
+    });
+    const body = h("div", { class: "vf-body vf-body--two" }, node);
+    const xPlot = createPlot(body, { title: "Decision space", x: [0, 1], y: [0, 1], xLabel: "x₁", yLabel: "x₂", label: "Decision vectors of the parents and of the children" });
+    const fPlot = createPlot(body, { title: "Objective space", x: [0, 1], y: [0, 2.1], xLabel: "f₁ (minimize)", yLabel: "f₂ (minimize)", label: "Objective vectors, fronts and crowding distances of one NSGA-II generation" });
+    for (const plot of [xPlot, fPlot]) {
+      plot.svg.setAttribute("tabindex", "0");
+      plot.svg.setAttribute("aria-keyshortcuts", "ArrowLeft ArrowRight");
+    }
+    const readout = h("div", { class: "vf-readout" }, node);
+    const stepText = h("p", { class: "vf-step-text", "aria-live": "polite" }, readout);
+    h("p", {}, readout, "The arrow keys step through the figure when it has focus; New population draws another generation.");
+    const tableBox = h("div", {}, readout);
+    legend(node, [
+      { label: "Parent", shape: "circle", cls: "vf-pt vf-pt-muted" },
+      { label: "Child", shape: "triangle", cls: "vf-pt vf-pt-muted" },
+      { label: "Front 1, 2, 3 … (darker is better)", shape: "circle", cls: "vf-pt vf-r1" },
+      { label: "Tournament winner, survivor", shape: "circle", cls: "vf-ring" },
+      { label: "Cuboid of a crowding distance", shape: "region", cls: "vf-cuboid" },
+      { label: "Pareto set and front", shape: "line", cls: "vf-front" },
+    ]);
+    node.addEventListener("keydown", (e) => {
+      if (e.target && /^(SELECT|INPUT|BUTTON)$/.test(e.target.tagName)) return;
+      if (e.key === "ArrowRight") go(state.step + 1);
+      else if (e.key === "ArrowLeft") go(state.step - 1);
+      else return;
+      e.preventDefault();
+    });
+    function build() {
+      g = nsga2Generation(state.seed, N);
+      go(0);
+    }
+    function go(i) {
+      state.step = Math.max(0, Math.min(TITLES.length - 1, i));
+      render();
+    }
+    const ids = (rows) => rows.map((i) => g.merged[i].id);
+    const set = (rows) => "{" + ids(rows).sort((a, b) => a - b).join(", ") + "}";
+    const frontsText = (fronts) => fronts.map((front, k) => `front ${k + 1} = ${set(front)}`).join(", ");
+    function draw(plot, v, shape, cls, label, ring) {
+      const px = plot.x(v[0]);
+      const py = plot.y(Math.min(v[1], plot.yd[1]));
+      marker(plot.layers.marks, shape, px, py, 6, cls);
+      if (ring) marker(plot.layers.marks, "circle", px, py, 10.5, "vf-ring");
+      txt(plot.layers.top, px + 9, py - 7, label, { class: "vf-mark-label" });
+    }
+    function render() {
+      const step = state.step;
+      back.disabled = step === 0;
+      next.disabled = step === TITLES.length - 1;
+      for (const plot of [xPlot, fPlot]) {
+        clear(plot.layers.back);
+        clear(plot.layers.mid);
+        clear(plot.layers.marks);
+        clear(plot.layers.top);
+      }
+      xPlot.line(xPlot.layers.mid, [[0, 0.004], [1, 0.004]], "vf-front");
+      fPlot.line(fPlot.layers.mid, frontPoints((t) => 1 - Math.sqrt(t), 0, 1, 60), "vf-front");
+      const rows = [];
+      const wins = new Map();
+      g.tournaments.forEach((t) => wins.set(t.winner, (wins.get(t.winner) || 0) + 1));
+      if (step <= 2) {
+        const byId = new Map(g.pop.map((p) => [p.id, p]));
+        if (step === 1) {
+          for (const t of g.tournaments) fPlot.line(fPlot.layers.mid, [byId.get(t.a).f, byId.get(t.b).f], "vf-line-thin vf-dashed");
+        }
+        g.pop.forEach((p, i) => {
+          const k = wins.get(p.id) || 0;
+          const cls = "vf-pt " + rankClass(g.rank[i]);
+          const label = String(p.id) + (step === 1 && k > 1 ? " ×" + k : "");
+          draw(xPlot, p.x, "circle", cls, label, step === 1 && k > 0);
+          draw(fPlot, p.f, "circle", cls, label, step === 1 && k > 0);
+          rows.push([String(p.id), "parent", fmt(p.x[0], 2), fmt(p.x[1], 2), fmt(p.f[0], 2), fmt(p.f[1], 2), String(g.rank[i] + 1), fmt(g.crowding[i], 2), step === 1 ? (k ? `won ${k}×` : "–") : "–"]);
+        });
+        if (step === 2) {
+          g.children.forEach((c) => {
+            c.parents.forEach((id) => xPlot.line(xPlot.layers.mid, [byId.get(id).x, c.x], "vf-line-thin vf-dashed"));
+            draw(xPlot, c.x, "triangle", "vf-pt vf-pt-2", String(c.id), false);
+            rows.push([String(c.id), `child of ${c.parents[0]} and ${c.parents[1]}`, fmt(c.x[0], 2), fmt(c.x[1], 2), "?", "?", "–", "–", "not evaluated"]);
+          });
+        }
+      } else {
+        const keep = new Set(g.keep);
+        const whole = new Set(g.whole.flat());
+        const split = new Set(g.split || []);
+        if (step === 4) {
+          g.fronts.forEach((front, k) => {
+            const pts = front.map((i) => g.merged[i].f).sort((a, b) => a[0] - b[0]);
+            if (pts.length > 1) fPlot.line(fPlot.layers.mid, pts, "vf-front-link " + rankClass(k));
+          });
+        }
+        if (step === 6 && g.split) {
+          const order = g.split.slice().sort((a, b) => g.merged[a].f[0] - g.merged[b].f[0] || a - b);
+          for (let k = 1; k < order.length - 1; k++) {
+            const a = g.merged[order[k - 1]].f;
+            const b = g.merged[order[k + 1]].f;
+            fPlot.rect(fPlot.layers.back, a[0], a[1], b[0], b[1], "vf-cuboid");
+          }
+        }
+        g.merged.forEach((p, i) => {
+          const isChild = i >= N;
+          const sorted = step >= 4;
+          const out = (step === 5 || step === 6) && !whole.has(i) && !split.has(i);
+          const removed = step === 7 && !keep.has(i);
+          const cls = "vf-pt " + (sorted ? rankClass(g.mergedRank[i]) : "vf-pt-muted") + (out || removed ? " vf-faded" : "");
+          const ring = ((step === 5 || step === 6) && whole.has(i)) || (step === 7 && keep.has(i));
+          let label = String(p.id);
+          if (step === 6 && split.has(i)) label += " · " + fmt(g.mergedCrowding[i], 2);
+          if (removed) label += " ✕";
+          draw(xPlot, p.x, isChild ? "triangle" : "circle", cls, label, ring);
+          draw(fPlot, p.f, isChild ? "triangle" : "circle", cls, label, ring);
+          let status = isChild ? "child" : "parent";
+          if (step === 5 || step === 6) status = whole.has(i) ? "kept, whole front" : split.has(i) ? `competes for ${g.places} place${g.places === 1 ? "" : "s"}` : "discarded";
+          if (step === 7) status = keep.has(i) ? "kept" : "removed";
+          const crowd = step >= 6 && split.has(i) ? fmt(g.mergedCrowding[i], 2) : "–";
+          rows.push([String(p.id), isChild ? "child" : "parent", fmt(p.x[0], 2), fmt(p.x[1], 2), fmt(p.f[0], 2), fmt(p.f[1], 2), sorted ? String(g.mergedRank[i] + 1) : "?", crowd, status]);
+        });
+      }
+      stepText.textContent = `Step ${step + 1} of ${TITLES.length}: ${TITLES[step]}. ${describe(step)}`;
+      clear(tableBox);
+      table(tableBox, ["Id", "Role", "x₁", "x₂", "f₁", "f₂", "Front", "Crowding", "Status"], rows, [false, false, true, true, true, true, true, true, false]);
+    }
+    function describe(step) {
+      const popIndex = (front) => front.map((i) => g.pop[i].id).sort((a, b) => a - b);
+      if (step === 0) {
+        const fronts = rankAndCrowding(g.pop.map((p) => p.f)).fronts;
+        const text = fronts.map((front, k) => `front ${k + 1} = {${popIndex(front).join(", ")}}`).join(", ");
+        return `${N} solutions of a two-variable problem whose Pareto front is ZDT1's: f₁ = x₁ and f₂ = g·(1 − √(x₁/g)) with g = 1 + x₂. They are already sorted into fronts, ${text}, and each has a crowding distance inside its front.`;
+      }
+      if (step === 1) {
+        const why = { front: "better front", crowding: "same front, more isolated", coin: "full tie, coin" };
+        const games = g.tournaments.map((t) => `${t.a} vs ${t.b} → ${t.winner} (${why[t.reason]})`).join("; ");
+        return `${N} binary tournaments pick ${N / 2} pairs of parents: ${games}. The better front wins; within a front, the larger crowding distance. A member can win several times, and ringed members won at least once.`;
+      }
+      if (step === 2) {
+        return `SBX crossover (probability 0.9, η = 20) recombines each pair and polynomial mutation (probability 1/2 per variable, η = 20) perturbs each child: children ${g.children[0].id} to ${g.children[N - 1].id}, the triangles joined to their parents in the decision space. Their objectives are not known yet.`;
+      }
+      if (step === 3) {
+        return `The ${N} children are evaluated and merged with the ${N} parents: Rₜ = Pₜ ∪ Qₜ holds ${2 * N} solutions, which compete for ${N} places on equal terms. Keeping the parents in the competition is NSGA-II's elitism: a good solution is never lost to worse children.`;
+      }
+      if (step === 4) return `The merged population falls into ${g.fronts.length} fronts: ${frontsText(g.fronts)}. Lines join the members of each front; each front is non-dominated once the fronts before it are removed.`;
+      if (step === 5) {
+        const used = N - g.places;
+        const fit = g.whole.length === 0 ? "No front fits entirely" : g.whole.length === 1 ? `Front 1 fits entirely, ${used} of ${N} places` : `Fronts 1 to ${g.whole.length} fit entirely, ${used} of ${N} places`;
+        if (!g.split) return `${fit}: the whole fronts fill the places exactly, and the fronts after them are discarded.`;
+        return `${fit}. Front ${g.whole.length + 1} has ${g.split.length} members for the ${g.places} remaining place${g.places === 1 ? "" : "s"}; the fronts after it are discarded without further work.`;
+      }
+      if (step === 6) {
+        if (!g.split) return `The whole fronts filled the ${N} places exactly, so the crowding distance decides nothing in this generation.`;
+        const k = g.whole.length + 1;
+        const ext = g.split.filter((i) => g.mergedCrowding[i] === Infinity);
+        const inner = g.split.filter((i) => g.mergedCrowding[i] !== Infinity).sort((a, b) => cmpDesc(g.mergedCrowding[a], g.mergedCrowding[b]) || a - b);
+        const winners = g.split.filter((i) => g.keep.includes(i));
+        const extText = ext.length ? `Its extremes, ${idList(ids(ext))}, get ∞. ` : "";
+        const innerText = inner.length ? `Every other member gets the sum, over the two objectives, of a side of its cuboid (the box spanned by its two neighbours in the front) divided by the front's range in that objective: ${inner.map((i) => `${g.merged[i].id} · ${fmt(g.mergedCrowding[i], 2)}`).join(", ")}. ` : "";
+        return `Inside front ${k} only. ${extText}${innerText}The ${g.places} largest distances win the remaining places: ${idList(ids(winners))}.`;
+      }
+      const kept = g.keep.slice().sort((a, b) => a - b);
+      const parents = kept.filter((i) => i < N).length;
+      const children = kept.length - parents;
+      const removed = g.merged.map((_, i) => i).filter((i) => !g.keep.includes(i));
+      return `Pₜ₊₁ = ${set(kept)}: ${parents} parent${parents === 1 ? "" : "s"} and ${children} child${children === 1 ? "" : "ren"} survive, and ${idList(ids(removed))} leave. Pₜ₊₁ starts the next generation, which the figure below repeats until the budget is spent.`;
+    }
+    build();
   };
 
   /* I1: NSGA-II running in the page. */
@@ -7320,7 +7548,7 @@
         return `${mode.short}: the ${st.pop.length} parents and ${st.children.length} children compete for ${N} places, by front and then by crowding distance (NSGA-II's rule). Removed: ${parts.join(" and ")}.`;
       }
       const nd = st.pop.filter((_, i) => st.rank[i] === 0).map((p) => p.id);
-      return `The budget is spent and the run stops. VAMOS returns the non-dominated members of the final population by default: ${idList(nd)}.`;
+      return `The budget is spent and the run stops. With a configuration from builder() or default(), VAMOS returns the non-dominated members of the final population: ${idList(nd)}.`;
     }
     build();
   };

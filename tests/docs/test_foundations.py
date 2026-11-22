@@ -763,3 +763,45 @@ process.stdout.write(JSON.stringify({{ loops, families }}));
             alive.pop(last[int(np.argmin(contributions))] if len(last) > 1 else last[0])
         assert sorted(js["indicator"]["kept"]) == alive
         assert js["swarm"]["leaders"] == [int(i) for i in np.flatnonzero(_fast_non_dominated_sort(F)[1] == 0)]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_nsga2_generation_figure_agrees_with_vamos() -> None:
+    from vamos import select_survivors
+
+    seeds = [4679, 1, 2, 3, 97, 12367]  # 4679 is the lesson's example
+    program = f"""
+require({json.dumps(str(SCRIPT))});
+const V = globalThis.VamosFoundations;
+const generations = {json.dumps(seeds)}.map((seed) => V.nsga2Generation(seed, 6));
+process.stdout.write(JSON.stringify(generations, (key, value) => (value === Infinity ? "inf" : value)));
+"""
+    completed = subprocess.run(["node", "-e", program], capture_output=True, text=True, check=True, timeout=60)
+    generations = json.loads(completed.stdout)
+
+    # Fronts, crowding distances and survivors of the merged population are VAMOS's.
+    for g in generations:
+        F = np.array([member["f"] for member in g["merged"]])
+        fronts, _ = _fast_non_dominated_sort(F)
+        assert [sorted(front) for front in g["fronts"]] == [sorted(int(i) for i in front) for front in fronts]
+        crowding = np.array([np.inf if d == "inf" else d for d in g["mergedCrowding"]], dtype=float)
+        np.testing.assert_allclose(crowding, _compute_crowding(F, fronts), rtol=1e-12)
+        assert sorted(g["keep"]) == sorted(int(i) for i in select_survivors(F, survivor_count=6).selected_indices)
+        # The whole fronts come first and are kept; the next front, if any, has more members than places.
+        assert g["whole"] == g["fronts"][: len(g["whole"])]
+        assert sum(len(front) for front in g["whole"]) + g["places"] == 6
+        assert {i for front in g["whole"] for i in front} <= set(g["keep"])
+        if g["split"] is not None:
+            assert g["split"] == g["fronts"][len(g["whole"])] and len(g["split"]) > g["places"]
+
+    # The numbers that the lesson quotes for its example.
+    example = generations[0]
+    ident = [member["id"] for member in example["merged"]]
+    games = {(t["a"], t["b"]): (t["winner"], t["reason"]) for t in example["tournaments"]}
+    assert games[(1, 4)] == (1, "crowding") and games[(2, 5)] == (2, "coin")
+    assert [sorted(ident[i] for i in front) for front in example["whole"]] == [[1, 9]]
+    assert sorted(ident[i] for i in example["split"]) == [2, 3, 4, 5, 8, 11] and example["places"] == 4
+    distances = {ident[i]: example["mergedCrowding"][i] for i in example["split"]}
+    assert distances[3] == distances[5] == "inf"
+    assert {k: round(distances[k], 2) for k in (4, 11, 8, 2)} == {4: 1.05, 11: 0.92, 8: 0.81, 2: 0.55}
+    assert sorted(ident[i] for i in example["keep"]) == [1, 3, 4, 5, 9, 11]

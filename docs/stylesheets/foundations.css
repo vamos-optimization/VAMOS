@@ -143,6 +143,13 @@
 .vf-r4 { fill: var(--vf-r4); }
 .vf-faded { opacity: 0.22; }
 .vf-ring { fill: none; stroke: var(--vf-s2); stroke-width: 2.5; }
+.vf-front-link { fill: none; stroke-width: 1.5; opacity: 0.85; }
+.vf-front-link.vf-r0 { fill: none; stroke: var(--vf-r0); }
+.vf-front-link.vf-r1 { fill: none; stroke: var(--vf-r1); }
+.vf-front-link.vf-r2 { fill: none; stroke: var(--vf-r2); }
+.vf-front-link.vf-r3 { fill: none; stroke: var(--vf-r3); }
+.vf-front-link.vf-r4 { fill: none; stroke: var(--vf-r4); }
+.vf-cuboid { fill: var(--vf-s2); fill-opacity: 0.1; stroke: var(--vf-s2); stroke-width: 1; stroke-dasharray: 3 3; }
 .vf-bar-1 { fill: var(--vf-s1); }
 .vf-bar-2 { fill: var(--vf-s2); }
 
