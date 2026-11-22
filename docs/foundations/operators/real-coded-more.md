@@ -115,48 +115,11 @@ its length on each side (d = 0.5 by default), clipped to the bounds, with its
 mode at the parents' midpoint; the paper uses two triangles, one centred on
 each parent.
 
-The six two-parent crossovers applied to the same pair, in three variables:
-
-```python
-import numpy as np
-
-from vamos.engine.operators import ArithmeticCrossover, BLXAlphaCrossover
-from vamos.engine.operators.impl.real import (
-    BLXAlphaBetaCrossover,
-    FuzzyCrossover,
-    LaplaceCrossover,
-    WholeArithmeticCrossover,
-)
-
-lower, upper = np.zeros(3), np.ones(3)
-parents = np.array([[[0.2, 0.5, 0.9], [0.4, 0.5, 0.6]]])  # one mating: (n_matings, 2, n_var)
-operators = {
-    "BLX-0.5": BLXAlphaCrossover(alpha=0.5, prob_crossover=1.0, lower=lower, upper=upper),
-    "BLX-(0.2, 0.8)": BLXAlphaBetaCrossover(alpha=0.2, beta=0.8, prob_crossover=1.0, lower=lower, upper=upper),
-    "arithmetic": ArithmeticCrossover(prob_crossover=1.0),
-    "whole arithmetic": WholeArithmeticCrossover(alpha=0.25, prob_crossover=1.0),
-    "Laplace": LaplaceCrossover(a=0.0, b=0.5, prob_crossover=1.0, lower=lower, upper=upper),
-    "fuzzy": FuzzyCrossover(d=0.5, prob_crossover=1.0, lower=lower, upper=upper),
-}
-for name, operator in operators.items():
-    children = operator(parents, np.random.default_rng(1))
-    print(f"{name:<17}", children[0].round(3).tolist())
-```
-
-Output:
-
-```text
-BLX-0.5           [[0.48, 0.5, 1.019], [0.225, 0.5, 0.947]]
-BLX-(0.2, 0.8)    [[0.54, 0.5, 1.109], [0.285, 0.5, 1.037]]
-arithmetic        [[0.21, 0.5, 0.885], [0.39, 0.5, 0.615]]
-whole arithmetic  [[0.35, 0.5, 0.675], [0.25, 0.5, 0.825]]
-Laplace           [[-0.031, 0.5, 0.559], [0.447, 0.5, 0.44]]
-fuzzy             [[0.437, 0.5, 0.916], [0.258, 0.5, 0.846]]
-```
-
-The second variable is 0.5 in both parents, and every operator keeps it: they
-all scale their steps by the parents' distance. BLX and Laplace children leave
-[0, 1] (1.019, 1.109, −0.031); the arithmetic and fuzzy children do not.
+All six scale their steps by the parents' distance. In the first figure, drag
+P1 and P2 to the same height: whichever of these operators you choose, every
+child keeps that value of x₂. Then move both parents near the right edge: BLX
+and Laplace children leave the bounds, the arithmetic and fuzzy children do
+not.
 
 ## Differential evolution
 
@@ -237,39 +200,10 @@ whole of SPX:
         return np.asarray(centroid + epsilon * (points - centroid), dtype=np.float64)
 ```
 
-The four three-parent operators on one group:
-
-```python
-import numpy as np
-
-from vamos.engine.operators import PCXCrossover, SPXCrossover, UNDXCrossover
-from vamos.engine.operators.impl.real import DEMatingCrossover
-
-lower, upper = np.zeros(2), np.ones(2)
-group = np.array([[[0.2, 0.2], [0.6, 0.4], [0.4, 0.8]]])  # one group of three parents
-operators = {
-    "DE": DEMatingCrossover(F=0.5, CR=0.9, lower=lower, upper=upper),
-    "PCX": PCXCrossover(sigma_eta=0.1, sigma_zeta=0.1, lower=lower, upper=upper),
-    "UNDX": UNDXCrossover(prob_crossover=1.0, zeta=0.5, eta=0.35, lower=lower, upper=upper),
-    "SPX": SPXCrossover(lower=lower, upper=upper),
-}
-for name, operator in operators.items():
-    children = operator(group, np.random.default_rng(1))
-    print(f"{name:<5} {children.shape[1]} children:", children[0].round(3).tolist())
-```
-
-Output:
-
-```text
-DE    1 children: [[0.3, 0.2]]
-PCX   3 children: [[0.203, 0.211], [0.596, 0.416], [0.389, 0.788]]
-UNDX  2 children: [[0.629, 0.252], [0.171, 0.348]]
-SPX   3 children: [[0.355, 0.906], [0.356, 0.9], [0.42, 0.171]]
-```
-
-The DE child took its first variable from the mutant v = (0.2, 0.2) + 0.5 ·
-((0.6, 0.4) − (0.4, 0.8)) = (0.3, 0.0) and its second from x. The PCX children
-stay close to their own parents, as σ = 0.1 asks.
+In the first figure, DE draws one child per group from x = P1, a = P2 and
+b = P3; PCX gives three children, one around each parent; UNDX gives two,
+symmetric about the midpoint of P1 and P2; and SPX gives three, inside the
+expanded triangle.
 
 ## Mutations
 
@@ -358,52 +292,11 @@ of a cloud.
             rnd_delta=np.broadcast_to(u, (n_ind, n_var)),
 ```
 
-The nine mutations applied to the same parent, with every variable mutated:
-
-```python
-import numpy as np
-
-from vamos.engine.operators import CauchyMutation, GaussianMutation, LinkedPolynomialMutation, NonUniformMutation
-from vamos.engine.operators import PolynomialMutation, UniformMutation, UniformResetMutation
-from vamos.engine.operators.impl.real import LevyFlightMutation, PowerLawMutation
-
-b = {"prob_mutation": 1.0, "lower": np.zeros(4), "upper": np.full(4, 10.0)}  # mutate every variable in [0, 10]
-x = np.array([[1.0, 4.0, 5.0, 9.5]])
-operators = {
-    "pm": PolynomialMutation(eta=20.0, **b),
-    "gaussian": GaussianMutation(sigma=0.1, **b),
-    "uniform": UniformMutation(perturb=0.1, **b),
-    "uniform_reset": UniformResetMutation(**b),
-    "non_uniform": NonUniformMutation(**b),
-    "cauchy": CauchyMutation(gamma=0.1, **b),
-    "levy_flight": LevyFlightMutation(beta=1.5, scale=0.01, **b),
-    "power_law": PowerLawMutation(index=1.0, **b),
-    "linked_polynomial": LinkedPolynomialMutation(eta=20.0, **b),
-}
-print(f"{'parent':<18}", x[0].tolist())
-for name, operator in operators.items():
-    print(f"{name:<18}", operator(x, np.random.default_rng(3))[0].round(2).tolist())
-```
-
-Output:
-
-```text
-parent             [1.0, 4.0, 5.0, 9.5]
-pm                 [0.41, 3.93, 4.98, 8.97]
-gaussian           [0.55, 3.78, 2.98, 9.27]
-uniform            [0.19, 3.87, 4.96, 8.82]
-uniform_reset      [0.94, 4.33, 4.79, 1.6]
-non_uniform        [0.09, 7.4, 7.6, 1.52]
-cauchy             [3.1, 12.71, 4.74, 8.86]
-levy_flight        [0.97, 3.99, 4.62, 9.47]
-power_law          [0.91, 6.6, 7.4, 9.58]
-linked_polynomial  [0.41, 3.24, 4.24, 8.74]
-```
-
-The Cauchy copy left the bounds (12.71), and the run's repair would clip it.
-All four linked polynomial steps go down, by amounts that depend on each
-variable's distance to its bounds; the independent polynomial steps of the
-`pm` line go down here too, but by chance.
+In the second figure, choose Cauchy and drag the parent towards a corner:
+some copies land far outside the bounds, and the run's repair would move them
+back. Power and non-uniform mutation never leave the square. With linked
+polynomial mutation and probability 1, every copy moves both variables in the
+same direction.
 
 ## Using them in a run
 
@@ -456,6 +349,64 @@ This is one seed on one problem with a small budget, so it ranks nothing; it
 only shows that the choice changes the result under the same budget. Note that
 `de` returns one child per group of three parents, where the two-parent
 crossovers return two children per pair.
+
+The nine mutations, with SBX and the parameters of this lesson:
+
+```python
+import numpy as np
+
+from vamos import optimize
+from vamos.algorithms import NSGAIIConfig, available_mutation_methods
+from vamos.problems import ZDT1
+
+print("mutations:", ", ".join(available_mutation_methods("real")))
+mutations = {
+    "pm": {"eta": 20.0},
+    "gaussian": {"sigma": 0.1},
+    "uniform": {"perturb": 0.1},
+    "uniform_reset": {},
+    "non_uniform": {},
+    "cauchy": {"gamma": 0.1},
+    "levy_flight": {"beta": 1.5, "scale": 0.01},
+    "power_law": {"index": 1.0},
+    "linked_polynomial": {"eta": 20.0},
+}
+problem = ZDT1(n_var=30)
+for name, params in mutations.items():
+    config = (
+        NSGAIIConfig.builder()
+        .pop_size(100)
+        .crossover("sbx", prob=0.9, eta=20.0)
+        .mutation(name, prob="1/n", **params)
+        .selection("tournament", size=2)
+        .build()
+    )
+    result = optimize(problem, algorithm="nsgaii", algorithm_config=config, max_evaluations=10_000, seed=1)
+    gap = np.abs(result.F[:, 1] - (1.0 - np.sqrt(result.F[:, 0])))
+    print(f"{name:<18} mean distance to the front {gap.mean():.3f}")
+```
+
+Output:
+
+```text
+mutations: cauchy, gaussian, levy_flight, linked_polynomial, non_uniform, pm, polynomial, power_law, uniform, uniform_reset
+pm                 mean distance to the front 0.025
+gaussian           mean distance to the front 0.004
+uniform            mean distance to the front 0.007
+uniform_reset      mean distance to the front 0.148
+non_uniform        mean distance to the front 0.021
+cauchy             mean distance to the front 0.003
+levy_flight        mean distance to the front 0.034
+power_law          mean distance to the front 0.005
+linked_polynomial  mean distance to the front 0.016
+```
+
+The same caution applies. ZDT1's optimum lies on the lower bound of x₂ … x₃₀,
+and the default repair clips every value that a Gaussian or Cauchy step pushes
+below it exactly onto that bound (lesson
+[Variation operators](overview.md#bounds-and-repair)), which favours the
+mutations that leave the bounds on this problem. Uniform reset forgets the
+parent's value, so it cannot refine a solution.
 
 ## Key points
 

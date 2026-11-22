@@ -157,40 +157,11 @@ The crossover's split, and the real, integer and categorical mutations:
 
 These defaults are not the defaults of the single encodings: a purely integer
 problem gets integer SBX and polynomial mutation, but the integer part of a
-mixed problem gets uniform crossover and random reset. The two functions applied
-directly to a pair with two columns of each kind:
-
-```python
-import numpy as np
-
-from vamos.engine.operators.impl.mixed import mixed_crossover, mixed_mutation
-
-spec = {  # columns 0-1 real, 2-3 integer, 4-5 categorical
-    "real_idx": np.array([0, 1]), "int_idx": np.array([2, 3]), "cat_idx": np.array([4, 5]),
-    "real_lower": np.array([0.0, 0.0]), "real_upper": np.array([1.0, 1.0]),
-    "int_lower": np.array([0, 0]), "int_upper": np.array([9, 9]),
-    "cat_cardinality": np.array([3, 4]),
-}
-parents = np.array([[0.1, 0.9, 2, 7, 0, 3], [0.5, 0.3, 8, 1, 2, 0]], dtype=float)
-children = mixed_crossover(parents, 1.0, spec, np.random.default_rng(10))
-print("children:", children.round(3).tolist())
-mutated = children.copy()
-mixed_mutation(mutated, 0.5, spec, np.random.default_rng(11))  # in place, each variable with probability 0.5
-print("mutated: ", mutated.round(3).tolist())
-```
-
-Output:
-
-```text
-children: [[0.417, 0.425, 2.0, 1.0, 0.0, 0.0], [0.183, 0.775, 8.0, 7.0, 2.0, 3.0]]
-mutated:  [[0.42, 0.425, 2.0, 1.0, 2.0, 0.0], [0.306, 0.724, 9.0, 7.0, 2.0, 3.0]]
-```
-
-The real columns were combined with λ ≈ 0.21: 0.417 = 0.21 · 0.1 + 0.79 · 0.5.
-The integer and categorical columns were only exchanged: the first child took
-its column 2 and column 4 from the first parent and its column 3 and column 5
-from the second. The mutation then reset one category (0 → 2) and one integer
-(8 → 9), and moved three real values by Gaussian steps.
+mixed problem gets uniform crossover and random reset. In a crossed pair, for
+example, the real columns of both children lie on the segment between the
+parents, while each integer and categorical column of a child holds one of
+the parents' values; a mutation then resets an integer or a category to any
+value of its domain, or moves a real value by a Gaussian step.
 
 ## Changing the operator of each part
 

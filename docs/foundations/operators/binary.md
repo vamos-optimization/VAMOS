@@ -125,80 +125,14 @@ and the two mutations:
 
 ## In VAMOS
 
-The operators are functions in `vamos.engine.operators.impl.binary`, with a
-class for each that stores the probability. A crossover takes an array of
-parents, whose consecutive rows form the pairs, and returns the children; a
-mutation changes its array in place. The four crossovers on the parents of the
-figure:
-
-```python
-import numpy as np
-
-from vamos.engine.operators import HuxCrossover, OnePointCrossover, TwoPointCrossover, UniformCrossover
-
-p1 = [1, 1, 0, 1, 0, 0, 1, 1, 1, 0, 1, 0]
-p2 = [0, 1, 1, 0, 1, 1, 0, 1, 0, 0, 0, 1]
-parents = np.array([p1, p2], dtype=np.int8)  # rows 0 and 1 form one mating pair
-
-
-def bits(row):
-    return "".join(str(int(b)) for b in row)
-
-
-print("P1        ", bits(p1))
-print("P2        ", bits(p2))
-for operator in (OnePointCrossover(prob=1.0), TwoPointCrossover(prob=1.0), UniformCrossover(prob=1.0), HuxCrossover(prob=1.0)):
-    c1, c2 = operator(parents, np.random.default_rng(4))
-    print(f"{type(operator).__name__:<18}", bits(c1), bits(c2))
-```
-
-Output:
-
-```text
-P1         110100111010
-P2         011011010001
-OnePointCrossover  110100111001 011011010010
-TwoPointCrossover  110100010010 011011111001
-UniformCrossover   010001110010 111110011001
-HuxCrossover       110110011001 011001110010
-```
-
-The parents differ in nine positions, so HUX exchanged four of them (positions
-4, 6, 10 and 11). Bits 1, 7 and 9 are equal in the parents and in every child.
-
-The two mutations on six all-zero strings, so that every 1 marks a changed bit:
-
-```python
-import numpy as np
-
-from vamos.engine.operators import BitFlipMutation
-from vamos.engine.operators.impl.binary import SegmentInversionMutation
-
-X = np.zeros((6, 12), dtype=np.int8)  # six all-zero children: every 1 marks a mutated bit
-flips = BitFlipMutation(prob=1 / 12)(X.copy(), np.random.default_rng(2))
-segments = SegmentInversionMutation(prob=1.0)(X.copy(), np.random.default_rng(2))
-print("bit-flip (1/n)  segment inversion")
-for a, b in zip(flips, segments):
-    print("".join(map(str, a)), "   ", "".join(map(str, b)))
-print("bits changed per child:", flips.sum(axis=1).tolist(), "and", segments.sum(axis=1).tolist())
-```
-
-Output:
-
-```text
-bit-flip (1/n)  segment inversion
-000000010000     001111111111
-000000000000     111111111110
-000000000000     000111100000
-000000000000     001111111000
-010000000000     000111110000
-000010000000     011100000000
-bits changed per child: [1, 0, 0, 0, 1, 1] and [10, 11, 4, 7, 5, 3]
-```
-
-Bit-flip with 1/n makes small, scattered changes and leaves some children
+The operators live in `src/vamos/engine/operators/impl/binary.py`, and the
+figure above follows their draws; a test checks its children against them. In
+the figure's default parents, P1 = 110100111010 and P2 = 011011010001 differ in
+nine positions, so HUX always exchanges four of them, and bits 1, 7 and 9,
+equal in both parents, keep their value in every child. Bit-flip with 1/n
+makes small, scattered changes and leaves about a third of the children
 untouched; a segment inversion changes a contiguous block of at least two bits,
-so with `prob=1.0` it is a large step. Use a small probability for it.
+a large step, so give it a small probability.
 
 ### Selecting them in a configuration
 
@@ -206,7 +140,8 @@ The builder names are `one_point` (also `single_point`, `1point`, `spx`),
 `two_point` (`2point`), `uniform` and `hux`, and `bitflip` (`bit_flip`) and
 `segment_inversion`. `NSGAIIConfig.default(encoding="binary")` uses uniform
 crossover with probability 0.9 and bit-flip with 1/n. The four crossovers on
-ZDT5, 80 bits, with bit-flip mutation:
+ZDT5, 80 bits, with bit-flip mutation, and one-point crossover with segment
+inversion for one child in ten:
 
 ```python
 import numpy as np
@@ -218,18 +153,20 @@ print("crossovers:", ", ".join(available_crossover_methods("binary")))
 print("mutations:", ", ".join(available_mutation_methods("binary")))
 
 problem = make_problem_selection("zdt5").instantiate()
-for crossover in ("one_point", "two_point", "uniform", "hux"):
+pairs = [("one_point", "bitflip", "1/n"), ("two_point", "bitflip", "1/n"), ("uniform", "bitflip", "1/n"),
+         ("hux", "bitflip", "1/n"), ("one_point", "segment_inversion", 0.1)]
+for crossover, mutation, prob in pairs:
     config = (
         NSGAIIConfig.builder()
         .pop_size(100)
         .crossover(crossover, prob=0.9)
-        .mutation("bitflip", prob="1/n")
+        .mutation(mutation, prob=prob)
         .selection("tournament", size=2)
         .build()
     )
     result = optimize(problem, algorithm="nsgaii", algorithm_config=config, max_evaluations=10_000, seed=1)
     distinct = len(np.unique(result.F, axis=0))
-    print(f"{crossover:<10} lowest f2: {result.F[:, 1].min():.3f}, distinct objective vectors: {distinct}")
+    print(f"{crossover:<10} {mutation:<17} lowest f2: {result.F[:, 1].min():.3f}, distinct objective vectors: {distinct}")
 ```
 
 Output:
@@ -237,10 +174,11 @@ Output:
 ```text
 crossovers: 1point, 2point, hux, one_point, single_point, spx, two_point, uniform
 mutations: bit_flip, bitflip, segment_inversion
-one_point  lowest f2: 0.414, distinct objective vectors: 29
-two_point  lowest f2: 0.517, distinct objective vectors: 28
-uniform    lowest f2: 0.826, distinct objective vectors: 23
-hux        lowest f2: 0.704, distinct objective vectors: 26
+one_point  bitflip           lowest f2: 0.414, distinct objective vectors: 29
+two_point  bitflip           lowest f2: 0.517, distinct objective vectors: 28
+uniform    bitflip           lowest f2: 0.826, distinct objective vectors: 23
+hux        bitflip           lowest f2: 0.704, distinct objective vectors: 26
+one_point  segment_inversion lowest f2: 0.464, distinct objective vectors: 26
 ```
 
 In this single run the crossovers with positional bias reached the lowest f2,

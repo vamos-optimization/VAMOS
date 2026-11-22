@@ -121,38 +121,23 @@ def _order_crossover_into(donor: PermVec, filler: PermVec, out: PermVec, cut1: i
             break
 ```
 
-The six crossovers on the parents of the figure, with the same seed:
+In the figure, OX with the segment from 2 to 5 copies P1's 2, 3, 4, 5 and
+fills with P2's 6, 0, 7, 1, giving C1 = [7 1 2 3 4 5 6 0]; CX from start 1
+exchanges only positions 1 and 6.
+
+The second child of AEX starts from the same city with the same rule as the
+first, as the two calls and the start of the child show:
 
 ```python
-import numpy as np
-
-from vamos.engine.operators import CycleCrossover, EdgeRecombinationCrossover, OrderCrossover, PMXCrossover, PositionBasedCrossover
-from vamos.engine.operators.impl.permutation import AlternatingEdgesCrossover
-
-parents = np.array([[0, 1, 2, 3, 4, 5, 6, 7], [2, 6, 4, 0, 5, 7, 1, 3]])
-operators = (OrderCrossover(prob=1.0), PMXCrossover(prob=1.0), CycleCrossover(prob=1.0),
-             PositionBasedCrossover(prob=1.0), EdgeRecombinationCrossover(prob=1.0), AlternatingEdgesCrossover(prob=1.0))
-for operator in operators:
-    c1, c2 = operator(parents, np.random.default_rng(3))
-    valid = all(sorted(c) == list(range(8)) for c in (c1, c2))
-    print(f"{type(operator).__name__:<27}", c1.tolist(), c2.tolist(), "valid" if valid else "INVALID")
+# Excerpt from src/vamos/engine/operators/impl/_permutation_crossovers.py
+def _alternating_edges_children(p1: PermVec, p2: PermVec, rng: RNG) -> tuple[PermVec, PermVec]:
+    return _alternating_edges_child(p1, p2, rng, prefer_parent_a=True), _alternating_edges_child(p2, p1, rng, prefer_parent_a=False)
+    current = int(parent_a[0]) if prefer_parent_a else int(parent_b[0])
+    take_from_a = prefer_parent_a
 ```
 
-Output:
-
-```text
-OrderCrossover              [7, 1, 2, 3, 4, 5, 6, 0] [3, 6, 4, 0, 5, 7, 1, 2] valid
-PMXCrossover                [0, 6, 4, 3, 2, 5, 1, 7] [4, 1, 2, 0, 5, 7, 6, 3] valid
-CycleCrossover              [2, 1, 4, 0, 5, 7, 6, 3] [0, 6, 2, 3, 4, 5, 1, 7] valid
-PositionBasedCrossover      [2, 1, 6, 4, 0, 5, 3, 7] [0, 6, 1, 2, 4, 5, 7, 3] valid
-EdgeRecombinationCrossover  [0, 1, 7, 5, 6, 4, 3, 2] [2, 3, 1, 0, 4, 6, 5, 7] valid
-AlternatingEdgesCrossover   [0, 1, 3, 4, 5, 6, 7, 2] [0, 1, 3, 4, 5, 6, 7, 2] valid
-```
-
-OX copied P1's segment 2, 3, 4, 5 and filled with P2's 6, 0, 7, 1. PMX's
-section was positions 1 and 2, with the mapping 6↔1 and 4↔2, so P1's items 4
-and 6 became 2 and 1. CX found the cycle of positions 1 and 6. Position-based
-kept positions 1, 5 and 7 of each parent.
+With `prefer_parent_a=False`, `parent_b` is P1, so the second child also starts
+at P1's first item and first takes its successor in P1.
 
 ## Mutations
 
@@ -201,40 +186,28 @@ def _inversion_row_mutation(row: PermVec, rng: RNG) -> None:
     row[lo : hi + 1] = row[lo : hi + 1][::-1]
 ```
 
-The six mutations on the same ten-item row; with the same seed, all of them
-draw positions 2 and 9:
+Insert and displacement, the two moves the figure does not draw:
 
 ```python
-import numpy as np
-
-from vamos.engine.operators import DisplacementMutation, InsertMutation, InversionMutation, ScrambleMutation, SwapMutation
-from vamos.engine.operators.impl.permutation import TwoOptMutation
-
-tour = np.arange(10)
-print(f"{'parent':<21}", tour.tolist())
-for operator in (SwapMutation(prob=1.0), InsertMutation(prob=1.0), ScrambleMutation(prob=1.0),
-                 InversionMutation(prob=1.0), TwoOptMutation(prob=1.0), DisplacementMutation(prob=1.0)):
-    child = tour.reshape(1, -1).copy()
-    operator(child, np.random.default_rng(9))  # mutates in place; prob is per individual
-    print(f"{type(operator).__name__:<21}", child[0].tolist())
+# Excerpt from src/vamos/engine/operators/impl/_permutation_mutations.py
+def _insert_row_mutation(row: PermVec, rng: RNG) -> None:
+    gene = row[i]
+    if i < j:
+        row[i:j] = row[i + 1 : j + 1]
+        row[j] = gene
+    else:
+        row[j + 1 : i + 1] = row[j:i]
+        row[j] = gene
+def _displacement_row_mutation(row: PermVec, rng: RNG) -> None:
+    lo, hi = two_cut_points(row.size, rng)
+    segment = row[lo:hi].copy()
+    remaining = np.concatenate([row[:lo], row[hi:]])
+    insert_pos = rng.integers(0, remaining.size + 1)
+    row[:] = np.concatenate([remaining[:insert_pos], segment, remaining[insert_pos:]])
 ```
 
-Output:
-
-```text
-parent                [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-SwapMutation          [0, 1, 9, 3, 4, 5, 6, 7, 8, 2]
-InsertMutation        [0, 1, 9, 2, 3, 4, 5, 6, 7, 8]
-ScrambleMutation      [0, 1, 9, 4, 7, 6, 3, 2, 5, 8]
-InversionMutation     [0, 1, 9, 8, 7, 6, 5, 4, 3, 2]
-TwoOptMutation        [0, 1, 9, 8, 7, 6, 5, 4, 3, 2]
-DisplacementMutation  [2, 3, 4, 5, 6, 7, 8, 0, 1, 9]
-```
-
-Insert moved item 9 from position 9 to position 2; displacement cut positions
-2 to 8 and reinserted them at the front. As tours, the swap changed four edges,
-the insertion three, and the inversion only two: 1–2 and 9–0 became 1–9 and
-2–0.
+A displacement replaces up to three edges of a tour, like an insertion of a
+whole segment.
 
 ## In VAMOS
 
@@ -245,15 +218,19 @@ The builder names are `ox` (also `order`, `oxd`), `pmx`, `cx` (`cycle`),
 `NSGAIIConfig.default(encoding="permutation")` uses OX and swap; as lesson
 [Variation operators](overview.md#two-kinds-of-probability) explains, leaving
 out `prob` leaves the probabilities to the algorithm's fallback, so state them.
-Four pairs on `kroa100`, the 100 cities of the TSPLIB instance with two
+Six pairs on `kroa100`, the 100 cities of the TSPLIB instance with two
 objectives, the tour length f1 and the longest edge f2:
 
 ```python
 from vamos import make_problem_selection, optimize
-from vamos.algorithms import NSGAIIConfig
+from vamos.algorithms import NSGAIIConfig, available_crossover_methods, available_mutation_methods
+
+print("crossovers:", ", ".join(available_crossover_methods("permutation")))
+print("mutations:", ", ".join(available_mutation_methods("permutation")))
 
 problem = make_problem_selection("kroa100").instantiate()
-for crossover, mutation in (("ox", "swap"), ("ox", "inversion"), ("pmx", "inversion"), ("cx", "inversion")):
+pairs = [("ox", "swap"), ("ox", "insert"), ("ox", "displacement"), ("ox", "inversion"), ("pmx", "inversion"), ("cx", "inversion")]
+for crossover, mutation in pairs:
     config = (
         NSGAIIConfig.builder()
         .pop_size(100)
@@ -263,22 +240,26 @@ for crossover, mutation in (("ox", "swap"), ("ox", "inversion"), ("pmx", "invers
         .build()
     )
     result = optimize(problem, algorithm="nsgaii", algorithm_config=config, max_evaluations=10_000, seed=1)
-    print(f"{crossover} + {mutation:<9} shortest tour in f1: {result.F[:, 0].min():,.0f}")
+    print(f"{crossover:<3} + {mutation:<12} shortest tour in f1: {result.F[:, 0].min():,.0f}")
 ```
 
 Output:
 
 ```text
-ox + swap      shortest tour in f1: 80,266
-ox + inversion shortest tour in f1: 73,109
-pmx + inversion shortest tour in f1: 78,806
-cx + inversion shortest tour in f1: 94,591
+crossovers: aex, alternating_edges, cx, cycle, edge, edge_recombination, erx, order, ox, oxd, pmx, pos, position, position_based
+mutations: displacement, insert, inversion, scramble, swap, two_opt
+ox  + swap         shortest tour in f1: 80,266
+ox  + insert       shortest tour in f1: 71,142
+ox  + displacement shortest tour in f1: 75,446
+ox  + inversion    shortest tour in f1: 73,109
+pmx + inversion    shortest tour in f1: 78,806
+cx  + inversion    shortest tour in f1: 94,591
 ```
 
 10,000 evaluations are far too few for 100 cities (TSPLIB's optimal kroA100
 tour has length 21,282 with its rounded distances), and one run ranks nothing.
-In this run the inversion beat the swap with the same crossover, which fits the
-edge counts above. Cycle crossover passes on absolute positions, which carry no
+In this run, with OX, the swap, which changes up to four edges, gave the
+longest tour, and the moves that change two or three edges did better. Cycle crossover passes on absolute positions, which carry no
 meaning in a tour, where only the adjacencies count.
 
 ## Key points

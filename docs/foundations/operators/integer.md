@@ -111,111 +111,24 @@ Things to try:
 3. Move both parents far apart, to 1 and 9: the spread grows with the distance,
    as in real-coded SBX.
 
-Rounding also **absorbs small steps**. A child of SBX with η = 20 rarely moves
-more than half a unit away from a parent, so it rounds back to the parent's
-value; on a variable with a small range, integer SBX and polynomial mutation
-then explore little:
-
-```python
-import numpy as np
-
-from vamos.engine.operators.impl.integer import integer_polynomial_mutation, integer_sbx_crossover
-
-bounds = {"lower": np.array([0]), "upper": np.array([10])}
-parents = np.tile(np.array([[3], [4]]), (20_000, 1))  # 20,000 pairs of parents 3 and 4
-children = integer_sbx_crossover(parents, prob=1.0, eta=2.0, rng=np.random.default_rng(7), **bounds)
-values, counts = np.unique(children, return_counts=True)
-print("SBX children's mean:", round(float(children.mean()), 3))
-print("share of each value:", ", ".join(f"{v}: {c / children.size:.1%}" for v, c in zip(values, counts)))
-
-for eta in (20.0, 5.0):
-    x = np.full((20_000, 1), 5)
-    integer_polynomial_mutation(x, prob=1.0, eta=eta, rng=np.random.default_rng(8), **bounds)
-    print(f"polynomial mutation of 5 with eta {eta:g}: {np.mean(x != 5):.1%} of the values change")
-```
-
-Output:
-
-```text
-SBX children's mean: 3.501
-share of each value: 0: 0.0%, 1: 0.1%, 2: 1.5%, 3: 48.4%, 4: 48.4%, 5: 1.4%, 6: 0.1%, 7: 0.0%, 8: 0.0%, 9: 0.0%
-polynomial mutation of 5 with eta 20: 34.4% of the values change
-polynomial mutation of 5 with eta 5: 73.1% of the values change
-```
-
-Even with η = 2, 96.8% of the SBX children equal a parent, partly because each
-variable is recombined only with probability 0.5. With η = 20 on the range
-[0, 10], two of three polynomial "mutations" leave the value unchanged. On
-integer variables with few values, a smaller η, random reset or creep makes
-the mutation probability mean what it says.
+Rounding also **absorbs small steps**. With parents 3 and 4 and η = 20, the
+figure shows every child rounding back to 3 or 4: integer SBX then only
+exchanges the parents' values. With η = 2, 94.1% of the children still equal a
+parent. Polynomial mutation behaves the same way. For the value 5 in [0, 10],
+the formula of lesson [Real-coded operators](real-coded.md#polynomial-mutation)
+gives a step δ_q·10 with |δ_q| > 0.05, the half unit that changes the rounded
+value, with probability 0.95^(η+1) (the bound terms are negligible here): 34%
+for η = 20 and 74% for η = 5. Two of three "mutations" with the default η leave
+the value unchanged. On integer variables with few values, a smaller η, random
+reset or creep makes the mutation probability mean what it says.
 
 ## In VAMOS
 
-The integer operators are functions in `vamos.engine.operators.impl.integer`,
-with a class for each. A crossover takes the parents, consecutive rows forming
-pairs, and returns the children; a mutation changes its array in place. Both
-receive the bounds as `lower` and `upper`. The three crossovers on one pair:
-
-```python
-import numpy as np
-
-from vamos.engine.operators import ArithmeticIntegerCrossover, IntegerSBXCrossover, UniformIntegerCrossover
-
-bounds = {"lower": np.zeros(5, dtype=int), "upper": np.full(5, 10)}
-parents = np.array([[1, 3, 5, 7, 9], [2, 3, 9, 4, 0]])  # one mating pair
-for operator in (UniformIntegerCrossover(prob=1.0), ArithmeticIntegerCrossover(prob=1.0), IntegerSBXCrossover(prob=1.0, eta=2.0)):
-    c1, c2 = operator(parents, np.random.default_rng(5), **bounds)
-    print(f"{type(operator).__name__:<27}", c1.tolist(), c2.tolist())
-```
-
-Output:
-
-```text
-UniformIntegerCrossover     [2, 3, 5, 7, 9] [1, 3, 9, 4, 0]
-ArithmeticIntegerCrossover  [1, 3, 6, 6, 7] [2, 3, 8, 5, 2]
-IntegerSBXCrossover         [1, 3, 8, 6, 9] [2, 3, 6, 5, 0]
-```
-
-The arithmetic children lie between the parents in every variable (6 and 8
-between 5 and 9); the uniform children only reorder the parents' values. The
-five mutations on one child with values at both bounds:
-
-```python
-import numpy as np
-
-from vamos.engine.operators import CreepMutation, IntegerPolynomialMutation, RandomResetMutation
-from vamos.engine.operators.impl.integer import BoundaryIntegerMutation, GaussianIntegerMutation
-
-lower, upper = np.zeros(6, dtype=int), np.full(6, 10)
-x = np.array([[0, 2, 5, 5, 8, 10]])
-operators = {
-    "random reset": RandomResetMutation(prob=1.0),
-    "creep (step 1)": CreepMutation(prob=1.0, step=1),
-    "gaussian (sigma 1)": GaussianIntegerMutation(prob=1.0, sigma=1.0),
-    "boundary": BoundaryIntegerMutation(prob=1.0),
-    "polynomial (eta 20)": IntegerPolynomialMutation(prob=1.0, eta=20.0),
-}
-print(f"{'parent':<20}", x[0].tolist())
-for name, operator in operators.items():
-    child = x.copy()
-    operator(child, np.random.default_rng(6), lower=lower, upper=upper)  # mutates in place
-    print(f"{name:<20}", child[0].tolist())
-```
-
-Output:
-
-```text
-parent               [0, 2, 5, 5, 8, 10]
-random reset         [4, 7, 8, 3, 7, 7]
-creep (step 1)       [0, 3, 6, 4, 9, 10]
-gaussian (sigma 1)   [1, 3, 6, 6, 8, 10]
-boundary             [0, 10, 0, 10, 10, 0]
-polynomial (eta 20)  [0, 2, 5, 4, 7, 10]
-```
-
-Every variable was mutated, yet creep left the values at the bounds where they
-were (a step outside was clipped), and the polynomial mutation changed only two
-of six values: the others rounded back.
+The integer operators live in `src/vamos/engine/operators/impl/integer.py`.
+On an integer problem the builder names select them, and every operator
+receives the problem's bounds; the excerpt above shows how each one rounds and
+clips. Creep and Gaussian mutation, for example, can leave a value at a bound
+unchanged even when they mutate it, because a step outside is clipped back.
 
 ### Selecting them in a configuration
 

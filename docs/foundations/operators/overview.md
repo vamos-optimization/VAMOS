@@ -171,42 +171,78 @@ bound; the builder's `.repair(name)` selects another one:
 | `round` | rounds every value to the nearest integer, then clips |
 | `gradient` | steps against the gradients of the constraint violations you supply |
 
-The same out-of-bounds child repaired five ways:
+For a value x below the lower bound l, the repairs give l (`clip`),
+l + (l − x) (`reflect`, for a value within one range of the bound),
+u − (l − x) (`wrap`), l + (u − l)/4 (`midpoint`) or a uniform value in [l, u]
+(`resample`). Reflection mirrors the excess about the bound, repeatedly when it
+exceeds the range:
+
+```python
+# Excerpt from src/vamos/engine/operators/impl/real/repair.py
+            width = high - low
+            if width <= 0.0:
+                result[:, j] = low
+                continue
+            val = result[:, j] - low
+            period = 2.0 * width
+            val = np.mod(val, period)
+            over = val > width
+            val[over] = period - val[over]
+            result[:, j] = val + low
+```
+
+The choice matters when the optimum lies on a bound. On ZDT1 the optimal
+solutions have x₂ = … = x₃₀ = 0, and BLX-0.5 often produces negative values
+there. The same run with five repairs, selected with `.repair(name)`:
 
 ```python
 import numpy as np
 
-from vamos.engine.operators import ClampRepair, MidpointBaseRepair, ReflectRepair, ResampleRepair, WrappingRepair
+from vamos import optimize
+from vamos.algorithms import NSGAIIConfig
+from vamos.problems import ZDT1
 
-x = np.array([[-0.2, 0.5, 1.3]])  # one child after a real-coded operator; bounds [0, 1]
-lower, upper = np.zeros(3), np.ones(3)
-rng = np.random.default_rng(1)
-for repair in (ClampRepair(), ReflectRepair(), WrappingRepair(), MidpointBaseRepair(), ResampleRepair()):
-    print(f"{type(repair).__name__:<18}", repair(x, lower, upper, rng).round(3).tolist())
+for repair in ("clip", "reflect", "resample", "wrap", "midpoint"):
+    config = (
+        NSGAIIConfig.builder()
+        .pop_size(100)
+        .crossover("blx_alpha", prob=0.9, alpha=0.5)
+        .mutation("pm", prob="1/n", eta=20.0)
+        .repair(repair)
+        .selection("tournament", size=2)
+        .build()
+    )
+    result = optimize(ZDT1(n_var=30), algorithm="nsgaii", algorithm_config=config, max_evaluations=10_000, seed=1)
+    on_bound = np.mean(result.X[:, 1:] == 0.0)  # ZDT1's optimal solutions have x2 = ... = x30 = 0
+    gap = np.abs(result.F[:, 1] - (1.0 - np.sqrt(result.F[:, 0])))
+    print(f"{repair:<9} values exactly on the lower bound: {on_bound:.1%}, mean distance to the front: {gap.mean():.3f}")
 ```
 
 Output:
 
 ```text
-ClampRepair        [[0.0, 0.5, 1.0]]
-ReflectRepair      [[0.2, 0.5, 0.7]]
-WrappingRepair     [[0.8, 0.5, 0.3]]
-MidpointBaseRepair [[0.25, 0.5, 0.75]]
-ResampleRepair     [[0.512, 0.5, 0.144]]
+clip      values exactly on the lower bound: 15.3%, mean distance to the front: 0.011
+reflect   values exactly on the lower bound: 0.0%, mean distance to the front: 0.103
+resample  values exactly on the lower bound: 0.0%, mean distance to the front: 0.301
+wrap      values exactly on the lower bound: 0.0%, mean distance to the front: 0.440
+midpoint  values exactly on the lower bound: 0.0%, mean distance to the front: 0.386
 ```
 
-The choice matters when the optimum lies on a bound, as in many ZDT problems:
-clipping piles repaired values exactly on the bound, reflection and resampling
-spread them inside. Padhye, Mittal and Deb compare these strategies [5].
-Discrete operators need no repair, because they only produce valid values; a
-repair for a binary, integer, permutation or mixed problem raises
-`ValueError: Repair operators are only supported for real encoding.`
+Clipping piles repaired values exactly on the bound, which is where ZDT1's
+optimum lies, so it helps here; the other repairs put them back inside, away
+from the optimum. On a problem whose optimum lies inside the box, clipping
+instead biases the search towards the bounds. Padhye, Mittal and Deb compare
+these strategies [5]. Discrete operators need no repair, because they only
+produce valid values; a repair for a binary, integer, permutation or mixed
+problem raises `ValueError: Repair operators are only supported for real
+encoding.`
 
-The operator classes that the lessons of this section call directly live in
-`vamos.engine.operators`. They are implementation modules, not part of the
-[stable API](../../project/stability-and-versioning.md); a script that should
-survive upgrades selects operators by name through the builders, as the last
-section shows.
+The operator classes themselves live in `vamos.engine.operators`, an internal
+module outside the [public interfaces](../../project/stability-and-versioning.md).
+The lessons of this section therefore show what each operator does with
+interactive figures, whose JavaScript ports are tested against VAMOS, and with
+excerpts of its source; their runnable examples select operators by name
+through the public builders, as the last section of this lesson shows.
 
 ## The encoding decides the operators
 
