@@ -115,7 +115,22 @@ parameters:
           dynamic_penalty_constant: {type: real, default: 0.5, range: [0.01, 10.0], log: true, role: operator_rate}
           dynamic_penalty_alpha: {type: real, default: 2.0, range: [1.0, 3.0], role: operator_rate}
           dynamic_penalty_beta: {type: real, default: 2.0, range: [1.0, 3.0], role: operator_rate}
-      violation_objective: {}
+      violation_objective:
+        conditional_parameters:
+          # Development after 1.5.2: Dam and Truong's options (IJCAS 22(10), 2024, Defs. 6-7, section 3.2): the norm
+          # of the violation, and the ratio of violated constraints as one more objective, with equal weights or
+          # the weights of the CDF, whose alpha is 0.5 in the paper.
+          violation_objective_norm: {type: categorical, default: l1, values: [l1, l2_squared, linf], role: structural}
+          violation_objective_ratio:
+            type: categorical
+            default: none
+            role: structural
+            values:
+              none: {}
+              equal: {}
+              cdf:
+                conditional_parameters:
+                  violation_objective_cdf_alpha: {type: real, default: 0.5, range: [0.1, 2.0], role: operator_rate}
       # Development after 1.5.2: Ma and Wang's ShiP, whose c is 2 in the paper; its sensitivity study found
       # 2 and 3 best. ToR (two_rankings) is defined for NSGA-II only, and only its space offers it.
       shift_penalty:
