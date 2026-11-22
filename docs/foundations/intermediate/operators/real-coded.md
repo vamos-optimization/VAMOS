@@ -206,7 +206,7 @@ Polynomial mutation follows the two branches of the formula:
 
 With `engine="numba"`, compiled kernels perform the same arithmetic and must
 draw the random numbers in the same order and shape; the
-[backend guide](../../dev/add_backend.md) states that contract.
+[backend guide](../../../dev/add_backend.md) states that contract.
 
 ## Other encodings
 

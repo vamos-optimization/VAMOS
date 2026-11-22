@@ -233,7 +233,7 @@ distance y to that bound that shrinks as the run progresses:
 <div class="vf-formula">x′ = x ± y · (1 − r^((1 − t/T)^b))</div>
 
 The operator in VAMOS does not receive the run's progress t/T and uses 0, as
-the [algorithm reference](../../reference/algorithms.md) notes: the step is y (1 − r), uniform between the parent and the
+the [algorithm reference](../../../reference/algorithms.md) notes: the step is y (1 − r), uniform between the parent and the
 bound, and the parameter `perturbation` (b) has no effect. The value never
 leaves the bounds.
 

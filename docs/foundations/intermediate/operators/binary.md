@@ -184,7 +184,7 @@ one_point  segment_inversion lowest f2: 0.464, distinct objective vectors: 26
 In this single run the crossovers with positional bias reached the lowest f2,
 which is consistent with ZDT5's blocks of consecutive bits; several seeds would
 be needed to conclude anything. The encodings tutorial runs a binary problem
-with uniform crossover end to end: [Decision representations](../../tutorials/encodings.md#binary-masks).
+with uniform crossover end to end: [Decision representations](../../../tutorials/encodings.md#binary-masks).
 
 ## Key points
 

@@ -181,7 +181,7 @@ Variation creates the offspring from the parents, with two kinds of operator
 
 Crossover exploits what the population already found; mutation explores
 around it. Each encoding has its own operators, as the example above showed.
-The section [Real-coded operators](../operators/real-coded.md) explains SBX and
+The section [Real-coded operators](../intermediate/operators/real-coded.md) explains SBX and
 polynomial mutation, the default operators for real variables, and what their
 parameters control.
 

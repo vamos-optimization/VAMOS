@@ -237,9 +237,9 @@ custom   20 solutions, discrete columns integral: True, within bounds: True
 
 Both configurations keep every integer and categorical column whole and every
 column inside its bounds. The encodings tutorial runs `mixed_design` end to end
-and checks the same properties: [Decision representations](../../tutorials/encodings.md#mixed-designs).
+and checks the same properties: [Decision representations](../../../tutorials/encodings.md#mixed-designs).
 Every built-in algorithm except ToP accepts mixed problems; SMPSO does so
-through the mixed mutation, as the [algorithm reference](../../reference/algorithms.md#capability-matrix)
+through the mixed mutation, as the [algorithm reference](../../../reference/algorithms.md#capability-matrix)
 lists.
 
 ## Key points
@@ -267,4 +267,4 @@ lists.
 
 [3] Eiben, A. E., and Smith, J. E. (2015). *Introduction to Evolutionary Computing* (2nd ed.). Springer.
 
-**Next section:** [Many-objective optimization](../advanced/many-objective.md).
+**Next section:** [Many-objective optimization](../../advanced/many-objective.md).

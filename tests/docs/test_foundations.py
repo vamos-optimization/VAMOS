@@ -93,10 +93,10 @@ def test_foundations_follows_developer_with_levels_and_topics() -> None:
     foundations = _foundations_nav()
     assert foundations[0] == {"Overview": "foundations/index.md"}
     sections = {next(iter(item)): next(iter(item.values())) for item in foundations[1:]}
-    assert list(sections) == ["Basic", "Intermediate", "Operators", "Advanced"]
-    # The Intermediate level is grouped by the family of each algorithm.
-    families = [next(iter(item)) for item in sections["Intermediate"]]
-    assert families == ["Dominance-based", "Decomposition-based", "Indicator-based", "Swarm-based"]
+    assert list(sections) == ["Basic", "Intermediate", "Advanced"]
+    # The Intermediate level is grouped by the family of each algorithm, then by the topics that they share.
+    groups = [next(iter(item)) for item in sections["Intermediate"]]
+    assert groups == ["Dominance-based", "Decomposition-based", "Indicator-based", "Swarm-based", "Operators"]
 
     listed = _nav_pages(foundations)
     assert sorted(listed) == sorted(_relative(page) for page in PAGES)

@@ -238,7 +238,7 @@ problem raises `ValueError: Repair operators are only supported for real
 encoding.`
 
 The operator classes themselves live in `vamos.engine.operators`, an internal
-module outside the [public interfaces](../../project/stability-and-versioning.md).
+module outside the [public interfaces](../../../project/stability-and-versioning.md).
 The lessons of this section therefore show what each operator does with
 interactive figures, whose JavaScript ports are tested against VAMOS, and with
 excerpts of its source; their runnable examples select operators by name
@@ -354,7 +354,7 @@ BLX-0.5 and Gaussian: ('blx_alpha', {'prob': 0.9, 'alpha': 0.5}), ('gaussian', {
 ```
 
 One run on one problem ranks nothing: lesson [Comparing algorithms
-rigorously](../advanced/performance-assessment.md) explains how to compare
+rigorously](../../advanced/performance-assessment.md) explains how to compare
 operator choices with several seeds and a statistical test.
 
 ## Key points

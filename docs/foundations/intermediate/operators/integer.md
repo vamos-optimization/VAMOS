@@ -177,7 +177,7 @@ creep  lowest f1: 27.523, lowest f2: -110.067, integral: True
 `int_alloc` minimizes a total cost (f1) and the negative of a sum of
 diminishing returns (f2); in this single run, random reset reached the lowest
 values of both. The encodings tutorial runs the same problem with uniform
-crossover and reset mutation: [Decision representations](../../tutorials/encodings.md#bounded-integers).
+crossover and reset mutation: [Decision representations](../../../tutorials/encodings.md#bounded-integers).
 
 ## Key points
 

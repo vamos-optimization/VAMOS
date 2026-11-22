@@ -136,7 +136,7 @@ organizes each generation as *ask* and *tell*:
 1. **Ask.** Compute ranks and crowding distances of the current population
    (they are cached from the previous survival when possible), pick parents
    with the binary tournament (lesson [Crowding and tournaments](crowding-distance.md)), and apply
-   crossover and mutation (lesson [Real-coded operators](../operators/real-coded.md)). The result is
+   crossover and mutation (lesson [Real-coded operators](operators/real-coded.md)). The result is
    the offspring decision matrix.
 2. **Evaluate** the offspring, counting every evaluation against the budget.
 3. **Tell.** Merge parents and offspring and run the survival above; update any
