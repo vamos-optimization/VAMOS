@@ -97,7 +97,8 @@ The [constraint reference](../../reference/constraints.md#choose-a-constraint-ha
 lists the constraint-handling techniques that VAMOS' algorithms accept, such as
 `epsilon_constrained`, `stochastic_ranking` and `push_pull`, and the
 [problem reference](../../reference/problems.md) lists the constrained benchmark
-families.
+families. Lesson [Constraint-handling techniques](constraint-handling.md)
+explains every technique and the algorithms that accept it.
 
 ## In VAMOS
 
@@ -184,7 +185,7 @@ rule, pass a technique to the builder, for example
 - Evaluate constrained results on feasible solutions and report the feasibility
   rate separately.
 
-**Next:** [CCMO](ccmo.md).
+**Next:** [Constraint-handling techniques](constraint-handling.md).
 
 ## References
 

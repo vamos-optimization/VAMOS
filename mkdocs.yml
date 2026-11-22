@@ -250,11 +250,14 @@ nav:
     - Advanced:
       - Many Objectives:
         - Many-objective Optimization: foundations/advanced/many-objective.md
+        - Reference Directions: foundations/advanced/reference-directions.md
         - NSGA-III: foundations/advanced/nsga-iii.md
         - RVEA: foundations/advanced/rvea.md
         - AGE-MOEA: foundations/advanced/agemoea.md
+        - Visualizing Many Objectives: foundations/advanced/visualizing-many-objectives.md
       - Constraints:
         - Constrained Optimization: foundations/advanced/constrained.md
+        - Constraint Handling: foundations/advanced/constraint-handling.md
         - CCMO: foundations/advanced/ccmo.md
         - C-TAEA: foundations/advanced/ctaea.md
         - ToP: foundations/advanced/top.md
