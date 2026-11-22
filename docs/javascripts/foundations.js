@@ -1316,246 +1316,6 @@
     );
   }
 
-  /** Ma and Wang's ShiP objectives, as VAMOS's shift_penalty_objectives. */
-  function shiftPenaltyObjectives(F, G, constant) {
-    const measure = overallViolation(G);
-    const feasible = measure.map((v) => v <= 0);
-    const shifted = F.map((f) => f.slice());
-    const k = feasible.filter(Boolean).length;
-    if (!F.length || k === 0 || k === F.length) return shifted;
-    const share = k / F.length;
-    for (let i = 0; i < F[0].length; i++) {
-      const values = F.filter((_, r) => feasible[r]).map((f) => f[i]);
-      const largest = Math.max(...F.map((f) => f[i]));
-      F.forEach((f, r) => {
-        if (feasible[r]) return;
-        const own = f[i];
-        const above = values.filter((v) => v > own);
-        const nadir = above.length ? Math.min(...above) : largest; // the local feasible nadir
-        shifted[r][i] = own + constant * share * (nadir - own) + measure[r];
-      });
-    }
-    return shifted;
-  }
-
-  /** Ma, Wang and Song's ToR: positions by constrained domination and by Pareto dominance, their fitness and VAMOS's ranks. */
-  function twoRankings(F, G) {
-    const n = F.length;
-    const measure = overallViolation(G);
-    const rows = Array.from({ length: n }, (_, i) => i);
-    const positions = (levels) => {
-      const distance = new Array(n).fill(0);
-      for (const level of new Set(levels)) {
-        const members = rows.filter((i) => levels[i] === level);
-        crowdingDistance(F, members).forEach((d, a) => (distance[members[a]] = d));
-      }
-      const desc = (a, b) => (distance[a] === distance[b] ? 0 : distance[a] > distance[b] ? -1 : 1);
-      const order = rows.slice().sort((a, b) => levels[a] - levels[b] || desc(a, b) || a - b);
-      const pos = new Array(n);
-      order.forEach((row, a) => (pos[row] = a + 1));
-      return pos;
-    };
-    const Rc = positions(ranksByViolation(F, measure, true));
-    const Rp = positions(paretoRanks(F));
-    const k = measure.filter((v) => v <= 0).length;
-    // Twice n times the fitness, an integer: n (R^c + R^p) + k (R^c - R^p).
-    const doubled = Rc.map((rc, i) => n * (rc + Rp[i]) + k * (rc - Rp[i]));
-    const ranks = new Array(n);
-    rows
-      .slice()
-      .sort((a, b) => doubled[a] - doubled[b] || Rc[a] - Rc[b])
-      .forEach((row, a) => (ranks[row] = a));
-    return { ranks, Rc, Rp, alpha: 0.5 + (0.5 * k) / n, fitness: doubled.map((d) => d / (2 * n)) };
-  }
-
-  /** Rows sorted by their fronts among themselves, then by crowding distance in descending order, then by index. */
-  function frontOrder(values, rows) {
-    if (!rows.length) return [];
-    const { rank, crowding } = rankAndCrowding(rows.map((i) => values[i]));
-    const desc = (a, b) => (crowding[a] === crowding[b] ? 0 : crowding[a] > crowding[b] ? -1 : 1);
-    return rows
-      .map((_, a) => a)
-      .sort((a, b) => rank[a] - rank[b] || desc(a, b) || a - b)
-      .map((a) => rows[a]);
-  }
-
-  function positionsOf(order) {
-    const ranks = new Array(order.length);
-    order.forEach((row, a) => (ranks[row] = a));
-    return ranks;
-  }
-
-  /** IDEA's violation measure: per constraint, the dense rank of each violation from 1 (0 if satisfied), summed. */
-  function violationMeasure(G) {
-    const measure = new Array(G.length).fill(0);
-    for (let j = 0; j < (G[0] || []).length; j++) {
-      const levels = Array.from(new Set(G.map((g) => g[j]).filter((v) => v > 0))).sort((a, b) => a - b);
-      G.forEach((g, r) => {
-        if (g[j] > 0) measure[r] += levels.indexOf(g[j]) + 1;
-      });
-    }
-    return measure;
-  }
-
-  /** Ray, Singh, Isaacs and Smith's IDEA, as VAMOS orders it: the best round(proportion N) infeasible rows first. */
-  function infeasibilityDriven(F, G, proportion, populationSize) {
-    const measure = violationMeasure(G);
-    const extended = F.map((f, i) => f.concat([measure[i]]));
-    const rows = F.map((_, i) => i);
-    const infeasible = frontOrder(extended, rows.filter((i) => measure[i] > 0));
-    const feasible = frontOrder(extended, rows.filter((i) => measure[i] === 0));
-    const quota = Math.floor(proportion * populationSize + 0.5);
-    const order = infeasible.slice(0, quota).concat(feasible, infeasible.slice(quota));
-    return { ranks: positionsOf(order), measure, quota };
-  }
-
-  /** Li et al.'s normalized violation C: the mean over the constraints of each violation over the largest one. */
-  function normalizedViolation(G) {
-    const c = (G[0] || []).length;
-    const excess = G.map((g) => g.map((v) => Math.max(0, v)));
-    const largest = Array.from({ length: c }, (_, j) => Math.max(...excess.map((e) => e[j])));
-    return excess.map((e) => (c ? e.reduce((acc, v, j) => acc + (largest[j] > 0 ? v / largest[j] : 0), 0) / c : 0));
-  }
-
-  /** ATM's fitness with feasible and infeasible rows (Li et al., eqs. 10-15), as VAMOS's adaptive_tradeoff_fitness. */
-  function adaptiveTradeoffFitness(F, C, phi) {
-    const m = F[0].length;
-    const feasible = C.map((v) => v <= 0);
-    const fea = F.filter((_, i) => feasible[i]);
-    const floor = Array.from({ length: m }, (_, k) => phi * Math.min(...fea.map((f) => f[k])) + (1 - phi) * Math.max(...fea.map((f) => f[k])));
-    const converted = F.map((f, i) => (feasible[i] ? f.slice() : f.map((v, k) => Math.max(floor[k], v))));
-    const low = Array.from({ length: m }, (_, k) => Math.min(...converted.map((f) => f[k])));
-    const span = Array.from({ length: m }, (_, k) => Math.max(...converted.map((f) => f[k])) - low[k]);
-    const infC = C.filter((_, i) => !feasible[i]);
-    const lowest = Math.min(...infC);
-    const spread = Math.max(...infC) - lowest;
-    return converted.map((f, i) => {
-      const penalty = !feasible[i] && spread > 0 ? (C[i] - lowest) / spread : 0;
-      return f.map((v, k) => (span[k] > 0 ? (v - low[k]) / span[k] : 0) + penalty);
-    });
-  }
-
-  /** Wang, Cai, Zhou and Zeng's ATM in Li, Wang, Yang and Cai's version: three phases by the feasible share. */
-  function adaptiveTradeoff(F, G, phi) {
-    const C = normalizedViolation(G);
-    const rows = F.map((_, i) => i);
-    const feasibleCount = C.filter((v) => v <= 0).length;
-    if (feasibleCount === F.length) return { ranks: positionsOf(frontOrder(F, rows)), C, phase: 3 };
-    if (feasibleCount > 0) {
-      const fitness = adaptiveTradeoffFitness(F, C, phi);
-      return { ranks: positionsOf(frontOrder(fitness, rows)), C, phase: 2, fitness };
-    }
-    const values = F.map((f, i) => f.concat([C[i]]));
-    let remaining = rows.slice();
-    const order = [];
-    while (remaining.length) {
-      const r = paretoRanks(remaining.map((i) => values[i]));
-      const leading = remaining.filter((_, a) => r[a] === 0).sort((a, b) => C[a] - C[b] || remaining.indexOf(a) - remaining.indexOf(b));
-      const taken = leading.slice(0, Math.ceil(leading.length / 2));
-      order.push(...taken);
-      remaining = remaining.filter((i) => !taken.includes(i));
-    }
-    return { ranks: positionsOf(order), C, phase: 1 };
-  }
-
-  /** The level of each row minus its crowding distance within the level, scaled as VAMOS's nsgaii_fitness. */
-  function nsgaiiFitness(F, levels) {
-    const rows = F.map((_, i) => i);
-    const distance = new Array(F.length).fill(0);
-    for (const level of new Set(levels)) {
-      const members = rows.filter((i) => levels[i] === level);
-      crowdingDistance(F, members).forEach((d, a) => (distance[members[a]] = d));
-    }
-    const finite = distance.filter((d) => Number.isFinite(d));
-    const low = Math.min(...finite);
-    const span = Math.max(...finite) - low;
-    // The finite distances span [0, 1/4] and the infinite ones of the extremes are 1/2.
-    return levels.map((level, i) => level - (Number.isFinite(distance[i]) ? (span > 0 ? (0.25 * (distance[i] - low)) / span : 0) : 0.5));
-  }
-
-  /** 1 plus the number of rows with a smaller value, as VAMOS's competition_ranks: equal values share a rank. */
-  function competitionRanks(values) {
-    return values.map((v) => values.filter((w) => w < v).length + 1);
-  }
-
-  /** MCR's R_f, as VAMOS's objective_ranks: rows with the same objectives share the best NSGA-II fitness among them. */
-  function objectiveRanks(F) {
-    const fitness = nsgaiiFitness(F, paretoRanks(F));
-    const keys = F.map((f) => f.join(","));
-    const best = new Map();
-    keys.forEach((k, i) => best.set(k, Math.min(best.has(k) ? best.get(k) : Infinity, fitness[i])));
-    return competitionRanks(keys.map((k) => best.get(k)));
-  }
-
-  /** Garcia et al.'s MCR (eq. 10), as VAMOS's multiple_constraint_ranking_fitness: R_Nv + Σ_j R_φ^j, plus R_f if a row is feasible. */
-  function mcrFitness(F, G) {
-    const excess = G.map((g) => g.map((v) => Math.max(0, v)));
-    const add = (total, ranks) => total.map((t, i) => t + ranks[i]);
-    let total = competitionRanks(excess.map((e) => e.filter((v) => v > 0).length));
-    for (let j = 0; j < (G[0] || []).length; j++) total = add(total, competitionRanks(excess.map((e) => e[j])));
-    if (excess.some((e) => e.every((v) => v <= 0))) total = add(total, objectiveRanks(F));
-    return total;
-  }
-
-  /** Min-max into [0, 1], as VAMOS's ensemble scales a member: 0 if every value is equal; an infinite penalty is 1, the finite ones 0. */
-  function minMax(values) {
-    const infinite = values.map((v) => v === Infinity);
-    if (infinite.some(Boolean) && !infinite.every(Boolean)) return infinite.map((b) => (b ? 1 : 0));
-    const low = Math.min(...values);
-    const span = infinite.some(Boolean) ? 0 : Math.max(...values) - low;
-    return values.map((v) => (span > 0 ? (v - low) / span : 0));
-  }
-
-  /** Vodopija, Oyama and Filipič's ensemble, as VAMOS's: the order of Σ w_i c_i over NDS, CDP, MCR and DPF. */
-  function ensemble(F, G, weights, generation) {
-    const largest = Math.max(...weights);
-    const scaled = weights.map((w) => w / largest);
-    const sum = scaled.reduce((acc, w) => acc + w, 0);
-    const w = scaled.map((v) => v / sum);
-    const nds = nsgaiiFitness(F, paretoRanks(F));
-    const cdp = nsgaiiFitness(F, ranksByViolation(F, overallViolation(G), true));
-    const weight = Math.pow(0.5 * generation, 2); // dynamic_penalty's C = 0.5 and alpha = beta = 2
-    const dpf = nds.map((v, i) => v + weight * G[i].reduce((acc, g) => acc + Math.pow(Math.max(0, g), 2), 0));
-    const columns = [nds, cdp, mcrFitness(F, G), dpf].map(minMax);
-    const qualities = F.map((_, i) => columns.map((column) => column[i]));
-    // A member of weight 0 takes no part.
-    const score = qualities.map((q) => q.reduce((acc, v, k) => (w[k] > 0 ? acc + v * w[k] : acc), 0));
-    const order = F.map((_, i) => i).sort((a, b) => score[a] - score[b] || a - b);
-    return { ranks: positionsOf(order), weights: w, qualities, score };
-  }
-
-  /** The objectives that violation_objective adds, as VAMOS's violation_objectives: [R, V] with the ratio, otherwise [V]. */
-  function violationObjectives(G, norm, ratioObjective, cdfAlpha) {
-    const c = (G[0] || []).length;
-    const excess = G.map((g) => g.map((v) => Math.max(0, v)));
-    let measure;
-    if (norm === "l2_squared") measure = excess.map((e) => e.reduce((acc, v) => acc + v * v, 0));
-    else if (norm === "linf") measure = excess.map((e) => (c ? Math.max(...e) : 0));
-    else measure = overallViolation(G);
-    if (!ratioObjective) return measure.map((v) => [v]);
-    const counts = Array.from({ length: c }, (_, j) => excess.filter((e) => e[j] > 0).length);
-    const total = counts.reduce((acc, k) => acc + k, 0);
-    const weights = counts.map((k) => (total > 0 ? 1 + (cdfAlpha * k) / total : 1));
-    const weightSum = weights.reduce((acc, v) => acc + v, 0);
-    return excess.map((e, i) => [c ? e.reduce((acc, v, j) => acc + (v > 0 ? weights[j] : 0), 0) / weightSum : 0, measure[i]]);
-  }
-
-  /** violation_objective with Dam and Truong's options, as VAMOS ranks it. */
-  function violationObjective(F, G, o) {
-    const extra = violationObjectives(G, o.violation_norm || "l1", o.ratio_objective === true, o.cdf_alpha || 0);
-    const objectives = F.map((f, i) => f.concat(extra[i]));
-    if (o.feasible_first !== true) return { ranks: paretoRanks(objectives), objectives, extra };
-    // Algorithm A: the feasible rows by fronts and crowding, then the infeasible ones by R and V, ascending.
-    const rows = F.map((_, i) => i);
-    const feasible = G.map((g) => g.every((v) => v <= 0));
-    const byExtra = (a, b) => {
-      for (let k = 0; k < extra[a].length; k++) if (extra[a][k] !== extra[b][k]) return extra[a][k] - extra[b][k];
-      return a - b;
-    };
-    const order = frontOrder(F, rows.filter((i) => feasible[i])).concat(rows.filter((i) => !feasible[i]).sort(byExtra));
-    return { ranks: positionsOf(order), objectives, extra };
-  }
-
   /** The fronts of a population under a constraint-handling technique of VAMOS, and the objectives it ranks, if modified. */
   function constraintRanks(name, F, G, options) {
     const o = options || {};
@@ -1573,30 +1333,11 @@
       const order = stochasticRankingOrder(pareto, feasible, cv, o.uniforms, o.probability);
       return { ranks: stochasticRankingRanks(order, pareto, feasible), order };
     }
-    if (name === "two_rankings") return twoRankings(F, G);
-    if (name === "infeasibility_driven") return infeasibilityDriven(F, G, o.proportion, o.populationSize);
-    if (name === "adaptive_tradeoff") return adaptiveTradeoff(F, G, o.phi);
-    if (name === "multiple_constraint_ranking") {
-      const fitness = mcrFitness(F, G);
-      return { ranks: positionsOf(F.map((_, i) => i).sort((a, b) => fitness[a] - fitness[b] || a - b)), fitness };
+    if (name === "self_adaptive_penalty") {
+      const objectives = selfAdaptivePenaltyObjectives(F, G);
+      return { ranks: paretoRanks(objectives), objectives };
     }
-    if (name === "ensemble") {
-      const weights = ["nds", "cdp", "mcr", "dpf"].map((member) => (o[member + "_weight"] === undefined ? 0.25 : o[member + "_weight"]));
-      return ensemble(F, G, weights, o.generation);
-    }
-    if (name === "violation_objective") return violationObjective(F, G, o);
-    let objectives;
-    if (name === "self_adaptive_penalty") objectives = selfAdaptivePenaltyObjectives(F, G);
-    else if (name === "static_penalty") objectives = F.map((f, i) => f.map((v) => v + o.coefficient * cv[i]));
-    else if (name === "dynamic_penalty") {
-      const weight = Math.pow(o.constant * o.generation, o.alpha);
-      objectives = F.map((f, i) => {
-        const severity = G[i].reduce((acc, g) => acc + Math.pow(Math.max(0, g), o.beta), 0);
-        return f.map((v) => v + weight * severity);
-      });
-    } else if (name === "shift_penalty") objectives = shiftPenaltyObjectives(F, G, o.constant);
-    else throw new Error("Unknown constraint-handling technique " + name);
-    return { ranks: paretoRanks(objectives), objectives };
+    throw new Error("Unknown constraint-handling technique " + name);
   }
 
   const algorithms = {
@@ -4892,7 +4633,6 @@
     const cv = overallViolation(G);
     const count = violatedCount(G);
     const n = F.length;
-    const COEFFICIENTS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 100];
     const ALL = "NSGA-II, NSGA-III, SMS-EMOA, AGE-MOEA, RVEA and SMPSO";
     const FRONT = "NSGA-II, NSGA-III, SMS-EMOA and AGE-MOEA";
     const techniques = [
@@ -4902,33 +4642,8 @@
       ["push_pull", "push_pull", ALL],
       ["stochastic_ranking", "stochastic_ranking", FRONT],
       ["self_adaptive_penalty", "self_adaptive_penalty", FRONT],
-      ["static_penalty", "static_penalty", FRONT],
-      ["dynamic_penalty", "dynamic_penalty", FRONT],
-      ["violation_objective", "violation_objective", FRONT],
-      ["two_rankings", "two_rankings (ToR)", "NSGA-II only"],
-      ["shift_penalty", "shift_penalty (ShiP)", FRONT],
-      ["infeasibility_driven", "infeasibility_driven (IDEA)", "NSGA-II only"],
-      ["adaptive_tradeoff", "adaptive_tradeoff (ATM)", "NSGA-II only"],
-      ["multiple_constraint_ranking", "multiple_constraint_ranking (MCR)", "NSGA-II only"],
-      ["ensemble", "ensemble", "NSGA-II only"],
     ];
-    const MEMBERS = ["nds", "cdp", "mcr", "dpf"];
-    const state = {
-      name: "cdp",
-      epsilon: 0.25,
-      pushing: true,
-      probability: 0.45,
-      seed: 1,
-      coefficient: 3,
-      generation: 1,
-      constant: 2,
-      proportion: 0.2,
-      phi: 0.5,
-      norm: "l1",
-      ratio: "none",
-      feasibleFirst: false,
-      weights: [0.25, 0.25, 0.25, 0.25],
-    };
+    const state = { name: "cdp", epsilon: 0.25, pushing: true, probability: 0.45, seed: 1 };
     const ctl = controls(node);
     select(ctl, { label: "Technique", options: techniques.map((t) => [t[0], t[1]]), value: state.name, onChange: (v) => ((state.name = v), params(), render()) });
     const extra = h("div", { class: "vf-controls" }, node);
@@ -4967,58 +4682,6 @@
         slider(extra, { label: "probability p_f", min: 0, max: 1, step: 0.05, value: state.probability, format: (v) => v.toFixed(2), onInput: (v) => ((state.probability = v), render()) });
         button(extra, "Draw again", () => ((state.seed += 1), render()));
       }
-      if (nm === "static_penalty") {
-        slider(extra, { label: "coefficient", min: 0, max: COEFFICIENTS.length - 1, step: 1, value: state.coefficient, format: (v) => String(COEFFICIENTS[v]), onInput: (v) => ((state.coefficient = v), render()) });
-      }
-      if (nm === "dynamic_penalty") {
-        slider(extra, { label: "Generation k", min: 1, max: 30, step: 1, value: state.generation, onInput: (v) => ((state.generation = v), render()) });
-      }
-      if (nm === "shift_penalty") {
-        slider(extra, { label: "constant c", min: 0.5, max: 5, step: 0.5, value: state.constant, format: (v) => v.toFixed(1), onInput: (v) => ((state.constant = v), render()) });
-      }
-      if (nm === "infeasibility_driven") {
-        slider(extra, { label: "proportion", min: 0.1, max: 0.5, step: 0.1, value: state.proportion, format: (v) => v.toFixed(1), onInput: (v) => ((state.proportion = v), render()) });
-      }
-      if (nm === "adaptive_tradeoff") {
-        slider(extra, { label: "φ, feasible share of the last survivors", min: 0, max: 1, step: 0.1, value: state.phi, format: (v) => v.toFixed(1), onInput: (v) => ((state.phi = v), render()) });
-      }
-      if (nm === "violation_objective") {
-        select(extra, {
-          label: "violation_norm",
-          options: [
-            ["l1", "l1: the sum (default)"],
-            ["l2_squared", "l2_squared: the sum of squares"],
-            ["linf", "linf: the largest"],
-          ],
-          value: state.norm,
-          onChange: (v) => ((state.norm = v), render()),
-        });
-        select(extra, {
-          label: "ratio_objective",
-          options: [
-            ["none", "False (default)"],
-            ["equal", "True, equal weights"],
-            ["cdf", "True, cdf_alpha = 0.5"],
-          ],
-          value: state.ratio,
-          onChange: (v) => ((state.ratio = v), render()),
-        });
-        select(extra, {
-          label: "feasible_first",
-          options: [
-            ["off", "False (default)"],
-            ["on", "True: NSGA-II only"],
-          ],
-          value: state.feasibleFirst ? "on" : "off",
-          onChange: (v) => ((state.feasibleFirst = v === "on"), render()),
-        });
-      }
-      if (nm === "ensemble") {
-        MEMBERS.forEach((member, k) => {
-          slider(extra, { label: `${member}_weight`, min: 0, max: 1, step: 0.25, value: state.weights[k], format: (v) => v.toFixed(2), onInput: (v) => ((state.weights[k] = v), render()) });
-        });
-        slider(extra, { label: "Generation k, for DPF", min: 1, max: 30, step: 1, value: state.generation, onInput: (v) => ((state.generation = v), render()) });
-      }
     }
     function options() {
       const rand = mulberry32(1000 + state.seed);
@@ -5027,22 +4690,6 @@
         pushing: state.pushing,
         probability: state.probability,
         uniforms: Array.from({ length: n * (n - 1) }, rand),
-        coefficient: COEFFICIENTS[state.coefficient],
-        constant: state.name === "dynamic_penalty" ? 0.5 : state.constant,
-        alpha: 2,
-        beta: 2,
-        generation: state.generation,
-        proportion: state.proportion,
-        populationSize: n,
-        phi: state.phi,
-        violation_norm: state.norm,
-        ratio_objective: state.ratio !== "none",
-        cdf_alpha: state.ratio === "cdf" ? 0.5 : 0,
-        feasible_first: state.feasibleFirst,
-        nds_weight: state.weights[0],
-        cdp_weight: state.weights[1],
-        mcr_weight: state.weights[2],
-        dpf_weight: state.weights[3],
       };
     }
     const list = (rows) => rows.map((i) => labels[i]).join(", ") || "none";
@@ -5057,41 +4704,15 @@
         return `CV ≤ ε = ${fmt(o.epsilon, 2)} counts as feasible: ${list(within)} join the feasible solutions. The others follow by CV, and equal CV shares a front.`;
       }
       if (nm === "stochastic_ranking") return `A bubble sort compares neighbours by Pareto rank when both are feasible or with probability ${fmt(o.probability, 2)}, by CV otherwise. Sorted order: ${list(res.order)}. Each infeasible solution is a front of its own.`;
-      if (nm === "self_adaptive_penalty") return `${feasibleCount} of ${n} solutions are feasible (r_f = ${fmt(feasibleCount / n, 2)}). Pareto dominance ranks d(x) + (1 − r_f) X(x) + r_f Y(x) per objective, from normalized objectives and violations.`;
-      if (nm === "static_penalty") return `Pareto dominance on fᵢ + ${o.coefficient} · CV: the coefficient decides whether a violation outweighs better objectives.`;
-      if (nm === "dynamic_penalty") return `Weight (C · k)^α = (0.5 · ${o.generation})² = ${fmt(Math.pow(0.5 * o.generation, 2), 2)}; Pareto dominance on fᵢ + weight · Σ max(0, g_j)². The weight grows with the generation.`;
-      if (nm === "violation_objective") {
-        const V = { l1: "CV", l2_squared: "V = Σ max(0, g_j)²", linf: "V = max_j max(0, g_j)" }[o.violation_norm];
-        const added = o.ratio_objective ? `R, ${V}` : V;
-        const ratio = o.ratio_objective
-          ? ` R is the weighted share of the constraints a solution violates, ${o.cdf_alpha > 0 ? "each weighted 1 + 0.5 · (solutions that violate it) / (violations of all constraints)" : "with equal weights"}.`
-          : "";
-        if (o.feasible_first) return `feasible_first: the feasible solutions come first, by fronts and crowding distance of the objectives; then the infeasible ones in ascending order of ${added}. One solution per front.${ratio}`;
-        return `Pareto dominance on (f₁, f₂, ${added}): an infeasible solution with good objectives is non-dominated.${ratio}`;
-      }
-      if (nm === "multiple_constraint_ranking") return "Each solution's fitness adds the rank of its number of violated constraints, the rank of its violation of each constraint and, since some solutions are feasible, the rank of its objectives by Pareto rank and crowding distance. Equal values share a rank; the smallest sum comes first, one solution per front.";
-      if (nm === "ensemble") return `Normalized to sum 1, the weights of NDS, CDP, MCR and DPF are ${res.weights.map((w) => fmt(w, 2)).join(", ")}. Each member's quality is scaled into [0, 1] over the ten solutions, lower being better, and the weighted sum orders them, one solution per front. DPF adds (0.5 · ${o.generation})² · Σ max(0, g_j)² to the NDS quality.`;
-      if (nm === "two_rankings") return `P_fea = ${fmt(feasibleCount / n, 2)}, α = 0.5 + 0.5 P_fea = ${fmt(res.alpha, 2)}, fitness = α R^c + (1 − α) R^p; VAMOS gives each solution a front of its own, in order of fitness.`;
-      if (nm === "infeasibility_driven") return `With a population of N = ${n}, the best ${res.quota} infeasible solutions (proportion · N, rounded), sorted by fronts and crowding over (f₁, f₂, violation measure), come first; then the feasible ones; then the other infeasible ones. One solution per front.`;
-      if (nm === "adaptive_tradeoff") return `${feasibleCount} of ${n} solutions are feasible: phase two. Each objective of an infeasible solution becomes max(φ f_best + (1 − φ) f_worst, f), from the feasible ones, with φ = ${fmt(o.phi, 1)}; objectives are normalized, the normalized violation of the infeasible ones is added, and fronts and crowding order the sums. One solution per front.`;
-      return `P_fea = ${fmt(feasibleCount / n, 2)}: each infeasible objective moves c · P_fea = ${fmt(o.constant * (feasibleCount / n), 2)} of the way to the smallest feasible value above it, and CV is added.`;
+      return `${feasibleCount} of ${n} solutions are feasible (r_f = ${fmt(feasibleCount / n, 2)}). Pareto dominance ranks d(x) + (1 − r_f) X(x) + r_f Y(x) per objective, from normalized objectives and violations.`;
     }
     function render() {
       const o = options();
+      const res = constraintRanks(state.name, F, G, o);
       clear(plot.layers.mid);
       clear(plot.layers.marks);
       clear(plot.layers.top);
-      if (state.name === "ensemble" && state.weights.every((w) => w <= 0)) {
-        F.forEach((f, i) => {
-          marker(plot.layers.marks, cv[i] > 0 ? "square" : "circle", plot.x(f[0]), plot.y(f[1]), 6, "vf-pt vf-pt-ink");
-          txt(plot.layers.top, plot.x(f[0]) + 8, plot.y(f[1]) - 7, labels[i], { class: "vf-mark-label" });
-        });
-        clear(readout);
-        h("p", {}, readout, "VAMOS rejects these weights: they are normalized to sum 1, so at least one must be above 0.");
-        return;
-      }
-      const res = constraintRanks(state.name, F, G, o);
-      const moved = res.objectives && res.objectives[0].length === 2 ? res.objectives : null;
+      const moved = res.objectives || null;
       F.forEach((f, i) => {
         const px = plot.x(f[0]);
         const py = plot.y(f[1]);
@@ -5106,29 +4727,13 @@
         txt(plot.layers.top, px + 8, py - 7, `${labels[i]} ${res.ranks[i] + 1}`, { class: "vf-mark-label" });
       });
       clear(readout);
-      const taken = state.name === "violation_objective" && state.feasibleFirst ? "NSGA-II only" : techniques.find((t) => t[0] === state.name)[2];
       h("p", {}, readout, describe(res, o));
-      h("p", {}, readout, `Taken by: ${taken}.`);
+      h("p", {}, readout, `Taken by: ${techniques.find((t) => t[0] === state.name)[2]}.`);
       const head = ["Solution", "f₁, f₂", "CV", "Violated"];
       const numeric = [false, false, true, true];
       if (moved) {
         head.push("Ranked as");
         numeric.push(false);
-      } else if (state.name === "two_rankings") {
-        head.push("R^c", "R^p", "Fitness");
-        numeric.push(true, true, true);
-      } else if (state.name === "violation_objective" || state.name === "adaptive_tradeoff") {
-        head.push("Ranked as");
-        numeric.push(false);
-      } else if (state.name === "infeasibility_driven") {
-        head.push("Violation measure");
-        numeric.push(true);
-      } else if (state.name === "multiple_constraint_ranking") {
-        head.push("Fitness");
-        numeric.push(true);
-      } else if (state.name === "ensemble") {
-        head.push("NDS", "CDP", "MCR", "DPF", "Weighted sum");
-        numeric.push(true, true, true, true, true);
       }
       head.push("Front");
       numeric.push(true);
@@ -5139,12 +4744,6 @@
         rows.map((i) => {
           const row = [labels[i], pair(F[i]), fmt(cv[i], 2), String(count[i])];
           if (moved) row.push(pair(moved[i]));
-          else if (state.name === "two_rankings") row.push(String(res.Rc[i]), String(res.Rp[i]), fmt(res.fitness[i], 2));
-          else if (state.name === "violation_objective") row.push(`(${fmt(F[i][0], 2)}, ${fmt(F[i][1], 2)}, ${res.extra[i].map((v) => fmt(v, 4)).join(", ")})`);
-          else if (state.name === "adaptive_tradeoff") row.push(pair(res.fitness[i]));
-          else if (state.name === "infeasibility_driven") row.push(String(res.measure[i]));
-          else if (state.name === "multiple_constraint_ranking") row.push(String(res.fitness[i]));
-          else if (state.name === "ensemble") row.push(...res.qualities[i].map((v) => fmt(v, 2)), fmt(res.score[i], 3));
           row.push(String(res.ranks[i] + 1));
           return row;
         }),
