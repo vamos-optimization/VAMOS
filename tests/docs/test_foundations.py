@@ -318,6 +318,18 @@ def test_figure_budgets_agree_with_the_model_based_backends() -> None:
         hyperband_brackets(*case) for case in cases
     ]
 
+    # Hyperband's budgets: hpbandster's geometric spacing (SMAC3 spaces them alike), rounded to whole evaluations
+    # and clipped to the levels as run_smac3 and run_bohb_native round each budget before a run.
+    def backend_budgets(low: int, high: int, eta: int) -> list[int]:
+        rungs = -int(np.log(low / high) / np.log(eta)) + 1
+        spaced = high * np.power(float(eta), -np.linspace(rungs - 1, 0, rungs))
+        return [min(high, max(low, int(round(float(budget))))) for budget in spaced]
+
+    spans = [(lo, hi, eta) for lo, hi in ((500, 5000), (1000, 9000), (1000, 8000), (100, 10000), (300, 5000)) for eta in (2, 3, 4)]
+    assert _run_figure_program("data.map(([lo, hi, e]) => V.hyperbandBudgets(lo, hi, e))", spans) == [
+        backend_budgets(*span) for span in spans
+    ]
+
     data, expected = [], []
     for levels in ([1000, 3000, 9000], [500, 5000], [1000, 2000, 4000, 8000]):
         for n_instances, n_seeds in ((1, 1), (6, 5), (7, 4)):

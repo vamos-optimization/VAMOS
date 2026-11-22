@@ -316,8 +316,8 @@ With the levels 1,000, 3,000 and 9,000, `--fidelity-min-instance-frac 0.5` and
 on 3 instances with 1 seed, 3 pairs, and one at the full budget on all 30
 pairs: the smallest budget costs 3,000 evaluations per configuration instead
 of 30,000. Hyperband with η = 3 between 1,000 and 9,000 evaluates the same
-three budgets; between 500 and 5,000 it evaluates 555, 1,666 and 5,000
-(5,000 divided by 9, 3 and 1, truncated to whole evaluations), not the levels. A smaller share of pairs makes a low-fidelity score noisier, as
+three budgets; between 500 and 5,000 it evaluates 556, 1,667 and 5,000
+(5,000 divided by 9, 3 and 1, rounded to whole evaluations), not the levels. A smaller share of pairs makes a low-fidelity score noisier, as
 well as shorter.
 
 ```bash

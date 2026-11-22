@@ -1425,6 +1425,15 @@
   }
 
   /** Python's round(): halves go to the even neighbour. */
+  /**
+   * The budgets of Hyperband between lo and hi with factor eta: geometric, as hpbandster and SMAC3 space them,
+   * rounded half to even and clipped to [lo, hi], as run_smac3 and run_bohb_native round each budget before a run.
+   */
+  function hyperbandBudgets(lo, hi, eta) {
+    const rungs = Math.floor(Math.log(hi / lo) / Math.log(eta) + 1e-9) + 1;
+    return Array.from({ length: rungs }, (_, i) => Math.min(hi, Math.max(lo, roundHalfEven(hi / Math.pow(eta, rungs - 1 - i)))));
+  }
+
   function roundHalfEven(x) {
     const f = Math.floor(x);
     const d = x - f;
@@ -2364,6 +2373,7 @@
     fraceTest,
     fraceRace,
     hyperbandBrackets,
+    hyperbandBudgets,
     fidelitySlice,
     operators: OPERATORS,
     ccmoSelect,
@@ -5525,10 +5535,7 @@
     const readout = h("div", { class: "vf-readout" }, body);
     function budgets(levels) {
       if (state.mode === "levels") return levels.slice();
-      const lo = levels[0];
-      const hi = levels[levels.length - 1];
-      const rungs = Math.floor(Math.log(hi / lo) / Math.log(state.eta) + 1e-9) + 1;
-      return Array.from({ length: rungs }, (_, i) => Math.min(hi, Math.max(lo, Math.trunc(hi / Math.pow(state.eta, rungs - 1 - i) + 1e-9))));
+      return hyperbandBudgets(levels[0], levels[levels.length - 1], state.eta);
     }
     function render() {
       const levels = PRESETS[state.levels];
