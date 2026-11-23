@@ -10,6 +10,7 @@ from .families import (
     constrained_many,
     ctp,
     dtlz,
+    hpa,
     lir_das_cmop,
     lsmop,
     lz09,
@@ -52,6 +53,7 @@ def _build_problem_specs() -> dict[str, ProblemSpec]:
         tanabe_ishibuchi_cre.get_specs(),
         cec2021_rcm.get_specs(),
         modact.get_specs(),
+        hpa.get_specs(),
         zapotecas_rwa.get_specs(),
     ):
         specs.update(family)

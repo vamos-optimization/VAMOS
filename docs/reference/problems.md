@@ -5,7 +5,9 @@ Choose a problem by its **formulation, encoding and dimensions**, then check the
 303 registered problems in VAMOS **1.5.2**; **VAMOS 1.5.0:**
 CTP1–CTP7 and IDTLZ1 and IDTLZ2 are new, so 251 become 260; **VAMOS 1.5.1:**
 the 20 MODAct problems bring them to 280; **VAMOS 1.5.2:** the 23
-[reformulated RCM problems](#reformulated-rcm-problems) bring them to 303. The named selection helpers are
+[reformulated RCM problems](#reformulated-rcm-problems) bring them to 303.
+**Development after 1.5.2:** the 102 [HPA problems](#hpa-human-powered-aircraft-design)
+bring them to 405. The named selection helpers are
 [stable public APIs](../project/stability-and-versioning.md). A synthetic or
 engineering benchmark is a test model, not a validated model of your application.
 
@@ -20,7 +22,7 @@ engineering benchmark is a test model, not a validated model of your application
 | Explicit constraint handling | `c1dtlz1`, `mw1` | Emit inequality constraints separately from objectives |
 | Binary, integer or mixed operators | `zdt5`, `int_alloc`, `mixed_design` | Small, deterministic examples with explicit encodings |
 | Permutation operators | `tsp6`, then `kroa100` | Closed tours with two specified route objectives |
-| Application-inspired test functions | RE, RWA, CRE and RCM tables below; **VAMOS 1.5.1:** MODAct | Fixed engineering formulations with different encodings and objective counts; CRE, RCM and MODAct keep their constraints in G; MODAct needs the `modact` package |
+| Application-inspired test functions | RE, RWA, CRE and RCM tables below; **VAMOS 1.5.1:** MODAct; **Development after 1.5.2:** HPA | Fixed engineering formulations with different encodings and objective counts; CRE, RCM and MODAct keep their constraints in G; MODAct needs the `modact` package |
 | Expensive model evaluations | `fs_real`, `ml_tuning` | Train a classifier for each candidate; require scikit-learn |
 
 Use `optimize("zdt1", ...)` in Python or `--problem zdt1` in the
@@ -857,6 +859,74 @@ resolves them. A front already in the directory is kept unless you pass
 `--force`, and `--output DIR` writes elsewhere. A failed download or checksum
 leaves no file behind and exits with code 1.
 
+### HPA: human-powered aircraft design
+
+**Development after 1.5.2:** the HPA problems of Namura ([2025][hpa-paper])
+design the main wing of a human-powered aircraft: the length, chord, angle of
+attack and airfoil of its segments, the CFRP pipe of its main spar and the plies
+that stiffen it, the dihedral angle at the root, the tension of the flying wires
+and the payload. Lifting-line theory gives the aerodynamics and beam-column
+theory the deflections and strains of the spar, so the landscapes are smooth and
+moderately multimodal, as in engineering design, while an evaluation takes
+milliseconds. VAMOS ports the authors' [reference code][hpa] (BSD-3-Clause-Clear,
+see `LICENSE-hpa.txt` among the [reference fronts][fronts]) to NumPy and SciPy,
+with its airfoil tables, so the problems need no other package.
+
+The key `hpa<MNL>_<l>` is the paper's HPA*MNL*-*l*: *M* objectives, *N*
+constraints, problem index *L* and difficulty level *l*. Each constrained problem
+has a penalized version with *N* = 0, which is unconstrained:
+
+| Keys | n at l = 0 / 1 / 2 | M / G | Objectives, all minimized |
+| --- | --- | --- | --- |
+| `hpa241_<l>`, `hpa201_<l>` | 18 / 33 / 109 | 2 / 4 | power, −cruise speed |
+| `hpa222_<l>`, `hpa202_<l>` | 16 / 31 / 187 | 2 / 2 | power, wing deflection |
+| `hpa233_<l>`, `hpa203_<l>` | 19 / 34 / 190 | 2 / 3 | drag, −payload |
+| `hpa244_<l>`, `hpa204_<l>` | 18 / 33 / 189 | 2 / 4 | −cruise speed, wing twist |
+| `hpa245_<l>`, `hpa205_<l>` | 18 / 33 / 189 | 2 / 4 | −cruise speed, wire tension |
+| `hpa341_<l>`, `hpa301_<l>` | 18 / 33 / 109 | 3 / 4 | power, −cruise speed, −span efficiency |
+| `hpa322_<l>`, `hpa302_<l>` | 16 / 31 / 187 | 3 / 2 | power, wing deflection, wing twist |
+| `hpa333_<l>`, `hpa303_<l>` | 19 / 34 / 190 | 3 / 3 | drag, root angle of attack, −payload |
+| `hpa344_<l>`, `hpa304_<l>` | 18 / 33 / 189 | 3 / 4 | drag, −cruise speed, wing twist |
+| `hpa345_<l>`, `hpa305_<l>` | 18 / 33 / 189 | 3 / 4 | power, −cruise speed, wire tension |
+| `hpa441_<l>`, `hpa401_<l>` | 18 / 33 / 189 | 4 / 4 | drag, −cruise speed, wing twist, empty weight |
+| `hpa422_<l>`, `hpa402_<l>` | 16 / 31 / 187 | 4 / 2 | power, wing deflection, wing twist, span |
+| `hpa443_<l>`, `hpa403_<l>` | 18 / 33 / 189 | 4 / 4 | −cruise speed, −span efficiency, empty weight, wire tension |
+| `hpa541_<l>`, `hpa501_<l>` | 18 / 33 / 189 | 5 / 4 | drag, −cruise speed, wing twist, −span efficiency, empty weight |
+| `hpa542_<l>`, `hpa502_<l>` | 19 / 34 / 190 | 5 / 4 | power, −cruise speed, root angle of attack, wire tension, −payload |
+| `hpa641_<l>`, `hpa601_<l>` | 18 / 33 / 189 | 6 / 4 | power, −cruise speed, wing twist, −span efficiency, empty weight, span |
+| `hpa941_<l>`, `hpa901_<l>` | 19 / 34 / 190 | 9 / 4 | the nine objectives above, without drag and wing deflection |
+
+- **Levels:** at level 0 the variables are the segments' lengths, the chords,
+  the angle of attack at the root, the washouts, two factors that reduce the
+  allowable strain (one in flight, one parked), and, when the problem has them,
+  the wire tension, the dihedral angle at the root and the payload; the airfoils
+  are fixed, and a greedy sizing of Namura's Algorithm 1 places the flange plies
+  of the spar. Level 1 adds the airfoil of each section, the diameter of each
+  pipe and a pair of factors per segment. Level 2 replaces the sizing with the
+  lengths, widths and positions of the plies, up to 10 or 20 per segment. The
+  design space of a level contains the one below.
+- **Constraints:** `G <= 0` is feasible, in the reference code's order: the
+  strain of the CFRP (the paper's g1), the wing tip above the ground when
+  parked (g3), the dihedral angle at the tip in flight (g2), and the power at
+  most 400 W (g4). HPA222, HPA322 and HPA422, without wires, have the strain
+  and a cruise speed of at least 7.3 m/s (g5).
+- **Penalized versions:** each objective is `f_i + v_i * sum_j w_j * max(0, g_j)`,
+  the paper's eq. 5 with its weights (Table 1).
+- **Variables:** all are real and normalized to [0, 1], as in the reference
+  code. The wing has the paper's four segments; `HPAProblem(index, level,
+  n_div=...)` in `vamos.foundation.problem.hpa` builds other segmentations,
+  which no packaged front fits.
+- **Cost:** about 65 ms per evaluation at levels 0 and 1, where the ply sizing
+  runs, and 10 ms at level 2, on a laptop; the paper reports 0.12 s and 0.03 s
+  for the reference code.
+- **Fronts:** the authors' approximated fronts of the penalized problems, the
+  references of the paper's IGD+ values, are packaged as `hpa201_0.csv` to
+  `hpa901_2.csv`. The paper normalizes the objectives before computing IGD+.
+  The constrained problems have no packaged front: a penalized objective equals
+  the constrained one only where every constraint holds, so the penalized fronts
+  are not theirs.
+- **Not included:** the single-objective HPA101–HPA103 and HPA131–HPA143.
+
 ### Learning and mixed engineering examples
 
 Install `python -m pip install "vamos-optimization[examples]==1.5.2"` for the two
@@ -968,6 +1038,9 @@ file.
   best-known fronts, `modact_cs1.csv` to `modact_ct4.csv`. `vamos zoo
   fetch-fronts` downloads those of the problems with three to five objectives
   (see [Downloading the other MODAct fronts](#downloading-the-other-modact-fronts)).
+- **Development after 1.5.2:** the penalized HPA problems have the authors'
+  approximated fronts, `hpa201_0.csv` to `hpa901_2.csv`; the constrained ones
+  have none (see [HPA](#hpa-human-powered-aircraft-design)).
 - RE/RWA samples have the dimensions shown above. Their presence does not imply
   that every sample point is a certified global Pareto optimum.
 - Families marked “None packaged” require a suitable external reference or a
@@ -996,6 +1069,7 @@ regenerates the files marked as regenerated.
 | `cec2009_uf6` | Closed-form front with its isolated point (0, 1) added |
 | `cec2009_uf9` | Regenerated: 5111 points of UF9's two planar pieces, `sum(f) = 1` with `f1 <= (1 - f3)/4` or `f1 >= 3(1 - f3)/4` |
 | `mw1`–`mw3`, `mw5`–`mw7` | Unchanged; within a mean distance of 0.0085 of pymoo 0.6.2's fronts |
+| `hpa201_0`–`hpa901_2` | **Development after 1.5.2:** Namura's approximated fronts (`igd_reference_points/n=4`, commit `3524115`) without their header and index column, under `LICENSE-hpa.txt` |
 | `binh2`, `golinski`, `osyczka2`, `water`, `car_side_impact` | jMetal's fronts (commit `1e4b83cae6`), under `LICENSE-jmetal.txt` |
 | `srinivas`, `constrex`, `tanaka` | Regenerated: the feasible, non-dominated designs of the Pareto-set pieces and the constraint boundaries that hold the front, as VAMOS evaluates them, 1000 points. jMetal's samples have dominated points: 310 of Srinivas's 3794 are dominated by another of its points or by a random feasible design, and 774 by those or by the new sample |
 | `mw4`, `mw8`, `mw14` (`.2d` and `.3d`), `mw9`–`mw13` | jMetal's fronts (`resources/referenceFronts` at commit `1e4b83cae6`), under `LICENSE-jmetal.txt`; jMetal's MW problems are VAMOS's, which the reference values check |
@@ -1167,6 +1241,8 @@ scalable formulations. For a new objective function, follow
 [jmetal-cre]: https://github.com/jMetal/jMetal/tree/1e4b83cae6/jmetal-problem/src/main/java/org/uma/jmetal/problem/multiobjective/cre
 [jmetal-rcm]: https://github.com/jMetal/jMetal/tree/1e4b83cae6/jmetal-problem/src/main/java/org/uma/jmetal/problem/multiobjective/cec2021
 [modact-paper]: https://doi.org/10.1109/TEVC.2020.3020046
+[hpa-paper]: https://doi.org/10.1007/978-981-96-3506-1_14
+[hpa]: https://github.com/Nobuo-Namura/hpa
 [modact]: https://github.com/epfl-lamd/modact
 [modact-fronts]: https://doi.org/10.5281/zenodo.3824302
 [binary]: https://github.com/vamos-optimization/VAMOS/blob/v1.0.1/src/vamos/foundation/problem/binary.py
