@@ -916,9 +916,13 @@ has a penalized version with *N* = 0, which is unconstrained:
   code. The wing has the paper's four segments; `HPAProblem(index, level,
   n_div=...)` in `vamos.foundation.problem.hpa` builds other segmentations,
   which no packaged front fits.
-- **Cost:** about 65 ms per evaluation at levels 0 and 1, where the ply sizing
-  runs, and 10 ms at level 2, on a laptop; the paper reports 0.12 s and 0.03 s
-  for the reference code.
+- **Cost:** on a laptop, about 25 ms per evaluation at levels 0 and 1, where
+  the ply sizing runs, and 5 ms at level 2; the paper reports 0.12 s and 0.03 s
+  for the reference code. With Numba installed (the `compute` extra), the loops
+  of the analysis are compiled and take about 5 ms and 1.7 ms, with the same
+  values to the last bit: the compiled kernels only add, subtract, multiply,
+  divide and compare, in the order of the NumPy code, and take its powers and
+  trigonometric values from NumPy.
 - **Fronts:** the authors' approximated fronts of the penalized problems, the
   references of the paper's IGD+ values, are packaged as `hpa201_0.csv` to
   `hpa901_2.csv`. The paper normalizes the objectives before computing IGD+.

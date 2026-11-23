@@ -15,6 +15,7 @@ from typing import Any
 import numpy as np
 import scipy.linalg as linalg  # type: ignore[import-untyped]
 
+from ._kernels import kernels
 from .design import GRAVITY, PILOT_WEIGHT, WIRE_MAX_TENSION, WingDesign, airfoil_models
 
 Array = np.ndarray[Any, Any]
@@ -97,6 +98,7 @@ class Wing:
         self.ply_wing = [plies.copy() for plies in design.ply_wing]
         self.strain_ratios = design.strain_ratios
         self.max_plys = self.ply_wing[0].shape[0] - 4
+        self._kernels = kernels()
 
     def interpolate(self) -> None:
         """The sections interpolated on the lifting-line grid, from the root (``theta = pi / 2``) to the tip."""
@@ -142,12 +144,24 @@ class Wing:
             diameter[self.y0 < self.y_div[i]] = self.y_diameter[i]
         self.diameter = diameter
         self.y = self.y0 * self.span * 0.5
+        # The steps of the spar and the squares of their halves, for the beam-column recurrence; the squares are
+        # Python's, the C library's pow, as the reference code's NumPy scalars compute them.
+        self._steps = np.abs(np.diff(self.y0 * self.span * 0.5))
+        self._half_steps_squared = np.array([(0.5 * step) ** 2 for step in self._steps.tolist()])
         self.dihedral_position = 0.5 * self.span * self.y0 * np.sin(np.deg2rad(self.dihedral_angle_at_root))
 
     def compute_wing_weight(self) -> None:
         self.beam_weight = np.zeros(len(self.ply_wing))
         self.wing_weight = np.zeros(self.n_struc)
-        for i, plies in enumerate(self.ply_wing):
+        if self._kernels is not None:
+            plies_all = np.vstack(self.ply_wing)
+            segment = np.repeat(np.arange(len(self.ply_wing)), [len(plies) for plies in self.ply_wing])
+            phi_all = np.deg2rad(plies_all[:, 1])
+            self._kernels.ply_weights(
+                self.y0, 0.5 * self.diameter, segment, self.y_div, plies_all, phi_all, self.span, DENSITY_CFRP, COEF_REAR_SPAR,
+                self.beam_weight, self.wing_weight,
+            )  # fmt: skip
+        for i, plies in enumerate(self.ply_wing if self._kernels is None else []):
             y0_start, y0_end = self.y_div[i], self.y_div[i + 1]
             for ply in plies:
                 phi = np.deg2rad(ply[1])
@@ -223,6 +237,9 @@ class Wing:
             self.EA += Ex * 2 * np.pi * R * sum_ply
             self.GIp += Gxy * Iy * 2
             # The flange plies, around part of the pipe.
+            if self._kernels is not None:
+                self._flange_stiffness(i, plies[plies[:, 1] < 180], Ex0, nui, ETL)
+                continue
             for j, ply in enumerate(plies[plies[:, 1] < 180]):
                 axis = np.deg2rad(ply[0])
                 phi = np.deg2rad(ply[1])
@@ -247,12 +264,38 @@ class Wing:
         self.EA[-1] = self.EA[-2]
         self.GIp[-1] = self.GIp[-2]
 
+    def _flange_stiffness(self, i: int, flanges: Array, Ex0: float, nui: float, ETL: float) -> None:
+        """The flange part of :meth:`stiffness` for segment ``i``, with the compiled kernel."""
+        assert self._kernels is not None
+        y0_start, y0_end = self.y_div[i], self.y_div[i + 1]
+        half_diameter = 0.5 * self.diameter
+        cubed = half_diameter**3
+        for j, ply in enumerate(flanges):
+            axis = np.deg2rad(ply[0])
+            phi = np.deg2rad(ply[1])
+            if axis == 0:
+                Ex_j = Ex0
+            else:
+                sin, cos = np.sin(axis), np.cos(axis)
+                Exx_j = E_T * nui * sin**4 + 2 * ETL * (sin * cos) ** 2 + E_L * nui * cos**4
+                Eyy_j = E_L * nui * sin**4 + 2 * ETL * (sin * cos) ** 2 + E_T * nui * cos**4
+                Exy_j = E_T * NU_L * nui * (sin**4 + cos**4) + ((E_L + E_T) * nui - 4 * G_LT) * (sin * cos) ** 2
+                Ex_j = Exx_j - Exy_j**2 / Eyy_j
+            low = ply[2] * (y0_end - y0_start) + y0_start
+            high = ply[3] * (y0_end - y0_start) + y0_start
+            inertia = (phi + np.sin(phi)) * ply[4]
+            area = Ex_j * 2 * phi
+            self._kernels.flange_stiffness(
+                self.y0, half_diameter, cubed, low, high, j, Ex_j, inertia, area, ply[4], self.EI, self.EA, self.EI_ply, self.EA_ply
+            )
+            self.Ex_ply[i, j] = Ex_j
+
     def zerolift_deflection(self) -> None:
         """The wing on the ground, under its own weight."""
         self.moment_zerolift = moment(self.y0 * self.span * 0.5, -self.wing_weight * GRAVITY)
         self.M_EI_zerolift = self.moment_zerolift / self.EI
-        self.deflection_angle_zerolift = _integrate(self.M_EI_zerolift, self.y0, self.span)
-        self.deflection_zerolift = _integrate(self.deflection_angle_zerolift, self.y0, self.span)
+        self.deflection_angle_zerolift = self._integrate(self.M_EI_zerolift)
+        self.deflection_zerolift = self._integrate(self.deflection_angle_zerolift)
         self.total_deflection_zerolift = self.dihedral_position + self.deflection_zerolift
         self.strain_zerolift = self.M_EI_zerolift * self.diameter * 0.5
 
@@ -270,7 +313,7 @@ class Wing:
                 self.wire_load[i_wire] = wire_load
                 self.axial_force = np.where(self.y0 < self.y_wire, axial_force, 0)
                 self.total_load = self.local_lift - self.wire_load - self.wing_weight * GRAVITY
-                self.moment, _ = moment_with_axial_force(self.y0 * self.span * 0.5, self.total_load, self.axial_force, self.EI)
+                self.moment = self._moment_with_axial_force(self.total_load, self.axial_force)
                 self._deflect()
                 z_wire_deflection = self.total_deflection[i_wire]
         else:
@@ -281,10 +324,24 @@ class Wing:
             self._deflect()
         self.strain = self.M_EI * self.diameter * 0.5 + self.axial_force / self.EA
 
+    def _integrate(self, values: Array) -> Array:
+        if self._kernels is None:
+            return _integrate(values, self.y0, self.span)
+        out = np.empty(values.size)
+        self._kernels.integrate(values, self.y0, self.span, out)
+        return out
+
+    def _moment_with_axial_force(self, F: Array, T: Array) -> Array:
+        if self._kernels is None:
+            return moment_with_axial_force(self.y0 * self.span * 0.5, F, T, self.EI)[0]
+        M, S = np.zeros(self.n_struc), np.zeros(self.n_struc)
+        self._kernels.beam_column(self._steps, self._half_steps_squared, F, np.asarray(T, dtype=float), self.EI, M, S)
+        return M
+
     def _deflect(self) -> None:
         self.M_EI = self.moment / self.EI
-        self.deflection_angle = _integrate(self.M_EI, self.y0, self.span)
-        self.deflection = _integrate(self.deflection_angle, self.y0, self.span)
+        self.deflection_angle = self._integrate(self.M_EI)
+        self.deflection = self._integrate(self.deflection_angle)
         self.total_deflection = self.dihedral_position + self.deflection
 
     def twist(self) -> None:

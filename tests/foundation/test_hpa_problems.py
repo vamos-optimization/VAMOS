@@ -9,12 +9,14 @@ On the platform that produced them, VAMOS's values were bit-identical, there and
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pytest
 
+from vamos.foundation.problem.hpa import _kernels
 from vamos.foundation.problem.hpa.design import GRAVITY, WingConfig
 from vamos.foundation.problem.hpa.problems import CONSTRAINTS, HPA_INDICES, HPA_TYPES, OBJECTIVES, HPAProblem, constrained_index, hpa_type
 from vamos.foundation.problem.registry import available_problem_names, make_problem_selection
@@ -188,3 +190,27 @@ def test_the_published_fronts_are_packaged_for_the_penalized_problems_only(index
         front = np.loadtxt(path, delimiter=",", ndmin=2)
         assert front.shape[1] == len(hpa_type(base).objectives)
         assert np.all(np.isfinite(front))
+
+
+@pytest.fixture
+def compiled_kernels() -> Iterator[None]:
+    pytest.importorskip("numba")
+    yield
+    _kernels.set_enabled(True)
+
+
+@pytest.mark.parametrize("index", sorted(HPA_INDICES))
+def test_the_compiled_kernels_give_the_bits_of_the_numpy_code(index: str, compiled_kernels: None) -> None:
+    for level in (0, 1, 2):
+        problem = HPAProblem(index, level)
+        X = np.random.default_rng(10 * int(index) + level).random((2, problem.n_var))
+        outputs = []
+        for enabled in (True, False):
+            _kernels.set_enabled(enabled)
+            out: dict[str, np.ndarray] = {}
+            problem.evaluate(X, out)
+            outputs.append(out)
+        assert _kernels.kernels() is None
+        np.testing.assert_array_equal(outputs[0]["F"], outputs[1]["F"])
+        if problem.n_constraints:
+            np.testing.assert_array_equal(outputs[0]["G"], outputs[1]["G"])
