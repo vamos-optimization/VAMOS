@@ -5343,7 +5343,7 @@
 
   /** Labels for the marks of a step-by-step figure: marks at the same place share one label, such as a particle and
       the leader it found, and each label takes the place around its mark that covers the fewest marks and labels. */
-  function placeLabels(plot, items, spots) {
+  function placeMergedLabels(plot, items, spots) {
     const groups = [];
     for (const item of items) {
       const group = groups.find((other) => Math.hypot(other.px - item.px, other.py - item.py) < 1);
@@ -5474,7 +5474,7 @@
       if (label) labels.push({ plot, px, py, text: label });
     }
     function flushLabels() {
-      for (const plot of [xPlot, fPlot]) placeLabels(plot, labels.filter((l) => l.plot === plot), spots.filter((p) => p.plot === plot));
+      for (const plot of [xPlot, fPlot]) placeMergedLabels(plot, labels.filter((l) => l.plot === plot), spots.filter((p) => p.plot === plot));
       labels = [];
       spots = [];
     }
@@ -6331,7 +6331,7 @@
         }
       }
       for (const plot of [left, fPlot]) {
-        placeLabels(
+        placeMergedLabels(
           plot,
           labels.filter((l) => l.plot === plot),
           spots.filter((p) => p.plot === plot)
