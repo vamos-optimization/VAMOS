@@ -1371,3 +1371,247 @@ def test_ibea_generation_figure_agrees_with_vamos() -> None:
     assert initial[9] == -1.665 and initial[7] == -1.771
     assert round(example["history"][4][8], 3) == -1.651 and round(example["final"][6], 3) == -1.483
     assert [i + 1 for i in example["kept"]] == [1, 2, 6, 7, 8, 12]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_moead_generation_figure_agrees_with_vamos() -> None:
+    from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors
+    from vamos.engine.algorithm.moead.aggregation import pbi
+    from vamos.engine.algorithm.moead.neighborhood import compute_neighbors
+    from vamos.engine.algorithm.moead.neighborhood_kernels import dummy_buffers, update_neighborhood_python
+    from vamos.engine.operators.policies.moead import DifferentialCrossoverStep
+    from vamos.engine.operators.policies.real_repair import resolve_policy_repair
+    from vamos.foundation.kernel.moead_kernels import AGG_PBI
+
+    seeds = [7548, 1, 2, 3, 97, 12367]  # 7548 is the lesson's example
+    generations = _run_figure_program("data.map((seed) => V.moeadGeneration(seed, 6, 3))", seeds)
+    weights = load_or_generate_weight_vectors(6, 2, mode="jmetalpy")
+    weights_safe = np.where(weights == 0, 1e-4, weights)
+    weights_unit = weights / np.linalg.norm(weights, axis=1, keepdims=True)
+    neighbours = compute_neighbors(weights, 3)
+    # DE rand/1/bin from the current solution with VAMOS's defaults, F = 0.5 and CR = 1, then the default clip repair.
+    de = DifferentialCrossoverStep(
+        f=0.5,
+        cr=1.0,
+        repair=resolve_policy_repair("real"),
+        xl=np.zeros(2),
+        xu=np.ones(2),
+        rng=np.random.default_rng(0),
+        variation_kernels=None,
+    )
+    no_g, no_cv, no_child_g = dummy_buffers()
+
+    for g in generations:
+        np.testing.assert_array_equal(g["W"], weights)
+        assert g["B"] == neighbours.tolist()
+        X = np.array([member["x"] for member in g["pop"]])
+        F = np.array([member["f"] for member in g["pop"]])
+        ideal = F.min(axis=0)
+        np.testing.assert_array_equal(g["z0"], ideal)
+        assert sorted(g["order"]) == list(range(6))
+        for step in g["steps"]:
+            k, r1, r2 = step["k"], step["r1"], step["r2"]
+            np.testing.assert_array_equal([member["x"] for member in step["before"]], X)
+            # The mating pool: the neighbourhood when the draw is below delta = 0.9, otherwise the population.
+            assert step["neighbourhood"] == (step["u"] < 0.9)
+            assert step["pool"] == (neighbours[k].tolist() if step["neighbourhood"] else list(range(6)))
+            assert r1 != r2 and {r1, r2} <= set(step["pool"]) and sorted(step["candidates"]) == sorted(step["pool"])
+            child = step["child"]
+            np.testing.assert_allclose(child["v"], de(np.array([[X[r1], X[r2], X[k]]]))[0, 0], rtol=0, atol=1e-15)
+            y, fy = np.array(child["x"]), np.array(child["f"])
+            assert np.all((y >= 0) & (y <= 1))
+            # The ideal point takes the offspring into account before the comparisons.
+            ideal = np.minimum(ideal, fy)
+            np.testing.assert_array_equal(step["z"], ideal)
+            for row in step["rows"]:
+                if row["visited"]:
+                    j = row["j"]
+                    assert row["gx"] == pytest.approx(float(pbi(F[[j]], weights[[j]], ideal)[0]), rel=1e-12)
+                    assert row["gy"] == pytest.approx(float(pbi(fy[None, :], weights[[j]], ideal)[0]), rel=1e-12)
+            # VAMOS's replacement, in the figure's order of the pool, replaces the same solutions.
+            order = np.array(step["candidates"], dtype=np.int64)
+            replaced = update_neighborhood_python(
+                X,
+                F,
+                no_g,
+                no_cv,
+                weights,
+                weights_safe,
+                weights_unit,
+                ideal,
+                y,
+                fy,
+                no_child_g,
+                0.0,
+                order,
+                order.size,
+                2,
+                AGG_PBI,
+                5.0,
+                0.0,
+                0,
+                ideal,
+                1e-6,
+                0,
+            )
+            assert replaced == len(step["replaced"])
+            np.testing.assert_array_equal([member["x"] for member in step["after"]], X)
+            np.testing.assert_array_equal([member["f"] for member in step["after"]], F)
+
+    # The numbers that the lesson quotes for its example.
+    steps = generations[0]["steps"]
+    rows = [{row["j"]: row for row in step["rows"]} for step in steps]
+    assert [step["k"] for step in steps] == [3, 5, 2, 0, 1, 4]
+    assert not steps[0]["neighbourhood"] and round(steps[0]["u"], 3) == 0.996 and steps[0]["replaced"] == [3, 4]
+    assert [round(rows[0][j][key], 2) for j in (3, 4) for key in ("gy", "gx")] == [1.81, 2.59, 0.76, 1.99]
+    assert not rows[0][5]["visited"] and rows[0][5]["better"]
+    assert (steps[1]["r1"], steps[1]["r2"]) == (5, 3) and 5 in steps[1]["pool"]
+    assert steps[1]["replaced"] == [] and [round(v, 2) for v in steps[1]["zBefore"] + steps[1]["z"]] == [0.23, 0.08, 0.12, 0.08]
+    assert steps[2]["replaced"] == [1] and [round(rows[2][1]["gy"], 2), round(rows[2][1]["gx"], 2)] == [1.15, 3.38]
+    assert [round(rows[2][2]["gy"], 2), round(rows[2][2]["gx"], 2)] == [2.11, 0.81]
+    assert [member["id"] for member in generations[0]["final"]][3:5] == [12, 12] and steps[5]["k"] == 4
+
+
+class _ReplayShuffles:
+    """A generator whose shuffles put the figure's random choices first, in the order NSGA-III's niching draws them."""
+
+    def __init__(self, orders: list[list[int]]) -> None:
+        self.orders = orders
+
+    def shuffle(self, values: np.ndarray) -> None:
+        first = self.orders.pop(0)
+        values[:] = first + [v for v in values.tolist() if v not in first]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_nsga3_generation_figure_agrees_with_vamos() -> None:
+    from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors
+    from vamos.engine.algorithm.nsgaiii.helpers import (
+        _reference_direction_survival,
+        associate,
+        fast_non_dominated_sort,
+        get_extreme_points,
+        get_nadir_point,
+    )
+
+    # 16892 is the lesson's example; 1 fills the places with whole fronts, 15 and 45 reject the hyperplane,
+    # 5 and 7 pick at random, and 455 takes a nadir value from the population.
+    seeds = [16892, 1, 2, 5, 7, 15, 45, 97, 455]
+    generations = _run_figure_program("data.map((seed) => V.nsga3Generation(seed, 6))", seeds)
+    directions = load_or_generate_weight_vectors(6, 2, divisions=None)
+    unit = directions / np.linalg.norm(directions, axis=1, keepdims=True)
+
+    for g in generations:
+        np.testing.assert_array_equal(g["W"], directions)
+        F = np.array([member["f"] for member in g["merged"]])
+        fronts = [[int(i) for i in front] for front in fast_non_dominated_sort(F)]
+        assert [sorted(front) for front in g["fronts"]] == [sorted(front) for front in fronts]
+        whole = [i for front in g["whole"] for i in front]
+        assert sum(len(front) for front in g["whole"]) + g["places"] == 6
+        # Normalization: the ideal point of the first generation, the extreme points and the nadir estimate.
+        ideal, worst = F.min(axis=0), F.max(axis=0)
+        np.testing.assert_array_equal(g["ideal"], ideal)
+        first = F[fronts[0]]
+        extremes = get_extreme_points(first, 2, ideal, None)
+        np.testing.assert_array_equal(F[g["extremes"]], extremes)
+        nadir = get_nadir_point(extremes, ideal, worst, first.max(axis=0), worst)
+        np.testing.assert_allclose(g["nadir"], nadir, rtol=1e-12)
+        estimate = ideal + np.array(g["intercepts"]) if g["hyperplane"] else first.max(axis=0)
+        np.testing.assert_allclose(np.where(g["fromPopulation"], worst, estimate), nadir, rtol=1e-12)
+        normalized = (F - ideal) / (nadir - ideal)
+        np.testing.assert_allclose(g["normalized"], normalized, rtol=1e-12)
+        # Association and niche counts.
+        assoc, dperp = associate(normalized, unit)
+        assert [a["dir"] for a in g["association"]] == assoc.tolist()
+        np.testing.assert_allclose([a["dperp"] for a in g["association"]], dperp, rtol=1e-9, atol=1e-12)
+        assert g["rho"] == np.bincount(assoc[whole], minlength=6).tolist()
+        # VAMOS's survival, with the figure's random choices, keeps the same solutions in the same order.
+        orders: list[list[int]] = []
+        if g["niching"] is not None:
+            last = fronts[len(g["whole"])]
+            for round_ in sorted({pick["round"] for pick in g["niching"]["picks"]}):
+                picks = [pick for pick in g["niching"]["picks"] if pick["round"] == round_]
+                orders.append(picks[0]["Jmin"])
+                orders.extend([last.index(pick["id"])] for pick in picks)
+        replay = _ReplayShuffles(orders)
+        survivors = _reference_direction_survival(F, 6, unit, replay, np.full(2, np.inf), None, np.full(2, -np.inf), None)[0].tolist()
+        assert replay.orders == []
+        assert sorted(survivors[: len(whole)]) == sorted(whole) and survivors[len(whole) :] == g["keep"][len(whole) :]
+
+    # The numbers that the lesson quotes for its example.
+    example = generations[0]
+    ident = [member["id"] for member in example["merged"]]
+    assert [(example["pop"][a]["id"], example["pop"][b]["id"]) for a, b in zip(example["draws"][::2], example["draws"][1::2])] == [
+        (4, 6),
+        (3, 5),
+        (5, 2),
+    ]
+    assert [sorted(ident[i] for i in front) for front in example["fronts"][:2]] == [[3, 6, 9], [2, 5, 7, 8, 10, 12]]
+    assert example["places"] == 3 and [ident[i] for i in example["extremes"]] == [6, 3] and example["hyperplane"]
+    assert [round(a, 2) for a in example["intercepts"] + example["nadir"]] == [0.80, 0.66, 0.84, 0.82]
+    picks = [(ident[p["id"]], p["dir"] + 1, p["round"], p["closest"]) for p in example["niching"]["picks"]]
+    assert sorted(picks) == [(2, 4, 2, False), (8, 4, 1, True), (12, 5, 1, True)]
+    assert sorted(example["niching"]["picks"][-1]["tied"]) == [0, 1, 3]
+    dperp = {ident[i]: round(example["association"][i]["dperp"], 3) for i in example["last"]}
+    assert (dperp[8], dperp[2], dperp[5]) == (0.051, 0.116, 0.040) and example["association"][ident.index(5)]["dir"] == 1
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_rvea_generation_figure_agrees_with_vamos() -> None:
+    from vamos.engine.algorithm.rvea.rvea import _calc_gamma, _calc_V, _generate_reference_vectors
+    from vamos.engine.algorithm.rvea.survival import angle_penalized_distances, apd_survival
+
+    cases = [(24637, 6, 12), (1, 1, 2), (2, 4, 8), (3, 10, 20), (97, 6, 12)]  # 24637 is the lesson's example
+    generations = _run_figure_program("data.map(([seed, t, tMax]) => V.rveaGeneration(seed, 6, t, tMax))", cases)
+    initial = _calc_V(_generate_reference_vectors(2, 5))
+
+    for (_, t, t_max), g in zip(cases, generations):
+        np.testing.assert_allclose(g["V0"], initial, rtol=0, atol=1e-15)
+        assert g["interval"] == max(1, -(-t_max // 10)) and len(g["history"]) == t
+        previous = None
+        for h in g["history"]:
+            F, V = np.array(h["F"]), np.array(h["V"])
+            if previous is not None:
+                # The population of a generation is the survivors of the one before it.
+                np.testing.assert_array_equal(F[: len(previous["survivors"])], np.array(previous["F"])[previous["survivors"]])
+            ideal_before = np.array([np.inf if v is None else v for v in h["idealBefore"]])
+            survivors, ideal, nadir = apd_survival(F, V, _calc_gamma(V), ideal_before, 6, h["generation"], t_max, 2.0)
+            assert h["survivors"] == survivors.tolist()
+            np.testing.assert_array_equal(h["ideal"], ideal)
+            np.testing.assert_array_equal(h["nadir"], nadir)
+            # The vectors adapt after every generation that is a multiple of ceil(0.1 t_max).
+            assert h["adapted"] == (h["generation"] % g["interval"] == 0)
+            expected = _calc_V(initial * np.maximum(nadir - ideal, 1e-64)) if h["adapted"] else V
+            np.testing.assert_allclose(h["next"], expected, rtol=1e-12, atol=1e-15)
+            previous = h
+        # The angles, penalties and APD values that the last generation shows.
+        F, V = np.array([member["f"] for member in g["merged"]]), np.array(g["V"])
+        gamma = _calc_gamma(V)
+        niches, penalty, apd = angle_penalized_distances(F, np.array(g["ideal"]), V, gamma, t, t_max, 2.0)
+        assert g["select"]["assoc"] == niches.tolist()
+        np.testing.assert_allclose(g["select"]["gamma"], gamma, rtol=1e-12)
+        np.testing.assert_allclose(g["select"]["apd"], apd, rtol=1e-12)
+        np.testing.assert_allclose(g["progress"] * np.array(g["select"]["theta"]) / gamma[niches], penalty, rtol=1e-12, atol=1e-15)
+        np.testing.assert_allclose(g["gammaNext"], _calc_gamma(np.array(g["next"])), rtol=1e-12)
+        # Parents come from random permutations of the population, and there are always six children.
+        n = len(g["pop"])
+        for start in range(0, len(g["draws"]), n):
+            block = g["draws"][start : start + n]
+            assert len(set(block)) == len(block) and set(block) <= set(range(n))
+        assert len(g["children"]) == 6
+
+    # The numbers that the lesson quotes for its example.
+    example = generations[0]
+    ident = [member["id"] for member in example["merged"]]
+    norm = np.linalg.norm(np.array(example["translated"]), axis=1)
+    assert len(example["pop"]) == 5 and example["adapted"] and round(example["progress"], 2) == 0.25
+    assert example["select"]["selected"][1] == -1 and [ident[i] for i in example["survivors"]] == [1, 2, 9, 4, 5]
+    v5 = {ident[i]: i for i, j in enumerate(example["select"]["assoc"]) if j == 4}
+    assert sorted(v5) == [4, 8, 11] and min(v5, key=lambda k: norm[v5[k]]) == 11
+    assert [round(norm[v5[k]], 2) for k in (11, 4)] == [0.95, 1.03]
+    assert [round(example["select"]["apd"][v5[k]], 3) for k in (11, 4)] == [1.112, 1.080]
+    assert [round(np.degrees(example["select"]["theta"][v5[k]]), 1) for k in (11, 4)] == [9.8, 2.7]
+    assert len(example["draws"]) == 6 and sorted(example["draws"][:5]) == [0, 1, 2, 3, 4]
+    f4, f5 = (np.array(example["merged"][ident.index(k)]["f"]) for k in (4, 5))
+    assert np.all(f5 <= f4) and np.any(f5 < f4)  # 4 survives although 5 dominates it
+    assert [round(a - b, 2) for a, b in zip(example["nadir"], example["ideal"])] == [0.99, 0.94]

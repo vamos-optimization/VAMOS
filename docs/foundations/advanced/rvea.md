@@ -166,6 +166,32 @@ z_max, and the vectors do not adapt until a feasible solution exists. The
 `variant("platemo")` scales instead by the range of the current population,
 its largest minus its smallest value of each objective.
 
+### Try it: one generation step by step
+
+The figure follows one generation of RVEA with VAMOS's defaults: parents from
+random permutations, SBX with probability 0.9 and η_c = 30, polynomial
+mutation with probability 1/n and η_m = 20, α = 2, f_r = 0.1 and the `"pymoo"`
+variant, so M = 1. The problem has two variables and ZDT1's Pareto front,
+f₂ = 1 − √f₁, and there are N = 6 vectors (p = 5). The run has
+max_evaluations = 78, so t_max = 12; the figure shows generation t = 6, where
+(t/t_max)^α = 0.25 and the vectors adapt.
+
+<div class="vf-widget" data-vf-widget="rvea-steps"><p class="vf-fallback">Interactive figure: one RVEA generation in nine steps: parents from a random permutation, SBX crossover and polynomial mutation, the merge, the translation by the ideal point, the association with six reference vectors by angle, the angle-penalized distance, one survivor per vector, and the adaptation of the vectors. It needs JavaScript.</p></div>
+
+Things to try:
+
+1. Step 1: the population has five members, because an earlier generation
+   left a vector empty. Step 2 still draws six parents: one permutation of the
+   five and the first member of a second one.
+2. Step 7: in v5, solution 11 is the closest to z\* (‖f′‖ = 0.95 against
+   1.03), but it lies 9.8° off the vector against 2.7° for 4, and the penalty
+   raises its APD to 1.112, above 4's 1.080.
+3. Step 8: v2 has no candidate, so five solutions survive again. Solution 4
+   survives although 5 dominates it: RVEA never compares solutions of
+   different vectors.
+4. Step 9: t = 6 is a multiple of ⌈0.1 · 12⌉ = 2, so the vectors are stretched
+   by z_max − z\* = (0.99, 0.94). Press **New population** for another run.
+
 ## In VAMOS
 
 The example first asks `RVEAConfig.default` for a population that matches no
