@@ -988,3 +988,64 @@ def test_nsga3_generation_figure_agrees_with_vamos() -> None:
     assert sorted(example["niching"]["picks"][-1]["tied"]) == [0, 1, 3]
     dperp = {ident[i]: round(example["association"][i]["dperp"], 3) for i in example["last"]}
     assert (dperp[8], dperp[2], dperp[5]) == (0.051, 0.116, 0.040) and example["association"][ident.index(5)]["dir"] == 1
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_rvea_generation_figure_agrees_with_vamos() -> None:
+    from vamos.engine.algorithm.rvea.rvea import _calc_gamma, _calc_V, _generate_reference_vectors
+    from vamos.engine.algorithm.rvea.survival import angle_penalized_distances, apd_survival
+
+    cases = [(24637, 6, 12), (1, 1, 2), (2, 4, 8), (3, 10, 20), (97, 6, 12)]  # 24637 is the lesson's example
+    generations = _run_figure_program("data.map(([seed, t, tMax]) => V.rveaGeneration(seed, 6, t, tMax))", cases)
+    initial = _calc_V(_generate_reference_vectors(2, 5))
+
+    for (_, t, t_max), g in zip(cases, generations):
+        np.testing.assert_allclose(g["V0"], initial, rtol=0, atol=1e-15)
+        assert g["interval"] == max(1, -(-t_max // 10)) and len(g["history"]) == t
+        previous = None
+        for h in g["history"]:
+            F, V = np.array(h["F"]), np.array(h["V"])
+            if previous is not None:
+                # The population of a generation is the survivors of the one before it.
+                np.testing.assert_array_equal(F[: len(previous["survivors"])], np.array(previous["F"])[previous["survivors"]])
+            ideal_before = np.array([np.inf if v is None else v for v in h["idealBefore"]])
+            survivors, ideal, nadir = apd_survival(F, V, _calc_gamma(V), ideal_before, 6, h["generation"], t_max, 2.0)
+            assert h["survivors"] == survivors.tolist()
+            np.testing.assert_array_equal(h["ideal"], ideal)
+            np.testing.assert_array_equal(h["nadir"], nadir)
+            # The vectors adapt after every generation that is a multiple of ceil(0.1 t_max).
+            assert h["adapted"] == (h["generation"] % g["interval"] == 0)
+            expected = _calc_V(initial * np.maximum(nadir - ideal, 1e-64)) if h["adapted"] else V
+            np.testing.assert_allclose(h["next"], expected, rtol=1e-12, atol=1e-15)
+            previous = h
+        # The angles, penalties and APD values that the last generation shows.
+        F, V = np.array([member["f"] for member in g["merged"]]), np.array(g["V"])
+        gamma = _calc_gamma(V)
+        niches, penalty, apd = angle_penalized_distances(F, np.array(g["ideal"]), V, gamma, t, t_max, 2.0)
+        assert g["select"]["assoc"] == niches.tolist()
+        np.testing.assert_allclose(g["select"]["gamma"], gamma, rtol=1e-12)
+        np.testing.assert_allclose(g["select"]["apd"], apd, rtol=1e-12)
+        np.testing.assert_allclose(g["progress"] * np.array(g["select"]["theta"]) / gamma[niches], penalty, rtol=1e-12, atol=1e-15)
+        np.testing.assert_allclose(g["gammaNext"], _calc_gamma(np.array(g["next"])), rtol=1e-12)
+        # Parents come from random permutations of the population, and there are always six children.
+        n = len(g["pop"])
+        for start in range(0, len(g["draws"]), n):
+            block = g["draws"][start : start + n]
+            assert len(set(block)) == len(block) and set(block) <= set(range(n))
+        assert len(g["children"]) == 6
+
+    # The numbers that the lesson quotes for its example.
+    example = generations[0]
+    ident = [member["id"] for member in example["merged"]]
+    norm = np.linalg.norm(np.array(example["translated"]), axis=1)
+    assert len(example["pop"]) == 5 and example["adapted"] and round(example["progress"], 2) == 0.25
+    assert example["select"]["selected"][1] == -1 and [ident[i] for i in example["survivors"]] == [1, 2, 9, 4, 5]
+    v5 = {ident[i]: i for i, j in enumerate(example["select"]["assoc"]) if j == 4}
+    assert sorted(v5) == [4, 8, 11] and min(v5, key=lambda k: norm[v5[k]]) == 11
+    assert [round(norm[v5[k]], 2) for k in (11, 4)] == [0.95, 1.03]
+    assert [round(example["select"]["apd"][v5[k]], 3) for k in (11, 4)] == [1.112, 1.080]
+    assert [round(np.degrees(example["select"]["theta"][v5[k]]), 1) for k in (11, 4)] == [9.8, 2.7]
+    assert len(example["draws"]) == 6 and sorted(example["draws"][:5]) == [0, 1, 2, 3, 4]
+    f4, f5 = (np.array(example["merged"][ident.index(k)]["f"]) for k in (4, 5))
+    assert np.all(f5 <= f4) and np.any(f5 < f4)  # 4 survives although 5 dominates it
+    assert [round(a - b, 2) for a, b in zip(example["nadir"], example["ideal"])] == [0.99, 0.94]
