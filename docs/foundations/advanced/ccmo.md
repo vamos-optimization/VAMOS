@@ -1,5 +1,5 @@
 ---
-description: 'CCMO in depth: a constrained population and a helper population that ignores the constraints, cooperation through shared offspring, SPEA2 fitness with the violation first, environmental selection, budget, and where VAMOS follows the authors'' code, with an interactive figure and VAMOS code.'
+description: 'CCMO in depth: a constrained population and a helper population that ignores the constraints, cooperation through shared offspring, SPEA2 fitness with the violation first, environmental selection, budget, and where VAMOS follows the authors'' code, with two interactive figures and VAMOS code.'
 search:
   boost: 0.5
 ---
@@ -134,6 +134,38 @@ to the one that comes first. The crossover chooses the variation:
 
 The two initial populations cost 2N evaluations, so the budget must be at least
 2N. A GA generation then costs 2·⌊N/2⌋ evaluations and a DE generation 2N.
+
+### Try it: one generation step by step
+
+Step through one generation of CCMO with two populations of six. The problem
+is the one of the loop figure in lesson
+[Genetic algorithms](../basic/genetic-algorithms.md#step-through-the-loop),
+f₁ = x₁ and f₂ = g·(1 − √(x₁/g)) with g = 1 + x₂, under the constraint of
+CTP2 (lesson [Constraints](constrained.md#constrained-domination)) applied to
+its objective vector. The shaded region is infeasible in both spaces, and the
+unconstrained front f₂ = 1 − √f₁ is infeasible except at f₁ = 0. Blue points
+belong to population 1 and orange ones to population 2; children are
+triangles in the colour of the population that bred them, and hollow points
+are infeasible. The variation is VAMOS' default for CCMO: SBX with
+probability 1 and η = 20, of which only the first child is kept, and
+polynomial mutation with probability 1/2 and η = 20.
+
+<div class="vf-widget" data-vf-widget="ccmo-steps"><p class="vf-fallback">Interactive figure: one CCMO generation in eleven steps on two populations of six: the two populations, the binary tournaments and the offspring of each population, the evaluation of the shared offspring, and the fitness and environmental selection of each population, with the constraint violation first in population 1 and ignored in population 2. It needs JavaScript.</p></div>
+
+Things to try:
+
+1. Step 4: three of population 2's tournaments draw the same member twice.
+   In 8 vs 10 both members have the fitness 0.422, so 8, which comes first,
+   wins.
+2. Steps 7 and 8: with the violation first, only the feasible 6, 13, 16, 17
+   and 18 have a fitness below 1, and 5 takes the sixth place with 7.43. The
+   three children of population 2, 16, 17 and 18, join population 1, and its
+   infeasible parents 1 to 4 leave.
+3. Steps 9 and 10: without the constraints, seven candidates have a fitness
+   below 1, and SPEA2's truncation removes 18, 0.06 away from 10. Population 2
+   keeps 14, an infeasible child of population 1 that population 1 removed.
+4. Step 11: 17 is now in both populations. Press **New population** for
+   another generation.
 
 ## Try it: one set of candidates, two rules
 

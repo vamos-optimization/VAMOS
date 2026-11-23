@@ -973,10 +973,90 @@
     return { ...fit, dk, k, kept: strengthSelect(fit.fitness, n, dist) };
   }
 
+  /** One CCMO generation of the loop figure's problem with CTP2's constraint, ctpViolation(gaEvaluate(x)), recorded
+      for the CCMO lesson. Population 1 (ids 1 to N) and population 2 (ids N + 1 to 2N) are drawn uniformly,
+      population 1 first; each one's fitness is ccmoSelect's on its own members, with the violations in
+      population 1 and zeros in population 2. Each population in turn draws N binary tournaments on its fitness
+      (two members at random, possibly the same one; the lower fitness wins and a tie goes to the first), mates the
+      i-th winner of the first half with the i-th of the second half and keeps the first child of SBX
+      (probability 1, η = 20), mutated by polynomial mutation (probability 1/n = 1/2, η = 20): VAMOS' default GA
+      variation for CCMO. The N offspring, population 1's first, are evaluated once, and each population selects
+      N survivors from itself and all the offspring with ccmoSelect; the survivors are stored by increasing fitness. */
+  function ccmoGeneration(seed, popSize) {
+    const rand = mulberry32(seed);
+    const N = popSize;
+    const half = Math.floor(N / 2);
+    let nextId = 1;
+    const born = (x, extra) => {
+      const f = gaEvaluate(x);
+      return Object.assign({ id: nextId++, x, f, cv: ctpViolation(f) }, extra);
+    };
+    const pops = [0, 1].map((k) => {
+      const pop = [];
+      for (let i = 0; i < N; i++) pop.push(born([rand(), rand()], { population: k + 1 }));
+      return pop;
+    });
+    const violations = (rows, k) => rows.map((p) => (k === 0 ? p.cv : 0));
+    const own = pops.map((pop, k) =>
+      ccmoSelect(
+        pop.map((p) => p.f),
+        violations(pop, k),
+        N
+      )
+    );
+    const fitness = own.map((res) => res.fitness);
+    const mating = [];
+    const offspring = [];
+    pops.forEach((pop, k) => {
+      const fit = fitness[k];
+      const tournaments = [];
+      for (let t = 0; t < N; t++) {
+        const a = Math.floor(rand() * N);
+        const b = Math.floor(rand() * N);
+        const w = fit[a] < fit[b] || (fit[a] === fit[b] && a <= b) ? a : b;
+        tournaments.push({ a: pop[a].id, b: pop[b].id, winner: pop[w].id, draws: [a, b], tie: fit[a] === fit[b] });
+      }
+      const byId = new Map(pop.map((p) => [p.id, p]));
+      const pairs = [];
+      for (let i = 0; i < half; i++) pairs.push([tournaments[i].winner, tournaments[half + i].winner]);
+      for (const [a, b] of pairs) {
+        const child = sbxPair(byId.get(a).x, byId.get(b).x, 0, 1, 20, 0.5, rand)[0];
+        polynomialMutation(child, 0, 1, 0.5, 20, rand);
+        offspring.push({ x: child, population: k + 1, parents: [a, b] });
+      }
+      mating.push({ tournaments, pairs });
+    });
+    const children = offspring.map((c) => born(c.x, { population: c.population, parents: c.parents, child: true }));
+    const selections = pops.map((pop, k) => {
+      const candidates = pop.concat(children);
+      const res = ccmoSelect(
+        candidates.map((p) => p.f),
+        violations(candidates, k),
+        N
+      );
+      const next = res.kept.slice().sort((a, b) => res.fitness[a] - res.fitness[b] || a - b);
+      const below = res.fitness.filter((v) => v < 1).length;
+      return {
+        candidates,
+        S: res.S,
+        R: res.R,
+        D: res.D,
+        dk: res.dk,
+        k: res.k,
+        by: res.by.map((rows) => rows.map((i) => candidates[i].id)),
+        fitness: res.fitness,
+        kept: next.map((i) => candidates[i].id),
+        rule: below < N ? "fill" : below > N ? "truncate" : "exact",
+        below,
+      };
+    });
+    return { popSize: N, pops, fitness, R: own.map((res) => res.R), D: own.map((res) => res.D), mating, children, selections };
+  }
+
   const CTAEA_W = (count) =>
     Array.from({ length: count }, (_, k) => {
       const a = k / (count - 1);
-      return [Math.max(a, 1e-6), Math.max(1 - a, 1e-6)];
+      return [Math.max(a, 1e-6), Math.max((count - 1 - k) / (count - 1), 1e-6)];
     });
 
   function ctaeaAssociate(f, W) {
@@ -1001,12 +1081,14 @@
     });
   }
 
-  /** C-TAEA convergence archive and diversity archive updates (ctaea/archives.py). */
-  function ctaeaSelect(F, cv, n) {
-    const W = CTAEA_W(n);
+  /** C-TAEA's convergence archive update (ctaea/archives.py) of the candidates F with violations cv: the rows of the
+      new CA in VAMOS' order, the feasible rows, and a record of the case that applied (the fronts and each removal
+      with more feasible candidates than weight vectors, the ranking of the infeasible ones with fewer). */
+  function ctaeaUpdateCA(F, cv, W) {
+    const n = W.length;
     const idx = F.map((_, i) => i);
     const feasible = idx.filter((i) => cv[i] <= 0);
-    const ca = { removals: [], fronts: null, normalized: null };
+    const ca = { removals: [], fronts: null, normalized: null, infeasible: null };
     let CA;
     if (feasible.length === n) CA = feasible.slice();
     else if (feasible.length > n) {
@@ -1028,7 +1110,8 @@
         const members = CA.filter((_, a) => region[a] === crowded);
         let dmin = Infinity;
         members.forEach((i) => members.forEach((j) => i !== j && euclidean(F[i], F[j]) > 0 && (dmin = Math.min(dmin, euclidean(F[i], F[j])))));
-        const closest = members.filter((i) => members.some((j) => j !== i && Math.abs(euclidean(F[i], F[j]) - dmin) < 1e-15));
+        // Equal points are at no distance; when every member is the same point, every member is a candidate.
+        const closest = dmin === Infinity ? members.slice() : members.filter((i) => members.some((j) => j !== i && Math.abs(euclidean(F[i], F[j]) - dmin) < 1e-15));
         const tch = ctaeaTchebycheff(
           closest.map((i) => F[i]),
           W
@@ -1038,7 +1121,7 @@
           if (v > tch[worst]) worst = a;
         });
         ca.normalized = ca.normalized || CA.map((i, a) => ({ i, f: norm[a], region: region[a] }));
-        ca.removals.push({ counts, crowded, closest, tch, removed: closest[worst], ideal: [0, 1].map((j) => Math.min(...closest.map((i) => F[i][j]))) });
+        ca.removals.push({ counts, crowded, closest, tch, removed: closest[worst], ideal: [0, 1].map((j) => Math.min(...closest.map((i) => F[i][j]))), rows: CA.slice(), region, lo, hi });
         CA.splice(CA.indexOf(closest[worst]), 1);
       }
     } else {
@@ -1049,20 +1132,33 @@
       );
       const fronts = nonDominatedSort(infeasible.map((i, a) => [cv[i], tch[a]])).fronts.map((f) => f.map((r) => infeasible[r]));
       CA = feasible.slice();
+      let removed = [];
       for (const front of fronts) {
         if (CA.length >= n) break;
         if (CA.length + front.length <= n) CA.push(...front);
-        else
-          CA.push(
-            ...front
-              .slice()
-              .sort((a, b) => cv[a] - cv[b] || a - b)
-              .slice(0, n - CA.length)
-          );
+        else {
+          // The last front keeps its order and loses its largest violations, the first in a tie.
+          removed = front
+            .slice()
+            .sort((a, b) => cv[b] - cv[a] || a - b)
+            .slice(0, CA.length + front.length - n);
+          CA.push(...front.filter((i) => !removed.includes(i)));
+        }
       }
+      ca.infeasible = { rows: infeasible, tch, fronts, removed };
     }
+    return { CA, ca, feasible };
+  }
+
+  /** C-TAEA's diversity archive update (ctaea/archives.py) of the candidates F, the constraints ignored, with the
+      objective vectors caF of the new CA: the rows of the new DA in selection order, the CA's count in each
+      subregion, the subregion of each candidate and a trace of the picks. */
+  function ctaeaUpdateDA(F, caF, W) {
+    const n = W.length;
+    const idx = F.map((_, i) => i);
     const regions = F.map((f) => ctaeaAssociate(f, W));
-    const caCounts = W.map((_, k) => CA.filter((i) => regions[i] === k).length);
+    const caRegions = caF.map((f) => ctaeaAssociate(f, W));
+    const caCounts = W.map((_, k) => caRegions.filter((r) => r === k).length);
     const left = W.map((_, k) => regions.filter((r) => r === k).length);
     const available = new Set(idx);
     const DA = [];
@@ -1093,7 +1189,156 @@
       }
       iteration += 1;
     }
+    return { DA, caCounts, regions, trace };
+  }
+
+  /** C-TAEA's convergence archive and diversity archive updates of the same candidates, with n weight vectors. */
+  function ctaeaSelect(F, cv, n) {
+    const W = CTAEA_W(n);
+    const { CA, ca, feasible } = ctaeaUpdateCA(F, cv, W);
+    const { DA, caCounts, regions, trace } = ctaeaUpdateDA(
+      F,
+      CA.map((i) => F[i]),
+      W
+    );
     return { W, CA, DA, ca, caCounts, regions, trace, feasible };
+  }
+
+  /** C-TAEA on the loop figure's problem with CTP2's constraint, ctpViolation(gaEvaluate(x)), with popSize weight
+      vectors, recorded generation by generation for the C-TAEA lesson. As in VAMOS, the N random solutions of the
+      initial population (ids 1 to N) are the candidates of the first update of both archives, and each generation
+      creates one offspring per weight vector. A generation records the CA and the DA; the shares of non-dominated
+      solutions of CA ∪ DA in each half and of the CA alone, which choose the parents' archives; the binary
+      tournaments (three members drawn with replacement: if only one of the first two is feasible it wins, if both
+      are the first wins unless the second dominates it, if neither is the third wins); the first child of SBX
+      (probability 1, η = 20) on the second parent and the first, mutated by polynomial mutation
+      (probability 1/n = 1/2, η = 20); and the CA update of CA ∪ offspring, then the DA update of DA ∪ offspring with
+      the new CA. Solutions are referred to by id; history lists the archives after each update. */
+  function ctaeaGeneration(seed, popSize, generations) {
+    const rand = mulberry32(seed);
+    const W = CTAEA_W(popSize);
+    const N = W.length;
+    const solutions = [];
+    const born = (x, extra) => {
+      const f = gaEvaluate(x);
+      const sol = Object.assign({ id: solutions.length + 1, x, f, cv: ctpViolation(f), region: ctaeaAssociate(f, W) }, extra);
+      solutions.push(sol);
+      return sol;
+    };
+    const objectives = (rows) => rows.map((sol) => sol.f);
+    const idsOf = (rows, cands) => rows.map((i) => cands[i].id);
+    const nonDominated = (rows) => rows.map((f, i) => !rows.some((g, j) => j !== i && dominates(g, f)));
+    const tournament = (archive) => {
+      const draws = [0, 1, 2].map(() => Math.floor(rand() * archive.length));
+      const [A, B, C] = draws.map((d) => archive[d]);
+      let winner = A;
+      let reason = "first";
+      if (A.cv === 0 && B.cv === 0) {
+        if (dominates(B.f, A.f)) {
+          winner = B;
+          reason = "dominates";
+        }
+      } else if (A.cv === 0) reason = "feasible";
+      else if (B.cv === 0) {
+        winner = B;
+        reason = "feasible";
+      } else {
+        winner = C;
+        reason = "third";
+      }
+      return { a: A.id, b: B.id, c: C.id, winner: winner.id, reason, draws };
+    };
+    const update = (CA, DA, offspring) => {
+      const caCands = CA.concat(offspring);
+      const ca = ctaeaUpdateCA(
+        objectives(caCands),
+        caCands.map((sol) => sol.cv),
+        W
+      );
+      const newCA = ca.CA.map((i) => caCands[i]);
+      const daCands = DA.concat(offspring);
+      const da = ctaeaUpdateDA(objectives(daCands), objectives(newCA), W);
+      const rec = ca.ca;
+      const caUpdate = {
+        candidates: caCands.map((sol) => sol.id),
+        feasible: idsOf(ca.feasible, caCands),
+        fronts: rec.fronts && rec.fronts.map((front) => idsOf(front, caCands)),
+        removals: rec.removals.map((r) => ({ rows: idsOf(r.rows, caCands), region: r.region, lo: r.lo, hi: r.hi, counts: r.counts, crowded: r.crowded, closest: idsOf(r.closest, caCands), tch: r.tch, ideal: r.ideal, removed: caCands[r.removed].id })),
+        infeasible: rec.infeasible && { rows: idsOf(rec.infeasible.rows, caCands), tch: rec.infeasible.tch, fronts: rec.infeasible.fronts.map((front) => idsOf(front, caCands)), removed: idsOf(rec.infeasible.removed, caCands) },
+        kept: newCA.map((sol) => sol.id),
+      };
+      const daUpdate = {
+        candidates: daCands.map((sol) => sol.id),
+        caCounts: da.caCounts,
+        trace: da.trace.map((t) => ({ iteration: t.iteration, region: t.region, ca: t.ca, cands: idsOf(t.cands, daCands), nd: idsOf(t.nd, daCands), tch: t.tch, chosen: daCands[t.chosen].id })),
+        kept: da.DA.map((i) => daCands[i].id),
+      };
+      return { CA: newCA, DA: da.DA.map((i) => daCands[i]), caUpdate, daUpdate };
+    };
+    const initial = [];
+    for (let i = 0; i < N; i++) initial.push(born([rand(), rand()], { generation: 0 }));
+    let state = update([], [], initial);
+    const history = [{ offspring: initial.map((sol) => sol.id), CA: state.caUpdate.kept, DA: state.daUpdate.kept }];
+    const records = [];
+    for (let gen = 1; gen <= generations; gen++) {
+      const CA = state.CA;
+      const DA = state.DA;
+      const union = CA.concat(DA);
+      const nd = nonDominated(objectives(union));
+      const half = Math.floor((union.length + 1) / 2);
+      const ndCA = nonDominated(objectives(CA));
+      const shares = {
+        nd,
+        inFirst: nd.slice(0, half).filter(Boolean).length,
+        inSecond: nd.slice(half).filter(Boolean).length,
+        size: union.length,
+        ndCA,
+        inCA: ndCA.filter(Boolean).length,
+      };
+      shares.rhoC = shares.inFirst / union.length;
+      shares.rhoD = shares.inSecond / union.length;
+      shares.PC = shares.inCA / CA.length;
+      const firstFrom = shares.rhoC > shares.rhoD ? "CA" : "DA";
+      const first = [];
+      for (let i = 0; i < N; i++) first.push(tournament(firstFrom === "CA" ? CA : DA));
+      const uniforms = [];
+      for (let i = 0; i < N; i++) uniforms.push(rand());
+      const fromCA = uniforms.map((u) => u < shares.PC);
+      const caGames = [];
+      const daGames = [];
+      for (let i = 0; i < N; i++) caGames.push(tournament(CA));
+      for (let i = 0; i < N; i++) daGames.push(tournament(DA));
+      const second = fromCA.map((c, i) => (c ? caGames[i] : daGames[i]));
+      const offspring = [];
+      for (let i = 0; i < N; i++) {
+        const p2 = solutions[second[i].winner - 1];
+        const p1 = solutions[first[i].winner - 1];
+        const child = sbxPair(p2.x, p1.x, 0, 1, 20, 0.5, rand)[0];
+        polynomialMutation(child, 0, 1, 0.5, 20, rand);
+        offspring.push(child);
+      }
+      const children = offspring.map((x, i) => born(x, { generation: gen, parents: [second[i].winner, first[i].winner] }));
+      const next = update(CA, DA, children);
+      records.push({
+        generation: gen,
+        CA: CA.map((sol) => sol.id),
+        DA: DA.map((sol) => sol.id),
+        shares,
+        firstFrom,
+        first,
+        uniforms,
+        fromCA,
+        caGames,
+        daGames,
+        second,
+        children: children.map((sol) => sol.id),
+        caUpdate: next.caUpdate,
+        daUpdate: next.daUpdate,
+      });
+      history.push({ offspring: children.map((sol) => sol.id), CA: next.caUpdate.kept, DA: next.daUpdate.kept });
+      state = next;
+    }
+    return { popSize: N, W, solutions, history, records };
   }
 
   /** ToP phase 1 (pairwise replacement on the mean objective) and phase 2 (constrained NSGA-II survival). */
@@ -2418,7 +2663,9 @@
     fidelitySlice,
     operators: OPERATORS,
     ccmoSelect,
+    ccmoGeneration,
     ctaeaSelect,
+    ctaeaGeneration,
     topSelect,
     cmoeamsSelect,
     CS_CANDIDATES,
@@ -5385,6 +5632,779 @@
       });
     }
     render();
+  };
+
+  /** The loop figure's problem with CTP2's constraint, ctpViolation(gaEvaluate(x)), drawn in both spaces: the
+      infeasible region (in the objective space only above the unconstrained front f₂ = 1 − √f₁, below which nothing
+      is attainable), the unconstrained Pareto set x₂ = 0 and front (dashed), and the constrained ones. drawCtp2
+      cannot serve here: it shades from CTP2's own unconstrained front f₁ + f₂ = 1, and this problem also reaches
+      the infeasible band between the two fronts. */
+  let loopCtp2Front = null;
+  function drawLoopCtp2(xPlot, fPlot) {
+    const shade = (plot, cols, rows, bad) => {
+      const top = plot.yd[1];
+      for (let c = 0; c < cols; c++) {
+        const u = (c + 0.5) / cols;
+        let start = null;
+        for (let r = 0; r <= rows; r++) {
+          const v = (r / rows) * top;
+          const isBad = r < rows && bad(u, v);
+          if (isBad && start === null) start = v;
+          if (!isBad && start !== null) {
+            plot.rect(plot.layers.back, c / cols, start, (c + 1) / cols + 0.0005, v, "vf-region-2");
+            start = null;
+          }
+        }
+      }
+    };
+    shade(xPlot, 100, 200, (x1, x2) => ctpViolation(gaEvaluate([x1, x2])) > 0);
+    shade(fPlot, 100, 420, (f1, f2) => f2 >= 1 - Math.sqrt(f1) && ctpViolation([f1, f2]) > 0);
+    if (!loopCtp2Front) {
+      // Every feasible point lies above the line f₂ = 1 − tan(0.2π)·f₁, so the search can start at f₁ + f₂ = 1.
+      const lowest = [];
+      for (let i = 0; i <= 1000; i++) {
+        const f1 = i / 1000;
+        for (let f2 = 1 - f1; f2 <= 1.6; f2 += 0.0005) {
+          if (ctpViolation([f1, f2]) <= 0) {
+            lowest.push([f1, f2]);
+            break;
+          }
+        }
+      }
+      loopCtp2Front = nonDominatedIndices(lowest).map((i) => lowest[i]);
+    }
+    // x₁ = f₁, and g = 1 + x₂ solves g − √(f₁·g) = f₂.
+    const set = loopCtp2Front.map(([f1, f2]) => [f1, Math.pow((Math.sqrt(f1) + Math.sqrt(f1 + 4 * f2)) / 2, 2) - 1]);
+    xPlot.line(xPlot.layers.mid, [[0, 0.004], [1, 0.004]], "vf-front");
+    fPlot.line(fPlot.layers.mid, frontPoints((t) => 1 - Math.sqrt(t), 0, 1, 60), "vf-front");
+    drawFront(xPlot, xPlot.layers.mid, set, "vf-line-1", 0.0015);
+    drawFront(fPlot, fPlot.layers.mid, loopCtp2Front, "vf-line-1", 0.0015);
+  }
+
+  /** The class of a solution's marker in the constrained step-throughs: its colour, hollow when infeasible. */
+  function solutionClass(sol, colour, faded) {
+    return "vf-pt " + colour + (sol.cv > 0 ? " vf-pt-open" : "") + (faded ? " vf-faded" : "");
+  }
+
+  /** Write the labels of crowded points beside them, each where it covers the fewest other labels and markers:
+      items are { x, y, text } in the plot's coordinates, written in order into plot.layers.top. */
+  function placeLabels(plot, items) {
+    const offsets = [
+      [9, -7, "start"],
+      [9, 14, "start"],
+      [-9, -7, "end"],
+      [-9, 14, "end"],
+      [0, -12, "middle"],
+      [0, 21, "middle"],
+    ];
+    const marks = items.map((it) => [it.x - 7, it.y - 7, it.x + 7, it.y + 7]);
+    const placed = [];
+    const overlap = (a, b) => Math.max(0, Math.min(a[2], b[2]) - Math.max(a[0], b[0])) * Math.max(0, Math.min(a[3], b[3]) - Math.max(a[1], b[1]));
+    for (const it of items) {
+      const w = 6.4 * it.text.length;
+      let best = null;
+      offsets.forEach(([dx, dy, anchor], k) => {
+        const x = it.x + dx;
+        const left = anchor === "start" ? x : anchor === "end" ? x - w : x - w / 2;
+        const box = [left, it.y + dy - 10, left + w, it.y + dy + 2];
+        let cost = k * 0.5;
+        for (const other of placed) cost += overlap(box, other);
+        for (const m of marks) cost += overlap(box, m);
+        if (box[0] < 2 || box[2] > plot.W - 2) cost += 1000;
+        if (!best || cost < best.cost) best = { cost, x, y: it.y + dy, anchor, box };
+      });
+      placed.push(best.box);
+      txt(plot.layers.top, best.x, best.y, it.text, { class: "vf-mark-label", "text-anchor": best.anchor });
+    }
+  }
+
+  /** The objective range of a constrained step-through: f₂ up to 1.6 unless a point lies higher. */
+  function constrainedTop(sols) {
+    return Math.max(...sols.map((sol) => sol.f[1])) > 1.5 ? 2.1 : 1.6;
+  }
+
+  /* A5: one CCMO generation, step by step. */
+  widgets["ccmo-steps"] = function (node) {
+    const N = 6;
+    const TITLES = [
+      "the two populations",
+      "mating selection in population 1",
+      "population 1's offspring",
+      "mating selection in population 2",
+      "population 2's offspring",
+      "evaluation",
+      "population 1's fitness, the violation first",
+      "population 1's environmental selection",
+      "population 2's fitness, without the constraints",
+      "population 2's environmental selection",
+      "the next generation",
+    ];
+    const COLOURS = ["vf-pt-1", "vf-pt-2"];
+    const state = { seed: Number(node.dataset.seed || 37454), step: 0 };
+    let g = null;
+    const interesting = (gen) => {
+      const [p1, p2] = gen.selections;
+      const helped = gen.children.some((c) => c.population === 2 && c.cv === 0 && p1.kept.includes(c.id));
+      const explored = gen.children.some((c) => c.cv > 0 && p2.kept.includes(c.id) && !p1.kept.includes(c.id));
+      return helped && explored;
+    };
+    const ctl = controls(node);
+    const back = button(ctl, "Previous step", () => go(state.step - 1));
+    const next = button(ctl, "Next step", () => go(state.step + 1), true);
+    button(ctl, "Restart", () => go(0));
+    button(ctl, "New population", () => {
+      // Draw populations until population 1 keeps a feasible child of population 2, and population 2 an infeasible child that population 1 drops.
+      for (let tries = 0; tries < 200; tries++) {
+        const seed = Math.floor(Math.random() * 1e6);
+        if (interesting(ccmoGeneration(seed, N))) {
+          state.seed = seed;
+          break;
+        }
+      }
+      build();
+    });
+    const body = h("div", { class: "vf-body vf-body--two" }, node);
+    const xPlot = createPlot(body, { title: "Decision space", x: [0, 1], y: [0, 1], xLabel: "x₁", yLabel: "x₂", label: "Decision vectors of both populations and of their children, with the infeasible region shaded" });
+    const fPlot = createPlot(body, { title: "Objective space", x: [0, 1], y: [0, 1.6], xLabel: "f₁ (minimize)", yLabel: "f₂ (minimize)", label: "Objective vectors of one CCMO generation, with CTP2's infeasible region shaded" });
+    for (const plot of [xPlot, fPlot]) {
+      plot.svg.setAttribute("tabindex", "0");
+      plot.svg.setAttribute("aria-keyshortcuts", "ArrowLeft ArrowRight");
+    }
+    let lines = null;
+    const readout = h("div", { class: "vf-readout" }, node);
+    const stepText = h("p", { class: "vf-step-text", "aria-live": "polite" }, readout);
+    h("p", {}, readout, "The arrow keys step through the figure when it has focus; New population draws another generation.");
+    const tableBox = h("div", {}, readout);
+    legend(node, [
+      { label: "Population 1", shape: "circle", cls: "vf-pt vf-pt-1" },
+      { label: "Population 2", shape: "circle", cls: "vf-pt vf-pt-2" },
+      { label: "Child, in the colour of the population that bred it", shape: "triangle", cls: "vf-pt vf-pt-muted" },
+      { label: "Infeasible (hollow)", shape: "circle", cls: "vf-pt vf-pt-open vf-pt-muted" },
+      { label: "In both next populations", shape: "circle", cls: "vf-pt vf-pt-ink" },
+      { label: "Tournament winner, fitness below 1, survivor", shape: "circle", cls: "vf-ring" },
+      { label: "Infeasible region", shape: "region", cls: "vf-region-2" },
+      { label: "Constrained Pareto set and front", shape: "line", cls: "vf-line-1" },
+      { label: "Unconstrained Pareto set and front", shape: "line", cls: "vf-front" },
+    ]);
+    node.addEventListener("keydown", (e) => {
+      if (e.target && /^(SELECT|INPUT|BUTTON)$/.test(e.target.tagName)) return;
+      if (e.key === "ArrowRight") go(state.step + 1);
+      else if (e.key === "ArrowLeft") go(state.step - 1);
+      else return;
+      e.preventDefault();
+    });
+    function build() {
+      g = ccmoGeneration(state.seed, N);
+      fPlot.setDomain([0, 1], [0, constrainedTop(all())]);
+      for (const plot of [xPlot, fPlot]) {
+        clear(plot.layers.back);
+        clear(plot.layers.mid);
+      }
+      drawLoopCtp2(xPlot, fPlot);
+      lines = [xPlot, fPlot].map((plot) => s("g", {}, plot.layers.mid));
+      go(0);
+    }
+    function go(i) {
+      state.step = Math.max(0, Math.min(TITLES.length - 1, i));
+      render();
+    }
+    const all = () => g.pops[0].concat(g.pops[1], g.children);
+    const byId = (id) => all().find((sol) => sol.id === id);
+    const set = (ids) => "{" + ids.slice().sort((a, b) => a - b).join(", ") + "}";
+    const childrenOf = (k) => g.children.filter((c) => c.population === k + 1);
+    const labels = [[], []];
+    function draw(plot, v, shape, cls, label, ring) {
+      const px = plot.x(v[0]);
+      const py = plot.y(Math.min(v[1], plot.yd[1]));
+      marker(plot.layers.marks, shape, px, py, 6, cls);
+      if (ring) marker(plot.layers.marks, "circle", px, py, 10.5, "vf-ring");
+      labels[plot === xPlot ? 0 : 1].push({ x: px, y: py, text: label });
+    }
+    function render() {
+      const step = state.step;
+      back.disabled = step === 0;
+      next.disabled = step === TITLES.length - 1;
+      for (const plot of [xPlot, fPlot]) {
+        clear(plot.layers.marks);
+        clear(plot.layers.top);
+      }
+      lines.forEach(clear);
+      labels.forEach((list) => (list.length = 0));
+      // Which population a step is about: 0, 1, or null for both.
+      const focus = step >= 1 && step <= 2 ? 0 : step >= 3 && step <= 4 ? 1 : step >= 6 && step <= 7 ? 0 : step >= 8 && step <= 9 ? 1 : null;
+      const mating = step === 1 || step === 3 ? g.mating[focus] : null;
+      const wins = new Map();
+      if (mating) mating.tournaments.forEach((t) => wins.set(t.winner, (wins.get(t.winner) || 0) + 1));
+      const sel = step >= 6 && step <= 9 ? g.selections[focus] : null;
+      const candidateIndex = (sol) => (sel ? sel.candidates.findIndex((c) => c.id === sol.id) : -1);
+      const nextPops = g.selections.map((x) => x.kept);
+      if (mating) {
+        const pop = g.pops[focus];
+        for (const t of mating.tournaments) {
+          if (t.a !== t.b) fPlot.line(lines[1], [pop.find((p) => p.id === t.a).f, pop.find((p) => p.id === t.b).f], "vf-line-thin vf-dashed");
+        }
+      }
+      const rows = [];
+      for (const sol of all()) {
+        const k = sol.population - 1;
+        const isChild = !!sol.child;
+        const shape = isChild ? "triangle" : "circle";
+        const evaluated = !isChild || step >= 5;
+        let visible;
+        if (step === 0) visible = !isChild;
+        else if (step <= 2) visible = !isChild ? k === 0 : step === 2 && k === 0;
+        else if (step <= 4) visible = !isChild ? k === 1 : step === 4 && k === 1;
+        else if (sel) visible = candidateIndex(sol) >= 0;
+        else visible = true;
+        const born = !isChild || step >= 2 + 2 * k;
+        if (!born) continue;
+        let colour = COLOURS[k];
+        let ring = false;
+        let faded = false;
+        let label = String(sol.id);
+        let status = "–";
+        let R = "–";
+        let D = "–";
+        let fit = "–";
+        if (!isChild && step <= 5) {
+          const i = g.pops[k].indexOf(sol);
+          R = String(g.R[k][i]);
+          D = fmt(g.D[k][i]);
+          fit = fmt(g.fitness[k][i]);
+        }
+        if (mating && !isChild && k === focus) {
+          const won = wins.get(sol.id) || 0;
+          ring = won > 0;
+          if (won > 1) label += " ×" + won;
+          status = won ? `won ${won}×` : "–";
+        }
+        if ((step === 2 || step === 4) && k === focus) {
+          if (isChild) status = "not evaluated";
+          else {
+            const kids = childrenOf(k).filter((c) => c.parents.includes(sol.id));
+            ring = kids.length > 0;
+            if (kids.length) status = "parent of " + idList(kids.map((c) => c.id));
+          }
+        }
+        if (step === 5 && isChild) status = sol.cv > 0 ? "infeasible, offered to both" : "feasible, offered to both";
+        if (sel) {
+          const i = candidateIndex(sol);
+          if (i < 0) status = "not a candidate";
+          else {
+            R = String(sel.R[i]);
+            D = fmt(sel.D[i]);
+            fit = fmt(sel.fitness[i]);
+            if (step === 6 || step === 8) {
+              ring = sel.fitness[i] < 1;
+              status = sel.fitness[i] < 1 ? "fitness below 1" : "fitness 1 or more";
+            } else {
+              const kept = sel.kept.includes(sol.id);
+              ring = kept;
+              faded = !kept;
+              if (!kept) label += " ✕";
+              status = kept ? "kept" : "removed";
+            }
+          }
+        }
+        if (step === 10) {
+          const inP1 = nextPops[0].includes(sol.id);
+          const inP2 = nextPops[1].includes(sol.id);
+          colour = inP1 && inP2 ? "vf-pt-ink" : inP1 ? COLOURS[0] : inP2 ? COLOURS[1] : colour;
+          faded = !inP1 && !inP2;
+          if (faded) label += " ✕";
+          status = inP1 && inP2 ? "both populations" : inP1 ? "population 1" : inP2 ? "population 2" : "removed";
+          const stored = [0, 1].filter((j) => nextPops[j].includes(sol.id)).map((j) => fmt(g.selections[j].fitness[g.selections[j].candidates.findIndex((c) => c.id === sol.id)]));
+          fit = stored.length ? stored.join(" / ") : "–";
+        }
+        if (visible) {
+          const cls = solutionClass(sol, colour, faded);
+          draw(xPlot, sol.x, shape, cls, label, ring);
+          if (evaluated) draw(fPlot, sol.f, shape, cls, label, ring);
+          if (isChild && (step === 2 || step === 4) && k === focus) {
+            for (const id of sol.parents) xPlot.line(lines[0], [byId(id).x, sol.x], "vf-line-thin vf-dashed");
+          }
+        }
+        const role = isChild ? `child of ${sol.parents[0]} and ${sol.parents[1]} (population ${k + 1})` : `population ${k + 1}`;
+        rows.push([String(sol.id), role, evaluated ? fmt(sol.f[0], 2) : "?", evaluated ? fmt(sol.f[1], 2) : "?", evaluated ? fmt(sol.cv) : "?", R, D, fit, status]);
+      }
+      placeLabels(xPlot, labels[0]);
+      placeLabels(fPlot, labels[1]);
+      stepText.textContent = `Step ${step + 1} of ${TITLES.length}: ${TITLES[step]}. ${describe(step)}`;
+      clear(tableBox);
+      table(tableBox, ["Id", "Role", "f₁", "f₂", "CV", "R", "D", "Fitness", "Status"], rows, [false, false, true, true, true, true, true, true, false]);
+    }
+    function describe(step) {
+      const feasible = (list) => list.filter((sol) => sol.cv === 0).map((sol) => sol.id);
+      const infeasible = (list) => list.filter((sol) => sol.cv > 0).map((sol) => sol.id);
+      const range = (list) => `${list[0].id} to ${list[list.length - 1].id}`;
+      if (step === 0) {
+        return `Two populations of ${N} on the loop figure's problem, f₁ = x₁ and f₂ = g·(1 − √(x₁/g)) with g = 1 + x₂, under CTP2's constraint, which makes its unconstrained front f₂ = 1 − √f₁ infeasible except at f₁ = 0. Population 1 is ${range(g.pops[0])} and population 2 is ${range(g.pops[1])}, drawn at random, population 1 first. ${idList(feasible(g.pops[0].concat(g.pops[1])))} are feasible (filled); the others are infeasible (hollow). Each population computes its members' fitness R + D, with the violation first in population 1 and without it in population 2; the tournaments use it.`;
+      }
+      if (step === 1 || step === 3) {
+        const k = step === 1 ? 0 : 1;
+        const m = g.mating[k];
+        const why = (t) => (t.a === t.b ? "the same member twice" : t.tie ? "equal fitness, the one that comes first" : "lower fitness");
+        const games = m.tournaments.map((t) => `${t.a} vs ${t.b} → ${t.winner} (${why(t)})`).join("; ");
+        const pairs = m.pairs.map((p) => `(${p[0]}, ${p[1]})`).join(", ");
+        return `Population ${k + 1} draws ${N} binary tournaments on its own fitness, each between two members drawn at random: ${games}. The winners of the first ${N / 2} mate with those of the last ${N / 2}: ${pairs}. Ringed members won at least once.`;
+      }
+      if (step === 2 || step === 4) {
+        const k = step === 2 ? 0 : 1;
+        const kids = childrenOf(k);
+        return `SBX crossover (probability 1, η = 20) recombines each pair and only its first child is kept; polynomial mutation (probability 1/2 per variable, η = 20) perturbs it. Population ${k + 1} creates ${N / 2} children, ${idList(kids.map((c) => c.id))}: the triangles joined to their parents in the decision space. Their objectives are not known yet.`;
+      }
+      if (step === 5) {
+        const ok = feasible(g.children);
+        const bad = infeasible(g.children);
+        return `The ${N} children are evaluated once, population 1's first. ${ok.length ? `${idList(ok)} ${ok.length === 1 ? "is" : "are"} feasible` : "None is feasible"}${bad.length ? ` and ${idList(bad)} ${bad.length === 1 ? "is" : "are"} infeasible` : ""}. Both populations receive all of them: each will choose ${N} survivors from ${2 * N} candidates, its own members and every child.`;
+      }
+      if (step === 6 || step === 8) {
+        const k = step === 6 ? 0 : 1;
+        const sel = g.selections[k];
+        const below = sel.candidates.filter((_, i) => sel.fitness[i] < 1).map((c) => c.id);
+        const rule =
+          k === 0
+            ? "Its dominance puts the violation first: a smaller violation dominates a larger one, so every feasible candidate dominates every infeasible one, and candidates with the same violation are compared by Pareto dominance."
+            : "It passes a violation of zero for every candidate, so its dominance is Pareto dominance: population 2 solves the problem without its constraints.";
+        return `Population ${k + 1}'s candidates are ${range(g.pops[k])} and the children ${range(g.children)}. ${rule} R is the sum of the strengths (the numbers of candidates dominated) of a candidate's dominators, and D = 1/(σ₃ + 2), with σ₃ the distance to the 3rd nearest candidate (k = ⌊√${2 * N}⌋ = 3). Fitness below 1, ringed: ${idList(below)}, the candidates that nobody dominates.`;
+      }
+      if (step === 7 || step === 9) {
+        const k = step === 7 ? 0 : 1;
+        const sel = g.selections[k];
+        const removed = sel.candidates.map((c) => c.id).filter((id) => !sel.kept.includes(id));
+        const fitness = (id) => sel.fitness[sel.candidates.findIndex((c) => c.id === id)];
+        const fitOf = (id) => fmt(fitness(id), 2);
+        let how;
+        if (sel.rule === "fill") how = `Only ${sel.below} candidate${sel.below === 1 ? " has" : "s have"} a fitness below 1, fewer than ${N}, so population ${k + 1} keeps the ${N} lowest fitness values: ${sel.kept.map((id) => `${id} (${fitOf(id)})`).join(", ")}.`;
+        else if (sel.rule === "truncate") {
+          const pool = sel.candidates.filter((_, i) => sel.fitness[i] < 1);
+          const cut = removed.filter((id) => fitness(id) < 1);
+          const lists = (sol) =>
+            pool
+              .filter((o) => o !== sol)
+              .map((o) => [euclidean(sol.f, o.f), o.id])
+              .sort((a, b) => a[0] - b[0]);
+          let why = "each time the candidate whose sorted distances to the remaining ones are lexicographically smallest, the one with the closest neighbour";
+          if (cut.length === 1) {
+            const out = lists(byId(cut[0]));
+            const near = lists(byId(out[0][1]));
+            why =
+              near[0][1] === cut[0]
+                ? `${cut[0]} and ${out[0][1]} are the closest pair (${fmt(out[0][0], 2)} apart in the objective space), and ${cut[0]} goes because its second nearest candidate is closer (${fmt(out[1][0], 2)} against ${fmt(near[1][0], 2)})`
+                : `${cut[0]} has the closest neighbour, ${out[0][1]}, ${fmt(out[0][0], 2)} away in the objective space`;
+          }
+          how = `${sel.below} candidates have a fitness below 1, more than ${N}, so SPEA2's truncation removes ${cut.length === 1 ? "one of them" : cut.length + " of them, one at a time"}: ${why}.`;
+        } else how = `Exactly ${N} candidates have a fitness below 1, and population ${k + 1} keeps them.`;
+        const ascending = (ids) => ids.slice().sort((a, b) => a - b);
+        const keptChildren = sel.kept.filter((id) => byId(id).child);
+        const fromOther = ascending(keptChildren.filter((id) => byId(id).population !== k + 1));
+        const infeasibleKept = ascending(sel.kept.filter((id) => byId(id).cv > 0));
+        const extra =
+          k === 0
+            ? fromOther.length
+              ? ` ${idList(fromOther)}, bred by population 2, ${fromOther.length === 1 ? "joins" : "join"} population 1.`
+              : ""
+            : infeasibleKept.length
+              ? ` ${idList(infeasibleKept)} ${infeasibleKept.length === 1 ? "is" : "are"} infeasible: population 2 never looks at the constraints.`
+              : "";
+        return `${how} ${idList(removed)} ${removed.length === 1 ? "is" : "are"} removed.${extra} The survivors are stored by increasing fitness.`;
+      }
+      const [p1, p2] = g.selections.map((x) => x.kept.slice().sort((a, b) => a - b));
+      const helped = p1.filter((id) => byId(id).child && byId(id).population === 2);
+      const shared = p1.filter((id) => p2.includes(id));
+      return `Population 1 = ${set(p1)} and population 2 = ${set(p2)}; the colours now show where each solution belongs.${helped.length ? ` ${idList(helped)}, bred by population 2, ${helped.length === 1 ? "is" : "are"} now in population 1.` : ""}${shared.length ? ` ${idList(shared)} ${shared.length === 1 ? "is" : "are"} in both, with a fitness in each.` : ""} Each population keeps the fitness computed on its candidates for its next tournaments, and population 1 is the result of the run.`;
+    }
+    build();
+  };
+
+  /* A6: one C-TAEA generation, step by step. */
+  widgets["ctaea-steps"] = function (node) {
+    const N = 6;
+    const GENERATION = 2;
+    const COLOURS = { CA: "vf-pt-1", DA: "vf-pt-2", both: "vf-pt-ink", child: "vf-pt-muted" };
+    const state = { seed: Number(node.dataset.seed || 196524), step: 0 };
+    let run = null;
+    let g = null;
+    let steps = [];
+    let lines = null;
+    let rays = null;
+    const interesting = (r) => {
+      const rec = r.records[r.records.length - 1];
+      const daInfeasible = rec.daUpdate.kept.some((id) => r.solutions[id - 1].cv > 0);
+      return rec.caUpdate.removals.length > 0 && rec.caUpdate.removals.length <= 3 && daInfeasible && rec.fromCA.some(Boolean) && !rec.fromCA.every(Boolean);
+    };
+    const ctl = controls(node);
+    const back = button(ctl, "Previous step", () => go(state.step - 1));
+    const next = button(ctl, "Next step", () => go(state.step + 1), true);
+    button(ctl, "Restart", () => go(0));
+    button(ctl, "New population", () => {
+      // Draw runs until the CA update truncates its feasible candidates, the DA keeps an infeasible solution, and second parents come from both archives.
+      for (let tries = 0; tries < 200; tries++) {
+        const seed = Math.floor(Math.random() * 1e6);
+        if (interesting(ctaeaGeneration(seed, N, GENERATION))) {
+          state.seed = seed;
+          break;
+        }
+      }
+      build();
+    });
+    const body = h("div", { class: "vf-body vf-body--two" }, node);
+    const xPlot = createPlot(body, { title: "Decision space", x: [0, 1], y: [0, 1], xLabel: "x₁", yLabel: "x₂", label: "Decision vectors of the archives' members and of the children, with the infeasible region shaded" });
+    const fPlot = createPlot(body, { title: "Objective space", x: [0, 1], y: [0, 1.6], xLabel: "f₁ (minimize)", yLabel: "f₂ (minimize)", label: "Objective vectors, weight vectors and subregions of one C-TAEA generation, with CTP2's infeasible region shaded" });
+    for (const plot of [xPlot, fPlot]) {
+      plot.svg.setAttribute("tabindex", "0");
+      plot.svg.setAttribute("aria-keyshortcuts", "ArrowLeft ArrowRight");
+    }
+    const readout = h("div", { class: "vf-readout" }, node);
+    const stepText = h("p", { class: "vf-step-text", "aria-live": "polite" }, readout);
+    h("p", {}, readout, "The arrow keys step through the figure when it has focus; New population draws another run.");
+    const tableBox = h("div", {}, readout);
+    legend(node, [
+      { label: "Convergence archive (CA)", shape: "circle", cls: "vf-pt vf-pt-1" },
+      { label: "Diversity archive (DA)", shape: "circle", cls: "vf-pt vf-pt-2" },
+      { label: "In both archives", shape: "circle", cls: "vf-pt vf-pt-ink" },
+      { label: "Child", shape: "triangle", cls: "vf-pt vf-pt-muted" },
+      { label: "Infeasible (hollow)", shape: "circle", cls: "vf-pt vf-pt-open vf-pt-muted" },
+      { label: "Non-dominated, tournament winner, selected", shape: "circle", cls: "vf-ring" },
+      { label: "Weight vector, numbered by subregion", shape: "line", cls: "vf-line-thin" },
+      { label: "Normalization box of a removal", shape: "region", cls: "vf-cuboid" },
+      { label: "Infeasible region", shape: "region", cls: "vf-region-2" },
+      { label: "Constrained Pareto set and front", shape: "line", cls: "vf-line-1" },
+      { label: "Unconstrained Pareto set and front", shape: "line", cls: "vf-front" },
+    ]);
+    node.addEventListener("keydown", (e) => {
+      if (e.target && /^(SELECT|INPUT|BUTTON)$/.test(e.target.tagName)) return;
+      if (e.key === "ArrowRight") go(state.step + 1);
+      else if (e.key === "ArrowLeft") go(state.step - 1);
+      else return;
+      e.preventDefault();
+    });
+    const sol = (id) => run.solutions[id - 1];
+    const shownIds = () => [...new Set(g.CA.concat(g.DA, g.children))].sort((a, b) => a - b);
+    const set = (ids) => "{" + ids.slice().sort((a, b) => a - b).join(", ") + "}";
+    const ascending = (ids) => [...new Set(ids)].sort((a, b) => a - b);
+    const plural = (list, one, many) => (list.length === 1 ? one : many);
+    /** The end of a ray from p in direction d, where it leaves the plot's domain. */
+    const rayEnd = (p, d) => {
+      const t = Math.min(d[0] > 0 ? (fPlot.xd[1] - p[0]) / d[0] : Infinity, d[1] > 0 ? (fPlot.yd[1] - p[1]) / d[1] : Infinity);
+      return [p[0] + d[0] * t, p[1] + d[1] * t];
+    };
+    function drawRays(layer, origin, dirs, emphasis) {
+      dirs.forEach((d, k) => {
+        const end = rayEnd(origin, d);
+        fPlot.line(layer, [origin, end], k === emphasis ? "vf-line-ink" : "vf-line-thin" + (origin[0] || origin[1] ? " vf-dashed" : ""));
+        const px = fPlot.x(end[0]);
+        const py = fPlot.y(end[1]);
+        const onTop = Math.abs(end[1] - fPlot.yd[1]) < 1e-9;
+        txt(layer, onTop ? px + 4 : px - 4, onTop ? py + 12 : py - 5, String(k), { class: "vf-mark-label", "text-anchor": onTop ? "start" : "end" });
+      });
+    }
+    function build() {
+      run = ctaeaGeneration(state.seed, N, GENERATION);
+      g = run.records[GENERATION - 1];
+      steps = [
+        { kind: "archives", title: "the two archives" },
+        { kind: "shares", title: "the shares of non-dominated solutions" },
+        { kind: "first", title: "the first parents" },
+        { kind: "second", title: "the second parents" },
+        { kind: "vary", title: "variation" },
+        { kind: "evaluate", title: "evaluation" },
+        { kind: "feasible", title: "CA update, feasible candidates first" },
+      ];
+      const removals = g.caUpdate.removals;
+      removals.forEach((removal, i) => steps.push({ kind: "removal", title: `CA update, removal ${i + 1} of ${removals.length}`, removal }));
+      const last = Math.max(...g.daUpdate.trace.map((t) => t.iteration));
+      for (let t = 1; t <= last; t++) steps.push({ kind: "da", title: `DA update, iteration ${t}`, iteration: t });
+      steps.push({ kind: "next", title: "the next archives" });
+      fPlot.setDomain([0, 1], [0, constrainedTop(shownIds().map(sol))]);
+      for (const plot of [xPlot, fPlot]) {
+        clear(plot.layers.back);
+        clear(plot.layers.mid);
+      }
+      drawLoopCtp2(xPlot, fPlot);
+      rays = s("g", {}, fPlot.layers.mid);
+      drawRays(rays, [0, 0], run.W, -1);
+      lines = [xPlot, fPlot].map((plot) => s("g", {}, plot.layers.mid));
+      go(0);
+    }
+    function go(i) {
+      state.step = Math.max(0, Math.min(steps.length - 1, i));
+      render();
+    }
+    const labels = [[], []];
+    function draw(plot, v, shape, cls, label, ring) {
+      const px = plot.x(v[0]);
+      const py = plot.y(Math.min(v[1], plot.yd[1]));
+      marker(plot.layers.marks, shape, px, py, 6, cls);
+      if (ring) marker(plot.layers.marks, "circle", px, py, 10.5, "vf-ring");
+      labels[plot === xPlot ? 0 : 1].push({ x: px, y: py, text: label });
+    }
+    const membership = (id, CA, DA) => (CA.includes(id) && DA.includes(id) ? "both" : CA.includes(id) ? "CA" : DA.includes(id) ? "DA" : null);
+    const roleOf = (id) => {
+      const s2 = sol(id);
+      if (g.children.includes(id)) return `child of ${s2.parents[1]} (first) and ${s2.parents[0]} (second)`;
+      return { both: "CA and DA", CA: "CA", DA: "DA" }[membership(id, g.CA, g.DA)];
+    };
+    const game = (t) => {
+      const why = {
+        feasible: `only ${t.winner} is feasible`,
+        first: t.a === t.b ? "the same member twice" : `both feasible, ${t.b} does not dominate ${t.a}`,
+        dominates: `both feasible, ${t.b} dominates ${t.a}`,
+        third: `both infeasible, the third draw ${t.c} wins`,
+      }[t.reason];
+      return `${t.a} vs ${t.b} → ${t.winner} (${why})`;
+    };
+    const tally = (games) => {
+      const wins = new Map();
+      games.forEach((t) => wins.set(t.winner, (wins.get(t.winner) || 0) + 1));
+      return wins;
+    };
+    function render() {
+      const st = steps[state.step];
+      const kind = st.kind;
+      back.disabled = state.step === 0;
+      next.disabled = state.step === steps.length - 1;
+      for (const plot of [xPlot, fPlot]) {
+        clear(plot.layers.marks);
+        clear(plot.layers.top);
+      }
+      lines.forEach(clear);
+      labels.forEach((list) => (list.length = 0));
+      rays.style.display = kind === "removal" ? "none" : "";
+      const before = ["archives", "shares", "first", "second", "vary"].includes(kind);
+      const evaluated = (id) => !g.children.includes(id) || !before;
+      const ndIds = new Set(g.CA.concat(g.DA).filter((_, i) => g.shares.nd[i]));
+      const firstWins = tally(g.first);
+      const secondWins = tally(g.second);
+      const daTrace = kind === "da" ? g.daUpdate.trace.filter((t) => t.iteration <= st.iteration) : [];
+      const picked = new Set(daTrace.map((t) => t.chosen));
+      const ca = g.caUpdate;
+      const caSelected = new Set(ca.fronts ? ca.fronts.reduce((acc, front) => (acc.length >= N ? acc : acc.concat(front)), []) : ca.kept);
+      if (kind === "first" || kind === "second") {
+        for (const t of kind === "first" ? g.first : g.second) {
+          if (t.a !== t.b) fPlot.line(lines[1], [sol(t.a).f, sol(t.b).f], "vf-line-thin vf-dashed");
+        }
+      }
+      if (kind === "vary") {
+        for (const id of g.children) for (const p of sol(id).parents) xPlot.line(lines[0], [sol(p).x, sol(id).x], "vf-line-thin vf-dashed");
+      }
+      let subregionHeader = "Subregion";
+      if (kind === "removal") {
+        const r = st.removal;
+        subregionHeader = "Subregion (normalized)";
+        fPlot.rect(lines[1], r.lo[0], r.lo[1], r.hi[0], r.hi[1], "vf-cuboid");
+        drawRays(
+          lines[1],
+          r.lo,
+          run.W.map((w) => [w[0] * (r.hi[0] - r.lo[0]), w[1] * (r.hi[1] - r.lo[1])]),
+          r.crowded
+        );
+        if (r.closest.length === 2) fPlot.line(lines[1], [sol(r.closest[0]).f, sol(r.closest[1]).f], "vf-line-ink");
+      }
+      const rows = [];
+      for (const id of shownIds()) {
+        const s2 = sol(id);
+        const isChild = g.children.includes(id);
+        const shape = isChild ? "triangle" : "circle";
+        const was = membership(id, g.CA, g.DA);
+        let colour = isChild ? COLOURS.child : COLOURS[was];
+        let visible = true;
+        let ring = false;
+        let faded = false;
+        let label = String(id);
+        let status = "–";
+        let region = evaluated(id) ? String(s2.region) : "?";
+        if (kind === "archives" || kind === "shares") {
+          visible = !isChild;
+          if (kind === "shares" && !isChild) {
+            ring = ndIds.has(id);
+            status = ring ? "non-dominated in CA ∪ DA" : "dominated in CA ∪ DA";
+          }
+        } else if (kind === "first") {
+          const archive = g.firstFrom === "CA" ? g.CA : g.DA;
+          visible = archive.includes(id);
+          colour = COLOURS[g.firstFrom];
+          const won = firstWins.get(id) || 0;
+          ring = won > 0;
+          if (won > 1) label += " ×" + won;
+          if (won) status = `first parent ${won}×`;
+        } else if (kind === "second") {
+          visible = !isChild;
+          const won = secondWins.get(id) || 0;
+          ring = won > 0;
+          if (won > 1) label += " ×" + won;
+          if (won) status = `second parent ${won}×`;
+        } else if (kind === "vary") {
+          const first = g.children.filter((c) => sol(c).parents[1] === id);
+          const second = g.children.filter((c) => sol(c).parents[0] === id);
+          ring = first.length + second.length > 0;
+          if (isChild) status = "not evaluated";
+          else if (ring) status = [first.length ? `first parent of ${idList(first)}` : "", second.length ? `second parent of ${idList(second)}` : ""].filter(Boolean).join(", ");
+        } else if (kind === "evaluate") {
+          if (isChild) status = s2.cv > 0 ? "infeasible" : "feasible";
+        } else if (kind === "feasible") {
+          visible = ca.candidates.includes(id);
+          colour = COLOURS.CA;
+          if (!visible) status = "not a candidate";
+          else {
+            const front = ca.fronts ? ca.fronts.findIndex((f) => f.includes(id)) : -1;
+            const infFront = ca.infeasible ? ca.infeasible.fronts.findIndex((f) => f.includes(id)) : -1;
+            ring = caSelected.has(id);
+            faded = !ring;
+            if (faded) label += " ✕";
+            if (ca.fronts) status = s2.cv > 0 ? "infeasible, out" : `front ${front + 1}, ${ring ? "selected" : "out"}`;
+            else if (ca.infeasible && s2.cv > 0) status = `(CV, Tch) front ${infFront + 1}, ${ring ? "kept" : "out"}`;
+            else status = ring ? "kept" : "out";
+          }
+        } else if (kind === "removal") {
+          const r = st.removal;
+          const at = r.rows.indexOf(id);
+          visible = at >= 0;
+          colour = COLOURS.CA;
+          region = at >= 0 ? String(r.region[at]) : "–";
+          if (at < 0) status = ca.candidates.includes(id) ? "out" : "not a candidate";
+          else {
+            const pair = r.closest.indexOf(id);
+            if (pair >= 0) label += " · " + fmt(r.tch[pair]);
+            if (id === r.removed) {
+              faded = true;
+              label += " ✕";
+            }
+            status = id === r.removed ? `removed, Tch ${fmt(r.tch[pair])}` : pair >= 0 ? `closest pair, Tch ${fmt(r.tch[pair])}` : r.region[at] === r.crowded ? "most crowded subregion" : "selected";
+          }
+        } else if (kind === "da") {
+          visible = g.daUpdate.candidates.includes(id);
+          colour = COLOURS.DA;
+          if (!visible) status = "not a candidate";
+          else {
+            const pick = daTrace.find((t) => t.chosen === id);
+            ring = picked.has(id);
+            status = !pick ? "candidate" : `picked in iteration ${pick.iteration}` + (pick.nd.length > 1 ? `, Tch ${fmt(pick.tch[pick.nd.indexOf(id)])}` : ", the only non-dominated one");
+          }
+        } else if (kind === "next") {
+          const now = membership(id, ca.kept, g.daUpdate.kept);
+          if (now) colour = COLOURS[now];
+          faded = !now;
+          if (faded) label += " ✕";
+          status = { both: "CA and DA", CA: "CA", DA: "DA" }[now] || "out";
+        }
+        if (visible) {
+          const cls = solutionClass(s2, colour, faded);
+          draw(xPlot, s2.x, shape, cls, label, ring);
+          if (evaluated(id)) draw(fPlot, s2.f, shape, cls, label, ring);
+        }
+        if (isChild && ["archives", "shares", "first", "second"].includes(kind)) continue;
+        rows.push([String(id), roleOf(id), evaluated(id) ? fmt(s2.f[0], 2) : "?", evaluated(id) ? fmt(s2.f[1], 2) : "?", evaluated(id) ? fmt(s2.cv) : "?", region, status]);
+      }
+      placeLabels(xPlot, labels[0]);
+      placeLabels(fPlot, labels[1]);
+      stepText.textContent = `Step ${state.step + 1} of ${steps.length}: ${st.title}. ${describe(st)}`;
+      clear(tableBox);
+      table(tableBox, ["Id", "Role", "f₁", "f₂", "CV", subregionHeader, "Status"], rows, [false, false, true, true, true, true, false]);
+    }
+    function describe(st) {
+      const ca = g.caUpdate;
+      const da = g.daUpdate;
+      const hugeNote = (values) => (values.some((v) => v > 1000) ? " A weight vector at an axis has a component of 10⁻⁶, which makes the Tchebycheff value of a point off that axis huge." : "");
+      const feasibleOf = (ids) => ascending(ids.filter((id) => sol(id).cv === 0));
+      const infeasibleOf = (ids) => ascending(ids.filter((id) => sol(id).cv > 0));
+      const counts = (ids) => run.W.map((_, k) => ids.filter((id) => sol(id).region === k).length);
+      if (st.kind === "archives") {
+        const both = g.CA.filter((id) => g.DA.includes(id));
+        const empty = counts(g.CA)
+          .map((c, k) => (c ? -1 : k))
+          .filter((k) => k >= 0);
+        return `C-TAEA with ${N} weight vectors on the loop figure's problem under CTP2's constraint, the problem of the CCMO lesson's step-through. The rays are the weight vectors, numbered 0 to ${N - 1}: a solution belongs to the subregion of the ray closest to it in angle. The initial population, 1 to ${N}, filled both archives, and generation 1 updated them with children ${N + 1} to ${2 * N}. Now the CA is ${set(g.CA)} and the DA is ${set(g.DA)}${both.length ? `; ${idList(ascending(both))} ${plural(both, "is", "are")} in both` : ""}. Filled points are feasible and hollow ones infeasible: the CA has ${feasibleOf(g.CA).length} feasible members and the DA ${feasibleOf(g.DA).length}.${empty.length ? ` The CA has nobody in subregion${empty.length === 1 ? "" : "s"} ${idList(empty)}.` : ""}`;
+      }
+      if (st.kind === "shares") {
+        const sh = g.shares;
+        const ndCA = g.CA.filter((_, i) => sh.ndCA[i]);
+        return `Mating starts by comparing the archives. CA ∪ DA has ${sh.size} rows, a solution in both archives counting twice; the ringed ones are non-dominated: ${sh.inFirst} in the CA and ${sh.inSecond} in the DA, so ρ_c = ${sh.inFirst}/${sh.size} and ρ_d = ${sh.inSecond}/${sh.size}. ${sh.rhoC > sh.rhoD ? "ρ_c > ρ_d, so every first parent of this generation comes from the CA." : "ρ_c > ρ_d is false, so every first parent of this generation comes from the DA."} In the CA alone ${ndCA.length} of ${g.CA.length} members are non-dominated (${idList(ascending(ndCA))}): P_C = ${ndCA.length}/${g.CA.length} = ${fmt(sh.PC, 2)} is the probability that a second parent comes from the CA.`;
+      }
+      if (st.kind === "first") {
+        return `${N} binary tournaments in the ${g.firstFrom} choose the first parents. Each draws three members with replacement: if only one of the first two is feasible it wins, if both are the first wins unless the second dominates it, and if neither is the third wins. ${g.first.map(game).join("; ")}. Ringed members won at least once.`;
+      }
+      if (st.kind === "second") {
+        const parts = g.second.map((t, i) => `${g.fromCA[i] ? `u = ${fmt(g.uniforms[i], 2)} < ${fmt(g.shares.PC, 2)}, CA` : `u = ${fmt(g.uniforms[i], 2)} ≥ ${fmt(g.shares.PC, 2)}, DA`}: ${game(t)}`);
+        return `For each child a uniform number u chooses the archive of the second parent, the CA when u < P_C, and a tournament in that archive chooses the parent. ${parts.join("; ")}.`;
+      }
+      if (st.kind === "vary") {
+        return `SBX crossover (probability 1, η = 20) recombines each pair, the second parent passed first, and only the first child is kept; polynomial mutation (probability 1/2 per variable, η = 20) perturbs it. Children ${g.children[0]} to ${g.children[N - 1]}, one per weight vector, are the triangles joined to their parents in the decision space. Their objectives are not known yet.`;
+      }
+      if (st.kind === "evaluate") {
+        const ok = feasibleOf(g.children);
+        const bad = infeasibleOf(g.children);
+        return `The ${N} children are evaluated: ${ok.length ? `${idList(ok)} ${plural(ok, "is", "are")} feasible` : "none is feasible"}${bad.length ? ` and ${idList(bad)} ${plural(bad, "is", "are")} infeasible` : ""}. Both archives are updated with all of them, the CA first.`;
+      }
+      if (st.kind === "feasible") {
+        const feas = ascending(ca.feasible);
+        const head = `The CA update takes the CA and the children, ${ca.candidates.length} candidates. ${feas.length} of them are feasible`;
+        if (ca.fronts) {
+          const used = [];
+          let total = 0;
+          for (const front of ca.fronts) {
+            if (total >= N) break;
+            used.push(front);
+            total += front.length;
+          }
+          const fronts = ca.fronts.map((front, k) => `front ${k + 1} = ${set(front)}`).join(", ");
+          const which = used.length === 1 ? "front 1 holds" : used.length === 2 ? "fronts 1 and 2 hold" : `fronts 1 to ${used.length} hold`;
+          const excess = total - N;
+          return `${head}, more than ${N}, so the CA will hold only feasible solutions. Non-dominated sorting of the feasible candidates gives ${fronts}. Fronts are added until they hold at least ${N}: ${which} ${total}, ringed, ${excess === 0 ? "exactly the CA's size" : `so ${excess === 1 ? "one" : excess} must still go`}. The infeasible candidates${ca.fronts.length > used.length ? " and the later fronts" : ""} are out.`;
+        }
+        if (!ca.infeasible) return `${head}, exactly ${N}: they are the new CA, and the infeasible candidates are out.`;
+        const inf = ca.infeasible;
+        const fronts = inf.fronts.map((front, k) => `front ${k + 1} = ${set(front)}`).join(", ");
+        return `${head}, fewer than ${N}: all of them stay, and the infeasible candidates are ranked by non-dominated sorting on two criteria, their violation and their Tchebycheff value in their subregion (with the ideal point of the infeasible candidates): ${fronts}. Fronts are added until the CA holds at least ${N}${inf.removed.length ? `, and the largest violations of the last front added, ${idList(inf.removed)}, are dropped` : ""}.`;
+      }
+      if (st.kind === "removal") {
+        const r = st.removal;
+        const members = r.rows.filter((_, a) => r.region[a] === r.crowded);
+        const [a, b] = r.closest;
+        const dominated = (id) => r.rows.some((o) => o !== id && dominates(sol(o).f, sol(id).f));
+        const kept = r.closest.filter((id) => id !== r.removed);
+        const note = !dominated(r.removed) ? ` ${r.removed} is non-dominated: the removal is decided by crowding, not by rank.` : "";
+        const tied = r.counts.map((c, k) => (c === r.counts[r.crowded] ? k : -1)).filter((k) => k >= 0);
+        const crowdedText =
+          tied.length > 1
+            ? `subregions ${idList(tied)} are the most crowded, and the first, ${r.crowded}, holds ${idList(ascending(members))}.`
+            : `subregion ${r.crowded} is the most crowded, with ${idList(ascending(members))}.`;
+        const pairText =
+          r.closest.length === 2
+            ? `Its closest pair is ${a} and ${b}, ${fmt(euclidean(sol(a).f, sol(b).f), 2)} apart; with the ideal point of the pair, ${pair(r.ideal, 2)}, and the weight vector of each one's subregion before normalization, their Tchebycheff values are ${a} ${fmt(r.tch[0])} and ${b} ${fmt(r.tch[1])}, so ${r.removed} goes and ${kept[0]} stays.`
+            : `Its closest members are ${idList(r.closest)}; the one with the largest Tchebycheff value, ${r.removed}, goes.`;
+        return `The ${r.rows.length} selected solutions are normalized with their ideal point ${pair(r.lo, 2)} and nadir point ${pair(r.hi, 2)} (the box), and associated with the weight vectors drawn from the ideal point. Members per subregion: ${r.counts.join(", ")}; ${crowdedText} ${pairText}${hugeNote(r.tch)}${note}`;
+      }
+      if (st.kind === "da") {
+        const t = st.iteration;
+        const picks = da.trace.filter((x) => x.iteration === t);
+        const total = da.trace.filter((x) => x.iteration <= t).length;
+        const earlier = da.trace.filter((x) => x.iteration < t).map((x) => x.chosen);
+        const regions = ascending(picks.map((x) => x.region));
+        const pickText = regions.map((k) => {
+          const mine = picks.filter((x) => x.region === k);
+          const c = da.caCounts[k];
+          const each = mine.map((x) => `${x.chosen}${x.nd.length > 1 ? ` (non-dominated ${x.nd.map((id, i) => `${id} ${fmt(x.tch[i])}`).join(", ")})` : ""}`);
+          return `subregion ${k} (${c === 0 ? "no CA member" : c === 1 ? "1 CA member" : c + " CA members"}) takes ${each.join(", then ")}`;
+        });
+        // Subregions with a quota left but no candidate: every candidate of theirs is already in the DA, or they never had one.
+        const empty = run.W.map((_, k) => k).filter((k) => t - da.caCounts[k] > 0 && !regions.includes(k) && !da.candidates.some((id) => sol(id).region === k && !earlier.includes(id)));
+        if (empty.length) pickText.push(`subregion${empty.length === 1 ? "" : "s"} ${idList(empty)} ${plural(empty, "has", "have")} room but no candidate left`);
+        if (!pickText.length) pickText.push(`every subregion has at least ${t} CA member${t === 1 ? "" : "s"}, so none receives a candidate`);
+        const intro =
+          t === 1
+            ? `The DA update takes the DA and the children, ${da.candidates.length} candidates, and ignores the constraints. It counts the new CA's members in each subregion, c = (${da.caCounts.join(", ")}), and in iteration itr gives subregion k up to itr − c_k candidates, each time the non-dominated candidate of k with the smallest Tchebycheff value. `
+            : "";
+        return `${intro}Iteration ${t}: ${pickText.join("; ")}. The DA has ${total} of ${N} members.${hugeNote(picks.flatMap((x) => x.tch))}`;
+      }
+      const newCA = ca.kept;
+      const newDA = da.kept;
+      const childCA = g.children.filter((id) => newCA.includes(id));
+      const childDA = g.children.filter((id) => newDA.includes(id));
+      const entered = childCA.length ? `${plural(childCA, "Child", "Children")} ${idList(ascending(childCA))} entered the CA${childDA.length ? ` and ${idList(ascending(childDA))} the DA` : ""}` : childDA.length ? `No child entered the CA; ${idList(ascending(childDA))} entered the DA` : "No child entered either archive";
+      return `The new CA is ${set(newCA)} and the new DA is ${set(newDA)}; the colours now show where each solution belongs. ${entered}. ${infeasibleOf(newDA).length} of the DA's ${newDA.length} members are infeasible, while the CA, the result of the run, is ${infeasibleOf(newCA).length ? "not yet entirely feasible" : "entirely feasible"}.`;
+    }
+    build();
   };
 
   /* A4: AGE-MOEA curvature estimate and survival score. */
