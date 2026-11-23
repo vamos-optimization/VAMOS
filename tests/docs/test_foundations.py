@@ -913,3 +913,74 @@ process.stdout.write(JSON.stringify(runs, (key, value) => (value === Infinity ? 
     assert fronts == [[1, 8, 5, 6], [3, 10, 13], [14], [18], [16], [15], [17]]
     assert [union[i]["cv"] > 0 for i in range(12)] == [False] * 8 + [True] * 4 and two["places"] == 2
     assert sorted(union[i]["id"] for i in two["kept"]) == [1, 3, 5, 6, 8, 13]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_cmoeams_generation_figure_agrees_with_vamos() -> None:
+    from vamos.engine.algorithm.cmoeams.fitness import (
+        is_stage_b,
+        normalized_violation,
+        shift_based_density,
+        stage_a_fitness,
+        stage_b_fitness,
+    )
+    from vamos.engine.algorithm.cmoeams.selection import environmental_selection, tournament_winners
+
+    seeds = [27749, 49387, 494198, 1, 2, 3]  # 27749 is the lesson's example
+    program = f"""
+require({json.dumps(str(SCRIPT))});
+const V = globalThis.VamosFoundations;
+process.stdout.write(JSON.stringify({json.dumps(seeds)}.map((seed) => V.cmoeamsGeneration(seed, 6, 150))));
+"""
+    completed = subprocess.run(["node", "-e", program], capture_output=True, text=True, check=True, timeout=60)
+    runs = json.loads(completed.stdout)
+
+    for run in runs:
+        # The initial population gets stage A's fitness, computed on it alone.
+        first = run["generations"][0]["pop"]
+        F0, cv0 = np.array([p["f"] for p in first]), np.array([[p["cv"]] for p in first])
+        np.testing.assert_allclose(run["initial"]["A"]["fitness"], stage_a_fitness(F0, normalized_violation(cv0, 6)), rtol=1e-12)
+        fitness = np.array(run["initial"]["A"]["fitness"])
+        for k, gen in enumerate(run["generations"]):
+            pop = gen["pop"]
+            np.testing.assert_allclose(gen["fitness"], fitness, rtol=1e-12)
+            # Tournaments on that fitness, and the pairs: the i-th winner of each half, both children kept.
+            row = {p["id"]: i for i, p in enumerate(pop)}
+            draws = np.array([[row[t["a"]], row[t["b"]]] for t in gen["tournaments"]])
+            winners = tournament_winners(fitness, draws).tolist()
+            assert [t["row"] for t in gen["tournaments"]] == winners
+            assert gen["pairs"] == [[pop[winners[i]]["id"], pop[winners[3 + i]]["id"]] for i in range(3)]
+            assert [child["parents"] for child in gen["children"]] == gen["pairs"] * 2
+            assert gen["evaluations"] == 12 + 6 * k
+            # The union Q: its violation, density, fitness of both stages, stage and selections are VAMOS's.
+            Q = gen["Q"]
+            assert [q["id"] for q in Q] == [p["id"] for p in pop] + [c["id"] for c in gen["children"]]
+            F, cv = np.array([q["f"] for q in Q]), np.array([[q["cv"]] for q in Q])
+            violation = normalized_violation(cv, 12)
+            np.testing.assert_allclose(gen["cvn"], violation, rtol=1e-12)
+            np.testing.assert_allclose(gen["sde"], shift_based_density(F), rtol=1e-12)
+            stage_a, stage_b = stage_a_fitness(F, violation), stage_b_fitness(F, violation)
+            np.testing.assert_allclose(gen["A"]["fitness"], stage_a, rtol=1e-12)
+            np.testing.assert_allclose(gen["B"]["fitness"], stage_b, rtol=1e-12)
+            assert gen["stageB"] == is_stage_b(violation, 0.5, gen["evaluations"], 150)
+            assert gen["A"]["kept"] == environmental_selection(stage_a, F, 6).tolist()
+            assert gen["B"]["kept"] == environmental_selection(stage_b, F, 6).tolist()
+            assert gen["kept"] == (gen["B"] if gen["stageB"] else gen["A"])["kept"]
+            fitness = (stage_b if gen["stageB"] else stage_a)[gen["kept"]]
+            if k + 1 < len(run["generations"]):
+                assert [p["id"] for p in run["generations"][k + 1]["pop"]] == [Q[i]["id"] for i in gen["kept"]]
+
+    # The numbers that the lesson quotes for its example.
+    g1, g2 = runs[0]["generations"]
+    ids1, ids2 = [q["id"] for q in g1["Q"]], [q["id"] for q in g2["Q"]]
+    assert sum(q["cv"] == 0 for q in g1["Q"]) == 6 and g1["share"] == 0.5 and g1["evaluations"] == 12 and not g1["stageB"]
+    assert [ids1[i] for i, f in enumerate(g1["A"]["fitness"]) if f < 1] == [2, 3, 6]
+    assert int(np.argmin(g1["sde"])) == ids1.index(2) and round(g1["sde"][ids1.index(2)], 3) == 0.407
+    assert g1["cvn"][ids1.index(2)] == 1.0
+    assert [ids1[i] for i in g1["kept"]] == [2, 3, 6, 8, 9, 12] and sum(g1["Q"][i]["cv"] > 0 for i in g1["kept"]) == 3
+    assert all(g1["Q"][i]["cv"] == 0 for i in g1["B"]["kept"])
+    assert sum(q["cv"] == 0 for q in g2["Q"]) == 7 and g2["evaluations"] == 18 and g2["stageB"]
+    below = [ids2[i] for i, f in enumerate(g2["B"]["fitness"]) if f < 1]
+    assert len(below) == 7 and all(g2["Q"][ids2.index(i)]["cv"] == 0 for i in below)
+    assert sorted(set(below) - {ids2[i] for i in g2["kept"]}) == [6]
+    assert all(g2["Q"][i]["cv"] == 0 for i in g2["kept"])

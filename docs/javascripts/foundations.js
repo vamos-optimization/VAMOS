@@ -1299,6 +1299,73 @@
     return { cvn, dSde, sde, A, B, share };
   }
 
+  /** Two generations of CMOEA-MS, recorded for the CMOEA-MS lesson, on the loop figure's problem with CTP2's
+      constraint on its objectives (gaEvaluate, then ctpViolation), with a budget of `budget` evaluations and
+      λ = `lambda` (0.5 by default). popSize random solutions (ids 1 to N) get stage A's fitness. Each generation
+      selects N parents by binary tournaments on the fitness the population got in its union (two rows drawn with
+      replacement; the lower fitness wins, a tie goes to the first row), crosses the i-th of the first half with the
+      i-th of the second half, passing the second one first, with SBX (probability 1, η = 20), keeps the first children
+      before the second ones and mutates them (polynomial mutation, probability 1/2, η = 20). cmoeamsSelect ranks the
+      union Q of the population and the offspring; Q is in stage B when more than λ of it is feasible and 10% of the
+      budget is spent, counting the offspring, and in stage A otherwise. */
+  function cmoeamsGeneration(seed, popSize, budget, lambda) {
+    const rand = mulberry32(seed);
+    const N = popSize;
+    const half = Math.floor(N / 2);
+    const threshold = lambda === undefined ? 0.5 : lambda;
+    let nextId = 1;
+    const born = (x, extra) => {
+      const f = gaEvaluate(x);
+      return Object.assign({ id: nextId++, x, f, cv: ctpViolation(f) }, extra);
+    };
+    let pop = [];
+    for (let i = 0; i < N; i++) pop.push(born([rand(), rand()]));
+    const initial = cmoeamsSelect(
+      pop.map((p) => p.f),
+      pop.map((p) => p.cv),
+      N
+    );
+    let fitness = initial.A.fitness.slice();
+    let evaluations = N;
+    const generations = [];
+    for (let generation = 1; generation <= 2; generation++) {
+      const tournaments = pop
+        .map(() => [Math.floor(rand() * N), Math.floor(rand() * N)])
+        .map(([a, b]) => {
+          const w = fitness[b] < fitness[a] || (fitness[b] === fitness[a] && b < a) ? b : a;
+          return { a: pop[a].id, b: pop[b].id, winner: pop[w].id, row: w };
+        });
+      const pairs = [];
+      const firsts = [];
+      const seconds = [];
+      for (let i = 0; i < half; i++) {
+        const first = pop[tournaments[i].row];
+        const second = pop[tournaments[half + i].row];
+        const [c1, c2] = sbxPair(second.x, first.x, 0, 1, 20, 0.5, rand);
+        pairs.push([first.id, second.id]);
+        firsts.push(c1);
+        seconds.push(c2);
+      }
+      const children = firsts
+        .concat(seconds)
+        .map((x) => polynomialMutation(x, 0, 1, 0.5, 20, rand))
+        .map((x, k) => born(x, { parents: pairs[k % half] }));
+      evaluations += children.length;
+      const Q = pop.concat(children);
+      const sel = cmoeamsSelect(
+        Q.map((q) => q.f),
+        Q.map((q) => q.cv),
+        N
+      );
+      const stageB = sel.share > threshold && evaluations >= 0.1 * budget;
+      const ranked = stageB ? sel.B : sel.A;
+      generations.push({ generation, pop, fitness, tournaments, pairs, children, Q, evaluations, share: sel.share, stageB, cvn: sel.cvn, dSde: sel.dSde, sde: sel.sde, A: sel.A, B: sel.B, ranked, kept: ranked.kept });
+      pop = ranked.kept.map((i) => Q[i]);
+      fitness = ranked.kept.map((i) => ranked.fitness[i]);
+    }
+    return { popSize: N, budget, lambda: threshold, initial, generations, pop, fitness };
+  }
+
   /* ---- Tuning: F-race, Hyperband brackets and fidelity slices (vamos/engine/tuning) ---- */
 
   /** ln Γ(x) for x > 0 (Lanczos approximation, g = 7). */
@@ -2540,6 +2607,7 @@
     topSelect,
     topGeneration,
     cmoeamsSelect,
+    cmoeamsGeneration,
     CS_CANDIDATES,
     agemoeaSurvival,
     agemoeaCut,
@@ -5956,6 +6024,283 @@
       const removed = p2.merged.filter((_, i) => !p2.kept.includes(i)).map((p) => p.id);
       const children = p2.kept.filter((i) => i >= N).length;
       return `The next population is ${set(kept)}: ${N - children} parent${N - children === 1 ? "" : "s"} and ${children} child${children === 1 ? "" : "ren"}; ${idList(removed)} leave. Phase 2 repeats this generation until the budget is spent; δ and Pf are no longer computed.`;
+    }
+    build();
+  };
+
+  /* CMOEA-MS at a glance: a generation in stage A, the stage rule, and a generation in stage B. */
+  widgets["cmoeams-steps"] = function (node) {
+    const N = 6;
+    const BUDGET = 150;
+    const LAMBDA = 0.5;
+    const state = { seed: Number(node.dataset.seed || 27749), step: 0 };
+    let g = null;
+    let steps = [];
+    const interesting = (c) => {
+      const [g1, g2] = c.generations;
+      const same = (a, b) => a.join() === b.join();
+      return !g1.stageB && g2.stageB && g1.A.kept.some((i) => g1.Q[i].cv > 0) && !same(g1.A.kept, g1.B.kept) && !same(g2.A.kept, g2.B.kept);
+    };
+    const ctl = controls(node);
+    const stageSelect = select(ctl, {
+      label: "Stage",
+      options: [
+        ["0", "Generation 1"],
+        ["1", "Generation 2"],
+      ],
+      value: "0",
+      onChange: (v) => go(steps.findIndex((st) => st.gen === Number(v))),
+    });
+    const back = button(ctl, "Previous step", () => go(state.step - 1));
+    const next = button(ctl, "Next step", () => go(state.step + 1), true);
+    button(ctl, "Restart", () => go(0));
+    button(ctl, "New population", () => {
+      // Draw runs until generation 1 is in stage A and keeps an infeasible solution, generation 2 is in stage B, and
+      // in both generations the other stage would have kept other solutions.
+      for (let tries = 0; tries < 300; tries++) {
+        const seed = Math.floor(Math.random() * 1e6);
+        if (interesting(cmoeamsGeneration(seed, N, BUDGET, LAMBDA))) {
+          state.seed = seed;
+          break;
+        }
+      }
+      build();
+    });
+    const body = h("div", { class: "vf-body vf-body--two" }, node);
+    const xPlot = createPlot(body, { title: "Decision space", x: [0, 1], y: [0, 1], xLabel: "x₁", yLabel: "x₂", label: "Decision vectors of the population and of the offspring of CMOEA-MS" });
+    const sPlot = createPlot(body, { title: "Stage A's points [SDE, CVn]", x: [0.3, 0.5], y: [0, 1.08], xLabel: "SDE (lower is less crowded)", yLabel: "CVn (normalized violation)", xCount: 4, label: "The points [SDE, CVn] of the union Q, which stage A ranks by Pareto dominance" });
+    const fPlot = createPlot(body, { title: "Objective space", x: [0, 1], y: [0, 1.6], xLabel: "f₁ (minimize)", yLabel: "f₂ (minimize)", label: "Objective vectors, CTP2's infeasible region and the solutions that CMOEA-MS keeps" });
+    sPlot.wrap.hidden = true;
+    drawConstrainedLoop(xPlot, fPlot);
+    for (const plot of [xPlot, sPlot, fPlot]) {
+      plot.svg.setAttribute("tabindex", "0");
+      plot.svg.setAttribute("aria-keyshortcuts", "ArrowLeft ArrowRight");
+    }
+    const readout = h("div", { class: "vf-readout" }, node);
+    const stepText = h("p", { class: "vf-step-text", "aria-live": "polite" }, readout);
+    h("p", {}, readout, "The arrow keys step through the figure when it has focus; Stage jumps to the first step of a generation, and New population draws another run.");
+    const tableBox = h("div", {}, readout);
+    legend(node, [
+      { label: "Parent, feasible", shape: "circle", cls: "vf-pt vf-pt-1" },
+      { label: "Child", shape: "triangle", cls: "vf-pt vf-pt-1" },
+      { label: "Infeasible (CV > 0)", shape: "circle", cls: "vf-pt vf-pt-2" },
+      { label: "Not evaluated yet", shape: "triangle", cls: "vf-pt vf-pt-muted" },
+      { label: "Tournament winner, fitness below 1, survivor", shape: "circle", cls: "vf-ring" },
+      { label: "Boundary of what the fitness-below-1 solutions dominate", shape: "line", cls: "vf-line-ink" },
+      { label: "Infeasible region", shape: "region", cls: "vf-region-2" },
+      { label: "Constrained Pareto front", shape: "line", cls: "vf-line-1" },
+    ]);
+    node.addEventListener("keydown", (e) => {
+      if (e.target && /^(SELECT|INPUT|BUTTON)$/.test(e.target.tagName)) return;
+      if (e.key === "ArrowRight") go(state.step + 1);
+      else if (e.key === "ArrowLeft") go(state.step - 1);
+      else return;
+      e.preventDefault();
+    });
+    function build() {
+      g = cmoeamsGeneration(state.seed, N, BUDGET, LAMBDA);
+      steps = [];
+      g.generations.forEach((gen, k) => {
+        const stage = gen.stageB ? "B" : "A";
+        steps.push({ gen: k, kind: "pop", title: k === 0 ? "the population and its fitness" : "the population and the fitness it got in Q" });
+        steps.push({ gen: k, kind: "tournament", title: "mating selection" });
+        steps.push({ gen: k, kind: "vary", title: "SBX and polynomial mutation" });
+        steps.push({ gen: k, kind: "union", title: "evaluation and the union Q" });
+        steps.push({ gen: k, kind: "rule", title: "the stage rule" });
+        if (!gen.stageB) steps.push({ gen: k, kind: "sde", title: "shift-based density" });
+        steps.push({ gen: k, kind: "fitness", title: gen.stageB ? "fitness in stage B, the violation first" : "fitness in stage A, density and violation as two objectives" });
+        steps.push({ gen: k, kind: "select", title: `environmental selection in stage ${stage}` });
+      });
+      Array.from(stageSelect.options).forEach((opt, k) => (opt.textContent = `Stage ${g.generations[k].stageB ? "B" : "A"}: generation ${k + 1}`));
+      const sde = g.generations.filter((gen) => !gen.stageB).flatMap((gen) => gen.sde);
+      if (sde.length) sPlot.setDomain([Math.floor(Math.min(...sde) * 40 - 1) / 40, Math.ceil(Math.max(...sde) * 40 + 1) / 40], [0, 1.08]);
+      go(0);
+    }
+    function go(i) {
+      state.step = Math.max(0, Math.min(steps.length - 1, i));
+      render();
+    }
+    const set = (list) => "{" + list.slice().sort((a, b) => a - b).join(", ") + "}";
+    const feasibleCls = (p) => (p.cv > 0 ? "vf-pt-2" : "vf-pt-1");
+    function draw(plot, labels, v, shape, cls, label, ring) {
+      const px = plot.x(Math.min(Math.max(v[0], plot.xd[0]), plot.xd[1]));
+      const py = plot.y(Math.min(Math.max(v[1], plot.yd[0]), plot.yd[1]));
+      marker(plot.layers.marks, shape, px, py, 6, cls);
+      if (ring) marker(plot.layers.marks, "circle", px, py, 10.5, "vf-ring");
+      labels.push({ px, py, text: label });
+    }
+    /** The staircase that bounds the region the given points dominate (minimization). */
+    function staircase(plot, pts) {
+      const P = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+      if (!P.length) return;
+      const path = [[P[0][0], plot.yd[1]]];
+      P.forEach((p, k) => {
+        path.push([p[0], k ? P[k - 1][1] : p[1]], [p[0], p[1]]);
+      });
+      path.push([plot.xd[1], P[P.length - 1][1]]);
+      plot.line(plot.layers.mid, path, "vf-line-ink vf-dashed");
+    }
+    function render() {
+      const st = steps[state.step];
+      const gen = g.generations[st.gen];
+      stageSelect.value = String(st.gen);
+      back.disabled = state.step === 0;
+      next.disabled = state.step === steps.length - 1;
+      const plane = !gen.stageB && (st.kind === "sde" || st.kind === "fitness" || st.kind === "select");
+      xPlot.wrap.hidden = plane;
+      sPlot.wrap.hidden = !plane;
+      for (const plot of [xPlot, sPlot, fPlot]) {
+        clear(plot.layers.mid);
+        clear(plot.layers.marks);
+        clear(plot.layers.top);
+      }
+      const left = plane ? sPlot : xPlot;
+      const ll = [];
+      const fl = [];
+      const out = st.kind === "pop" || st.kind === "tournament" || st.kind === "vary" ? renderMating(st, gen, ll, fl) : renderUnion(st, gen, left, ll, fl);
+      placeLabels(left, ll);
+      placeLabels(fPlot, fl);
+      stepText.textContent = `Step ${state.step + 1} of ${steps.length}: ${st.title}. ${describe(st, gen)}`;
+      clear(tableBox);
+      table(tableBox, out.headers, out.rows, out.numeric);
+    }
+    function renderMating(st, gen, ll, fl) {
+      const rows = [];
+      const headers = ["Id", "Role", "x₁", "x₂", "f₁", "f₂", "CV", "Fitness", "Detail"];
+      const numeric = [false, false, true, true, true, true, true, true, false];
+      const wins = new Map();
+      gen.tournaments.forEach((t) => wins.set(t.winner, (wins.get(t.winner) || 0) + 1));
+      const byId = new Map(gen.pop.map((p) => [p.id, p]));
+      if (st.kind === "tournament") gen.tournaments.forEach((t) => fPlot.line(fPlot.layers.mid, [byId.get(t.a).f, byId.get(t.b).f], "vf-line-thin vf-dashed"));
+      gen.pop.forEach((p, i) => {
+        const w = wins.get(p.id) || 0;
+        const ring = st.kind === "pop" ? gen.fitness[i] < 1 : st.kind === "tournament" && w > 0;
+        const label = String(p.id) + (st.kind === "tournament" && w > 1 ? " ×" + w : "");
+        draw(xPlot, ll, p.x, "circle", "vf-pt " + feasibleCls(p), label, ring);
+        draw(fPlot, fl, p.f, "circle", "vf-pt " + feasibleCls(p), label, ring);
+        rows.push([String(p.id), "parent", fmt(p.x[0], 2), fmt(p.x[1], 2), fmt(p.f[0], 3), fmt(p.f[1], 3), p.cv > 0 ? fmt(p.cv, 4) : "0", fmt(gen.fitness[i], 4), st.kind === "tournament" ? (w ? `won ${w}×` : "–") : gen.fitness[i] < 1 ? "fitness below 1" : "–"]);
+      });
+      if (st.kind === "vary") {
+        gen.children.forEach((c) => {
+          c.parents.forEach((id) => xPlot.line(xPlot.layers.mid, [byId.get(id).x, c.x], "vf-line-thin vf-dashed"));
+          draw(xPlot, ll, c.x, "triangle", "vf-pt vf-pt-muted", String(c.id), false);
+          rows.push([String(c.id), `child of ${c.parents[0]} and ${c.parents[1]}`, fmt(c.x[0], 2), fmt(c.x[1], 2), "?", "?", "?", "–", "not evaluated"]);
+        });
+      }
+      return { headers, rows, numeric };
+    }
+    function renderUnion(st, gen, left, ll, fl) {
+      const Q = gen.Q;
+      const res = gen.stageB ? gen.B : gen.A;
+      const keep = new Set(gen.kept);
+      const rows = [];
+      let headers;
+      let numeric;
+      const below = Q.map((_, i) => res.fitness[i] < 1);
+      if (st.kind === "fitness") {
+        const pts = Q.map((q, i) => (gen.stageB ? q.f : [gen.sde[i], gen.cvn[i]])).filter((_, i) => below[i]);
+        staircase(gen.stageB ? fPlot : sPlot, pts);
+      }
+      Q.forEach((q, i) => {
+        const isChild = i >= N;
+        const removed = st.kind === "select" && !keep.has(i);
+        const cls = "vf-pt " + feasibleCls(q) + (removed ? " vf-faded" : "");
+        const ring = (st.kind === "fitness" && below[i]) || (st.kind === "select" && keep.has(i));
+        // The fitness is written only in the plot where the stage ranks Q: [SDE, CVn] in stage A, the objectives in stage B.
+        const label = String(q.id) + (removed ? " ✕" : "");
+        const ranked = st.kind === "fitness" && below[i] ? `${q.id} · ${fmt(res.fitness[i], 3)}` : label;
+        const lv = left === sPlot ? [gen.sde[i], gen.cvn[i]] : q.x;
+        draw(left, ll, lv, isChild ? "triangle" : "circle", cls, left === sPlot ? ranked : label, ring);
+        draw(fPlot, fl, q.f, isChild ? "triangle" : "circle", cls, gen.stageB ? ranked : label, ring);
+        const role = isChild ? "child" : "parent";
+        if (st.kind === "union" || st.kind === "rule") {
+          rows.push([String(q.id), role, fmt(q.x[0], 2), fmt(q.x[1], 2), fmt(q.f[0], 3), fmt(q.f[1], 3), q.cv > 0 ? fmt(q.cv, 4) : "0", fmt(gen.cvn[i], 3), q.cv > 0 ? "infeasible" : "feasible"]);
+        } else if (st.kind === "sde") {
+          rows.push([String(q.id), role, fmt(q.f[0], 3), fmt(q.f[1], 3), fmt(gen.dSde[i], 3), fmt(gen.sde[i], 3), fmt(gen.cvn[i], 3)]);
+        } else if (st.kind === "fitness") {
+          const dom = res.by[i].map((j) => Q[j].id);
+          const cells = [String(q.id), role];
+          if (!gen.stageB) cells.push(fmt(gen.sde[i], 3));
+          cells.push(fmt(gen.cvn[i], 3), dom.length ? set(dom) : "–", String(res.R[i]), fmt(res.dcos[i], 3), fmt(res.D[i], 4), fmt(res.fitness[i], 4));
+          rows.push(cells);
+        } else {
+          rows.push([String(q.id), role, fmt(gen.cvn[i], 3), fmt(res.fitness[i], 4), keep.has(i) ? "kept" : "removed"]);
+        }
+      });
+      if (st.kind === "union" || st.kind === "rule") {
+        headers = ["Id", "Role", "x₁", "x₂", "f₁", "f₂", "CV", "CVn", "Status"];
+        numeric = [false, false, true, true, true, true, true, true, false];
+      } else if (st.kind === "sde") {
+        headers = ["Id", "Role", "f₁", "f₂", "d", "SDE", "CVn"];
+        numeric = [false, false, true, true, true, true, true];
+      } else if (st.kind === "fitness") {
+        headers = ["Id", "Role"].concat(gen.stageB ? [] : ["SDE"], ["CVn", "Dominated by", "R", "d_cos", "D", "Fitness"]);
+        numeric = [false, false].concat(gen.stageB ? [] : [true], [true, false, true, true, true, true]);
+      } else {
+        headers = ["Id", "Role", "CVn", "Fitness", "Status"];
+        numeric = [false, false, true, true, false];
+      }
+      return { headers, rows, numeric };
+    }
+    const ordinal = (n) => n + (n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10 === 2 && n % 100 !== 12 ? "nd" : n % 10 === 3 && n % 100 !== 13 ? "rd" : "th");
+    function describe(st, gen) {
+      const Q = gen.Q;
+      const idsOf = (rows) => rows.map((i) => Q[i].id);
+      const k = Math.floor(Math.sqrt(Q.length));
+      if (st.kind === "pop") {
+        const below = gen.pop.filter((_, i) => gen.fitness[i] < 1).map((p) => p.id);
+        const infeasible = gen.pop.filter((p) => p.cv > 0).map((p) => p.id);
+        const inf = infeasible.length ? `${idList(infeasible)} ${infeasible.length === 1 ? "is" : "are"} infeasible (orange)` : "all are feasible";
+        if (st.gen === 0) return `Six random solutions of the loop figure's problem, with CTP2's constraint on its objectives: ${inf}. The initial population gets stage A's fitness, computed on these ${N} alone: it is below 1 for the solutions that no other one dominates, here ${idList(below)} (ringed). The run has a budget of ${BUDGET} evaluations, and λ = ${LAMBDA}.`;
+        return `The population that generation 1 selected, in the order of Q₁: ${inf}. Its fitness is the one it got in Q₁, in stage ${g.generations[0].stageB ? "B" : "A"}; it is not computed again for the tournaments. Fitness below 1: ${idList(below)} (ringed).`;
+      }
+      if (st.kind === "tournament") {
+        const games = gen.tournaments.map((t) => `${t.a} vs ${t.b} → ${t.winner}`).join("; ");
+        const pairs = gen.pairs.map((p) => `(${p[0]}, ${p[1]})`).join(", ");
+        return `Six binary tournaments, each between two members drawn with replacement; the lower fitness wins, and a tie goes to the member that comes first: ${games}. The i-th winner of the first half mates with the i-th of the second half: ${pairs}.`;
+      }
+      if (st.kind === "vary") {
+        const half = gen.pairs.length;
+        const twins = gen.pairs.filter((p) => p[0] === p[1]).map((p) => p[0]);
+        const twinText = twins.length ? ` A pair made of one solution twice, here ${idList(twins)}, cannot be crossed: its children start as copies.` : "";
+        return `SBX (probability 1, η = 20, each variable crossed with probability 1/2) crosses each pair, with its second parent passed first, and both children are kept: the first children, ${gen.children[0].id} to ${gen.children[half - 1].id}, before the second ones, ${gen.children[half].id} to ${gen.children[2 * half - 1].id}. Polynomial mutation (probability 1/2 per variable, η = 20) then perturbs every child.${twinText} The children are joined to their parents; their objectives are not known yet.`;
+      }
+      if (st.kind === "union") {
+        const top = Math.max(...Q.map((q) => q.cv));
+        const worst = Q.filter((q) => q.cv === top).map((q) => q.id);
+        return `The ${gen.children.length} children are evaluated, and the union Q of the population and the offspring holds ${Q.length} solutions, in that order. The violation is normalized by its largest value in Q, ${fmt(top, 4)} (solution${worst.length === 1 ? "" : "s"} ${idList(worst)}): CVn = CV / ${fmt(top, 4)}, in [0, 1]. With several constraints, CVn would be the mean of the normalized violations.`;
+      }
+      if (st.kind === "rule") {
+        const feasible = Q.filter((q) => q.cv <= 0).length;
+        const tenth = 0.1 * BUDGET;
+        const shareOk = gen.share > LAMBDA;
+        const evalOk = gen.evaluations >= tenth;
+        const why = gen.stageB ? "both hold: Q is in stage B" : !evalOk && shareOk ? "the share is large enough, but too few evaluations are done: Q is in stage A" : !evalOk ? "neither holds: Q is in stage A" : "the share is too small: Q is in stage A";
+        return `In Q, ${feasible} of the ${Q.length} solutions are feasible: a share of ${feasible}/${Q.length} = ${fmt(gen.share, 3)}. Stage B needs a share greater than λ = ${LAMBDA} and at least 10% of the budget, ${tenth} of ${BUDGET} evaluations, done, the offspring included: ${gen.evaluations} are done. ${why[0].toUpperCase() + why.slice(1)}. The rule is checked again at every generation.`;
+      }
+      if (st.kind === "sde") {
+        const order = Q.map((_, i) => i).sort((a, b) => gen.sde[a] - gen.sde[b] || a - b);
+        return `Stage A replaces the objectives by the shift-based density. With the objectives normalized to [0, 1] over Q, every other solution is shifted to x in the objectives where it is better than x, and d is the ${ordinal(k + 1)} smallest distance from x to the shifted solutions, x's own 0 included (⌊√${Q.length}⌋ + 1 = ${k + 1}); SDE = 1/(d + 2). The least crowded, with the lowest SDE, are ${idList(idsOf(order.slice(0, 2)))}; the most crowded is ${Q[order[order.length - 1]].id}. The left panel now places each solution at [SDE, CVn].`;
+      }
+      if (st.kind === "fitness") {
+        const res = gen.stageB ? gen.B : gen.A;
+        const below = Q.map((_, i) => i).filter((i) => res.fitness[i] < 1);
+        const common = `S counts the solutions a solution dominates, R adds the S of its dominators, and D = 1/(d_cos + 2), where d_cos is the cosine distance to the ${ordinal(k)} nearest other ${gen.stageB ? "objective vector" : "point"} (⌊√${Q.length}⌋ = ${k}); fitness = R + D, below 1 only for the non-dominated.`;
+        if (!gen.stageB) return `Stage A ranks the points [SDE, CVn] of the left panel by Pareto dominance, so a less crowded infeasible solution can beat a crowded feasible one. ${common} Non-dominated: ${idList(idsOf(below))}, whose dashed boundary encloses everything they dominate.`;
+        return `Stage B ranks the objectives with the violation first: a smaller CVn dominates, and equal CVn, such as those of the feasible solutions, are compared by Pareto dominance on f₁ and f₂. ${common} Non-dominated: ${idList(idsOf(below))}.`;
+      }
+      const res = gen.stageB ? gen.B : gen.A;
+      const other = gen.stageB ? gen.A : gen.B;
+      const below = Q.map((_, i) => i).filter((i) => res.fitness[i] < 1);
+      let how;
+      if (below.length < N) how = `Only ${below.length} solution${below.length === 1 ? " has" : "s have"} a fitness below 1, so the ${N} lowest fitness values are kept instead.`;
+      else if (below.length > N) {
+        const cut = below.filter((i) => !gen.kept.includes(i));
+        how = `In Q, ${below.length} solutions have a fitness below 1, more than ${N}: the truncation removes, one at a time, the one whose sorted cosine distances between objective vectors are lexicographically smallest, here ${idList(idsOf(cut))}.`;
+      } else how = `Exactly ${N} solutions have a fitness below 1, and they are kept.`;
+      const infeasible = gen.kept.filter((i) => Q[i].cv > 0).length;
+      const after = st.gen === 0 ? "" : " Each later generation applies the stage rule again, and returns to stage A whenever half or more of Q is infeasible.";
+      return `${how} The next population, in the order of Q, is ${set(idsOf(gen.kept))}, with ${infeasible === 0 ? "no infeasible solution" : infeasible === 1 ? "one infeasible solution" : `${infeasible} infeasible solutions`}; its fitness goes to the next tournaments. Stage ${gen.stageB ? "A" : "B"} would have kept ${set(idsOf(other.kept))}.${after}`;
     }
     build();
   };
