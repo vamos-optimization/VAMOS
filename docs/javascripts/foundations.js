@@ -684,9 +684,11 @@
     return Math.max(...f.map((v, m) => (w[m] === 0 ? 1e-4 : w[m]) * Math.abs(v - z[m])));
   }
 
-  /** One MOEA/D replacement step: strict improvement, at most nr replacements, in the given order. */
-  function moeadReplace(current, W, y, order, nr, mode, theta) {
-    const z = current[0].map((_, m) => Math.min(y[m], ...current.map((f) => f[m])));
+  /** One MOEA/D replacement step: strict improvement, at most nr replacements, in the given order. The ideal
+      point is the minimum of y and `ideal`, the ideal point before y, or of y and the current solutions. */
+  function moeadReplace(current, W, y, order, nr, mode, theta, ideal) {
+    const before = ideal ? [ideal] : current;
+    const z = y.map((v, m) => Math.min(v, ...before.map((f) => f[m])));
     let replaced = 0;
     const rows = order.map((j) => {
       const gx = moeadAggregate(mode, current[j], W[j], z, theta);
@@ -701,6 +703,78 @@
       return { j, gx, gy, result };
     });
     return { z, rows, replaced };
+  }
+
+  /** One MOEA/D generation of the loop figure's problem, recorded for the MOEA/D lesson: one pass over the N
+      subproblems in a random permutation, each creating one offspring with VAMOS' defaults. The mating pool is
+      the neighbourhood of T subproblems when a uniform draw is below δ = 0.9, otherwise the whole population;
+      two distinct parents r₁ and r₂ come from it; DE rand/1/bin from the current solution (F = 0.5, CR = 1.0)
+      and polynomial mutation (probability 1/2, η = 20), each clipped to the bounds, create the offspring; the
+      ideal point takes its objectives into account; and the offspring replaces, visiting the pool in a random
+      order, the solutions whose PBI value (θ = 5) it improves, until n_r = 2 are replaced. The rows of a step
+      after the n_r-th replacement are not visited. */
+  function moeadGeneration(seed, popSize, T) {
+    const rand = mulberry32(seed);
+    const N = popSize;
+    const delta = 0.9;
+    const nr = 2;
+    const theta = 5;
+    const W = moeadWeights(N);
+    const B = moeadNeighbours(W, T);
+    const shuffle = (a) => {
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    };
+    const pop = [];
+    for (let k = 0; k < N; k++) {
+      const x = [rand(), rand()];
+      pop.push({ id: k + 1, x, f: gaEvaluate(x) });
+    }
+    const holder = pop.slice();
+    const z0 = [0, 1].map((m) => Math.min(...pop.map((p) => p.f[m])));
+    let z = z0;
+    const order = shuffle(W.map((_, k) => k));
+    const steps = order.map((k, s) => {
+      const u = rand();
+      const neighbourhood = u < delta;
+      const pool = neighbourhood ? B[k].slice() : W.map((_, j) => j);
+      const a = Math.floor(rand() * pool.length);
+      let b = Math.floor(rand() * (pool.length - 1));
+      if (b >= a) b += 1;
+      const r1 = pool[a];
+      const r2 = pool[b];
+      const before = holder.slice();
+      const v = OPERATORS.deMating(before[k].x, before[r1].x, before[r2].x, 0.5, 1.0, rand)[0].map((t) => Math.min(1, Math.max(0, t)));
+      const x = polynomialMutation(v.slice(), 0, 1, 0.5, 20, rand);
+      const child = { id: N + s + 1, subproblem: k, x, v, f: gaEvaluate(x) };
+      const candidates = shuffle(pool.slice());
+      const res = moeadReplace(
+        before.map((p) => p.f),
+        W,
+        child.f,
+        candidates,
+        nr,
+        "pbi",
+        theta,
+        z
+      );
+      let count = 0;
+      const rows = res.rows.map((r) => {
+        const visited = count < nr;
+        const replaced = visited && r.result === "replaced";
+        if (replaced) count += 1;
+        return { j: r.j, gx: r.gx, gy: r.gy, visited, better: r.gy < r.gx, replaced };
+      });
+      const replaced = rows.filter((r) => r.replaced).map((r) => r.j);
+      replaced.forEach((j) => (holder[j] = child));
+      const step = { k, u, neighbourhood, pool, r1, r2, before, child, zBefore: z, z: res.z, candidates, rows, replaced, after: holder.slice() };
+      z = res.z;
+      return step;
+    });
+    return { popSize: N, T, delta, nr, theta, W, B, pop, z0, order, steps, final: holder.slice() };
   }
 
   /** NSGA-III association: the direction of largest cosine and the perpendicular distance to it. */
@@ -2431,6 +2505,7 @@
     moeadNeighbours,
     moeadAggregate,
     moeadReplace,
+    moeadGeneration,
     spea2Fitness,
     spea2Select,
     epsilonPair,
@@ -5006,6 +5081,224 @@
       if (state.mode !== "tch") h("p", {}, readout, "With PBI and the weighted sum the optimum of a subproblem lies along w itself; with Tchebycheff along (1/w₁, 1/w₂). VAMOS gives subproblem 0 the weight (0, 1), so the labels run in opposite directions.");
     }
     render();
+  };
+
+  /* MOEA/D at a glance: one generation, one subproblem per step, with VAMOS' default operators and PBI. */
+  widgets["moead-steps"] = function (node) {
+    const N = 6;
+    const T = 3;
+    const SUP = "⁰¹²³⁴⁵⁶⁷⁸⁹";
+    const SUB = "₀₁₂₃₄₅₆₇₈₉";
+    const xk = (k) => "x" + SUP[k];
+    const yk = (k) => "y" + SUB[k];
+    const state = { seed: Number(node.dataset.seed || 7548), step: 0 };
+    let g = null;
+    let titles = [];
+    const interesting = (c) =>
+      c.steps.some((st) => !st.neighbourhood) && c.steps.some((st) => st.rows.some((r) => !r.visited && r.better)) && c.steps.some((st) => st.replaced.length === 0);
+    const ctl = controls(node);
+    const back = button(ctl, "Previous step", () => go(state.step - 1));
+    const next = button(ctl, "Next step", () => go(state.step + 1), true);
+    button(ctl, "Restart", () => go(0));
+    button(ctl, "New population", () => {
+      // Draw populations until a pool is the whole population, n_r stops a visit, and an offspring replaces nothing.
+      for (let tries = 0; tries < 300; tries++) {
+        const seed = Math.floor(Math.random() * 1e6);
+        if (interesting(moeadGeneration(seed, N, T))) {
+          state.seed = seed;
+          break;
+        }
+      }
+      build();
+    });
+    const body = h("div", { class: "vf-body vf-body--two" }, node);
+    const xPlot = createPlot(body, { title: "Decision space", x: [0, 1], y: [0, 1], xLabel: "x₁", yLabel: "x₂", label: "Decision vectors of the subproblems' solutions, the parents and the offspring" });
+    const fPlot = createPlot(body, { title: "Objective space", x: [0, 1], y: [0, 2.1], xLabel: "f₁ (minimize)", yLabel: "f₂ (minimize)", label: "Weight vectors drawn from the ideal point, the subproblems' solutions and the offspring", margin: { t: 22, r: 28 } });
+    for (const plot of [xPlot, fPlot]) {
+      plot.svg.setAttribute("tabindex", "0");
+      plot.svg.setAttribute("aria-keyshortcuts", "ArrowLeft ArrowRight");
+    }
+    const readout = h("div", { class: "vf-readout" }, node);
+    const stepText = h("p", { class: "vf-step-text", "aria-live": "polite" }, readout);
+    h("p", {}, readout, "Each point carries the numbers of the subproblems it solves. The arrow keys step through the figure when it has focus; New population draws another generation.");
+    const tableBox = h("div", {}, readout);
+    legend(node, [
+      { label: "Initial solution", shape: "circle", cls: "vf-pt vf-pt-1" },
+      { label: "Offspring of this generation", shape: "triangle", cls: "vf-pt vf-pt-1" },
+      { label: "Offspring y of the step", shape: "triangle", cls: "vf-pt vf-pt-2" },
+      { label: "Parent, offspring that replaces", shape: "circle", cls: "vf-ring" },
+      { label: "Weight vector of the subproblem; DE step 0.5·(x^r₁ − x^r₂) from xᵏ", shape: "line", cls: "vf-line-2" },
+      { label: "Weight vectors of the mating pool; x^r₁ − x^r₂", shape: "line", cls: "vf-line-1" },
+      { label: "Ideal point z*", shape: "cross", cls: "vf-line-ink" },
+    ]);
+    node.addEventListener("keydown", (e) => {
+      if (e.target && /^(SELECT|INPUT|BUTTON)$/.test(e.target.tagName)) return;
+      if (e.key === "ArrowRight") go(state.step + 1);
+      else if (e.key === "ArrowLeft") go(state.step - 1);
+      else return;
+      e.preventDefault();
+    });
+    function build() {
+      g = moeadGeneration(state.seed, N, T);
+      titles = ["the subproblems and their solutions"].concat(g.order.map((k) => `subproblem ${k}`), ["the population after one generation"]);
+      go(0);
+    }
+    function go(i) {
+      state.step = Math.max(0, Math.min(titles.length - 1, i));
+      render();
+    }
+    const name = (p) => (p.id <= N ? "initial" : yk(p.subproblem));
+    const vec = (v, d) => pair(v, d === undefined ? 2 : d);
+    const set = (list) => "{" + list.slice().sort((a, b) => a - b).join(", ") + "}";
+    const pbi = (f, j, z) => moeadAggregate("pbi", f, g.W[j], z, g.theta);
+    function holders(list) {
+      const map = new Map();
+      list.forEach((p, k) => {
+        if (!map.has(p)) map.set(p, []);
+        map.get(p).push(k);
+      });
+      return map;
+    }
+    function draw(plot, v, shape, cls, label, ring) {
+      const px = plot.x(Math.min(v[0], plot.xd[1]));
+      const py = plot.y(Math.min(v[1], plot.yd[1]));
+      marker(plot.layers.marks, shape, px, py, 6, cls);
+      if (ring) marker(plot.layers.marks, "circle", px, py, 10.5, "vf-ring");
+      if (label) txt(plot.layers.top, px + 9, py - 7, label, { class: "vf-mark-label" });
+    }
+    function rays(z, k, pool) {
+      g.W.forEach((w, j) => {
+        const len = Math.hypot(w[0], w[1]);
+        const d = [w[0] / len, w[1] / len];
+        const cls = j === k ? "vf-line-2" : pool && pool.includes(j) ? "vf-line-1" : "vf-line-thin";
+        fPlot.line(fPlot.layers.mid, [z, [z[0] + 3 * d[0], z[1] + 3 * d[1]]], cls);
+        const toRight = d[0] > 1e-9 ? (fPlot.xd[1] - z[0]) / d[0] : Infinity;
+        const toTop = d[1] > 1e-9 ? (fPlot.yd[1] - z[1]) / d[1] : Infinity;
+        const reach = Math.min(toRight, toTop);
+        const px = fPlot.x(z[0] + reach * d[0]);
+        const py = fPlot.y(z[1] + reach * d[1]);
+        // The labels sit in the widened top and right margins, clear of the points.
+        if (toTop < toRight) txt(fPlot.layers.top, px, py - 6, "w" + SUP[j], { class: "vf-mark-label", "text-anchor": "middle" });
+        else txt(fPlot.layers.top, px + 4, py + 4, "w" + SUP[j], { class: "vf-mark-label" });
+      });
+    }
+    function ideal(z, faded) {
+      marker(fPlot.layers.marks, "cross", fPlot.x(z[0]), fPlot.y(z[1]), 4.5, "vf-line-ink" + (faded ? " vf-faded" : ""));
+      if (!faded) txt(fPlot.layers.top, fPlot.x(z[0]) + 7, fPlot.y(z[1]) - 6, "z*", { class: "vf-mark-label" });
+    }
+    function population(list, opts) {
+      for (const [p, ks] of holders(list)) {
+        const lost = opts && opts.replaced ? ks.filter((j) => opts.replaced.includes(j)) : [];
+        const gone = lost.length === ks.length;
+        const label = ks.map((j) => String(j) + (lost.includes(j) ? " ✕" : "")).join(", ");
+        const cls = "vf-pt vf-pt-1" + (gone ? " vf-faded" : "");
+        const shape = p.id <= N ? "circle" : "triangle";
+        const parent = opts && opts.parents ? ks.some((j) => opts.parents.includes(j)) : false;
+        draw(xPlot, p.x, shape, cls, label, parent);
+        draw(fPlot, p.f, shape, cls, label, false);
+        if (lost.length) {
+          const y = opts.child.f;
+          s("line", { x1: fPlot.x(p.f[0]), y1: fPlot.y(Math.min(p.f[1], fPlot.yd[1])), x2: fPlot.x(y[0]), y2: fPlot.y(Math.min(y[1], fPlot.yd[1])), class: "vf-line-2 vf-dashed" }, fPlot.layers.mid);
+        }
+      }
+    }
+    function render() {
+      const step = state.step;
+      back.disabled = step === 0;
+      next.disabled = step === titles.length - 1;
+      for (const plot of [xPlot, fPlot]) {
+        clear(plot.layers.back);
+        clear(plot.layers.mid);
+        clear(plot.layers.marks);
+        clear(plot.layers.top);
+      }
+      xPlot.line(xPlot.layers.back, [[0, 0.004], [1, 0.004]], "vf-front");
+      fPlot.line(fPlot.layers.back, frontPoints((t) => 1 - Math.sqrt(t), 0, 1, 60), "vf-front");
+      let headers;
+      let rows;
+      let numeric;
+      if (step === 0 || step === titles.length - 1) {
+        const list = step === 0 ? g.pop : g.final;
+        const z = step === 0 ? g.z0 : g.steps[N - 1].z;
+        rays(z, -1, null);
+        if (step > 0) ideal(g.z0, true);
+        ideal(z, false);
+        population(list, null);
+        headers = ["Subproblem", "w", step === 0 ? "B(k)" : "Solution", "x₁", "x₂", "f₁", "f₂", "g(xᵏ)"];
+        rows = list.map((p, k) => [String(k), vec(g.W[k], 1), step === 0 ? set(g.B[k]) : name(p), fmt(p.x[0], 2), fmt(p.x[1], 2), fmt(p.f[0], 2), fmt(p.f[1], 2), fmt(pbi(p.f, k, z), 3)]);
+        numeric = [true, false, false, true, true, true, true, true];
+      } else {
+        const st = g.steps[step - 1];
+        const y = st.child;
+        rays(st.z, st.k, st.pool);
+        if (st.z[0] !== st.zBefore[0] || st.z[1] !== st.zBefore[1]) ideal(st.zBefore, true);
+        ideal(st.z, false);
+        const diff = Math.hypot(st.before[st.r1].x[0] - st.before[st.r2].x[0], st.before[st.r1].x[1] - st.before[st.r2].x[1]);
+        if (diff > 1e-9) arrow(xPlot, xPlot.layers.mid, st.before[st.r2].x, st.before[st.r1].x, "vf-line-1");
+        const base = st.before[st.k].x;
+        if (Math.hypot(y.v[0] - base[0], y.v[1] - base[1]) > 1e-9) arrow(xPlot, xPlot.layers.mid, base, y.v, "vf-line-2");
+        if (Math.hypot(y.v[0] - y.x[0], y.v[1] - y.x[1]) > 1e-9) {
+          xPlot.line(xPlot.layers.mid, [y.v, y.x], "vf-line-thin vf-dashed");
+          marker(xPlot.layers.marks, "circle", xPlot.x(y.v[0]), xPlot.y(y.v[1]), 3, "vf-pt-hollow");
+        }
+        population(st.before, { replaced: st.replaced, parents: [st.r1, st.r2], child: y });
+        const cls = "vf-pt vf-pt-2" + (st.replaced.length ? "" : " vf-faded");
+        const label = yk(st.k) + (st.replaced.length ? "" : " ✕");
+        draw(xPlot, y.x, "triangle", cls, label, false);
+        draw(fPlot, y.f, "triangle", cls, label, st.replaced.length > 0);
+        const visit = new Map(st.rows.map((r, n) => [r.j, Object.assign({ n }, r)]));
+        headers = ["Subproblem", "Solution", "f₁", "f₂", "Visit", "g(current)", "g(y)", "Result"];
+        rows = st.before.map((p, j) => {
+          const r = visit.get(j);
+          let result = "not in the pool";
+          if (r) result = !r.visited ? "not visited (n_r reached)" : r.replaced ? "replaced by " + yk(st.k) : "kept";
+          const shown = r && r.visited;
+          return [String(j), name(p), fmt(p.f[0], 2), fmt(p.f[1], 2), r ? String(r.n + 1) : "–", shown ? fmt(r.gx, 3) : "–", shown ? fmt(r.gy, 3) : "–", result];
+        });
+        rows.push([yk(st.k), "offspring", fmt(y.f[0], 2), fmt(y.f[1], 2), "–", "–", "–", st.replaced.length ? "holds " + idList(st.replaced) : "discarded"]);
+        numeric = [true, false, true, true, true, true, true, false];
+      }
+      stepText.textContent = `Step ${step + 1} of ${titles.length}: ${titles[step]}. ${describe(step)}`;
+      clear(tableBox);
+      table(tableBox, headers, rows, numeric);
+    }
+    function describe(step) {
+      if (step === 0) {
+        return `Six subproblems, one per weight vector wᵏ = (k/5, 1 − k/5), each holding one random solution of the loop figure's problem (f₁ = x₁, f₂ = g·(1 − √(x₁/g)), g = 1 + x₂). The table lists the neighbourhoods B(k) of T = 3 vectors. The ideal point z* = ${vec(g.z0)} is the minimum of the population, and PBI (θ = 5), VAMOS' default aggregation, measures each solution along the ray of its weight vector from z*. The generation visits the subproblems in the random order ${g.order.join(", ")}.`;
+      }
+      if (step === titles.length - 1) {
+        const groups = [...holders(g.final)].filter(([p]) => p.id > N);
+        const kept = g.final.filter((p) => p.id <= N).length;
+        const shared = groups.filter(([, ks]) => ks.length > 1).map(([p, ks]) => `${name(p)} holds subproblems ${idList(ks)}`);
+        const zLast = g.steps[N - 1].z;
+        const moved = zLast[0] !== g.z0[0] || zLast[1] !== g.z0[1];
+        const children = groups.map(([p]) => name(p));
+        const words = ["No", "One", "Two", "Three", "Four", "Five", "Six"];
+        return `Every subproblem has been visited once: one generation of ${N} offspring. ${words[N - kept]} subproblem${N - kept === 1 ? "" : "s"} now hold${N - kept === 1 ? "s" : ""} an offspring of this generation${children.length ? ` (${idList(children)})` : ""}, and ${words[kept].toLowerCase()} keep${kept === 1 ? "s" : ""} the initial solution.${shared.length ? ` ${idList(shared)}: nothing stops subproblems from sharing a solution.` : ""} ${moved ? `The ideal point moved from ${vec(g.z0)} to ${vec(zLast)}.` : `The ideal point did not move.`} The next generation visits the subproblems in a new random order.`;
+      }
+      const st = g.steps[step - 1];
+      const k = st.k;
+      const y = st.child;
+      const pool = st.neighbourhood
+        ? `The draw ${fmt(st.u, 3)} < δ = 0.9 makes the neighbourhood B(${k}) = ${set(st.pool)} the mating pool.`
+        : `The draw ${fmt(st.u, 3)} ≥ δ = 0.9 makes the whole population the mating pool.`;
+      const same = st.before[st.r1] === st.before[st.r2];
+      const raw = [0, 1].map((j) => st.before[k].x[j] + 0.5 * (st.before[st.r1].x[j] - st.before[st.r2].x[j]));
+      const clipped = raw.some((t) => t < 0 || t > 1) ? ", clipped to the bounds" : "";
+      const parents = `Its parents are ${xk(st.r1)} and ${xk(st.r2)}${same ? ", the same solution, so the difference is zero" : ""}: DE gives v = ${xk(k)} + 0.5·(${xk(st.r1)} − ${xk(st.r2)}) = ${vec(y.v)}${clipped}`;
+      const changed = [0, 1].filter((j) => y.x[j] !== y.v[j]).map((j) => "x" + SUB[j + 1]);
+      const mutation = changed.length ? `polynomial mutation changes ${idList(changed)}` : "polynomial mutation changes no variable";
+      const moved = st.z[0] !== st.zBefore[0] || st.z[1] !== st.zBefore[1];
+      const zText = moved ? `The ideal point moves from ${vec(st.zBefore)} to ${vec(st.z)} before the comparisons.` : `The ideal point stays at ${vec(st.z)}.`;
+      const visited = st.rows.filter((r) => r.visited);
+      const verdicts = visited.map((r) => (r.replaced ? `replaces ${xk(r.j)} (g ${fmt(r.gy, 2)} < ${fmt(r.gx, 2)})` : `leaves ${xk(r.j)} (g ${fmt(r.gy, 2)} ≥ ${fmt(r.gx, 2)})`));
+      const skipped = st.rows.filter((r) => !r.visited).map((r) => r.j);
+      const better = st.rows.filter((r) => !r.visited && r.better).map((r) => r.j);
+      const stop = skipped.length ? ` After n_r = 2 replacements the visit stops before ${idList(skipped)}${better.length ? `, although ${yk(k)} would also improve ${idList(better)}` : ""}.` : "";
+      const none = st.replaced.length ? "" : ` ${yk(k)} replaces nothing and is discarded.`;
+      return `${pool} ${parents}, and ${mutation}: ${yk(k)} = ${vec(y.x)}, with f = ${vec(y.f)}. ${zText} ${yk(k)} visits the pool in the order ${st.candidates.join(", ")}: it ${idList(verdicts)}.${stop}${none}`;
+    }
+    build();
   };
 
   function arrow(plot, layer, from, to, cls) {

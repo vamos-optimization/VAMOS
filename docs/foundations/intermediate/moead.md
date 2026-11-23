@@ -218,6 +218,33 @@ table compares it with every candidate in the drawn order. Try:
 
 <div class="vf-widget" data-vf-widget="moead-neighbourhood"><p class="vf-fallback">Interactive figure: eleven weight vectors as rays from the ideal point, the neighbourhood of a selected subproblem, and which neighbours a draggable offspring replaces under Tchebycheff, PBI or the weighted sum with the limit n_r. It needs JavaScript.</p></div>
 
+### Try it: one generation step by step
+
+The figure above places one offspring. This one runs a whole generation, one
+step per subproblem, on six subproblems of a problem with two variables whose
+Pareto front is ZDT1's, f₂ = 1 − √f₁. It uses VAMOS's defaults: DE with
+F = 0.5 and CR = 1.0, polynomial mutation, δ = 0.9, n_r = 2 and PBI with
+θ = 5. Only T differs: 3 instead of 20, which VAMOS would cap at N = 6 and
+which would make every neighbourhood the whole population. The left panel
+shows the decision vectors and the DE step, the right one the weight vectors
+drawn from z\*; each point carries the numbers of the subproblems it solves.
+
+<div class="vf-widget" data-vf-widget="moead-steps"><p class="vf-fallback">Interactive figure: one MOEA/D generation on six subproblems, one subproblem per step: the mating pool, the parents, differential evolution and polynomial mutation, the ideal point, and the neighbours that the offspring replaces under PBI with the limit n_r. It needs JavaScript.</p></div>
+
+Things to try:
+
+1. Step 2: the draw 0.996 is above δ = 0.9, so the whole population is the
+   mating pool. The offspring y₃ replaces x³ (g 1.81 < 2.59) and x⁴
+   (0.76 < 1.99), and n_r = 2 ends the visit before subproblem 5, which y₃
+   would also improve.
+2. Step 3: the parents x⁵ and x³ include x⁵ itself, since 5 belongs to B(5).
+   Their offspring y₅ improves none of its neighbours and is discarded, but it
+   still moves z\* from (0.23, 0.08) to (0.12, 0.08).
+3. Step 4: y₂ replaces x¹ (1.15 < 3.38) but not the solution of its own
+   subproblem 2 (2.11 ≥ 0.81).
+4. Step 8: y₄ holds subproblems 3 and 4. Press **New population** for another
+   generation.
+
 ## In VAMOS
 
 `MOEADConfig.default(...)` gives VAMOS's default configuration; `variant="de"`

@@ -805,3 +805,102 @@ process.stdout.write(JSON.stringify(generations, (key, value) => (value === Infi
     assert distances[3] == distances[5] == "inf"
     assert {k: round(distances[k], 2) for k in (4, 11, 8, 2)} == {4: 1.05, 11: 0.92, 8: 0.81, 2: 0.55}
     assert sorted(ident[i] for i in example["keep"]) == [1, 3, 4, 5, 9, 11]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_moead_generation_figure_agrees_with_vamos() -> None:
+    from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors
+    from vamos.engine.algorithm.moead.aggregation import pbi
+    from vamos.engine.algorithm.moead.neighborhood import compute_neighbors
+    from vamos.engine.algorithm.moead.neighborhood_kernels import dummy_buffers, update_neighborhood_python
+    from vamos.engine.operators.policies.moead import DifferentialCrossoverStep
+    from vamos.engine.operators.policies.real_repair import resolve_policy_repair
+    from vamos.foundation.kernel.moead_kernels import AGG_PBI
+
+    seeds = [7548, 1, 2, 3, 97, 12367]  # 7548 is the lesson's example
+    generations = _run_figure_program("data.map((seed) => V.moeadGeneration(seed, 6, 3))", seeds)
+    weights = load_or_generate_weight_vectors(6, 2, mode="jmetalpy")
+    weights_safe = np.where(weights == 0, 1e-4, weights)
+    weights_unit = weights / np.linalg.norm(weights, axis=1, keepdims=True)
+    neighbours = compute_neighbors(weights, 3)
+    # DE rand/1/bin from the current solution with VAMOS's defaults, F = 0.5 and CR = 1, then the default clip repair.
+    de = DifferentialCrossoverStep(
+        f=0.5,
+        cr=1.0,
+        repair=resolve_policy_repair("real"),
+        xl=np.zeros(2),
+        xu=np.ones(2),
+        rng=np.random.default_rng(0),
+        variation_kernels=None,
+    )
+    no_g, no_cv, no_child_g = dummy_buffers()
+
+    for g in generations:
+        np.testing.assert_array_equal(g["W"], weights)
+        assert g["B"] == neighbours.tolist()
+        X = np.array([member["x"] for member in g["pop"]])
+        F = np.array([member["f"] for member in g["pop"]])
+        ideal = F.min(axis=0)
+        np.testing.assert_array_equal(g["z0"], ideal)
+        assert sorted(g["order"]) == list(range(6))
+        for step in g["steps"]:
+            k, r1, r2 = step["k"], step["r1"], step["r2"]
+            np.testing.assert_array_equal([member["x"] for member in step["before"]], X)
+            # The mating pool: the neighbourhood when the draw is below delta = 0.9, otherwise the population.
+            assert step["neighbourhood"] == (step["u"] < 0.9)
+            assert step["pool"] == (neighbours[k].tolist() if step["neighbourhood"] else list(range(6)))
+            assert r1 != r2 and {r1, r2} <= set(step["pool"]) and sorted(step["candidates"]) == sorted(step["pool"])
+            child = step["child"]
+            np.testing.assert_allclose(child["v"], de(np.array([[X[r1], X[r2], X[k]]]))[0, 0], rtol=0, atol=1e-15)
+            y, fy = np.array(child["x"]), np.array(child["f"])
+            assert np.all((y >= 0) & (y <= 1))
+            # The ideal point takes the offspring into account before the comparisons.
+            ideal = np.minimum(ideal, fy)
+            np.testing.assert_array_equal(step["z"], ideal)
+            for row in step["rows"]:
+                if row["visited"]:
+                    j = row["j"]
+                    assert row["gx"] == pytest.approx(float(pbi(F[[j]], weights[[j]], ideal)[0]), rel=1e-12)
+                    assert row["gy"] == pytest.approx(float(pbi(fy[None, :], weights[[j]], ideal)[0]), rel=1e-12)
+            # VAMOS's replacement, in the figure's order of the pool, replaces the same solutions.
+            order = np.array(step["candidates"], dtype=np.int64)
+            replaced = update_neighborhood_python(
+                X,
+                F,
+                no_g,
+                no_cv,
+                weights,
+                weights_safe,
+                weights_unit,
+                ideal,
+                y,
+                fy,
+                no_child_g,
+                0.0,
+                order,
+                order.size,
+                2,
+                AGG_PBI,
+                5.0,
+                0.0,
+                0,
+                ideal,
+                1e-6,
+                0,
+            )
+            assert replaced == len(step["replaced"])
+            np.testing.assert_array_equal([member["x"] for member in step["after"]], X)
+            np.testing.assert_array_equal([member["f"] for member in step["after"]], F)
+
+    # The numbers that the lesson quotes for its example.
+    steps = generations[0]["steps"]
+    rows = [{row["j"]: row for row in step["rows"]} for step in steps]
+    assert [step["k"] for step in steps] == [3, 5, 2, 0, 1, 4]
+    assert not steps[0]["neighbourhood"] and round(steps[0]["u"], 3) == 0.996 and steps[0]["replaced"] == [3, 4]
+    assert [round(rows[0][j][key], 2) for j in (3, 4) for key in ("gy", "gx")] == [1.81, 2.59, 0.76, 1.99]
+    assert not rows[0][5]["visited"] and rows[0][5]["better"]
+    assert (steps[1]["r1"], steps[1]["r2"]) == (5, 3) and 5 in steps[1]["pool"]
+    assert steps[1]["replaced"] == [] and [round(v, 2) for v in steps[1]["zBefore"] + steps[1]["z"]] == [0.23, 0.08, 0.12, 0.08]
+    assert steps[2]["replaced"] == [1] and [round(rows[2][1]["gy"], 2), round(rows[2][1]["gx"], 2)] == [1.15, 3.38]
+    assert [round(rows[2][2]["gy"], 2), round(rows[2][2]["gx"], 2)] == [2.11, 0.81]
+    assert [member["id"] for member in generations[0]["final"]][3:5] == [12, 12] and steps[5]["k"] == 4
