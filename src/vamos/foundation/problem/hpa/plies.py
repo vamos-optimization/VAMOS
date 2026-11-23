@@ -24,9 +24,14 @@ def _cut(
     wing: Wing, i: int, j: int, inside: Array, strain_max: float, segment: tuple[float, float], limits: tuple[float, float]
 ) -> tuple[float, float, float, float]:
     """The root and tip of flange ``j`` of segment ``i`` where it is needed, and the limits for the next flange."""
-    y0_start, y0_end = segment
-    root_limit, tip_limit = limits
     flange = j - 4
+    if wing._kernels is not None:
+        i_root, i_tip = wing._kernels.cut_range(
+            wing.moment, wing.moment_zerolift, np.asarray(wing.axial_force, dtype=float), wing.EI, wing.EA,
+            wing.EI_ply[:, flange].copy(), wing.EA_ply[:, flange].copy(), wing.diameter,
+            wing.strain_ratios[0, i], wing.strain_ratios[1, i], inside, strain_max,
+        )  # fmt: skip
+        return _adjust(wing, i_root, i_tip, len(inside), segment, limits)
     strain = np.abs(wing.moment / (wing.EI - wing.EI_ply[:, flange]) * 0.5 * wing.diameter) + wing.axial_force / (
         wing.EA - wing.EA_ply[:, flange]
     )
@@ -34,13 +39,22 @@ def _cut(
     strain = np.max([strain / wing.strain_ratios[0, i], strain_zerolift / wing.strain_ratios[1, i]], axis=0)
     strain = np.where(inside, strain, 0)
     violated = np.where(strain >= strain_max, 1, 0)
-    i_min = np.argmax(inside)
-    i_max = len(inside) - np.argmax(inside[::-1]) - 1
+    i_min = int(np.argmax(inside))
+    i_max = len(inside) - int(np.argmax(inside[::-1])) - 1
     if violated.max() > 0:
-        i_root = np.clip(np.argmax(violated), i_min, i_max)
-        i_tip = np.clip(len(violated) - np.argmax(violated[::-1]), i_min, i_max)
+        root_index = int(np.clip(np.argmax(violated), i_min, i_max))
+        tip_index = int(np.clip(len(violated) - np.argmax(violated[::-1]), i_min, i_max))
     else:
-        i_root, i_tip = i_min, i_min
+        root_index, tip_index = i_min, i_min
+    return _adjust(wing, root_index, tip_index, len(violated), segment, limits)
+
+
+def _adjust(
+    wing: Wing, i_root: int, i_tip: int, n: int, segment: tuple[float, float], limits: tuple[float, float]
+) -> tuple[float, float, float, float]:
+    """The root and tip at grid indices ``i_root`` and ``i_tip``, moved to the ends of the pipe and to the limits."""
+    y0_start, y0_end = segment
+    root_limit, tip_limit = limits
     root = wing.y0[i_root]
     tip = wing.y0[i_tip]
     # An end on the grid point nearest to an end of the pipe moves to that end.
@@ -48,7 +62,7 @@ def _cut(
         root = y0_start
     if i_tip > 0 and wing.y0[i_tip - 1] < y0_start:
         tip = y0_start
-    if i_tip + 1 < len(violated) and wing.y0[i_tip + 1] >= y0_end:
+    if i_tip + 1 < n and wing.y0[i_tip + 1] >= y0_end:
         tip = y0_end
     # An inner flange must be at least as long as an outer one.
     if tip - root > 0:
@@ -87,17 +101,24 @@ def _widen(wing: Wing, strain_max: float) -> bool:
         tr3_1 = plies[n_entire:, 4] * (0.5 * wing.diameter[iy1]) ** 3
         tr_1 = plies[n_entire:, 4] * (0.5 * wing.diameter[iy1])
         tr3_2 = plies[n_entire:, 4] * (0.5 * wing.diameter[iy2]) ** 3
-        for j in range(1, 180 - int(phis.max()), 1):
-            dphi = np.deg2rad(j)
-            dIy1 = (dphi + np.sin(phis + dphi) - np.sin(phis)) * tr3_1
-            A1 = 2 * dphi * tr_1
-            dIy2 = (dphi + np.sin(phis + dphi) - np.sin(phis)) * tr3_2
+        # The reference code tries one more degree at a time until the strains fit; every trial is computed at
+        # once, element by element as the loop computes it (NumPy sums each row as it sums a vector), and the
+        # first that fits is taken, or the last.
+        widenings = np.arange(1, 180 - int(phis.max()), 1)
+        if widenings.size:
+            dphi = np.deg2rad(widenings)[:, None]
+            gain = dphi + np.sin(phis[None, :] + dphi) - np.sin(phis)[None, :]
+            dIy1 = gain * tr3_1[None, :]
+            A1 = 2 * dphi * tr_1[None, :]
+            dIy2 = gain * tr3_2[None, :]
             strain1 = (
-                np.abs(M1 / (wing.EI[iy1] + np.sum(Ex * dIy1)) * 0.5 * wing.diameter[iy1]) + AF1 / (wing.EA[iy1] + np.sum(Ex * A1))
+                np.abs(M1 / (wing.EI[iy1] + np.sum(Ex[None, :] * dIy1, axis=1)) * 0.5 * wing.diameter[iy1])
+                + AF1 / (wing.EA[iy1] + np.sum(Ex[None, :] * A1, axis=1))
             ) / wing.strain_ratios[0, i]
-            strain2 = np.abs(M2 / (wing.EI[iy2] + np.sum(Ex * dIy2)) * 0.5 * wing.diameter[iy2]) / wing.strain_ratios[1, i]
-            if max(strain1, strain2) <= strain_max:
-                break
+            strain2 = np.abs(M2 / (wing.EI[iy2] + np.sum(Ex[None, :] * dIy2, axis=1)) * 0.5 * wing.diameter[iy2]) / wing.strain_ratios[1, i]
+            # Python's max(strain1, strain2) is strain2 only when strain2 > strain1.
+            fits = np.where(strain2 > strain1, strain2, strain1) <= strain_max
+            j = int(widenings[int(np.argmax(fits))] if fits.any() else widenings[-1])
         if j is None:
             raise ValueError("the flanges of the HPA wing cannot widen: they already cover the whole pipe")
         wing.ply_wing[i][n_entire:, 1] += j
