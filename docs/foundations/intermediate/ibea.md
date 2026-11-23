@@ -147,6 +147,29 @@ size, with the updated fitness of the survivors. Things to try:
 
 <div class="vf-widget" data-vf-widget="ibea-fitness"><p class="vf-fallback">Interactive figure: the IBEA fitness of eight draggable points for a chosen indicator and kappa, and the order in which environmental selection removes them for a chosen population size. It needs JavaScript.</p></div>
 
+### Try it: one generation step by step
+
+Step through one generation as VAMOS runs it by default, with the additive ε
+indicator and κ = 0.05, on six solutions of a problem with two variables whose
+Pareto front is ZDT1's, f₂ = 1 − √f₁. The left panel shows the decision vectors
+and the right one the objective vectors; parents are circles and children
+triangles. Each removal is a step of its own, with the survivors' fitness after
+it.
+
+<div class="vf-widget" data-vf-widget="ibea-steps"><p class="vf-fallback">Interactive figure: one IBEA generation on six solutions, step by step: the population with its fitness, the binary tournaments, SBX crossover and polynomial mutation, the merge of parents and children, the normalization and the ε indicator, the fitness, each of the six removals with the fitness updates, and the next population. It needs JavaScript.</p></div>
+
+Things to try:
+
+1. Step 6: the three lowest fitness values belong to dominated solutions,
+   4 (−103.433), 3 (−58.284) and 10 (−17.051). Steps 7 to 9 remove them in
+   that order.
+2. Step 10: 11 leaves, and 7's fitness rises from −1.763 to −1.539: 11 covered
+   7 closely.
+3. Steps 12 and 13: in Q, 9's fitness (−1.665) is above 7's (−1.771), yet 9
+   leaves last, at −1.651, and 7 survives with −1.483. Ranking the initial
+   fitness once would have kept 9. Press **New population** for another
+   generation in which the fitness updates change who survives.
+
 ## In VAMOS
 
 The figure's default case in NumPy, with the additive ε indicator, κ = 0.05

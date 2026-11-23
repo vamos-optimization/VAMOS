@@ -148,6 +148,32 @@ archive-size control applies environmental selection. Things to try:
 
 <div class="vf-widget" data-vf-widget="spea2-fitness"><p class="vf-fallback">Interactive figure: strength, raw fitness, density and fitness of ten draggable points, and the points that SPEA2's environmental selection keeps or removes, in order, for a chosen archive size. It needs JavaScript.</p></div>
 
+### Try it: one generation step by step
+
+Step through one generation on a problem with two variables whose Pareto front
+is ZDT1's, f₂ = 1 − √f₁, with VAMOS' defaults: an archive as large as the
+population, six solutions each, k = 1, SBX and polynomial mutation. In the first
+generation the archive is the initial population. The left panel shows the
+decision vectors and the right one the objective vectors; archive members are
+circles, children triangles, and dark points are non-dominated. Each removal of
+the truncation operator is a step of its own.
+
+<div class="vf-widget" data-vf-widget="spea2-steps"><p class="vf-fallback">Interactive figure: one SPEA2 generation on six solutions, step by step: the archive with its raw fitness and neighbour distances, the binary tournaments, one child per pair, the union of archive and children, strength and raw fitness, the nearest-neighbour distances, the non-dominated members, each removal of the truncation operator, and the new archive. It needs JavaScript.</p></div>
+
+Things to try:
+
+1. Step 2: in the tournament 1 vs 6, both have R = 0 and σᵏ = 0.074: they are
+   each other's nearest neighbour, so a coin decides. In 5 vs 6, the dominated
+   5 (R = 2) loses.
+2. Step 5: 4 is dominated by 2, 3 and 7, so R = 2 + 1 + 3 = 6. 2 is dominated
+   itself, and still adds its strength.
+3. Steps 8 and 9: eight members are non-dominated for six places. The closest
+   pair, 3 and 7, is 0.059 apart; 3's second-nearest distance, 0.240, is
+   smaller than 7's, 0.289, so 3 leaves and 7, the non-dominated member with
+   the smallest f₁, stays. Then 1 leaves its pair with 6 (0.130 against 0.164).
+4. Step 10: the new archive keeps one archive member, 6, and five children.
+   Press **New population** for another generation that needs the truncation.
+
 ## In VAMOS
 
 The definitions above fit in a few lines of NumPy. These are the ten points of

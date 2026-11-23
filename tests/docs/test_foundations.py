@@ -1166,3 +1166,208 @@ process.stdout.write(JSON.stringify(generations, (key, value) => (value === Infi
     assert example["last"] == 0 and example["places"] == 6
     assert sorted(ident[i] for i in example["keep"]) == sorted(order[:6]) == [4, 5, 7, 8, 10, 11]
     assert {ident[i]: round(example["mergedScore"][i], 2) for i in (11, 1, 0)} == {12: 0.77, 2: 0.46, 1: 0.22}
+
+
+def _run_step_figure(function: str, seeds: list[int]) -> list[dict[str, Any]]:
+    """Record one generation of a step figure for each seed, with six solutions."""
+    program = f"""
+require({json.dumps(str(SCRIPT))});
+const V = globalThis.VamosFoundations;
+process.stdout.write(JSON.stringify({json.dumps(seeds)}.map((seed) => V.{function}(seed, 6))));
+"""
+    completed = subprocess.run(["node", "-e", program], capture_output=True, text=True, check=True, timeout=60)
+    return json.loads(completed.stdout)
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_spea2_generation_figure_agrees_with_vamos() -> None:
+    from vamos.engine.algorithm.spea2.helpers import (
+        _kth_neighbour_distance,
+        dominance_matrix,
+        environmental_selection_indices,
+        strength_raw_fitness,
+        truncate_lexicographic,
+    )
+
+    seeds = [1693, 1, 2, 3, 5, 6, 97, 12367]  # 1693 is the lesson's example
+    generations = _run_step_figure("spea2Generation", seeds)
+    cases = set()
+    for g in generations:
+        # The archive is the initial population, which VAMOS' first environmental selection keeps whole.
+        A = np.array([member["f"] for member in g["archive"]])
+        selected, raw, kth = environmental_selection_indices(A, None, 6, 1, "none")
+        assert selected.tolist() == list(range(6))
+        assert g["archiveR"] == raw.tolist()
+        np.testing.assert_allclose(g["archiveSigma"], kth, rtol=1e-12)
+        # VAMOS' tournament: the lower R, then the larger k-th neighbour distance, then a coin.
+        for t in g["tournaments"]:
+            a, b, winner = t["a"] - 1, t["b"] - 1, t["winner"] - 1
+            assert a != b and winner in (a, b)
+            if raw[a] != raw[b]:
+                assert (t["reason"], winner) == ("raw", a if raw[a] < raw[b] else b)
+            elif kth[a] != kth[b]:
+                assert (t["reason"], winner) == ("density", a if kth[a] > kth[b] else b)
+            else:
+                assert t["reason"] == "coin"
+        assert len(g["tournaments"]) == 12 and len(g["children"]) == 6
+        # The union: strength, raw fitness, k-th neighbour distance, the survivors in VAMOS' order and the removals.
+        Q = np.array([member["f"] for member in g["union"]])
+        dom, _, _ = dominance_matrix(Q, None, "none")
+        assert g["S"] == dom.sum(axis=1).tolist()
+        assert g["R"] == strength_raw_fitness(dom).tolist()
+        dist = np.linalg.norm(Q[:, None, :] - Q[None, :, :], axis=2)
+        np.testing.assert_allclose(g["sigma"], _kth_neighbour_distance(dist, 1), rtol=1e-12)
+        selected, raw, kth = environmental_selection_indices(Q, None, 6, 1, "none")
+        assert g["kept"] == selected.tolist()
+        nd = g["nd"]
+        assert nd == np.flatnonzero(strength_raw_fitness(dom) == 0).tolist()
+        # The truncation is greedy, so keeping one member fewer each time gives VAMOS' removals in order.
+        removed, alive = [], list(range(len(nd)))
+        for keep in range(len(nd) - 1, 5, -1):
+            left = truncate_lexicographic(dist[np.ix_(nd, nd)], keep).tolist()
+            removed += [nd[i] for i in alive if i not in left]
+            alive = left
+        assert g["removed"] == removed and len(g["truncation"]) == len(removed)
+        cases.add("truncation" if removed else "filling" if g["filled"] else "exact")
+    assert cases == {"truncation", "filling", "exact"}
+
+    # The numbers that the lesson quotes for its example.
+    example = generations[0]
+    games = {(t["a"], t["b"]): (t["winner"], t["reason"]) for t in example["tournaments"]}
+    assert games[(1, 6)] == (1, "coin") and games[(5, 6)] == (6, "raw")
+    sigma = [round(d, 3) for d in example["archiveSigma"]]
+    assert sigma[0] == sigma[5] == 0.074 and example["archiveR"][4] == 2
+    Q = np.array([member["f"] for member in example["union"]])
+    dom, _, _ = dominance_matrix(Q, None, "none")
+    assert [j + 1 for j in np.flatnonzero(dom[:, 3])] == [2, 3, 7]
+    assert [example["S"][j] for j in (1, 2, 6)] == [2, 1, 3] and example["R"][3] == 6
+    assert len(example["nd"]) == 8 and [i + 1 for i in example["removed"]] == [3, 1]
+    assert min(example["nd"], key=lambda i: Q[i, 0]) == 6  # 7 has the smallest f1 of the non-dominated
+
+    def nearest_two(cut: dict[str, Any], ident: int) -> list[float]:
+        return [round(d, 3) for d in cut["lists"][cut["members"].index(ident - 1)][:2]]
+
+    first, second = example["truncation"]
+    assert nearest_two(first, 3) == [0.059, 0.240] and nearest_two(first, 7) == [0.059, 0.289]
+    assert nearest_two(second, 1) == [0.074, 0.130] and nearest_two(second, 6) == [0.074, 0.164]
+    assert [i + 1 for i in sorted(example["kept"])] == [6, 7, 8, 9, 10, 11]
+    assert max(example["kept"], key=lambda i: example["sigma"][i]) == 10 and round(example["sigma"][10], 3) == 0.271
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_smsemoa_step_figure_agrees_with_vamos() -> None:
+    from types import SimpleNamespace
+
+    from vamos.engine.algorithm.smsemoa.helpers import survival_selection
+    from vamos.foundation.kernel.numpy_backend import NumPyKernel
+
+    seeds = [65199, 1, 2, 3, 5, 6, 97, 12367]  # 65199 is the lesson's example
+    steps = _run_step_figure("smsemoaGeneration", seeds)
+    cases = set()
+    for g in steps:
+        assert g["child"]["parents"] == g["parents"]
+        # VAMOS' survival on the population and the child: the reference point and the solution removed.
+        state = SimpleNamespace(
+            X=np.array([member["x"] for member in g["pop"]]),
+            F=np.array([member["f"] for member in g["pop"]]),
+            G=None,
+            eliminate_duplicates=False,
+            _survival_F=None,
+            ref_adaptive=True,
+            ref_point=np.zeros(2),
+            ref_offset=1.0,
+            ref_rule="relative",
+            constraint_mode="none",
+            constraint_handling=None,
+            fronts=None,
+            ranks=None,
+            crowding=None,
+            ids=None,
+            pending_offspring_ids=None,
+        )
+        survival_selection(state, np.array([g["child"]["x"]]), np.array([g["child"]["f"]]), None, NumPyKernel())
+        np.testing.assert_allclose(g["ref"], state.ref_point, rtol=1e-12)
+        assert sorted(map(tuple, state.F.tolist())) == sorted(tuple(member["f"]) for member in g["next"])
+        # The fronts of the N + 1 solutions and the contributions of the last one.
+        Q = np.array([member["f"] for member in g["merged"]])
+        fronts, _ = _fast_non_dominated_sort(Q)
+        assert [sorted(front) for front in g["fronts"]] == [sorted(int(i) for i in front) for front in fronts]
+        assert g["last"] == g["fronts"][-1]
+        if g["contributions"] is None:
+            assert len(g["last"]) == 1 and g["removed"] == g["last"][0]
+        else:
+            contributions = hypervolume_contributions(Q[g["last"]], state.ref_point)
+            np.testing.assert_allclose(g["contributions"], contributions, rtol=1e-12)
+            assert g["removed"] == g["last"][int(np.argmin(contributions))]
+        cases.add("single" if g["contributions"] is None else "child removed" if g["removed"] == 6 else "contributions")
+    assert cases == {"single", "child removed", "contributions"}
+
+    # The numbers that the lesson quotes for its example.
+    example = steps[0]
+    assert example["parents"] == [4, 6] and example["rank"][3] == 1
+    assert [[i + 1 for i in front] for front in example["fronts"]] == [[1, 5, 6], [2, 3, 4, 7]]
+    assert [i + 1 for i in sorted(example["last"], key=lambda i: example["merged"][i]["f"][0])] == [7, 4, 2, 3]
+    contributions = {i + 1: round(c, 4) for i, c in zip(example["last"], example["contributions"])}
+    assert contributions == {2: 0.0193, 3: 0.2109, 4: 0.0293, 7: 0.16}
+    assert [round(v, 2) for v in example["ref"]] == [1.67, 1.98] and example["removed"] + 1 == 2
+    assert sorted(member["id"] for member in example["next"]) == [1, 3, 4, 5, 6, 7]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_ibea_generation_figure_agrees_with_vamos() -> None:
+    from vamos.engine.algorithm.ibea.helpers import (
+        _normalized_objectives,
+        compute_indicator_matrix,
+        environmental_selection_indices,
+        epsilon_indicator,
+        ibea_fitness,
+    )
+
+    seeds = [31040, 1, 2, 3, 5, 6, 97, 12367]  # 31040 is the lesson's example
+    generations = _run_step_figure("ibeaGeneration", seeds)
+
+    def members(F: np.ndarray, rows: list[int], values: list[float]) -> list[tuple[tuple[float, ...], float]]:
+        return sorted((tuple(F[i]), values[i]) for i in rows)
+
+    for g in generations:
+        # The population's fitness from VAMOS' initial environmental selection, and the tournaments on it.
+        P = np.array([member["f"] for member in g["pop"]])
+        selected, fitness = environmental_selection_indices(P, None, 6, "eps", 0.05)
+        assert selected.tolist() == list(range(6))
+        np.testing.assert_allclose(g["popFitness"], fitness, rtol=1e-12)
+        for t in g["tournaments"]:
+            a, b = t["a"] - 1, t["b"] - 1
+            assert a != b and t["winner"] - 1 == (a if fitness[a] > fitness[b] else b)
+        assert len(g["tournaments"]) == 6 and len(g["children"]) == 6
+        # The merged set: normalized objectives, c, the fitness, the removals and the fitness after each one.
+        Q = np.array([member["f"] for member in g["merged"]])
+        np.testing.assert_allclose(g["Z"], _normalized_objectives(Q), rtol=1e-12, atol=1e-15)
+        assert g["c"] == np.abs(epsilon_indicator(_normalized_objectives(Q))).max() == 1.0
+        np.testing.assert_allclose(g["fitness"], ibea_fitness(compute_indicator_matrix(Q, "eps"), 0.05), rtol=1e-12)
+
+        # The removal loop is greedy, so keeping one member fewer each time gives VAMOS' removals in order. A child
+        # that copies its parent ties with it exactly, and the summation order decides which copy goes: compare
+        # objective vectors, with the fitness of the members left after each removal.
+        for j, size in enumerate(range(11, 5, -1)):
+            kept, after = environmental_selection_indices(Q, None, size, "eps", 0.05)
+            alive = [i for i in range(12) if i not in g["removed"][: j + 1]]
+            expected = sorted(zip(map(tuple, Q[kept]), after))
+            assert [key for key, _ in members(Q, alive, g["history"][j])] == [key for key, _ in expected]
+            np.testing.assert_allclose([v for _, v in members(Q, alive, g["history"][j])], [v for _, v in expected], rtol=1e-10)
+        assert sorted(g["kept"]) == sorted(alive)
+        np.testing.assert_allclose([v for _, v in members(Q, g["kept"], g["final"])], [v for _, v in expected], rtol=1e-10)
+
+    # The numbers that the lesson quotes for its example.
+    example = generations[0]
+    initial = {i + 1: round(v, 3) for i, v in enumerate(example["fitness"])}
+    assert [i + 1 for i in example["removed"]] == [4, 3, 10, 11, 5, 9]
+    assert [initial[k] for k in (4, 3, 10)] == [-103.433, -58.284, -17.051]
+    assert sorted(initial, key=initial.get)[:3] == [4, 3, 10]
+    Q = np.array([member["f"] for member in example["merged"]])
+    dominated = np.any(np.all(Q[:, None] <= Q[None], axis=2) & np.any(Q[:, None] < Q[None], axis=2), axis=0)
+    assert all(dominated[k - 1] for k in (4, 3, 10))
+    before, after = example["history"][2], example["history"][3]  # removal 4 of 6: 11 leaves
+    assert (round(before[6], 3), round(after[6], 3)) == (-1.763, -1.539)
+    assert initial[9] == -1.665 and initial[7] == -1.771
+    assert round(example["history"][4][8], 3) == -1.651 and round(example["final"][6], 3) == -1.483
+    assert [i + 1 for i in example["kept"]] == [1, 2, 6, 7, 8, 12]

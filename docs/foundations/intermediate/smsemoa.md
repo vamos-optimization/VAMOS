@@ -163,6 +163,28 @@ Things to try:
 
 <div class="vf-widget" data-vf-widget="smsemoa-step"><p class="vf-fallback">Interactive figure: one SMS-EMOA selection step on six parents and one child, sorted into fronts, with the hypervolume contributions of the last front and the solution removed. It needs JavaScript.</p></div>
 
+### Try it: one step, step by step
+
+The figure above starts from a given population and child. This one runs a
+whole step as VAMOS does by default, on six solutions of a problem with two
+variables whose Pareto front is ZDT1's, f₂ = 1 − √f₁: two random parents, the
+first child of SBX, mutated, the reference point of the seven solutions, the
+fronts and the contributions of the last front. Parents are circles, the child
+is a triangle, and darker points lie on better fronts.
+
+<div class="vf-widget" data-vf-widget="smsemoa-steps"><p class="vf-fallback">Interactive figure: one SMS-EMOA step on six solutions, step by step: the population, two random parents, the child, the reference point of the seven solutions, non-dominated sorting, the last front, its hypervolume contributions, and the next population. It needs JavaScript.</p></div>
+
+Things to try:
+
+1. Step 2: the parents, 4 and 6, are drawn at random. 4 lies on front 2, and
+   its front plays no part.
+2. Step 5: child 7 joins front 2, the last front, with 2, 3 and 4.
+3. Step 7: 2, squeezed between 4 and 3, has the smallest contribution, 0.0193.
+   Child 7, an extreme of front 2, contributes 0.1600: its rectangle reaches
+   r = (1.67, 1.98).
+4. Step 8: child 7 replaces 2. Press **New population** for another step whose
+   last front has at least three members.
+
 ## In VAMOS
 
 The contributions of the second scenario, with MooCore and VAMOS' default
