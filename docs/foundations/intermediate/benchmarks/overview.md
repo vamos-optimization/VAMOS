@@ -11,7 +11,7 @@ as good as the problems chosen. Benchmark problems, also called test problems,
 are built so that their Pareto front is known and each of their difficulties
 is controlled: the shape of the front, the number of local optima, how
 uniformly the decision space maps onto the front, how the variables interact.
-VAMOS registers 303 of them. The [problems catalog](../../../reference/problems.md)
+VAMOS registers 405 of them. The [problems catalog](../../../reference/problems.md)
 lists every key with its dimensions, source and reference front; this section
 of Foundations explains what the problems test and how to choose among them.
 
