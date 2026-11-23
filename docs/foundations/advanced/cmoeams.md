@@ -1,5 +1,5 @@
 ---
-description: 'CMOEA-MS in depth: a normalized constraint violation, stage A that ranks density and violation as two objectives, stage B that puts the violation first, the switch on the feasible share and lambda, SPEA2 fitness with cosine distances, and where VAMOS follows PlatEMO and jMetal, with an interactive figure and VAMOS code.'
+description: 'CMOEA-MS in depth: a normalized constraint violation, stage A that ranks density and violation as two objectives, stage B that puts the violation first, the switch on the feasible share and lambda, SPEA2 fitness with cosine distances, and where VAMOS follows PlatEMO and jMetal, with interactive figures and VAMOS code.'
 search:
   boost: 0.5
 ---
@@ -130,6 +130,39 @@ the algorithm moves back to stage A whenever half or more of Q is infeasible.
 λ is `feasible_ratio_threshold` in `CMOEAMSConfig`. Stage A tends to keep
 infeasible solutions, which lowers the feasible share, so a high λ can hold the
 algorithm in stage A for good, as the example below shows.
+
+### Try it: one generation step by step
+
+Step through the first two generations of a run with a budget of 150
+evaluations, on six solutions of the two-variable problem of lesson
+[Genetic algorithms](../basic/genetic-algorithms.md#step-through-the-loop),
+f₁ = x₁ and f₂ = g·(1 − √(x₁/g)) with g = 1 + x₂, under CTP2's constraint on
+(f₁, f₂), the constraint of the figure in the next section. Each generation
+selects parents by binary tournaments on the fitness, creates six children with
+VAMOS' default variation for CMOEA-MS, SBX with probability 1 and η = 20 and
+polynomial mutation with probability 1/n = 1/2 and η = 20, and ranks the union
+Q in the stage that the stage rule chooses. The left panel shows the decision
+vectors, or, while stage A ranks Q, the points [SDE, CVn], where CVn is the
+normalized violation CV above; the right one shows the objective vectors, with
+the infeasible region shaded. Parents are circles,
+children triangles, and infeasible solutions are orange.
+
+<div class="vf-widget" data-vf-widget="cmoeams-steps"><p class="vf-fallback">Interactive figure: two generations of CMOEA-MS on six solutions of a constrained two-variable problem, the first in stage A and the second in stage B: the population and its fitness, the binary tournaments, SBX and polynomial mutation, the union and its normalized violation, the stage rule, the shift-based density, the fitness of each stage and the environmental selection. It needs JavaScript.</p></div>
+
+Things to try:
+
+1. Step 5: 6 of the 12 solutions of Q are feasible, a share of 0.5, which is
+   not greater than λ = 0.5, and only 12 of the 150 evaluations are done,
+   fewer than 15. Generation 1 is in stage A for both reasons.
+2. Steps 7 and 8: in the plane [SDE, CVn], only 2, 3 and 6 are
+   non-dominated; 2 is the least crowded solution (SDE = 0.407) although it is
+   the most violated (CVn = 1). Only these three have a fitness below 1, so the six
+   lowest fitness values survive: 2, 3, 6, 8, 9 and 12, three of them
+   infeasible. Stage B would have kept six feasible solutions.
+3. Step 13: 7 of the 12 solutions are feasible (0.583 > 0.5) and 18
+   evaluations are done, so generation 2 is in stage B.
+4. Step 15: seven feasible solutions have a fitness below 1, one too many,
+   and the truncation removes 6. The population is now feasible.
 
 ## Try it: the two stages on the same candidates
 
