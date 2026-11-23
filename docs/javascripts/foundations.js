@@ -1096,7 +1096,25 @@
     return { W, CA, DA, ca, caCounts, regions, trace, feasible };
   }
 
-  /** ToP phase 1 (pairwise replacement on the mean objective) and phase 2 (constrained NSGA-II survival). */
+  /** ToP's constrained fronts (the feasible rows by Pareto dominance, then one front per violation value) and crowding distances. */
+  function topFronts(F, cv) {
+    const idx = F.map((_, i) => i);
+    const feasible = idx.filter((i) => cv[i] <= 0);
+    const fronts = nonDominatedSort(feasible.map((i) => F[i])).fronts.map((f) => f.map((r) => feasible[r]));
+    const infeasible = idx.filter((i) => cv[i] > 0);
+    Array.from(new Set(infeasible.map((i) => cv[i])))
+      .sort((a, b) => a - b)
+      .forEach((v) => fronts.push(infeasible.filter((i) => cv[i] === v)));
+    const crowd = new Array(F.length).fill(0);
+    fronts.forEach((front) => {
+      const d = crowdingDistance(F, front);
+      front.forEach((i, a) => (crowd[i] = d[a]));
+    });
+    return { fronts, crowd };
+  }
+
+  /** ToP phase 1 (pairwise replacement on the mean objective) and phase 2 (constrained NSGA-II survival).
+      sums lists [row, sum of normalized objectives] of the feasible survivors of phase 1, lo and hi their bounds. */
   function topSelect(F, cv, n) {
     const mean = (f) => f.reduce((s2, v) => s2 + v, 0) / f.length;
     const pairs = [];
@@ -1111,24 +1129,17 @@
     const feas = next.filter((i) => cv[i] <= 0);
     const Pf = feas.length / n;
     let delta = 1;
+    let lo = null;
+    let hi = null;
+    let sums = [];
     if (feas.length >= 3) {
-      const lo = [0, 1].map((j) => Math.min(...feas.map((i) => F[i][j])));
-      const hi = [0, 1].map((j) => Math.max(...feas.map((i) => F[i][j])));
-      const sums = feas.map((i) => F[i].reduce((s2, v, j) => s2 + (v - lo[j]) / (hi[j] - lo[j]), 0)).sort((a, b) => a - b);
-      delta = sums[Math.floor(feas.length / 3) - 1] - sums[0];
+      lo = [0, 1].map((j) => Math.min(...feas.map((i) => F[i][j])));
+      hi = [0, 1].map((j) => Math.max(...feas.map((i) => F[i][j])));
+      sums = feas.map((i) => [i, F[i].reduce((s2, v, j) => s2 + (v - lo[j]) / (hi[j] - lo[j]), 0)]);
+      const sorted = sums.map((e) => e[1]).sort((a, b) => a - b);
+      delta = sorted[Math.floor(feas.length / 3) - 1] - sorted[0];
     }
-    const idx = F.map((_, i) => i);
-    const feasible = idx.filter((i) => cv[i] <= 0);
-    const fronts = nonDominatedSort(feasible.map((i) => F[i])).fronts.map((f) => f.map((r) => feasible[r]));
-    const infeasible = idx.filter((i) => cv[i] > 0);
-    Array.from(new Set(infeasible.map((i) => cv[i])))
-      .sort((a, b) => a - b)
-      .forEach((v) => fronts.push(infeasible.filter((i) => cv[i] === v)));
-    const crowd = new Array(F.length).fill(0);
-    fronts.forEach((front) => {
-      const d = crowdingDistance(F, front);
-      front.forEach((i, a) => (crowd[i] = d[a]));
-    });
+    const { fronts, crowd } = topFronts(F, cv);
     const kept = [];
     for (const front of fronts) {
       if (kept.length + front.length <= n) kept.push(...front);
@@ -1143,7 +1154,114 @@
       }
       if (kept.length === n) break;
     }
-    return { pairs, next, Pf, delta, phaseOneContinues: delta >= 0.2 || Pf <= 1 / 3, fronts, crowd, kept: kept.sort((a, b) => a - b) };
+    return { pairs, next, Pf, delta, sums, lo, hi, phaseOneContinues: delta >= 0.2 || Pf <= 1 / 3, fronts, crowd, kept: kept.sort((a, b) => a - b) };
+  }
+
+  /** One generation of each phase of ToP, recorded for the ToP lesson, on the loop figure's problem with CTP2's
+      constraint on its objectives (gaEvaluate, then ctpViolation). popSize random solutions (ids 1 to N) start
+      phase 1 with δ = 1. Phase 1 gives each solution a trial vector, DE/current-to-rand/1 or DE/rand-to-best/1/bin
+      with probability 0.5 each (r1, r2 and r3 drawn with replacement, x_best the first lowest mean objective,
+      F = 0.5, CR = 1), clamped and mutated (polynomial mutation, probability 1/2, η = 20); topSelect replaces each
+      solution by its trial vector or not and updates Pf and δ. If they end phase 1, phase 2 follows: binary
+      tournaments on ToP's fronts and crowding distances choose x₁ (a full tie goes to the first row), x₂ and x₃ are
+      random, each offspring x₁ + F (x₂ − x₃) is clamped and mutated, and topSelect keeps the best N of the
+      population and the offspring. phase2 is null when phase 1 continues. Random numbers are drawn in VAMOS'
+      blocks: the strategies, the indices, the crossover, the mutation. */
+  function topGeneration(seed, popSize) {
+    const rand = mulberry32(seed);
+    const N = popSize;
+    const CR = 1;
+    const SCALE = 0.5;
+    let nextId = 1;
+    const born = (x, extra) => {
+      const f = gaEvaluate(x);
+      return Object.assign({ id: nextId++, x, f, cv: ctpViolation(f), mean: (f[0] + f[1]) / 2 }, extra);
+    };
+    const draw = () => Math.floor(rand() * N);
+    // Binomial crossover without j_rand, then clamping and polynomial mutation, as ToP's trial vectors.
+    const trialVectors = (bases, mutants) => {
+      const crossed = bases.map((b, i) => b.map((v, j) => (rand() < CR ? mutants[i][j] : v)));
+      return crossed.map((x) =>
+        polynomialMutation(
+          x.map((v) => Math.min(1, Math.max(0, v))),
+          0,
+          1,
+          0.5,
+          20,
+          rand
+        )
+      );
+    };
+    const pop = [];
+    for (let i = 0; i < N; i++) pop.push(born([rand(), rand()]));
+    let best = 0;
+    pop.forEach((p, i) => {
+      if (p.mean < pop[best].mean) best = i;
+    });
+    const strategy = pop.map(() => (rand() < 0.5 ? "current-to-rand" : "rand-to-best"));
+    const drawn = pop.map(() => [draw(), draw(), draw()]);
+    const bases = pop.map((p, i) => (strategy[i] === "current-to-rand" ? p.x : pop[drawn[i][0]].x));
+    const mutants = pop.map((p, i) => {
+      const [r1, r2, r3] = drawn[i].map((k) => pop[k].x);
+      const b = pop[best].x;
+      return p.x.map((v, j) => (strategy[i] === "current-to-rand" ? v + SCALE * (r1[j] - v) + SCALE * (r2[j] - r3[j]) : r1[j] + SCALE * (b[j] - r1[j]) + SCALE * (r2[j] - r3[j])));
+    });
+    const trials = trialVectors(bases, mutants).map((x, i) =>
+      born(x, { parent: pop[i].id, strategy: strategy[i], r: drawn[i].map((k) => pop[k].id), base: strategy[i] === "current-to-rand" ? pop[i].id : pop[drawn[i][0]].id, mutant: mutants[i] })
+    );
+    const merged1 = pop.concat(trials);
+    const one = topSelect(
+      merged1.map((p) => p.f),
+      merged1.map((p) => p.cv),
+      N
+    );
+    const pop1 = one.next.map((i) => merged1[i]);
+    const phase1 = { pop, best, trials, merged: merged1, pairs: one.pairs, next: one.next, Pf: one.Pf, delta: one.delta, sums: one.sums, lo: one.lo, hi: one.hi, continues: one.phaseOneContinues };
+    if (one.phaseOneContinues) return { popSize: N, phase1, phase2: null };
+    const ranked = topFronts(
+      pop1.map((p) => p.f),
+      pop1.map((p) => p.cv)
+    );
+    const front = new Array(N).fill(0);
+    ranked.fronts.forEach((members, k) => members.forEach((i) => (front[i] = k)));
+    const tournaments = pop1
+      .map(() => [draw(), draw()])
+      .map(([a, b]) => {
+        let w = Math.min(a, b);
+        let reason = a === b ? "same" : "tie";
+        if (front[a] !== front[b]) {
+          w = front[a] < front[b] ? a : b;
+          reason = "front";
+        } else if (ranked.crowd[a] !== ranked.crowd[b]) {
+          w = ranked.crowd[a] > ranked.crowd[b] ? a : b;
+          reason = "crowding";
+        }
+        return { a: pop1[a].id, b: pop1[b].id, winner: pop1[w].id, reason, row: w };
+      });
+    const others = pop1.map(() => [draw(), draw()]);
+    const bases2 = tournaments.map((t) => pop1[t.row].x);
+    const mutants2 = bases2.map((b, i) => b.map((v, j) => v + SCALE * (pop1[others[i][0]].x[j] - pop1[others[i][1]].x[j])));
+    const children = trialVectors(bases2, mutants2).map((x, i) => born(x, { parents: [tournaments[i].winner, pop1[others[i][0]].id, pop1[others[i][1]].id], mutant: mutants2[i] }));
+    const merged2 = pop1.concat(children);
+    const two = topSelect(
+      merged2.map((p) => p.f),
+      merged2.map((p) => p.cv),
+      N
+    );
+    const whole = [];
+    let used = 0;
+    let split = null;
+    for (const members of two.fronts) {
+      if (used === N) break;
+      if (used + members.length > N) {
+        split = members;
+        break;
+      }
+      whole.push(members);
+      used += members.length;
+    }
+    const phase2 = { pop: pop1, fronts: ranked.fronts, crowd: ranked.crowd, front, tournaments, children, merged: merged2, mergedFronts: two.fronts, mergedCrowd: two.crowd, whole, split, places: N - used, kept: two.kept };
+    return { popSize: N, phase1, phase2 };
   }
 
   /** CMOEA-MS stage A and stage B fitness and selection (cmoeams/fitness.py, selection.py). */
@@ -2420,6 +2538,7 @@
     ccmoSelect,
     ctaeaSelect,
     topSelect,
+    topGeneration,
     cmoeamsSelect,
     CS_CANDIDATES,
     agemoeaSurvival,
@@ -5385,6 +5504,460 @@
       });
     }
     render();
+  };
+
+  /** The background of the loop figure's problem with CTP2's constraint (gaEvaluate, then ctpViolation): the
+      infeasible region in the decision space and, with drawCtp2, in the objective space. This problem also reaches
+      the points below f₂ = 1 − f₁, which CTP2 does not and which are all infeasible, so that triangle is shaded too
+      and CTP2's unconstrained front, which is not this problem's, is left out. */
+  function drawConstrainedLoop(xPlot, fPlot) {
+    const cols = 120;
+    const step = 0.004;
+    for (let c = 0; c < cols; c++) {
+      const x1 = (c + 0.5) / cols;
+      let start = null;
+      for (let x2 = 0; x2 <= 1 + step; x2 += step) {
+        const bad = x2 <= 1 && ctpViolation(gaEvaluate([x1, x2])) > 0;
+        if (bad && start === null) start = x2;
+        if (!bad && start !== null) {
+          xPlot.rect(xPlot.layers.back, c / cols, start, (c + 1) / cols + 0.0005, Math.min(x2, 1), "vf-region-2");
+          start = null;
+        }
+      }
+    }
+    drawCtp2(fPlot);
+    fPlot.layers.back.querySelectorAll(".vf-front").forEach((line) => line.remove());
+    const below = fPlot.line(fPlot.layers.back, [[0, 0], [0, 1], [1, 0], [0, 0]], "vf-region-2");
+    fPlot.layers.back.insertBefore(below, fPlot.layers.back.firstChild);
+  }
+
+  /** Write point labels where they overlap the other labels and points least: items are { px, py, text }. */
+  function placeLabels(plot, items) {
+    const offsets = [
+      [9, -7, "start"],
+      [-9, -7, "end"],
+      [9, 14, "start"],
+      [-9, 14, "end"],
+      [11, 4, "start"],
+      [-11, 4, "end"],
+      [0, -12, "middle"],
+      [0, 21, "middle"],
+    ];
+    const overlap = (a, b) => Math.max(0, Math.min(a[2], b[2]) - Math.max(a[0], b[0])) * Math.max(0, Math.min(a[3], b[3]) - Math.max(a[1], b[1]));
+    const marks = items.map((it) => [it.px - 7, it.py - 7, it.px + 7, it.py + 7]);
+    const placed = [];
+    for (const it of items) {
+      const w = it.text.length * 6.3 + 2;
+      let best = null;
+      for (const [dx, dy, anchor] of offsets) {
+        const x0 = anchor === "start" ? it.px + dx : anchor === "end" ? it.px + dx - w : it.px - w / 2;
+        const box = [x0, it.py + dy - 9, x0 + w, it.py + dy + 2];
+        let cost = 0;
+        for (const b of placed) cost += 2 * overlap(box, b);
+        for (const b of marks) cost += overlap(box, b);
+        if (box[0] < 2 || box[2] > plot.W - 2 || box[1] < 0 || box[3] > plot.H - 30) cost += 1000;
+        if (!best || cost < best.cost) best = { cost, dx, dy, anchor, box };
+      }
+      placed.push(best.box);
+      txt(plot.layers.top, it.px + best.dx, it.py + best.dy, it.text, { class: "vf-mark-label", "text-anchor": best.anchor });
+    }
+  }
+
+  /* ToP at a glance: one generation of phase 1, the switch, and one generation of phase 2. */
+  widgets["top-steps"] = function (node) {
+    const N = 6;
+    const STEPS = [
+      [1, "the population and the objective of phase 1"],
+      [1, "mutant vectors"],
+      [1, "trial vectors"],
+      [1, "evaluation"],
+      [1, "one-to-one replacement"],
+      [1, "Pf, δ and the switch"],
+      [2, "constrained fronts of the population"],
+      [2, "mating selection"],
+      [2, "DE/rand/1 offspring"],
+      [2, "evaluation and merge"],
+      [2, "constrained non-dominated sorting"],
+      [2, "whole fronts and crowding distance"],
+      [2, "the next population"],
+    ];
+    const PHASE_2 = STEPS.findIndex((st) => st[0] === 2);
+    const SUB = "₀₁₂₃₄₅₆₇₈₉";
+    const state = { seed: Number(node.dataset.seed || 789767), step: 0 };
+    let g = null;
+    const interesting = (c) => {
+      if (!c.phase2) return false;
+      const m = c.phase1.merged;
+      const p2 = c.phase2;
+      return (
+        c.phase1.pairs.some((p) => m[p.p].cv !== m[p.o].cv) &&
+        c.phase1.pairs.some((p) => m[p.p].cv === m[p.o].cv) &&
+        p2.children.some((ch) => ch.cv > 0) &&
+        p2.split !== null &&
+        p2.places > 0 &&
+        p2.split.length > p2.places
+      );
+    };
+    const ctl = controls(node);
+    const phaseSelect = select(ctl, {
+      label: "Phase",
+      options: [
+        ["1", "Phase 1: generation 1"],
+        ["2", "Phase 2: generation 2"],
+      ],
+      value: "1",
+      onChange: (v) => go(v === "1" ? 0 : PHASE_2),
+    });
+    const back = button(ctl, "Previous step", () => go(state.step - 1));
+    const next = button(ctl, "Next step", () => go(state.step + 1), true);
+    button(ctl, "Restart", () => go(0));
+    button(ctl, "New population", () => {
+      // Draw runs until phase 1 ends after one generation, the violation and the mean objective both decide pairs,
+      // an offspring of phase 2 is infeasible and the crowding distance decides who survives.
+      for (let tries = 0; tries < 300; tries++) {
+        const seed = Math.floor(Math.random() * 1e6);
+        if (interesting(topGeneration(seed, N))) {
+          state.seed = seed;
+          break;
+        }
+      }
+      build();
+    });
+    const body = h("div", { class: "vf-body vf-body--two" }, node);
+    const xPlot = createPlot(body, { title: "Decision space", x: [0, 1], y: [0, 1], xLabel: "x₁", yLabel: "x₂", label: "Decision vectors of the population, the mutant and trial vectors and the offspring of ToP" });
+    const fPlot = createPlot(body, { title: "Objective space", x: [0, 1], y: [0, 1.6], xLabel: "f₁ (minimize)", yLabel: "f₂ (minimize)", label: "Objective vectors, CTP2's infeasible region and ToP's replacements, fronts and survivors" });
+    drawConstrainedLoop(xPlot, fPlot);
+    for (const plot of [xPlot, fPlot]) {
+      plot.svg.setAttribute("tabindex", "0");
+      plot.svg.setAttribute("aria-keyshortcuts", "ArrowLeft ArrowRight");
+    }
+    const readout = h("div", { class: "vf-readout" }, node);
+    const stepText = h("p", { class: "vf-step-text", "aria-live": "polite" }, readout);
+    h("p", {}, readout, "The arrow keys step through the figure when it has focus; Phase jumps to the first step of a phase, and New population draws another run.");
+    const tableBox = h("div", {}, readout);
+    legend(node, [
+      { label: "Parent", shape: "circle", cls: "vf-pt vf-pt-1" },
+      { label: "Trial vector, child", shape: "triangle", cls: "vf-pt vf-pt-1" },
+      { label: "Infeasible (CV > 0)", shape: "circle", cls: "vf-pt vf-pt-2" },
+      { label: "Not evaluated yet", shape: "triangle", cls: "vf-pt vf-pt-muted" },
+      { label: "Mutant vector", shape: "triangle", cls: "vf-pt-hollow" },
+      { label: "Feasible fronts 1, 2, 3 … (darker is better)", shape: "circle", cls: "vf-pt vf-r1" },
+      { label: "Winner, survivor, best third", shape: "circle", cls: "vf-ring" },
+      { label: "Infeasible region", shape: "region", cls: "vf-region-2" },
+      { label: "Constrained Pareto front", shape: "line", cls: "vf-line-1" },
+    ]);
+    node.addEventListener("keydown", (e) => {
+      if (e.target && /^(SELECT|INPUT|BUTTON)$/.test(e.target.tagName)) return;
+      if (e.key === "ArrowRight") go(state.step + 1);
+      else if (e.key === "ArrowLeft") go(state.step - 1);
+      else return;
+      e.preventDefault();
+    });
+    function build() {
+      g = topGeneration(state.seed, N);
+      go(0);
+    }
+    function go(i) {
+      // A run whose phase 1 continues has no phase 2 to show.
+      const last = g.phase2 ? STEPS.length - 1 : PHASE_2 - 1;
+      state.step = Math.max(0, Math.min(last, i));
+      render();
+    }
+    const sub = (id) => String(id).replace(/\d/g, (d) => SUB[Number(d)]);
+    const set = (list) => "{" + list.slice().sort((a, b) => a - b).join(", ") + "}";
+    const feasibleCls = (p) => (p.cv > 0 ? "vf-pt-2" : "vf-pt-1");
+    const cvText = (p) => (p.cv > 0 ? fmt(p.cv, 4) : "0");
+    function draw(plot, labels, v, shape, cls, label, ring) {
+      const px = plot.x(Math.min(Math.max(v[0], plot.xd[0]), plot.xd[1]));
+      const py = plot.y(Math.min(Math.max(v[1], plot.yd[0]), plot.yd[1]));
+      marker(plot.layers.marks, shape, px, py, 6, cls);
+      if (ring) marker(plot.layers.marks, "circle", px, py, 10.5, "vf-ring");
+      labels.push({ px, py, text: label });
+    }
+    function render() {
+      const step = state.step;
+      phaseSelect.value = String(STEPS[step][0]);
+      back.disabled = step === 0;
+      next.disabled = step === (g.phase2 ? STEPS.length - 1 : PHASE_2 - 1);
+      for (const plot of [xPlot, fPlot]) {
+        clear(plot.layers.mid);
+        clear(plot.layers.marks);
+        clear(plot.layers.top);
+      }
+      const xl = [];
+      const fl = [];
+      const out = step < PHASE_2 ? renderPhaseOne(step, xl, fl) : renderPhaseTwo(step - PHASE_2, xl, fl);
+      placeLabels(xPlot, xl);
+      placeLabels(fPlot, fl);
+      stepText.textContent = `Step ${step + 1} of ${STEPS.length}: ${STEPS[step][1]}. ${describe(step)}`;
+      clear(tableBox);
+      table(tableBox, out.headers, out.rows, out.numeric);
+    }
+    function renderPhaseOne(step, xl, fl) {
+      const p1 = g.phase1;
+      const pop = p1.pop;
+      const rows = [];
+      const headers = ["Id", "Role", "x₁", "x₂", "f₁", "f₂", "CV", "Mean", step === 4 ? "Status" : "Detail"];
+      const numeric = [false, false, true, true, true, true, true, true, false];
+      const row = (p, role, known, detail) => [String(p.id), role, fmt(p.x[0], 2), fmt(p.x[1], 2), known ? fmt(p.f[0], 3) : "?", known ? fmt(p.f[1], 3) : "?", known ? cvText(p) : "?", known ? fmt(p.mean, 3) : "?", detail];
+      if (step === 5) {
+        const P = p1.next.map((i) => p1.merged[i]);
+        const sums = new Map(p1.sums.map(([i, v]) => [p1.merged[i].id, v]));
+        const order = p1.sums.slice().sort((a, b) => a[1] - b[1] || a[0] - b[0]);
+        const k = Math.floor(p1.sums.length / 3);
+        const third = new Set(order.slice(0, k).map((e) => p1.merged[e[0]].id));
+        if (p1.lo) {
+          const { lo, hi } = p1;
+          fPlot.rect(fPlot.layers.mid, lo[0], lo[1], hi[0], hi[1], "vf-line-thin vf-dashed");
+          const level = (sv) => {
+            const a = Math.max(0, sv - 1);
+            const b = Math.min(1, sv);
+            const at = (t) => [lo[0] + t * (hi[0] - lo[0]), lo[1] + (sv - t) * (hi[1] - lo[1])];
+            fPlot.line(fPlot.layers.mid, [at(a), at(b)], "vf-line-ink vf-dashed");
+          };
+          level(order[0][1]);
+          if (k > 1) level(order[k - 1][1]);
+        }
+        P.forEach((p) => {
+          const isTrial = p.parent !== undefined;
+          const label = sums.has(p.id) ? `${p.id} · ${fmt(sums.get(p.id), 2)}` : String(p.id);
+          draw(xPlot, xl, p.x, isTrial ? "triangle" : "circle", "vf-pt " + feasibleCls(p), String(p.id), third.has(p.id));
+          draw(fPlot, fl, p.f, isTrial ? "triangle" : "circle", "vf-pt " + feasibleCls(p), label, third.has(p.id));
+          const detail = sums.has(p.id) ? `s = ${fmt(sums.get(p.id), 3)}${third.has(p.id) ? ", best third" : ""}` : p.cv > 0 ? "infeasible" : "–";
+          rows.push(row(p, isTrial ? `trial vector of ${p.parent}` : "parent", true, detail));
+        });
+        return { headers, rows, numeric };
+      }
+      const byId = new Map(pop.map((p) => [p.id, p]));
+      if (step === 1) {
+        p1.trials.forEach((t, i) => {
+          const base = byId.get(t.base);
+          xPlot.line(xPlot.layers.mid, [base.x, t.mutant], "vf-line-thin vf-dashed");
+          draw(xPlot, xl, t.mutant, "triangle", "vf-pt-hollow", "v" + sub(pop[i].id), false);
+        });
+      }
+      if (step === 2 || step === 3) {
+        p1.trials.forEach((t, i) => {
+          xPlot.line(xPlot.layers.mid, [pop[i].x, t.x], "vf-line-thin vf-dashed");
+          if (step === 3) fPlot.line(fPlot.layers.mid, [pop[i].f, t.f], "vf-line-thin vf-dashed");
+        });
+      }
+      if (step === 4) {
+        p1.pairs.forEach((pr) => {
+          fPlot.line(fPlot.layers.mid, [p1.merged[pr.p].f, p1.merged[pr.o].f], "vf-line-thin vf-dashed");
+          xPlot.line(xPlot.layers.mid, [p1.merged[pr.p].x, p1.merged[pr.o].x], "vf-line-thin vf-dashed");
+        });
+      }
+      const winners = new Set(p1.next.map((i) => p1.merged[i].id));
+      pop.forEach((p, i) => {
+        const removed = step === 4 && !winners.has(p.id);
+        const cls = "vf-pt " + feasibleCls(p) + (removed ? " vf-faded" : "");
+        const label = String(p.id) + (step <= 1 && i === p1.best ? " · best" : "") + (removed ? " ✕" : "");
+        draw(xPlot, xl, p.x, "circle", cls, label, step === 4 && !removed);
+        draw(fPlot, fl, p.f, "circle", cls, label, step === 4 && !removed);
+        const t = p1.trials[i];
+        let detail = "–";
+        if (step === 0) detail = i === p1.best ? "x_best: lowest mean" : "–";
+        if (step === 1) {
+          const [r1, r2, r3] = t.r;
+          detail = `${t.strategy}, r1 = ${r1}, r2 = ${r2}, r3 = ${r3}: v = ${pair(t.mutant, 2)}`;
+        }
+        if (step >= 2) detail = `competes with ${t.id}`;
+        if (step === 4) detail = winners.has(p.id) ? "stays" : `replaced by ${t.id}`;
+        rows.push(row(p, "parent", true, detail));
+      });
+      if (step >= 2) {
+        p1.trials.forEach((t, i) => {
+          const known = step >= 3;
+          const removed = step === 4 && !winners.has(t.id);
+          const cls = "vf-pt " + (known ? feasibleCls(t) : "vf-pt-muted") + (removed ? " vf-faded" : "");
+          const label = String(t.id) + (removed ? " ✕" : "");
+          draw(xPlot, xl, t.x, "triangle", cls, label, step === 4 && !removed);
+          if (known) draw(fPlot, fl, t.f, "triangle", cls, label, step === 4 && !removed);
+          let detail = "not evaluated";
+          if (step === 2) {
+            const clamped = t.mutant.some((v) => v < 0 || v > 1);
+            const moved = t.x.some((v, j) => Math.abs(v - Math.min(1, Math.max(0, t.mutant[j]))) > 1e-12);
+            detail = (clamped ? "v clamped to [0, 1]²" : "v") + (moved ? ", then mutated" : ", not mutated");
+          }
+          if (step === 3) detail = `competes with ${pop[i].id}`;
+          if (step === 4) detail = winners.has(t.id) ? `replaces ${pop[i].id}` : "removed";
+          rows.push(row(t, `trial vector of ${pop[i].id}`, known, detail));
+        });
+      }
+      return { headers, rows, numeric };
+    }
+    function renderPhaseTwo(k, xl, fl) {
+      const p2 = g.phase2;
+      const rows = [];
+      const headers = ["Id", "Role", "x₁", "x₂", "f₁", "f₂", "CV", "Front", "Crowding", "Status"];
+      const numeric = [false, false, true, true, true, true, true, true, true, false];
+      const cls = (p, front, ranked) => "vf-pt " + (p.cv > 0 ? "vf-pt-2" : ranked ? rankClass(front) : "vf-pt-1");
+      if (k <= 2) {
+        const wins = new Map();
+        p2.tournaments.forEach((t) => wins.set(t.winner, (wins.get(t.winner) || 0) + 1));
+        const byId = new Map(p2.pop.map((p) => [p.id, p]));
+        if (k === 0) {
+          p2.fronts.forEach((members, f) => {
+            const pts = members.map((i) => p2.pop[i].f).sort((a, b) => a[0] - b[0]);
+            if (pts.length > 1 && p2.pop[members[0]].cv <= 0) fPlot.line(fPlot.layers.mid, pts, "vf-front-link " + rankClass(f));
+          });
+        }
+        if (k === 1) p2.tournaments.forEach((t) => fPlot.line(fPlot.layers.mid, [byId.get(t.a).f, byId.get(t.b).f], "vf-line-thin vf-dashed"));
+        p2.pop.forEach((p, i) => {
+          const w = wins.get(p.id) || 0;
+          const label = String(p.id) + (k === 1 && w > 1 ? " ×" + w : "");
+          draw(xPlot, xl, p.x, "circle", cls(p, p2.front[i], true), label, k === 1 && w > 0);
+          draw(fPlot, fl, p.f, "circle", cls(p, p2.front[i], true), label, k === 1 && w > 0);
+          rows.push([String(p.id), "parent", fmt(p.x[0], 2), fmt(p.x[1], 2), fmt(p.f[0], 3), fmt(p.f[1], 3), cvText(p), String(p2.front[i] + 1), fmt(p2.crowd[i], 2), k === 1 ? (w ? `won ${w}×` : "–") : "–"]);
+        });
+        if (k === 2) {
+          p2.children.forEach((c) => {
+            xPlot.line(xPlot.layers.mid, [byId.get(c.parents[0]).x, c.x], "vf-line-thin vf-dashed");
+            draw(xPlot, xl, c.x, "triangle", "vf-pt vf-pt-muted", String(c.id), false);
+            rows.push([String(c.id), "child", fmt(c.x[0], 2), fmt(c.x[1], 2), "?", "?", "?", "–", "–", `x₁ = ${c.parents[0]}, x₂ = ${c.parents[1]}, x₃ = ${c.parents[2]}`]);
+          });
+        }
+        return { headers, rows, numeric };
+      }
+      const front = new Array(p2.merged.length).fill(0);
+      p2.mergedFronts.forEach((members, f) => members.forEach((i) => (front[i] = f)));
+      const keep = new Set(p2.kept);
+      const whole = new Set(p2.whole.flat());
+      const split = new Set(p2.split || []);
+      const sorted = k >= 4;
+      if (k === 4) {
+        p2.mergedFronts.forEach((members, f) => {
+          const pts = members.map((i) => p2.merged[i].f).sort((a, b) => a[0] - b[0]);
+          if (pts.length > 1 && p2.merged[members[0]].cv <= 0) fPlot.line(fPlot.layers.mid, pts, "vf-front-link " + rankClass(f));
+        });
+      }
+      if (k === 5 && p2.split) {
+        const order = p2.split.slice().sort((a, b) => p2.merged[a].f[0] - p2.merged[b].f[0] || a - b);
+        for (let q = 1; q < order.length - 1; q++) {
+          const a = p2.merged[order[q - 1]].f;
+          const b = p2.merged[order[q + 1]].f;
+          fPlot.rect(fPlot.layers.mid, a[0], a[1], b[0], b[1], "vf-cuboid");
+        }
+      }
+      p2.merged.forEach((p, i) => {
+        const isChild = i >= N;
+        const outOfRace = k === 5 && !whole.has(i) && !split.has(i);
+        const removed = k === 6 && !keep.has(i);
+        const c = cls(p, front[i], sorted) + (outOfRace || removed ? " vf-faded" : "");
+        const ring = (k === 5 && whole.has(i)) || (k === 6 && keep.has(i));
+        let label = String(p.id);
+        if (k === 5 && split.has(i)) label += " · " + fmt(p2.mergedCrowd[i], 2);
+        if (removed) label += " ✕";
+        draw(xPlot, xl, p.x, isChild ? "triangle" : "circle", c, label, ring);
+        draw(fPlot, fl, p.f, isChild ? "triangle" : "circle", c, label, ring);
+        let status = isChild ? "child" : "parent";
+        if (k === 5) status = whole.has(i) ? "kept, whole front" : split.has(i) ? `competes for ${p2.places} place${p2.places === 1 ? "" : "s"}` : "discarded";
+        if (k === 6) status = keep.has(i) ? "kept" : "removed";
+        rows.push([String(p.id), isChild ? "child" : "parent", fmt(p.x[0], 2), fmt(p.x[1], 2), fmt(p.f[0], 3), fmt(p.f[1], 3), cvText(p), sorted ? String(front[i] + 1) : "?", k === 5 && split.has(i) ? fmt(p2.mergedCrowd[i], 2) : "–", status]);
+      });
+      return { headers, rows, numeric };
+    }
+    function describe(step) {
+      const p1 = g.phase1;
+      const pop = p1.pop;
+      if (step === 0) {
+        const best = pop[p1.best];
+        const infeasible = pop.filter((p) => p.cv > 0).map((p) => p.id);
+        const inf = infeasible.length ? `${idList(infeasible)} ${infeasible.length === 1 ? "is" : "are"} infeasible (orange)` : "all are feasible";
+        return `Six random solutions of the loop figure's problem, with CTP2's constraint on its objectives: ${inf}. Phase 1 solves a single-objective problem: minimize the mean objective (f₁ + f₂)/2 under the constraint. x_best, the solution with the lowest mean, feasible or not, is ${best.id} (mean ${fmt(best.mean, 3)}${best.cv > 0 ? ", infeasible" : ""}). A run starts with δ = 1 ≥ 0.2, so its first generation is in phase 1.`;
+      }
+      if (step === 1) {
+        const by = (name) => p1.trials.filter((t) => t.strategy === name).map((t) => t.parent);
+        const ctr = by("current-to-rand");
+        const rtb = by("rand-to-best");
+        const who = (list) => `${list.length === 1 ? "solution" : "solutions"} ${idList(list)} use${list.length === 1 ? "s" : ""}`;
+        const uses = [ctr.length ? `${who(ctr)} DE/current-to-rand/1, v = x + F (x_r1 − x) + F (x_r2 − x_r3)` : "", rtb.length ? `${who(rtb)} DE/rand-to-best/1, v = x_r1 + F (x_best − x_r1) + F (x_r2 − x_r3)` : ""].filter(Boolean).join("; ");
+        return `Each solution draws one of two strategies with probability 0.5, and three members r1, r2 and r3 with replacement, so they can repeat or be the solution itself. With F = 0.5, ${uses}. Each dashed line joins a base vector (x, or x_r1) to its mutant; a mutant outside [0, 1]² is drawn at the border.`;
+      }
+      if (step === 2) {
+        const clamped = p1.trials.filter((t) => t.mutant.some((v) => v < 0 || v > 1)).map((t) => t.id);
+        const clampText = clamped.length ? ` ${idList(clamped)} ${clamped.length === 1 ? "leaves" : "leave"} the bounds and ${clamped.length === 1 ? "is" : "are"} clamped back.` : " No mutant leaves the bounds.";
+        return `With CR = 1, the binomial crossover takes every variable from the mutant, so each trial vector starts as its mutant.${clampText} Polynomial mutation (probability 1/2 per variable, η = 20) then perturbs them: trial vectors ${p1.trials[0].id} to ${p1.trials[N - 1].id}, each joined to the solution it will compete with. Their objectives are not known yet.`;
+      }
+      if (step === 3) {
+        const feasible = p1.trials.filter((t) => t.cv <= 0).length;
+        return `The ${N} trial vectors are evaluated: ${feasible} of them ${feasible === 1 ? "is" : "are"} feasible. Each segment joins a solution to its trial vector; a trial vector competes only with the solution at its position.`;
+      }
+      if (step === 4) {
+        const games = p1.pairs.map((pr) => {
+          const a = p1.merged[pr.p];
+          const b = p1.merged[pr.o];
+          const means = `${fmt(b.mean, 3)} against ${fmt(a.mean, 3)}`;
+          if (b.cv < a.cv) return `${b.id} replaces ${a.id} (${a.cv > 0 && b.cv <= 0 ? "feasible against infeasible" : "smaller violation"}${b.mean >= a.mean ? `, although its mean is not smaller: ${means}` : ""})`;
+          if (a.cv < b.cv) return `${a.id} stays against ${b.id} (${b.id} ${a.cv <= 0 ? "is infeasible" : "is more violated"}${b.mean < a.mean ? `, although its mean is smaller: ${means}` : ""})`;
+          const both = a.cv <= 0 ? "both feasible" : "same violation";
+          return b.mean < a.mean ? `${b.id} replaces ${a.id} (${both}, smaller mean: ${means})` : `${a.id} stays against ${b.id} (${both}, mean not smaller: ${means})`;
+        });
+        return `A trial vector replaces its solution if its violation is smaller, or if both are equal and its mean objective is smaller (Deb's feasibility rule on one pair): ${games.join("; ")}.`;
+      }
+      if (step === 5) {
+        const P = p1.next.map((i) => p1.merged[i].id);
+        const n = p1.sums.length || p1.next.filter((i) => p1.merged[i].cv <= 0).length;
+        const pf = `Pf = ${n}/${N} = ${fmt(p1.Pf, 3)}`;
+        const verdict = p1.continues ? "(δ ≥ 0.2 or Pf ≤ 1/3) holds, so the next generation is in phase 1 again." : "(δ ≥ 0.2 or Pf ≤ 1/3) fails, so the next generation is in phase 2, and so are all the later ones; 12 evaluations are far below the limit of 90% of the budget.";
+        if (n < 3) return `The population is now ${set(P)}. ${pf}. With fewer than three feasible solutions δ keeps its value, 1. ${verdict}`;
+        const order = p1.sums.slice().sort((a, b) => a[1] - b[1] || a[0] - b[0]);
+        const k = Math.floor(n / 3);
+        const s1 = order[0][1];
+        const sk = order[k - 1][1];
+        const third = order.slice(0, k).map((e) => p1.merged[e[0]].id);
+        const how = `The ${n} feasible solutions are normalized with their minimum and maximum in each objective (the box), and each adds its two normalized objectives: ${order.map((e) => `${p1.merged[e[0]].id} · ${fmt(e[1], 3)}`).join(", ")}.`;
+        const delta = k === 1 ? `⌊${n}/3⌋ = 1, so the best third is ${third[0]} alone and δ = s₁ − s₁ = 0.` : `The best third is the ⌊${n}/3⌋ = ${k} smallest sums, ${idList(third)}, and δ = s${sub(k)} − s₁ = ${fmt(sk, 3)} − ${fmt(s1, 3)} = ${fmt(p1.delta, 3)}, the gap between the two dashed lines.`;
+        return `The population is now ${set(P)}. ${pf}. ${how} ${delta} ${verdict}`;
+      }
+      const p2 = g.phase2;
+      const ids = (rows, from) => rows.map((i) => from[i].id);
+      const frontsText = (fronts, from) =>
+        fronts
+          .map((members, f) => {
+            const infeasible = from[members[0]].cv > 0;
+            return `front ${f + 1} = ${set(ids(members, from))}${infeasible ? ` (CV ${fmt(from[members[0]].cv, 4)})` : ""}`;
+          })
+          .join(", ");
+      const k = step - PHASE_2;
+      if (k === 0) {
+        const infeasible = p2.fronts.filter((members) => p2.pop[members[0]].cv > 0).length;
+        return `Phase 2 is NSGA-II with ToP's constrained dominance. The population is sorted into fronts: the feasible solutions by Pareto dominance, then one front per violation value${infeasible ? "" : " (none here: all are feasible)"}: ${frontsText(p2.fronts, p2.pop)}. Each solution also has a crowding distance inside its front, listed in the table; the tournaments use both.`;
+      }
+      if (k === 1) {
+        const why = { front: "better front", crowding: "same front, larger crowding distance", tie: "full tie, first in the population", same: "the same solution twice" };
+        const games = p2.tournaments.map((t) => `${t.a} vs ${t.b} → ${t.winner} (${why[t.reason]})`).join("; ");
+        return `Six binary tournaments, each between two solutions drawn with replacement, choose the base vector x₁ of each offspring: ${games}. Ringed solutions won at least once.`;
+      }
+      if (k === 2) {
+        return `Each offspring is x₁ + F (x₂ − x₃) with F = 0.5 (DE/rand/1), where x₂ and x₃ are random members of the population; with CR = 1 it is the whole mutant, then it is clamped and mutated as in phase 1: children ${p2.children[0].id} to ${p2.children[N - 1].id}, joined to their x₁. Their objectives are not known yet.`;
+      }
+      if (k === 3) {
+        const infeasible = p2.children.filter((c) => c.cv > 0).map((c) => c.id);
+        return `The ${N} children are evaluated (${infeasible.length ? `${idList(infeasible)} ${infeasible.length === 1 ? "is" : "are"} infeasible` : "all are feasible"}) and merged with the ${N} parents: ${2 * N} solutions compete for ${N} places.`;
+      }
+      if (k === 4) {
+        return `The ${2 * N} solutions are sorted with ToP's constrained dominance: the feasible ones by Pareto dominance, then one front per distinct violation, in increasing order: ${frontsText(p2.mergedFronts, p2.merged)}. Every infeasible solution is behind every feasible one, whatever its objectives.`;
+      }
+      if (k === 5) {
+        const used = N - p2.places;
+        const fit = p2.whole.length === 0 ? "No front fits entirely" : p2.whole.length === 1 ? `Front 1 fits entirely, ${used} of ${N} places` : `Fronts 1 to ${p2.whole.length} fit entirely, ${used} of ${N} places`;
+        if (!p2.split) return `${fit}: the whole fronts fill the places exactly, and the fronts after them are discarded.`;
+        const winners = p2.split.filter((i) => p2.kept.includes(i));
+        const dist = p2.split
+          .slice()
+          .sort((a, b) => cmpDesc(p2.mergedCrowd[a], p2.mergedCrowd[b]) || a - b)
+          .map((i) => `${p2.merged[i].id} · ${fmt(p2.mergedCrowd[i], 2)}`)
+          .join(", ");
+        return `${fit}. Front ${p2.whole.length + 1} has ${p2.split.length} members for the ${p2.places} remaining place${p2.places === 1 ? "" : "s"}, and the fronts after it are discarded. Inside it, the extremes get ∞ and the others the sum of the sides of their cuboid divided by the front's ranges: ${dist}. The largest distances win (a tie goes to the solution that comes first): ${idList(ids(winners, p2.merged))}.`;
+      }
+      const kept = p2.kept.map((i) => p2.merged[i].id);
+      const removed = p2.merged.filter((_, i) => !p2.kept.includes(i)).map((p) => p.id);
+      const children = p2.kept.filter((i) => i >= N).length;
+      return `The next population is ${set(kept)}: ${N - children} parent${N - children === 1 ? "" : "s"} and ${children} child${children === 1 ? "" : "ren"}; ${idList(removed)} leave. Phase 2 repeats this generation until the budget is spent; δ and Pf are no longer computed.`;
+    }
+    build();
   };
 
   /* A4: AGE-MOEA curvature estimate and survival score. */

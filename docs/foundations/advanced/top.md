@@ -1,5 +1,5 @@
 ---
-description: 'ToP in depth: a first phase that solves a constrained single-objective problem with differential evolution and the feasibility rule, the switch on the feasible share and on delta, a second phase with NSGA-II and constrained domination, and where VAMOS follows PlatEMO and jMetal, with an interactive figure and VAMOS code.'
+description: 'ToP in depth: a first phase that solves a constrained single-objective problem with differential evolution and the feasibility rule, the switch on the feasible share and on delta, a second phase with NSGA-II and constrained domination, and where VAMOS follows PlatEMO and jMetal, with interactive figures and VAMOS code.'
 search:
   boost: 0.5
 ---
@@ -122,6 +122,37 @@ solutions with the same violation share a front whatever their objectives.
 Each offspring is x₁ + F (x₂ − x₃) with binomial crossover (DE/rand/1/bin),
 where x₁ wins a binary tournament on front and crowding distance and x₂, x₃ are
 random; it is then clamped and mutated, as in phase 1.
+
+### Try it: one generation step by step
+
+Step through the first generation of a run, which is in phase 1, and the
+second, which is in phase 2, on six solutions of the two-variable problem of
+lesson [Genetic algorithms](../basic/genetic-algorithms.md#step-through-the-loop),
+f₁ = x₁ and f₂ = g·(1 − √(x₁/g)) with g = 1 + x₂, under CTP2's constraint on
+(f₁, f₂), the constraint of the figure in the next section. The left panel
+shows the decision vectors and the right one the objective vectors, with the
+infeasible region shaded in both. Parents are circles, trial vectors and
+children triangles, and infeasible solutions are orange. The operators are
+VAMOS' defaults for ToP: F = 0.5, CR = 1 and polynomial mutation with
+probability 1/n = 1/2 and η = 20.
+
+<div class="vf-widget" data-vf-widget="top-steps"><p class="vf-fallback">Interactive figure: one generation of ToP's phase 1 and one of its phase 2 on six solutions of a constrained two-variable problem: the mean objective and the best solution, the mutant and trial vectors, their evaluation, the one-to-one replacement by the feasibility rule, Pf and delta and the switch, then the constrained fronts, the tournaments, the DE/rand/1 offspring, the merge, the constrained non-dominated sorting, the crowding distance and the next population. It needs JavaScript.</p></div>
+
+Things to try:
+
+1. Step 1: x_best is 2, the solution with the lowest mean objective
+   (f̄ = 0.491), although it is infeasible.
+2. Step 5: the violation decides two pairs against the mean objective. The
+   feasible trial vector 8 replaces the infeasible 2 although its f̄ is larger
+   (0.500 against 0.491), and 1 stays against 7, which has the smaller f̄
+   (0.564 against 0.614) but is infeasible. Of the four pairs of feasible
+   solutions, only 10 beats its parent (0.662 against 0.750).
+3. Step 6: all six solutions are feasible, so Pf = 1. The best third by
+   normalized sum is 8 (0.926) and 1 (0.980), so δ = 0.053 < 0.2, and the
+   second generation is in phase 2.
+4. Steps 11 to 13: the four infeasible children, 18, 16, 15 and 17, form one
+   front each, in increasing order of violation, behind the feasible child 14.
+   Front 2 = {3, 10, 13} has two places, and 10, its inner member, leaves.
 
 ## Try it: the two phases on the same candidates
 

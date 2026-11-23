@@ -805,3 +805,111 @@ process.stdout.write(JSON.stringify(generations, (key, value) => (value === Infi
     assert distances[3] == distances[5] == "inf"
     assert {k: round(distances[k], 2) for k in (4, 11, 8, 2)} == {4: 1.05, 11: 0.92, 8: 0.81, 2: 0.55}
     assert sorted(ident[i] for i in example["keep"]) == [1, 3, 4, 5, 9, 11]
+
+
+def _inf(values: list[Any]) -> np.ndarray:
+    return np.array([np.inf if v == "inf" else v for v in values], dtype=float)
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_top_generation_figure_agrees_with_vamos() -> None:
+    from vamos.engine.algorithm.top.differential_evolution import current_to_rand_1, rand_1, rand_to_best_1
+    from vamos.engine.algorithm.top.phases import (
+        feasible_ratio,
+        index_of_lowest_mean_objective,
+        mean_objectives,
+        offspring_replaces_parent,
+        phase_one_continues,
+        updated_delta,
+    )
+    from vamos.engine.algorithm.top.selection import (
+        constrained_front_numbers,
+        crowding_distances,
+        environmental_selection,
+        tournament_winners,
+    )
+
+    seeds = [789767, 145829, 158507, 7680, 1, 2, 601]  # 789767 is the lesson's example; 2 stays in phase 1
+    program = f"""
+require({json.dumps(str(SCRIPT))});
+const V = globalThis.VamosFoundations;
+const runs = {json.dumps(seeds)}.map((seed) => V.topGeneration(seed, 6));
+process.stdout.write(JSON.stringify(runs, (key, value) => (value === Infinity ? "inf" : value)));
+"""
+    completed = subprocess.run(["node", "-e", program], capture_output=True, text=True, check=True, timeout=60)
+    runs = json.loads(completed.stdout)
+    assert [run["phase2"] is None for run in runs] == [False, False, False, False, False, True, False]
+
+    for run in runs:
+        # Phase 1: x_best, the DE mutants, the one-to-one replacement, Pf, delta and the switch are VAMOS's.
+        one = run["phase1"]
+        pop, trials, merged = one["pop"], one["trials"], one["merged"]
+        X, F = np.array([p["x"] for p in pop]), np.array([p["f"] for p in pop])
+        assert one["best"] == index_of_lowest_mean_objective(F)
+        np.testing.assert_allclose([p["mean"] for p in merged], mean_objectives(np.array([p["f"] for p in merged])), rtol=1e-15)
+        row = {p["id"]: i for i, p in enumerate(pop)}
+        for i, t in enumerate(trials):
+            assert t["parent"] == pop[i]["id"]
+            r1, r2, r3 = (X[row[r]][None, :] for r in t["r"])
+            if t["strategy"] == "current-to-rand":
+                assert t["base"] == pop[i]["id"]
+                mutant = current_to_rand_1(X[i][None, :], r1, r2, r3, 0.5)
+            else:
+                assert t["base"] == t["r"][0]
+                mutant = rand_to_best_1(X[one["best"]][None, :], r1, r2, r3, 0.5)
+            np.testing.assert_allclose(t["mutant"], mutant[0], rtol=0, atol=1e-15)
+            assert all(0.0 <= v <= 1.0 for v in t["x"])
+        cv_off = np.array([t["cv"] for t in trials])
+        mean_off = np.array([t["mean"] for t in trials])
+        replaces = offspring_replaces_parent(cv_off, mean_off, np.array([p["cv"] for p in pop]), np.array([p["mean"] for p in pop]))
+        assert one["next"] == [6 + i if replaces[i] else i for i in range(6)]
+        assert [pair["winner"] for pair in one["pairs"]] == one["next"]
+        nxt = [merged[i] for i in one["next"]]
+        cv_next, F_next = np.array([p["cv"] for p in nxt]), np.array([p["f"] for p in nxt])
+        assert one["Pf"] == feasible_ratio(cv_next)
+        assert one["delta"] == pytest.approx(updated_delta(F_next, cv_next, 1.0), abs=1e-12)
+        assert one["continues"] == phase_one_continues(one["delta"], one["Pf"], 12, 1000)
+        if run["phase2"] is None:
+            continue
+
+        # Phase 2: the fronts, crowding distances and tournaments of the population, the DE/rand/1 mutants,
+        # and the fronts, crowding distances and survivors of the population and the offspring are VAMOS's.
+        two = run["phase2"]
+        assert [p["id"] for p in two["pop"]] == [p["id"] for p in nxt]
+        fronts = constrained_front_numbers(F_next, cv_next)
+        assert two["front"] == fronts.tolist()
+        distances = crowding_distances(F_next, fronts)
+        np.testing.assert_allclose(_inf(two["crowd"]), distances, rtol=1e-12)
+        row = {p["id"]: i for i, p in enumerate(nxt)}
+        draws = np.array([[row[t["a"]], row[t["b"]]] for t in two["tournaments"]])
+        assert [t["row"] for t in two["tournaments"]] == tournament_winners(fronts, distances, draws).tolist()
+        X_next = np.array([p["x"] for p in nxt])
+        for child in two["children"]:
+            base, second, third = (X_next[row[i]][None, :] for i in child["parents"])
+            np.testing.assert_allclose(child["mutant"], rand_1(base, second, third, 0.5)[0], rtol=0, atol=1e-15)
+        union = two["merged"]
+        F_union, cv_union = np.array([p["f"] for p in union]), np.array([p["cv"] for p in union])
+        union_fronts = constrained_front_numbers(F_union, cv_union)
+        assert [sorted(members) for members in two["mergedFronts"]] == [
+            np.flatnonzero(union_fronts == k).tolist() for k in range(int(union_fronts.max()) + 1)
+        ]
+        np.testing.assert_allclose(_inf(two["mergedCrowd"]), crowding_distances(F_union, union_fronts), rtol=1e-12)
+        assert two["kept"] == environmental_selection(F_union, cv_union, 6).tolist()
+
+    # The numbers that the lesson quotes for its example.
+    example = runs[0]
+    one, two = example["phase1"], example["phase2"]
+    pop = {p["id"]: p for p in one["merged"]}
+    assert one["pop"][one["best"]]["id"] == 2 and pop[2]["cv"] > 0 and round(pop[2]["mean"], 3) == 0.491
+    winners = [one["merged"][i]["id"] for i in one["next"]]
+    assert winners == [1, 8, 3, 10, 5, 6]
+    assert pop[7]["cv"] > 0 and pop[8]["cv"] == 0 and all(pop[i]["cv"] == 0 for i in (1, 3, 4, 5, 6, 9, 10, 11, 12))
+    assert {i: round(pop[i]["mean"], 3) for i in (1, 7, 8, 4, 10)} == {1: 0.614, 7: 0.564, 8: 0.5, 4: 0.75, 10: 0.662}
+    assert one["Pf"] == 1.0 and round(one["delta"], 3) == 0.053
+    sums = {one["merged"][i]["id"]: round(s, 3) for i, s in one["sums"]}
+    assert sorted(sums.items(), key=lambda item: item[1])[:2] == [(8, 0.926), (1, 0.98)]
+    union = two["merged"]
+    fronts = [[union[i]["id"] for i in members] for members in two["mergedFronts"]]
+    assert fronts == [[1, 8, 5, 6], [3, 10, 13], [14], [18], [16], [15], [17]]
+    assert [union[i]["cv"] > 0 for i in range(12)] == [False] * 8 + [True] * 4 and two["places"] == 2
+    assert sorted(union[i]["id"] for i in two["kept"]) == [1, 3, 5, 6, 8, 13]
