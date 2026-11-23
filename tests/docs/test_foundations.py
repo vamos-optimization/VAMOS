@@ -912,3 +912,90 @@ process.stdout.write(JSON.stringify(iterations, (key, value) => (value === Infin
     assert inserts[3]["leader"] == "I" and inserts[3]["pruned"] == "B"
     assert [round(c["crowding"], 2) for c in inserts[3]["crowding"] if c["name"] == "B"] == [0.57]
     assert inserts[5]["leader"] == "J" and inserts[5]["removed"] == ["G", "I"]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_agemoea_generation_figure_agrees_with_vamos() -> None:
+    from vamos.algorithms import AGEMOEAConfig
+    from vamos.engine.algorithm.agemoea import AGEMOEA
+    from vamos.engine.algorithm.agemoea.geometry import _find_corner_solutions, _survival_score, age_survival
+    from vamos.foundation.kernel.numpy_backend import NumPyKernel
+
+    # 29299 is the lesson's example; front 2 is cut in 3 and 10404, the population's first front has one or two
+    # members in 25 and 102, the merged population's has one in 11727 and 14020, and front 2 fills exactly in 26.
+    seeds = [29299, 1, 3, 10404, 25, 102, 11727, 14020, 26]
+    program = f"""
+require({json.dumps(str(SCRIPT))});
+const V = globalThis.VamosFoundations;
+const generations = {json.dumps(seeds)}.map((seed) => V.agemoeaGeneration(seed, 6));
+process.stdout.write(JSON.stringify(generations, (key, value) => (value === Infinity ? "inf" : Number.isNaN(value) ? null : value)));
+"""
+    completed = subprocess.run(["node", "-e", program], capture_output=True, text=True, check=True, timeout=60)
+    generations = json.loads(completed.stdout)
+
+    kernel = NumPyKernel()
+    for g in generations:
+        config = AGEMOEAConfig.default(pop_size=6, n_var=2).to_dict()
+        start = np.array([member["x"] for member in g["pop"]])
+        config["initializer"] = lambda start=start: start.copy()
+        agemoea = AGEMOEA(config, kernel)
+        problem = _LoopProblem()
+        agemoea.initialize(problem, ("max_evaluations", 12), seed=0)
+        state = agemoea.state
+        assert state is not None and state.selection_ranks is not None and state.selection_crowding is not None
+        # The population's fronts and survival scores are the tournament keys VAMOS computes at the start.
+        assert state.selection_ranks.tolist() == g["rank"]
+        np.testing.assert_allclose(state.selection_crowding, _infinite(g["score"]), rtol=1e-12)
+        # VAMOS's binary tournament, with the figure's draws, picks the figure's parents.
+        games = g["tournaments"]
+        draws = [np.array([t["a"] for t in games]), np.array([t["b"] - (t["b"] > t["a"]) for t in games])]
+        coins = [int(t["winner"] == t["a"]) for t in games if t["reason"] == "coin"]
+        rng = _Draws(*draws, *([np.array(coins)] if coins else []))
+        parents = kernel.tournament_selection(
+            ranks=state.selection_ranks, crowding=state.selection_crowding, pressure=2, rng=rng, n_parents=6
+        )
+        assert parents.tolist() == [t["winner"] for t in games] and not rng._draws
+        # VAMOS's survival of the figure's children keeps the figure's survivors with the figure's scores.
+        state.pending_offspring = np.array([child["x"] for child in g["children"]])
+        out: dict[str, np.ndarray] = {}
+        problem.evaluate(state.pending_offspring, out)
+        agemoea.tell(out["F"])
+        F = np.array([member["f"] for member in g["merged"]])
+        np.testing.assert_allclose(out["F"], F[6:], rtol=1e-12)
+        np.testing.assert_allclose(state.F, F[g["keep"]], rtol=1e-12)
+        np.testing.assert_allclose(state.selection_crowding, _infinite([g["mergedScore"][i] for i in g["keep"]]), rtol=1e-12)
+        assert age_survival(F, 6, kernel)[0].tolist() == g["keep"]
+        assert [sorted(front) for front in g["fronts"]] == [sorted(int(i) for i in front) for front in _fast_non_dominated_sort(F)[0]]
+        # The geometry of the first front: ideal point, corners, intercepts, p and scores.
+        geometry = g["geometry"]
+        front = F[geometry["first"]]
+        ideal = front.min(axis=0)
+        scores, p, intercepts = _survival_score(front, ideal)
+        np.testing.assert_allclose(geometry["ideal"], ideal, rtol=0)
+        np.testing.assert_allclose(geometry["intercepts"], intercepts, rtol=1e-12)
+        assert geometry["p"] == pytest.approx(p, rel=1e-12)
+        np.testing.assert_allclose(_infinite([g["mergedScore"][i] for i in geometry["first"]]), scores, rtol=1e-12)
+        if len(front) >= 2:
+            corners = _find_corner_solutions(np.round(front - ideal, 12))
+            assert sorted(geometry["corners"]) == sorted(geometry["first"][int(i)] for i in corners)
+    assert [g["last"] for g in generations[:4]] == [0, 0, 1, 1]
+    assert [len(g["geometry"]["first"]) for g in generations[6:8]] == [1, 1]
+
+    # The numbers that the lesson quotes for its example.
+    example = generations[0]
+    ident = [member["id"] for member in example["merged"]]
+    geometry = example["geometry"]
+    games = {(ident[t["a"]], ident[t["b"]]): (ident[t["winner"]], t["reason"]) for t in example["tournaments"]}
+    assert games[(5, 4)] == (4, "score") and round(example["score"][4], 2) == 1.33
+    assert len(geometry["first"]) == 9 and [round(v, 2) for v in geometry["ideal"]] == [0.03, 0.09]
+    assert [ident[i] for i in geometry["corners"]] == [8, 4] and [round(v, 2) for v in geometry["intercepts"]] == [0.84, 1.64]
+    assert ident[geometry["central"]] == 7
+    assert [round(v, 2) for v in geometry["normalized"][geometry["first"].index(geometry["central"])]] == [0.39, 0.39]
+    assert round(geometry["p"], 2) == 0.74
+    order = [ident[i] for i in geometry["order"]]
+    assert order[2] == 10 and order[-1] == 1
+    assert round(example["mergedScore"][9], 2) == 2.92 and round(example["mergedProximity"][9], 2) == 0.86
+    assert min(example["mergedProximity"][i] for i in geometry["first"]) == example["mergedProximity"][9]
+    assert example["last"] == 0 and example["places"] == 6
+    assert sorted(ident[i] for i in example["keep"]) == sorted(order[:6]) == [4, 5, 7, 8, 10, 11]
+    assert {ident[i]: round(example["mergedScore"][i], 2) for i in (11, 1, 0)} == {12: 0.77, 2: 0.46, 1: 0.22}

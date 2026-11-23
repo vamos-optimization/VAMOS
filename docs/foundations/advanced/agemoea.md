@@ -134,6 +134,34 @@ solution survives and the least violated infeasible ones fill the population.
 The tournament compares infeasible solutions by violation, and
 `constraint_handling` can replace the rule (lesson [Constraints](constrained.md)).
 
+### Try it: one generation step by step
+
+Step through one generation on six solutions of a problem with two variables
+whose Pareto front is ZDT1's, f₂ = 1 − √f₁, the problem of the
+[NSGA-II lesson](../intermediate/nsga-ii.md)'s figure. Parents are circles,
+children triangles, and darker points lie on better fronts. In steps 6 to 8
+the left panel shows the first front in normalized coordinates instead of
+the decision space. The operators are AGE-MOEA's defaults in VAMOS.
+
+<div class="vf-widget" data-vf-widget="agemoea-steps"><p class="vf-fallback">Interactive figure: one AGE-MOEA generation in ten steps on six solutions: the population with its fronts and survival scores, the binary tournaments, SBX crossover and polynomial mutation, the merge of parents and children, non-dominated sorting, the normalization of the first front by its ideal point and corners, the estimate of p from the central point, the survival scores, the whole fronts and the cut of the last front, and the survivors. It needs JavaScript.</p></div>
+
+Things to try:
+
+1. Step 2: in the tournament 5 vs 4, both are on front 1, and 4 wins because
+   it is a corner, with score ∞ against 1.33.
+2. Steps 6 and 7: front 1 has nine members. Its ideal point is
+   z = (0.03, 0.09), its corners are 8 and 4, and the intercepts are
+   a₁ = 0.84 and a₂ = 1.64. The central point 7 lies at f̃ = (0.39, 0.39),
+   so p̂ = 0.74: front 1 is still far from the Pareto front, but its shape is
+   already close to ZDT1's, p = 0.72.
+3. Step 8: after the corners, 10 joins S first with D = 2.92; it is the
+   member closest to the ideal point, P = 0.86. Member 1, near the corner 8,
+   comes last with 0.22.
+4. Step 9: front 1 is also the last front, with nine members for six places.
+   The six first in the greedy order survive, and 12 (0.77), 2 (0.46) and
+   1 (0.22) are removed. Press **New population** until a later front is
+   cut: its members are then ranked by 1/P.
+
 ## Explore the geometry
 
 The figure samples ten points at fixed angles on the front f₁ᵖ + f₂ᵖ = 1. All
