@@ -535,20 +535,20 @@
     return false;
   }
 
-  /** SPEA2 strength S, raw fitness R, density D = 1 / (σᵏ + 2) and fitness F = R + D. */
+  /** SPEA2 strength S, raw fitness R, distance σᵏ to the k-th nearest neighbour, density D = 1 / (σᵏ + 2)
+      and fitness F = R + D. */
   function spea2Fitness(F, k) {
     const n = F.length;
     const S = F.map((a) => F.filter((b) => dominates(a, b)).length);
     const R = F.map((b, i) => F.reduce((sum, a, j) => (j !== i && dominates(a, b) ? sum + S[j] : sum), 0));
     const kk = Math.max(1, Math.min(n - 1, k || Math.floor(Math.sqrt(n))));
-    const D = F.map((a, i) => {
-      const d = F.map((b, j) => (j === i ? Infinity : euclidean(a, b))).sort((x, y) => x - y);
-      return 1 / (d[kk - 1] + 2);
-    });
-    return { S, R, D, fitness: R.map((r, i) => r + D[i]), k: kk };
+    const sigma = F.map((a, i) => F.map((b, j) => (j === i ? Infinity : euclidean(a, b))).sort((x, y) => x - y)[kk - 1]);
+    const D = sigma.map((d) => 1 / (d + 2));
+    return { S, R, sigma, D, fitness: R.map((r, i) => r + D[i]), k: kk };
   }
 
-  /** SPEA2 environmental selection: non-dominated first, then truncation by nearest neighbours. */
+  /** SPEA2 environmental selection: non-dominated first, then truncation by nearest neighbours.
+      `truncation` records, before each removal, the members left and their sorted distances to the others. */
   function spea2Select(F, size, k) {
     const fit = spea2Fitness(F, k);
     const nd = F.map((_, i) => i).filter((i) => fit.R[i] === 0);
@@ -563,6 +563,7 @@
       archive = archive.concat(filled);
     }
     const removed = [];
+    const truncation = [];
     while (archive.length > size) {
       const lists = archive.map((i) =>
         archive
@@ -572,10 +573,79 @@
       );
       let worst = 0;
       for (let a = 1; a < archive.length; a++) if (lexLess(lists[a], lists[worst])) worst = a;
+      truncation.push({ members: archive.slice(), lists });
       removed.push(archive[worst]);
       archive.splice(worst, 1);
     }
-    return { kept: archive, removed, filled, nd, ...fit };
+    return { kept: archive, removed, filled, nd, truncation, ...fit };
+  }
+
+  /** One SPEA2 generation of the loop figure's problem, recorded for the SPEA2 lesson as VAMOS runs it with
+      archive_size = pop_size and k = 1. The archive holds the initial population, which the first environmental
+      selection keeps whole, with the raw fitness R and neighbour distance σᵏ measured there. N pairs of binary
+      tournaments on the archive (lower R, then larger σᵏ, then a coin) give one child per pair: the first child of
+      SBX (probability 0.9, η = 20), mutated by polynomial mutation (probability 1/2, η = 20). Archive and children
+      form the union, and spea2Select gives its S, R, σᵏ, D and F, the non-dominated members, the members added by F
+      or the truncation with its distance lists, and the new archive, whose R and σᵏ the next tournaments use. */
+  function spea2Generation(seed, popSize) {
+    const rand = mulberry32(seed);
+    const N = popSize;
+    const k = 1;
+    let nextId = 1;
+    const archive = [];
+    for (let i = 0; i < N; i++) {
+      const x = [rand(), rand()];
+      archive.push({ id: nextId++, x, f: gaEvaluate(x) });
+    }
+    const start = spea2Select(archive.map((p) => p.f), N, k);
+    const tournaments = [];
+    const tournament = () => {
+      const a = Math.floor(rand() * N);
+      let b = Math.floor(rand() * (N - 1));
+      if (b >= a) b += 1;
+      let w = a;
+      let reason = "coin";
+      if (start.R[a] !== start.R[b]) {
+        w = start.R[a] < start.R[b] ? a : b;
+        reason = "raw";
+      } else if (start.sigma[a] !== start.sigma[b]) {
+        w = start.sigma[a] > start.sigma[b] ? a : b;
+        reason = "density";
+      } else if (rand() >= 0.5) w = b;
+      tournaments.push({ a: archive[a].id, b: archive[b].id, winner: archive[w].id, reason });
+      return archive[w];
+    };
+    const pairs = [];
+    for (let c = 0; c < N; c++) pairs.push([tournament(), tournament()]);
+    const children = pairs.map(([p1, p2]) => {
+      const x = rand() <= 0.9 ? sbxPair(p1.x, p2.x, 0, 1, 20, 0.5, rand)[0] : p1.x.slice();
+      polynomialMutation(x, 0, 1, 0.5, 20, rand);
+      return { id: nextId++, x, f: gaEvaluate(x), parents: [p1.id, p2.id] };
+    });
+    const union = archive.concat(children);
+    const sel = spea2Select(union.map((p) => p.f), N, k);
+    return {
+      popSize: N,
+      k,
+      archive,
+      archiveS: start.S,
+      archiveR: start.R,
+      archiveSigma: start.sigma,
+      archiveFitness: start.fitness,
+      tournaments,
+      children,
+      union,
+      S: sel.S,
+      R: sel.R,
+      sigma: sel.sigma,
+      D: sel.D,
+      fitness: sel.fitness,
+      nd: sel.nd,
+      filled: sel.filled,
+      removed: sel.removed,
+      truncation: sel.truncation,
+      kept: sel.kept,
+    };
   }
 
   /** Additive epsilon indicator I(a, b): smallest shift of a that weakly dominates b. */
@@ -2433,6 +2503,7 @@
     moeadReplace,
     spea2Fitness,
     spea2Select,
+    spea2Generation,
     epsilonPair,
     ibeaSelect,
     rveaSelect,
@@ -4716,6 +4787,296 @@
       );
     };
     fig.render();
+  };
+
+  /** Labels of the step figures' marks. Each item is { x, y, text, r } in SVG units; an item without text is only
+      an obstacle. Each label goes beside its point where it covers the fewest other points, labels and tick labels:
+      right and above, right and below, left and above, then left and below. */
+  function placeMarkLabels(plot, items) {
+    const placed = [];
+    const spots = [
+      [9, -7, "start"],
+      [9, 15, "start"],
+      [-9, -7, "end"],
+      [-9, 15, "end"],
+    ];
+    const hitsCircle = (b, p) => Math.hypot(Math.max(b[0] - p.x, 0, p.x - b[2]), Math.max(b[1] - p.y, 0, p.y - b[3])) < (p.r || 7);
+    const hitsBox = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+    for (const item of items) {
+      if (!item.text) continue;
+      const width = 6.3 * [...item.text].length + 2;
+      let best = null;
+      for (const [dx, dy, anchor] of spots) {
+        const x0 = anchor === "start" ? item.x + dx : item.x + dx - width;
+        const box = [x0, item.y + dy - 10, x0 + width, item.y + dy + 2];
+        let cost = 0;
+        for (const other of items) if (other !== item && hitsCircle(box, other)) cost += 2;
+        for (const b of placed) if (hitsBox(box, b)) cost += 3;
+        if (box[0] < 0 || box[2] > plot.W || box[1] < 0) cost += 5;
+        if (box[0] < plot.m.l - 2 || box[3] > plot.m.t + plot.ph + 2) cost += 4;
+        if (!best || cost < best.cost) best = { cost, dx, dy, anchor, box };
+      }
+      placed.push(best.box);
+      txt(plot.layers.top, item.x + best.dx, item.y + best.dy, item.text, { class: "vf-mark-label", "text-anchor": best.anchor });
+    }
+  }
+
+  /* SPEA2, one generation in steps: binary tournaments on the archive, one child per pair, the union with its
+     strength, raw fitness and nearest-neighbour distances, the non-dominated members, then the truncation (one
+     removal per step) or the filling, and the new archive. */
+  widgets["spea2-steps"] = function (node) {
+    const N = 6;
+    const state = { seed: Number(node.dataset.seed || 1693), step: 0 };
+    let g = null;
+    let titles = [];
+    const ctl = controls(node);
+    const back = button(ctl, "Previous step", () => go(state.step - 1));
+    const next = button(ctl, "Next step", () => go(state.step + 1), true);
+    button(ctl, "Restart", () => go(0));
+    button(ctl, "New population", () => {
+      // Draw generations until one needs the truncation operator, with at most three removals.
+      for (let tries = 0; tries < 200; tries++) {
+        const seed = Math.floor(Math.random() * 1e6);
+        const removals = spea2Generation(seed, N).removed.length;
+        if (removals >= 1 && removals <= 3) {
+          state.seed = seed;
+          break;
+        }
+      }
+      build();
+    });
+    const body = h("div", { class: "vf-body vf-body--two" }, node);
+    const xPlot = createPlot(body, { title: "Decision space", x: [0, 1], y: [0, 1], xLabel: "x₁", yLabel: "x₂", label: "Decision vectors of the archive and of the children" });
+    const fPlot = createPlot(body, { title: "Objective space", x: [0, 1], y: [0, 2.1], xLabel: "f₁ (minimize)", yLabel: "f₂ (minimize)", label: "Objective vectors, dominance, nearest neighbours and the truncation of one SPEA2 generation" });
+    for (const plot of [xPlot, fPlot]) {
+      plot.svg.setAttribute("tabindex", "0");
+      plot.svg.setAttribute("aria-keyshortcuts", "ArrowLeft ArrowRight");
+    }
+    const readout = h("div", { class: "vf-readout" }, node);
+    const stepText = h("p", { class: "vf-step-text", "aria-live": "polite" }, readout);
+    h("p", {}, readout, "The arrow keys step through the figure when it has focus; New population draws another generation that needs the truncation.");
+    const tableBox = h("div", {}, readout);
+    legend(node, [
+      { label: "Archive member", shape: "circle", cls: "vf-pt vf-pt-muted" },
+      { label: "Child", shape: "triangle", cls: "vf-pt vf-pt-muted" },
+      { label: "Non-dominated, R = 0", shape: "circle", cls: "vf-pt vf-r0" },
+      { label: "Dominated, R > 0", shape: "circle", cls: "vf-pt vf-r2" },
+      { label: "Tournament winner, member of the new archive", shape: "circle", cls: "vf-ring" },
+      { label: "Dominated by, nearest neighbour", shape: "line", cls: "vf-line-thin vf-dashed" },
+      { label: "Distances that decide a removal", shape: "line", cls: "vf-line-2" },
+      { label: "Pareto set and front", shape: "line", cls: "vf-front" },
+    ]);
+    node.addEventListener("keydown", (e) => {
+      if (e.target && /^(SELECT|INPUT|BUTTON)$/.test(e.target.tagName)) return;
+      if (e.key === "ArrowRight") go(state.step + 1);
+      else if (e.key === "ArrowLeft") go(state.step - 1);
+      else return;
+      e.preventDefault();
+    });
+    const NTH = ["nearest", "second-nearest", "third-nearest", "fourth-nearest", "fifth-nearest", "sixth-nearest", "seventh-nearest"];
+    function build() {
+      g = spea2Generation(state.seed, N);
+      titles = ["the archive Aₜ", "mating selection", "variation", "evaluation and union", "strength and raw fitness", "density", "the non-dominated members"];
+      const T = g.truncation.length;
+      if (T) g.truncation.forEach((_, j) => titles.push(`truncation, removal ${j + 1} of ${T}`));
+      else titles.push(g.filled.length ? "filling" : "neither truncation nor filling");
+      titles.push("the new archive Aₜ₊₁");
+      const top = Math.max(...g.union.map((p) => p.f[1]));
+      fPlot.setDomain([0, 1], [0, Math.max(1, Math.ceil((top + 0.08) * 10) / 10)]);
+      go(0);
+    }
+    function go(i) {
+      state.step = Math.max(0, Math.min(titles.length - 1, i));
+      render();
+    }
+    // Rows of the union: the archive first (ids 1 to N), then the children (ids N + 1 to 2N).
+    const id = (i) => g.union[i].id;
+    const ids = (rows) => rows.map(id);
+    const set = (rows) => "{" + ids(rows).sort((a, b) => a - b).join(", ") + "}";
+    const dist = (i, j) => euclidean(g.union[i].f, g.union[j].f);
+    const neighbours = (i, among) => among.filter((j) => j !== i).sort((a, b) => dist(i, a) - dist(i, b) || a - b);
+    const dominators = (i) => g.union.map((_, j) => j).filter((j) => j !== i && dominates(g.union[j].f, g.union[i].f));
+    const all = () => g.union.map((_, i) => i);
+    function draw(plot, v, shape, cls, label, ring) {
+      const px = plot.x(v[0]);
+      const py = plot.y(Math.min(v[1], plot.yd[1]));
+      marker(plot.layers.marks, shape, px, py, 6, cls);
+      if (ring) marker(plot.layers.marks, "circle", px, py, 10.5, "vf-ring");
+      plot.labels.push({ x: px, y: py, text: label, r: ring ? 11 : 7 });
+    }
+    /** The members that tie on the first distances of the lexicographic comparison, and the level that splits them. */
+    function decider(cut) {
+      let tied = cut.members.map((_, a) => a);
+      for (let level = 0; level < cut.lists[0].length; level++) {
+        const low = Math.min(...tied.map((a) => cut.lists[a][level]));
+        const best = tied.filter((a) => Math.abs(cut.lists[a][level] - low) <= 1e-12);
+        if (level > 0 && best.length < tied.length) return { tied: tied.map((a) => cut.members[a]), level };
+        tied = best;
+      }
+      return { tied: tied.map((a) => cut.members[a]), level: -1 };
+    }
+    function render() {
+      const step = state.step;
+      const last = titles.length - 1;
+      const T = g.truncation.length;
+      back.disabled = step === 0;
+      next.disabled = step === last;
+      for (const plot of [xPlot, fPlot]) {
+        clear(plot.layers.back);
+        clear(plot.layers.mid);
+        clear(plot.layers.marks);
+        clear(plot.layers.top);
+        plot.labels = [];
+      }
+      xPlot.line(xPlot.layers.mid, [[0, 0.004], [1, 0.004]], "vf-front");
+      fPlot.line(fPlot.layers.mid, frontPoints((t) => 1 - Math.sqrt(t), 0, 1, 60), "vf-front");
+      const rows = [];
+      if (step <= 2) {
+        const wins = new Map();
+        g.tournaments.forEach((t) => wins.set(t.winner, (wins.get(t.winner) || 0) + 1));
+        if (step === 1) for (const t of g.tournaments) fPlot.line(fPlot.layers.mid, [g.union[t.a - 1].f, g.union[t.b - 1].f], "vf-line-thin vf-dashed");
+        g.archive.forEach((p, i) => {
+          const k = wins.get(p.id) || 0;
+          const cls = "vf-pt " + rankClass(g.archiveR[i] === 0 ? 0 : 2);
+          const label = String(p.id) + (step === 1 && k > 1 ? " ×" + k : "");
+          draw(xPlot, p.x, "circle", cls, label, step === 1 && k > 0);
+          draw(fPlot, p.f, "circle", cls, label, step === 1 && k > 0);
+          rows.push([String(p.id), "archive", fmt(p.x[0], 2), fmt(p.x[1], 2), fmt(p.f[0], 2), fmt(p.f[1], 2), String(g.archiveS[i]), String(g.archiveR[i]), fmt(g.archiveSigma[i], 3), fmt(g.archiveFitness[i], 3), step === 1 ? (k ? `won ${k}×` : "–") : "–"]);
+        });
+        if (step === 2) {
+          g.children.forEach((c) => {
+            c.parents.forEach((pid) => xPlot.line(xPlot.layers.mid, [g.union[pid - 1].x, c.x], "vf-line-thin vf-dashed"));
+            draw(xPlot, c.x, "triangle", "vf-pt vf-pt-2", String(c.id), false);
+            rows.push([String(c.id), `child of ${c.parents[0]} and ${c.parents[1]}`, fmt(c.x[0], 2), fmt(c.x[1], 2), "?", "?", "?", "?", "?", "?", "not evaluated"]);
+          });
+        }
+      } else {
+        const nd = new Set(g.nd);
+        const kept = new Set(g.kept);
+        const j = step - 7;
+        const cut = T && j >= 0 && j < T ? g.truncation[j] : null;
+        const gone = new Set(cut ? g.removed.slice(0, j + 1) : []);
+        let chosen = new Set();
+        if (step === 6) chosen = nd;
+        else if (cut) chosen = new Set(cut.members.filter((i) => i !== g.removed[j]));
+        else if (step === 7 && step < last) chosen = new Set(g.nd.concat(g.filled));
+        else if (step === last) chosen = kept;
+        if (step === 4) {
+          for (const i of all()) for (const d of dominators(i)) fPlot.line(fPlot.layers.mid, [g.union[d].f, g.union[i].f], "vf-line-thin vf-dashed");
+        }
+        if (step === 5) {
+          for (const i of all()) fPlot.line(fPlot.layers.mid, [g.union[i].f, g.union[neighbours(i, all())[g.k - 1]].f], "vf-line-thin vf-dashed");
+        }
+        if (cut) {
+          for (const i of cut.members) fPlot.line(fPlot.layers.mid, [g.union[i].f, g.union[neighbours(i, cut.members)[0]].f], "vf-line-thin vf-dashed");
+          const why = decider(cut);
+          for (const i of why.tied) {
+            fPlot.line(fPlot.layers.mid, [g.union[i].f, g.union[neighbours(i, cut.members)[0]].f], "vf-line-2");
+            if (why.level > 0) fPlot.line(fPlot.layers.mid, [g.union[i].f, g.union[neighbours(i, cut.members)[why.level]].f], "vf-line-2 vf-dashed");
+          }
+        }
+        g.union.forEach((p, i) => {
+          const isChild = i >= N;
+          let out = false;
+          if (step === 6) out = T > 0 && !nd.has(i);
+          // The member that this truncation step removes keeps its colour; it fades from the next step on.
+          if (step >= 7) out = !chosen.has(i) && !(cut && i === g.removed[j]);
+          let label = String(p.id);
+          if (gone.has(i) || (step === last && !kept.has(i))) label += " ✕";
+          const cls = "vf-pt " + (step >= 4 ? rankClass(g.R[i] === 0 ? 0 : 2) : "vf-pt-muted") + (out ? " vf-faded" : "");
+          draw(xPlot, p.x, isChild ? "triangle" : "circle", cls, label, chosen.has(i));
+          draw(fPlot, p.f, isChild ? "triangle" : "circle", cls, label, chosen.has(i));
+          let status = "–";
+          if (step === 4) status = g.R[i] === 0 ? "non-dominated" : "dominated by " + idList(ids(dominators(i)));
+          else if (step === 5) status = "nearest: " + id(neighbours(i, all())[0]);
+          else if (step === 6) status = nd.has(i) ? "copied to Aₜ₊₁" : T ? "discarded" : g.filled.length ? "competes by F" : "discarded";
+          else if (cut) status = gone.has(i) ? (i === g.removed[j] ? "removed now" : `removed (${g.removed.indexOf(i) + 1})`) : chosen.has(i) ? "in Aₜ₊₁ so far" : "discarded";
+          else if (step === 7 && step < last) status = nd.has(i) ? "non-dominated" : g.filled.includes(i) ? `added ${g.filled.indexOf(i) + 1}${["st", "nd", "rd"][g.filled.indexOf(i)] || "th"}` : "discarded";
+          else if (step === last) status = kept.has(i) ? "kept" : "removed";
+          const assessed = step >= 4;
+          const measured = step >= 5;
+          rows.push([String(p.id), isChild ? "child" : "archive", fmt(p.x[0], 2), fmt(p.x[1], 2), fmt(p.f[0], 2), fmt(p.f[1], 2), assessed ? String(g.S[i]) : "?", assessed ? String(g.R[i]) : "?", measured ? fmt(g.sigma[i], 3) : "?", measured ? fmt(g.fitness[i], 3) : "?", status]);
+        });
+      }
+      for (const plot of [xPlot, fPlot]) placeMarkLabels(plot, plot.labels);
+      stepText.textContent = `Step ${step + 1} of ${titles.length}: ${titles[step]}. ${describe(step)}`;
+      clear(tableBox);
+      table(tableBox, ["Id", "Role", "x₁", "x₂", "f₁", "f₂", "S", "R", "σᵏ", "F", "Status"], rows, [false, false, true, true, true, true, true, true, true, true, false]);
+    }
+    function describe(step) {
+      const last = titles.length - 1;
+      const T = g.truncation.length;
+      const archiveRows = g.archive.map((_, i) => i);
+      if (step === 0) {
+        const free = archiveRows.filter((i) => g.archiveR[i] === 0);
+        const held = archiveRows.filter((i) => g.archiveR[i] > 0);
+        const split = held.length ? `R = 0 for ${set(free)}, and ${set(held)} ${held.length === 1 ? "is" : "are"} dominated.` : "All six are non-dominated, R = 0.";
+        return `${N} solutions of a two-variable problem whose Pareto front is ZDT1's: f₁ = x₁ and f₂ = g·(1 − √(x₁/g)) with g = 1 + x₂. In the first generation the archive is the initial population: VAMOS' default archive size equals the population size, so the first environmental selection keeps all ${N}, with the strength S, raw fitness R and nearest-neighbour distance σᵏ (k = 1) they have among themselves. ${split}`;
+      }
+      if (step === 1) {
+        const why = { raw: "lower R", density: "same R, larger σᵏ", coin: "full tie, coin" };
+        const games = g.tournaments.map((t) => `${t.a} vs ${t.b} → ${t.winner} (${why[t.reason]})`).join("; ");
+        return `${2 * N} binary tournaments between two different archive members pick ${N} pairs of parents: ${games}. The lower R wins; on equal R, the larger σᵏ, the less crowded member, which is the same as the lower F; a full tie, as between two members that are each other's nearest neighbour, goes to a coin. Ringed members won at least once.`;
+      }
+      if (step === 2) {
+        return `Each pair gives one child: SBX crossover (probability 0.9, η = 20) creates two, VAMOS keeps the first, and polynomial mutation (probability 1/2 per variable, η = 20) perturbs it. Children ${g.children[0].id} to ${g.children[N - 1].id}, the triangles joined to their parents in the decision space, form the population Pₜ; their objectives are not known yet.`;
+      }
+      if (step === 3) {
+        return `The ${N} children are evaluated and joined to the archive: Q = Aₜ ∪ Pₜ holds M = ${2 * N} solutions. Everything that follows is computed afresh on Q, archive members included; the archive members' old values are discarded.`;
+      }
+      if (step === 4) {
+        const held = all().filter((i) => g.R[i] > 0);
+        const sums = held.map((i) => {
+          const d = dominators(i);
+          return `${id(i)} is dominated by ${idList(ids(d))}: R = ${d.length > 1 ? d.map((k) => g.S[k]).join(" + ") + " = " : ""}${g.R[i]}`;
+        });
+        return `S counts the members of Q that a solution dominates, and R sums the strengths of its dominators. R = 0 for the ${g.nd.length} non-dominated members, ${set(g.nd)}. ${sums.join("; ")}. Dashed lines join each dominated member to its dominators.`;
+      }
+      if (step === 5) {
+        const low = all().reduce((a, i) => (g.sigma[i] < g.sigma[a] ? i : a), 0);
+        const mate = neighbours(low, all())[0];
+        return `σᵏ is the distance in objective space to the k-th nearest neighbour in Q; VAMOS' default k = 1 makes it the nearest, joined by the dashed lines. The smallest, ${fmt(g.sigma[low], 3)}, is shared by ${id(Math.min(low, mate))} and ${id(Math.max(low, mate))}, each other's nearest neighbours: D = 1 / (σᵏ + 2) = ${fmt(g.D[low], 3)}, the largest density. F = R + D stays below 1 for the non-dominated members, so density only orders members of equal R.`;
+      }
+      if (step === 6) {
+        const n = g.nd.length;
+        let then = `exactly fill the ${N} places of the archive.`;
+        if (n > N) then = `are more than the ${N} places: the truncation operator removes ${n - N} of them, one at a time, and the dominated members are discarded.`;
+        else if (n < N) then = N - n === 1 ? "leave 1 place, which goes to the dominated member with the lowest F." : `leave ${N - n} places, which go to the dominated members with the lowest F.`;
+        return `R = 0 for ${n} members, ${set(g.nd)}: they are copied into Aₜ₊₁ and ${then}`;
+      }
+      if (step < last && T) {
+        const j = step - 7;
+        const cut = g.truncation[j];
+        const out = g.removed[j];
+        const why = decider(cut);
+        const left = cut.members.length;
+        const near = cut.lists[cut.members.indexOf(why.tied[0])][0];
+        let text = `${left} members are left for ${N} places. `;
+        text += why.tied.length === 2 ? `The closest pair is ${id(why.tied[0])} and ${id(why.tied[1])}, ${fmt(near, 3)} apart: they tie on the nearest distance. ` : `${idList(ids(why.tied))} share the smallest nearest distance, ${fmt(near, 3)}. `;
+        if (why.level > 0) {
+          const parts = why.tied.map((i) => `${id(i)}'s is ${fmt(cut.lists[cut.members.indexOf(i)][why.level], 3)} (to ${id(neighbours(i, cut.members)[why.level])})`);
+          text += `Their ${NTH[why.level]} distances decide: ${parts.join(", ")}. ${id(out)} has the ${why.tied.length === 2 ? "smaller" : "smallest"} one, the more crowded surroundings, and is removed.`;
+        } else text += `They tie on every distance, and the first of them, ${id(out)}, is removed.`;
+        text += j < T - 1 ? ` The distances are measured again among the ${left - 1} members left.` : ` ${left - 1} members are left: the archive is full.`;
+        return text;
+      }
+      if (step < last) {
+        if (!g.filled.length) return `Exactly ${N} members are non-dominated: they fill the archive, and neither the truncation nor the filling is needed.`;
+        const parts = g.filled.map((i) => `${id(i)} (R = ${g.R[i]}, F = ${fmt(g.fitness[i], 3)})`);
+        const places = g.filled.length === 1 ? "the place left goes to the dominated member" : `the ${g.filled.length} places left go to the dominated members`;
+        return `Only ${g.nd.length} members are non-dominated: ${places} with the lowest F = R + D, in order: ${parts.join(", ")}. R decides first; D only separates equal R.`;
+      }
+      const kept = g.kept.slice().sort((a, b) => a - b);
+      const fromArchive = kept.filter((i) => i < N).length;
+      const children = kept.length - fromArchive;
+      const removed = all().filter((i) => !g.kept.includes(i));
+      const free = kept.every((i) => g.R[i] === 0);
+      const top = Math.max(...kept.map((i) => g.sigma[i]));
+      const isolated = kept.filter((i) => g.sigma[i] === top);
+      const mating = free ? `All of them have R = 0, so the next tournaments compare the σᵏ each had in Q, the larger winning: the most isolated ${isolated.length === 1 ? "member is" : "members are"} ${idList(ids(isolated))} (σᵏ = ${fmt(top, 3)}).` : "The next tournaments compare the R and σᵏ each had in Q.";
+      return `Aₜ₊₁ = ${set(kept)}: ${fromArchive} archive member${fromArchive === 1 ? "" : "s"} and ${children} child${children === 1 ? "" : "ren"}; ${idList(ids(removed))} leave. ${mating} Their ${N} children form the next population.`;
+    }
+    build();
   };
 
   /* I10: IBEA fitness with the additive epsilon indicator. */

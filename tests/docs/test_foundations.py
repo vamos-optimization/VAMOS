@@ -805,3 +805,89 @@ process.stdout.write(JSON.stringify(generations, (key, value) => (value === Infi
     assert distances[3] == distances[5] == "inf"
     assert {k: round(distances[k], 2) for k in (4, 11, 8, 2)} == {4: 1.05, 11: 0.92, 8: 0.81, 2: 0.55}
     assert sorted(ident[i] for i in example["keep"]) == [1, 3, 4, 5, 9, 11]
+
+
+def _run_step_figure(function: str, seeds: list[int]) -> list[dict[str, Any]]:
+    """Record one generation of a step figure for each seed, with six solutions."""
+    program = f"""
+require({json.dumps(str(SCRIPT))});
+const V = globalThis.VamosFoundations;
+process.stdout.write(JSON.stringify({json.dumps(seeds)}.map((seed) => V.{function}(seed, 6))));
+"""
+    completed = subprocess.run(["node", "-e", program], capture_output=True, text=True, check=True, timeout=60)
+    return json.loads(completed.stdout)
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_spea2_generation_figure_agrees_with_vamos() -> None:
+    from vamos.engine.algorithm.spea2.helpers import (
+        _kth_neighbour_distance,
+        dominance_matrix,
+        environmental_selection_indices,
+        strength_raw_fitness,
+        truncate_lexicographic,
+    )
+
+    seeds = [1693, 1, 2, 3, 5, 6, 97, 12367]  # 1693 is the lesson's example
+    generations = _run_step_figure("spea2Generation", seeds)
+    cases = set()
+    for g in generations:
+        # The archive is the initial population, which VAMOS' first environmental selection keeps whole.
+        A = np.array([member["f"] for member in g["archive"]])
+        selected, raw, kth = environmental_selection_indices(A, None, 6, 1, "none")
+        assert selected.tolist() == list(range(6))
+        assert g["archiveR"] == raw.tolist()
+        np.testing.assert_allclose(g["archiveSigma"], kth, rtol=1e-12)
+        # VAMOS' tournament: the lower R, then the larger k-th neighbour distance, then a coin.
+        for t in g["tournaments"]:
+            a, b, winner = t["a"] - 1, t["b"] - 1, t["winner"] - 1
+            assert a != b and winner in (a, b)
+            if raw[a] != raw[b]:
+                assert (t["reason"], winner) == ("raw", a if raw[a] < raw[b] else b)
+            elif kth[a] != kth[b]:
+                assert (t["reason"], winner) == ("density", a if kth[a] > kth[b] else b)
+            else:
+                assert t["reason"] == "coin"
+        assert len(g["tournaments"]) == 12 and len(g["children"]) == 6
+        # The union: strength, raw fitness, k-th neighbour distance, the survivors in VAMOS' order and the removals.
+        Q = np.array([member["f"] for member in g["union"]])
+        dom, _, _ = dominance_matrix(Q, None, "none")
+        assert g["S"] == dom.sum(axis=1).tolist()
+        assert g["R"] == strength_raw_fitness(dom).tolist()
+        dist = np.linalg.norm(Q[:, None, :] - Q[None, :, :], axis=2)
+        np.testing.assert_allclose(g["sigma"], _kth_neighbour_distance(dist, 1), rtol=1e-12)
+        selected, raw, kth = environmental_selection_indices(Q, None, 6, 1, "none")
+        assert g["kept"] == selected.tolist()
+        nd = g["nd"]
+        assert nd == np.flatnonzero(strength_raw_fitness(dom) == 0).tolist()
+        # The truncation is greedy, so keeping one member fewer each time gives VAMOS' removals in order.
+        removed, alive = [], list(range(len(nd)))
+        for keep in range(len(nd) - 1, 5, -1):
+            left = truncate_lexicographic(dist[np.ix_(nd, nd)], keep).tolist()
+            removed += [nd[i] for i in alive if i not in left]
+            alive = left
+        assert g["removed"] == removed and len(g["truncation"]) == len(removed)
+        cases.add("truncation" if removed else "filling" if g["filled"] else "exact")
+    assert cases == {"truncation", "filling", "exact"}
+
+    # The numbers that the lesson quotes for its example.
+    example = generations[0]
+    games = {(t["a"], t["b"]): (t["winner"], t["reason"]) for t in example["tournaments"]}
+    assert games[(1, 6)] == (1, "coin") and games[(5, 6)] == (6, "raw")
+    sigma = [round(d, 3) for d in example["archiveSigma"]]
+    assert sigma[0] == sigma[5] == 0.074 and example["archiveR"][4] == 2
+    Q = np.array([member["f"] for member in example["union"]])
+    dom, _, _ = dominance_matrix(Q, None, "none")
+    assert [j + 1 for j in np.flatnonzero(dom[:, 3])] == [2, 3, 7]
+    assert [example["S"][j] for j in (1, 2, 6)] == [2, 1, 3] and example["R"][3] == 6
+    assert len(example["nd"]) == 8 and [i + 1 for i in example["removed"]] == [3, 1]
+    assert min(example["nd"], key=lambda i: Q[i, 0]) == 6  # 7 has the smallest f1 of the non-dominated
+
+    def nearest_two(cut: dict[str, Any], ident: int) -> list[float]:
+        return [round(d, 3) for d in cut["lists"][cut["members"].index(ident - 1)][:2]]
+
+    first, second = example["truncation"]
+    assert nearest_two(first, 3) == [0.059, 0.240] and nearest_two(first, 7) == [0.059, 0.289]
+    assert nearest_two(second, 1) == [0.074, 0.130] and nearest_two(second, 6) == [0.074, 0.164]
+    assert [i + 1 for i in sorted(example["kept"])] == [6, 7, 8, 9, 10, 11]
+    assert max(example["kept"], key=lambda i: example["sigma"][i]) == 10 and round(example["sigma"][10], 3) == 0.271
