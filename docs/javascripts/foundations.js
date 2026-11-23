@@ -793,7 +793,8 @@
     return { dir: best, dperp: norm * Math.sqrt(Math.max(0, 1 - bestCos * bestCos)) };
   }
 
-  /** NSGA-III niche preservation, returning every pick with its round and reason. */
+  /** NSGA-III niche preservation, returning every pick with its round and reason: the directions tied at the
+      smallest count (`tied`) and those of them served in the round's random order (`Jmin`). */
   function nsga3Niching(rho0, candidates, K, rand) {
     const rho = rho0.slice();
     const left = candidates.slice();
@@ -811,18 +812,127 @@
       const J = rho.map((_, j) => j).filter((j) => left.some((c) => c.dir === j));
       if (!J.length) break;
       const low = Math.min(...J.map((j) => rho[j]));
-      const Jmin = shuffle(J.filter((j) => rho[j] === low)).slice(0, K - picks.length);
+      const tied = J.filter((j) => rho[j] === low);
+      const Jmin = shuffle(tied.slice()).slice(0, K - picks.length);
       for (const j of Jmin) {
         const C = shuffle(left.filter((c) => c.dir === j));
         let chosen = C[0];
         if (rho[j] === 0) for (const c of C) if (c.dperp < chosen.dperp) chosen = c;
-        picks.push({ id: chosen.id, dir: j, round, count: rho[j], low, Jmin: Jmin.slice(), closest: rho[j] === 0 });
+        picks.push({ id: chosen.id, dir: j, round, count: rho[j], low, tied, Jmin: Jmin.slice(), closest: rho[j] === 0 });
         left.splice(left.indexOf(chosen), 1);
         rho[j] += 1;
         if (picks.length >= K) break;
       }
     }
     return { picks, rho };
+  }
+
+  /** One NSGA-III generation of the loop figure's problem, recorded for the NSGA-III lesson, with VAMOS' defaults:
+      random parents, SBX (probability 0.9, η = 30) and polynomial mutation (probability 1/2, η = 20), the merge,
+      the fronts, the whole fronts and the last front (null when the whole fronts fill the places exactly), the
+      normalization (the ideal point, the extreme points of the first front by the ASF, the intercepts of the line
+      through them or, when that hyperplane is rejected, the worst point of the first front), the association of
+      every merged solution with the H = popSize Das-Dennis directions (p = popSize − 1), the niche counts of the
+      whole fronts and the niching of the last front. It is the first generation of a run, so the ideal and worst
+      points are those of the merged population and no earlier extreme points compete. */
+  function nsga3Generation(seed, popSize) {
+    const rand = mulberry32(seed);
+    const N = popSize;
+    const W = dasDennis(2, N - 1);
+    const pop = [];
+    for (let i = 0; i < N; i++) {
+      const x = [rand(), rand()];
+      pop.push({ id: i + 1, x, f: gaEvaluate(x) });
+    }
+    const draws = Array.from({ length: 2 * Math.ceil(N / 2) }, () => Math.floor(rand() * N));
+    const children = [];
+    for (let k = 0; k < draws.length; k += 2) {
+      const p1 = pop[draws[k]];
+      const p2 = pop[draws[k + 1]];
+      const xs = rand() <= 0.9 ? sbxPair(p1.x, p2.x, 0, 1, 30, 0.5, rand) : [p1.x.slice(), p2.x.slice()];
+      for (const x of xs) {
+        polynomialMutation(x, 0, 1, 0.5, 20, rand);
+        if (children.length < N) children.push({ id: N + children.length + 1, x, f: gaEvaluate(x), parents: [p1.id, p2.id] });
+      }
+    }
+    const merged = pop.concat(children);
+    const F = merged.map((p) => p.f);
+    const fronts = nonDominatedSort(F).fronts;
+    const rank = new Array(F.length).fill(0);
+    fronts.forEach((front, k) => front.forEach((i) => (rank[i] = k)));
+    const whole = [];
+    let used = 0;
+    let last = null;
+    for (const front of fronts) {
+      if (used === N) break;
+      if (used + front.length > N) {
+        last = front;
+        break;
+      }
+      whole.push(front);
+      used += front.length;
+    }
+    const ideal = [0, 1].map((m) => Math.min(...F.map((f) => f[m])));
+    const worst = [0, 1].map((m) => Math.max(...F.map((f) => f[m])));
+    const first = fronts[0];
+    const extremes = [0, 1].map((axis) => {
+      let best = first[0];
+      let bestValue = Infinity;
+      for (const i of first) {
+        const value = Math.max(...F[i].map((v, m) => (v - ideal[m] < 1e-3 ? 0 : v - ideal[m]) * (m === axis ? 1 : 1e6)));
+        if (value < bestValue) {
+          bestValue = value;
+          best = i;
+        }
+      }
+      return best;
+    });
+    const shifted = extremes.map((i) => F[i].map((v, m) => v - ideal[m]));
+    const plane = solveLinear(shifted, [1, 1]);
+    let intercepts = plane ? plane.map((v) => 1 / v) : null;
+    const hyperplane =
+      !!plane &&
+      shifted.every((row) => Math.abs(row[0] * plane[0] + row[1] * plane[1] - 1) <= 1e-8 + 1e-5) &&
+      intercepts.every((a) => a > 1e-6) &&
+      intercepts.every((a, m) => !(ideal[m] + a > worst[m]));
+    if (!hyperplane) intercepts = null;
+    const frontWorst = [0, 1].map((m) => Math.max(...first.map((i) => F[i][m])));
+    const estimate = hyperplane ? intercepts.map((a, m) => ideal[m] + a) : frontWorst;
+    const fromPopulation = estimate.map((v, m) => v - ideal[m] <= 1e-6);
+    const nadir = estimate.map((v, m) => (fromPopulation[m] ? worst[m] : v));
+    const scale = nadir.map((v, m) => (v - ideal[m] === 0 ? 1e-12 : v - ideal[m]));
+    const normalized = F.map((f) => f.map((v, m) => (v - ideal[m]) / scale[m]));
+    const association = normalized.map((f) => nsga3Associate(f, W));
+    const rho = W.map(() => 0);
+    for (const i of whole.flat()) rho[association[i].dir] += 1;
+    const places = N - used;
+    const niching = last && places > 0 ? nsga3Niching(rho, last.map((i) => ({ id: i, dir: association[i].dir, dperp: association[i].dperp })), places, rand) : null;
+    return {
+      popSize: N,
+      W,
+      pop,
+      draws,
+      children,
+      merged,
+      fronts,
+      rank,
+      whole,
+      last: places > 0 ? last : null,
+      places,
+      ideal,
+      worst,
+      extremes,
+      hyperplane,
+      intercepts,
+      frontWorst,
+      fromPopulation,
+      nadir,
+      normalized,
+      association,
+      rho,
+      niching,
+      keep: whole.flat().concat(niching ? niching.picks.map((p) => p.id) : []),
+    };
   }
 
   /** One SMPSO velocity and position update, as VAMOS computes it (bounds [lower, upper] per variable). */
@@ -2501,6 +2611,7 @@
     smpsoStep,
     nsga3Associate,
     nsga3Niching,
+    nsga3Generation,
     moeadWeights,
     moeadNeighbours,
     moeadAggregate,
@@ -5836,6 +5947,320 @@
       );
     }
     render();
+  };
+
+  /* NSGA-III at a glance: one generation in eleven steps, normalization and niching included. */
+  widgets["nsga3-steps"] = function (node) {
+    const N = 6;
+    const TITLES = [
+      "the population Pₜ",
+      "mating selection",
+      "variation",
+      "evaluation and merge",
+      "non-dominated sorting",
+      "whole fronts and the last front",
+      "normalization",
+      "association",
+      "niche counts",
+      "niching of the last front",
+      "the next population Pₜ₊₁",
+    ];
+    const NORMALIZED = [7, 8, 9];
+    const state = { seed: Number(node.dataset.seed || 16892), step: 0 };
+    let g = null;
+    const interesting = (c) => !!c.niching && c.last.length > c.places && c.places > 1 && c.niching.picks.some((p) => p.closest && c.last.filter((i) => c.association[i].dir === p.dir).length > 1);
+    const ctl = controls(node);
+    const back = button(ctl, "Previous step", () => go(state.step - 1));
+    const next = button(ctl, "Next step", () => go(state.step + 1), true);
+    button(ctl, "Restart", () => go(0));
+    button(ctl, "New population", () => {
+      // Draw populations until niching cuts the last front and an empty direction chooses between candidates.
+      for (let tries = 0; tries < 300; tries++) {
+        const seed = Math.floor(Math.random() * 1e6);
+        if (interesting(nsga3Generation(seed, N))) {
+          state.seed = seed;
+          break;
+        }
+      }
+      build();
+    });
+    const body = h("div", { class: "vf-body vf-body--two" }, node);
+    const xPlot = createPlot(body, { title: "Decision space", x: [0, 1], y: [0, 1], xLabel: "x₁", yLabel: "x₂", label: "Decision vectors of the parents and of the children" });
+    const fOptions = {
+      title: "Objective space",
+      x: [0, 1],
+      y: [0, 2.1],
+      xLabel: "f₁ (minimize)",
+      yLabel: "f₂ (minimize)",
+      label: "Objective vectors, fronts, normalization and reference directions of one NSGA-III generation",
+      margin: { t: 22, r: 28 },
+    };
+    const fPlot = createPlot(body, fOptions);
+    const fTitle = fPlot.wrap.querySelector(".vf-title");
+    for (const plot of [xPlot, fPlot]) {
+      plot.svg.setAttribute("tabindex", "0");
+      plot.svg.setAttribute("aria-keyshortcuts", "ArrowLeft ArrowRight");
+    }
+    const readout = h("div", { class: "vf-readout" }, node);
+    const stepText = h("p", { class: "vf-step-text", "aria-live": "polite" }, readout);
+    h("p", {}, readout, "Steps 8 to 10 show the normalized objectives. The arrow keys step through the figure when it has focus; New population draws another generation.");
+    const tableBox = h("div", {}, readout);
+    legend(node, [
+      { label: "Parent", shape: "circle", cls: "vf-pt vf-pt-muted" },
+      { label: "Child", shape: "triangle", cls: "vf-pt vf-pt-muted" },
+      { label: "Front 1, 2, 3 … (darker is better)", shape: "circle", cls: "vf-pt vf-r1" },
+      { label: "Chosen parent, extreme point, survivor", shape: "circle", cls: "vf-ring" },
+      { label: "Ideal point z*, nadir estimate", shape: "cross", cls: "vf-line-ink" },
+      { label: "Reference direction, line through the extreme points", shape: "line", cls: "vf-line-thin" },
+      { label: "Pareto set and front", shape: "line", cls: "vf-front" },
+    ]);
+    node.addEventListener("keydown", (e) => {
+      if (e.target && /^(SELECT|INPUT|BUTTON)$/.test(e.target.tagName)) return;
+      if (e.key === "ArrowRight") go(state.step + 1);
+      else if (e.key === "ArrowLeft") go(state.step - 1);
+      else return;
+      e.preventDefault();
+    });
+    function build() {
+      g = nsga3Generation(state.seed, N);
+      go(0);
+    }
+    function go(i) {
+      state.step = Math.max(0, Math.min(TITLES.length - 1, i));
+      render();
+    }
+    const ids = (rows) => rows.map((i) => g.merged[i].id);
+    const set = (rows) => "{" + ids(rows).sort((a, b) => a - b).join(", ") + "}";
+    const dir = (j) => "w" + (j + 1);
+    function draw(plot, v, shape, cls, label, ring) {
+      const px = plot.x(Math.max(plot.xd[0], Math.min(v[0], plot.xd[1])));
+      const py = plot.y(Math.max(plot.yd[0], Math.min(v[1], plot.yd[1])));
+      marker(plot.layers.marks, shape, px, py, 6, cls);
+      if (ring) marker(plot.layers.marks, "circle", px, py, 10.5, "vf-ring");
+      if (label) txt(plot.layers.top, px + 9, py - 7, label, { class: "vf-mark-label" });
+    }
+    function cross(v, label, above) {
+      const px = fPlot.x(v[0]);
+      const py = fPlot.y(v[1]);
+      marker(fPlot.layers.marks, "cross", px, py, 4.5, "vf-line-ink");
+      txt(fPlot.layers.top, px + 7, py + (above ? -7 : 15), label, { class: "vf-mark-label" });
+    }
+    function setSpace(normalized) {
+      const inside = g.whole.flat().concat(g.last || []);
+      const top = normalized ? Math.max(1.2, Math.ceil(10 * 1.08 * Math.max(...inside.map((i) => Math.max(g.normalized[i][0], g.normalized[i][1])))) / 10) : 0;
+      fOptions.xLabel = normalized ? "fⁿ₁ (normalized)" : "f₁ (minimize)";
+      fOptions.yLabel = normalized ? "fⁿ₂ (normalized)" : "f₂ (minimize)";
+      fTitle.textContent = normalized ? "Normalized objective space" : "Objective space";
+      fPlot.svg.setAttribute("aria-label", normalized ? "Normalized objectives, reference directions, associations and niching" : fOptions.label);
+      fPlot.setDomain(normalized ? [0, top] : [0, 1], normalized ? [0, top] : [0, 2.1]);
+    }
+    function render() {
+      const step = state.step;
+      const normalized = NORMALIZED.includes(step);
+      back.disabled = step === 0;
+      next.disabled = step === TITLES.length - 1;
+      setSpace(normalized);
+      for (const plot of [xPlot, fPlot]) {
+        clear(plot.layers.back);
+        clear(plot.layers.mid);
+        clear(plot.layers.marks);
+        clear(plot.layers.top);
+      }
+      xPlot.line(xPlot.layers.back, [[0, 0.004], [1, 0.004]], "vf-front");
+      if (!normalized) fPlot.line(fPlot.layers.back, frontPoints((t) => 1 - Math.sqrt(t), 0, 1, 60), "vf-front");
+      let rows = [];
+      let headers = ["Id", "Role", "x₁", "x₂", "f₁", "f₂", "Front", "Status"];
+      let numeric = [false, false, true, true, true, true, true, false];
+      const counts = new Map();
+      g.draws.forEach((d) => counts.set(d, (counts.get(d) || 0) + 1));
+      if (step <= 2) {
+        const byId = new Map(g.pop.map((p) => [p.id, p]));
+        if (step === 1) {
+          for (let k = 0; k < g.draws.length; k += 2) fPlot.line(fPlot.layers.mid, [g.pop[g.draws[k]].f, g.pop[g.draws[k + 1]].f], "vf-line-thin vf-dashed");
+        }
+        g.pop.forEach((p, i) => {
+          const k = counts.get(i) || 0;
+          const label = String(p.id) + (step >= 1 && k > 1 ? " ×" + k : "");
+          draw(xPlot, p.x, "circle", "vf-pt vf-pt-1", label, step >= 1 && k > 0);
+          draw(fPlot, p.f, "circle", "vf-pt vf-pt-1", label, step >= 1 && k > 0);
+          rows.push([String(p.id), "parent", fmt(p.x[0], 2), fmt(p.x[1], 2), fmt(p.f[0], 2), fmt(p.f[1], 2), "–", step >= 1 ? (k ? `drawn ${k}×` : "not drawn") : "–"]);
+        });
+        if (step === 2) {
+          g.children.forEach((c) => {
+            c.parents.forEach((id) => xPlot.line(xPlot.layers.mid, [byId.get(id).x, c.x], "vf-line-thin vf-dashed"));
+            draw(xPlot, c.x, "triangle", "vf-pt vf-pt-2", String(c.id), false);
+            rows.push([String(c.id), `child of ${c.parents[0]} and ${c.parents[1]}`, fmt(c.x[0], 2), fmt(c.x[1], 2), "?", "?", "–", "not evaluated"]);
+          });
+        }
+      } else if (!normalized) {
+        const keep = new Set(g.keep);
+        const whole = new Set(g.whole.flat());
+        const last = new Set(g.last || []);
+        const extremes = new Set(g.extremes);
+        if (step === 4) {
+          g.fronts.forEach((front, k) => {
+            const pts = front.map((i) => g.merged[i].f).sort((a, b) => a[0] - b[0]);
+            if (pts.length > 1) fPlot.line(fPlot.layers.mid, pts, "vf-front-link " + rankClass(k));
+          });
+        }
+        if (step === 6) {
+          const z = g.ideal;
+          const nad = g.nadir;
+          fPlot.line(fPlot.layers.mid, [[z[0], 3], z, [3, z[1]]], "vf-line-thin");
+          fPlot.rect(fPlot.layers.back, z[0], z[1], nad[0], nad[1], "vf-cuboid");
+          if (g.hyperplane) fPlot.line(fPlot.layers.mid, [[z[0] + g.intercepts[0], z[1]], [z[0], z[1] + g.intercepts[1]]], "vf-line-ink vf-dashed");
+          cross(z, "z*");
+          cross(nad, "nadir", true);
+        }
+        g.merged.forEach((p, i) => {
+          const isChild = i >= N;
+          const sorted = step >= 4;
+          const out = step >= 5 && !whole.has(i) && !last.has(i);
+          const removed = step === 10 && !keep.has(i);
+          const cls = "vf-pt " + (sorted ? rankClass(g.rank[i]) : "vf-pt-muted") + (out || removed ? " vf-faded" : "");
+          const ring = (step === 5 && whole.has(i)) || (step === 6 && extremes.has(i)) || (step === 10 && keep.has(i));
+          let label = String(p.id);
+          if (removed) label += " ✕";
+          draw(xPlot, p.x, isChild ? "triangle" : "circle", cls, label, ring && step !== 6);
+          draw(fPlot, p.f, isChild ? "triangle" : "circle", cls, label, ring);
+          let status = isChild ? "child" : "parent";
+          if (step >= 5) status = whole.has(i) ? "kept, whole front" : last.has(i) ? `last front, ${g.places} place${g.places === 1 ? "" : "s"}` : "discarded";
+          if (step === 6 && extremes.has(i)) status = "extreme point";
+          if (step === 10) status = keep.has(i) ? (whole.has(i) ? "kept, whole front" : "kept by niching") : "removed";
+          rows.push([String(p.id), isChild ? "child" : "parent", fmt(p.x[0], 2), fmt(p.x[1], 2), fmt(p.f[0], 2), fmt(p.f[1], 2), sorted ? String(g.rank[i] + 1) : "?", status]);
+        });
+      } else {
+        const whole = new Set(g.whole.flat());
+        const last = new Set(g.last || []);
+        const picks = new Map((g.niching ? g.niching.picks : []).map((p) => [p.id, p]));
+        const top = fPlot.xd[1];
+        const rho = g.rho.slice();
+        if (step === 9) picks.forEach((p) => (rho[p.dir] += 1));
+        g.W.forEach((w, j) => {
+          const t = top / Math.max(w[0], w[1]);
+          fPlot.line(fPlot.layers.mid, [[0, 0], [w[0] * t, w[1] * t]], "vf-line-thin");
+          // The labels sit in the widened top and right margins, clear of the points.
+          const px = fPlot.x(w[0] * t);
+          const py = fPlot.y(w[1] * t);
+          if (w[1] > w[0]) txt(fPlot.layers.top, px, py - 6, dir(j), { class: "vf-mark-label", "text-anchor": "middle" });
+          else txt(fPlot.layers.top, px + 4, py + 4, dir(j), { class: "vf-mark-label" });
+        });
+        if (g.hyperplane) fPlot.line(fPlot.layers.mid, [[1, 0], [0, 1]], "vf-line-ink vf-dashed");
+        headers = ["Id", "Front", "fⁿ₁", "fⁿ₂", "Direction", "d⊥", "Status"];
+        numeric = [false, true, true, true, false, true, false];
+        g.merged.forEach((p, i) => {
+          const isChild = i >= N;
+          const inside = whole.has(i) || last.has(i);
+          const a = g.association[i];
+          const fn = g.normalized[i];
+          const w = g.W[a.dir];
+          const wn = Math.hypot(w[0], w[1]);
+          const proj = (fn[0] * w[0] + fn[1] * w[1]) / wn;
+          if (inside && step === 7) fPlot.line(fPlot.layers.mid, [fn, [(proj * w[0]) / wn, (proj * w[1]) / wn]], "vf-line-2 vf-dashed");
+          const pick = picks.get(i);
+          const cls = "vf-pt " + rankClass(g.rank[i]) + (inside ? "" : " vf-faded");
+          let label = inside ? String(p.id) : "";
+          if (step === 9 && pick) label += " ·" + pick.round;
+          if (step === 9 && last.has(i) && !pick) label += " ✕";
+          const ring = (step === 8 && whole.has(i)) || (step === 9 && (whole.has(i) || !!pick));
+          const out = step === 9 && last.has(i) && !pick ? " vf-faded" : "";
+          // A discarded solution outside the normalized window is left out rather than drawn at its edge.
+          if (inside || (fn[0] <= top && fn[1] <= top)) draw(fPlot, fn, isChild ? "triangle" : "circle", cls + out, label, ring);
+          draw(xPlot, p.x, isChild ? "triangle" : "circle", cls + out, label, ring);
+          let status = whole.has(i) ? "whole front" : last.has(i) ? "last front" : "discarded";
+          if (step === 9 && last.has(i)) status = pick ? `picked in round ${pick.round}${pick.closest ? ", closest" : ", at random"}` : "not picked";
+          if (inside) rows.push([String(p.id), String(g.rank[i] + 1), fmt(fn[0], 3), fmt(fn[1], 3), dir(a.dir), fmt(a.dperp, 3), status]);
+        });
+        if (step === 8) {
+          // The niche counts are a property of the directions: one row per direction.
+          headers = ["Direction", "ρ", "Whole fronts", "Last front (d⊥)"];
+          numeric = [false, true, false, false];
+          const on = (list, j) => list.filter((i) => g.association[i].dir === j).sort((a, b) => g.merged[a].id - g.merged[b].id);
+          rows = g.W.map((_, j) => [
+            dir(j),
+            String(g.rho[j]),
+            on(g.whole.flat(), j).map((i) => g.merged[i].id).join(", ") || "–",
+            on(g.last || [], j).map((i) => `${g.merged[i].id} (${fmt(g.association[i].dperp, 3)})`).join(", ") || "–",
+          ]);
+        }
+      }
+      stepText.textContent = `Step ${step + 1} of ${TITLES.length}: ${TITLES[step]}. ${describe(step)}`;
+      clear(tableBox);
+      table(tableBox, headers, rows, numeric);
+    }
+    function describe(step) {
+      if (step === 0) {
+        return `Six solutions of the loop figure's problem (f₁ = x₁, f₂ = g·(1 − √(x₁/g)), g = 1 + x₂). With two objectives and p = 5 divisions there are H = 6 reference directions, and N = H = 6 is the smallest population VAMOS accepts for them. NSGA-III's default selection is random, so the population needs no ranks or crowding distances before mating.`;
+      }
+      if (step === 1) {
+        const pairs = [];
+        for (let k = 0; k < g.draws.length; k += 2) pairs.push(`(${g.pop[g.draws[k]].id}, ${g.pop[g.draws[k + 1]].id})`);
+        const missing = g.pop.filter((_, i) => !g.draws.includes(i)).map((p) => p.id);
+        return `VAMOS' default selection for NSGA-III, selection("random"), draws ${g.draws.length} parents uniformly at random, with replacement, as Deb and Jain do: the pairs ${idList(pairs)}. Ringed members were drawn at least once${missing.length ? `; ${idList(missing)} ${missing.length === 1 ? "was" : "were"} not drawn` : ""}. Neither the fronts nor any density estimate plays a part.`;
+      }
+      if (step === 2) {
+        return `SBX crossover (probability 0.9, η = 30) recombines each pair and polynomial mutation (probability 1/2 per variable, η = 20) perturbs each child, VAMOS' defaults for NSGA-III: children ${g.children[0].id} to ${g.children[N - 1].id}, the triangles joined to their parents. Their objectives are not known yet.`;
+      }
+      if (step === 3) {
+        return `The ${N} children are evaluated and merged with the ${N} parents: Rₜ = Pₜ ∪ Qₜ holds ${2 * N} solutions for ${N} places, as in NSGA-II.`;
+      }
+      if (step === 4) return `Non-dominated sorting, unchanged from NSGA-II: ${g.fronts.map((front, k) => `front ${k + 1} = ${set(front)}`).join(", ")}.`;
+      if (step === 5) {
+        const used = N - g.places;
+        const fit = g.whole.length === 0 ? "No front fits entirely" : g.whole.length === 1 ? `Front 1 fits entirely, ${used} of ${N} places` : `Fronts 1 to ${g.whole.length} fit entirely, ${used} of ${N} places`;
+        if (!g.last) return `${fit}: the whole fronts fill the places exactly, so this generation needs no niching.`;
+        return `${fit}. Front ${g.whole.length + 1} = ${set(g.last)} is the last front: ${g.last.length} members for ${g.places} place${g.places === 1 ? "" : "s"}. NSGA-III cuts it with reference directions instead of crowding distances; the later fronts are discarded.`;
+      }
+      if (step === 6) {
+        const e = g.extremes.map((i) => g.merged[i].id);
+        const z = pair(g.ideal);
+        const plane = g.hyperplane
+          ? `The line through them cuts the axes from z* at a₁ = ${fmt(g.intercepts[0], 2)} and a₂ = ${fmt(g.intercepts[1], 2)}, so the nadir estimate is z* + a = ${pair(g.nadir)}.`
+          : `The line through them is rejected (${g.extremes[0] === g.extremes[1] ? "the two extreme points are the same solution" : "an intercept is not positive or the estimate exceeds the worst values seen"}), so VAMOS takes the worst point of the first front, ${pair(g.frontWorst)}, as the nadir estimate${g.fromPopulation.some(Boolean) ? ", and the worst value of the merged population where that point is not above z*" : ""}.`;
+        return `The ideal point z* = ${z} holds the smallest values seen so far; in this first generation, those of Rₜ. The ASF picks the extreme points of the first front: ${e[0]} on the f₁ axis (z¹, the smallest f₂) and ${e[1]} on the f₂ axis (z², the smallest f₁). ${plane} Each objective is then divided by its range: fⁿ = (f − z*) / (nadir − z*), which puts the extreme points on the unit axes.`;
+      }
+      const inside = g.whole.flat().concat(g.last || []);
+      if (step === 7) {
+        const byDir = g.W.map((_, j) => inside.filter((i) => g.association[i].dir === j));
+        const text = byDir.map((list, j) => (list.length ? `${dir(j)} ← ${idList(ids(list).sort((a, b) => a - b))}` : null)).filter(Boolean);
+        const empty = byDir.map((list, j) => (list.length ? null : dir(j))).filter(Boolean);
+        return `In the normalized space, each solution joins the direction at the smallest angle, and d⊥ (dashed) is its distance to that ray: ${text.join("; ")}.${empty.length ? ` ${idList(empty)} ${empty.length === 1 ? "has" : "have"} no solution of these fronts.` : ""} The discarded fronts are faded.`;
+      }
+      if (step === 8) {
+        const levels = [...new Set(g.rho)].sort((a, b) => b - a);
+        const count = levels.map((c) => `ρ = ${c} on ${idList(g.W.map((_, j) => j).filter((j) => g.rho[j] === c).map(dir))}`).join("; ");
+        const cands = g.W.map((_, j) => {
+          const list = (g.last || []).filter((i) => g.association[i].dir === j);
+          return list.length ? `${dir(j)} (${idList(ids(list).sort((a, b) => a - b))})` : null;
+        }).filter(Boolean);
+        if (!g.last) return `The whole fronts give the niche counts ${count}, but they already fill every place.`;
+        return `The niche count ρⱼ counts the survivors of the whole fronts on each direction: ${count}. The last front's members sit on ${idList(cands)}.`;
+      }
+      if (step === 9) {
+        if (!g.niching) return "The whole fronts filled the places exactly, so nothing is left to niche.";
+        const rounds = [];
+        g.niching.picks.forEach((p) => {
+          if (!rounds[p.round - 1]) rounds[p.round - 1] = { low: p.low, tied: p.tied, Jmin: p.Jmin, picks: [] };
+          rounds[p.round - 1].picks.push(p);
+        });
+        const text = rounds.map((r, n) => {
+          const served = r.picks.map((p) => {
+            const d = g.association[p.id].dperp;
+            return `${dir(p.dir)} takes ${g.merged[p.id].id}${p.closest ? ` (closest, d⊥ ${fmt(d, 3)})` : " (at random)"}`;
+          });
+          const places = r.Jmin.length < r.tied.length ? ` Only ${r.Jmin.length === 1 ? "one place is" : r.Jmin.length + " places are"} left, and the random order serves ${idList(r.Jmin.map(dir))}:` : "";
+          const tied = r.tied.length === 1 ? `on ${dir(r.tied[0])}` : `on ${idList(r.tied.map(dir))}`;
+          return `Round ${n + 1}: the smallest count among the directions with candidates is ${r.low}, ${tied}.${places} ${idList(served)}.`;
+        });
+        const left = g.last.filter((i) => !g.keep.includes(i));
+        return `${text.join(" ")} An empty direction gets its closest candidate, a direction with survivors a random one. ${left.length ? `${idList(ids(left).sort((a, b) => a - b))} ${left.length === 1 ? "is" : "are"} left out.` : ""}`;
+      }
+      const kept = g.keep.slice().sort((a, b) => a - b);
+      const parents = kept.filter((i) => i < N).length;
+      const removed = g.merged.map((_, i) => i).filter((i) => !g.keep.includes(i));
+      return `Pₜ₊₁ = ${set(kept)}: ${parents} parent${parents === 1 ? "" : "s"} and ${kept.length - parents} child${kept.length - parents === 1 ? "" : "ren"} survive, and ${idList(ids(removed))} leave. VAMOS keeps the ideal point, the worst values and the extreme points ${idList(g.extremes.map((i) => g.merged[i].id))}: the next generation looks for its extreme points among its first front and these.`;
+    }
+    build();
   };
 
   /* ---- Tuning: an F-race block by block, and the budgets of the model-based backends ---- */

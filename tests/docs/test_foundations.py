@@ -904,3 +904,87 @@ def test_moead_generation_figure_agrees_with_vamos() -> None:
     assert steps[2]["replaced"] == [1] and [round(rows[2][1]["gy"], 2), round(rows[2][1]["gx"], 2)] == [1.15, 3.38]
     assert [round(rows[2][2]["gy"], 2), round(rows[2][2]["gx"], 2)] == [2.11, 0.81]
     assert [member["id"] for member in generations[0]["final"]][3:5] == [12, 12] and steps[5]["k"] == 4
+
+
+class _ReplayShuffles:
+    """A generator whose shuffles put the figure's random choices first, in the order NSGA-III's niching draws them."""
+
+    def __init__(self, orders: list[list[int]]) -> None:
+        self.orders = orders
+
+    def shuffle(self, values: np.ndarray) -> None:
+        first = self.orders.pop(0)
+        values[:] = first + [v for v in values.tolist() if v not in first]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_nsga3_generation_figure_agrees_with_vamos() -> None:
+    from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors
+    from vamos.engine.algorithm.nsgaiii.helpers import (
+        _reference_direction_survival,
+        associate,
+        fast_non_dominated_sort,
+        get_extreme_points,
+        get_nadir_point,
+    )
+
+    # 16892 is the lesson's example; 1 fills the places with whole fronts, 15 and 45 reject the hyperplane,
+    # 5 and 7 pick at random, and 455 takes a nadir value from the population.
+    seeds = [16892, 1, 2, 5, 7, 15, 45, 97, 455]
+    generations = _run_figure_program("data.map((seed) => V.nsga3Generation(seed, 6))", seeds)
+    directions = load_or_generate_weight_vectors(6, 2, divisions=None)
+    unit = directions / np.linalg.norm(directions, axis=1, keepdims=True)
+
+    for g in generations:
+        np.testing.assert_array_equal(g["W"], directions)
+        F = np.array([member["f"] for member in g["merged"]])
+        fronts = [[int(i) for i in front] for front in fast_non_dominated_sort(F)]
+        assert [sorted(front) for front in g["fronts"]] == [sorted(front) for front in fronts]
+        whole = [i for front in g["whole"] for i in front]
+        assert sum(len(front) for front in g["whole"]) + g["places"] == 6
+        # Normalization: the ideal point of the first generation, the extreme points and the nadir estimate.
+        ideal, worst = F.min(axis=0), F.max(axis=0)
+        np.testing.assert_array_equal(g["ideal"], ideal)
+        first = F[fronts[0]]
+        extremes = get_extreme_points(first, 2, ideal, None)
+        np.testing.assert_array_equal(F[g["extremes"]], extremes)
+        nadir = get_nadir_point(extremes, ideal, worst, first.max(axis=0), worst)
+        np.testing.assert_allclose(g["nadir"], nadir, rtol=1e-12)
+        estimate = ideal + np.array(g["intercepts"]) if g["hyperplane"] else first.max(axis=0)
+        np.testing.assert_allclose(np.where(g["fromPopulation"], worst, estimate), nadir, rtol=1e-12)
+        normalized = (F - ideal) / (nadir - ideal)
+        np.testing.assert_allclose(g["normalized"], normalized, rtol=1e-12)
+        # Association and niche counts.
+        assoc, dperp = associate(normalized, unit)
+        assert [a["dir"] for a in g["association"]] == assoc.tolist()
+        np.testing.assert_allclose([a["dperp"] for a in g["association"]], dperp, rtol=1e-9, atol=1e-12)
+        assert g["rho"] == np.bincount(assoc[whole], minlength=6).tolist()
+        # VAMOS's survival, with the figure's random choices, keeps the same solutions in the same order.
+        orders: list[list[int]] = []
+        if g["niching"] is not None:
+            last = fronts[len(g["whole"])]
+            for round_ in sorted({pick["round"] for pick in g["niching"]["picks"]}):
+                picks = [pick for pick in g["niching"]["picks"] if pick["round"] == round_]
+                orders.append(picks[0]["Jmin"])
+                orders.extend([last.index(pick["id"])] for pick in picks)
+        replay = _ReplayShuffles(orders)
+        survivors = _reference_direction_survival(F, 6, unit, replay, np.full(2, np.inf), None, np.full(2, -np.inf), None)[0].tolist()
+        assert replay.orders == []
+        assert sorted(survivors[: len(whole)]) == sorted(whole) and survivors[len(whole) :] == g["keep"][len(whole) :]
+
+    # The numbers that the lesson quotes for its example.
+    example = generations[0]
+    ident = [member["id"] for member in example["merged"]]
+    assert [(example["pop"][a]["id"], example["pop"][b]["id"]) for a, b in zip(example["draws"][::2], example["draws"][1::2])] == [
+        (4, 6),
+        (3, 5),
+        (5, 2),
+    ]
+    assert [sorted(ident[i] for i in front) for front in example["fronts"][:2]] == [[3, 6, 9], [2, 5, 7, 8, 10, 12]]
+    assert example["places"] == 3 and [ident[i] for i in example["extremes"]] == [6, 3] and example["hyperplane"]
+    assert [round(a, 2) for a in example["intercepts"] + example["nadir"]] == [0.80, 0.66, 0.84, 0.82]
+    picks = [(ident[p["id"]], p["dir"] + 1, p["round"], p["closest"]) for p in example["niching"]["picks"]]
+    assert sorted(picks) == [(2, 4, 2, False), (8, 4, 1, True), (12, 5, 1, True)]
+    assert sorted(example["niching"]["picks"][-1]["tied"]) == [0, 1, 3]
+    dperp = {ident[i]: round(example["association"][i]["dperp"], 3) for i in example["last"]}
+    assert (dperp[8], dperp[2], dperp[5]) == (0.051, 0.116, 0.040) and example["association"][ident.index(5)]["dir"] == 1
