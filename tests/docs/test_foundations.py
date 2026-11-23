@@ -950,3 +950,63 @@ def test_smsemoa_step_figure_agrees_with_vamos() -> None:
     assert contributions == {2: 0.0193, 3: 0.2109, 4: 0.0293, 7: 0.16}
     assert [round(v, 2) for v in example["ref"]] == [1.67, 1.98] and example["removed"] + 1 == 2
     assert sorted(member["id"] for member in example["next"]) == [1, 3, 4, 5, 6, 7]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_ibea_generation_figure_agrees_with_vamos() -> None:
+    from vamos.engine.algorithm.ibea.helpers import (
+        _normalized_objectives,
+        compute_indicator_matrix,
+        environmental_selection_indices,
+        epsilon_indicator,
+        ibea_fitness,
+    )
+
+    seeds = [31040, 1, 2, 3, 5, 6, 97, 12367]  # 31040 is the lesson's example
+    generations = _run_step_figure("ibeaGeneration", seeds)
+
+    def members(F: np.ndarray, rows: list[int], values: list[float]) -> list[tuple[tuple[float, ...], float]]:
+        return sorted((tuple(F[i]), values[i]) for i in rows)
+
+    for g in generations:
+        # The population's fitness from VAMOS' initial environmental selection, and the tournaments on it.
+        P = np.array([member["f"] for member in g["pop"]])
+        selected, fitness = environmental_selection_indices(P, None, 6, "eps", 0.05)
+        assert selected.tolist() == list(range(6))
+        np.testing.assert_allclose(g["popFitness"], fitness, rtol=1e-12)
+        for t in g["tournaments"]:
+            a, b = t["a"] - 1, t["b"] - 1
+            assert a != b and t["winner"] - 1 == (a if fitness[a] > fitness[b] else b)
+        assert len(g["tournaments"]) == 6 and len(g["children"]) == 6
+        # The merged set: normalized objectives, c, the fitness, the removals and the fitness after each one.
+        Q = np.array([member["f"] for member in g["merged"]])
+        np.testing.assert_allclose(g["Z"], _normalized_objectives(Q), rtol=1e-12, atol=1e-15)
+        assert g["c"] == np.abs(epsilon_indicator(_normalized_objectives(Q))).max() == 1.0
+        np.testing.assert_allclose(g["fitness"], ibea_fitness(compute_indicator_matrix(Q, "eps"), 0.05), rtol=1e-12)
+
+        # The removal loop is greedy, so keeping one member fewer each time gives VAMOS' removals in order. A child
+        # that copies its parent ties with it exactly, and the summation order decides which copy goes: compare
+        # objective vectors, with the fitness of the members left after each removal.
+        for j, size in enumerate(range(11, 5, -1)):
+            kept, after = environmental_selection_indices(Q, None, size, "eps", 0.05)
+            alive = [i for i in range(12) if i not in g["removed"][: j + 1]]
+            expected = sorted(zip(map(tuple, Q[kept]), after))
+            assert [key for key, _ in members(Q, alive, g["history"][j])] == [key for key, _ in expected]
+            np.testing.assert_allclose([v for _, v in members(Q, alive, g["history"][j])], [v for _, v in expected], rtol=1e-10)
+        assert sorted(g["kept"]) == sorted(alive)
+        np.testing.assert_allclose([v for _, v in members(Q, g["kept"], g["final"])], [v for _, v in expected], rtol=1e-10)
+
+    # The numbers that the lesson quotes for its example.
+    example = generations[0]
+    initial = {i + 1: round(v, 3) for i, v in enumerate(example["fitness"])}
+    assert [i + 1 for i in example["removed"]] == [4, 3, 10, 11, 5, 9]
+    assert [initial[k] for k in (4, 3, 10)] == [-103.433, -58.284, -17.051]
+    assert sorted(initial, key=initial.get)[:3] == [4, 3, 10]
+    Q = np.array([member["f"] for member in example["merged"]])
+    dominated = np.any(np.all(Q[:, None] <= Q[None], axis=2) & np.any(Q[:, None] < Q[None], axis=2), axis=0)
+    assert all(dominated[k - 1] for k in (4, 3, 10))
+    before, after = example["history"][2], example["history"][3]  # removal 4 of 6: 11 leaves
+    assert (round(before[6], 3), round(after[6], 3)) == (-1.763, -1.539)
+    assert initial[9] == -1.665 and initial[7] == -1.771
+    assert round(example["history"][4][8], 3) == -1.651 and round(example["final"][6], 3) == -1.483
+    assert [i + 1 for i in example["kept"]] == [1, 2, 6, 7, 8, 12]
