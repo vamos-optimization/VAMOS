@@ -9,9 +9,11 @@
    tests/docs/test_foundations.py checks that every figure a lesson uses is
    implemented here and, when Node.js is installed, runs the figures'
    algorithms against VAMOS: non-dominated sorting, crowding distance,
-   hypervolume and its contributions, the evolutionary loop, one NSGA-II
-   generation and the families' survivors, the variation operators, the benchmark fronts and CTP
-   violations, two-layer reference directions, the constraint-handling
+   hypervolume and its contributions, the evolutionary loop and the families'
+   survivors, the step-by-step generations of every algorithm lesson (NSGA-II,
+   SPEA2, MOEA/D, SMS-EMOA, IBEA, SMPSO, NSGA-III, RVEA, AGE-MOEA, CCMO,
+   C-TAEA, ToP and CMOEA-MS), the variation operators, the benchmark fronts
+   and CTP violations, two-layer reference directions, the constraint-handling
    rankings, F-race and the tuning budgets. The distance indicators and the
    Das-Dennis lattices were checked by hand against MooCore and VAMOS when the
    path was added. */
@@ -9031,9 +9033,9 @@
     legend(node, [
       { label: "Parent", shape: "circle", cls: "vf-pt vf-pt-1" },
       { label: "Trial vector, child", shape: "triangle", cls: "vf-pt vf-pt-1" },
-      { label: "Infeasible (CV > 0)", shape: "circle", cls: "vf-pt vf-pt-2" },
+      { label: "Infeasible, CV > 0 (hollow)", shape: "circle", cls: "vf-pt vf-pt-open vf-pt-muted" },
       { label: "Not evaluated yet", shape: "triangle", cls: "vf-pt vf-pt-muted" },
-      { label: "Mutant vector", shape: "triangle", cls: "vf-pt-hollow" },
+      { label: "Mutant vector", shape: "diamond", cls: "vf-pt-hollow" },
       { label: "Feasible fronts 1, 2, 3 … (darker is better)", shape: "circle", cls: "vf-pt vf-r1" },
       { label: "Winner, survivor, best third", shape: "circle", cls: "vf-ring" },
       { label: "Infeasible region", shape: "region", cls: "vf-region-2" },
@@ -9058,7 +9060,7 @@
     }
     const sub = (id) => String(id).replace(/\d/g, (d) => SUB[Number(d)]);
     const set = (list) => "{" + list.slice().sort((a, b) => a - b).join(", ") + "}";
-    const feasibleCls = (p) => (p.cv > 0 ? "vf-pt-2" : "vf-pt-1");
+    const feasibleCls = (p) => (p.cv > 0 ? "vf-pt-1 vf-pt-open" : "vf-pt-1");
     const cvText = (p) => (p.cv > 0 ? fmt(p.cv, 4) : "0");
     function draw(plot, labels, v, shape, cls, label, ring) {
       const px = plot.x(Math.min(Math.max(v[0], plot.xd[0]), plot.xd[1]));
@@ -9126,7 +9128,7 @@
         p1.trials.forEach((t, i) => {
           const base = byId.get(t.base);
           xPlot.line(xPlot.layers.mid, [base.x, t.mutant], "vf-line-thin vf-dashed");
-          draw(xPlot, xl, t.mutant, "triangle", "vf-pt-hollow", "v" + sub(pop[i].id), false);
+          draw(xPlot, xl, t.mutant, "diamond", "vf-pt-hollow", "v" + sub(pop[i].id), false);
         });
       }
       if (step === 2 || step === 3) {
@@ -9185,7 +9187,7 @@
       const rows = [];
       const headers = ["Id", "Role", "x₁", "x₂", "f₁", "f₂", "CV", "Front", "Crowding", "Status"];
       const numeric = [false, false, true, true, true, true, true, true, true, false];
-      const cls = (p, front, ranked) => "vf-pt " + (p.cv > 0 ? "vf-pt-2" : ranked ? rankClass(front) : "vf-pt-1");
+      const cls = (p, front, ranked) => "vf-pt " + (p.cv > 0 ? "vf-pt-1 vf-pt-open" : ranked ? rankClass(front) : "vf-pt-1");
       if (k <= 2) {
         const wins = new Map();
         p2.tournaments.forEach((t) => wins.set(t.winner, (wins.get(t.winner) || 0) + 1));
@@ -9257,7 +9259,7 @@
       if (step === 0) {
         const best = pop[p1.best];
         const infeasible = pop.filter((p) => p.cv > 0).map((p) => p.id);
-        const inf = infeasible.length ? `${idList(infeasible)} ${infeasible.length === 1 ? "is" : "are"} infeasible (orange)` : "all are feasible";
+        const inf = infeasible.length ? `${idList(infeasible)} ${infeasible.length === 1 ? "is" : "are"} infeasible (hollow)` : "all are feasible";
         return `Six random solutions of the loop figure's problem, with CTP2's constraint on its objectives: ${inf}. Phase 1 solves a single-objective problem: minimize the mean objective (f₁ + f₂)/2 under the constraint. x_best, the solution with the lowest mean, feasible or not, is ${best.id} (mean ${fmt(best.mean, 3)}${best.cv > 0 ? ", infeasible" : ""}). A run starts with δ = 1 ≥ 0.2, so its first generation is in phase 1.`;
       }
       if (step === 1) {
@@ -9408,7 +9410,7 @@
     legend(node, [
       { label: "Parent, feasible", shape: "circle", cls: "vf-pt vf-pt-1" },
       { label: "Child", shape: "triangle", cls: "vf-pt vf-pt-1" },
-      { label: "Infeasible (CV > 0)", shape: "circle", cls: "vf-pt vf-pt-2" },
+      { label: "Infeasible, CV > 0 (hollow)", shape: "circle", cls: "vf-pt vf-pt-open vf-pt-muted" },
       { label: "Not evaluated yet", shape: "triangle", cls: "vf-pt vf-pt-muted" },
       { label: "Tournament winner, fitness below 1, survivor", shape: "circle", cls: "vf-ring" },
       { label: "Boundary of what the fitness-below-1 solutions dominate", shape: "line", cls: "vf-line-ink" },
@@ -9446,7 +9448,7 @@
       render();
     }
     const set = (list) => "{" + list.slice().sort((a, b) => a - b).join(", ") + "}";
-    const feasibleCls = (p) => (p.cv > 0 ? "vf-pt-2" : "vf-pt-1");
+    const feasibleCls = (p) => (p.cv > 0 ? "vf-pt-1 vf-pt-open" : "vf-pt-1");
     function draw(plot, labels, v, shape, cls, label, ring) {
       const px = plot.x(Math.min(Math.max(v[0], plot.xd[0]), plot.xd[1]));
       const py = plot.y(Math.min(Math.max(v[1], plot.yd[0]), plot.yd[1]));
@@ -9575,7 +9577,7 @@
       if (st.kind === "pop") {
         const below = gen.pop.filter((_, i) => gen.fitness[i] < 1).map((p) => p.id);
         const infeasible = gen.pop.filter((p) => p.cv > 0).map((p) => p.id);
-        const inf = infeasible.length ? `${idList(infeasible)} ${infeasible.length === 1 ? "is" : "are"} infeasible (orange)` : "all are feasible";
+        const inf = infeasible.length ? `${idList(infeasible)} ${infeasible.length === 1 ? "is" : "are"} infeasible (hollow)` : "all are feasible";
         if (st.gen === 0) return `Six random solutions of the loop figure's problem, with CTP2's constraint on its objectives: ${inf}. The initial population gets stage A's fitness, computed on these ${N} alone: it is below 1 for the solutions that no other one dominates, here ${idList(below)} (ringed). The run has a budget of ${BUDGET} evaluations, and λ = ${LAMBDA}.`;
         return `The population that generation 1 selected, in the order of Q₁: ${inf}. Its fitness is the one it got in Q₁, in stage ${g.generations[0].stageB ? "B" : "A"}; it is not computed again for the tournaments. Fitness below 1: ${idList(below)} (ringed).`;
       }

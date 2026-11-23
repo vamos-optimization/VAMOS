@@ -145,7 +145,7 @@ Q in the stage that the stage rule chooses. The left panel shows the decision
 vectors, or, while stage A ranks Q, the points [SDE, CVn], where CVn is the
 normalized violation CV above; the right one shows the objective vectors, with
 the infeasible region shaded. Parents are circles,
-children triangles, and infeasible solutions are orange.
+children triangles, and infeasible solutions are hollow.
 
 <div class="vf-widget" data-vf-widget="cmoeams-steps"><p class="vf-fallback">Interactive figure: two generations of CMOEA-MS on six solutions of a constrained two-variable problem, the first in stage A and the second in stage B: the population and its fitness, the binary tournaments, SBX and polynomial mutation, the union and its normalized violation, the stage rule, the shift-based density, the fitness of each stage and the environmental selection. It needs JavaScript.</p></div>
 

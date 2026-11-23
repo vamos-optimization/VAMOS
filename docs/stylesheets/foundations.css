@@ -300,8 +300,9 @@
   overflow-x: auto;
 }
 
-.md-typeset .vf-readout td.vf-num,
-.md-typeset .vf-readout th.vf-num {
+/* The wrapper raises the specificity above Material's td:not([align]) rule for tables without a class. */
+.md-typeset .vf-readout .vf-table-wrap td.vf-num,
+.md-typeset .vf-readout .vf-table-wrap th.vf-num {
   text-align: right;
   font-family: var(--md-code-font-family), monospace;
 }

@@ -132,7 +132,7 @@ f₁ = x₁ and f₂ = g·(1 − √(x₁/g)) with g = 1 + x₂, under CTP2's co
 (f₁, f₂), the constraint of the figure in the next section. The left panel
 shows the decision vectors and the right one the objective vectors, with the
 infeasible region shaded in both. Parents are circles, trial vectors and
-children triangles, and infeasible solutions are orange. The operators are
+children triangles, and infeasible solutions are hollow. The operators are
 VAMOS' defaults for ToP: F = 0.5, CR = 1 and polynomial mutation with
 probability 1/n = 1/2 and η = 20.
 
