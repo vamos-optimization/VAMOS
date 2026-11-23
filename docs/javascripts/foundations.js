@@ -780,6 +780,131 @@
     return { phi, chi, inertia, cognitive, social, raw, constricted, clamped, tentative, position, velocity, delta, hit };
   }
 
+  /** One SMPSO iteration of the loop figure's problem, recorded for the SMPSO lesson, with VAMOS' defaults: w = 0.1,
+      C₁ and C₂ uniform in [1.5, 2.5], vmax_fraction 0.5, polynomial-mutation turbulence (probability 1/n = 1/2,
+      η = 20) on every sixth particle, and a leaders archive as large as the swarm, which receives the particles one at
+      a time. The swarm starts at random positions with zero velocity; its first iteration (`previous`) is not shown, so
+      that the recorded one has velocities and personal bests: the swarm and the leaders with their crowding
+      distances, the leader tournaments, the velocity and position updates (smpsoStep), the turbulence, the
+      evaluation, the personal bests and the insertion of the new positions into the archive. */
+  function smpsoGeneration(seed, swarmSize) {
+    const rand = mulberry32(seed);
+    const N = swarmSize;
+    const lower = [0, 0];
+    const upper = [1, 1];
+    const prob = 1 / 2;
+    let names = 0;
+    const leaderSnapshot = (archive) => {
+      const d = crowdingDistance(
+        archive.map((a) => a.f),
+        archive.map((_, i) => i)
+      );
+      return archive.map((a, i) => ({ name: a.name, from: a.from, x: a.x.slice(), f: a.f.slice(), crowding: d[i] }));
+    };
+    // jMetal's leaders.add, as VAMOS inserts one particle: rejected when a leader dominates or equals it; otherwise
+    // the leaders it dominates leave, it joins at the end, and on overflow the most crowded leader is removed.
+    const insert = (archive, q) => {
+      const by = archive.find((a) => a.f.every((v, j) => v <= q.f[j]));
+      if (by) return { archive, event: { id: q.id, accepted: false, by: by.name, removed: [], pruned: null, crowding: null } };
+      const removed = archive.filter((a) => a.f.every((v, j) => v >= q.f[j]));
+      const leader = { name: String.fromCharCode(65 + names++), from: q.id, x: q.x.slice(), f: q.f.slice() };
+      let next = archive.filter((a) => !removed.includes(a)).concat([leader]);
+      let pruned = null;
+      let crowding = null;
+      if (next.length > N) {
+        const d = crowdingDistance(
+          next.map((a) => a.f),
+          next.map((_, i) => i)
+        );
+        let k = 0;
+        d.forEach((v, i) => {
+          if (v < d[k]) k = i;
+        });
+        crowding = next.map((a, i) => ({ name: a.name, crowding: d[i] }));
+        pruned = next[k].name;
+        next = next.filter((_, i) => i !== k);
+      }
+      return { archive: next, event: { id: q.id, accepted: true, leader: leader.name, removed: removed.map((a) => a.name), pruned, crowding } };
+    };
+    const swarm = [];
+    for (let i = 0; i < N; i++) {
+      const x = [rand(), rand()];
+      const f = gaEvaluate(x);
+      swarm.push({ id: i + 1, x, v: [0, 0], f, p: x.slice(), pf: f.slice() });
+    }
+    let archive = [];
+    const initial = swarm.map((q) => {
+      const r = insert(archive, q);
+      archive = r.archive;
+      return r.event;
+    });
+    const snapshot = () => swarm.map((q) => ({ id: q.id, x: q.x.slice(), v: q.v.slice(), f: q.f.slice(), p: q.p.slice(), pf: q.pf.slice() }));
+    const start = { swarm: snapshot(), leaders: leaderSnapshot(archive), inserts: initial };
+    function iterate() {
+      const before = snapshot();
+      const leaders = leaderSnapshot(archive);
+      const tournaments = swarm.map((q) => {
+        if (leaders.length <= 2) return { id: q.id, a: 0, b: null, winner: 0, reason: "first" };
+        const a = Math.floor(rand() * leaders.length);
+        let b = Math.floor(rand() * (leaders.length - 1));
+        if (b >= a) b += 1;
+        let winner = a;
+        let reason = "crowding";
+        if (leaders[b].crowding > leaders[a].crowding) winner = b;
+        else if (leaders[b].crowding === leaders[a].crowding) {
+          reason = "coin";
+          if (rand() >= 0.5) winner = b;
+        }
+        return { id: q.id, a, b, winner, reason };
+      });
+      const moves = swarm.map((q, i) => {
+        const draws = { c1: 1.5 + rand(), c2: 1.5 + rand(), r1: rand(), r2: rand() };
+        const g = leaders[tournaments[i].winner].x;
+        return Object.assign({ id: q.id, g: g.slice() }, draws, smpsoStep(Object.assign({ x: q.x, v: q.v, p: q.p, g, w: 0.1, vmax: 0.5, lower, upper }, draws)));
+      });
+      const turbulence = [];
+      moves.forEach((m, i) => {
+        if (i % 6 !== 0) return;
+        const draws = [];
+        const after = polynomialMutation(m.position.slice(), 0, 1, prob, 20, () => {
+          const r = rand();
+          draws.push(r);
+          return r;
+        });
+        const mask = [];
+        const u = [];
+        let k = 0;
+        for (let j = 0; j < after.length; j++) {
+          mask.push(draws[k++]);
+          u.push(mask[j] <= prob ? draws[k++] : null);
+        }
+        turbulence.push({ id: m.id, index: i, before: m.position.slice(), after, mask, u, mutated: u.map((v, j) => (v === null ? -1 : j)).filter((j) => j >= 0) });
+      });
+      const pbest = [];
+      swarm.forEach((q, i) => {
+        const t = turbulence.find((e) => e.index === i);
+        q.x = (t ? t.after : moves[i].position).slice();
+        q.v = moves[i].velocity.slice();
+        q.f = gaEvaluate(q.x);
+        const kept = dominates(q.pf, q.f);
+        if (!kept) {
+          q.p = q.x.slice();
+          q.pf = q.f.slice();
+        }
+        pbest.push({ id: q.id, replaced: !kept, p: q.p.slice(), pf: q.pf.slice() });
+      });
+      const after = snapshot();
+      const inserts = swarm.map((q) => {
+        const r = insert(archive, q);
+        archive = r.archive;
+        return r.event;
+      });
+      return { before, leaders, tournaments, moves, turbulence, after, pbest, inserts, leadersAfter: leaderSnapshot(archive) };
+    }
+    const previous = iterate();
+    return Object.assign({ swarmSize: N, start, previous }, iterate());
+  }
+
   function solveLinear(A, b) {
     const n = b.length;
     const M = A.map((row, i) => row.concat([b[i]]));
@@ -2425,6 +2550,7 @@
     agemoeaSurvival,
     agemoeaCut,
     smpsoStep,
+    smpsoGeneration,
     nsga3Associate,
     nsga3Niching,
     moeadWeights,
@@ -5088,6 +5214,429 @@
       r.hit.forEach(([j, side]) => h("p", {}, readout, `x${j === 0 ? "₁" : "₂"} hit the ${side} bound: x${j === 0 ? "₁" : "₂"} = ${side === "lower" ? 0 : 1} and its velocity reverses.`));
     }
     render();
+  };
+
+  /** Labels for the marks of a step-by-step figure: marks at the same place share one label, such as a particle and
+      the leader it found, and each label takes the place around its mark that covers the fewest marks and labels. */
+  function placeLabels(plot, items, spots) {
+    const groups = [];
+    for (const item of items) {
+      const group = groups.find((other) => Math.hypot(other.px - item.px, other.py - item.py) < 1);
+      if (!group) groups.push({ px: item.px, py: item.py, text: [item.text] });
+      else if (!group.text.includes(item.text)) group.text.push(item.text);
+    }
+    const boxes = spots.map((p) => [p.px - p.r, p.py - p.r, p.px + p.r, p.py + p.r]);
+    const overlap = (a, b) => Math.max(0, Math.min(a[2], b[2]) - Math.max(a[0], b[0])) * Math.max(0, Math.min(a[3], b[3]) - Math.max(a[1], b[1]));
+    const places = [
+      [9, -7, "start"],
+      [9, 15, "start"],
+      [-9, -7, "end"],
+      [-9, 15, "end"],
+      [0, -14, "middle"],
+      [0, 24, "middle"],
+    ];
+    for (const group of groups) {
+      const text = group.text.join(", ");
+      const width = 6.4 * text.length;
+      let best = null;
+      for (const [dx, dy, anchor] of places) {
+        const x = group.px + dx;
+        const y = group.py + dy;
+        const left = anchor === "start" ? x : anchor === "end" ? x - width : x - width / 2;
+        const box = [left, y - 10, left + width, y + 2];
+        let cost = boxes.reduce((sum, b) => sum + overlap(box, b), 0);
+        if (box[0] < 0 || box[2] > plot.W || box[1] < 0 || box[3] > plot.H) cost += 1e4;
+        if (!best || cost < best.cost) best = { cost, x, y, anchor, box };
+      }
+      boxes.push(best.box);
+      txt(plot.layers.top, best.x, best.y, text, { class: "vf-mark-label", "text-anchor": best.anchor });
+    }
+  }
+
+  /* SMPSO in depth: one iteration in nine steps, from the swarm and its leaders to the updated leaders archive. */
+  widgets["smpso-steps"] = function (node) {
+    const N = 6;
+    const TITLES = ["the swarm and its leaders", "leader selection", "the velocity update", "constriction and the speed limit", "the move and the bounds", "turbulence", "evaluation", "personal bests", "the leaders archive"];
+    const SUB = ["₁", "₂"];
+    const state = { seed: Number(node.dataset.seed || 60550), step: 0 };
+    let g = null;
+    const ctl = controls(node);
+    const back = button(ctl, "Previous step", () => go(state.step - 1));
+    const next = button(ctl, "Next step", () => go(state.step + 1), true);
+    button(ctl, "Restart", () => go(0));
+    const shows = (c) =>
+      c.leaders.length > 2 &&
+      c.moves.some((m) => m.chi < 0) &&
+      c.moves.some((m) => m.chi === 1) &&
+      c.moves.some((m) => m.constricted.some((v, j) => Math.abs(v) > m.delta[j])) &&
+      c.moves.some((m) => Math.hypot(m.cognitive[0], m.cognitive[1]) > 0.1) &&
+      c.turbulence.some((t) => t.mutated.length > 0) &&
+      c.pbest.some((p) => p.replaced) &&
+      c.pbest.some((p) => !p.replaced) &&
+      c.inserts.some((e) => e.accepted) &&
+      c.inserts.some((e) => !e.accepted);
+    button(ctl, "New population", () => {
+      // Draw swarms until the iteration shows both signs of χ, a clamped step, a visible pull towards a personal best,
+      // a turbulence that moves particle 1, kept and replaced personal bests, and particles that enter the archive and
+      // particles it rejects.
+      for (let tries = 0; tries < 200; tries++) {
+        const seed = Math.floor(Math.random() * 1e6);
+        if (shows(smpsoGeneration(seed, N))) {
+          state.seed = seed;
+          break;
+        }
+      }
+      build();
+    });
+    const body = h("div", { class: "vf-body vf-body--two" }, node);
+    const xPlot = createPlot(body, { title: "Decision space", x: [-0.05, 1.05], y: [-0.05, 1.05], xLabel: "x₁", yLabel: "x₂", label: "Positions, velocities, personal bests and leaders of one SMPSO iteration" });
+    const fPlot = createPlot(body, { title: "Objective space", x: [0, 1], y: [0, 2.1], xLabel: "f₁ (minimize)", yLabel: "f₂ (minimize)", label: "Objective vectors of the particles, their personal bests and the leaders" });
+    for (const plot of [xPlot, fPlot]) {
+      plot.svg.setAttribute("tabindex", "0");
+      plot.svg.setAttribute("aria-keyshortcuts", "ArrowLeft ArrowRight");
+    }
+    const readout = h("div", { class: "vf-readout" }, node);
+    const stepText = h("p", { class: "vf-step-text", "aria-live": "polite" }, readout);
+    h("p", {}, readout, "The arrow keys step through the figure when it has focus; New population draws another swarm.");
+    const tableBox = h("div", {}, readout);
+    legend(node, [
+      { label: "Particle", shape: "circle", cls: "vf-pt vf-pt-ink" },
+      { label: "New position", shape: "triangle", cls: "vf-pt vf-pt-2" },
+      { label: "Personal best p", shape: "diamond", cls: "vf-pt vf-pt-1" },
+      { label: "Leader", shape: "square", cls: "vf-pt vf-pt-3" },
+      { label: "Velocity v", shape: "line", cls: "vf-line-thin" },
+      { label: "Inertia w·v", shape: "line", cls: "vf-line-ink" },
+      { label: "Pull towards p", shape: "line", cls: "vf-line-1" },
+      { label: "Pull towards the leader g", shape: "line", cls: "vf-line-3" },
+      { label: "Velocity after χ and the speed limit", shape: "line", cls: "vf-line-2" },
+      { label: "Chosen leader, personal best, new leader", shape: "circle", cls: "vf-ring" },
+      { label: "Pareto set and front", shape: "line", cls: "vf-front" },
+    ]);
+    node.addEventListener("keydown", (e) => {
+      if (e.target && /^(SELECT|INPUT|BUTTON)$/.test(e.target.tagName)) return;
+      if (e.key === "ArrowRight") go(state.step + 1);
+      else if (e.key === "ArrowLeft") go(state.step - 1);
+      else return;
+      e.preventDefault();
+    });
+    function build() {
+      g = smpsoGeneration(state.seed, N);
+      go(0);
+    }
+    function go(i) {
+      state.step = Math.max(0, Math.min(TITLES.length - 1, i));
+      render();
+    }
+    const same = (a, b) => a[0] === b[0] && a[1] === b[1];
+    const add = (a, b) => [a[0] + b[0], a[1] + b[1]];
+    // A vector of the tables and texts: two decimals, no negative zero, and no line break inside.
+    const num = (v) => fmt(Math.abs(v) < 0.005 ? 0 : v, 2);
+    const vec = (v) => `(${num(v[0])}, ${num(v[1])})`;
+    // The objective vector of a leader, also of one that entered in this iteration (the new position of its particle).
+    const leaderF = (name) => {
+      const old = g.leaders.find((l) => l.name === name);
+      return old ? old.f : g.after[g.inserts.find((e) => e.leader === name).id - 1].f;
+    };
+    let labels = [];
+    let spots = [];
+    function mark(plot, v, shape, cls, label, o) {
+      const px = plot.x(v[0]);
+      const py = plot.y(Math.min(v[1], plot.yd[1]));
+      const r = (o && o.r) || 5.5;
+      marker(plot.layers.marks, shape, px, py, r, cls);
+      if (o && o.ring) marker(plot.layers.marks, "circle", px, py, 10.5, "vf-ring");
+      spots.push({ plot, px, py, r: o && o.ring ? 11 : r + 1 });
+      if (label) labels.push({ plot, px, py, text: label });
+    }
+    function flushLabels() {
+      for (const plot of [xPlot, fPlot]) placeLabels(plot, labels.filter((l) => l.plot === plot), spots.filter((p) => p.plot === plot));
+      labels = [];
+      spots = [];
+    }
+    // Leaders are larger squares drawn first, so that a particle at a leader's place shows inside it.
+    function drawLeaders(list, ringed, out) {
+      list.forEach((l) => {
+        const gone = !!(out && out.has(l.name));
+        const cls = "vf-pt vf-pt-3" + (gone ? " vf-faded" : "");
+        const o = { r: 9, ring: !!(ringed && ringed.has(l.name)) };
+        mark(xPlot, l.x, "square", cls, l.name + (gone ? " ✕" : ""), o);
+        mark(fPlot, l.f, "square", cls, l.name + (gone ? " ✕" : ""), o);
+      });
+    }
+    function drawBests(o) {
+      g.before.forEach((q, i) => {
+        if (same(q.p, q.x) && !(o && o.all)) return;
+        const replaced = o && o.all && g.pbest[i].replaced;
+        const cls = "vf-pt vf-pt-1" + (replaced ? " vf-faded" : "");
+        const label = "p" + q.id + (replaced ? " ✕" : "");
+        const ring = o && o.all && !replaced;
+        mark(xPlot, q.p, "diamond", cls, label, { ring });
+        mark(fPlot, q.pf, "diamond", cls, label, { ring });
+        if (!(o && o.all)) {
+          xPlot.line(xPlot.layers.mid, [q.x, q.p], "vf-line-thin vf-dashed");
+          fPlot.line(fPlot.layers.mid, [q.f, q.pf], "vf-line-thin vf-dashed");
+        }
+      });
+    }
+    function drawParticles(faded) {
+      g.before.forEach((q) => {
+        const cls = "vf-pt vf-pt-ink" + (faded ? " vf-faded" : "");
+        mark(xPlot, q.x, "circle", cls, faded ? null : String(q.id));
+        mark(fPlot, q.f, "circle", cls, faded ? null : String(q.id));
+      });
+    }
+    function drawMoved(o) {
+      g.after.forEach((q, i) => {
+        const t = g.turbulence.find((e) => e.index === i);
+        const x = o && o.unmutated ? g.moves[i].position : q.x;
+        mark(xPlot, x, "triangle", "vf-pt vf-pt-2", String(q.id), { ring: o && o.ring && o.ring(i, t) });
+        if (o && o.f) mark(fPlot, q.f, "triangle", "vf-pt vf-pt-2", String(q.id), { ring: o.ring && o.ring(i, t) });
+      });
+    }
+    function render() {
+      const step = state.step;
+      back.disabled = step === 0;
+      next.disabled = step === TITLES.length - 1;
+      for (const plot of [xPlot, fPlot]) {
+        clear(plot.layers.back);
+        clear(plot.layers.mid);
+        clear(plot.layers.marks);
+        clear(plot.layers.top);
+      }
+      xPlot.line(xPlot.layers.mid, [[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]], "vf-line-thin");
+      xPlot.line(xPlot.layers.mid, [[0, 0], [1, 0]], "vf-front");
+      fPlot.line(fPlot.layers.mid, frontPoints((t) => 1 - Math.sqrt(t), 0, 1, 60), "vf-front");
+      const chosen = new Set(g.tournaments.map((t) => g.leaders[t.winner].name));
+      let headers;
+      let rows;
+      let extra = null;
+      if (step === 0 || step === 1) {
+        drawLeaders(g.leaders, step === 1 ? chosen : null);
+        drawBests();
+        drawParticles(false);
+        g.before.forEach((q, i) => {
+          if (step === 0) arrow(xPlot, xPlot.layers.mid, q.x, add(q.x, q.v), "vf-line-thin");
+          else xPlot.line(xPlot.layers.mid, [q.x, g.moves[i].g], "vf-line-thin vf-dashed");
+        });
+        if (step === 0) {
+          headers = ["Particle", "x₁", "x₂", "v₁", "v₂", "p₁", "p₂", "f₁", "f₂"];
+          rows = g.before.map((q) => [String(q.id), fmt(q.x[0], 2), fmt(q.x[1], 2), fmt(q.v[0], 2), fmt(q.v[1], 2), same(q.p, q.x) ? "= x₁" : fmt(q.p[0], 2), same(q.p, q.x) ? "= x₂" : fmt(q.p[1], 2), fmt(q.f[0], 2), fmt(q.f[1], 2)]);
+        } else {
+          headers = ["Particle", "Leaders drawn", "Their crowding", "Leader g", "Why"];
+          const why = { crowding: "larger crowding", coin: "tie, coin", first: "at most two leaders: the first" };
+          rows = g.tournaments.map((t) => {
+            const drawn = t.b === null ? [t.a] : [t.a, t.b];
+            return [String(t.id), drawn.map((k) => g.leaders[k].name).join(" vs "), drawn.map((k) => fmt(g.leaders[k].crowding, 2)).join(" vs "), g.leaders[t.winner].name, why[t.reason]];
+          });
+        }
+        extra = { headers: ["Leader", "Found by particle", "f₁", "f₂", "Crowding"], rows: g.leaders.map((l) => [l.name, String(l.from), fmt(l.f[0], 2), fmt(l.f[1], 2), fmt(l.crowding, 2)]) };
+      } else if (step === 2) {
+        drawLeaders(g.leaders.filter((l) => chosen.has(l.name)));
+        drawBests();
+        drawParticles(false);
+        g.moves.forEach((m, i) => {
+          const x = g.before[i].x;
+          const a1 = add(x, m.inertia);
+          const a2 = add(a1, m.cognitive);
+          arrow(xPlot, xPlot.layers.mid, x, a1, "vf-line-ink");
+          arrow(xPlot, xPlot.layers.mid, a1, a2, "vf-line-1");
+          arrow(xPlot, xPlot.layers.mid, a2, add(a2, m.social), "vf-line-3");
+        });
+        headers = ["Particle", "w·v", "C₁", "r₁", "C₁r₁(p − x)", "C₂", "r₂", "C₂r₂(g − x)", "Sum"];
+        rows = g.moves.map((m) => [String(m.id), vec(m.inertia), fmt(m.c1, 2), fmt(m.r1, 2), vec(m.cognitive), fmt(m.c2, 2), fmt(m.r2, 2), vec(m.social), vec(m.raw)]);
+      } else if (step === 3) {
+        drawParticles(false);
+        g.moves.forEach((m, i) => {
+          const x = g.before[i].x;
+          xPlot.line(xPlot.layers.mid, [x, add(x, m.raw)], "vf-line-thin vf-dashed");
+          if (!same(m.constricted, m.clamped)) arrow(xPlot, xPlot.layers.mid, x, add(x, m.constricted), "vf-line-thin");
+          arrow(xPlot, xPlot.layers.mid, x, add(x, m.clamped), "vf-line-2");
+        });
+        headers = ["Particle", "φ = C₁ + C₂", "χ", "Sum", "χ · sum", "Clamped to ±0.5"];
+        rows = g.moves.map((m) => [String(m.id), fmt(m.phi, 2), fmt(m.chi, 2), vec(m.raw), vec(m.constricted), vec(m.clamped)]);
+      } else if (step === 4) {
+        drawParticles(true);
+        g.before.forEach((q) => mark(fPlot, q.f, "circle", "vf-pt vf-pt-ink", String(q.id)));
+        g.moves.forEach((m, i) => {
+          const x = g.before[i].x;
+          if (m.hit.length) xPlot.line(xPlot.layers.mid, [x, m.tentative], "vf-line-thin vf-dashed");
+          arrow(xPlot, xPlot.layers.mid, x, m.position, "vf-line-2");
+        });
+        drawMoved({ unmutated: true });
+        headers = ["Particle", "x", "v", "x + v", "Bound", "New x", "New v"];
+        rows = g.moves.map((m, i) => [String(m.id), vec(g.before[i].x), vec(m.clamped), vec(m.tentative), m.hit.length ? m.hit.map(([j, side]) => `x${SUB[j]} ${side}`).join(", ") : "–", vec(m.position), vec(m.velocity)]);
+      } else if (step === 5) {
+        g.before.forEach((q) => mark(fPlot, q.f, "circle", "vf-pt vf-pt-ink", String(q.id)));
+        g.turbulence.forEach((t) => {
+          mark(xPlot, t.before, "triangle", "vf-pt vf-pt-2 vf-faded", null);
+          if (!same(t.before, t.after)) arrow(xPlot, xPlot.layers.mid, t.before, t.after, "vf-line-thin");
+        });
+        drawMoved({ ring: (i, t) => !!t });
+        headers = ["Particle", "Index", "Turbulence", "Mutation draws", "u", "Position"];
+        rows = g.moves.map((m, i) => {
+          const t = g.turbulence.find((e) => e.index === i);
+          if (!t) return [String(m.id), String(i), "–", "–", "–", vec(m.position)];
+          return [String(m.id), String(i), t.mutated.length ? "x" + t.mutated.map((j) => SUB[j]).join(", x") : "none", t.mask.map((v) => fmt(v, 2)).join(", "), t.u.map((v) => (v === null ? "–" : fmt(v, 2))).join(", "), `${vec(t.before)} → ${vec(t.after)}`];
+        });
+      } else if (step === 6) {
+        drawMoved({ f: true });
+        g.before.forEach((q, i) => {
+          mark(fPlot, q.f, "circle", "vf-pt vf-pt-ink vf-faded", null);
+          fPlot.line(fPlot.layers.mid, [q.f, g.after[i].f], "vf-line-thin vf-dashed");
+        });
+        headers = ["Particle", "x₁", "x₂", "Old f", "New f", "New against old"];
+        rows = g.after.map((q, i) => [String(q.id), fmt(q.x[0], 2), fmt(q.x[1], 2), vec(g.before[i].f), vec(q.f), relation(q.f, g.before[i].f)]);
+      } else if (step === 7) {
+        drawBests({ all: true });
+        drawMoved({ f: true, ring: (i) => g.pbest[i].replaced });
+        g.before.forEach((q, i) => {
+          if (g.pbest[i].replaced) return;
+          xPlot.line(xPlot.layers.mid, [g.after[i].x, q.p], "vf-line-thin vf-dashed");
+          fPlot.line(fPlot.layers.mid, [g.after[i].f, q.pf], "vf-line-thin vf-dashed");
+        });
+        headers = ["Particle", "New f", "f(p)", "f(p) ≺ f(x)", "Personal best"];
+        rows = g.after.map((q, i) => {
+          const p = g.before[i];
+          const kept = !g.pbest[i].replaced;
+          return [String(q.id), vec(q.f), vec(p.pf), kept ? "yes" : "no", kept ? "kept" : dominates(q.f, p.pf) ? "replaced: better" : same(q.f, p.pf) ? "replaced: equal" : "replaced: incomparable"];
+        });
+      } else {
+        const removed = new Set();
+        const fate = new Map();
+        g.inserts.forEach((e) => {
+          e.removed.forEach((name) => {
+            removed.add(name);
+            fate.set(name, `removed: dominated by ${e.leader}`);
+          });
+          if (e.pruned) {
+            removed.add(e.pruned);
+            fate.set(e.pruned, `removed: most crowded (${fmt(e.crowding.find((c) => c.name === e.pruned).crowding, 2)})`);
+          }
+        });
+        const entered = g.inserts.filter((e) => e.accepted);
+        const fresh = entered.map((e) => e.leader);
+        // A new leader is the new position of the particle that entered; it can leave again in the same iteration.
+        const all = g.leaders.concat(entered.map((e) => ({ name: e.leader, from: e.id, x: g.after[e.id - 1].x, f: g.after[e.id - 1].f })));
+        const finalCrowding = new Map(g.leadersAfter.map((l) => [l.name, l.crowding]));
+        drawLeaders(all, new Set(fresh.filter((name) => !removed.has(name))), removed);
+        drawMoved({ f: true });
+        headers = ["Particle", "f₁", "f₂", "Leaders archive"];
+        rows = g.after.map((q, i) => [String(q.id), fmt(q.f[0], 2), fmt(q.f[1], 2), insertText(g.inserts[i])]);
+        extra = {
+          headers: ["Leader", "Found by particle", "f₁", "f₂", "Crowding", "Status"],
+          rows: all.map((l) => [l.name, String(l.from), fmt(l.f[0], 2), fmt(l.f[1], 2), removed.has(l.name) ? "–" : fmt(finalCrowding.get(l.name), 2), removed.has(l.name) ? fate.get(l.name) : fresh.includes(l.name) ? "new" : "kept"]),
+        };
+      }
+      flushLabels();
+      stepText.textContent = `Step ${step + 1} of ${TITLES.length}: ${TITLES[step]}. ${describe(step)}`;
+      clear(tableBox);
+      // Single numbers align right; ids, names, vectors and words stay left.
+      const single = new Set(["x₁", "x₂", "v₁", "v₂", "p₁", "p₂", "f₁", "f₂", "C₁", "C₂", "r₁", "r₂", "φ = C₁ + C₂", "χ", "Crowding"]);
+      const numeric = (list) => list.map((label) => single.has(label));
+      table(tableBox, headers, rows, numeric(headers));
+      if (extra) table(tableBox, extra.headers, extra.rows, numeric(extra.headers));
+    }
+    function relation(a, b) {
+      if (dominates(a, b)) return "better";
+      if (dominates(b, a)) return "worse";
+      return same(a, b) ? "equal" : "incomparable";
+    }
+    function insertText(e) {
+      if (!e.accepted) {
+        return `rejected: ${e.by} ${same(leaderF(e.by), g.after[e.id - 1].f) ? "equals" : "dominates"} it`;
+      }
+      let text = `enters as ${e.leader}`;
+      if (e.removed.length) text += `, removes ${idList(e.removed)}`;
+      if (e.pruned) {
+        const d = fmt(e.crowding.find((c) => c.name === e.pruned).crowding, 2);
+        text += e.pruned === e.leader ? `, then leaves again as the most crowded of ${N + 1} leaders (${d})` : `; the archive then holds ${N + 1} leaders, so ${e.pruned}, the most crowded (${d}), leaves`;
+      }
+      return text;
+    }
+    function describe(step) {
+      const ids = (list) => idList(list.map((q) => q.id));
+      if (step === 0) {
+        const differ = g.before.filter((q) => !same(q.p, q.x));
+        const pb = differ.length
+          ? `Personal best and position differ for ${ids(differ)}: ${differ.length === 1 ? "its" : "their"} last move was dominated by the personal best.`
+          : "Every personal best equals its particle's position: no last move was dominated by the personal best.";
+        const lead = g.leaders.map((l) => `${l.name} · ${fmt(l.crowding, 2)}`).join(", ");
+        return `Six particles of a two-variable problem whose Pareto front is ZDT1's, after one iteration from random positions with zero velocity. Each has a position x, a velocity v (the arrows) and a personal best p. ${pb} The leaders archive holds the ${g.leaders.length} non-dominated positions found so far, with their crowding distances: ${lead}.`;
+      }
+      if (step === 1) {
+        if (g.leaders.length <= 2) return `The archive holds at most two leaders, so every particle takes the first one, ${g.leaders[0].name}, as its guide g.`;
+        const games = g.tournaments.map((t) => {
+          const a = g.leaders[t.a];
+          const b = g.leaders[t.b];
+          const w = g.leaders[t.winner];
+          return `${t.id}: ${a.name} vs ${b.name} → ${w.name}${t.reason === "coin" ? " (tie, coin)" : ` (${fmt(w.crowding, 2)} against ${fmt((w === a ? b : a).crowding, 2)})`}`;
+        });
+        return `Each particle draws two distinct leaders and takes the one with the larger crowding distance as its guide g; a tie is decided by a coin. ${games.join("; ")}. The dashed lines join each particle to its guide.`;
+      }
+      if (step === 2) {
+        const pulled = g.moves.filter((m, i) => !same(g.before[i].p, g.before[i].x));
+        const cog = pulled.length ? `The pull towards p is zero except for ${idList(pulled.map((m) => m.id))}, whose personal best differs from x.` : "The pull towards p is zero for every particle, because p = x.";
+        const top = g.moves.reduce((a, b) => (Math.hypot(...b.social) > Math.hypot(...a.social) ? b : a));
+        return `v ← w·v + C₁r₁(p − x) + C₂r₂(g − x), with w = 0.1 and one C₁ and C₂ (uniform in [1.5, 2.5]) and one r₁ and r₂ (uniform in [0, 1]) per particle, shared by both variables. The arrows add the three terms tip to tail; an arrow can continue beyond the plot. ${cog} The longest pull is ${top.id}'s towards its leader: C₂ = ${fmt(top.c2, 2)} and r₂ = ${fmt(top.r2, 2)} give ${vec(top.social)}.`;
+      }
+      if (step === 3) {
+        const one = g.moves.filter((m) => m.chi === 1);
+        const neg = g.moves.filter((m) => m.chi < 0);
+        const parts = [];
+        if (one.length) parts.push(`φ ≤ 4 gives χ = 1 for ${idList(one.map((m) => m.id))}`);
+        if (neg.length) parts.push(`φ > 4 gives χ = 2 / (2 − φ − √(φ² − 4φ)) < 0 for ${neg.map((m) => `${m.id} (φ = ${fmt(m.phi, 2)}, χ = ${fmt(m.chi, 2)})`).join(", ")}, which reverses the step, as in VAMOS and jMetal`);
+        // Enough digits to tell a clamped component from the limit.
+        const exact = (v, limit) => {
+          let digits = 2;
+          while (digits < 6 && fmt(v, digits) === fmt(limit, digits)) digits += 1;
+          return fmt(v, digits);
+        };
+        const cut = g.moves
+          .filter((m) => m.constricted.some((v, j) => Math.abs(v) > m.delta[j]))
+          .map((m) => `${m.id}'s from (${m.constricted.map((v, j) => exact(v, m.clamped[j])).join(", ")}) to ${vec(m.clamped)}`);
+        const clamp = cut.length ? `The speed limit δ = 0.5, half the range of each variable, then clamps every component to [−0.5, 0.5]: it cuts ${idList(cut)}.` : "No component exceeds the speed limit δ = 0.5, half the range of each variable.";
+        return `φ = C₁ + C₂ decides the constriction χ: ${parts.join("; ")}. ${clamp} The dashed lines are the sums before χ; the orange arrows the velocities.`;
+      }
+      if (step === 4) {
+        const hits = g.moves
+          .filter((m) => m.hit.length)
+          .map((m) => {
+            const one = m.hit.length === 1;
+            const bounds = m.hit.map(([j, side]) => `x${SUB[j]} = ${side === "lower" ? 0 : 1}`);
+            const changes = m.hit.map(([j]) => `v${SUB[j]} from ${fmt(m.clamped[j], 2)} to ${fmt(m.velocity[j], 2)}`);
+            return `Particle ${m.id} would cross ${idList(bounds)}: it stops on ${one ? "that bound" : "those bounds"}, and its velocity changes sign there, ${idList(changes)}.`;
+          });
+        return `Each particle moves by its velocity, x ← x + v, to the triangles. ${hits.length ? hits.join(" ") : "No particle crosses a bound."} The velocities are kept for the next iteration's inertia.`;
+      }
+      if (step === 5) {
+        const t = g.turbulence[0];
+        const who = `Polynomial mutation (probability 1/n = 1/2 per variable, η = 20) perturbs every sixth particle, indices 0, 6, 12, …: here particle ${t.id} only.`;
+        if (!t.mutated.length) return `${who} Both of its draws, ${t.mask.map((v) => fmt(v, 2)).join(" and ")}, exceed 1/2, so it does not change this time.`;
+        const moved = t.mutated.map((j) => `x${SUB[j]} (draw ${fmt(t.mask[j], 2)} ≤ 1/2) from ${fmt(t.before[j], 2)} to ${fmt(t.after[j], 2)}`);
+        return `${who} It mutates ${idList(moved)}. Its velocity does not change; the turbulence moves only the position.`;
+      }
+      if (step === 6) {
+        const worse = g.after.filter((q, i) => dominates(g.before[i].f, q.f));
+        const tail = worse.length
+          ? `${ids(worse)} moved to ${worse.length === 1 ? "a position that its old one dominates" : "positions that their old ones dominate"}: the swarm always moves, and only the personal bests and the archive keep the good positions.`
+          : "No particle moved to a position that its old one dominates, but the swarm always moves: only the personal bests and the archive keep the good positions.";
+        return `The new positions are evaluated; the dashed lines join each particle's old and new objective vectors. ${tail}`;
+      }
+      if (step === 7) {
+        const kept = g.after.filter((q, i) => !g.pbest[i].replaced);
+        const better = g.after.filter((q, i) => g.pbest[i].replaced && dominates(q.f, g.before[i].pf));
+        const other = g.after.filter((q, i) => g.pbest[i].replaced && !dominates(q.f, g.before[i].pf));
+        const parts = [];
+        if (better.length) parts.push(`${ids(better)} ${better.length === 1 ? "replaces its personal best with a better position" : "replace their personal bests with better positions"}`);
+        if (other.length) parts.push(`${ids(other)} ${other.length === 1 ? "replaces its personal best with an incomparable position" : "replace their personal bests with incomparable positions"}`);
+        if (kept.length) parts.push(`${ids(kept)} ${kept.length === 1 ? "keeps its personal best, which dominates the new position" : "keep their personal bests, which dominate the new positions"}`);
+        return `The new position replaces the personal best unless the personal best dominates it: p ← x unless f(p) ≺ f(x). ${parts.join("; ")}. Rings mark the personal bests after the update.`;
+      }
+      const events = g.inserts.map((e) => `${e.id} ${insertText(e)}`);
+      const final = g.leadersAfter.map((l) => l.name);
+      return `The new positions enter the archive one at a time, in particle order: ${events.join("; ")}. The archive, ${idList(final)}, is what VAMOS returns by default, and its crowding distances drive the next iteration's leader tournaments.`;
+    }
+    build();
   };
 
   /** SMS-EMOA survival of N + 1 solutions (VAMOS' smsemoa/helpers.py, relative or jMetal reference point). */
