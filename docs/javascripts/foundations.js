@@ -2516,6 +2516,8 @@
     nonDominatedIndices,
     hypervolume2d,
     hvContributions2d,
+    smsemoaStep,
+    smsemoaGeneration,
     tchebycheffContour,
     generationalDistance,
     igd,
@@ -5477,6 +5479,44 @@
     return { fronts: sorted.fronts, last, ref, contributions, boxes, removed };
   }
 
+  /** One SMS-EMOA step of the loop figure's problem, recorded for the SMS-EMOA lesson as VAMOS runs it by default:
+      two parents drawn uniformly at random, with replacement; the first child of SBX (probability 0.9, η = 20),
+      mutated by polynomial mutation (probability 1/2, η = 20); and smsemoaStep on the population and the child,
+      with the reference point nadir + 1.0 · (nadir − ideal) of all N + 1 solutions. It is declared among the
+      figures, next to smsemoaStep; both are hoisted, so the exported algorithms reach them under Node.js too. */
+  function smsemoaGeneration(seed, popSize) {
+    const rand = mulberry32(seed);
+    const N = popSize;
+    let nextId = 1;
+    const pop = [];
+    for (let i = 0; i < N; i++) {
+      const x = [rand(), rand()];
+      pop.push({ id: nextId++, x, f: gaEvaluate(x) });
+    }
+    const p1 = pop[Math.floor(rand() * N)];
+    const p2 = pop[Math.floor(rand() * N)];
+    const x = rand() <= 0.9 ? sbxPair(p1.x, p2.x, 0, 1, 20, 0.5, rand)[0] : p1.x.slice();
+    polynomialMutation(x, 0, 1, 0.5, 20, rand);
+    const child = { id: nextId++, x, f: gaEvaluate(x), parents: [p1.id, p2.id] };
+    const merged = pop.concat([child]);
+    const step = smsemoaStep(merged.map((p) => p.f), 1.0, false);
+    return {
+      popSize: N,
+      pop,
+      rank: nonDominatedSort(pop.map((p) => p.f)).rank,
+      parents: [p1.id, p2.id],
+      child,
+      merged,
+      fronts: step.fronts,
+      last: step.last,
+      ref: step.ref,
+      contributions: step.contributions,
+      boxes: step.boxes,
+      removed: step.removed,
+      next: merged.filter((_, i) => i !== step.removed),
+    };
+  }
+
   /* I9: one SMS-EMOA selection step. */
   widgets["smsemoa-step"] = function (node) {
     const parents = [
@@ -5581,6 +5621,206 @@
       if (state.step === 0) h("p", {}, readout, "Six parents and one child compete for six places. Press Next step.");
     }
     render();
+  };
+
+  /* SMS-EMOA, one steady-state step in steps: two random parents, one child, the reference point of the N + 1
+     solutions, non-dominated sorting, the last front, its hypervolume contributions and the next population. */
+  widgets["smsemoa-steps"] = function (node) {
+    const N = 6;
+    const TITLES = ["the population P", "parent selection", "variation", "evaluation and the reference point", "non-dominated sorting", "the last front", "hypervolume contributions", "the next population"];
+    const state = { seed: Number(node.dataset.seed || 65199), step: 0 };
+    let g = null;
+    let rankQ = [];
+    const ctl = controls(node);
+    const back = button(ctl, "Previous step", () => go(state.step - 1));
+    const next = button(ctl, "Next step", () => go(state.step + 1), true);
+    button(ctl, "Restart", () => go(0));
+    button(ctl, "New population", () => {
+      // Draw steps until the last front has at least three members, so that the contributions decide.
+      for (let tries = 0; tries < 200; tries++) {
+        const seed = Math.floor(Math.random() * 1e6);
+        if (smsemoaGeneration(seed, N).last.length >= 3) {
+          state.seed = seed;
+          break;
+        }
+      }
+      build();
+    });
+    const body = h("div", { class: "vf-body vf-body--two" }, node);
+    const xPlot = createPlot(body, { title: "Decision space", x: [0, 1], y: [0, 1], xLabel: "x₁", yLabel: "x₂", label: "Decision vectors of the parents and of the child" });
+    const fPlot = createPlot(body, { title: "Objective space", x: [0, 1.9], y: [0, 2.1], xLabel: "f₁ (minimize)", yLabel: "f₂ (minimize)", label: "Objective vectors, fronts, reference point and hypervolume contributions of one SMS-EMOA step" });
+    for (const plot of [xPlot, fPlot]) {
+      plot.svg.setAttribute("tabindex", "0");
+      plot.svg.setAttribute("aria-keyshortcuts", "ArrowLeft ArrowRight");
+    }
+    const readout = h("div", { class: "vf-readout" }, node);
+    const stepText = h("p", { class: "vf-step-text", "aria-live": "polite" }, readout);
+    h("p", {}, readout, "The arrow keys step through the figure when it has focus; New population draws another step whose last front has at least three members.");
+    const tableBox = h("div", {}, readout);
+    legend(node, [
+      { label: "Parent", shape: "circle", cls: "vf-pt vf-pt-muted" },
+      { label: "Child", shape: "triangle", cls: "vf-pt vf-pt-muted" },
+      { label: "Front 1, 2, 3 … (darker is better)", shape: "circle", cls: "vf-pt vf-r1" },
+      { label: "Chosen parent, member of the last front, survivor", shape: "circle", cls: "vf-ring" },
+      { label: "Reference point r", shape: "diamond", cls: "vf-pt vf-pt-3" },
+      { label: "Exclusive contribution in the last front", shape: "region", cls: "vf-region-2" },
+      { label: "Pareto set and front", shape: "line", cls: "vf-front" },
+    ]);
+    node.addEventListener("keydown", (e) => {
+      if (e.target && /^(SELECT|INPUT|BUTTON)$/.test(e.target.tagName)) return;
+      if (e.key === "ArrowRight") go(state.step + 1);
+      else if (e.key === "ArrowLeft") go(state.step - 1);
+      else return;
+      e.preventDefault();
+    });
+    function build() {
+      g = smsemoaGeneration(state.seed, N);
+      rankQ = new Array(N + 1).fill(0);
+      g.fronts.forEach((front, k) => front.forEach((i) => (rankQ[i] = k)));
+      fPlot.setDomain([0, Math.ceil((g.ref[0] + 0.05) * 10) / 10], [0, Math.ceil((g.ref[1] + 0.05) * 10) / 10]);
+      go(0);
+    }
+    function go(i) {
+      state.step = Math.max(0, Math.min(TITLES.length - 1, i));
+      render();
+    }
+    // Rows of Q: the parents (ids 1 to N), then the child (id N + 1).
+    const id = (i) => g.merged[i].id;
+    const ids = (rows) => rows.map(id);
+    const set = (rows) => "{" + ids(rows).sort((a, b) => a - b).join(", ") + "}";
+    const contribution = (i) => (g.contributions ? g.contributions[g.last.indexOf(i)] : null);
+    function draw(plot, v, shape, cls, label, ring) {
+      const px = plot.x(v[0]);
+      const py = plot.y(Math.min(v[1], plot.yd[1]));
+      marker(plot.layers.marks, shape, px, py, 6, cls);
+      if (ring) marker(plot.layers.marks, "circle", px, py, 10.5, "vf-ring");
+      plot.labels.push({ x: px, y: py, text: label, r: ring ? 11 : 7 });
+    }
+    function render() {
+      const step = state.step;
+      const last = TITLES.length - 1;
+      back.disabled = step === 0;
+      next.disabled = step === last;
+      for (const plot of [xPlot, fPlot]) {
+        clear(plot.layers.back);
+        clear(plot.layers.mid);
+        clear(plot.layers.marks);
+        clear(plot.layers.top);
+        plot.labels = [];
+      }
+      xPlot.line(xPlot.layers.mid, [[0, 0.004], [1, 0.004]], "vf-front");
+      fPlot.line(fPlot.layers.mid, frontPoints((t) => 1 - Math.sqrt(t), 0, 1, 60), "vf-front");
+      const rows = [];
+      const lastSet = new Set(g.last);
+      if (step === 3) {
+        const ideal = [0, 1].map((m) => Math.min(...g.merged.map((p) => p.f[m])));
+        const nadir = [0, 1].map((m) => Math.max(...g.merged.map((p) => p.f[m])));
+        fPlot.rect(fPlot.layers.back, ideal[0], ideal[1], nadir[0], nadir[1], "vf-line-thin vf-dashed");
+        fPlot.line(fPlot.layers.mid, [nadir, g.ref], "vf-line-thin vf-dashed");
+      }
+      if (step === 4) {
+        g.fronts.forEach((front, k) => {
+          const pts = front.map((i) => g.merged[i].f).sort((a, b) => a[0] - b[0]);
+          if (pts.length > 1) fPlot.line(fPlot.layers.mid, pts, "vf-front-link " + rankClass(k));
+        });
+      }
+      if (step === 6 && g.boxes) {
+        const pts = g.last.map((i) => g.merged[i].f).sort((a, b) => a[0] - b[0]);
+        const region = [[pts[0][0], g.ref[1]]];
+        pts.forEach((p, k) => {
+          region.push(p);
+          region.push([k + 1 < pts.length ? pts[k + 1][0] : g.ref[0], p[1]]);
+        });
+        region.push(g.ref);
+        fPlot.line(fPlot.layers.back, region, "vf-region-1");
+        g.boxes.forEach((b) => b && fPlot.rect(fPlot.layers.back, b[0], b[1], b[2], b[3], "vf-region-2"));
+      }
+      if (step >= 3) {
+        marker(fPlot.layers.marks, "diamond", fPlot.x(g.ref[0]), fPlot.y(g.ref[1]), 5, "vf-pt vf-pt-3");
+        fPlot.labels.push({ x: fPlot.x(g.ref[0]), y: fPlot.y(g.ref[1]), text: "r", r: 7 });
+      }
+      if (step <= 2) {
+        const chosen = new Map();
+        g.parents.forEach((pid) => chosen.set(pid, (chosen.get(pid) || 0) + 1));
+        g.pop.forEach((p, i) => {
+          const k = step >= 1 ? chosen.get(p.id) || 0 : 0;
+          const cls = "vf-pt " + rankClass(g.rank[i]);
+          const label = String(p.id) + (k > 1 ? " ×" + k : "");
+          draw(xPlot, p.x, "circle", cls, label, k > 0);
+          draw(fPlot, p.f, "circle", cls, label, k > 0);
+          rows.push([String(p.id), "parent", fmt(p.x[0], 2), fmt(p.x[1], 2), fmt(p.f[0], 2), fmt(p.f[1], 2), String(g.rank[i] + 1), "–", k ? (k > 1 ? "chosen twice" : "chosen") : "–"]);
+        });
+        if (step === 2) {
+          const c = g.child;
+          c.parents.forEach((pid) => xPlot.line(xPlot.layers.mid, [g.merged[pid - 1].x, c.x], "vf-line-thin vf-dashed"));
+          draw(xPlot, c.x, "triangle", "vf-pt vf-pt-2", String(c.id), false);
+          rows.push([String(c.id), `child of ${c.parents[0]} and ${c.parents[1]}`, fmt(c.x[0], 2), fmt(c.x[1], 2), "?", "?", "?", "–", "not evaluated"]);
+        }
+      } else {
+        g.merged.forEach((p, i) => {
+          const isChild = i === N;
+          const sorted = step >= 4;
+          const removed = step === last && i === g.removed;
+          const cls = "vf-pt " + (sorted ? rankClass(rankQ[i]) : "vf-pt-muted") + (removed ? " vf-faded" : "");
+          const ring = ((step === 5 || step === 6) && lastSet.has(i)) || (step === last && i !== g.removed);
+          let label = String(p.id);
+          if (step === 6 && g.contributions && lastSet.has(i)) label += " · " + fmt(contribution(i), 3);
+          if (removed) label += " ✕";
+          draw(xPlot, p.x, isChild ? "triangle" : "circle", cls, label, ring);
+          draw(fPlot, p.f, isChild ? "triangle" : "circle", cls, label, ring);
+          let status = "–";
+          if (step === 5 || step === 6) status = lastSet.has(i) ? (g.last.length === 1 ? "alone in the last front" : "last front") : "safe";
+          if (step === last) status = i === g.removed ? "removed" : "kept";
+          const shown = step >= 6 && g.contributions && lastSet.has(i);
+          rows.push([String(p.id), isChild ? "child" : "parent", fmt(p.x[0], 2), fmt(p.x[1], 2), fmt(p.f[0], 2), fmt(p.f[1], 2), sorted ? String(rankQ[i] + 1) : "?", shown ? fmt(contribution(i), 4) : "–", status]);
+        });
+      }
+      for (const plot of [xPlot, fPlot]) placeMarkLabels(plot, plot.labels);
+      stepText.textContent = `Step ${step + 1} of ${TITLES.length}: ${TITLES[step]}. ${describe(step)}`;
+      clear(tableBox);
+      table(tableBox, ["Id", "Role", "x₁", "x₂", "f₁", "f₂", "Front", "Contribution", "Status"], rows, [false, false, true, true, true, true, true, true, false]);
+    }
+    function describe(step) {
+      const child = g.child;
+      const v = g.fronts.length;
+      if (step === 0) {
+        const fronts = nonDominatedSort(g.pop.map((p) => p.f)).fronts;
+        const text = fronts.map((front, k) => `front ${k + 1} = ${set(front)}`).join(", ");
+        return `${N} solutions of a two-variable problem whose Pareto front is ZDT1's: f₁ = x₁ and f₂ = g·(1 − √(x₁/g)) with g = 1 + x₂, sorted into fronts: ${text}. Each step of SMS-EMOA creates one child and removes one of the N + 1 = ${N + 1} solutions.`;
+      }
+      if (step === 1) {
+        const [a, b] = g.parents;
+        const pick = a === b ? `${a} twice, so crossover has nothing to mix and the child differs from ${a} only by mutation` : `${a} and ${b}`;
+        return `VAMOS' default selection("random") draws two parents uniformly at random, with replacement: ${pick}. Fronts and hypervolume play no part in mating; selection("tournament") would use NSGA-II's tournament instead.`;
+      }
+      if (step === 2) {
+        return `SBX crossover (probability 0.9, η = 20) creates two children, VAMOS keeps the first, and polynomial mutation (probability 1/2 per variable, η = 20) perturbs it: child ${child.id}, the triangle joined to its parents in the decision space. Its objectives are not known yet.`;
+      }
+      if (step === 3) {
+        return `Child ${child.id} is evaluated, f = ${pair(child.f)}, and joins the ${N} parents: Q holds N + 1 = ${N + 1} solutions. VAMOS first updates the reference point from all ${N + 1}: r = nadir + 1.0 · (nadir − ideal) = ${pair(g.ref)}, one objective range beyond the worst values. The dashed box spans the ideal and the nadir point.`;
+      }
+      if (step === 4) {
+        const text = g.fronts.map((front, k) => `front ${k + 1} = ${set(front)}`).join(", ");
+        const pushed = g.pop.map((_, i) => i).filter((i) => rankQ[i] > g.rank[i]);
+        const push = pushed.length ? ` Its arrival moves ${idList(ids(pushed))} down a front.` : "";
+        return `Q falls into ${v} front${v === 1 ? "" : "s"}: ${text}. Child ${child.id} joins front ${rankQ[N] + 1}.${push} VAMOS inserts the child into the fronts of the population instead of sorting Q from scratch; the fronts are the same.`;
+      }
+      if (step === 5) {
+        if (g.last.length === 1) return `Only the last front, front ${v}, can lose a member, and it has one: ${id(g.last[0])}. It is removed without computing any hypervolume; the members of earlier fronts are safe.`;
+        return `Only the last front, front ${v} = ${set(g.last)}, can lose a member; the members of earlier fronts are safe, whatever their hypervolume contributions.`;
+      }
+      if (step === 6) {
+        if (!g.contributions) return `Front ${v} has a single member, ${id(g.last[0])}, so no hypervolume is computed: it is removed.`;
+        const parts = g.last.map((i) => `${fmt(contribution(i), 4)} for ${id(i)}`);
+        const worst = g.removed;
+        return `The exclusive contribution of a member of front ${v} is the area that only it dominates, up to r: the rectangles inside the front's shaded region. The contributions are ${idList(parts)}. The two extremes' rectangles reach r, which the margin of the default reference point makes large. The smallest is ${id(worst)}'s.`;
+      }
+      const kept = g.next.map((p) => p.id).sort((a, b) => a - b);
+      if (g.removed === N) return `Child ${child.id} is the one removed: the population does not change, P = {${kept.join(", ")}}. The next step draws two new parents from it.`;
+      const why = g.contributions ? `the smallest contribution, ${fmt(contribution(g.removed), 4)}` : "alone in the last front";
+      return `${id(g.removed)} leaves (${why}) and child ${child.id} takes its place: P = {${kept.join(", ")}}. The next step draws two new parents from it; VAMOS counts a generation every ${N} children.`;
+    }
+    build();
   };
 
   /* A6-A9: one candidate set, the selection rules of CCMO, C-TAEA, ToP and CMOEA-MS. */

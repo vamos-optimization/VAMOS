@@ -891,3 +891,62 @@ def test_spea2_generation_figure_agrees_with_vamos() -> None:
     assert nearest_two(second, 1) == [0.074, 0.130] and nearest_two(second, 6) == [0.074, 0.164]
     assert [i + 1 for i in sorted(example["kept"])] == [6, 7, 8, 9, 10, 11]
     assert max(example["kept"], key=lambda i: example["sigma"][i]) == 10 and round(example["sigma"][10], 3) == 0.271
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_smsemoa_step_figure_agrees_with_vamos() -> None:
+    from types import SimpleNamespace
+
+    from vamos.engine.algorithm.smsemoa.helpers import survival_selection
+    from vamos.foundation.kernel.numpy_backend import NumPyKernel
+
+    seeds = [65199, 1, 2, 3, 5, 6, 97, 12367]  # 65199 is the lesson's example
+    steps = _run_step_figure("smsemoaGeneration", seeds)
+    cases = set()
+    for g in steps:
+        assert g["child"]["parents"] == g["parents"]
+        # VAMOS' survival on the population and the child: the reference point and the solution removed.
+        state = SimpleNamespace(
+            X=np.array([member["x"] for member in g["pop"]]),
+            F=np.array([member["f"] for member in g["pop"]]),
+            G=None,
+            eliminate_duplicates=False,
+            _survival_F=None,
+            ref_adaptive=True,
+            ref_point=np.zeros(2),
+            ref_offset=1.0,
+            ref_rule="relative",
+            constraint_mode="none",
+            constraint_handling=None,
+            fronts=None,
+            ranks=None,
+            crowding=None,
+            ids=None,
+            pending_offspring_ids=None,
+        )
+        survival_selection(state, np.array([g["child"]["x"]]), np.array([g["child"]["f"]]), None, NumPyKernel())
+        np.testing.assert_allclose(g["ref"], state.ref_point, rtol=1e-12)
+        assert sorted(map(tuple, state.F.tolist())) == sorted(tuple(member["f"]) for member in g["next"])
+        # The fronts of the N + 1 solutions and the contributions of the last one.
+        Q = np.array([member["f"] for member in g["merged"]])
+        fronts, _ = _fast_non_dominated_sort(Q)
+        assert [sorted(front) for front in g["fronts"]] == [sorted(int(i) for i in front) for front in fronts]
+        assert g["last"] == g["fronts"][-1]
+        if g["contributions"] is None:
+            assert len(g["last"]) == 1 and g["removed"] == g["last"][0]
+        else:
+            contributions = hypervolume_contributions(Q[g["last"]], state.ref_point)
+            np.testing.assert_allclose(g["contributions"], contributions, rtol=1e-12)
+            assert g["removed"] == g["last"][int(np.argmin(contributions))]
+        cases.add("single" if g["contributions"] is None else "child removed" if g["removed"] == 6 else "contributions")
+    assert cases == {"single", "child removed", "contributions"}
+
+    # The numbers that the lesson quotes for its example.
+    example = steps[0]
+    assert example["parents"] == [4, 6] and example["rank"][3] == 1
+    assert [[i + 1 for i in front] for front in example["fronts"]] == [[1, 5, 6], [2, 3, 4, 7]]
+    assert [i + 1 for i in sorted(example["last"], key=lambda i: example["merged"][i]["f"][0])] == [7, 4, 2, 3]
+    contributions = {i + 1: round(c, 4) for i, c in zip(example["last"], example["contributions"])}
+    assert contributions == {2: 0.0193, 3: 0.2109, 4: 0.0293, 7: 0.16}
+    assert [round(v, 2) for v in example["ref"]] == [1.67, 1.98] and example["removed"] + 1 == 2
+    assert sorted(member["id"] for member in example["next"]) == [1, 3, 4, 5, 6, 7]
