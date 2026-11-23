@@ -5600,7 +5600,7 @@
   }
 
   /** Write point labels where they overlap the other labels and points least: items are { px, py, text }. */
-  function placeLabels(plot, items) {
+  function spreadPointLabels(plot, items) {
     const offsets = [
       [9, -7, "start"],
       [-9, -7, "end"],
@@ -5755,8 +5755,8 @@
       const xl = [];
       const fl = [];
       const out = step < PHASE_2 ? renderPhaseOne(step, xl, fl) : renderPhaseTwo(step - PHASE_2, xl, fl);
-      placeLabels(xPlot, xl);
-      placeLabels(fPlot, fl);
+      spreadPointLabels(xPlot, xl);
+      spreadPointLabels(fPlot, fl);
       stepText.textContent = `Step ${step + 1} of ${STEPS.length}: ${STEPS[step][1]}. ${describe(step)}`;
       clear(tableBox);
       table(tableBox, out.headers, out.rows, out.numeric);
@@ -6158,8 +6158,8 @@
       const ll = [];
       const fl = [];
       const out = st.kind === "pop" || st.kind === "tournament" || st.kind === "vary" ? renderMating(st, gen, ll, fl) : renderUnion(st, gen, left, ll, fl);
-      placeLabels(left, ll);
-      placeLabels(fPlot, fl);
+      spreadPointLabels(left, ll);
+      spreadPointLabels(fPlot, fl);
       stepText.textContent = `Step ${state.step + 1} of ${steps.length}: ${st.title}. ${describe(st, gen)}`;
       clear(tableBox);
       table(tableBox, out.headers, out.rows, out.numeric);
