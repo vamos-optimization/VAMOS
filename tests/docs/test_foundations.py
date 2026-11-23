@@ -461,6 +461,65 @@ process.stdout.write(JSON.stringify({json.dumps(cases)}.map((c) => {{
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_ccmo_generation_figure_agrees_with_vamos() -> None:
+    from vamos.engine.algorithm.ccmo.selection import (
+        ccmo_environmental_selection,
+        ccmo_fitness,
+        ccmo_tournament,
+        constraint_first_dominance,
+    )
+    from vamos.engine.algorithm.spea2.helpers import strength_raw_fitness
+
+    seeds = [37454, 1, 2, 3, 97, 12118]  # 37454 is the lesson's example
+    generations = _run_node(
+        f"process.stdout.write(JSON.stringify({json.dumps(seeds)}.map((seed) => globalThis.VamosFoundations.ccmoGeneration(seed, 6))));"
+    )
+
+    for g in generations:
+        children = g["children"]
+        assert [c["population"] for c in children] == [1, 1, 1, 2, 2, 2]  # population 1's offspring first
+        for k, pop in enumerate(g["pops"]):
+            F = np.array([p["f"] for p in pop])
+            cv = np.array([p["cv"] for p in pop]) if k == 0 else np.zeros(len(pop))
+            fitness, _ = ccmo_fitness(F, cv)
+            np.testing.assert_allclose(g["fitness"][k], fitness, rtol=1e-12)
+            # The tournaments, replayed with their draws, and the pairs: the i-th winner of each half.
+            mating = g["mating"][k]
+            winners = ccmo_tournament(fitness, 6, _Draws(np.array([t["draws"] for t in mating["tournaments"]])))
+            assert [pop[i]["id"] for i in winners] == [t["winner"] for t in mating["tournaments"]]
+            assert mating["pairs"] == [[pop[winners[i]]["id"], pop[winners[3 + i]]["id"]] for i in range(3)]
+            assert [c["parents"] for c in children[3 * k : 3 * k + 3]] == mating["pairs"]
+        # Each population selects from itself and every child, the violation first in population 1 only.
+        for k, sel in enumerate(g["selections"]):
+            candidates = sel["candidates"]
+            assert [c["id"] for c in candidates] == [p["id"] for p in g["pops"][k]] + [c["id"] for c in children]
+            F = np.array([c["f"] for c in candidates])
+            cv = np.array([c["cv"] for c in candidates]) if k == 0 else np.zeros(len(candidates))
+            fitness, _ = ccmo_fitness(F, cv)
+            np.testing.assert_allclose(sel["fitness"], fitness, rtol=1e-12)
+            assert sel["R"] == strength_raw_fitness(constraint_first_dominance(F, cv)).tolist()
+            order, _ = ccmo_environmental_selection(F, cv, 6)
+            assert sel["kept"] == [candidates[i]["id"] for i in order]  # stored by increasing fitness
+
+    # The numbers that the lesson quotes for its example.
+    example = generations[0]
+    ties = [(t["a"], t["b"], t["winner"]) for t in example["mating"][1]["tournaments"] if t["tie"] and t["a"] != t["b"]]
+    assert ties == [(8, 10, 8)]
+    assert round(example["fitness"][1][1], 3) == round(example["fitness"][1][3], 3) == 0.422  # members 8 and 10
+    assert sum(t["a"] == t["b"] for t in example["mating"][1]["tournaments"]) == 3
+    first, second = example["selections"]
+    fitness_of = {c["id"]: v for c, v in zip(first["candidates"], first["fitness"])}
+    assert sorted(i for i, v in fitness_of.items() if v < 1) == [6, 13, 16, 17, 18]
+    assert first["kept"] == [17, 13, 6, 16, 18, 5] and round(fitness_of[5], 2) == 7.43
+    assert all(c["cv"] > 0 for c in first["candidates"][:4])  # parents 1 to 4, all removed, are infeasible
+    assert second["rule"] == "truncate" and second["below"] == 7
+    assert sorted(second["kept"]) == [8, 9, 10, 12, 14, 17]
+    by_id = {c["id"]: c for c in second["candidates"]}
+    assert round(float(np.linalg.norm(np.subtract(by_id[18]["f"], by_id[10]["f"]))), 2) == 0.06
+    assert by_id[14]["cv"] > 0 and 14 not in first["kept"]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
 def test_benchmark_figures_agree_with_vamos() -> None:
     """The Benchmarks figures: their fronts match VAMOS' packaged fronts, and their maps VAMOS' problems."""
     from scipy.spatial import cKDTree

@@ -133,6 +133,12 @@
 .vf-pt-3 { fill: var(--vf-s3); }
 .vf-pt-muted { fill: var(--vf-muted); }
 .vf-pt-hollow { fill: var(--vf-panel); stroke: var(--vf-ink-2); stroke-width: 1.5; }
+/* An infeasible solution in the constrained step-throughs: hollow, outlined in its series colour. */
+.vf-pt.vf-pt-open { fill: var(--vf-panel); stroke-width: 2.2; }
+.vf-pt-open.vf-pt-1 { stroke: var(--vf-s1); }
+.vf-pt-open.vf-pt-2 { stroke: var(--vf-s2); }
+.vf-pt-open.vf-pt-ink { stroke: var(--vf-ink); }
+.vf-pt-open.vf-pt-muted { stroke: var(--vf-muted); }
 .vf-pt-ink { fill: var(--vf-ink); }
 .vf-pt-thin { fill: var(--vf-ink-2); opacity: 0.7; }
 .vf-cloud { fill: var(--vf-muted); opacity: 0.55; }

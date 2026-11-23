@@ -973,6 +973,86 @@
     return { ...fit, dk, k, kept: strengthSelect(fit.fitness, n, dist) };
   }
 
+  /** One CCMO generation of the loop figure's problem with CTP2's constraint, ctpViolation(gaEvaluate(x)), recorded
+      for the CCMO lesson. Population 1 (ids 1 to N) and population 2 (ids N + 1 to 2N) are drawn uniformly,
+      population 1 first; each one's fitness is ccmoSelect's on its own members, with the violations in
+      population 1 and zeros in population 2. Each population in turn draws N binary tournaments on its fitness
+      (two members at random, possibly the same one; the lower fitness wins and a tie goes to the first), mates the
+      i-th winner of the first half with the i-th of the second half and keeps the first child of SBX
+      (probability 1, η = 20), mutated by polynomial mutation (probability 1/n = 1/2, η = 20): VAMOS' default GA
+      variation for CCMO. The N offspring, population 1's first, are evaluated once, and each population selects
+      N survivors from itself and all the offspring with ccmoSelect; the survivors are stored by increasing fitness. */
+  function ccmoGeneration(seed, popSize) {
+    const rand = mulberry32(seed);
+    const N = popSize;
+    const half = Math.floor(N / 2);
+    let nextId = 1;
+    const born = (x, extra) => {
+      const f = gaEvaluate(x);
+      return Object.assign({ id: nextId++, x, f, cv: ctpViolation(f) }, extra);
+    };
+    const pops = [0, 1].map((k) => {
+      const pop = [];
+      for (let i = 0; i < N; i++) pop.push(born([rand(), rand()], { population: k + 1 }));
+      return pop;
+    });
+    const violations = (rows, k) => rows.map((p) => (k === 0 ? p.cv : 0));
+    const own = pops.map((pop, k) =>
+      ccmoSelect(
+        pop.map((p) => p.f),
+        violations(pop, k),
+        N
+      )
+    );
+    const fitness = own.map((res) => res.fitness);
+    const mating = [];
+    const offspring = [];
+    pops.forEach((pop, k) => {
+      const fit = fitness[k];
+      const tournaments = [];
+      for (let t = 0; t < N; t++) {
+        const a = Math.floor(rand() * N);
+        const b = Math.floor(rand() * N);
+        const w = fit[a] < fit[b] || (fit[a] === fit[b] && a <= b) ? a : b;
+        tournaments.push({ a: pop[a].id, b: pop[b].id, winner: pop[w].id, draws: [a, b], tie: fit[a] === fit[b] });
+      }
+      const byId = new Map(pop.map((p) => [p.id, p]));
+      const pairs = [];
+      for (let i = 0; i < half; i++) pairs.push([tournaments[i].winner, tournaments[half + i].winner]);
+      for (const [a, b] of pairs) {
+        const child = sbxPair(byId.get(a).x, byId.get(b).x, 0, 1, 20, 0.5, rand)[0];
+        polynomialMutation(child, 0, 1, 0.5, 20, rand);
+        offspring.push({ x: child, population: k + 1, parents: [a, b] });
+      }
+      mating.push({ tournaments, pairs });
+    });
+    const children = offspring.map((c) => born(c.x, { population: c.population, parents: c.parents, child: true }));
+    const selections = pops.map((pop, k) => {
+      const candidates = pop.concat(children);
+      const res = ccmoSelect(
+        candidates.map((p) => p.f),
+        violations(candidates, k),
+        N
+      );
+      const next = res.kept.slice().sort((a, b) => res.fitness[a] - res.fitness[b] || a - b);
+      const below = res.fitness.filter((v) => v < 1).length;
+      return {
+        candidates,
+        S: res.S,
+        R: res.R,
+        D: res.D,
+        dk: res.dk,
+        k: res.k,
+        by: res.by.map((rows) => rows.map((i) => candidates[i].id)),
+        fitness: res.fitness,
+        kept: next.map((i) => candidates[i].id),
+        rule: below < N ? "fill" : below > N ? "truncate" : "exact",
+        below,
+      };
+    });
+    return { popSize: N, pops, fitness, R: own.map((res) => res.R), D: own.map((res) => res.D), mating, children, selections };
+  }
+
   const CTAEA_W = (count) =>
     Array.from({ length: count }, (_, k) => {
       const a = k / (count - 1);
@@ -2418,6 +2498,7 @@
     fidelitySlice,
     operators: OPERATORS,
     ccmoSelect,
+    ccmoGeneration,
     ctaeaSelect,
     topSelect,
     cmoeamsSelect,
@@ -5385,6 +5466,389 @@
       });
     }
     render();
+  };
+
+  /** The loop figure's problem with CTP2's constraint, ctpViolation(gaEvaluate(x)), drawn in both spaces: the
+      infeasible region (in the objective space only above the unconstrained front f₂ = 1 − √f₁, below which nothing
+      is attainable), the unconstrained Pareto set x₂ = 0 and front (dashed), and the constrained ones. drawCtp2
+      cannot serve here: it shades from CTP2's own unconstrained front f₁ + f₂ = 1, and this problem also reaches
+      the infeasible band between the two fronts. */
+  let loopCtp2Front = null;
+  function drawLoopCtp2(xPlot, fPlot) {
+    const shade = (plot, cols, rows, bad) => {
+      const top = plot.yd[1];
+      for (let c = 0; c < cols; c++) {
+        const u = (c + 0.5) / cols;
+        let start = null;
+        for (let r = 0; r <= rows; r++) {
+          const v = (r / rows) * top;
+          const isBad = r < rows && bad(u, v);
+          if (isBad && start === null) start = v;
+          if (!isBad && start !== null) {
+            plot.rect(plot.layers.back, c / cols, start, (c + 1) / cols + 0.0005, v, "vf-region-2");
+            start = null;
+          }
+        }
+      }
+    };
+    shade(xPlot, 100, 200, (x1, x2) => ctpViolation(gaEvaluate([x1, x2])) > 0);
+    shade(fPlot, 100, 420, (f1, f2) => f2 >= 1 - Math.sqrt(f1) && ctpViolation([f1, f2]) > 0);
+    if (!loopCtp2Front) {
+      // Every feasible point lies above the line f₂ = 1 − tan(0.2π)·f₁, so the search can start at f₁ + f₂ = 1.
+      const lowest = [];
+      for (let i = 0; i <= 1000; i++) {
+        const f1 = i / 1000;
+        for (let f2 = 1 - f1; f2 <= 1.6; f2 += 0.0005) {
+          if (ctpViolation([f1, f2]) <= 0) {
+            lowest.push([f1, f2]);
+            break;
+          }
+        }
+      }
+      loopCtp2Front = nonDominatedIndices(lowest).map((i) => lowest[i]);
+    }
+    // x₁ = f₁, and g = 1 + x₂ solves g − √(f₁·g) = f₂.
+    const set = loopCtp2Front.map(([f1, f2]) => [f1, Math.pow((Math.sqrt(f1) + Math.sqrt(f1 + 4 * f2)) / 2, 2) - 1]);
+    xPlot.line(xPlot.layers.mid, [[0, 0.004], [1, 0.004]], "vf-front");
+    fPlot.line(fPlot.layers.mid, frontPoints((t) => 1 - Math.sqrt(t), 0, 1, 60), "vf-front");
+    drawFront(xPlot, xPlot.layers.mid, set, "vf-line-1", 0.0015);
+    drawFront(fPlot, fPlot.layers.mid, loopCtp2Front, "vf-line-1", 0.0015);
+  }
+
+  /** The class of a solution's marker in the constrained step-throughs: its colour, hollow when infeasible. */
+  function solutionClass(sol, colour, faded) {
+    return "vf-pt " + colour + (sol.cv > 0 ? " vf-pt-open" : "") + (faded ? " vf-faded" : "");
+  }
+
+  /** Write the labels of crowded points beside them, each where it covers the fewest other labels and markers:
+      items are { x, y, text } in the plot's coordinates, written in order into plot.layers.top. */
+  function placeLabels(plot, items) {
+    const offsets = [
+      [9, -7, "start"],
+      [9, 14, "start"],
+      [-9, -7, "end"],
+      [-9, 14, "end"],
+      [0, -12, "middle"],
+      [0, 21, "middle"],
+    ];
+    const marks = items.map((it) => [it.x - 7, it.y - 7, it.x + 7, it.y + 7]);
+    const placed = [];
+    const overlap = (a, b) => Math.max(0, Math.min(a[2], b[2]) - Math.max(a[0], b[0])) * Math.max(0, Math.min(a[3], b[3]) - Math.max(a[1], b[1]));
+    for (const it of items) {
+      const w = 6.4 * it.text.length;
+      let best = null;
+      offsets.forEach(([dx, dy, anchor], k) => {
+        const x = it.x + dx;
+        const left = anchor === "start" ? x : anchor === "end" ? x - w : x - w / 2;
+        const box = [left, it.y + dy - 10, left + w, it.y + dy + 2];
+        let cost = k * 0.5;
+        for (const other of placed) cost += overlap(box, other);
+        for (const m of marks) cost += overlap(box, m);
+        if (box[0] < 2 || box[2] > plot.W - 2) cost += 1000;
+        if (!best || cost < best.cost) best = { cost, x, y: it.y + dy, anchor, box };
+      });
+      placed.push(best.box);
+      txt(plot.layers.top, best.x, best.y, it.text, { class: "vf-mark-label", "text-anchor": best.anchor });
+    }
+  }
+
+  /** The objective range of a constrained step-through: f₂ up to 1.6 unless a point lies higher. */
+  function constrainedTop(sols) {
+    return Math.max(...sols.map((sol) => sol.f[1])) > 1.5 ? 2.1 : 1.6;
+  }
+
+  /* A5: one CCMO generation, step by step. */
+  widgets["ccmo-steps"] = function (node) {
+    const N = 6;
+    const TITLES = [
+      "the two populations",
+      "mating selection in population 1",
+      "population 1's offspring",
+      "mating selection in population 2",
+      "population 2's offspring",
+      "evaluation",
+      "population 1's fitness, the violation first",
+      "population 1's environmental selection",
+      "population 2's fitness, without the constraints",
+      "population 2's environmental selection",
+      "the next generation",
+    ];
+    const COLOURS = ["vf-pt-1", "vf-pt-2"];
+    const state = { seed: Number(node.dataset.seed || 37454), step: 0 };
+    let g = null;
+    const interesting = (gen) => {
+      const [p1, p2] = gen.selections;
+      const helped = gen.children.some((c) => c.population === 2 && c.cv === 0 && p1.kept.includes(c.id));
+      const explored = gen.children.some((c) => c.cv > 0 && p2.kept.includes(c.id) && !p1.kept.includes(c.id));
+      return helped && explored;
+    };
+    const ctl = controls(node);
+    const back = button(ctl, "Previous step", () => go(state.step - 1));
+    const next = button(ctl, "Next step", () => go(state.step + 1), true);
+    button(ctl, "Restart", () => go(0));
+    button(ctl, "New population", () => {
+      // Draw populations until population 1 keeps a feasible child of population 2, and population 2 an infeasible child that population 1 drops.
+      for (let tries = 0; tries < 200; tries++) {
+        const seed = Math.floor(Math.random() * 1e6);
+        if (interesting(ccmoGeneration(seed, N))) {
+          state.seed = seed;
+          break;
+        }
+      }
+      build();
+    });
+    const body = h("div", { class: "vf-body vf-body--two" }, node);
+    const xPlot = createPlot(body, { title: "Decision space", x: [0, 1], y: [0, 1], xLabel: "x₁", yLabel: "x₂", label: "Decision vectors of both populations and of their children, with the infeasible region shaded" });
+    const fPlot = createPlot(body, { title: "Objective space", x: [0, 1], y: [0, 1.6], xLabel: "f₁ (minimize)", yLabel: "f₂ (minimize)", label: "Objective vectors of one CCMO generation, with CTP2's infeasible region shaded" });
+    for (const plot of [xPlot, fPlot]) {
+      plot.svg.setAttribute("tabindex", "0");
+      plot.svg.setAttribute("aria-keyshortcuts", "ArrowLeft ArrowRight");
+    }
+    let lines = null;
+    const readout = h("div", { class: "vf-readout" }, node);
+    const stepText = h("p", { class: "vf-step-text", "aria-live": "polite" }, readout);
+    h("p", {}, readout, "The arrow keys step through the figure when it has focus; New population draws another generation.");
+    const tableBox = h("div", {}, readout);
+    legend(node, [
+      { label: "Population 1", shape: "circle", cls: "vf-pt vf-pt-1" },
+      { label: "Population 2", shape: "circle", cls: "vf-pt vf-pt-2" },
+      { label: "Child, in the colour of the population that bred it", shape: "triangle", cls: "vf-pt vf-pt-muted" },
+      { label: "Infeasible (hollow)", shape: "circle", cls: "vf-pt vf-pt-open vf-pt-muted" },
+      { label: "In both next populations", shape: "circle", cls: "vf-pt vf-pt-ink" },
+      { label: "Tournament winner, fitness below 1, survivor", shape: "circle", cls: "vf-ring" },
+      { label: "Infeasible region", shape: "region", cls: "vf-region-2" },
+      { label: "Constrained Pareto set and front", shape: "line", cls: "vf-line-1" },
+      { label: "Unconstrained Pareto set and front", shape: "line", cls: "vf-front" },
+    ]);
+    node.addEventListener("keydown", (e) => {
+      if (e.target && /^(SELECT|INPUT|BUTTON)$/.test(e.target.tagName)) return;
+      if (e.key === "ArrowRight") go(state.step + 1);
+      else if (e.key === "ArrowLeft") go(state.step - 1);
+      else return;
+      e.preventDefault();
+    });
+    function build() {
+      g = ccmoGeneration(state.seed, N);
+      fPlot.setDomain([0, 1], [0, constrainedTop(all())]);
+      for (const plot of [xPlot, fPlot]) {
+        clear(plot.layers.back);
+        clear(plot.layers.mid);
+      }
+      drawLoopCtp2(xPlot, fPlot);
+      lines = [xPlot, fPlot].map((plot) => s("g", {}, plot.layers.mid));
+      go(0);
+    }
+    function go(i) {
+      state.step = Math.max(0, Math.min(TITLES.length - 1, i));
+      render();
+    }
+    const all = () => g.pops[0].concat(g.pops[1], g.children);
+    const byId = (id) => all().find((sol) => sol.id === id);
+    const set = (ids) => "{" + ids.slice().sort((a, b) => a - b).join(", ") + "}";
+    const childrenOf = (k) => g.children.filter((c) => c.population === k + 1);
+    const labels = [[], []];
+    function draw(plot, v, shape, cls, label, ring) {
+      const px = plot.x(v[0]);
+      const py = plot.y(Math.min(v[1], plot.yd[1]));
+      marker(plot.layers.marks, shape, px, py, 6, cls);
+      if (ring) marker(plot.layers.marks, "circle", px, py, 10.5, "vf-ring");
+      labels[plot === xPlot ? 0 : 1].push({ x: px, y: py, text: label });
+    }
+    function render() {
+      const step = state.step;
+      back.disabled = step === 0;
+      next.disabled = step === TITLES.length - 1;
+      for (const plot of [xPlot, fPlot]) {
+        clear(plot.layers.marks);
+        clear(plot.layers.top);
+      }
+      lines.forEach(clear);
+      labels.forEach((list) => (list.length = 0));
+      // Which population a step is about: 0, 1, or null for both.
+      const focus = step >= 1 && step <= 2 ? 0 : step >= 3 && step <= 4 ? 1 : step >= 6 && step <= 7 ? 0 : step >= 8 && step <= 9 ? 1 : null;
+      const mating = step === 1 || step === 3 ? g.mating[focus] : null;
+      const wins = new Map();
+      if (mating) mating.tournaments.forEach((t) => wins.set(t.winner, (wins.get(t.winner) || 0) + 1));
+      const sel = step >= 6 && step <= 9 ? g.selections[focus] : null;
+      const candidateIndex = (sol) => (sel ? sel.candidates.findIndex((c) => c.id === sol.id) : -1);
+      const nextPops = g.selections.map((x) => x.kept);
+      if (mating) {
+        const pop = g.pops[focus];
+        for (const t of mating.tournaments) {
+          if (t.a !== t.b) fPlot.line(lines[1], [pop.find((p) => p.id === t.a).f, pop.find((p) => p.id === t.b).f], "vf-line-thin vf-dashed");
+        }
+      }
+      const rows = [];
+      for (const sol of all()) {
+        const k = sol.population - 1;
+        const isChild = !!sol.child;
+        const shape = isChild ? "triangle" : "circle";
+        const evaluated = !isChild || step >= 5;
+        let visible;
+        if (step === 0) visible = !isChild;
+        else if (step <= 2) visible = !isChild ? k === 0 : step === 2 && k === 0;
+        else if (step <= 4) visible = !isChild ? k === 1 : step === 4 && k === 1;
+        else if (sel) visible = candidateIndex(sol) >= 0;
+        else visible = true;
+        const born = !isChild || step >= 2 + 2 * k;
+        if (!born) continue;
+        let colour = COLOURS[k];
+        let ring = false;
+        let faded = false;
+        let label = String(sol.id);
+        let status = "–";
+        let R = "–";
+        let D = "–";
+        let fit = "–";
+        if (!isChild && step <= 5) {
+          const i = g.pops[k].indexOf(sol);
+          R = String(g.R[k][i]);
+          D = fmt(g.D[k][i]);
+          fit = fmt(g.fitness[k][i]);
+        }
+        if (mating && !isChild && k === focus) {
+          const won = wins.get(sol.id) || 0;
+          ring = won > 0;
+          if (won > 1) label += " ×" + won;
+          status = won ? `won ${won}×` : "–";
+        }
+        if ((step === 2 || step === 4) && k === focus) {
+          if (isChild) status = "not evaluated";
+          else {
+            const kids = childrenOf(k).filter((c) => c.parents.includes(sol.id));
+            ring = kids.length > 0;
+            if (kids.length) status = "parent of " + idList(kids.map((c) => c.id));
+          }
+        }
+        if (step === 5 && isChild) status = sol.cv > 0 ? "infeasible, offered to both" : "feasible, offered to both";
+        if (sel) {
+          const i = candidateIndex(sol);
+          if (i < 0) status = "not a candidate";
+          else {
+            R = String(sel.R[i]);
+            D = fmt(sel.D[i]);
+            fit = fmt(sel.fitness[i]);
+            if (step === 6 || step === 8) {
+              ring = sel.fitness[i] < 1;
+              status = sel.fitness[i] < 1 ? "fitness below 1" : "fitness 1 or more";
+            } else {
+              const kept = sel.kept.includes(sol.id);
+              ring = kept;
+              faded = !kept;
+              if (!kept) label += " ✕";
+              status = kept ? "kept" : "removed";
+            }
+          }
+        }
+        if (step === 10) {
+          const inP1 = nextPops[0].includes(sol.id);
+          const inP2 = nextPops[1].includes(sol.id);
+          colour = inP1 && inP2 ? "vf-pt-ink" : inP1 ? COLOURS[0] : inP2 ? COLOURS[1] : colour;
+          faded = !inP1 && !inP2;
+          if (faded) label += " ✕";
+          status = inP1 && inP2 ? "both populations" : inP1 ? "population 1" : inP2 ? "population 2" : "removed";
+          const stored = [0, 1].filter((j) => nextPops[j].includes(sol.id)).map((j) => fmt(g.selections[j].fitness[g.selections[j].candidates.findIndex((c) => c.id === sol.id)]));
+          fit = stored.length ? stored.join(" / ") : "–";
+        }
+        if (visible) {
+          const cls = solutionClass(sol, colour, faded);
+          draw(xPlot, sol.x, shape, cls, label, ring);
+          if (evaluated) draw(fPlot, sol.f, shape, cls, label, ring);
+          if (isChild && (step === 2 || step === 4) && k === focus) {
+            for (const id of sol.parents) xPlot.line(lines[0], [byId(id).x, sol.x], "vf-line-thin vf-dashed");
+          }
+        }
+        const role = isChild ? `child of ${sol.parents[0]} and ${sol.parents[1]} (population ${k + 1})` : `population ${k + 1}`;
+        rows.push([String(sol.id), role, evaluated ? fmt(sol.f[0], 2) : "?", evaluated ? fmt(sol.f[1], 2) : "?", evaluated ? fmt(sol.cv) : "?", R, D, fit, status]);
+      }
+      placeLabels(xPlot, labels[0]);
+      placeLabels(fPlot, labels[1]);
+      stepText.textContent = `Step ${step + 1} of ${TITLES.length}: ${TITLES[step]}. ${describe(step)}`;
+      clear(tableBox);
+      table(tableBox, ["Id", "Role", "f₁", "f₂", "CV", "R", "D", "Fitness", "Status"], rows, [false, false, true, true, true, true, true, true, false]);
+    }
+    function describe(step) {
+      const feasible = (list) => list.filter((sol) => sol.cv === 0).map((sol) => sol.id);
+      const infeasible = (list) => list.filter((sol) => sol.cv > 0).map((sol) => sol.id);
+      const range = (list) => `${list[0].id} to ${list[list.length - 1].id}`;
+      if (step === 0) {
+        return `Two populations of ${N} on the loop figure's problem, f₁ = x₁ and f₂ = g·(1 − √(x₁/g)) with g = 1 + x₂, under CTP2's constraint, which makes its unconstrained front f₂ = 1 − √f₁ infeasible except at f₁ = 0. Population 1 is ${range(g.pops[0])} and population 2 is ${range(g.pops[1])}, drawn at random, population 1 first. ${idList(feasible(g.pops[0].concat(g.pops[1])))} are feasible (filled); the others are infeasible (hollow). Each population computes its members' fitness R + D, with the violation first in population 1 and without it in population 2; the tournaments use it.`;
+      }
+      if (step === 1 || step === 3) {
+        const k = step === 1 ? 0 : 1;
+        const m = g.mating[k];
+        const why = (t) => (t.a === t.b ? "the same member twice" : t.tie ? "equal fitness, the one that comes first" : "lower fitness");
+        const games = m.tournaments.map((t) => `${t.a} vs ${t.b} → ${t.winner} (${why(t)})`).join("; ");
+        const pairs = m.pairs.map((p) => `(${p[0]}, ${p[1]})`).join(", ");
+        return `Population ${k + 1} draws ${N} binary tournaments on its own fitness, each between two members drawn at random: ${games}. The winners of the first ${N / 2} mate with those of the last ${N / 2}: ${pairs}. Ringed members won at least once.`;
+      }
+      if (step === 2 || step === 4) {
+        const k = step === 2 ? 0 : 1;
+        const kids = childrenOf(k);
+        return `SBX crossover (probability 1, η = 20) recombines each pair and only its first child is kept; polynomial mutation (probability 1/2 per variable, η = 20) perturbs it. Population ${k + 1} creates ${N / 2} children, ${idList(kids.map((c) => c.id))}: the triangles joined to their parents in the decision space. Their objectives are not known yet.`;
+      }
+      if (step === 5) {
+        const ok = feasible(g.children);
+        const bad = infeasible(g.children);
+        return `The ${N} children are evaluated once, population 1's first. ${ok.length ? `${idList(ok)} ${ok.length === 1 ? "is" : "are"} feasible` : "None is feasible"}${bad.length ? ` and ${idList(bad)} ${bad.length === 1 ? "is" : "are"} infeasible` : ""}. Both populations receive all of them: each will choose ${N} survivors from ${2 * N} candidates, its own members and every child.`;
+      }
+      if (step === 6 || step === 8) {
+        const k = step === 6 ? 0 : 1;
+        const sel = g.selections[k];
+        const below = sel.candidates.filter((_, i) => sel.fitness[i] < 1).map((c) => c.id);
+        const rule =
+          k === 0
+            ? "Its dominance puts the violation first: a smaller violation dominates a larger one, so every feasible candidate dominates every infeasible one, and candidates with the same violation are compared by Pareto dominance."
+            : "It passes a violation of zero for every candidate, so its dominance is Pareto dominance: population 2 solves the problem without its constraints.";
+        return `Population ${k + 1}'s candidates are ${range(g.pops[k])} and the children ${range(g.children)}. ${rule} R is the sum of the strengths (the numbers of candidates dominated) of a candidate's dominators, and D = 1/(σ₃ + 2), with σ₃ the distance to the 3rd nearest candidate (k = ⌊√${2 * N}⌋ = 3). Fitness below 1, ringed: ${idList(below)}, the candidates that nobody dominates.`;
+      }
+      if (step === 7 || step === 9) {
+        const k = step === 7 ? 0 : 1;
+        const sel = g.selections[k];
+        const removed = sel.candidates.map((c) => c.id).filter((id) => !sel.kept.includes(id));
+        const fitness = (id) => sel.fitness[sel.candidates.findIndex((c) => c.id === id)];
+        const fitOf = (id) => fmt(fitness(id), 2);
+        let how;
+        if (sel.rule === "fill") how = `Only ${sel.below} candidate${sel.below === 1 ? " has" : "s have"} a fitness below 1, fewer than ${N}, so population ${k + 1} keeps the ${N} lowest fitness values: ${sel.kept.map((id) => `${id} (${fitOf(id)})`).join(", ")}.`;
+        else if (sel.rule === "truncate") {
+          const pool = sel.candidates.filter((_, i) => sel.fitness[i] < 1);
+          const cut = removed.filter((id) => fitness(id) < 1);
+          const lists = (sol) =>
+            pool
+              .filter((o) => o !== sol)
+              .map((o) => [euclidean(sol.f, o.f), o.id])
+              .sort((a, b) => a[0] - b[0]);
+          let why = "each time the candidate whose sorted distances to the remaining ones are lexicographically smallest, the one with the closest neighbour";
+          if (cut.length === 1) {
+            const out = lists(byId(cut[0]));
+            const near = lists(byId(out[0][1]));
+            why =
+              near[0][1] === cut[0]
+                ? `${cut[0]} and ${out[0][1]} are the closest pair (${fmt(out[0][0], 2)} apart in the objective space), and ${cut[0]} goes because its second nearest candidate is closer (${fmt(out[1][0], 2)} against ${fmt(near[1][0], 2)})`
+                : `${cut[0]} has the closest neighbour, ${out[0][1]}, ${fmt(out[0][0], 2)} away in the objective space`;
+          }
+          how = `${sel.below} candidates have a fitness below 1, more than ${N}, so SPEA2's truncation removes ${cut.length === 1 ? "one of them" : cut.length + " of them, one at a time"}: ${why}.`;
+        } else how = `Exactly ${N} candidates have a fitness below 1, and population ${k + 1} keeps them.`;
+        const ascending = (ids) => ids.slice().sort((a, b) => a - b);
+        const keptChildren = sel.kept.filter((id) => byId(id).child);
+        const fromOther = ascending(keptChildren.filter((id) => byId(id).population !== k + 1));
+        const infeasibleKept = ascending(sel.kept.filter((id) => byId(id).cv > 0));
+        const extra =
+          k === 0
+            ? fromOther.length
+              ? ` ${idList(fromOther)}, bred by population 2, ${fromOther.length === 1 ? "joins" : "join"} population 1.`
+              : ""
+            : infeasibleKept.length
+              ? ` ${idList(infeasibleKept)} ${infeasibleKept.length === 1 ? "is" : "are"} infeasible: population 2 never looks at the constraints.`
+              : "";
+        return `${how} ${idList(removed)} ${removed.length === 1 ? "is" : "are"} removed.${extra} The survivors are stored by increasing fitness.`;
+      }
+      const [p1, p2] = g.selections.map((x) => x.kept.slice().sort((a, b) => a - b));
+      const helped = p1.filter((id) => byId(id).child && byId(id).population === 2);
+      const shared = p1.filter((id) => p2.includes(id));
+      return `Population 1 = ${set(p1)} and population 2 = ${set(p2)}; the colours now show where each solution belongs.${helped.length ? ` ${idList(helped)}, bred by population 2, ${helped.length === 1 ? "is" : "are"} now in population 1.` : ""}${shared.length ? ` ${idList(shared)} ${shared.length === 1 ? "is" : "are"} in both, with a fitness in each.` : ""} Each population keeps the fitness computed on its candidates for its next tournaments, and population 1 is the result of the run.`;
+    }
+    build();
   };
 
   /* A4: AGE-MOEA curvature estimate and survival score. */
