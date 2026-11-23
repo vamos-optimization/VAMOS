@@ -972,3 +972,197 @@ process.stdout.write(JSON.stringify(generations, (key, value) => (value === Infi
     assert distances[3] == distances[5] == "inf"
     assert {k: round(distances[k], 2) for k in (4, 11, 8, 2)} == {4: 1.05, 11: 0.92, 8: 0.81, 2: 0.55}
     assert sorted(ident[i] for i in example["keep"]) == [1, 3, 4, 5, 9, 11]
+
+
+class _LoopProblem:
+    """The loop figure's problem: two variables in [0, 1], f₁ = x₁ and f₂ = g·(1 − √(x₁/g)) with g = 1 + x₂."""
+
+    n_var = 2
+    n_obj = 2
+    encoding = "real"
+    xl = np.zeros(2)
+    xu = np.ones(2)
+
+    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+        g = 1 + X[:, 1]
+        out["F"] = np.column_stack([X[:, 0], g * (1 - np.sqrt(X[:, 0] / g))])
+
+
+class _SwarmDraws(_Draws):
+    """Prepared draws for SMPSO, which also draws its coefficients with ``uniform``."""
+
+    uniform = _Draws._next
+
+
+def _infinite(values: list[Any]) -> np.ndarray:
+    return np.array([np.inf if v == "inf" else v for v in values], dtype=float)
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_smpso_iteration_figure_agrees_with_vamos() -> None:
+    from vamos.algorithms import SMPSOConfig
+    from vamos.engine.algorithm.smpso import SMPSO
+    from vamos.foundation.eval.backends import SerialEvalBackend
+
+    # 60550 is the lesson's example; in 25 the archive holds two leaders, and 1 and 2 overflow it.
+    seeds = [60550, 1, 2, 25, 26, 39, 100]
+    program = f"""
+require({json.dumps(str(SCRIPT))});
+const V = globalThis.VamosFoundations;
+const iterations = {json.dumps(seeds)}.map((seed) => V.smpsoGeneration(seed, 6));
+process.stdout.write(JSON.stringify(iterations, (key, value) => (value === Infinity ? "inf" : value)));
+"""
+    completed = subprocess.run(["node", "-e", program], capture_output=True, text=True, check=True, timeout=60)
+    records = json.loads(completed.stdout)
+
+    def draws(it: dict[str, Any]) -> list[np.ndarray]:
+        """The figure's random numbers, in the order and shapes in which VAMOS draws them."""
+        out = []
+        if len(it["leaders"]) > 2:
+            games = it["tournaments"]
+            out.append(np.array([t["a"] for t in games]))
+            out.append(np.array([t["b"] - (t["b"] > t["a"]) for t in games]))
+            coins = [int(t["winner"] == t["b"]) for t in games if t["reason"] == "coin"]
+            if coins:
+                out.append(np.array(coins))
+        out += [np.array([[m[key]] for m in it["moves"]]) for key in ("r1", "r2", "c1", "c2")]
+        out.append(np.array([t["mask"] for t in it["turbulence"]]))
+        out.append(np.array([[0.5 if u is None else u for u in t["u"]] for t in it["turbulence"]]))
+        return out
+
+    # VAMOS replays the hidden first iteration and the figure's with the figure's draws: the leaders and their
+    # crowding distances, the velocities, the positions after the bounds and the turbulence, the personal bests
+    # and the leaders archive, in its order, are the figure's.
+    for record in records:
+        config = SMPSOConfig.default(pop_size=6, n_var=2).to_dict()
+        start = np.array([q["x"] for q in record["start"]["swarm"]])
+        config["initializer"] = lambda start=start: start.copy()
+        smpso = SMPSO(config)
+        problem = _LoopProblem()
+        smpso.initialize(problem, ("max_evaluations", 18), seed=0)
+        state = smpso.state
+        assert state is not None
+        np.testing.assert_allclose(state.archive_manager.contents()[0], [leader["x"] for leader in record["start"]["leaders"]], rtol=0)
+        for it in (record["previous"], record):
+            np.testing.assert_allclose(state.archive_crowding, _infinite([leader["crowding"] for leader in it["leaders"]]), rtol=1e-12)
+            state.rng = _SwarmDraws(*draws(it))
+            X = smpso.ask()
+            assert not state.rng._draws
+            np.testing.assert_allclose(state.velocity, [m["velocity"] for m in it["moves"]], rtol=1e-12, atol=1e-15)
+            np.testing.assert_allclose(X, [q["x"] for q in it["after"]], rtol=1e-12, atol=1e-15)
+            smpso.tell(SerialEvalBackend().evaluate(X, problem), problem)
+            np.testing.assert_allclose(state.F, [q["f"] for q in it["after"]], rtol=1e-12, atol=1e-15)
+            np.testing.assert_allclose(state.pbest_X, [q["p"] for q in it["after"]], rtol=1e-12, atol=1e-15)
+            leaders_X = state.archive_manager.contents()[0]
+            np.testing.assert_allclose(leaders_X, [leader["x"] for leader in it["leadersAfter"]], rtol=1e-12, atol=1e-15)
+    assert len(records[3]["leaders"]) == 2 and {t["reason"] for t in records[3]["tournaments"]} == {"first"}
+    assert any(e["pruned"] for r in records[1:3] for it in (r["previous"], r) for e in it["inserts"])
+
+    # The numbers that the lesson quotes for its example.
+    example = records[0]
+    name = [leader["name"] for leader in example["leaders"]]
+    games = {t["id"]: (name[t["a"]], name[t["b"]], name[t["winner"]], t["reason"]) for t in example["tournaments"]}
+    assert games[1] == ("F", "G", "F", "coin") and games[4] == ("D", "F", "F", "crowding")
+    assert round(example["leaders"][name.index("D")]["crowding"], 2) == 1.0
+    assert [q["id"] for q in example["before"] if q["p"] != q["x"]] == [4]
+    one, four = example["moves"][0], example["moves"][3]
+    assert [round(v, 2) for v in four["cognitive"]] == [-0.08, -0.87]
+    assert (round(four["phi"], 2), round(four["chi"], 2)) == (4.53, -0.49)
+    assert [round(v, 2) for v in four["raw"] + four["clamped"]] == [-0.06, -0.95, 0.03, 0.47]
+    assert four["hit"] == [[1, "upper"]] and round(four["velocity"][1], 2) == -0.47
+    assert (round(one["phi"], 2), one["chi"]) == (3.87, 1)
+    assert [round(v, 2) for v in one["raw"] + one["clamped"]] == [0.51, -1.63, 0.5, -0.5]
+    assert [p["id"] for p in example["pbest"] if not p["replaced"]] == [4, 6]
+    inserts = {e["id"]: e for e in example["inserts"]}
+    assert inserts[2]["leader"] == inserts[2]["pruned"] == "H"
+    assert [round(c["crowding"], 2) for c in inserts[2]["crowding"] if c["name"] == "H"] == [0.43]
+    assert inserts[3]["leader"] == "I" and inserts[3]["pruned"] == "B"
+    assert [round(c["crowding"], 2) for c in inserts[3]["crowding"] if c["name"] == "B"] == [0.57]
+    assert inserts[5]["leader"] == "J" and inserts[5]["removed"] == ["G", "I"]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_agemoea_generation_figure_agrees_with_vamos() -> None:
+    from vamos.algorithms import AGEMOEAConfig
+    from vamos.engine.algorithm.agemoea import AGEMOEA
+    from vamos.engine.algorithm.agemoea.geometry import _find_corner_solutions, _survival_score, age_survival
+    from vamos.foundation.kernel.numpy_backend import NumPyKernel
+
+    # 29299 is the lesson's example; front 2 is cut in 3 and 10404, the population's first front has one or two
+    # members in 25 and 102, the merged population's has one in 11727 and 14020, and front 2 fills exactly in 26.
+    seeds = [29299, 1, 3, 10404, 25, 102, 11727, 14020, 26]
+    program = f"""
+require({json.dumps(str(SCRIPT))});
+const V = globalThis.VamosFoundations;
+const generations = {json.dumps(seeds)}.map((seed) => V.agemoeaGeneration(seed, 6));
+process.stdout.write(JSON.stringify(generations, (key, value) => (value === Infinity ? "inf" : Number.isNaN(value) ? null : value)));
+"""
+    completed = subprocess.run(["node", "-e", program], capture_output=True, text=True, check=True, timeout=60)
+    generations = json.loads(completed.stdout)
+
+    kernel = NumPyKernel()
+    for g in generations:
+        config = AGEMOEAConfig.default(pop_size=6, n_var=2).to_dict()
+        start = np.array([member["x"] for member in g["pop"]])
+        config["initializer"] = lambda start=start: start.copy()
+        agemoea = AGEMOEA(config, kernel)
+        problem = _LoopProblem()
+        agemoea.initialize(problem, ("max_evaluations", 12), seed=0)
+        state = agemoea.state
+        assert state is not None and state.selection_ranks is not None and state.selection_crowding is not None
+        # The population's fronts and survival scores are the tournament keys VAMOS computes at the start.
+        assert state.selection_ranks.tolist() == g["rank"]
+        np.testing.assert_allclose(state.selection_crowding, _infinite(g["score"]), rtol=1e-12)
+        # VAMOS's binary tournament, with the figure's draws, picks the figure's parents.
+        games = g["tournaments"]
+        draws = [np.array([t["a"] for t in games]), np.array([t["b"] - (t["b"] > t["a"]) for t in games])]
+        coins = [int(t["winner"] == t["a"]) for t in games if t["reason"] == "coin"]
+        rng = _Draws(*draws, *([np.array(coins)] if coins else []))
+        parents = kernel.tournament_selection(
+            ranks=state.selection_ranks, crowding=state.selection_crowding, pressure=2, rng=rng, n_parents=6
+        )
+        assert parents.tolist() == [t["winner"] for t in games] and not rng._draws
+        # VAMOS's survival of the figure's children keeps the figure's survivors with the figure's scores.
+        state.pending_offspring = np.array([child["x"] for child in g["children"]])
+        out: dict[str, np.ndarray] = {}
+        problem.evaluate(state.pending_offspring, out)
+        agemoea.tell(out["F"])
+        F = np.array([member["f"] for member in g["merged"]])
+        np.testing.assert_allclose(out["F"], F[6:], rtol=1e-12)
+        np.testing.assert_allclose(state.F, F[g["keep"]], rtol=1e-12)
+        np.testing.assert_allclose(state.selection_crowding, _infinite([g["mergedScore"][i] for i in g["keep"]]), rtol=1e-12)
+        assert age_survival(F, 6, kernel)[0].tolist() == g["keep"]
+        assert [sorted(front) for front in g["fronts"]] == [sorted(int(i) for i in front) for front in _fast_non_dominated_sort(F)[0]]
+        # The geometry of the first front: ideal point, corners, intercepts, p and scores.
+        geometry = g["geometry"]
+        front = F[geometry["first"]]
+        ideal = front.min(axis=0)
+        scores, p, intercepts = _survival_score(front, ideal)
+        np.testing.assert_allclose(geometry["ideal"], ideal, rtol=0)
+        np.testing.assert_allclose(geometry["intercepts"], intercepts, rtol=1e-12)
+        assert geometry["p"] == pytest.approx(p, rel=1e-12)
+        np.testing.assert_allclose(_infinite([g["mergedScore"][i] for i in geometry["first"]]), scores, rtol=1e-12)
+        if len(front) >= 2:
+            corners = _find_corner_solutions(np.round(front - ideal, 12))
+            assert sorted(geometry["corners"]) == sorted(geometry["first"][int(i)] for i in corners)
+    assert [g["last"] for g in generations[:4]] == [0, 0, 1, 1]
+    assert [len(g["geometry"]["first"]) for g in generations[6:8]] == [1, 1]
+
+    # The numbers that the lesson quotes for its example.
+    example = generations[0]
+    ident = [member["id"] for member in example["merged"]]
+    geometry = example["geometry"]
+    games = {(ident[t["a"]], ident[t["b"]]): (ident[t["winner"]], t["reason"]) for t in example["tournaments"]}
+    assert games[(5, 4)] == (4, "score") and round(example["score"][4], 2) == 1.33
+    assert len(geometry["first"]) == 9 and [round(v, 2) for v in geometry["ideal"]] == [0.03, 0.09]
+    assert [ident[i] for i in geometry["corners"]] == [8, 4] and [round(v, 2) for v in geometry["intercepts"]] == [0.84, 1.64]
+    assert ident[geometry["central"]] == 7
+    assert [round(v, 2) for v in geometry["normalized"][geometry["first"].index(geometry["central"])]] == [0.39, 0.39]
+    assert round(geometry["p"], 2) == 0.74
+    order = [ident[i] for i in geometry["order"]]
+    assert order[2] == 10 and order[-1] == 1
+    assert round(example["mergedScore"][9], 2) == 2.92 and round(example["mergedProximity"][9], 2) == 0.86
+    assert min(example["mergedProximity"][i] for i in geometry["first"]) == example["mergedProximity"][9]
+    assert example["last"] == 0 and example["places"] == 6
+    assert sorted(ident[i] for i in example["keep"]) == sorted(order[:6]) == [4, 5, 7, 8, 10, 11]
+    assert {ident[i]: round(example["mergedScore"][i], 2) for i in (11, 1, 0)} == {12: 0.77, 2: 0.46, 1: 0.22}
