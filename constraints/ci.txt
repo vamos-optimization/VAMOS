@@ -9,7 +9,7 @@ pytest-xdist==3.8.0
 mypy==2.4.1
 # Not declared: mypy installs it, and tools/typecheck.py requires this version.
 typing-extensions==4.16.0
-ruff==0.17.5
+ruff==0.17.6
 build==1.6.1
 setuptools==84.2.1
 wheel==0.48.0
