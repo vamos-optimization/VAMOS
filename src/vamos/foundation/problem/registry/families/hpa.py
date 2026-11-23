@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ...hpa.problems import HPA_INDICES, HPA_TYPES, HPAProblem
+from ...hpa.problems import HPA_INDICES, HPAProblem, constrained_index, hpa_type
 from ..common import ProblemSpec
 
 SPECS: dict[str, ProblemSpec] = {}
@@ -19,20 +19,17 @@ _NAMES = {
     "payload": "payload",
 }
 
-# The constrained index ``MNL`` of each penalized index ``M0L``.
-_CONSTRAINED = {base: index for index, (base, constrained) in HPA_INDICES.items() if constrained}
-
 
 def _spec(index: str, level: int) -> ProblemSpec:
     base, constrained = HPA_INDICES[index]
-    kind = HPA_TYPES[base]
+    kind = hpa_type(base)
     problem = HPAProblem(index, level)
     names = [_NAMES[name] for name in kind.objectives]
     objectives = f"{', '.join(names[:-1])} and {names[-1]}"
     handling = (
         f"{problem.n_constraints} constraints"
         if constrained
-        else f"the constraints of HPA{_CONSTRAINED[base]} as penalties on the objectives"
+        else f"the constraints of HPA{constrained_index(base)} as penalties on the objectives"
     )
     return ProblemSpec(
         key=f"hpa{index}_{level}",

@@ -1,12 +1,22 @@
-"""Namura's HPA problems (EMO 2025): dimensions, bounds, penalties, the registry and the packaged fronts."""
+"""Namura's HPA problems (EMO 2025): the authors' values, dimensions, bounds, penalties, the registry and the fronts.
+
+``data/hpa_reference_values.json`` holds, for every registered HPA problem, the objective and constraint values of
+the authors' reference code (https://github.com/Nobuo-Namura/hpa, commit ``3524115``, with NumPy 2.4.6, SciPy 1.17.1
+and pandas 3.1.1) at two points of ``numpy.random.default_rng(1000 * int(index) + level).random((2, n_var))``.
+On the platform that produced them, VAMOS's values were bit-identical, there and at 20 other points per problem.
+"""
 
 from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
 
 from vamos.foundation.problem.hpa.design import GRAVITY, WingConfig
-from vamos.foundation.problem.hpa.problems import CONSTRAINTS, HPA_INDICES, HPA_TYPES, OBJECTIVES, HPAProblem, constrained_index
+from vamos.foundation.problem.hpa.problems import CONSTRAINTS, HPA_INDICES, HPA_TYPES, OBJECTIVES, HPAProblem, constrained_index, hpa_type
 from vamos.foundation.problem.registry import available_problem_names, make_problem_selection
 from vamos.foundation.problem.resolver import resolve_reference_front_path
 
@@ -32,11 +42,35 @@ TABLE_2 = {
 }
 # The constrained problems of Table 2.
 CONSTRAINED = {"241", "222", "233", "244", "245", "341", "322", "333", "344", "345", "441", "422", "443", "541", "542", "641", "941"}
+_REFERENCE: dict[str, Any] = json.loads((Path(__file__).parent / "data" / "hpa_reference_values.json").read_text(encoding="utf-8"))
+
+
+def test_every_problem_has_reference_values() -> None:
+    assert set(_REFERENCE["values"]) == {name for name in available_problem_names() if name.startswith("hpa")}
+
+
+@pytest.mark.parametrize("key", sorted(_REFERENCE["values"]))
+def test_problem_matches_the_authors_code(key: str) -> None:
+    entry = _REFERENCE["values"][key]
+    problem = make_problem_selection(key).instantiate()
+    index, level = key.removeprefix("hpa").split("_")
+    X = np.random.default_rng(1000 * int(index) + int(level)).random((2, problem.n_var))
+    out: dict[str, np.ndarray] = {}
+    problem.evaluate(X, out)
+    np.testing.assert_allclose(out["F"], np.asarray(entry["F"]), rtol=1e-9, atol=1e-12)
+    if "G" in entry:
+        np.testing.assert_allclose(out["G"], np.asarray(entry["G"]), rtol=1e-9, atol=1e-12)
+    else:
+        assert "G" not in out
 
 
 def test_the_problems_are_those_of_table_2() -> None:
     assert set(HPA_TYPES) == set(TABLE_2)
     assert {constrained_index(index) for index in HPA_TYPES} == CONSTRAINED
+    assert HPA_INDICES == {
+        **{index: (index, False) for index in HPA_TYPES},
+        **{constrained_index(index): (index, True) for index in HPA_TYPES},
+    }
     assert {name for name in available_problem_names() if name.startswith("hpa")} == {
         f"hpa{index}_{level}" for index in HPA_INDICES for level in (0, 1, 2)
     }
@@ -95,11 +129,11 @@ def test_penalized_objectives_add_the_penalties_of_eq_5(base: str) -> None:
         penalized.evaluate(X, out_p)
         constrained.evaluate(X, out_c)
         assert "G" not in out_p
-        weights = [CONSTRAINTS[name][1] for name in HPA_TYPES[base].constraints]
+        weights = [CONSTRAINTS[name][1] for name in hpa_type(base).constraints]
         penalty = np.zeros(len(X))
         for column, weight in enumerate(weights):
             penalty = penalty + weight * np.maximum(0.0, out_c["G"][:, column])
-        v = np.array([OBJECTIVES[name][1] for name in HPA_TYPES[base].objectives])
+        v = np.array([OBJECTIVES[name][1] for name in hpa_type(base).objectives])
         np.testing.assert_allclose(out_p["F"], out_c["F"] + v * penalty[:, None], rtol=1e-12, atol=1e-12)
 
 
@@ -152,5 +186,5 @@ def test_the_published_fronts_are_packaged_for_the_penalized_problems_only(index
             continue
         assert path is not None
         front = np.loadtxt(path, delimiter=",", ndmin=2)
-        assert front.shape[1] == len(HPA_TYPES[base].objectives)
+        assert front.shape[1] == len(hpa_type(base).objectives)
         assert np.all(np.isfinite(front))

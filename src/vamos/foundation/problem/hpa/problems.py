@@ -74,45 +74,82 @@ class HPAType:
         return WingConfig(n_div, self.max_plys, level, self.wire, self.dihedral, self.payload, self.root_dihedral)
 
 
-#: The penalized problems by index ``M0L``; the constrained one of each is ``MNL``.
-HPA_TYPES: dict[str, HPAType] = {
-    "201": HPAType(10, True, True, False, ("power", "velocity"), _ALL),
-    "202": HPAType(20, False, False, False, ("power", "deflection"), _NO_WIRE, root_dihedral=0.0),
-    "203": HPAType(20, True, True, True, ("drag", "payload"), _STRUCTURE),
-    "204": HPAType(20, True, True, False, ("velocity", "twist"), _ALL),
-    "205": HPAType(20, True, True, False, ("velocity", "wire_tension"), _ALL),
-    "301": HPAType(10, True, True, False, ("power", "velocity", "efficiency"), _ALL),
-    "302": HPAType(20, False, False, False, ("power", "deflection", "twist"), _NO_WIRE, root_dihedral=0.0),
-    "303": HPAType(20, True, True, True, ("drag", "root_aoa", "payload"), _STRUCTURE),
-    "304": HPAType(20, True, True, False, ("drag", "velocity", "twist"), _ALL),
-    "305": HPAType(20, True, True, False, ("power", "velocity", "wire_tension"), _ALL),
-    "401": HPAType(20, True, True, False, ("drag", "velocity", "twist", "empty_weight"), _ALL),
-    "402": HPAType(20, False, False, False, ("power", "deflection", "twist", "span"), _NO_WIRE, root_dihedral=0.0),
-    "403": HPAType(20, True, True, False, ("velocity", "efficiency", "empty_weight", "wire_tension"), _ALL),
-    "501": HPAType(20, True, True, False, ("drag", "velocity", "twist", "efficiency", "empty_weight"), _ALL),
-    "502": HPAType(20, True, True, True, ("power", "velocity", "root_aoa", "wire_tension", "payload"), _ALL),
-    "601": HPAType(20, True, True, False, ("power", "velocity", "twist", "efficiency", "empty_weight", "span"), _ALL),
-    "901": HPAType(
+#: The penalized problems by index ``M0L``: the fields of :class:`HPAType`. The constrained one of each is ``MNL``.
+HPA_TYPES: dict[str, tuple[int, bool, bool, bool, tuple[str, ...], tuple[str, ...], float]] = {
+    "201": (10, True, True, False, ("power", "velocity"), _ALL, MAX_DIHEDRAL_ANGLE_AT_ROOT),
+    "202": (20, False, False, False, ("power", "deflection"), _NO_WIRE, 0.0),
+    "203": (20, True, True, True, ("drag", "payload"), _STRUCTURE, MAX_DIHEDRAL_ANGLE_AT_ROOT),
+    "204": (20, True, True, False, ("velocity", "twist"), _ALL, MAX_DIHEDRAL_ANGLE_AT_ROOT),
+    "205": (20, True, True, False, ("velocity", "wire_tension"), _ALL, MAX_DIHEDRAL_ANGLE_AT_ROOT),
+    "301": (10, True, True, False, ("power", "velocity", "efficiency"), _ALL, MAX_DIHEDRAL_ANGLE_AT_ROOT),
+    "302": (20, False, False, False, ("power", "deflection", "twist"), _NO_WIRE, 0.0),
+    "303": (20, True, True, True, ("drag", "root_aoa", "payload"), _STRUCTURE, MAX_DIHEDRAL_ANGLE_AT_ROOT),
+    "304": (20, True, True, False, ("drag", "velocity", "twist"), _ALL, MAX_DIHEDRAL_ANGLE_AT_ROOT),
+    "305": (20, True, True, False, ("power", "velocity", "wire_tension"), _ALL, MAX_DIHEDRAL_ANGLE_AT_ROOT),
+    "401": (20, True, True, False, ("drag", "velocity", "twist", "empty_weight"), _ALL, MAX_DIHEDRAL_ANGLE_AT_ROOT),
+    "402": (20, False, False, False, ("power", "deflection", "twist", "span"), _NO_WIRE, 0.0),
+    "403": (20, True, True, False, ("velocity", "efficiency", "empty_weight", "wire_tension"), _ALL, MAX_DIHEDRAL_ANGLE_AT_ROOT),
+    "501": (20, True, True, False, ("drag", "velocity", "twist", "efficiency", "empty_weight"), _ALL, MAX_DIHEDRAL_ANGLE_AT_ROOT),
+    "502": (20, True, True, True, ("power", "velocity", "root_aoa", "wire_tension", "payload"), _ALL, MAX_DIHEDRAL_ANGLE_AT_ROOT),
+    "601": (20, True, True, False, ("power", "velocity", "twist", "efficiency", "empty_weight", "span"), _ALL, MAX_DIHEDRAL_ANGLE_AT_ROOT),
+    "901": (
         20,
         True,
         True,
         True,
         ("power", "velocity", "twist", "efficiency", "empty_weight", "span", "root_aoa", "wire_tension", "payload"),
         _ALL,
+        MAX_DIHEDRAL_ANGLE_AT_ROOT,
     ),
 }
+
+#: Every problem by index, with its penalized index and whether it is the constrained version.
+HPA_INDICES: dict[str, tuple[str, bool]] = {
+    "201": ("201", False),
+    "202": ("202", False),
+    "203": ("203", False),
+    "204": ("204", False),
+    "205": ("205", False),
+    "301": ("301", False),
+    "302": ("302", False),
+    "303": ("303", False),
+    "304": ("304", False),
+    "305": ("305", False),
+    "401": ("401", False),
+    "402": ("402", False),
+    "403": ("403", False),
+    "501": ("501", False),
+    "502": ("502", False),
+    "601": ("601", False),
+    "901": ("901", False),
+    "241": ("201", True),
+    "222": ("202", True),
+    "233": ("203", True),
+    "244": ("204", True),
+    "245": ("205", True),
+    "341": ("301", True),
+    "322": ("302", True),
+    "333": ("303", True),
+    "344": ("304", True),
+    "345": ("305", True),
+    "441": ("401", True),
+    "422": ("402", True),
+    "443": ("403", True),
+    "541": ("501", True),
+    "542": ("502", True),
+    "641": ("601", True),
+    "941": ("901", True),
+}
+
+
+def hpa_type(index: str) -> HPAType:
+    """The problem type of the penalized index ``M0L``."""
+    return HPAType(*HPA_TYPES[index])
 
 
 def constrained_index(index: str) -> str:
     """The index ``MNL`` of the constrained version of the penalized problem ``M0L``."""
-    return f"{index[0]}{len(HPA_TYPES[index].constraints)}{index[2]}"
-
-
-#: Every problem by index: the penalized ones (``M0L``) and the constrained ones (``MNL``), with whether it is the latter.
-HPA_INDICES: dict[str, tuple[str, bool]] = {
-    **{index: (index, False) for index in HPA_TYPES},
-    **{constrained_index(index): (index, True) for index in HPA_TYPES},
-}
+    return f"{index[0]}{len(hpa_type(index).constraints)}{index[2]}"
 
 
 def analyze(config: WingConfig, x: Array) -> Wing:
@@ -149,7 +186,7 @@ class HPAProblem(Problem):
         self.index = key
         self.level = level
         self.constrained = constrained
-        self.type = HPA_TYPES[base]
+        self.type = hpa_type(base)
         self.config = self.type.config(level, n_div)
         self.n_var = self.config.n_var
         self.n_obj = len(self.type.objectives)
@@ -180,4 +217,4 @@ class HPAProblem(Problem):
             out["G"] = np.array([g for _, g in rows], dtype=float).reshape(X.shape[0], self.n_constraints)
 
 
-__all__ = ["CONSTRAINTS", "HPAProblem", "HPAType", "HPA_INDICES", "HPA_TYPES", "OBJECTIVES", "analyze", "constrained_index"]
+__all__ = ["CONSTRAINTS", "HPAProblem", "HPAType", "HPA_INDICES", "HPA_TYPES", "OBJECTIVES", "analyze", "constrained_index", "hpa_type"]
