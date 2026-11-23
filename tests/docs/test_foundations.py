@@ -520,6 +520,114 @@ def test_ccmo_generation_figure_agrees_with_vamos() -> None:
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_ctaea_generation_figure_agrees_with_vamos() -> None:
+    from vamos.engine.algorithm.ctaea.archives import (
+        associate,
+        convergence_archive_update,
+        diversity_archive_update,
+        front_ranks,
+        tchebycheff_in_own_subregion,
+        worst_of_the_most_crowded_subregion,
+    )
+    from vamos.engine.algorithm.ctaea.mating import mating_proportions, tournament_winners
+    from vamos.engine.algorithm.ctaea.weights import ctaea_weight_vectors
+
+    seeds = [196524, 1, 2, 3, 23, 57983]  # 196524 is the lesson's example; 2 and 23 have fewer and exactly N feasible candidates
+    runs = _run_node(
+        f"process.stdout.write(JSON.stringify({json.dumps(seeds)}.map((seed) => globalThis.VamosFoundations.ctaeaGeneration(seed, 6, 2))));"
+    )
+    W = ctaea_weight_vectors(6, 2)
+    cases = set()
+    for run in runs:
+        assert np.array_equal(np.array(run["W"]), W)
+        solutions = {s["id"]: s for s in run["solutions"]}
+
+        def F(ids: list[int], solutions: dict[int, Any] = solutions) -> np.ndarray:
+            return np.array([solutions[i]["f"] for i in ids]).reshape(-1, 2)
+
+        def cv(ids: list[int], solutions: dict[int, Any] = solutions) -> np.ndarray:
+            return np.array([solutions[i]["cv"] for i in ids])
+
+        assert all(s["region"] == int(associate(F([s["id"]]), W)[0]) for s in run["solutions"])
+        # Both archives after each update, in VAMOS' order: the initial population, then each generation's children.
+        CA: list[int] = []
+        DA: list[int] = []
+        for history in run["history"]:
+            candidates = CA + history["offspring"]
+            CA = [candidates[i] for i in convergence_archive_update(F(candidates), cv(candidates), W)]
+            candidates = DA + history["offspring"]
+            DA = [candidates[i] for i in diversity_archive_update(F(CA), F(candidates), W)]
+            assert (CA, DA) == (history["CA"], history["DA"])
+        for rec in run["records"]:
+            # Restricted mating selection: the shares, then the tournaments replayed with their draws.
+            shares = mating_proportions(F(rec["CA"]), F(rec["DA"]))
+            assert [rec["shares"][key] for key in ("rhoC", "rhoD", "PC")] == [
+                shares.convergence_share,
+                shares.diversity_share,
+                shares.non_dominated_share_of_convergence_archive,
+            ]
+            assert (rec["firstFrom"] == "CA") == shares.first_parent_from_convergence_archive
+            archives = {"first": rec[rec["firstFrom"]], "caGames": rec["CA"], "daGames": rec["DA"]}
+            for name, archive in archives.items():
+                winners = tournament_winners(F(archive), cv(archive) == 0.0, np.array([t["draws"] for t in rec[name]]))
+                assert [archive[i] for i in winners] == [t["winner"] for t in rec[name]]
+            assert rec["fromCA"] == [u < shares.non_dominated_share_of_convergence_archive for u in rec["uniforms"]]
+            second = [(rec["caGames"] if c else rec["daGames"])[i]["winner"] for i, c in enumerate(rec["fromCA"])]
+            assert [solutions[c]["parents"] for c in rec["children"]] == [[s, t["winner"]] for s, t in zip(second, rec["first"])]
+            # The CA update: its case, each removal from the most crowded subregion, or the ranking of the infeasible candidates.
+            ca = rec["caUpdate"]
+            n_feasible = len(ca["feasible"])
+            cases.add("more" if n_feasible > 6 else "fewer" if n_feasible < 6 else "exact")
+            for removal in ca["removals"]:
+                rows = removal["rows"]
+                assert rows[worst_of_the_most_crowded_subregion(F(rows), W)] == removal["removed"]
+                low, high = F(rows).min(axis=0), F(rows).max(axis=0)
+                regions = associate((F(rows) - low) / (high - low), W)
+                assert removal["region"] == regions.tolist() and removal["counts"] == np.bincount(regions, minlength=6).tolist()
+                assert removal["crowded"] == int(np.argmax(removal["counts"]))
+                np.testing.assert_allclose(removal["tch"], tchebycheff_in_own_subregion(F(removal["closest"]), W), rtol=1e-12)
+            if ca["infeasible"]:
+                rows = ca["infeasible"]["rows"]
+                tch = tchebycheff_in_own_subregion(F(rows), W)
+                np.testing.assert_allclose(ca["infeasible"]["tch"], tch, rtol=1e-12)
+                ranks = front_ranks(np.column_stack([cv(rows), tch]))
+                assert ca["infeasible"]["fronts"] == [[r for r, k in zip(rows, ranks) if k == level] for level in range(ranks.max() + 1)]
+            # The DA update counts the new CA's members in each subregion and picks, subregion by subregion, the best candidate.
+            da = rec["daUpdate"]
+            assert da["caCounts"] == np.bincount(associate(F(ca["kept"]), W), minlength=6).tolist()
+            assert [t["chosen"] for t in da["trace"]] == da["kept"]
+            for t in da["trace"]:
+                np.testing.assert_allclose(t["tch"], tchebycheff_in_own_subregion(F(t["nd"]), W), rtol=1e-12)
+    assert cases == {"more", "fewer", "exact"}
+
+    # The numbers that the lesson quotes for its example.
+    example = runs[0]["records"][1]
+    assert (sorted(example["CA"]), sorted(example["DA"])) == ([4, 5, 7, 8, 9, 12], [1, 2, 3, 6, 10, 12])
+    assert (example["shares"]["inFirst"], example["shares"]["inSecond"], example["shares"]["inCA"]) == (0, 3, 5)
+    assert example["firstFrom"] == "DA"
+    assert [t["reason"] for t in example["first"]].count("third") == 4
+    games = {(t["a"], t["b"]): (t["winner"], t["reason"]) for t in example["second"]}
+    assert games[(7, 4)] == (4, "dominates")
+    ca = example["caUpdate"]
+    assert len(ca["feasible"]) == 8 and ca["fronts"] == [[4, 5, 8, 9, 12], [15, 18], [7]]
+    (removal,) = ca["removals"]
+    assert removal["crowded"] == 0 and sorted(removal["closest"]) == [5, 15] and removal["removed"] == 15
+    assert dict(zip(removal["closest"], np.round(removal["tch"], 3))) == {5: 0.105, 15: 0.315}
+    da = example["daUpdate"]
+    assert da["caCounts"] == [0, 2, 0, 3, 1, 0]
+    assert [(t["iteration"], t["region"], t["chosen"]) for t in da["trace"]] == [
+        (1, 2, 16),
+        (2, 2, 3),
+        (2, 2, 6),
+        (2, 4, 2),
+        (3, 1, 17),
+        (3, 4, 13),
+    ]
+    assert sorted(ca["kept"]) == [4, 5, 8, 9, 12, 18]
+    assert all(runs[0]["solutions"][i - 1]["cv"] > 0 for i in da["kept"])
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
 def test_benchmark_figures_agree_with_vamos() -> None:
     """The Benchmarks figures: their fronts match VAMOS' packaged fronts, and their maps VAMOS' problems."""
     from scipy.spatial import cKDTree
