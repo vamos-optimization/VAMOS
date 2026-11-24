@@ -14,6 +14,7 @@ ALGORITHM_VARIANT_GROUPS: dict[str, set[str]] = {
     "ctaea": {"ctaea"},
     "top": {"top"},
     "cmoeams": {"cmoeams"},
+    "pps": {"pps"},
 }
 
 
@@ -71,6 +72,7 @@ VARIANT_TO_CANONICAL: dict[str, str] = {
     "ctaea": "ctaea",
     "top": "top",
     "cmoeams": "cmoeams",
+    "pps": "pps",
 }
 
 

@@ -413,7 +413,10 @@ front, and then runs NSGA-II with the constrained-domination principle.
 [CMOEA-MS](../algorithms/cmoeams.md) is a fourth: its fitness ranks the
 density of the solutions together with their violation while half of them or
 fewer are feasible, and puts the violation first once more than half of them
-are, after the first 10% of the budget.
+are, after the first 10% of the budget. [PPS](../algorithms/pps.md) is a fifth:
+its push stage ignores the constraints until the ideal and nadir points of the
+population stop changing, and its pull stage then restores them with an epsilon
+level that shrinks to zero.
 
 ### MOEA/D: subproblem update criteria
 

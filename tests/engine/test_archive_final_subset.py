@@ -32,6 +32,7 @@ from vamos.engine.algorithm.config import (
     MOEADConfig,
     NSGAIIConfig,
     NSGAIIIConfig,
+    PPSConfig,
     RVEAConfig,
     SMPSOConfig,
     SMSEMOAConfig,
@@ -187,6 +188,7 @@ ALGORITHMS: tuple[tuple[str, Callable[[], Any]], ...] = (
     ("ctaea", lambda: CTAEAConfig.default(pop_size=8, n_var=6)),
     ("top", lambda: ToPConfig.default(pop_size=8, n_var=6)),
     ("cmoeams", lambda: CMOEAMSConfig.default(pop_size=8, n_var=6)),
+    ("pps", lambda: PPSConfig.default(pop_size=8, n_var=6)),
 )
 
 

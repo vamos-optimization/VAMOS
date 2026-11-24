@@ -231,6 +231,10 @@ def build_cmoeams_config_space() -> AlgorithmConfigSpace:
     return _view("cmoeams")
 
 
+def build_pps_config_space() -> AlgorithmConfigSpace:
+    return _view("pps")
+
+
 __all__ = [
     # NSGA-II
     "build_nsgaii_config_space",
@@ -298,4 +302,6 @@ __all__ = [
     "build_top_config_space",
     # CMOEA-MS
     "build_cmoeams_config_space",
+    # PPS
+    "build_pps_config_space",
 ]

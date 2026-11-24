@@ -35,6 +35,7 @@ from vamos.engine.tuning import (
     build_nsgaiii_constrained_config_space,
     build_nsgaiii_integer_config_space,
     build_nsgaiii_permutation_config_space,
+    build_pps_config_space,
     build_rvea_binary_config_space,
     build_rvea_config_space,
     build_rvea_constrained_config_space,
@@ -102,6 +103,7 @@ BUILDERS: dict[str, Callable[[], AlgorithmConfigSpace | ParamSpace]] = {
     "ctaea": build_ctaea_config_space,
     "top": build_top_config_space,
     "cmoeams": build_cmoeams_config_space,
+    "pps": build_pps_config_space,
 }
 
 __all__ = ["BUILDERS"]

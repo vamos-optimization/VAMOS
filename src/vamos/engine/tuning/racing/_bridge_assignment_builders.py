@@ -20,7 +20,7 @@ from vamos.engine.algorithm.config import (
 from vamos.engine.algorithm.variants import ALGORITHM_VARIANT_GROUPS
 from vamos.engine.reference_directions import largest_lattice_divisions, lattice_size
 
-from ._bridge_assignment_constrained import build_ccmo_config, build_cmoeams_config, build_ctaea_config, build_top_config
+from ._bridge_assignment_constrained import build_ccmo_config, build_cmoeams_config, build_ctaea_config, build_pps_config, build_top_config
 from ._bridge_assignment_shared import (
     apply_initializer,
     apply_mutation_prob_factor,
@@ -47,6 +47,7 @@ CCMO_NAMES = ALGORITHM_VARIANT_GROUPS["ccmo"]
 CTAEA_NAMES = ALGORITHM_VARIANT_GROUPS["ctaea"]
 TOP_NAMES = ALGORITHM_VARIANT_GROUPS["top"]
 CMOEAMS_NAMES = ALGORITHM_VARIANT_GROUPS["cmoeams"]
+PPS_NAMES = ALGORITHM_VARIANT_GROUPS["pps"]
 
 
 def build_nsgaii_config(assignment: dict[str, Any], *, mixed: bool = False) -> NSGAIIConfig:
@@ -427,6 +428,7 @@ def config_builders() -> dict[str, tuple[set[str], Any]]:
         "ctaea": (CTAEA_NAMES, build_ctaea_config),
         "top": (TOP_NAMES, build_top_config),
         "cmoeams": (CMOEAMS_NAMES, build_cmoeams_config),
+        "pps": (PPS_NAMES, build_pps_config),
     }
 
 

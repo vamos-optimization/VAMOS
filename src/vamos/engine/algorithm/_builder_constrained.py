@@ -11,7 +11,7 @@ from vamos.engine.algorithm._builder_common import (
     resolve_problem_encoding,
     resolve_variation_config,
 )
-from vamos.engine.algorithm.config import AlgorithmConfigProtocol, CCMOConfig, CMOEAMSConfig, CTAEAConfig, ToPConfig
+from vamos.engine.algorithm.config import AlgorithmConfigProtocol, CCMOConfig, CMOEAMSConfig, CTAEAConfig, PPSConfig, ToPConfig
 from vamos.engine.config.variation import ensure_operator_tuple
 from vamos.foundation.kernel.backend import KernelBackend
 from vamos.foundation.problem.types import ProblemProtocol
@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from vamos.engine.algorithm.ccmo import CCMO
     from vamos.engine.algorithm.cmoeams import CMOEAMS
     from vamos.engine.algorithm.ctaea import CTAEA
+    from vamos.engine.algorithm.pps import PPS
     from vamos.engine.algorithm.top import ToP
 
 
@@ -92,10 +93,10 @@ def build_ctaea_algorithm(
     )
 
 
-def _lowercase_de_parameters(overrides: dict[str, Any]) -> dict[str, Any]:
+def _lowercase_de_parameters(overrides: dict[str, Any], label: str = "ToP") -> dict[str, Any]:
     """``overrides`` with the crossover's parameters ``CR`` and ``F`` named ``cr`` and ``f``.
 
-    An override of ToP's default crossover, ``("de", {"cr": 1.0, "f": 0.5})``, keeps the default
+    An override of the default crossover of ToP or PPS (``label``), ``("de", {"cr": 1.0, "f": 0.5})``, keeps the default
     parameters it does not set, so ``CR`` and ``F`` must replace ``cr`` and ``f`` rather than sit
     beside them. Giving a parameter in both cases is ambiguous and rejected.
     """
@@ -107,7 +108,7 @@ def _lowercase_de_parameters(overrides: dict[str, Any]) -> dict[str, Any]:
     for key, value in params.items():
         lower = key.lower() if key in ("CR", "F") else key
         if lower in renamed:
-            raise ValueError(f"ToP's crossover takes {lower} or {lower.upper()}, not both.")
+            raise ValueError(f"{label}'s crossover takes {lower} or {lower.upper()}, not both.")
         renamed[lower] = value
     return {**overrides, "crossover": (name, renamed)}
 
@@ -185,4 +186,42 @@ def build_cmoeams_algorithm(
     )
 
 
-__all__ = ["build_ccmo_algorithm", "build_cmoeams_algorithm", "build_ctaea_algorithm", "build_top_algorithm"]
+def build_pps_algorithm(
+    *,
+    kernel: KernelBackend,
+    problem: ProblemProtocol,
+    pop_size: int,
+    pps_variation: dict[str, Any] | None,
+) -> tuple[PPS, AlgorithmConfigProtocol]:
+    """PPS with the paper's variation, DE with CR = 1.0 and F = 0.5 and polynomial mutation (1/n, 20), unless overridden.
+
+    PPS's differential evolution needs real variables; another encoding is rejected.
+    """
+    encoding = resolve_problem_encoding(problem)
+    if encoding != "real":
+        raise ValueError(f"PPS's differential evolution needs real variables; the problem's encoding is {encoding!r}.")
+    pps_overrides = _lowercase_de_parameters(pps_variation or {}, "PPS")
+    defaults = {
+        "crossover": ("de", {"cr": 1.0, "f": 0.5}),
+        "mutation": ("polynomial", {"prob": 1.0 / problem.n_var, "eta": 20.0}),
+    }
+    var_cfg = resolve_variation_config(encoding="real", overrides=pps_overrides, defaults=defaults)
+
+    builder = PPSConfig.builder()
+    builder.pop_size(pop_size)
+    apply_operator_config(builder, method_name="crossover", operator_cfg=var_cfg["crossover"], key="crossover")
+    apply_operator_config(builder, method_name="mutation", operator_cfg=var_cfg["mutation"], key="mutation")
+    apply_optional_operator_config(
+        builder,
+        method_name="repair",
+        operator_cfg=var_cfg.get("repair"),
+        key="repair",
+        encoding=encoding,
+    )
+    return cast(
+        "tuple[PPS, AlgorithmConfigProtocol]",
+        finalize_algorithm(algorithm_name="pps", builder=builder, kernel=kernel, block=pps_overrides, n_obj=problem.n_obj),
+    )
+
+
+__all__ = ["build_ccmo_algorithm", "build_cmoeams_algorithm", "build_ctaea_algorithm", "build_pps_algorithm", "build_top_algorithm"]

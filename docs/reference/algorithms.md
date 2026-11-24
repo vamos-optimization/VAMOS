@@ -23,8 +23,9 @@ Choose a built-in algorithm through its public identifier in `optimize()`. Start
 | C-TAEA | `ctaea` | [Two archives for constrained problems](../algorithms/ctaea.md) | [CTAEAConfig](api/algorithms/ctaea.md) |
 | ToP | `top` | [Two phases for constrained problems](../algorithms/top.md) | [ToPConfig](api/algorithms/top.md) |
 | CMOEA-MS | `cmoeams` | [Two stages for constrained problems](../algorithms/cmoeams.md) | [CMOEAMSConfig](api/algorithms/cmoeams.md) |
+| PPS | `pps` | [Push and pull search for constrained problems](../algorithms/pps.md) | [PPSConfig](api/algorithms/pps.md) |
 
-To query the installed registry, use `available_algorithms()` from `vamos.algorithms`; see [discovery](api/discovery.md). **All nine built-in identifiers of VAMOS 1.1.0 and their public configuration classes are Stable** under the [1.x stability policy](../project/stability-and-versioning.md). **VAMOS 1.2.0:** `ccmo`, `ctaea`, `top`, `cmoeams`, `CCMOConfig`, `CTAEAConfig`, `ToPConfig` and `CMOEAMSConfig` are new and not yet covered by the 1.0 compatibility baseline. Stable API status is a compatibility commitment, not evidence that every combination of algorithm, operator and problem has been validated.
+To query the installed registry, use `available_algorithms()` from `vamos.algorithms`; see [discovery](api/discovery.md). **All nine built-in identifiers of VAMOS 1.1.0 and their public configuration classes are Stable** under the [1.x stability policy](../project/stability-and-versioning.md). **VAMOS 1.2.0:** `ccmo`, `ctaea`, `top`, `cmoeams`, `CCMOConfig`, `CTAEAConfig`, `ToPConfig` and `CMOEAMSConfig` are new and not yet covered by the 1.0 compatibility baseline. **Development after 1.5.2:** `pps` and `PPSConfig` are new and not covered by it either. Stable API status is a compatibility commitment, not evidence that every combination of algorithm, operator and problem has been validated.
 
 ## Capability matrix
 
@@ -45,6 +46,7 @@ This table describes the **VAMOS 1.5.2 package**. Changes since 1.0.0 are listed
 | C-TAEA | R / B / I / P / M (two-parent crossovers) | Convergence archive driven by feasibility; diversity archive ignores constraints | Optional external result archive | NumPy / Numba / MooCore | New in 1.2.0 |
 | ToP | R (differential evolution) | Feasibility rule on the mean objective in phase 1; constrained-domination NSGA-II in phase 2 | Optional external result archive | NumPy / Numba / MooCore | New in 1.2.0 |
 | CMOEA-MS | R / B / I / P / M (two-parent crossovers; DE variation: R) | SPEA2 fitness on [density, normalized violation] in stage A; violation first in stage B | Optional external result archive | NumPy / Numba / MooCore | New in 1.2.0 |
+| PPS | R (differential evolution) | None in the push stage; epsilon-level replacement shrinking to the feasibility rule in the pull stage | Output set of feasible solutions; optional external result archive | NumPy / Numba / MooCore | Development after 1.5.2 |
 
 **Evidence and scope.** The encoding families are exercised by repository operator-combination tests and encoding integration tests. Historical real-coded, unconstrained ZDT1 smoke runs were checked for all nine algorithms on each of the three backends against the installed 1.0.0 package. That is not a validation of the full encoding × constraints × archive × backend Cartesian product, nor a convergence or speed benchmark. Custom operators and untested combinations require a representative check before a large study. SMPSO rejects standalone binary, integer and permutation encodings; its mixed path requires mixed-variable mutation.
 
@@ -283,6 +285,7 @@ the range of each variable.
 | Constrained problems where infeasible regions guide the search to the feasible front | [C-TAEA](../algorithms/ctaea.md) | Population set by its weight vectors (91 for 100 and three objectives); budget of at least that size |
 | Constrained problems whose feasible regions are small or far from the unconstrained front | [ToP](../algorithms/top.md) | Real variables; budget of at least `pop_size`; phase 1 can take up to 90% of the budget |
 | Constrained problems where the objectives and the constraints must be balanced | [CMOEA-MS](../algorithms/cmoeams.md) | Budget of at least `pop_size`; GA or DE variation; `feasible_ratio_threshold` (lambda) switches the stage |
+| Constrained problems whose infeasible regions block the way to the front | [PPS](../algorithms/pps.md) | Real variables; weight vectors for `pop_size`; enough generations to switch before `Tc` |
 
 These are starting points for a study, not objective-count cut-offs or performance rankings. Compare algorithms using explicit budgets, repeated seeds and the same problem formulation.
 
@@ -346,7 +349,7 @@ configuration, they resolve the same configuration except for these
 differences, which `tests/experiment/test_cli_api_parity.py` keeps listed:
 
 - Result mode: the command line returns `non_dominated` for AGE-MOEA, CCMO,
-  CMOEA-MS, C-TAEA, IBEA, MOEA/D, RVEA, SMS-EMOA, SPEA2 and ToP, where
+  CMOEA-MS, C-TAEA, IBEA, MOEA/D, PPS, RVEA, SMS-EMOA, SPEA2 and ToP, where
   `optimize` returns `population`. NSGA-II, NSGA-III and SMPSO agree.
 - NSGA-III: the command line derives the reference directions from the
   population when the run starts; `optimize` records the lattice's divisions.
@@ -398,6 +401,7 @@ limit by one generation. `("max_time", {"seconds": s, "max_evaluations": n})`
 also stops it after `n` evaluations, whichever comes first; without
 `max_evaluations` there is no evaluation budget. Schedules that measure progress
 against the budget, such as ToP's phases, CMOEA-MS's stages and the
+PPS's control generation and the
 constraint-handling techniques that relax over the run, then barely advance, so
 give them `max_evaluations`. A live callback still receives every generation, and
 its `should_stop` still stops the run first. `result.meta["time_limit_reached"]`

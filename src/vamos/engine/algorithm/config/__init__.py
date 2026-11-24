@@ -22,6 +22,7 @@ from .ibea import IBEAConfig
 from .moead import MOEADConfig
 from .nsgaii import NSGAIIConfig
 from .nsgaiii import NSGAIIIConfig
+from .pps import PPSConfig
 from .rvea import RVEAConfig
 from .smpso import SMPSOConfig
 from .smsemoa import SMSEMOAConfig
@@ -61,6 +62,8 @@ __all__ = [
     "ToPConfig",
     # CMOEA-MS
     "CMOEAMSConfig",
+    # PPS
+    "PPSConfig",
     # Plugin/custom
     "GenericAlgorithmConfig",
     # Typing helpers

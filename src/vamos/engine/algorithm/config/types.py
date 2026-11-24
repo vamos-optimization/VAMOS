@@ -158,6 +158,7 @@ AlgorithmName: TypeAlias = Literal[
     "ctaea",
     "top",
     "cmoeams",
+    "pps",
 ]
 
 EngineName: TypeAlias = Literal["numpy", "numba", "moocore"]

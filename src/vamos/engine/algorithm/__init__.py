@@ -19,6 +19,7 @@ Algorithms
 - CTAEA: Two-archive evolutionary algorithm for constrained multi-objective optimization
 - ToP: Two-phase framework for constrained multi-objective optimization
 - CMOEAMS: Constrained multi-objective evolutionary algorithm with multiple stages (CMOEA-MS)
+- PPS: Push and pull search in MOEA/D (PPS-MOEA/D)
 
 Usage
 -----
@@ -54,6 +55,7 @@ if TYPE_CHECKING:
     from vamos.engine.algorithm.moead import MOEAD
     from vamos.engine.algorithm.nsgaii import NSGAII
     from vamos.engine.algorithm.nsgaiii import NSGAIII
+    from vamos.engine.algorithm.pps import PPS
     from vamos.engine.algorithm.rvea import RVEA
     from vamos.engine.algorithm.smpso import SMPSO
     from vamos.engine.algorithm.smsemoa import SMSEMOA
@@ -74,6 +76,7 @@ _ALGORITHM_EXPORTS = {
     "CTAEA": ("vamos.engine.algorithm.ctaea", "CTAEA"),
     "ToP": ("vamos.engine.algorithm.top", "ToP"),
     "CMOEAMS": ("vamos.engine.algorithm.cmoeams", "CMOEAMS"),
+    "PPS": ("vamos.engine.algorithm.pps", "PPS"),
 }
 
 __all__ = [
@@ -91,6 +94,7 @@ __all__ = [
     "CTAEA",
     "ToP",
     "CMOEAMS",
+    "PPS",
     # Protocols and enums
     "AlgorithmProtocol",
     "InteractiveAlgorithmProtocol",
