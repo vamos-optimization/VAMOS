@@ -23,3 +23,4 @@ class SpecDefaults:
     ctaea_defaults: SpecBlock
     top_defaults: SpecBlock
     cmoeams_defaults: SpecBlock
+    pps_defaults: SpecBlock

@@ -823,6 +823,23 @@ real-coded spaces. An assignment without `crossover_prob`, `de_cr`, `de_f`,
 CR = 1, F = 0.5, the binomial crossover and 0.5. `vamos tune --algorithm
 cmoeams` tunes it.
 
+**Development after 1.5.2:** `pps` is the real-coded space of
+[PPS](../algorithms/pps.md), which also handles constraints itself: MOEA/D's
+`neighborhood_size` (5 to 50), `neighborhood_selection_probability` (0 to 1)
+and `maximum_number_of_replaced_solutions` (1 to 5); the crossover rate `de_cr`
+(0 to 1) and scale factor `de_f` (0.1 to 1) of its differential evolution,
+which has no crossover choice; the switch between its stages,
+`switch_threshold` (1e-4 to 0.05, log-uniform) and `switch_window` (5 to 100
+generations); and its epsilon level, `feasibility_ratio_threshold` (0.1 to 2, a
+bound on the ratio of feasible to infeasible solutions), `tao` (0.01 to 0.5),
+`cp` (1 to 10) and `decay_fraction` (0.5 to 1). Mutation, initializer and
+repair are those of the other real-coded spaces. Every default is the paper's,
+and so is the value of a parameter missing from an assignment: 30, 0.9 and 2,
+CR = 1 and F = 0.5, 1e-3 and 20, and 0.95, 0.1, 2 and 0.8. As for MOEA/D, an
+assignment with `n_obj` runs the largest population up to its `pop_size` that
+has weight vectors: 190 for 200 and three objectives. `vamos tune --algorithm
+pps` tunes it.
+
 ### Parameters that reach the algorithm
 
 **VAMOS 1.3.0:** every parameter of a built-in space changes the

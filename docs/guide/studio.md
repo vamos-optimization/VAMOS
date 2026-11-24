@@ -301,7 +301,7 @@ follows the population, as SPEA2's and SMPSO's archive size, the control starts
 at the run's value and says so, and a new population size moves every control
 you have not changed to its new default.
 
-NSGA-III, RVEA, and MOEA/D with three or more objectives take their population
+NSGA-III, RVEA, and MOEA/D and PPS with three or more objectives take their population
 size from their reference directions or weight vectors, so Studio shows that
 size instead of accepting another one. For binary, integer, permutation, and
 mixed problems, some algorithms have no default operators for the encoding;

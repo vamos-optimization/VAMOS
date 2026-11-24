@@ -23,8 +23,9 @@ Choose a built-in algorithm through its public identifier in `optimize()`. Start
 | C-TAEA | `ctaea` | [Two archives for constrained problems](../algorithms/ctaea.md) | [CTAEAConfig](api/algorithms/ctaea.md) |
 | ToP | `top` | [Two phases for constrained problems](../algorithms/top.md) | [ToPConfig](api/algorithms/top.md) |
 | CMOEA-MS | `cmoeams` | [Two stages for constrained problems](../algorithms/cmoeams.md) | [CMOEAMSConfig](api/algorithms/cmoeams.md) |
+| PPS | `pps` | [Push and pull search for constrained problems](../algorithms/pps.md) | [PPSConfig](api/algorithms/pps.md) |
 
-To query the installed registry, use `available_algorithms()` from `vamos.algorithms`; see [discovery](api/discovery.md). **All nine built-in identifiers of VAMOS 1.1.0 and their public configuration classes are Stable** under the [1.x stability policy](../project/stability-and-versioning.md). **VAMOS 1.2.0:** `ccmo`, `ctaea`, `top`, `cmoeams`, `CCMOConfig`, `CTAEAConfig`, `ToPConfig` and `CMOEAMSConfig` are new and not yet covered by the 1.0 compatibility baseline. Stable API status is a compatibility commitment, not evidence that every combination of algorithm, operator and problem has been validated.
+To query the installed registry, use `available_algorithms()` from `vamos.algorithms`; see [discovery](api/discovery.md). **All nine built-in identifiers of VAMOS 1.1.0 and their public configuration classes are Stable** under the [1.x stability policy](../project/stability-and-versioning.md). **VAMOS 1.2.0:** `ccmo`, `ctaea`, `top`, `cmoeams`, `CCMOConfig`, `CTAEAConfig`, `ToPConfig` and `CMOEAMSConfig` are new and not yet covered by the 1.0 compatibility baseline. **Development after 1.5.2:** `pps` and `PPSConfig` are new and not covered by it either. Stable API status is a compatibility commitment, not evidence that every combination of algorithm, operator and problem has been validated.
 
 ## Capability matrix
 
@@ -45,6 +46,7 @@ This table describes the **VAMOS 1.5.2 package**. Changes since 1.0.0 are listed
 | C-TAEA | R / B / I / P / M (two-parent crossovers) | Convergence archive driven by feasibility; diversity archive ignores constraints | Optional external result archive | NumPy / Numba / MooCore | New in 1.2.0 |
 | ToP | R (differential evolution) | Feasibility rule on the mean objective in phase 1; constrained-domination NSGA-II in phase 2 | Optional external result archive | NumPy / Numba / MooCore | New in 1.2.0 |
 | CMOEA-MS | R / B / I / P / M (two-parent crossovers; DE variation: R) | SPEA2 fitness on [density, normalized violation] in stage A; violation first in stage B | Optional external result archive | NumPy / Numba / MooCore | New in 1.2.0 |
+| PPS | R (differential evolution) | None in the push stage; epsilon-level replacement shrinking to the feasibility rule in the pull stage | Output set of feasible solutions; optional external result archive | NumPy / Numba / MooCore | Development after 1.5.2 |
 
 **Evidence and scope.** The encoding families are exercised by repository operator-combination tests and encoding integration tests. Historical real-coded, unconstrained ZDT1 smoke runs were checked for all nine algorithms on each of the three backends against the installed 1.0.0 package. That is not a validation of the full encoding × constraints × archive × backend Cartesian product, nor a convergence or speed benchmark. Custom operators and untested combinations require a representative check before a large study. SMPSO rejects standalone binary, integer and permutation encodings; its mixed path requires mixed-variable mutation.
 
@@ -283,6 +285,7 @@ the range of each variable.
 | Constrained problems where infeasible regions guide the search to the feasible front | [C-TAEA](../algorithms/ctaea.md) | Population set by its weight vectors (91 for 100 and three objectives); budget of at least that size |
 | Constrained problems whose feasible regions are small or far from the unconstrained front | [ToP](../algorithms/top.md) | Real variables; budget of at least `pop_size`; phase 1 can take up to 90% of the budget |
 | Constrained problems where the objectives and the constraints must be balanced | [CMOEA-MS](../algorithms/cmoeams.md) | Budget of at least `pop_size`; GA or DE variation; `feasible_ratio_threshold` (lambda) switches the stage |
+| Constrained problems whose infeasible regions block the way to the front | [PPS](../algorithms/pps.md) | Real variables; weight vectors for `pop_size`; enough generations to switch before `Tc` |
 
 These are starting points for a study, not objective-count cut-offs or performance rankings. Compare algorithms using explicit budgets, repeated seeds and the same problem formulation.
 
@@ -336,7 +339,7 @@ NSGA-III and RVEA require a population compatible with the configured reference 
 
 `inner_divisions` needs `divisions` and excludes `path`, and an unknown key raises `ConfigurationError`. A plain string is a `path`. The inside layer must add directions: layers that share one (two objectives with `divisions=4` and `inner_divisions=2`, whose three inside directions are on the boundary lattice) raise `ConfigurationError`, as a repeated vector is a niche that never gets its own individual; Deb and Jain's usual settings never do: when `inner_divisions` is smaller than the number of objectives `m`, every inside direction has a coordinate `1 / (2 m)`, which a boundary layer of fewer than `2 m` divisions does not have. The file or lattice is the population: MOEA/D and RVEA need exactly one individual per vector, NSGA-III at least one. MOEA/D keeps its other rules: with one or two objectives its weights are uniform unless `inner_divisions` is given, a directory without the file gets the lattice of exactly `pop_size` vectors and saves it there with a `RuntimeWarning` (jMetalPy's behaviour), and without options it runs the populations that [`moead_populations`](api/algorithms/moead.md#populations-with-weight-vectors) lists. Files may depart from the simplex by jMetal's rounding (`1e-5`) and are not renormalized.
 
-The resolved spec of a run records where the vectors come from: MOEA/D always, in `algorithm.resolution.weight_vectors`, now also `{"source": "two_layer", "divisions": 3, "inner_divisions": 2, "vectors": 156}`; NSGA-III and RVEA when the configuration names a path, in `algorithm.resolution.reference_directions` (`{"source": "file", "file": "W3D_100.dat"}`) and `algorithm.resolution.reference_vectors` (with `"vectors"`, the population). Their lattices are already stated by the configuration, so a run without a path keeps the resolved spec, and the task id, of VAMOS 1.4.0, and runs and studies stored by 1.4.0 still verify and resume exactly. When a run starts, a `path` is bound to what the run reads: a directory becomes its `W{n_obj}D_{pop_size}.dat`, and `sha256` records the digest of the file's vectors (`sha256:` and the SHA-256 of their shape and float64 values, so a file rewritten with other separators keeps it). The resolved configuration holds both, the records come from it alone, so verification needs neither the file nor the machine it was on, and replay refuses, before any evaluation, a file whose vectors have changed instead of running another experiment. This binds MOEA/D's and NSGA-III's files too, which VAMOS 1.4.0 replayed with whatever the file held; a MOEA/D directory without the file, whose run generates the lattice, is not bound. A `sha256` given in a configuration pins the file in the same way.
+The resolved spec of a run records where the vectors come from: MOEA/D always, in `algorithm.resolution.weight_vectors`, now also `{"source": "two_layer", "divisions": 3, "inner_divisions": 2, "vectors": 156}`; NSGA-III and RVEA when the configuration names a path, in `algorithm.resolution.reference_directions` (`{"source": "file", "file": "W3D_100.dat"}`) and `algorithm.resolution.reference_vectors` (with `"vectors"`, the population). Their lattices are already stated by the configuration, so a run without a path keeps the resolved spec, and the task id, of VAMOS 1.4.0, and runs and studies stored by 1.4.0 still verify and resume exactly. When a run starts, a `path` is bound to what the run reads: a directory becomes its `W{n_obj}D_{pop_size}.dat`, and `sha256` records the digest of the file's vectors (`sha256:` and the SHA-256 of their shape and float64 values, so a file rewritten with other separators keeps it). The resolved configuration holds both, the records come from it alone, so verification needs neither the file nor the machine it was on, and replay refuses, before any evaluation, a file whose vectors have changed instead of running another experiment. This binds MOEA/D's and NSGA-III's files too, which VAMOS 1.4.0 replayed with whatever the file held; a MOEA/D directory without the file, whose run generates the lattice, is not bound. A `sha256` given in a configuration pins the file in the same way. **Development after 1.5.2:** [PPS](../algorithms/pps.md) takes MOEA/D's `weight_vectors`, and its runs, studies and tuning record, bind and size them as MOEA/D's: `algorithm.resolution.weight_vectors` in the resolved spec, a weight file bound to its digest when a study is planned, and the largest population with weight vectors in `vamos tune`.
 
 ### The command line and `optimize`
 
@@ -346,7 +349,7 @@ configuration, they resolve the same configuration except for these
 differences, which `tests/experiment/test_cli_api_parity.py` keeps listed:
 
 - Result mode: the command line returns `non_dominated` for AGE-MOEA, CCMO,
-  CMOEA-MS, C-TAEA, IBEA, MOEA/D, RVEA, SMS-EMOA, SPEA2 and ToP, where
+  CMOEA-MS, C-TAEA, IBEA, MOEA/D, PPS, RVEA, SMS-EMOA, SPEA2 and ToP, where
   `optimize` returns `population`. NSGA-II, NSGA-III and SMPSO agree.
 - NSGA-III: the command line derives the reference directions from the
   population when the run starts; `optimize` records the lattice's divisions.
@@ -398,6 +401,7 @@ limit by one generation. `("max_time", {"seconds": s, "max_evaluations": n})`
 also stops it after `n` evaluations, whichever comes first; without
 `max_evaluations` there is no evaluation budget. Schedules that measure progress
 against the budget, such as ToP's phases, CMOEA-MS's stages and the
+PPS's control generation and the
 constraint-handling techniques that relax over the run, then barely advance, so
 give them `max_evaluations`. A live callback still receives every generation, and
 its `should_stop` still stops the run first. `result.meta["time_limit_reached"]`

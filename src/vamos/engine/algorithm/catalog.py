@@ -18,6 +18,7 @@ ENABLED_ALGORITHMS = (
     "ctaea",
     "top",
     "cmoeams",
+    "pps",
 )
 
 OPTIONAL_ALGORITHMS: tuple[str, ...] = ()
@@ -32,7 +33,8 @@ OPTIONAL_ALGORITHMS: tuple[str, ...] = ()
 # parents with replacement from archives of at least two weight vectors, which need two objectives.
 # ToP draws its tournaments and its DE vectors with replacement, and averages the objectives in
 # phase 1, so one individual and one objective suffice. CMOEA-MS's shift-based density needs
-# two individuals, as its GA variation pairs its parents two by two.
+# two individuals, as its GA variation pairs its parents two by two. PPS draws two distinct
+# parents from each neighbourhood, so it needs two subproblems; it decomposes any number of objectives.
 ALGORITHM_MINIMUMS: dict[str, dict[str, int]] = {
     "nsgaii": {"pop_size": 2, "n_obj": 1},
     "moead": {"pop_size": 2, "n_obj": 1},
@@ -47,6 +49,7 @@ ALGORITHM_MINIMUMS: dict[str, dict[str, int]] = {
     "ctaea": {"pop_size": 1, "n_obj": 2},
     "top": {"pop_size": 1, "n_obj": 1},
     "cmoeams": {"pop_size": 2, "n_obj": 1},
+    "pps": {"pop_size": 2, "n_obj": 1},
 }
 
 # Built-in algorithms that evaluate several populations of pop_size before their first
@@ -71,6 +74,7 @@ _LABELS = {
     "ctaea": "C-TAEA",
     "top": "ToP",
     "cmoeams": "CMOEA-MS",
+    "pps": "PPS",
 }
 
 
@@ -128,6 +132,28 @@ def initial_evaluations(algorithm: str, pop_size: int, n_obj: int | None = None)
     return INITIAL_POPULATIONS.get(key, 1) * int(pop_size)
 
 
+#: The algorithms whose default configurations size the population from their reference directions or weight vectors.
+DERIVED_POPULATIONS: tuple[str, ...] = ("moead", "nsgaiii", "rvea")
+
+
+def quick_population(algorithm: str, pop_size: int, n_obj: int) -> int | None:
+    """The population of a run whose caller gave none, from the quick default ``pop_size``.
+
+    ``None`` for MOEA/D, NSGA-III and RVEA, whose default configurations size it from their
+    reference directions or weight vectors; for PPS, which needs one weight vector per
+    subproblem, the largest population up to ``pop_size`` that has them (190 for 200 and three
+    objectives); and ``pop_size`` for the other algorithms.
+    """
+    key = algorithm.strip().lower()
+    if key in DERIVED_POPULATIONS:
+        return None
+    if key == "pps":
+        from vamos.engine.algorithm.components.weight_vectors import largest_weighted_population
+
+        return largest_weighted_population(int(pop_size), int(n_obj))
+    return int(pop_size)
+
+
 def minimum_violation(
     algorithm: str, *, pop_size: int | None = None, n_obj: int | None = None, selection: object = None
 ) -> MinimumViolation | None:
@@ -166,6 +192,7 @@ def minimum_violation(
 __all__ = [
     "ALGORITHM_MINIMUMS",
     "DEFAULT_ALGORITHM",
+    "DERIVED_POPULATIONS",
     "ENABLED_ALGORITHMS",
     "INITIAL_POPULATIONS",
     "MinimumViolation",
@@ -173,4 +200,5 @@ __all__ = [
     "WEIGHT_VECTOR_POPULATIONS",
     "initial_evaluations",
     "minimum_violation",
+    "quick_population",
 ]

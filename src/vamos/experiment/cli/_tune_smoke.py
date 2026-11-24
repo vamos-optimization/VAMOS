@@ -58,19 +58,19 @@ def apply_smoke_mode(args: argparse.Namespace) -> dict[str, Any]:
 
 
 # The algorithms whose population can be a reference lattice, with their names in messages.
-_LATTICE_LABELS = {"moead": "MOEA/D", "nsgaiii": "NSGA-III", "rvea": "RVEA"}
+_LATTICE_LABELS = {"moead": "MOEA/D", "nsgaiii": "NSGA-III", "pps": "PPS", "rvea": "RVEA"}
 
 
 def smallest_population(algorithm: str, n_obj: int) -> int:
     """The smallest population ``algorithm`` runs with on ``n_obj`` objectives.
 
-    NSGA-III's and RVEA's populations are complete Das-Dennis lattices, and so are MOEA/D's weight
-    vectors with three or more objectives; the smallest lattice has one direction per objective.
+    NSGA-III's and RVEA's populations are complete Das-Dennis lattices, and so are MOEA/D's and PPS's
+    weight vectors with three or more objectives; the smallest lattice has one direction per objective.
     Otherwise it is the minimum of :data:`vamos.engine.algorithm.catalog.ALGORITHM_MINIMUMS`.
     """
     base = canonical_algorithm_name(algorithm).split("_")[0]
     minimum = ALGORITHM_MINIMUMS.get(base, {}).get("pop_size", 1)
-    if base in ("nsgaiii", "rvea") or (base == "moead" and n_obj > 2):
+    if base in ("nsgaiii", "rvea") or (base in ("moead", "pps") and n_obj > 2):
         return max(minimum, int(n_obj))
     return minimum
 

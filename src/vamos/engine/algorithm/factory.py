@@ -12,6 +12,7 @@ from vamos.engine.algorithm.builders import (
     build_moead_algorithm,
     build_nsgaii_algorithm,
     build_nsgaiii_algorithm,
+    build_pps_algorithm,
     build_rvea_algorithm,
     build_smpso_algorithm,
     build_smsemoa_algorithm,
@@ -32,7 +33,7 @@ from vamos.foundation.problem.types import ProblemProtocol
 
 # Built-in algorithms that record offspring genealogy through survival.
 GENEALOGY_ALGORITHMS = ("nsgaii", "moead", "smsemoa", "nsgaiii", "spea2", "ibea", "smpso")
-_ALGORITHMS_WITHOUT_GENEALOGY = ("agemoea", "rvea", "ccmo", "ctaea", "top", "cmoeams")
+_ALGORITHMS_WITHOUT_GENEALOGY = ("agemoea", "rvea", "ccmo", "ctaea", "top", "cmoeams", "pps")
 
 
 def _plugin_default_config(
@@ -174,6 +175,12 @@ def build_algorithm(
             problem=problem,
             pop_size=pop_size,
             cmoeams_variation=variations.get("cmoeams"),
+        ),
+        "pps": lambda: build_pps_algorithm(
+            kernel=kernel,
+            problem=problem,
+            pop_size=pop_size,
+            pps_variation=variations.get("pps"),
         ),
     }
 

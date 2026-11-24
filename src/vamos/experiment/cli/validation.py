@@ -190,5 +190,6 @@ def finalize_args(
     args.ctaea_variation = defaults.get("ctaea", {})
     args.top_variation = defaults.get("top", {})
     args.cmoeams_variation = defaults.get("cmoeams", {})
+    args.pps_variation = defaults.get("pps", {})
 
     return args

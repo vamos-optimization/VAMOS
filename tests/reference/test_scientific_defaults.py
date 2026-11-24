@@ -33,6 +33,9 @@ Sources, for 30 variables, 2 objectives and 100 individuals:
   Pf <= 1/3) within 90% of the budget.
 - CMOEA-MS: Tian, Zhang, Su, Zhang, Tan and Jin (2022), PlatEMO's implementation and jMetal's port,
   SBX p_c = 1.0, eta_c = 20, polynomial mutation p_m = 1/n, eta_m = 20, and lambda = 0.5.
+- PPS: Fan, Li, Cai, Li, Wei, Zhang, Deb and Goodman (2019), section 4.1: DE with CR = 1.0 and F = 0.5,
+  polynomial mutation p_m = 1/n, eta_m = 20, T = 30, delta = 0.9, n_r = 2, epsilon = 1e-3, l = 20,
+  alpha = 0.95, tau = 0.1, cp = 2 and Tc = 800 of 1000 generations.
 """
 
 from __future__ import annotations
@@ -94,6 +97,19 @@ PINNED: dict[str, dict[str, Any]] = {
         "mutation": _PM,
         "feasible_ratio_threshold": 0.5,
         "de_variant": "rand_1_bin",
+    },
+    "pps": {
+        "crossover": ["de", {"cr": 1.0, "f": 0.5}],
+        "mutation": _PM,
+        "neighbor_size": 30,
+        "delta": 0.9,
+        "replace_limit": 2,
+        "switch_threshold": 1e-3,
+        "switch_window": 20,
+        "feasibility_ratio_threshold": 0.95,
+        "tao": 0.1,
+        "cp": 2.0,
+        "decay_fraction": 0.8,
     },
     "smpso": {
         "mutation": ["polynomial", {"prob": 1.0 / _N_VAR, "eta": 20.0}],

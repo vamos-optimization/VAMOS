@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 
 import vamos
-from vamos.algorithms import MOEADConfig, NSGAIIIConfig, RVEAConfig, moead_populations
+from vamos.algorithms import MOEADConfig, NSGAIIIConfig, PPSConfig, RVEAConfig, moead_populations
 from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors, read_weight_vectors, vector_digest
 from vamos.engine.algorithm.moead import MOEAD
 from vamos.engine.algorithm.nsgaiii import NSGAIII
@@ -61,6 +61,18 @@ def _rvea(pop_size: int, source: Source) -> RVEAConfig:
         .adapt_freq(0.1)
         .crossover("sbx", prob=0.9, eta=30.0)
         .mutation("pm", prob="1/n", eta=20.0)
+        .build()
+    )
+
+
+def _pps(pop_size: int, source: Source) -> PPSConfig:
+    return (
+        PPSConfig.builder()
+        .pop_size(pop_size)
+        .neighbor_size(min(20, pop_size))
+        .crossover("de", cr=1.0, f=0.5)
+        .mutation("pm", prob="1/n", eta=20.0)
+        .weight_vectors(**source)
         .build()
     )
 
@@ -125,11 +137,12 @@ def test_every_algorithm_rejects_layers_that_repeat_directions(algorithm: str) -
         _start(algorithm, two_layer_size(3, 3, 3), 3, {"divisions": 3, "inner_divisions": 3})
 
 
-_FIELDS = {"moead": "weight_vectors", "nsgaiii": "reference_directions", "rvea": "reference_vectors"}
-_BUILD = {"moead": _moead, "nsgaiii": _nsgaiii, "rvea": _rvea}
+_FIELDS = {"moead": "weight_vectors", "nsgaiii": "reference_directions", "pps": "weight_vectors", "rvea": "reference_vectors"}
+_BUILD = {"moead": _moead, "nsgaiii": _nsgaiii, "pps": _pps, "rvea": _rvea}
 
 
-@pytest.mark.parametrize("algorithm", ALGORITHMS)
+# PPS (development after 1.5.2) takes MOEA/D's weight vectors.
+@pytest.mark.parametrize("algorithm", [*ALGORITHMS, "pps"])
 def test_a_run_records_its_vector_file_by_content_and_verifies_without_it(algorithm: str, tmp_path: Path) -> None:
     file = tmp_path / "custom.csv"
     vectors = np.loadtxt(weight_path("W3D_91.dat"))
@@ -438,20 +451,26 @@ def test_moead_runs_a_two_layer_lattice_that_no_single_lattice_has() -> None:
     np.testing.assert_array_equal(result.data["weights"], two_layer_lattice(10, 2, 1))
 
 
-def test_a_study_binds_an_existing_moead_weight_file(tmp_path: Path) -> None:
+@pytest.mark.parametrize("algorithm", ["moead", "pps"])
+def test_a_study_binds_an_existing_weight_file(algorithm: str, tmp_path: Path) -> None:
     file = tmp_path / "W3D_15.dat"
     np.savetxt(file, das_dennis(3, 4)[::-1])
     spec = vamos.StudySpec(
         problems=["dtlz2"],
-        algorithms=["moead"],
+        algorithms=[algorithm],
         seeds=[0],
         pop_size=15,
         n_obj=3,
         max_evaluations=30,
         engine="numpy",
-        algorithm_configs={"moead": {"weight_vectors": {"path": str(tmp_path), "divisions": None}}},
+        algorithm_configs={algorithm: {"weight_vectors": {"path": str(tmp_path), "divisions": None}}},
     )
 
-    weights = vamos.plan_study(spec).plan.tasks[0].resolved_run_spec["algorithm"]["config"]["weight_vectors"]
+    resolved = vamos.plan_study(spec).plan.tasks[0].resolved_run_spec["algorithm"]
 
-    assert weights == {"path": str(file), "divisions": None, "sha256": vector_digest(read_weight_vectors(str(file), 3))}
+    assert resolved["config"]["weight_vectors"] == {
+        "path": str(file),
+        "divisions": None,
+        "sha256": vector_digest(read_weight_vectors(str(file), 3)),
+    }
+    assert resolved["resolution"]["weight_vectors"] == {"source": "file", "file": "W3D_15.dat", "vectors": 15}

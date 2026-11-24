@@ -73,6 +73,7 @@ from vamos.engine.tuning import (
     build_nsgaiii_integer_config_space,
     build_nsgaiii_mixed_config_space,
     build_nsgaiii_permutation_config_space,
+    build_pps_config_space,
     build_rvea_binary_config_space,
     build_rvea_config_space,
     build_rvea_constrained_config_space,
@@ -179,5 +180,6 @@ __all__ = [
     "build_ctaea_config_space",
     "build_top_config_space",
     "build_cmoeams_config_space",
+    "build_pps_config_space",
     "config_from_assignment",
 ]

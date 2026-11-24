@@ -36,7 +36,7 @@ _RESULT_MODE = {"algorithm.config.result_mode": ("non_dominated", "population")}
 
 # Key of the resolved specification -> (command line, optimize).
 KNOWN_DIFFERENCES: dict[str, dict[str, tuple[object, object]]] = {
-    **{name: dict(_RESULT_MODE) for name in ("agemoea", "ccmo", "cmoeams", "ctaea", "ibea", "rvea", "spea2", "top")},
+    **{name: dict(_RESULT_MODE) for name in ("agemoea", "ccmo", "cmoeams", "ctaea", "ibea", "pps", "rvea", "spea2", "top")},
     # The command line records the offspring size, which optimize leaves to default to pop_size.
     "nsgaii": {"algorithm.config.offspring_size": (VARIES, None)},
     "smpso": {},

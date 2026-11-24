@@ -15,6 +15,7 @@ from .ibea import IBEAConfig
 from .moead import MOEADConfig
 from .nsgaii import NSGAIIConfig
 from .nsgaiii import NSGAIIIConfig
+from .pps import PPSConfig
 from .rvea import RVEAConfig
 from .smpso import SMPSOConfig
 from .smsemoa import SMSEMOAConfig
@@ -38,6 +39,7 @@ _DEFAULT_FACTORIES: dict[str, Callable[..., AlgorithmConfigProtocol]] = {
     "ctaea": CTAEAConfig.default,
     "top": ToPConfig.default,
     "cmoeams": CMOEAMSConfig.default,
+    "pps": PPSConfig.default,
 }
 
 # The built-in algorithm each configuration class configures.
@@ -55,6 +57,7 @@ _CONFIG_ALGORITHMS: dict[type, str] = {
     CTAEAConfig: "ctaea",
     ToPConfig: "top",
     CMOEAMSConfig: "cmoeams",
+    PPSConfig: "pps",
 }
 
 

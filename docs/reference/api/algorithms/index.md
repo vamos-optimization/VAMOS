@@ -17,6 +17,7 @@ Choose the configuration class for the algorithm passed to `optimize`. These cla
 | `ctaea` | [`CTAEAConfig`](ctaea.md) (new in VAMOS 1.2.0) |
 | `top` | [`ToPConfig`](top.md) (new in VAMOS 1.2.0) |
 | `cmoeams` | [`CMOEAMSConfig`](cmoeams.md) (new in VAMOS 1.2.0) |
+| `pps` | [`PPSConfig`](pps.md) (development after 1.5.2) |
 
 ## Explicit configuration
 

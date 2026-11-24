@@ -18,7 +18,8 @@ def config_from_assignment(algorithm_name: str, assignment: dict[str, Any]) -> A
     ``assignment["n_obj"]`` for the algorithms that depend on it. RVEA runs the largest complete
     Das-Dennis lattice with at most ``pop_size`` directions for ``n_obj`` (two objectives without
     it), or the lattice of ``n_partitions`` when the assignment has one. MOEA/D with ``n_obj`` runs the
-    largest population, at most the sampled ``pop_size``, that has weight vectors: with three or
+    largest population, at most the sampled ``pop_size``, that has weight vectors, and so does PPS
+    (development after 1.5.2): with three or
     more objectives a complete Das-Dennis lattice or a packaged jMetal file (see
     :func:`~vamos.engine.algorithm.components.weight_vectors.largest_weighted_population`);
     without it, exactly ``pop_size``.
@@ -45,14 +46,14 @@ def config_from_assignment(algorithm_name: str, assignment: dict[str, Any]) -> A
 def assignment_adjustments(algorithm_name: str, assignment: dict[str, Any]) -> dict[str, Any]:
     """The values :func:`config_from_assignment` runs in place of sampled ones; ``{}`` when it runs them all.
 
-    Only MOEA/D's population changes: with ``n_obj`` of three or more in the assignment, a sampled
+    Only MOEA/D's and PPS's populations change: with ``n_obj`` of three or more in the assignment, a sampled
     ``pop_size`` without weight vectors runs the largest population up to it that has them, so a
     sampled 150 runs 136 with three objectives (``{"pop_size": 136}``). A population smaller than
     any with weights gives ``{}``: ``config_from_assignment`` rejects it.
     """
     algo = algorithm_name.lower()
     assignment = sanitize_assignment(assignment)
-    if (algo not in MOEAD_NAMES and algo != "moead_permutation") or "pop_size" not in assignment:
+    if (algo not in MOEAD_NAMES and algo not in {"moead_permutation", "pps"}) or "pop_size" not in assignment:
         return {}
     try:
         effective = _moead_pop_size(assignment)
