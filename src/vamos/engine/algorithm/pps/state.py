@@ -109,9 +109,16 @@ def result_rows(state: PPSState, kernel: Any) -> tuple[np.ndarray[Any, Any], np.
     if wants_population_result(state):
         return state.X.copy(), state.F.copy(), state.G.copy() if state.G is not None else None
     X, F, G = feasible_set(state, kernel)
+    candidate_G = G
     if X.shape[0] == 0:
         X, F, G = state.X, state.F, state.G
-    selected = feasible_result_indices(F, G, state.constraint_mode, kernel)
+        candidate_G = G
+        if G is not None and state.constraint_mode != "none" and X.shape[0]:
+            # The least violated by phi, where a NaN constraint is an infinite violation: by the raw G, one
+            # NaN would make the least violation NaN and leave no candidate.
+            least = np.flatnonzero(state.phi <= float(np.min(state.phi)) + 1e-12)
+            X, F, G, candidate_G = X[least], F[least], G[least], None
+    selected = feasible_result_indices(F, candidate_G, state.constraint_mode, kernel)
     return X[selected].copy(), F[selected].copy(), G[selected].copy() if G is not None else None
 
 

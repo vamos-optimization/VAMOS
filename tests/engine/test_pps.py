@@ -309,6 +309,22 @@ def test_without_feasible_solutions_the_result_is_the_least_violated() -> None:
     assert population["X"].shape == (10, 2)
 
 
+def test_without_feasible_solutions_a_nan_constraint_does_not_empty_the_result() -> None:
+    # Through tell, a constraint that could not be evaluated reaches PPS as NaN, an infinite violation. The push
+    # stage ignores violations, so the new solution, which dominates every other, enters the population.
+    problem = _InfeasibleProblem()
+    algorithm = PPS(_config(10), kernel=NumPyKernel())
+    algorithm.initialize(problem, ("max_evaluations", 100), seed=1)
+    child = algorithm.ask()
+    algorithm.tell({"X": child, "F": np.full((1, 2), -1.0), "G": np.full((1, 1), np.nan)})
+    result = algorithm.result()
+
+    G = result["population"]["G"][:, 0]
+    assert np.isnan(G).any() and np.isfinite(G).any()
+    # The result is the least violated of the solutions whose violation is known.
+    assert result["X"].shape[0] >= 1 and np.all(result["G"][:, 0] <= np.nanmin(G) + 1e-12)
+
+
 # ---------------------------------------------------------------------------
 # Budgets, determinism and engines
 # ---------------------------------------------------------------------------
