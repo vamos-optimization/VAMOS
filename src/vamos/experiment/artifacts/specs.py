@@ -209,8 +209,8 @@ def _algorithm_component(inputs: RunSpecInputs, config: Mapping[str, object], po
         config,
         built_in=inputs.algorithm in BUILT_IN_ALGORITHMS,
     )
-    if inputs.algorithm == "moead" and pop_size is not None:
-        # Which weight vectors MOEA/D runs: a Das-Dennis lattice, a jMetal file or uniform weights.
+    if inputs.algorithm in {"moead", "pps"} and pop_size is not None:
+        # Which weight vectors MOEA/D (and PPS, development after 1.5.2) runs: a Das-Dennis lattice, a jMetal file or uniform weights.
         weights = config.get("weight_vectors")
         options = weights if isinstance(weights, Mapping) else {}
         path, divisions, inner = options.get("path"), options.get("divisions"), options.get("inner_divisions")
@@ -226,7 +226,7 @@ def _algorithm_component(inputs: RunSpecInputs, config: Mapping[str, object], po
             )
         except ValueError:
             # A size without weights fails when the run starts, so a study plans the task and records its failure.
-            logging.getLogger(__name__).debug("No MOEA/D weight vectors to record for pop_size=%s", pop_size, exc_info=True)
+            logging.getLogger(__name__).debug("No %s weight vectors to record for pop_size=%s", inputs.algorithm, pop_size, exc_info=True)
     vector_field = _VECTOR_FIELDS.get(inputs.algorithm)
     if vector_field is not None and pop_size is not None:
         # VAMOS 1.5.0: the file that NSGA-III's or RVEA's vectors come from. The configuration
