@@ -9,11 +9,11 @@ that the evaluations agree with it to the last bits.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import cache, lru_cache
 from typing import Any
 
 import numpy as np
-from scipy.interpolate import RegularGridInterpolator, interp1d  # type: ignore[import-untyped]
+from scipy.interpolate import RegularGridInterpolator  # type: ignore[import-untyped]
 
 from .airfoils import AIRFOILS, ANGLE_OF_ATTACK, LIFT_SLOPE, PROFILE_DRAG, REYNOLDS, THICKNESS, ZERO_LIFT_ANGLE
 
@@ -32,18 +32,50 @@ MAX_DIHEDRAL_ANGLE_AT_ROOT = 4.0
 PILOT_WEIGHT = 60.0
 
 
+class IndexTable:
+    """A property of the airfoils at a (fractional) airfoil index: ``scipy.interpolate.interp1d(index, values)``.
+
+    For floats, ``interp1d`` interpolates with ``numpy.interp``, after the same conversion of its argument, and
+    raises the same error out of the range of the indices; this is that, without its overhead.
+    """
+
+    def __init__(self, values: tuple[float, ...]) -> None:
+        self.values = np.asarray(values, dtype=float)
+        self.index = np.arange(len(values))
+
+    def __call__(self, x: Any) -> Array:
+        x = np.asarray(x)
+        if not np.issubdtype(x.dtype, np.inexact):
+            x = x.astype(float)
+        below, above = x < self.index[0], x > self.index[-1]
+        if below.any():
+            value = x.flat[int(np.argmax(below))]
+            raise ValueError(f"A value ({value}) in x_new is below the interpolation range's minimum value ({self.index[0]}).")
+        if above.any():
+            value = x.flat[int(np.argmax(above))]
+            raise ValueError(f"A value ({value}) in x_new is above the interpolation range's maximum value ({self.index[-1]}).")
+        return np.asarray(np.interp(x, self.index, self.values))
+
+
 @dataclass(frozen=True)
 class AirfoilModels:
-    """The airfoil properties as functions of a (fractional) airfoil index, as the reference code interpolates them."""
+    """The airfoil properties as functions of a (fractional) airfoil index, as the reference code interpolates them.
 
-    lift_slope: Any
-    zero_lift_angle: Any
-    thickness: Any
+    ``grids`` (row ``d``: the ``sizes[d]`` points of dimension ``d``) and ``table`` are those of ``profile_drag``,
+    for the compiled kernel.
+    """
+
+    lift_slope: IndexTable
+    zero_lift_angle: IndexTable
+    thickness: IndexTable
     profile_drag: Any
     re_min: float
     re_max: float
     aoa_min: float
     aoa_max: float
+    grids: Array
+    sizes: Array
+    table: Array
 
 
 @lru_cache(maxsize=1)
@@ -51,15 +83,22 @@ def airfoil_models() -> AirfoilModels:
     index = np.arange(len(AIRFOILS))
     reynolds = np.asarray(REYNOLDS, dtype=float)
     angles = np.asarray(ANGLE_OF_ATTACK, dtype=float)
+    profile_drag = RegularGridInterpolator((index, reynolds, angles), np.array(PROFILE_DRAG, dtype=float), method="linear")
+    grids = np.zeros((3, max(len(grid) for grid in profile_drag.grid)))
+    for d, grid in enumerate(profile_drag.grid):
+        grids[d, : len(grid)] = grid
     return AirfoilModels(
-        lift_slope=interp1d(index, list(LIFT_SLOPE)),
-        zero_lift_angle=interp1d(index, list(ZERO_LIFT_ANGLE)),
-        thickness=interp1d(index, list(THICKNESS)),
-        profile_drag=RegularGridInterpolator((index, reynolds, angles), np.array(PROFILE_DRAG, dtype=float), method="linear"),
+        lift_slope=IndexTable(LIFT_SLOPE),
+        zero_lift_angle=IndexTable(ZERO_LIFT_ANGLE),
+        thickness=IndexTable(THICKNESS),
+        profile_drag=profile_drag,
         re_min=float(reynolds.min()),
         re_max=float(reynolds.max()),
         aoa_min=float(angles.min()),
         aoa_max=float(angles.max()),
+        grids=grids,
+        sizes=np.array([len(grid) for grid in profile_drag.grid], dtype=np.int64),
+        table=np.ascontiguousarray(profile_drag.values, dtype=float),
     )
 
 
@@ -86,6 +125,34 @@ def _base_plies(segment: int, n_div: int) -> Array:
     angle = 30 if segment == int(n_div / 2) else 45
     t = PLY_THICKNESS
     return np.array([[90, 180, 0, 1, t], [angle, 180, 0, 1, t], [-angle, 180, 0, 1, t], [90, 180, 0, 1, t]])
+
+
+def _linspace(start: Array, stop: Array, num: int) -> Array:
+    """``numpy.linspace(start[i], stop[i], num)`` in row ``i``, computed as NumPy computes each."""
+    div = num - 1
+    delta = stop - start
+    step = delta / div
+    rows = np.arange(0, num, dtype=float)[None, :] * step[:, None]
+    zero = step == 0  # NumPy's handling of denormal steps
+    if zero.any():
+        rows[zero] = np.arange(0, num, dtype=float)[None, :] / div * delta[zero][:, None]
+    rows += start[:, None]
+    rows[:, -1] = stop
+    return rows
+
+
+def _plies(n_div: int, m: int) -> Array:
+    """The plies of every segment: its four around the whole pipe, then ``m`` flanges of axis, root and tip 0."""
+    return _plies_template(n_div, m).copy()
+
+
+@cache
+def _plies_template(n_div: int, m: int) -> Array:
+    plies = np.zeros((n_div, 4 + m, 5))
+    plies[:, :4] = [_base_plies(i, n_div) for i in range(n_div)]
+    plies[:, 4:, 4] = PLY_THICKNESS
+    plies.flags.writeable = False
+    return plies
 
 
 def _rounded_sigmoid(x: Array, a: float = 50.0, b: float = 0.5) -> Array:
@@ -180,27 +247,26 @@ class WingConfig:
     def wing(self, normalized: Array) -> WingDesign:
         """The wing of normalized design variables in [0, 1] (``_x2param`` with ``NORMALIZED=True``)."""
         n, m = self.n_div, self.max_plys
-        lower, upper = self.bounds()
-        x = lower + (upper - lower) * np.asarray(normalized, dtype=float)
+        lower, extent = _scale(self)
+        x = lower + extent * np.asarray(normalized, dtype=float)
         span = x[0:n].sum() * 2
         y_div = np.hstack([0.0, x[0:n]]).cumsum() / (span * 0.5)
         y_div = np.where(y_div < 1.0, y_div, 1.0)
         y_chord = x[n : n * 2 + 1]
         y_aoa = x[n * 2 + 1 : n * 3 + 2].cumsum()
-        y_airfoil = x[-n - 1 :] if self.airfoil else self.baseline_airfoils().copy()
+        y_airfoil = x[-n - 1 :] if self.airfoil else _baseline_airfoils(self).copy()
         y_wire = 0.95 * y_div[int(n / 2)] if n > 1 else 0.5 * y_div[1]
         wire_tension = x[self._extra_index("wire")] if self.wire else 0.0
         dihedral = x[self._extra_index("dihedral")] if self.dihedral else self.root_dihedral
         payload = x[self._extra_index("payload")] if self.payload else 0.0
         strain_ratios = np.ones([2, n])
         thickness = airfoil_models().thickness
-        largest = np.array(
-            [
-                (np.linspace(y_chord[i - 1], y_chord[i], 100) * thickness(np.linspace(y_airfoil[i - 1], y_airfoil[i], 100))).min()
-                for i in range(1, len(y_div))
-            ]
-        )
-        ply_wing: list[Array] = []
+        # The thinnest section of each segment, on 100 stations.
+        airfoils = _linspace(y_airfoil[:-1], y_airfoil[1:], 100)
+        if not np.all((airfoils >= thickness.index[0]) & (airfoils <= thickness.index[-1])):
+            for row in airfoils:  # the error of the first segment out of the airfoils
+                thickness(row)
+        largest = (_linspace(y_chord[:-1], y_chord[1:], 100) * thickness(airfoils)).min(axis=1)
         if self.level == 0:
             y_diameter = np.hstack([largest[0], largest])
             strain_ratios = np.tile(x[n * 3 + 2 : n * 3 + 4], [n, 1]).T
@@ -208,11 +274,11 @@ class WingConfig:
             y_diameter = x[n * 3 + 2 : n * 4 + 2] * largest
             y_diameter = np.hstack([y_diameter[0], y_diameter])
         if self.level < 2:
-            phis = 30 + np.rad2deg(np.tile(DELTA_WIDTH * np.arange(m), [n, 1]) / (0.5 * np.tile(y_diameter[1:], [m, 1]).T))
+            phis = 30 + np.rad2deg((DELTA_WIDTH * np.arange(m))[None, :] / (0.5 * y_diameter[1:])[:, None])
             phis = np.clip(phis, 0, 179)
-            for i in range(n):
-                flanges = np.column_stack([np.zeros(m), phis[i], np.zeros(m), np.ones(m), np.full(m, PLY_THICKNESS)])
-                ply_wing.append(np.vstack([_base_plies(i, n), flanges]))
+            plies = _plies(n, m)
+            plies[:, 4:, 1] = phis
+            plies[:, 4:, 3] = 1.0
             if self.level == 1:
                 strain_ratios = x[n * 4 + 2 : n * 6 + 2].reshape(2, -1)
         else:
@@ -223,11 +289,12 @@ class WingConfig:
             root = fixed * (1 - length)
             widths = x[n * (4 + m) + 2 : n * (4 + m * 2) + 2].reshape(n, m).copy()
             widths[:, 0] -= DELTA_WIDTH
-            phis = 30 + np.rad2deg(widths / (0.5 * np.tile(y_diameter[1:], [m, 1]).T)).cumsum(axis=1)
+            phis = 30 + np.rad2deg(widths / (0.5 * y_diameter[1:])[:, None]).cumsum(axis=1)
             phis = np.clip(phis, 0, 179)
-            for i in range(n):
-                flanges = np.column_stack([np.zeros(m), phis[i], root[i], tip[i], np.full(m, PLY_THICKNESS)])
-                ply_wing.append(np.vstack([_base_plies(i, n), flanges]))
+            plies = _plies(n, m)
+            plies[:, 4:, 1] = phis
+            plies[:, 4:, 2] = root
+            plies[:, 4:, 3] = tip
         return WingDesign(
             span=float(span),
             y_div=y_div,
@@ -239,9 +306,26 @@ class WingConfig:
             wire_tension=float(wire_tension),
             dihedral_angle_at_root=float(dihedral),
             payload=float(payload),
-            ply_wing=ply_wing,
+            ply_wing=list(plies),
             strain_ratios=strain_ratios,
         )
 
 
-__all__ = ["AirfoilModels", "WingConfig", "WingDesign", "airfoil_models"]
+@cache
+def _scale(config: WingConfig) -> tuple[Array, Array]:
+    """The lower bounds of the variables and the extents of their ranges, for :meth:`WingConfig.wing`."""
+    lower, upper = config.bounds()
+    extent = upper - lower
+    lower.flags.writeable = False
+    extent.flags.writeable = False
+    return lower, extent
+
+
+@cache
+def _baseline_airfoils(config: WingConfig) -> Array:
+    airfoils = config.baseline_airfoils()
+    airfoils.flags.writeable = False
+    return airfoils
+
+
+__all__ = ["AirfoilModels", "IndexTable", "WingConfig", "WingDesign", "airfoil_models"]
