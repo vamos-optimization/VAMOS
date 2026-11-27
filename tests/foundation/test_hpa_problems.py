@@ -16,7 +16,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from vamos.foundation.problem.hpa import _kernels
+from vamos.foundation.problem.hpa import _kernels, _wing_kernels
 from vamos.foundation.problem.hpa.design import GRAVITY, WingConfig
 from vamos.foundation.problem.hpa.problems import CONSTRAINTS, HPA_INDICES, HPA_TYPES, OBJECTIVES, HPAProblem, constrained_index, hpa_type
 from vamos.foundation.problem.registry import available_problem_names, make_problem_selection
@@ -214,3 +214,90 @@ def test_the_compiled_kernels_give_the_bits_of_the_numpy_code(index: str, compil
         np.testing.assert_array_equal(outputs[0]["F"], outputs[1]["F"])
         if problem.n_constraints:
             np.testing.assert_array_equal(outputs[0]["G"], outputs[1]["G"])
+
+
+def test_the_kernels_sum_as_numpy_sums() -> None:
+    # numpy.sum adds 0.0 and its pairwise sum; up to 128 terms, that is one block of eight accumulators.
+    rng = np.random.default_rng(11)
+    for n in range(_kernels.BLOCK + 1):
+        for _ in range(20):
+            a = rng.standard_normal(n) * 10.0 ** rng.integers(-12, 12, n)
+            assert _kernels.block_sum(a, n) == np.sum(a)
+    zeros = np.full(9, -0.0)
+    for n in (3, 9):
+        assert np.signbit(_kernels.block_sum(zeros, n)) == np.signbit(np.sum(zeros[:n]))
+
+
+def test_the_kernels_find_the_ranges_of_the_masks() -> None:
+    y0 = np.linspace(0, 1, 301)
+    for value in [-1.0, 0.0, 1e-9, 0.25, y0[77], np.nextafter(y0[77], 0), 1.0, 2.0, np.nan]:
+        assert _kernels.first_at_least(y0, value) == (np.flatnonzero(y0 >= value)[:1].tolist() or [y0.size])[0]
+        assert _kernels.count_below(y0, value) == np.count_nonzero(y0 < value)
+        assert _kernels.count_at_most(y0, value) == np.count_nonzero(y0 <= value)
+
+
+def test_the_airfoil_tables_are_scipys() -> None:
+    from scipy.interpolate import interp1d
+
+    from vamos.foundation.problem.hpa.airfoils import THICKNESS
+    from vamos.foundation.problem.hpa.design import _linspace, airfoil_models
+
+    models = airfoil_models()
+    rng = np.random.default_rng(12)
+    x = np.concatenate([rng.random(1000) * 3, [0.0, 1.0, 2.0, 3.0, np.nan]])
+    expected = interp1d(np.arange(len(THICKNESS)), list(THICKNESS))(x)
+    np.testing.assert_array_equal(models.thickness(x), expected)
+    for value, side in ((-1e-12, "below"), (3.5, "above")):
+        with pytest.raises(ValueError, match=f"is {side} the interpolation range"):
+            models.thickness(np.array([1.0, value]))
+    # The profile drag of the compiled kernel, run here as Python, is RegularGridInterpolator's.
+    points = np.column_stack(
+        [rng.random(500) * 3, rng.uniform(models.re_min, models.re_max, 500), rng.uniform(models.aoa_min, models.aoa_max, 500)]
+    )
+    points[:50, 0] = models.profile_drag.grid[0][rng.integers(0, 4, 50)]  # the ends of the cells
+    points[:50, 1], points[:50, 2] = models.re_max, models.aoa_max
+    out = np.empty(len(points))
+    assert _wing_kernels.profile_drag(*points.T.copy(), models.grids, models.sizes, models.table, out) == -1
+    np.testing.assert_array_equal(out, models.profile_drag(points))
+    outside = points[:3].T.copy()
+    outside[1, 1] = models.re_min - 1.0  # out of the Reynolds numbers: SciPy raises its error
+    assert _wing_kernels.profile_drag(*outside, models.grids, models.sizes, models.table, out) == 1
+    # The sections of a segment, as numpy.linspace computes them, also with zero and denormal steps.
+    start = np.array([0.4, 1.5, 0.7, 0.0, 5e-324, 1.0])
+    stop = np.array([1.5, 0.4, 0.7, 1e-320, 1e-322, np.nextafter(1.0, 2)])
+    np.testing.assert_array_equal(_linspace(start, stop, 100), [np.linspace(a, b, 100) for a, b in zip(start, stop)])
+
+
+@pytest.mark.parametrize("index", sorted(CONSTRAINED))
+def test_the_compiled_kernels_give_the_bits_of_the_numpy_code_at_the_bounds(index: str, compiled_kernels: None) -> None:
+    # Variables at their bounds give equal chords, airfoils or strain factors, and plies on the ends of a pipe.
+    rng = np.random.default_rng(int(index))
+    for level in (0, 1):
+        problem = HPAProblem(index, level)
+        X = rng.random((3, problem.n_var))
+        X[rng.random(X.shape) < 0.4] = 0.0
+        X[rng.random(X.shape) < 0.3] = 1.0
+        outputs = []
+        for enabled in (True, False):
+            _kernels.set_enabled(enabled)
+            out: dict[str, np.ndarray] = {}
+            problem.evaluate(X, out)
+            outputs.append(out)
+        np.testing.assert_array_equal(outputs[0]["F"], outputs[1]["F"])
+        np.testing.assert_array_equal(outputs[0]["G"], outputs[1]["G"])
+
+
+@pytest.mark.parametrize("n_div", [1, 2, 6, 30])
+def test_the_compiled_kernels_give_the_bits_of_the_numpy_code_for_other_segmentations(n_div: int, compiled_kernels: None) -> None:
+    # With 30 segments, the lifting line has 150 stations: more than a block of NumPy's sums, so it runs NumPy's code.
+    for index, level in (("241", 0), ("222", 1), ("345", 2)):
+        problem = HPAProblem(index, level, n_div=n_div)
+        X = np.random.default_rng(n_div).random((2, problem.n_var))
+        outputs = []
+        for enabled in (True, False):
+            _kernels.set_enabled(enabled)
+            out: dict[str, np.ndarray] = {}
+            problem.evaluate(X, out)
+            outputs.append(out)
+        np.testing.assert_array_equal(outputs[0]["F"], outputs[1]["F"])
+        np.testing.assert_array_equal(outputs[0]["G"], outputs[1]["G"])

@@ -15,6 +15,7 @@ from typing import Any
 
 import numpy as np
 
+from ._kernels import Kernels
 from .wing import ALLOWABLE_STRAIN, Wing
 
 Array = np.ndarray[Any, Any]
@@ -25,13 +26,6 @@ def _cut(
 ) -> tuple[float, float, float, float]:
     """The root and tip of flange ``j`` of segment ``i`` where it is needed, and the limits for the next flange."""
     flange = j - 4
-    if wing._kernels is not None:
-        i_root, i_tip = wing._kernels.cut_range(
-            wing.moment, wing.moment_zerolift, np.asarray(wing.axial_force, dtype=float), wing.EI, wing.EA,
-            wing.EI_ply[:, flange].copy(), wing.EA_ply[:, flange].copy(), wing.diameter,
-            wing.strain_ratios[0, i], wing.strain_ratios[1, i], inside, strain_max,
-        )  # fmt: skip
-        return _adjust(wing, i_root, i_tip, len(inside), segment, limits)
     strain = np.abs(wing.moment / (wing.EI - wing.EI_ply[:, flange]) * 0.5 * wing.diameter) + wing.axial_force / (
         wing.EA - wing.EA_ply[:, flange]
     )
@@ -77,6 +71,27 @@ def _adjust(
     return root, tip, root_limit, tip_limit
 
 
+#: The trial widenings of a segment that :func:`_first_fit` computes at once, before the others.
+FIRST_TRIALS = 8
+
+
+def _first_fit(kernels: Kernels, dphi: Array, phis: Array, *args: Any) -> int:
+    """The first trial widening ``dphi`` of :func:`_widen` whose strains fit, or -1: the kernel's, a few at a time.
+
+    The trials are independent, so computing the sines of the first ones, and the others only when none of those
+    fits, gives the trial that computing them all gives.
+    """
+    sin_phi = np.sin(phis)
+    for low, high in ((0, FIRST_TRIALS), (FIRST_TRIALS, dphi.size)):
+        if low >= dphi.size:
+            break
+        sin_trial = np.sin(phis[None, :] + dphi[low:high, None])
+        fit = kernels.widen_trials(dphi[low:high], sin_trial, sin_phi, *args)
+        if fit >= 0:
+            return int(low + fit)
+    return -1
+
+
 def _widen(wing: Wing, strain_max: float) -> bool:
     """Widen the flanges of every segment whose strain is too large; whether none was."""
     feasible = True
@@ -84,16 +99,26 @@ def _widen(wing: Wing, strain_max: float) -> bool:
     for i in range(len(wing.ply_wing) - 1, -1, -1):
         plies = wing.ply_wing[i]
         n_entire = np.sum(plies[:, 1] >= 180)
-        inside = (wing.y0 >= wing.y_div[i]) & (wing.y0 < wing.y_div[i + 1])
-        strain1 = np.abs(wing.strain[inside]).max() / wing.strain_ratios[0, i]
-        strain2 = np.abs(wing.strain_zerolift[inside]).max() / wing.strain_ratios[1, i]
+        a, b, iy1, peak1, iy2, peak2 = (
+            wing._kernels.segment_peaks(wing.y0, wing.y_div[i], wing.y_div[i + 1], wing.strain, wing.strain_zerolift)
+            if wing._kernels is not None
+            else (0, 0, 0, 0.0, 0, 0.0)
+        )
+        if b > a:
+            strain1 = peak1 / wing.strain_ratios[0, i]
+            strain2 = peak2 / wing.strain_ratios[1, i]
+            iy1, iy2 = a + iy1, a + iy2
+        else:  # the NumPy code (and its error for a segment without grid points)
+            inside = (wing.y0 >= wing.y_div[i]) & (wing.y0 < wing.y_div[i + 1])
+            strain1 = np.abs(wing.strain[inside]).max() / wing.strain_ratios[0, i]
+            strain2 = np.abs(wing.strain_zerolift[inside]).max() / wing.strain_ratios[1, i]
+            iy1 = inside.argmax() + np.abs(wing.strain[inside]).argmax()
+            iy2 = inside.argmax() + np.abs(wing.strain_zerolift[inside]).argmax()
         if not max(strain1, strain2) > strain_max:
             continue
         feasible = False
-        iy1 = inside.argmax() + np.abs(wing.strain[inside]).argmax()
         M1 = wing.moment[iy1]
         AF1 = wing.axial_force[iy1]
-        iy2 = inside.argmax() + np.abs(wing.strain_zerolift[inside]).argmax()
         M2 = -wing.moment_zerolift[iy2]
         phis = np.deg2rad(plies[n_entire:, 1])
         Ex = wing.Ex_ply[i, :]
@@ -105,7 +130,13 @@ def _widen(wing: Wing, strain_max: float) -> bool:
         # once, element by element as the loop computes it (NumPy sums each row as it sums a vector), and the
         # first that fits is taken, or the last.
         widenings = np.arange(1, 180 - int(phis.max()), 1)
-        if widenings.size:
+        if widenings.size and wing._kernels is not None and Ex.size == phis.size:
+            fit = _first_fit(
+                wing._kernels, np.deg2rad(widenings), phis, Ex, tr3_1, tr_1, tr3_2, M1, AF1, M2, wing.EI[iy1], wing.EA[iy1],
+                wing.EI[iy2], wing.diameter[iy1], wing.diameter[iy2], wing.strain_ratios[0, i], wing.strain_ratios[1, i], strain_max,
+            )  # fmt: skip
+            j = int(widenings[fit] if fit >= 0 else widenings[-1])
+        elif widenings.size:
             dphi = np.deg2rad(widenings)[:, None]
             gain = dphi + np.sin(phis[None, :] + dphi) - np.sin(phis)[None, :]
             dIy1 = gain * tr3_1[None, :]
@@ -157,12 +188,35 @@ def _align(wing: Wing, i: int, segment: tuple[float, float]) -> None:
         plies[not0, 3] = 1.0
 
 
+def _cut_segments(wing: Wing, kernels: Kernels, strain_max: float) -> None:
+    """The cuts and alignments of :func:`optimize_plies`, segment by segment, with the compiled kernel."""
+    for i in range(len(wing.ply_wing) - 1, -1, -1):
+        plies = wing.ply_wing[i]
+        y0_start, y0_end = wing.y_div[i], wing.y_div[i + 1]
+        limits = np.array([1.1, -0.1])
+        j, first = plies.shape[0] - 1, True
+        while j >= 0:
+            # The kernel stops before the first flange cut after many plies were removed: the wing is updated.
+            j = kernels.cut_flanges(
+                plies, j, first, limits, y0_start, y0_end, wing.y0, wing.moment, wing.moment_zerolift, wing.axial_force,
+                wing.EI, wing.EA, wing.EI_ply, wing.EA_ply, wing.diameter, wing.strain_ratios[0, i], wing.strain_ratios[1, i],
+                strain_max,
+            )  # fmt: skip
+            if j >= 0:
+                wing.update(stiffness=False)
+                first = False
+        wing.update(stiffness=False)
+
+
 def optimize_plies(wing: Wing) -> None:
     """Size the flanges of ``wing`` in place, and update its weight, lift and deflections (``_optimize_ply``)."""
     # 0.99 because cutting plies off lightens the wing, which can raise the strain above the maximum.
     strain_max = 0.99 * ALLOWABLE_STRAIN
     if not _widen(wing, strain_max):
         wing.update(stiffness=True)
+    if wing._kernels is not None:
+        _cut_segments(wing, wing._kernels, strain_max)
+        return
     for i in range(len(wing.ply_wing) - 1, -1, -1):
         plies = wing.ply_wing[i]
         segment = (wing.y_div[i], wing.y_div[i + 1])
