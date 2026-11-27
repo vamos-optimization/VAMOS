@@ -376,6 +376,66 @@ def test_a_default_study_task_has_no_weight_vectors() -> None:
     assert "weight_vectors" not in resolved["resolution"]
 
 
+def _study(weight_vectors: Any = None, *, set_field: bool = True) -> Any:
+    configs = {"ctaea": {"weight_vectors": weight_vectors}} if set_field else None
+    return vamos.StudySpec(
+        problems=["c1dtlz1"],
+        algorithms=["ctaea"],
+        seeds=[0],
+        pop_size=100,
+        n_obj=3,
+        max_evaluations=200,
+        engine="numpy",
+        algorithm_configs=configs,
+    )
+
+
+@pytest.mark.parametrize("where", ["file", "directory"])
+def test_a_study_binds_a_path_string_as_the_mapping_and_runs_it(where: str, tmp_path: Path) -> None:
+    """Execution rebuilds the task's configuration with CTAEAConfig, which makes a path a mapping, so planning does too."""
+    from vamos.experiment.artifacts.resolved_reconstruction import reconstruct_resolved_run
+
+    file = str(weight_path("W3D_100.dat"))
+    path = file if where == "file" else str(weight_path("W3D_100.dat").parent)
+    digest = vector_digest(read_weight_vectors(file, 3))
+
+    task = vamos.plan_study(_study(path)).plan.tasks[0]
+    mapping = vamos.plan_study(_study({"path": path, "divisions": None})).plan.tasks[0]
+
+    assert task.resolved_run_spec["algorithm"]["config"]["weight_vectors"] == {"path": file, "divisions": None, "sha256": digest}
+    assert task.task_id == mapping.task_id
+    assert reconstruct_resolved_run(task.resolved_run_spec, root=tmp_path).algorithm_config.to_dict()["weight_vectors"]["sha256"] == digest
+    completed = vamos.create_study(_study(path), output=tmp_path / "study").run()
+    assert completed.status == "completed" and [item.state for item in completed.tasks] == ["succeeded"]
+    reference = completed.attempts[0].run_reference
+    assert reference is not None
+    stored = vamos.load_run(completed.root / "runs" / str(reference["run_id"]), verify="all")
+    assert stored.manifest.resolved_spec["algorithm"]["config"]["weight_vectors"]["sha256"] == digest
+    assert stored.manifest["outcome"]["evaluations"] == 200
+
+
+@pytest.mark.parametrize("value", [None, {}, {"path": None, "divisions": None}], ids=["none", "empty", "no-path-no-divisions"])
+def test_a_study_whose_weight_vectors_name_no_vectors_plans_the_default_task(value: Any, tmp_path: Path) -> None:
+    """CTAEAConfig.to_dict() leaves such a source out, so the task is the default one and reconstructs."""
+    from vamos.experiment.artifacts.resolved_reconstruction import reconstruct_resolved_run
+
+    default = vamos.plan_study(_study(set_field=False)).plan.tasks[0]
+    task = vamos.plan_study(_study(value)).plan.tasks[0]
+
+    assert task.task_id == default.task_id
+    assert task.resolved_run_spec == default.resolved_run_spec
+    assert "weight_vectors" not in task.resolved_run_spec["algorithm"]["config"]
+    reconstructed = reconstruct_resolved_run(task.resolved_run_spec, root=tmp_path).algorithm_config
+    assert isinstance(reconstructed, CTAEAConfig) and reconstructed.weight_vectors is None
+
+
+def test_a_study_rejects_invalid_weight_vectors_when_it_is_planned() -> None:
+    from vamos.experiment.study.errors import UnresolvedStudyTaskError
+
+    with pytest.raises(UnresolvedStudyTaskError, match="UNRESOLVED_TASK"):
+        vamos.plan_study(_study({"file": "W3D_100.dat"}))
+
+
 def test_the_command_line_builder_reads_and_binds_the_option() -> None:
     from vamos.engine.algorithm.factory import build_algorithm
     from vamos.foundation.core.experiment_config import ExperimentConfig

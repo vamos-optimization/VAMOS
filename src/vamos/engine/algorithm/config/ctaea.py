@@ -30,6 +30,21 @@ from .base import (
 from .types import RepairConfigValue
 
 
+def ctaea_weight_source(value: object) -> dict[str, int | str | None] | None:
+    """C-TAEA's ``weight_vectors`` as :class:`CTAEAConfig` holds them: a checked source, or ``None`` for its default vectors.
+
+    :func:`~vamos.engine.algorithm.components.weight_vectors.vector_source` checks the value and makes a
+    path ``{"path": path, "divisions": None}``. A source with neither ``path`` nor ``divisions``, such as
+    ``{}``, names no vectors, so it is ``None``: C-TAEA generates its default vectors and ``to_dict()``
+    leaves the field out. Study planning normalizes a ``weight_vectors`` override with it, so that a task
+    holds the configuration its execution rebuilds. Development after 1.5.2: new.
+    """
+    source = vector_source(value, field="weight_vectors")
+    if source is not None and source.get("path") is None and source.get("divisions") is None:
+        return None
+    return source
+
+
 @dataclass(frozen=True)
 class CTAEAConfig(_SerializableConfig):
     """Configuration of C-TAEA (Li et al., 2019).
@@ -68,11 +83,7 @@ class CTAEAConfig(_SerializableConfig):
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        source = vector_source(self.weight_vectors, field="weight_vectors")
-        # A source with neither a path nor divisions names no vectors: C-TAEA generates its default ones.
-        if source is not None and source.get("path") is None and source.get("divisions") is None:
-            source = None
-        object.__setattr__(self, "weight_vectors", source)
+        object.__setattr__(self, "weight_vectors", ctaea_weight_source(self.weight_vectors))
 
     def to_dict(self) -> dict[str, object]:
         payload = super().to_dict()
@@ -169,4 +180,4 @@ class _CTAEAConfigBuilder(
         )
 
 
-__all__ = ["CTAEAConfig"]
+__all__ = ["CTAEAConfig", "ctaea_weight_source"]

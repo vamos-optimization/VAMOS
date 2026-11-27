@@ -17,6 +17,7 @@ from vamos.engine.algorithm.catalog import (
 )
 from vamos.engine.algorithm.components.weight_vectors import bind_vector_file
 from vamos.engine.algorithm.config.base import ReferenceDirectionPopulationError
+from vamos.engine.algorithm.config.ctaea import ctaea_weight_source
 from vamos.experiment.artifacts.models import deep_freeze, deep_thaw
 from vamos.experiment.artifacts.resolved_reconstruction import is_reconstructable_evaluation_backend
 from vamos.experiment.artifacts.specs import RunSpecInputs, build_run_specs, is_registry_problem
@@ -256,6 +257,15 @@ def _algorithm_overrides(spec: StudySpec, requested: str, resolved: str) -> dict
     thawed = deep_thaw(raw)
     if not isinstance(thawed, dict):
         raise AssertionError("algorithm override is not an object")
+    if resolved.lower() == "ctaea" and "weight_vectors" in thawed:
+        # Development after 1.5.2: C-TAEA's weight_vectors as CTAEAConfig holds them, since execution rebuilds the task's
+        # configuration with it. A path becomes a mapping, which _resolved_algorithm_config binds to its file and digest, and
+        # a source that names no vectors (None, {}) is the field left out, so the task is the one without it.
+        source = ctaea_weight_source(thawed["weight_vectors"])
+        if source is None:
+            del thawed["weight_vectors"]
+        else:
+            thawed["weight_vectors"] = source
     return thawed
 
 
