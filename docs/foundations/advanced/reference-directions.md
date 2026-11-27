@@ -210,8 +210,14 @@ two layers m=8, 3 + 2  156 rows, 156 distinct, nearest neighbour 0.306 to 0.468
   inner_divisions=2)` gives the 156 distinct vectors instead.
 
 Lattices exist only for the sizes C(p + m − 1, m − 1). Methods that place any
-number of well-spaced points on the simplex, such as the Riesz s-energy method
-of Blank et al. [7], produce sets that VAMOS can read from a file. Even spacing
+number of well-spaced points on the simplex produce sets that VAMOS can read
+from a file. One of them, the Riesz s-energy method of Blank et al. [7], spreads
+the points by minimizing the sum of 1 / d^s over all pairs, which grows without
+bound as two points meet; VAMOS generates its sets for MOEA/D, PPS, NSGA-III and
+RVEA with `method="riesz_energy"` and a `seed`, one vector per individual (see
+[reference and weight vectors](../../reference/algorithms.md#reference-and-weight-vectors)).
+With 100 vectors and three objectives its closest pair is about 0.10 apart, as
+in `W3D_100.dat`. Even spacing
 on the simplex is not even spacing on the front: where the solutions end up
 also depends on the shape of the front and on how each algorithm uses its
 vectors, as Ishibuchi et al. showed [5].

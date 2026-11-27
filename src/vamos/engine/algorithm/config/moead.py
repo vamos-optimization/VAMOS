@@ -86,6 +86,10 @@ class MOEADConfig(_SerializableConfig):
     objectives, 3 and 2 divisions), and NSGA-III's ``reference_directions`` and RVEA's ``reference_vectors``
     take the same keys. :func:`vamos.algorithms.moead_populations` lists the populations that have weights
     without options.
+
+    **Development after 1.5.2:** ``weight_vectors(method="riesz_energy", seed=...)`` gives any population its
+    own weights, the Riesz s-energy set of ``pop_size`` vectors (see
+    :func:`~vamos.engine.reference_directions.riesz_energy`).
     """
 
     pop_size: int
@@ -112,7 +116,7 @@ class MOEADConfig(_SerializableConfig):
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        object.__setattr__(self, "weight_vectors", vector_source(self.weight_vectors, field="weight_vectors"))
+        object.__setattr__(self, "weight_vectors", vector_source(self.weight_vectors, field="weight_vectors", allow_method=True))
         criterion = normalize_subproblem_update_criterion(self.subproblem_update_criterion)
         if criterion is not None and criterion[0] != "feasibility_rules" and self.constraint_mode == "none":
             raise ValueError(f"subproblem_update_criterion {criterion[0]!r} needs constraint_mode 'feasibility'.")
@@ -280,6 +284,8 @@ class _MOEADConfigBuilder(
         path: str | None = None,
         divisions: int | None = None,
         inner_divisions: int | None = None,
+        method: str | None = None,
+        seed: int | None = None,
     ) -> _MOEADConfigBuilder:
         """The weight vectors: a file or directory, a lattice, or by default the lattice or packaged file of ``pop_size``.
 
@@ -293,8 +299,14 @@ class _MOEADConfigBuilder(
         towards the centre of the simplex, for any number of objectives; a ``path`` that does not exist
         raises :class:`~vamos.exceptions.ConfigurationError` when the run starts, where VAMOS 1.4.0 created
         the directory.
+
+        **Development after 1.5.2:** ``method="riesz_energy"`` gives the Riesz s-energy set of Blank et al.
+        (2021) with exactly ``pop_size`` vectors, for any population and any number of objectives, such as
+        100 with three objectives; ``seed`` (0 by default) seeds its random start, so the same seed gives the
+        same vectors (:func:`~vamos.engine.reference_directions.riesz_energy`). It excludes the other options.
         """
-        self._cfg["weight_vectors"] = vector_source({"path": path, "divisions": divisions, "inner_divisions": inner_divisions})
+        source = {"path": path, "divisions": divisions, "inner_divisions": inner_divisions, "method": method, "seed": seed}
+        self._cfg["weight_vectors"] = vector_source(source, allow_method=True)
         return self
 
     def use_numba_variation(self, enabled: bool = True) -> _MOEADConfigBuilder:

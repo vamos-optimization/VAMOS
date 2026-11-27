@@ -2,6 +2,8 @@
 
 Planning never reads an external source of vectors: a path is rejected, and a lattice must fit the
 population (NSGA-III needs at least one individual per direction, RVEA exactly one per vector).
+Development after 1.5.2: a generated set (``method``, such as ``"riesz_energy"``) has one vector per
+individual, so it always fits; its options are checked as the run checks them.
 """
 
 from __future__ import annotations
@@ -10,7 +12,9 @@ from collections.abc import Mapping
 from math import comb
 from typing import Any
 
+from vamos.engine.algorithm.components.weight_vectors import vector_source
 from vamos.engine.reference_directions import two_layer_shared
+from vamos.foundation.exceptions import ConfigurationError
 
 from .errors import UnresolvedStudyTaskError
 
@@ -37,6 +41,8 @@ def validate_nsgaiii_reference_directions(config: Mapping[str, Any], *, populati
             actual="external path",
             action="Remove the reference-direction path; planning never follows external scientific inputs.",
         )
+    if _generated(raw, "reference_directions", index):
+        return
     if isinstance(divisions, bool) or not isinstance(divisions, int) or divisions < 1:
         raise UnresolvedStudyTaskError(
             operation="resolve study plan",
@@ -58,6 +64,24 @@ def validate_nsgaiii_reference_directions(config: Mapping[str, Any], *, populati
             actual=population,
             action="Use at least the reference-direction count as pop_size or choose fewer divisions.",
         )
+
+
+def _generated(raw: Mapping[str, Any], field: str, index: int) -> bool:
+    """Whether ``raw`` generates one vector per individual (``method``), its options checked. Development after 1.5.2."""
+    if raw.get("method") is None:
+        return False
+    try:
+        vector_source(raw, field=field, allow_method=True)
+    except ConfigurationError as exc:
+        raise UnresolvedStudyTaskError(
+            operation="resolve study plan",
+            reason="INVALID_REFERENCE_DIRECTIONS",
+            field=f"$.matrix[{index}].algorithm_config.{field}",
+            expected="a method with a non-negative integer seed and no path or divisions",
+            actual=dict(raw),
+            action=str(exc),
+        ) from exc
+    return True
 
 
 def _inner_divisions(raw: Mapping[str, Any], field: str, index: int, *, divisions: int, n_obj: int) -> int | None:
@@ -109,6 +133,8 @@ def validate_rvea_reference_directions(config: Mapping[str, Any], *, population:
             actual="external path",
             action="Remove the reference-vector path; planning never follows external scientific inputs.",
         )
+    if _generated(vectors, "reference_vectors", index):
+        return
     # VAMOS 1.5.0: reference_vectors.divisions takes the place of n_partitions.
     use_divisions = vectors.get("divisions") is not None
     partitions = vectors.get("divisions") if use_divisions else config.get("n_partitions")

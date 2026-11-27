@@ -3,11 +3,14 @@ import os
 import re
 import stat
 import warnings
+from collections.abc import Mapping
 from numbers import Integral
+from typing import Any
 
 import numpy as np
 
 from vamos.engine.algorithm.components.vector_files import (
+    VECTOR_METHODS,
     VECTOR_SOURCE_FIELDS,
     _checked_digest,
     _load_weights,
@@ -25,6 +28,7 @@ from vamos.engine.reference_directions import (
     das_dennis,
     largest_lattice_divisions,
     lattice_size,
+    riesz_energy,
     two_layer_lattice,
     two_layer_shared,
     two_layer_size,
@@ -41,6 +45,8 @@ def load_or_generate_weight_vectors(
     mode: str = "auto",
     inner_divisions: int | None = None,
     sha256: str | None = None,
+    method: str | None = None,
+    seed: int | None = None,
 ) -> FloatArray:
     """
     The weight (reference) vectors of MOEA/D, NSGA-III and RVEA: those of a file, or a simplex-lattice design.
@@ -70,9 +76,18 @@ def load_or_generate_weight_vectors(
     that does not exist raises :class:`~vamos.exceptions.ConfigurationError` in every mode. Mode "auto"
     no longer generates a lattice for a missing file and saves it there, and MOEA/D no longer creates a
     missing directory; it still saves the lattice in an existing directory that lacks the file.
+
+    Development after 1.5.2: ``method="riesz_energy"`` gives, in every mode and for any number of
+    objectives from 2, the ``pop_size`` vectors of
+    :func:`~vamos.engine.reference_directions.riesz_energy` for ``seed`` (0 when ``None``), one per
+    individual; it excludes ``path``, ``divisions``, ``inner_divisions`` and ``sha256``.
     """
     if mode not in ("auto", "exact", "jmetalpy"):
         raise ValueError(f"Unknown weight vector mode {mode!r}; expected 'auto', 'exact' or 'jmetalpy'.")
+    if method is not None:
+        options = {"path": path, "divisions": divisions, "inner_divisions": inner_divisions, "sha256": sha256}
+        vector_source({**options, "method": method, "seed": seed}, field="weight vectors", allow_method=True)
+        return riesz_energy(n_obj, pop_size, seed=0 if seed is None else seed)
     if inner_divisions is not None:
         return _two_layer_weights(pop_size, n_obj, path, divisions, inner_divisions, exact=mode != "auto")
     if mode == "jmetalpy":
@@ -188,6 +203,26 @@ def _load_or_generate_jmetalpy_weights(
     return weights
 
 
+def vector_method(source: Mapping[str, object] | None) -> dict[str, Any]:
+    """The ``method`` and ``seed`` of a checked vector source, as options of :func:`load_or_generate_weight_vectors`.
+
+    Empty for a source without a method. Development after 1.5.2: new.
+    """
+    if not source or source.get("method") is None:
+        return {}
+    return {"method": source["method"], "seed": source.get("seed")}
+
+
+def describe_generated_vectors(pop_size: int, n_obj: int, *, method: str, seed: int | None = None) -> dict[str, object]:
+    """The record of the vectors that ``method`` generates: the method, its seed, the number and the digest of the vectors.
+
+    ``{"source": "riesz_energy", "seed": 0, "vectors": 100, "sha256": ...}``, with the :func:`vector_digest` of the
+    vectors the run starts from, so that a run records which set it ran. Development after 1.5.2: new.
+    """
+    vectors = load_or_generate_weight_vectors(pop_size, n_obj, method=method, seed=seed)
+    return {"source": method, "seed": 0 if seed is None else int(seed), "vectors": pop_size, "sha256": vector_digest(vectors)}
+
+
 def describe_weight_vectors(
     pop_size: int,
     n_obj: int,
@@ -196,6 +231,8 @@ def describe_weight_vectors(
     divisions: int | None = None,
     inner_divisions: int | None = None,
     sha256: str | None = None,
+    method: str | None = None,
+    seed: int | None = None,
 ) -> dict[str, object]:
     """Where MOEA/D's weight vectors for ``pop_size`` come from, as a run artifact records it.
 
@@ -213,7 +250,11 @@ def describe_weight_vectors(
     the digest that :func:`bind_vector_file` records with the file a run read, the description comes from
     the configuration alone, without the file: ``das_dennis`` when the digest is that of the lattice of
     ``pop_size`` vectors (a lattice that an earlier run saved), else ``file``.
+
+    Development after 1.5.2: with ``method``, :func:`describe_generated_vectors`.
     """
+    if method is not None:
+        return describe_generated_vectors(pop_size, n_obj, method=method, seed=seed)
     if inner_divisions is not None:
         if divisions is None:
             raise ValueError("inner_divisions needs divisions, the boundary layer of the two-layer lattice.")
@@ -383,10 +424,12 @@ def _choose_exact_divisions(pop_size: int, n_obj: int) -> int:
 
 
 __all__ = [
+    "VECTOR_METHODS",
     "VECTOR_SOURCE_FIELDS",
     "bind_config_vector_files",
     "bind_vector_file",
     "check_two_layers",
+    "describe_generated_vectors",
     "describe_vector_file",
     "describe_weight_vectors",
     "existing_weight_file",
@@ -394,6 +437,7 @@ __all__ = [
     "load_or_generate_weight_vectors",
     "read_weight_vectors",
     "vector_digest",
+    "vector_method",
     "vector_source",
     "weighted_populations",
 ]

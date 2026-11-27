@@ -21,7 +21,7 @@ from vamos.engine.algorithm.components.metrics import setup_hv_tracker
 from vamos.engine.algorithm.components.population import initialize_evaluated_population
 from vamos.engine.algorithm.components.termination import parse_termination, validate_initial_budget
 from vamos.engine.algorithm.components.utils import resolve_bounds_array
-from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors
+from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors, vector_method
 from vamos.engine.algorithm.config.base import normalize_constraint_mode
 from vamos.engine.algorithm.moead.update_criteria import (
     SubproblemUpdateCriterion,
@@ -328,6 +328,7 @@ def _weights(cfg: Mapping[str, Any], pop_size: int, n_obj: int) -> tuple[NDArray
         mode="jmetalpy",
         inner_divisions=weight_cfg.get("inner_divisions"),
         sha256=weight_cfg.get("sha256"),
+        **vector_method(weight_cfg),
     )
     weights_safe = np.where(weights == 0, ZERO_WEIGHT_EPS, weights)
     weight_norms = np.linalg.norm(weights, axis=1)
