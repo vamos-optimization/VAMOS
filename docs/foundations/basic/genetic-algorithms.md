@@ -61,29 +61,36 @@ generations. `NSGAIIConfig.default()` uses N = 100 (`pop_size`), and lesson
 choice on a running algorithm.
 
 The initial population is usually random. Unless told otherwise, VAMOS draws
-each individual uniformly within the bounds of the problem, with one branch
-per encoding:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/components/population.py
-    if normalized == "permutation":
-        return random_permutation_population(pop_size, n_var, rng)
-    if normalized == "binary":
-        return random_binary_population(pop_size, n_var, rng)
-    if normalized == "integer":
-        return random_integer_population(pop_size, n_var, xl.astype(int), xu.astype(int), rng)
-    if normalized == "mixed":
-        spec = getattr(problem, "mixed_spec", None)
-        if spec is None:
-            raise ValueError("Mixed-encoding problems must define 'mixed_spec'.")
-        return mixed_initialize(pop_size, n_var, spec, rng)
-    return rng.uniform(np.asarray(xl, dtype=np.float64), np.asarray(xu, dtype=np.float64), size=(pop_size, n_var))
-```
-
-`rng` is the run's random generator, created from its seed, so the same seed
+each individual uniformly within the bounds of the problem, in the form that
+its encoding requires: random bits for a binary problem, a random order for a
+permutation, and so on. The draws come from the run's seed, so the same seed
 gives the same initial population. For real variables the builders'
 `.initializer(...)` also offers Latin hypercube (`"lhs"`), Sobol and Halton
-sampling, which cover the bounds more evenly than independent draws.
+sampling, which cover the bounds more evenly than independent draws:
+
+```python
+from vamos import optimize
+from vamos.algorithms import NSGAIIConfig
+
+config = (
+    NSGAIIConfig.builder()
+    .pop_size(40)
+    .crossover("sbx", prob=0.9, eta=20.0)
+    .mutation("pm", prob="1/n", eta=20.0)
+    .initializer("lhs")  # Latin hypercube sampling instead of uniform draws
+    .build()
+)
+result = optimize("zdt1", algorithm="nsgaii", algorithm_config=config, max_evaluations=2_000, seed=1)
+print("initializer:", config.initializer)
+print("evaluations:", result.data["evaluations"], "| returned solutions:", len(result.F))
+```
+
+Output:
+
+```text
+initializer: {'type': 'lhs'}
+evaluations: 2000 | returned solutions: 40
+```
 
 ## Representation
 
@@ -272,38 +279,13 @@ show. Things to try:
 
 VAMOS algorithms run the same loop. In NSGA-II, one cycle is an *ask*, which
 selects parents and creates the offspring, followed by the evaluation and a
-*tell*, which applies survival. The ask, with its two first steps:
+*tell*, which applies survival. The ask covers the first two steps:
 
-```python
-# Excerpt from src/vamos/engine/algorithm/nsgaii/ask_tell.py
-    request_size = capped_offspring_size(st.n_eval, st.max_evals, st.offspring_size, "NSGA-II")
-    parents_per_group = st.variation.parents_per_group
-    children_per_group = st.variation.children_per_group
-    parent_count = int(np.ceil(request_size / children_per_group) * parents_per_group)
-    mating_pairs = build_mating_pool(
-        algo.kernel,
-        ranks,
-        crowding,
-        st.pressure,
-        st.rng,
-        parent_count,
-        parents_per_group,
-        st.sel_method,
-        candidate_indices=candidate_indices,
-    )
-    parent_idx = mating_pairs.reshape(-1)
-    X_parents = st.variation.gather_parents(st.X, parent_idx)
-    X_off = st.variation.produce_offspring(X_parents, st.rng)
-
-    if X_off.shape[0] > request_size:
-        X_off = X_off[:request_size]
-```
-
-- `request_size` is the number of offspring of this cycle: `pop_size` for the
-  generational algorithm, 1 for the steady-state one, and never more than the
-  evaluations left in the budget.
-- `build_mating_pool` runs the tournaments on the ranks and crowding distances
-  of the population, and `produce_offspring` applies crossover and mutation.
+- It creates `pop_size` offspring in the generational algorithm and one in the
+  steady-state algorithm, and never more than the evaluations left in the
+  budget.
+- It chooses the parents by binary tournaments on the ranks and crowding
+  distances of the population, and applies crossover and mutation to them.
 - A crossover produces two children per pair, so the steady-state algorithm
   keeps the first one.
 
@@ -388,7 +370,7 @@ it as `max_evaluations=n`, or as `termination=` with one of four criteria
 - `("max_evaluations", n)`: the evaluation budget, the usual choice for
   experiments. It counts the initial population, and VAMOS never exceeds it:
   when the budget is not a multiple of the batch size, the last batch is
-  shortened (`capped_offspring_size` in the excerpt above).
+  shortened.
 - `("n_gen", g)`: g generations of `pop_size` evaluations each, the initial
   population included, so g · `pop_size` evaluations.
 - `("hv", {...})`: stop once the hypervolume of the result reaches a target, or
@@ -410,27 +392,13 @@ VAMOS separates what an algorithm does from how its numerical steps are
 computed. Non-dominated sorting, crowding distances, survival and the
 real-coded operators run in a *kernel*, and three engines provide one:
 
-- **NumPy**, the reference implementation, with vectorized array operations.
+- **NumPy**, the reference engine, with vectorized array operations.
 - **Numba**, which compiles selected kernels to machine code just in time (JIT).
 - **MooCore**, which uses the native non-dominated sorting and hypervolume
   routines of the MooCore library where available.
 
 `optimize` chooses the engine from its `engine` argument
 ([automatic engine selection](../../reference/algorithms.md#automatic-engine-selection)):
-
-```python
-# Excerpt from src/vamos/experiment/runtime/catalog.py
-DEFAULT_ENGINE = "numpy"
-def resolve_engine_details(engine: str | None, *, algorithm: str | None = None) -> tuple[str, str]:
-    if engine is None:
-        return DEFAULT_ENGINE, "default"
-    engine_name = str(engine).lower()
-    if engine_name == "auto":
-        if algorithm and algorithm.lower() in get_builtin_algorithm_names() and _has_numba():
-            return "numba", "auto"
-        return DEFAULT_ENGINE, "auto"
-    return engine_name, "explicit"
-```
 
 - **Omitting `engine`** means NumPy, the stable default of VAMOS 1.x.
 - **`engine="auto"`** uses Numba for the built-in algorithms when Numba is
@@ -444,7 +412,7 @@ The run records the engine it used:
 ```python
 from vamos import optimize
 
-result = optimize("zdt1", algorithm="nsgaii", pop_size=20, max_evaluations=200, seed=1)
+result = optimize("zdt1", algorithm="nsgaii", pop_size=20, max_evaluations=200, engine="numpy", seed=1)
 print("engine:", result.meta["engine"])
 ```
 

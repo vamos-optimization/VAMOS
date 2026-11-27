@@ -192,103 +192,43 @@ a population that never looks at the constraints. `result.data["population"]`
 is population 1, the result of the authors' code; `result.X` and `result.F`
 hold its rows, or its feasible non-dominated rows when the configuration asks
 for `result_mode="non_dominated"` (the default of `CCMOConfig.default()`).
+Population 2 keeps the constraint values of its members, so that the result
+can report their feasibility, but its selection never reads them. The budget
+is exact: when fewer evaluations are left than a full generation creates, the
+offspring of population 2 are the first to be cut, and both populations then
+select from the offspring that were evaluated.
 
-The dominance relation and the fitness follow the formulas above line by line.
-`strength_raw_fitness` is SPEA2's: the strength of each row, then the sum of the
-strengths of its dominators.
-
-```python
-# Excerpt from src/vamos/engine/algorithm/ccmo/selection.py
-def constraint_first_dominance(F: NDArray[Any], violation: NDArray[Any]) -> NDArray[np.bool_]:
-    objectives = np.asarray(F, dtype=float)
-    cv = np.asarray(violation, dtype=float)
-    smaller = cv[:, None] < cv[None, :]
-    equal = cv[:, None] == cv[None, :]
-    no_worse = np.all(objectives[:, None, :] <= objectives[None, :, :], axis=2)
-    better = np.any(objectives[:, None, :] < objectives[None, :, :], axis=2)
-    return np.asarray(smaller | (equal & no_worse & better), dtype=bool)
-
-
-def ccmo_fitness(F: NDArray[Any], violation: NDArray[Any]) -> tuple[FloatArray, FloatArray]:
-    objectives = np.asarray(F, dtype=float)
-    n = objectives.shape[0]
-    distances = objective_distances(objectives)
-    if n == 0:
-        return np.empty(0, dtype=float), distances
-    raw = strength_raw_fitness(constraint_first_dominance(objectives, violation))
-    others = distances.copy()
-    np.fill_diagonal(others, np.inf)
-    k = math.isqrt(n)
-    # Every row has n - 1 finite distances, and k <= n - 1 for n >= 2; with n = 1 the distance is infinite.
-    kth = np.partition(others, kth=k - 1, axis=1)[:, k - 1]
-    return np.asarray(raw + 1.0 / (kth + 2.0), dtype=float), distances
-```
-
-`smaller` and `equal` compare every pair of violations at once; a row
-dominates another if its violation is smaller or, with an equal violation, if
-it is no worse in every objective and better in one. In the fitness, the
-diagonal of the distance matrix is set to infinity so that a candidate is not
-its own neighbour, and `np.partition` finds the k-th smallest distance of each
-row without sorting it.
-
-The environmental selection keeps the rows with a fitness below 1 and falls
-back on the lowest fitness or on the truncation:
+The builder chooses the variation. With the crossover `de`, each population
+creates N offspring per generation instead of N/2, so the same budget gives
+half as many generations. Here both variations run on MW3, which the
+[problem reference](../../reference/problems.md) lists:
 
 ```python
-# Excerpt from src/vamos/engine/algorithm/ccmo/selection.py
-    fitness, distances = ccmo_fitness(F, violation)
-    n = fitness.shape[0]
-    size = min(int(n_select), n)
-    nondominated = np.flatnonzero(fitness < 1.0)
-    if nondominated.size < size:
-        selected = np.argsort(fitness, kind="stable")[:size]
-    elif nondominated.size > size:
-        keep = truncate_lexicographic(distances[np.ix_(nondominated, nondominated)], size, selection_kernels)
-        selected = nondominated[keep]
-    else:
-        selected = nondominated
-    selected = np.sort(selected)
-    order = np.asarray(selected[np.argsort(fitness[selected], kind="stable")], dtype=int)
-    return order, np.asarray(fitness[order], dtype=float)
+from vamos import optimize
+from vamos.algorithms import CCMOConfig
+
+for crossover, parameters in (("sbx", {"prob": 1.0, "eta": 20.0}), ("de", {"cr": 1.0, "f": 0.5})):
+    config = (
+        CCMOConfig.builder()
+        .pop_size(100)
+        .crossover(crossover, **parameters)
+        .mutation("pm", prob="1/n", eta=20.0)
+        .build()
+    )
+    result = optimize("mw3", algorithm="ccmo", algorithm_config=config, max_evaluations=10_000, engine="numpy", seed=1)
+    print(f"{crossover}: {result.data['generation']} generations, {len(result.F)} feasible non-dominated solutions")
 ```
 
-The stable sorts give every tie to the row that comes first, as the authors'
-code does. The truncation receives only the distances among the non-dominated
-rows. The last two lines return the survivors in increasing order of fitness.
+Output:
 
-The algorithm class puts the pieces together. `ask` breeds the offspring of
-both populations, population 1's first, and cuts them to the remaining budget;
-`tell` runs the two selections on the same offspring, once with the violation
-and once with zeros:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/ccmo/ccmo.py
-        request = capped_offspring_size(st.n_eval, st.max_evals, st.offspring_size, "CCMO")
-        main = self._offspring(st.X, st.fitness)
-        helper = self._offspring(st.helper_X, st.helper_fitness)
-        X_off = np.concatenate([main, helper])[:request]
-
-        # Population 1 selects from [itself, offspring] with the constraint violation.
-        X_union = np.vstack([st.X, X_off])
-        F_union = np.vstack([st.F, F_off])
-        G_union = combine_constraints(st.G, G_off, st.constraint_mode, algorithm="CCMO")
-        selected, st.fitness = ccmo_environmental_selection(F_union, _violation(G_union, F_union.shape[0]), st.pop_size, kernels)
-        st.X, st.F = X_union[selected], F_union[selected]
-        st.G = G_union[selected] if G_union is not None else None
-
-        # Population 2 selects from [itself, offspring] without it.
-        helper_X_union = np.vstack([st.helper_X, X_off])
-        helper_F_union = np.vstack([st.helper_F, F_off])
-        helper_G_union = combine_constraints(st.helper_G, G_off, st.constraint_mode, algorithm="CCMO")
-        selected, st.helper_fitness = ccmo_environmental_selection(helper_F_union, np.zeros(helper_F_union.shape[0]), st.pop_size, kernels)
+```text
+sbx: 98 generations, 100 feasible non-dominated solutions
+de: 49 generations, 53 feasible non-dominated solutions
 ```
 
-`[:request]` is the exact budget: when fewer evaluations are left than a full
-generation creates, the offspring of population 2, which come last, are the
-first to be cut, and both populations then select from the offspring that were
-evaluated. Population 2 still stores the constraint values of its members
-(`helper_G_union`), so that a result can report their feasibility, but its
-selection never reads them.
+After 10,000 evaluations the DE variation returns fewer feasible
+non-dominated solutions. One budget and one seed show how to choose the
+variation, not which one is better.
 
 ## Where VAMOS differs from the paper
 

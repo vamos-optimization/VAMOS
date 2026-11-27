@@ -31,7 +31,7 @@ In this lesson you will learn:
 - the single-objective problem of phase 1 and how its population is replaced;
 - the two quantities that end phase 1, the feasible share Pf and the spread δ,
   and their thresholds;
-- phase 2, NSGA-II with constrained domination as ToP implements it;
+- phase 2, NSGA-II with ToP's constrained domination;
 - where VAMOS follows PlatEMO's implementation through jMetal's port instead of
   the paper.
 
@@ -196,133 +196,6 @@ evaluation limit. The generation that starts at 18,000 evaluations, exactly
 parameters, not constants: `phase_one_evaluation_fraction` bounds what phase 1
 may cost when δ does not fall.
 
-The replacement rule, δ and the switch:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/top/phases.py
-def offspring_replaces_parent(
-    offspring_violation: NDArray[Any],
-    offspring_mean: NDArray[Any],
-    parent_violation: NDArray[Any],
-    parent_mean: NDArray[Any],
-) -> NDArray[np.bool_]:
-    offspring_cv = np.asarray(offspring_violation, dtype=float)
-    parent_cv = np.asarray(parent_violation, dtype=float)
-    smaller_mean = np.asarray(offspring_mean, dtype=float) < np.asarray(parent_mean, dtype=float)
-    return np.asarray((offspring_cv < parent_cv) | ((offspring_cv == parent_cv) & smaller_mean), dtype=bool)
-
-
-def updated_delta(F: NDArray[Any], violation: NDArray[Any], delta: float) -> float:
-    objectives = np.asarray(F, dtype=float)[np.asarray(violation, dtype=float) == 0.0]
-    n = objectives.shape[0]
-    if n < 3:
-        return float(delta)
-    minimum = np.min(objectives, axis=0)
-    maximum = np.max(objectives, axis=0)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        normalized = (objectives - minimum) / (maximum - minimum)
-    sums = np.zeros(n, dtype=float)
-    for j in range(normalized.shape[1]):
-        sums = sums + normalized[:, j]
-    sums = np.sort(sums)
-    return float(sums[n // 3 - 1] - sums[0])
-
-
-def phase_one_continues(
-    delta: float,
-    ratio: float,
-    evaluations: int,
-    max_evaluations: int,
-    *,
-    delta_threshold: float = DELTA_THRESHOLD,
-    feasible_ratio_threshold: float = FEASIBLE_RATIO_THRESHOLD,
-    phase_one_evaluation_fraction: float = PHASE_ONE_EVALUATION_FRACTION,
-) -> bool:
-    searching = delta >= delta_threshold or ratio <= feasible_ratio_threshold
-    return bool(searching and evaluations <= phase_one_evaluation_fraction * max_evaluations)
-```
-
-The comparison is strict, so a trial vector with the same violation and the
-same mean objective does not replace its parent. `sums[n // 3 - 1]` is the
-⌊n/3⌋-th smallest sum. The sums are added objective by objective from zero, as
-jMetal's loops do, so that the floating-point values, and the ties they
-create, are jMetal's. In the switch, a NaN δ, which an objective with a single
-value among the feasible solutions produces, fails `delta >= delta_threshold`;
-the algorithm calls it with the evaluations done when a generation starts.
-
-Phase 2's fronts and survival:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/top/selection.py
-def constrained_front_numbers(F: NDArray[Any], violation: NDArray[Any]) -> IndexArray:
-    objectives = np.asarray(F, dtype=float)
-    cv = np.asarray(violation, dtype=float)
-    fronts = np.zeros(cv.shape[0], dtype=int)
-    feasible = cv == 0.0
-    feasible_fronts = 0
-    if feasible.any():
-        ranks = front_ranks(objectives[feasible])
-        fronts[feasible] = ranks
-        feasible_fronts = int(ranks.max()) + 1
-    if not feasible.all():
-        _, levels = np.unique(cv[~feasible], return_inverse=True)
-        fronts[~feasible] = feasible_fronts + np.asarray(levels, dtype=int).reshape(-1)
-    return fronts
-```
-
-Instead of running a sort with the constrained dominance, the function builds
-its result directly: Pareto fronts for the feasible rows, then `np.unique`
-numbers the distinct violations of the infeasible rows in increasing order,
-one front each. `environmental_selection` then keeps whole fronts while they
-fit and takes the rest of the last front by decreasing crowding distance.
-
-Phase 1 in the algorithm class. The trial vectors:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/top/top.py
-    def _phase_one_offspring(self) -> np.ndarray[Any, Any]:
-        st = self._st
-        X = np.asarray(st.X, dtype=float)
-        n = int(X.shape[0])
-        best = X[index_of_lowest_mean_objective(st.F)]
-        current_to_rand = st.rng.random(n) < CURRENT_TO_RAND_PROBABILITY
-        drawn = st.rng.integers(0, n, size=(n, 3))
-        r1, r2, r3 = X[drawn[:, 0]], X[drawn[:, 1]], X[drawn[:, 2]]
-        choice = current_to_rand[:, None]
-        base = np.where(choice, X, r1)
-        mutant = np.where(choice, current_to_rand_1(X, r1, r2, r3, st.f), rand_to_best_1(best, r1, r2, r3, st.f))
-        return self._trial_vectors(base, mutant)
-```
-
-The random numbers are drawn in blocks: the choice of strategy for every
-solution, then the indices r1, r2 and r3 (with replacement), then, inside
-`_trial_vectors`, the crossover and the mutation. `base` is the vector that
-the crossover starts from: x_i for DE/current-to-rand/1, x_r1 for
-DE/rand-to-best/1/bin. When the evaluated trial vectors come back, `tell`
-replaces the parents and updates Pf and δ:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/top/top.py
-        if st.pending_phase == 1:
-            # Each evaluated trial vector faces the solution at its position; the others are kept.
-            violation = constraint_violation(st.G, st.F.shape[0])
-            replaces = offspring_replaces_parent(
-                constraint_violation(G_off, k), mean_objectives(F_off), violation[:k], mean_objectives(st.F[:k])
-            )
-            rows = np.flatnonzero(replaces)
-            X, F = st.X.copy(), st.F.copy()
-            X[rows], F[rows] = X_off[rows], F_off[rows]
-            st.X, st.F, st.G = X, F, G
-            violation = constraint_violation(st.G, st.F.shape[0])
-            st.feasible_ratio = feasible_ratio(violation)
-            st.delta = updated_delta(st.F, violation, st.delta)
-```
-
-`k` is the number of trial vectors that the budget allowed: a cut last
-generation compares only the first k pairs and keeps the other solutions. The
-violation is computed again after the replacement, so Pf and δ describe the new
-population.
-
 ## Where VAMOS differs from the paper
 
 VAMOS follows jMetal's port, which follows PlatEMO's implementation where it
@@ -349,9 +222,10 @@ Relative to jMetal's port:
 - **Budget:** exact; a cut last generation evaluates the first offspring only,
   while jMetal can exceed the budget by up to N − 1 evaluations. The phase of a
   generation is decided when it starts, so the decisions are jMetal's.
-- **Random draws:** in blocks, as described above, while jMetal draws them
-  solution by solution; each draw has jMetal's distribution, but runs with the
-  same seed differ.
+- **Random draws:** in blocks (in phase 1, the strategies of every solution,
+  then r1, r2 and r3, then the crossovers and the mutations), while jMetal
+  draws them solution by solution; each draw has jMetal's distribution, but
+  runs with the same seed differ.
 - **Result:** jMetal returns the whole final population, which is
   `result.data["population"]`; `result.X` and `result.F` follow the configured
   `result_mode`.

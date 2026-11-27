@@ -65,40 +65,16 @@ Each variable is mutated independently with probability p_m (1/n by default).
 | boundary | `boundary` | none | sets l or u |
 | integer polynomial | `pm` (`polynomial`) | nearest integer, after clamping | bounded mutation, then clamped |
 
-"Nearest integer" uses round-half-to-even (`numpy.rint` and Python's `round`),
-so an exact .5 goes to the even neighbour; a continuous operator produces an
-exact .5 with probability zero. The rounding and clipping lines of the
-operators that need them:
-
-```python
-# Excerpt from src/vamos/engine/operators/impl/integer.py
-            if rng.random() <= 0.5:
-                p1[j] = np.rint(c2)
-                p2[j] = np.rint(c1)
-            else:
-                p1[j] = np.rint(c1)
-                p2[j] = np.rint(c2)
-    rand_vals = rng.integers(lower, upper + 1, size=X.shape, dtype=X.dtype)
-    deltas = rng.choice([-step, step], size=X.shape, replace=True)
-    proposed = X.copy()
-    proposed[mask] = proposed[mask] + deltas[mask]
-    np.clip(proposed, lower, upper, out=proposed)
-    noise = rng.normal(loc=0.0, scale=sigma, size=X.shape)
-    proposed = np.rint(X.astype(float) + noise).astype(X.dtype, copy=False)
-    np.clip(proposed, lower, upper, out=proposed)
-        y += deltaq * (yu - yl)
-        y = min(max(y, yl), yu)
-        X[i, j] = int(round(y))
-```
+"Nearest integer" uses round-half-to-even, so an exact .5 goes to the even
+neighbour; a continuous operator produces an exact .5 with probability zero.
 
 ### Why the nearest integer
 
 Rounding to the nearest integer keeps SBX symmetric: the children of 3 and 4
-still have mean 3.5. jMetal and jMetalPy [6] truncate the children with
-`int()`, which sends every fraction towards zero; VAMOS's docstring records
-that their children of 3 and 4 have mean 3.25. The figure computes 20,000
-integer SBX crossovers of two parents in [0, 10] for the variables that are
-recombined, with either rule:
+still have mean 3.5. jMetal and jMetalPy [6] truncate the children, which
+sends every fraction towards zero: their children of 3 and 4 have mean 3.25.
+The figure computes 20,000 integer SBX crossovers of two parents in [0, 10]
+for the variables that are recombined, with either rule:
 
 <div class="vf-widget" data-vf-widget="integer-sbx"><p class="vf-fallback">Interactive figure: the distribution of integer SBX children of two parents in [0, 10] for a distribution index, rounded to the nearest integer as VAMOS does or truncated as jMetal does, with the children's mean. It needs JavaScript.</p></div>
 
@@ -124,11 +100,11 @@ reset or creep makes the mutation probability mean what it says.
 
 ## In VAMOS
 
-The integer operators live in `src/vamos/engine/operators/impl/integer.py`.
-On an integer problem the builder names select them, and every operator
-receives the problem's bounds; the excerpt above shows how each one rounds and
-clips. Creep and Gaussian mutation, for example, can leave a value at a bound
-unchanged even when they mutate it, because a step outside is clipped back.
+On an integer problem the builder names select the integer operators, and
+every operator receives the problem's bounds; the table above shows how each
+one rounds and clips. Creep and Gaussian mutation, for example, can leave a
+value at a bound unchanged even when they mutate it, because a step outside is
+clipped back.
 
 ### Selecting them in a configuration
 

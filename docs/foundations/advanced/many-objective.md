@@ -74,7 +74,7 @@ Li et al. [3] survey the many-objective algorithms. The main ideas are:
 NSGA-III [6] keeps NSGA-II's structure (merge, non-dominated sort, fill whole
 fronts) and changes only the way the last front is truncated. Crowding distance
 is replaced by **niching around reference directions**, in four steps.
-Lesson [NSGA-III](nsga-iii.md) follows each of them into the VAMOS code.
+Lesson [NSGA-III](nsga-iii.md) explains each of them in detail, with the options VAMOS offers.
 
 **1. Reference points.** Before the run, place H points on the unit simplex
 (w₁ + … + w_m = 1, w_i ≥ 0) with Das and Dennis' systematic method [10]:

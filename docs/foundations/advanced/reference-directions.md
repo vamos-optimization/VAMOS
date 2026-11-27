@@ -235,7 +235,7 @@ therefore ask for unevenly spaced solutions. VAMOS's
 moves the optimum onto the ray along w itself.
 
 The lessons [MOEA/D](../intermediate/moead.md), [NSGA-III](nsga-iii.md) and
-[RVEA](rvea.md) follow each mechanism into the VAMOS code.
+[RVEA](rvea.md) explain each mechanism and how to configure it in VAMOS.
 
 ## In VAMOS: one source of vectors
 
@@ -257,29 +257,9 @@ the lattice of exactly N vectors or the jMetal file of that size;
 `vamos.algorithms.moead_populations(m)` lists the populations it accepts.
 NSGA-III takes the largest complete lattice that fits in its population, and
 RVEA the lattice of `n_partitions` divisions (12 by default), which must have
-exactly N vectors. One function serves the three algorithms, and its `mode`
-holds those rules:
+exactly N vectors.
 
-```python
-# Excerpt from src/vamos/engine/algorithm/components/weight_vectors.py
-    if mode not in ("auto", "exact", "jmetalpy"):
-        raise ValueError(f"Unknown weight vector mode {mode!r}; expected 'auto', 'exact' or 'jmetalpy'.")
-    if inner_divisions is not None:
-        return _two_layer_weights(pop_size, n_obj, path, divisions, inner_divisions, exact=mode != "auto")
-    if mode == "jmetalpy":
-        return _load_or_generate_jmetalpy_weights(pop_size, n_obj, path, divisions, sha256)
-    if path:
-        file = existing_weight_file(path, n_obj, pop_size)
-        weights = _checked_digest(read_weight_vectors(file, n_obj), file, sha256)
-        if mode == "exact" and weights.shape[0] != pop_size:
-            raise ValueError(f"Weight file '{file}' holds {weights.shape[0]} vectors, but pop_size={pop_size} needs one per individual.")
-        return weights
-    return _generate_weights(pop_size, n_obj, divisions, strict=mode == "exact")
-```
-
-NSGA-III calls it with `mode="auto"`, RVEA with `"exact"` and MOEA/D with
-`"jmetalpy"`, which adds jMetalPy's rules for two objectives and for
-directories. The three algorithms can therefore start from the same vectors.
+Given the same options, the three algorithms start from the same vectors.
 Here they all read `W3D_100.dat` from the directory of shipped files, on
 DTLZ2 [8], whose front lies on the unit sphere:
 

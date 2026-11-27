@@ -1,5 +1,5 @@
 ---
-description: 'Racing for algorithm configuration: F-race with the Friedman test and Conover post-hoc comparisons, eliminating configurations block by block, iterated racing in irace with sampling models, elitism and restarts, and how the racing and irace backends of VAMOS implement them, with an interactive race and VAMOS code.'
+description: 'Racing for algorithm configuration: F-race with the Friedman test and Conover post-hoc comparisons, eliminating configurations block by block, iterated racing in irace with sampling models, elitism and restarts, and how to run them with the racing and irace backends of VAMOS, with an interactive race and VAMOS examples.'
 search:
   boost: 0.5
 ---
@@ -21,7 +21,8 @@ In this lesson you will learn:
 - why ranks make blocks on different scales weigh the same;
 - iterated racing: sampling models, elitism and restarts, as irace implements
   them;
-- how the `racing` and `irace` backends of `vamos tune` implement all of this.
+- how to use all of this with the `racing` and `irace` backends of
+  `vamos tune`.
 
 ## Racing
 
@@ -121,64 +122,16 @@ configurations.
 
 ## The test in VAMOS
 
-`select_configs_by_frace` implements one F-race test on a score matrix, with
-one row per configuration and one column per block:
-
-```python
-# Excerpt from src/vamos/engine/tuning/racing/stats.py
-    oriented = -scores if maximize else scores
-    if n_configs == 2:
-        p_value, signed_rank = _wilcoxon_signed_rank(oriented[0] - oriented[1])
-        # A positive statistic means the first configuration scored higher, that is worse.
-        if p_value < alpha and signed_rank != 0.0:
-            keep[0 if signed_rank > 0.0 else 1] = False
-        return keep
-
-    ranks = np.vstack([rankdata(oriented[:, block]) for block in range(n_blocks)])  # blocks x configurations
-    rank_sums = ranks.sum(axis=0)
-    ties = sum(float(np.sum(counts**3 - counts)) for counts in (np.unique(row, return_counts=True)[1] for row in ranks))
-    expected = n_blocks * (n_configs + 1) / 2.0
-    denominator = n_blocks * n_configs * (n_configs + 1) - ties / (n_configs - 1)
-    if denominator <= 0.0:
-        return keep
-    statistic = 12.0 * float(np.sum((rank_sums - expected) ** 2)) / denominator
-    if not float(chi2.sf(statistic, n_configs - 1)) < alpha:
-        return keep
-
-    df = (n_blocks - 1) * (n_configs - 1)
-    spread = 2.0 * (n_blocks * float(np.sum(ranks**2)) - float(np.sum(rank_sums**2))) / df
-    critical = float(t.ppf(1.0 - alpha / 2.0, df)) * math.sqrt(max(spread, 0.0))
-    best = int(np.argmin(rank_sums))
-    keep = rank_sums - rank_sums[best] <= critical
-    keep[best] = True
-    return np.asarray(keep, dtype=bool)
-```
-
-Scores are negated when they are maximized, so a lower rank is always better.
-The racing tuner calls the test after every block, once every alive
-configuration has played enough blocks:
-
-```python
-# Excerpt from src/vamos/engine/tuning/racing/elimination.py
-    # In statistical mode, the first test waits for first_test blocks, as irace's firstTest.
-    if min_len < max(scenario.first_test, scenario.min_blocks_before_elimination) or min_len <= 1:
-        return False
-
-    # Keep waiting until all alive configs are aligned on the same number of blocks.
-    if min_len != max_len:
-        return False
-
-    scores, aligned_indices = build_score_matrix(configs)
-    # F-race: Friedman on the ranks of each block and Conover's post-hoc, or Wilcoxon with two alive.
-    keep_mask = select_configs_by_frace(scores, maximize=task.maximize, alpha=scenario.alpha)
-    # Fewer survivors than the minimum: keep those of the test and add the best of the others by aggregate score.
-    keep_mask = fill_survivors(keep_mask, agg_scores, maximize=task.maximize, k=max(1, scenario.min_survivors))
-```
-
-`Scenario.first_test` is 5 and `Scenario.min_blocks_before_elimination` 3, so
-the first test comes after the fifth block. The figure's algorithms port this
-code, and a test checks that their races eliminate the same configurations
-after the same blocks as `RacingTuner`.
+The `racing` backend of `vamos tune` runs the test of this lesson. It ranks
+the configurations in each block so that rank 1 is always the best, whether
+the score is maximized, as the hypervolume is, or minimized. It tests after
+every block, as soon as every alive configuration has played the same blocks
+and at least five of them, or `--min-blocks-before-elimination` blocks (3 by
+default) if that is more, so the first test comes after the fifth block. With
+three or more alive configurations it applies the Friedman test and Conover's
+comparison; with two, the Wilcoxon test. The figure's race follows the same
+steps, and a test of the VAMOS documentation checks that it eliminates the
+same configurations after the same blocks as the racing backend.
 
 ## Iterated racing
 
@@ -222,8 +175,8 @@ that remains, so the user sets only the total number of experiments.
 `--backend racing` runs one F-race, in VAMOS, with the core installation:
 
 - the candidates are the space's default configuration and
-  `--initial-configs − 1` configurations drawn by walking its tree (20 in all
-  by default);
+  `--initial-configs − 1` random configurations of the space (20 in all by
+  default);
 - the blocks are the training instances and seeds, in a shuffled order that
   plays every instance with one seed before the next seed;
 - `--tune-budget` (200 by default) is the maximum number of experiments, and
@@ -299,6 +252,51 @@ hypervolume, 90.79 against 94.93, and was eliminated with the rest. The
 result holds for ZDT1 at 1,000 evaluations, and nothing more (lesson
 [Automatic algorithm configuration](tuning.md#training-validation-and-test-instances)).
 
+The returned configuration is an ordinary NSGA-II configuration, and the
+public builder writes it from `best_config_active.json`: the offspring ratio
+0.25 of a population of 20 is 5 offspring, and the mutation probability factor
+becomes the probability `"2.947/n"`, which VAMOS divides by the number of
+variables. The example runs it and the default configuration of the space
+with the settings of the race, on ten seeds that the race did not play:
+
+```python
+import numpy as np
+
+from vamos import optimize
+from vamos.algorithms import NSGAIIConfig
+from vamos.ux.api import HVIndicator  # computes the hypervolume with moocore (the compute extra)
+
+# The configuration of best_config_active.json, rounded to three decimals.
+tuned = (
+    NSGAIIConfig.builder()
+    .pop_size(20)
+    .offspring_size(5)  # offspring_ratio 0.25 of the population
+    .selection("boltzmann")
+    .initializer("obl")
+    .crossover("blx_alpha_beta", prob=0.705, alpha=0.750, beta=0.280)
+    .mutation("uniform_reset", prob="2.947/n")  # mutation_probability_factor, divided by n
+    .repair("reflect")
+    .build()
+)
+default = NSGAIIConfig.default(pop_size=20, n_var=30)  # the default configuration of the space
+
+hv = HVIndicator(reference_point=[10.0, 10.0])
+for name, config in (("default", default), ("tuned", tuned)):
+    runs = optimize("zdt1", algorithm="nsgaii", algorithm_config=config, max_evaluations=1000, seed=list(range(2001, 2011)))
+    scores = [hv.compute(run.F).value for run in runs]
+    print(f"{name:<8} mean hypervolume {np.mean(scores):.2f}, worst {min(scores):.2f}")
+```
+
+Output:
+
+```text
+default  mean hypervolume 90.63, worst 85.26
+tuned    mean hypervolume 94.84, worst 94.08
+```
+
+On the new seeds the tuned configuration keeps its lead: a mean hypervolume
+of 94.84 against 90.63, and a worst run better than the default's mean.
+
 Two variants change the elimination. `--no-use-statistical-tests` replaces the
 tests by a rank-based rule: after `--min-blocks-before-elimination` blocks,
 each block eliminates the worst `--elimination-fraction` (25%) of the alive
@@ -311,12 +309,7 @@ first level, and only the best fraction by mean score (`--fidelity-promotion-rat
 [Model-based tuning](tuning-model-based.md) explains successive halving.
 
 The `racing` backend is not iterated racing: it does not sample new
-candidates around the elites. The Python `Scenario` has an experimental
-option for that, `use_elitist_restarts=True`: after an elimination, the race
-is refilled up to its initial size with neighbours of the elites (half of the
-new candidates by default) and samples from a model fitted to the survivors,
-and each new candidate first catches up on the blocks the race has already
-played, as in elitist irace. `vamos tune` does not enable it.
+candidates around the elites. The `irace` backend does.
 
 ### The `irace` backend
 

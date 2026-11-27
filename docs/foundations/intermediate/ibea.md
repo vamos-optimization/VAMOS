@@ -1,5 +1,5 @@
 ---
-description: 'IBEA in depth: binary quality indicators (additive epsilon and hypervolume difference), the exponential fitness with its scaling c and parameter kappa, objective normalization, iterative removal with fitness updates and binary tournament mating, with an interactive figure and the VAMOS implementation.'
+description: 'IBEA in depth: binary quality indicators (additive epsilon and hypervolume difference), the exponential fitness with its scaling c and parameter kappa, objective normalization, iterative removal with fitness updates and binary tournament mating, with an interactive figure and VAMOS code.'
 search:
   boost: 0.5
 ---
@@ -28,7 +28,7 @@ In this lesson you will learn:
 - why VAMOS normalizes the objectives first;
 - how environmental selection removes one solution at a time and updates the
   others' fitness, and how parents are chosen;
-- how VAMOS implements each step.
+- how to configure IBEA in VAMOS.
 
 ## Binary indicators
 
@@ -196,101 +196,24 @@ P7 is dominated by P2, P3 and P4, and P8 by P4 and P5: their fitness is two
 orders of magnitude below the others. P2 and P3 cover each other closely, so both have
 a poor fitness; once P3 is removed, P2's fitness rises from −0.334 to −0.004.
 
-VAMOS builds the indicator matrix in the same orientation, row x and column y
-holding I(y, x), on the normalized objectives:
+VAMOS' IBEA follows the same steps, with a few details worth knowing:
 
-```python
-# Excerpt from src/vamos/engine/algorithm/ibea/helpers.py
-def epsilon_indicator(F: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
-    # Match jMetalPy: epsilon(i, j) = max_k (f_jk - f_ik)
-    diff = F[None, :, :] - F[:, None, :]
-    return np.asarray(np.max(diff, axis=2), dtype=float)
-
-def _divided_by_largest_magnitude(values: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
-    """``values`` divided by their largest finite magnitude; unchanged when that is 0."""
-    largest = float(np.max(np.abs(values[np.isfinite(values)]), initial=0.0))
-    return values / largest if largest > 0.0 else values
-
-def compute_indicator_matrix(F: np.ndarray[Any, Any], indicator: str) -> np.ndarray[Any, Any]:
-    if F.shape[0] == 0:
-        return np.empty((0, 0), dtype=float)
-    normalized = _normalized_objectives(F)
-    if indicator == "hypervolume":
-        return _divided_by_largest_magnitude(hypervolume_indicator(normalized))
-    return _divided_by_largest_magnitude(epsilon_indicator(normalized))
-```
-
-- `_normalized_objectives` maps each objective to [0, 1] with its minimum and
-  maximum over the finite values; a constant objective maps to 0.
-- `_divided_by_largest_magnitude` divides by c.
-- `hypervolume_indicator` computes I_HD with the reference point max + 1 of the
+- Each objective is mapped to [0, 1] with its minimum and maximum over the
+  finite values; an objective without spread maps to 0.
+- The hypervolume-difference indicator uses the reference point max + 1 of the
   normalized objectives, (2, …, 2) when every objective varies.
+- On a tie, the first of the solutions with the lowest fitness is removed.
+- With constraints, every infeasible solution gets a lower fitness than all
+  feasible ones, so infeasible solutions leave first, the most violated first.
+- A κ so small that the exponentials would overflow still gives the correct
+  removals, and `engine="numba"` gives the same removals as NumPy.
 
-The fitness and the removal loop follow the procedure line by line:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/ibea/helpers.py
-def _fitness_exponents(indicator: np.ndarray[Any, Any], kappa: float) -> np.ndarray[Any, Any]:
-    """``-indicator / kappa``, with ``-inf`` (no contribution) on the diagonal and for undefined values.
-
-    ``+inf``, from an infinite indicator or a division that overflows, stays the largest contribution.
-    """
-    with np.errstate(over="ignore"):
-        exponent = -np.asarray(indicator, dtype=float) / kappa
-    exponent[np.isnan(exponent)] = -np.inf
-    np.fill_diagonal(exponent, -np.inf)
-    return exponent
-
-    exponent = _fitness_exponents(indicator_values, kappa)
-    contrib = np.exp(exponent)
-    fitness = np.asarray(-np.sum(contrib, axis=1), dtype=float)
-    fitness = apply_constraint_penalty(fitness, G)
-    active: NDArray[np.int_] = np.arange(F.shape[0], dtype=int)
-    while active.size > pop_size:
-        active_fitness = fitness[active]
-        worst_pos = int(np.argmin(active_fitness))
-        worst = int(active[worst_pos])
-        delta = contrib[active, worst].copy()
-        delta[worst_pos] = 0.0
-        fitness[active] += delta
-        active = np.delete(active, worst_pos)
-
-    return active, fitness[active]
-```
-
-- The diagonal exponent −∞ gives exp(−∞) = 0: no term for y = x.
-- `contrib[x, y]` is the magnitude of y's term in F(x); `contrib[active, worst]`
-  is the column of the removed solution, added back to every survivor.
-- `np.argmin` removes the first of equal lowest values.
-- `apply_constraint_penalty` lowers every infeasible solution below all feasible
-  ones, by one penalty step per rank of its total violation, so infeasible
-  solutions leave first, the most violated first.
-- When κ is so small that an exponent would overflow, VAMOS runs the same loop in
-  the log domain; with `engine="numba"`, a compiled loop gives the same removals.
-
-Mating ranks the survivors by fitness and reuses NSGA-II's tournament kernel
-(lesson [Crowding and tournaments](crowding-distance.md#binary-tournament-selection)) with all
-crowding distances set to zero:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/ibea/ibea.py
-        # Higher fitness is better in IBEA (less negative).
-        ranks = np.argsort(np.argsort(-st.fitness))
-        crowd = np.zeros_like(st.fitness, dtype=float)
-        parents_per_group = variation.parents_per_group
-        children_per_group = variation.children_per_group
-        request_size = capped_offspring_size(st.n_eval, self._max_eval, st.offspring_size, "IBEA")
-        parent_count = int(np.ceil(request_size / children_per_group) * parents_per_group)
-
-        sel_method, _ = self.cfg["selection"]
-        mating_pairs = build_mating_pool(self.kernel, ranks, crowd, st.pressure, st.rng, parent_count, parents_per_group, sel_method)
-```
-
-The ranks are all distinct, so the solution with the higher fitness always wins.
-`st.fitness` is the updated fitness that the survivors had at the end of the
-removal loop. SBX creates two children per pair, so N / 2 pairs give the N
-offspring; `capped_offspring_size` shortens the last batch so that the budget is
-never exceeded.
+Mating uses NSGA-II's binary tournament (lesson
+[Crowding and tournaments](crowding-distance.md#binary-tournament-selection))
+on the fitness that the survivors have at the end of the removal loop: the
+solution with the higher fitness always wins. SBX creates two children per
+pair, so N / 2 pairs give the N offspring, and the last batch is shortened so
+that the budget is never exceeded.
 
 Two runs on ZDT1 that differ only in κ:
 

@@ -1,5 +1,5 @@
 ---
-description: 'MOEA/D in depth: weight vectors, neighbourhoods, mating with probability δ, differential evolution, the ideal point, replacement limited to n_r solutions and the aggregation functions of VAMOS, with an interactive figure and the VAMOS code.'
+description: 'MOEA/D in depth: weight vectors, neighbourhoods, mating with probability δ, differential evolution, the ideal point, replacement limited to n_r solutions and the aggregation functions of VAMOS, with an interactive figure and VAMOS examples.'
 search:
   boost: 0.5
 ---
@@ -31,7 +31,7 @@ In this lesson you will learn:
   (limit n_r) use it;
 - how the ideal point and the aggregation function decide a replacement, and
   which aggregation functions VAMOS offers;
-- how VAMOS implements and configures MOEA/D, and when to choose it.
+- how to configure and run MOEA/D in VAMOS, and when to choose it.
 
 ## From one weighted problem to many
 
@@ -49,7 +49,7 @@ improved. Two years later, MOEA/D-DE [2] replaced the genetic operators with
 differential evolution [3] and added two measures that protect diversity: with
 probability 1 − δ the parents and the candidates for replacement come from the
 whole population instead of the neighbourhood, and one offspring may replace at
-most n_r solutions. VAMOS implements this version, after jMetal.
+most n_r solutions. VAMOS runs this version, as jMetal does.
 
 ## Weight vectors and subproblems
 
@@ -258,137 +258,26 @@ Without `variant`, VAMOS pairs MOEA/D-DE's operators with PBI, its own choice;
 the [MOEA/D lesson](../../algorithms/moead.md#what-the-configuration-means)
 records this and the planned change of default.
 
-The weight vectors are built by a function that follows jMetal. With two
-objectives it is a `linspace`; with more, it tries the packaged jMetal file
-when no complete lattice has the requested size, and otherwise generates the
-lattice with exactly `pop_size` vectors (`strict=True`), or raises an error:
+With three or more objectives, only some population sizes have weight
+vectors. `moead_populations` lists them; any other `pop_size` needs your own
+vectors, given with `weight_vectors(path=...)`, or the run stops with an error:
 
 ```python
-# Excerpt from src/vamos/engine/algorithm/components/weight_vectors.py
-def _load_or_generate_jmetalpy_weights(
-    pop_size: int, n_obj: int, path: str | None, divisions: int | None, sha256: str | None = None
-) -> FloatArray:
-    if n_obj == 2:
-        vals = np.linspace(0.0, 1.0, pop_size, dtype=float)
-        return np.column_stack([vals, 1.0 - vals])
+from vamos.algorithms import moead_populations
 
-    weight_path = _resolve_jmetalpy_weight_path(path, n_obj, pop_size)
-    if weight_path is None and divisions is None and _exact_divisions(pop_size, n_obj) is None:
-        # No complete lattice has pop_size vectors: use the jMetal weights VAMOS ships for it, if any.
-        packaged = _packaged_weights(n_obj, pop_size)
-        if packaged is not None:
-            return packaged
-    weights = _generate_weights(pop_size, n_obj, divisions=divisions, strict=True)
+print("3 objectives:", moead_populations(3, max_pop_size=120))
+print("5 objectives:", moead_populations(5, max_pop_size=300))
 ```
 
-The neighbourhoods are the first T columns of the sorted distance matrix
-between weight vectors. The stable sort puts the subproblem itself first
-(distance 0) and breaks ties by index:
+Output:
 
-```python
-# Excerpt from src/vamos/engine/algorithm/moead/neighborhood.py
-def compute_neighbors(weights: np.ndarray[Any, Any], neighbor_size: int) -> np.ndarray[Any, Any]:
-    """Compute neighborhood indices based on weight vector distances."""
-    dist = np.linalg.norm(weights[:, None, :] - weights[None, :, :], axis=2)
-    # Lattice weights have many equidistant neighbours; a stable sort breaks those ties by index, so the
-    # neighbourhoods, and the trajectory, are the same on every platform.
-    order = np.argsort(dist, axis=1, kind="stable")
-    return order[:, :neighbor_size]
+```text
+3 objectives: (3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78, 91, 100, 105, 120)
+5 objectives: (5, 15, 35, 70, 126, 210)
 ```
 
-`ask()` performs steps 1 to 3. `use_neighbors` is the draw against δ; the
-parents of the DE crossover are the random parents followed by the current
-solution of the subproblem, `st.X[active]`, which serves as the base vector
-and as the source of the variables that the crossover does not take from the
-mutant:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/moead/moead.py
-        active = self._next_active_indices(st, batch_size)
-        use_neighbors = st.rng.random(batch_size) < st.delta
-
-        parent_pairs = self._sample_parent_pairs(st, active, use_neighbors)
-
-        n_var = st.X.shape[1]
-        if self._cross_is_de:
-            # (random parents..., current solution): jMetal's MOEADDEBuilder, or Evolver's pool and the current one.
-            width = parent_pairs.shape[1]
-            parents = np.empty((batch_size, width + 1, n_var), dtype=st.X.dtype)
-            for slot in range(width):
-                parents[:, slot, :] = st.X[parent_pairs[:, slot]]
-            parents[:, width, :] = st.X[active]
-            offspring = st.crossover_fn(parents, st.rng)
-            children = offspring[:, 0, :].copy()
-        else:
-            parents = st.X[parent_pairs.reshape(-1)].reshape(batch_size, 2, n_var)
-            offspring = st.crossover_fn(parents, st.rng)
-            children = offspring[:, 0, :].copy()
-
-        children = st.mutation_fn(children, st.rng)
-```
-
-`batch_size` is 1 by default, which makes the algorithm steady-state. `tell()`
-then updates the ideal point with `st.ideal = np.minimum(st.ideal, F_child.min(axis=0))`
-and draws the order of the candidates, `st.rng.permutation(st.neighbors[active[0]])`
-or `st.rng.permutation(pop_size)`, depending on the same δ draw. The replacement
-loop is the heart of MOEA/D. VAMOS runs a compiled copy of it when Numba is
-installed; this is the pure-Python version, which performs the same comparisons:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/moead/neighborhood_kernels.py
-    replacements = 0
-    for idx in range(candidate_length):
-        k = int(candidate_order[idx])
-
-        diff_current = np.abs(F[k] - ideal)
-        diff_child = np.abs(child_f - ideal)
-
-        if normalize == 1 or agg_id in {AGG_INVERTED_PBI, AGG_INVERSE_WEIGHT_TCHEBYCHEFF}:
-            args = (k, weights, weights_safe, weights_unit, ideal, nadir, agg_id, agg_theta, agg_rho, agg_epsilon, normalize)
-            current_val = _scalar_aggregation(F[k], *args)
-            child_val = _scalar_aggregation(child_f, *args)
-        elif agg_id == AGG_TCHEBYCHEFF:
-            current_val = float(np.max(weights_safe[k] * diff_current))
-            child_val = float(np.max(weights_safe[k] * diff_child))
-        elif agg_id == AGG_WEIGHTED_SUM:
-            current_val = float(np.dot(weights[k], F[k]))
-            child_val = float(np.dot(weights[k], child_f))
-
-        replace = False
-        if use_constraints == 1:
-            current_cv = cv[k]
-            feas_child = child_cv <= 0.0
-            feas_curr = current_cv <= 0.0
-            if (not feas_curr) and feas_child:
-                replace = True
-            elif feas_child and feas_curr:
-                replace = child_val < current_val
-            else:
-                replace = child_cv < current_cv
-        else:
-            replace = child_val < current_val
-
-        if not replace:
-            continue
-
-        X[k] = child
-        F[k] = child_f
-        if use_constraints == 1:
-            G[k] = child_g
-            cv[k] = child_cv
-        replacements += 1
-        if replacements >= replace_limit:
-            break
-```
-
-Line by line: `k` is the next candidate in the random order; both values are
-computed with the weights of `k`. `weights_safe` is the weight matrix with
-every zero replaced by 10⁻⁴, the rule for zero weights in the Tchebycheff
-formula. The branches for PBI and the modified Tchebycheff, skipped here,
-follow the formulas above. Without constraints a replacement needs a strictly
-smaller value (`child_val < current_val`); with constraints the feasibility
-rules come first. The counter stops the loop at `replace_limit`, the n_r of
-the formulas.
+Every size is a complete lattice except 100 with three objectives, which comes
+from the weight file of jMetal.
 
 The aggregation function matters most when the front is not convex. ZDT2 [8]
 has the concave front f₂ = 1 − f₁². With the same operators and budget,

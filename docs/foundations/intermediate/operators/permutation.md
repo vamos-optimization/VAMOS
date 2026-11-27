@@ -23,7 +23,7 @@ In this lesson you will learn:
   work, and what each one preserves;
 - how swap, insert, scramble, inversion, displacement and 2-opt mutation move
   items, and why an inversion is the 2-opt move of routing;
-- how VAMOS implements and selects them.
+- how to select them in VAMOS.
 
 ## Three classic crossovers
 
@@ -66,6 +66,10 @@ Things to try:
 3. OX with a segment of one item: almost everything comes from P2, in P2's
    order, so C1 is nearly P2 rotated.
 
+In the figure, OX with the segment from 2 to 5 copies P1's 2, 3, 4, 5 and
+fills with P2's 6, 0, 7, 1, giving C1 = [7 1 2 3 4 5 6 0]; CX from start 1
+exchanges only positions 1 and 6.
+
 ## Position-based, edge recombination and alternating edges
 
 - **Position-based crossover** [4] keeps a random set of positions from P1 in
@@ -78,66 +82,13 @@ Things to try:
   continues to the neighbour that has the fewest neighbours left, breaking ties
   at random; only when the current item has no unused neighbour does it jump to
   a random unvisited item. Most edges of the child come from a parent, which
-  suits routing problems, but in VAMOS it is a Python loop over the table and
-  much slower than the others.
+  suits routing problems, but in VAMOS it is much slower than the others.
 - **Alternating edges (AEX)** [6] starts at the first item of P1 and takes its
   successor in P1, then the successor of that item in P2, then in P1 again,
   alternating; when the successor is already in the child it takes the other
   parent's, and when both are, a random unvisited item. In VAMOS the second
   child follows the same rule from the same start, so the two children differ
   only where a random item was needed.
-
-The core of OX, PMX and CX in VAMOS:
-
-```python
-# Excerpt from src/vamos/engine/operators/impl/_permutation_crossovers.py
-def _order_crossover_into(donor: PermVec, filler: PermVec, out: PermVec, cut1: int, cut2: int) -> None:
-    out[cut1:cut2] = donor[cut1:cut2]
-    filtered = filler[~used[filler]]
-    fill_positions = np.concatenate([np.arange(cut2, n), np.arange(0, cut1)])
-    out[fill_positions] = filtered
-    mapping: dict[int, int] = {}
-    for i in range(cut1, cut2 + 1):
-        mapping[int(parent_b[i])] = int(parent_a[i])
-
-    for i in range(n):
-        if cut1 <= i <= cut2:
-            child[i] = parent_b[i]
-            continue
-        gene = int(parent_a[i])
-        steps = 0
-        limit = len(mapping) + 1
-        while gene in mapping and steps < limit:
-            gene = mapping[gene]
-            steps += 1
-        child[i] = gene
-    start_idx = int(rng.integers(0, n))
-    cycle = []
-    idx = start_idx
-    while True:
-        cycle.append(idx)
-        idx = pos_in_p1[p2[idx]]
-        if idx == start_idx:
-            break
-```
-
-In the figure, OX with the segment from 2 to 5 copies P1's 2, 3, 4, 5 and
-fills with P2's 6, 0, 7, 1, giving C1 = [7 1 2 3 4 5 6 0]; CX from start 1
-exchanges only positions 1 and 6.
-
-The second child of AEX starts from the same city with the same rule as the
-first, as the two calls and the start of the child show:
-
-```python
-# Excerpt from src/vamos/engine/operators/impl/_permutation_crossovers.py
-def _alternating_edges_children(p1: PermVec, p2: PermVec, rng: RNG) -> tuple[PermVec, PermVec]:
-    return _alternating_edges_child(p1, p2, rng, prefer_parent_a=True), _alternating_edges_child(p2, p1, rng, prefer_parent_a=False)
-    current = int(parent_a[0]) if prefer_parent_a else int(parent_b[0])
-    take_from_a = prefer_parent_a
-```
-
-With `prefer_parent_a=False`, `parent_b` is P1, so the second child also starts
-at P1's first item and first takes its successor in P1.
 
 ## Mutations
 
@@ -174,37 +125,6 @@ makes the result the current tour.
 Press **Best inversion**: it reverses positions 2 to 6, removes the crossing
 and shortens the tour from 3.445 to 3.068. Try a swap of the same positions to
 see four edges change instead of two.
-
-The per-child probability and the inversion in VAMOS:
-
-```python
-# Excerpt from src/vamos/engine/operators/impl/_permutation_mutations.py
-    for idx in np.flatnonzero(rng.random(N) <= prob):
-        mut_fn(X[idx], rng)
-def _inversion_row_mutation(row: PermVec, rng: RNG) -> None:
-    lo, hi = two_cut_points(row.size, rng)
-    row[lo : hi + 1] = row[lo : hi + 1][::-1]
-```
-
-Insert and displacement, the two moves the figure does not draw:
-
-```python
-# Excerpt from src/vamos/engine/operators/impl/_permutation_mutations.py
-def _insert_row_mutation(row: PermVec, rng: RNG) -> None:
-    gene = row[i]
-    if i < j:
-        row[i:j] = row[i + 1 : j + 1]
-        row[j] = gene
-    else:
-        row[j + 1 : i + 1] = row[j:i]
-        row[j] = gene
-def _displacement_row_mutation(row: PermVec, rng: RNG) -> None:
-    lo, hi = two_cut_points(row.size, rng)
-    segment = row[lo:hi].copy()
-    remaining = np.concatenate([row[:lo], row[hi:]])
-    insert_pos = rng.integers(0, remaining.size + 1)
-    row[:] = np.concatenate([remaining[:insert_pos], segment, remaining[insert_pos:]])
-```
 
 A displacement replaces up to three edges of a tour, like an insertion of a
 whole segment.

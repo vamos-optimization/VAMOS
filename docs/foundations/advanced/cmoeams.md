@@ -62,7 +62,8 @@ candidates, and the violation of a solution is the mean over the constraints:
 
 Q is the union of the population and the offspring, and q the number of
 constraints. Every constraint contributes on the same scale, and CV is in
-[0, 1]. A solution is feasible when CV(x) = 0.
+[0, 1]. A solution is feasible when CV(x) = 0. Because the maxima are taken
+over Q, the same solution can have different values of CV in two generations.
 
 ## Stage A: density and violation as two objectives
 
@@ -114,7 +115,10 @@ if more than N:   remove one at a time the solution whose sorted cosine distance
 The cosine distance, 1 − cos of the angle between two vectors, compares
 directions from the origin rather than positions. The truncation always uses
 the objective vectors, in stage A too. The survivors keep their order in Q, and
-their fitness is reused by the binary tournaments of the next generation.
+their fitness is reused by the binary tournaments of the next generation. In
+stage A every feasible point is [SDE, 0], so the feasible points all have the
+same direction and a cosine distance of 0 between them; when Q holds enough
+feasible solutions, their density term is exactly 1/2.
 
 ## The stage rule
 
@@ -201,121 +205,6 @@ the share is 0.9 or less in 22 of the generations after the first 10% and the
 run ends in stage A with 26 feasible solutions, while on Linux it stays above
 0.9 and the run ends in stage B with all 100 feasible. The example leaves that
 case out because its output depends on the platform.
-
-The shift-based density, for all the solutions of Q at once:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/cmoeams/fitness.py
-def shift_based_density(F: NDArray[Any]) -> FloatArray:
-    normalized = _normalized_objectives(F)
-    n, n_obj = normalized.shape
-    if n < 2:
-        raise ValueError("CMOEA-MS's shift-based density needs at least two solutions.")
-    squares = np.zeros((n, n), dtype=float)
-    for j in range(n_obj):
-        own = normalized[:, j][:, None]
-        other = normalized[:, j][None, :]
-        # Row i, column k: solution k shifted to solution i.
-        shifted = np.where(other < own, own, other)
-        difference = own - shifted
-        squares = squares + difference * difference
-    distances = np.sort(np.sqrt(squares), axis=1)
-    neighbour = int(math.floor(math.sqrt(n)))
-    return np.asarray(1.0 / (distances[:, neighbour] + 2.0), dtype=float)
-```
-
-`np.where(other < own, own, other)` is the shift: where solution k is better
-than solution i in objective j, it takes i's value, and the difference is zero.
-Each row of `distances` starts with the zero distance of i to itself, so index
-⌊√n⌋ is the (⌊√n⌋ + 1)-th smallest distance, as in PlatEMO.
-
-The fitness of both stages and the stage rule:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/cmoeams/fitness.py
-def spea2_fitness(points: NDArray[Any], violation: NDArray[Any]) -> FloatArray:
-    values = np.asarray(points, dtype=float)
-    n = values.shape[0]
-    if n == 0:
-        raise ValueError("CMOEA-MS's fitness needs at least one solution.")
-    dominates = dominance_matrix(values, violation)
-    strength = dominates.sum(axis=1, dtype=np.int64)
-    raw = (dominates.T.astype(np.int64) @ strength).astype(float)
-    distances = cosine_distances(values)
-    np.fill_diagonal(distances, np.inf)
-    neighbour = int(math.floor(math.sqrt(n))) - 1
-    kth = np.sort(distances, axis=1)[:, neighbour]
-    return np.asarray(raw + 1.0 / (kth + 2.0), dtype=float)
-
-
-def stage_a_fitness(F: NDArray[Any], violation: NDArray[Any]) -> FloatArray:
-    cv = np.asarray(violation, dtype=float)
-    points = np.column_stack([shift_based_density(F), cv])
-    return spea2_fitness(points, np.zeros(cv.shape[0], dtype=float))
-
-
-def stage_b_fitness(F: NDArray[Any], violation: NDArray[Any]) -> FloatArray:
-    return spea2_fitness(F, violation)
-
-
-def is_stage_b(violation: NDArray[Any], threshold: float, evaluations: int, max_evaluations: int) -> bool:
-    cv = np.asarray(violation, dtype=float)
-    ratio = int(np.count_nonzero(cv <= 0.0)) / cv.shape[0]
-    return bool(ratio > threshold and evaluations >= STAGE_B_EVALUATION_FRACTION * max_evaluations)
-```
-
-One function serves both stages. Stage A passes the points [SDE, CV] and zero
-violations, so `dominance_matrix` reduces to Pareto dominance on those two
-numbers; stage B passes the objectives and the normalized violations. In stage
-A every feasible point is [SDE, 0], so the feasible points all have the same
-direction and a cosine distance of 0 between them; when Q holds enough
-feasible solutions, their density term is exactly 1/2.
-
-The environmental selection:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/cmoeams/selection.py
-def environmental_selection(
-    fitness: NDArray[Any], F: NDArray[Any], n_select: int, selection_kernels: SelectionKernels | None = None
-) -> IndexArray:
-    values = np.asarray(fitness, dtype=float)
-    objectives = np.asarray(F, dtype=float)
-    n = values.shape[0]
-    selected = values < 1.0
-    count = int(np.count_nonzero(selected))
-    if count < n_select:
-        selected[sorted_indices(values)[: int(n_select)]] = True
-    elif count > n_select:
-        candidates = np.flatnonzero(selected)
-        selected[candidates[truncation(objectives[candidates], count - int(n_select), selection_kernels)]] = False
-    return np.asarray(np.flatnonzero(selected), dtype=int)
-```
-
-`sorted_indices` is a stable sort that puts NaN last, as MATLAB's `sort`, so
-ties go to the earlier solution. `truncation` is SPEA2's operator on the cosine
-distances between the objective vectors of the candidates.
-
-Finally, `tell` builds Q, chooses the stage and selects:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/cmoeams/cmoeams.py
-        # The union of the population and the offspring, in that order.
-        X_union = np.vstack([st.X, X_off])
-        F_union = np.vstack([st.F, F_off])
-        G_union = combine_constraints(st.G, G_off, st.constraint_mode, algorithm="CMOEA-MS")
-        violation = normalized_violation(G_union, F_union.shape[0])
-        st.stage_b = is_stage_b(violation, st.feasible_ratio_threshold, st.n_eval, st.max_evals)
-        fitness = stage_b_fitness(F_union, violation) if st.stage_b else stage_a_fitness(F_union, violation)
-        selected = environmental_selection(fitness, F_union, st.pop_size, self.kernel.selection_kernels())
-        st.X, st.F = X_union[selected], F_union[selected]
-        st.G = G_union[selected] if G_union is not None else None
-        st.fitness = fitness[selected]
-        st.stage_b_generations += int(st.stage_b)
-```
-
-`st.n_eval` already includes the offspring of this generation when the stage is
-decided, as in jMetal. The violation is normalized over Q, so the same
-solution can have different values of CV in two generations.
 
 ## Where VAMOS differs from the paper
 

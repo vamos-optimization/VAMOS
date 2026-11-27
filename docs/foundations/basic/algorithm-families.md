@@ -115,17 +115,9 @@ z*, the vector of the best value of each objective, with a weighted maximum:
 
 Its contour lines are corners, not straight lines, and every Pareto-optimal
 point minimizes it for some weight vector, whatever the shape of the front.
-VAMOS computes it for many solutions at once, and counts a zero weight as a
-small positive one:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/moead/aggregation.py
-def tchebycheff(fvals: Array, weights: Array, ideal: Array) -> Array:
-    """Tchebycheff aggregation: max(w * |f - z*|)."""
-    diff = np.abs(fvals - ideal)
-    weighted = np.where(weights == 0, ZERO_WEIGHT_EPS * diff, weights * diff)
-    return np.asarray(np.max(weighted, axis=-1), dtype=float)
-```
+In VAMOS, `.aggregation("tchebycheff")` in `MOEADConfig.builder()` selects it
+for MOEA/D, and a zero weight counts as a small positive one, so that no
+objective is ignored completely.
 
 Compare the two scalarizations on a non-convex front: sweep the weights with
 each one and count the distinct solutions it finds.

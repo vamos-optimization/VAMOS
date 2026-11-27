@@ -455,8 +455,7 @@ from pathlib import Path
 import pytest
 
 text = Path("docs/foundations/{page}.md").read_text(encoding="utf-8")
-blocks = re.findall(r"^```python\\n(.*?)^```", text, flags=re.MULTILINE | re.DOTALL)
-examples = [block for block in blocks if not block.startswith("# Excerpt from ")]
+examples = re.findall(r"^```python\\n(.*?)^```", text, flags=re.MULTILINE | re.DOTALL)
 assert examples, "docs/foundations/{page}.md has no runnable example"
 if any("moocore" in example for example in examples):
     pytest.importorskip("moocore")
@@ -505,6 +504,8 @@ for example in examples:
             "advanced/ctaea",
             "advanced/top",
             "advanced/cmoeams",
+            "advanced/tuning",
+            "advanced/tuning-racing",
             "advanced/tuning-model-based",
             "advanced/tuning-evolver",
             "advanced/performance-assessment",

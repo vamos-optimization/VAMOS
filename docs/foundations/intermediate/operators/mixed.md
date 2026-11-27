@@ -129,32 +129,6 @@ part:
 - **categorical**: random reset to a uniform category, 0 to cardinality − 1;
 - **permutation**: swap mutation.
 
-The crossover's split, and the real, integer and categorical mutations:
-
-```python
-# Excerpt from src/vamos/engine/operators/impl/_mixed_crossover.py
-        if real_idx.size:
-            child1[real_idx], child2[real_idx] = _complementary(p1[real_idx], p2[real_idx], rng)
-        if int_idx.size or cat_idx.size:
-            swap_positions = np.concatenate([int_idx, cat_idx])
-            if swap_positions.size:
-                swap_cols = swap_positions[rng.random(swap_positions.size) < 0.5]
-                child1[swap_cols] = p2[swap_cols]
-                child2[swap_cols] = p1[swap_cols]
-```
-
-```python
-# Excerpt from src/vamos/engine/operators/impl/_mixed_mutation.py
-    if real_idx.size:
-        span = np.maximum(real_upper - real_lower, 1e-6)
-        noise = rng.normal(scale=0.1 * span, size=(X.shape[0], real_idx.size))
-        mask = rng.random((X.shape[0], real_idx.size)) <= prob
-        proposed = np.clip(X[:, real_idx] + noise, real_lower, real_upper)
-        X[:, real_idx] = np.where(mask, proposed, X[:, real_idx])
-            rand_vals = rng.integers(int_lower, int_upper + 1, size=(X.shape[0], int_idx.size), dtype=np.int32)
-                cats[:, j] = rng.integers(0, int(cat_cardinality[j]), size=X.shape[0], dtype=np.int32)
-```
-
 These defaults are not the defaults of the single encodings: a purely integer
 problem gets integer SBX and polynomial mutation, but the integer part of a
 mixed problem gets uniform crossover and random reset. In a crossed pair, for
@@ -167,22 +141,8 @@ value of its domain, or moves a real value by a Gaussian step.
 
 The `mixed` crossover and mutation read optional **segment settings**, passed
 as parameters of the builder's `crossover("mixed", ...)` and
-`mutation("mixed", ...)`. The pipeline adds them to the problem's mixed spec
-before it calls the operators:
-
-```python
-# Excerpt from src/vamos/engine/variation/strategies.py
-    def _merged_spec(self, params: dict[str, Any]) -> dict[str, Any]:
-        base_spec = getattr(self.ctx.problem, "mixed_spec", None)
-        if base_spec is None:
-            raise ValueError("Mixed-encoding problems must define 'mixed_spec'.")
-        merged = dict(base_spec)
-        for key, value in params.items():
-            if key == "prob":
-                continue
-            merged[key] = value
-        return merged
-```
+`mutation("mixed", ...)`, next to `prob`. The settings of each part, with
+their defaults:
 
 | Part | Crossover settings | Mutation settings |
 | --- | --- | --- |

@@ -29,12 +29,12 @@ In this lesson you will learn:
   and how to report it.
 
 !!! warning "Experimental in VAMOS 1.5.2"
-    The tuning implementation and the `vamos tune` command are experimental:
-    they can change incompatibly in a minor release, and VAMOS has no public
-    programmatic interface for tuning. These lessons show the mechanics
-    through interactive figures, excerpts of the implementation and the
-    `vamos tune` command. The [tuning guide](../../topics/tuning.md) is the
-    reference for the command and its options.
+    Tuning and the `vamos tune` command are experimental: they can change
+    incompatibly in a minor release, and VAMOS has no public programmatic
+    interface for tuning. These lessons show tuning through interactive
+    figures, the `vamos tune` command and examples that use the public VAMOS
+    API. The [tuning guide](../../topics/tuning.md) is the reference for the
+    command and its options.
 
 ## Why parameters matter
 
@@ -139,40 +139,17 @@ default.
 The real-coded NSGA-II space, `nsgaii.yaml`, has 33 parameters: 9
 categorical, 1 integer and 23 real. Seven hang from the root:
 `offspring_ratio`, `selection`, `external_archive`, `initial_solutions`,
-`crossover`, `mutation` and `repair`. A random configuration is drawn by
-walking the tree:
-
-```python
-# Excerpt from src/vamos/engine/tuning/grammar/model.py
-    def sample(self, rng: np.random.Generator) -> dict[str, Scalar]:
-        """A random configuration: a production at every categorical node, every active terminal drawn.
-
-        Only the active parameters draw values, in depth-first order.
-        """
-        return self._derive(lambda parameter: parameter.sample(rng))
-
-    def _derive(self, choose: Callable[[Parameter], Scalar]) -> dict[str, Scalar]:
-        values: dict[str, Scalar] = {}
-
-        def visit(parameters: tuple[Parameter, ...]) -> None:
-            for parameter in parameters:
-                value = choose(parameter)
-                values[parameter.name] = value
-                visit(parameter.children(value))
-
-        visit(self.parameters)
-        return values
-```
-
-`children(value)` returns the global sub-parameters of a node and the
-production of the chosen value, so a value is drawn only for the parameters
-that the choices above it activate. The default configuration is the same
-walk with every parameter at its default, and it activates 12 parameters.
+`crossover`, `mutation` and `repair`. A random configuration is drawn from
+the root down: every parameter of the root gets a value, and each value drawn
+for a categorical parameter brings the parameters of its production, which
+get values in turn. A value is drawn only for the parameters that the choices
+above it activate. The default configuration makes every choice at its
+default, and it activates 12 parameters.
 
 A smoke run of `vamos tune` shows such configurations. `--smoke` is a cheap
 check of the command: it clamps each run to 30 evaluations and a population of
 15, the search to four trials and two seeds, and skips the validation and
-test stages. The random backend draws its trials with the walk above, and
+test stages. The random backend draws its trials in this way, and
 `best_config_active.json` holds the active parameters of the best one:
 
 ```bash
@@ -284,6 +261,41 @@ reference point gives every configuration the same score of 0. The `mean`
 aggregation then weighs problems by their hypervolume scale, while the
 racing backend's tests use ranks and weigh every block the same.
 
+The public API is enough to check the scores before a campaign. The example
+runs the default configuration of NSGA-II with the run budget and the
+population of `vamos tune` (5,000 evaluations, 100 individuals) on the six
+problems of the campaign in the next section, with three seeds, and computes
+the hypervolume of each run with the default reference point:
+
+```python
+from vamos import optimize
+from vamos.ux.api import HVIndicator  # computes the hypervolume with moocore (the compute extra)
+
+for problem in ("zdt1", "zdt2", "zdt3", "dtlz1", "dtlz2", "wfg1"):
+    runs = optimize(problem, algorithm="nsgaii", max_evaluations=5000, seed=[1, 2, 3])  # the default configuration
+    n_obj = runs[0].F.shape[1]
+    hv = HVIndicator(reference_point=[10.0] * n_obj)  # vamos tune's default --ref-point
+    print(f"{problem:<6} {n_obj} objectives, hypervolume of seeds 1 to 3: " + ", ".join(f"{hv.compute(run.F).value:.1f}" for run in runs))
+```
+
+Output:
+
+```text
+zdt1   2 objectives, hypervolume of seeds 1 to 3: 96.5, 95.4, 96.2
+zdt2   2 objectives, hypervolume of seeds 1 to 3: 88.6, 88.4, 87.1
+zdt3   2 objectives, hypervolume of seeds 1 to 3: 102.7, 103.1, 103.2
+dtlz1  3 objectives, hypervolume of seeds 1 to 3: 720.8, 945.0, 905.4
+dtlz2  3 objectives, hypervolume of seeds 1 to 3: 999.3, 999.3, 999.2
+wfg1   3 objectives, hypervolume of seeds 1 to 3: 659.5, 657.8, 662.8
+```
+
+Every score is positive, so every problem reaches the reference point. The
+scales differ, though: with 10 in every objective, the box of a
+three-objective problem is ten times larger than that of a bi-objective one,
+and so are its scores, and two seeds of DTLZ1 differ by more than twice the
+whole score of a ZDT problem. Averaged by `mean`, DTLZ1, DTLZ2 and WFG1 decide
+the ranking of the configurations almost on their own.
+
 Failed runs need a score too. In `vamos tune`, a run that raises or returns a
 score that is not finite counts as failed and scores `--failure-score`, 0 by
 default, which is never better than a valid front.
@@ -352,23 +364,11 @@ as the algorithm's default, so it is the natural baseline.
 A configuration of a VAMOS space can also be written as a document of the
 schema `vamos.parameter-configuration` 1.0.0, which names the space by its
 name, schema version and the SHA-256 of its canonical form, so that a reader
-knows exactly which space the values belong to:
+knows exactly which space the values belong to.
 
-```python
-# Excerpt from src/vamos/engine/tuning/grammar/configuration.py
-    def to_document(self) -> dict[str, Any]:
-        """The canonical ``vamos.parameter-configuration`` document."""
-        return {
-            "schema": CONFIGURATION_SCHEMA,
-            "schema_version": CONFIGURATION_SCHEMA_VERSION,
-            "space": self.space.to_document(),
-            "values": self.to_values(),
-        }
-```
-
-The same configuration can be written as a flat mapping of its values, which
-the tuners exchange, and as a command line in the style of Evolver's
-`VAR_CONF.txt` files (lesson [Evolver and meta-optimization](tuning-evolver.md)).
+The same configuration can be written as a flat mapping of its values, the
+form of `best_config_active.json`, and as a command line in the style of
+Evolver's `VAR_CONF.txt` files (lesson [Evolver and meta-optimization](tuning-evolver.md)).
 
 ## Key points
 

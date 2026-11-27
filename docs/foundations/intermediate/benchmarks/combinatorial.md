@@ -42,23 +42,36 @@ gives the keys and dimensions used below.
 ZDT5 [1] is the binary member of ZDT. Its 80 bits form a first block of 30 and
 ten blocks of 5. With u₁ the number of ones in the first block and u_i that of
 block i, f₁ = 1 + u₁ and f₂ = g / f₁, where g sums a value v(u_i) over the ten
-small blocks:
+small blocks: v(u) = 2 + u for u < 5, and v(5) = 1.
+
+A block with no ones scores 2, and each added one makes it worse, until the
+fifth makes it best. Filling the first small block one bit at a time, with
+every other bit at 0:
 
 ```python
-# Excerpt from src/vamos/foundation/problem/zdt5.py
-        v_tail = np.where(u_tail == float(self._block_size), 1.0, 2.0 + u_tail)
-        g = v_tail.sum(axis=1)
+import numpy as np
 
-        f1 = 1.0 + u0
-        f2 = g / f1
+from vamos import make_problem_selection
+
+problem = make_problem_selection("zdt5").instantiate()
+X = np.zeros((6, problem.n_var))  # the first block is empty, so f1 = 1 and f2 = g
+for ones in range(6):
+    X[ones, 30 : 30 + ones] = 1  # 0 to 5 ones in the first small block
+out = {}
+problem.evaluate(X, out)
+print("g for 0 to 5 ones:", out["F"][:, 1].round().astype(int).tolist())
 ```
 
-v(u) = 2 + u for u < 5, and v(5) = 1. A block with no ones scores 2, and each
-added one makes it worse, until the fifth makes it best. Every small step leads
-towards empty blocks and g = 20, while the optimum, g = 10, needs every block
-full. That is deception: the local information points away from the global
-optimum [1]. The Pareto front is f₂ = 10 / f₁ for f₁ = 1, …, 31, and VAMOS
-packages its 31 points:
+Output:
+
+```text
+g for 0 to 5 ones: [20, 21, 22, 23, 24, 19]
+```
+
+Every small step leads towards empty blocks and g = 20, while the optimum,
+g = 10, needs every block full. That is deception: the local information
+points away from the global optimum [1]. The Pareto front is f₂ = 10 / f₁ for
+f₁ = 1, …, 31, and VAMOS packages its 31 points:
 
 ```python
 from importlib.resources import files

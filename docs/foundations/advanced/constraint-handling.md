@@ -54,13 +54,7 @@ evaluations before the offspring's over the evaluation budget.
 
 RVEA and SMPSO compare single solutions rather than rank fronts, so they take
 only the four techniques that judge the violation of one solution, as
-Evolver's `EffectiveViolation` does. Their configurations state it:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/config/rvea.py
-    #: The techniques that judge the violation of a single solution, the only ones this algorithm takes.
-    constraint_handling_techniques: ClassVar[tuple[str, ...]] = PAIRWISE_TECHNIQUES
-```
+Evolver's `EffectiveViolation` does; their builders reject the other two.
 
 ## Feasibility rules
 
@@ -75,30 +69,9 @@ of violated constraints instead of CV, a variant that jMetal provides. A
 solution that breaks one constraint badly then ranks ahead of one that breaks
 two constraints slightly.
 
-Both rank with one function, which the ε-constrained method below also uses.
-After the feasible fronts, it sorts the infeasible solutions by the measure and
-gives each group of equal measure its own fronts:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/components/constrained_ranking.py
-    order = infeasible[np.argsort(measure[infeasible], kind="stable")]
-    values = measure[order]
-    starts = np.flatnonzero(np.concatenate(([True], values[1:] != values[:-1])))
-    ends = np.concatenate((starts[1:], [order.size]))
-    for start, end in zip(starts.tolist(), ends.tolist()):
-        members = order[start:end]
-        if objectives_on_ties and members.size > 1:
-            group_ranks = pareto_ranks(kernel, F[members])
-            ranks[members] = offset + group_ranks
-            offset += int(group_ranks.max()) + 1
-        else:
-            ranks[members] = offset
-            offset += 1
-```
-
-`cdp` and `violated_constraints` compare the solutions of a group by Pareto
-dominance (`objectives_on_ties`); the ε-constrained method puts the whole
-group in one front.
+After the feasible fronts, both rank the infeasible solutions by increasing
+measure and compare the solutions with the same measure by Pareto dominance;
+the ε-constrained method below puts them in one front instead.
 
 ## Relaxing feasibility
 
@@ -142,25 +115,7 @@ Runarsson and Yao's stochastic ranking [4] sorts the population with a bubble
 sort that compares neighbours either by objectives or by violation. Two
 feasible solutions always compare by objectives (in VAMOS, their Pareto rank);
 otherwise a coin decides, objectives with probability p_f and CV otherwise. At
-most n sweeps run, and the sort stops after a sweep without swaps:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/components/constrained_ranking.py
-    for _ in range(n):
-        swapped = False
-        for j in range(n - 1):
-            first, second = order[j], order[j + 1]
-            if is_feasible[first] and is_feasible[second]:
-                by_rank = True
-            else:
-                by_rank = draws[drawn] < probability
-                drawn += 1
-            if (rank[second] < rank[first]) if by_rank else (value[second] < value[first]):
-                order[j], order[j + 1] = second, first
-                swapped = True
-        if not swapped:
-            break
-```
+most n sweeps run, and the sort stops after a sweep without swaps.
 
 Consecutive feasible solutions with the same Pareto rank share a front, and
 every infeasible solution is a front of its own. The only parameter of

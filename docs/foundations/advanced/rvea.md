@@ -1,5 +1,5 @@
 ---
-description: 'RVEA, the reference vector guided evolutionary algorithm: unit reference vectors, translation by the ideal point, association by angle, the angle-penalized distance and its schedule, and the adaptation of the vectors to the scales of the objectives, as VAMOS implements them, with an interactive figure and VAMOS code.'
+description: 'RVEA, the reference vector guided evolutionary algorithm: unit reference vectors, translation by the ideal point, association by angle, the angle-penalized distance and its schedule, and the adaptation of the vectors to the scales of the objectives, with an interactive figure and VAMOS code.'
 search:
   boost: 0.5
 ---
@@ -45,7 +45,7 @@ changes its emphasis over time [1].
 The article also shows that vectors restricted to a region of interest express
 a decision maker's preferences, proposes a variant that regenerates the
 vectors left without solutions on irregular fronts (RVEA\*), and extends the
-algorithm to constraints [1]. VAMOS implements the basic RVEA with vector
+algorithm to constraints [1]. VAMOS provides the basic RVEA with vector
 adaptation.
 
 ## Reference vectors
@@ -227,98 +227,6 @@ With adaptation the solutions cover almost every direction of the scaled
 front. Without it the vectors stay evenly spread in the raw objective space,
 and the solutions follow them, leaving a large part of the stretched front
 empty.
-
-The vectors and their spacings come from two small functions. `_calc_gamma`
-sorts each row of the cosine matrix in decreasing order; the first entry is
-the vector itself (cosine 1), so the second is its nearest neighbour:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/rvea/rvea.py
-def _calc_V(ref_dirs: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
-    norms = np.linalg.norm(ref_dirs, axis=1, keepdims=True)
-    norms[norms == 0.0] = 1.0
-    return np.asarray(ref_dirs / norms, dtype=float)
-
-
-def _calc_gamma(V: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
-    cosine = V @ V.T
-    gamma = np.arccos((-np.sort(-1.0 * cosine, axis=1))[:, 1])
-    gamma = np.maximum(gamma, 1e-64)
-    return np.asarray(gamma, dtype=float)
-```
-
-The survival follows the formulas. `angle_penalized_distances` translates the
-objectives by an origin, associates each solution with the vector at the
-smallest angle (`niches`), and computes the penalty, with M = 1 for two
-objectives in the default variant, and the APD. `apd_survival` passes the
-accumulated ideal point as the origin. `np.lexsort` orders the solutions by
-vector, then by APD, then by position, so the first solution of each vector in
-that order is its survivor; vectors without solutions simply do not appear:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/rvea/survival.py
-    n_obj = F.shape[1]
-    F_shift = F - origin
-    dist_to_origin = np.linalg.norm(F_shift, axis=1)
-    dist_to_origin[dist_to_origin < 1e-64] = 1e-64
-    F_prime = F_shift / dist_to_origin[:, None]
-
-    cos_theta = np.clip(F_prime @ V.T, -1.0, 1.0)
-    acute_angle = np.arccos(cos_theta)
-    niches = acute_angle.argmin(axis=1)
-
-    M = float(n_obj) if n_obj > 2 or variant == "platemo" else 1.0
-    progress = (n_gen / n_max_gen) ** alpha
-    theta = acute_angle[np.arange(F.shape[0]), niches]
-    penalty = M * progress * (theta / gamma[niches])
-    return niches, penalty, dist_to_origin * (1.0 + penalty)
-
-
-def apd_survival(
-    ideal = np.minimum(F.min(axis=0), ideal)
-    origin = F.min(axis=0) if variant == "platemo" else ideal
-    niches, _penalty, apd = angle_penalized_distances(F, origin, V, gamma, n_gen, n_max_gen, alpha, variant)
-
-    order = np.lexsort((np.arange(F.shape[0]), apd, niches))
-    sorted_niches = niches[order]
-    first_in_niche = np.empty(sorted_niches.shape[0], dtype=bool)
-    first_in_niche[0] = True
-    first_in_niche[1:] = sorted_niches[1:] != sorted_niches[:-1]
-    survivors = order[first_in_niche][: min(int(n_survive), F.shape[0])]
-
-    nadir = F[survivors].max(axis=0) if survivors.size else None
-    return survivors, ideal, nadir
-```
-
-The last lines return the largest objective values of the survivors, the
-z_max of the adaptation. The run computes t_max from the budget, builds one
-reference vector per individual (`_reference_vectors` raises when the lattice
-does not match `pop_size`), sets the adaptation interval, and stretches the
-vectors at each multiple of it:
-
-```python
-# Excerpt from src/vamos/engine/algorithm/rvea/rvea.py
-        # The APD penalty grows with generation / max_gen; n_gen gives max_gen directly.
-        if termination[0] == "n_gen":
-            max_gen = max_evals // pop_size
-        else:
-            max_gen = max(1, int(math.ceil((max_evals - pop_size) / pop_size)))
-
-        ref_dirs = _reference_vectors(self.cfg.get("reference_vectors"), pop_size, n_obj, n_partitions)
-        adapt_interval = None
-        if adapt_freq is not None:
-            adapt_interval = max(1, int(math.ceil(max_gen * float(adapt_freq))))
-        # Periodic reference-vector adaptation
-        if st.adapt_interval is not None and st.generation % st.adapt_interval == 0:
-            scale: np.ndarray[Any, Any] | None = None
-            if st.variant == "platemo":
-                scale = np.ptp(st.F, axis=0)
-            elif st.nadir is not None:
-                scale = st.nadir - st.ideal
-            if scale is not None:
-                st.V = _calc_V(_calc_V(st.ref_dirs) * np.maximum(scale, 1e-64))
-                st.gamma = _calc_gamma(st.V)
-```
 
 **VAMOS 1.5.0:** the population no longer has to be a complete
 lattice. `reference_vectors(path=...)` reads the vectors from a file, such as

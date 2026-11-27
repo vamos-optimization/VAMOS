@@ -13,9 +13,10 @@ that the best solutions found so far are never lost. This property,
 
 In this lesson you will learn:
 
-- why elitism matters, and how NSGA-II implements it;
+- why elitism matters, and how NSGA-II achieves it;
 - the survival procedure, step by step;
-- how VAMOS performs it, and how the whole generation fits together;
+- how to apply it to any set of points in VAMOS, and how the whole generation
+  fits together;
 - how constraints and the steady-state variant change survival.
 
 ## Why elitism
@@ -94,48 +95,15 @@ survivors: P1, O1, P4, O2, O4, P3
 
 The helper orders candidates by rank, then by decreasing crowding distance,
 then by position, and returns the first `survivor_count`. Inside NSGA-II, the
-kernel fills the fronts exactly as in the procedure above:
-
-```python
-# Excerpt from src/vamos/foundation/kernel/numpy_backend.py
-def _select_nsga2(fronts: list[list[int]], crowding: RealArray, pop_size: int) -> IndexArray:
-    """
-    NSGA-II elitist selection based on fronts + crowding.
-    """
-    selected: list[int] = []
-    for front in fronts:
-        if len(front) == 0:
-            continue
-        front_arr = np.asarray(front, dtype=int)
-        if len(selected) + front_arr.size <= pop_size:
-            selected.extend(front_arr.tolist())
-        else:
-            rem = pop_size - len(selected)
-            order = np.argsort(crowding[front_arr])[::-1]
-            selected.extend(front_arr[order[:rem]].tolist())
-            break
-    return np.array(selected, dtype=int)
-```
-
-and the kernel's survival method chains merge, sort, crowding and selection:
-
-```python
-# Excerpt from src/vamos/foundation/kernel/numpy_backend.py
-        X_comb = np.vstack([X, X_off])
-        F_comb = np.vstack([F, F_off])
-        fronts, _ = _fast_non_dominated_sort(F_comb)
-        crowding = _compute_crowding(F_comb, fronts)
-        sel = _select_nsga2(fronts, crowding, pop_size)
-```
+survival merges parents and offspring and fills the fronts exactly as in the
+procedure above.
 
 ## The complete generation
 
-The NSGA-II driver in `src/vamos/engine/algorithm/nsgaii/ask_tell.py`
-organizes each generation as *ask* and *tell*:
+VAMOS' NSGA-II organizes each generation as *ask* and *tell*:
 
-1. **Ask.** Compute ranks and crowding distances of the current population
-   (they are cached from the previous survival when possible), pick parents
-   with the binary tournament (lesson [Crowding and tournaments](crowding-distance.md)), and apply
+1. **Ask.** Compute ranks and crowding distances of the current population,
+   pick parents with the binary tournament (lesson [Crowding and tournaments](crowding-distance.md)), and apply
    crossover and mutation (lesson [Real-coded operators](operators/real-coded.md)). The result is
    the offspring decision matrix.
 2. **Evaluate** the offspring, counting every evaluation against the budget.
@@ -144,11 +112,39 @@ organizes each generation as *ask* and *tell*:
 
 Two consequences for experiments:
 
-- **The returned set is not the population size.** `result.F` holds, by
-  default, the non-dominated members of the final population, so it can have
-  fewer than N rows ([understanding results](../../guide/understanding-results.md)).
+- **The returned set is not always the population.** With a configuration
+  built by `NSGAIIConfig.builder()` or `NSGAIIConfig.default()`, `result.F`
+  holds the non-dominated members of the final population, so it can have
+  fewer than N rows; a call to `optimize` without a configuration returns the
+  whole population ([understanding results](../../guide/understanding-results.md)).
 - **The budget is exact.** The initial population and every offspring count;
   VAMOS does not overshoot `max_evaluations` silently.
+
+`.result_mode(...)` in the builder chooses what a run returns:
+
+```python
+from vamos import optimize
+from vamos.algorithms import NSGAIIConfig
+
+for mode in ("non_dominated", "population"):
+    config = (
+        NSGAIIConfig.builder()
+        .pop_size(40)
+        .crossover("sbx", prob=0.9, eta=20.0)
+        .mutation("pm", prob="1/n", eta=20.0)
+        .result_mode(mode)
+        .build()
+    )
+    result = optimize("zdt1", algorithm="nsgaii", algorithm_config=config, max_evaluations=400, seed=1)
+    print(f"result_mode={mode!r}: {len(result.F)} of 40 solutions returned")
+```
+
+Output:
+
+```text
+result_mode='non_dominated': 10 of 40 solutions returned
+result_mode='population': 40 of 40 solutions returned
+```
 
 ## Survival with constraints
 
@@ -174,9 +170,8 @@ budget accounting and when the two variants differ.
   the 2N survive.
 - Survival takes whole fronts while they fit and truncates the first front that
   does not fit by crowding distance.
-- In VAMOS the kernel's `nsga2_survival` merges, sorts, computes crowding and
-  selects; `vamos.select_survivors` exposes the same ranking for any set of
-  objective vectors.
+- In VAMOS, `select_survivors` applies the same ranking and crowding to any set
+  of objective vectors.
 - Constraints change the comparison (constrained domination), not the structure
   of survival.
 

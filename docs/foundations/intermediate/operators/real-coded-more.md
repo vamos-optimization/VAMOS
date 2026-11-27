@@ -8,7 +8,7 @@ search:
 
 SBX and polynomial mutation, the subject of the [previous lesson](real-coded.md),
 are VAMOS's default real-coded operators, but not its only ones. VAMOS
-implements ten other crossovers and eight other mutations for real variables.
+offers ten other crossovers and eight other mutations for real variables.
 They differ in the **shape** of the region where children land: an interval
 around the parents, a segment between them, a cloud around each of them, a
 step along a difference vector, an ellipse or a simplex. That shape decides
@@ -70,19 +70,7 @@ child is as likely to land beyond the parents as between them.
 above the larger one. The published BLX-αβ [2] extends towards the better
 parent and needs the parents' fitness; VAMOS's variant, like jMetal's, is
 positional, so α ≠ β pushes the population towards one bound. Both default to
-0.5, which makes it BLX-0.5. The core of `blx_alpha`:
-
-```python
-# Excerpt from src/vamos/engine/operators/impl/real/crossover_blend.py
-        lo = np.minimum(p1, p2)
-        hi = np.maximum(p1, p2)
-        span = hi - lo
-        lower = lo - self.alpha * span
-        upper = hi + self.alpha * span
-        width = upper - lower
-        active[:, 0, :] = lower + self._rand("blx_rand1", lower.shape, rng) * width
-        active[:, 1, :] = lower + self._rand("blx_rand2", lower.shape, rng) * width
-```
+0.5, which makes it BLX-0.5.
 
 ## Arithmetic crossovers
 
@@ -134,17 +122,8 @@ The difference a − b adapts the step to the population: large while it is
 spread, small when it converges. In VAMOS, `de` takes groups of three parents
 [x, a, b] and returns **one child** per group, with F = 0.5 and CR = 0.9 by
 default; it ignores `prob` and recombines every group. MOEA/D's default real
-variation is also differential evolution, built by its own policy.
-
-```python
-# Excerpt from src/vamos/engine/operators/impl/real/crossover_differential.py
-        target = groups[:, 0, :]
-        mutant = target + self.F * (groups[:, 1, :] - groups[:, 2, :])
-        trial = target.copy()
-        cross_mask = rng.random((n_groups, n_vars)) < self.CR
-        cross_mask[np.arange(n_groups), rng.integers(n_vars, size=n_groups)] = True
-        trial[cross_mask] = mutant[cross_mask]
-```
+variation is also differential evolution, with its own defaults (lesson
+[MOEA/D](../moead.md#one-step-of-moead)).
 
 ## Multi-parent crossovers: PCX, UNDX and SPX
 
@@ -177,28 +156,7 @@ uniformly inside it:
 
 <div class="vf-formula">c = O + ε · ( Σₖ wₖ xₖ − O ),      w ~ Dirichlet(1, 1, 1),  ε = √(m + 1) = 2 by default</div>
 
-PCX and SPX ignore `prob` and recombine every group. The loop of PCX and the
-whole of SPX:
-
-```python
-# Excerpt from src/vamos/engine/operators/impl/real/crossover_multi_parent.py
-        centroid = groups.mean(axis=1)
-        for j in range(n_parents):
-            index_parent = groups[:, j, :]
-            d = centroid - index_parent
-            others = np.delete(groups, j, axis=1) - index_parent[:, None, :]
-            perpendicular = _remove_component(others, d[:, None, :])
-            mean_distance = np.linalg.norm(perpendicular, axis=-1).mean(axis=1)
-            noise = rng.normal(0.0, 1.0, size=(n_groups, n_vars)) * (self.sigma_eta * mean_distance)[:, None]
-            noise = _remove_component(noise, d)
-            w = rng.normal(0.0, self.sigma_zeta, size=(n_groups, 1))
-            offspring[:, j, :] = index_parent + w * d + noise
-        epsilon = np.sqrt(k + 1.0) if self.epsilon is None else self.epsilon
-        centroid = groups.mean(axis=1, keepdims=True)
-        weights = rng.dirichlet(np.ones(k), size=(n_groups, k))
-        points = np.einsum("gck,gkv->gcv", weights, groups)
-        return np.asarray(centroid + epsilon * (points - centroid), dtype=np.float64)
-```
+PCX and SPX ignore `prob` and recombine every group.
 
 In the first figure, DE draws one child per group from x = P1, a = P2 and
 b = P3; PCX gives three children, one around each parent; UNDX gives two,
@@ -232,21 +190,10 @@ distance y to that bound that shrinks as the run progresses:
 
 <div class="vf-formula">x′ = x ± y · (1 − r^((1 − t/T)^b))</div>
 
-The operator in VAMOS does not receive the run's progress t/T and uses 0, as
-the [algorithm reference](../../../reference/algorithms.md) notes: the step is y (1 − r), uniform between the parent and the
-bound, and the parameter `perturbation` (b) has no effect. The value never
-leaves the bounds.
-
-```python
-# Excerpt from src/vamos/engine/operators/impl/real/mutation.py
-        rand = self._rand("nu_rand", X.shape, rng)
-        # (1 - t / T) ** b with the progress t / T unknown, and therefore 0.
-        np.power(rand, (1.0 - self.progress) ** self.perturbation, out=rand)
-        np.subtract(1.0, rand, out=delta)
-        direction_rand = self._rand("nu_direction", X.shape, rng)
-        distance = np.where(direction_rand <= 0.5, self.upper - X, self.lower - X)
-        update = delta * distance
-```
+VAMOS's non-uniform mutation does not follow the run's progress: it uses
+t/T = 0, as the [algorithm reference](../../../reference/algorithms.md) notes,
+so the step is y (1 − r), uniform between the parent and the bound, and the
+parameter `perturbation` (b) has no effect. The value never leaves the bounds.
 
 **Lévy flight.** `levy_flight` draws heavy-tailed steps with Mantegna's
 algorithm [13], the steps of Lévy-flight metaheuristics [14]: a normal
@@ -268,15 +215,6 @@ It never leaves the bounds; `index` = 1 by default, and a larger index gives
 smaller steps. The paper writes t = (x − l)/(u − x), which drifts towards the
 upper bound; VAMOS and jMetal use the relative position.
 
-```python
-# Excerpt from src/vamos/engine/operators/impl/real/mutation.py
-        strength = np.power(rng.random((n_ind, n_var)), self.index)
-        position = (X - self.lower) / self._span_safe
-        downward = position < rng.random((n_ind, n_var))
-        mutated = np.where(downward, X - strength * (X - self.lower), X + strength * (self.upper - X))
-        np.clip(mutated, self.lower, self.upper, out=mutated)
-```
-
 **Linked polynomial.** Zille, Ishibuchi, Mostaghim and Nojima's linked
 polynomial mutation [16], designed for problems with many variables, is the
 bounded polynomial mutation of the previous lesson with **one** random number
@@ -284,13 +222,6 @@ per individual for all its mutated variables. The step of each variable still
 depends on its distance to the bounds, but they all move in the same
 direction. In the figure, with probability 1, the copies form a curve instead
 of a cloud.
-
-```python
-# Excerpt from src/vamos/engine/operators/impl/real/mutation.py
-        # One draw per individual, shared by all of its mutated variables.
-        u = active_rng.random((n_ind, 1))
-            rnd_delta=np.broadcast_to(u, (n_ind, n_var)),
-```
 
 In the second figure, choose Cauchy and drag the parent towards a corner:
 some copies land far outside the bounds, and the run's repair would move them
@@ -300,9 +231,10 @@ same direction.
 
 ## Using them in a run
 
-Every operator of this lesson is selected by name in a builder, with the
-parameters of its class (`prob` replaces `prob_crossover` and
-`prob_mutation`). The three-parent crossovers need an algorithm that groups
+Every operator of this lesson is selected by name in a builder. Its
+parameters are named after the symbols of this lesson, such as `alpha`, `a`
+and `b`, `d`, `F` and `CR`, `zeta` and `eta`, or `epsilon`, and `prob` sets its
+probability. The three-parent crossovers need an algorithm that groups
 parents by the crossover's arity, such as NSGA-II. Five crossovers on ZDT1,
 with polynomial mutation:
 
