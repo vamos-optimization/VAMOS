@@ -375,8 +375,11 @@ def test_compute_extra_excludes_the_reviewed_distributed_advisory() -> None:
     constraints = (ROOT / "constraints" / "ci.txt").read_text(encoding="utf-8")
 
     assert pyproject.count('"dask[distributed]>=2026.1.0"') == 2
-    assert "dask==2026.8.0" in constraints
-    assert "distributed==2026.8.0" in constraints
+    # The CI pins stay above the advisory, whatever release Dependabot moves them to; dask and
+    # distributed are released together and must keep the same version.
+    pins = _exact_pins(constraints)
+    assert pins["dask"] >= Version("2026.1.0")
+    assert pins["distributed"] == pins["dask"]
     assert 'requires = ["setuptools>=83", "wheel>=0.46.2"]' in pyproject
     # The build-system requirements and the dev extra; all holds only the user extras.
     assert pyproject.count('"setuptools>=83"') == 2
