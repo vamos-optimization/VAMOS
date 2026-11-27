@@ -154,7 +154,9 @@ def bind_config_vector_files(config: Any, n_obj: int) -> Any:
     """A configuration dataclass with each vector file bound by :func:`bind_vector_file`.
 
     MOEA/D's ``weight_vectors`` with one or two objectives are uniform and read no file, so they stay as
-    they are. VAMOS 1.5.0: new.
+    they are. VAMOS 1.5.0: new. Development after 1.5.2: a configuration whose class sets
+    ``_uniform_two_objective_weights = False`` (C-TAEA's) reads its weight file with any number of objectives,
+    so it is bound with two objectives too.
     """
     if not dataclasses.is_dataclass(config) or isinstance(config, type):
         return config
@@ -162,8 +164,9 @@ def bind_config_vector_files(config: Any, n_obj: int) -> Any:
     if not isinstance(pop_size, int) or isinstance(pop_size, bool):
         return config
     changes: dict[str, object] = {}
+    uniform_with_two = getattr(config, "_uniform_two_objective_weights", True)
     for name in VECTOR_SOURCE_FIELDS:
-        if not hasattr(config, name) or (name == "weight_vectors" and n_obj <= 2):
+        if not hasattr(config, name) or (name == "weight_vectors" and n_obj <= 2 and uniform_with_two):
             continue
         value = getattr(config, name)
         bound = bind_vector_file(value, n_obj, pop_size)

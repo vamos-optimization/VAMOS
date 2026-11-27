@@ -11,7 +11,7 @@ from .archives import (
 from .ctaea import CTAEA
 from .mating import MatingProportions, ctaea_tournament, mating_proportions, tournament_winners
 from .state import CTAEAState, build_ctaea_result
-from .weights import ctaea_weight_vectors, weight_vector_count
+from .weights import configured_weight_vectors, ctaea_weight_vectors, weight_vector_count
 
 __all__ = [
     "CTAEA",
@@ -19,6 +19,7 @@ __all__ = [
     "MatingProportions",
     "associate",
     "build_ctaea_result",
+    "configured_weight_vectors",
     "convergence_archive_update",
     "ctaea_tournament",
     "ctaea_weight_vectors",

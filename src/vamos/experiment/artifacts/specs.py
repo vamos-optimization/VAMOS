@@ -229,18 +229,19 @@ def _algorithm_component(inputs: RunSpecInputs, config: Mapping[str, object], po
             logging.getLogger(__name__).debug("No %s weight vectors to record for pop_size=%s", inputs.algorithm, pop_size, exc_info=True)
     vector_field = _VECTOR_FIELDS.get(inputs.algorithm)
     if vector_field is not None and pop_size is not None:
-        # VAMOS 1.5.0: the file that NSGA-III's or RVEA's vectors come from. The configuration
-        # already states a lattice, so only a path is recorded, and a run without one keeps its 1.4.0 spec. The
-        # record comes from the stored configuration alone, never from the file.
+        # VAMOS 1.5.0: the file that NSGA-III's or RVEA's vectors come from (C-TAEA's: development after 1.5.2). The
+        # configuration already states a lattice, so only a path is recorded, and a run without one keeps its 1.4.0 spec.
+        # The record comes from the stored configuration alone, never from the file.
         vectors = config.get(vector_field)
         path = vectors.get("path") if isinstance(vectors, Mapping) else None
         if isinstance(path, str) and path:
-            descriptor["resolution"][vector_field] = describe_vector_file(path, vectors=pop_size if inputs.algorithm == "rvea" else None)
+            one_per_individual = inputs.algorithm in {"ctaea", "rvea"}
+            descriptor["resolution"][vector_field] = describe_vector_file(path, vectors=pop_size if one_per_individual else None)
     return descriptor
 
 
-# The option that names the reference vectors of NSGA-III and RVEA.
-_VECTOR_FIELDS = {"nsgaiii": "reference_directions", "rvea": "reference_vectors"}
+# The option that names the reference vectors of NSGA-III and RVEA, and the weight vectors of C-TAEA.
+_VECTOR_FIELDS = {"ctaea": "weight_vectors", "nsgaiii": "reference_directions", "rvea": "reference_vectors"}
 
 
 def _operators(config: Mapping[str, object], *, encoding: str, n_var: int, algorithm: str) -> dict[str, Any]:

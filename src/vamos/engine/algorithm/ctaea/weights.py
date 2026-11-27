@@ -1,4 +1,4 @@
-"""Weight vectors of C-TAEA, as jMetal's ``UniformWeightVectors`` generates them.
+"""Weight vectors of C-TAEA, as jMetal's ``UniformWeightVectors`` generates them, or those of a file or lattice.
 
 jMetal's port of C-TAEA (pull request jMetal/jMetal#524) generates its weight vectors with the
 normal-boundary intersection of Das and Dennis in up to two layers, the default method of
@@ -19,19 +19,35 @@ objectives), is C-TAEA's population size. VAMOS's :func:`~vamos.engine.reference
 lists the same lattice in the same order but renormalizes every row by its sum, which can
 change a coordinate in its last bit, and it has neither the inner layer nor the floor, so C-TAEA
 uses this function instead.
+
+**Development after 1.5.2:** :func:`configured_weight_vectors` takes the vectors of C-TAEA's
+``weight_vectors`` option instead, one per individual: a file (or a directory with jMetal's
+``W{M}D_{N}.dat``), or the lattice of ``divisions`` (and ``inner_divisions``) computed as above.
+The same floor applies to them.
 """
 
 from __future__ import annotations
 
+import os
+from collections.abc import Mapping
+from typing import cast
+
 import numpy as np
 from numpy.typing import NDArray
 
+from vamos.engine.algorithm.components.weight_vectors import (
+    check_two_layers,
+    existing_weight_file,
+    load_or_generate_weight_vectors,
+    vector_source,
+)
 from vamos.engine.reference_directions import lattice_size
+from vamos.foundation.exceptions import ConfigurationError
 
 FloatArray = NDArray[np.float64]
 
 MINIMUM_COMPONENT = 1e-6
-"""Lower bound of the components of the weight vectors, as in jMetal's port."""
+"""Lower bound of the components of the weight vectors, as in jMetal's port; it applies to the vectors of a file too."""
 
 
 def _simplex_layer(n_obj: int, divisions: int) -> FloatArray:
@@ -47,6 +63,15 @@ def _simplex_layer(n_obj: int, divisions: int) -> FloatArray:
 
     fill((), divisions)
     return np.asarray(np.asarray(rows, dtype=float) / divisions, dtype=float)
+
+
+def _layers(n_obj: int, outer: int, inner: int) -> FloatArray:
+    """The outer lattice and, when ``inner`` is not 0, the inner one shrunk by half towards the centre, without the floor."""
+    layers = [_simplex_layer(n_obj, outer)]
+    if inner:
+        shrink = 0.5
+        layers.append((1.0 - shrink) / n_obj + _simplex_layer(n_obj, inner) * shrink)
+    return np.asarray(np.vstack(layers), dtype=float)
 
 
 def layer_divisions(requested: int, n_obj: int) -> tuple[int, int]:
@@ -70,7 +95,8 @@ def weight_vector_count(requested: int, n_obj: int) -> int:
     """The number of weight vectors, which is C-TAEA's population size, for ``requested`` vectors and ``n_obj`` objectives.
 
     It is at most ``requested`` unless ``requested`` is smaller than ``n_obj``: one division per
-    objective already gives ``n_obj`` vectors.
+    objective already gives ``n_obj`` vectors. With the ``weight_vectors`` option
+    (:func:`configured_weight_vectors`), the population is ``pop_size`` instead.
     """
     outer, inner = layer_divisions(requested, n_obj)
     return lattice_size(n_obj, outer) + (lattice_size(n_obj, inner) if inner else 0)
@@ -79,11 +105,80 @@ def weight_vector_count(requested: int, n_obj: int) -> int:
 def ctaea_weight_vectors(requested: int, n_obj: int) -> FloatArray:
     """C-TAEA's weight vectors for ``requested`` vectors and ``n_obj`` objectives, one per row (see the module)."""
     outer, inner = layer_divisions(requested, n_obj)
-    layers = [_simplex_layer(n_obj, outer)]
-    if inner:
-        shrink = 0.5
-        layers.append((1.0 - shrink) / n_obj + _simplex_layer(n_obj, inner) * shrink)
-    return np.asarray(np.maximum(np.vstack(layers), MINIMUM_COMPONENT), dtype=float)
+    return np.asarray(np.maximum(_layers(n_obj, outer, inner), MINIMUM_COMPONENT), dtype=float)
 
 
-__all__ = ["MINIMUM_COMPONENT", "ctaea_weight_vectors", "layer_divisions", "weight_vector_count"]
+def has_weight_vector_source(source: object) -> bool:
+    """Whether a ``weight_vectors`` option names a file or a lattice, so that C-TAEA runs one individual per vector.
+
+    ``None``, and a mapping with neither ``path`` nor ``divisions``, leave C-TAEA's default vectors.
+    Development after 1.5.2: new.
+    """
+    if isinstance(source, (str, os.PathLike)):
+        return True
+    return isinstance(source, Mapping) and (source.get("path") is not None or source.get("divisions") is not None)
+
+
+def configured_weight_vectors(pop_size: int, n_obj: int, source: object = None) -> FloatArray:
+    """The weight vectors of a C-TAEA run: the default ones, or those of its ``weight_vectors`` option.
+
+    Without a source (see :func:`has_weight_vector_source`), these are
+    ``ctaea_weight_vectors(pop_size, n_obj)``, whose number may be smaller than ``pop_size``. With
+    one, C-TAEA runs one individual per vector, so there must be exactly ``pop_size`` of them:
+
+    - ``path``: a file with one vector per line, or a directory with jMetal's
+      ``W{n_obj}D_{pop_size}.dat`` (such as the files VAMOS ships in ``vamos/resources/weights``),
+      read by :func:`~vamos.engine.algorithm.components.weight_vectors.load_or_generate_weight_vectors`,
+      which checks ``sha256`` when it is given. The rows are used as they are, not renormalized;
+    - ``divisions``: the complete Das-Dennis lattice, and with ``inner_divisions`` the inner layer
+      shrunk by half, computed as C-TAEA's default vectors, so that ``divisions=12`` with
+      ``pop_size=91`` and three objectives gives the default vectors of ``pop_size=91``, bit for bit.
+
+    Every component is raised to at least :data:`MINIMUM_COMPONENT`, as the default vectors are:
+    jMetal's files have components equal to 0 (39 in 36 of the rows of ``W3D_100.dat``), with which the
+    Tchebycheff values of the archive updates would divide by zero. A missing path, a directory
+    without the file, layers that repeat directions, and a number of vectors other than
+    ``pop_size`` raise :class:`~vamos.exceptions.ConfigurationError` before any evaluation.
+
+    Development after 1.5.2: new.
+    """
+    options = vector_source(source, field="weight_vectors")
+    if not has_weight_vector_source(options):
+        return ctaea_weight_vectors(pop_size, n_obj)
+    assert options is not None
+    path, divisions, inner = options.get("path"), options.get("divisions"), options.get("inner_divisions")
+    if path is not None:
+        file = existing_weight_file(str(path), n_obj, pop_size)
+        sha256 = options.get("sha256")
+        weights = load_or_generate_weight_vectors(pop_size, n_obj, path=file, sha256=None if sha256 is None else str(sha256))
+        _check_count(f"Weight vector file '{file}' holds", int(weights.shape[0]), pop_size, n_obj)
+    else:
+        outer, inside = int(cast(int, divisions)), 0 if inner is None else int(cast(int, inner))
+        lattice = f"divisions={outer}" if not inside else f"divisions={outer} and inner_divisions={inside}"
+        # The size first, so that a lattice of another size is never generated.
+        count = lattice_size(n_obj, outer) + (lattice_size(n_obj, inside) if inside else 0)
+        _check_count(f"The lattice of {lattice} has", count, pop_size, n_obj)
+        if inside:
+            check_two_layers(n_obj, outer, inside)
+        weights = _layers(n_obj, outer, inside)
+    return np.asarray(np.maximum(weights, MINIMUM_COMPONENT), dtype=float)
+
+
+def _check_count(origin: str, count: int, pop_size: int, n_obj: int) -> None:
+    """Raise :class:`~vamos.exceptions.ConfigurationError` unless there is one weight vector per individual."""
+    if count != pop_size:
+        raise ConfigurationError(
+            f"{origin} {count} weight vectors for {n_obj} objectives, but C-TAEA's weight_vectors need one per individual, "
+            f"pop_size={pop_size}.",
+            suggestion=f"Set pop_size to {count}, or give weight vectors with {pop_size} rows.",
+        )
+
+
+__all__ = [
+    "MINIMUM_COMPONENT",
+    "configured_weight_vectors",
+    "ctaea_weight_vectors",
+    "has_weight_vector_source",
+    "layer_divisions",
+    "weight_vector_count",
+]

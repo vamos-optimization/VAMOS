@@ -4,6 +4,8 @@ Configure `ctaea` through `vamos.algorithms.CTAEAConfig`. This page is the param
 
 **New in VAMOS 1.2.0.** The [1.0 compatibility baseline](../../../project/stability-and-versioning.md) does not cover C-TAEA and `CTAEAConfig` yet.
 
+**Development after 1.5.2:** `weight_vectors` (field and builder method) gives the weight vectors, one per individual, from a file, a directory of jMetal's `W{n_obj}D_{pop_size}.dat` or a lattice; see [weight vectors from a file or a lattice](../../../algorithms/ctaea.md#weight-vectors-from-a-file-or-a-lattice).
+
 ```python
 from vamos.algorithms import CTAEAConfig
 ```

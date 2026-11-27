@@ -116,18 +116,24 @@ class MinimumViolation:
     message: str
 
 
-def initial_evaluations(algorithm: str, pop_size: int, n_obj: int | None = None) -> int:
+def initial_evaluations(algorithm: str, pop_size: int, n_obj: int | None = None, *, weight_vectors: object = None) -> int:
     """Evaluations that ``algorithm`` spends on its initial population(s) of ``pop_size``.
 
     ``2 * pop_size`` for CCMO, which initializes two populations; for C-TAEA, whose ``pop_size``
     is the requested number of weight vectors, the number of vectors it generates for ``n_obj``
     objectives (91 for 100 and three objectives), or ``pop_size`` when ``n_obj`` is not given;
     and ``pop_size`` for the other algorithms. The budget must cover them.
+
+    Development after 1.5.2: ``weight_vectors`` is the option of that name of the algorithm's
+    configuration. C-TAEA with one that names a file or a lattice runs one individual per vector,
+    exactly ``pop_size``.
     """
     key = algorithm.strip().lower()
     if key in WEIGHT_VECTOR_POPULATIONS and n_obj is not None and n_obj >= 2 and pop_size >= 1:
-        from vamos.engine.algorithm.ctaea.weights import weight_vector_count
+        from vamos.engine.algorithm.ctaea.weights import has_weight_vector_source, weight_vector_count
 
+        if has_weight_vector_source(weight_vectors):
+            return int(pop_size)
         return weight_vector_count(int(pop_size), int(n_obj))
     return INITIAL_POPULATIONS.get(key, 1) * int(pop_size)
 

@@ -1,8 +1,10 @@
 import json
 import sys
+from pathlib import Path
 
 import pytest
 
+import vamos
 from vamos.foundation.exceptions import VAMOSError
 
 
@@ -729,6 +731,15 @@ def test_upper_case_problem_override_reaches_the_run(monkeypatch, tmp_path):
     assert outcome["metrics"]["hooks"]["archive"]["enabled"] is True
 
 
+# C-TAEA with the directory of the jMetal weight files that VAMOS ships, which holds W3D_100.dat.
+_CTAEA_W3D_100 = {
+    "algorithm": "ctaea",
+    "problem": "dtlz2",
+    "population_size": 100,
+    "ctaea": {"weight_vectors": {"path": str(Path(vamos.__file__).parent / "resources" / "weights")}},
+}
+
+
 @pytest.mark.parametrize(
     ("defaults", "code", "message"),
     [
@@ -737,6 +748,9 @@ def test_upper_case_problem_override_reaches_the_run(monkeypatch, tmp_path):
         pytest.param(
             {"algorithm": "ctaea", "problem": "dtlz2", "population_size": 100, "max_evaluations": 90}, 2, "at least 91", id="ctaea-90"
         ),
+        # With weight_vectors (development after 1.5.2), one solution per vector: 100 with jMetal's W3D_100.dat.
+        pytest.param({**_CTAEA_W3D_100, "max_evaluations": 95}, 2, "at least 100", id="ctaea-weight-vectors-95"),
+        pytest.param({**_CTAEA_W3D_100, "max_evaluations": 100}, 0, "", id="ctaea-weight-vectors-100"),
         # CCMO's two initial populations take twice the population size.
         pytest.param(
             {"algorithm": "ccmo", "problem": "zdt1", "population_size": 10, "max_evaluations": 15}, 2, "at least 20", id="ccmo-15"

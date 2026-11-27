@@ -46,3 +46,20 @@ def test_tutorial_builder_is_the_default_configuration() -> None:
     assert config.pop_size == 100
     assert config.crossover == ("sbx", {"prob": 1.0, "eta": 20.0})
     assert config.mutation == ("pm", {"prob": "1/n", "eta": 20.0})
+
+
+def test_tutorial_weight_vectors_example_runs_100_individuals_from_jmetals_file() -> None:
+    """Development after 1.5.2: the page's weight_vectors example prints what it says."""
+    code = _python_blocks()[2]
+    namespace: dict[str, object] = {}
+    output = io.StringIO()
+    with contextlib.redirect_stdout(output):
+        exec(compile(code, str(PAGE), "exec"), namespace)
+
+    expected = [comment.strip() for comment in re.findall(r"print\(.*\)\s+# (.*)", code)]
+    assert output.getvalue().split("\n")[:-1] == expected
+    config = namespace["config"]
+    assert isinstance(config, CTAEAConfig) and config.pop_size == 100
+    result = namespace["result"]
+    assert isinstance(result, OptimizationResult)
+    assert result.data["diversity_archive"]["X"].shape == (100, 7)

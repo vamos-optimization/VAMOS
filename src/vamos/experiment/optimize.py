@@ -99,7 +99,7 @@ def _validate_budget_covers_population(
     if pop_raw is None or budget is None:
         return
     pop_size = _parse_positive_int(pop_raw, label="algorithm_config.pop_size")
-    initial = initial_evaluations(algorithm, pop_size, n_obj=n_obj)
+    initial = initial_evaluations(algorithm, pop_size, n_obj=n_obj, weight_vectors=cfg.get("weight_vectors"))
     # C-TAEA's pop_size is a requested number of weight vectors: its initial population may be smaller.
     if budget < pop_size and initial >= pop_size:
         raise ConfigurationError(
