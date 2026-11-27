@@ -23,6 +23,7 @@ ARCHIVE_ALGORITHMS = (
     "moead",
     "nsgaii",
     "nsgaiii",
+    "pps",
     "rvea",
     "smpso",
     "smsemoa",

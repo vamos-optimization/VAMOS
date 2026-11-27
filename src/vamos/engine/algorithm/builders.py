@@ -16,6 +16,7 @@ from vamos.engine.algorithm._builder_constrained import (
     build_ccmo_algorithm,
     build_cmoeams_algorithm,
     build_ctaea_algorithm,
+    build_pps_algorithm,
     build_top_algorithm,
 )
 from vamos.engine.algorithm._builder_decomposition import (
@@ -38,4 +39,5 @@ __all__ = [
     "build_ctaea_algorithm",
     "build_top_algorithm",
     "build_cmoeams_algorithm",
+    "build_pps_algorithm",
 ]

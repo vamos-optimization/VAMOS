@@ -46,6 +46,7 @@ from .bridge_spaces import (
     build_nsgaiii_integer_config_space,
     build_nsgaiii_mixed_config_space,
     build_nsgaiii_permutation_config_space,
+    build_pps_config_space,
     # RVEA
     build_rvea_binary_config_space,
     build_rvea_config_space,
@@ -141,6 +142,7 @@ __all__ = [
     "build_top_config_space",
     # CMOEA-MS
     "build_cmoeams_config_space",
+    "build_pps_config_space",
     # Bridge
     "config_from_assignment",
 ]

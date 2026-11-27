@@ -23,6 +23,7 @@ ALGORITHM_LABELS: dict[str, str] = {
     "ctaea": "C-TAEA",
     "top": "ToP",
     "cmoeams": "CMOEA-MS",
+    "pps": "PPS",
 }
 
 _SPACE_SUFFIX = {
@@ -81,7 +82,8 @@ def population_is_derived(algorithm: str, n_obj: int | None) -> bool:
     """
     if algorithm in _REFERENCE_DIRECTION_ALGORITHMS:
         return True
-    return algorithm == "moead" and (n_obj or 2) >= 3
+    # MOEA/D and PPS need one weight vector per individual, which three objectives or more have for some sizes only.
+    return algorithm in {"moead", "pps"} and (n_obj or 2) >= 3
 
 
 def default_algorithm_config(

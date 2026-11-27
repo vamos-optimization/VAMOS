@@ -12,7 +12,7 @@ from vamos import optimize
 
 When `pop_size` or `max_evaluations` is omitted, `optimize` uses quick defaults derived from the problem size, and `algorithm="auto"` selects NSGA-II for two objectives and NSGA-III for more:
 
-- `pop_size` is `min(max(50, 10 * n_var), 200)`, at least 100 with three or more objectives. MOEA/D, NSGA-III and RVEA, and so `algorithm="auto"` with three or more objectives, take the population from their reference directions instead: 100 with two objectives and 91 with three.
+- `pop_size` is `min(max(50, 10 * n_var), 200)`, at least 100 with three or more objectives. MOEA/D, NSGA-III and RVEA, and so `algorithm="auto"` with three or more objectives, take the population from their reference directions instead: 100 with two objectives and 91 with three. PPS (development after 1.5.2), which also needs one weight vector per individual, takes the largest population up to that size that has them: 190 for 200 with three objectives.
 - `max_evaluations` is `min(max(1000, 100 * n_var), 50000)`, at least 5000 with three or more objectives.
 
 For ZDT1 (30 variables) the quick defaults are 200 individuals and 3000 evaluations, 15 generations: enough for a first run, not for a converged front. Pass both for an experiment you report.

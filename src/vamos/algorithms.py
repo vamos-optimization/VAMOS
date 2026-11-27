@@ -6,7 +6,8 @@ For running optimizations, use `vamos.optimize`.
 
 The nine configuration classes of VAMOS 1.1.0, the probability types and the
 ``available_*`` functions are stable. ``CCMOConfig``, ``CTAEAConfig``, ``ToPConfig`` and
-``CMOEAMSConfig`` are new in VAMOS 1.2.0 and not yet covered by the 1.0 compatibility baseline. ``GenericAlgorithmConfig``,
+``CMOEAMSConfig`` are new in VAMOS 1.2.0 and not yet covered by the 1.0 compatibility baseline; ``PPSConfig`` is
+development after 1.5.2. ``GenericAlgorithmConfig``,
 ``discover_algorithm_plugins`` and ``resolve_algorithm`` serve custom and
 plugin algorithms and are experimental. ``moead_populations`` is new in VAMOS
 1.5.0 and not yet covered by the 1.0 compatibility baseline.
@@ -26,6 +27,7 @@ from vamos.engine.algorithm.config import (
     MOEADConfig,
     NSGAIIConfig,
     NSGAIIIConfig,
+    PPSConfig,
     ProbabilityExpression,
     ProbabilityValue,
     RVEAConfig,
@@ -142,6 +144,7 @@ __all__ = [
     "CTAEAConfig",
     "ToPConfig",
     "CMOEAMSConfig",
+    "PPSConfig",
     "GenericAlgorithmConfig",
     "ProbabilityExpression",
     "ProbabilityValue",

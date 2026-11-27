@@ -136,7 +136,7 @@ def test_a_bounded_archive_is_updated_at_once() -> None:
 # ---- Runs ----------------------------------------------------------------------
 
 
-ALGORITHMS = ["nsgaii", "nsgaiii", "moead", "smsemoa", "spea2", "ibea", "agemoea", "rvea", "ccmo", "ctaea", "top", "cmoeams"]
+ALGORITHMS = ["nsgaii", "nsgaiii", "moead", "smsemoa", "spea2", "ibea", "agemoea", "rvea", "ccmo", "ctaea", "top", "cmoeams", "pps"]
 
 
 @pytest.mark.parametrize("problem", ["zdt1", "c1dtlz1"])
@@ -149,7 +149,7 @@ def test_runs_with_an_unbounded_archive_match_eager_updates(algorithm: str, prob
     from vamos.foundation.problem.registry import make_problem_selection
 
     instance = make_problem_selection(problem).instantiate()
-    pop_size = None if algorithm in ("moead", "nsgaiii", "rvea") else 24
+    pop_size = None if algorithm in ("moead", "nsgaiii", "pps", "rvea") else 24
     config = build_default_algorithm_config(algorithm, pop_size=pop_size, n_var=instance.n_var, n_obj=instance.n_obj)
     config = dataclasses.replace(config, external_archive=ExternalArchiveConfig(capacity=None))
 

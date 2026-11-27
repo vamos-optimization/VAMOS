@@ -13,7 +13,22 @@ import vamos
 from vamos.engine.hooks.live_viz import NoOpLiveVisualization
 from vamos.foundation.exceptions import ConfigurationError
 
-ALGORITHMS = ("agemoea", "ccmo", "cmoeams", "ctaea", "ibea", "moead", "nsgaii", "nsgaiii", "rvea", "smpso", "smsemoa", "spea2", "top")
+ALGORITHMS = (
+    "agemoea",
+    "ccmo",
+    "cmoeams",
+    "ctaea",
+    "ibea",
+    "moead",
+    "nsgaii",
+    "nsgaiii",
+    "pps",
+    "rvea",
+    "smpso",
+    "smsemoa",
+    "spea2",
+    "top",
+)
 
 
 class _Clock:

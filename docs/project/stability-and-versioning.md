@@ -72,7 +72,7 @@ first such addition, `ctaea` with its `CTAEAConfig` the second, `top` with
 its `ToPConfig` the third and `cmoeams` with its `CMOEAMSConfig` the fourth.
 Until a later release lists them here, they are not part of the stable surface,
 although `vamos.algorithms` exports `CCMOConfig`, `CTAEAConfig`, `ToPConfig`
-and `CMOEAMSConfig`.
+and `CMOEAMSConfig`. **Development after 1.5.2:** `pps` with its `PPSConfig` is the fifth.
 
 For these entry points:
 

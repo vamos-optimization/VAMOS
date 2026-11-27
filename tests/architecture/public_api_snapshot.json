@@ -45,6 +45,7 @@
     "MOEADConfig",
     "NSGAIIConfig",
     "NSGAIIIConfig",
+    "PPSConfig",
     "ProbabilityExpression",
     "ProbabilityValue",
     "RVEAConfig",

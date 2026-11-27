@@ -8,7 +8,13 @@ from dataclasses import dataclass
 from itertools import product
 from typing import Any, cast
 
-from vamos.engine.algorithm.catalog import ENABLED_ALGORITHMS, WEIGHT_VECTOR_POPULATIONS, initial_evaluations, minimum_violation
+from vamos.engine.algorithm.catalog import (
+    ENABLED_ALGORITHMS,
+    WEIGHT_VECTOR_POPULATIONS,
+    initial_evaluations,
+    minimum_violation,
+    quick_population,
+)
 from vamos.engine.algorithm.components.weight_vectors import bind_vector_file
 from vamos.engine.algorithm.config.base import ReferenceDirectionPopulationError
 from vamos.experiment.artifacts.models import deep_freeze, deep_thaw
@@ -185,9 +191,8 @@ def _resolved_algorithm_config(
     encoding: str,
 ) -> dict[str, Any]:
     overrides = _algorithm_overrides(spec, requested_algorithm, algorithm)
-    config_pop_size: int | None = population_size
-    if spec.pop_size is None and algorithm.lower() in {"moead", "nsgaiii", "rvea"}:
-        config_pop_size = None
+    # Without a study population, MOEA/D, NSGA-III and RVEA size it from their vectors, and PPS takes the largest with weights.
+    config_pop_size = population_size if spec.pop_size is not None else quick_population(algorithm, population_size, n_obj)
     # A per-algorithm population replaces the shared one before the default derives its lattice from it.
     override_pop_size = overrides.get("pop_size")
     if isinstance(override_pop_size, int) and not isinstance(override_pop_size, bool):
@@ -219,8 +224,8 @@ def _resolved_algorithm_config(
         )
     config.update(overrides)
     pop_size = config.get("pop_size")
-    if algorithm.lower() == "moead" and n_obj > 2 and isinstance(pop_size, int):
-        # VAMOS 1.5.0: a weight file that exists is bound to its digest, which the run checks.
+    if algorithm.lower() in {"moead", "pps"} and n_obj > 2 and isinstance(pop_size, int):
+        # VAMOS 1.5.0: a weight file that exists is bound to its digest, which the run checks (PPS: development after 1.5.2).
         config["weight_vectors"] = bind_vector_file(config.get("weight_vectors"), n_obj, pop_size)
     return config
 

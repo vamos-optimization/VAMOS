@@ -108,6 +108,7 @@ nav:
       - C-TAEA: algorithms/ctaea.md
       - ToP: algorithms/top.md
       - CMOEA-MS: algorithms/cmoeams.md
+      - PPS: algorithms/pps.md
     - Representations and applications:
       - Coverage Setup: tutorials/coverage-setup.md
       - Decision Representations: tutorials/encodings.md
@@ -153,6 +154,7 @@ nav:
         - C-TAEA: reference/api/algorithms/ctaea.md
         - ToP: reference/api/algorithms/top.md
         - CMOEA-MS: reference/api/algorithms/cmoeams.md
+        - PPS: reference/api/algorithms/pps.md
       - Run artifacts:
         - Save, load, and replay: reference/api/runs.md
         - Stored runs and reports: reference/api/run-models.md

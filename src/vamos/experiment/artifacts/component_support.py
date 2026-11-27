@@ -19,6 +19,7 @@ BUILT_IN_ALGORITHMS = (
     "moead",
     "nsgaii",
     "nsgaiii",
+    "pps",
     "rvea",
     "smpso",
     "smsemoa",

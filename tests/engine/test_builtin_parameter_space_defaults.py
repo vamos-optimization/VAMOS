@@ -19,7 +19,7 @@ import pytest
 from vamos.engine.tuning.grammar import builtin_parameter_space, builtin_parameter_space_names, check_default_configuration
 from vamos.foundation.problem.registry import make_problem_selection
 
-CONSTRAINED_ALGORITHMS = {"ccmo", "ctaea", "top", "cmoeams"}
+CONSTRAINED_ALGORITHMS = {"ccmo", "ctaea", "top", "cmoeams", "pps"}
 PROBLEMS = {
     "real": ("zdt1", {"n_var": 10}),
     "constrained": ("cec2009_cf1", {}),

@@ -266,6 +266,7 @@ def _effective_run(
     effective_args.cmoeams_variation = merge_variation_overrides(
         getattr(args, "cmoeams_variation", None), _override_mapping(override, "cmoeams")
     )
+    effective_args.pps_variation = merge_variation_overrides(getattr(args, "pps_variation", None), _override_mapping(override, "pps"))
     effective_args.effective_problem_override = override
     return effective_selection, effective_config, effective_args, override
 

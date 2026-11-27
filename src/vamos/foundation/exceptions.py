@@ -85,6 +85,7 @@ class InvalidAlgorithmError(ConfigurationError):
             "moead",
             "nsgaii",
             "nsgaiii",
+            "pps",
             "rvea",
             "smpso",
             "smsemoa",

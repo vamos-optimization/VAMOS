@@ -209,6 +209,16 @@ def test_tune_records_the_population_moead_ran(tmp_path: Path) -> None:
     assert summary["best_config_effective"] == {"pop_size": 136}
 
 
+def test_tune_records_the_population_pps_ran() -> None:
+    # PPS (development after 1.5.2) takes MOEA/D's weight vectors, and the tuning bridge runs the population MOEA/D would.
+    from vamos.engine.tuning.racing.bridge_assignments import assignment_adjustments
+    from vamos.experiment.cli._tune_smoke import smallest_population
+
+    assert assignment_adjustments("pps", {"pop_size": 150, "n_obj": 3}) == {"pop_size": 136}
+    assert assignment_adjustments("pps", {"pop_size": 150, "n_obj": 2}) == {}
+    assert (smallest_population("pps", 3), smallest_population("pps", 2)) == (3, 2)
+
+
 def test_a_moead_run_without_the_record_is_not_verified_as_exact(tmp_path: Path) -> None:
     from vamos.experiment.artifacts.jsonio import canonical_json_bytes, manifest_self_hash, sha256_bytes, stored_json_bytes
 

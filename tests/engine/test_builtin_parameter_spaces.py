@@ -214,7 +214,7 @@ def test_the_external_archive_is_one_choice(name: str) -> None:
     # M1: none, unbounded or bounded, with the pruning policy under bounded, as Evolver's algorithmResult and archiveType.
     space = grammar(name)
     assert not {"use_external_archive", "archive_unbounded"} & set(space.names())
-    if space.algorithm in {"ccmo", "ctaea", "top", "cmoeams"}:
+    if space.algorithm in {"ccmo", "ctaea", "top", "cmoeams", "pps"}:
         assert "external_archive" not in space.names()
         return
     archive = space.parameter("external_archive")

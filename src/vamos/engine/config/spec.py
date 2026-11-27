@@ -18,6 +18,7 @@ from vamos.engine.algorithm.config import (
     MOEADConfig,
     NSGAIIConfig,
     NSGAIIIConfig,
+    PPSConfig,
     RVEAConfig,
     SMPSOConfig,
     SMSEMOAConfig,
@@ -57,6 +58,7 @@ _ALGORITHM_BLOCKS: dict[str, type] = {
     "ctaea": CTAEAConfig,
     "top": ToPConfig,
     "cmoeams": CMOEAMSConfig,
+    "pps": PPSConfig,
 }
 
 _OPERATOR_SPEC_KEYS = ("crossover", "mutation", "selection", "repair", "aggregation")

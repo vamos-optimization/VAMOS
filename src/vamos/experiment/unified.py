@@ -16,7 +16,7 @@ from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import overload
 
-from vamos.engine.algorithm.catalog import minimum_violation
+from vamos.engine.algorithm.catalog import minimum_violation, quick_population
 from vamos.engine.algorithm.config.types import AlgorithmConfigProtocol, AlgorithmName, EngineName
 from vamos.experiment._optimize_inputs import check_algorithm_config, check_budget, check_problem_arguments, with_run_inputs
 from vamos.experiment.artifacts.specs import RunSpecInputs, build_run_specs, custom_problem_code, is_registry_problem
@@ -364,9 +364,7 @@ def _run_single(
 
     algo_cfg: AlgorithmConfigProtocol
     if algorithm_config is None:
-        config_pop_size = effective_pop_size
-        if pop_size is None and algorithm.lower() in {"moead", "nsgaiii", "rvea"}:
-            config_pop_size = None
+        config_pop_size = effective_pop_size if pop_size is not None else quick_population(algorithm, effective_pop_size, n_obj)
         algo_cfg = _build_algorithm_config(
             algorithm,
             pop_size=config_pop_size,
@@ -411,7 +409,7 @@ def _run_single(
     if resolved_pop_size is None and algorithm_config is None:
         resolved_pop_size = effective_pop_size
     if algorithm_config is None and pop_size is None:
-        # The size the run uses: MOEA/D, NSGA-III and RVEA take their reference lattice's.
+        # The size the run uses: MOEA/D, NSGA-III and RVEA take their reference lattice's, PPS the largest with weights.
         _auto_defaults["pop_size"] = resolved_pop_size
     if _auto_defaults:
         _logger().info("[vamos] Auto-selected defaults: %s", _auto_defaults)

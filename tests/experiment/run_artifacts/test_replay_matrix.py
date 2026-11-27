@@ -16,6 +16,7 @@ from vamos.engine.algorithm.config import (
     MOEADConfig,
     NSGAIIConfig,
     NSGAIIIConfig,
+    PPSConfig,
     RVEAConfig,
     SMPSOConfig,
     SMSEMOAConfig,
@@ -78,6 +79,18 @@ def _cmoeams_exp() -> CMOEAMSConfig:
     )
 
 
+def _pps_pull() -> PPSConfig:
+    # r_k starts at 1, so a switch threshold of 1 starts the pull stage in the first generation.
+    return (
+        PPSConfig.builder()
+        .pop_size(5)
+        .crossover("de", cr=0.9, f=0.5)
+        .mutation("pm", prob=1.0 / 6.0, eta=20.0)
+        .switch_threshold(1.0)
+        .build()
+    )
+
+
 _ALGORITHMS: tuple[tuple[str, str, Callable[[], Any], dict[str, int]], ...] = (
     ("nsgaii", "zdt1", lambda: NSGAIIConfig.default(pop_size=8, n_var=6), {"n_var": 6}),
     ("nsgaiii", "dtlz2", _nsgaiii, {"n_var": 6, "n_obj": 3}),
@@ -100,6 +113,9 @@ _ALGORITHMS: tuple[tuple[str, str, Callable[[], Any], dict[str, int]], ...] = (
     # CMOEA-MS: the GA variation on a constrained problem; the exponential DE variation, with a partial generation.
     ("cmoeams", "c1dtlz1", lambda: CMOEAMSConfig.default(pop_size=6, n_var=7), {"n_var": 7, "n_obj": 3}),
     ("cmoeams", "zdt1", _cmoeams_exp, {"n_var": 6}),
+    # PPS: the push stage on a constrained problem with a lattice of 6 weight vectors; the pull stage, with a partial generation.
+    ("pps", "c1dtlz1", lambda: PPSConfig.default(pop_size=6, n_var=7), {"n_var": 7, "n_obj": 3}),
+    ("pps", "zdt1", _pps_pull, {"n_var": 6}),
 )
 
 

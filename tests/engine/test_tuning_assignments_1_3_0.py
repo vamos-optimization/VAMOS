@@ -45,8 +45,14 @@ def test_the_same_assignment_with_the_names_of_1_2_1_builds_it_too(name: str) ->
         assert _same_fields(built, entry["config"]) == {}, earlier
 
 
+# Spaces added after VAMOS 1.3.0, of which no assignment was saved then.
+ADDED_AFTER_1_3_0 = {"pps"}
+
+
 def test_the_fixture_covers_every_space_with_its_population() -> None:
     from vamos.engine.tuning.racing import bridge_spaces
 
-    assert sorted(FIXTURE) == sorted(name[len("build_") : -len("_config_space")] for name in bridge_spaces.__all__)
+    spaces = {name[len("build_") : -len("_config_space")] for name in bridge_spaces.__all__}
+    assert ADDED_AFTER_1_3_0 <= spaces
+    assert sorted(FIXTURE) == sorted(spaces - ADDED_AFTER_1_3_0)
     assert all("pop_size" in entry["assignment"] for entries in FIXTURE.values() for entry in entries)

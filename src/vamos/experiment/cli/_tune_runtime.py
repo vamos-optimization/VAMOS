@@ -146,8 +146,8 @@ def make_evaluator(
         try:
             # The parameters that --smoke fixes to one value and leaves out of the search space.
             start_config: dict[str, Any] = {**(fixed_assignment or {}), **dict(config_dict)}
-            # RVEA's population and MOEA/D's weight vectors depend on the number of objectives.
-            if canonical_algorithm_name(algorithm_name) in ("moead", "rvea"):
+            # RVEA's population and MOEA/D's and PPS's weight vectors depend on the number of objectives.
+            if canonical_algorithm_name(algorithm_name) in ("moead", "pps", "rvea"):
                 start_config["n_obj"] = n_obj
             # The spaces do not tune the population: every run takes --pop-size (or the smoke profile's).
             if "pop_size" not in start_config:
