@@ -1591,7 +1591,9 @@ def test_rvea_generation_figure_agrees_with_vamos() -> None:
         assert g["select"]["assoc"] == niches.tolist()
         np.testing.assert_allclose(g["select"]["gamma"], gamma, rtol=1e-12)
         np.testing.assert_allclose(g["select"]["apd"], apd, rtol=1e-12)
-        np.testing.assert_allclose(g["progress"] * np.array(g["select"]["theta"]) / gamma[niches], penalty, rtol=1e-12, atol=1e-15)
+        # θ = arccos(cos θ) amplifies the rounding of the cosine by about 1/θ² for small angles, so JavaScript's
+        # and the platform's arccos differ by up to ~1e-11 relative there (seen on macOS and Windows).
+        np.testing.assert_allclose(g["progress"] * np.array(g["select"]["theta"]) / gamma[niches], penalty, rtol=1e-9, atol=1e-15)
         np.testing.assert_allclose(g["gammaNext"], _calc_gamma(np.array(g["next"])), rtol=1e-12)
         # Parents come from random permutations of the population, and there are always six children.
         n = len(g["pop"])
