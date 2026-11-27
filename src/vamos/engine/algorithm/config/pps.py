@@ -120,7 +120,7 @@ class PPSConfig(_SerializableConfig):
         _check_integer("switch_window", self.switch_window, 1)
         for field_name in _RANGES:
             object.__setattr__(self, field_name, _check_number(field_name, getattr(self, field_name)))
-        object.__setattr__(self, "weight_vectors", vector_source(self.weight_vectors, field="weight_vectors"))
+        object.__setattr__(self, "weight_vectors", vector_source(self.weight_vectors, field="weight_vectors", allow_method=True))
 
     @classmethod
     def default(cls, pop_size: int | None = None, n_var: int | None = None, n_obj: int | None = None) -> PPSConfig:
@@ -212,9 +212,21 @@ class _PPSConfigBuilder(
         self._cfg["decay_fraction"] = value
         return self
 
-    def weight_vectors(self, *, path: str | None = None, divisions: int | None = None, inner_divisions: int | None = None) -> Self:
-        """The weight vectors, as MOEA/D's (see :class:`MOEADConfig`); by default uniform with two objectives, else a lattice of ``pop_size``."""
-        self._cfg["weight_vectors"] = vector_source({"path": path, "divisions": divisions, "inner_divisions": inner_divisions})
+    def weight_vectors(
+        self,
+        *,
+        path: str | None = None,
+        divisions: int | None = None,
+        inner_divisions: int | None = None,
+        method: str | None = None,
+        seed: int | None = None,
+    ) -> Self:
+        """The weight vectors, as MOEA/D's (see :class:`MOEADConfig`); by default uniform with two objectives, else a lattice of ``pop_size``.
+
+        **Development after 1.5.2:** ``method="riesz_energy"`` and ``seed``, as MOEA/D's ``weight_vectors``.
+        """
+        source = {"path": path, "divisions": divisions, "inner_divisions": inner_divisions, "method": method, "seed": seed}
+        self._cfg["weight_vectors"] = vector_source(source, allow_method=True)
         return self
 
     def build(self) -> PPSConfig:

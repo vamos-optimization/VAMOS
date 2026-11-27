@@ -21,7 +21,7 @@ from vamos.engine.algorithm.components.metrics import setup_hv_tracker
 from vamos.engine.algorithm.components.population import initialize_evaluated_population
 from vamos.engine.algorithm.components.termination import parse_termination, validate_initial_budget
 from vamos.engine.algorithm.components.utils import resolve_bounds_array
-from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors, vector_source
+from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors, vector_method, vector_source
 from vamos.engine.algorithm.config.base import normalize_constraint_mode
 from vamos.engine.algorithm.config.nsgaiii import nsgaiii_selection
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
@@ -119,7 +119,7 @@ def initialize_nsgaiii_run(
     # Reference directions: a file, the complete lattice for the configured divisions, or, without
     # either, the complete Das-Dennis lattice with the most directions that fit in pop_size. The
     # population needs at least one individual per direction (N >= H, as Deb and Jain, jMetal and pymoo).
-    dir_cfg = vector_source(config.get("reference_directions"), field="reference_directions") or {}
+    dir_cfg = vector_source(config.get("reference_directions"), field="reference_directions", allow_method=True) or {}
     ref_path = dir_cfg.get("path")
     ref_divisions = dir_cfg.get("divisions")
     ref_inner = dir_cfg.get("inner_divisions")
@@ -129,6 +129,10 @@ def initialize_nsgaiii_run(
         # exist raises instead of generating a lattice there.
         ref_dirs = load_or_generate_weight_vectors(pop_size, n_obj, path=str(ref_path), sha256=_digest(dir_cfg.get("sha256")))
         source = f"NSGA-III reference directions in '{ref_path}' ({ref_dirs.shape[0]})"
+    elif dir_cfg.get("method") is not None:
+        # Development after 1.5.2: a generated set of one direction per individual, such as the Riesz s-energy set.
+        ref_dirs = load_or_generate_weight_vectors(pop_size, n_obj, **vector_method(dir_cfg))
+        source = f"NSGA-III {dir_cfg['method']} reference directions ({ref_dirs.shape[0]})"
     elif ref_divisions is not None:
         lattice = f"divisions={ref_divisions}" if ref_inner is None else f"divisions={ref_divisions} and inner_divisions={ref_inner}"
         source = f"NSGA-III reference directions for {lattice}"

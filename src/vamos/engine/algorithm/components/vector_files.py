@@ -46,11 +46,14 @@ def read_weight_vectors(path: str, n_obj: int) -> FloatArray:
     return _validated_weights(_load_weights(path), n_obj)
 
 
-_VECTOR_SOURCE_KEYS = ("path", "divisions", "inner_divisions", "sha256")
+_VECTOR_SOURCE_KEYS = ("path", "divisions", "inner_divisions", "sha256", "method", "seed")
 _DIGEST_PATTERN = r"sha256:[0-9a-f]{64}"
 
+VECTOR_METHODS = ("riesz_energy",)
+"""The methods that generate vectors of any number: :func:`~vamos.engine.reference_directions.riesz_energy`."""
 
-def vector_source(value: object, *, field: str = "reference vectors") -> dict[str, int | str | None] | None:
+
+def vector_source(value: object, *, field: str = "reference vectors", allow_method: bool = False) -> dict[str, int | str | None] | None:
     """The options of a weight- or reference-vector source, checked.
 
     MOEA/D's ``weight_vectors``, NSGA-III's ``reference_directions`` and RVEA's ``reference_vectors``
@@ -69,6 +72,13 @@ def vector_source(value: object, *, field: str = "reference vectors") -> dict[st
     serializes as before, except ``inner_divisions=None``, which is left out. An unknown key, a path that is
     not a string, a count that is not a positive integer, or ``inner_divisions`` without ``divisions`` or with
     ``path`` raises :class:`~vamos.exceptions.ConfigurationError`.
+
+    Development after 1.5.2: with ``allow_method``, the field of an algorithm that generates vectors also
+    takes ``method``, one of :data:`VECTOR_METHODS`, and its ``seed`` (a non-negative integer, 0 when left
+    out). ``"riesz_energy"`` gives the Riesz s-energy set of one vector per individual
+    (:func:`~vamos.engine.reference_directions.riesz_energy`); it excludes ``path``, ``divisions``,
+    ``inner_divisions`` and ``sha256``. ``method=None`` and ``seed=None`` are left out, so a configuration
+    without them serializes as before. Without ``allow_method``, ``method`` raises.
 
     VAMOS 1.5.0: new; VAMOS 1.4.0 ignored unknown keys.
     """
@@ -99,6 +109,7 @@ def vector_source(value: object, *, field: str = "reference vectors") -> dict[st
         raise ConfigurationError(f"{field} sha256 must be 'sha256:' and 64 lower-case hexadecimal digits; got {digest!r}.")
     if digest is not None and source.get("path") is None:
         raise ConfigurationError(f"{field} sha256 is the digest of the vectors of a file: it needs path.")
+    _check_method(source, field, allow_method)
     if source.get("inner_divisions") is None:
         source.pop("inner_divisions", None)
     elif source.get("divisions") is None:
@@ -106,6 +117,27 @@ def vector_source(value: object, *, field: str = "reference vectors") -> dict[st
     elif source.get("path") is not None:
         raise ConfigurationError(f"{field} takes a file or a lattice: inner_divisions excludes path.")
     return source
+
+
+def _check_method(source: dict[str, int | str | None], field: str, allow_method: bool) -> None:
+    """Check ``method`` and ``seed`` in place, leaving out those that are ``None``. Development after 1.5.2: new."""
+    method, seed = source.pop("method", None), source.pop("seed", None)
+    if method is None:
+        if seed is not None:
+            raise ConfigurationError(f"{field} seed is the seed of a method that generates the vectors: it needs method.")
+        return
+    if not allow_method:
+        raise ConfigurationError(f"{field} takes no method: the vectors come from a path or a lattice.")
+    if method not in VECTOR_METHODS:
+        raise ConfigurationError(f"Unknown {field} method {method!r}; expected one of: {', '.join(map(repr, VECTOR_METHODS))}.")
+    if seed is not None and (isinstance(seed, bool) or not isinstance(seed, Integral) or int(seed) < 0):
+        raise ConfigurationError(f"{field} seed must be a non-negative integer or None; got {seed!r}.")
+    taken = [key for key in ("path", "divisions", "inner_divisions", "sha256") if source.get(key) is not None]
+    if taken:
+        raise ConfigurationError(f"{field} method {method!r} generates the vectors: it excludes {', '.join(taken)}.")
+    source["method"] = str(method)
+    if seed is not None:
+        source["seed"] = int(seed)
 
 
 def vector_digest(vectors: FloatArray) -> str:

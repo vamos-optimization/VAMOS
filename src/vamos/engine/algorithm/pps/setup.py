@@ -9,7 +9,7 @@ from typing import Any
 
 import numpy as np
 
-from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors
+from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors, vector_method
 from vamos.engine.config.variation import ensure_operator_tuple, resolve_default_variation_config
 from vamos.engine.variation.helpers import ensure_supported_operator_names, ensure_supported_repair_name
 from vamos.engine.variation.pipeline import VariationPipeline
@@ -185,6 +185,7 @@ def weight_vectors(config: Mapping[str, Any], pop_size: int, n_obj: int) -> np.n
         mode="jmetalpy",
         inner_divisions=source.get("inner_divisions"),
         sha256=source.get("sha256"),
+        **vector_method(source),
     )
     if weights.shape[0] != pop_size:
         raise ValueError(f"PPS needs one weight vector per subproblem: {weights.shape[0]} vectors for pop_size={pop_size}.")

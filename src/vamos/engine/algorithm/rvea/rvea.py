@@ -27,7 +27,7 @@ from vamos.engine.algorithm.components.termination import (
     parse_termination,
     validate_initial_budget,
 )
-from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors, vector_source
+from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors, vector_method, vector_source
 from vamos.engine.algorithm.config.base import normalize_constraint_mode
 from vamos.engine.algorithm.config.rvea import normalize_rvea_variant
 from vamos.engine.archive.factory import resolve_external_archive, setup_archive
@@ -86,10 +86,11 @@ def _reference_vectors(spec: object, pop_size: int, n_obj: int, n_partitions: in
 
     VAMOS 1.5.0: ``reference_vectors`` names a file or directory, read as MOEA/D's and NSGA-III's
     files, or a two-layer lattice. Its ``divisions`` alone give the same lattice as ``n_partitions``.
+    Development after 1.5.2: or the vectors of a ``method``, such as the Riesz s-energy set.
     """
-    source = vector_source(spec, field="reference_vectors") or {}
+    source = vector_source(spec, field="reference_vectors", allow_method=True) or {}
     path, divisions, inner = source.get("path"), source.get("divisions"), source.get("inner_divisions")
-    if path is not None or inner is not None:
+    if path is not None or inner is not None or source.get("method") is not None:
         return load_or_generate_weight_vectors(
             pop_size,
             n_obj,
@@ -98,6 +99,7 @@ def _reference_vectors(spec: object, pop_size: int, n_obj: int, n_partitions: in
             inner_divisions=None if inner is None else int(inner),
             mode="exact",
             sha256=None if source.get("sha256") is None else str(source.get("sha256")),
+            **vector_method(source),
         )
     partitions = n_partitions if divisions is None else int(divisions)
     ref_dirs = _generate_reference_vectors(n_obj, partitions)

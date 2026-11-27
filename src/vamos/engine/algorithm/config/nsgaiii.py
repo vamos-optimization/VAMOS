@@ -101,7 +101,8 @@ class NSGAIIIConfig(_SerializableConfig):
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        object.__setattr__(self, "reference_directions", vector_source(self.reference_directions, field="reference_directions"))
+        directions = vector_source(self.reference_directions, field="reference_directions", allow_method=True)
+        object.__setattr__(self, "reference_directions", directions)
         nsgaiii_selection(self.selection)
         # ``enforce_ref_dirs`` is true in every default, so ``False`` warns wherever it comes from.
         # ``pop_size_auto`` is true in ``default()`` and false otherwise: only the builder method can
@@ -212,6 +213,8 @@ class _NSGAIIIConfigBuilder(
         path: str | None = None,
         divisions: int | None = None,
         inner_divisions: int | None = None,
+        method: str | None = None,
+        seed: int | None = None,
     ) -> _NSGAIIIConfigBuilder:
         """The reference directions: a file or directory, or the complete Das-Dennis lattice of ``divisions``.
 
@@ -227,8 +230,13 @@ class _NSGAIIIConfigBuilder(
         ``weight_vectors``, and ``inner_divisions`` with ``divisions`` gives Deb and Jain's two-layer
         lattice: the boundary lattice of ``divisions`` and the lattice of ``inner_divisions`` shrunk by
         half towards the centre of the simplex (156 directions with eight objectives, 3 and 2 divisions).
+
+        **Development after 1.5.2:** ``method="riesz_energy"`` gives the Riesz s-energy set of Blank et al.
+        (2021) with one direction per individual, ``pop_size`` directions, seeded by ``seed`` (0 by default;
+        see :func:`~vamos.engine.reference_directions.riesz_energy`). It excludes the other options.
         """
-        self._cfg["reference_directions"] = vector_source({"path": path, "divisions": divisions, "inner_divisions": inner_divisions})
+        source = {"path": path, "divisions": divisions, "inner_divisions": inner_divisions, "method": method, "seed": seed}
+        self._cfg["reference_directions"] = vector_source(source, allow_method=True)
         return self
 
     def enforce_ref_dirs(self, enabled: bool = True) -> _NSGAIIIConfigBuilder:

@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from importlib import metadata as importlib_metadata
 from typing import Any
 
-from vamos.engine.algorithm.components.weight_vectors import describe_vector_file, describe_weight_vectors
+from vamos.engine.algorithm.components.weight_vectors import describe_generated_vectors, describe_vector_file, describe_weight_vectors
 from vamos.experiment.time_limit import parse_time_limit
 from vamos.foundation.problem.builder import FunctionalProblem
 from vamos.foundation.problem.registry import get_problem_specs, make_problem_selection
@@ -210,11 +210,12 @@ def _algorithm_component(inputs: RunSpecInputs, config: Mapping[str, object], po
         built_in=inputs.algorithm in BUILT_IN_ALGORITHMS,
     )
     if inputs.algorithm in {"moead", "pps"} and pop_size is not None:
-        # Which weight vectors MOEA/D (and PPS, development after 1.5.2) runs: a Das-Dennis lattice, a jMetal file or uniform weights.
+        # Which weight vectors MOEA/D (and PPS, development after 1.5.2) runs: a Das-Dennis lattice, a jMetal file, uniform
+        # weights or (development after 1.5.2) a Riesz s-energy set.
         weights = config.get("weight_vectors")
         options = weights if isinstance(weights, Mapping) else {}
         path, divisions, inner = options.get("path"), options.get("divisions"), options.get("inner_divisions")
-        digest = options.get("sha256")
+        digest, method = options.get("sha256"), options.get("method")
         try:
             descriptor["resolution"]["weight_vectors"] = describe_weight_vectors(
                 pop_size,
@@ -223,6 +224,8 @@ def _algorithm_component(inputs: RunSpecInputs, config: Mapping[str, object], po
                 divisions=_optional_int(divisions),
                 inner_divisions=_optional_int(inner),
                 sha256=digest if isinstance(digest, str) else None,
+                method=method if isinstance(method, str) else None,
+                seed=_optional_int(options.get("seed")),
             )
         except ValueError:
             # A size without weights fails when the run starts, so a study plans the task and records its failure.
@@ -234,8 +237,18 @@ def _algorithm_component(inputs: RunSpecInputs, config: Mapping[str, object], po
         # record comes from the stored configuration alone, never from the file.
         vectors = config.get(vector_field)
         path = vectors.get("path") if isinstance(vectors, Mapping) else None
+        method = vectors.get("method") if isinstance(vectors, Mapping) else None
         if isinstance(path, str) and path:
             descriptor["resolution"][vector_field] = describe_vector_file(path, vectors=pop_size if inputs.algorithm == "rvea" else None)
+        elif isinstance(method, str) and isinstance(vectors, Mapping):
+            # Development after 1.5.2: the method, seed and digest of generated vectors, such as the Riesz s-energy set.
+            try:
+                seed = _optional_int(vectors.get("seed"))
+                descriptor["resolution"][vector_field] = describe_generated_vectors(pop_size, inputs.n_obj, method=method, seed=seed)
+            except ValueError:
+                logging.getLogger(__name__).debug(
+                    "No %s %s to record for pop_size=%s", inputs.algorithm, vector_field, pop_size, exc_info=True
+                )
     return descriptor
 
 

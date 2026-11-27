@@ -148,7 +148,7 @@ def build_rvea_algorithm(
     builder = RVEAConfig.builder()
     builder.pop_size(pop_size)
     partitions = rvea_overrides.get("n_partitions")
-    vectors = vector_source(rvea_overrides.get("reference_vectors"), field="reference_vectors")
+    vectors = vector_source(rvea_overrides.get("reference_vectors"), field="reference_vectors", allow_method=True)
     if vectors:
         # VAMOS 1.5.0: the reference vectors of a file, a directory or a two-layer lattice.
         builder.reference_vectors(**cast("dict[str, Any]", vectors))

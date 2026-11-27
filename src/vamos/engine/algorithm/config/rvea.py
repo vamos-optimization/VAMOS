@@ -144,7 +144,7 @@ class RVEAConfig(_SerializableConfig):
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        object.__setattr__(self, "reference_vectors", vector_source(self.reference_vectors, field="reference_vectors"))
+        object.__setattr__(self, "reference_vectors", vector_source(self.reference_vectors, field="reference_vectors", allow_method=True))
         object.__setattr__(self, "variant", normalize_rvea_variant(self.variant))
         if self.track_genealogy:
             _warn_without_effect("RVEA", "track_genealogy", "RVEA records no genealogy", stacklevel=3)
@@ -239,6 +239,8 @@ class _RVEAConfigBuilder(
         path: str | None = None,
         divisions: int | None = None,
         inner_divisions: int | None = None,
+        method: str | None = None,
+        seed: int | None = None,
     ) -> _RVEAConfigBuilder:
         """**VAMOS 1.5.0:** the reference vectors: a file or directory, or a lattice.
 
@@ -247,8 +249,14 @@ class _RVEAConfigBuilder(
         and hold ``pop_size`` vectors. Without it, ``divisions`` gives the lattice, and with
         ``inner_divisions`` Deb and Jain's two-layer lattice. ``n_partitions`` is then not needed:
         without it, the configuration records ``divisions``, or 12 for a file.
+
+        **Development after 1.5.2:** ``method="riesz_energy"`` gives the Riesz s-energy set of Blank et al.
+        (2021) with one vector per individual, for any population, seeded by ``seed`` (0 by default; see
+        :func:`~vamos.engine.reference_directions.riesz_energy`). It excludes the other options, and the
+        configuration records 12 for ``n_partitions``, as for a file.
         """
-        self._cfg["reference_vectors"] = vector_source({"path": path, "divisions": divisions, "inner_divisions": inner_divisions})
+        source = {"path": path, "divisions": divisions, "inner_divisions": inner_divisions, "method": method, "seed": seed}
+        self._cfg["reference_vectors"] = vector_source(source, allow_method=True)
         return self
 
     def variant(self, value: RVEAVariant) -> _RVEAConfigBuilder:
