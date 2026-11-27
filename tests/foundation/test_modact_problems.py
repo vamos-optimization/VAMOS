@@ -152,6 +152,8 @@ def test_objectives_and_constraints_take_vamos_signs(monkeypatch: pytest.MonkeyP
     modact_feasible = np.all(np.where(np.array(c_weights) < 0, raw_g >= 0.0, raw_g <= 0.0), axis=1)
     np.testing.assert_array_equal(is_feasible(out["G"]), modact_feasible)
     assert problem.key == "modact_ct1" and problem.modact_name == "ct1"
+    # A problem that is not modact's own is evaluated by calling it, whatever modact is installed.
+    assert problem.geometry == "modact"
     np.testing.assert_array_equal(problem.objective_signs, [1.0, -1.0])
     np.testing.assert_array_equal(problem.constraint_signs, c_weights)
     np.testing.assert_array_equal(problem.xl, -np.ones(20))

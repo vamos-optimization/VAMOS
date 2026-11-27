@@ -57,8 +57,9 @@ for every candidate and need scikit-learn.
   so the trade-off includes infeasible designs; CRE and RCM keep the
   constraints separate.
 - **Expensive or external evaluation.** A MODAct design takes 10 to 30
-  milliseconds, against microseconds for an analytical test problem, and calls a
-  package outside VAMOS.
+  milliseconds with the authors' package alone (**Development after 1.5.2:**
+  2 to 4 with VAMOS's exact stand-ins for the trimesh meshes it builds), against
+  microseconds for an analytical test problem, and calls a package outside VAMOS.
 - **No designed structure.** No position or distance variables: separability,
   modality and bias are unknown, and can differ between problems of the same
   suite.
@@ -223,7 +224,10 @@ The safety factor is maximized in MODAct, so VAMOS stores its negative. A run
 records the versions of `modact` and of the packages it uses for meshes and
 collision checks, and `reproduce` refuses to replay a run in an environment
 with other versions. With modact 1.0.1, a run of 25,000 evaluations takes 5 to
-15 minutes on a laptop, so plan studies accordingly.
+15 minutes on a laptop, so plan studies accordingly. **Development after
+1.5.2:** with trimesh 5.2.2 too, VAMOS replaces trimesh's mesh objects by
+stand-ins that give the same bits, and such a run takes one to two minutes
+(see [MODAct in the catalog](../../../reference/problems.md#modact-actuator-design-evaluated-by-the-modact-package)).
 
 ## Where the reference fronts come from
 
