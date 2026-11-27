@@ -809,6 +809,21 @@ A key joins the objectives to the constraint level:
   paper. With modact 1.0.1 on a laptop, a random design took 10 to 30 ms, and
   NSGA-II runs of 2000 evaluations about 12 ms per evaluation, so a run of
   25 000 evaluations takes 5 to 15 minutes.
+- **Geometry:** **Development after 1.5.2:** modact computes the housing's
+  cost, the collisions between the parts and the bounding box from trimesh
+  meshes of the motor and the gears, and trimesh's mesh objects took most of
+  an evaluation. With modact 1.0.1 and trimesh 5.2.2, VAMOS gives modact
+  stand-ins for trimesh's cylinders and for the union of the parts, which
+  compute the same arrays with the same NumPy, SciPy (Qhull) and python-fcl
+  calls, so `F` and `G` are the same bits, and send Qhull's messages to
+  `os.devnull` instead of a temporary file per design. A design then takes
+  about 2.5 ms at constraint level 1 and 3.5 ms at levels 2 to 4, against 7
+  and 15 ms, and a run of 25 000 evaluations one to two minutes. The keyword
+  `geometry` of `MODActProblem` chooses: `"auto"`, the default and the
+  registry's, uses the stand-ins with those versions and trimesh's objects
+  with others; `"modact"` always uses trimesh's objects; `"fast"` raises
+  `ImportError` without those versions. The problem's `geometry` attribute
+  holds the one in use.
 - **Reproducibility:** a run's `environment.json` records the installed
   version of `modact`, as of every installed distribution, and the problem
   instance holds it as `modact_version`. `verify_run` and `reproduce` compare

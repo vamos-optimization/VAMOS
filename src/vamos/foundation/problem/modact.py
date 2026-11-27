@@ -23,11 +23,18 @@ The package's ``weights`` and ``c_weights`` give VAMOS's conventions:
 
 Both only multiply by 1 or -1, so ``F`` and ``G`` hold the package's values, sign aside; pymoo's
 ``pymoo.problems.multi.modact`` converts them the same way.
+
+modact builds each actuator's geometry with trimesh, whose mesh objects take most of an evaluation. With the
+versions that :mod:`.modact_geometry` reproduces, modact 1.0.1 and trimesh 5.2.2, VAMOS evaluates the designs with
+modact's own code and exact stand-ins for trimesh's cylinders, which give the same ``F`` and ``G`` bit for bit,
+three to four times faster: ``geometry="auto"``, the default. ``geometry="modact"`` keeps trimesh's objects, and
+``geometry="fast"`` requires the stand-ins.
 """
 
 from __future__ import annotations
 
 import importlib
+from collections.abc import Callable
 from importlib import metadata
 from types import ModuleType
 from typing import Any
@@ -78,6 +85,10 @@ INSTALL_COMMAND = 'python -m pip install "vamos-optimization[modact]"'
 # The distributions that compute F and G: modact, trimesh, which builds the actuator's meshes, and python-fcl, behind
 # trimesh's collision manager. Exact replay of a MODAct run requires the versions it recorded.
 EVALUATOR_PACKAGES: tuple[str, ...] = ("modact", "trimesh", "python-fcl")
+# How the actuator's geometry is computed: with VAMOS's exact stand-ins for trimesh's cylinders ("fast"), with
+# trimesh's own objects ("modact"), or with the stand-ins when the installed versions are those they reproduce
+# ("auto").
+GEOMETRIES: tuple[str, ...] = ("auto", "fast", "modact")
 
 
 def load_modact() -> ModuleType:
@@ -110,12 +121,20 @@ class MODActProblem(Problem):
     package's objectives and constraints into ``F`` and ``G``. ``objective_signs`` also converts a front in
     MODAct's signs, such as the authors' best-known fronts on Zenodo, to VAMOS's. ``modact_version`` is the
     version of the installed package, which a run's ``environment.json`` records too.
+
+    ``geometry`` chooses how modact's actuator geometry is computed (see :data:`GEOMETRIES`); both ways give the
+    same bits, and ``geometry`` holds the one in use, ``"fast"`` or ``"modact"``. ``"fast"`` raises
+    ``ImportError`` when the installed modact or trimesh is not the version that :mod:`.modact_geometry`
+    reproduces. A problem pickles with either geometry, for worker processes; a ``"fast"`` copy checks those
+    versions again in the process that unpickles it.
     """
 
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, *, geometry: str = "auto") -> None:
         modact_name = str(name).lower()
         if modact_name not in MODACT:
             raise ValueError(f"Unknown MODAct problem {name!r}; the problems are: {', '.join(MODACT)}.")
+        if geometry not in GEOMETRIES:
+            raise ValueError(f"geometry must be one of {', '.join(GEOMETRIES)}; got {geometry!r}.")
         n_obj, n_constraints = MODACT[modact_name]
         problem = load_modact().get_problem(modact_name)
         lower, upper = (np.asarray(bound, dtype=float) for bound in problem.bounds())
@@ -139,6 +158,14 @@ class MODActProblem(Problem):
         self.constraint_signs = constraint_signs
         self.modact_version = _installed_version()
         self._problem = problem
+        # Both evaluators pickle with the problem, which MultiprocessingEvalBackend sends to its workers.
+        self._evaluate_design: Callable[[Array], tuple[Any, Any]] = _ModactEvaluation(problem)
+        self.geometry = "modact"
+        if geometry != "modact":
+            fast = _fast_evaluation(problem, required=geometry == "fast")
+            if fast is not None:
+                self._evaluate_design = fast
+                self.geometry = "fast"
 
     def evaluate(self, X: Array, out: dict[str, Array]) -> None:
         X = np.asarray(X, dtype=float)
@@ -147,12 +174,36 @@ class MODActProblem(Problem):
         F = np.empty((X.shape[0], self.n_obj))
         G = np.empty((X.shape[0], self.n_constraints))
         for row, x in enumerate(X):
-            # modact evaluates one design at a time; a copy keeps the caller's population out of its reach.
-            f, g = self._problem(x.copy())
+            # modact evaluates one design at a time, on a copy that keeps the caller's population out of its reach.
+            f, g = self._evaluate_design(x)
             F[row] = f
             G[row] = g
         out["F"] = F * self.objective_signs
         out["G"] = G * self.constraint_signs
+
+
+class _ModactEvaluation:
+    """modact's own evaluation of a design, with trimesh's objects; a class, not a closure, so that it pickles."""
+
+    def __init__(self, problem: Callable[[Array], tuple[Any, Any]]) -> None:
+        self._problem = problem
+
+    def __call__(self, x: Array) -> tuple[Any, Any]:
+        return self._problem(x.copy())
+
+
+def _fast_evaluation(problem: Any, *, required: bool) -> Callable[[Array], tuple[Any, Any]] | None:
+    """VAMOS's exact geometry for ``problem``, or ``None`` when it is unavailable and not ``required``."""
+    from .modact_geometry import ExactGeometry, unsupported_reason
+
+    reason = unsupported_reason()
+    if reason is None and type(problem).__module__ != "modact.problems":
+        reason = "the problem is not one of modact.problems"
+    if reason is None:
+        return ExactGeometry(problem)
+    if required:
+        raise ImportError(f"geometry='fast' is unavailable: {reason}. Use geometry='modact' or 'auto'.")
+    return None
 
 
 def _installed_version() -> str | None:
@@ -162,4 +213,14 @@ def _installed_version() -> str | None:
         return None
 
 
-__all__ = ["CONSTRAINT_LEVELS", "INSTALL_COMMAND", "MAXIMIZED", "MODACT", "MODActProblem", "N_VAR", "OBJECTIVES", "load_modact"]
+__all__ = [
+    "CONSTRAINT_LEVELS",
+    "GEOMETRIES",
+    "INSTALL_COMMAND",
+    "MAXIMIZED",
+    "MODACT",
+    "MODActProblem",
+    "N_VAR",
+    "OBJECTIVES",
+    "load_modact",
+]
