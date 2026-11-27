@@ -1,5 +1,5 @@
 ---
-description: 'C-TAEA in depth: weight vectors and subregions, the convergence archive and its three update cases, the diversity archive that ignores the constraints, restricted mating selection, and where VAMOS follows PlatEMO and jMetal instead of the paper, with an interactive figure and VAMOS code.'
+description: 'C-TAEA in depth: weight vectors and subregions, the convergence archive and its three update cases, the diversity archive that ignores the constraints, restricted mating selection, and where VAMOS follows PlatEMO and jMetal instead of the paper, with two interactive figures and VAMOS code.'
 search:
   boost: 0.5
 ---
@@ -133,6 +133,39 @@ solution beats an infeasible one; of two feasible ones, the first wins unless
 the second dominates it; of two infeasible ones, a third solution drawn at
 random wins. The offspring is the first child of SBX [4], mutated: one
 offspring per weight vector and generation.
+
+### Try it: one generation step by step
+
+Step through one generation of C-TAEA with N = 6 weight vectors on the
+problem of the [CCMO figure](ccmo.md#try-it-one-generation-step-by-step): the
+loop figure's two-variable problem under CTP2's constraint, with its
+infeasible region shaded in both spaces. The rays in the objective space are
+the weight vectors, numbered by subregion. As in VAMOS, the six random
+solutions of the initial population filled both archives; the figure starts
+one generation later, when the archives differ. Blue points are in the CA,
+orange ones in the DA and dark ones in both; children are triangles, and
+hollow points are infeasible. The variation is VAMOS' default: SBX with
+probability 1 and η = 20 and polynomial mutation with probability 1/2 and
+η = 20.
+
+<div class="vf-widget" data-vf-widget="ctaea-steps"><p class="vf-fallback">Interactive figure: one C-TAEA generation step by step with six weight vectors: the two archives, the shares of non-dominated solutions that choose the parents' archives, the binary tournaments, the variation and evaluation of the children, the CA update with its removals from the most crowded subregion, the DA update iteration by iteration, and the next archives. It needs JavaScript.</p></div>
+
+Things to try:
+
+1. Step 2: no member of the CA is non-dominated in CA ∪ DA, against three
+   members of the DA, so every first parent comes from the DA. Five of the six
+   CA members are non-dominated in the CA alone, so P_C = 5/6.
+2. Steps 3 and 4: four of the first parents' tournaments are between two
+   infeasible members and go to the third draw. In 7 vs 4, both feasible, 4
+   dominates 7 and wins.
+3. Steps 7 and 8: eight candidates are feasible, and the fronts
+   {4, 5, 8, 9, 12} and {15, 18} hold seven of them. After normalization,
+   subregion 0 is the most crowded; of its closest pair, child 15 has the
+   larger Tchebycheff value, 0.315 against 0.105 for 5, and is removed.
+4. Steps 9 to 11: subregion 2 has no CA member. It receives 16 in the first
+   iteration, and 3 and 6 in the second. Every member of the new DA is
+   infeasible, and every member of the new CA feasible. Press
+   **New population** for another run.
 
 ## Try it: the two updates on the same candidates
 

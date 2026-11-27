@@ -461,6 +461,173 @@ process.stdout.write(JSON.stringify({json.dumps(cases)}.map((c) => {{
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_ccmo_generation_figure_agrees_with_vamos() -> None:
+    from vamos.engine.algorithm.ccmo.selection import (
+        ccmo_environmental_selection,
+        ccmo_fitness,
+        ccmo_tournament,
+        constraint_first_dominance,
+    )
+    from vamos.engine.algorithm.spea2.helpers import strength_raw_fitness
+
+    seeds = [37454, 1, 2, 3, 97, 12118]  # 37454 is the lesson's example
+    generations = _run_node(
+        f"process.stdout.write(JSON.stringify({json.dumps(seeds)}.map((seed) => globalThis.VamosFoundations.ccmoGeneration(seed, 6))));"
+    )
+
+    for g in generations:
+        children = g["children"]
+        assert [c["population"] for c in children] == [1, 1, 1, 2, 2, 2]  # population 1's offspring first
+        for k, pop in enumerate(g["pops"]):
+            F = np.array([p["f"] for p in pop])
+            cv = np.array([p["cv"] for p in pop]) if k == 0 else np.zeros(len(pop))
+            fitness, _ = ccmo_fitness(F, cv)
+            np.testing.assert_allclose(g["fitness"][k], fitness, rtol=1e-12)
+            # The tournaments, replayed with their draws, and the pairs: the i-th winner of each half.
+            mating = g["mating"][k]
+            winners = ccmo_tournament(fitness, 6, _Draws(np.array([t["draws"] for t in mating["tournaments"]])))
+            assert [pop[i]["id"] for i in winners] == [t["winner"] for t in mating["tournaments"]]
+            assert mating["pairs"] == [[pop[winners[i]]["id"], pop[winners[3 + i]]["id"]] for i in range(3)]
+            assert [c["parents"] for c in children[3 * k : 3 * k + 3]] == mating["pairs"]
+        # Each population selects from itself and every child, the violation first in population 1 only.
+        for k, sel in enumerate(g["selections"]):
+            candidates = sel["candidates"]
+            assert [c["id"] for c in candidates] == [p["id"] for p in g["pops"][k]] + [c["id"] for c in children]
+            F = np.array([c["f"] for c in candidates])
+            cv = np.array([c["cv"] for c in candidates]) if k == 0 else np.zeros(len(candidates))
+            fitness, _ = ccmo_fitness(F, cv)
+            np.testing.assert_allclose(sel["fitness"], fitness, rtol=1e-12)
+            assert sel["R"] == strength_raw_fitness(constraint_first_dominance(F, cv)).tolist()
+            order, _ = ccmo_environmental_selection(F, cv, 6)
+            assert sel["kept"] == [candidates[i]["id"] for i in order]  # stored by increasing fitness
+
+    # The numbers that the lesson quotes for its example.
+    example = generations[0]
+    ties = [(t["a"], t["b"], t["winner"]) for t in example["mating"][1]["tournaments"] if t["tie"] and t["a"] != t["b"]]
+    assert ties == [(8, 10, 8)]
+    assert round(example["fitness"][1][1], 3) == round(example["fitness"][1][3], 3) == 0.422  # members 8 and 10
+    assert sum(t["a"] == t["b"] for t in example["mating"][1]["tournaments"]) == 3
+    first, second = example["selections"]
+    fitness_of = {c["id"]: v for c, v in zip(first["candidates"], first["fitness"])}
+    assert sorted(i for i, v in fitness_of.items() if v < 1) == [6, 13, 16, 17, 18]
+    assert first["kept"] == [17, 13, 6, 16, 18, 5] and round(fitness_of[5], 2) == 7.43
+    assert all(c["cv"] > 0 for c in first["candidates"][:4])  # parents 1 to 4, all removed, are infeasible
+    assert second["rule"] == "truncate" and second["below"] == 7
+    assert sorted(second["kept"]) == [8, 9, 10, 12, 14, 17]
+    by_id = {c["id"]: c for c in second["candidates"]}
+    assert round(float(np.linalg.norm(np.subtract(by_id[18]["f"], by_id[10]["f"]))), 2) == 0.06
+    assert by_id[14]["cv"] > 0 and 14 not in first["kept"]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_ctaea_generation_figure_agrees_with_vamos() -> None:
+    from vamos.engine.algorithm.ctaea.archives import (
+        associate,
+        convergence_archive_update,
+        diversity_archive_update,
+        front_ranks,
+        tchebycheff_in_own_subregion,
+        worst_of_the_most_crowded_subregion,
+    )
+    from vamos.engine.algorithm.ctaea.mating import mating_proportions, tournament_winners
+    from vamos.engine.algorithm.ctaea.weights import ctaea_weight_vectors
+
+    seeds = [196524, 1, 2, 3, 23, 57983]  # 196524 is the lesson's example; 2 and 23 have fewer and exactly N feasible candidates
+    runs = _run_node(
+        f"process.stdout.write(JSON.stringify({json.dumps(seeds)}.map((seed) => globalThis.VamosFoundations.ctaeaGeneration(seed, 6, 2))));"
+    )
+    W = ctaea_weight_vectors(6, 2)
+    cases = set()
+    for run in runs:
+        assert np.array_equal(np.array(run["W"]), W)
+        solutions = {s["id"]: s for s in run["solutions"]}
+
+        def F(ids: list[int], solutions: dict[int, Any] = solutions) -> np.ndarray:
+            return np.array([solutions[i]["f"] for i in ids]).reshape(-1, 2)
+
+        def cv(ids: list[int], solutions: dict[int, Any] = solutions) -> np.ndarray:
+            return np.array([solutions[i]["cv"] for i in ids])
+
+        assert all(s["region"] == int(associate(F([s["id"]]), W)[0]) for s in run["solutions"])
+        # Both archives after each update, in VAMOS' order: the initial population, then each generation's children.
+        CA: list[int] = []
+        DA: list[int] = []
+        for history in run["history"]:
+            candidates = CA + history["offspring"]
+            CA = [candidates[i] for i in convergence_archive_update(F(candidates), cv(candidates), W)]
+            candidates = DA + history["offspring"]
+            DA = [candidates[i] for i in diversity_archive_update(F(CA), F(candidates), W)]
+            assert (CA, DA) == (history["CA"], history["DA"])
+        for rec in run["records"]:
+            # Restricted mating selection: the shares, then the tournaments replayed with their draws.
+            shares = mating_proportions(F(rec["CA"]), F(rec["DA"]))
+            assert [rec["shares"][key] for key in ("rhoC", "rhoD", "PC")] == [
+                shares.convergence_share,
+                shares.diversity_share,
+                shares.non_dominated_share_of_convergence_archive,
+            ]
+            assert (rec["firstFrom"] == "CA") == shares.first_parent_from_convergence_archive
+            archives = {"first": rec[rec["firstFrom"]], "caGames": rec["CA"], "daGames": rec["DA"]}
+            for name, archive in archives.items():
+                winners = tournament_winners(F(archive), cv(archive) == 0.0, np.array([t["draws"] for t in rec[name]]))
+                assert [archive[i] for i in winners] == [t["winner"] for t in rec[name]]
+            assert rec["fromCA"] == [u < shares.non_dominated_share_of_convergence_archive for u in rec["uniforms"]]
+            second = [(rec["caGames"] if c else rec["daGames"])[i]["winner"] for i, c in enumerate(rec["fromCA"])]
+            assert [solutions[c]["parents"] for c in rec["children"]] == [[s, t["winner"]] for s, t in zip(second, rec["first"])]
+            # The CA update: its case, each removal from the most crowded subregion, or the ranking of the infeasible candidates.
+            ca = rec["caUpdate"]
+            n_feasible = len(ca["feasible"])
+            cases.add("more" if n_feasible > 6 else "fewer" if n_feasible < 6 else "exact")
+            for removal in ca["removals"]:
+                rows = removal["rows"]
+                assert rows[worst_of_the_most_crowded_subregion(F(rows), W)] == removal["removed"]
+                low, high = F(rows).min(axis=0), F(rows).max(axis=0)
+                regions = associate((F(rows) - low) / (high - low), W)
+                assert removal["region"] == regions.tolist() and removal["counts"] == np.bincount(regions, minlength=6).tolist()
+                assert removal["crowded"] == int(np.argmax(removal["counts"]))
+                np.testing.assert_allclose(removal["tch"], tchebycheff_in_own_subregion(F(removal["closest"]), W), rtol=1e-12)
+            if ca["infeasible"]:
+                rows = ca["infeasible"]["rows"]
+                tch = tchebycheff_in_own_subregion(F(rows), W)
+                np.testing.assert_allclose(ca["infeasible"]["tch"], tch, rtol=1e-12)
+                ranks = front_ranks(np.column_stack([cv(rows), tch]))
+                assert ca["infeasible"]["fronts"] == [[r for r, k in zip(rows, ranks) if k == level] for level in range(ranks.max() + 1)]
+            # The DA update counts the new CA's members in each subregion and picks, subregion by subregion, the best candidate.
+            da = rec["daUpdate"]
+            assert da["caCounts"] == np.bincount(associate(F(ca["kept"]), W), minlength=6).tolist()
+            assert [t["chosen"] for t in da["trace"]] == da["kept"]
+            for t in da["trace"]:
+                np.testing.assert_allclose(t["tch"], tchebycheff_in_own_subregion(F(t["nd"]), W), rtol=1e-12)
+    assert cases == {"more", "fewer", "exact"}
+
+    # The numbers that the lesson quotes for its example.
+    example = runs[0]["records"][1]
+    assert (sorted(example["CA"]), sorted(example["DA"])) == ([4, 5, 7, 8, 9, 12], [1, 2, 3, 6, 10, 12])
+    assert (example["shares"]["inFirst"], example["shares"]["inSecond"], example["shares"]["inCA"]) == (0, 3, 5)
+    assert example["firstFrom"] == "DA"
+    assert [t["reason"] for t in example["first"]].count("third") == 4
+    games = {(t["a"], t["b"]): (t["winner"], t["reason"]) for t in example["second"]}
+    assert games[(7, 4)] == (4, "dominates")
+    ca = example["caUpdate"]
+    assert len(ca["feasible"]) == 8 and ca["fronts"] == [[4, 5, 8, 9, 12], [15, 18], [7]]
+    (removal,) = ca["removals"]
+    assert removal["crowded"] == 0 and sorted(removal["closest"]) == [5, 15] and removal["removed"] == 15
+    assert dict(zip(removal["closest"], np.round(removal["tch"], 3))) == {5: 0.105, 15: 0.315}
+    da = example["daUpdate"]
+    assert da["caCounts"] == [0, 2, 0, 3, 1, 0]
+    assert [(t["iteration"], t["region"], t["chosen"]) for t in da["trace"]] == [
+        (1, 2, 16),
+        (2, 2, 3),
+        (2, 2, 6),
+        (2, 4, 2),
+        (3, 1, 17),
+        (3, 4, 13),
+    ]
+    assert sorted(ca["kept"]) == [4, 5, 8, 9, 12, 18]
+    assert all(runs[0]["solutions"][i - 1]["cv"] > 0 for i in da["kept"])
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
 def test_benchmark_figures_agree_with_vamos() -> None:
     """The Benchmarks figures: their fronts match VAMOS' packaged fronts, and their maps VAMOS' problems."""
     from scipy.spatial import cKDTree
@@ -763,3 +930,869 @@ process.stdout.write(JSON.stringify({{ loops, families }}));
             alive.pop(last[int(np.argmin(contributions))] if len(last) > 1 else last[0])
         assert sorted(js["indicator"]["kept"]) == alive
         assert js["swarm"]["leaders"] == [int(i) for i in np.flatnonzero(_fast_non_dominated_sort(F)[1] == 0)]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_nsga2_generation_figure_agrees_with_vamos() -> None:
+    from vamos import select_survivors
+
+    seeds = [4679, 1, 2, 3, 97, 12367]  # 4679 is the lesson's example
+    program = f"""
+require({json.dumps(str(SCRIPT))});
+const V = globalThis.VamosFoundations;
+const generations = {json.dumps(seeds)}.map((seed) => V.nsga2Generation(seed, 6));
+process.stdout.write(JSON.stringify(generations, (key, value) => (value === Infinity ? "inf" : value)));
+"""
+    completed = subprocess.run(["node", "-e", program], capture_output=True, text=True, check=True, timeout=60)
+    generations = json.loads(completed.stdout)
+
+    # Fronts, crowding distances and survivors of the merged population are VAMOS's.
+    for g in generations:
+        F = np.array([member["f"] for member in g["merged"]])
+        fronts, _ = _fast_non_dominated_sort(F)
+        assert [sorted(front) for front in g["fronts"]] == [sorted(int(i) for i in front) for front in fronts]
+        crowding = np.array([np.inf if d == "inf" else d for d in g["mergedCrowding"]], dtype=float)
+        np.testing.assert_allclose(crowding, _compute_crowding(F, fronts), rtol=1e-12)
+        assert sorted(g["keep"]) == sorted(int(i) for i in select_survivors(F, survivor_count=6).selected_indices)
+        # The whole fronts come first and are kept; the next front, if any, has more members than places.
+        assert g["whole"] == g["fronts"][: len(g["whole"])]
+        assert sum(len(front) for front in g["whole"]) + g["places"] == 6
+        assert {i for front in g["whole"] for i in front} <= set(g["keep"])
+        if g["split"] is not None:
+            assert g["split"] == g["fronts"][len(g["whole"])] and len(g["split"]) > g["places"]
+
+    # The numbers that the lesson quotes for its example.
+    example = generations[0]
+    ident = [member["id"] for member in example["merged"]]
+    games = {(t["a"], t["b"]): (t["winner"], t["reason"]) for t in example["tournaments"]}
+    assert games[(1, 4)] == (1, "crowding") and games[(2, 5)] == (2, "coin")
+    assert [sorted(ident[i] for i in front) for front in example["whole"]] == [[1, 9]]
+    assert sorted(ident[i] for i in example["split"]) == [2, 3, 4, 5, 8, 11] and example["places"] == 4
+    distances = {ident[i]: example["mergedCrowding"][i] for i in example["split"]}
+    assert distances[3] == distances[5] == "inf"
+    assert {k: round(distances[k], 2) for k in (4, 11, 8, 2)} == {4: 1.05, 11: 0.92, 8: 0.81, 2: 0.55}
+    assert sorted(ident[i] for i in example["keep"]) == [1, 3, 4, 5, 9, 11]
+
+
+class _LoopProblem:
+    """The loop figure's problem: two variables in [0, 1], f₁ = x₁ and f₂ = g·(1 − √(x₁/g)) with g = 1 + x₂."""
+
+    n_var = 2
+    n_obj = 2
+    encoding = "real"
+    xl = np.zeros(2)
+    xu = np.ones(2)
+
+    def evaluate(self, X: np.ndarray, out: dict[str, np.ndarray]) -> None:
+        g = 1 + X[:, 1]
+        out["F"] = np.column_stack([X[:, 0], g * (1 - np.sqrt(X[:, 0] / g))])
+
+
+class _SwarmDraws(_Draws):
+    """Prepared draws for SMPSO, which also draws its coefficients with ``uniform``."""
+
+    uniform = _Draws._next
+
+
+def _infinite(values: list[Any]) -> np.ndarray:
+    return np.array([np.inf if v == "inf" else v for v in values], dtype=float)
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_smpso_iteration_figure_agrees_with_vamos() -> None:
+    from vamos.algorithms import SMPSOConfig
+    from vamos.engine.algorithm.smpso import SMPSO
+    from vamos.foundation.eval.backends import SerialEvalBackend
+
+    # 60550 is the lesson's example; in 25 the archive holds two leaders, and 1 and 2 overflow it.
+    seeds = [60550, 1, 2, 25, 26, 39, 100]
+    program = f"""
+require({json.dumps(str(SCRIPT))});
+const V = globalThis.VamosFoundations;
+const iterations = {json.dumps(seeds)}.map((seed) => V.smpsoGeneration(seed, 6));
+process.stdout.write(JSON.stringify(iterations, (key, value) => (value === Infinity ? "inf" : value)));
+"""
+    completed = subprocess.run(["node", "-e", program], capture_output=True, text=True, check=True, timeout=60)
+    records = json.loads(completed.stdout)
+
+    def draws(it: dict[str, Any]) -> list[np.ndarray]:
+        """The figure's random numbers, in the order and shapes in which VAMOS draws them."""
+        out = []
+        if len(it["leaders"]) > 2:
+            games = it["tournaments"]
+            out.append(np.array([t["a"] for t in games]))
+            out.append(np.array([t["b"] - (t["b"] > t["a"]) for t in games]))
+            coins = [int(t["winner"] == t["b"]) for t in games if t["reason"] == "coin"]
+            if coins:
+                out.append(np.array(coins))
+        out += [np.array([[m[key]] for m in it["moves"]]) for key in ("r1", "r2", "c1", "c2")]
+        out.append(np.array([t["mask"] for t in it["turbulence"]]))
+        out.append(np.array([[0.5 if u is None else u for u in t["u"]] for t in it["turbulence"]]))
+        return out
+
+    # VAMOS replays the hidden first iteration and the figure's with the figure's draws: the leaders and their
+    # crowding distances, the velocities, the positions after the bounds and the turbulence, the personal bests
+    # and the leaders archive, in its order, are the figure's.
+    for record in records:
+        config = SMPSOConfig.default(pop_size=6, n_var=2).to_dict()
+        start = np.array([q["x"] for q in record["start"]["swarm"]])
+        config["initializer"] = lambda start=start: start.copy()
+        smpso = SMPSO(config)
+        problem = _LoopProblem()
+        smpso.initialize(problem, ("max_evaluations", 18), seed=0)
+        state = smpso.state
+        assert state is not None
+        np.testing.assert_allclose(state.archive_manager.contents()[0], [leader["x"] for leader in record["start"]["leaders"]], rtol=0)
+        for it in (record["previous"], record):
+            np.testing.assert_allclose(state.archive_crowding, _infinite([leader["crowding"] for leader in it["leaders"]]), rtol=1e-12)
+            state.rng = _SwarmDraws(*draws(it))
+            X = smpso.ask()
+            assert not state.rng._draws
+            np.testing.assert_allclose(state.velocity, [m["velocity"] for m in it["moves"]], rtol=1e-12, atol=1e-15)
+            np.testing.assert_allclose(X, [q["x"] for q in it["after"]], rtol=1e-12, atol=1e-15)
+            smpso.tell(SerialEvalBackend().evaluate(X, problem), problem)
+            np.testing.assert_allclose(state.F, [q["f"] for q in it["after"]], rtol=1e-12, atol=1e-15)
+            np.testing.assert_allclose(state.pbest_X, [q["p"] for q in it["after"]], rtol=1e-12, atol=1e-15)
+            leaders_X = state.archive_manager.contents()[0]
+            np.testing.assert_allclose(leaders_X, [leader["x"] for leader in it["leadersAfter"]], rtol=1e-12, atol=1e-15)
+    assert len(records[3]["leaders"]) == 2 and {t["reason"] for t in records[3]["tournaments"]} == {"first"}
+    assert any(e["pruned"] for r in records[1:3] for it in (r["previous"], r) for e in it["inserts"])
+
+    # The numbers that the lesson quotes for its example.
+    example = records[0]
+    name = [leader["name"] for leader in example["leaders"]]
+    games = {t["id"]: (name[t["a"]], name[t["b"]], name[t["winner"]], t["reason"]) for t in example["tournaments"]}
+    assert games[1] == ("F", "G", "F", "coin") and games[4] == ("D", "F", "F", "crowding")
+    assert round(example["leaders"][name.index("D")]["crowding"], 2) == 1.0
+    assert [q["id"] for q in example["before"] if q["p"] != q["x"]] == [4]
+    one, four = example["moves"][0], example["moves"][3]
+    assert [round(v, 2) for v in four["cognitive"]] == [-0.08, -0.87]
+    assert (round(four["phi"], 2), round(four["chi"], 2)) == (4.53, -0.49)
+    assert [round(v, 2) for v in four["raw"] + four["clamped"]] == [-0.06, -0.95, 0.03, 0.47]
+    assert four["hit"] == [[1, "upper"]] and round(four["velocity"][1], 2) == -0.47
+    assert (round(one["phi"], 2), one["chi"]) == (3.87, 1)
+    assert [round(v, 2) for v in one["raw"] + one["clamped"]] == [0.51, -1.63, 0.5, -0.5]
+    assert [p["id"] for p in example["pbest"] if not p["replaced"]] == [4, 6]
+    inserts = {e["id"]: e for e in example["inserts"]}
+    assert inserts[2]["leader"] == inserts[2]["pruned"] == "H"
+    assert [round(c["crowding"], 2) for c in inserts[2]["crowding"] if c["name"] == "H"] == [0.43]
+    assert inserts[3]["leader"] == "I" and inserts[3]["pruned"] == "B"
+    assert [round(c["crowding"], 2) for c in inserts[3]["crowding"] if c["name"] == "B"] == [0.57]
+    assert inserts[5]["leader"] == "J" and inserts[5]["removed"] == ["G", "I"]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_agemoea_generation_figure_agrees_with_vamos() -> None:
+    from vamos.algorithms import AGEMOEAConfig
+    from vamos.engine.algorithm.agemoea import AGEMOEA
+    from vamos.engine.algorithm.agemoea.geometry import _find_corner_solutions, _survival_score, age_survival
+    from vamos.foundation.kernel.numpy_backend import NumPyKernel
+
+    # 29299 is the lesson's example; front 2 is cut in 3 and 10404, the population's first front has one or two
+    # members in 25 and 102, the merged population's has one in 11727 and 14020, and front 2 fills exactly in 26.
+    seeds = [29299, 1, 3, 10404, 25, 102, 11727, 14020, 26]
+    program = f"""
+require({json.dumps(str(SCRIPT))});
+const V = globalThis.VamosFoundations;
+const generations = {json.dumps(seeds)}.map((seed) => V.agemoeaGeneration(seed, 6));
+process.stdout.write(JSON.stringify(generations, (key, value) => (value === Infinity ? "inf" : Number.isNaN(value) ? null : value)));
+"""
+    completed = subprocess.run(["node", "-e", program], capture_output=True, text=True, check=True, timeout=60)
+    generations = json.loads(completed.stdout)
+
+    kernel = NumPyKernel()
+    for g in generations:
+        config = AGEMOEAConfig.default(pop_size=6, n_var=2).to_dict()
+        start = np.array([member["x"] for member in g["pop"]])
+        config["initializer"] = lambda start=start: start.copy()
+        agemoea = AGEMOEA(config, kernel)
+        problem = _LoopProblem()
+        agemoea.initialize(problem, ("max_evaluations", 12), seed=0)
+        state = agemoea.state
+        assert state is not None and state.selection_ranks is not None and state.selection_crowding is not None
+        # The population's fronts and survival scores are the tournament keys VAMOS computes at the start.
+        assert state.selection_ranks.tolist() == g["rank"]
+        np.testing.assert_allclose(state.selection_crowding, _infinite(g["score"]), rtol=1e-12)
+        # VAMOS's binary tournament, with the figure's draws, picks the figure's parents.
+        games = g["tournaments"]
+        draws = [np.array([t["a"] for t in games]), np.array([t["b"] - (t["b"] > t["a"]) for t in games])]
+        coins = [int(t["winner"] == t["a"]) for t in games if t["reason"] == "coin"]
+        rng = _Draws(*draws, *([np.array(coins)] if coins else []))
+        parents = kernel.tournament_selection(
+            ranks=state.selection_ranks, crowding=state.selection_crowding, pressure=2, rng=rng, n_parents=6
+        )
+        assert parents.tolist() == [t["winner"] for t in games] and not rng._draws
+        # VAMOS's survival of the figure's children keeps the figure's survivors with the figure's scores.
+        state.pending_offspring = np.array([child["x"] for child in g["children"]])
+        out: dict[str, np.ndarray] = {}
+        problem.evaluate(state.pending_offspring, out)
+        agemoea.tell(out["F"])
+        F = np.array([member["f"] for member in g["merged"]])
+        np.testing.assert_allclose(out["F"], F[6:], rtol=1e-12)
+        np.testing.assert_allclose(state.F, F[g["keep"]], rtol=1e-12)
+        np.testing.assert_allclose(state.selection_crowding, _infinite([g["mergedScore"][i] for i in g["keep"]]), rtol=1e-12)
+        assert age_survival(F, 6, kernel)[0].tolist() == g["keep"]
+        assert [sorted(front) for front in g["fronts"]] == [sorted(int(i) for i in front) for front in _fast_non_dominated_sort(F)[0]]
+        # The geometry of the first front: ideal point, corners, intercepts, p and scores.
+        geometry = g["geometry"]
+        front = F[geometry["first"]]
+        ideal = front.min(axis=0)
+        scores, p, intercepts = _survival_score(front, ideal)
+        np.testing.assert_allclose(geometry["ideal"], ideal, rtol=0)
+        np.testing.assert_allclose(geometry["intercepts"], intercepts, rtol=1e-12)
+        assert geometry["p"] == pytest.approx(p, rel=1e-12)
+        np.testing.assert_allclose(_infinite([g["mergedScore"][i] for i in geometry["first"]]), scores, rtol=1e-12)
+        if len(front) >= 2:
+            corners = _find_corner_solutions(np.round(front - ideal, 12))
+            assert sorted(geometry["corners"]) == sorted(geometry["first"][int(i)] for i in corners)
+    assert [g["last"] for g in generations[:4]] == [0, 0, 1, 1]
+    assert [len(g["geometry"]["first"]) for g in generations[6:8]] == [1, 1]
+
+    # The numbers that the lesson quotes for its example.
+    example = generations[0]
+    ident = [member["id"] for member in example["merged"]]
+    geometry = example["geometry"]
+    games = {(ident[t["a"]], ident[t["b"]]): (ident[t["winner"]], t["reason"]) for t in example["tournaments"]}
+    assert games[(5, 4)] == (4, "score") and round(example["score"][4], 2) == 1.33
+    assert len(geometry["first"]) == 9 and [round(v, 2) for v in geometry["ideal"]] == [0.03, 0.09]
+    assert [ident[i] for i in geometry["corners"]] == [8, 4] and [round(v, 2) for v in geometry["intercepts"]] == [0.84, 1.64]
+    assert ident[geometry["central"]] == 7
+    assert [round(v, 2) for v in geometry["normalized"][geometry["first"].index(geometry["central"])]] == [0.39, 0.39]
+    assert round(geometry["p"], 2) == 0.74
+    order = [ident[i] for i in geometry["order"]]
+    assert order[2] == 10 and order[-1] == 1
+    assert round(example["mergedScore"][9], 2) == 2.92 and round(example["mergedProximity"][9], 2) == 0.86
+    assert min(example["mergedProximity"][i] for i in geometry["first"]) == example["mergedProximity"][9]
+    assert example["last"] == 0 and example["places"] == 6
+    assert sorted(ident[i] for i in example["keep"]) == sorted(order[:6]) == [4, 5, 7, 8, 10, 11]
+    assert {ident[i]: round(example["mergedScore"][i], 2) for i in (11, 1, 0)} == {12: 0.77, 2: 0.46, 1: 0.22}
+
+
+def _run_step_figure(function: str, seeds: list[int]) -> list[dict[str, Any]]:
+    """Record one generation of a step figure for each seed, with six solutions."""
+    program = f"""
+require({json.dumps(str(SCRIPT))});
+const V = globalThis.VamosFoundations;
+process.stdout.write(JSON.stringify({json.dumps(seeds)}.map((seed) => V.{function}(seed, 6))));
+"""
+    completed = subprocess.run(["node", "-e", program], capture_output=True, text=True, check=True, timeout=60)
+    return json.loads(completed.stdout)
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_spea2_generation_figure_agrees_with_vamos() -> None:
+    from vamos.engine.algorithm.spea2.helpers import (
+        _kth_neighbour_distance,
+        dominance_matrix,
+        environmental_selection_indices,
+        strength_raw_fitness,
+        truncate_lexicographic,
+    )
+
+    seeds = [1693, 1, 2, 3, 5, 6, 97, 12367]  # 1693 is the lesson's example
+    generations = _run_step_figure("spea2Generation", seeds)
+    cases = set()
+    for g in generations:
+        # The archive is the initial population, which VAMOS' first environmental selection keeps whole.
+        A = np.array([member["f"] for member in g["archive"]])
+        selected, raw, kth = environmental_selection_indices(A, None, 6, 1, "none")
+        assert selected.tolist() == list(range(6))
+        assert g["archiveR"] == raw.tolist()
+        np.testing.assert_allclose(g["archiveSigma"], kth, rtol=1e-12)
+        # VAMOS' tournament: the lower R, then the larger k-th neighbour distance, then a coin.
+        for t in g["tournaments"]:
+            a, b, winner = t["a"] - 1, t["b"] - 1, t["winner"] - 1
+            assert a != b and winner in (a, b)
+            if raw[a] != raw[b]:
+                assert (t["reason"], winner) == ("raw", a if raw[a] < raw[b] else b)
+            elif kth[a] != kth[b]:
+                assert (t["reason"], winner) == ("density", a if kth[a] > kth[b] else b)
+            else:
+                assert t["reason"] == "coin"
+        assert len(g["tournaments"]) == 12 and len(g["children"]) == 6
+        # The union: strength, raw fitness, k-th neighbour distance, the survivors in VAMOS' order and the removals.
+        Q = np.array([member["f"] for member in g["union"]])
+        dom, _, _ = dominance_matrix(Q, None, "none")
+        assert g["S"] == dom.sum(axis=1).tolist()
+        assert g["R"] == strength_raw_fitness(dom).tolist()
+        dist = np.linalg.norm(Q[:, None, :] - Q[None, :, :], axis=2)
+        np.testing.assert_allclose(g["sigma"], _kth_neighbour_distance(dist, 1), rtol=1e-12)
+        selected, raw, kth = environmental_selection_indices(Q, None, 6, 1, "none")
+        assert g["kept"] == selected.tolist()
+        nd = g["nd"]
+        assert nd == np.flatnonzero(strength_raw_fitness(dom) == 0).tolist()
+        # The truncation is greedy, so keeping one member fewer each time gives VAMOS' removals in order.
+        removed, alive = [], list(range(len(nd)))
+        for keep in range(len(nd) - 1, 5, -1):
+            left = truncate_lexicographic(dist[np.ix_(nd, nd)], keep).tolist()
+            removed += [nd[i] for i in alive if i not in left]
+            alive = left
+        assert g["removed"] == removed and len(g["truncation"]) == len(removed)
+        cases.add("truncation" if removed else "filling" if g["filled"] else "exact")
+    assert cases == {"truncation", "filling", "exact"}
+
+    # The numbers that the lesson quotes for its example.
+    example = generations[0]
+    games = {(t["a"], t["b"]): (t["winner"], t["reason"]) for t in example["tournaments"]}
+    assert games[(1, 6)] == (1, "coin") and games[(5, 6)] == (6, "raw")
+    sigma = [round(d, 3) for d in example["archiveSigma"]]
+    assert sigma[0] == sigma[5] == 0.074 and example["archiveR"][4] == 2
+    Q = np.array([member["f"] for member in example["union"]])
+    dom, _, _ = dominance_matrix(Q, None, "none")
+    assert [j + 1 for j in np.flatnonzero(dom[:, 3])] == [2, 3, 7]
+    assert [example["S"][j] for j in (1, 2, 6)] == [2, 1, 3] and example["R"][3] == 6
+    assert len(example["nd"]) == 8 and [i + 1 for i in example["removed"]] == [3, 1]
+    assert min(example["nd"], key=lambda i: Q[i, 0]) == 6  # 7 has the smallest f1 of the non-dominated
+
+    def nearest_two(cut: dict[str, Any], ident: int) -> list[float]:
+        return [round(d, 3) for d in cut["lists"][cut["members"].index(ident - 1)][:2]]
+
+    first, second = example["truncation"]
+    assert nearest_two(first, 3) == [0.059, 0.240] and nearest_two(first, 7) == [0.059, 0.289]
+    assert nearest_two(second, 1) == [0.074, 0.130] and nearest_two(second, 6) == [0.074, 0.164]
+    assert [i + 1 for i in sorted(example["kept"])] == [6, 7, 8, 9, 10, 11]
+    assert max(example["kept"], key=lambda i: example["sigma"][i]) == 10 and round(example["sigma"][10], 3) == 0.271
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_smsemoa_step_figure_agrees_with_vamos() -> None:
+    from types import SimpleNamespace
+
+    from vamos.engine.algorithm.smsemoa.helpers import survival_selection
+    from vamos.foundation.kernel.numpy_backend import NumPyKernel
+
+    seeds = [65199, 1, 2, 3, 5, 6, 97, 12367]  # 65199 is the lesson's example
+    steps = _run_step_figure("smsemoaGeneration", seeds)
+    cases = set()
+    for g in steps:
+        assert g["child"]["parents"] == g["parents"]
+        # VAMOS' survival on the population and the child: the reference point and the solution removed.
+        state = SimpleNamespace(
+            X=np.array([member["x"] for member in g["pop"]]),
+            F=np.array([member["f"] for member in g["pop"]]),
+            G=None,
+            eliminate_duplicates=False,
+            _survival_F=None,
+            ref_adaptive=True,
+            ref_point=np.zeros(2),
+            ref_offset=1.0,
+            ref_rule="relative",
+            constraint_mode="none",
+            constraint_handling=None,
+            fronts=None,
+            ranks=None,
+            crowding=None,
+            ids=None,
+            pending_offspring_ids=None,
+        )
+        survival_selection(state, np.array([g["child"]["x"]]), np.array([g["child"]["f"]]), None, NumPyKernel())
+        np.testing.assert_allclose(g["ref"], state.ref_point, rtol=1e-12)
+        assert sorted(map(tuple, state.F.tolist())) == sorted(tuple(member["f"]) for member in g["next"])
+        # The fronts of the N + 1 solutions and the contributions of the last one.
+        Q = np.array([member["f"] for member in g["merged"]])
+        fronts, _ = _fast_non_dominated_sort(Q)
+        assert [sorted(front) for front in g["fronts"]] == [sorted(int(i) for i in front) for front in fronts]
+        assert g["last"] == g["fronts"][-1]
+        if g["contributions"] is None:
+            assert len(g["last"]) == 1 and g["removed"] == g["last"][0]
+        else:
+            contributions = hypervolume_contributions(Q[g["last"]], state.ref_point)
+            np.testing.assert_allclose(g["contributions"], contributions, rtol=1e-12)
+            assert g["removed"] == g["last"][int(np.argmin(contributions))]
+        cases.add("single" if g["contributions"] is None else "child removed" if g["removed"] == 6 else "contributions")
+    assert cases == {"single", "child removed", "contributions"}
+
+    # The numbers that the lesson quotes for its example.
+    example = steps[0]
+    assert example["parents"] == [4, 6] and example["rank"][3] == 1
+    assert [[i + 1 for i in front] for front in example["fronts"]] == [[1, 5, 6], [2, 3, 4, 7]]
+    assert [i + 1 for i in sorted(example["last"], key=lambda i: example["merged"][i]["f"][0])] == [7, 4, 2, 3]
+    contributions = {i + 1: round(c, 4) for i, c in zip(example["last"], example["contributions"])}
+    assert contributions == {2: 0.0193, 3: 0.2109, 4: 0.0293, 7: 0.16}
+    assert [round(v, 2) for v in example["ref"]] == [1.67, 1.98] and example["removed"] + 1 == 2
+    assert sorted(member["id"] for member in example["next"]) == [1, 3, 4, 5, 6, 7]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_ibea_generation_figure_agrees_with_vamos() -> None:
+    from vamos.engine.algorithm.ibea.helpers import (
+        _normalized_objectives,
+        compute_indicator_matrix,
+        environmental_selection_indices,
+        epsilon_indicator,
+        ibea_fitness,
+    )
+
+    seeds = [31040, 1, 2, 3, 5, 6, 97, 12367]  # 31040 is the lesson's example
+    generations = _run_step_figure("ibeaGeneration", seeds)
+
+    def members(F: np.ndarray, rows: list[int], values: list[float]) -> list[tuple[tuple[float, ...], float]]:
+        return sorted((tuple(F[i]), values[i]) for i in rows)
+
+    for g in generations:
+        # The population's fitness from VAMOS' initial environmental selection, and the tournaments on it.
+        P = np.array([member["f"] for member in g["pop"]])
+        selected, fitness = environmental_selection_indices(P, None, 6, "eps", 0.05)
+        assert selected.tolist() == list(range(6))
+        np.testing.assert_allclose(g["popFitness"], fitness, rtol=1e-12)
+        for t in g["tournaments"]:
+            a, b = t["a"] - 1, t["b"] - 1
+            assert a != b and t["winner"] - 1 == (a if fitness[a] > fitness[b] else b)
+        assert len(g["tournaments"]) == 6 and len(g["children"]) == 6
+        # The merged set: normalized objectives, c, the fitness, the removals and the fitness after each one.
+        Q = np.array([member["f"] for member in g["merged"]])
+        np.testing.assert_allclose(g["Z"], _normalized_objectives(Q), rtol=1e-12, atol=1e-15)
+        assert g["c"] == np.abs(epsilon_indicator(_normalized_objectives(Q))).max() == 1.0
+        np.testing.assert_allclose(g["fitness"], ibea_fitness(compute_indicator_matrix(Q, "eps"), 0.05), rtol=1e-12)
+
+        # The removal loop is greedy, so keeping one member fewer each time gives VAMOS' removals in order. A child
+        # that copies its parent ties with it exactly, and the summation order decides which copy goes: compare
+        # objective vectors, with the fitness of the members left after each removal.
+        for j, size in enumerate(range(11, 5, -1)):
+            kept, after = environmental_selection_indices(Q, None, size, "eps", 0.05)
+            alive = [i for i in range(12) if i not in g["removed"][: j + 1]]
+            expected = sorted(zip(map(tuple, Q[kept]), after))
+            assert [key for key, _ in members(Q, alive, g["history"][j])] == [key for key, _ in expected]
+            np.testing.assert_allclose([v for _, v in members(Q, alive, g["history"][j])], [v for _, v in expected], rtol=1e-10)
+        assert sorted(g["kept"]) == sorted(alive)
+        np.testing.assert_allclose([v for _, v in members(Q, g["kept"], g["final"])], [v for _, v in expected], rtol=1e-10)
+
+    # The numbers that the lesson quotes for its example.
+    example = generations[0]
+    initial = {i + 1: round(v, 3) for i, v in enumerate(example["fitness"])}
+    assert [i + 1 for i in example["removed"]] == [4, 3, 10, 11, 5, 9]
+    assert [initial[k] for k in (4, 3, 10)] == [-103.433, -58.284, -17.051]
+    assert sorted(initial, key=initial.get)[:3] == [4, 3, 10]
+    Q = np.array([member["f"] for member in example["merged"]])
+    dominated = np.any(np.all(Q[:, None] <= Q[None], axis=2) & np.any(Q[:, None] < Q[None], axis=2), axis=0)
+    assert all(dominated[k - 1] for k in (4, 3, 10))
+    before, after = example["history"][2], example["history"][3]  # removal 4 of 6: 11 leaves
+    assert (round(before[6], 3), round(after[6], 3)) == (-1.763, -1.539)
+    assert initial[9] == -1.665 and initial[7] == -1.771
+    assert round(example["history"][4][8], 3) == -1.651 and round(example["final"][6], 3) == -1.483
+    assert [i + 1 for i in example["kept"]] == [1, 2, 6, 7, 8, 12]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_moead_generation_figure_agrees_with_vamos() -> None:
+    from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors
+    from vamos.engine.algorithm.moead.aggregation import pbi
+    from vamos.engine.algorithm.moead.neighborhood import compute_neighbors
+    from vamos.engine.algorithm.moead.neighborhood_kernels import dummy_buffers, update_neighborhood_python
+    from vamos.engine.operators.policies.moead import DifferentialCrossoverStep
+    from vamos.engine.operators.policies.real_repair import resolve_policy_repair
+    from vamos.foundation.kernel.moead_kernels import AGG_PBI
+
+    seeds = [7548, 1, 2, 3, 97, 12367]  # 7548 is the lesson's example
+    generations = _run_figure_program("data.map((seed) => V.moeadGeneration(seed, 6, 3))", seeds)
+    weights = load_or_generate_weight_vectors(6, 2, mode="jmetalpy")
+    weights_safe = np.where(weights == 0, 1e-4, weights)
+    weights_unit = weights / np.linalg.norm(weights, axis=1, keepdims=True)
+    neighbours = compute_neighbors(weights, 3)
+    # DE rand/1/bin from the current solution with VAMOS's defaults, F = 0.5 and CR = 1, then the default clip repair.
+    de = DifferentialCrossoverStep(
+        f=0.5,
+        cr=1.0,
+        repair=resolve_policy_repair("real"),
+        xl=np.zeros(2),
+        xu=np.ones(2),
+        rng=np.random.default_rng(0),
+        variation_kernels=None,
+    )
+    no_g, no_cv, no_child_g = dummy_buffers()
+
+    for g in generations:
+        np.testing.assert_array_equal(g["W"], weights)
+        assert g["B"] == neighbours.tolist()
+        X = np.array([member["x"] for member in g["pop"]])
+        F = np.array([member["f"] for member in g["pop"]])
+        ideal = F.min(axis=0)
+        np.testing.assert_array_equal(g["z0"], ideal)
+        assert sorted(g["order"]) == list(range(6))
+        for step in g["steps"]:
+            k, r1, r2 = step["k"], step["r1"], step["r2"]
+            np.testing.assert_array_equal([member["x"] for member in step["before"]], X)
+            # The mating pool: the neighbourhood when the draw is below delta = 0.9, otherwise the population.
+            assert step["neighbourhood"] == (step["u"] < 0.9)
+            assert step["pool"] == (neighbours[k].tolist() if step["neighbourhood"] else list(range(6)))
+            assert r1 != r2 and {r1, r2} <= set(step["pool"]) and sorted(step["candidates"]) == sorted(step["pool"])
+            child = step["child"]
+            np.testing.assert_allclose(child["v"], de(np.array([[X[r1], X[r2], X[k]]]))[0, 0], rtol=0, atol=1e-15)
+            y, fy = np.array(child["x"]), np.array(child["f"])
+            assert np.all((y >= 0) & (y <= 1))
+            # The ideal point takes the offspring into account before the comparisons.
+            ideal = np.minimum(ideal, fy)
+            np.testing.assert_array_equal(step["z"], ideal)
+            for row in step["rows"]:
+                if row["visited"]:
+                    j = row["j"]
+                    assert row["gx"] == pytest.approx(float(pbi(F[[j]], weights[[j]], ideal)[0]), rel=1e-12)
+                    assert row["gy"] == pytest.approx(float(pbi(fy[None, :], weights[[j]], ideal)[0]), rel=1e-12)
+            # VAMOS's replacement, in the figure's order of the pool, replaces the same solutions.
+            order = np.array(step["candidates"], dtype=np.int64)
+            replaced = update_neighborhood_python(
+                X,
+                F,
+                no_g,
+                no_cv,
+                weights,
+                weights_safe,
+                weights_unit,
+                ideal,
+                y,
+                fy,
+                no_child_g,
+                0.0,
+                order,
+                order.size,
+                2,
+                AGG_PBI,
+                5.0,
+                0.0,
+                0,
+                ideal,
+                1e-6,
+                0,
+            )
+            assert replaced == len(step["replaced"])
+            np.testing.assert_array_equal([member["x"] for member in step["after"]], X)
+            np.testing.assert_array_equal([member["f"] for member in step["after"]], F)
+
+    # The numbers that the lesson quotes for its example.
+    steps = generations[0]["steps"]
+    rows = [{row["j"]: row for row in step["rows"]} for step in steps]
+    assert [step["k"] for step in steps] == [3, 5, 2, 0, 1, 4]
+    assert not steps[0]["neighbourhood"] and round(steps[0]["u"], 3) == 0.996 and steps[0]["replaced"] == [3, 4]
+    assert [round(rows[0][j][key], 2) for j in (3, 4) for key in ("gy", "gx")] == [1.81, 2.59, 0.76, 1.99]
+    assert not rows[0][5]["visited"] and rows[0][5]["better"]
+    assert (steps[1]["r1"], steps[1]["r2"]) == (5, 3) and 5 in steps[1]["pool"]
+    assert steps[1]["replaced"] == [] and [round(v, 2) for v in steps[1]["zBefore"] + steps[1]["z"]] == [0.23, 0.08, 0.12, 0.08]
+    assert steps[2]["replaced"] == [1] and [round(rows[2][1]["gy"], 2), round(rows[2][1]["gx"], 2)] == [1.15, 3.38]
+    assert [round(rows[2][2]["gy"], 2), round(rows[2][2]["gx"], 2)] == [2.11, 0.81]
+    assert [member["id"] for member in generations[0]["final"]][3:5] == [12, 12] and steps[5]["k"] == 4
+
+
+class _ReplayShuffles:
+    """A generator whose shuffles put the figure's random choices first, in the order NSGA-III's niching draws them."""
+
+    def __init__(self, orders: list[list[int]]) -> None:
+        self.orders = orders
+
+    def shuffle(self, values: np.ndarray) -> None:
+        first = self.orders.pop(0)
+        values[:] = first + [v for v in values.tolist() if v not in first]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_nsga3_generation_figure_agrees_with_vamos() -> None:
+    from vamos.engine.algorithm.components.weight_vectors import load_or_generate_weight_vectors
+    from vamos.engine.algorithm.nsgaiii.helpers import (
+        _reference_direction_survival,
+        associate,
+        fast_non_dominated_sort,
+        get_extreme_points,
+        get_nadir_point,
+    )
+
+    # 16892 is the lesson's example; 1 fills the places with whole fronts, 15 and 45 reject the hyperplane,
+    # 5 and 7 pick at random, and 455 takes a nadir value from the population.
+    seeds = [16892, 1, 2, 5, 7, 15, 45, 97, 455]
+    generations = _run_figure_program("data.map((seed) => V.nsga3Generation(seed, 6))", seeds)
+    directions = load_or_generate_weight_vectors(6, 2, divisions=None)
+    unit = directions / np.linalg.norm(directions, axis=1, keepdims=True)
+
+    for g in generations:
+        np.testing.assert_array_equal(g["W"], directions)
+        F = np.array([member["f"] for member in g["merged"]])
+        fronts = [[int(i) for i in front] for front in fast_non_dominated_sort(F)]
+        assert [sorted(front) for front in g["fronts"]] == [sorted(front) for front in fronts]
+        whole = [i for front in g["whole"] for i in front]
+        assert sum(len(front) for front in g["whole"]) + g["places"] == 6
+        # Normalization: the ideal point of the first generation, the extreme points and the nadir estimate.
+        ideal, worst = F.min(axis=0), F.max(axis=0)
+        np.testing.assert_array_equal(g["ideal"], ideal)
+        first = F[fronts[0]]
+        extremes = get_extreme_points(first, 2, ideal, None)
+        np.testing.assert_array_equal(F[g["extremes"]], extremes)
+        nadir = get_nadir_point(extremes, ideal, worst, first.max(axis=0), worst)
+        np.testing.assert_allclose(g["nadir"], nadir, rtol=1e-12)
+        estimate = ideal + np.array(g["intercepts"]) if g["hyperplane"] else first.max(axis=0)
+        np.testing.assert_allclose(np.where(g["fromPopulation"], worst, estimate), nadir, rtol=1e-12)
+        normalized = (F - ideal) / (nadir - ideal)
+        np.testing.assert_allclose(g["normalized"], normalized, rtol=1e-12)
+        # Association and niche counts.
+        assoc, dperp = associate(normalized, unit)
+        assert [a["dir"] for a in g["association"]] == assoc.tolist()
+        np.testing.assert_allclose([a["dperp"] for a in g["association"]], dperp, rtol=1e-9, atol=1e-12)
+        assert g["rho"] == np.bincount(assoc[whole], minlength=6).tolist()
+        # VAMOS's survival, with the figure's random choices, keeps the same solutions in the same order.
+        orders: list[list[int]] = []
+        if g["niching"] is not None:
+            last = fronts[len(g["whole"])]
+            for round_ in sorted({pick["round"] for pick in g["niching"]["picks"]}):
+                picks = [pick for pick in g["niching"]["picks"] if pick["round"] == round_]
+                orders.append(picks[0]["Jmin"])
+                orders.extend([last.index(pick["id"])] for pick in picks)
+        replay = _ReplayShuffles(orders)
+        survivors = _reference_direction_survival(F, 6, unit, replay, np.full(2, np.inf), None, np.full(2, -np.inf), None)[0].tolist()
+        assert replay.orders == []
+        assert sorted(survivors[: len(whole)]) == sorted(whole) and survivors[len(whole) :] == g["keep"][len(whole) :]
+
+    # The numbers that the lesson quotes for its example.
+    example = generations[0]
+    ident = [member["id"] for member in example["merged"]]
+    assert [(example["pop"][a]["id"], example["pop"][b]["id"]) for a, b in zip(example["draws"][::2], example["draws"][1::2])] == [
+        (4, 6),
+        (3, 5),
+        (5, 2),
+    ]
+    assert [sorted(ident[i] for i in front) for front in example["fronts"][:2]] == [[3, 6, 9], [2, 5, 7, 8, 10, 12]]
+    assert example["places"] == 3 and [ident[i] for i in example["extremes"]] == [6, 3] and example["hyperplane"]
+    assert [round(a, 2) for a in example["intercepts"] + example["nadir"]] == [0.80, 0.66, 0.84, 0.82]
+    picks = [(ident[p["id"]], p["dir"] + 1, p["round"], p["closest"]) for p in example["niching"]["picks"]]
+    assert sorted(picks) == [(2, 4, 2, False), (8, 4, 1, True), (12, 5, 1, True)]
+    assert sorted(example["niching"]["picks"][-1]["tied"]) == [0, 1, 3]
+    dperp = {ident[i]: round(example["association"][i]["dperp"], 3) for i in example["last"]}
+    assert (dperp[8], dperp[2], dperp[5]) == (0.051, 0.116, 0.040) and example["association"][ident.index(5)]["dir"] == 1
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_rvea_generation_figure_agrees_with_vamos() -> None:
+    from vamos.engine.algorithm.rvea.rvea import _calc_gamma, _calc_V, _generate_reference_vectors
+    from vamos.engine.algorithm.rvea.survival import angle_penalized_distances, apd_survival
+
+    cases = [(24637, 6, 12), (1, 1, 2), (2, 4, 8), (3, 10, 20), (97, 6, 12)]  # 24637 is the lesson's example
+    generations = _run_figure_program("data.map(([seed, t, tMax]) => V.rveaGeneration(seed, 6, t, tMax))", cases)
+    initial = _calc_V(_generate_reference_vectors(2, 5))
+
+    for (_, t, t_max), g in zip(cases, generations):
+        np.testing.assert_allclose(g["V0"], initial, rtol=0, atol=1e-15)
+        assert g["interval"] == max(1, -(-t_max // 10)) and len(g["history"]) == t
+        previous = None
+        for h in g["history"]:
+            F, V = np.array(h["F"]), np.array(h["V"])
+            if previous is not None:
+                # The population of a generation is the survivors of the one before it.
+                np.testing.assert_array_equal(F[: len(previous["survivors"])], np.array(previous["F"])[previous["survivors"]])
+            ideal_before = np.array([np.inf if v is None else v for v in h["idealBefore"]])
+            survivors, ideal, nadir = apd_survival(F, V, _calc_gamma(V), ideal_before, 6, h["generation"], t_max, 2.0)
+            assert h["survivors"] == survivors.tolist()
+            np.testing.assert_array_equal(h["ideal"], ideal)
+            np.testing.assert_array_equal(h["nadir"], nadir)
+            # The vectors adapt after every generation that is a multiple of ceil(0.1 t_max).
+            assert h["adapted"] == (h["generation"] % g["interval"] == 0)
+            expected = _calc_V(initial * np.maximum(nadir - ideal, 1e-64)) if h["adapted"] else V
+            np.testing.assert_allclose(h["next"], expected, rtol=1e-12, atol=1e-15)
+            previous = h
+        # The angles, penalties and APD values that the last generation shows.
+        F, V = np.array([member["f"] for member in g["merged"]]), np.array(g["V"])
+        gamma = _calc_gamma(V)
+        niches, penalty, apd = angle_penalized_distances(F, np.array(g["ideal"]), V, gamma, t, t_max, 2.0)
+        assert g["select"]["assoc"] == niches.tolist()
+        np.testing.assert_allclose(g["select"]["gamma"], gamma, rtol=1e-12)
+        np.testing.assert_allclose(g["select"]["apd"], apd, rtol=1e-12)
+        # θ = arccos(cos θ) amplifies the rounding of the cosine by about 1/θ² for small angles, so JavaScript's
+        # and the platform's arccos differ by up to ~1e-11 relative there (seen on macOS and Windows).
+        np.testing.assert_allclose(g["progress"] * np.array(g["select"]["theta"]) / gamma[niches], penalty, rtol=1e-9, atol=1e-15)
+        np.testing.assert_allclose(g["gammaNext"], _calc_gamma(np.array(g["next"])), rtol=1e-12)
+        # Parents come from random permutations of the population, and there are always six children.
+        n = len(g["pop"])
+        for start in range(0, len(g["draws"]), n):
+            block = g["draws"][start : start + n]
+            assert len(set(block)) == len(block) and set(block) <= set(range(n))
+        assert len(g["children"]) == 6
+
+    # The numbers that the lesson quotes for its example.
+    example = generations[0]
+    ident = [member["id"] for member in example["merged"]]
+    norm = np.linalg.norm(np.array(example["translated"]), axis=1)
+    assert len(example["pop"]) == 5 and example["adapted"] and round(example["progress"], 2) == 0.25
+    assert example["select"]["selected"][1] == -1 and [ident[i] for i in example["survivors"]] == [1, 2, 9, 4, 5]
+    v5 = {ident[i]: i for i, j in enumerate(example["select"]["assoc"]) if j == 4}
+    assert sorted(v5) == [4, 8, 11] and min(v5, key=lambda k: norm[v5[k]]) == 11
+    assert [round(norm[v5[k]], 2) for k in (11, 4)] == [0.95, 1.03]
+    assert [round(example["select"]["apd"][v5[k]], 3) for k in (11, 4)] == [1.112, 1.080]
+    assert [round(np.degrees(example["select"]["theta"][v5[k]]), 1) for k in (11, 4)] == [9.8, 2.7]
+    assert len(example["draws"]) == 6 and sorted(example["draws"][:5]) == [0, 1, 2, 3, 4]
+    f4, f5 = (np.array(example["merged"][ident.index(k)]["f"]) for k in (4, 5))
+    assert np.all(f5 <= f4) and np.any(f5 < f4)  # 4 survives although 5 dominates it
+    assert [round(a - b, 2) for a, b in zip(example["nadir"], example["ideal"])] == [0.99, 0.94]
+
+
+def _inf(values: list[Any]) -> np.ndarray:
+    return np.array([np.inf if v == "inf" else v for v in values], dtype=float)
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_top_generation_figure_agrees_with_vamos() -> None:
+    from vamos.engine.algorithm.top.differential_evolution import current_to_rand_1, rand_1, rand_to_best_1
+    from vamos.engine.algorithm.top.phases import (
+        feasible_ratio,
+        index_of_lowest_mean_objective,
+        mean_objectives,
+        offspring_replaces_parent,
+        phase_one_continues,
+        updated_delta,
+    )
+    from vamos.engine.algorithm.top.selection import (
+        constrained_front_numbers,
+        crowding_distances,
+        environmental_selection,
+        tournament_winners,
+    )
+
+    seeds = [789767, 145829, 158507, 7680, 1, 2, 601]  # 789767 is the lesson's example; 2 stays in phase 1
+    program = f"""
+require({json.dumps(str(SCRIPT))});
+const V = globalThis.VamosFoundations;
+const runs = {json.dumps(seeds)}.map((seed) => V.topGeneration(seed, 6));
+process.stdout.write(JSON.stringify(runs, (key, value) => (value === Infinity ? "inf" : value)));
+"""
+    completed = subprocess.run(["node", "-e", program], capture_output=True, text=True, check=True, timeout=60)
+    runs = json.loads(completed.stdout)
+    assert [run["phase2"] is None for run in runs] == [False, False, False, False, False, True, False]
+
+    for run in runs:
+        # Phase 1: x_best, the DE mutants, the one-to-one replacement, Pf, delta and the switch are VAMOS's.
+        one = run["phase1"]
+        pop, trials, merged = one["pop"], one["trials"], one["merged"]
+        X, F = np.array([p["x"] for p in pop]), np.array([p["f"] for p in pop])
+        assert one["best"] == index_of_lowest_mean_objective(F)
+        np.testing.assert_allclose([p["mean"] for p in merged], mean_objectives(np.array([p["f"] for p in merged])), rtol=1e-15)
+        row = {p["id"]: i for i, p in enumerate(pop)}
+        for i, t in enumerate(trials):
+            assert t["parent"] == pop[i]["id"]
+            r1, r2, r3 = (X[row[r]][None, :] for r in t["r"])
+            if t["strategy"] == "current-to-rand":
+                assert t["base"] == pop[i]["id"]
+                mutant = current_to_rand_1(X[i][None, :], r1, r2, r3, 0.5)
+            else:
+                assert t["base"] == t["r"][0]
+                mutant = rand_to_best_1(X[one["best"]][None, :], r1, r2, r3, 0.5)
+            np.testing.assert_allclose(t["mutant"], mutant[0], rtol=0, atol=1e-15)
+            assert all(0.0 <= v <= 1.0 for v in t["x"])
+        cv_off = np.array([t["cv"] for t in trials])
+        mean_off = np.array([t["mean"] for t in trials])
+        replaces = offspring_replaces_parent(cv_off, mean_off, np.array([p["cv"] for p in pop]), np.array([p["mean"] for p in pop]))
+        assert one["next"] == [6 + i if replaces[i] else i for i in range(6)]
+        assert [pair["winner"] for pair in one["pairs"]] == one["next"]
+        nxt = [merged[i] for i in one["next"]]
+        cv_next, F_next = np.array([p["cv"] for p in nxt]), np.array([p["f"] for p in nxt])
+        assert one["Pf"] == feasible_ratio(cv_next)
+        assert one["delta"] == pytest.approx(updated_delta(F_next, cv_next, 1.0), abs=1e-12)
+        assert one["continues"] == phase_one_continues(one["delta"], one["Pf"], 12, 1000)
+        if run["phase2"] is None:
+            continue
+
+        # Phase 2: the fronts, crowding distances and tournaments of the population, the DE/rand/1 mutants,
+        # and the fronts, crowding distances and survivors of the population and the offspring are VAMOS's.
+        two = run["phase2"]
+        assert [p["id"] for p in two["pop"]] == [p["id"] for p in nxt]
+        fronts = constrained_front_numbers(F_next, cv_next)
+        assert two["front"] == fronts.tolist()
+        distances = crowding_distances(F_next, fronts)
+        np.testing.assert_allclose(_inf(two["crowd"]), distances, rtol=1e-12)
+        row = {p["id"]: i for i, p in enumerate(nxt)}
+        draws = np.array([[row[t["a"]], row[t["b"]]] for t in two["tournaments"]])
+        assert [t["row"] for t in two["tournaments"]] == tournament_winners(fronts, distances, draws).tolist()
+        X_next = np.array([p["x"] for p in nxt])
+        for child in two["children"]:
+            base, second, third = (X_next[row[i]][None, :] for i in child["parents"])
+            np.testing.assert_allclose(child["mutant"], rand_1(base, second, third, 0.5)[0], rtol=0, atol=1e-15)
+        union = two["merged"]
+        F_union, cv_union = np.array([p["f"] for p in union]), np.array([p["cv"] for p in union])
+        union_fronts = constrained_front_numbers(F_union, cv_union)
+        assert [sorted(members) for members in two["mergedFronts"]] == [
+            np.flatnonzero(union_fronts == k).tolist() for k in range(int(union_fronts.max()) + 1)
+        ]
+        np.testing.assert_allclose(_inf(two["mergedCrowd"]), crowding_distances(F_union, union_fronts), rtol=1e-12)
+        assert two["kept"] == environmental_selection(F_union, cv_union, 6).tolist()
+
+    # The numbers that the lesson quotes for its example.
+    example = runs[0]
+    one, two = example["phase1"], example["phase2"]
+    pop = {p["id"]: p for p in one["merged"]}
+    assert one["pop"][one["best"]]["id"] == 2 and pop[2]["cv"] > 0 and round(pop[2]["mean"], 3) == 0.491
+    winners = [one["merged"][i]["id"] for i in one["next"]]
+    assert winners == [1, 8, 3, 10, 5, 6]
+    assert pop[7]["cv"] > 0 and pop[8]["cv"] == 0 and all(pop[i]["cv"] == 0 for i in (1, 3, 4, 5, 6, 9, 10, 11, 12))
+    assert {i: round(pop[i]["mean"], 3) for i in (1, 7, 8, 4, 10)} == {1: 0.614, 7: 0.564, 8: 0.5, 4: 0.75, 10: 0.662}
+    assert one["Pf"] == 1.0 and round(one["delta"], 3) == 0.053
+    sums = {one["merged"][i]["id"]: round(s, 3) for i, s in one["sums"]}
+    assert sorted(sums.items(), key=lambda item: item[1])[:2] == [(8, 0.926), (1, 0.98)]
+    union = two["merged"]
+    fronts = [[union[i]["id"] for i in members] for members in two["mergedFronts"]]
+    assert fronts == [[1, 8, 5, 6], [3, 10, 13], [14], [18], [16], [15], [17]]
+    assert [union[i]["cv"] > 0 for i in range(12)] == [False] * 8 + [True] * 4 and two["places"] == 2
+    assert sorted(union[i]["id"] for i in two["kept"]) == [1, 3, 5, 6, 8, 13]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the figures' script runs under Node.js")
+def test_cmoeams_generation_figure_agrees_with_vamos() -> None:
+    from vamos.engine.algorithm.cmoeams.fitness import (
+        is_stage_b,
+        normalized_violation,
+        shift_based_density,
+        stage_a_fitness,
+        stage_b_fitness,
+    )
+    from vamos.engine.algorithm.cmoeams.selection import environmental_selection, tournament_winners
+
+    seeds = [27749, 49387, 494198, 1, 2, 3]  # 27749 is the lesson's example
+    program = f"""
+require({json.dumps(str(SCRIPT))});
+const V = globalThis.VamosFoundations;
+process.stdout.write(JSON.stringify({json.dumps(seeds)}.map((seed) => V.cmoeamsGeneration(seed, 6, 150))));
+"""
+    completed = subprocess.run(["node", "-e", program], capture_output=True, text=True, check=True, timeout=60)
+    runs = json.loads(completed.stdout)
+
+    for run in runs:
+        # The initial population gets stage A's fitness, computed on it alone.
+        first = run["generations"][0]["pop"]
+        F0, cv0 = np.array([p["f"] for p in first]), np.array([[p["cv"]] for p in first])
+        np.testing.assert_allclose(run["initial"]["A"]["fitness"], stage_a_fitness(F0, normalized_violation(cv0, 6)), rtol=1e-12)
+        fitness = np.array(run["initial"]["A"]["fitness"])
+        for k, gen in enumerate(run["generations"]):
+            pop = gen["pop"]
+            np.testing.assert_allclose(gen["fitness"], fitness, rtol=1e-12)
+            # Tournaments on that fitness, and the pairs: the i-th winner of each half, both children kept.
+            row = {p["id"]: i for i, p in enumerate(pop)}
+            draws = np.array([[row[t["a"]], row[t["b"]]] for t in gen["tournaments"]])
+            winners = tournament_winners(fitness, draws).tolist()
+            assert [t["row"] for t in gen["tournaments"]] == winners
+            assert gen["pairs"] == [[pop[winners[i]]["id"], pop[winners[3 + i]]["id"]] for i in range(3)]
+            assert [child["parents"] for child in gen["children"]] == gen["pairs"] * 2
+            assert gen["evaluations"] == 12 + 6 * k
+            # The union Q: its violation, density, fitness of both stages, stage and selections are VAMOS's.
+            Q = gen["Q"]
+            assert [q["id"] for q in Q] == [p["id"] for p in pop] + [c["id"] for c in gen["children"]]
+            F, cv = np.array([q["f"] for q in Q]), np.array([[q["cv"]] for q in Q])
+            violation = normalized_violation(cv, 12)
+            np.testing.assert_allclose(gen["cvn"], violation, rtol=1e-12)
+            np.testing.assert_allclose(gen["sde"], shift_based_density(F), rtol=1e-12)
+            stage_a, stage_b = stage_a_fitness(F, violation), stage_b_fitness(F, violation)
+            np.testing.assert_allclose(gen["A"]["fitness"], stage_a, rtol=1e-12)
+            np.testing.assert_allclose(gen["B"]["fitness"], stage_b, rtol=1e-12)
+            assert gen["stageB"] == is_stage_b(violation, 0.5, gen["evaluations"], 150)
+            assert gen["A"]["kept"] == environmental_selection(stage_a, F, 6).tolist()
+            assert gen["B"]["kept"] == environmental_selection(stage_b, F, 6).tolist()
+            assert gen["kept"] == (gen["B"] if gen["stageB"] else gen["A"])["kept"]
+            fitness = (stage_b if gen["stageB"] else stage_a)[gen["kept"]]
+            if k + 1 < len(run["generations"]):
+                assert [p["id"] for p in run["generations"][k + 1]["pop"]] == [Q[i]["id"] for i in gen["kept"]]
+
+    # The numbers that the lesson quotes for its example.
+    g1, g2 = runs[0]["generations"]
+    ids1, ids2 = [q["id"] for q in g1["Q"]], [q["id"] for q in g2["Q"]]
+    assert sum(q["cv"] == 0 for q in g1["Q"]) == 6 and g1["share"] == 0.5 and g1["evaluations"] == 12 and not g1["stageB"]
+    assert [ids1[i] for i, f in enumerate(g1["A"]["fitness"]) if f < 1] == [2, 3, 6]
+    assert int(np.argmin(g1["sde"])) == ids1.index(2) and round(g1["sde"][ids1.index(2)], 3) == 0.407
+    assert g1["cvn"][ids1.index(2)] == 1.0
+    assert [ids1[i] for i in g1["kept"]] == [2, 3, 6, 8, 9, 12] and sum(g1["Q"][i]["cv"] > 0 for i in g1["kept"]) == 3
+    assert all(g1["Q"][i]["cv"] == 0 for i in g1["B"]["kept"])
+    assert sum(q["cv"] == 0 for q in g2["Q"]) == 7 and g2["evaluations"] == 18 and g2["stageB"]
+    below = [ids2[i] for i, f in enumerate(g2["B"]["fitness"]) if f < 1]
+    assert len(below) == 7 and all(g2["Q"][ids2.index(i)]["cv"] == 0 for i in below)
+    assert sorted(set(below) - {ids2[i] for i in g2["kept"]}) == [6]
+    assert all(g2["Q"][i]["cv"] == 0 for i in g2["kept"])

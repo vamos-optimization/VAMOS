@@ -58,6 +58,28 @@ pushes the population towards the Pareto front, and **crowding distance**
 spreads it along the front. Rank always comes first; crowding only breaks ties
 between solutions of the same front.
 
+### Try it: one generation step by step
+
+Step through one generation on six solutions of a problem with two variables
+whose Pareto front is ZDT1's, f₂ = 1 − √f₁. The left panel shows the decision
+vectors and the right one the objective vectors; parents are circles, children
+triangles, and darker points lie on better fronts. The operators are VAMOS'
+default real-coded ones, as in the figure of the next section.
+
+<div class="vf-widget" data-vf-widget="nsga2-steps"><p class="vf-fallback">Interactive figure: one NSGA-II generation in eight steps on six solutions: the population with its fronts and crowding distances, the binary tournaments, SBX crossover and polynomial mutation, the merge of parents and children, non-dominated sorting, the whole fronts that fit, the crowding distances inside the front that does not fit, and the survivors. It needs JavaScript.</p></div>
+
+Things to try:
+
+1. Step 2: in the tournament 1 vs 4, both are on front 1 and 1 wins because it
+   is an extreme of its front (crowding distance ∞ against 2.00). In 2 vs 5
+   both are extremes of front 2: a full tie, decided by a coin.
+2. Steps 6 and 7: front 1 = {1, 9} fits, and front 2 has six members for the
+   four remaining places. Its extremes, 3 and 5, keep their places with ∞, and
+   the two most isolated inner members, 4 (1.05) and 11 (0.92), take the other
+   two; 8 (0.81) and 2 (0.55) are removed.
+3. Step 8: children 9 and 11 enter the population and parents 2 and 6 leave.
+   Press **New population** for another generation.
+
 ## Watch it converge
 
 The figure runs NSGA-II with VAMOS' default real-coded settings on ZDT1, ZDT2

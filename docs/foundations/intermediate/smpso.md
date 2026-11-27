@@ -153,6 +153,38 @@ swarm, update the personal bests, and insert the new positions into the
 leaders archive. The swarm starts at random positions with zero velocity, and
 each personal best starts at its particle's initial position.
 
+### Try it: one iteration step by step
+
+Step through one iteration on six particles of a problem with two variables
+whose Pareto front is ZDT1's, f₂ = 1 − √f₁. The left panel shows the
+positions, velocities, personal bests and leaders, and the right one their
+objective vectors. The settings are VAMOS' defaults, with a swarm and a leaders
+archive of six. The figure starts after one iteration from random positions,
+so that the particles already have velocities and some personal bests differ
+from their positions.
+
+<div class="vf-widget" data-vf-widget="smpso-steps"><p class="vf-fallback">Interactive figure: one SMPSO iteration in nine steps on six particles: the swarm and the leaders archive with its crowding distances, the leader tournaments, the inertia, cognitive and social terms of the velocity update, the constriction coefficient and the speed limit, the move and the bounds, the turbulence, the evaluation, the personal bests and the insertion of the new positions into the leaders archive. It needs JavaScript.</p></div>
+
+Things to try:
+
+1. Step 2: particle 1 draws F and G, the two extremes of the archive, both
+   with crowding distance ∞: a full tie, decided by a coin. Particle 4 draws D
+   and F, and F wins with ∞ against 1.00.
+2. Steps 3 to 5: only particle 4 has a personal best away from its position,
+   so only it is pulled towards p, by (−0.08, −0.87). Its φ = 4.53 gives
+   χ = −0.49, which turns the sum (−0.06, −0.95) into the step (0.03, 0.47),
+   away from both guides. The step crosses x₂ = 1, so particle 4 stops on that
+   bound and v₂ becomes −0.47.
+3. Step 4: particle 1 has φ = 3.87, so χ = 1, and the speed limit cuts its
+   sum (0.51, −1.63) to (0.50, −0.50).
+4. Step 8: particles 4 and 6 keep their personal bests, which dominate their
+   new positions; 1, 2, 3 and 5 move to incomparable positions, which replace
+   their personal bests.
+5. Step 9: particle 2 enters the archive as H and leaves at once, the most
+   crowded of seven leaders (0.43); 3 enters as I and pushes out B (0.57); 5
+   enters as J and removes G and I, which it dominates. Press **New
+   population** for another swarm.
+
 ## In VAMOS
 
 `SMPSOConfig.default(...)` gives the default configuration:

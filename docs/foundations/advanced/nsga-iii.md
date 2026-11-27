@@ -184,6 +184,33 @@ compete. With N = 6 a single place is disputed by two empty directions.
 
 <div class="vf-widget" data-vf-widget="nsga3-niching"><p class="vf-fallback">Interactive figure: NSGA-III niching in a normalized two-objective space, with six reference directions, the solutions already selected, the last-front candidates, their perpendicular distances and niche counts, stepped until the population is full. It needs JavaScript.</p></div>
 
+### Try it: one generation step by step
+
+The niche loop above starts from a population that is already sorted and
+normalized. This figure runs a whole generation, the first of a run, on six
+solutions of a problem with two variables whose Pareto front is ZDT1's,
+f₂ = 1 − √f₁, with H = 6 directions (p = 5) and N = 6. It uses VAMOS's
+defaults for NSGA-III: random parents, SBX with probability 0.9 and η_c = 30,
+and polynomial mutation with probability 1/n and η_m = 20. Darker points lie
+on better fronts. Steps 8 to 10 show the normalized objectives, where the
+directions w1 = (0, 1) to w6 = (1, 0) are rays from the origin.
+
+<div class="vf-widget" data-vf-widget="nsga3-steps"><p class="vf-fallback">Interactive figure: one NSGA-III generation in eleven steps on six solutions: random mating, SBX crossover and polynomial mutation, the merge, non-dominated sorting, the whole fronts and the last front, the normalization by the ideal point and the intercepts, the association with six reference directions, the niche counts, the niching of the last front, and the survivors. It needs JavaScript.</p></div>
+
+Things to try:
+
+1. Step 2: the pairs are (4, 6), (3, 5) and (5, 2). Solution 5 is drawn twice
+   and 1 is not drawn; fronts play no part.
+2. Steps 6 and 7: front 1 = {3, 6, 9} fills three places, and front 2 has six
+   members for the other three. The extreme points are 6 and 3, and the line
+   through them cuts the axes from z\* at a₁ = 0.80 and a₂ = 0.66, so the nadir
+   estimate is (0.84, 0.82).
+3. Step 10: round 1 serves the empty directions w4 and w5 with their closest
+   candidates, 8 (d⊥ = 0.051, ahead of 2 at 0.116) and 12. In round 2, w1, w2
+   and w4 tie with one survivor each; the random order gives the last place to
+   w4, which takes 2 at random. Solution 5, almost on w2 (d⊥ = 0.040), is left
+   out. Press **New population** for another generation.
+
 ## Mating selection and constraints
 
 **Parents.** Deb and Jain choose parents at random, since niching already

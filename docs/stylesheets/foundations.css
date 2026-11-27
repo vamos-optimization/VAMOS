@@ -133,6 +133,12 @@
 .vf-pt-3 { fill: var(--vf-s3); }
 .vf-pt-muted { fill: var(--vf-muted); }
 .vf-pt-hollow { fill: var(--vf-panel); stroke: var(--vf-ink-2); stroke-width: 1.5; }
+/* An infeasible solution in the constrained step-throughs: hollow, outlined in its series colour. */
+.vf-pt.vf-pt-open { fill: var(--vf-panel); stroke-width: 2.2; }
+.vf-pt-open.vf-pt-1 { stroke: var(--vf-s1); }
+.vf-pt-open.vf-pt-2 { stroke: var(--vf-s2); }
+.vf-pt-open.vf-pt-ink { stroke: var(--vf-ink); }
+.vf-pt-open.vf-pt-muted { stroke: var(--vf-muted); }
 .vf-pt-ink { fill: var(--vf-ink); }
 .vf-pt-thin { fill: var(--vf-ink-2); opacity: 0.7; }
 .vf-cloud { fill: var(--vf-muted); opacity: 0.55; }
@@ -143,6 +149,13 @@
 .vf-r4 { fill: var(--vf-r4); }
 .vf-faded { opacity: 0.22; }
 .vf-ring { fill: none; stroke: var(--vf-s2); stroke-width: 2.5; }
+.vf-front-link { fill: none; stroke-width: 1.5; opacity: 0.85; }
+.vf-front-link.vf-r0 { fill: none; stroke: var(--vf-r0); }
+.vf-front-link.vf-r1 { fill: none; stroke: var(--vf-r1); }
+.vf-front-link.vf-r2 { fill: none; stroke: var(--vf-r2); }
+.vf-front-link.vf-r3 { fill: none; stroke: var(--vf-r3); }
+.vf-front-link.vf-r4 { fill: none; stroke: var(--vf-r4); }
+.vf-cuboid { fill: var(--vf-s2); fill-opacity: 0.1; stroke: var(--vf-s2); stroke-width: 1; stroke-dasharray: 3 3; }
 .vf-bar-1 { fill: var(--vf-s1); }
 .vf-bar-2 { fill: var(--vf-s2); }
 
@@ -287,8 +300,9 @@
   overflow-x: auto;
 }
 
-.md-typeset .vf-readout td.vf-num,
-.md-typeset .vf-readout th.vf-num {
+/* The wrapper raises the specificity above Material's td:not([align]) rule for tables without a class. */
+.md-typeset .vf-readout .vf-table-wrap td.vf-num,
+.md-typeset .vf-readout .vf-table-wrap th.vf-num {
   text-align: right;
   font-family: var(--md-code-font-family), monospace;
 }
