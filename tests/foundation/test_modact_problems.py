@@ -7,6 +7,7 @@ evaluate the real problems skip without it. The others replace it with a stub, o
 from __future__ import annotations
 
 import json
+import pickle
 import sys
 import types
 import zlib
@@ -21,6 +22,7 @@ import vamos
 from vamos.experiment.artifacts.errors import EnvironmentIncompatibilityError
 from vamos.experiment.artifacts.jsonio import manifest_self_hash, sha256_file, stored_json_bytes
 from vamos.foundation.constraints.utils import is_feasible
+from vamos.foundation.eval.backends import MultiprocessingEvalBackend
 from vamos.foundation.eval.population import evaluate_population_with_constraints
 from vamos.foundation.problem.modact import CONSTRAINT_LEVELS, INSTALL_COMMAND, MODACT, MODActProblem
 from vamos.foundation.problem.registry import get_problem_specs, make_problem_selection
@@ -158,6 +160,24 @@ def test_objectives_and_constraints_take_vamos_signs(monkeypatch: pytest.MonkeyP
     np.testing.assert_array_equal(problem.constraint_signs, c_weights)
     np.testing.assert_array_equal(problem.xl, -np.ones(20))
     np.testing.assert_array_equal(problem.xu, np.ones(20))
+
+
+def test_a_problem_pickles_for_worker_processes(monkeypatch: pytest.MonkeyPatch) -> None:
+    # MultiprocessingEvalBackend pickles the problem for its workers; the copy evaluates with its own modact problem.
+    _install_stub(monkeypatch, {"cs1": _StubProblem(20, (-1, 1), (-1,) * 7)})
+    problem = MODActProblem("cs1")
+    X = np.random.default_rng(1).uniform(-1.0, 1.0, (5, 20))
+
+    clone = pickle.loads(pickle.dumps(problem))
+
+    expected: dict[str, Array] = {}
+    out: dict[str, Array] = {}
+    problem.evaluate(X, expected)
+    clone.evaluate(X, out)
+    assert clone.geometry == problem.geometry == "modact"
+    np.testing.assert_array_equal(out["F"], expected["F"])
+    np.testing.assert_array_equal(out["G"], expected["G"])
+    assert problem._problem.calls == clone._problem.calls == len(X)
 
 
 def test_a_population_is_checked_at_the_problem_boundary(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -448,3 +468,15 @@ def test_a_modact_run_is_stored_with_the_package_version_and_replays_exactly(tmp
     assert environment["packages"]["modact"] == metadata.version("modact")
     assert vamos.verify_run(source.root).effective_replayability == "exact"
     assert vamos.reproduce(source.root, output=tmp_path / "replay").exact is True
+
+
+def test_a_run_with_worker_processes_is_the_serial_run() -> None:
+    _modact_problems()
+    options: dict[str, Any] = {"algorithm": "nsgaii", "pop_size": 8, "max_evaluations": 16, "engine": "numpy", "seed": 5}
+    serial = vamos.optimize("modact_cs2", **options)
+    with MultiprocessingEvalBackend(n_workers=2) as backend:
+        parallel = vamos.optimize("modact_cs2", eval_strategy=backend, **options)
+
+    assert serial.X is not None and parallel.X is not None
+    np.testing.assert_array_equal(parallel.X.view(np.uint64), serial.X.view(np.uint64))
+    np.testing.assert_array_equal(parallel.F.view(np.uint64), serial.F.view(np.uint64))

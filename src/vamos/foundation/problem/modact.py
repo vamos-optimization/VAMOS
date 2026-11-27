@@ -125,7 +125,8 @@ class MODActProblem(Problem):
     ``geometry`` chooses how modact's actuator geometry is computed (see :data:`GEOMETRIES`); both ways give the
     same bits, and ``geometry`` holds the one in use, ``"fast"`` or ``"modact"``. ``"fast"`` raises
     ``ImportError`` when the installed modact or trimesh is not the version that :mod:`.modact_geometry`
-    reproduces.
+    reproduces. A problem pickles with either geometry, for worker processes; a ``"fast"`` copy checks those
+    versions again in the process that unpickles it.
     """
 
     def __init__(self, name: str, *, geometry: str = "auto") -> None:
@@ -157,7 +158,8 @@ class MODActProblem(Problem):
         self.constraint_signs = constraint_signs
         self.modact_version = _installed_version()
         self._problem = problem
-        self._evaluate_design: Callable[[Array], tuple[Any, Any]] = _modact_evaluation(problem)
+        # Both evaluators pickle with the problem, which MultiprocessingEvalBackend sends to its workers.
+        self._evaluate_design: Callable[[Array], tuple[Any, Any]] = _ModactEvaluation(problem)
         self.geometry = "modact"
         if geometry != "modact":
             fast = _fast_evaluation(problem, required=geometry == "fast")
@@ -180,11 +182,14 @@ class MODActProblem(Problem):
         out["G"] = G * self.constraint_signs
 
 
-def _modact_evaluation(problem: Any) -> Callable[[Array], tuple[Any, Any]]:
-    def evaluate(x: Array) -> tuple[Any, Any]:
-        return problem(x.copy())  # type: ignore[no-any-return]
+class _ModactEvaluation:
+    """modact's own evaluation of a design, with trimesh's objects; a class, not a closure, so that it pickles."""
 
-    return evaluate
+    def __init__(self, problem: Callable[[Array], tuple[Any, Any]]) -> None:
+        self._problem = problem
+
+    def __call__(self, x: Array) -> tuple[Any, Any]:
+        return self._problem(x.copy())
 
 
 def _fast_evaluation(problem: Any, *, required: bool) -> Callable[[Array], tuple[Any, Any]] | None:

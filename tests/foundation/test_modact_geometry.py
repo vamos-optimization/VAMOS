@@ -6,13 +6,16 @@ Development after 1.5.2. ``MODActProblem(name, geometry="fast")`` evaluates a de
 NumPy 2.5.5 on Windows, their ``F`` and ``G`` were bit-identical on the 134 478 final designs of a pilot campaign on
 CS1-CTS4, on one perturbation of each by a relative step of 1e-9 to 1e-3, on 20 000 random designs per problem, at
 202 contacts between parts located by bisection, and on 3000 designs per CTSE and CTSEI problem. These tests compare
-them on a fixed sample, and compare each stand-in with the trimesh object it replaces. They need the modact extra,
-which CI does not install.
+them on a fixed sample, compare each stand-in with the trimesh object it replaces, and check that a problem pickles
+for worker processes on both paths and that the support check waits for a design under evaluation. They need the
+modact extra, which CI does not install.
 """
 
 from __future__ import annotations
 
+import copy
 import os
+import pickle
 import tempfile
 import threading
 import zlib
@@ -22,17 +25,30 @@ from typing import Any
 import numpy as np
 import pytest
 
+from vamos.foundation.eval.backends import MultiprocessingEvalBackend
+from vamos.foundation.eval.population import evaluate_population_with_constraints
 from vamos.foundation.problem import modact_geometry
 from vamos.foundation.problem.modact import GEOMETRIES, MODACT, MODActProblem
 
 Array = np.ndarray[Any, Any]
 
 
-def _require_supported_modact() -> None:
+def _require_modact() -> None:
     pytest.importorskip("modact.problems", reason="the modact extra is not installed", exc_type=ImportError)
+
+
+def _require_supported_modact() -> None:
+    _require_modact()
     reason = modact_geometry.unsupported_reason()
     if reason is not None:
         pytest.skip(f"the stand-ins do not apply: {reason}")
+
+
+def _require_geometry(geometry: str) -> None:
+    if geometry == "fast":
+        _require_supported_modact()
+    else:
+        _require_modact()
 
 
 def _bits(values: Array) -> Array:
@@ -212,8 +228,87 @@ def test_the_geometry_option_is_checked() -> None:
         MODActProblem("cs1", geometry="trimesh")
 
 
+def test_a_support_check_waits_for_the_design_another_thread_evaluates() -> None:
+    _require_supported_modact()
+    # While a thread evaluates a design, modact's names are VAMOS's stand-ins. A check or a problem created
+    # meanwhile on another thread waits for that design instead of taking them for another installation.
+    evaluating, finish = threading.Event(), threading.Event()
+    found: dict[str, Any] = {}
+
+    def evaluate() -> None:
+        with modact_geometry._stand_ins(modact_geometry._load()):
+            evaluating.set()
+            finish.wait(timeout=60.0)
+
+    def check() -> None:
+        found["reason"] = modact_geometry.unsupported_reason()
+        found["geometries"] = [MODActProblem("cs1", geometry=geometry).geometry for geometry in ("auto", "fast")]
+
+    evaluator, checker = threading.Thread(target=evaluate), threading.Thread(target=check)
+    evaluator.start()
+    try:
+        assert evaluating.wait(timeout=60.0)
+        checker.start()
+        checker.join(timeout=0.5)
+        waited = checker.is_alive()
+    finally:
+        finish.set()
+        evaluator.join()
+        if checker.ident is not None:
+            checker.join()
+
+    assert waited
+    assert found == {"reason": None, "geometries": ["fast", "fast"]}
+
+
+@pytest.mark.parametrize("geometry", ["fast", "modact"])
+def test_a_problem_pickles_and_its_copy_gives_the_same_bits(geometry: str) -> None:
+    _require_geometry(geometry)
+    problem = MODActProblem("cs2", geometry=geometry)
+    X = _sample(problem, 2)
+    expected: dict[str, Array] = {}
+    problem.evaluate(X, expected)
+
+    for clone in (pickle.loads(pickle.dumps(problem)), copy.deepcopy(problem)):
+        assert clone.geometry == geometry
+        assert type(clone._evaluate_design) is type(problem._evaluate_design)
+        assert clone._evaluate_design is not problem._evaluate_design
+        out: dict[str, Array] = {}
+        clone.evaluate(X, out)
+        for key in ("F", "G"):
+            assert np.array_equal(_bits(out[key]), _bits(expected[key])), key
+        evaluator = clone._evaluate_design
+        if geometry == "fast":
+            # modact's modules are not pickled: the copy takes those of the process that unpickles it.
+            assert isinstance(evaluator, modact_geometry.ExactGeometry)
+            assert evaluator._modules is modact_geometry._load() and evaluator.fallbacks == 0
+
+
+@pytest.mark.parametrize("geometry", ["fast", "modact"])
+def test_worker_processes_give_the_in_process_bits(geometry: str) -> None:
+    _require_geometry(geometry)
+    # MultiprocessingEvalBackend pickles the problem for each chunk: two workers evaluate three designs each.
+    problem = MODActProblem("ct3", geometry=geometry)
+    X = _sample(problem, 3)
+    F, G = evaluate_population_with_constraints(problem, X)
+
+    with MultiprocessingEvalBackend(n_workers=2) as backend:
+        result = backend.evaluate(X, problem)
+
+    assert G is not None and result.G is not None
+    assert np.array_equal(_bits(result.F), _bits(F)) and np.array_equal(_bits(result.G), _bits(G))
+
+
+def test_a_copy_checks_the_installation_of_the_process_that_unpickles_it(monkeypatch: pytest.MonkeyPatch) -> None:
+    _require_supported_modact()
+    data = pickle.dumps(MODActProblem("cs1", geometry="fast"))
+    monkeypatch.setitem(modact_geometry.REPRODUCED_VERSIONS, "trimesh", "0.0")
+    with pytest.raises(ImportError, match="trimesh 0.0"):
+        pickle.loads(data)
+
+
 def test_other_versions_use_modacts_geometry(monkeypatch: pytest.MonkeyPatch) -> None:
-    pytest.importorskip("modact.problems", reason="the modact extra is not installed", exc_type=ImportError)
+    _require_modact()
     monkeypatch.setitem(modact_geometry.REPRODUCED_VERSIONS, "trimesh", "0.0")
 
     assert MODActProblem("cs1").geometry == "modact"

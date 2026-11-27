@@ -63,7 +63,11 @@ class GeometryFallback(Exception):
 
 
 def unsupported_reason() -> str | None:
-    """Why the stand-ins cannot evaluate the installed modact, or ``None`` when they can."""
+    """Why the stand-ins cannot evaluate the installed modact, or ``None`` when they can.
+
+    While another thread evaluates a design, modact's names are this module's stand-ins: the check waits for
+    that design under the same lock, so VAMOS's own temporary names are never taken for another installation.
+    """
     for distribution, version in REPRODUCED_VERSIONS.items():
         try:
             installed = metadata.version(distribution)
@@ -76,7 +80,9 @@ def unsupported_reason() -> str | None:
     except ImportError as exc:
         return f"modact's geometry modules cannot be imported ({exc})"
     expected = (modules.trimesh_cylinder, modules.trimesh_cylinder, modules.merge_meshes)
-    if _patched_names(modules) != expected:
+    with _lock():
+        names = _patched_names(modules)
+    if names != expected:
         return "modact's Cylinder or merge_meshes is not trimesh's and modact's own"
     return None
 
@@ -470,18 +476,38 @@ class ExactGeometry:
     """Evaluates a modact problem, ``modact.problems.get_problem(name)``, with the stand-ins of this module.
 
     Calling it with a design returns modact's ``(objectives, constraints)``. ``fallbacks`` counts the designs
-    that modact evaluated with trimesh's objects instead (see :class:`GeometryFallback`).
+    that modact evaluated with trimesh's objects instead (see :class:`GeometryFallback`); a copy, such as one
+    unpickled in a worker process, counts its designs in its own ``fallbacks``.
+
+    It pickles with its problem, for worker processes, but not with modact's modules, which belong to a process:
+    the copy takes those of the process that unpickles it, after the constructor's checks, and raises
+    ``ImportError`` there as the constructor would.
     """
 
+    _modules: _Modules
+    _problem: Callable[[Array], tuple[Any, Any]]
+    fallbacks: int
+
     def __init__(self, problem: Any) -> None:
+        self._bind(problem)
+        self.fallbacks = 0
+
+    def _bind(self, problem: Any) -> None:
         reason = unsupported_reason()
         if reason is not None:
             raise ImportError(f"VAMOS's MODAct geometry is unavailable: {reason}.")
-        self._modules = _load()
-        if type(problem) is not self._modules.problems.Problem:
+        modules = _load()
+        if type(problem) is not modules.problems.Problem:
             raise TypeError(f"Expected a modact.problems.Problem; got {type(problem).__name__}.")
-        self._problem: Callable[[Array], tuple[Any, Any]] = problem
-        self.fallbacks = 0
+        self._modules = modules
+        self._problem = problem
+
+    def __getstate__(self) -> dict[str, Any]:
+        return {"problem": self._problem, "fallbacks": self.fallbacks}
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        self._bind(state["problem"])
+        self.fallbacks = int(state["fallbacks"])
 
     def __call__(self, x: Array) -> tuple[Any, Any]:
         try:
