@@ -37,7 +37,7 @@ from vamos.foundation.problem.types import ProblemProtocol
 from .archives import convergence_archive_update, diversity_archive_update
 from .mating import ctaea_tournament, mating_proportions
 from .state import CTAEAState, build_ctaea_result
-from .weights import ctaea_weight_vectors
+from .weights import configured_weight_vectors, has_weight_vector_source
 
 
 def build_ctaea_variation(
@@ -90,7 +90,11 @@ class CTAEA:
 
     The weight vectors come from the requested population size ``pop_size`` (see
     :func:`~vamos.engine.algorithm.ctaea.weights.ctaea_weight_vectors`); their number N, for
-    instance 91 for 100 and three objectives, is the size of both archives. The convergence
+    instance 91 for 100 and three objectives, is the size of both archives. **Development after
+    1.5.2:** with the ``weight_vectors`` option, a file, a directory with jMetal's
+    ``W{n_obj}D_{pop_size}.dat`` or a lattice, they are those vectors instead, exactly
+    ``pop_size`` of them, so N is ``pop_size`` (100 with ``W3D_100.dat`` and three objectives; see
+    :func:`~vamos.engine.algorithm.ctaea.weights.configured_weight_vectors`). The convergence
     archive (CA) is driven by feasibility and convergence, and the diversity archive (DA), which
     ignores the constraints, keeps solutions in the subregions where the CA has few (see
     :mod:`vamos.engine.algorithm.ctaea.archives`). The N random solutions of the initial
@@ -180,16 +184,21 @@ class CTAEA:
         n_obj = int(problem.n_obj)
         if n_obj < 2:
             raise ValueError(f"C-TAEA needs at least two objectives, got {n_obj}.")
-        weights = ctaea_weight_vectors(requested, n_obj)
+        source = self.cfg.get("weight_vectors")
+        weights = configured_weight_vectors(requested, n_obj, source)
         size = int(weights.shape[0])
         constraint_mode = normalize_constraint_mode(self.cfg.get("constraint_mode", "feasibility"))
         n_constraints = int(getattr(problem, "n_constraints", 0) or 0)
         max_evals, hv_config = parse_termination(termination, "C-TAEA", size)
         if max_evals < size:
+            origin = (
+                f"the number of its weight_vectors for pop_size={requested}"
+                if has_weight_vector_source(source)
+                else f"the number of weight vectors that pop_size={requested} gives for {n_obj} objectives"
+            )
             raise ValueError(
-                f"C-TAEA requires max_evaluations >= {size}, the number of weight vectors that pop_size={requested} gives for "
-                f"{n_obj} objectives, because its initial population consumes one evaluation per weight vector "
-                f"(max_evaluations={max_evals})."
+                f"C-TAEA requires max_evaluations >= {size}, {origin}, because its initial population consumes one evaluation "
+                f"per weight vector (max_evaluations={max_evals})."
             )
         result_mode = str(self.cfg.get("result_mode", "non_dominated") or "non_dominated").strip().lower()
         if result_mode not in {"non_dominated", "population"}:

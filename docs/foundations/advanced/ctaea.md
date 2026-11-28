@@ -68,7 +68,10 @@ the lattice with the most divisions that gives at most that many, with an inner
 layer when it has fewer divisions than objectives, and every component raised
 to at least 10⁻⁶ so that g never divides by zero. Their number is the size of
 both archives and of each generation: 100 requested vectors give 100 for two
-objectives and 91 for three.
+objectives and 91 for three. Development after 1.5.2: the `weight_vectors`
+option gives the vectors instead, from a file such as jMetal's `W3D_100.dat`
+or a lattice, one per individual, with the same floor (see
+[C-TAEA](../../algorithms/ctaea.md#weight-vectors-from-a-file-or-a-lattice)).
 
 ## The convergence archive
 
@@ -287,8 +290,8 @@ Limits:
 
 - **Weight vectors fix the archive size and assume a front that they cover
   well.** The number of solutions follows the lattice (91 for 100 requested
-  with three objectives), and, as for MOEA/D, a front whose shape does not match
-  the vectors leaves subregions empty.
+  with three objectives, unless `weight_vectors` gives 100), and, as for MOEA/D,
+  a front whose shape does not match the vectors leaves subregions empty.
 - **The CA can hold dominated solutions,** as the example shows; the result
   needs the non-dominated filter that `result.F` applies.
 - **Cost.** The updates work subregion by subregion and solution by solution;

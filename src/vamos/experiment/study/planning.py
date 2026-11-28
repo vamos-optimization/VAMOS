@@ -17,6 +17,7 @@ from vamos.engine.algorithm.catalog import (
 )
 from vamos.engine.algorithm.components.weight_vectors import bind_vector_file
 from vamos.engine.algorithm.config.base import ReferenceDirectionPopulationError
+from vamos.engine.algorithm.config.ctaea import ctaea_weight_source
 from vamos.experiment.artifacts.models import deep_freeze, deep_thaw
 from vamos.experiment.artifacts.resolved_reconstruction import is_reconstructable_evaluation_backend
 from vamos.experiment.artifacts.specs import RunSpecInputs, build_run_specs, is_registry_problem
@@ -224,7 +225,10 @@ def _resolved_algorithm_config(
         )
     config.update(overrides)
     pop_size = config.get("pop_size")
-    if algorithm.lower() in {"moead", "pps"} and n_obj > 2 and isinstance(pop_size, int):
+    # C-TAEA (development after 1.5.2) reads its weight file with any number of objectives, MOEA/D and PPS with three or
+    # more. A configuration without weight_vectors (C-TAEA's default leaves the field out) keeps its task id.
+    reads_weight_file = (algorithm.lower() in {"moead", "pps"} and n_obj > 2) or algorithm.lower() == "ctaea"
+    if reads_weight_file and isinstance(pop_size, int) and config.get("weight_vectors") is not None:
         # VAMOS 1.5.0: a weight file that exists is bound to its digest, which the run checks (PPS: development after 1.5.2).
         config["weight_vectors"] = bind_vector_file(config.get("weight_vectors"), n_obj, pop_size)
     return config
@@ -253,6 +257,15 @@ def _algorithm_overrides(spec: StudySpec, requested: str, resolved: str) -> dict
     thawed = deep_thaw(raw)
     if not isinstance(thawed, dict):
         raise AssertionError("algorithm override is not an object")
+    if resolved.lower() == "ctaea" and "weight_vectors" in thawed:
+        # Development after 1.5.2: C-TAEA's weight_vectors as CTAEAConfig holds them, since execution rebuilds the task's
+        # configuration with it. A path becomes a mapping, which _resolved_algorithm_config binds to its file and digest, and
+        # a source that names no vectors (None, {}) is the field left out, so the task is the one without it.
+        source = ctaea_weight_source(thawed["weight_vectors"])
+        if source is None:
+            del thawed["weight_vectors"]
+        else:
+            thawed["weight_vectors"] = source
     return thawed
 
 
@@ -275,7 +288,7 @@ def _validate_execution_shape(
             action="Correct the population configuration; no study directory was published.",
         )
     _reject_below_minimum(algorithm, candidate, pop_size=population, selection=config.get("selection"))
-    initial = initial_evaluations(algorithm, population, n_obj=n_obj)
+    initial = initial_evaluations(algorithm, population, n_obj=n_obj, weight_vectors=config.get("weight_vectors"))
     if budget < initial:
         if algorithm.lower() in WEIGHT_VECTOR_POPULATIONS:
             expected = (

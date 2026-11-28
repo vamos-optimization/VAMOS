@@ -1,5 +1,5 @@
 ---
-description: 'C-TAEA: a convergence archive and a diversity archive for constrained multi-objective problems, its weight vectors, its exact budget rule and its agreement with jMetal''s port and the published results.'
+description: 'C-TAEA: a convergence archive and a diversity archive for constrained multi-objective problems, its weight vectors (generated, or from a file such as jMetal''s W3D_100.dat), its exact budget rule and its agreement with jMetal''s port and the published results.'
 ---
 
 # C-TAEA
@@ -43,7 +43,7 @@ print(int(np.sum(np.any(diversity["G"] > 0, axis=1))))  # 87
 
 ## How it works
 
-**Weight vectors.** `pop_size` is the requested number of weight vectors N. They are the Das–Dennis lattice with the most divisions (at least one) that gives at most N vectors; when it has fewer divisions than objectives, an inner layer, shrunk halfway towards the centre of the simplex, adds the lattice with the most divisions that keeps the total at most N, and every component is raised to at least `1e-6`. Their number, which may be smaller than N (91 for 100 and three objectives, 100 for 100 and two), is the size of both archives and of each generation; with fewer requested vectors than objectives, it is the number of objectives. Each weight vector defines a subregion, and a solution belongs to the one whose vector has the largest cosine similarity with its objectives.
+**Weight vectors.** `pop_size` is the requested number of weight vectors N. They are the Das–Dennis lattice with the most divisions (at least one) that gives at most N vectors; when it has fewer divisions than objectives, an inner layer, shrunk halfway towards the centre of the simplex, adds the lattice with the most divisions that keeps the total at most N, and every component is raised to at least `1e-6`. Their number, which may be smaller than N (91 for 100 and three objectives, 100 for 100 and two), is the size of both archives and of each generation; with fewer requested vectors than objectives, it is the number of objectives. Each weight vector defines a subregion, and a solution belongs to the one whose vector has the largest cosine similarity with its objectives. The `weight_vectors` option gives the vectors instead, one per individual (see [weight vectors from a file or a lattice](#weight-vectors-from-a-file-or-a-lattice)).
 
 **Convergence archive.** The candidates are the CA and the offspring:
 
@@ -63,9 +63,46 @@ from vamos.algorithms import CTAEAConfig
 config = CTAEAConfig.builder().pop_size(100).crossover("sbx", prob=1.0, eta=20.0).mutation("pm", prob="1/n", eta=20.0).build()
 ```
 
+## Weight vectors from a file or a lattice
+
+**Development after 1.5.2.** The generated vectors make C-TAEA's population smaller than `pop_size` for most sizes with three or more objectives (91 for 100 and three objectives), so a comparison in which every algorithm runs the same population cannot give C-TAEA 100 individuals. `weight_vectors` gives the vectors instead, with the keys of MOEA/D's, NSGA-III's and RVEA's [vector options](../reference/algorithms.md#reference-and-weight-vectors): `path`, a file with one vector per line or a directory with jMetal's `W{n_obj}D_{pop_size}.dat` files, such as the ones VAMOS ships; `divisions`, the complete Das–Dennis lattice; or `divisions` and `inner_divisions`, the two-layer lattice. C-TAEA then runs one individual per vector, so there must be exactly `pop_size` of them. With jMetal's `W3D_100.dat`, 100 individuals run on three objectives:
+
+```python
+from importlib import resources
+
+from vamos import make_problem_selection, optimize
+from vamos.algorithms import CTAEAConfig
+
+weights = str(resources.files("vamos.resources") / "weights")  # a directory of jMetal's W<m>D_<n>.dat files
+problem = make_problem_selection("c1dtlz1", n_var=7, n_obj=3).instantiate()
+config = (
+    CTAEAConfig.builder()
+    .pop_size(100)
+    .crossover("sbx", prob=1.0, eta=20.0)
+    .mutation("pm", prob="1/n", eta=20.0)
+    .weight_vectors(path=weights)
+    .build()
+)
+result = optimize(problem, algorithm="ctaea", algorithm_config=config, max_evaluations=100 * 5, engine="numpy", seed=42)
+resolution = result.meta["run_artifact_resolved_spec"]["algorithm"]["resolution"]
+print(result.data["evaluations"])  # 500
+print(result.data["weights"].shape)  # (100, 3)
+print(result.data["population"]["F"].shape)  # (100, 3)
+print(result.data["weights"].min())  # 1e-06
+print(resolution["weight_vectors"])  # {'source': 'file', 'file': 'W3D_100.dat', 'vectors': 100}
+```
+
+- **The floor.** As with the generated vectors, every component is raised to at least `1e-6`: jMetal's files have components equal to 0 (39 in 36 of the 100 rows of `W3D_100.dat`), with which the Tchebycheff values of the archive updates would divide by zero. `result.data["weights"]` holds the vectors as C-TAEA runs them, with the floor; the rows are otherwise used as the file has them, not renormalized.
+- **Lattices.** A lattice is computed as C-TAEA's generated vectors are, so `divisions=12` with `pop_size=91` and three objectives runs the run of `pop_size=91` without the option, bit for bit. Layers that repeat directions raise `ConfigurationError`, as for the other algorithms.
+- **Errors.** A number of vectors other than `pop_size`, a path that does not exist, a directory without `W{n_obj}D_{pop_size}.dat` and a file whose vectors no longer have the recorded `sha256` raise `ConfigurationError` when the run starts, before any evaluation.
+- **Records.** As for MOEA/D, a run binds a path to the file it read and the digest of its vectors, in `algorithm.config.weight_vectors` of its resolved specification (a directory becomes its `W{n_obj}D_{pop_size}.dat`), and records the file in `algorithm.resolution.weight_vectors`; replay refuses a file whose vectors have changed, and verification needs neither. Study planning binds the file in the same way, whether `algorithm_configs["ctaea"]["weight_vectors"]` is a mapping or a path; `None`, or a mapping with neither `path` nor `divisions`, plans the task without the option. C-TAEA reads a file with two objectives too, where MOEA/D's weights are uniform.
+- **Order and repeated rows.** The archives index the subregions by the rows of the file and assume no lattice, no layer and no order; the order only decides ties, which go to the first vector. A row that repeats an earlier one is a subregion that never receives a solution, because association gives the tie to the first: jMetal's `W8D_156.dat` and `W10D_275.dat` repeat the axes, so 148 and 265 of their subregions can be occupied, while both archives keep 156 and 275 solutions.
+
+Without `weight_vectors`, C-TAEA generates its vectors as before: the same vectors, the same results for the same seed and the same configuration (`to_dict()` leaves the field out), resolved specification and study task id.
+
 ## Budget
 
-The initial population has one solution per weight vector, so `max_evaluations` must be at least that number: 91 for `pop_size=100` and three objectives. `optimize`, study planning and the `vamos` command line compute it from `pop_size` and the problem's objectives and reject a smaller budget before the run; a budget between it and `pop_size` is accepted. Each generation then costs one evaluation per weight vector. Budgets are exact: when fewer evaluations are left than weight vectors, the last generation creates the offspring of a full generation and evaluates only the first ones, in the order of the weight vectors, and both archives are updated with them. jMetal checks the budget after each generation, so it can exceed it by up to the number of weight vectors minus one. The `n_gen` criterion counts generations of one evaluation per weight vector, the initial population included: `("n_gen", 500)` is 45,500 evaluations with 91 vectors.
+The initial population has one solution per weight vector, so `max_evaluations` must be at least that number: 91 for `pop_size=100` and three objectives, `pop_size` with `weight_vectors`. `optimize`, study planning and the `vamos` command line compute it from `pop_size` and the problem's objectives and reject a smaller budget before the run; a budget between it and `pop_size` is accepted. Each generation then costs one evaluation per weight vector. Budgets are exact: when fewer evaluations are left than weight vectors, the last generation creates the offspring of a full generation and evaluates only the first ones, in the order of the weight vectors, and both archives are updated with them. jMetal checks the budget after each generation, so it can exceed it by up to the number of weight vectors minus one. The `n_gen` criterion counts generations of one evaluation per weight vector, the initial population included: `("n_gen", 500)` is 45,500 evaluations with 91 vectors.
 
 ## Agreement with jMetal's port and the published results
 

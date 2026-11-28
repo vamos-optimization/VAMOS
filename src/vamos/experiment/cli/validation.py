@@ -81,12 +81,19 @@ def _validate_budget_covers_initial_population(parser: argparse.ArgumentParser, 
     They are those of :func:`vamos.engine.algorithm.catalog.initial_evaluations`, as ``optimize``
     checks them: ``--population-size`` for most algorithms, twice it for CCMO, and for C-TAEA the
     number of weight vectors that ``--population-size`` gives for the objectives of each problem,
-    which may be smaller than ``--population-size`` (91 for 100 and three objectives).
+    which may be smaller than ``--population-size`` (91 for 100 and three objectives), or
+    ``--population-size`` with the ``weight_vectors`` of the config's ``defaults.ctaea`` block
+    (development after 1.5.2).
     """
     algorithm = str(args.algorithm).strip().lower()
     population = int(args.population_size)
     if algorithm in WEIGHT_VECTOR_POPULATIONS:
-        needed = max(initial_evaluations(algorithm, population, n_obj=selection.n_obj) for selection in resolve_problem_selections(args))
+        block = (getattr(args, "experiment_defaults", None) or {}).get(algorithm)
+        weight_vectors = block.get("weight_vectors") if isinstance(block, dict) else None
+        needed = max(
+            initial_evaluations(algorithm, population, n_obj=selection.n_obj, weight_vectors=weight_vectors)
+            for selection in resolve_problem_selections(args)
+        )
         if args.max_evaluations < needed:
             parser.error(
                 f"--max-evaluations must be at least {needed}, the number of weight vectors of {algorithm} "

@@ -66,7 +66,8 @@ def build_ctaea_algorithm(
 ) -> tuple[CTAEA, AlgorithmConfigProtocol]:
     """C-TAEA with the paper's variation for real variables, SBX(1.0, 20) and polynomial mutation (1/n, 20), unless overridden.
 
-    ``pop_size`` is the requested number of weight vectors.
+    ``pop_size`` is the requested number of weight vectors, or with ``weight_vectors`` in the overrides
+    (development after 1.5.2) the number of vectors, whose file the configuration binds to its digest.
     """
     encoding = resolve_problem_encoding(problem)
     ctaea_overrides = ctaea_variation or {}
@@ -89,7 +90,7 @@ def build_ctaea_algorithm(
     )
     return cast(
         "tuple[CTAEA, AlgorithmConfigProtocol]",
-        finalize_algorithm(algorithm_name="ctaea", builder=builder, kernel=kernel, block=ctaea_overrides),
+        finalize_algorithm(algorithm_name="ctaea", builder=builder, kernel=kernel, block=ctaea_overrides, n_obj=problem.n_obj),
     )
 
 

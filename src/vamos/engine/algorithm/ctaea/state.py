@@ -29,7 +29,8 @@ class CTAEAState(AlgorithmState):
     ``diversity_*`` fields the diversity archive (DA), both in the order of jMetal's lists.
     ``weights`` holds one weight vector per row; their number N is the size of both archives and
     the number of offspring of a generation (``offspring_size``), while ``pop_size`` is the
-    requested population size the vectors were generated from.
+    requested population size the vectors were generated from. With the ``weight_vectors``
+    option (development after 1.5.2), the two are equal.
     """
 
     weights: np.ndarray[Any, Any] | None = field(default=None, repr=False)
@@ -46,7 +47,8 @@ def build_ctaea_result(state: CTAEAState, kernel: Any = None) -> dict[str, Any]:
     With an external archive, the result is the archive (unless ``result_mode`` is
     ``population``). ``population`` holds the whole CA, which is the result of jMetal's port,
     ``diversity_archive`` the DA and ``weights`` the weight vectors, as MOEA/D's result (a
-    stored run keeps them as its reference directions).
+    stored run keeps them as its reference directions); the vectors of a ``weight_vectors``
+    file are stored as C-TAEA runs them, with every component raised to at least ``1e-6``.
     """
     archive_contents = get_external_archive_contents(state)
     archive_G = get_external_archive_constraints(state)
